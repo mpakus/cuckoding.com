@@ -90,7 +90,7 @@ A `context_id` groups related tasks, messages, artifacts, and handoffs across se
 
 ### Task
 
-A task is the durable unit of work. It has an owner, current assignee, status, context, history, artifacts, and optional parent task. A task can be created by the user, an agent, or the system.
+A task is the durable unit of work. It has an owner, current assignee, status, context, history, artifacts, an optional parent task, and a DAG of wait-edges in `task_dependencies`. Completing a prerequisite unblocks dependents that have no remaining unfinished edges. Reusable workflows instantiate that graph.
 
 AgentDesk task states:
 
@@ -329,7 +329,11 @@ The UI provides:
 - project policy for autonomous delegation depth, fan-out, and approval;
 - an emergency stop that terminates providers without deleting durable A2A state.
 
-## 13. Future public A2A gateway
+## 13. Team sync bundles
+
+Users can export a redacted `agentdesk.sync.v1` JSON file and import it on another machine that opened the same Git origin (or already shares `project.settings["sync_id"]`). The bundle copies tasks, wait-edges, workflow templates, and role templates. It does not copy capability tokens, leases, sessions, or worktrees. Git remains the source-code transport. This is not a public A2A gateway and does not bind a network listener.
+
+## 14. Future public A2A gateway
 
 The internal domain is designed so a later adapter can expose an A2A 1.0 Agent Card and translate public messages, tasks, status updates, and artifacts.
 
@@ -343,7 +347,7 @@ flowchart LR
 
 The gateway is post-MVP and disabled by default. It must not make the public wire model canonical, expose all local agents automatically, bind beyond loopback without explicit configuration, or translate AgentDesk lease authority into untrusted remote ownership.
 
-## 14. Definition of internal A2A readiness
+## 15. Definition of internal A2A readiness
 
 Internal A2A is ready when:
 

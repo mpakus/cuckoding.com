@@ -1,6 +1,6 @@
 defmodule AgentDesk.Resources.Manager do
   @moduledoc """
-  Transactional exact-file and named-resource leases.
+  Transactional file, directory, glob, and named-resource leases.
 
   Overlap and shared/exclusive compatibility are decided here, not by a unique
   index alone.

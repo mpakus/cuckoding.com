@@ -14,7 +14,9 @@ defmodule AgentDesk.Providers do
     "claude" => AgentDesk.Providers.Claude,
     "cursor" => AgentDesk.Providers.Cursor,
     "opencode" => AgentDesk.Providers.OpenCode,
-    "fake" => AgentDesk.Providers.Fake
+    "fake" => AgentDesk.Providers.Fake,
+    "sdk" => AgentDesk.Providers.SDK,
+    "remote" => AgentDesk.Providers.Remote
   }
 
   @spec keys() :: [String.t()]
@@ -38,8 +40,10 @@ defmodule AgentDesk.Providers do
       |> Map.put_new(:status, "queued")
       |> Map.put_new(:settings, %{"tab_open" => true})
 
-    with {:ok, session} <- Agents.create_session(scope, attrs),
+    with {:ok, session} <-
+           Agents.create_session(scope, AgentDesk.Roles.attach(scope.project, attrs)),
          {:ok, _worktree} <- AgentDesk.Worktrees.ensure_for_session(scope.project, session),
+         :ok <- AgentDesk.Containers.start(scope.project, session),
          {:ok, _pid} <- start_worker(session, opts) do
       _ = maybe_allocate_port(scope, session)
       {:ok, session}
@@ -53,12 +57,16 @@ defmodule AgentDesk.Providers do
 
   @spec start_worker(Session.t(), keyword()) :: {:ok, pid()} | {:error, term()}
   def start_worker(%Session{} = session, opts \\ []) do
-    spec = {SessionWorker, [session: session, adapter_opts: opts]}
+    if AgentDesk.Circuit.allow?("provider:" <> session.provider) do
+      spec = {SessionWorker, [session: session, adapter_opts: opts]}
 
-    case DynamicSupervisor.start_child(AgentDesk.ProviderProcessSupervisor, spec) do
-      {:ok, pid} -> {:ok, pid}
-      {:error, {:already_started, pid}} -> {:ok, pid}
-      {:error, reason} -> {:error, reason}
+      case DynamicSupervisor.start_child(AgentDesk.ProviderProcessSupervisor, spec) do
+        {:ok, pid} -> {:ok, pid}
+        {:error, {:already_started, pid}} -> {:ok, pid}
+        {:error, reason} -> {:error, reason}
+      end
+    else
+      {:error, :circuit_open}
     end
   end
 

@@ -10,7 +10,7 @@ flowchart TD
     APP --> SESS["Agent session supervisor"]
     APP --> HUB["Internal A2A Hub"]
     APP --> DATA["SQLite + project storage"]
-    SESS --> PROVIDERS["Codex / Claude / Cursor / OpenCode"]
+    SESS --> PROVIDERS["Codex / Claude / Cursor / OpenCode / SDK / remote"]
     PROVIDERS --> MCP["Per-session MCP"]
     MCP --> HUB
     HUB --> DATA
@@ -21,31 +21,23 @@ flowchart TD
 
 ```text
 AgentDesk.Application
+├── ExTauri.ShutdownManager
 ├── AgentDesk.Repo
-├── AgentDesk.PubSub
-├── AgentDesk.ProjectRegistry
-├── AgentDesk.ProjectSupervisor
-│   └── AgentDesk.ProjectRuntime<project_id>
-│       ├── AgentDesk.AgentSupervisor
-│       │   ├── AgentDesk.AgentSession<agent_id>
-│       │   └── AgentDesk.AgentSession<agent_id>
+├── Phoenix.PubSub
+├── AgentDesk.Circuit
+├── AgentDesk.ProjectRegistry (and session/hub/worktree/search registries)
+├── AgentDesk.Projects.Supervisor
+│   └── AgentDesk.Projects.Runtime<project_id>
 │       ├── AgentDesk.A2A.Supervisor
-│       │   ├── AgentDesk.A2A.AgentDirectory
-│       │   ├── AgentDesk.A2A.TaskCoordinator
-│       │   ├── AgentDesk.A2A.MessageRouter
-│       │   └── AgentDesk.A2A.ArtifactRegistry
-│       ├── AgentDesk.ResourceManager
-│       ├── AgentDesk.WorktreeManager
-│       ├── AgentDesk.PortAllocator
-│       ├── AgentDesk.ProjectWatcher
-│       └── AgentDesk.SearchSupervisor
-│           └── AgentDesk.Search.Xerj
+│       ├── AgentDesk.Worktrees.Supervisor
+│       └── AgentDesk.Search.Supervisor
 ├── AgentDesk.ProviderProcessSupervisor
-├── AgentDesk.MCP.Endpoint
-└── AgentDeskWeb.Endpoint
+│   └── AgentDesk.Providers.SessionWorker
+├── AgentDeskWeb.Endpoint
+└── AgentDesk.Search.Xerj.Process   # only when the XERJ adapter is selected
 ```
 
-The exact supervision nesting may change during the first spike, but ownership must remain project-scoped so closing one project can terminate its sessions and release its resources without affecting another project.
+`ResourceManager`, reviews, roles, usage, containers, and team sync are modules over SQLite, not extra GenServers. Closing one project stops only that runtime. Boot restores every row with `projects.open = true`.
 
 ## 3. Component responsibilities
 
@@ -96,12 +88,17 @@ Cursor Agent and OpenCode both expose Agent Client Protocol (ACP) servers over s
 Internal A2A is a built-in project-scoped domain service. Agent Hub is its authenticated MCP-facing surface and the only coordination interface exposed to provider agents. Together they provide:
 
 - Agent Card registration, availability, skill discovery, and policy filtering;
+- user-defined session roles whose prompts stay off Agent Cards;
+- SDK JSONL adapters and loopback attach sessions;
+- optional Docker Compose stacks on isolated worktrees;
+- token/cost samples in SQLite;
 - task contexts and transactional delegation;
 - durable messages, ordered per-recipient delivery, and acknowledgements;
 - task artifacts, handoffs, and review requests;
 - `ResourceManager` for leases;
 - project/task queries;
-- controlled access to XERJ search and memory.
+- controlled access to XERJ search and memory;
+- user-initiated team sync bundles (tasks, workflows, roles), never a sync listener.
 
 Provider sessions receive a short-lived capability token binding them to one `agent_id`, `project_id`, and allowed tool set.
 
@@ -110,7 +107,7 @@ Provider sessions receive a short-lived capability token binding them to one `ag
 ### ResourceManager
 
 - Grants shared or exclusive leases.
-- Detects exact-file and directory overlap.
+- Detects exact-file, directory, and glob overlap.
 - Renews leases through heartbeats.
 - Releases leases on normal completion.
 - Expires leases after process loss.
@@ -127,6 +124,13 @@ SQLite stores durable lease state, while the ResourceManager serializes decision
 - Detects dirty or uncommitted work.
 - Produces diffs and handoff commits.
 - Removes only app-owned worktrees after explicit confirmation or verified cleanup eligibility.
+
+### Review queue
+
+- Enqueues each published handoff.
+- Records accept/reject without merging.
+- Evaluates required-check policy from project settings plus recorded check results.
+- Merges into the primary checkout only after an explicit user confirmation when the tree is clean, on the target branch, and `merge-tree` reports no conflict.
 
 ### ProjectWatcher
 
@@ -230,6 +234,7 @@ AgentDesk/
 │   ├── worktrees/<agent_id>/
 │   ├── transcripts/
 │   ├── diagnostics/
+│   ├── sync/
 │   └── xerj/
 └── logs/
 ```

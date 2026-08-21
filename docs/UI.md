@@ -41,6 +41,7 @@ Each tab shows:
 - streamed messages and normalized activity;
 - commands, tool calls, file changes, and test results;
 - prompt composer;
+- optional containerized Compose for that session;
 - interrupt, resume, and terminate controls based on capabilities;
 - unread coordination indicator;
 - current A2A context and delivery state;
@@ -57,6 +58,8 @@ The panel follows the active tab and presents information requiring action:
 - task conversation and artifact references;
 - pending approvals;
 - changed files;
+- token/cost totals from canonical usage samples;
+- attach-session connect file path (never the raw token);
 - provider capability/version diagnostics.
 
 ## 3. Agent state presentation
@@ -199,7 +202,11 @@ Project search groups results by source:
 
 Each result displays source path/identity, relevance mode, and enough context to verify it. Memory entries show namespace, author, kind, timestamp, and a `Forget` action.
 
-## 10. Onboarding
+## 10. Team sync
+
+The context panel can export a redacted coordination bundle and import one from a file path. Import requires a matching Git origin or sync id. Destructive Git merges are never part of the bundle.
+
+## 11. Onboarding
 
 First run:
 
@@ -207,14 +214,14 @@ First run:
 2. AgentDesk checks Git and project health.
 3. Detect Codex, Claude Code, Cursor Agent, and OpenCode installations and versions.
 4. Show authentication readiness without reading credentials.
-5. Let the user enable providers and configure safe Agent Card roles/skills.
+5. Let the user enable providers and configure safe Agent Card roles/skills. Role prompts stay on the session and are never published on cards.
 6. Explain built-in internal A2A, task delegation, acknowledgements, and resource leases.
 7. Select autonomous delegation depth/fan-out policy.
 8. Explain isolated worktrees and app-owned storage.
 9. Optionally enable XERJ indexing.
 10. Create the first agent tab and register it with the A2A Hub.
 
-## 11. Keyboard and accessibility baseline
+## 12. Keyboard and accessibility baseline
 
 - Full keyboard navigation for tabs, task/delegation lists, Agent Cards, artifacts, approvals, and composer.
 - Visible focus states.

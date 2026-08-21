@@ -24,6 +24,8 @@ config :logger, level: :warning
 
 config :agent_desk, :providers, use_fixtures: true
 
+config :agent_desk, :search, adapter: :projection
+
 # Initialize plugs at runtime for faster test compilation
 config :phoenix, :plug_init_mode, :runtime
 

@@ -13,6 +13,7 @@ AgentDesk is a local-first desktop workspace for running multiple coding agents 
 - Prevent accidental collisions through leases and isolated Git worktrees.
 - Coordinate shared resources such as databases, migrations, Docker services, and ports.
 - Keep project state local and recover cleanly after crashes.
+- Share coordination state across machines with an explicit redacted sync bundle.
 - Make project code, documentation, decisions, and agent history searchable with XERJ.
 - Preserve the user's existing provider authentication; AgentDesk must not collect provider passwords.
 
@@ -55,6 +56,8 @@ AgentDesk is a local-first desktop workspace for running multiple coding agents 
 | [SECURITY.md](SECURITY.md) | Threat model, permissions, and local security defaults |
 | [TESTING.md](TESTING.md) | Test layers and concurrency scenarios |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Bootstrap and local development conventions |
+| [OPERATIONS.md](OPERATIONS.md) | SQLite backup, migration rollback, crash recovery |
+| [RELEASE.md](RELEASE.md) | Security, accessibility, and macOS signing checklist |
 | [DECISIONS.md](DECISIONS.md) | Initial architectural decisions and open questions |
 | [docs/SOURCES.md](docs/SOURCES.md) | Primary technical references |
 
@@ -62,9 +65,9 @@ AgentDesk is a local-first desktop workspace for running multiple coding agents 
 
 The first usable release supports:
 
-- macOS;
-- one local project at a time;
-- Codex, Claude Code, Cursor Agent, and OpenCode adapters;
+- macOS (Linux/Windows packaging notes exist; installers unverified on OTP 28);
+- multiple simultaneously open Git projects;
+- Codex, Claude Code, Cursor Agent, OpenCode, SDK JSONL, and loopback remote-attach adapters;
 - multiple concurrent tabs;
 - streamed messages and activity;
 - pause, resume, interrupt, and terminate controls;
@@ -73,12 +76,14 @@ The first usable release supports:
 - durable direct, task, context, and project messages with acknowledgements;
 - structured task artifacts and handoffs;
 - agent/task status and direct or broadcast messages;
-- exact-file and named-resource leases;
+- exact-file, directory, glob, and named-resource leases;
 - one Git worktree per agent;
-- commits and handoffs;
-- crash recovery from SQLite.
+- commits, handoffs, and an explicit user merge queue;
+- crash recovery from SQLite;
+- optional XERJ or SQLite-projection search and memory;
+- user-defined roles, task graphs, workflows, usage samples, optional Compose, and file-based team sync.
 
-XERJ semantic memory, directory/glob leases, automated merge queues, Windows, and Linux are post-MVP unless a Phase 0 spike makes them essentially free.
+Automated unattended merge, a public A2A gateway, and signed installers remain out of the first release.
 
 ## Non-goals for the first release
 
@@ -92,4 +97,4 @@ XERJ semantic memory, directory/glob leases, automated merge queues, Windows, an
 
 ## Current status
 
-Phoenix LiveView + SQLite application scaffolding is in the repository root (`AgentDesk` / `AgentDeskWeb`), with ExTauri native-shell files under `src-tauri/`. Project open/close, last-project restore, correlation/idempotency/optimistic-lock conventions, and SQLite-backed Agent Cards, delegations, messages, and artifacts are in place. Phase 2 provider adapters, ACP transport, session workers, redacted transcripts, and LiveView tabs/approvals are in place. The Agent Hub MCP server itself is next (Phase 3).
+The Phoenix LiveView + SQLite app lives at the repository root (`AgentDesk` / `AgentDeskWeb`), with ExTauri files under `src-tauri/`. Phases 1–6 in `PLAN.md` are implemented. Post-MVP items through ADR-024 are in tree. Remaining: wrap that Mix release in ExTauri/Burrito (`mix ex_tauri.build` still fails on OTP 28), and an authenticated public A2A 1.0 gateway (explicitly deferred). Dev path is `mix phx.server` / `mix ex_tauri.dev` on loopback. A Mix production release (`mix release desktop`) assembles successfully.

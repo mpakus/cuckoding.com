@@ -35,6 +35,8 @@ Initial primary integration paths:
 | Claude Code | Structured headless/streaming CLI | stdio JSON/JSONL | Claude Agent SDK evaluation |
 | Cursor Agent | `agent acp` | ACP over stdio JSON-RPC | Headless `agent -p` only for reduced one-shot workflows |
 | OpenCode | `opencode acp --cwd <worktree>` | ACP over stdio nd-JSON | Loopback `opencode serve` API evaluation |
+| SDK | User executable JSONL | stdio JSONL | Generic unstructured CLI (no PTY) |
+| Remote | Attach / inbound MCP | loopback MCP stdio | Public A2A gateway (deferred) |
 
 Cursor and OpenCode share ACP framing and request-correlation code. They do not share a single capability declaration: each installed version is probed and each adapter owns provider-specific methods, authentication readiness, and fallbacks.
 
@@ -213,6 +215,8 @@ The generic adapter is intentionally limited:
 - no structured approvals or file events are assumed;
 - MCP is enabled only if explicitly configured and verified;
 - resume is unavailable unless a provider extension implements it.
+
+The `sdk` adapter is the structured path for the same user-configured executable model. It speaks newline JSON: outbound `{"op":"initialize"|"initialized"|"start_session"|"resume"|"prompt"|"interrupt"|"approve"|"configure_mcp"}` and inbound `{"type":"<normalized event>"}`. `remote` is an attach session with `Capabilities.spawned == false`; the agent connects to Agent Hub MCP using the per-session token file. Neither binds beyond loopback. Public A2A remains deferred.
 
 Terminal/PTY emulation is a later feature. The structured custom UI does not require a PTY for any first-class provider path.
 

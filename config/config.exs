@@ -26,6 +26,9 @@ config :agent_desk,
   providers: [
     use_fixtures: false,
     executables: %{}
+  ],
+  search: [
+    adapter: :auto
   ]
 
 config :agent_desk, AgentDesk.Repo,

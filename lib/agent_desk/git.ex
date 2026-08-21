@@ -21,6 +21,11 @@ defmodule AgentDesk.Git do
     git(path, ["rev-parse", rev])
   end
 
+  @spec remote_origin(Path.t()) :: {:ok, String.t()} | {:error, term()}
+  def remote_origin(path) do
+    git(path, ["remote", "get-url", "origin"])
+  end
+
   @spec dirty?(Path.t()) :: boolean()
   def dirty?(path) do
     case git(path, ["status", "--porcelain"]) do
@@ -137,8 +142,66 @@ defmodule AgentDesk.Git do
     end
   end
 
+  @spec merge_conflict?(Path.t(), String.t(), String.t()) :: boolean()
+  def merge_conflict?(path, ours, theirs) do
+    case git(path, ["merge-tree", "--write-tree", ours, theirs]) do
+      {:ok, _} ->
+        false
+
+      {:error, {_code, out}} ->
+        classic_conflict?(path, ours, theirs, out)
+    end
+  end
+
+  @spec merge_commit(Path.t(), String.t(), String.t()) :: {:ok, String.t()} | {:error, term()}
+  def merge_commit(path, ref, message) when is_binary(ref) and is_binary(message) do
+    case git(path, ["merge", "--no-ff", "--no-edit", "-m", message, ref]) do
+      {:ok, _} ->
+        rev_parse(path, "HEAD")
+
+      error ->
+        _ = git(path, ["merge", "--abort"])
+        merge_fail(error)
+    end
+  end
+
+  defp classic_conflict?(path, ours, theirs, out) do
+    if String.contains?(out, "unknown option") do
+      classic_merge_tree_conflict?(path, ours, theirs)
+    else
+      true
+    end
+  end
+
+  defp classic_merge_tree_conflict?(path, ours, theirs) do
+    case git(path, ["merge-base", ours, theirs]) do
+      {:ok, base} ->
+        case git(path, ["merge-tree", base, ours, theirs]) do
+          {:ok, tree} ->
+            String.contains?(tree, "CHANGED in both") or String.contains?(tree, "<<<<<<")
+
+          {:error, _} ->
+            true
+        end
+
+      {:error, _} ->
+        true
+    end
+  end
+
+  defp merge_fail({:error, {_code, out}}) do
+    if String.contains?(out, "conflict") or String.contains?(out, "CONFLICT") do
+      {:error, :conflict}
+    else
+      {:error, out}
+    end
+  end
+
   defp git(path, args) do
-    case System.cmd("git", args, cd: path, stderr_to_stdout: true) do
+    case System.cmd("git", ["-c", "commit.gpgsign=false" | args],
+           cd: path,
+           stderr_to_stdout: true
+         ) do
       {out, 0} -> {:ok, String.trim(out)}
       {out, code} -> {:error, {code, String.trim(out)}}
     end

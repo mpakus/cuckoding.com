@@ -4,7 +4,7 @@
 
 AgentDesk uses SQLite through Ecto as the canonical durable state store. The schema is optimized for a local desktop application with several concurrent provider processes and a built-in internal A2A coordination layer, not for a multi-node SaaS deployment.
 
-XERJ, Markdown snapshots, PubSub, and provider transcript files are projections or supporting artifacts. None may replace SQLite for authoritative Agent Cards, A2A contexts, tasks, delegations, messages, deliveries, artifacts, leases, sessions, or worktree state.
+XERJ, Markdown snapshots, PubSub, and provider transcript files are projections or supporting artifacts. None may replace SQLite for authoritative Agent Cards, A2A contexts, tasks, delegations, messages, deliveries, artifacts, leases, sessions, worktree state, merge-queue items, roles, usage samples, or workflow templates.
 
 ## 2. SQLite operating policy
 
@@ -50,6 +50,12 @@ erDiagram
     TASKS ||--o{ ARTIFACTS : produces
     MESSAGES ||--o{ MESSAGE_DELIVERIES : fans_out
     PROJECTS ||--o{ EVENTS : records
+    PROJECTS ||--o{ TASK_DEPENDENCIES : graphs
+    PROJECTS ||--o{ WORKFLOW_TEMPLATES : templates
+    PROJECTS ||--o{ AGENT_ROLES : roles
+    PROJECTS ||--o{ USAGE_SAMPLES : usage
+    PROJECTS ||--o{ MERGE_QUEUE_ITEMS : reviews
+    PROJECTS ||--o{ SEARCH_DOCUMENTS : projection
 ```
 
 Additional relationships are implemented with nullable foreign keys where an event or message is project-wide.
@@ -66,15 +72,17 @@ Additional relationships are implemented with nullable foreign keys where an eve
 | `canonical_path` | text | Required, resolved path, unique |
 | `vcs_type` | text | Initially `git` |
 | `default_branch` | text | Nullable until detected |
-| `settings` | JSON/text | Validated application settings |
+| `settings` | JSON/text | Includes `sync_id` after the first team-sync export |
 | `last_opened_at` | UTC datetime_usec | Nullable |
+| `open` | boolean | True while the project runtime should be restored on boot |
 | `inserted_at` | UTC datetime_usec | Required |
 | `updated_at` | UTC datetime_usec | Required |
 
 Indexes:
 
 - unique `canonical_path`;
-- `last_opened_at DESC`.
+- `last_opened_at DESC`;
+- `open`.
 
 ### `a2a_contexts`
 
@@ -145,6 +153,72 @@ Indexes:
 - `(assigned_agent_id, status)`;
 - `parent_task_id`.
 
+### `task_dependencies`
+
+| Column | Type | Rules |
+| --- | --- | --- |
+| `id` | UUID/text | Primary key |
+| `project_id` | UUID/text | Required FK |
+| `task_id` | UUID/text | Dependent task FK |
+| `depends_on_id` | UUID/text | Prerequisite task FK |
+| `inserted_at` | UTC datetime_usec | Required |
+
+Unique `(task_id, depends_on_id)`. Cycles are rejected in `A2A.Graph`, not by a database constraint.
+
+### `agent_roles`
+
+Project-scoped role templates. Prompt bodies are session-private.
+
+| Column | Type | Rules |
+| --- | --- | --- |
+| `id` | UUID/text | Primary key |
+| `project_id` | UUID/text | Required FK |
+| `name` | text | Required, unique per project, `[a-z0-9][a-z0-9_-]*` |
+| `description` | text | Safe Agent Card description, max 500 |
+| `prompt` | text | Session-only template, max 8000; never copied to cards or MCP lists |
+| `permission_profile` | text | `default`, `observer`, or `restricted` |
+| `skills` | JSON/text | Optional skill descriptors |
+| `inserted_at` | UTC datetime_usec | Required |
+| `updated_at` | UTC datetime_usec | Required |
+
+Indexes:
+
+- unique `(project_id, name)`.
+
+### `usage_samples`
+
+Rebuildable token/cost ledger from normalized provider `:usage` events.
+
+| Column | Type | Rules |
+| --- | --- | --- |
+| `id` | UUID/text | Primary key |
+| `project_id` | UUID/text | Required FK |
+| `agent_session_id` | UUID/text | Required FK |
+| `input_tokens` | integer | Required, `>= 0` |
+| `output_tokens` | integer | Required, `>= 0` |
+| `total_tokens` | integer | Required, `>= 0` |
+| `cost_cents` | integer | Nullable, never float |
+| `model` | text | Nullable, bounded |
+| `inserted_at` | UTC datetime_usec | Required |
+| `updated_at` | UTC datetime_usec | Required |
+
+Indexes:
+
+- `(project_id, inserted_at)`;
+- `(agent_session_id, inserted_at)`.
+
+### `workflow_templates`
+
+| Column | Type | Rules |
+| --- | --- | --- |
+| `id` | UUID/text | Primary key |
+| `project_id` | UUID/text | Required FK |
+| `name` | text | Required |
+| `description` | text | May be empty |
+| `definition` | JSON/text | `%{"steps" => [%{"key", "title", "depends_on"}]}` , max 20 steps |
+| `inserted_at` | UTC datetime_usec | Required |
+| `updated_at` | UTC datetime_usec | Required |
+
 ### `agent_sessions`
 
 | Column | Type | Rules |
@@ -153,7 +227,8 @@ Indexes:
 | `project_id` | UUID/text | Required FK |
 | `provider` | text | `codex`, `claude`, `cursor`, `opencode`, or registered adapter key |
 | `display_name` | text | Required |
-| `role` | text | Nullable user-defined role |
+| `role` | text | Nullable user-defined role name |
+| `settings` | JSON/text | Includes `tab_open`, `permission_profile`, `role_id` |
 | `status` | text | See session state machine |
 | `provider_session_id` | text | Nullable, encrypted only if provider treats it as sensitive |
 | `provider_version` | text | Nullable |
@@ -164,7 +239,6 @@ Indexes:
 | `started_at` | UTC datetime_usec | Nullable |
 | `ended_at` | UTC datetime_usec | Nullable |
 | `exit_reason` | text | Redacted/bounded |
-| `settings` | JSON/text | Provider-independent session settings |
 | `inserted_at` | UTC datetime_usec | Required |
 | `updated_at` | UTC datetime_usec | Required |
 
@@ -272,7 +346,7 @@ Indexes:
 | `id` | UUID/text | Primary key |
 | `project_id` | UUID/text | Required FK |
 | `agent_session_id` | UUID/text | Required FK |
-| `resource_type` | text | `file`, `directory`, `database`, `migration`, `service`, `port`, `git_ref`, `custom` |
+| `resource_type` | text | `file`, `directory`, `glob`, `database`, `migration`, `service`, `port`, `git_ref`, `custom` |
 | `resource_key` | text | Canonical resource identifier |
 | `mode` | text | `shared` or `exclusive` |
 | `status` | text | `active`, `released`, `expired`, `revoked` |
@@ -439,7 +513,32 @@ Indexes:
 - `(project_id, kind, inserted_at)`;
 - `(context_id, inserted_at)`;
 - `task_id`;
-- `sha256`.
+- `(sha256)`.
+
+### `merge_queue_items`
+
+| Column | Type | Rules |
+| --- | --- | --- |
+| `id` | UUID/text | Primary key |
+| `project_id` | UUID/text | Required FK |
+| `artifact_id` | UUID/text | Required FK, unique |
+| `agent_session_id` | UUID/text | Nullable FK |
+| `worktree_id` | UUID/text | Nullable FK |
+| `branch_name` | text | Required |
+| `commit_sha` | text | Required |
+| `target_ref` | text | Default branch at enqueue time |
+| `summary` | text | Required |
+| `status` | text | `queued`, `accepted`, `rejected`, `merged` |
+| `policy_status` | text | `passed` or `failed` |
+| `policy_report` | JSON/text | Failed and missing required checks |
+| `accepted_by_id` | UUID/text | Nullable reviewer session |
+| `merged_at` | UTC datetime_usec | Nullable |
+| `inserted_at` | UTC datetime_usec | Required |
+| `updated_at` | UTC datetime_usec | Required |
+
+Indexes: unique `artifact_id`; `(project_id, status)`.
+
+Acceptance is not a merge. `Reviews.merge/2` is a user-triggered Git integration and is refused when policy fails, the primary tree is dirty, HEAD is not `target_ref`, or `git merge-tree` reports a conflict.
 
 ### `provider_events_raw`
 
@@ -455,6 +554,50 @@ Optional bounded diagnostic storage. Disabled or aggressively retained by defaul
 | `inserted_at` | UTC datetime_usec | Required |
 
 Unique index: `(agent_session_id, sequence)`.
+
+### `search_documents`
+
+Rebuildable projection used when XERJ is off or unavailable. Never a lock or task source of truth.
+
+| Column | Type | Rules |
+| --- | --- | --- |
+| `id` | UUID/text | Primary key |
+| `project_id` | UUID/text | Required FK |
+| `source` | text | Required |
+| `source_id` | text | Required |
+| `title` | text | Required |
+| `passage` | text | Required, bounded |
+| `path` | text | Nullable |
+| `content_hash` | text | Required |
+| `inserted_at` | UTC datetime_usec | Required |
+
+Unique `(project_id, source, source_id)`.
+
+### `search_memories`
+
+| Column | Type | Rules |
+| --- | --- | --- |
+| `id` | UUID/text | Primary key |
+| `project_id` | UUID/text | Required FK |
+| `namespace` | text | Required, project-scoped |
+| `text` | text | Required |
+| `metadata` | JSON/text | Redacted, no secrets |
+| `inserted_at` | UTC datetime_usec | Required |
+
+Index: `(project_id, namespace)`.
+
+### `search_index_states`
+
+| Column | Type | Rules |
+| --- | --- | --- |
+| `id` | UUID/text | Primary key |
+| `project_id` | UUID/text | Required FK, unique |
+| `status` | text | `unavailable`, `indexing`, `ready`, `stale`, `error` |
+| `adapter` | text | Adapter module name |
+| `last_indexed_at` | UTC datetime_usec | Nullable |
+| `error` | text | Nullable |
+| `inserted_at` | UTC datetime_usec | Required |
+| `updated_at` | UTC datetime_usec | Required |
 
 ## 5. Transactional invariants
 
@@ -472,6 +615,9 @@ Unique index: `(agent_session_id, sequence)`.
 12. Agent Cards never contain secrets, hidden prompts, private reasoning, or unrestricted local paths.
 13. Message artifact/file references must remain inside the authorized project and context.
 14. Artifact revisions create new rows and never overwrite history.
+15. Merge-queue acceptance is not a Git merge; only an explicit user merge mutates the primary tree.
+16. Search documents and memories are projections; deleting them must not change tasks, leases, or Git state.
+17. Team-sync identity lives in `projects.settings["sync_id"]`; bundles never persist capability tokens.
 
 ## 6. Retention
 
@@ -503,5 +649,10 @@ Retention jobs must never delete dirty worktrees or artifacts referenced by an a
 11. events
 12. artifacts
 13. provider_events_raw
+14. agent_roles
+15. workflow_templates
+16. merge_queue_items
+17. task_dependencies
+18. usage_samples
 
 The schema intentionally avoids reciprocal task/session and worktree/session foreign keys. Do not disable foreign keys globally.

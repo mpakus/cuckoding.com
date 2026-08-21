@@ -24,7 +24,8 @@ defmodule AgentDesk.Providers.Adapter do
   @callback display_name() :: String.t()
   @callback capabilities() :: Capabilities.t()
   @callback probe(keyword()) :: {:ok, map()} | {:error, term()}
-  @callback command_spec(Session.t(), keyword()) :: {:ok, CommandSpec.t()} | {:error, term()}
+  @callback command_spec(Session.t(), keyword()) ::
+              {:ok, CommandSpec.t()} | {:ok, :attach} | {:error, term()}
   @callback init_decode() :: decode_state()
   @callback decode_line(String.t(), decode_state()) ::
               {:ok, [Event.t()], decode_state()} | {:error, term()}

@@ -83,6 +83,9 @@ defmodule AgentDesk.Providers.Fixtures.StdioPeer do
       state.protocol == "claude" ->
         handle_claude(line, state)
 
+      state.protocol == "sdk" ->
+        handle_sdk(line, state)
+
       true ->
         state
     end
@@ -234,11 +237,39 @@ defmodule AgentDesk.Providers.Fixtures.StdioPeer do
     end
   end
 
+  defp handle_sdk(line, state) do
+    case Jason.decode(line) do
+      {:ok, %{"op" => "initialize"}} ->
+        emit(%{"type" => "session_ready", "provider_session_id" => "sdk-sess-1"})
+        state
+
+      {:ok, %{"op" => "prompt"}} ->
+        emit(%{"type" => "message_delta", "text" => "hello from sdk"})
+        maybe_sdk_approval(state)
+        emit(%{"type" => "usage", "input_tokens" => 3, "output_tokens" => 5, "total_tokens" => 8})
+        emit(%{"type" => "turn_completed"})
+        state
+
+      {:ok, _} ->
+        state
+
+      {:error, _} ->
+        IO.write(:stderr, "invalid json\n")
+        state
+    end
+  end
+
   defp emit_codex_exec(_state) do
     emit(%{"type" => "thread.started", "thread_id" => "thread-exec-1"})
     emit(%{"type" => "item.agent_message.delta", "delta" => "hello from exec"})
     emit(%{"type" => "item.completed", "item" => "message"})
     emit(%{"type" => "turn.completed"})
+  end
+
+  defp maybe_sdk_approval(state) do
+    if state.opts[:approval] do
+      emit(%{"type" => "approval_requested", "request_id" => "sdk-1", "summary" => "ls"})
+    end
   end
 
   defp maybe_permission(state) do

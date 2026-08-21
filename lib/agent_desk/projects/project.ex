@@ -19,6 +19,7 @@ defmodule AgentDesk.Projects.Project do
     field :default_branch, :string
     field :settings, :map, default: %{}
     field :last_opened_at, :utc_datetime_usec
+    field :open, :boolean, default: false
 
     timestamps(type: :utc_datetime_usec)
   end
@@ -33,7 +34,8 @@ defmodule AgentDesk.Projects.Project do
       :vcs_type,
       :default_branch,
       :settings,
-      :last_opened_at
+      :last_opened_at,
+      :open
     ])
     |> validate_required([:name, :root_path, :canonical_path, :vcs_type])
     |> validate_inclusion(:vcs_type, ["git"])

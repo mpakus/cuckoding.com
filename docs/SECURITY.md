@@ -34,6 +34,7 @@ Provider output, repository content, MCP arguments, shell output, indexed docume
 | Stolen local MCP token | Short TTL, hashed verifier, protected transport/env, narrow tool scopes |
 | Local network access to control plane | Loopback-only binding, authenticated MCP, no non-loopback listener |
 | Shell argument injection | Executable plus argv APIs; no interpolated shell commands |
+| Docker bind on LAN | Optional Compose only in isolated worktrees; reject `0.0.0.0`, host network, and privileged; `AGENTDESK_BIND=127.0.0.1` |
 | Prompt injection from project files | Treat content as data, constrain tools, require approvals, source-attributed search |
 | Secret leakage in logs/search | Redaction, exclusions, retention, diagnostics review |
 | Destructive Git cleanup | App-owned marker plus canonical path and Git worktree verification |
@@ -162,7 +163,7 @@ Before persistence or XERJ indexing, redact known patterns for:
 - capability tokens;
 - user-configured secret patterns.
 
-Redaction must be tested but presented as risk reduction, not a guarantee. Diagnostic export requires a preview and explicit user action.
+Redaction must be tested but presented as risk reduction, not a guarantee. Diagnostic export and team-sync bundles require explicit user action. Sync bundles are redacted JSON files, not a network service.
 
 ## 12. Local endpoints
 
@@ -181,13 +182,13 @@ Redaction must be tested but presented as risk reduction, not a guarantee. Diagn
 - [ ] Dependency and license audit complete.
 - [ ] Sobelow and static-analysis findings resolved or documented.
 - [ ] Path traversal and symlink tests pass.
-- [ ] Token expiry/revocation tests pass.
+- [x] Token expiry/revocation tests pass.
 - [ ] Provider process ownership tests pass.
-- [ ] Diagnostic export redaction tests pass.
-- [ ] Agent Card secret-exclusion and cross-project discovery tests pass.
-- [ ] Delegation authorization, recursion/fan-out, and permission-expansion tests pass.
-- [ ] A2A idempotency replay and conflict tests pass.
-- [ ] Message/context isolation and artifact reference validation tests pass.
-- [ ] No listener binds beyond loopback.
+- [x] Diagnostic export redaction tests pass.
+- [x] Agent Card secret-exclusion and cross-project discovery tests pass.
+- [x] Delegation authorization, recursion/fan-out, and permission-expansion tests pass.
+- [x] A2A idempotency replay and conflict tests pass.
+- [x] Message/context isolation and artifact reference validation tests pass.
+- [x] No listener binds beyond loopback.
 - [ ] macOS signing/notarization succeeds.
 - [ ] Update channel verifies signatures.

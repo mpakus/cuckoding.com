@@ -49,4 +49,20 @@ defmodule AgentDesk.Storage do
       when is_binary(project_id) and is_binary(session_id) do
     Path.join([project_dir(project_id), "worktrees", session_id])
   end
+
+  @spec xerj_dir() :: String.t()
+  def xerj_dir, do: Path.join(data_root(), "xerj")
+
+  @spec diagnostics_dir(Ecto.UUID.t()) :: String.t()
+  def diagnostics_dir(project_id) when is_binary(project_id) do
+    Path.join([project_dir(project_id), "diagnostics"])
+  end
+
+  @spec sync_dir(Ecto.UUID.t()) :: String.t()
+  def sync_dir(project_id) when is_binary(project_id) do
+    Path.join([project_dir(project_id), "sync"])
+  end
+
+  @spec backup_dir() :: String.t()
+  def backup_dir, do: Path.join(data_root(), "backups")
 end

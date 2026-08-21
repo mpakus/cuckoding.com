@@ -17,7 +17,8 @@ defmodule AgentDesk.Providers.Capabilities do
             usage_events: false,
             structured_output: false,
             internal_a2a: true,
-            safe_boundary_delivery: true
+            safe_boundary_delivery: true,
+            spawned: true
 
   @type t :: %__MODULE__{
           key: String.t(),
@@ -32,6 +33,7 @@ defmodule AgentDesk.Providers.Capabilities do
           usage_events: boolean(),
           structured_output: boolean(),
           internal_a2a: boolean(),
-          safe_boundary_delivery: boolean()
+          safe_boundary_delivery: boolean(),
+          spawned: boolean()
         }
 end

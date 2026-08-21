@@ -30,6 +30,10 @@ agent_desk-*.tar
 
 # Ignore digested assets cache.
 /priv/static/cache_manifest.json
+/priv/static/**/*.gz
+/priv/static/favicon-*.ico
+/priv/static/robots-*.txt
+/priv/static/images/logo-*.svg
 
 # In case you use Node.js/npm, you want to ignore these.
 npm-debug.log
@@ -45,7 +49,8 @@ npm-debug.log
 .elixir_ls/
 /priv/plts/
 
-# Desktop / Tauri build output
+# Desktop / Tauri / Burrito build output
 /src-tauri/target/
 /src-tauri/gen/
+/burrito_out/
 

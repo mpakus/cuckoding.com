@@ -55,6 +55,37 @@ defmodule AgentDesk.ProjectsTest do
     assert Process.alive?(pid)
   end
 
+  test "keeps two project runtimes alive at the same time" do
+    repo_a = GitRepo.tmp_repo!()
+    repo_b = GitRepo.tmp_repo!()
+    {:ok, a} = Projects.open_project(repo_a)
+    {:ok, b} = Projects.open_project(repo_b)
+
+    assert {:ok, pid_a} = Runtime.fetch(a.id)
+    assert {:ok, pid_b} = Runtime.fetch(b.id)
+    assert Process.alive?(pid_a)
+    assert Process.alive?(pid_b)
+    assert a.open
+    assert b.open
+    assert MapSet.new(Enum.map(Projects.list_open(), & &1.id)) == MapSet.new([a.id, b.id])
+  after
+    :ok
+  end
+
+  test "restore_on_boot restarts every open project and skips closed ones" do
+    repo_a = GitRepo.tmp_repo!()
+    repo_b = GitRepo.tmp_repo!()
+    {:ok, a} = Projects.open_project(repo_a)
+    {:ok, b} = Projects.open_project(repo_b)
+    :ok = Projects.close_project(a)
+    :ok = AgentDesk.Projects.Supervisor.stop_runtime(b.id)
+
+    assert :ok = Projects.restore_on_boot()
+    assert Runtime.fetch(a.id) == {:error, :not_started}
+    assert {:ok, pid} = Runtime.fetch(b.id)
+    assert Process.alive?(pid)
+  end
+
   test "close_project stops the runtime and appends a closed event", %{repo: repo} do
     {:ok, project} = Projects.open_project(repo)
     assert :ok = Projects.close_project(project)

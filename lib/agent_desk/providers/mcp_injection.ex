@@ -30,6 +30,28 @@ defmodule AgentDesk.Providers.MCPInjection do
     }
 
     File.write!(path, Jason.encode!(config))
+    _ = write_connect_env!(session, token)
+    path
+  end
+
+  @spec connect_env_path(Session.t()) :: String.t()
+  def connect_env_path(%Session{} = session) do
+    Path.join(Storage.session_dir(session.project_id, session.id), "connect.env")
+  end
+
+  @spec write_connect_env!(Session.t(), String.t()) :: String.t()
+  def write_connect_env!(%Session{} = session, token) when is_binary(token) do
+    path = connect_env_path(session)
+    File.mkdir_p!(Path.dirname(path))
+
+    body = """
+    AGENTDESK_SESSION_ID=#{session.id}
+    AGENTDESK_PROJECT_ID=#{session.project_id}
+    AGENTDESK_CAPABILITY_TOKEN=#{token}
+    """
+
+    File.write!(path, body)
+    _ = File.chmod(path, 0o600)
     path
   end
 end

@@ -44,6 +44,15 @@ defmodule AgentDesk.MCP.ProtocolTest do
     assert "hub_claim_resources" in names
     assert "hub_send_message" in names
     assert "hub_list_agents" in names
+    assert "project_search" in names
+    assert "memory_remember" in names
+    assert "memory_recall" in names
+    assert "memory_forget" in names
+    assert "hub_list_merge_queue" in names
+    assert "hub_reject_handoff" in names
+    assert "hub_list_task_graph" in names
+    assert "hub_run_workflow" in names
+    assert "hub_list_roles" in names
   end
 
   test "capability tokens authenticate and reject unknown secrets", %{token: token, alice: alice} do

@@ -6,6 +6,7 @@ defmodule AgentDesk.Worktrees.Handoffs do
   alias AgentDesk.A2A
   alias AgentDesk.Git
   alias AgentDesk.Ids
+  alias AgentDesk.Reviews
   alias AgentDesk.Scope
   alias AgentDesk.Storage
   alias AgentDesk.Worktrees
@@ -19,9 +20,10 @@ defmodule AgentDesk.Worktrees.Handoffs do
          {:ok, commit} <- resolve_commit(worktree, attrs),
          true <- Git.contains_commit?(worktree.path, commit),
          {:ok, files} <- Git.changed_files(worktree.path, worktree.base_commit),
-         {:ok, artifact} <- persist_artifact(scope, worktree, commit, files, attrs) do
+         {:ok, artifact} <- persist_artifact(scope, worktree, commit, files, attrs),
+         {:ok, item} <- Reviews.enqueue(scope, artifact, Map.put(attrs, :commit, commit)) do
       _ = maybe_review(scope, attrs)
-      {:ok, %{artifact: artifact, commit: commit, changed_files: files}}
+      {:ok, %{artifact: artifact, commit: commit, changed_files: files, queue_item: item}}
     else
       nil -> {:error, :no_worktree}
       false -> {:error, :commit_not_in_worktree}
@@ -29,11 +31,17 @@ defmodule AgentDesk.Worktrees.Handoffs do
     end
   end
 
-  @spec accept(Scope.t(), Ecto.UUID.t()) :: {:ok, term()} | {:error, term()}
+  @spec accept(Scope.t(), Ecto.UUID.t()) :: {:ok, map()} | {:error, term()}
   def accept(%Scope{} = scope, artifact_id) do
-    with {:ok, artifact} <- A2A.get_artifact(scope, artifact_id) do
-      metadata = Map.put(artifact.metadata || %{}, "accepted_by", scope.agent_session.id)
-      {:ok, %{artifact_id: artifact.id, metadata: metadata, merged: false}}
+    with {:ok, item} <- Reviews.accept(scope, artifact_id) do
+      {:ok, %{artifact_id: artifact_id, item_id: item.id, status: item.status, merged: false}}
+    end
+  end
+
+  @spec reject(Scope.t(), Ecto.UUID.t()) :: {:ok, map()} | {:error, term()}
+  def reject(%Scope{} = scope, artifact_id) do
+    with {:ok, item} <- Reviews.reject(scope, artifact_id) do
+      {:ok, %{artifact_id: artifact_id, item_id: item.id, status: item.status, merged: false}}
     end
   end
 

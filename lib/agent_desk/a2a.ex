@@ -77,20 +77,18 @@ defmodule AgentDesk.A2A do
 
   @spec create_task(Scope.t(), Context.t(), map()) :: {:ok, Task.t()} | {:error, term()}
   def create_task(%Scope{project: project} = scope, %Context{} = context, attrs) do
-    with :ok <- context_in_project(context, project) do
-      %Task{}
-      |> Task.changeset(%{
-        id: Ids.generate(),
-        project_id: project.id,
-        context_id: context.id,
-        title: Map.fetch!(attrs, :title),
-        description: Map.get(attrs, :description, ""),
-        status: "queued",
-        created_by: created_by_type(scope),
-        lock_version: 1,
-        metadata: Map.get(attrs, :metadata, %{})
-      })
-      |> Repo.insert()
+    with :ok <- context_in_project(context, project),
+         {:ok, task} <- insert_task(scope, context, attrs),
+         :ok <- link_dependencies(scope, task, dependency_ids(attrs)) do
+      {:ok, Repo.get!(Task, task.id)}
+    end
+  end
+
+  @spec ensure_working_context(Scope.t()) :: {:ok, Context.t()} | {:error, term()}
+  def ensure_working_context(%Scope{project: project} = scope) do
+    case latest_context(project.id) do
+      %Context{} = context -> {:ok, context}
+      nil -> create_context(scope, %{title: "Workspace"})
     end
   end
 
@@ -421,4 +419,49 @@ defmodule AgentDesk.A2A do
 
   defp created_by_type(%Scope{agent_session: nil}), do: "user"
   defp created_by_type(%Scope{}), do: "agent"
+
+  defp insert_task(scope, context, attrs) do
+    title = Map.get(attrs, :title) || Map.get(attrs, "title")
+
+    %Task{}
+    |> Task.changeset(%{
+      id: Ids.generate(),
+      project_id: scope.project.id,
+      context_id: context.id,
+      parent_task_id: Map.get(attrs, :parent_task_id) || Map.get(attrs, "parent_task_id"),
+      title: title,
+      description: Map.get(attrs, :description) || Map.get(attrs, "description") || "",
+      status: "queued",
+      created_by: created_by_type(scope),
+      lock_version: 1,
+      metadata: Map.get(attrs, :metadata) || Map.get(attrs, "metadata") || %{}
+    })
+    |> Repo.insert()
+  end
+
+  defp link_dependencies(_scope, _task, []), do: :ok
+
+  defp link_dependencies(scope, task, ids) do
+    Enum.reduce_while(ids, :ok, fn id, :ok ->
+      case AgentDesk.A2A.Graph.add_dependency(scope, task.id, id) do
+        {:ok, _edge} -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
+
+  defp dependency_ids(attrs) do
+    attrs
+    |> Map.get(:depends_on, Map.get(attrs, "depends_on", []))
+    |> List.wrap()
+    |> Enum.filter(&is_binary/1)
+  end
+
+  defp latest_context(project_id) do
+    Context
+    |> where([c], c.project_id == ^project_id)
+    |> order_by([c], desc: c.inserted_at)
+    |> limit(1)
+    |> Repo.one()
+  end
 end

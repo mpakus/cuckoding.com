@@ -41,6 +41,17 @@ end
 
 No LiveView, provider adapter, or task module calls XERJ HTTP directly.
 
+Implemented adapters:
+
+| Config `:search, adapter:` | Module | When |
+| --- | --- | --- |
+| `:auto` | XERJ if a binary is found and `:9200` is free, else projection | Development default |
+| `:projection` | `AgentDesk.Search.Projection` | Tests / CI |
+| `:xerj` | `AgentDesk.Search.Xerj` | Feature flag `features: [xerj: true]` and owned process |
+| `:disabled` | `AgentDesk.Search.Disabled` | Explicit off |
+
+AgentDesk never HTTP-attaches to a XERJ node it did not start. An occupied default `:9200` is treated as unavailable.
+
 ## 4. Index strategy
 
 Initial logical indices:

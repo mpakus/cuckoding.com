@@ -125,8 +125,16 @@ Filters available peers by required skill IDs/tags, input/output modes, features
 - `hub_update_task`
 - `hub_cancel_task`
 - `hub_complete_task`
+- `hub_add_task_dependency`
+- `hub_list_task_graph`
+- `hub_save_workflow`
+- `hub_list_workflows`
+- `hub_run_workflow`
+- `hub_list_roles`
 - `hub_subscribe_task`
 - `hub_request_review`
+
+`hub_create_task` accepts `depends_on` task ids. Incomplete prerequisites mark the new task `blocked`. `hub_run_workflow` instantiates a saved template; omit `context_id` to use the project's working context. `hub_list_roles` returns name, description, and permission profile only; prompt templates are not included.
 
 Task assignment and resource ownership are separate. Accepting a delegation does not automatically lock every file mentioned in its description.
 
@@ -317,16 +325,26 @@ Returns metadata and an authorized local reference. It never turns an arbitrary 
   "checks": [
     {"name": "mix test", "status": "passed"}
   ],
-  "warnings": ["Directory overlap remains Phase 4 work"],
+  "warnings": [],
   "review_requested_from": ["uuid"]
 }
 ```
 
-AgentDesk validates that the commit belongs to the recorded worktree before accepting it as verified.
+AgentDesk validates that the commit belongs to the recorded worktree before accepting it as verified. The handoff is also enqueued on the project merge queue. Policy gates read `project.settings["required_checks"]` and the handoff `checks` list; a failed or missing required check marks `policy_status=failed`.
 
 #### `hub_accept_handoff`
 
 Records reviewer/user acceptance without auto-merging. Integration remains a separate explicit Git operation.
+
+#### `hub_reject_handoff`
+
+Rejects a queued handoff. Rejected items leave the open queue.
+
+#### `hub_list_merge_queue`
+
+Returns open (`queued` and `accepted`) merge-queue items for the current project.
+
+There is no MCP tool that merges into the primary tree or that exports/imports a team-sync bundle. Those are user actions in LiveView.
 
 ### Search and memory tools
 
@@ -344,6 +362,7 @@ These are implemented through `AgentDesk.Search.Adapter` and must return an expl
 ```text
 file:<canonical-project-relative-path>
 directory:<canonical-project-relative-path>
+glob:<canonical-project-relative-glob>
 database:<logical-database-name>
 migration:<project-id>
 service:<service-name>
@@ -354,7 +373,8 @@ custom:<namespace>:<key>
 
 Rules:
 
-- File and directory paths are normalized relative to the assigned worktree and resolved against traversal/symlink escape.
+- File, directory, and glob paths are normalized relative to the assigned worktree and resolved against traversal/symlink escape.
+- A glob lease overlaps a file or directory when the path sits under the glob's static prefix or matches the pattern.
 - Exact named resources compare by canonical key.
 - Exclusive conflicts with any overlapping lease owned by another agent.
 - Shared conflicts only with overlapping exclusive leases owned by another agent.
@@ -432,6 +452,12 @@ message.expired
 artifact.published
 artifact.unavailable
 handoff.published
+task.dependency_added
+task.unblocked
+merge_queue.enqueued
+merge_queue.accepted
+merge_queue.rejected
+merge_queue.merged
 provider.approval_requested
 provider.command_started
 provider.file_changed

@@ -63,6 +63,7 @@ Do not silently contradict an accepted decision in `docs/DECISIONS.md`. Propose 
 - Agents must not establish direct peer transports or bypass Agent Hub authorization.
 - Autonomous delegation depth, fan-out, rate, and permission expansion are policy-controlled and bounded.
 - Public A2A network compatibility belongs behind a future gateway; do not leak public wire types throughout the internal domain.
+- Team sync is a user-initiated redacted file bundle. Do not open a sync listener or treat Git remotes as AgentDesk accounts.
 
 ## Provider adapter rules
 

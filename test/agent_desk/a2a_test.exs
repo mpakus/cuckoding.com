@@ -305,4 +305,35 @@ defmodule AgentDesk.A2ATest do
     File.write!(path, "tampered")
     assert {:error, :artifact_integrity} = A2A.get_artifact(alice, artifact.id)
   end
+
+  test "a dependency blocks until the prerequisite completes", %{alice: alice} do
+    {:ok, context} = A2A.create_context(alice, %{title: "Graph"})
+    {:ok, design} = A2A.create_task(alice, context, %{title: "Design"})
+    {:ok, impl} = A2A.create_task(alice, context, %{title: "Implement", depends_on: [design.id]})
+
+    impl = Repo.get!(Task, impl.id)
+    assert impl.status == "blocked"
+    assert {:error, :cycle} = AgentDesk.A2A.Graph.add_dependency(alice, design.id, impl.id)
+
+    assert {:ok, _} = A2A.update_task(alice, design, %{status: "completed"})
+    assert Repo.get!(Task, impl.id).status == "queued"
+  end
+
+  test "a reusable workflow instantiates a linear task graph", %{alice: alice} do
+    {:ok, context} = A2A.create_context(alice, %{title: "Ship"})
+
+    assert {:ok, [first, second | _rest]} =
+             AgentDesk.A2A.Workflows.instantiate_linear(alice, context, "Ship", [
+               "Design",
+               "Implement",
+               "Review"
+             ])
+
+    first = Repo.get!(Task, first.id)
+    second = Repo.get!(Task, second.id)
+    assert first.status == "queued"
+    assert second.status == "blocked"
+    assert [workflow] = AgentDesk.A2A.Workflows.list(alice)
+    assert workflow.name == "Ship"
+  end
 end

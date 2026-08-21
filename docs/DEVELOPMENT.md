@@ -36,7 +36,7 @@ mix ex_tauri.dev
 
 Do not pin dependency versions in documentation before the spike confirms compatibility. Pin them in `mix.exs`, `mix.lock`, Cargo lockfiles, and the repository tool-version configuration.
 
-## 3. Proposed source layout
+## 3. Source layout
 
 ```text
 lib/
@@ -44,57 +44,36 @@ lib/
 │   ├── application.ex
 │   ├── projects/
 │   ├── agents/
-│   ├── tasks/
-│   ├── a2a/
-│   │   ├── agent_card.ex
-│   │   ├── agent_directory.ex
-│   │   ├── context.ex
-│   │   ├── delegation.ex
-│   │   ├── task_coordinator.ex
-│   │   ├── message.ex
-│   │   ├── message_router.ex
-│   │   ├── delivery.ex
-│   │   ├── artifact.ex
-│   │   ├── artifact_registry.ex
-│   │   └── idempotency.ex
-│   ├── coordination/
-│   ├── providers/
-│   │   ├── adapter.ex
-│   │   ├── acp/
-│   │   ├── codex/
-│   │   ├── claude/
-│   │   ├── cursor/
-│   │   ├── opencode/
-│   │   └── fake/
-│   ├── git/
-│   ├── search/
+│   ├── a2a/                 # hub, cards, tasks, graphs, workflows, messages, artifacts
+│   ├── mcp/                 # JSON-RPC protocol and stdio
+│   ├── providers/           # adapters, ACP client, SDK, remote attach, fixtures
+│   ├── resources/           # ResourceManager and overlap
+│   ├── worktrees/
+│   ├── search/              # projection, XERJ, indexer
 │   ├── security/
-│   └── telemetry.ex
+│   ├── reviews/
+│   ├── roles/
+│   ├── usage/
+│   ├── containers/
+│   ├── sync.ex              # user-initiated team bundles
+│   ├── reconcile.ex
+│   ├── circuit.ex
+│   ├── backup.ex
+│   └── diagnostics.ex
 ├── agent_desk_web/
 │   ├── components/
 │   ├── live/
 │   └── router.ex
-└── agent_desk_mcp/
-    ├── endpoint.ex
-    ├── tools/
-    │   ├── a2a/
-    │   ├── resources/
-    │   └── search/
-    └── authorization.ex
+└── agent_desk.ex
 
-priv/
-├── repo/migrations/
-├── provider_fixtures/
-└── static/
-
-test/
-├── agent_desk/
-├── agent_desk_web/
-├── agent_desk_mcp/
-└── support/
+priv/repo/migrations/
+test/agent_desk/
+test/agent_desk_web/
+test/support/
+src-tauri/                   # ExTauri / Tauri shell
 ```
 
-Keep contexts cohesive; do not create a directory for every individual module without a clear boundary.
+Keep contexts cohesive. MCP lives in `AgentDesk.MCP.*`, not a separate OTP application. Resource leases, reviews, and Git worktrees are modules plus supervisors, not extra Mix apps.
 
 ## 4. Configuration
 
@@ -133,8 +112,6 @@ config :agent_desk, :a2a,
 
 ## 5. Development commands
 
-Expected commands once the project exists:
-
 ```bash
 mix setup
 mix phx.server
@@ -144,9 +121,12 @@ mix format
 mix credo --strict
 mix dialyzer
 mix sobelow
+mix check
 ```
 
-Add aliases such as `mix check` only when they remain transparent and reproduce the CI gates.
+`mix check` is the local quality gate: format, `compile --warnings-as-errors`, tests, Credo, Dialyzer, and Sobelow. Do not add aliases that hide failing steps.
+
+Production packaging (`mix release`, `mix ex_tauri.build`, Burrito) is documented in `RELEASE.md` and remains unverified on OTP 28.
 
 ## 6. Test data safety
 
@@ -210,6 +190,8 @@ Update:
 - `PROVIDERS.md` for provider behavior;
 - `SECURITY.md` for permission or trust-boundary changes;
 - `DECISIONS.md` for accepted architectural tradeoffs;
+- `OPERATIONS.md` for backup, reconcile, and team-sync file locations;
+- `RELEASE.md` for packaging and signing;
 - `PLAN.md` as phases complete.
 
 ## 11. Release preparation

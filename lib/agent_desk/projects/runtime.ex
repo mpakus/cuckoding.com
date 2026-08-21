@@ -50,10 +50,11 @@ defmodule AgentDesk.Projects.Runtime do
       started_at: AgentDesk.Clock.utc_now()
     }
 
-    AgentDesk.Agents.interrupt_orphans(project.id)
+    AgentDesk.Reconcile.project(project)
     Process.flag(:trap_exit, true)
     {:ok, _pid} = AgentDesk.A2A.Supervisor.start_link(project)
     {:ok, _pid} = AgentDesk.Worktrees.Supervisor.start_link(project)
+    _ = start_search(project)
 
     {:ok, state}
   end
@@ -76,6 +77,21 @@ defmodule AgentDesk.Projects.Runtime do
       [] -> :ok
     end
 
+    case Registry.lookup(AgentDesk.SearchSupervisorRegistry, state.project_id) do
+      [{pid, _}] -> Supervisor.stop(pid, :shutdown, 2_000)
+      [] -> :ok
+    end
+
     :ok
+  end
+
+  defp start_search(project) do
+    case AgentDesk.Search.Supervisor.start_link(project) do
+      {:ok, pid} -> {:ok, pid}
+      {:error, {:already_started, pid}} -> {:ok, pid}
+      {:error, reason} -> {:error, reason}
+    end
+  rescue
+    error -> {:error, error}
   end
 end

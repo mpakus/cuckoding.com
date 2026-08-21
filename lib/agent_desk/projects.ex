@@ -8,6 +8,8 @@ defmodule AgentDesk.Projects do
 
   import Ecto.Query
 
+  require Logger
+
   alias AgentDesk.Clock
   alias AgentDesk.Events
   alias AgentDesk.Git
@@ -38,10 +40,18 @@ defmodule AgentDesk.Projects do
 
   defp restore_project(%Project{} = project) do
     if File.dir?(project.canonical_path) and Git.repository?(project.canonical_path) do
-      start_restored_runtime(project)
+      start_restored_runtime(ensure_open(project))
     else
       {:error, :missing_repository}
     end
+  end
+
+  defp ensure_open(%Project{open: true} = project), do: project
+
+  defp ensure_open(project) do
+    project
+    |> Project.changeset(%{open: true})
+    |> Repo.update!()
   end
 
   defp start_restored_runtime(project) do
@@ -53,18 +63,22 @@ defmodule AgentDesk.Projects do
 
   @spec restore_on_boot() :: :ok
   def restore_on_boot do
-    case restore_last_opened() do
-      :ok ->
-        :ok
+    Enum.each(list_open(), fn project ->
+      case restore_project(project) do
+        {:ok, _project} -> :ok
+        {:error, reason} -> log_restore(reason)
+      end
+    end)
 
-      {:ok, _project} ->
-        :ok
+    :ok
+  end
 
-      {:error, reason} ->
-        require Logger
-        Logger.warning("agentdesk restore skipped: #{inspect(reason)}")
-        :ok
-    end
+  @spec list_open() :: [Project.t()]
+  def list_open do
+    Project
+    |> where([p], p.open == true)
+    |> order_by([p], desc: p.last_opened_at)
+    |> Repo.all()
   end
 
   @spec list_recent(pos_integer()) :: [Project.t()]
@@ -73,6 +87,16 @@ defmodule AgentDesk.Projects do
     |> order_by([p], desc: p.last_opened_at)
     |> limit(^limit)
     |> Repo.all()
+  end
+
+  @spec put_settings(Project.t(), map()) :: {:ok, Project.t()} | {:error, term()}
+  def put_settings(%Project{} = project, patch) when is_map(patch) do
+    patch = Map.new(patch, fn {key, value} -> {to_string(key), value} end)
+    merged = Map.merge(project.settings || %{}, patch)
+
+    project
+    |> Project.changeset(%{settings: merged})
+    |> Repo.update()
   end
 
   @spec get_project(Ecto.UUID.t()) :: {:ok, Project.t()} | {:error, :not_found}
@@ -99,6 +123,10 @@ defmodule AgentDesk.Projects do
       :ok = AgentDesk.Providers.stop_for_project(project.id)
       :ok = ProjectSupervisor.stop_runtime(project.id)
 
+      project
+      |> Project.changeset(%{open: false})
+      |> Repo.update!()
+
       {:ok, _event} =
         Events.append(%{
           project_id: project.id,
@@ -108,6 +136,7 @@ defmodule AgentDesk.Projects do
         })
 
       Telemetry.project_closed(project.id)
+      broadcast_closed(project)
       :ok
     end
   end
@@ -148,6 +177,7 @@ defmodule AgentDesk.Projects do
             vcs_type: "git",
             default_branch: default_branch(canonical),
             last_opened_at: now,
+            open: true,
             settings: %{}
           })
           |> Repo.insert!()
@@ -158,7 +188,8 @@ defmodule AgentDesk.Projects do
             name: name,
             root_path: canonical,
             default_branch: default_branch(canonical),
-            last_opened_at: now
+            last_opened_at: now,
+            open: true
           })
           |> Repo.update!()
       end
@@ -185,5 +216,13 @@ defmodule AgentDesk.Projects do
 
   defp broadcast_opened(project) do
     Phoenix.PubSub.broadcast(AgentDesk.PubSub, "projects", {:project_opened, project})
+  end
+
+  defp broadcast_closed(project) do
+    Phoenix.PubSub.broadcast(AgentDesk.PubSub, "projects", {:project_closed, project.id})
+  end
+
+  defp log_restore(reason) do
+    Logger.warning("agentdesk restore skipped: #{inspect(reason)}")
   end
 end

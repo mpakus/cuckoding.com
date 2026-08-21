@@ -95,6 +95,8 @@ Use recorded and hand-authored JSONL fixtures for:
 ### Internal A2A contract tests
 
 - automatic `hub_register` and safe Agent Card publication for every provider adapter;
+- SDK JSONL handshake/prompt/usage fixture lifecycle;
+- remote attach without a child Port, connect.env 0600, token absent from Agent Cards;
 - peer list/get/find filtering without secret or cross-project leakage;
 - context creation and participant authorization;
 - delegation propose, accept, reject, expire, revoke, redirect, and conflicting acceptance;
@@ -125,6 +127,7 @@ Use recorded and hand-authored JSONL fixtures for:
 - artifact integrity/revision panel;
 - handoff review;
 - search disabled/stale/ready states;
+- team sync bundle export;
 - destructive cleanup confirmation.
 
 ### End-to-end desktop tests
@@ -135,13 +138,14 @@ Use recorded and hand-authored JSONL fixtures for:
 - claim conflicting resources;
 - simulate crash/restart;
 - preserve dirty worktrees;
+- opt-in Compose on a worktree, reject LAN binds, skip containers on the primary tree;
 - package and launch the ExTauri application;
 - close the native window and verify child cleanup.
 
 ## 3. Required concurrency scenarios
 
 1. Two agents request the same file simultaneously; exactly one exclusive claim succeeds.
-2. A directory lease blocks a child file claim.
+2. A directory or glob lease blocks a child file claim.
 3. Two shared leases coexist; a later exclusive claim fails.
 4. A lease expires while its owner process is dead.
 5. A delayed heartbeat cannot resurrect an expired lease.
@@ -156,6 +160,8 @@ Use recorded and hand-authored JSONL fixtures for:
 14. A recipient crashes after injection but before acknowledgement; restart shows the uncertain delivery without silently duplicating the prompt.
 15. A recursive delegation reaches policy depth; the next proposal is rejected deterministically.
 16. An agent accepts a task but fails to acquire a file lease; task becomes blocked and existing ownership remains intact.
+17. A handoff with failing required checks cannot merge; a passing accepted handoff merges only after an explicit user action.
+18. A dependent task stays blocked until every prerequisite is `completed`; cycles are rejected.
 
 ## 4. Fake provider
 
@@ -225,13 +231,10 @@ These are initial budgets, to be measured and revised:
 ## 8. CI gates
 
 ```bash
-mix format --check-formatted
-mix compile --warnings-as-errors
-mix test
-mix credo --strict
-mix dialyzer
-mix sobelow
+mix check
 ```
+
+`mix check` runs format, compilation with warnings as errors, tests, Credo, Dialyzer, and Sobelow.
 
 Additional jobs:
 

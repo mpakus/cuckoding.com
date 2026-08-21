@@ -9,6 +9,7 @@ defmodule AgentDesk.MCP.Protocol do
   alias AgentDesk.Projects
   alias AgentDesk.Resources.Manager
   alias AgentDesk.Scope
+  alias AgentDesk.Security.Permissions
 
   @tools [
     "hub_register",
@@ -29,6 +30,12 @@ defmodule AgentDesk.MCP.Protocol do
     "hub_update_task",
     "hub_cancel_task",
     "hub_complete_task",
+    "hub_add_task_dependency",
+    "hub_list_task_graph",
+    "hub_save_workflow",
+    "hub_list_workflows",
+    "hub_run_workflow",
+    "hub_list_roles",
     "hub_subscribe_task",
     "hub_claim_resources",
     "hub_release_resources",
@@ -42,7 +49,13 @@ defmodule AgentDesk.MCP.Protocol do
     "hub_get_artifact",
     "hub_publish_handoff",
     "hub_accept_handoff",
-    "hub_request_review"
+    "hub_reject_handoff",
+    "hub_list_merge_queue",
+    "hub_request_review",
+    "project_search",
+    "memory_remember",
+    "memory_recall",
+    "memory_forget"
   ]
 
   @spec handle(Session.t(), map()) :: {:ok, map()} | {:error, map()}
@@ -67,9 +80,11 @@ defmodule AgentDesk.MCP.Protocol do
 
   defp dispatch(_session, "notifications/initialized", _params), do: {:ok, %{}}
 
-  defp dispatch(_session, "tools/list", _params) do
+  defp dispatch(session, "tools/list", _params) do
     tools =
-      Enum.map(@tools, fn name ->
+      session
+      |> Permissions.filter_tools(@tools)
+      |> Enum.map(fn name ->
         %{"name" => name, "description" => name, "inputSchema" => %{"type" => "object"}}
       end)
 
@@ -86,9 +101,13 @@ defmodule AgentDesk.MCP.Protocol do
   defp dispatch(_session, _name, _params), do: {:error, :unknown_method}
 
   defp call_tool(session, name, args) do
-    with {:ok, project} <- Projects.get_project(session.project_id) do
+    with true <- Permissions.allowed?(session, name),
+         {:ok, project} <- Projects.get_project(session.project_id) do
       scope = Scope.for_agent(project, session)
       tool(scope, name, args)
+    else
+      false -> {:error, :forbidden}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -298,8 +317,47 @@ defmodule AgentDesk.MCP.Protocol do
   defp tool(scope, "hub_create_task", args) do
     with {:ok, context} <- fetch_context(scope, args["context_id"]) do
       wrap(
-        A2A.create_task(scope, context, %{title: args["title"], description: args["description"]})
+        A2A.create_task(scope, context, %{
+          title: args["title"],
+          description: args["description"],
+          depends_on: List.wrap(args["depends_on"]),
+          parent_task_id: args["parent_task_id"]
+        })
       )
+    end
+  end
+
+  defp tool(scope, "hub_add_task_dependency", args) do
+    wrap(AgentDesk.A2A.Graph.add_dependency(scope, args["task_id"], args["depends_on_id"]))
+  end
+
+  defp tool(scope, "hub_list_task_graph", _args) do
+    edges = Enum.map(AgentDesk.A2A.Graph.list_edges(scope.project.id), &edge_map/1)
+    {:ok, %{"edges" => edges}}
+  end
+
+  defp tool(scope, "hub_save_workflow", args) do
+    wrap(
+      AgentDesk.A2A.Workflows.save(scope, %{
+        name: args["name"],
+        description: args["description"],
+        steps: args["steps"]
+      })
+    )
+  end
+
+  defp tool(scope, "hub_list_workflows", _args) do
+    {:ok, %{"workflows" => Enum.map(AgentDesk.A2A.Workflows.list(scope), &encode/1)}}
+  end
+
+  defp tool(scope, "hub_list_roles", _args) do
+    roles = Enum.map(AgentDesk.Roles.list(scope.project), &AgentDesk.Roles.public_map/1)
+    {:ok, %{"roles" => roles}}
+  end
+
+  defp tool(scope, "hub_run_workflow", args) do
+    with {:ok, context} <- run_context(scope, args["context_id"]) do
+      wrap(AgentDesk.A2A.Workflows.instantiate(scope, args["workflow_id"], context))
     end
   end
 
@@ -309,6 +367,41 @@ defmodule AgentDesk.MCP.Protocol do
 
   defp tool(scope, "hub_accept_handoff", args) do
     wrap(AgentDesk.Worktrees.Handoffs.accept(scope, args["artifact_id"]))
+  end
+
+  defp tool(scope, "hub_reject_handoff", args) do
+    wrap(AgentDesk.Worktrees.Handoffs.reject(scope, args["artifact_id"]))
+  end
+
+  defp tool(scope, "hub_list_merge_queue", _args) do
+    items = Enum.map(AgentDesk.Reviews.list_open(scope.project), &queue_item_map/1)
+    {:ok, %{"items" => items}}
+  end
+
+  defp tool(scope, "project_search", args) do
+    wrap_search(AgentDesk.Search.search(scope, %{"q" => args["q"] || args["query"] || ""}))
+  end
+
+  defp tool(scope, "memory_remember", args) do
+    wrap_search(
+      AgentDesk.Search.remember(scope, args["namespace"], %{
+        text: args["text"],
+        metadata: args["metadata"] || %{},
+        id: args["id"]
+      })
+    )
+  end
+
+  defp tool(scope, "memory_recall", args) do
+    wrap_search(
+      AgentDesk.Search.recall(scope, args["namespace"], %{
+        "q" => args["q"] || args["query"] || ""
+      })
+    )
+  end
+
+  defp tool(scope, "memory_forget", args) do
+    wrap_search(AgentDesk.Search.forget(scope, args["namespace"], args["id"]))
   end
 
   defp tool(scope, "hub_request_review", args) do
@@ -335,17 +428,30 @@ defmodule AgentDesk.MCP.Protocol do
     end
   end
 
+  defp run_context(scope, id) when is_binary(id) and id != "", do: fetch_context(scope, id)
+  defp run_context(scope, _), do: A2A.ensure_working_context(scope)
+
   defp wrap({:ok, value}), do: {:ok, encode(value)}
   defp wrap({:error, reason}), do: {:error, reason}
 
+  defp wrap_search(:ok), do: {:ok, %{"ok" => true}}
+  defp wrap_search({:ok, value}), do: {:ok, %{"results" => encode(value)}}
+  defp wrap_search({:error, :unavailable}), do: {:ok, %{"error" => "unavailable"}}
+  defp wrap_search({:error, reason}), do: {:error, reason}
+
   defp wrap_card(result), do: wrap(result)
 
-  defp encode(%{id: id} = struct),
-    do: %{"id" => id, "type" => struct.__struct__ |> Module.split() |> List.last()}
+  defp encode(%{__struct__: module} = struct) do
+    %{"id" => Map.get(struct, :id), "type" => module |> Module.split() |> List.last()}
+  end
 
-  defp encode(map) when is_map(map), do: map
+  defp encode(map) when is_map(map), do: stringify(map)
   defp encode(list) when is_list(list), do: Enum.map(list, &encode/1)
   defp encode(other), do: %{"value" => inspect(other)}
+
+  defp stringify(map) when is_map(map) do
+    Map.new(map, fn {key, value} -> {to_string(key), value} end)
+  end
 
   defp lease_map(lease) do
     %{
@@ -359,6 +465,22 @@ defmodule AgentDesk.MCP.Protocol do
 
   defp delivery_map(delivery) do
     %{"id" => delivery.id, "inbox_sequence" => delivery.inbox_sequence, "state" => delivery.state}
+  end
+
+  defp queue_item_map(item) do
+    %{
+      "id" => item.id,
+      "artifact_id" => item.artifact_id,
+      "status" => item.status,
+      "policy_status" => item.policy_status,
+      "summary" => item.summary,
+      "branch" => item.branch_name,
+      "commit" => item.commit_sha
+    }
+  end
+
+  defp edge_map(edge) do
+    %{"task_id" => edge.task_id, "depends_on_id" => edge.depends_on_id}
   end
 
   defp atomize_limited(args) do

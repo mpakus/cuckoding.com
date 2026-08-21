@@ -116,6 +116,111 @@ Generate the OTP application at the repository root as `AgentDesk` with Phoenix 
 
 Reason: The product repo already held the architecture docs; nesting a second `agent_desk/` app would split the working tree. Loopback binding matches `SECURITY.md`. OTP 28 is the local toolchain; ExTauri 0.2.0 warns that Burrito may lack a pre-compiled OTP 28 ERTS, so production packaging remains a Phase 0 check. `mix ex_tauri.install` generated `src-tauri/`; bundle icons are still placeholder paths.
 
+## ADR-015 — Phase 0 spike results
+
+Status: Accepted for Phase 0
+
+Recorded from the Phoenix/ExTauri application at the repository root, fixture-backed provider adapters, the built-in MCP Agent Hub, Git worktrees, and optional XERJ.
+
+- **Hot reload / packaging (Apple Silicon):** `mix phx.server` and `mix ex_tauri.dev` are the development path. Phoenix `CodeReloader` is enabled. `MIX_ENV=prod mix release desktop` assembles `_build/prod/rel/desktop` on OTP 28. `mix ex_tauri.build` still fails: Burrito does not emit `burrito_out/desktop_aarch64-apple-darwin` for ExTauri 0.2.0 to wrap. Bundle icons remain placeholders in `src-tauri/tauri.conf.json`.
+- **Graceful shutdown:** `ExTauri.ShutdownManager` is the first supervisor child. Project runtimes trap exits and stop A2A, worktree, and search supervisors. Provider `SessionWorker` closes the OS `Port` on terminate and records `process_identity.os_pid`.
+- **Codex App Server:** Adapter talks JSON-RPC stdio (`initialize`, session, prompt, interrupt, approvals, resume). Primary path is structured JSONL, not ANSI. Live CLI coverage is fixture-backed in CI; `codex exec --json` remains the one-shot fallback.
+- **Claude Code:** Structured headless/streaming adapter. Resume is declared only where the adapter implements it. Unsupported encode actions return `{:error, :unsupported_action}` instead of scraping a TTY.
+- **Cursor ACP:** `agent acp` through `AgentDesk.Providers.ACP.Client`. Shared framing; Cursor owns extensions. `steer_active_turn` is false.
+- **OpenCode ACP:** `opencode acp --cwd <worktree>` through the same ACP client. The loopback OpenAPI server is not an MVP runtime dependency.
+- **ACP vs extensions:** One JSON-RPC transport; Cursor and OpenCode adapters remain separate (ADR-011). Protocol version is negotiated at initialize; unknown methods are rejected, not guessed.
+- **Per-session MCP injection:** `AgentDesk.Providers.MCPInjection` writes `mcp.json` under the session directory in application-data. It never edits global provider config.
+- **MCP prototype:** `AgentDesk.MCP.Protocol` implements JSON-RPC `initialize`, `tools/list`, and `tools/call` for hub, lease, handoff, and search tools.
+- **Two fake providers:** Fixture ACP peers cover discovery, delegation, accept/reject, structured messages, ack, artifacts, and restart recovery in A2A tests.
+- **A2A mapping:** Internal domain follows A2A 1.0 concepts; transport is private MCP. Public A2A wire types are not leaked.
+- **Git worktrees:** App-owned worktrees under `Storage.worktree_dir/2`, branch `agentdesk/<session_id>`, cleanup only when app-owned, path-matched, linked, and not dirty.
+- **XERJ:** Optional. Binary discovery, `--insecure --bind 127.0.0.1 --data-dir <Storage.xerj_dir>`, health against loopback `:9200`, autoindex, `/_memory` namespaces, and clean Port shutdown. AgentDesk never attaches to a XERJ node it did not start (occupied `:9200` is treated as unavailable). When the binary is missing the `Search.Adapter` returns `unavailable` and coordination continues. CI uses the SQLite projection adapter, which is rebuildable from canonical files and SQLite. Live spike against `xerj v1.0.0-rc.14`: node start and HTTP health work; autoindex/search/memory must use an AgentDesk-owned data dir, not a pre-existing node.
+- **Four-session cost:** Four concurrent fake sessions start under `ProviderProcessSupervisor` and persist OS pids. Unbounded-growth load testing remains Phase 6.
+
+Unsupported or deferred capabilities (explicit):
+
+- Generic PTY / ANSI terminal parsing (ADR-010).
+- OpenCode HTTP server fallback.
+- Claude Agent SDK as a second Claude transport.
+- Production ExTauri/Burrito packaging on OTP 28 (`mix release desktop` works; `mix ex_tauri.build` wrap fails).
+- Bundled XERJ binary (external discovery for MVP).
+- Cursor/OpenCode `steer_active_turn`.
+- Hosted embeddings (opt-in later; default is local lexical).
+
+No adapter's primary path parses ANSI screens. Child processes are identified by Port + `os_pid` and terminated through `Port.close/1`.
+
+## ADR-016 — Phase 6 hardening defaults
+
+Status: Accepted for Phase 6
+
+Startup reconciliation expires leases, delegations, and capability tokens and interrupts orphan sessions. It never signals an OS pid from stored `process_identity` (PID reuse). Crash loops trip `AgentDesk.Circuit` after five failures. Diagnostic export is redacted. Permission profiles `default` and `observer`/`restricted` filter MCP tools. SQLite snapshots are copy-based; applied migrations are never edited in place. Signed macOS distribution waits on certificates and OTP 28 packaging.
+
+## ADR-017 — Multiple live projects and glob leases
+
+Status: Accepted
+
+Keep one `ProjectRuntime` per open project under `Projects.Supervisor`. `projects.open` is canonical: opening sets it true without stopping other runtimes; closing sets it false and stops only that runtime. Boot restores every open project, not only `last_opened_at`.
+
+Resource overlap treats `file`, `directory`, and `glob` as path-shaped. Glob matching is prefix + `*` / `**` pattern comparison in `Resources.Overlap`; it is never proof of ownership. The workspace lists colliding keys as a preview only.
+
+Reason: The architecture already isolated runtimes per project. Restoring only the last project dropped concurrent sessions on restart. Directory overlap existed; glob claims and a visible collision list were the remaining ResourceManager gap.
+
+## ADR-018 — Review/merge queue is explicit
+
+Status: Accepted
+
+Handoffs enqueue a `merge_queue_items` row. `hub_accept_handoff` persists `accepted` and never runs Git. Merge is a confirmed user action that requires `accepted`, `policy_status=passed`, a clean primary checkout on `target_ref`, and a conflict-free `merge-tree`. Failed or missing `project.settings["required_checks"]` block merge. Isolated agent worktrees are not modified by merge; only the user's primary checkout is, and only after that confirmation.
+
+Reason: UI.md disables integration while checks fail or conflicts exist. AGENTS.md forbids auto-merge with failing required checks. MCP agents must not integrate into the primary tree.
+
+## ADR-019 — Task graphs and reusable workflows
+
+Status: Accepted
+
+`parent_task_id` remains a nesting hint. Wait-edges live in `task_dependencies` and are cycle-checked in `A2A.Graph`. Incomplete prerequisites set `blocked`; completing a prerequisite unblocks dependents that have no remaining unfinished edges. Failed or cancelled prerequisites do not unblock. Reusable workflows are project-scoped templates; instantiating them creates tasks and edges. MCP `hub_run_workflow` and the LiveView step list both go through that path.
+
+Reason: UI.md asks for optional dependencies and current-task dependency visibility. A DAG is the missing coordination primitive after single-parent tasks.
+
+## ADR-020 — User-defined roles stay off Agent Cards
+
+Status: Accepted
+
+Project-scoped `agent_roles` rows hold a name, safe description, permission profile, and a prompt template. Starting a session copies the role name and `permission_profile` onto the session. The prompt is interpolated with `{{display_name}}` and `{{role}}` and injected only into that provider session after handshake. Agent Cards, MCP `hub_list_roles`, and diagnostic events expose name/description/profile only. Roles cannot be named after credential keys. MCP cannot save or rewrite prompts.
+
+Reason: PROVIDERS.md derives Agent Cards from user role settings plus verified capabilities. Hidden prompts and credentials must never appear on cards or peer-visible discovery.
+
+## ADR-021 — SDK JSONL and loopback attach
+
+Status: Accepted
+
+`sdk` is a structured JSONL adapter for a user-supplied executable plus argument array. Commands use `op`; events use `type` and `Event.type_from_string/1`. Relative paths with directories are rejected. `remote` sessions do not spawn a child: AgentDesk issues a capability token, writes `mcp.json` and `connect.env` (mode 0600) under the session directory, and delivers UI prompts through the durable A2A inbox. Agents connect inbound over loopback MCP. This is not a public A2A 1.0 gateway.
+
+Reason: PLAN calls for provider SDK adapters and remote agents. DECISIONS keeps the public gateway deferred. Attach is the local-first equivalent: bring-your-own process, same hub, no LAN bind.
+
+## ADR-022 — Usage samples are canonical
+
+Status: Accepted
+
+Normalized `:usage` events persist to `usage_samples` with integer token counts and optional integer `cost_cents`. The workspace usage panel reads SQLite totals. Usage is never sourced from XERJ or PubSub.
+
+Reason: PROVIDERS.md requires usage events on the capability model. Cost/token dashboards need a rebuildable ledger; floats are forbidden for money.
+
+## ADR-023 — Optional Compose stays off the primary tree
+
+Status: Accepted
+
+Containerized execution is opt-in per session (`settings["container"]`). AgentDesk runs `docker compose` as an executable plus argument array with a unique `-p` project name from `Isolation.compose_project/1`. It only uses the session worktree, never the user's primary checkout or shared-workspace mode. Compose files that mention `0.0.0.0`, `network_mode: host`, or `privileged:` are rejected. Published services should bind `127.0.0.1` via `AGENTDESK_BIND`. Stacks are claimed as exclusive `service` leases and torn down on session terminate and startup reconcile. Docker is not required when the option is off; CI uses a fixture CLI.
+
+Reason: PLAN calls for optional containerized execution. AGENTS.md already required per-agent Compose project names and forbids isolated-mode edits to the primary worktree. Loopback binding matches SECURITY.md.
+
+## ADR-024 — Team sync is a file bundle
+
+Status: Accepted
+
+Team synchronization is a user-initiated export/import of a redacted JSON bundle (`agentdesk.sync.v1`). Bundles carry tasks, wait-edges, workflows, and role templates. They do not carry capability tokens, leases, live sessions, worktrees, search indexes, or provider secrets. Import is allowed when `project.settings["sync_id"]` matches or when canonical Git `origin` URLs match. AgentDesk does not open a sync listener, does not bind beyond loopback, and does not implement a public A2A gateway.
+
+Reason: PLAN calls for team synchronization across machines. Local-first architecture keeps Git as the code transport and SQLite as canonical coordination state. A hosted sync service or public A2A wire would contradict DECISIONS.md until the gateway ADR is accepted.
+
 ## Open decisions
 
 ### MCP implementation library

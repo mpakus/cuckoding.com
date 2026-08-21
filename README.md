@@ -6,7 +6,9 @@ AgentDesk is a local-first desktop workspace for running multiple coding agents 
 
 ## Status
 
-Phoenix LiveView + SQLite scaffolding is in place, including ExTauri native-shell install. Provider adapters and the internal A2A Hub are next. See `docs/PLAN.md`.
+Phases 0–6 of `docs/PLAN.md` are implemented except wrapping a Mix release in ExTauri/Burrito on OTP 28. Post-MVP work through ADR-024 is in tree: search/memory, hardening, multiple open projects, glob leases, review/merge queue, task graphs, roles, SDK/remote attach, usage, optional Compose, and file-based team sync. The public A2A gateway remains deferred.
+
+Dev path: `mix phx.server` on [http://127.0.0.1:4000](http://127.0.0.1:4000), or `mix ex_tauri.dev`. See `docs/README.md`.
 
 ## Prerequisites
 
@@ -25,7 +27,7 @@ mix phx.server
 
 Open [http://127.0.0.1:4000](http://127.0.0.1:4000). The HTTP listener binds to loopback only.
 
-Desktop development (after ExTauri install):
+Desktop development:
 
 ```bash
 mix ex_tauri.dev
@@ -49,3 +51,5 @@ mix check
 | [docs/PLAN.md](docs/PLAN.md) | Delivery phases and acceptance criteria |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Processes, data flow, and failure boundaries |
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Bootstrap and local conventions |
+| [docs/RELEASE.md](docs/RELEASE.md) | Packaging and signing checklist |
+| [docs/OPERATIONS.md](docs/OPERATIONS.md) | Backup, migrations, team sync files |

@@ -84,6 +84,8 @@ defmodule AgentDesk.A2A.Lifecycle do
 
       case result do
         {:ok, updated} ->
+          _ = AgentDesk.A2A.Graph.release_ready(updated)
+
           Phoenix.PubSub.broadcast(
             AgentDesk.PubSub,
             "project:" <> project.id <> ":task:" <> updated.id,

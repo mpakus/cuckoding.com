@@ -14,7 +14,7 @@ defmodule AgentDesk.Resources.Lease do
 
   @type t :: %__MODULE__{}
 
-  @types ~w(file directory database migration service port git_ref custom)
+  @types ~w(file directory glob database migration service port git_ref custom)
   @modes ~w(shared exclusive)
   @statuses ~w(active released expired revoked)
 

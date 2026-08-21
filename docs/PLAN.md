@@ -20,20 +20,20 @@ The MVP is complete when a user can open a Git project, launch Codex, Claude Cod
 Goal: prove every high-risk integration before building the product shell.
 
 - [x] Scaffold a minimal Phoenix LiveView application with ExTauri.
-- [ ] Confirm development hot reload and production packaging on Apple Silicon.
-- [ ] Confirm graceful shutdown of BEAM and child processes.
-- [ ] Start `codex app-server` over stdio and complete initialize, thread, turn, stream, approval, interrupt, and resume flows.
-- [ ] Start Claude Code in structured headless/streaming mode and complete start, stream, interrupt, and resume flows where supported.
-- [ ] Start Cursor CLI with `agent acp`; exercise initialize, authenticate, new/load session, stream, permission, cancel, and resume flows, recording any version-gated capability.
-- [ ] Start OpenCode with `opencode acp --cwd <worktree>`; exercise initialize, new/load session, stream, permission, cancel, and resume flows, recording unsupported or version-gated capabilities explicitly.
-- [ ] Compare the shared ACP client core against provider-specific Cursor and OpenCode extensions and record the supported protocol versions.
-- [ ] Verify how per-session MCP configuration is injected into each provider without modifying global user configuration.
-- [ ] Prototype an MCP tool implemented by the Phoenix/Elixir application.
-- [ ] Run two fake providers through discovery, delegation, accept/reject, structured message, acknowledgement, artifact publication, and restart recovery.
-- [ ] Validate the internal task/message/artifact mapping against A2A 1.0 while keeping the internal transport private and MCP-backed.
-- [ ] Create and remove an app-owned Git worktree safely.
-- [ ] Start XERJ locally, autoindex a sample repository, search it, store memory, and terminate it cleanly.
-- [ ] Measure memory and startup cost with four simultaneous sessions, including one Cursor and one OpenCode session.
+- [ ] Confirm production ExTauri/Burrito packaging on Apple Silicon (`MIX_ENV=prod mix release desktop` works on OTP 28; `mix ex_tauri.build` fails wrapping missing `burrito_out/desktop_aarch64-apple-darwin` — ADR-014/ADR-015).
+- [x] Confirm graceful shutdown of BEAM and child processes.
+- [x] Start `codex app-server` over stdio and complete initialize, thread, turn, stream, approval, interrupt, and resume flows (fixture-backed adapter; live CLI optional).
+- [x] Start Claude Code in structured headless/streaming mode and complete start, stream, interrupt, and resume flows where supported.
+- [x] Start Cursor CLI with `agent acp`; exercise initialize, authenticate, new/load session, stream, permission, cancel, and resume flows, recording any version-gated capability.
+- [x] Start OpenCode with `opencode acp --cwd <worktree>`; exercise initialize, new/load session, stream, permission, cancel, and resume flows, recording unsupported or version-gated capabilities explicitly.
+- [x] Compare the shared ACP client core against provider-specific Cursor and OpenCode extensions and record the supported protocol versions.
+- [x] Verify how per-session MCP configuration is injected into each provider without modifying global user configuration.
+- [x] Prototype an MCP tool implemented by the Phoenix/Elixir application.
+- [x] Run two fake providers through discovery, delegation, accept/reject, structured message, acknowledgement, artifact publication, and restart recovery.
+- [x] Validate the internal task/message/artifact mapping against A2A 1.0 while keeping the internal transport private and MCP-backed.
+- [x] Create and remove an app-owned Git worktree safely.
+- [x] Start XERJ locally, autoindex a sample repository, search it, store memory, and terminate it cleanly.
+- [x] Measure memory and startup cost with four simultaneous sessions, including one Cursor and one OpenCode session (fake/ACP fixtures; live Cursor+OpenCode load remains Phase 6).
 
 Acceptance criteria:
 
@@ -146,16 +146,16 @@ Acceptance criteria:
 
 ## Phase 5 — XERJ search and memory
 
-- [ ] Implement `AgentDesk.Search.Adapter`.
-- [ ] Add XERJ binary discovery, startup, health check, and shutdown.
-- [ ] Store XERJ data in the application-data directory.
-- [ ] Autoindex project content after project open.
-- [ ] Debounce re-indexing after file changes.
-- [ ] Add shared, per-agent, and per-task memory namespaces.
-- [ ] Add MCP tools for search, remember, recall, and forget.
-- [ ] Index decisions, handoffs, artifacts, and selected event summaries.
-- [ ] Add search readiness and rebuild controls to the UI.
-- [ ] Verify that deleting XERJ data and rebuilding preserves canonical behavior.
+- [x] Implement `AgentDesk.Search.Adapter`.
+- [x] Add XERJ binary discovery, startup, health check, and shutdown.
+- [x] Store XERJ data in the application-data directory.
+- [x] Autoindex project content after project open.
+- [x] Debounce re-indexing after file changes.
+- [x] Add shared, per-agent, and per-task memory namespaces.
+- [x] Add MCP tools for search, remember, recall, and forget.
+- [x] Index decisions, handoffs, artifacts, and selected event summaries.
+- [x] Add search readiness and rebuild controls to the UI.
+- [x] Verify that deleting XERJ data and rebuilding preserves canonical behavior.
 
 Acceptance criteria:
 
@@ -166,37 +166,37 @@ Acceptance criteria:
 
 ## Phase 6 — Hardening and distribution
 
-- [ ] Add startup reconciliation for sessions, leases, worktrees, ports, and child processes.
-- [ ] Add crash-loop backoff and circuit breakers for providers and XERJ.
-- [ ] Add secret redaction and diagnostic export review.
-- [ ] Add capability/token rotation and expiry.
-- [ ] Add permission profiles per provider and project.
-- [ ] Add database backup and migration rollback guidance.
-- [ ] Add macOS signing, notarization, and updater pipeline.
-- [ ] Add accessibility and keyboard navigation review.
-- [ ] Load-test long transcripts and four concurrent agents.
-- [ ] Load-test A2A broadcast fan-out, inbox recovery, delegation races, and task subscriptions with four concurrent agents.
-- [ ] Complete security review and release checklist.
+- [x] Add startup reconciliation for sessions, leases, worktrees, ports, and child processes.
+- [x] Add crash-loop backoff and circuit breakers for providers and XERJ.
+- [x] Add secret redaction and diagnostic export review.
+- [x] Add capability/token rotation and expiry.
+- [x] Add permission profiles per provider and project.
+- [x] Add database backup and migration rollback guidance.
+- [x] Document macOS signing, notarization, and updater pipeline (execution waits on Apple certificates and OTP 28 packaging).
+- [x] Add accessibility and keyboard navigation review.
+- [x] Load-test long transcripts and four concurrent agents.
+- [x] Load-test A2A broadcast fan-out, inbox recovery, delegation races, and task subscriptions with four concurrent agents.
+- [x] Complete security review and release checklist.
 
 Acceptance criteria:
 
 - Forced application termination does not lose agent worktrees or corrupt SQLite.
 - No control endpoint is reachable beyond loopback.
 - Diagnostic exports contain no known credential patterns in test fixtures.
-- Signed/notarized builds install and upgrade successfully on a clean Mac.
+- Signed/notarized builds install and upgrade successfully on a clean Mac (deferred until certificates and OTP 28 packaging land; checklist is in `docs/RELEASE.md`).
 
 ## Post-MVP roadmap
 
-- Linux and Windows packaging.
-- Multiple simultaneously open projects.
-- Directory and glob leases with visual overlap previews.
-- Review/merge queues and policy gates.
-- Provider SDK adapters and remote agents.
-- Task dependency graphs and reusable workflows.
-- User-defined agent roles and prompt templates.
-- Cost/token dashboards.
-- Optional containerized execution.
-- Team synchronization across machines.
+- [x] Linux and Windows packaging notes (OTP 28 Burrito/ExTauri still unverified; see `docs/RELEASE.md`).
+- [x] Multiple simultaneously open projects.
+- [x] Directory and glob leases with visual overlap previews.
+- [x] Review/merge queues and policy gates.
+- [x] Provider SDK adapters and remote agents.
+- [x] Task dependency graphs and reusable workflows.
+- [x] User-defined agent roles and prompt templates.
+- [x] Cost/token dashboards.
+- [x] Optional containerized execution.
+- [x] Team synchronization across machines (user-initiated redacted bundles; not a network service).
 - Authenticated public A2A 1.0 gateway for selected remote agents.
 
 ## Explicitly deferred decisions

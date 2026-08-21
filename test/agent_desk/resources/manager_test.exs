@@ -34,7 +34,9 @@ defmodule AgentDesk.Resources.ManagerTest do
 
   test "directory lease blocks a child file claim", %{alice: alice, bob: bob} do
     assert {:ok, _} =
-             Manager.claim(alice, [%{"type" => "file", "key" => "lib", "mode" => "exclusive"}],
+             Manager.claim(
+               alice,
+               [%{"type" => "directory", "key" => "lib", "mode" => "exclusive"}],
                reason: "dir"
              )
 
@@ -44,6 +46,39 @@ defmodule AgentDesk.Resources.ManagerTest do
                [%{"type" => "file", "key" => "lib/app.ex", "mode" => "exclusive"}],
                reason: "file"
              )
+  end
+
+  test "glob lease blocks a matching file claim", %{alice: alice, bob: bob} do
+    assert {:ok, _} =
+             Manager.claim(
+               alice,
+               [%{"type" => "glob", "key" => "lib/**/*.ex", "mode" => "exclusive"}],
+               reason: "elixir"
+             )
+
+    assert {:error, {:conflict, _}} =
+             Manager.claim(
+               bob,
+               [%{"type" => "file", "key" => "lib/app.ex", "mode" => "exclusive"}],
+               reason: "file"
+             )
+  end
+
+  test "overlap previews list colliding keys without treating them as ownership", %{
+    alice: alice,
+    bob: bob
+  } do
+    shared_dir = [%{"type" => "directory", "key" => "lib", "mode" => "shared"}]
+    shared_file = [%{"type" => "file", "key" => "lib/app.ex", "mode" => "shared"}]
+    assert {:ok, _} = Manager.claim(alice, shared_dir, reason: "browse")
+    assert {:ok, _} = Manager.claim(bob, shared_file, reason: "read")
+
+    previews = AgentDesk.Resources.Overlap.previews(Manager.list_project(alice.project.id))
+
+    assert Enum.any?(previews, fn {lease, overlaps} ->
+             (lease.resource_key == "lib" and "lib/app.ex" in overlaps) or
+               (lease.resource_key == "lib/app.ex" and "lib" in overlaps)
+           end)
   end
 
   test "shared leases coexist until an exclusive claim", %{alice: alice, bob: bob} do

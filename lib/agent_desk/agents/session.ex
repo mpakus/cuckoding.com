@@ -13,7 +13,7 @@ defmodule AgentDesk.Agents.Session do
 
   @type t :: %__MODULE__{}
 
-  @providers ~w(codex claude cursor opencode fake)
+  @providers ~w(codex claude cursor opencode fake sdk remote)
   @statuses ~w(queued starting idle working waiting blocked completed failed interrupted terminating terminated)
 
   schema "agent_sessions" do

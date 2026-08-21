@@ -82,36 +82,49 @@ defmodule AgentDesk.Providers.SessionWorker do
     {:ok, project} = Projects.get_project(session.project_id)
     {:ok, adapter} = Providers.adapter(session.provider)
 
-    {:ok, spec} =
-      adapter.command_spec(
-        session,
-        Keyword.get(opts, :adapter_opts, []) ++
-          [cwd: AgentDesk.Worktrees.working_copy_path(project, session)]
-      )
+    adapter_opts =
+      Keyword.get(opts, :adapter_opts, []) ++
+        [cwd: AgentDesk.Worktrees.working_copy_path(project, session)]
 
     {:ok, token, session} = AgentDesk.Security.Capability.issue(session)
     mcp_path = MCPInjection.write!(session, token)
-    port = open_port(spec, token)
 
-    Process.send_after(self(), :handshake_timeout, @handshake_ms)
-    Telemetry.provider_started(session.id, session.provider)
+    case spawn_or_attach(adapter, session, adapter_opts, token) do
+      {:ok, port, session} ->
+        Process.send_after(self(), :handshake_timeout, @handshake_ms)
+        Telemetry.provider_started(session.id, session.provider)
 
-    state = %__MODULE__{
-      session: session,
-      project: project,
-      adapter: adapter,
-      decode: adapter.init_decode(),
-      port: port,
-      framer: Framer.new(),
-      status: "starting",
-      mcp_path: mcp_path,
-      token: token
-    }
+        state = %__MODULE__{
+          session: session,
+          project: project,
+          adapter: adapter,
+          decode: adapter.init_decode(),
+          port: port,
+          framer: Framer.new(),
+          status: "starting",
+          mcp_path: mcp_path,
+          token: token
+        }
 
-    {:ok, state, {:continue, :handshake}}
+        {:ok, state, {:continue, :handshake}}
+
+      {:error, reason} ->
+        {:stop, reason}
+    end
   end
 
   @impl true
+  def handle_continue(:handshake, %{port: nil} = state) do
+    event =
+      Event.new(
+        :session_ready,
+        %{"provider_session_id" => "attach-" <> state.session.id},
+        state.session.provider
+      )
+
+    {:noreply, apply_event(state, event)}
+  end
+
   def handle_continue(:handshake, state) do
     state =
       state
@@ -178,7 +191,9 @@ defmodule AgentDesk.Providers.SessionWorker do
   @impl true
   def terminate(_reason, state) do
     close_port(state)
+    _ = AgentDesk.Containers.stop(state.session)
     _ = AgentDesk.Resources.Manager.expire_session(state.session.id)
+    _ = AgentDesk.Security.Capability.revoke(state.session)
     :ok
   end
 
@@ -207,7 +222,9 @@ defmodule AgentDesk.Providers.SessionWorker do
     session = remember_provider_session(state.session, event)
     state = %{state | session: session, handshake: :ready}
     state = persist_status(state, "idle")
+    AgentDesk.Circuit.success("provider:" <> state.session.provider)
     state = register_card(state)
+    state = maybe_inject_role_prompt(state)
     state = send_action(state, {:configure_mcp, state.mcp_path})
     emit(state, [event]) |> deliver_inbox()
   end
@@ -231,6 +248,11 @@ defmodule AgentDesk.Providers.SessionWorker do
     persist_status(emit(state, [event]), "failed")
   end
 
+  defp apply_event(state, %Event{type: :usage} = event) do
+    _ = AgentDesk.Usage.record(state.session, event.payload)
+    emit(state, [event])
+  end
+
   defp apply_event(state, %Event{} = event), do: emit(state, [event])
 
   defp handle_exit(state, 0) do
@@ -246,12 +268,15 @@ defmodule AgentDesk.Providers.SessionWorker do
 
   defp handle_exit(state, status) do
     Telemetry.provider_exited(state.session.id, status)
+    AgentDesk.Circuit.failure("provider:" <> state.session.provider)
 
     persist_status(
       emit(state, [Event.new(:provider_error, %{"exit" => status}, state.session.provider)]),
       "failed"
     )
   end
+
+  defp deliver_inbox(%{port: nil} = state), do: state
 
   defp deliver_inbox(state) do
     deliveries = MessageRouter.pending(state.session.id)
@@ -273,13 +298,78 @@ defmodule AgentDesk.Providers.SessionWorker do
     _ =
       A2A.register_card(scope, %{
         name: state.session.display_name,
-        description: "#{state.adapter.display_name()} session",
-        skills: [%{"name" => state.adapter.key()}],
+        description:
+          AgentDesk.Roles.card_description(state.session, state.adapter.display_name()),
+        skills: card_skills(state),
         availability: "idle",
         features: %{"resume" => caps.resume, "approvals" => caps.approvals}
       })
 
     state
+  end
+
+  defp maybe_inject_role_prompt(state) do
+    case AgentDesk.Roles.prompt_for(state.session) do
+      {:ok, text} -> send_action(state, {:prompt, text})
+      :none -> state
+    end
+  end
+
+  defp card_skills(state) do
+    [%{"name" => state.adapter.key(), "role" => state.session.role || "agent"}]
+  end
+
+  defp spawn_or_attach(adapter, session, opts, token) do
+    case adapter.command_spec(session, opts) do
+      {:ok, :attach} ->
+        {:ok, nil, remember_attach(session)}
+
+      {:ok, %CommandSpec{} = spec} ->
+        port = open_port(spec, token)
+        {:ok, port, remember_process(session, port)}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp remember_attach(session) do
+    case Agents.update_session(session, %{process_identity: %{"mode" => "attach"}}) do
+      {:ok, updated} -> updated
+      {:error, _} -> session
+    end
+  end
+
+  defp enqueue_attach_prompt(state, text) do
+    scope = Scope.for_agent(state.project, state.session)
+
+    with {:ok, context} <- A2A.ensure_working_context(scope),
+         {:ok, _} <-
+           A2A.send_direct_message(scope, %{
+             recipient_agent_id: state.session.id,
+             context_id: context.id,
+             body: text,
+             idempotency_key: AgentDesk.Ids.generate()
+           }) do
+      state
+    else
+      _ -> state
+    end
+  end
+
+  defp remember_process(session, port) do
+    os_pid =
+      case Port.info(port, :os_pid) do
+        {:os_pid, pid} -> pid
+        _ -> nil
+      end
+
+    identity = %{"os_pid" => os_pid, "port" => inspect(port)}
+
+    case Agents.update_session(session, %{process_identity: identity}) do
+      {:ok, updated} -> updated
+      {:error, _} -> session
+    end
   end
 
   defp remember_provider_session(session, %Event{payload: payload}) do
@@ -304,6 +394,12 @@ defmodule AgentDesk.Providers.SessionWorker do
         send_action(state, {:start_session, state.project.canonical_path})
     end
   end
+
+  defp send_action(%{port: nil} = state, {:prompt, text}) do
+    enqueue_attach_prompt(state, text)
+  end
+
+  defp send_action(%{port: nil} = state, _action), do: state
 
   defp send_action(state, action) do
     case state.adapter.encode(action, state.decode) do

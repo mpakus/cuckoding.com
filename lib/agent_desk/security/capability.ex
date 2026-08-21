@@ -9,6 +9,8 @@ defmodule AgentDesk.Security.Capability do
   alias AgentDesk.Ids
   alias AgentDesk.Repo
 
+  import Ecto.Query
+
   @spec hash(String.t()) :: String.t()
   def hash(token) when is_binary(token) do
     :sha256 |> :crypto.hash(token) |> Base.encode16(case: :lower)
@@ -37,6 +39,31 @@ defmodule AgentDesk.Security.Capability do
   end
 
   def authenticate(_), do: {:error, :unauthorized}
+
+  @spec rotate(Session.t()) :: {:ok, String.t(), Session.t()} | {:error, term()}
+  def rotate(%Session{} = session), do: issue(session)
+
+  @spec revoke(Session.t()) :: {:ok, Session.t()} | {:error, term()}
+  def revoke(%Session{} = session) do
+    Agents.update_session(session, %{
+      capability_hash: hash(Ids.generate()),
+      capability_expires_at: Clock.utc_now()
+    })
+  end
+
+  @spec expire_due(Ecto.UUID.t()) :: :ok
+  def expire_due(project_id) when is_binary(project_id) do
+    now = Clock.utc_now()
+
+    from(s in Session,
+      where:
+        s.project_id == ^project_id and not is_nil(s.capability_expires_at) and
+          s.capability_expires_at <= ^now
+    )
+    |> Repo.update_all(set: [capability_hash: nil, updated_at: now])
+
+    :ok
+  end
 
   defp check_expiry(%Session{capability_expires_at: nil} = session), do: {:ok, session}
 
