@@ -1,0 +1,18 @@
+---
+description: AgentDesk product boundaries, docs, and safety rules
+alwaysApply: true
+---
+
+# AgentDesk
+
+Local-first Elixir/Phoenix desktop app. Specs are in `docs/`. Working rules are in `AGENTS.md`.
+
+Read `docs/README.md`, then the spec that matches the change (`docs/ARCHITECTURE.md`, `docs/DB.md`, `docs/A2A.md`, `docs/PROTOCOL.md`, `docs/PROVIDERS.md`, `docs/SECURITY.md`, `docs/PLAN.md`). Do not contradict `docs/DECISIONS.md`.
+
+- LiveView renders; OTP orchestrates; SQLite is canonical; PubSub is ephemeral.
+- Provider details stay in `AgentDesk.Providers.*`. A2A stays in `AgentDesk.A2A.*`.
+- Agents talk to the hub through MCP, never peer sockets or the database.
+- Canonicalize paths. Leases go through `ResourceManager`. No permanent lock files.
+- Bind listeners to loopback. Never store provider secrets in SQLite.
+- Isolated mode must not edit the user's primary worktree.
+- Mutating A2A calls need an idempotency key. Registry keys are strings/UUIDs, never `String.to_atom/1`.
