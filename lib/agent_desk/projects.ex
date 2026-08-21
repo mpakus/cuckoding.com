@@ -20,6 +20,53 @@ defmodule AgentDesk.Projects do
 
   @recent_limit 20
 
+  @spec last_opened() :: Project.t() | nil
+  def last_opened do
+    Project
+    |> order_by([p], desc: p.last_opened_at)
+    |> limit(1)
+    |> Repo.one()
+  end
+
+  @spec restore_last_opened() :: :ok | {:ok, Project.t()} | {:error, term()}
+  def restore_last_opened do
+    case last_opened() do
+      nil -> :ok
+      %Project{} = project -> restore_project(project)
+    end
+  end
+
+  defp restore_project(%Project{} = project) do
+    if File.dir?(project.canonical_path) and Git.repository?(project.canonical_path) do
+      start_restored_runtime(project)
+    else
+      {:error, :missing_repository}
+    end
+  end
+
+  defp start_restored_runtime(project) do
+    case ProjectSupervisor.start_runtime(project) do
+      {:ok, _pid} -> {:ok, project}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @spec restore_on_boot() :: :ok
+  def restore_on_boot do
+    case restore_last_opened() do
+      :ok ->
+        :ok
+
+      {:ok, _project} ->
+        :ok
+
+      {:error, reason} ->
+        require Logger
+        Logger.warning("agentdesk restore skipped: #{inspect(reason)}")
+        :ok
+    end
+  end
+
   @spec list_recent(pos_integer()) :: [Project.t()]
   def list_recent(limit \\ @recent_limit) do
     Project

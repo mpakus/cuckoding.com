@@ -53,4 +53,15 @@ defmodule AgentDeskWeb.WorkspaceLiveTest do
 
     AgentDesk.Projects.Supervisor.stop_runtime(project.id)
   end
+
+  test "restores the last opened project from the index", %{conn: conn} do
+    repo = GitRepo.tmp_repo!()
+    {:ok, project} = Projects.open_project(repo)
+
+    {:ok, view, _html} = live(conn, ~p"/")
+    assert_patch(view, ~p"/projects/#{project.id}")
+    assert render(view) =~ project.name
+
+    AgentDesk.Projects.Supervisor.stop_runtime(project.id)
+  end
 end

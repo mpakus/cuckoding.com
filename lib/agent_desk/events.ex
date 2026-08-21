@@ -24,6 +24,7 @@ defmodule AgentDesk.Events do
       |> Map.put_new("id", Ids.generate())
       |> Map.put_new("occurred_at", Clock.utc_now())
       |> Map.put_new("payload", %{})
+      |> Map.put_new("correlation_id", Ids.generate())
 
     %Event{}
     |> Event.changeset(attrs)

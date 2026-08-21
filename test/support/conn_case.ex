@@ -33,6 +33,7 @@ defmodule AgentDeskWeb.ConnCase do
 
   setup tags do
     AgentDesk.DataCase.setup_sandbox(tags)
+    on_exit(&AgentDesk.DataCase.stop_project_runtimes/0)
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
 end

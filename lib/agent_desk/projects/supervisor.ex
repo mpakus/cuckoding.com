@@ -32,7 +32,10 @@ defmodule AgentDesk.Projects.Supervisor do
   def stop_runtime(project_id) when is_binary(project_id) do
     case Runtime.fetch(project_id) do
       {:ok, pid} ->
-        _ = DynamicSupervisor.terminate_child(__MODULE__, pid)
+        if Process.alive?(pid) do
+          GenServer.stop(pid, :normal, 5_000)
+        end
+
         :ok
 
       {:error, :not_started} ->

@@ -18,6 +18,11 @@ defmodule AgentDesk.Application do
       {Registry, keys: :unique, name: AgentDesk.ProjectRegistry},
       AgentDesk.Projects.Supervisor,
       {DynamicSupervisor, name: AgentDesk.ProviderProcessSupervisor, strategy: :one_for_one},
+      Supervisor.child_spec(
+        {Task, fn -> AgentDesk.Projects.restore_on_boot() end},
+        id: AgentDesk.Projects.Restorer,
+        restart: :temporary
+      ),
       AgentDeskWeb.Endpoint
     ]
 

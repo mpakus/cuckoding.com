@@ -52,8 +52,8 @@ Acceptance criteria:
 - [x] Implement project open/close and recent-project persistence.
 - [x] Add `ProjectRuntime` under `DynamicSupervisor`.
 - [x] Add common event envelope and append-only event writer.
-- [ ] Add common `context_id`, `correlation_id`, `causation_id`, `idempotency_key`, and optimistic-version conventions.
-- [ ] Add migrations for Agent Cards, delegations, durable message delivery, and artifact references.
+- [x] Add common `context_id`, `correlation_id`, `causation_id`, `idempotency_key`, and optimistic-version conventions.
+- [x] Add migrations for Agent Cards, delegations, durable message delivery, and artifact references.
 - [x] Add telemetry and structured local logging.
 - [x] Create the initial application shell and navigation.
 

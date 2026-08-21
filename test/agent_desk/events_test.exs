@@ -20,6 +20,7 @@ defmodule AgentDesk.EventsTest do
     assert event.project_id == project.id
     assert event.type == "test.ping"
     assert event.payload["ok"] == true
+    assert event.correlation_id
 
     AgentDesk.Projects.Supervisor.stop_runtime(project.id)
   after

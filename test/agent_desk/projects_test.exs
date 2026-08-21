@@ -45,6 +45,16 @@ defmodule AgentDesk.ProjectsTest do
     :ok
   end
 
+  test "restore_last_opened starts the runtime for the most recent project", %{repo: repo} do
+    {:ok, project} = Projects.open_project(repo)
+    :ok = AgentDesk.Projects.Supervisor.stop_runtime(project.id)
+
+    assert {:ok, restored} = Projects.restore_last_opened()
+    assert restored.id == project.id
+    assert {:ok, pid} = Runtime.fetch(project.id)
+    assert Process.alive?(pid)
+  end
+
   test "close_project stops the runtime and appends a closed event", %{repo: repo} do
     {:ok, project} = Projects.open_project(repo)
     assert :ok = Projects.close_project(project)

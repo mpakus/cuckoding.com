@@ -31,7 +31,21 @@ defmodule AgentDesk.DataCase do
 
   setup tags do
     AgentDesk.DataCase.setup_sandbox(tags)
+    on_exit(&AgentDesk.DataCase.stop_project_runtimes/0)
     :ok
+  end
+
+  @doc false
+  def stop_project_runtimes do
+    AgentDesk.Projects.Supervisor
+    |> DynamicSupervisor.which_children()
+    |> Enum.each(fn
+      {_id, pid, _type, _modules} when is_pid(pid) ->
+        if Process.alive?(pid), do: GenServer.stop(pid, :shutdown, 1_000)
+
+      _other ->
+        :ok
+    end)
   end
 
   @doc """

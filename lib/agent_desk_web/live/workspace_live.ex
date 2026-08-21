@@ -6,12 +6,14 @@ defmodule AgentDeskWeb.WorkspaceLive do
   use AgentDeskWeb, :live_view
 
   alias AgentDesk.Projects
+  alias AgentDesk.Projects.Project
   alias AgentDesk.Projects.Supervisor, as: ProjectSupervisor
 
   @impl true
   def mount(_params, _session, socket) do
     if connected?(socket) do
       Phoenix.PubSub.subscribe(AgentDesk.PubSub, "projects")
+      send(self(), :restore_last_project)
     end
 
     {:ok,
@@ -69,6 +71,10 @@ defmodule AgentDeskWeb.WorkspaceLive do
   end
 
   @impl true
+  def handle_info(:restore_last_project, socket) do
+    {:noreply, maybe_restore_last_project(socket)}
+  end
+
   def handle_info({:project_opened, project}, socket) do
     {:noreply,
      socket
@@ -94,6 +100,25 @@ defmodule AgentDeskWeb.WorkspaceLive do
 
   defp assign_current_project(socket, _params) do
     assign(socket, :current_project, nil)
+  end
+
+  defp maybe_restore_last_project(socket) do
+    cond do
+      socket.assigns.live_action != :index ->
+        socket
+
+      socket.assigns.current_project ->
+        socket
+
+      true ->
+        case Projects.last_opened() do
+          %Project{} = project ->
+            push_patch(socket, to: ~p"/projects/#{project.id}")
+
+          nil ->
+            socket
+        end
+    end
   end
 
   defp maybe_replace_current(socket, project) do
@@ -212,7 +237,7 @@ defmodule AgentDeskWeb.WorkspaceLive do
               </div>
               <div>
                 <dt class="text-xs text-base-content/50">A2A</dt>
-                <dd>Built-in hub starts with each project runtime in Phase 3.</dd>
+                <dd>Agent Cards, delegations, durable messages, and artifacts persist in SQLite.</dd>
               </div>
             </dl>
           </aside>
