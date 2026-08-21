@@ -92,23 +92,23 @@ Acceptance criteria:
 
 ## Phase 3 — Built-in internal A2A Hub and coordination
 
-- [ ] Implement per-session capabilities and Agent Hub authentication.
-- [ ] Implement MCP initialization, tool discovery, and tool calls.
-- [ ] Start the internal A2A supervisor automatically for every project runtime.
-- [ ] Add Agent Card registration, revisioning, heartbeat, availability, and capability-safe peer discovery.
-- [ ] Add task contexts and transactional delegation with propose, accept, reject, expire, revoke, and redirect flows.
-- [ ] Add direct, task-scoped, context-scoped, and project broadcast messages.
-- [ ] Support bounded text, structured data, artifact references, and approved file references as message parts.
-- [ ] Add inbox cursors and delivery acknowledgements.
-- [ ] Add per-session idempotency for every mutating A2A tool.
-- [ ] Add task update subscriptions through PubSub-backed internal routing and durable reload.
-- [ ] Add artifact publication, retrieval, integrity validation, and task association.
-- [ ] Implement exact-file and named-resource leases.
-- [ ] Implement renewal, release, expiry, and conflict reporting.
-- [ ] Add Agents directory, capability cards, delegation inbox, task conversation, artifact, resource, and message panels to the UI.
-- [ ] Add generated human-readable status snapshots.
-- [ ] Queue cross-agent notices and inject them only at safe provider boundaries.
-- [ ] Enforce autonomous delegation depth, fan-out, rate, size, and permission policy.
+- [x] Implement per-session capabilities and Agent Hub authentication.
+- [x] Implement MCP initialization, tool discovery, and tool calls.
+- [x] Start the internal A2A supervisor automatically for every project runtime.
+- [x] Add Agent Card registration, revisioning, heartbeat, availability, and capability-safe peer discovery.
+- [x] Add task contexts and transactional delegation with propose, accept, reject, expire, revoke, and redirect flows.
+- [x] Add direct, task-scoped, context-scoped, and project broadcast messages.
+- [x] Support bounded text, structured data, artifact references, and approved file references as message parts.
+- [x] Add inbox cursors and delivery acknowledgements.
+- [x] Add per-session idempotency for every mutating A2A tool.
+- [x] Add task update subscriptions through PubSub-backed internal routing and durable reload.
+- [x] Add artifact publication, retrieval, integrity validation, and task association.
+- [x] Implement exact-file and named-resource leases.
+- [x] Implement renewal, release, expiry, and conflict reporting.
+- [x] Add Agents directory, capability cards, delegation inbox, task conversation, artifact, resource, and message panels to the UI.
+- [x] Add generated human-readable status snapshots.
+- [x] Queue cross-agent notices and inject them only at safe provider boundaries.
+- [x] Enforce autonomous delegation depth, fan-out, rate, size, and permission policy.
 
 Acceptance criteria:
 

@@ -26,18 +26,20 @@ defmodule AgentDesk.Providers.Fixture do
     }
   end
 
-  defp elixir_executable do
+  @spec elixir_executable() :: String.t()
+  def elixir_executable do
     System.find_executable("elixir") || "elixir"
   end
 
-  defp eval do
-    "AgentDesk.Providers.Fixtures.StdioPeer.main(System.argv())"
-  end
-
-  defp code_path_args do
+  @spec code_path_args() :: [String.t()]
+  def code_path_args do
     for app <- [:jason, :agent_desk] do
       ["-pa", Application.app_dir(app, "ebin")]
     end
     |> List.flatten()
+  end
+
+  defp eval do
+    "AgentDesk.Providers.Fixtures.StdioPeer.main(System.argv())"
   end
 end

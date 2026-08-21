@@ -208,4 +208,101 @@ defmodule AgentDesk.A2ATest do
 
     assert "must be a local app-managed or project-relative path" in errors_on(changeset).path
   end
+
+  test "broadcasts create one ordered delivery per peer", %{alice: alice, bob: bob} do
+    {:ok, context} = A2A.create_context(alice, %{title: "Auth"})
+
+    assert {:ok, message} =
+             A2A.broadcast(alice, %{
+               context_id: context.id,
+               body: "stand-up",
+               idempotency_key: "broadcast-1"
+             })
+
+    assert message.scope == "project"
+    deliveries = Repo.all(Delivery)
+    assert Enum.any?(deliveries, &(&1.agent_session_id == bob.agent_session.id))
+  end
+
+  test "rejects remote URL parts and supports revoke/redirect", %{alice: alice, bob: bob} do
+    {:ok, context} = A2A.create_context(alice, %{title: "Auth"})
+    {:ok, task} = A2A.create_task(alice, context, %{title: "Work"})
+
+    assert {:error, :remote_url} =
+             A2A.send_message(alice, %{
+               context_id: context.id,
+               recipient_agent_id: bob.agent_session.id,
+               idempotency_key: "bad-part",
+               parts: [%{"type" => "file_ref", "path" => "https://evil.test/x"}]
+             })
+
+    {:ok, delegation} =
+      A2A.propose_delegation(alice, %{
+        task_id: task.id,
+        to_agent_id: bob.agent_session.id,
+        reason: "please",
+        idempotency_key: "del-rev"
+      })
+
+    {:ok, revoked} =
+      A2A.revoke_delegation(alice, delegation.id, %{idempotency_key: "rev-1"})
+
+    assert revoked.status == "revoked"
+
+    {:ok, proposed} =
+      A2A.propose_delegation(alice, %{
+        task_id: task.id,
+        to_agent_id: bob.agent_session.id,
+        reason: "again",
+        idempotency_key: "del-redir"
+      })
+
+    {:ok, redirected} =
+      A2A.redirect_delegation(alice, proposed.id, %{
+        idempotency_key: "redir-1",
+        to_agent_id: alice.agent_session.id
+      })
+
+    assert redirected.to_agent_id == alice.agent_session.id
+  end
+
+  test "expired proposals are reaped by the hub ticker", %{alice: alice, bob: bob} do
+    {:ok, context} = A2A.create_context(alice, %{title: "Auth"})
+    {:ok, task} = A2A.create_task(alice, context, %{title: "Work"})
+
+    {:ok, delegation} =
+      A2A.propose_delegation(alice, %{
+        task_id: task.id,
+        to_agent_id: bob.agent_session.id,
+        reason: "please",
+        idempotency_key: "del-exp",
+        expires_at: DateTime.add(AgentDesk.Clock.utc_now(), -5, :second)
+      })
+
+    :ok = A2A.expire_due_delegations(alice.project.id)
+    assert Repo.get!(AgentDesk.A2A.Delegation, delegation.id).status == "expired"
+  end
+
+  test "get_artifact verifies bytes", %{alice: alice} do
+    {:ok, context} = A2A.create_context(alice, %{title: "Auth"})
+    dir = System.tmp_dir!()
+    path = Path.join(dir, "artifact-#{System.unique_integer([:positive])}.txt")
+    File.write!(path, "hello")
+    sha = :sha256 |> :crypto.hash("hello") |> Base.encode16(case: :lower)
+
+    {:ok, artifact} =
+      A2A.publish_artifact(alice, %{
+        context_id: context.id,
+        kind: "report",
+        name: "hello.txt",
+        mime_type: "text/plain",
+        path: path,
+        sha256: sha,
+        size_bytes: 5
+      })
+
+    assert {:ok, ^artifact} = A2A.get_artifact(alice, artifact.id)
+    File.write!(path, "tampered")
+    assert {:error, :artifact_integrity} = A2A.get_artifact(alice, artifact.id)
+  end
 end

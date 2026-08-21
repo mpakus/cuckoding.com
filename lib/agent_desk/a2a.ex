@@ -2,8 +2,8 @@ defmodule AgentDesk.A2A do
   @moduledoc """
   Provider-neutral internal A2A domain.
 
-  Agents reach this module through the Agent Hub later; LiveView and tests call
-  it directly with a `Scope`.
+  Agents reach this module through the Agent Hub MCP surface; LiveView and
+  tests may also call it with a `Scope`.
   """
 
   import Ecto.Query
@@ -13,9 +13,13 @@ defmodule AgentDesk.A2A do
   alias AgentDesk.A2A.Context
   alias AgentDesk.A2A.Delegation
   alias AgentDesk.A2A.Delivery
+  alias AgentDesk.A2A.Directory
   alias AgentDesk.A2A.Idempotency
+  alias AgentDesk.A2A.Lifecycle
   alias AgentDesk.A2A.Message
+  alias AgentDesk.A2A.Messaging
   alias AgentDesk.A2A.Participant
+  alias AgentDesk.A2A.Policy
   alias AgentDesk.A2A.Task
   alias AgentDesk.Agents
   alias AgentDesk.Agents.Session
@@ -134,19 +138,62 @@ defmodule AgentDesk.A2A do
   end
 
   @spec send_direct_message(Scope.t(), map()) :: {:ok, Message.t()} | {:error, term()}
-  def send_direct_message(
-        %Scope{project: project, agent_session: %Session{} = sender} = scope,
-        attrs
-      ) do
-    key = Map.fetch!(attrs, :idempotency_key)
-    canonical = Map.take(attrs, [:recipient_agent_id, :body, :context_id])
+  def send_direct_message(scope, attrs) do
+    Messaging.send(scope, Map.put_new(attrs, :scope, "direct"))
+  end
 
-    case Idempotency.transact(scope, "send_direct_message", key, canonical, fn ->
-           do_send_direct(project, sender, attrs, key)
-         end) do
-      {:ok, _kind, %{"id" => id}} -> {:ok, Repo.get!(Message, id)}
-      {:error, reason} -> {:error, reason}
-    end
+  @spec send_message(Scope.t(), map()) :: {:ok, Message.t()} | {:error, term()}
+  defdelegate send_message(scope, attrs), to: Messaging, as: :send
+
+  @spec broadcast(Scope.t(), map()) :: {:ok, Message.t()} | {:error, term()}
+  def broadcast(scope, attrs), do: Messaging.send(scope, Map.put(attrs, :scope, "project"))
+
+  @spec inbox(Scope.t()) :: [Delivery.t()]
+  def inbox(scope), do: Messaging.inbox(scope, 0)
+
+  @spec inbox(Scope.t(), integer()) :: [Delivery.t()]
+  def inbox(scope, cursor), do: Messaging.inbox(scope, cursor)
+
+  defdelegate list_agents(scope), to: Directory
+  defdelegate get_agent(scope, agent_id), to: Directory
+  defdelegate find_agents(scope, opts \\ []), to: Directory
+  defdelegate revoke_delegation(scope, id, attrs), to: Lifecycle, as: :revoke
+  defdelegate redirect_delegation(scope, id, attrs), to: Lifecycle, as: :redirect
+  defdelegate heartbeat(scope, attrs \\ %{}), to: Lifecycle
+  defdelegate get_artifact(scope, id), to: Lifecycle
+  defdelegate update_task(scope, task, attrs), to: Lifecycle
+  defdelegate subscribe_task(scope, task_id), to: Lifecycle
+  defdelegate expire_due_delegations(project_id), to: Lifecycle
+
+  @spec list_delegations(Scope.t()) :: [Delegation.t()]
+  def list_delegations(%Scope{project: project}) do
+    Delegation
+    |> where([d], d.project_id == ^project.id)
+    |> order_by([d], desc: d.inserted_at)
+    |> Repo.all()
+  end
+
+  @spec list_tasks(Scope.t()) :: [Task.t()]
+  def list_tasks(%Scope{project: project}) do
+    Task
+    |> where([t], t.project_id == ^project.id)
+    |> order_by([t], desc: t.inserted_at)
+    |> Repo.all()
+  end
+
+  @spec list_messages(Scope.t()) :: [Message.t()]
+  def list_messages(%Scope{project: project}) do
+    Message
+    |> where([m], m.project_id == ^project.id)
+    |> order_by([m], desc: m.inserted_at)
+    |> limit(50)
+    |> Repo.all()
+  end
+
+  def list_artifacts(%Scope{project: project}) do
+    Artifact
+    |> where([a], a.project_id == ^project.id)
+    |> Repo.all()
   end
 
   @spec acknowledge(Scope.t(), Ecto.UUID.t()) :: {:ok, Delivery.t()} | {:error, term()}
@@ -212,7 +259,8 @@ defmodule AgentDesk.A2A do
 
   defp do_propose_delegation(%Scope{project: project} = scope, from, attrs, key) do
     with {:ok, to} <- Agents.get_session(scope, Map.fetch!(attrs, :to_agent_id)),
-         {:ok, task} <- fetch_task(project.id, Map.fetch!(attrs, :task_id)) do
+         {:ok, task} <- fetch_task(project.id, Map.fetch!(attrs, :task_id)),
+         :ok <- Policy.check_delegation(project.id, from.id, task) do
       correlation =
         Correlation.new(
           context_id: task.context_id,
@@ -231,7 +279,8 @@ defmodule AgentDesk.A2A do
           status: "proposed",
           reason: Map.fetch!(attrs, :reason),
           idempotency_key: key,
-          lock_version: 1
+          lock_version: 1,
+          expires_at: Map.get(attrs, :expires_at)
         })
         |> Repo.insert()
 
@@ -352,56 +401,6 @@ defmodule AgentDesk.A2A do
     })
     |> OptimisticLock.check(task.lock_version)
     |> Repo.update()
-  end
-
-  defp do_send_direct(project, sender, attrs, key) do
-    context_id = Map.fetch!(attrs, :context_id)
-    recipient_id = Map.fetch!(attrs, :recipient_agent_id)
-    correlation = Correlation.new(context_id: context_id, idempotency_key: key)
-    body = Map.get(attrs, :body, "")
-    parts = Map.get(attrs, :parts, [%{"type" => "text", "text" => body}])
-
-    {:ok, message} =
-      %Message{}
-      |> Message.changeset(%{
-        id: Ids.generate(),
-        project_id: project.id,
-        context_id: context_id,
-        sender_agent_id: sender.id,
-        recipient_agent_id: recipient_id,
-        scope: "direct",
-        kind: Map.get(attrs, :kind, "info"),
-        body: body,
-        parts: parts,
-        idempotency_key: key,
-        correlation_id: correlation.correlation_id,
-        causation_id: correlation.causation_id
-      })
-      |> Repo.insert()
-
-    sequence = next_inbox_sequence(recipient_id)
-
-    {:ok, _} =
-      %Delivery{}
-      |> Delivery.changeset(%{
-        id: Ids.generate(),
-        message_id: message.id,
-        agent_session_id: recipient_id,
-        inbox_sequence: sequence,
-        state: "pending"
-      })
-      |> Repo.insert()
-
-    {:ok, %{"id" => message.id, "inbox_sequence" => sequence}}
-  end
-
-  defp next_inbox_sequence(agent_session_id) do
-    query =
-      from d in Delivery,
-        where: d.agent_session_id == ^agent_session_id,
-        select: max(d.inbox_sequence)
-
-    (Repo.one(query) || 0) + 1
   end
 
   defp fetch_task(project_id, task_id) do

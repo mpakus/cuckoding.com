@@ -17,6 +17,8 @@ defmodule AgentDesk.Application do
       {Phoenix.PubSub, name: AgentDesk.PubSub},
       {Registry, keys: :unique, name: AgentDesk.ProjectRegistry},
       {Registry, keys: :unique, name: AgentDesk.SessionRegistry},
+      {Registry, keys: :unique, name: AgentDesk.HubRegistry},
+      {Registry, keys: :unique, name: AgentDesk.A2ASupervisorRegistry},
       AgentDesk.Projects.Supervisor,
       {DynamicSupervisor, name: AgentDesk.ProviderProcessSupervisor, strategy: :one_for_one},
       Supervisor.child_spec(

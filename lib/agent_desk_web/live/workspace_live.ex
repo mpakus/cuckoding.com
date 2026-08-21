@@ -5,6 +5,7 @@ defmodule AgentDeskWeb.WorkspaceLive do
 
   use AgentDeskWeb, :live_view
 
+  alias AgentDesk.A2A
   alias AgentDesk.Agents
   alias AgentDesk.Ids
   alias AgentDesk.Projects
@@ -12,6 +13,7 @@ defmodule AgentDeskWeb.WorkspaceLive do
   alias AgentDesk.Projects.Supervisor, as: ProjectSupervisor
   alias AgentDesk.Providers
   alias AgentDesk.Providers.SessionWorker
+  alias AgentDesk.Resources.Manager
   alias AgentDesk.Scope
 
   @impl true
@@ -35,6 +37,12 @@ defmodule AgentDeskWeb.WorkspaceLive do
      |> assign(:display_name, "")
      |> assign(:provider, "fake")
      |> assign(:confirm_terminate, false)
+     |> assign(:agents, [])
+     |> assign(:leases, [])
+     |> assign(:delegations, [])
+     |> assign(:tasks, [])
+     |> assign(:messages, [])
+     |> assign(:artifacts, [])
      |> assign(:form, to_form(%{"path" => ""}))
      |> stream(:activity, [])}
   end
@@ -191,6 +199,14 @@ defmodule AgentDeskWeb.WorkspaceLive do
     {:noreply, assign(socket, :pending_approval, nil)}
   end
 
+  def handle_event("accept_delegation", %{"id" => id}, socket) do
+    {:noreply, decide_delegation(socket, id, :accept)}
+  end
+
+  def handle_event("reject_delegation", %{"id" => id}, socket) do
+    {:noreply, decide_delegation(socket, id, :reject)}
+  end
+
   @impl true
   def handle_info(:restore_last_project, socket) do
     {:noreply, maybe_restore_last_project(socket)}
@@ -254,6 +270,7 @@ defmodule AgentDeskWeb.WorkspaceLive do
         |> assign(:subscribed_project_id, project.id)
         |> assign(:page_title, project.name)
         |> assign(:sessions, sessions)
+        |> load_coordination(project)
         |> select_session(List.first(sessions))
 
       {:error, :not_found} ->
@@ -291,6 +308,37 @@ defmodule AgentDeskWeb.WorkspaceLive do
       %{id: id} when id == project.id -> assign(socket, :current_project, project)
       _ -> socket
     end
+  end
+
+  defp load_coordination(socket, project) do
+    scope = Scope.for_project(project)
+
+    socket
+    |> assign(:agents, A2A.list_agents(scope))
+    |> assign(:leases, Manager.list_project(project.id))
+    |> assign(:delegations, A2A.list_delegations(scope))
+    |> assign(:tasks, A2A.list_tasks(scope))
+    |> assign(:messages, A2A.list_messages(scope))
+    |> assign(:artifacts, A2A.list_artifacts(scope))
+  end
+
+  defp decide_delegation(socket, id, action) do
+    project = socket.assigns.current_project
+    session_id = socket.assigns.active_session_id
+
+    with true <- is_binary(session_id),
+         {:ok, session} <- Agents.get_session(Scope.for_project(project), session_id) do
+      scope = Scope.for_agent(project, session)
+      attrs = %{idempotency_key: Ids.generate(), expected_version: 1, response_reason: "ui"}
+
+      _ =
+        case action do
+          :accept -> A2A.accept_delegation(scope, id, attrs)
+          :reject -> A2A.reject_delegation(scope, id, attrs)
+        end
+    end
+
+    load_coordination(socket, project)
   end
 
   defp select_session(socket, nil) do
@@ -603,12 +651,74 @@ defmodule AgentDeskWeb.WorkspaceLive do
                 </dd>
               </div>
               <div>
+                <dt class="text-xs text-base-content/50">Agents</dt>
+                <dd id="agents-directory">
+                  <p :if={@agents == []} class="text-base-content/50">No Agent Cards yet.</p>
+                  <p :for={card <- @agents}>{card.name} · {card.availability}</p>
+                </dd>
+              </div>
+              <div>
+                <dt class="text-xs text-base-content/50">Delegations</dt>
+                <dd id="delegation-inbox">
+                  <p :if={@delegations == []} class="text-base-content/50">None</p>
+                  <div :for={delegation <- @delegations} class="mb-1">
+                    <span>{delegation.status}</span>
+                    <button
+                      :if={delegation.status == "proposed"}
+                      type="button"
+                      phx-click="accept_delegation"
+                      phx-value-id={delegation.id}
+                      class="btn btn-xs"
+                    >
+                      Accept
+                    </button>
+                    <button
+                      :if={delegation.status == "proposed"}
+                      type="button"
+                      phx-click="reject_delegation"
+                      phx-value-id={delegation.id}
+                      class="btn btn-xs"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </dd>
+              </div>
+              <div>
                 <dt class="text-xs text-base-content/50">Leases</dt>
-                <dd>Exact-file and named-resource leases come in Phase 3.</dd>
+                <dd id="resource-leases">
+                  <p :if={@leases == []} class="text-base-content/50">No active leases.</p>
+                  <p :for={lease <- @leases}>
+                    {lease.mode} {lease.resource_type}:{lease.resource_key}
+                  </p>
+                </dd>
+              </div>
+              <div>
+                <dt class="text-xs text-base-content/50">Tasks</dt>
+                <dd id="task-conversation">
+                  <p :if={@tasks == []} class="text-base-content/50">None</p>
+                  <p :for={task <- @tasks}>{task.title} · {task.status}</p>
+                </dd>
+              </div>
+              <div>
+                <dt class="text-xs text-base-content/50">Messages</dt>
+                <dd id="message-panel">
+                  <p :if={@messages == []} class="text-base-content/50">None</p>
+                  <p :for={message <- @messages}>{message.scope} · {message.body}</p>
+                </dd>
+              </div>
+              <div>
+                <dt class="text-xs text-base-content/50">Artifacts</dt>
+                <dd id="artifact-panel">
+                  <p :if={@artifacts == []} class="text-base-content/50">None</p>
+                  <p :for={artifact <- @artifacts}>{artifact.name} · {artifact.state}</p>
+                </dd>
               </div>
               <div>
                 <dt class="text-xs text-base-content/50">A2A</dt>
-                <dd>Each first-class session registers an Agent Card and receives inbox delivery.</dd>
+                <dd>
+                  Agent Cards, delegations, durable messages, leases, and artifacts persist in SQLite.
+                </dd>
               </div>
             </dl>
           </aside>

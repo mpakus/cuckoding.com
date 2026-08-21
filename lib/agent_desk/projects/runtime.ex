@@ -3,8 +3,8 @@ defmodule AgentDesk.Projects.Runtime do
   One process per open project.
 
   Owns project-scoped lifecycle so closing a project can stop its sessions and
-  release its resources without affecting another project. Child supervisors
-  for A2A, leases, and worktrees are added in later phases.
+  release its resources without affecting another project. The internal A2A
+  supervisor starts with every runtime.
   """
 
   use GenServer, restart: :temporary
@@ -51,10 +51,25 @@ defmodule AgentDesk.Projects.Runtime do
     }
 
     AgentDesk.Agents.interrupt_orphans(project.id)
+    Process.flag(:trap_exit, true)
+    {:ok, _pid} = AgentDesk.A2A.Supervisor.start_link(project)
 
     {:ok, state}
   end
 
   @impl true
   def handle_call(:info, _from, state), do: {:reply, state, state}
+
+  @impl true
+  def handle_info({:EXIT, _pid, _reason}, state), do: {:noreply, state}
+
+  @impl true
+  def terminate(_reason, state) do
+    case Registry.lookup(AgentDesk.A2ASupervisorRegistry, state.project_id) do
+      [{pid, _}] -> Supervisor.stop(pid, :shutdown, 2_000)
+      [] -> :ok
+    end
+
+    :ok
+  end
 end

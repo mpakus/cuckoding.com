@@ -63,4 +63,10 @@ defmodule AgentDesk.ProjectsTest do
     types = project.id |> Events.list_for_project() |> Enum.map(& &1.type)
     assert "project.closed" in types
   end
+
+  test "open_project starts the internal A2A hub", %{repo: repo} do
+    {:ok, project} = Projects.open_project(repo)
+    assert [{pid, _}] = Registry.lookup(AgentDesk.A2ASupervisorRegistry, project.id)
+    assert Process.alive?(pid)
+  end
 end

@@ -4,6 +4,7 @@ defmodule AgentDesk.Providers.MCPInjection do
   """
 
   alias AgentDesk.Agents.Session
+  alias AgentDesk.Providers.Fixture
   alias AgentDesk.Storage
 
   @spec write!(Session.t(), String.t()) :: String.t()
@@ -15,8 +16,10 @@ defmodule AgentDesk.Providers.MCPInjection do
     config = %{
       "mcpServers" => %{
         "agentdesk-hub" => %{
-          "command" => "agentdesk-hub",
-          "args" => ["--session", session.id],
+          "command" => Fixture.elixir_executable(),
+          "args" =>
+            Fixture.code_path_args() ++
+              ["-e", "AgentDesk.MCP.Stdio.main(System.argv())", "--", "--session", session.id],
           "env" => %{
             "AGENTDESK_CAPABILITY_TOKEN" => token,
             "AGENTDESK_SESSION_ID" => session.id,

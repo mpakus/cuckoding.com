@@ -111,4 +111,18 @@ defmodule AgentDeskWeb.WorkspaceLiveTest do
              html =~ "approval-card" or html =~ "Allow"
            end)
   end
+
+  test "shows coordination panels for agents, delegations, leases, and artifacts", %{conn: conn} do
+    repo = GitRepo.tmp_repo!()
+    {:ok, project} = Projects.open_project(repo)
+    {:ok, view, html} = live(conn, ~p"/projects/#{project.id}")
+
+    assert has_element?(view, "#agents-directory")
+    assert has_element?(view, "#delegation-inbox")
+    assert has_element?(view, "#resource-leases")
+    assert has_element?(view, "#artifact-panel")
+    assert has_element?(view, "#task-conversation")
+    assert has_element?(view, "#message-panel")
+    assert html =~ "No active leases"
+  end
 end

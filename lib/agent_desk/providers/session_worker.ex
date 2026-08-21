@@ -9,7 +9,6 @@ defmodule AgentDesk.Providers.SessionWorker do
   alias AgentDesk.A2A.MessageRouter
   alias AgentDesk.Agents
   alias AgentDesk.Clock
-  alias AgentDesk.Ids
   alias AgentDesk.Projects
   alias AgentDesk.Providers
   alias AgentDesk.Providers.CommandSpec
@@ -89,7 +88,7 @@ defmodule AgentDesk.Providers.SessionWorker do
         Keyword.get(opts, :adapter_opts, []) ++ [cwd: project.canonical_path]
       )
 
-    token = Ids.generate()
+    {:ok, token, session} = AgentDesk.Security.Capability.issue(session)
     mcp_path = MCPInjection.write!(session, token)
     port = open_port(spec, token)
 
@@ -178,6 +177,7 @@ defmodule AgentDesk.Providers.SessionWorker do
   @impl true
   def terminate(_reason, state) do
     close_port(state)
+    _ = AgentDesk.Resources.Manager.expire_session(state.session.id)
     :ok
   end
 
