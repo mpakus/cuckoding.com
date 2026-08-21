@@ -19,6 +19,8 @@ defmodule AgentDesk.Application do
       {Registry, keys: :unique, name: AgentDesk.SessionRegistry},
       {Registry, keys: :unique, name: AgentDesk.HubRegistry},
       {Registry, keys: :unique, name: AgentDesk.A2ASupervisorRegistry},
+      {Registry, keys: :unique, name: AgentDesk.WorktreeRegistry},
+      {Registry, keys: :unique, name: AgentDesk.WorktreeSupervisorRegistry},
       AgentDesk.Projects.Supervisor,
       {DynamicSupervisor, name: AgentDesk.ProviderProcessSupervisor, strategy: :one_for_one},
       Supervisor.child_spec(

@@ -53,6 +53,7 @@ defmodule AgentDesk.Projects.Runtime do
     AgentDesk.Agents.interrupt_orphans(project.id)
     Process.flag(:trap_exit, true)
     {:ok, _pid} = AgentDesk.A2A.Supervisor.start_link(project)
+    {:ok, _pid} = AgentDesk.Worktrees.Supervisor.start_link(project)
 
     {:ok, state}
   end
@@ -66,6 +67,11 @@ defmodule AgentDesk.Projects.Runtime do
   @impl true
   def terminate(_reason, state) do
     case Registry.lookup(AgentDesk.A2ASupervisorRegistry, state.project_id) do
+      [{pid, _}] -> Supervisor.stop(pid, :shutdown, 2_000)
+      [] -> :ok
+    end
+
+    case Registry.lookup(AgentDesk.WorktreeSupervisorRegistry, state.project_id) do
       [{pid, _}] -> Supervisor.stop(pid, :shutdown, 2_000)
       [] -> :ok
     end

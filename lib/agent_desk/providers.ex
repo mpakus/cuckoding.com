@@ -39,7 +39,9 @@ defmodule AgentDesk.Providers do
       |> Map.put_new(:settings, %{"tab_open" => true})
 
     with {:ok, session} <- Agents.create_session(scope, attrs),
+         {:ok, _worktree} <- AgentDesk.Worktrees.ensure_for_session(scope.project, session),
          {:ok, _pid} <- start_worker(session, opts) do
+      _ = maybe_allocate_port(scope, session)
       {:ok, session}
     end
   end
@@ -80,5 +82,9 @@ defmodule AgentDesk.Providers do
     |> Enum.each(&stop_worker(&1.id))
 
     :ok
+  end
+
+  defp maybe_allocate_port(scope, session) do
+    AgentDesk.Isolation.allocate_port(AgentDesk.Scope.for_agent(scope.project, session))
   end
 end

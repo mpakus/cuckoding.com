@@ -146,6 +146,7 @@ defmodule AgentDesk.Projects do
             root_path: canonical,
             canonical_path: canonical,
             vcs_type: "git",
+            default_branch: default_branch(canonical),
             last_opened_at: now,
             settings: %{}
           })
@@ -156,6 +157,7 @@ defmodule AgentDesk.Projects do
           |> Project.changeset(%{
             name: name,
             root_path: canonical,
+            default_branch: default_branch(canonical),
             last_opened_at: now
           })
           |> Repo.update!()
@@ -172,6 +174,13 @@ defmodule AgentDesk.Projects do
       })
 
     project
+  end
+
+  defp default_branch(canonical) do
+    case Git.default_branch(canonical) do
+      {:ok, name} -> name
+      {:error, _} -> nil
+    end
   end
 
   defp broadcast_opened(project) do

@@ -124,18 +124,18 @@ Acceptance criteria:
 
 ## Phase 4 — Git worktrees and resource isolation
 
-- [ ] Implement repository validation and default-branch detection.
-- [ ] Add one branch/worktree per agent session.
-- [ ] Record base/head commits and dirty state.
-- [ ] Add diff, commit, and handoff UI.
-- [ ] Add review requests between agents.
-- [ ] Link handoffs and reviews to A2A contexts, messages, delegations, and immutable artifacts.
-- [ ] Implement safe cherry-pick/merge preparation without silent conflict resolution.
-- [ ] Detect main-tree and worktree changes through the project watcher.
-- [ ] Add unexpected-edit warnings.
-- [ ] Implement per-agent port allocation.
-- [ ] Define adapters for isolated test database/schema and Docker Compose project names.
-- [ ] Add explicit cleanup and stale-worktree reconciliation.
+- [x] Implement repository validation and default-branch detection.
+- [x] Add one branch/worktree per agent session.
+- [x] Record base/head commits and dirty state.
+- [x] Add diff, commit, and handoff UI.
+- [x] Add review requests between agents.
+- [x] Link handoffs and reviews to A2A contexts, messages, delegations, and immutable artifacts.
+- [x] Implement safe cherry-pick/merge preparation without silent conflict resolution.
+- [x] Detect main-tree and worktree changes through the project watcher.
+- [x] Add unexpected-edit warnings.
+- [x] Implement per-agent port allocation.
+- [x] Define adapters for isolated test database/schema and Docker Compose project names.
+- [x] Add explicit cleanup and stale-worktree reconciliation.
 
 Acceptance criteria:
 

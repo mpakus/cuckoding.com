@@ -39,7 +39,10 @@ defmodule AgentDesk.MCP.Protocol do
     "hub_ack_message",
     "hub_list_inbox",
     "hub_publish_artifact",
-    "hub_get_artifact"
+    "hub_get_artifact",
+    "hub_publish_handoff",
+    "hub_accept_handoff",
+    "hub_request_review"
   ]
 
   @spec handle(Session.t(), map()) :: {:ok, map()} | {:error, map()}
@@ -298,6 +301,25 @@ defmodule AgentDesk.MCP.Protocol do
         A2A.create_task(scope, context, %{title: args["title"], description: args["description"]})
       )
     end
+  end
+
+  defp tool(scope, "hub_publish_handoff", args) do
+    wrap(AgentDesk.Worktrees.Handoffs.publish(scope, args))
+  end
+
+  defp tool(scope, "hub_accept_handoff", args) do
+    wrap(AgentDesk.Worktrees.Handoffs.accept(scope, args["artifact_id"]))
+  end
+
+  defp tool(scope, "hub_request_review", args) do
+    wrap(
+      A2A.propose_delegation(scope, %{
+        task_id: args["task_id"],
+        to_agent_id: args["recipient_agent_id"],
+        reason: args["reason"] || "Please review",
+        idempotency_key: args["idempotency_key"] || Ids.generate()
+      })
+    )
   end
 
   defp tool(_scope, _name, _args), do: {:error, :unknown_method}

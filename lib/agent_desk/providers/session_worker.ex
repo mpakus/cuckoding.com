@@ -85,7 +85,8 @@ defmodule AgentDesk.Providers.SessionWorker do
     {:ok, spec} =
       adapter.command_spec(
         session,
-        Keyword.get(opts, :adapter_opts, []) ++ [cwd: project.canonical_path]
+        Keyword.get(opts, :adapter_opts, []) ++
+          [cwd: AgentDesk.Worktrees.working_copy_path(project, session)]
       )
 
     {:ok, token, session} = AgentDesk.Security.Capability.issue(session)

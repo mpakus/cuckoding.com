@@ -123,6 +123,7 @@ defmodule AgentDeskWeb.WorkspaceLiveTest do
     assert has_element?(view, "#artifact-panel")
     assert has_element?(view, "#task-conversation")
     assert has_element?(view, "#message-panel")
+    assert has_element?(view, "#worktree-panel")
     assert html =~ "No active leases"
   end
 end

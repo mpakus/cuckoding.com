@@ -7,6 +7,7 @@ defmodule AgentDeskWeb.WorkspaceLive do
 
   alias AgentDesk.A2A
   alias AgentDesk.Agents
+  alias AgentDesk.Git
   alias AgentDesk.Ids
   alias AgentDesk.Projects
   alias AgentDesk.Projects.Project
@@ -15,6 +16,8 @@ defmodule AgentDeskWeb.WorkspaceLive do
   alias AgentDesk.Providers.SessionWorker
   alias AgentDesk.Resources.Manager
   alias AgentDesk.Scope
+  alias AgentDesk.Worktrees
+  alias AgentDesk.Worktrees.Handoffs
 
   @impl true
   def mount(_params, _session, socket) do
@@ -43,6 +46,11 @@ defmodule AgentDeskWeb.WorkspaceLive do
      |> assign(:tasks, [])
      |> assign(:messages, [])
      |> assign(:artifacts, [])
+     |> assign(:worktrees, [])
+     |> assign(:active_worktree, nil)
+     |> assign(:worktree_diff, "")
+     |> assign(:unexpected_edits, [])
+     |> assign(:confirm_cleanup, false)
      |> assign(:form, to_form(%{"path" => ""}))
      |> stream(:activity, [])}
   end
@@ -109,7 +117,8 @@ defmodule AgentDeskWeb.WorkspaceLive do
          socket
          |> assign(:display_name, "")
          |> assign(:sessions, Agents.visible_sessions(Scope.for_project(project)))
-         |> select_session(session)}
+         |> select_session(session)
+         |> load_coordination(project)}
 
       {:error, _reason} ->
         {:noreply, put_flash(socket, :error, "Could not start that provider session.")}
@@ -207,6 +216,37 @@ defmodule AgentDeskWeb.WorkspaceLive do
     {:noreply, decide_delegation(socket, id, :reject)}
   end
 
+  def handle_event("commit_worktree", %{"message" => message}, socket) do
+    _ =
+      socket.assigns.active_worktree &&
+        Worktrees.commit(socket.assigns.active_worktree, message)
+
+    {:noreply, load_coordination(socket, socket.assigns.current_project)}
+  end
+
+  def handle_event("publish_handoff", %{"summary" => summary}, socket) do
+    publish_active_handoff(socket, summary)
+  end
+
+  def handle_event("cleanup_worktree", _params, socket) do
+    {:noreply, assign(socket, :confirm_cleanup, true)}
+  end
+
+  def handle_event("cancel_cleanup", _params, socket) do
+    {:noreply, assign(socket, :confirm_cleanup, false)}
+  end
+
+  def handle_event("confirm_cleanup", _params, socket) do
+    project = socket.assigns.current_project
+    worktree = socket.assigns.active_worktree
+    _ = worktree && Worktrees.cleanup(project, worktree)
+
+    {:noreply,
+     socket
+     |> assign(:confirm_cleanup, false)
+     |> load_coordination(project)}
+  end
+
   @impl true
   def handle_info(:restore_last_project, socket) do
     {:noreply, maybe_restore_last_project(socket)}
@@ -253,6 +293,19 @@ defmodule AgentDeskWeb.WorkspaceLive do
     end
   end
 
+  def handle_info({:worktrees_scanned, warnings}, socket) do
+    case socket.assigns.current_project do
+      %Project{} = project ->
+        {:noreply,
+         socket
+         |> assign(:unexpected_edits, warnings)
+         |> load_coordination(project)}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
   defp assign_current_project(socket, %{"id" => id}) do
     case Projects.get_project(id) do
       {:ok, project} ->
@@ -260,6 +313,7 @@ defmodule AgentDeskWeb.WorkspaceLive do
 
         if socket.assigns[:subscribed_project_id] != project.id do
           Phoenix.PubSub.subscribe(AgentDesk.PubSub, "project:" <> project.id <> ":sessions")
+          Phoenix.PubSub.subscribe(AgentDesk.PubSub, "project:" <> project.id <> ":worktrees")
         end
 
         scope = Scope.for_project(project)
@@ -320,6 +374,41 @@ defmodule AgentDeskWeb.WorkspaceLive do
     |> assign(:tasks, A2A.list_tasks(scope))
     |> assign(:messages, A2A.list_messages(scope))
     |> assign(:artifacts, A2A.list_artifacts(scope))
+    |> load_worktrees(project)
+  end
+
+  defp load_worktrees(socket, project) do
+    trees = Worktrees.list_project(project.id)
+    active_id = socket.assigns.active_session_id
+    current = Enum.find(trees, &(&1.agent_session_id == active_id))
+    diff = bounded_diff(current)
+
+    socket
+    |> assign(:worktrees, trees)
+    |> assign(:active_worktree, current)
+    |> assign(:worktree_diff, diff)
+    |> assign(:unexpected_edits, Worktrees.unexpected_main_edits(project))
+  end
+
+  defp bounded_diff(nil), do: ""
+
+  defp bounded_diff(worktree) do
+    case Git.diff(worktree.path, worktree.base_commit) do
+      {:ok, text} -> String.slice(text, 0, 20_000)
+      {:error, _} -> ""
+    end
+  end
+
+  defp publish_active_handoff(socket, summary) do
+    project = socket.assigns.current_project
+    session_id = socket.assigns.active_session_id
+
+    with true <- is_binary(session_id),
+         {:ok, session} <- Agents.get_session(Scope.for_project(project), session_id) do
+      _ = Handoffs.publish(Scope.for_agent(project, session), %{summary: summary})
+    end
+
+    {:noreply, load_coordination(socket, project)}
   end
 
   defp decide_delegation(socket, id, action) do
@@ -712,6 +801,53 @@ defmodule AgentDeskWeb.WorkspaceLive do
                 <dd id="artifact-panel">
                   <p :if={@artifacts == []} class="text-base-content/50">None</p>
                   <p :for={artifact <- @artifacts}>{artifact.name} · {artifact.state}</p>
+                </dd>
+              </div>
+              <div>
+                <dt class="text-xs text-base-content/50">Worktree</dt>
+                <dd id="worktree-panel">
+                  <p :if={@unexpected_edits != []} id="unexpected-edits" class="text-warning">
+                    Unexpected main-tree edits: {length(@unexpected_edits)}
+                  </p>
+                  <p :if={!@active_worktree} class="text-base-content/50">No isolated worktree.</p>
+                  <div :if={@active_worktree}>
+                    <p>{@active_worktree.branch_name} · {@active_worktree.status}</p>
+                    <pre id="worktree-diff" class="max-h-32 overflow-auto text-xs">{@worktree_diff}</pre>
+                    <form id="commit-worktree" phx-submit="commit_worktree" class="mt-2 space-y-1">
+                      <input
+                        name="message"
+                        class="input input-bordered input-xs w-full"
+                        placeholder="Commit message"
+                      />
+                      <.button class="btn btn-xs">Commit</.button>
+                    </form>
+                    <form id="publish-handoff" phx-submit="publish_handoff" class="mt-1 space-y-1">
+                      <input
+                        name="summary"
+                        class="input input-bordered input-xs w-full"
+                        placeholder="Handoff summary"
+                      />
+                      <.button class="btn btn-xs">Handoff</.button>
+                    </form>
+                    <button
+                      :if={!@confirm_cleanup}
+                      type="button"
+                      id="cleanup-worktree"
+                      phx-click="cleanup_worktree"
+                      class="btn btn-ghost btn-xs mt-1"
+                    >
+                      Cleanup worktree
+                    </button>
+                    <button
+                      :if={@confirm_cleanup}
+                      type="button"
+                      id="confirm-cleanup-worktree"
+                      phx-click="confirm_cleanup"
+                      class="btn btn-error btn-xs mt-1"
+                    >
+                      Confirm cleanup
+                    </button>
+                  </div>
                 </dd>
               </div>
               <div>
