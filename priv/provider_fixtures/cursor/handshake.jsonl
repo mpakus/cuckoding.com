@@ -1,0 +1,7 @@
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}
+{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1,"serverInfo":{"name":"cursor"}}}
+{"jsonrpc":"2.0","id":2,"method":"session/new","params":{"cwd":"/tmp"}}
+{"jsonrpc":"2.0","id":2,"result":{"sessionId":"sess-fixture-1"}}
+{"jsonrpc":"2.0","method":"session/update","params":{"update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"hello"}}}}
+{"jsonrpc":"2.0","id":3,"method":"session/prompt","params":{}}
+{"jsonrpc":"2.0","id":3,"result":{"stopReason":"end_turn"}}

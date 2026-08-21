@@ -3,6 +3,8 @@ defmodule AgentDesk.Agents do
   Provider sessions owned by a project.
   """
 
+  import Ecto.Query
+
   alias AgentDesk.Agents.Session
   alias AgentDesk.Clock
   alias AgentDesk.Ids
@@ -32,6 +34,51 @@ defmodule AgentDesk.Agents do
       %Session{} = session -> {:ok, session}
       nil -> {:error, :not_found}
     end
+  end
+
+  @spec list_sessions(Scope.t() | Ecto.UUID.t()) :: [Session.t()]
+  def list_sessions(%Scope{project: project}), do: list_sessions(project.id)
+
+  def list_sessions(project_id) when is_binary(project_id) do
+    Session
+    |> where([s], s.project_id == ^project_id)
+    |> order_by([s], asc: s.inserted_at)
+    |> Repo.all()
+  end
+
+  @spec visible_sessions(Scope.t()) :: [Session.t()]
+  def visible_sessions(%Scope{} = scope) do
+    Enum.filter(list_sessions(scope), fn session ->
+      Map.get(session.settings || %{}, "tab_open", true) != false
+    end)
+  end
+
+  @spec update_session(Session.t(), map()) :: {:ok, Session.t()} | {:error, Ecto.Changeset.t()}
+  def update_session(%Session{} = session, attrs) when is_map(attrs) do
+    session
+    |> Session.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @spec hide_tab(Session.t()) :: {:ok, Session.t()} | {:error, Ecto.Changeset.t()}
+  def hide_tab(%Session{} = session) do
+    settings = Map.put(session.settings || %{}, "tab_open", false)
+    update_session(session, %{settings: settings})
+  end
+
+  @spec interrupt_orphans(Ecto.UUID.t()) :: :ok
+  def interrupt_orphans(project_id) when is_binary(project_id) do
+    now = Clock.utc_now()
+
+    Session
+    |> where(
+      [s],
+      s.project_id == ^project_id and
+        s.status in ["queued", "starting", "idle", "working", "waiting", "blocked"]
+    )
+    |> Repo.update_all(set: [status: "interrupted", updated_at: now])
+
+    :ok
   end
 
   defp capability_hash do

@@ -1,0 +1,6 @@
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"AgentDesk"}}}
+{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"fixture","threadId":null}}
+{"jsonrpc":"2.0","id":2,"method":"thread/start","params":{"cwd":"/tmp"}}
+{"jsonrpc":"2.0","id":2,"result":{"threadId":"thread-fixture-1"}}
+{"jsonrpc":"2.0","method":"item/agentMessage/delta","params":{"delta":"hello"}}
+{"jsonrpc":"2.0","method":"turn/completed","params":{"turnId":"turn-1"}}

@@ -1,0 +1,3 @@
+{"type":"system","subtype":"init","session_id":"claude-sess-1"}
+{"type":"assistant","message":{"content":[{"type":"text","text":"hello from claude"}]}}
+{"type":"result","subtype":"success","session_id":"claude-sess-1"}

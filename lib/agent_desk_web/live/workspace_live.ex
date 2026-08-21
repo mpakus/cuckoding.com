@@ -1,13 +1,18 @@
 defmodule AgentDeskWeb.WorkspaceLive do
   @moduledoc """
-  Desktop application shell: project sidebar, agent workspace, and context panel.
+  Desktop application shell: project sidebar, agent tabs, activity, and approvals.
   """
 
   use AgentDeskWeb, :live_view
 
+  alias AgentDesk.Agents
+  alias AgentDesk.Ids
   alias AgentDesk.Projects
   alias AgentDesk.Projects.Project
   alias AgentDesk.Projects.Supervisor, as: ProjectSupervisor
+  alias AgentDesk.Providers
+  alias AgentDesk.Providers.SessionWorker
+  alias AgentDesk.Scope
 
   @impl true
   def mount(_params, _session, socket) do
@@ -22,7 +27,16 @@ defmodule AgentDeskWeb.WorkspaceLive do
      |> assign(:path, "")
      |> assign(:current_project, nil)
      |> assign(:recent_projects, [])
-     |> assign(:form, to_form(%{"path" => ""}))}
+     |> assign(:sessions, [])
+     |> assign(:active_session_id, nil)
+     |> assign(:active_status, "idle")
+     |> assign(:pending_approval, nil)
+     |> assign(:prompt, "")
+     |> assign(:display_name, "")
+     |> assign(:provider, "fake")
+     |> assign(:confirm_terminate, false)
+     |> assign(:form, to_form(%{"path" => ""}))
+     |> stream(:activity, [])}
   end
 
   @impl true
@@ -70,6 +84,113 @@ defmodule AgentDeskWeb.WorkspaceLive do
     end
   end
 
+  def handle_event(_event, _params, %{assigns: %{current_project: nil}} = socket) do
+    {:noreply, put_flash(socket, :error, "Open a project first.")}
+  end
+
+  def handle_event("start_session", %{"provider" => provider, "display_name" => name}, socket) do
+    project = socket.assigns.current_project
+    name = if String.trim(name) == "", do: provider, else: name
+
+    case Providers.start_session(Scope.for_project(project), %{
+           provider: provider,
+           display_name: name
+         }) do
+      {:ok, session} ->
+        {:noreply,
+         socket
+         |> assign(:display_name, "")
+         |> assign(:sessions, Agents.visible_sessions(Scope.for_project(project)))
+         |> select_session(session)}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, "Could not start that provider session.")}
+    end
+  end
+
+  def handle_event("select_tab", %{"id" => id}, socket) do
+    {:noreply, select_session_id(socket, id)}
+  end
+
+  def handle_event("close_tab", %{"id" => id}, socket) do
+    project = socket.assigns.current_project
+
+    case Agents.get_session(Scope.for_project(project), id) do
+      {:ok, session} ->
+        {:ok, _} = Agents.hide_tab(session)
+        sessions = Agents.visible_sessions(Scope.for_project(project))
+        socket = assign(socket, :sessions, sessions)
+
+        socket =
+          if socket.assigns.active_session_id == id do
+            select_session(socket, List.first(sessions))
+          else
+            socket
+          end
+
+        {:noreply, socket}
+
+      {:error, :not_found} ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("send_prompt", %{"prompt" => prompt}, socket) do
+    with session_id when is_binary(session_id) <- socket.assigns.active_session_id,
+         :ok <- SessionWorker.prompt(session_id, prompt) do
+      {:noreply, assign(socket, :prompt, "")}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "No active session to prompt.")}
+    end
+  end
+
+  def handle_event("interrupt", _params, socket) do
+    _ =
+      socket.assigns.active_session_id &&
+        SessionWorker.interrupt(socket.assigns.active_session_id)
+
+    {:noreply, socket}
+  end
+
+  def handle_event("confirm_terminate", _params, socket) do
+    {:noreply, assign(socket, :confirm_terminate, true)}
+  end
+
+  def handle_event("cancel_terminate", _params, socket) do
+    {:noreply, assign(socket, :confirm_terminate, false)}
+  end
+
+  def handle_event("terminate", _params, socket) do
+    _ =
+      socket.assigns.active_session_id &&
+        SessionWorker.terminate_session(socket.assigns.active_session_id)
+
+    {:noreply, assign(socket, :confirm_terminate, false)}
+  end
+
+  def handle_event("resume_session", %{"id" => id}, socket) do
+    project = socket.assigns.current_project
+
+    case Agents.get_session(Scope.for_project(project), id) do
+      {:ok, session} ->
+        _ = Providers.resume_session(session)
+        {:noreply, socket}
+
+      {:error, :not_found} ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("approve", %{"id" => request_id}, socket) do
+    _ = SessionWorker.approve(socket.assigns.active_session_id, request_id, "allow")
+    {:noreply, assign(socket, :pending_approval, nil)}
+  end
+
+  def handle_event("deny", %{"id" => request_id}, socket) do
+    _ = SessionWorker.approve(socket.assigns.active_session_id, request_id, "deny")
+    {:noreply, assign(socket, :pending_approval, nil)}
+  end
+
   @impl true
   def handle_info(:restore_last_project, socket) do
     {:noreply, maybe_restore_last_project(socket)}
@@ -82,14 +203,58 @@ defmodule AgentDeskWeb.WorkspaceLive do
      |> maybe_replace_current(project)}
   end
 
+  def handle_info({:session_updated, session}, socket) do
+    if socket.assigns.current_project && session.project_id == socket.assigns.current_project.id do
+      sessions = Agents.visible_sessions(Scope.for_project(socket.assigns.current_project))
+
+      {:noreply,
+       socket
+       |> assign(:sessions, sessions)
+       |> maybe_status(session)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info({:session_activity, session_id, events, status, approval}, socket) do
+    if socket.assigns.active_session_id == session_id do
+      socket =
+        Enum.reduce(events, socket, fn event, acc ->
+          item = %{
+            id: Ids.generate(),
+            type: Atom.to_string(event.type),
+            text:
+              event.payload["text"] || event.payload["summary"] || event.type |> Atom.to_string(),
+            payload: event.payload
+          }
+
+          stream_insert(acc, :activity, item, at: -1, limit: -200)
+        end)
+
+      {:noreply, socket |> assign(:active_status, status) |> assign(:pending_approval, approval)}
+    else
+      {:noreply, socket}
+    end
+  end
+
   defp assign_current_project(socket, %{"id" => id}) do
     case Projects.get_project(id) do
       {:ok, project} ->
         {:ok, _pid} = ProjectSupervisor.start_runtime(project)
 
+        if socket.assigns[:subscribed_project_id] != project.id do
+          Phoenix.PubSub.subscribe(AgentDesk.PubSub, "project:" <> project.id <> ":sessions")
+        end
+
+        scope = Scope.for_project(project)
+        sessions = Agents.visible_sessions(scope)
+
         socket
         |> assign(:current_project, project)
+        |> assign(:subscribed_project_id, project.id)
         |> assign(:page_title, project.name)
+        |> assign(:sessions, sessions)
+        |> select_session(List.first(sessions))
 
       {:error, :not_found} ->
         socket
@@ -128,8 +293,59 @@ defmodule AgentDeskWeb.WorkspaceLive do
     end
   end
 
+  defp select_session(socket, nil) do
+    socket
+    |> assign(:active_session_id, nil)
+    |> assign(:active_status, "idle")
+    |> assign(:pending_approval, nil)
+    |> stream(:activity, [], reset: true)
+  end
+
+  defp select_session(socket, session) do
+    if connected?(socket) do
+      Phoenix.PubSub.subscribe(AgentDesk.PubSub, "session:" <> session.id)
+    end
+
+    socket
+    |> assign(:active_session_id, session.id)
+    |> assign(:active_status, session.status)
+    |> assign(:pending_approval, nil)
+    |> stream(:activity, [], reset: true)
+  end
+
+  defp select_session_id(socket, id) do
+    case Enum.find(socket.assigns.sessions, &(&1.id == id)) do
+      nil -> socket
+      session -> select_session(socket, session)
+    end
+  end
+
+  defp maybe_status(socket, session) do
+    if socket.assigns.active_session_id == session.id do
+      assign(socket, :active_status, session.status)
+    else
+      socket
+    end
+  end
+
+  defp active_session(assigns) do
+    Enum.find(assigns.sessions, &(&1.id == assigns.active_session_id))
+  end
+
+  defp capabilities(nil), do: nil
+
+  defp capabilities(session) do
+    case Providers.adapter(session.provider) do
+      {:ok, adapter} -> adapter.capabilities()
+      {:error, _} -> nil
+    end
+  end
+
   @impl true
   def render(assigns) do
+    assigns = assign(assigns, :active, active_session(assigns))
+    assigns = assign(assigns, :caps, capabilities(assigns.active))
+
     ~H"""
     <div class="flex h-screen min-h-0 bg-base-200 text-base-content">
       <aside class="flex w-72 shrink-0 flex-col border-r border-base-300 bg-base-100">
@@ -212,13 +428,136 @@ defmodule AgentDeskWeb.WorkspaceLive do
         </header>
 
         <div class="grid min-h-0 flex-1 grid-cols-[1fr_20rem]">
-          <section class="flex items-center justify-center p-8">
-            <div class="max-w-lg space-y-3 text-center">
-              <h2 class="text-lg font-semibold">Agent workspace</h2>
-              <p class="text-sm text-base-content/70">
-                Tabs, streamed activity, approvals, and the prompt composer land here.
-                Provider adapters and the internal A2A Hub are not wired yet.
+          <section class="flex min-h-0 flex-col">
+            <div :if={@current_project} class="border-b border-base-300 bg-base-100 px-4 py-2">
+              <form
+                id="start-session-form"
+                phx-submit="start_session"
+                class="flex flex-wrap items-end gap-2"
+              >
+                <label class="text-xs">
+                  Provider
+                  <select name="provider" class="select select-bordered select-xs ml-1">
+                    <option :for={key <- Providers.ui_keys()} value={key} selected={key == @provider}>
+                      {key}
+                    </option>
+                  </select>
+                </label>
+                <input
+                  type="text"
+                  name="display_name"
+                  value={@display_name}
+                  placeholder="Session name"
+                  class="input input-bordered input-xs"
+                />
+                <.button class="btn btn-primary btn-xs">New session</.button>
+              </form>
+            </div>
+
+            <div
+              id="session-tabs"
+              class="flex gap-1 overflow-x-auto border-b border-base-300 px-2 py-1"
+            >
+              <p :if={@sessions == []} class="px-2 py-1 text-xs text-base-content/50">
+                No agent tabs. Starting a session does not close another.
               </p>
+              <div :for={session <- @sessions} class="join">
+                <button
+                  type="button"
+                  id={"tab-#{session.id}"}
+                  phx-click="select_tab"
+                  phx-value-id={session.id}
+                  class={[
+                    "btn btn-xs join-item",
+                    @active_session_id == session.id && "btn-active"
+                  ]}
+                >
+                  {session.display_name}
+                  <span class="ml-1 opacity-70">{session.status}</span>
+                </button>
+                <button
+                  type="button"
+                  id={"close-tab-#{session.id}"}
+                  phx-click="close_tab"
+                  phx-value-id={session.id}
+                  class="btn btn-xs join-item"
+                  title="Close tab without terminating"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            <p :if={@active_session_id == nil} class="p-4 text-sm text-base-content/60">
+              Open a Git repository, then start Codex, Claude, Cursor, or OpenCode sessions in tabs.
+            </p>
+            <div
+              id="activity-stream"
+              phx-update="stream"
+              class="min-h-0 flex-1 overflow-y-auto p-4 text-sm"
+            >
+              <article :for={{dom_id, item} <- @streams.activity} id={dom_id} class="mb-2">
+                <p class="text-xs uppercase text-base-content/50">{item.type}</p>
+                <p class="whitespace-pre-wrap">{item.text}</p>
+              </article>
+            </div>
+
+            <div :if={@active} class="border-t border-base-300 bg-base-100 p-3">
+              <div class="mb-2 flex flex-wrap gap-2">
+                <button
+                  :if={@caps && (@caps.steer_active_turn or @active_status == "working")}
+                  type="button"
+                  id="interrupt-session"
+                  phx-click="interrupt"
+                  class="btn btn-warning btn-xs"
+                >
+                  Interrupt
+                </button>
+                <button
+                  :if={@active_status in ["interrupted", "failed"] && @caps && @caps.resume}
+                  type="button"
+                  id="resume-session"
+                  phx-click="resume_session"
+                  phx-value-id={@active.id}
+                  class="btn btn-xs"
+                >
+                  Resume
+                </button>
+                <button
+                  :if={!@confirm_terminate}
+                  type="button"
+                  id="confirm-terminate"
+                  phx-click="confirm_terminate"
+                  class="btn btn-error btn-xs"
+                >
+                  Terminate
+                </button>
+                <button
+                  :if={@confirm_terminate}
+                  type="button"
+                  id="terminate-session"
+                  phx-click="terminate"
+                  class="btn btn-error btn-xs"
+                >
+                  Confirm terminate
+                </button>
+                <button
+                  :if={@confirm_terminate}
+                  type="button"
+                  phx-click="cancel_terminate"
+                  class="btn btn-ghost btn-xs"
+                >
+                  Cancel
+                </button>
+              </div>
+              <form id="prompt-composer" phx-submit="send_prompt" class="flex gap-2">
+                <textarea
+                  name="prompt"
+                  class="textarea textarea-bordered textarea-sm min-h-16 flex-1"
+                  placeholder="Send a prompt"
+                >{@prompt}</textarea>
+                <.button class="btn btn-primary btn-sm">Send</.button>
+              </form>
             </div>
           </section>
 
@@ -232,12 +571,44 @@ defmodule AgentDeskWeb.WorkspaceLive do
                 <dd>{if @current_project, do: "Project runtime started", else: "Idle"}</dd>
               </div>
               <div>
+                <dt class="text-xs text-base-content/50">Session</dt>
+                <dd id="session-status">
+                  {if @active, do: "#{@active.display_name} · #{@active_status}", else: "None"}
+                </dd>
+              </div>
+              <div :if={@pending_approval}>
+                <dt class="text-xs text-base-content/50">Approval</dt>
+                <dd id="approval-card" class="space-y-2 rounded-lg bg-warning/10 p-2">
+                  <p>
+                    {@pending_approval.payload["action"]} — {@pending_approval.payload["summary"]}
+                  </p>
+                  <button
+                    type="button"
+                    id="approve-request"
+                    phx-click="approve"
+                    phx-value-id={@pending_approval.payload["request_id"]}
+                    class="btn btn-success btn-xs"
+                  >
+                    Allow
+                  </button>
+                  <button
+                    type="button"
+                    id="deny-request"
+                    phx-click="deny"
+                    phx-value-id={@pending_approval.payload["request_id"]}
+                    class="btn btn-error btn-xs"
+                  >
+                    Deny
+                  </button>
+                </dd>
+              </div>
+              <div>
                 <dt class="text-xs text-base-content/50">Leases</dt>
                 <dd>Exact-file and named-resource leases come in Phase 3.</dd>
               </div>
               <div>
                 <dt class="text-xs text-base-content/50">A2A</dt>
-                <dd>Agent Cards, delegations, durable messages, and artifacts persist in SQLite.</dd>
+                <dd>Each first-class session registers an Agent Card and receives inbox delivery.</dd>
               </div>
             </dl>
           </aside>
@@ -251,7 +622,7 @@ defmodule AgentDeskWeb.WorkspaceLive do
 
   defp theme_toggle(assigns) do
     ~H"""
-    <div class="flex items-center gap-1">
+    <div class="flex items-center justify-between gap-1">
       <button
         type="button"
         class="btn btn-ghost btn-xs"

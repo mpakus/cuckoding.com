@@ -16,6 +16,7 @@ defmodule AgentDesk.Application do
       {DNSCluster, query: Application.get_env(:agent_desk, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: AgentDesk.PubSub},
       {Registry, keys: :unique, name: AgentDesk.ProjectRegistry},
+      {Registry, keys: :unique, name: AgentDesk.SessionRegistry},
       AgentDesk.Projects.Supervisor,
       {DynamicSupervisor, name: AgentDesk.ProviderProcessSupervisor, strategy: :one_for_one},
       Supervisor.child_spec(

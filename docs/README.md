@@ -92,4 +92,4 @@ XERJ semantic memory, directory/glob leases, automated merge queues, Windows, an
 
 ## Current status
 
-Phoenix LiveView + SQLite application scaffolding is in the repository root (`AgentDesk` / `AgentDeskWeb`), with ExTauri native-shell files under `src-tauri/`. Project open/close, last-project restore, correlation/idempotency/optimistic-lock conventions, and SQLite-backed Agent Cards, delegations, messages, and artifacts are in place. Provider adapters and the Agent Hub MCP surface are next.
+Phoenix LiveView + SQLite application scaffolding is in the repository root (`AgentDesk` / `AgentDeskWeb`), with ExTauri native-shell files under `src-tauri/`. Project open/close, last-project restore, correlation/idempotency/optimistic-lock conventions, and SQLite-backed Agent Cards, delegations, messages, and artifacts are in place. Phase 2 provider adapters, ACP transport, session workers, redacted transcripts, and LiveView tabs/approvals are in place. The Agent Hub MCP server itself is next (Phase 3).

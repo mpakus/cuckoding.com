@@ -22,6 +22,10 @@ config :agent_desk,
     max_open_proposals_per_agent: 4,
     idempotency_ttl_hours: 24,
     default_message_ttl_seconds: 86_400
+  ],
+  providers: [
+    use_fixtures: false,
+    executables: %{}
   ]
 
 config :agent_desk, AgentDesk.Repo,

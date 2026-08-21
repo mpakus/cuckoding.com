@@ -3,8 +3,12 @@ defmodule AgentDeskWeb.WorkspaceLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias AgentDesk.Agents
   alias AgentDesk.GitRepo
   alias AgentDesk.Projects
+  alias AgentDesk.Providers
+  alias AgentDesk.Providers.SessionWorker
+  alias AgentDesk.Scope
 
   test "renders the workspace shell", %{conn: conn} do
     {:ok, view, html} = live(conn, ~p"/")
@@ -63,5 +67,48 @@ defmodule AgentDeskWeb.WorkspaceLiveTest do
     assert render(view) =~ project.name
 
     AgentDesk.Projects.Supervisor.stop_runtime(project.id)
+  end
+
+  test "creates a session tab and closing it leaves the worker running", %{conn: conn} do
+    repo = GitRepo.tmp_repo!()
+    {:ok, project} = Projects.open_project(repo)
+    {:ok, view, _html} = live(conn, ~p"/projects/#{project.id}")
+
+    view
+    |> form("#start-session-form", provider: "fake", display_name: "Atlas")
+    |> render_submit()
+
+    assert render(view) =~ "Atlas"
+    [session] = Agents.visible_sessions(Scope.for_project(project))
+    assert {:ok, pid} = SessionWorker.fetch(session.id)
+
+    view |> element("#close-tab-#{session.id}") |> render_click()
+    refute has_element?(view, "#tab-#{session.id}")
+    assert Process.alive?(pid)
+  end
+
+  test "renders an approval card for a provider permission request", %{conn: conn} do
+    repo = GitRepo.tmp_repo!()
+    {:ok, project} = Projects.open_project(repo)
+
+    {:ok, session} =
+      Providers.start_session(
+        Scope.for_project(project),
+        %{provider: "fake", display_name: "Approver"},
+        peer_args: ["--approval"]
+      )
+
+    assert AgentDesk.DataCase.wait_until(fn ->
+             AgentDesk.Repo.get!(AgentDesk.Agents.Session, session.id).provider_session_id
+           end)
+
+    {:ok, view, _html} = live(conn, ~p"/projects/#{project.id}")
+    view |> element("#tab-#{session.id}") |> render_click()
+    view |> form("#prompt-composer", prompt: "go") |> render_submit()
+
+    assert AgentDesk.DataCase.wait_until(fn ->
+             html = render(view)
+             html =~ "approval-card" or html =~ "Allow"
+           end)
   end
 end

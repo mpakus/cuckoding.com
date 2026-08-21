@@ -39,14 +39,18 @@ defmodule AgentDesk.DataCase do
   def stop_project_runtimes do
     AgentDesk.Projects.Supervisor
     |> DynamicSupervisor.which_children()
-    |> Enum.each(fn
-      {_id, pid, _type, _modules} when is_pid(pid) ->
-        if Process.alive?(pid), do: GenServer.stop(pid, :shutdown, 1_000)
+    |> Enum.each(&stop_child/1)
 
-      _other ->
-        :ok
-    end)
+    AgentDesk.ProviderProcessSupervisor
+    |> DynamicSupervisor.which_children()
+    |> Enum.each(&stop_child/1)
   end
+
+  defp stop_child({_id, pid, _type, _modules}) when is_pid(pid) do
+    if Process.alive?(pid), do: GenServer.stop(pid, :shutdown, 1_000)
+  end
+
+  defp stop_child(_other), do: :ok
 
   @doc """
   Sets up the sandbox based on the test tags.
@@ -64,6 +68,22 @@ defmodule AgentDesk.DataCase do
       assert %{password: ["password is too short"]} = errors_on(changeset)
 
   """
+  def wait_until(fun, attempts \\ 80) do
+    cond do
+      attempts <= 0 ->
+        false
+
+      value = fun.() ->
+        value
+
+      true ->
+        receive do
+        after
+          50 -> wait_until(fun, attempts - 1)
+        end
+    end
+  end
+
   def errors_on(changeset) do
     Ecto.Changeset.traverse_errors(changeset, fn {message, opts} ->
       Regex.replace(~r"%{(\w+)}", message, fn _, key ->

@@ -1,0 +1,5 @@
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}
+{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1,"serverInfo":{"name":"opencode"}}}
+{"jsonrpc":"2.0","id":2,"method":"session/new","params":{"cwd":"/tmp"}}
+{"jsonrpc":"2.0","id":2,"result":{"sessionId":"sess-fixture-1"}}
+{"jsonrpc":"2.0","method":"session/update","params":{"update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"hello from opencode"}}}}

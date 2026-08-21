@@ -66,22 +66,22 @@ Acceptance criteria:
 
 ## Phase 2 — Provider sessions and tabs
 
-- [ ] Define the provider adapter behavior and normalized event types.
-- [ ] Implement provider discovery/version probing.
-- [ ] Implement Codex App Server adapter.
-- [ ] Implement Codex one-shot adapter fallback.
-- [ ] Implement Claude Code structured adapter.
-- [ ] Implement a reusable ACP client transport with strict JSON-RPC framing and capability negotiation.
-- [ ] Implement Cursor ACP adapter and Cursor extension-event normalization.
-- [ ] Implement OpenCode ACP adapter, with its local server API retained as an evaluated fallback rather than an MVP dependency.
-- [ ] Persist provider session/thread identifiers.
-- [ ] Auto-inject the Agent Hub MCP surface and register an internal Agent Card for every first-class provider session.
-- [ ] Implement safe-boundary delivery from the durable A2A inbox into each provider adapter.
-- [ ] Implement start, input, stream, pause/wait, interrupt, resume, and terminate flows.
-- [ ] Surface approval requests in LiveView.
-- [ ] Add transcript persistence with redaction.
-- [ ] Build tabs, activity stream, prompt composer, and status indicators.
-- [ ] Add bounded buffering/backpressure for high-volume provider output.
+- [x] Define the provider adapter behavior and normalized event types.
+- [x] Implement provider discovery/version probing.
+- [x] Implement Codex App Server adapter.
+- [x] Implement Codex one-shot adapter fallback.
+- [x] Implement Claude Code structured adapter.
+- [x] Implement a reusable ACP client transport with strict JSON-RPC framing and capability negotiation.
+- [x] Implement Cursor ACP adapter and Cursor extension-event normalization.
+- [x] Implement OpenCode ACP adapter, with its local server API retained as an evaluated fallback rather than an MVP dependency.
+- [x] Persist provider session/thread identifiers.
+- [x] Auto-inject the Agent Hub MCP surface and register an internal Agent Card for every first-class provider session.
+- [x] Implement safe-boundary delivery from the durable A2A inbox into each provider adapter.
+- [x] Implement start, input, stream, pause/wait, interrupt, resume, and terminate flows.
+- [x] Surface approval requests in LiveView.
+- [x] Add transcript persistence with redaction.
+- [x] Build tabs, activity stream, prompt composer, and status indicators.
+- [x] Add bounded buffering/backpressure for high-volume provider output.
 
 Acceptance criteria:
 

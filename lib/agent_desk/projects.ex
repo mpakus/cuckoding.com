@@ -96,6 +96,7 @@ defmodule AgentDesk.Projects do
 
   def close_project(project_id) when is_binary(project_id) do
     with {:ok, project} <- get_project(project_id) do
+      :ok = AgentDesk.Providers.stop_for_project(project.id)
       :ok = ProjectSupervisor.stop_runtime(project.id)
 
       {:ok, _event} =

@@ -50,6 +50,8 @@ defmodule AgentDesk.Projects.Runtime do
       started_at: AgentDesk.Clock.utc_now()
     }
 
+    AgentDesk.Agents.interrupt_orphans(project.id)
+
     {:ok, state}
   end
 

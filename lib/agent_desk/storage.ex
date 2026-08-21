@@ -37,4 +37,10 @@ defmodule AgentDesk.Storage do
   def project_dir(project_id) when is_binary(project_id) do
     Path.join([data_root(), "projects", project_id])
   end
+
+  @spec session_dir(Ecto.UUID.t(), Ecto.UUID.t()) :: String.t()
+  def session_dir(project_id, session_id)
+      when is_binary(project_id) and is_binary(session_id) do
+    Path.join([project_dir(project_id), "sessions", session_id])
+  end
 end
