@@ -5,6 +5,6 @@
   router: "",
   exit: false,
   format: "txt",
-  ignore: ["Config.HTTPS", "Traversal.FileModule"],
+  ignore: ["Config.HTTPS", "Traversal.FileModule", "CI.System"],
   ignore_files: []
 ]

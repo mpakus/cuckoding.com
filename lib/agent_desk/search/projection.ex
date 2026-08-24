@@ -148,6 +148,16 @@ defmodule AgentDesk.Search.Projection do
   end
 
   defp public_memory(row) do
-    %{id: row.id, namespace: row.namespace, text: row.text, metadata: row.metadata}
+    meta = row.metadata || %{}
+
+    %{
+      id: row.id,
+      namespace: row.namespace,
+      text: row.text,
+      metadata: meta,
+      inserted_at: row.inserted_at,
+      author: meta["author"] || meta[:author],
+      kind: meta["kind"] || meta[:kind]
+    }
   end
 end

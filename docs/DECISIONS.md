@@ -114,7 +114,7 @@ Status: Accepted for Phase 1
 
 Generate the OTP application at the repository root as `AgentDesk` with Phoenix 1.8.1, LiveView, Bandit, and `ecto_sqlite3`. Develop on Elixir 1.19 / OTP 28; keep the Mix requirement at Elixir 1.15+ until ExTauri packaging is verified. Bind the HTTP endpoint to loopback. Persist application data under a configurable `data_root` rather than the opened Git repository.
 
-Reason: The product repo already held the architecture docs; nesting a second `agent_desk/` app would split the working tree. Loopback binding matches `SECURITY.md`. OTP 28 is the local toolchain; ExTauri 0.2.0 warns that Burrito may lack a pre-compiled OTP 28 ERTS, so production packaging remains a Phase 0 check. `mix ex_tauri.install` generated `src-tauri/`; bundle icons are still placeholder paths.
+Reason: The product repo already held the architecture docs; nesting a second `agent_desk/` app would split the working tree. Loopback binding matches `SECURITY.md`. OTP 28 is the local toolchain; ExTauri 0.2.0 warns that Burrito may lack a pre-compiled OTP 28 ERTS, so production Burrito wrapping remains open. Local packaging is `mix cuckoding.app` (Mix release copied into the Tauri `.app`). Bundle identifiers live in `src-tauri/tauri.conf.json` (`com.agentdesk.app`, product name Cuckoding).
 
 ## ADR-015 — Phase 0 spike results
 
@@ -122,9 +122,9 @@ Status: Accepted for Phase 0
 
 Recorded from the Phoenix/ExTauri application at the repository root, fixture-backed provider adapters, the built-in MCP Agent Hub, Git worktrees, and optional XERJ.
 
-- **Hot reload / packaging (Apple Silicon):** `mix phx.server` and `mix ex_tauri.dev` are the development path. Phoenix `CodeReloader` is enabled. `MIX_ENV=prod mix release desktop` assembles `_build/prod/rel/desktop` on OTP 28. `mix ex_tauri.build` still fails: Burrito does not emit `burrito_out/desktop_aarch64-apple-darwin` for ExTauri 0.2.0 to wrap. Bundle icons remain placeholders in `src-tauri/tauri.conf.json`.
+- **Hot reload / packaging (Apple Silicon):** `mix phx.server` and `mix ex_tauri.dev` are the development path. Phoenix `CodeReloader` is enabled. `MIX_ENV=prod mix release desktop` assembles `_build/prod/rel/desktop` on OTP 28. `mix cuckoding.app` copies that Mix release into `Cuckoding.app` because Burrito does not emit an OTP 28 ERTS for ExTauri 0.2.0 to wrap. `mix ex_tauri.build` without that sidecar still fails wrapping. Quit the running `.app` / leftover `beam.smp` before rebuild.
 - **Graceful shutdown:** `ExTauri.ShutdownManager` is the first supervisor child. Project runtimes trap exits and stop A2A, worktree, and search supervisors. Provider `SessionWorker` closes the OS `Port` on terminate and records `process_identity.os_pid`.
-- **Codex App Server:** Adapter talks JSON-RPC stdio (`initialize`, session, prompt, interrupt, approvals, resume). Primary path is structured JSONL, not ANSI. Live CLI coverage is fixture-backed in CI; `codex exec --json` remains the one-shot fallback.
+- **Codex App Server:** Adapter talks JSON-RPC stdio (`initialize`, session, prompt, interrupt, approvals, resume). Primary path is structured JSONL, not ANSI. Live CLI coverage skips when `codex` is missing and never sends a paid prompt; CI stays fixture-backed. `codex exec --json` remains the one-shot fallback.
 - **Claude Code:** Structured headless/streaming adapter. Resume is declared only where the adapter implements it. Unsupported encode actions return `{:error, :unsupported_action}` instead of scraping a TTY.
 - **Cursor ACP:** `agent acp` through `AgentDesk.Providers.ACP.Client`. Shared framing; Cursor owns extensions. `steer_active_turn` is false.
 - **OpenCode ACP:** `opencode acp --cwd <worktree>` through the same ACP client. The loopback OpenAPI server is not an MVP runtime dependency.
@@ -142,7 +142,7 @@ Unsupported or deferred capabilities (explicit):
 - Generic PTY / ANSI terminal parsing (ADR-010).
 - OpenCode HTTP server fallback.
 - Claude Agent SDK as a second Claude transport.
-- Production ExTauri/Burrito packaging on OTP 28 (`mix release desktop` works; `mix ex_tauri.build` wrap fails).
+- Production ExTauri/Burrito packaging on OTP 28 (`mix release desktop` and `mix cuckoding.app` work; Burrito ERTS wrap still missing).
 - Bundled XERJ binary (external discovery for MVP).
 - Cursor/OpenCode `steer_active_turn`.
 - Hosted embeddings (opt-in later; default is local lexical).
@@ -221,6 +221,30 @@ Team synchronization is a user-initiated export/import of a redacted JSON bundle
 
 Reason: PLAN calls for team synchronization across machines. Local-first architecture keeps Git as the code transport and SQLite as canonical coordination state. A hosted sync service or public A2A wire would contradict DECISIONS.md until the gateway ADR is accepted.
 
+## ADR-025 — Product name is Cuckoding
+
+Status: Accepted
+
+The user-facing product name is **Cuckoding**. OTP application modules remain `AgentDesk` / `AgentDeskWeb` and Mix app `:agent_desk` so existing data paths, registries, and docs links stay stable. Application Support still uses `AgentDesk` unless a later migration moves `data_root`.
+
+Reason: The repo and brand are Cuckoding; renaming BEAM modules would churn every module, test, and SQLite backup without changing behavior.
+
+## ADR-026 — Isolation templates stay off the primary tree
+
+Status: Accepted
+
+`AgentDesk.Isolation` still owns unique database, schema, ExUnit partition, Compose project, and port names. Starting a session writes copy-paste templates into the app-owned session directory and injects the same values into the provider environment (`AGENTDESK_TEST_DATABASE`, `AGENTDESK_TEST_SCHEMA`, `AGENTDESK_TEST_PARTITION` / `MIX_TEST_PARTITION`, `AGENTDESK_COMPOSE_PROJECT`, `AGENTDESK_BIND`, optional `AGENTDESK_PORT`). MCP `hub_isolation` returns that profile. Isolated sessions do not write these files into the Git worktree or the user's primary checkout.
+
+Reason: README leftover and the open database-isolation decision asked for templates after worktrees existed. AGENTS.md forbids isolated-mode edits to the primary tree. Compose already used Isolation names; tests and Postgres needed the same contract.
+
+## ADR-027 — Lead crew split is durable A2A work
+
+Status: Accepted
+
+A user or lead agent can split a goal into specialist lanes (backend, frontend, tests by default). The hub creates a parent task, child tasks, a review task with wait-edges, and shared SQLite memory. Delegations are recorded. For a user-started crew, or when the lead assigns those launched specialists, the hub accepts immediately so work can start. Ad-hoc `hub_delegate_task` remains a proposal until accept. Completing a lane notifies the lead through the durable inbox and a best-effort provider prompt. Agents still cannot query SQLite or open peer sockets. This does not auto-merge to the primary tree.
+
+Reason: Concurrent specialists need a lead that can analyze, split, and review. Tasks, messages, and memory already existed; the missing piece was the analyze → split → review loop.
+
 ## Open decisions
 
 ### MCP implementation library
@@ -242,11 +266,3 @@ After MVP, choose supported A2A 1.0 bindings, authentication, Agent Card exposur
 ### XERJ distribution
 
 Choose between bundled binary, managed download, or external discovery after measuring bundle size, platform support, update requirements, and release-candidate stability.
-
-### Database isolation adapters
-
-Define project templates for PostgreSQL database-per-agent, schema-per-agent, test partitions, and Docker Compose project isolation after the base worktree flow is working.
-
-### Product name
-
-`AgentDesk` is a working name only.

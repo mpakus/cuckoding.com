@@ -19,10 +19,16 @@ defmodule AgentDesk.Worktrees do
     Application.get_env(:agent_desk, :features, [])[:shared_workspace_mode] == true
   end
 
+  defp shared_session?(%Session{settings: settings}) when is_map(settings) do
+    settings["shared"] in [true, "true"]
+  end
+
+  defp shared_session?(_), do: false
+
   @spec ensure_for_session(Project.t(), Session.t()) ::
           {:ok, Worktree.t() | nil} | {:error, term()}
   def ensure_for_session(%Project{} = project, %Session{} = session) do
-    if shared_mode?() do
+    if shared_mode?() or shared_session?(session) do
       {:ok, nil}
     else
       create_or_get(project, session)

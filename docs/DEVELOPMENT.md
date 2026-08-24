@@ -17,7 +17,7 @@ Expected toolchain:
 - optional XERJ binary;
 - macOS signing tools for distribution work.
 
-ExTauri's reviewed documentation requires Elixir 1.15 or newer with OTP 27 and packages the BEAM application with Burrito. Verify the current requirement rather than relying on this document during future upgrades.
+Develop on Elixir 1.19 / OTP 28. Mix still requires Elixir 1.15+. ExTauri 0.2.0 expects a Burrito ERTS wrap; OTP 28 has none, so local packaging uses `mix cuckoding.app` (see `RELEASE.md`).
 
 ## 2. Bootstrap sequence
 
@@ -34,7 +34,15 @@ The HTTP listener binds to `127.0.0.1:4000`. Desktop window:
 mix ex_tauri.dev
 ```
 
-Do not pin dependency versions in documentation before the spike confirms compatibility. Pin them in `mix.exs`, `mix.lock`, Cargo lockfiles, and the repository tool-version configuration.
+Local unsigned `.app`:
+
+```bash
+mix cuckoding.app
+```
+
+Quit the running `.app` and leftover `beam.smp` before rebuild.
+
+Do not pin dependency versions in documentation. Pin them in `mix.exs`, `mix.lock`, Cargo lockfiles, and the repository tool-version configuration.
 
 ## 3. Source layout
 
@@ -42,6 +50,10 @@ Do not pin dependency versions in documentation before the spike confirms compat
 lib/
 ├── agent_desk/
 │   ├── application.ex
+│   ├── isolation.ex         # ADR-026 templates under the session dir
+│   ├── analytics.ex
+│   ├── branding.ex
+│   ├── env.ex               # PATH bootstrap for Finder-launched .app
 │   ├── projects/
 │   ├── agents/
 │   ├── a2a/                 # hub, cards, tasks, graphs, workflows, messages, artifacts
@@ -62,14 +74,19 @@ lib/
 │   └── diagnostics.ex
 ├── agent_desk_web/
 │   ├── components/
+│   │   └── workspace_panels.ex   # registry, analytics, grove, onboarding, activity
 │   ├── live/
+│   │   ├── workspace_live.ex     # events / OTP
+│   │   ├── workspace_html.ex     # shell
+│   │   └── workspace_view.ex     # helpers
 │   └── router.ex
+├── mix/tasks/cuckoding.app.ex
 └── agent_desk.ex
 
 priv/repo/migrations/
 test/agent_desk/
 test/agent_desk_web/
-test/support/
+test/support/                # includes live_cli_suite.ex
 src-tauri/                   # ExTauri / Tauri shell
 ```
 
@@ -122,11 +139,14 @@ mix credo --strict
 mix dialyzer
 mix sobelow
 mix check
+mix cuckoding.app   # local unsigned .app; alias: mix desktop.app
 ```
 
 `mix check` is the local quality gate: format, `compile --warnings-as-errors`, tests, Credo, Dialyzer, and Sobelow. Do not add aliases that hide failing steps.
 
-Production packaging (`mix release`, `mix ex_tauri.build`, Burrito) is documented in `RELEASE.md` and remains unverified on OTP 28.
+The HTTP listener binds `127.0.0.1` only. The UI is dark only (`data-theme="dark"`); there is no theme toggle.
+
+Local packaging (`mix cuckoding.app`) copies the Mix release into the Tauri `.app` because OTP 28 has no Burrito ERTS. Quit the running `.app` and leftover `beam.smp` before rebuild. Signed/notarized wraps remain open; see `RELEASE.md`.
 
 ## 6. Test data safety
 
@@ -135,7 +155,7 @@ Production packaging (`mix release`, `mix ex_tauri.build`, Burrito) is documente
 - Never point cleanup tests at a user's home directory or real repository.
 - Validate every temporary path before recursive deletion.
 - Use the fake provider for the default test suite.
-- Live-provider tests are explicit and opt-in.
+- Live CLI protocol tests skip when Codex/Claude/`agent`/OpenCode is not installed. They never send a paid prompt. Codex/ACP handshake when installed; Claude stream-json asserts a clean handshake timeout and terminate. See `TESTING.md`.
 
 ## 7. Provider development
 
@@ -184,6 +204,8 @@ No external A2A SDK is required for the internal MVP.
 Update:
 
 - `ARCHITECTURE.md` for component or boundary changes;
+- `USER.md` for user-visible workspace behavior;
+- `UI.md` for shell, states, and LiveView split;
 - `DB.md` for schema/invariant changes;
 - `A2A.md` for discovery, delegation, messages, tasks, artifacts, delivery, or federation boundaries;
 - `PROTOCOL.md` for MCP/event changes;
@@ -192,6 +214,7 @@ Update:
 - `DECISIONS.md` for accepted architectural tradeoffs;
 - `OPERATIONS.md` for backup, reconcile, and team-sync file locations;
 - `RELEASE.md` for packaging and signing;
+- `TESTING.md` for live CLI and fixture coverage;
 - `PLAN.md` as phases complete.
 
 ## 11. Release preparation

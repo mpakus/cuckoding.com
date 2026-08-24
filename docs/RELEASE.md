@@ -2,20 +2,21 @@
 
 Use this before a signed macOS build.
 
-## Packaging status (Apple Silicon, OTP 28)
+## Local `.app` (Apple Silicon, OTP 28)
 
-Recorded 2026-08-21 on Elixir 1.19 / OTP 28:
+Burrito has no OTP 28 ERTS, so `mix ex_tauri.build` cannot wrap a single BEAM binary. For local use, `mix cuckoding.app` copies the Mix release (this machine's ERTS) into Tauri resources and starts it with a sidecar shim.
 
-| Step | Result |
-| --- | --- |
-| `MIX_ENV=prod mix compile --warnings-as-errors` | Pass (compile first so colocated hooks exist) |
-| `MIX_ENV=prod mix assets.deploy` | Pass after compile |
-| `MIX_ENV=prod mix release desktop --overwrite` | Pass — `_build/prod/rel/desktop` |
-| `mix ex_tauri.build --ci --bundles app` | Fail — ExTauri copies `burrito_out/desktop_aarch64-apple-darwin`, which Burrito does not emit on this OTP |
+```bash
+mix cuckoding.app
+```
 
-ExTauri 0.2.0 warns that it targets OTP 27. Until Burrito ships an OTP 28 ERTS (or AgentDesk pins OTP 27 for packaging), ship via `mix phx.server` / `mix ex_tauri.dev`. Do not treat `_build/prod/rel/desktop` as a signed desktop installer; it is a Mix release only.
+`mix desktop.app` is an alias. Output: `src-tauri/target/release/bundle/macos/Cuckoding.app`
 
-Asset deploy order:
+Unsigned, this-machine OTP, loopback only. Not a notarized installer.
+
+Quit the running Cuckoding `.app` and any leftover `beam.smp` before rebuild, or the copy into the bundle fails.
+
+Asset deploy order if you assemble the Mix release by hand:
 
 ```bash
 SECRET_KEY_BASE=$(mix phx.gen.secret) MIX_ENV=prod mix compile --warnings-as-errors
@@ -57,11 +58,11 @@ Not executed in CI until Apple Developer certificates are available.
 4. Notarize with `xcrun notarytool`.
 5. Staple and ship through a Sparkle- or Tauri-updater channel bound to HTTPS.
 
-Until that pipeline runs on a clean Mac, distribution stays developer `mix ex_tauri.dev`.
+Until Apple certificates exist, local distribution is `mix cuckoding.app` (unsigned `.app`) or `mix ex_tauri.dev`.
 
 ## Linux and Windows
 
-`src-tauri/tauri.conf.json` already sets `bundle.targets` to `all`. Linux (AppImage/deb) and Windows (msi/nsis) follow the same ExTauri/Burrito path as macOS and remain unverified on OTP 28.
+`src-tauri/tauri.conf.json` local builds use `bundle.targets: ["app"]`. Linux and Windows installers follow ExTauri/Burrito and remain unverified on OTP 28.
 
 Until a platform ERTS exists:
 

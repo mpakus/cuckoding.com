@@ -188,6 +188,18 @@ defmodule AgentDesk.A2A do
     |> Repo.all()
   end
 
+  @spec list_deliveries(Scope.t()) :: [Delivery.t()]
+  @spec list_deliveries(Scope.t()) :: [Delivery.t()]
+  def list_deliveries(%Scope{project: project}) do
+    Delivery
+    |> join(:inner, [d], s in Session, on: s.id == d.agent_session_id)
+    |> where([_d, s], s.project_id == ^project.id)
+    |> order_by([d], desc: d.updated_at)
+    |> limit(80)
+    |> preload(:message)
+    |> Repo.all()
+  end
+
   def list_artifacts(%Scope{project: project}) do
     Artifact
     |> where([a], a.project_id == ^project.id)

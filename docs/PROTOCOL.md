@@ -18,6 +18,7 @@ Each provider process receives:
 - a short-lived capability token;
 - an allowed tool set;
 - its assigned worktree path;
+- isolation env (`AGENTDESK_TEST_DATABASE`, schema, partition, Compose project, loopback bind);
 - a generated Agent Card template and project A2A policy.
 
 The server derives identity from the authenticated capability. An agent must not be allowed to claim another `agent_id` in request parameters.
@@ -130,11 +131,13 @@ Filters available peers by required skill IDs/tags, input/output modes, features
 - `hub_save_workflow`
 - `hub_list_workflows`
 - `hub_run_workflow`
+- `hub_split_work`
+- `hub_crew_status`
 - `hub_list_roles`
 - `hub_subscribe_task`
 - `hub_request_review`
 
-`hub_create_task` accepts `depends_on` task ids. Incomplete prerequisites mark the new task `blocked`. `hub_run_workflow` instantiates a saved template; omit `context_id` to use the project's working context. `hub_list_roles` returns name, description, and permission profile only; prompt templates are not included.
+`hub_create_task` accepts `depends_on` task ids. Incomplete prerequisites mark the new task `blocked`. `hub_run_workflow` instantiates a saved template; omit `context_id` to use the project's working context. `hub_list_roles` returns name, description, and permission profile only; prompt templates are not included. `hub_split_work` is the lead-agent crew split: it creates a parent task, specialist children, and a review task. `hub_crew_status` returns that graph. Observer sessions may read crew status but cannot split work.
 
 Task assignment and resource ownership are separate. Accepting a delegation does not automatically lock every file mentioned in its description.
 
@@ -242,6 +245,10 @@ Renews active owned leases within project TTL policy and requires an idempotency
 #### `hub_list_resources`
 
 Returns bounded project lease state appropriate to the caller.
+
+#### `hub_isolation`
+
+Returns this session's isolation names and the app-owned template directory: PostgreSQL database, schema, ExUnit partition, Compose project, loopback bind, and optional port. Templates are files under the session data directory (`env`, `postgres.database.sql`, `postgres.schema.sql`, `elixir.test.exs`, `compose.overlay.yaml`). Isolated mode never writes them into the user's primary tree.
 
 ### Messaging tools
 

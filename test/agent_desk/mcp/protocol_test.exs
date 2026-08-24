@@ -52,7 +52,10 @@ defmodule AgentDesk.MCP.ProtocolTest do
     assert "hub_reject_handoff" in names
     assert "hub_list_task_graph" in names
     assert "hub_run_workflow" in names
+    assert "hub_split_work" in names
+    assert "hub_crew_status" in names
     assert "hub_list_roles" in names
+    assert "hub_isolation" in names
   end
 
   test "capability tokens authenticate and reject unknown secrets", %{token: token, alice: alice} do
@@ -98,5 +101,59 @@ defmodule AgentDesk.MCP.ProtocolTest do
     names = Enum.map(agents, &(&1[:name] || &1["name"] || &1.name))
     assert "Alice" in names
     _ = alice_scope
+  end
+
+  test "hub_isolation returns session names without the worktree", %{
+    alice: alice,
+    project: project
+  } do
+    dest = AgentDesk.Isolation.write_templates!(alice)
+
+    assert {:ok, %{"result" => profile}} =
+             Protocol.handle(alice, %{
+               "id" => 5,
+               "method" => "tools/call",
+               "params" => %{"name" => "hub_isolation", "arguments" => %{}}
+             })
+
+    assert profile["database"] == AgentDesk.Isolation.test_database(alice)
+    assert profile["schema"] == AgentDesk.Isolation.test_schema(alice)
+    assert profile["dir"] == dest
+    refute String.starts_with?(profile["dir"], project.canonical_path)
+  end
+
+  test "hub_split_work creates specialist tasks for matching roles", %{
+    alice: alice,
+    bob: bob,
+    alice_scope: alice_scope
+  } do
+    {:ok, _} = Agents.update_session(alice, %{role: "lead"})
+    {:ok, _} = Agents.update_session(bob, %{role: "backend"})
+
+    assert {:ok, %{"result" => result}} =
+             Protocol.handle(alice, %{
+               "id" => 6,
+               "method" => "tools/call",
+               "params" => %{
+                 "name" => "hub_split_work",
+                 "arguments" => %{
+                   "goal" => "Add login API",
+                   "lanes" => [
+                     %{
+                       "key" => "backend",
+                       "role" => "backend",
+                       "title" => "Login API",
+                       "recipient_agent_id" => bob.id
+                     }
+                   ]
+                 }
+               }
+             })
+
+    assert result["lead_agent_id"] == alice.id
+    assert [%{"role" => "backend", "agent_id" => bob_id}] = result["lanes"]
+    assert bob_id == bob.id
+    tasks = A2A.list_tasks(alice_scope)
+    assert Enum.any?(tasks, &(&1.title =~ "Login API"))
   end
 end

@@ -1,6 +1,7 @@
 import Config
 
 config :agent_desk, :data_root, Path.expand("../tmp/dev-data", __DIR__)
+config :agent_desk, :inherit_login_path, true
 
 # Configure your database
 config :agent_desk, AgentDesk.Repo,

@@ -35,12 +35,15 @@ defmodule AgentDesk.MCP.Protocol do
     "hub_save_workflow",
     "hub_list_workflows",
     "hub_run_workflow",
+    "hub_split_work",
+    "hub_crew_status",
     "hub_list_roles",
     "hub_subscribe_task",
     "hub_claim_resources",
     "hub_release_resources",
     "hub_renew_resources",
     "hub_list_resources",
+    "hub_isolation",
     "hub_send_message",
     "hub_broadcast",
     "hub_ack_message",
@@ -246,6 +249,10 @@ defmodule AgentDesk.MCP.Protocol do
     {:ok, %{"leases" => Enum.map(Manager.list_project(scope.project.id), &lease_map/1)}}
   end
 
+  defp tool(scope, "hub_isolation", _args) do
+    {:ok, AgentDesk.Isolation.profile(scope.agent_session)}
+  end
+
   defp tool(scope, "hub_get_artifact", args) do
     wrap(A2A.get_artifact(scope, args["artifact_id"]))
   end
@@ -359,6 +366,14 @@ defmodule AgentDesk.MCP.Protocol do
     with {:ok, context} <- run_context(scope, args["context_id"]) do
       wrap(AgentDesk.A2A.Workflows.instantiate(scope, args["workflow_id"], context))
     end
+  end
+
+  defp tool(scope, "hub_split_work", args) do
+    wrap(AgentDesk.A2A.Orchestration.split(scope, args))
+  end
+
+  defp tool(scope, "hub_crew_status", args) do
+    wrap(AgentDesk.A2A.Orchestration.status(scope, args["parent_task_id"]))
   end
 
   defp tool(scope, "hub_publish_handoff", args) do

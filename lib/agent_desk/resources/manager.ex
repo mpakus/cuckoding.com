@@ -101,6 +101,26 @@ defmodule AgentDesk.Resources.Manager do
     :ok
   end
 
+  @doc """
+  User-initiated administrative revoke. Never a silent force takeover.
+  """
+  @spec revoke(Scope.t(), Ecto.UUID.t()) :: {:ok, Lease.t()} | {:error, :not_found}
+  def revoke(%Scope{project: project}, id) when is_binary(id) do
+    now = Clock.utc_now()
+
+    {count, _} =
+      from(l in Lease,
+        where: l.id == ^id and l.project_id == ^project.id and l.status == "active"
+      )
+      |> Repo.update_all(set: [status: "revoked", released_at: now, updated_at: now])
+
+    if count == 1 do
+      {:ok, Repo.get!(Lease, id)}
+    else
+      {:error, :not_found}
+    end
+  end
+
   @spec list_project(Ecto.UUID.t()) :: [Lease.t()]
   def list_project(project_id) do
     expire_due(project_id)

@@ -115,4 +115,19 @@ defmodule AgentDesk.WorktreesTest do
     assert {:ok, port_b} = Isolation.allocate_port(bob_scope)
     assert port_a != port_b
   end
+
+  test "explicit shared sessions skip a dedicated worktree", %{project: project} do
+    scope = Scope.for_project(project)
+
+    {:ok, shared} =
+      Agents.create_session(scope, %{
+        provider: "fake",
+        display_name: "Shared",
+        settings: %{"shared" => true}
+      })
+
+    assert {:ok, nil} = Worktrees.ensure_for_session(project, shared)
+    assert Worktrees.working_copy_path(project, shared) == project.canonical_path
+    assert is_nil(Worktrees.get_for_session(shared.id))
+  end
 end

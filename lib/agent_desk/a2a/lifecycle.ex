@@ -72,8 +72,9 @@ defmodule AgentDesk.A2A.Lifecycle do
   end
 
   @spec update_task(Scope.t(), Task.t(), map()) :: {:ok, Task.t()} | {:error, term()}
-  def update_task(%Scope{project: project}, %Task{} = task, attrs) do
-    with :ok <- if(task.project_id == project.id, do: :ok, else: {:error, :forbidden}) do
+  def update_task(%Scope{project: project} = scope, %Task{} = task, attrs) do
+    with :ok <- if(task.project_id == project.id, do: :ok, else: {:error, :forbidden}),
+         :ok <- AgentDesk.A2A.Graph.guard_completion(task, attrs) do
       expected = Map.get(attrs, :expected_version, task.lock_version)
 
       result =
@@ -85,6 +86,7 @@ defmodule AgentDesk.A2A.Lifecycle do
       case result do
         {:ok, updated} ->
           _ = AgentDesk.A2A.Graph.release_ready(updated)
+          _ = notify_orchestration(scope, task, updated)
 
           Phoenix.PubSub.broadcast(
             AgentDesk.PubSub,
@@ -98,6 +100,13 @@ defmodule AgentDesk.A2A.Lifecycle do
           other
       end
     end
+  end
+
+  defp notify_orchestration(scope, previous, updated) do
+    Module.concat([AgentDesk, A2A, Orchestration]).on_task_updated(scope, previous, updated)
+    :ok
+  rescue
+    _ -> :ok
   end
 
   @spec subscribe_task(Scope.t(), Ecto.UUID.t()) :: :ok

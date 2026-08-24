@@ -21,6 +21,7 @@ flowchart TD
 - Search accepted A2A artifacts, context summaries, task outcomes, and review results.
 - Maintain shared project memory.
 - Maintain isolated per-agent or per-task memory.
+- Inspect SQLite/XERJ usage from the Dashboard tab (`AgentDesk.Analytics`).
 - Query normalized historical activity for debugging.
 - Return bounded passages instead of loading whole files into model context.
 

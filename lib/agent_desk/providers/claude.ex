@@ -99,8 +99,12 @@ defmodule AgentDesk.Providers.Claude do
     {:ok, user_line(%{"resume" => session_id, "content" => "resume"}), state}
   end
 
-  def encode({:prompt, text}, state) do
-    {:ok, user_line(%{"content" => text}), state}
+  def encode({:prompt, text}, state), do: encode({:prompt, text, []}, state)
+
+  def encode({:prompt, text, attachments}, state) do
+    {:ok,
+     user_line(%{"content" => AgentDesk.Providers.Prompt.with_file_notes(text, attachments)}),
+     state}
   end
 
   def encode(:interrupt, state) do

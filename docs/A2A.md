@@ -214,6 +214,8 @@ Tasks and delegation:
 - `hub_update_task`
 - `hub_cancel_task`
 - `hub_complete_task`
+- `hub_split_work`
+- `hub_crew_status`
 - `hub_subscribe_task`
 - `hub_request_review`
 
@@ -260,6 +262,10 @@ sequenceDiagram
 ```
 
 The user may approve, redirect, revoke, or reject a delegation. Automatic agent-selected delegation is subject to project policy, task depth, concurrency limits, and allowed skills.
+
+### Lead crew split
+
+A user can start a crew from the Tasks panel, or a lead agent can call `hub_split_work`. The hub creates a parent task, one child per lane, and a review task that waits on those children. The review stays blocked until every lane finishes; completing it earlier is rejected. The plan is stored in shared project memory. Completing a child notifies the lead through the A2A inbox, including whether review is ready, so they can control the result. Specialists stay on isolated worktrees. Assignment is not a lease. The hub never merges into the primary tree.
 
 ## 8. Routing and delivery
 

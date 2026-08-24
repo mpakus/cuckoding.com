@@ -32,7 +32,13 @@ defmodule AgentDesk.Providers.RemoteTest do
 
     assert ready.status in ["idle", "working"]
     assert ready.process_identity["mode"] == "attach"
-    assert Repo.get_by(AgentCard, agent_session_id: session.id)
+
+    card =
+      wait_until(fn ->
+        Repo.get_by(AgentCard, agent_session_id: session.id)
+      end)
+
+    assert card
     assert SessionWorker.fetch(session.id) != {:error, :not_started}
 
     path = MCPInjection.connect_env_path(ready)

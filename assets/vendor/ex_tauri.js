@@ -168,9 +168,20 @@ async function execCommand(hook, command, payload) {
     }
 
     case "dialog_open": {
-      const { open } = tauriApi("dialog");
-      const result = await open(payload);
-      return { path: result };
+      const api = window.__TAURI__;
+      const options = payload || {};
+      if (api && api.dialog && typeof api.dialog.open === "function") {
+        const result = await api.dialog.open(options);
+        return { path: result };
+      }
+      const invoke =
+        (api && ((api.core && api.core.invoke) || api.invoke)) ||
+        (window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke);
+      if (typeof invoke === "function") {
+        const result = await invoke("plugin:dialog|open", { options });
+        return { path: result };
+      }
+      throw new Error("Native folder picker is unavailable");
     }
 
     case "dialog_save": {

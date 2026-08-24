@@ -40,6 +40,8 @@ Initial primary integration paths:
 
 Cursor and OpenCode share ACP framing and request-correlation code. They do not share a single capability declaration: each installed version is probed and each adapter owns provider-specific methods, authentication readiness, and fallbacks.
 
+Cuckoding also installs extra ACP agents from the official registry (`registry.json`). Mapped ids (`codex-acp`, `claude-acp`, `cursor`, `opencode`) use first-class adapters. Other agents use `AgentDesk.Providers.AcpGeneric`. Install records store executable + argv only.
+
 ## 3. Normalized event types
 
 ```elixir
@@ -326,4 +328,4 @@ Every provider adapter ships fixtures covering:
 
 ACP adapters additionally require fixtures for capability negotiation, server-initiated permission requests, unknown extension methods, `session/new`, `session/load`, cancellation, and concurrent request correlation.
 
-Live provider tests are opt-in and must not be required for the default offline test suite.
+Live CLI protocol tests (`test/agent_desk/providers/*_live_test.exs`) skip when the vendor binary is missing and never send a paid prompt. Codex and ACP adapters complete handshake when installed. Claude stream-json waits for a user turn, so the live test asserts a clean handshake timeout and terminate. Cursor/OpenCode skip if `agent`/`opencode` is missing. CI must not require a vendor login. See `TESTING.md`.

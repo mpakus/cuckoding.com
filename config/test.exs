@@ -26,6 +26,8 @@ config :agent_desk, :providers, use_fixtures: true
 
 config :agent_desk, :search, adapter: :projection
 
+config :agent_desk, :acp_registry, source: :snapshot
+
 # Initialize plugs at runtime for faster test compilation
 config :phoenix, :plug_init_mode, :runtime
 

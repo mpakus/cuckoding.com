@@ -315,6 +315,9 @@ defmodule AgentDesk.A2ATest do
     assert impl.status == "blocked"
     assert {:error, :cycle} = AgentDesk.A2A.Graph.add_dependency(alice, design.id, impl.id)
 
+    assert {:error, :blocked_by_dependencies} =
+             A2A.update_task(alice, impl, %{status: "completed"})
+
     assert {:ok, _} = A2A.update_task(alice, design, %{status: "completed"})
     assert Repo.get!(Task, impl.id).status == "queued"
   end

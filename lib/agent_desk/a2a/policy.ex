@@ -12,21 +12,54 @@ defmodule AgentDesk.A2A.Policy do
 
   @spec check_delegation(Ecto.UUID.t(), Ecto.UUID.t(), Task.t()) :: :ok | {:error, atom()}
   def check_delegation(project_id, from_agent_id, %Task{} = task) do
-    policy = Application.get_env(:agent_desk, :a2a, [])
+    policy = merged_policy(project_id)
 
-    with :ok <- check_depth(task, Keyword.get(policy, :max_delegation_depth, 3)),
-         :ok <-
-           check_fan_out(
-             project_id,
-             from_agent_id,
-             Keyword.get(policy, :max_open_proposals_per_agent, 4)
-           ) do
-      check_rate(from_agent_id, Keyword.get(policy, :max_delegation_fan_out, 4))
+    with :ok <- check_depth(task, policy.max_delegation_depth),
+         :ok <- check_fan_out(project_id, from_agent_id, policy.max_open_proposals_per_agent) do
+      check_rate(from_agent_id, policy.max_delegation_fan_out)
     end
   end
 
   @spec max_part_bytes() :: pos_integer()
   def max_part_bytes, do: 32_768
+
+  defp merged_policy(project_id) do
+    app = Application.get_env(:agent_desk, :a2a, [])
+    stored = project_policy(project_id)
+
+    %{
+      max_delegation_depth:
+        int_setting(stored["max_delegation_depth"], Keyword.get(app, :max_delegation_depth, 3)),
+      max_delegation_fan_out:
+        int_setting(
+          stored["max_delegation_fan_out"],
+          Keyword.get(app, :max_delegation_fan_out, 4)
+        ),
+      max_open_proposals_per_agent:
+        int_setting(
+          stored["max_open_proposals_per_agent"],
+          Keyword.get(app, :max_open_proposals_per_agent, 4)
+        )
+    }
+  end
+
+  defp project_policy(project_id) do
+    case Repo.get(AgentDesk.Projects.Project, project_id) do
+      %{settings: %{"a2a" => a2a}} when is_map(a2a) -> a2a
+      _ -> %{}
+    end
+  end
+
+  defp int_setting(value, _default) when is_integer(value) and value > 0, do: value
+
+  defp int_setting(value, default) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, ""} when int > 0 -> int
+      _ -> default
+    end
+  end
+
+  defp int_setting(_value, default), do: default
 
   defp check_depth(task, max) do
     if ancestry_depth(task, 0) >= max, do: {:error, :delegation_depth}, else: :ok

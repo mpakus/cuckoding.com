@@ -15,6 +15,7 @@ defmodule AgentDesk.Providers.Adapter do
           | {:start_session, String.t()}
           | {:resume, String.t()}
           | {:prompt, String.t()}
+          | {:prompt, String.t(), [map()]}
           | :interrupt
           | {:approve, String.t(), String.t()}
           | {:configure_mcp, String.t()}

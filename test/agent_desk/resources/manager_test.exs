@@ -111,6 +111,29 @@ defmodule AgentDesk.Resources.ManagerTest do
     assert {:error, :not_renewable} = Manager.renew(alice, [lease.id])
   end
 
+  test "administrative revoke releases an active lease with confirmation path", %{
+    alice: alice,
+    bob: bob
+  } do
+    assert {:ok, [lease]} =
+             Manager.claim(
+               alice,
+               [%{"type" => "file", "key" => "lib/app.ex", "mode" => "exclusive"}],
+               reason: "edit"
+             )
+
+    assert {:ok, revoked} = Manager.revoke(Scope.for_project(alice.project), lease.id)
+    assert revoked.status == "revoked"
+    assert Manager.list_owned(alice.agent_session.id) == []
+
+    assert {:ok, _} =
+             Manager.claim(
+               bob,
+               [%{"type" => "file", "key" => "lib/app.ex", "mode" => "exclusive"}],
+               reason: "edit"
+             )
+  end
+
   test "killing a session expires its leases", %{alice: alice} do
     assert {:ok, [_lease]} =
              Manager.claim(

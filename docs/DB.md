@@ -4,7 +4,7 @@
 
 AgentDesk uses SQLite through Ecto as the canonical durable state store. The schema is optimized for a local desktop application with several concurrent provider processes and a built-in internal A2A coordination layer, not for a multi-node SaaS deployment.
 
-XERJ, Markdown snapshots, PubSub, and provider transcript files are projections or supporting artifacts. None may replace SQLite for authoritative Agent Cards, A2A contexts, tasks, delegations, messages, deliveries, artifacts, leases, sessions, worktree state, merge-queue items, roles, usage samples, or workflow templates.
+XERJ, Markdown snapshots, PubSub, and provider transcript files are projections or supporting artifacts. None may replace SQLite for authoritative Agent Cards, A2A contexts, tasks, delegations, messages, deliveries, artifacts, leases, sessions, worktree state, merge-queue items, roles, usage samples, workflow templates, or ACP install records.
 
 ## 2. SQLite operating policy
 
@@ -207,6 +207,24 @@ Indexes:
 - `(project_id, inserted_at)`;
 - `(agent_session_id, inserted_at)`.
 
+### `acp_installs`
+
+App-global ACP Registry enablement. Not project-scoped. No secrets.
+
+| Column | Type | Rules |
+| --- | --- | --- |
+| `id` | UUID/text | Primary key |
+| `registry_id` | text | Required, unique, string id from the registry |
+| `name` | text | Required |
+| `version` | text | Nullable |
+| `status` | text | `installed` or `removed` |
+| `provider_key` | text | Mapped adapter or `acp` |
+| `executable` | text | Relative command or absolute path |
+| `args` | JSON/text | Argument array, never a shell string |
+| `distribution` | JSON/text | Kind snapshot (`npx`, `uvx`, `binary`) |
+| `inserted_at` | UTC datetime_usec | Required |
+| `updated_at` | UTC datetime_usec | Required |
+
 ### `workflow_templates`
 
 | Column | Type | Rules |
@@ -225,7 +243,7 @@ Indexes:
 | --- | --- | --- |
 | `id` | UUID/text | Primary key |
 | `project_id` | UUID/text | Required FK |
-| `provider` | text | `codex`, `claude`, `cursor`, `opencode`, or registered adapter key |
+| `provider` | text | `codex`, `claude`, `cursor`, `opencode`, `sdk`, `remote`, `acp`, or registered adapter key |
 | `display_name` | text | Required |
 | `role` | text | Nullable user-defined role name |
 | `settings` | JSON/text | Includes `tab_open`, `permission_profile`, `role_id` |

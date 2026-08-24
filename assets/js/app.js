@@ -25,17 +25,20 @@ import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/agent_desk"
 import topbar from "../vendor/topbar"
 import { TauriHook } from "../vendor/ex_tauri"
+import { Grove } from "./grove"
+import { RepoPicker } from "./tauri_dialog"
+import { Composer, Elapsed, LoadOlder, Shortcuts } from "./elapsed"
 
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: { TauriHook,...colocatedHooks},
+  hooks: { TauriHook, Grove, RepoPicker, Composer, Elapsed, LoadOlder, Shortcuts, ...colocatedHooks},
 })
 
 // Show progress bar on live navigation and form submits
-topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
+topbar.config({barColors: {0: "#8b7cff"}, shadowColor: "rgba(90, 70, 200, .35)"})
 window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
 window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 

@@ -29,6 +29,7 @@ if config_env() == :prod do
     System.get_env("DATABASE_PATH") || Path.join(data_root, "agentdesk.sqlite3")
 
   config :agent_desk, :data_root, data_root
+  config :agent_desk, :inherit_login_path, true
 
   config :agent_desk, AgentDesk.Repo,
     database: database_path,
@@ -48,8 +49,6 @@ if config_env() == :prod do
 
   host = System.get_env("PHX_HOST") || "127.0.0.1"
   port = String.to_integer(System.get_env("PORT") || "4000")
-
-  config :agent_desk, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
   config :agent_desk, AgentDeskWeb.Endpoint,
     url: [host: host, port: port, scheme: "http"],

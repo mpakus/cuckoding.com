@@ -84,8 +84,16 @@ defmodule AgentDesk.Search do
     end
   end
 
-  defp feature_on? do
+  @spec feature_on?() :: boolean()
+  def feature_on? do
     Application.get_env(:agent_desk, :features, [])[:xerj] == true
+  end
+
+  @spec put_xerj(boolean()) :: :ok
+  def put_xerj(enabled) when is_boolean(enabled) do
+    features = Application.get_env(:agent_desk, :features, [])
+    Application.put_env(:agent_desk, :features, Keyword.put(features, :xerj, enabled))
+    :ok
   end
 
   defp config, do: Application.get_env(:agent_desk, :search, [])

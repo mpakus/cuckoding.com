@@ -39,6 +39,24 @@ defmodule AgentDesk.Providers.Transcript do
     end
   end
 
+  @spec window(Ecto.UUID.t(), Ecto.UUID.t(), keyword()) :: %{
+          rows: [map()],
+          older?: boolean(),
+          total: non_neg_integer()
+        }
+  def window(project_id, session_id, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 200)
+    rows = read(project_id, session_id)
+    total = length(rows)
+    start = max(0, total - limit)
+
+    %{
+      rows: Enum.slice(rows, start, limit),
+      older?: start > 0,
+      total: total
+    }
+  end
+
   defp decode_lines(contents) do
     contents
     |> String.split("\n", trim: true)

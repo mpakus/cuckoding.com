@@ -7,6 +7,7 @@ defmodule AgentDesk.Providers.SessionWorker do
 
   alias AgentDesk.A2A
   alias AgentDesk.A2A.MessageRouter
+  alias AgentDesk.Activity
   alias AgentDesk.Agents
   alias AgentDesk.Clock
   alias AgentDesk.Projects
@@ -32,11 +33,12 @@ defmodule AgentDesk.Providers.SessionWorker do
     buffer: [],
     flush_ref: nil,
     handshake: :awaiting_ready,
-    pending_approval: nil
+    pending_approval: nil,
+    message_draft: ""
   ]
 
   @flush_ms 50
-  @handshake_ms 8_000
+  @handshake_ms 20_000
   @visible_cap 200
 
   @spec start_link(keyword()) :: GenServer.on_start()
@@ -56,8 +58,10 @@ defmodule AgentDesk.Providers.SessionWorker do
     end
   end
 
-  @spec prompt(Ecto.UUID.t(), String.t()) :: :ok | {:error, term()}
-  def prompt(session_id, text), do: call(session_id, {:prompt, text})
+  @spec prompt(Ecto.UUID.t(), String.t(), [map()]) :: :ok | {:error, term()}
+  def prompt(session_id, text, attachments \\ []) when is_list(attachments) do
+    call(session_id, {:prompt, text, attachments})
+  end
 
   @spec interrupt(Ecto.UUID.t()) :: :ok | {:error, term()}
   def interrupt(session_id), do: call(session_id, :interrupt)
@@ -136,11 +140,23 @@ defmodule AgentDesk.Providers.SessionWorker do
   end
 
   @impl true
-  def handle_call({:prompt, text}, _from, state) do
-    state = persist_status(send_action(state, {:prompt, text}), "working")
+  def handle_call({:prompt, text}, from, state), do: handle_call({:prompt, text, []}, from, state)
+
+  def handle_call({:prompt, text, attachments}, _from, state) when is_list(attachments) do
+    names = AgentDesk.Providers.Prompt.names(attachments)
+    state = persist_status(send_action(state, {:prompt, text, attachments}), "working")
 
     {:reply, :ok,
-     emit(state, [Event.new(:turn_started, %{"text" => text}, state.session.provider)])}
+     emit(
+       state,
+       [
+         Event.new(
+           :turn_started,
+           %{"text" => text, "attachments" => names},
+           state.session.provider
+         )
+       ]
+     )}
   end
 
   def handle_call(:interrupt, _from, state) do
@@ -161,13 +177,29 @@ defmodule AgentDesk.Providers.SessionWorker do
   def handle_info({port, {:data, data}}, %{port: port} = state) do
     case Framer.push(state.framer, IO.iodata_to_binary(data)) do
       {:ok, lines, framer} ->
-        {:noreply, Enum.reduce(lines, %{state | framer: framer}, &decode_line/2)}
+        dropped = framer.dropped
+        state = %{state | framer: %{framer | dropped: 0}}
 
-      {:error, :line_too_large} ->
-        event =
-          Event.new(:provider_error, %{"reason" => "line_too_large"}, state.session.provider)
+        state =
+          if dropped > 0 do
+            emit(
+              state,
+              [
+                Event.new(
+                  :stderr,
+                  %{
+                    "reason" => "line_too_large",
+                    "text" => "Skipped #{dropped} oversized provider frame(s)."
+                  },
+                  state.session.provider
+                )
+              ]
+            )
+          else
+            state
+          end
 
-        {:noreply, emit(%{state | framer: Framer.new()}, [event])}
+        {:noreply, Enum.reduce(lines, state, &decode_line/2)}
     end
   end
 
@@ -192,9 +224,15 @@ defmodule AgentDesk.Providers.SessionWorker do
   def terminate(_reason, state) do
     close_port(state)
     _ = AgentDesk.Containers.stop(state.session)
-    _ = AgentDesk.Resources.Manager.expire_session(state.session.id)
+    _ = expire_session(state.session.id)
     _ = AgentDesk.Security.Capability.revoke(state.session)
     :ok
+  end
+
+  defp expire_session(session_id) do
+    AgentDesk.Resources.Manager.expire_session(session_id)
+  catch
+    :exit, _ -> :ok
   end
 
   defp decode_line(line, state) do
@@ -208,6 +246,13 @@ defmodule AgentDesk.Providers.SessionWorker do
   defp apply_decode({:ok, events, decode}, state) do
     Enum.reduce(events, %{state | decode: decode}, fn event, acc -> apply_event(acc, event) end)
   end
+
+  defp apply_decode({:error, reason}, state)
+       when reason in [:not_jsonrpc, :unrecognized_jsonrpc] do
+    state
+  end
+
+  defp apply_decode({:error, {:invalid_json, _}}, state), do: state
 
   defp apply_decode({:error, reason}, state) do
     event = Event.new(:provider_error, %{"reason" => inspect(reason)}, state.session.provider)
@@ -325,8 +370,10 @@ defmodule AgentDesk.Providers.SessionWorker do
         {:ok, nil, remember_attach(session)}
 
       {:ok, %CommandSpec{} = spec} ->
-        port = open_port(spec, token)
-        {:ok, port, remember_process(session, port)}
+        case open_port(spec, token, session) do
+          {:ok, port} -> {:ok, port, remember_process(session, port)}
+          {:error, reason} -> {:error, reason}
+        end
 
       {:error, reason} ->
         {:error, reason}
@@ -386,12 +433,14 @@ defmodule AgentDesk.Providers.SessionWorker do
   end
 
   defp send_start_or_resume(state) do
+    cwd = AgentDesk.Worktrees.working_copy_path(state.project, state.session)
+
     case state.session.provider_session_id do
       id when is_binary(id) and id != "" ->
         send_action(state, {:resume, id})
 
       _ ->
-        send_action(state, {:start_session, state.project.canonical_path})
+        send_action(state, {:start_session, cwd})
     end
   end
 
@@ -399,27 +448,45 @@ defmodule AgentDesk.Providers.SessionWorker do
     enqueue_attach_prompt(state, text)
   end
 
+  defp send_action(%{port: nil} = state, {:prompt, text, _attachments}) do
+    enqueue_attach_prompt(state, text)
+  end
+
   defp send_action(%{port: nil} = state, _action), do: state
 
-  defp send_action(state, action) do
+  defp send_action(state, {:prompt, text, attachments} = action) do
     case state.adapter.encode(action, state.decode) do
-      {:ok, "", decode} ->
-        %{state | decode: decode}
-
-      {:ok, payload, decode} ->
-        true = Port.command(state.port, payload)
-        %{state | decode: decode}
-
       {:error, :unsupported_action} ->
-        state
+        noted = AgentDesk.Providers.Prompt.with_file_notes(text, attachments)
+        send_action(state, {:prompt, noted})
+
+      other ->
+        apply_encode_result(state, other)
     end
   end
 
+  defp send_action(state, action) do
+    apply_encode_result(state, state.adapter.encode(action, state.decode))
+  end
+
+  defp apply_encode_result(state, {:ok, "", decode}) do
+    %{state | decode: decode}
+  end
+
+  defp apply_encode_result(state, {:ok, payload, decode}) do
+    true = Port.command(state.port, payload)
+    %{state | decode: decode}
+  end
+
+  defp apply_encode_result(state, {:error, :unsupported_action}) do
+    state
+  end
+
   defp emit(state, events) do
-    Enum.each(events, &Transcript.append(state.project.id, state.session.id, &1))
+    {state, persisted} = persist_stream(state, events)
+    Enum.each(persisted, &Transcript.append(state.project.id, state.session.id, &1))
     buffer = Enum.take(state.buffer ++ events, -@visible_cap)
-    state = %{state | buffer: buffer}
-    schedule_flush(state)
+    schedule_flush(%{state | buffer: buffer})
   end
 
   defp schedule_flush(%{flush_ref: nil} = state) do
@@ -434,7 +501,8 @@ defmodule AgentDesk.Providers.SessionWorker do
     Phoenix.PubSub.broadcast(
       AgentDesk.PubSub,
       topic(state.session.id),
-      {:session_activity, state.session.id, state.buffer, state.status, state.pending_approval}
+      {:session_activity, state.session.id, Activity.coalesce_events(state.buffer), state.status,
+       state.pending_approval}
     )
 
     Phoenix.PubSub.broadcast(
@@ -444,6 +512,52 @@ defmodule AgentDesk.Providers.SessionWorker do
     )
 
     %{state | buffer: []}
+  end
+
+  defp persist_stream(state, events) do
+    {state, persisted} = Enum.reduce(events, {state, []}, &persist_event/2)
+    {state, Enum.reverse(persisted)}
+  end
+
+  defp persist_event(%Event{type: :message_delta} = event, {state, acc}) do
+    {%{state | message_draft: Activity.join(state.message_draft, event_text(event))}, acc}
+  end
+
+  defp persist_event(%Event{type: :message_completed} = event, {state, acc}) do
+    text = completed_or_draft(state.message_draft, event)
+    completed = %{event | payload: Map.put(event.payload, "text", text)}
+    {%{state | message_draft: ""}, [completed | acc]}
+  end
+
+  defp persist_event(%Event{type: type}, acc)
+       when type in [:reasoning_delta, :command_output] do
+    acc
+  end
+
+  defp persist_event(%Event{} = event, {state, acc}) do
+    {state, acc} = flush_message_draft(state, acc, event)
+    {state, [event | acc]}
+  end
+
+  defp flush_message_draft(%{message_draft: ""} = state, acc, _event), do: {state, acc}
+
+  defp flush_message_draft(state, acc, event) do
+    completed = Event.new(:message_completed, %{"text" => state.message_draft}, event.provider)
+    {%{state | message_draft: ""}, [completed | acc]}
+  end
+
+  defp completed_or_draft(draft, event) do
+    incoming = event_text(event)
+
+    if incoming != "" and String.length(incoming) >= String.length(draft) do
+      incoming
+    else
+      Activity.join(draft, incoming)
+    end
+  end
+
+  defp event_text(%Event{payload: payload}) when is_map(payload) do
+    payload["text"] || payload["delta"] || payload["summary"] || ""
   end
 
   defp persist_status(state, status) do
@@ -459,21 +573,28 @@ defmodule AgentDesk.Providers.SessionWorker do
     %{state | session: session, status: status}
   end
 
-  defp open_port(%CommandSpec{} = spec, token) do
-    env =
-      System.get_env()
-      |> Map.merge(spec.env)
-      |> Map.put("AGENTDESK_CAPABILITY_TOKEN", token)
-      |> Enum.map(fn {key, value} -> {String.to_charlist(key), String.to_charlist(value)} end)
+  defp open_port(%CommandSpec{} = spec, token, session) do
+    with {:ok, executable} <- Providers.Discovery.find_executable(spec.executable) do
+      env =
+        System.get_env()
+        |> Map.merge(AgentDesk.Isolation.env(session))
+        |> Map.merge(spec.env)
+        |> Map.put("AGENTDESK_CAPABILITY_TOKEN", token)
+        |> Enum.map(fn {key, value} -> {String.to_charlist(key), String.to_charlist(value)} end)
 
-    Port.open({:spawn_executable, spec.executable}, [
-      :binary,
-      :exit_status,
-      :use_stdio,
-      {:args, spec.args},
-      {:cd, spec.cwd},
-      {:env, env}
-    ])
+      {:ok,
+       Port.open({:spawn_executable, executable}, [
+         :binary,
+         :exit_status,
+         :use_stdio,
+         {:args, spec.args},
+         {:cd, spec.cwd},
+         {:env, env}
+       ])}
+    end
+  rescue
+    e in [ArgumentError, ErlangError] ->
+      {:error, {:spawn_failed, Exception.message(e)}}
   end
 
   defp close_port(%{port: port}) when is_port(port) do

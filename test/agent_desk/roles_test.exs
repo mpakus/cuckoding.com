@@ -18,6 +18,10 @@ defmodule AgentDesk.RolesTest do
 
   test "seeds default roles without exposing prompts on the public map", %{project: project} do
     names = Enum.map(Roles.list(project), & &1.name)
+    assert "lead" in names
+    assert "backend" in names
+    assert "frontend" in names
+    assert "tester" in names
     assert "implementer" in names
     assert "reviewer" in names
     assert "observer" in names

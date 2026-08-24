@@ -7,6 +7,7 @@ defmodule AgentDesk.Providers.ACP.Client do
   alias AgentDesk.Providers.ACP.Protocol
   alias AgentDesk.Providers.Event
   alias AgentDesk.Providers.JSONRPC
+  alias AgentDesk.Providers.Prompt
 
   defstruct jsonrpc: JSONRPC.new(),
             provider: "acp",
@@ -46,9 +47,13 @@ defmodule AgentDesk.Providers.ACP.Client do
   end
 
   def encode(%__MODULE__{} = client, {:prompt, text}) do
+    encode(client, {:prompt, text, []})
+  end
+
+  def encode(%__MODULE__{} = client, {:prompt, text, attachments}) when is_list(attachments) do
     request(client, "session/prompt", %{
       "sessionId" => client.session_id,
-      "prompt" => [%{"type" => "text", "text" => text}]
+      "prompt" => acp_prompt(text, attachments)
     })
   end
 
@@ -170,4 +175,21 @@ defmodule AgentDesk.Providers.ACP.Client do
   defp decision_outcome("allow"), do: "selected"
   defp decision_outcome("approve"), do: "selected"
   defp decision_outcome(_deny), do: "cancelled"
+
+  defp acp_prompt(text, attachments) do
+    text_block = %{"type" => "text", "text" => Prompt.with_file_notes(text, attachments)}
+
+    image_blocks =
+      Enum.flat_map(Prompt.images(attachments), fn att ->
+        case Prompt.inline_image(att) do
+          {:ok, mime, data} ->
+            [%{"type" => "image", "mimeType" => mime, "data" => data}]
+
+          :error ->
+            []
+        end
+      end)
+
+    [text_block | image_blocks]
+  end
 end

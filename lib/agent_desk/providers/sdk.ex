@@ -84,7 +84,19 @@ defmodule AgentDesk.Providers.SDK do
   def encode({:resume, id}, state),
     do: command(%{"op" => "resume", "provider_session_id" => id}, state)
 
-  def encode({:prompt, text}, state), do: command(%{"op" => "prompt", "text" => text}, state)
+  def encode({:prompt, text}, state), do: encode({:prompt, text, []}, state)
+
+  def encode({:prompt, text, attachments}, state) do
+    command(
+      %{
+        "op" => "prompt",
+        "text" => AgentDesk.Providers.Prompt.with_file_notes(text, attachments),
+        "attachments" => attachments
+      },
+      state
+    )
+  end
+
   def encode(:interrupt, state), do: command(%{"op" => "interrupt"}, state)
 
   def encode({:approve, request_id, decision}, state) do

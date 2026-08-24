@@ -3,12 +3,13 @@ name = "agentdesk"
 version = "0.2.0"
 default-run = "agentdesk"
 edition = "2021"
-description = ""
+description = "Cuckoding local agent workspace"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+tauri-plugin-dialog = "2"
 log = "0.4"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }

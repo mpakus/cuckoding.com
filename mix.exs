@@ -15,7 +15,8 @@ defmodule AgentDesk.MixProject do
       test_coverage: [tool: ExCoveralls],
       dialyzer: [
         plt_local_path: "priv/plts",
-        plt_core_path: "priv/plts"
+        plt_core_path: "priv/plts",
+        plt_add_apps: [:mix, :ex_unit]
       ],
       releases: [desktop: [steps: [:assemble]]]
     ]
@@ -24,7 +25,7 @@ defmodule AgentDesk.MixProject do
   def application do
     [
       mod: {AgentDesk.Application, []},
-      extra_applications: [:logger, :runtime_tools, :inets]
+      extra_applications: [:logger, :runtime_tools, :inets, :ssl, :public_key]
     ]
   end
 
@@ -67,7 +68,6 @@ defmodule AgentDesk.MixProject do
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 0.26"},
       {:jason, "~> 1.2"},
-      {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
       {:ex_tauri, "~> 0.2.0"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
@@ -90,6 +90,7 @@ defmodule AgentDesk.MixProject do
         "esbuild agent_desk --minify",
         "phx.digest"
       ],
+      "desktop.app": ["cuckoding.app"],
       check: [
         "format --check-formatted",
         "compile --warnings-as-errors",

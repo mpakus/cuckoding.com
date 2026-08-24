@@ -122,6 +122,7 @@ fn kill_sidecar(app: &tauri::AppHandle) {
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {
             // Focus the main window when a second instance is launched
         }))
@@ -136,8 +137,8 @@ fn main() {
         // on_menu_event) routes Cmd+Q through on_menu_event -> kill_sidecar so the
         // backend is stopped before exit. The Edit submenu keeps copy/paste working.
         .menu(|handle| {
-            let quit = MenuItem::with_id(handle, "quit", "Quit AgentDesk", true, Some("CmdOrCtrl+Q"))?;
-            let app_menu = Submenu::with_items(handle, "AgentDesk", true, &[&quit])?;
+            let quit = MenuItem::with_id(handle, "quit", "Quit Cuckoding", true, Some("CmdOrCtrl+Q"))?;
+            let app_menu = Submenu::with_items(handle, "Cuckoding", true, &[&quit])?;
             let edit_menu = Submenu::with_items(
                 handle,
                 "Edit",
@@ -269,7 +270,7 @@ fn start_server(app: &tauri::AppHandle, port: u16) {
         ("PORT".to_string(), port.to_string()),
         ("SECRET_KEY_BASE".to_string(), secret_key_base()),
         ("PHX_SERVER".to_string(), "true".to_string()),
-        ("PHX_HOST".to_string(), "localhost".to_string()),
+        ("PHX_HOST".to_string(), "127.0.0.1".to_string()),
     ]);
 
     let sidecar_command = app.shell().sidecar("desktop")
@@ -306,10 +307,10 @@ fn start_server(app: &tauri::AppHandle, port: u16) {
 
 fn check_server_started(port: u16) {
     let sleep_interval = std::time::Duration::from_millis(200);
-    let host = "localhost".to_string();
+    let host = "127.0.0.1".to_string();
     let addr = format!("{}:{}", host, port);
     println!(
-        "Waiting for your phoenix dev server to start on {}...",
+        "Waiting for Cuckoding on {}...",
         addr
     );
     loop {
@@ -325,7 +326,7 @@ fn check_server_started(port: u16) {
 // even in dev this reload recovers the webview if it raced the server boot.
 fn navigate_main_window(app: &tauri::AppHandle, port: u16) {
     if let Some(window) = app.get_webview_window("main") {
-        let url = format!("http://localhost:{}", port);
+        let url = format!("http://127.0.0.1:{}", port);
         if let Ok(url) = url.parse() {
             let _ = window.navigate(url);
         }

@@ -31,7 +31,7 @@ The official OpenAI documentation describes App Server as the rich-client integr
 - Cursor CLI overview: https://cursor.com/docs/cli/overview
 - Cursor ACP integration: https://cursor.com/docs/cli/acp
 - Cursor CLI parameters and session commands: https://cursor.com/docs/cli/reference/parameters
-- Cursor headless/CI operation: https://cursor.com/docs/cli/headless
+- Cursor CLI headless/CI operation: https://cursor.com/docs/cli/headless
 - Cursor CLI output formats: https://cursor.com/docs/cli/reference/output-format
 - Cursor CLI MCP support: https://cursor.com/docs/cli/mcp
 - Cursor CLI authentication: https://cursor.com/docs/cli/reference/authentication
@@ -54,7 +54,7 @@ ACP standardizes the client-to-coding-agent control plane. For local agents its 
 
 The reviewed A2A 1.0 specification defines independent-agent discovery through Agent Cards, asynchronous tasks, messages with structured parts, artifacts, status updates, streaming/subscriptions, version negotiation, and multiple protocol bindings. It explicitly positions A2A as complementary to MCP: MCP connects an agent to tools and data, while A2A coordinates agents as peers.
 
-AgentDesk adopts these semantic boundaries internally but does not claim public wire compatibility in the MVP. Its internal A2A model is local, SQLite-backed, MCP-accessed, provider-neutral, and extended with durable per-recipient delivery, idempotency replay, Git handoffs, and resource leases. A future gateway may translate between A2A 1.0 and the internal domain.
+AgentDesk adopts these semantic boundaries internally but does not claim public wire compatibility. Its internal A2A model is local, SQLite-backed, MCP-accessed, provider-neutral, and extended with durable per-recipient delivery, idempotency replay, Git handoffs, and resource leases. A future gateway may translate between A2A 1.0 and the internal domain.
 
 ## OpenCode
 

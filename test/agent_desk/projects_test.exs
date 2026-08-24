@@ -45,6 +45,21 @@ defmodule AgentDesk.ProjectsTest do
     :ok
   end
 
+  test "opens a repository from a file inside it", %{repo: repo} do
+    file = Path.join(repo, "README.md")
+    File.write!(file, "# repo\n")
+
+    assert {:ok, project} = Projects.open_project(file)
+    assert project.canonical_path == Path.expand(repo)
+
+    on_exit(fn -> AgentDesk.Projects.Supervisor.stop_runtime(project.id) end)
+  end
+
+  test "rejects a missing path" do
+    missing = Path.join(System.tmp_dir!(), "missing-repo-#{System.unique_integer([:positive])}")
+    assert Projects.open_project(missing) == {:error, :not_found}
+  end
+
   test "restore_last_opened starts the runtime for the most recent project", %{repo: repo} do
     {:ok, project} = Projects.open_project(repo)
     :ok = AgentDesk.Projects.Supervisor.stop_runtime(project.id)
@@ -93,6 +108,29 @@ defmodule AgentDesk.ProjectsTest do
 
     types = project.id |> Events.list_for_project() |> Enum.map(& &1.type)
     assert "project.closed" in types
+  end
+
+  test "forget_recent drops the project from recents without deleting the row", %{repo: repo} do
+    {:ok, project} = Projects.open_project(repo)
+    :ok = Projects.close_project(project)
+
+    assert :ok = Projects.forget_recent(project)
+    assert Projects.list_recent() == []
+    assert {:ok, forgotten} = Projects.get_project(project.id)
+    assert forgotten.last_opened_at == nil
+    assert forgotten.open == false
+  end
+
+  test "reopen_project re-validates the stored path", %{repo: repo} do
+    {:ok, project} = Projects.open_project(repo)
+    :ok = AgentDesk.Projects.Supervisor.stop_runtime(project.id)
+
+    assert {:ok, reopened} = Projects.reopen_project(project.id)
+    assert reopened.id == project.id
+    assert {:ok, _pid} = Runtime.fetch(project.id)
+
+    File.rm_rf!(repo)
+    assert Projects.reopen_project(project.id) == {:error, :not_found}
   end
 
   test "open_project starts the internal A2A hub", %{repo: repo} do

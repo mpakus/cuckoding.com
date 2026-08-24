@@ -5,6 +5,7 @@ defmodule AgentDesk.Application do
 
   @impl true
   def start(_type, _args) do
+    AgentDesk.Env.bootstrap!()
     AgentDesk.Storage.ensure_data_root!()
     AgentDesk.Security.Loopback.assert!()
 
@@ -15,7 +16,6 @@ defmodule AgentDesk.Application do
         AgentDesk.Repo,
         {Ecto.Migrator,
          repos: Application.fetch_env!(:agent_desk, :ecto_repos), skip: skip_migrations?()},
-        {DNSCluster, query: Application.get_env(:agent_desk, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: AgentDesk.PubSub},
         AgentDesk.Circuit,
         {Registry, keys: :unique, name: AgentDesk.ProjectRegistry},

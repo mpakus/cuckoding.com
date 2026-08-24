@@ -8,6 +8,37 @@ defmodule AgentDesk.Git do
     File.exists?(Path.join(path, ".git"))
   end
 
+  @doc """
+  Walks from a file or directory up to the nearest Git working tree.
+  """
+  @spec discover_repository(Path.t()) ::
+          {:ok, String.t()} | {:error, :not_found | :not_a_git_repository}
+  def discover_repository(path) when is_binary(path) do
+    expanded = Path.expand(path)
+
+    start =
+      cond do
+        File.dir?(expanded) -> expanded
+        File.regular?(expanded) -> Path.dirname(expanded)
+        true -> nil
+      end
+
+    case start do
+      nil -> {:error, :not_found}
+      dir -> climb_repository(dir)
+    end
+  end
+
+  defp climb_repository(dir) do
+    parent = Path.dirname(dir)
+
+    cond do
+      repository?(dir) -> {:ok, dir}
+      parent == dir -> {:error, :not_a_git_repository}
+      true -> climb_repository(parent)
+    end
+  end
+
   @spec default_branch(Path.t()) :: {:ok, String.t()} | {:error, term()}
   def default_branch(path) do
     case git(path, ["symbolic-ref", "--short", "HEAD"]) do
@@ -198,12 +229,18 @@ defmodule AgentDesk.Git do
   end
 
   defp git(path, args) do
-    case System.cmd("git", ["-c", "commit.gpgsign=false" | args],
-           cd: path,
-           stderr_to_stdout: true
-         ) do
-      {out, 0} -> {:ok, String.trim(out)}
-      {out, code} -> {:error, {code, String.trim(out)}}
+    case System.find_executable("git") do
+      nil ->
+        {:error, :git_not_found}
+
+      git ->
+        case System.cmd(git, ["-c", "commit.gpgsign=false" | args],
+               cd: path,
+               stderr_to_stdout: true
+             ) do
+          {out, 0} -> {:ok, String.trim(out)}
+          {out, code} -> {:error, {code, String.trim(out)}}
+        end
     end
   end
 end

@@ -1,8 +1,8 @@
-# AgentDesk
+# Cuckoding
 
-AgentDesk is a local-first desktop workspace for running multiple coding agents on the same software project. Each agent works in its own tab and can operate concurrently while a central Elixir/OTP coordinator provides built-in agent-to-agent (A2A) discovery, task delegation, durable messages, artifacts, handoffs, resource leases, and project memory.
+Cuckoding is a local-first desktop workspace for running multiple coding agents on the same software project. Each agent works in its own tab and can operate concurrently while a central Elixir/OTP coordinator provides built-in agent-to-agent (A2A) discovery, task delegation, durable messages, artifacts, handoffs, resource leases, and project memory.
 
-`AgentDesk` is a working name and can be changed without affecting the architecture.
+OTP modules remain `AgentDesk` / `AgentDeskWeb`.
 
 ## Product goals
 
@@ -21,7 +21,7 @@ AgentDesk is a local-first desktop workspace for running multiple coding agents 
 
 1. The user opens a Git repository.
 2. AgentDesk creates project metadata and a private runtime directory.
-3. Each agent session receives a dedicated Git worktree and branch.
+3. Each agent session receives a dedicated Git worktree and branch. Isolation templates stay in the app-owned session directory, never the primary tree.
 4. The agent connects to the local Agent Hub through MCP and automatically registers an internal A2A capability card.
 5. Agents discover eligible peers, exchange durable messages, and may delegate tasks through the hub.
 6. Before changing a resource, the agent requests a time-limited lease.
@@ -44,9 +44,10 @@ AgentDesk is a local-first desktop workspace for running multiple coding agents 
 
 | File | Purpose |
 | --- | --- |
+| [USER.md](USER.md) | User manual for people running the desktop app |
 | [PLAN.md](PLAN.md) | Delivery phases, acceptance criteria, and MVP boundary |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Components, processes, data flow, and failure boundaries |
-| [AGENTS.md](AGENTS.md) | Repository instructions for coding agents |
+| [AGENTS.md](../AGENTS.md) | Working rules for coding agents (canonical; not duplicated here) |
 | [DB.md](DB.md) | SQLite/Ecto data model and invariants |
 | [A2A.md](A2A.md) | Built-in internal agent discovery, delegation, messaging, tasks, and artifacts |
 | [PROTOCOL.md](PROTOCOL.md) | Agent Hub messages, MCP tools, leases, and handoffs |
@@ -59,31 +60,9 @@ AgentDesk is a local-first desktop workspace for running multiple coding agents 
 | [OPERATIONS.md](OPERATIONS.md) | SQLite backup, migration rollback, crash recovery |
 | [RELEASE.md](RELEASE.md) | Security, accessibility, and macOS signing checklist |
 | [DECISIONS.md](DECISIONS.md) | Initial architectural decisions and open questions |
-| [docs/SOURCES.md](docs/SOURCES.md) | Primary technical references |
+| [SOURCES.md](SOURCES.md) | Primary technical references |
 
-## MVP
-
-The first usable release supports:
-
-- macOS (Linux/Windows packaging notes exist; installers unverified on OTP 28);
-- multiple simultaneously open Git projects;
-- Codex, Claude Code, Cursor Agent, OpenCode, SDK JSONL, and loopback remote-attach adapters;
-- multiple concurrent tabs;
-- streamed messages and activity;
-- pause, resume, interrupt, and terminate controls;
-- automatic internal A2A registration and peer capability discovery;
-- transactional task delegation with accept, reject, expiry, and revocation;
-- durable direct, task, context, and project messages with acknowledgements;
-- structured task artifacts and handoffs;
-- agent/task status and direct or broadcast messages;
-- exact-file, directory, glob, and named-resource leases;
-- one Git worktree per agent;
-- commits, handoffs, and an explicit user merge queue;
-- crash recovery from SQLite;
-- optional XERJ or SQLite-projection search and memory;
-- user-defined roles, task graphs, workflows, usage samples, optional Compose, and file-based team sync.
-
-Automated unattended merge, a public A2A gateway, and signed installers remain out of the first release.
+How to run, what is left, and the short leftover list live in the root [`README.md`](../README.md). How to use the app: [`USER.md`](USER.md). Agent rules live in [`/AGENTS.md`](../AGENTS.md).
 
 ## Non-goals for the first release
 
@@ -94,7 +73,3 @@ Automated unattended merge, a public A2A gateway, and signed installers remain o
 - Storing canonical coordination state only in Markdown or search indices.
 - Exposing any local control endpoint beyond loopback.
 - Exposing a public A2A gateway or remote-agent discovery by default.
-
-## Current status
-
-The Phoenix LiveView + SQLite app lives at the repository root (`AgentDesk` / `AgentDeskWeb`), with ExTauri files under `src-tauri/`. Phases 1–6 in `PLAN.md` are implemented. Post-MVP items through ADR-024 are in tree. Remaining: wrap that Mix release in ExTauri/Burrito (`mix ex_tauri.build` still fails on OTP 28), and an authenticated public A2A 1.0 gateway (explicitly deferred). Dev path is `mix phx.server` / `mix ex_tauri.dev` on loopback. A Mix production release (`mix release desktop`) assembles successfully.

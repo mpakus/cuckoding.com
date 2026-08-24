@@ -63,6 +63,29 @@ defmodule AgentDesk.A2A.Graph do
     end
   end
 
+  @spec hold_if_waiting(Task.t()) :: Task.t()
+  def hold_if_waiting(%Task{} = task) do
+    if ready?(task) do
+      task
+    else
+      case persist_block(task) do
+        {:ok, blocked} -> blocked
+        _ -> task
+      end
+    end
+  end
+
+  @spec guard_completion(Task.t(), map()) :: :ok | {:error, :blocked_by_dependencies}
+  def guard_completion(%Task{} = task, attrs) when is_map(attrs) do
+    next = Map.get(attrs, :status) || Map.get(attrs, "status") || task.status
+
+    if next == "completed" and not ready?(task) do
+      {:error, :blocked_by_dependencies}
+    else
+      :ok
+    end
+  end
+
   @spec release_ready(Task.t()) :: :ok
   def release_ready(%Task{status: status} = task) when status in @done do
     dependents =
@@ -138,20 +161,22 @@ defmodule AgentDesk.A2A.Graph do
   defp maybe_block(error, _scope, _task), do: error
 
   defp block_until_ready(%Task{status: status} = task) when status in ["queued", "blocked"] do
-    if ready?(task) do
-      {:ok, task}
-    else
-      task
-      |> Task.changeset(%{
-        status: "blocked",
-        status_reason: "waiting on dependencies",
-        lock_version: task.lock_version + 1
-      })
-      |> Repo.update()
-    end
+    if ready?(task), do: {:ok, task}, else: persist_block(task)
   end
 
   defp block_until_ready(task), do: {:ok, task}
+
+  defp persist_block(%Task{status: "blocked"} = task), do: {:ok, task}
+
+  defp persist_block(%Task{} = task) do
+    task
+    |> Task.changeset(%{
+      status: "blocked",
+      status_reason: "waiting on dependencies",
+      lock_version: task.lock_version + 1
+    })
+    |> Repo.update()
+  end
 
   defp unblock_if_ready(%Dependency{} = edge) do
     task = Repo.get!(Task, edge.task_id)

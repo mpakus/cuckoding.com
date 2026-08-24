@@ -37,8 +37,23 @@ defmodule AgentDesk.Providers.Discovery do
     cond do
       File.regular?(candidate) -> {:ok, candidate}
       found = System.find_executable(candidate) -> {:ok, found}
+      found = find_in_extra_dirs(candidate) -> {:ok, found}
       true -> nil
     end
+  end
+
+  defp find_in_extra_dirs(name) do
+    with :relative <- Path.type(name),
+         false <- String.contains?(name, "/") do
+      Enum.find_value(AgentDesk.Env.extra_dirs(), &regular_on_path(&1, name))
+    else
+      _ -> nil
+    end
+  end
+
+  defp regular_on_path(dir, name) do
+    path = Path.join(dir, name)
+    if File.regular?(path), do: path
   end
 
   @spec version(String.t(), [String.t()]) :: {:ok, String.t()} | {:error, term()}

@@ -2,7 +2,9 @@
 
 ## 1. System overview
 
-AgentDesk is an ExTauri desktop application whose UI is rendered by Phoenix LiveView and whose coordination engine runs on the BEAM. Provider processes such as Codex, Claude Code, Cursor Agent, and OpenCode run locally and are supervised by Elixir. Each active agent receives a tab, Agent Card, task context, worktree, provider session, durable A2A inbox, artifact space, and resource leases.
+**Cuckoding** is an ExTauri desktop application (OTP modules `AgentDesk` / `AgentDeskWeb`) whose UI is rendered by Phoenix LiveView and whose coordination engine runs on the BEAM. HTTP binds loopback only. Provider processes such as Codex, Claude Code, Cursor Agent, and OpenCode run locally and are supervised by Elixir. Each active agent receives a tab, Agent Card, task context, worktree, provider session, durable A2A inbox, artifact space, and resource leases.
+
+LiveView is split: `AgentDeskWeb.WorkspaceLive` (events/OTP), `WorkspaceHTML` (shell), `WorkspaceView` (helpers), `WorkspacePanels` (registry, analytics, grove, onboarding, activity).
 
 ```mermaid
 flowchart TD
@@ -231,13 +233,16 @@ Private runtime data belongs under the operating system's application-data direc
 AgentDesk/
 ├── agentdesk.sqlite3
 ├── projects/<project_id>/
-│   ├── worktrees/<agent_id>/
+│   ├── worktrees/<session_id>/
+│   ├── sessions/<session_id>/isolation/   # ADR-026 templates; never the Git tree
 │   ├── transcripts/
 │   ├── diagnostics/
 │   ├── sync/
 │   └── xerj/
 └── logs/
 ```
+
+Isolation templates (`env`, `postgres.database.sql`, `postgres.schema.sql`, `elixir.test.exs`, `compose.overlay.yaml`) are written under the session directory. Isolated mode must not edit the user's primary checkout.
 
 The user chooses whether `.agent-hub/` is committed. Generated status snapshots must be excluded through `.git/info/exclude` unless the user explicitly opts into versioning them.
 
@@ -292,8 +297,8 @@ Correctness must never depend on a model noticing a chat message in time.
 
 ## 11. Deployment model
 
-The desktop bundle contains the ExTauri/Phoenix application and any platform-specific helper binaries selected for distribution. Provider CLIs should initially be discovered from the user's machine so their existing authentication and update lifecycle remain intact. Bundling providers is a separate licensing, size, and support decision.
+Local macOS packaging is `mix cuckoding.app`: Mix `release desktop` plus a Tauri `.app` sidecar, because OTP 28 has no Burrito ERTS. Signed/notarized Burrito wraps remain open. Provider CLIs are discovered on the user's machine so their existing authentication and update lifecycle remain intact. Bundling providers is a separate licensing, size, and support decision.
 
-XERJ may be bundled as an optional Apache-2.0 executable after platform packaging and upgrade tests pass.
+XERJ may be bundled as an optional Apache-2.0 executable after platform packaging and upgrade tests pass. It is not required for coordination.
 
-Internal A2A is part of the core BEAM application and is always available. A public A2A-compatible HTTP/JSON-RPC/gRPC gateway is post-MVP, disabled by default, and must translate into the internal domain rather than replace it.
+Internal A2A is part of the core BEAM application and is always available. A public A2A-compatible HTTP/JSON-RPC/gRPC gateway is post-MVP, disabled by default, and must translate into the internal domain rather than replace it. No non-loopback listener exists.

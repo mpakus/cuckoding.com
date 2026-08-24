@@ -18,8 +18,8 @@ defmodule AgentDesk.Roles do
   def list(%Project{id: id}), do: list(id)
 
   def list(project_id) when is_binary(project_id) do
-    roles = load(project_id)
-    if roles == [], do: seed_defaults(project_id), else: roles
+    ensure_defaults(project_id)
+    load(project_id)
   end
 
   @spec get(Project.t() | Ecto.UUID.t(), Ecto.UUID.t()) :: {:ok, Role.t()} | {:error, :not_found}
@@ -90,15 +90,19 @@ defmodule AgentDesk.Roles do
     |> Repo.all()
   end
 
-  defp seed_defaults(project_id) do
-    Enum.each(defaults(), fn attrs ->
-      _ =
-        %Role{}
-        |> Role.changeset(Map.merge(attrs, %{id: Ids.generate(), project_id: project_id}))
-        |> Repo.insert()
-    end)
+  defp ensure_defaults(project_id) do
+    have = MapSet.new(load(project_id), & &1.name)
 
-    load(project_id)
+    Enum.each(defaults(), fn attrs ->
+      if MapSet.member?(have, attrs.name) do
+        :ok
+      else
+        _ =
+          %Role{}
+          |> Role.changeset(Map.merge(attrs, %{id: Ids.generate(), project_id: project_id}))
+          |> Repo.insert()
+      end
+    end)
   end
 
   defp fetch_requested(project, attrs) do
@@ -193,6 +197,43 @@ defmodule AgentDesk.Roles do
 
   defp defaults do
     [
+      %{
+        name: "lead",
+        description: "Analyzes work, splits tasks across specialists, and reviews results.",
+        permission_profile: "default",
+        prompt: """
+        You are {{display_name}} in the lead role. Analyze the goal, split work with hub_split_work, \
+        and review specialist results through Agent Hub. Remember decisions with memory_remember. \
+        Do not merge to the primary branch. Assignment is not a lease.
+        """
+      },
+      %{
+        name: "backend",
+        description: "Implements server, data, and API tasks in an isolated worktree.",
+        permission_profile: "default",
+        prompt: """
+        You are {{display_name}} in the backend role. Work only in your assigned worktree. \
+        Claim leases before editing shared files. Do not merge to the primary branch.
+        """
+      },
+      %{
+        name: "frontend",
+        description: "Implements UI and frontend tasks in an isolated worktree.",
+        permission_profile: "default",
+        prompt: """
+        You are {{display_name}} in the frontend role. Work only in your assigned worktree. \
+        Claim leases before editing shared files. Do not merge to the primary branch.
+        """
+      },
+      %{
+        name: "tester",
+        description: "Writes and runs tests in an isolated worktree.",
+        permission_profile: "default",
+        prompt: """
+        You are {{display_name}} in the tester role. Work only in your assigned worktree. \
+        Claim leases before editing shared files. Do not merge to the primary branch.
+        """
+      },
       %{
         name: "implementer",
         description: "Implements assigned tasks in an isolated worktree.",

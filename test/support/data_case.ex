@@ -31,26 +31,43 @@ defmodule AgentDesk.DataCase do
 
   setup tags do
     AgentDesk.DataCase.setup_sandbox(tags)
-    on_exit(&AgentDesk.DataCase.stop_project_runtimes/0)
+    snapshot = AgentDesk.DataCase.runtime_pids()
+    on_exit(fn -> AgentDesk.DataCase.stop_started_runtimes(snapshot) end)
     :ok
   end
 
   @doc false
-  def stop_project_runtimes do
-    AgentDesk.Projects.Supervisor
-    |> DynamicSupervisor.which_children()
-    |> Enum.each(&stop_child/1)
-
-    AgentDesk.ProviderProcessSupervisor
-    |> DynamicSupervisor.which_children()
-    |> Enum.each(&stop_child/1)
+  def runtime_pids do
+    supervisor_pids(AgentDesk.Projects.Supervisor) ++
+      supervisor_pids(AgentDesk.ProviderProcessSupervisor)
   end
 
-  defp stop_child({_id, pid, _type, _modules}) when is_pid(pid) do
+  @doc false
+  def stop_started_runtimes(snapshot) when is_list(snapshot) do
+    existing = MapSet.new(snapshot)
+
+    runtime_pids()
+    |> Enum.reject(&MapSet.member?(existing, &1))
+    |> Enum.each(&stop_pid/1)
+  end
+
+  @doc false
+  def stop_project_runtimes do
+    Enum.each(runtime_pids(), &stop_pid/1)
+  end
+
+  defp supervisor_pids(supervisor) do
+    supervisor
+    |> DynamicSupervisor.which_children()
+    |> Enum.flat_map(fn
+      {_id, pid, _type, _modules} when is_pid(pid) -> [pid]
+      _other -> []
+    end)
+  end
+
+  defp stop_pid(pid) when is_pid(pid) do
     if Process.alive?(pid), do: GenServer.stop(pid, :shutdown, 1_000)
   end
-
-  defp stop_child(_other), do: :ok
 
   @doc """
   Sets up the sandbox based on the test tags.

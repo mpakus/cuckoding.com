@@ -1,8 +1,15 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
+  "description": "Capability for the main window. LiveView is served from loopback HTTP, so remote URLs must be listed or Tauri denies dialog IPC.",
   "identifier": "default",
-  "description": "Capability for the main application window",
-  "windows": ["main", "*"],
+  "remote": {
+    "urls": [
+      "http://127.0.0.1:*",
+      "http://127.0.0.1:*/*",
+      "http://localhost:*",
+      "http://localhost:*/*"
+    ]
+  },
   "permissions": [
     "core:default",
     "notification:default",
@@ -23,13 +30,21 @@
     "core:window:allow-close",
     "core:webview:allow-create-webview-window",
     {
-      "identifier": "shell:allow-execute",
       "allow": [
         {
           "name": "desktop",
           "sidecar": true
         }
-      ]
-    }
+      ],
+      "identifier": "shell:allow-execute"
+    },
+    "dialog:default",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "dialog:allow-message"
+  ],
+  "windows": [
+    "main",
+    "*"
   ]
 }

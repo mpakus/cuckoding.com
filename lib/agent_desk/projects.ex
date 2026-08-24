@@ -20,11 +20,12 @@ defmodule AgentDesk.Projects do
   alias AgentDesk.Repo
   alias AgentDesk.Telemetry
 
-  @recent_limit 20
+  @recent_limit 12
 
   @spec last_opened() :: Project.t() | nil
   def last_opened do
     Project
+    |> where([p], not is_nil(p.last_opened_at))
     |> order_by([p], desc: p.last_opened_at)
     |> limit(1)
     |> Repo.one()
@@ -82,11 +83,47 @@ defmodule AgentDesk.Projects do
   end
 
   @spec list_recent(pos_integer()) :: [Project.t()]
-  def list_recent(limit \\ @recent_limit) do
+  def list_recent(limit \\ @recent_limit) when is_integer(limit) and limit > 0 do
+    limit = min(limit, @recent_limit)
+
     Project
+    |> where([p], not is_nil(p.last_opened_at))
     |> order_by([p], desc: p.last_opened_at)
     |> limit(^limit)
     |> Repo.all()
+  end
+
+  @doc """
+  Re-opens a stored project by its recorded path.
+
+  Runs the same Git discovery and validation as the first open.
+  """
+  @spec reopen_project(Ecto.UUID.t()) :: {:ok, Project.t()} | {:error, term()}
+  def reopen_project(id) when is_binary(id) do
+    with {:ok, project} <- get_project(id) do
+      open_project(project.canonical_path)
+    end
+  end
+
+  @doc """
+  Drops a project from the recents list without deleting coordination rows.
+
+  Sets `last_opened_at` to nil and closes the runtime if it is still open.
+  """
+  @spec forget_recent(Project.t() | Ecto.UUID.t()) :: :ok | {:error, term()}
+  def forget_recent(%Project{} = project), do: forget_recent(project.id)
+
+  def forget_recent(project_id) when is_binary(project_id) do
+    with {:ok, project} <- get_project(project_id),
+         :ok <- maybe_close(project),
+         {:ok, project} <- get_project(project_id) do
+      project
+      |> Project.changeset(%{last_opened_at: nil, open: false})
+      |> Repo.update!()
+
+      broadcast_forgotten(project_id)
+      :ok
+    end
   end
 
   @spec put_settings(Project.t(), map()) :: {:ok, Project.t()} | {:error, term()}
@@ -109,7 +146,8 @@ defmodule AgentDesk.Projects do
 
   @spec open_project(Path.t()) :: {:ok, Project.t()} | {:error, term()}
   def open_project(path) when is_binary(path) do
-    with {:ok, canonical} <- Paths.canonicalize(path),
+    with {:ok, repo} <- Git.discover_repository(path),
+         {:ok, canonical} <- Paths.canonicalize(repo),
          :ok <- validate_git(canonical) do
       persist_and_start(canonical)
     end
@@ -221,6 +259,13 @@ defmodule AgentDesk.Projects do
   defp broadcast_closed(project) do
     Phoenix.PubSub.broadcast(AgentDesk.PubSub, "projects", {:project_closed, project.id})
   end
+
+  defp broadcast_forgotten(project_id) do
+    Phoenix.PubSub.broadcast(AgentDesk.PubSub, "projects", {:project_forgotten, project_id})
+  end
+
+  defp maybe_close(%Project{open: true} = project), do: close_project(project)
+  defp maybe_close(_project), do: :ok
 
   defp log_restore(reason) do
     Logger.warning("agentdesk restore skipped: #{inspect(reason)}")

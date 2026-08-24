@@ -23,12 +23,17 @@ config :agent_desk,
     idempotency_ttl_hours: 24,
     default_message_ttl_seconds: 86_400
   ],
+  inherit_login_path: false,
   providers: [
     use_fixtures: false,
     executables: %{}
   ],
   search: [
     adapter: :auto
+  ],
+  acp_registry: [
+    source: :cdn,
+    url: "https://cdn.agentclientprotocol.com/registry/v1/latest/registry.json"
   ]
 
 config :agent_desk, AgentDesk.Repo,
@@ -42,13 +47,13 @@ config :agent_desk, AgentDesk.Repo,
 
 config :ex_tauri,
   version: "2.5.1",
-  app_name: "AgentDesk",
-  host: "localhost",
+  app_name: "Cuckoding",
+  host: "127.0.0.1",
   port: 4000
 
 # Configures the endpoint
 config :agent_desk, AgentDeskWeb.Endpoint,
-  url: [host: "localhost"],
+  url: [host: "127.0.0.1"],
   adapter: Bandit.PhoenixAdapter,
   render_errors: [
     formats: [html: AgentDeskWeb.ErrorHTML, json: AgentDeskWeb.ErrorJSON],

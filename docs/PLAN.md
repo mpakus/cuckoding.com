@@ -1,5 +1,7 @@
 # Implementation Plan
 
+Phases 1–6 and post-MVP items through ADR-026 are implemented. Still open: wrap the Mix release in ExTauri/Burrito on OTP 28 (unchecked below), Apple signing/notarization, Linux/Windows installer smoke, and the public A2A gateway (deferred). Local unsigned packaging is `mix cuckoding.app`. See the root `README.md` leftover table.
+
 ## Guiding constraints
 
 - macOS-first, while keeping platform abstractions explicit.
@@ -20,7 +22,7 @@ The MVP is complete when a user can open a Git project, launch Codex, Claude Cod
 Goal: prove every high-risk integration before building the product shell.
 
 - [x] Scaffold a minimal Phoenix LiveView application with ExTauri.
-- [ ] Confirm production ExTauri/Burrito packaging on Apple Silicon (`MIX_ENV=prod mix release desktop` works on OTP 28; `mix ex_tauri.build` fails wrapping missing `burrito_out/desktop_aarch64-apple-darwin` — ADR-014/ADR-015).
+- [ ] Confirm production ExTauri/Burrito packaging on Apple Silicon (`MIX_ENV=prod mix release desktop` works on OTP 28; `mix cuckoding.app` copies that release into the Tauri `.app`; `mix ex_tauri.build` still has no OTP 28 Burrito ERTS — ADR-014/ADR-015).
 - [x] Confirm graceful shutdown of BEAM and child processes.
 - [x] Start `codex app-server` over stdio and complete initialize, thread, turn, stream, approval, interrupt, and resume flows (fixture-backed adapter; live CLI optional).
 - [x] Start Claude Code in structured headless/streaming mode and complete start, stream, interrupt, and resume flows where supported.
@@ -135,6 +137,7 @@ Acceptance criteria:
 - [x] Add unexpected-edit warnings.
 - [x] Implement per-agent port allocation.
 - [x] Define adapters for isolated test database/schema and Docker Compose project names.
+- [x] Write PostgreSQL/schema/partition/Compose templates into the app-owned session directory.
 - [x] Add explicit cleanup and stale-worktree reconciliation.
 
 Acceptance criteria:
@@ -201,9 +204,9 @@ Acceptance criteria:
 
 ## Explicitly deferred decisions
 
-- Final product name and visual identity.
+- Product name is Cuckoding (ADR-025). OTP modules stay `AgentDesk` / `AgentDeskWeb`. Dark-only UI is shipped; there is no theme switch.
 - Whether XERJ is bundled or downloaded on demand.
 - The Elixir MCP implementation dependency.
 - Whether a future public A2A gateway is implemented directly in Elixir or through a separately maintained protocol adapter; the internal A2A domain is unaffected.
 - Whether Claude integration uses CLI streaming or its Agent SDK as the long-term primary path.
-- A generic PTY terminal mode; it is not needed for the custom structured UI MVP.
+- A generic PTY terminal mode; it is not needed for the custom structured UI.

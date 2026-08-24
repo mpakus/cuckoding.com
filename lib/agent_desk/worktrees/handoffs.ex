@@ -106,7 +106,11 @@ defmodule AgentDesk.Worktrees.Handoffs do
         metadata: %{
           "commit" => commit,
           "branch" => worktree.branch_name,
-          "changed_files" => Enum.take(files, 2_000)
+          "base_commit" => worktree.base_commit,
+          "head_commit" => commit,
+          "changed_files" => Enum.take(files, 2_000),
+          "warnings" => List.wrap(warnings),
+          "checks" => List.wrap(checks)
         }
       })
     end

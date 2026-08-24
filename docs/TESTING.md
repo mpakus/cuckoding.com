@@ -79,6 +79,12 @@ Use recorded and hand-authored JSONL fixtures for:
 - provider version incompatibility;
 - stderr diagnostics and unexpected exit.
 
+### Live CLI protocol tests
+
+When Codex, Claude Code, Cursor `agent`, or OpenCode is installed, `mix test` probes that binary (`fixture: false`) **without sending a paid prompt**. Missing CLIs skip (`@tag skip:`). CI must not require a specific vendor version or login.
+
+Adapters that emit `session_ready` on spawn (Codex App Server, ACP) complete handshake, Agent Card registration, interrupt, and terminate. Claude Code's stream-json adapter waits for a user turn before `system/init`; the live test asserts a clean handshake timeout and terminate instead of sending a prompt. Cursor and OpenCode skip when `agent` / `opencode` is missing. Live tests also assert isolation templates were written under the session directory (`Isolation.dir/env`).
+
 ### MCP contract tests
 
 - initialization and tool discovery;

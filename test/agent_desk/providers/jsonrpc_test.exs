@@ -37,4 +37,16 @@ defmodule AgentDesk.Providers.JSONRPCTest do
     assert {:ok, {:notification, "session/update", %{"a" => 1}}, _} =
              JSONRPC.decode_line(state, note)
   end
+
+  test "accepts Codex app-server frames that omit the jsonrpc header" do
+    {req, state} = JSONRPC.request(JSONRPC.new(header: false), "initialize", %{})
+    refute req =~ "jsonrpc"
+    assert {:ok, decoded} = Jason.decode(String.trim(req))
+    id = decoded["id"]
+
+    line = Jason.encode!(%{"id" => id, "result" => %{"userAgent" => "codex"}})
+
+    assert {:ok, {:response, ^id, %{"userAgent" => "codex"}, "initialize"}, _} =
+             JSONRPC.decode_line(state, line)
+  end
 end

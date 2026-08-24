@@ -31,3 +31,5 @@ Export writes `<data_root>/projects/<id>/sync/bundle.json`. Copy that file to th
 ## Forced termination
 
 Worktrees live on disk under `<data_root>/projects/<id>/worktrees/`. Stopping the BEAM or the project runtime must not delete a dirty worktree. Cleanup is an explicit UI action that refuses dirty trees.
+
+Isolation templates live under `<data_root>/projects/<id>/sessions/<session_id>/isolation/`. Isolated sessions never write those files into the Git worktree or the user's primary checkout.

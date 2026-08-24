@@ -141,7 +141,7 @@ defmodule AgentDesk.Containers do
     if fixtures?() do
       {:ok, fixture_spec(action, name, dir, session)}
     else
-      host_spec(action, name, dir)
+      host_spec(action, name, dir, session)
     end
   end
 
@@ -168,18 +168,20 @@ defmodule AgentDesk.Containers do
     }
   end
 
-  defp host_spec(action, name, dir) do
+  defp host_spec(action, name, dir, session) do
     with {:ok, docker} <- Discovery.find_executable("docker") do
       {:ok,
        %CommandSpec{
          executable: docker,
          args: compose_args(action, name, dir),
          cwd: dir,
-         env: %{
-           "COMPOSE_PROJECT_NAME" => name,
-           "AGENTDESK_BIND" => "127.0.0.1",
-           "AGENTDESK_WORKDIR" => dir
-         }
+         env:
+           session
+           |> Isolation.env()
+           |> Map.merge(%{
+             "COMPOSE_PROJECT_NAME" => name,
+             "AGENTDESK_WORKDIR" => dir
+           })
        }}
     end
   end
@@ -193,13 +195,12 @@ defmodule AgentDesk.Containers do
   end
 
   defp runtime_env(session, dir) do
-    %{
+    session
+    |> Isolation.env()
+    |> Map.merge(%{
       "COMPOSE_PROJECT_NAME" => Isolation.compose_project(session),
-      "AGENTDESK_BIND" => "127.0.0.1",
-      "AGENTDESK_WORKDIR" => dir,
-      "AGENTDESK_TEST_DATABASE" => Isolation.test_database(session),
-      "AGENTDESK_TEST_SCHEMA" => Isolation.test_schema(session)
-    }
+      "AGENTDESK_WORKDIR" => dir
+    })
   end
 
   defp run(%CommandSpec{} = spec) do

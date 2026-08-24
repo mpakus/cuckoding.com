@@ -2,11 +2,11 @@
   "$schema": "https://schema.tauri.app/config/2",
   "app": {
     "security": {
-      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: tauri: ws: wss:; img-src 'self' data: asset: tauri:; font-src 'self' data:"
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: tauri: http://ipc.localhost https://ipc.localhost ws: wss: http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*; img-src 'self' data: asset: tauri:; font-src 'self' data:"
     },
     "windows": [
       {
-        "title": "AgentDesk",
+        "title": "Cuckoding",
         "width": 1280,
         "fullscreen": false,
         "height": 800,
@@ -16,14 +16,11 @@
     "withGlobalTauri": true
   },
   "build": {
-    "devUrl": "http://localhost:4000",
-    "frontendDist": "http://localhost:4000"
+    "devUrl": "http://127.0.0.1:4000",
+    "frontendDist": "http://127.0.0.1:4000"
   },
   "bundle": {
     "active": true,
-    "android": {
-      "debugApplicationIdSuffix": ".debug"
-    },
     "externalBin": [
       "../burrito_out/desktop"
     ],
@@ -34,9 +31,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "targets": "all"
+    "targets": ["app"]
   },
   "identifier": "com.agentdesk.app",
-  "productName": "AgentDesk",
+  "productName": "Cuckoding",
   "version": "0.1.0"
 }

@@ -14,12 +14,14 @@ defmodule AgentDesk.Security.Permissions do
     hub_get_task
     hub_list_delegations
     hub_list_resources
+    hub_isolation
     hub_list_inbox
     hub_get_artifact
     hub_list_merge_queue
     hub_list_task_graph
     hub_list_workflows
     hub_list_roles
+    hub_crew_status
     hub_subscribe_task
     project_search
     memory_recall

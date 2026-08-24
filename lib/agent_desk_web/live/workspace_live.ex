@@ -4,19 +4,27 @@ defmodule AgentDeskWeb.WorkspaceLive do
   """
 
   use AgentDeskWeb, :live_view
+  use ExTauri.LiveView
 
   alias AgentDesk.A2A
   alias AgentDesk.A2A.Graph
+  alias AgentDesk.A2A.Orchestration
   alias AgentDesk.A2A.Workflows
   alias AgentDesk.Agents
+  alias AgentDesk.Analytics
+  alias AgentDesk.Branding
   alias AgentDesk.Git
   alias AgentDesk.Ids
+  alias AgentDesk.Isolation
   alias AgentDesk.Projects
   alias AgentDesk.Projects.Project
   alias AgentDesk.Projects.Runtime
   alias AgentDesk.Projects.Supervisor, as: ProjectSupervisor
   alias AgentDesk.Providers
+  alias AgentDesk.Providers.AcpRegistry
   alias AgentDesk.Providers.SessionWorker
+  alias AgentDesk.Providers.Transcript
+  alias AgentDesk.Repo
   alias AgentDesk.Resources.Manager
   alias AgentDesk.Resources.Overlap
   alias AgentDesk.Reviews
@@ -24,21 +32,38 @@ defmodule AgentDeskWeb.WorkspaceLive do
   alias AgentDesk.Worktrees
   alias AgentDesk.Worktrees.Handoffs
 
+  import AgentDeskWeb.WorkspaceView
+
+  @default_shortcuts %{
+    "send" => "Meta+Enter",
+    "interrupt" => "Meta+.",
+    "new_session" => "Meta+Shift+Enter",
+    "next_tab" => "Meta+Shift+]",
+    "prev_tab" => "Meta+Shift+[",
+    "focus_composer" => "Meta+L",
+    "search" => "Meta+K",
+    "load_older" => "Meta+["
+  }
+
+  @recent_limit 12
+
   @impl true
   def mount(_params, _session, socket) do
     if connected?(socket) do
       Phoenix.PubSub.subscribe(AgentDesk.PubSub, "projects")
       send(self(), :restore_last_project)
+      send(self(), :probe_providers)
     end
 
     {:ok,
      socket
-     |> assign(:page_title, "AgentDesk")
-     |> assign(:path, "")
+     |> assign(:page_title, Branding.product_name())
      |> assign(:current_project, nil)
      |> assign(:recent_projects, [])
      |> assign(:live_project_ids, [])
      |> assign(:confirm_close_project_id, nil)
+     |> assign(:failed_recent_id, nil)
+     |> assign(:confirm_forget_project_id, nil)
      |> assign(:sessions, [])
      |> assign(:active_session_id, nil)
      |> assign(:active_status, "idle")
@@ -55,11 +80,30 @@ defmodule AgentDeskWeb.WorkspaceLive do
        "cost_cents" => 0
      })
      |> assign(:roles, [])
-     |> assign(:provider, "fake")
+     |> assign(:provider, "codex")
+     |> assign(:provider_status, %{})
      |> assign(:confirm_terminate, false)
+     |> assign(:allow_force_terminate, false)
      |> assign(:agents, [])
+     |> assign(:agent_filter, "all")
      |> assign(:leases, [])
      |> assign(:lease_previews, [])
+     |> assign(:inbox, [])
+     |> assign(:deliveries, [])
+     |> assign(:unread, %{})
+     |> assign(:announce, "")
+     |> assign(:activity_mode, "cards")
+     |> assign(:activity_limit, 200)
+     |> assign(:activity_older?, false)
+     |> assign(:activity_tail, nil)
+     |> assign(:type_scale, "md")
+     |> assign(:shortcuts, @default_shortcuts)
+     |> assign(:onboard_step, 1)
+     |> assign(:onboard_complete, false)
+     |> assign(:delegation_depth, 3)
+     |> assign(:xerj_enabled, false)
+     |> assign(:memories, [])
+     |> assign(:confirm_revoke_lease_id, nil)
      |> assign(:delegations, [])
      |> assign(:tasks, [])
      |> assign(:task_deps, %{})
@@ -68,6 +112,7 @@ defmodule AgentDeskWeb.WorkspaceLive do
      |> assign(:artifacts, [])
      |> assign(:merge_queue, [])
      |> assign(:confirm_merge_id, nil)
+     |> assign(:selected_handoff_id, nil)
      |> assign(:worktrees, [])
      |> assign(:active_worktree, nil)
      |> assign(:worktree_diff, "")
@@ -76,6 +121,17 @@ defmodule AgentDeskWeb.WorkspaceLive do
      |> assign(:search_query, "")
      |> assign(:search_results, [])
      |> assign(:sync_path, nil)
+     |> assign(:workspace_view, "workspace")
+     |> assign(:registry_query, "")
+     |> assign(:registry_filter, "all")
+     |> assign(:registry_agents, [])
+     |> assign(:analytics, empty_analytics())
+     |> allow_upload(:attachments,
+       accept: :any,
+       max_entries: 8,
+       max_file_size: 20_000_000,
+       auto_upload: true
+     )
      |> assign(:search_status, %{
        adapter: "Disabled",
        health: {:error, :unavailable},
@@ -83,7 +139,7 @@ defmodule AgentDeskWeb.WorkspaceLive do
        last_indexed_at: nil,
        error: nil
      })
-     |> assign(:form, to_form(%{"path" => ""}))
+     |> assign_registry()
      |> stream(:activity, [])}
   end
 
@@ -92,45 +148,61 @@ defmodule AgentDeskWeb.WorkspaceLive do
     socket =
       if connected?(socket) do
         socket
-        |> assign(:recent_projects, Projects.list_recent())
-        |> assign(:live_project_ids, live_project_ids())
+        |> assign_recents()
         |> assign_current_project(params)
       else
-        socket
+        assign_project_preview(socket, params)
       end
 
     {:noreply, socket}
   end
 
   @impl true
-  def handle_event("validate", %{"path" => path}, socket) do
-    {:noreply, assign(socket, path: path, form: to_form(%{"path" => path}))}
+  def handle_event("pick_project_folder", _params, socket) do
+    {:noreply,
+     ExTauri.Dialog.open(
+       socket,
+       [
+         title: "Choose a Git repository",
+         directory: true,
+         default_path: picker_start_path(socket)
+       ],
+       &handle_picked_repo/2
+     )}
   end
 
-  def handle_event("open_project", %{"path" => path}, socket) do
-    case Projects.open_project(path) do
-      {:ok, project} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "Opened #{project.name}")
-         |> push_patch(to: ~p"/projects/#{project.id}")}
+  def handle_event("open_project", %{"path" => path}, socket) when is_binary(path) do
+    {:noreply, open_selected_project(socket, path, :picker)}
+  end
 
-      {:error, :not_found} ->
-        {:noreply, put_flash(socket, :error, "That path does not exist.")}
+  def handle_event("open_recent", %{"id" => id}, socket) when is_binary(id) do
+    {:noreply, reopen_recent_project(socket, id, :open)}
+  end
 
-      {:error, :not_a_directory} ->
-        {:noreply, put_flash(socket, :error, "That path is not a directory.")}
+  def handle_event("check_recent", %{"id" => id}, socket) when is_binary(id) do
+    {:noreply, reopen_recent_project(socket, id, :check)}
+  end
 
-      {:error, :not_a_git_repository} ->
-        {:noreply,
-         put_flash(socket, :error, "Open a Git repository. AgentDesk does not initialize repos.")}
+  def handle_event("confirm_forget_recent", %{"id" => id}, socket) when is_binary(id) do
+    {:noreply, assign(socket, :confirm_forget_project_id, id)}
+  end
 
-      {:error, :symlink_loop} ->
-        {:noreply, put_flash(socket, :error, "Could not resolve that path.")}
+  def handle_event("cancel_forget_recent", _params, socket) do
+    {:noreply, assign(socket, :confirm_forget_project_id, nil)}
+  end
+
+  def handle_event("forget_recent", %{"id" => id}, socket) when is_binary(id) do
+    case Projects.forget_recent(id) do
+      :ok ->
+        {:noreply, after_recent_forgotten(socket, id)}
 
       {:error, _reason} ->
-        {:noreply, put_flash(socket, :error, "Could not open that project.")}
+        {:noreply, put_flash(socket, :error, "Could not remove that project from recents.")}
     end
+  end
+
+  def handle_event("picker_failed", _params, socket) do
+    {:noreply, put_flash(socket, :error, "Could not open the macOS folder picker.")}
   end
 
   def handle_event("confirm_close_project", %{"id" => id}, socket) do
@@ -149,6 +221,161 @@ defmodule AgentDeskWeb.WorkspaceLive do
       {:error, _reason} ->
         {:noreply, put_flash(socket, :error, "Could not close that project.")}
     end
+  end
+
+  def handle_event("set_view", %{"view" => "analytics"}, socket) do
+    handle_event("set_view", %{"view" => "dashboard"}, socket)
+  end
+
+  def handle_event("set_view", %{"view" => view}, socket)
+      when view in ~w(workspace registry dashboard new handoff) do
+    socket = assign(socket, :workspace_view, view)
+
+    socket =
+      case view do
+        "registry" -> assign_registry(socket)
+        "dashboard" -> assign_analytics(socket)
+        _ -> socket
+      end
+
+    {:noreply, socket}
+  end
+
+  def handle_event("review_handoff", params, socket) do
+    id = blank_to_nil(params["id"]) || default_handoff_id(socket.assigns.merge_queue)
+
+    {:noreply, assign(socket, workspace_view: "handoff", selected_handoff_id: id)}
+  end
+
+  def handle_event("filter_agents", %{"filter" => filter}, socket) when is_binary(filter) do
+    allowed = ["all" | agent_filter_keys(socket.assigns.agents)]
+    {:noreply, assign(socket, :agent_filter, if(filter in allowed, do: filter, else: "all"))}
+  end
+
+  def handle_event("registry_search", params, socket) do
+    query = params["q"] || params["query"] || ""
+
+    {:noreply,
+     socket
+     |> assign(:registry_query, query)
+     |> assign_registry()}
+  end
+
+  def handle_event("registry_filter", %{"filter" => filter}, socket) do
+    selected = if filter in ~w(all installed not_installed), do: filter, else: "all"
+
+    {:noreply,
+     socket
+     |> assign(:registry_filter, selected)
+     |> assign_registry()}
+  end
+
+  def handle_event("registry_refresh", _params, socket) do
+    _ = AcpRegistry.refresh()
+    {:noreply, assign_registry(socket)}
+  end
+
+  def handle_event("registry_install", %{"id" => id}, socket) do
+    case AcpRegistry.install(id) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Installed. Start a thread with Use.")
+         |> assign_registry()}
+
+      {:error, :unsupported_distribution} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           "This agent needs a CLI on PATH. Install the vendor CLI, then try again."
+         )}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Could not install that agent.")}
+    end
+  end
+
+  def handle_event("registry_remove", %{"id" => id}, socket) do
+    case AcpRegistry.remove(id) do
+      {:ok, _} -> {:noreply, assign_registry(socket)}
+      {:error, _} -> {:noreply, put_flash(socket, :error, "Could not remove that agent.")}
+    end
+  end
+
+  def handle_event("shortcut", %{"action" => action}, socket) do
+    {:noreply, apply_shortcut(socket, action)}
+  end
+
+  def handle_event("save_shortcuts", params, socket) do
+    shortcuts =
+      @default_shortcuts
+      |> Map.keys()
+      |> Map.new(fn key -> {key, params[key] || @default_shortcuts[key]} end)
+
+    socket = assign(socket, :shortcuts, shortcuts)
+
+    socket =
+      case socket.assigns.current_project do
+        %Project{} = project ->
+          case Projects.put_settings(project, %{"shortcuts" => shortcuts}) do
+            {:ok, updated} -> assign(socket, :current_project, updated)
+            _ -> socket
+          end
+
+        _ ->
+          socket
+      end
+
+    {:noreply, socket}
+  end
+
+  def handle_event("onboard_next", _params, socket) do
+    {:noreply, persist_onboard(socket, min(10, socket.assigns.onboard_step + 1))}
+  end
+
+  def handle_event("onboard_complete", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:workspace_view, "new")
+     |> persist_onboard(10, complete: true)}
+  end
+
+  def handle_event("enable_xerj", _params, socket) do
+    AgentDesk.Search.put_xerj(true)
+
+    socket =
+      socket
+      |> assign(:xerj_enabled, true)
+      |> persist_project_setting("xerj", true)
+      |> then(fn sock ->
+        case sock.assigns.current_project do
+          %Project{} = project ->
+            _ = AgentDesk.Search.rebuild(project)
+            assign(sock, :search_status, AgentDesk.Search.status(project))
+
+          _ ->
+            sock
+        end
+      end)
+
+    {:noreply, socket}
+  end
+
+  def handle_event("set_delegation_policy", %{"depth" => depth}, socket) do
+    int =
+      case Integer.parse(to_string(depth)) do
+        {value, _} when value in 1..8 -> value
+        _ -> 3
+      end
+
+    a2a = %{"max_delegation_depth" => int, "max_delegation_fan_out" => 4}
+
+    {:noreply,
+     socket
+     |> assign(:delegation_depth, int)
+     |> persist_project_setting("a2a", a2a)
+     |> put_flash(:info, "Delegation depth set to #{int}.")}
   end
 
   def handle_event(_event, _params, %{assigns: %{current_project: nil}} = socket) do
@@ -186,8 +413,29 @@ defmodule AgentDeskWeb.WorkspaceLive do
          |> select_session(session)
          |> load_coordination(project)}
 
-      {:error, _reason} ->
-        {:noreply, put_flash(socket, :error, "Could not start that provider session.")}
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, Providers.start_error_message(reason))}
+    end
+  end
+
+  def handle_event("registry_use", %{"id" => id}, socket) do
+    project = socket.assigns.current_project
+
+    with {:ok, attrs} <- AcpRegistry.session_attrs(id),
+         {:ok, session} <- Providers.start_session(Scope.for_project(project), attrs) do
+      {:noreply,
+       socket
+       |> assign(:workspace_view, "workspace")
+       |> assign(:sessions, Agents.visible_sessions(Scope.for_project(project)))
+       |> select_session(session)
+       |> load_coordination(project)
+       |> put_flash(:info, "Started #{session.display_name}")}
+    else
+      {:error, :not_installed} ->
+        {:noreply, put_flash(socket, :error, "Install that agent first.")}
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, Providers.start_error_message(reason))}
     end
   end
 
@@ -211,7 +459,15 @@ defmodule AgentDeskWeb.WorkspaceLive do
   end
 
   def handle_event("select_tab", %{"id" => id}, socket) do
-    {:noreply, select_session_id(socket, id)}
+    socket = select_session_id(socket, id)
+
+    socket =
+      case socket.assigns.current_project do
+        %Project{} = project -> load_coordination(socket, project)
+        _ -> socket
+      end
+
+    {:noreply, socket}
   end
 
   def handle_event("close_tab", %{"id" => id}, socket) do
@@ -237,12 +493,22 @@ defmodule AgentDeskWeb.WorkspaceLive do
     end
   end
 
-  def handle_event("send_prompt", %{"prompt" => prompt}, socket) do
-    with session_id when is_binary(session_id) <- socket.assigns.active_session_id,
-         :ok <- SessionWorker.prompt(session_id, prompt) do
-      {:noreply, assign(socket, :prompt, "")}
-    else
-      _ -> {:noreply, put_flash(socket, :error, "No active session to prompt.")}
+  def handle_event("validate_prompt", _params, socket), do: {:noreply, socket}
+
+  def handle_event("cancel_attachment", %{"ref" => ref}, socket) do
+    {:noreply, cancel_upload(socket, :attachments, ref)}
+  end
+
+  def handle_event("send_prompt", params, socket) do
+    prompt = params["prompt"] || ""
+    {_done, in_progress} = uploaded_entries(socket, :attachments)
+
+    cond do
+      in_progress != [] ->
+        {:noreply, put_flash(socket, :error, "Wait for attachments to finish uploading.")}
+
+      true ->
+        dispatch_prompt(socket, prompt)
     end
   end
 
@@ -267,7 +533,7 @@ defmodule AgentDeskWeb.WorkspaceLive do
       socket.assigns.active_session_id &&
         SessionWorker.terminate_session(socket.assigns.active_session_id)
 
-    {:noreply, assign(socket, :confirm_terminate, false)}
+    {:noreply, assign(socket, confirm_terminate: false, allow_force_terminate: false)}
   end
 
   def handle_event("resume_session", %{"id" => id}, socket) do
@@ -283,6 +549,24 @@ defmodule AgentDeskWeb.WorkspaceLive do
     end
   end
 
+  def handle_event("retry_session", _params, socket) do
+    session = socket.assigns.active
+
+    cond do
+      is_nil(session) ->
+        {:noreply, socket}
+
+      socket.assigns.caps && socket.assigns.caps.resume ->
+        handle_event("resume_session", %{"id" => session.id}, socket)
+
+      true ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Start a new session from the toolbar to retry.")
+         |> announce("Retry from a new session")}
+    end
+  end
+
   def handle_event("approve", %{"id" => request_id}, socket) do
     _ = SessionWorker.approve(socket.assigns.active_session_id, request_id, "allow")
     {:noreply, assign(socket, :pending_approval, nil)}
@@ -293,12 +577,123 @@ defmodule AgentDeskWeb.WorkspaceLive do
     {:noreply, assign(socket, :pending_approval, nil)}
   end
 
+  def handle_event("set_activity_mode", %{"mode" => mode}, socket)
+      when mode in ~w(cards raw) do
+    {:noreply, assign(socket, :activity_mode, mode)}
+  end
+
+  def handle_event("set_type_scale", %{"scale" => scale}, socket)
+      when scale in ~w(sm md lg) do
+    {:noreply, assign(socket, :type_scale, scale)}
+  end
+
+  def handle_event("load_older_activity", _params, socket) do
+    {:noreply, load_more_activity(socket)}
+  end
+
+  def handle_event("announce_handoff", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:workspace_view, "handoff")
+     |> assign(:selected_handoff_id, default_handoff_id(socket.assigns.merge_queue))
+     |> announce("Review the handoff")}
+  end
+
+  def handle_event("message_agent", %{"id" => agent_id}, socket) do
+    {:noreply, peer_action(socket, agent_id, :message)}
+  end
+
+  def handle_event("delegate_agent", %{"id" => agent_id}, socket) do
+    {:noreply, peer_action(socket, agent_id, :delegate)}
+  end
+
+  def handle_event("request_review", %{"id" => agent_id}, socket) do
+    {:noreply, peer_action(socket, agent_id, :review)}
+  end
+
+  def handle_event("lease_message", %{"id" => id}, socket) do
+    {:noreply, lease_owner_message(socket, id, "Can we coordinate on this resource?")}
+  end
+
+  def handle_event("lease_wait", _params, socket) do
+    {:noreply,
+     socket
+     |> put_flash(
+       :info,
+       "Wait until the lease expires, then retry. Cuckoding never takes a lease silently."
+     )
+     |> announce("Wait for the lease to expire")}
+  end
+
+  def handle_event("lease_other_task", _params, socket) do
+    {:noreply,
+     socket
+     |> put_flash(:info, "Pick another task in the Tasks list while this lease is held.")
+     |> announce("Choose another task")}
+  end
+
+  def handle_event("request_lease_release", %{"id" => id}, socket) do
+    {:noreply, lease_owner_message(socket, id, "Please release this resource when you can.")}
+  end
+
+  def handle_event("confirm_revoke_lease", %{"id" => id}, socket) do
+    {:noreply, assign(socket, :confirm_revoke_lease_id, id)}
+  end
+
+  def handle_event("cancel_revoke_lease", _params, socket) do
+    {:noreply, assign(socket, :confirm_revoke_lease_id, nil)}
+  end
+
+  def handle_event("revoke_lease", %{"id" => id}, socket) do
+    project = socket.assigns.current_project
+
+    socket =
+      case Manager.revoke(Scope.for_project(project), id) do
+        {:ok, _} ->
+          socket
+          |> assign(:confirm_revoke_lease_id, nil)
+          |> put_flash(:info, "Lease revoked.")
+          |> announce("Lease revoked")
+
+        {:error, _} ->
+          put_flash(socket, :error, "Could not revoke that lease.")
+      end
+
+    {:noreply, load_coordination(socket, project)}
+  end
+
+  def handle_event("revoke_delegation", %{"id" => id}, socket) do
+    {:noreply, mutate_delegation(socket, id, :revoke)}
+  end
+
+  def handle_event(
+        "redirect_delegation",
+        %{"delegation_id" => id, "to_agent_id" => to_id},
+        socket
+      ) do
+    {:noreply, mutate_delegation(socket, id, :redirect, to_id)}
+  end
+
+  def handle_event("forget_memory", %{"namespace" => namespace, "id" => id}, socket) do
+    project = socket.assigns.current_project
+    _ = AgentDesk.Search.forget(Scope.for_project(project), namespace, id)
+    _ = forget_sql_memory(project.id, id)
+
+    {:noreply,
+     socket
+     |> assign(:search_results, search_results(project, socket.assigns.search_query))
+     |> assign(:memories, list_memories(project))
+     |> put_flash(:info, "Forgot that memory.")}
+  end
+
   def handle_event("accept_delegation", %{"id" => id}, socket) do
     {:noreply, decide_delegation(socket, id, :accept)}
   end
 
-  def handle_event("reject_delegation", %{"id" => id}, socket) do
-    {:noreply, decide_delegation(socket, id, :reject)}
+  def handle_event("reject_delegation", params, socket) do
+    id = params["delegation_id"] || params["id"]
+    reason = params["reason"] || "ui"
+    {:noreply, decide_delegation(socket, id, :reject, reason)}
   end
 
   def handle_event("commit_worktree", %{"message" => message}, socket) do
@@ -360,13 +755,71 @@ defmodule AgentDeskWeb.WorkspaceLive do
     {:noreply, load_coordination(socket, project)}
   end
 
-  def handle_event("create_task", %{"title" => title}, socket) do
+  def handle_event("split_work", params, socket) do
     project = socket.assigns.current_project
     scope = reviewer_scope(socket)
+    lanes = params |> Map.get("lanes", []) |> List.wrap()
+
+    socket =
+      case Orchestration.start_crew(scope, %{
+             goal: params["goal"],
+             lead_session_id: blank_to_nil(params["lead_session_id"]),
+             provider: blank_to_nil(params["provider"]),
+             lanes: lanes,
+             spawn: true
+           }) do
+        {:ok, result} ->
+          put_flash(socket, :info, "Split work into #{length(result["lanes"])} specialist tasks.")
+
+        {:error, :invalid_goal} ->
+          put_flash(socket, :error, "Describe the work to split.")
+
+        {:error, {:missing_agent, role}} ->
+          put_flash(socket, :error, "No #{role} agent. Pick a provider to start one.")
+
+        {:error, reason} ->
+          put_flash(socket, :error, Providers.start_error_message(reason))
+      end
+
+    {:noreply, load_coordination(socket, project)}
+  end
+
+  def handle_event("create_task", params, socket) do
+    project = socket.assigns.current_project
+    scope = reviewer_scope(socket)
+    title = params["title"]
+    skills = csv_list(params["skills"])
+    files = csv_list(params["files"])
+
+    recipient_id =
+      blank_to_nil(params["recipient_id"]) || auto_recipient_id(socket, params)
+
+    reviewer_id = blank_to_nil(params["reviewer_id"])
+    checks = csv_list(params["checks"])
+    isolated? = params["isolated"] != "false"
+    permission = params["permission_profile"] || "default"
+    role_id = blank_to_nil(params["role_id"])
+    depth = blank_to_nil(params["delegation_depth"])
 
     socket =
       with {:ok, context} <- A2A.ensure_working_context(scope),
-           {:ok, _task} <- A2A.create_task(scope, context, %{title: title}) do
+           {:ok, task} <-
+             A2A.create_task(scope, context, %{
+               title: title,
+               metadata: %{
+                 "skills" => skills,
+                 "required_checks" => checks,
+                 "reviewer_id" => reviewer_id,
+                 "provider" => params["provider"],
+                 "role_id" => role_id,
+                 "permission_profile" => permission,
+                 "isolated" => isolated?,
+                 "delegation_depth" => depth
+               }
+             }) do
+        _ = maybe_claim_task_files(scope, files, title)
+        _ = maybe_propose_task(scope, task, recipient_id, "delegate")
+        _ = maybe_propose_task(scope, task, reviewer_id, "review")
         socket
       else
         {:error, _reason} -> put_flash(socket, :error, "Could not create that task.")
@@ -404,8 +857,14 @@ defmodule AgentDeskWeb.WorkspaceLive do
 
         task ->
           case A2A.update_task(scope, task, %{status: "completed"}) do
-            {:ok, _} -> socket
-            {:error, _} -> put_flash(socket, :error, "Could not complete that task.")
+            {:ok, _} ->
+              socket
+
+            {:error, :blocked_by_dependencies} ->
+              put_flash(socket, :error, "That task is still waiting on dependencies.")
+
+            {:error, _} ->
+              put_flash(socket, :error, "Could not complete that task.")
           end
       end
 
@@ -519,16 +978,23 @@ defmodule AgentDeskWeb.WorkspaceLive do
     {:noreply, maybe_restore_last_project(socket)}
   end
 
+  def handle_info(:probe_providers, socket) do
+    {:noreply, assign(socket, :provider_status, probe_providers())}
+  end
+
   def handle_info({:project_opened, project}, socket) do
     {:noreply,
      socket
-     |> assign(:recent_projects, Projects.list_recent())
-     |> assign(:live_project_ids, live_project_ids())
+     |> assign_recents()
      |> maybe_replace_current(project)}
   end
 
   def handle_info({:project_closed, project_id}, socket) do
     {:noreply, after_project_closed(socket, project_id)}
+  end
+
+  def handle_info({:project_forgotten, project_id}, socket) do
+    {:noreply, refresh_after_forgotten(socket, project_id)}
   end
 
   def handle_info({:session_updated, session}, socket) do
@@ -547,19 +1013,27 @@ defmodule AgentDeskWeb.WorkspaceLive do
   def handle_info({:session_activity, session_id, events, status, approval}, socket) do
     if socket.assigns.active_session_id == session_id do
       socket =
-        Enum.reduce(events, socket, fn event, acc ->
-          item = %{
-            id: Ids.generate(),
-            type: Atom.to_string(event.type),
-            text:
-              event.payload["text"] || event.payload["summary"] || event.type |> Atom.to_string(),
-            payload: event.payload
-          }
+        events
+        |> Enum.reduce(socket, &append_activity/2)
+        |> maybe_schedule_force(status)
+        |> assign(:active_status, status)
+        |> assign(:pending_approval, approval)
+        |> announce_activity(status, approval)
 
-          stream_insert(acc, :activity, item, at: -1, limit: -200)
-        end)
+      {:noreply, socket}
+    else
+      unread = Map.update(socket.assigns.unread, session_id, 1, &(&1 + 1))
 
-      {:noreply, socket |> assign(:active_status, status) |> assign(:pending_approval, approval)}
+      {:noreply,
+       socket
+       |> assign(:unread, unread)
+       |> announce_background(events, approval)}
+    end
+  end
+
+  def handle_info(:allow_force_terminate, socket) do
+    if socket.assigns.active_status == "terminating" do
+      {:noreply, assign(socket, :allow_force_terminate, true)}
     else
       {:noreply, socket}
     end
@@ -607,7 +1081,8 @@ defmodule AgentDeskWeb.WorkspaceLive do
         |> assign(:subscribed_project_id, project.id)
         |> assign(:page_title, project.name)
         |> assign(:sessions, sessions)
-        |> assign(:live_project_ids, live_project_ids())
+        |> assign_recents()
+        |> apply_project_prefs(project)
         |> load_coordination(project)
         |> select_session(List.first(sessions))
 
@@ -622,12 +1097,25 @@ defmodule AgentDeskWeb.WorkspaceLive do
     assign(socket, :current_project, nil)
   end
 
+  defp assign_project_preview(socket, %{"id" => id}) do
+    case Projects.get_project(id) do
+      {:ok, project} -> assign(socket, :current_project, project)
+      {:error, :not_found} -> assign(socket, :current_project, nil)
+    end
+  end
+
+  defp assign_project_preview(socket, _params) do
+    case Projects.list_open() do
+      [%Project{} = project | _] -> assign(socket, :current_project, project)
+      _ -> assign(socket, :current_project, nil)
+    end
+  end
+
   defp after_project_closed(socket, project_id) do
     socket =
       socket
       |> assign(:confirm_close_project_id, nil)
-      |> assign(:recent_projects, Projects.list_recent())
-      |> assign(:live_project_ids, live_project_ids())
+      |> assign_recents()
 
     case socket.assigns.current_project do
       %Project{id: ^project_id} ->
@@ -640,13 +1128,52 @@ defmodule AgentDeskWeb.WorkspaceLive do
     end
   end
 
-  defp live_project_ids do
-    Enum.flat_map(Projects.list_recent(), fn project ->
-      case Runtime.fetch(project.id) do
-        {:ok, _pid} -> [project.id]
-        _ -> []
-      end
-    end)
+  defp after_recent_forgotten(socket, project_id) do
+    name =
+      Enum.find_value(socket.assigns.recent_projects, fn project ->
+        if project.id == project_id, do: project.name
+      end)
+
+    socket
+    |> refresh_after_forgotten(project_id)
+    |> put_flash(:info, forget_flash(name))
+  end
+
+  defp refresh_after_forgotten(socket, project_id) do
+    socket =
+      socket
+      |> assign(:confirm_forget_project_id, nil)
+      |> assign(:failed_recent_id, nil)
+      |> assign_recents()
+
+    case socket.assigns.current_project do
+      %Project{id: ^project_id} ->
+        socket
+        |> assign(:current_project, nil)
+        |> push_patch(to: ~p"/")
+
+      _ ->
+        socket
+    end
+  end
+
+  defp forget_flash(name) when is_binary(name), do: "Removed #{name} from recents."
+  defp forget_flash(_name), do: "Removed that project from recents."
+
+  defp assign_recents(socket) do
+    recents = Projects.list_recent(@recent_limit)
+
+    live_ids =
+      Enum.flat_map(recents, fn project ->
+        case Runtime.fetch(project.id) do
+          {:ok, _pid} -> [project.id]
+          _ -> []
+        end
+      end)
+
+    socket
+    |> assign(:recent_projects, recents)
+    |> assign(:live_project_ids, live_ids)
   end
 
   defp maybe_restore_last_project(socket) do
@@ -685,16 +1212,24 @@ defmodule AgentDeskWeb.WorkspaceLive do
     |> assign(:agents, A2A.list_agents(scope))
     |> assign(:leases, leases)
     |> assign(:lease_previews, Overlap.previews(leases))
-    |> assign(:delegations, A2A.list_delegations(scope))
+    |> assign(
+      :delegations,
+      scope |> A2A.list_delegations() |> Repo.preload([:task, :from_agent, :to_agent])
+    )
     |> assign(:tasks, tasks)
     |> assign(:task_deps, dependency_titles(project.id, tasks))
     |> assign(:workflows, Workflows.list(scope))
     |> assign(:messages, A2A.list_messages(scope))
+    |> assign(:inbox, session_inbox(scope, socket.assigns.active_session_id))
+    |> assign(:deliveries, A2A.list_deliveries(scope))
     |> assign(:artifacts, A2A.list_artifacts(scope))
     |> assign(:merge_queue, Reviews.list_open(project))
     |> assign(:roles, AgentDesk.Roles.list(project))
     |> assign(:search_status, AgentDesk.Search.status(project))
     |> assign(:usage, AgentDesk.Usage.summary(project))
+    |> assign(:memories, list_memories(project))
+    |> assign_analytics()
+    |> assign_registry()
     |> load_worktrees(project)
   end
 
@@ -718,6 +1253,52 @@ defmodule AgentDeskWeb.WorkspaceLive do
     |> assign(:unexpected_edits, Worktrees.unexpected_main_edits(project))
   end
 
+  defp assign_registry(socket) do
+    query = socket.assigns[:registry_query] || ""
+    filter = socket.assigns[:registry_filter] || "all"
+    assign(socket, :registry_agents, AcpRegistry.list(query, filter))
+  end
+
+  defp assign_analytics(socket) do
+    case socket.assigns.current_project do
+      %Project{} = project -> assign(socket, :analytics, Analytics.report(project))
+      _ -> assign(socket, :analytics, empty_analytics())
+    end
+  end
+
+  defp empty_analytics do
+    %{
+      sqlite: %{path: nil, bytes: 0, tables: []},
+      memory: %{namespaces: [], total: 0, bytes: 0},
+      runtime: %{
+        total: 0,
+        processes: 0,
+        ets: 0,
+        atom: 0,
+        binary: 0,
+        process_count: 0
+      },
+      xerj: %{
+        adapter: "Disabled",
+        health: "unavailable",
+        status: "unavailable",
+        last_indexed_at: nil,
+        error: nil,
+        data_dir: nil,
+        data_present: false
+      },
+      exchange: %{
+        messages: [],
+        scopes: [],
+        artifacts: [],
+        events: [],
+        usage: %{"total_tokens" => 0, "cost_cents" => 0},
+        sessions: 0,
+        pending_deliveries: 0
+      }
+    }
+  end
+
   defp bounded_diff(nil), do: ""
 
   defp bounded_diff(worktree) do
@@ -739,14 +1320,19 @@ defmodule AgentDeskWeb.WorkspaceLive do
     {:noreply, load_coordination(socket, project)}
   end
 
-  defp decide_delegation(socket, id, action) do
+  defp decide_delegation(socket, id, action, reason \\ "ui") do
     project = socket.assigns.current_project
     session_id = socket.assigns.active_session_id
 
     with true <- is_binary(session_id),
          {:ok, session} <- Agents.get_session(Scope.for_project(project), session_id) do
       scope = Scope.for_agent(project, session)
-      attrs = %{idempotency_key: Ids.generate(), expected_version: 1, response_reason: "ui"}
+
+      attrs = %{
+        idempotency_key: Ids.generate(),
+        expected_version: 1,
+        response_reason: reason
+      }
 
       _ =
         case action do
@@ -786,7 +1372,11 @@ defmodule AgentDeskWeb.WorkspaceLive do
   end
 
   defp session_settings(params) do
-    settings = %{"tab_open" => true, "container" => params["container"] == "true"}
+    settings = %{
+      "tab_open" => true,
+      "container" => params["container"] == "true",
+      "shared" => params["shared"] == "true"
+    }
 
     if params["provider"] == "sdk" do
       Map.merge(settings, %{
@@ -798,6 +1388,139 @@ defmodule AgentDeskWeb.WorkspaceLive do
     end
   end
 
+  defp picker_start_path(socket) do
+    cond do
+      match?(%Project{}, socket.assigns.current_project) ->
+        socket.assigns.current_project.canonical_path
+
+      match?([%Project{} | _], socket.assigns.recent_projects) ->
+        hd(socket.assigns.recent_projects).canonical_path
+
+      true ->
+        System.user_home()
+    end
+  end
+
+  defp handle_picked_repo({:ok, %{"path" => path}}, socket)
+       when is_binary(path) and path != "" do
+    open_selected_project(socket, path, :picker)
+  end
+
+  defp handle_picked_repo({:ok, %{"path" => [path | _]}}, socket)
+       when is_binary(path) and path != "" do
+    handle_picked_repo({:ok, %{"path" => path}}, socket)
+  end
+
+  defp handle_picked_repo({:ok, _payload}, socket), do: socket
+
+  defp handle_picked_repo({:error, _reason}, socket) do
+    put_flash(
+      socket,
+      :error,
+      "Folder picker needs the Cuckoding app. Use Choose folder… there, or open a recent project."
+    )
+  end
+
+  defp reopen_recent_project(socket, id, context) do
+    case Projects.reopen_project(id) do
+      {:ok, project} ->
+        finish_opened_project(socket, project, context)
+
+      {:error, reason} ->
+        fail_recent_project(socket, id, reason, context)
+    end
+  end
+
+  defp open_selected_project(socket, path, context) do
+    case Projects.open_project(path) do
+      {:ok, project} ->
+        finish_opened_project(socket, project, context)
+
+      {:error, reason} ->
+        fail_open_project(socket, reason, context)
+    end
+  end
+
+  defp finish_opened_project(socket, project, :check) do
+    socket
+    |> assign(:failed_recent_id, nil)
+    |> assign(:confirm_forget_project_id, nil)
+    |> assign_recents()
+    |> put_flash(:info, "Checked #{project.name}. Repository is still valid.")
+    |> push_patch(to: ~p"/projects/#{project.id}")
+  end
+
+  defp finish_opened_project(socket, project, _context) do
+    socket
+    |> assign(:failed_recent_id, nil)
+    |> assign(:confirm_forget_project_id, nil)
+    |> assign_recents()
+    |> put_flash(:info, "Opened #{project.name}")
+    |> push_patch(to: ~p"/projects/#{project.id}")
+  end
+
+  defp fail_recent_project(socket, id, :not_found, _context) do
+    socket
+    |> assign(:failed_recent_id, id)
+    |> put_flash(
+      :error,
+      "That folder is gone. It may have been moved or deleted."
+    )
+  end
+
+  defp fail_recent_project(socket, id, :not_a_directory, _context) do
+    socket
+    |> assign(:failed_recent_id, id)
+    |> put_flash(:error, "That path is not a directory.")
+  end
+
+  defp fail_recent_project(socket, id, :not_a_git_repository, _context) do
+    socket
+    |> assign(:failed_recent_id, id)
+    |> put_flash(
+      :error,
+      "Open a Git repository. #{Branding.product_name()} does not initialize repos."
+    )
+  end
+
+  defp fail_recent_project(socket, id, :symlink_loop, _context) do
+    socket
+    |> assign(:failed_recent_id, id)
+    |> put_flash(:error, "Could not resolve that path.")
+  end
+
+  defp fail_recent_project(socket, _id, reason, context) do
+    fail_open_project(socket, reason, context)
+  end
+
+  defp fail_open_project(socket, :not_found, :picker) do
+    put_flash(socket, :error, "That path does not exist.")
+  end
+
+  defp fail_open_project(socket, :not_found, _context) do
+    put_flash(socket, :error, "That folder is gone. It may have been moved or deleted.")
+  end
+
+  defp fail_open_project(socket, :not_a_directory, _context) do
+    put_flash(socket, :error, "That path is not a directory.")
+  end
+
+  defp fail_open_project(socket, :not_a_git_repository, _context) do
+    put_flash(
+      socket,
+      :error,
+      "Open a Git repository. #{Branding.product_name()} does not initialize repos."
+    )
+  end
+
+  defp fail_open_project(socket, :symlink_loop, _context) do
+    put_flash(socket, :error, "Could not resolve that path.")
+  end
+
+  defp fail_open_project(socket, _reason, _context) do
+    put_flash(socket, :error, "Could not open that project.")
+  end
+
   defp connect_env_path(%{provider: "remote"} = session) do
     AgentDesk.Providers.MCPInjection.connect_env_path(session)
   end
@@ -806,10 +1529,15 @@ defmodule AgentDeskWeb.WorkspaceLive do
 
   defp select_session(socket, nil) do
     socket
+    |> assign(:workspace_view, "dashboard")
+    |> assign_analytics()
     |> assign(:active_session_id, nil)
     |> assign(:active_status, "idle")
     |> assign(:pending_approval, nil)
     |> assign(:connect_path, nil)
+    |> assign(:inbox, [])
+    |> assign(:deliveries, [])
+    |> assign(:activity_tail, nil)
     |> stream(:activity, [], reset: true)
   end
 
@@ -819,11 +1547,15 @@ defmodule AgentDeskWeb.WorkspaceLive do
     end
 
     socket
+    |> assign(:workspace_view, "workspace")
     |> assign(:active_session_id, session.id)
     |> assign(:active_status, session.status)
     |> assign(:pending_approval, nil)
     |> assign(:connect_path, connect_env_path(session))
-    |> stream(:activity, [], reset: true)
+    |> assign(:unread, Map.delete(socket.assigns.unread || %{}, session.id))
+    |> assign(:activity_limit, 200)
+    |> assign(:activity_tail, nil)
+    |> then(&stream_transcript(&1, session, 200))
   end
 
   defp select_session_id(socket, id) do
@@ -833,9 +1565,47 @@ defmodule AgentDeskWeb.WorkspaceLive do
     end
   end
 
+  defp dispatch_prompt(socket, prompt) do
+    session = active_session(socket.assigns)
+    project = socket.assigns.current_project
+    {_, in_progress} = uploaded_entries(socket, :attachments)
+    pending? = socket.assigns.uploads.attachments.entries != []
+
+    cond do
+      is_nil(session) or is_nil(project) ->
+        {:noreply, put_flash(socket, :error, "No active session to prompt.")}
+
+      in_progress != [] ->
+        {:noreply, put_flash(socket, :error, "Wait for attachments to finish uploading.")}
+
+      String.trim(prompt) == "" and not pending? ->
+        {:noreply, socket}
+
+      true ->
+        attachments =
+          consume_uploaded_entries(socket, :attachments, fn %{path: path}, entry ->
+            {:ok,
+             AgentDesk.Attachments.store!(
+               project,
+               session,
+               path,
+               entry.client_name,
+               entry.client_type
+             )}
+          end)
+
+        case SessionWorker.prompt(session.id, prompt, attachments) do
+          :ok -> {:noreply, assign(socket, :prompt, "")}
+          _ -> {:noreply, put_flash(socket, :error, "No active session to prompt.")}
+        end
+    end
+  end
+
   defp maybe_status(socket, session) do
     if socket.assigns.active_session_id == session.id do
-      assign(socket, :active_status, session.status)
+      socket
+      |> assign(:active_status, session.status)
+      |> announce_activity(session.status, socket.assigns.pending_approval)
     else
       socket
     end
@@ -854,725 +1624,485 @@ defmodule AgentDeskWeb.WorkspaceLive do
     end
   end
 
+  defp probe_providers do
+    Map.new(~w(codex claude cursor opencode), fn key ->
+      case AgentDesk.Providers.Discovery.probe(key) do
+        {:ok, result} -> {key, Map.put(result, :available, true)}
+        {:error, _} -> {key, %{available: false}}
+      end
+    end)
+  end
+
+  defp append_activity(event, socket) do
+    if activity_visible?(event) do
+      item = live_activity_item(event)
+      tail = socket.assigns.activity_tail
+
+      if AgentDesk.Activity.mergeable?(tail, item) do
+        merged = AgentDesk.Activity.merge(tail, item)
+
+        socket
+        |> assign(:activity_tail, merged)
+        |> stream_insert(:activity, merged, at: -1, limit: -200)
+      else
+        socket
+        |> assign(:activity_tail, item)
+        |> stream_insert(:activity, item, at: -1, limit: -200)
+      end
+    else
+      socket
+    end
+  end
+
+  defp live_activity_item(event) do
+    %{
+      id: Ids.generate(),
+      type: Atom.to_string(event.type),
+      text: activity_text(event),
+      payload: event.payload
+    }
+  end
+
+  defp activity_from_transcript(session, limit) do
+    window = Transcript.window(session.project_id, session.id, limit: limit)
+
+    items =
+      window.rows
+      |> Enum.filter(&transcript_visible?/1)
+      |> Enum.map(&transcript_item/1)
+      |> AgentDesk.Activity.coalesce()
+
+    {items, window.older?}
+  end
+
+  defp stream_transcript(socket, session, limit) do
+    {items, older?} = activity_from_transcript(session, limit)
+
+    socket
+    |> assign(:activity_older?, older?)
+    |> assign(:activity_limit, limit)
+    |> assign(:activity_tail, open_activity_tail(List.last(items)))
+    |> stream(:activity, items, reset: true)
+  end
+
+  defp open_activity_tail(item) do
+    if AgentDesk.Activity.open_stream?(item), do: item, else: nil
+  end
+
+  defp transcript_visible?(%{"type" => "initialize_result"}), do: false
+
+  defp transcript_visible?(%{"type" => "message_delta", "payload" => payload}) do
+    text = payload["text"]
+    is_binary(text) and String.trim(text) != ""
+  end
+
+  defp transcript_visible?(%{"type" => type}) when is_binary(type), do: true
+  defp transcript_visible?(_), do: false
+
+  defp transcript_item(row) do
+    type = row["type"]
+    payload = row["payload"] || %{}
+
+    %{
+      id: Ids.generate(),
+      type: type,
+      text:
+        payload["text"] || payload["summary"] || payload["message"] || payload["reason"] ||
+          String.replace(to_string(type), "_", " "),
+      payload: payload
+    }
+  end
+
+  defp activity_visible?(%{type: type}) when type in [:initialize_result], do: false
+
+  defp activity_visible?(%{type: :message_delta, payload: payload}) do
+    text = payload["text"] || payload["delta"]
+    is_binary(text) and String.trim(text) != ""
+  end
+
+  defp activity_visible?(_event), do: true
+
+  defp activity_text(%{payload: payload, type: type}) when is_map(payload) do
+    payload["text"] || payload["delta"] || payload["summary"] || payload["message"] ||
+      payload["reason"] || activity_label(Atom.to_string(type))
+  end
+
+  defp activity_label("message_delta"), do: "Agent"
+  defp activity_label("message_completed"), do: "Agent"
+  defp activity_label("turn_started"), do: "Turn"
+  defp activity_label("turn_completed"), do: "Turn complete"
+  defp activity_label("session_ready"), do: "Ready"
+  defp activity_label("file_change"), do: "File change"
+  defp activity_label("provider_error"), do: "Error"
+  defp activity_label("approval_requested"), do: "Approval"
+  defp activity_label("command_started"), do: "Command"
+  defp activity_label("command_completed"), do: "Command"
+  defp activity_label("tool_started"), do: "Tool"
+  defp activity_label("tool_completed"), do: "Tool"
+  defp activity_label("session_exited"), do: "Exited"
+  defp activity_label(type) when is_binary(type), do: String.replace(type, "_", " ")
+
+  defp announce(socket, text), do: assign(socket, :announce, text)
+
+  defp announce_activity(socket, status, approval) do
+    cond do
+      match?(%{payload: _}, approval) -> announce(socket, "Approval requested")
+      status in ~w(completed failed blocked) -> announce(socket, "Session #{status}")
+      true -> socket
+    end
+  end
+
+  defp maybe_schedule_force(socket, "terminating") do
+    if socket.assigns.active_status != "terminating" do
+      Process.send_after(self(), :allow_force_terminate, 8_000)
+    end
+
+    socket
+  end
+
+  defp maybe_schedule_force(socket, _status),
+    do: assign(socket, :allow_force_terminate, false)
+
+  defp announce_background(socket, events, approval) do
+    cond do
+      match?(%{payload: _}, approval) ->
+        announce(socket, "Approval requested on another tab")
+
+      Enum.any?(events, &(&1.type in [:provider_error, :lease_conflict])) ->
+        announce(socket, "A background session needs attention")
+
+      true ->
+        socket
+    end
+  end
+
+  defp session_inbox(scope, session_id) when is_binary(session_id) do
+    case Agents.get_session(scope, session_id) do
+      {:ok, session} -> A2A.inbox(Scope.for_agent(scope.project, session))
+      _ -> []
+    end
+  end
+
+  defp session_inbox(_scope, _session_id), do: []
+
+  defp peer_action(socket, agent_id, kind) do
+    project = socket.assigns.current_project
+    scope = reviewer_scope(socket)
+
+    socket =
+      cond do
+        is_nil(scope.agent_session) ->
+          put_flash(socket, :error, "Select a session tab first.")
+
+        scope.agent_session.id == agent_id ->
+          put_flash(socket, :error, "Pick another agent for that action.")
+
+        true ->
+          case perform_peer_action(scope, agent_id, kind) do
+            :ok ->
+              socket
+              |> put_flash(:info, peer_flash(kind))
+              |> announce(peer_flash(kind))
+
+            {:error, _} ->
+              put_flash(socket, :error, "Could not complete that agent action.")
+          end
+      end
+
+    load_coordination(socket, project)
+  end
+
+  defp perform_peer_action(scope, agent_id, :message) do
+    sender = scope.agent_session.display_name
+
+    with {:ok, context} <- A2A.ensure_working_context(scope),
+         {:ok, _} <-
+           A2A.send_direct_message(scope, %{
+             context_id: context.id,
+             recipient_agent_id: agent_id,
+             body: "Hello from #{sender}",
+             idempotency_key: Ids.generate()
+           }) do
+      :ok
+    end
+  end
+
+  defp perform_peer_action(scope, agent_id, kind) when kind in [:delegate, :review] do
+    title = if kind == :review, do: "Review requested", else: "Delegated work"
+    reason = if kind == :review, do: "review", else: "delegate"
+
+    with {:ok, context} <- A2A.ensure_working_context(scope),
+         {:ok, task} <- A2A.create_task(scope, context, %{title: title}),
+         {:ok, _} <-
+           A2A.propose_delegation(scope, %{
+             task_id: task.id,
+             to_agent_id: agent_id,
+             reason: reason,
+             idempotency_key: Ids.generate()
+           }) do
+      :ok
+    end
+  end
+
+  defp peer_flash(:message), do: "Message queued."
+  defp peer_flash(:delegate), do: "Delegation proposed."
+  defp peer_flash(:review), do: "Review requested."
+
+  defp lease_owner_message(socket, lease_id, body) do
+    project = socket.assigns.current_project
+    lease = Enum.find(socket.assigns.leases, &(&1.id == lease_id))
+    scope = reviewer_scope(socket)
+
+    socket =
+      cond do
+        is_nil(lease) ->
+          put_flash(socket, :error, "That lease is no longer active.")
+
+        is_nil(scope.agent_session) ->
+          put_flash(socket, :error, "Select a session tab first.")
+
+        scope.agent_session.id == lease.agent_session_id ->
+          put_flash(socket, :info, "You already hold that lease.")
+
+        true ->
+          with {:ok, context} <- A2A.ensure_working_context(scope),
+               {:ok, _} <-
+                 A2A.send_direct_message(scope, %{
+                   context_id: context.id,
+                   recipient_agent_id: lease.agent_session_id,
+                   body: "#{body} (#{lease.resource_type}:#{lease.resource_key})",
+                   idempotency_key: Ids.generate()
+                 }) do
+            socket
+            |> put_flash(:info, "Message sent to the lease owner.")
+            |> announce("Message sent to the lease owner")
+          else
+            {:error, _} -> put_flash(socket, :error, "Could not message the lease owner.")
+          end
+      end
+
+    load_coordination(socket, project)
+  end
+
+  defp mutate_delegation(socket, id, action, to_id \\ nil) do
+    project = socket.assigns.current_project
+    session_id = socket.assigns.active_session_id
+
+    socket =
+      with true <- is_binary(session_id),
+           {:ok, session} <- Agents.get_session(Scope.for_project(project), session_id) do
+        scope = Scope.for_agent(project, session)
+        attrs = %{idempotency_key: Ids.generate()}
+
+        result =
+          case action do
+            :revoke -> A2A.revoke_delegation(scope, id, attrs)
+            :redirect -> A2A.redirect_delegation(scope, id, Map.put(attrs, :to_agent_id, to_id))
+          end
+
+        case result do
+          {:ok, _} -> put_flash(socket, :info, "Delegation updated.")
+          {:error, _} -> put_flash(socket, :error, "Could not update that delegation.")
+        end
+      else
+        _ -> put_flash(socket, :error, "Select a session tab first.")
+      end
+
+    load_coordination(socket, project)
+  end
+
+  defp csv_list(value) when is_binary(value) do
+    value
+    |> String.split([",", "\n"], trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  defp csv_list(_), do: []
+
+  defp blank_to_nil(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp blank_to_nil(_), do: nil
+
+  defp auto_recipient_id(socket, %{"auto_recipient" => "true"}) do
+    case socket.assigns.sessions do
+      [%{id: id} | _] -> id
+      _ -> nil
+    end
+  end
+
+  defp auto_recipient_id(_socket, _params), do: nil
+  defp maybe_claim_task_files(%{agent_session: nil}, _files, _title), do: :ok
+  defp maybe_claim_task_files(_scope, [], _title), do: :ok
+
+  defp maybe_claim_task_files(scope, files, title) do
+    resources = Enum.map(files, &%{"type" => "file", "key" => &1, "mode" => "exclusive"})
+    Manager.claim(scope, resources, reason: title || "task")
+  end
+
+  defp maybe_propose_task(%{agent_session: nil}, _task, _to_id, _reason), do: :ok
+  defp maybe_propose_task(_scope, _task, nil, _reason), do: :ok
+
+  defp maybe_propose_task(scope, task, to_id, reason) do
+    if scope.agent_session.id == to_id do
+      :ok
+    else
+      A2A.propose_delegation(scope, %{
+        task_id: task.id,
+        to_agent_id: to_id,
+        reason: reason,
+        idempotency_key: Ids.generate()
+      })
+    end
+  end
+
+  defp apply_project_prefs(socket, %Project{} = project) do
+    settings = project.settings || %{}
+    xerj = settings["xerj"] == true
+    AgentDesk.Search.put_xerj(xerj)
+    a2a = settings["a2a"] || %{}
+    depth = a2a["max_delegation_depth"] || 3
+    shortcuts = Map.merge(@default_shortcuts, settings["shortcuts"] || %{})
+
+    socket
+    |> assign(:xerj_enabled, xerj)
+    |> assign(:delegation_depth, depth)
+    |> assign(:shortcuts, shortcuts)
+    |> assign(:onboard_step, settings["onboard_step"] || 1)
+    |> assign(:onboard_complete, settings["onboard_complete"] == true)
+  end
+
+  defp persist_onboard(socket, step, opts \\ []) do
+    complete? = Keyword.get(opts, :complete, false)
+
+    socket
+    |> assign(:onboard_step, step)
+    |> assign(:onboard_complete, complete? or socket.assigns.onboard_complete)
+    |> persist_project_setting("onboard_step", step)
+    |> persist_project_setting("onboard_complete", complete? or socket.assigns.onboard_complete)
+  end
+
+  defp persist_project_setting(socket, key, value) do
+    case socket.assigns.current_project do
+      %Project{} = project ->
+        case Projects.put_settings(project, %{key => value}) do
+          {:ok, updated} -> assign(socket, :current_project, updated)
+          _ -> socket
+        end
+
+      _ ->
+        socket
+    end
+  end
+
+  defp load_more_activity(socket) do
+    session = active_session(socket.assigns)
+
+    if session do
+      stream_transcript(socket, session, socket.assigns.activity_limit + 200)
+    else
+      socket
+    end
+  end
+
+  defp apply_shortcut(socket, "interrupt"), do: elem(handle_event("interrupt", %{}, socket), 1)
+  defp apply_shortcut(socket, "load_older"), do: load_more_activity(socket)
+
+  defp apply_shortcut(socket, "next_tab") do
+    rotate_tab(socket, 1)
+  end
+
+  defp apply_shortcut(socket, "prev_tab") do
+    rotate_tab(socket, -1)
+  end
+
+  defp apply_shortcut(socket, "new_session") do
+    if socket.assigns.current_project do
+      elem(
+        handle_event(
+          "start_session",
+          %{
+            "provider" => socket.assigns.provider,
+            "display_name" => socket.assigns.display_name
+          },
+          socket
+        ),
+        1
+      )
+    else
+      socket
+    end
+  end
+
+  defp apply_shortcut(socket, _action), do: socket
+
+  defp rotate_tab(socket, delta) do
+    session_ids = Enum.map(socket.assigns.sessions, & &1.id)
+    keys = ["dashboard" | session_ids]
+
+    current =
+      case socket.assigns.workspace_view do
+        "dashboard" -> "dashboard"
+        "new" -> "new"
+        _ -> socket.assigns.active_session_id || "dashboard"
+      end
+
+    keys = if current == "new", do: keys ++ ["new"], else: keys
+    index = Enum.find_index(keys, &(&1 == current)) || 0
+    next = Enum.at(keys, rem(index + delta + length(keys), length(keys)))
+
+    case next do
+      "dashboard" -> elem(handle_event("set_view", %{"view" => "dashboard"}, socket), 1)
+      "new" -> elem(handle_event("set_view", %{"view" => "new"}, socket), 1)
+      id -> elem(handle_event("select_tab", %{"id" => id}, socket), 1)
+    end
+  end
+
+  defp list_memories(%Project{} = project) do
+    import Ecto.Query, only: [from: 2]
+
+    from(m in AgentDesk.Search.Memory,
+      where: m.project_id == ^project.id,
+      order_by: [desc: m.inserted_at],
+      limit: 20
+    )
+    |> Repo.all()
+  end
+
+  defp forget_sql_memory(project_id, id) do
+    case Repo.get_by(AgentDesk.Search.Memory, id: id, project_id: project_id) do
+      nil -> :ok
+      row -> Repo.delete(row)
+    end
+  end
+
+  defp isolation_profile(nil), do: nil
+  defp isolation_profile(session), do: Isolation.profile(session)
+
+  defp show_onboarding?(assigns) do
+    is_nil(assigns.current_project) or
+      (assigns.sessions == [] and not assigns.onboard_complete)
+  end
+
   @impl true
   def render(assigns) do
     assigns = assign(assigns, :active, active_session(assigns))
     assigns = assign(assigns, :caps, capabilities(assigns.active))
+    assigns = assign(assigns, :show_onboarding, show_onboarding?(assigns))
+    assigns = assign(assigns, :isolation, isolation_profile(assigns.active))
 
-    ~H"""
-    <div class="flex h-screen min-h-0 bg-base-200 text-base-content">
-      <aside class="flex w-72 shrink-0 flex-col border-r border-base-300 bg-base-100">
-        <div class="flex items-center justify-between gap-2 border-b border-base-300 px-4 py-3">
-          <div>
-            <p class="text-sm font-semibold tracking-wide">AgentDesk</p>
-            <p class="text-xs text-base-content/60">Local multi-agent workspace</p>
-          </div>
-          <.theme_toggle />
-        </div>
+    assigns =
+      assign(
+        assigns,
+        :review_item,
+        selected_queue_item(assigns.merge_queue, assigns[:selected_handoff_id])
+      )
 
-        <section class="border-b border-base-300 p-4">
-          <.form
-            for={@form}
-            id="open-project-form"
-            phx-change="validate"
-            phx-submit="open_project"
-            class="space-y-2"
-          >
-            <label class="text-xs font-medium text-base-content/70" for="project-path">
-              Open Git repository
-            </label>
-            <input
-              id="project-path"
-              type="text"
-              name="path"
-              value={@path}
-              placeholder="/path/to/repo"
-              class="input input-sm input-bordered w-full"
-              autocomplete="off"
-            />
-            <.button type="submit" class="btn btn-primary btn-sm w-full">Open project</.button>
-          </.form>
-        </section>
-
-        <section class="min-h-0 flex-1 overflow-y-auto p-4">
-          <h2 class="mb-2 text-xs font-semibold uppercase tracking-wide text-base-content/60">
-            Recent projects
-          </h2>
-          <ul id="recent-projects" class="space-y-1">
-            <li :if={@recent_projects == []} class="text-sm text-base-content/50">
-              No projects opened yet.
-            </li>
-            <li :for={project <- @recent_projects} class="flex items-start gap-1">
-              <.link
-                patch={~p"/projects/#{project.id}"}
-                class={[
-                  "min-w-0 flex-1 rounded-lg px-3 py-2 text-sm hover:bg-base-200",
-                  @current_project && @current_project.id == project.id && "bg-base-200 font-medium"
-                ]}
-              >
-                <span class="flex items-center gap-2">
-                  <span class="block truncate">{project.name}</span>
-                  <span
-                    :if={project.id in @live_project_ids}
-                    class="badge badge-xs badge-success"
-                  >
-                    live
-                  </span>
-                </span>
-                <span class="block truncate text-xs text-base-content/50">
-                  {project.canonical_path}
-                </span>
-              </.link>
-              <div class="flex shrink-0 flex-col gap-1 pt-1">
-                <button
-                  :if={@confirm_close_project_id == project.id}
-                  type="button"
-                  id={"confirm-close-#{project.id}"}
-                  phx-click="close_project"
-                  phx-value-id={project.id}
-                  class="btn btn-xs btn-error"
-                >
-                  Confirm close
-                </button>
-                <button
-                  :if={@confirm_close_project_id == project.id}
-                  type="button"
-                  phx-click="cancel_close_project"
-                  class="btn btn-xs"
-                >
-                  Cancel
-                </button>
-                <button
-                  :if={@confirm_close_project_id != project.id}
-                  type="button"
-                  id={"close-project-#{project.id}"}
-                  phx-click="confirm_close_project"
-                  phx-value-id={project.id}
-                  class="btn btn-ghost btn-xs"
-                  aria-label={"Close #{project.name}"}
-                >
-                  Close
-                </button>
-              </div>
-            </li>
-          </ul>
-        </section>
-      </aside>
-
-      <main class="flex min-w-0 flex-1 flex-col">
-        <header class="flex items-center justify-between border-b border-base-300 bg-base-100 px-6 py-3">
-          <div>
-            <h1 class="text-base font-semibold">
-              {if @current_project, do: @current_project.name, else: "No project open"}
-            </h1>
-            <p class="text-xs text-base-content/60">
-              {if @current_project,
-                do: @current_project.canonical_path,
-                else: "Open a Git repository to start concurrent agent sessions."}
-            </p>
-          </div>
-          <div class="flex gap-2 text-xs">
-            <span class="badge badge-ghost">Codex</span>
-            <span class="badge badge-ghost">Claude</span>
-            <span class="badge badge-ghost">Cursor</span>
-            <span class="badge badge-ghost">OpenCode</span>
-            <span class="badge badge-ghost">SDK</span>
-            <span class="badge badge-ghost">Remote</span>
-          </div>
-        </header>
-
-        <div class="grid min-h-0 flex-1 grid-cols-[1fr_20rem]">
-          <section class="flex min-h-0 flex-col">
-            <div :if={@current_project} class="border-b border-base-300 bg-base-100 px-4 py-2">
-              <form
-                id="start-session-form"
-                phx-change="session_form"
-                phx-submit="start_session"
-                class="flex flex-wrap items-end gap-2"
-              >
-                <label class="text-xs">
-                  Provider
-                  <select name="provider" class="select select-bordered select-xs ml-1">
-                    <option :for={key <- Providers.ui_keys()} value={key} selected={key == @provider}>
-                      {key}
-                    </option>
-                  </select>
-                </label>
-                <input
-                  type="text"
-                  name="display_name"
-                  value={@display_name}
-                  placeholder="Session name"
-                  class="input input-bordered input-xs"
-                />
-                <label class="text-xs">
-                  Role
-                  <select
-                    name="role_id"
-                    id="session-role"
-                    class="select select-bordered select-xs ml-1"
-                  >
-                    <option value="">none</option>
-                    <option :for={role <- @roles} value={role.id}>{role.name}</option>
-                  </select>
-                </label>
-                <input
-                  :if={@provider == "sdk"}
-                  type="text"
-                  name="sdk_executable"
-                  id="sdk-executable"
-                  value={@sdk_executable}
-                  placeholder="SDK executable"
-                  class="input input-bordered input-xs"
-                />
-                <input
-                  :if={@provider == "sdk"}
-                  type="text"
-                  name="sdk_args"
-                  id="sdk-args"
-                  value={@sdk_args}
-                  placeholder="one arg per line"
-                  class="input input-bordered input-xs"
-                />
-                <.button class="btn btn-primary btn-xs">New session</.button>
-                <label class="flex items-center gap-1 text-xs">
-                  <input type="checkbox" name="container" value="true" id="container-opt-in" />
-                  Containers
-                </label>
-              </form>
-              <form
-                id="save-role-form"
-                phx-submit="save_role"
-                class="mt-2 flex flex-wrap items-end gap-2"
-              >
-                <input
-                  type="text"
-                  name="name"
-                  placeholder="role name"
-                  class="input input-bordered input-xs"
-                />
-                <input
-                  type="text"
-                  name="description"
-                  placeholder="safe card description"
-                  class="input input-bordered input-xs"
-                />
-                <select name="permission_profile" class="select select-bordered select-xs">
-                  <option value="default">default</option>
-                  <option value="observer">observer</option>
-                  <option value="restricted">restricted</option>
-                </select>
-                <input
-                  type="text"
-                  name="prompt"
-                  placeholder="session prompt (not published)"
-                  class="input input-bordered input-xs w-64"
-                />
-                <.button class="btn btn-ghost btn-xs">Save role</.button>
-              </form>
-            </div>
-
-            <div
-              id="session-tabs"
-              class="flex gap-1 overflow-x-auto border-b border-base-300 px-2 py-1"
-            >
-              <p :if={@sessions == []} class="px-2 py-1 text-xs text-base-content/50">
-                No agent tabs. Starting a session does not close another.
-              </p>
-              <div :for={session <- @sessions} class="join">
-                <button
-                  type="button"
-                  id={"tab-#{session.id}"}
-                  phx-click="select_tab"
-                  phx-value-id={session.id}
-                  class={[
-                    "btn btn-xs join-item",
-                    @active_session_id == session.id && "btn-active"
-                  ]}
-                >
-                  {session.display_name}
-                  <span :if={session.role} class="ml-1 opacity-70">{session.role}</span>
-                  <span class="ml-1 opacity-70">{session.status}</span>
-                </button>
-                <button
-                  type="button"
-                  id={"close-tab-#{session.id}"}
-                  phx-click="close_tab"
-                  phx-value-id={session.id}
-                  class="btn btn-xs join-item"
-                  title="Close tab without terminating"
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-
-            <p :if={@active_session_id == nil} class="p-4 text-sm text-base-content/60">
-              Open a Git repository, then start Codex, Claude, Cursor, or OpenCode sessions in tabs.
-            </p>
-            <div
-              id="activity-stream"
-              phx-update="stream"
-              class="min-h-0 flex-1 overflow-y-auto p-4 text-sm"
-            >
-              <article :for={{dom_id, item} <- @streams.activity} id={dom_id} class="mb-2">
-                <p class="text-xs uppercase text-base-content/50">{item.type}</p>
-                <p class="whitespace-pre-wrap">{item.text}</p>
-              </article>
-            </div>
-
-            <div :if={@active} class="border-t border-base-300 bg-base-100 p-3">
-              <p :if={@connect_path} id="remote-connect" class="mb-2 break-all text-xs">
-                Connect file: {@connect_path}
-              </p>
-              <div class="mb-2 flex flex-wrap gap-2">
-                <button
-                  :if={@caps && (@caps.steer_active_turn or @active_status == "working")}
-                  type="button"
-                  id="interrupt-session"
-                  phx-click="interrupt"
-                  class="btn btn-warning btn-xs"
-                >
-                  Interrupt
-                </button>
-                <button
-                  :if={@active_status in ["interrupted", "failed"] && @caps && @caps.resume}
-                  type="button"
-                  id="resume-session"
-                  phx-click="resume_session"
-                  phx-value-id={@active.id}
-                  class="btn btn-xs"
-                >
-                  Resume
-                </button>
-                <button
-                  :if={!@confirm_terminate}
-                  type="button"
-                  id="confirm-terminate"
-                  phx-click="confirm_terminate"
-                  class="btn btn-error btn-xs"
-                >
-                  Terminate
-                </button>
-                <button
-                  :if={@confirm_terminate}
-                  type="button"
-                  id="terminate-session"
-                  phx-click="terminate"
-                  class="btn btn-error btn-xs"
-                >
-                  Confirm terminate
-                </button>
-                <button
-                  :if={@confirm_terminate}
-                  type="button"
-                  phx-click="cancel_terminate"
-                  class="btn btn-ghost btn-xs"
-                >
-                  Cancel
-                </button>
-              </div>
-              <form id="prompt-composer" phx-submit="send_prompt" class="flex gap-2">
-                <textarea
-                  name="prompt"
-                  class="textarea textarea-bordered textarea-sm min-h-16 flex-1"
-                  placeholder="Send a prompt"
-                >{@prompt}</textarea>
-                <.button class="btn btn-primary btn-sm">Send</.button>
-              </form>
-            </div>
-          </section>
-
-          <aside class="border-l border-base-300 bg-base-100 p-4">
-            <h2 class="mb-3 text-xs font-semibold uppercase tracking-wide text-base-content/60">
-              Context
-            </h2>
-            <dl class="space-y-3 text-sm">
-              <div>
-                <dt class="text-xs text-base-content/50">Runtime</dt>
-                <dd>{if @current_project, do: "Project runtime started", else: "Idle"}</dd>
-              </div>
-              <div>
-                <dt class="text-xs text-base-content/50">Session</dt>
-                <dd id="session-status">
-                  {if @active, do: "#{@active.display_name} · #{@active_status}", else: "None"}
-                </dd>
-              </div>
-              <div :if={@pending_approval}>
-                <dt class="text-xs text-base-content/50">Approval</dt>
-                <dd id="approval-card" class="space-y-2 rounded-lg bg-warning/10 p-2">
-                  <p>
-                    {@pending_approval.payload["action"]} — {@pending_approval.payload["summary"]}
-                  </p>
-                  <button
-                    type="button"
-                    id="approve-request"
-                    phx-click="approve"
-                    phx-value-id={@pending_approval.payload["request_id"]}
-                    class="btn btn-success btn-xs"
-                  >
-                    Allow
-                  </button>
-                  <button
-                    type="button"
-                    id="deny-request"
-                    phx-click="deny"
-                    phx-value-id={@pending_approval.payload["request_id"]}
-                    class="btn btn-error btn-xs"
-                  >
-                    Deny
-                  </button>
-                </dd>
-              </div>
-              <div>
-                <dt class="text-xs text-base-content/50">Agents</dt>
-                <dd id="agents-directory">
-                  <p :if={@agents == []} class="text-base-content/50">No Agent Cards yet.</p>
-                  <p :for={card <- @agents}>{card.name} · {card.availability}</p>
-                </dd>
-              </div>
-              <div>
-                <dt class="text-xs text-base-content/50">Delegations</dt>
-                <dd id="delegation-inbox">
-                  <p :if={@delegations == []} class="text-base-content/50">None</p>
-                  <div :for={delegation <- @delegations} class="mb-1">
-                    <span>{delegation.status}</span>
-                    <button
-                      :if={delegation.status == "proposed"}
-                      type="button"
-                      phx-click="accept_delegation"
-                      phx-value-id={delegation.id}
-                      class="btn btn-xs"
-                    >
-                      Accept
-                    </button>
-                    <button
-                      :if={delegation.status == "proposed"}
-                      type="button"
-                      phx-click="reject_delegation"
-                      phx-value-id={delegation.id}
-                      class="btn btn-xs"
-                    >
-                      Reject
-                    </button>
-                  </div>
-                </dd>
-              </div>
-              <div>
-                <dt class="text-xs text-base-content/50">Leases</dt>
-                <dd id="resource-leases">
-                  <p :if={@lease_previews == []} class="text-base-content/50">No active leases.</p>
-                  <p :for={{lease, overlaps} <- @lease_previews} id={"lease-#{lease.id}"}>
-                    {lease.mode} {lease.resource_type}:{lease.resource_key}
-                    <span :if={match?([_ | _], overlaps)} class="text-warning">
-                      overlaps {Enum.join(overlaps, ", ")}
-                    </span>
-                  </p>
-                </dd>
-              </div>
-              <div>
-                <dt class="text-xs text-base-content/50">Tasks</dt>
-                <dd id="task-conversation">
-                  <p :if={@tasks == []} class="text-base-content/50">None</p>
-                  <div :for={task <- @tasks} id={"task-#{task.id}"} class="mb-2">
-                    <p>
-                      {task.title} · {task.status}
-                      <span :if={match?([_ | _], Map.get(@task_deps, task.id, []))} class="text-xs">
-                        waits on {Enum.join(Map.get(@task_deps, task.id, []), ", ")}
-                      </span>
-                    </p>
-                    <button
-                      :if={task.status not in ["completed", "failed", "cancelled", "rejected"]}
-                      type="button"
-                      phx-click="complete_task"
-                      phx-value-id={task.id}
-                      class="btn btn-xs"
-                    >
-                      Complete
-                    </button>
-                  </div>
-                  <form id="create-task" phx-submit="create_task" class="mt-2 space-y-1">
-                    <input
-                      name="title"
-                      class="input input-bordered input-xs w-full"
-                      placeholder="New task"
-                    />
-                    <.button class="btn btn-xs">Add task</.button>
-                  </form>
-                  <form
-                    :if={match?([_, _ | _], @tasks)}
-                    id="add-task-dependency"
-                    phx-submit="add_task_dependency"
-                    class="mt-2 space-y-1"
-                  >
-                    <select name="task_id" class="select select-bordered select-xs w-full">
-                      <option :for={task <- @tasks} value={task.id}>{task.title}</option>
-                    </select>
-                    <select name="depends_on_id" class="select select-bordered select-xs w-full">
-                      <option :for={task <- @tasks} value={task.id}>{task.title}</option>
-                    </select>
-                    <.button class="btn btn-xs">Wait on</.button>
-                  </form>
-                  <form id="run-workflow" phx-submit="run_workflow" class="mt-2 space-y-1">
-                    <input
-                      name="name"
-                      class="input input-bordered input-xs w-full"
-                      placeholder="Workflow name"
-                    />
-                    <textarea
-                      name="steps"
-                      class="textarea textarea-bordered textarea-xs w-full"
-                      placeholder="Design\nImplement\nReview"
-                    />
-                    <.button class="btn btn-xs">Save and run workflow</.button>
-                  </form>
-                  <div :if={@workflows != []} id="workflow-list" class="mt-2 space-y-1">
-                    <button
-                      :for={workflow <- @workflows}
-                      type="button"
-                      phx-click="instantiate_workflow"
-                      phx-value-id={workflow.id}
-                      class="btn btn-xs btn-ghost"
-                    >
-                      Run {workflow.name}
-                    </button>
-                  </div>
-                </dd>
-              </div>
-              <div>
-                <dt class="text-xs text-base-content/50">Messages</dt>
-                <dd id="message-panel">
-                  <p :if={@messages == []} class="text-base-content/50">None</p>
-                  <p :for={message <- @messages}>{message.scope} · {message.body}</p>
-                </dd>
-              </div>
-              <div>
-                <dt class="text-xs text-base-content/50">Artifacts</dt>
-                <dd id="artifact-panel">
-                  <p :if={@artifacts == []} class="text-base-content/50">None</p>
-                  <p :for={artifact <- @artifacts}>{artifact.name} · {artifact.state}</p>
-                </dd>
-              </div>
-              <div>
-                <dt class="text-xs text-base-content/50">Merge queue</dt>
-                <dd id="merge-queue">
-                  <p :if={@merge_queue == []} class="text-base-content/50">None</p>
-                  <div :for={item <- @merge_queue} id={"merge-item-#{item.id}"} class="mb-2">
-                    <p>
-                      {item.status} · {item.summary}
-                    </p>
-                    <p class="text-xs">
-                      {item.branch_name} → {item.target_ref} · policy {item.policy_status}
-                    </p>
-                    <p
-                      :if={item.policy_status == "failed"}
-                      class="text-warning text-xs"
-                    >
-                      Checks blocked merge
-                    </p>
-                    <button
-                      :if={item.status == "queued"}
-                      type="button"
-                      phx-click="accept_queue_item"
-                      phx-value-artifact_id={item.artifact_id}
-                      class="btn btn-xs"
-                    >
-                      Accept
-                    </button>
-                    <button
-                      :if={item.status in ["queued", "accepted"]}
-                      type="button"
-                      phx-click="reject_queue_item"
-                      phx-value-artifact_id={item.artifact_id}
-                      class="btn btn-xs"
-                    >
-                      Reject
-                    </button>
-                    <button
-                      :if={
-                        item.status == "accepted" and item.policy_status == "passed" and
-                          @confirm_merge_id != item.id
-                      }
-                      type="button"
-                      id={"confirm-merge-#{item.id}"}
-                      phx-click="confirm_merge"
-                      phx-value-id={item.id}
-                      class="btn btn-xs"
-                    >
-                      Merge
-                    </button>
-                    <button
-                      :if={@confirm_merge_id == item.id}
-                      type="button"
-                      id={"merge-#{item.id}"}
-                      phx-click="merge_queue_item"
-                      phx-value-id={item.id}
-                      class="btn btn-xs btn-error"
-                    >
-                      Confirm merge
-                    </button>
-                    <button
-                      :if={@confirm_merge_id == item.id}
-                      type="button"
-                      phx-click="cancel_merge"
-                      class="btn btn-xs"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </dd>
-              </div>
-              <div>
-                <dt class="text-xs text-base-content/50">Worktree</dt>
-                <dd id="worktree-panel">
-                  <p :if={@unexpected_edits != []} id="unexpected-edits" class="text-warning">
-                    Unexpected main-tree edits: {length(@unexpected_edits)}
-                  </p>
-                  <p :if={!@active_worktree} class="text-base-content/50">No isolated worktree.</p>
-                  <div :if={@active_worktree}>
-                    <p>{@active_worktree.branch_name} · {@active_worktree.status}</p>
-                    <pre id="worktree-diff" class="max-h-32 overflow-auto text-xs">{@worktree_diff}</pre>
-                    <form id="commit-worktree" phx-submit="commit_worktree" class="mt-2 space-y-1">
-                      <input
-                        name="message"
-                        class="input input-bordered input-xs w-full"
-                        placeholder="Commit message"
-                      />
-                      <.button class="btn btn-xs">Commit</.button>
-                    </form>
-                    <form id="publish-handoff" phx-submit="publish_handoff" class="mt-1 space-y-1">
-                      <input
-                        name="summary"
-                        class="input input-bordered input-xs w-full"
-                        placeholder="Handoff summary"
-                      />
-                      <.button class="btn btn-xs">Handoff</.button>
-                    </form>
-                    <button
-                      :if={!@confirm_cleanup}
-                      type="button"
-                      id="cleanup-worktree"
-                      phx-click="cleanup_worktree"
-                      class="btn btn-ghost btn-xs mt-1"
-                    >
-                      Cleanup worktree
-                    </button>
-                    <button
-                      :if={@confirm_cleanup}
-                      type="button"
-                      id="confirm-cleanup-worktree"
-                      phx-click="confirm_cleanup"
-                      class="btn btn-error btn-xs mt-1"
-                    >
-                      Confirm cleanup
-                    </button>
-                  </div>
-                </dd>
-              </div>
-              <div>
-                <dt class="text-xs text-base-content/50">Usage</dt>
-                <dd id="usage-panel">
-                  <p>
-                    {@usage["input_tokens"]} in / {@usage["output_tokens"]} out / {@usage[
-                      "total_tokens"
-                    ]} total
-                  </p>
-                  <p class="text-xs">{@usage["cost_cents"]} cents</p>
-                </dd>
-              </div>
-              <div>
-                <dt class="text-xs text-base-content/50">Search</dt>
-                <dd id="search-panel">
-                  <p id="search-status">
-                    {@search_status.status} · {@search_status.adapter}
-                  </p>
-                  <form id="project-search" phx-submit="search_project" class="mt-1 space-y-1">
-                    <input
-                      name="q"
-                      value={@search_query}
-                      class="input input-bordered input-xs w-full"
-                      placeholder="Search project"
-                      aria-label="Search project"
-                    />
-                    <.button class="btn btn-xs">Search</.button>
-                  </form>
-                  <button
-                    type="button"
-                    id="rebuild-search"
-                    phx-click="rebuild_search"
-                    class="btn btn-ghost btn-xs mt-1"
-                    aria-label="Rebuild search index"
-                  >
-                    Rebuild index
-                  </button>
-                  <p :if={@search_results == []} class="text-base-content/50">No search results.</p>
-                  <p :for={hit <- @search_results} class="text-xs">
-                    {hit.title} · {hit.source}
-                  </p>
-                </dd>
-              </div>
-              <div>
-                <dt class="text-xs text-base-content/50">Team sync</dt>
-                <dd id="sync-panel">
-                  <button
-                    type="button"
-                    id="export-sync"
-                    phx-click="export_sync"
-                    class="btn btn-ghost btn-xs"
-                    aria-label="Export sync bundle"
-                  >
-                    Export bundle
-                  </button>
-                  <p :if={@sync_path} id="sync-path" class="break-all text-xs">{@sync_path}</p>
-                  <form id="import-sync" phx-submit="import_sync" class="mt-1 space-y-1">
-                    <input
-                      name="path"
-                      class="input input-bordered input-xs w-full"
-                      placeholder="Path to bundle.json"
-                      aria-label="Sync bundle path"
-                    />
-                    <.button class="btn btn-xs">Import bundle</.button>
-                  </form>
-                </dd>
-              </div>
-              <div>
-                <dt class="text-xs text-base-content/50">A2A</dt>
-                <dd>
-                  Agent Cards, delegations, durable messages, leases, and artifacts persist in SQLite.
-                </dd>
-              </div>
-            </dl>
-          </aside>
-        </div>
-      </main>
-    </div>
-
-    <Layouts.flash_group flash={@flash} />
-    """
-  end
-
-  defp theme_toggle(assigns) do
-    ~H"""
-    <div class="flex items-center justify-between gap-1">
-      <button
-        type="button"
-        class="btn btn-ghost btn-xs"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="light"
-        aria-label="Light theme"
-      >
-        <.icon name="hero-sun-micro" class="size-4" />
-      </button>
-      <button
-        type="button"
-        class="btn btn-ghost btn-xs"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="dark"
-        aria-label="Dark theme"
-      >
-        <.icon name="hero-moon-micro" class="size-4" />
-      </button>
-    </div>
-    """
+    AgentDeskWeb.WorkspaceHTML.render(assigns)
   end
 end
