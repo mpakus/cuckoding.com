@@ -6,6 +6,7 @@ use tauri::Manager;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 
 use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::sync::Mutex;
@@ -249,6 +250,40 @@ fn random_hex<const N: usize>() -> String {
     bytes.iter().map(|byte| format!("{:02x}", byte)).collect()
 }
 
+// Prefer Tauri's sidecar resolver. On macOS it uses StartingBinary, which
+// rejects current_exe() paths whose ancestors are symlinks — including /var
+// -> /private/var. Cursor's cargo cache lives under /var/folders, so fall
+// back to a canonical sibling `desktop` binary without that check.
+fn desktop_sidecar(app: &tauri::AppHandle) -> tauri_plugin_shell::process::Command {
+    match app.shell().sidecar("desktop") {
+        Ok(command) => command,
+        Err(error) => {
+            let path = canonical_desktop_sidecar();
+            eprintln!(
+                "sidecar(\"desktop\") failed ({error}); using {}",
+                path.display()
+            );
+            app.shell().command(path)
+        }
+    }
+}
+
+fn canonical_desktop_sidecar() -> PathBuf {
+    let exe = std::env::current_exe().expect("current_exe unavailable");
+    let resolved = exe.canonicalize().unwrap_or(exe);
+    let exe_dir = resolved
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| PathBuf::from("."));
+    let base_dir = if exe_dir.ends_with("deps") {
+        exe_dir.parent().map(Path::to_path_buf).unwrap_or(exe_dir)
+    } else {
+        exe_dir
+    };
+    let sidecar = base_dir.join("desktop");
+    sidecar.canonicalize().unwrap_or(sidecar)
+}
+
 fn start_server(app: &tauri::AppHandle, port: u16, control_token: &str) {
     // PORT and SECRET_KEY_BASE are always injected: every server needs a port,
     // and SECRET_KEY_BASE is a random per-launch secret (inert if unused). The
@@ -262,9 +297,7 @@ fn start_server(app: &tauri::AppHandle, port: u16, control_token: &str) {
         ("PHX_HOST".to_string(), "127.0.0.1".to_string()),
     ]);
 
-    let sidecar_command = app.shell().sidecar("desktop")
-        .expect("failed to setup `desktop` sidecar")
-        .envs(env);
+    let sidecar_command = desktop_sidecar(app).envs(env);
 
     let (mut rx, child) = sidecar_command
         .spawn()

@@ -6,5 +6,8 @@ root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$root"
 
 export MIX_ENV="${MIX_ENV:-dev}"
+# Keep the Tauri host off /var (macOS /var -> /private/var). Tauri's StartingBinary
+# rejects current_exe() paths that contain a symlink, which aborts sidecar setup.
+export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$root/src-tauri/target}"
 
 exec mix ex_tauri.dev "$@"
