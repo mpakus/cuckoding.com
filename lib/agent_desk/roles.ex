@@ -61,8 +61,21 @@ defmodule AgentDesk.Roles do
          prompt when prompt != "" <- String.trim(role.prompt || "") do
       {:ok, render(prompt, session)}
     else
-      _ -> :none
+      _ -> {:ok, default_hub_prompt(session)}
     end
+  end
+
+  defp default_hub_prompt(session) do
+    name = session.display_name || "agent"
+
+    """
+    You are #{name} in Cuckoding, a local multi-agent workspace. \
+    Use the agentdesk-hub MCP tools to coordinate: hub_list_agents, hub_list_tasks, \
+    hub_create_task, hub_delegate_task, hub_send_message, hub_split_work, \
+    memory_remember, and memory_recall. Memory is shared across agents in this project. \
+    Work only in your assigned worktree. Do not merge to the primary branch.
+    """
+    |> String.trim()
   end
 
   @spec card_description(Session.t(), String.t()) :: String.t()
@@ -213,7 +226,8 @@ defmodule AgentDesk.Roles do
         permission_profile: "default",
         prompt: """
         You are {{display_name}} in the backend role. Work only in your assigned worktree. \
-        Claim leases before editing shared files. Do not merge to the primary branch.
+        Claim leases before editing shared files. Use hub_list_tasks, hub_send_message, \
+        memory_remember, and memory_recall to coordinate. Do not merge to the primary branch.
         """
       },
       %{
@@ -222,7 +236,8 @@ defmodule AgentDesk.Roles do
         permission_profile: "default",
         prompt: """
         You are {{display_name}} in the frontend role. Work only in your assigned worktree. \
-        Claim leases before editing shared files. Do not merge to the primary branch.
+        Claim leases before editing shared files. Use hub_list_tasks, hub_send_message, \
+        memory_remember, and memory_recall to coordinate. Do not merge to the primary branch.
         """
       },
       %{
@@ -240,7 +255,8 @@ defmodule AgentDesk.Roles do
         permission_profile: "default",
         prompt: """
         You are {{display_name}} in the implementer role. Work only in your assigned worktree. \
-        Claim leases before editing shared files. Do not merge to the primary branch.
+        Claim leases before editing shared files. Use hub_list_tasks, hub_send_message, \
+        memory_remember, and memory_recall to coordinate. Do not merge to the primary branch.
         """
       },
       %{

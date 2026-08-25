@@ -6,7 +6,7 @@ XERJ is AgentDesk's optional local search and long-term memory engine. It is not
 
 ```mermaid
 flowchart TD
-    Agents["Codex / Claude / Cursor / OpenCode"] --> MCP["Agent Hub MCP"]
+    Agents["Codex / Claude / Cursor / OpenCode"] --> MCP["Per-session Agent Hub MCP"]
     MCP --> HUB["Internal A2A Hub"]
     HUB --> Indexer["AgentDesk search adapter"]
     Sources["Code, A2A artifacts, handoffs, events"] --> Indexer
@@ -46,7 +46,7 @@ Implemented adapters:
 
 | Config `:search, adapter:` | Module | When |
 | --- | --- | --- |
-| `:auto` | XERJ if a binary is found and `:9200` is free, else projection | Development default |
+| `:auto` | SQLite projection unless the XERJ feature is on and a binary is found | Development default. Memory and search stay available without XERJ |
 | `:projection` | `AgentDesk.Search.Projection` | Tests / CI |
 | `:xerj` | `AgentDesk.Search.Xerj` | Feature flag `features: [xerj: true]` and owned process |
 | `:disabled` | `AgentDesk.Search.Disabled` | Explicit off |
@@ -125,7 +125,7 @@ The text stored with the memory must be concise and independently understandable
 5. Mark search ready.
 6. Watch project changes and debounce incremental/re-index work.
 7. Persist indexing status in SQLite.
-8. On corruption or version incompatibility, stop, quarantine/rebuild derived data, and continue without search.
+8. On XERJ corruption or version incompatibility, stop that process, quarantine/rebuild derived data, and keep using the SQLite projection.
 
 Indexing is asynchronous and must never block opening a project or starting an agent.
 
@@ -167,7 +167,7 @@ XERJ is a single executable and its repository is Apache-2.0 licensed, which is 
 
 ## 11. Failure behavior
 
-- If XERJ is missing: show search disabled and offer setup.
+- If XERJ is missing or the feature is off: show search as off, not as an error, and offer setup.
 - If startup fails: retry with bounded exponential backoff.
 - If health fails repeatedly: open a circuit and keep core coordination running.
 - If a query times out: return `search_unavailable` or partial results explicitly.

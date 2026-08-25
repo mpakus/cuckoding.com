@@ -343,7 +343,7 @@ Accepting a delegation and updating `tasks.assigned_agent_id/status/lock_version
 | `agent_session_id` | UUID/text | Nullable FK, unique while active |
 | `path` | text | Required normalized absolute path |
 | `branch_name` | text | Required |
-| `base_commit` | text | Required Git object ID |
+| `base_commit` | text | Required Git object ID. When the primary `HEAD` is unborn, this is the orphan-commit SHA on the agent branch, or the empty-tree SHA `4b825dc642cb6eb9a060e54bf8d69288fbee4904` |
 | `head_commit` | text | Nullable |
 | `status` | text | `creating`, `ready`, `dirty`, `handed_off`, `conflicted`, `stale`, `removing`, `removed` |
 | `app_owned` | boolean | Must be true before automated cleanup |

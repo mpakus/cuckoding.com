@@ -27,7 +27,7 @@ LiveView is split by role:
 └──────────────────┴──────────────────────────────────────────┴───────────────┘
 ```
 
-The implementation uses responsive LiveView components; the diagram describes information architecture, not fixed pixel dimensions.
+The implementation uses responsive LiveView components; the diagram describes information architecture, not fixed pixel dimensions. Below about 1100px the project and context rails collapse into labeled drawers (`Project` / `Context`) so the active session, activity, composer, and attention bar stay visible, including at 200% zoom.
 
 Visual language (dark):
 
@@ -55,7 +55,7 @@ Visual language (dark):
 
 Each agent session is **one compact tab** in the main strip (name + status dot; close is inside the tab). Dashboard is a tab. Agent tabs share the remaining strip and shrink so every open agent stays visible; `+` stays on the right. Duplicate names get a short id suffix. Sidebar Agents and Agent Cards open that tab. The prompt and activity in the center belong to the selected tab only.
 
-Each agent tab shows a prompt composer. Attach files with the Attach control, or paste/drop images the same way Cursor does. Images are sent as provider image input; other files are stored under the session data directory and referenced by path. Isolated worktrees may also receive a copy under `.cuckoding-inbox`. The primary tree is never used as an inbox.
+Each agent tab shows a prompt composer. Prompts sent while the session is `starting` queue until handshake completes. After a failed handshake, Resume starts a new worker; the composer is not available on the Dashboard. Attach files with the Attach control, or paste/drop images the same way Cursor does. Images are sent as provider image input; other files are stored under the session data directory and referenced by path. Isolated worktrees may also receive a copy under `.cuckoding-inbox`. The primary tree is never used as an inbox.
 
 The prompt and activity in the center belong to the selected tab only.
 
@@ -70,6 +70,8 @@ The prompt and activity in the center belong to the selected tab only.
 - unread coordination indicator;
 - current A2A context and delivery state;
 - lease-conflict and approval badges.
+
+Pending approvals and blocking errors also appear in a compact attention bar near the active-session status. Peer Message / Delegate / Review uses a small compose form (recipient, purpose, confirm) rather than one-click canned actions.
 
 ### Context panel
 
@@ -94,14 +96,14 @@ Browse the official ACP Registry (bundled snapshot, refresh from CDN). Search an
 
 ### Dashboard
 
-The Dashboard tab reports BEAM runtime memory, SQLite size and row counts, search/XERJ health, memory namespaces (shared / agent / task / context), and usage (tokens, cost, messages, artifacts, events). XERJ is a projection; missing search never hides SQLite coordination rows.
+The Dashboard tab reports BEAM runtime memory, SQLite size and row counts, search/XERJ health, memory namespaces (shared / agent / task / context), and usage (tokens, cost, messages, artifacts, events). XERJ is a projection; missing search never hides SQLite coordination rows. The Dashboard has no prompt composer.
 
 ## 3. Agent state presentation
 
 | State | Visual behavior | Allowed primary actions |
 | --- | --- | --- |
 | `queued` | Neutral | Cancel |
-| `starting` | Progress | Cancel |
+| `starting` | Progress | Cancel; prompts queue until ready |
 | `idle` | Ready | Send prompt, terminate |
 | `working` | Active | Steer if supported, interrupt |
 | `waiting` | Muted active | Send input, interrupt |
@@ -110,7 +112,7 @@ The Dashboard tab reports BEAM runtime memory, SQLite size and row counts, searc
 | `failed` | Error | View diagnostics, retry/resume |
 | `interrupted` | Warning | Resume, terminate |
 | `terminating` | Progress | Wait; force action appears after timeout |
-| `terminated` | Inactive | Archive, create new session |
+| `terminated` | Inactive | Close tab, create new session |
 
 Color is never the only state indicator.
 
@@ -122,17 +124,17 @@ The default view renders structured cards. Streamed provider tokens (`message_de
 - reasoning summary when the provider exposes one appropriately;
 - command with expandable output;
 - file change with diff link;
-- MCP tool call;
-- approval request;
+- MCP tool call with a title (failed calls include the reason; empty started/completed noise is omitted);
+- approval request (never a raw protocol dump);
 - lease acquisition/conflict/release;
 - message/handoff;
 - Agent Card or delegation update;
 - artifact publication or integrity warning;
-- error or provider exit.
+- error or provider exit, with a reason when the provider sent one.
 
 Users can switch to a raw diagnostic view, but raw protocol payloads are not the primary interface.
 
-The stream must be bounded and virtualized. Older activity is loaded from persistence on demand.
+The visible activity stream is bounded (latest cards in the socket). Older activity is loaded from persistence on demand. It is not a virtualized infinite scroller.
 
 ## 5. Task flow
 

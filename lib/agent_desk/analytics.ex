@@ -188,7 +188,15 @@ defmodule AgentDesk.Analytics do
   defp namespace_kind(_, _), do: "other"
 
   defp health_label(:ok), do: "ok"
-  defp health_label({:error, reason}), do: inspect(reason)
+  defp health_label({:error, :unavailable}), do: "unavailable"
+
+  defp health_label({:error, reason}) when is_atom(reason),
+    do: reason |> Atom.to_string() |> String.replace("_", " ")
+
+  defp health_label({:error, reason}) when is_binary(reason), do: reason
+  defp health_label({:error, _reason}), do: "unavailable"
+  defp health_label(label) when is_binary(label), do: label
+  defp health_label(_), do: "unavailable"
 
   defp repo_path do
     :agent_desk

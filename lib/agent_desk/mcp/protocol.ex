@@ -4,8 +4,8 @@ defmodule AgentDesk.MCP.Protocol do
   """
 
   alias AgentDesk.A2A
+  alias AgentDesk.A2A.Idempotency
   alias AgentDesk.Agents.Session
-  alias AgentDesk.Ids
   alias AgentDesk.Projects
   alias AgentDesk.Resources.Manager
   alias AgentDesk.Scope
@@ -61,6 +61,26 @@ defmodule AgentDesk.MCP.Protocol do
     "memory_forget"
   ]
 
+  @read_only_tools ~w(
+    hub_list_agents
+    hub_get_agent_card
+    hub_find_agents
+    hub_list_tasks
+    hub_get_task
+    hub_list_delegations
+    hub_list_task_graph
+    hub_list_workflows
+    hub_crew_status
+    hub_list_roles
+    hub_list_resources
+    hub_isolation
+    hub_list_inbox
+    hub_get_artifact
+    hub_list_merge_queue
+    project_search
+    memory_recall
+  )
+
   @spec handle(Session.t(), map()) :: {:ok, map()} | {:error, map()}
   def handle(%Session{} = session, %{"method" => method} = msg) do
     id = Map.get(msg, "id")
@@ -88,7 +108,7 @@ defmodule AgentDesk.MCP.Protocol do
       session
       |> Permissions.filter_tools(@tools)
       |> Enum.map(fn name ->
-        %{"name" => name, "description" => name, "inputSchema" => %{"type" => "object"}}
+        %{"name" => name, "description" => name, "inputSchema" => input_schema(name)}
       end)
 
     {:ok, %{"tools" => tools}}
@@ -105,6 +125,7 @@ defmodule AgentDesk.MCP.Protocol do
 
   defp call_tool(session, name, args) do
     with true <- Permissions.allowed?(session, name),
+         :ok <- require_mutating_key(name, args),
          {:ok, project} <- Projects.get_project(session.project_id) do
       scope = Scope.for_agent(project, session)
       tool(scope, name, args)
@@ -157,7 +178,7 @@ defmodule AgentDesk.MCP.Protocol do
         task_id: args["task_id"],
         to_agent_id: args["recipient_agent_id"],
         reason: args["description"] || args["title"] || "delegate",
-        idempotency_key: args["idempotency_key"] || Ids.generate()
+        idempotency_key: args["idempotency_key"]
       })
     )
   end
@@ -229,12 +250,15 @@ defmodule AgentDesk.MCP.Protocol do
   defp tool(scope, "hub_claim_resources", args) do
     resources = args["resources"] || []
     opts = [reason: args["reason"] || "claim", ttl_seconds: args["ttl_seconds"] || 300]
+    canonical = %{resources: resources, reason: opts[:reason], ttl_seconds: opts[:ttl_seconds]}
 
-    case Manager.claim(scope, resources, opts) do
-      {:ok, leases} -> {:ok, %{"granted" => true, "leases" => Enum.map(leases, &lease_map/1)}}
-      {:error, {:conflict, conflicts}} -> {:ok, %{"granted" => false, "conflicts" => conflicts}}
-      {:error, reason} -> {:error, reason}
-    end
+    with_idempotency(scope, "claim_resources", args, canonical, fn ->
+      case Manager.claim(scope, resources, opts) do
+        {:ok, leases} -> {:ok, %{"granted" => true, "leases" => Enum.map(leases, &lease_map/1)}}
+        {:error, {:conflict, conflicts}} -> {:ok, %{"granted" => false, "conflicts" => conflicts}}
+        {:error, reason} -> {:error, reason}
+      end
+    end)
   end
 
   defp tool(scope, "hub_release_resources", args) do
@@ -258,18 +282,24 @@ defmodule AgentDesk.MCP.Protocol do
   end
 
   defp tool(scope, "hub_publish_artifact", args) do
-    wrap(
-      A2A.publish_artifact(scope, %{
-        context_id: args["context_id"],
-        task_id: args["task_id"],
-        kind: args["kind"] || "other",
-        name: args["name"],
-        mime_type: args["mime_type"] || "application/octet-stream",
-        path: args["path"],
-        sha256: args["sha256"],
-        size_bytes: args["size_bytes"] || 0
-      })
-    )
+    attrs = %{
+      context_id: args["context_id"],
+      task_id: args["task_id"],
+      kind: args["kind"] || "other",
+      name: args["name"],
+      mime_type: args["mime_type"] || "application/octet-stream",
+      path: args["path"],
+      sha256: args["sha256"],
+      size_bytes: args["size_bytes"] || 0,
+      revision_of_id: args["revision_of_id"]
+    }
+
+    with_idempotency(scope, "publish_artifact", args, attrs, fn ->
+      case A2A.publish_artifact(scope, attrs) do
+        {:ok, artifact} -> {:ok, encode(artifact)}
+        error -> error
+      end
+    end)
   end
 
   defp tool(scope, "hub_subscribe_task", args) do
@@ -323,14 +353,19 @@ defmodule AgentDesk.MCP.Protocol do
 
   defp tool(scope, "hub_create_task", args) do
     with {:ok, context} <- fetch_context(scope, args["context_id"]) do
-      wrap(
-        A2A.create_task(scope, context, %{
-          title: args["title"],
-          description: args["description"],
-          depends_on: List.wrap(args["depends_on"]),
-          parent_task_id: args["parent_task_id"]
-        })
-      )
+      attrs = %{
+        title: args["title"],
+        description: args["description"],
+        depends_on: List.wrap(args["depends_on"]),
+        parent_task_id: args["parent_task_id"]
+      }
+
+      with_idempotency(scope, "create_task", args, attrs, fn ->
+        case A2A.create_task(scope, context, attrs) do
+          {:ok, task} -> {:ok, encode(task)}
+          error -> error
+        end
+      end)
     end
   end
 
@@ -425,7 +460,7 @@ defmodule AgentDesk.MCP.Protocol do
         task_id: args["task_id"],
         to_agent_id: args["recipient_agent_id"],
         reason: args["reason"] || "Please review",
-        idempotency_key: args["idempotency_key"] || Ids.generate()
+        idempotency_key: args["idempotency_key"]
       })
     )
   end
@@ -436,12 +471,21 @@ defmodule AgentDesk.MCP.Protocol do
     Enum.find(A2A.list_tasks(scope), &(&1.id == id))
   end
 
-  defp fetch_context(scope, id) do
-    case AgentDesk.Repo.get_by(AgentDesk.A2A.Context, id: id, project_id: scope.project.id) do
-      nil -> {:error, :not_found}
-      context -> {:ok, context}
+  defp fetch_context(scope, id) when is_binary(id) do
+    with {:ok, _uuid} <- Ecto.UUID.cast(id) do
+      case AgentDesk.Repo.get_by(AgentDesk.A2A.Context,
+             id: id,
+             project_id: scope.project.id
+           ) do
+        nil -> {:error, :not_found}
+        context -> {:ok, context}
+      end
+    else
+      :error -> {:error, :not_found}
     end
   end
+
+  defp fetch_context(_scope, _id), do: {:error, :not_found}
 
   defp run_context(scope, id) when is_binary(id) and id != "", do: fetch_context(scope, id)
   defp run_context(scope, _), do: A2A.ensure_working_context(scope)
@@ -506,6 +550,37 @@ defmodule AgentDesk.MCP.Protocol do
       parts: args["parts"],
       kind: args["kind"] || "coordination"
     }
+  end
+
+  defp require_mutating_key(name, args) do
+    if name in @read_only_tools do
+      :ok
+    else
+      case args["idempotency_key"] do
+        key when is_binary(key) and key != "" -> :ok
+        _ -> {:error, :missing_idempotency_key}
+      end
+    end
+  end
+
+  defp input_schema(name) when name in @read_only_tools do
+    %{"type" => "object"}
+  end
+
+  defp input_schema(_name) do
+    %{
+      "type" => "object",
+      "required" => ["idempotency_key"],
+      "properties" => %{"idempotency_key" => %{"type" => "string"}}
+    }
+  end
+
+  defp with_idempotency(scope, operation, args, canonical, fun) do
+    Idempotency.transact(scope, operation, args["idempotency_key"], canonical, fun)
+    |> case do
+      {:ok, _kind, payload} -> {:ok, payload}
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   defp error_payload(id, reason) do

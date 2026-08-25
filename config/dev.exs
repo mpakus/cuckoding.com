@@ -2,6 +2,7 @@ import Config
 
 config :agent_desk, :data_root, Path.expand("../tmp/dev-data", __DIR__)
 config :agent_desk, :inherit_login_path, true
+config :agent_desk, :control_auth, mode: :development
 
 # Configure your database
 config :agent_desk, AgentDesk.Repo,
@@ -20,7 +21,6 @@ config :agent_desk, AgentDeskWeb.Endpoint,
   # Binding to loopback ipv4 address prevents access from other machines.
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
   http: [ip: {127, 0, 0, 1}, port: String.to_integer(System.get_env("PORT") || "4000")],
-  check_origin: false,
   code_reloader: true,
   debug_errors: true,
   secret_key_base: "YCvrGcfw+KwHyeOyaSWAquUELqwYuSBbl+SbAhNP546CqevmcRcZ+ig0idcl+Qjk",

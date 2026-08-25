@@ -10,6 +10,8 @@ defmodule AgentDesk.A2A do
 
   alias AgentDesk.A2A.AgentCard
   alias AgentDesk.A2A.Artifact
+  alias AgentDesk.A2A.ArtifactFile
+  alias AgentDesk.A2A.Authorization
   alias AgentDesk.A2A.Context
   alias AgentDesk.A2A.Delegation
   alias AgentDesk.A2A.Delivery
@@ -21,7 +23,6 @@ defmodule AgentDesk.A2A do
   alias AgentDesk.A2A.Participant
   alias AgentDesk.A2A.Policy
   alias AgentDesk.A2A.Task
-  alias AgentDesk.Agents
   alias AgentDesk.Agents.Session
   alias AgentDesk.Clock
   alias AgentDesk.Correlation
@@ -78,6 +79,7 @@ defmodule AgentDesk.A2A do
   @spec create_task(Scope.t(), Context.t(), map()) :: {:ok, Task.t()} | {:error, term()}
   def create_task(%Scope{project: project} = scope, %Context{} = context, attrs) do
     with :ok <- context_in_project(context, project),
+         :ok <- Authorization.authorize_task_creation(scope, context),
          {:ok, task} <- insert_task(scope, context, attrs),
          :ok <- link_dependencies(scope, task, dependency_ids(attrs)) do
       {:ok, Repo.get!(Task, task.id)}
@@ -163,6 +165,53 @@ defmodule AgentDesk.A2A do
   defdelegate subscribe_task(scope, task_id), to: Lifecycle
   defdelegate expire_due_delegations(project_id), to: Lifecycle
 
+  @spec reconcile_project(Ecto.UUID.t()) :: :ok
+  def reconcile_project(project_id) when is_binary(project_id) do
+    now = Clock.utc_now()
+    interrupted_reason = "interrupted by project restart"
+    uncertain_reason = "delivery injection outcome uncertain after project restart"
+
+    interrupted_sessions =
+      from(s in Session,
+        where: s.project_id == ^project_id and s.status == "interrupted",
+        select: s.id
+      )
+
+    from(t in Task,
+      where:
+        t.project_id == ^project_id and
+          t.assigned_agent_id in subquery(interrupted_sessions) and
+          t.status in [
+            "queued",
+            "assigned",
+            "working",
+            "input_required",
+            "auth_required",
+            "blocked",
+            "review"
+          ] and
+          (is_nil(t.status_reason) or t.status_reason != ^interrupted_reason)
+    )
+    |> Repo.update_all(
+      set: [status: "blocked", status_reason: interrupted_reason, updated_at: now],
+      inc: [lock_version: 1]
+    )
+
+    project_messages =
+      from(m in Message, where: m.project_id == ^project_id, select: m.id)
+
+    from(d in Delivery,
+      where:
+        d.message_id in subquery(project_messages) and
+          d.agent_session_id in subquery(interrupted_sessions) and
+          d.state == "injected" and
+          is_nil(d.acknowledged_at)
+    )
+    |> Repo.update_all(set: [state: "pending", last_error: uncertain_reason, updated_at: now])
+
+    :ok
+  end
+
   @spec list_delegations(Scope.t()) :: [Delegation.t()]
   def list_delegations(%Scope{project: project}) do
     Delegation
@@ -226,9 +275,8 @@ defmodule AgentDesk.A2A do
 
   @spec publish_artifact(Scope.t(), map()) :: {:ok, Artifact.t()} | {:error, term()}
   def publish_artifact(%Scope{project: project, agent_session: session} = scope, attrs) do
-    with :ok <- same_project(scope) do
-      %Artifact{}
-      |> Artifact.changeset(%{
+    changeset =
+      Artifact.changeset(%Artifact{}, %{
         id: Ids.generate(),
         project_id: project.id,
         context_id: Map.fetch!(attrs, :context_id),
@@ -244,9 +292,25 @@ defmodule AgentDesk.A2A do
         revision_of_id: Map.get(attrs, :revision_of_id),
         metadata: Map.get(attrs, :metadata, %{})
       })
+
+    with :ok <- same_project(scope),
+         :ok <- Authorization.authorize_artifact_publication(scope, attrs),
+         :ok <- valid_artifact_changeset(changeset),
+         {:ok, file_attrs} <-
+           ArtifactFile.validate_publication(
+             scope,
+             Map.fetch!(attrs, :path),
+             Map.fetch!(attrs, :size_bytes),
+             Map.fetch!(attrs, :sha256)
+           ) do
+      changeset
+      |> Ecto.Changeset.change(file_attrs)
       |> Repo.insert()
     end
   end
+
+  defp valid_artifact_changeset(%Ecto.Changeset{valid?: true}), do: :ok
+  defp valid_artifact_changeset(%Ecto.Changeset{} = changeset), do: {:error, changeset}
 
   defp insert_card(project_id, session_id, attrs, revision, now) do
     %AgentCard{}
@@ -268,8 +332,9 @@ defmodule AgentDesk.A2A do
   end
 
   defp do_propose_delegation(%Scope{project: project} = scope, from, attrs, key) do
-    with {:ok, to} <- Agents.get_session(scope, Map.fetch!(attrs, :to_agent_id)),
+    with {:ok, to} <- Authorization.eligible_recipient(scope, Map.fetch!(attrs, :to_agent_id)),
          {:ok, task} <- fetch_task(project.id, Map.fetch!(attrs, :task_id)),
+         :ok <- Authorization.authorize_delegation_proposal(scope, task),
          :ok <- Policy.check_delegation(project.id, from.id, task) do
       correlation =
         Correlation.new(
@@ -321,42 +386,44 @@ defmodule AgentDesk.A2A do
          decision,
          attrs
        ) do
-    delegation = Repo.get_by!(Delegation, id: delegation_id, project_id: project.id)
+    with {:ok, _recipient} <-
+           Authorization.eligible_recipient(Scope.for_agent(project, session), session.id),
+         {:ok, delegation} <- fetch_delegation(project.id, delegation_id) do
+      cond do
+        delegation.to_agent_id != session.id ->
+          {:error, :forbidden}
 
-    cond do
-      delegation.to_agent_id != session.id ->
-        {:error, :forbidden}
+        delegation.status != "proposed" ->
+          {:error, :invalid_state}
 
-      delegation.status != "proposed" ->
-        {:error, :invalid_state}
+        true ->
+          now = Clock.utc_now()
 
-      true ->
-        now = Clock.utc_now()
-
-        delegation_cs =
-          delegation
-          |> Delegation.changeset(%{
-            status: decision,
-            response_reason: Map.get(attrs, :response_reason),
-            responded_at: now
-          })
-          |> OptimisticLock.check(expected)
-
-        with {:ok, delegation} <- Repo.update(delegation_cs),
-             :ok <- maybe_assign_task(delegation, decision) do
-          {:ok, _} =
-            Events.append(%{
-              project_id: project.id,
-              agent_session_id: session.id,
-              task_id: delegation.task_id,
-              context_id: delegation.context_id,
-              type: "a2a.delegation.#{decision}",
-              source: "a2a",
-              payload: %{"delegation_id" => delegation.id}
+          delegation_cs =
+            delegation
+            |> Delegation.changeset(%{
+              status: decision,
+              response_reason: Map.get(attrs, :response_reason),
+              responded_at: now
             })
+            |> OptimisticLock.check(expected)
 
-          {:ok, %{"id" => delegation.id}}
-        end
+          with {:ok, delegation} <- Repo.update(delegation_cs),
+               :ok <- maybe_assign_task(delegation, decision) do
+            {:ok, _} =
+              Events.append(%{
+                project_id: project.id,
+                agent_session_id: session.id,
+                task_id: delegation.task_id,
+                context_id: delegation.context_id,
+                type: "a2a.delegation.#{decision}",
+                source: "a2a",
+                payload: %{"delegation_id" => delegation.id}
+              })
+
+            {:ok, %{"id" => delegation.id}}
+          end
+      end
     end
   end
 
@@ -402,23 +469,90 @@ defmodule AgentDesk.A2A do
   end
 
   defp assign_task(%Delegation{} = delegation) do
-    task = Repo.get!(Task, delegation.task_id)
+    now = Clock.utc_now()
 
-    task
-    |> Task.changeset(%{
-      status: "assigned",
-      assigned_agent_id: delegation.to_agent_id
-    })
-    |> OptimisticLock.check(task.lock_version)
-    |> Repo.update()
-  end
+    {updated_count, _} =
+      Task
+      |> where(
+        [task],
+        task.id == ^delegation.task_id and task.project_id == ^delegation.project_id and
+          task.context_id == ^delegation.context_id and is_nil(task.assigned_agent_id)
+      )
+      |> Repo.update_all(
+        set: [
+          status: "assigned",
+          assigned_agent_id: delegation.to_agent_id,
+          updated_at: now
+        ],
+        inc: [lock_version: 1]
+      )
 
-  defp fetch_task(project_id, task_id) do
-    case Repo.get_by(Task, id: task_id, project_id: project_id) do
-      %Task{} = task -> {:ok, task}
-      nil -> {:error, :not_found}
+    case updated_count do
+      1 ->
+        with :ok <- ensure_active_participant(delegation, now) do
+          {:ok, Repo.get!(Task, delegation.task_id)}
+        end
+
+      0 ->
+        {:error, :task_conflict}
     end
   end
+
+  defp ensure_active_participant(delegation, now) do
+    active? =
+      Participant
+      |> where(
+        [participant],
+        participant.context_id == ^delegation.context_id and
+          participant.agent_session_id == ^delegation.to_agent_id and
+          is_nil(participant.left_at)
+      )
+      |> Repo.exists?()
+
+    if active? do
+      :ok
+    else
+      %Participant{}
+      |> Participant.changeset(%{
+        id: Ids.generate(),
+        context_id: delegation.context_id,
+        agent_session_id: delegation.to_agent_id,
+        role: "participant",
+        joined_at: now
+      })
+      |> Repo.insert()
+      |> case do
+        {:ok, _participant} -> :ok
+        {:error, changeset} -> {:error, changeset}
+      end
+    end
+  end
+
+  defp fetch_task(project_id, task_id) when is_binary(task_id) do
+    with {:ok, _uuid} <- Ecto.UUID.cast(task_id) do
+      case Repo.get_by(Task, id: task_id, project_id: project_id) do
+        %Task{} = task -> {:ok, task}
+        nil -> {:error, :not_found}
+      end
+    else
+      :error -> {:error, :not_found}
+    end
+  end
+
+  defp fetch_task(_project_id, _task_id), do: {:error, :not_found}
+
+  defp fetch_delegation(project_id, delegation_id) when is_binary(delegation_id) do
+    with {:ok, _uuid} <- Ecto.UUID.cast(delegation_id) do
+      case Repo.get_by(Delegation, id: delegation_id, project_id: project_id) do
+        %Delegation{} = delegation -> {:ok, delegation}
+        nil -> {:error, :not_found}
+      end
+    else
+      :error -> {:error, :not_found}
+    end
+  end
+
+  defp fetch_delegation(_project_id, _delegation_id), do: {:error, :not_found}
 
   defp same_project(%Scope{project: project, agent_session: %Session{project_id: project_id}}) do
     if project.id == project_id, do: :ok, else: {:error, :forbidden}
@@ -446,9 +580,18 @@ defmodule AgentDesk.A2A do
       status: "queued",
       created_by: created_by_type(scope),
       lock_version: 1,
-      metadata: Map.get(attrs, :metadata) || Map.get(attrs, "metadata") || %{}
+      metadata: task_metadata(scope, attrs)
     })
     |> Repo.insert()
+  end
+
+  defp task_metadata(scope, attrs) do
+    metadata = Map.get(attrs, :metadata) || Map.get(attrs, "metadata") || %{}
+
+    case Scope.agent_id(scope) do
+      agent_id when is_binary(agent_id) -> Map.put(metadata, "created_by_agent_id", agent_id)
+      nil -> metadata
+    end
   end
 
   defp link_dependencies(_scope, _task, []), do: :ok

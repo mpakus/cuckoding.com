@@ -219,7 +219,7 @@ body {
 .desk-kicker {
   margin-bottom: 0.55rem;
   color: var(--color-desk-muted);
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.16em;
   line-height: 1.2;
@@ -509,8 +509,10 @@ body {
   top: 50%;
   right: 0.22rem;
   z-index: 1;
-  width: 1.2rem;
-  height: 1.2rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  min-width: 24px;
+  min-height: 24px;
   place-items: center;
   transform: translateY(-50%);
   border-radius: 0.35rem;
@@ -912,8 +914,102 @@ body {
   list-style: none;
 }
 
-.desk-details > summary::-webkit-details-marker {
+.desk-details > summary::-webkit-details-marker,
+.desk-card > summary::-webkit-details-marker {
   display: none;
+}
+
+.desk-details > summary::before,
+.desk-card > summary::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 0.35rem;
+  transform: rotate(0deg);
+}
+
+.desk-details[open] > summary::before,
+.desk-card[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.desk-card > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.desk-rail-toggles {
+  display: none;
+}
+
+.desk-attention {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  width: 100%;
+  margin-bottom: 0.45rem;
+}
+
+.desk-attention-item {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.desk-attention-warning {
+  background: oklch(0.72 0.14 75 / 0.18);
+  color: oklch(0.86 0.12 75);
+}
+
+.desk-attention-error {
+  background: oklch(0.62 0.2 25 / 0.2);
+  color: oklch(0.84 0.14 25);
+}
+
+@media (max-width: 1100px) {
+  .desk-shell {
+    overflow: auto;
+  }
+
+  .desk-rail-toggles {
+    display: flex;
+    position: absolute;
+    top: 0.85rem;
+    right: 1rem;
+    z-index: 40;
+    gap: 0.4rem;
+  }
+
+  .desk-shell > aside,
+  .desk-context {
+    position: fixed;
+    top: 0.75rem;
+    bottom: 0.75rem;
+    z-index: 30;
+    width: min(22rem, calc(100vw - 1.5rem));
+    max-width: 22rem;
+  }
+
+  .desk-shell > aside {
+    left: 0.75rem;
+    transform: translateX(calc(-100% - 1.5rem));
+  }
+
+  .desk-context {
+    right: 0.75rem;
+    transform: translateX(calc(100% + 1.5rem));
+  }
+
+  .desk-shell.is-sidebar-open > aside,
+  .desk-shell.is-context-open .desk-context {
+    transform: none;
+  }
+
+  .desk-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .alert {

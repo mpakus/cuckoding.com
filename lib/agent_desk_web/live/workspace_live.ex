@@ -28,6 +28,7 @@ defmodule AgentDeskWeb.WorkspaceLive do
   alias AgentDesk.Resources.Manager
   alias AgentDesk.Resources.Overlap
   alias AgentDesk.Reviews
+  alias AgentDesk.Security.ControlAuth
   alias AgentDesk.Scope
   alias AgentDesk.Worktrees
   alias AgentDesk.Worktrees.Handoffs
@@ -48,99 +49,115 @@ defmodule AgentDeskWeb.WorkspaceLive do
   @recent_limit 12
 
   @impl true
-  def mount(_params, _session, socket) do
+  def mount(params, session, socket) do
+    case ControlAuth.session_binding(session) do
+      {:ok, binding} -> mount_authorized(params, binding, socket)
+      {:error, :unauthorized} -> {:ok, redirect(socket, to: ~p"/control/unauthorized")}
+    end
+  end
+
+  defp mount_authorized(_params, binding, socket) do
     if connected?(socket) do
       Phoenix.PubSub.subscribe(AgentDesk.PubSub, "projects")
       send(self(), :restore_last_project)
       send(self(), :probe_providers)
     end
 
-    {:ok,
-     socket
-     |> assign(:page_title, Branding.product_name())
-     |> assign(:current_project, nil)
-     |> assign(:recent_projects, [])
-     |> assign(:live_project_ids, [])
-     |> assign(:confirm_close_project_id, nil)
-     |> assign(:failed_recent_id, nil)
-     |> assign(:confirm_forget_project_id, nil)
-     |> assign(:sessions, [])
-     |> assign(:active_session_id, nil)
-     |> assign(:active_status, "idle")
-     |> assign(:pending_approval, nil)
-     |> assign(:prompt, "")
-     |> assign(:display_name, "")
-     |> assign(:sdk_executable, "")
-     |> assign(:sdk_args, "")
-     |> assign(:connect_path, nil)
-     |> assign(:usage, %{
-       "input_tokens" => 0,
-       "output_tokens" => 0,
-       "total_tokens" => 0,
-       "cost_cents" => 0
-     })
-     |> assign(:roles, [])
-     |> assign(:provider, "codex")
-     |> assign(:provider_status, %{})
-     |> assign(:confirm_terminate, false)
-     |> assign(:allow_force_terminate, false)
-     |> assign(:agents, [])
-     |> assign(:agent_filter, "all")
-     |> assign(:leases, [])
-     |> assign(:lease_previews, [])
-     |> assign(:inbox, [])
-     |> assign(:deliveries, [])
-     |> assign(:unread, %{})
-     |> assign(:announce, "")
-     |> assign(:activity_mode, "cards")
-     |> assign(:activity_limit, 200)
-     |> assign(:activity_older?, false)
-     |> assign(:activity_tail, nil)
-     |> assign(:type_scale, "md")
-     |> assign(:shortcuts, @default_shortcuts)
-     |> assign(:onboard_step, 1)
-     |> assign(:onboard_complete, false)
-     |> assign(:delegation_depth, 3)
-     |> assign(:xerj_enabled, false)
-     |> assign(:memories, [])
-     |> assign(:confirm_revoke_lease_id, nil)
-     |> assign(:delegations, [])
-     |> assign(:tasks, [])
-     |> assign(:task_deps, %{})
-     |> assign(:workflows, [])
-     |> assign(:messages, [])
-     |> assign(:artifacts, [])
-     |> assign(:merge_queue, [])
-     |> assign(:confirm_merge_id, nil)
-     |> assign(:selected_handoff_id, nil)
-     |> assign(:worktrees, [])
-     |> assign(:active_worktree, nil)
-     |> assign(:worktree_diff, "")
-     |> assign(:unexpected_edits, [])
-     |> assign(:confirm_cleanup, false)
-     |> assign(:search_query, "")
-     |> assign(:search_results, [])
-     |> assign(:sync_path, nil)
-     |> assign(:workspace_view, "workspace")
-     |> assign(:registry_query, "")
-     |> assign(:registry_filter, "all")
-     |> assign(:registry_agents, [])
-     |> assign(:analytics, empty_analytics())
-     |> allow_upload(:attachments,
-       accept: :any,
-       max_entries: 8,
-       max_file_size: 20_000_000,
-       auto_upload: true
-     )
-     |> assign(:search_status, %{
-       adapter: "Disabled",
-       health: {:error, :unavailable},
-       status: "unavailable",
-       last_indexed_at: nil,
-       error: nil
-     })
-     |> assign_registry()
-     |> stream(:activity, [])}
+    socket =
+      socket
+      |> assign(:control_binding, binding)
+      |> assign(:page_title, Branding.product_name())
+      |> assign(:current_project, nil)
+      |> assign(:recent_projects, [])
+      |> assign(:live_project_ids, [])
+      |> assign(:confirm_close_project_id, nil)
+      |> assign(:failed_recent_id, nil)
+      |> assign(:confirm_forget_project_id, nil)
+      |> assign(:sessions, [])
+      |> assign(:active_session_id, nil)
+      |> assign(:active_status, "idle")
+      |> assign(:pending_approval, nil)
+      |> assign(:prompt, "")
+      |> assign(:display_name, "")
+      |> assign(:sdk_executable, "")
+      |> assign(:sdk_args, "")
+      |> assign(:connect_path, nil)
+      |> assign(:usage, %{
+        "input_tokens" => 0,
+        "output_tokens" => 0,
+        "total_tokens" => 0,
+        "cost_cents" => 0
+      })
+      |> assign(:roles, [])
+      |> assign(:provider, "codex")
+      |> assign(:provider_status, checking_providers())
+      |> assign(:sidebar_open, false)
+      |> assign(:context_open, false)
+      |> assign(:peer_compose, nil)
+      |> assign(:handoff_diff, "")
+      |> assign(:confirm_terminate, false)
+      |> assign(:confirm_terminate_session_id, nil)
+      |> assign(:allow_force_terminate, false)
+      |> assign(:agents, [])
+      |> assign(:agent_filter, "all")
+      |> assign(:leases, [])
+      |> assign(:lease_previews, [])
+      |> assign(:inbox, [])
+      |> assign(:deliveries, [])
+      |> assign(:unread, %{})
+      |> assign(:announce, "")
+      |> assign(:activity_mode, "cards")
+      |> assign(:activity_limit, 200)
+      |> assign(:activity_older?, false)
+      |> assign(:activity_tail, nil)
+      |> assign(:type_scale, "md")
+      |> assign(:shortcuts, @default_shortcuts)
+      |> assign(:onboard_step, 1)
+      |> assign(:onboard_complete, false)
+      |> assign(:delegation_depth, 3)
+      |> assign(:xerj_enabled, false)
+      |> assign(:memories, [])
+      |> assign(:confirm_revoke_lease_id, nil)
+      |> assign(:delegations, [])
+      |> assign(:tasks, [])
+      |> assign(:task_deps, %{})
+      |> assign(:workflows, [])
+      |> assign(:messages, [])
+      |> assign(:artifacts, [])
+      |> assign(:merge_queue, [])
+      |> assign(:confirm_merge_id, nil)
+      |> assign(:selected_handoff_id, nil)
+      |> assign(:worktrees, [])
+      |> assign(:active_worktree, nil)
+      |> assign(:worktree_diff, "")
+      |> assign(:unexpected_edits, [])
+      |> assign(:confirm_cleanup, false)
+      |> assign(:confirm_cleanup_worktree_id, nil)
+      |> assign(:search_query, "")
+      |> assign(:search_results, [])
+      |> assign(:sync_path, nil)
+      |> assign(:workspace_view, "workspace")
+      |> assign(:registry_query, "")
+      |> assign(:registry_filter, "all")
+      |> assign(:registry_agents, [])
+      |> assign(:analytics, empty_analytics())
+      |> allow_upload(:attachments,
+        accept: :any,
+        max_entries: 8,
+        max_file_size: 20_000_000,
+        auto_upload: true
+      )
+      |> assign(:search_status, %{
+        adapter: "Disabled",
+        health: {:error, :unavailable},
+        status: "unavailable",
+        last_indexed_at: nil,
+        error: nil
+      })
+      |> stream(:activity, [])
+
+    socket = if connected?(socket), do: assign_registry(socket), else: socket
+    {:ok, socket}
   end
 
   @impl true
@@ -151,7 +168,7 @@ defmodule AgentDeskWeb.WorkspaceLive do
         |> assign_recents()
         |> assign_current_project(params)
       else
-        assign_project_preview(socket, params)
+        socket
       end
 
     {:noreply, socket}
@@ -159,32 +176,42 @@ defmodule AgentDeskWeb.WorkspaceLive do
 
   @impl true
   def handle_event("pick_project_folder", _params, socket) do
-    {:noreply,
-     ExTauri.Dialog.open(
-       socket,
-       [
-         title: "Choose a Git repository",
-         directory: true,
-         default_path: picker_start_path(socket)
-       ],
-       &handle_picked_repo/2
-     )}
+    with_authorized_control(socket, fn ->
+      {:noreply,
+       ExTauri.Dialog.open(
+         socket,
+         [
+           title: "Choose a Git repository",
+           directory: true,
+           default_path: picker_start_path(socket)
+         ],
+         &handle_picked_repo/2
+       )}
+    end)
   end
 
   def handle_event("open_project", %{"path" => path}, socket) when is_binary(path) do
-    {:noreply, open_selected_project(socket, path, :picker)}
+    with_authorized_control(socket, fn ->
+      {:noreply, open_selected_project(socket, path, :picker)}
+    end)
   end
 
   def handle_event("open_recent", %{"id" => id}, socket) when is_binary(id) do
-    {:noreply, reopen_recent_project(socket, id, :open)}
+    with_authorized_control(socket, fn ->
+      {:noreply, reopen_recent_project(socket, id, :open)}
+    end)
   end
 
   def handle_event("check_recent", %{"id" => id}, socket) when is_binary(id) do
-    {:noreply, reopen_recent_project(socket, id, :check)}
+    with_authorized_control(socket, fn ->
+      {:noreply, reopen_recent_project(socket, id, :check)}
+    end)
   end
 
   def handle_event("confirm_forget_recent", %{"id" => id}, socket) when is_binary(id) do
-    {:noreply, assign(socket, :confirm_forget_project_id, id)}
+    with_authorized_control(socket, fn ->
+      {:noreply, assign(socket, :confirm_forget_project_id, id)}
+    end)
   end
 
   def handle_event("cancel_forget_recent", _params, socket) do
@@ -192,13 +219,19 @@ defmodule AgentDeskWeb.WorkspaceLive do
   end
 
   def handle_event("forget_recent", %{"id" => id}, socket) when is_binary(id) do
-    case Projects.forget_recent(id) do
-      :ok ->
-        {:noreply, after_recent_forgotten(socket, id)}
+    with_authorized_control(socket, fn ->
+      if socket.assigns.confirm_forget_project_id == id do
+        case Projects.forget_recent(id) do
+          :ok ->
+            {:noreply, after_recent_forgotten(socket, id)}
 
-      {:error, _reason} ->
-        {:noreply, put_flash(socket, :error, "Could not remove that project from recents.")}
-    end
+          {:error, _reason} ->
+            {:noreply, put_flash(socket, :error, "Could not remove that project from recents.")}
+        end
+      else
+        sensitive_denied(socket, :confirmation_required)
+      end
+    end)
   end
 
   def handle_event("picker_failed", _params, socket) do
@@ -206,7 +239,9 @@ defmodule AgentDeskWeb.WorkspaceLive do
   end
 
   def handle_event("confirm_close_project", %{"id" => id}, socket) do
-    {:noreply, assign(socket, :confirm_close_project_id, id)}
+    with_authorized_open_project(socket, id, fn _project ->
+      {:noreply, assign(socket, :confirm_close_project_id, id)}
+    end)
   end
 
   def handle_event("cancel_close_project", _params, socket) do
@@ -214,13 +249,19 @@ defmodule AgentDeskWeb.WorkspaceLive do
   end
 
   def handle_event("close_project", %{"id" => id}, socket) do
-    case Projects.close_project(id) do
-      :ok ->
-        {:noreply, after_project_closed(socket, id)}
+    with_authorized_open_project(socket, id, fn _project ->
+      if socket.assigns.confirm_close_project_id == id do
+        case Projects.close_project(id) do
+          :ok ->
+            {:noreply, after_project_closed(socket, id)}
 
-      {:error, _reason} ->
-        {:noreply, put_flash(socket, :error, "Could not close that project.")}
-    end
+          {:error, _reason} ->
+            {:noreply, put_flash(socket, :error, "Could not close that project.")}
+        end
+      else
+        sensitive_denied(socket, :confirmation_required)
+      end
+    end)
   end
 
   def handle_event("set_view", %{"view" => "analytics"}, socket) do
@@ -231,14 +272,18 @@ defmodule AgentDeskWeb.WorkspaceLive do
       when view in ~w(workspace registry dashboard new handoff) do
     socket = assign(socket, :workspace_view, view)
 
-    socket =
-      case view do
-        "registry" -> assign_registry(socket)
-        "dashboard" -> assign_analytics(socket)
-        _ -> socket
-      end
+    case view do
+      "registry" ->
+        with_authorized_control(socket, fn -> {:noreply, assign_registry(socket)} end)
 
-    {:noreply, socket}
+      "dashboard" ->
+        with_authorized_optional_project(socket, fn _project ->
+          {:noreply, assign_analytics(socket)}
+        end)
+
+      _ ->
+        {:noreply, socket}
+    end
   end
 
   def handle_event("review_handoff", params, socket) do
@@ -253,54 +298,64 @@ defmodule AgentDeskWeb.WorkspaceLive do
   end
 
   def handle_event("registry_search", params, socket) do
-    query = params["q"] || params["query"] || ""
+    with_authorized_control(socket, fn ->
+      query = params["q"] || params["query"] || ""
 
-    {:noreply,
-     socket
-     |> assign(:registry_query, query)
-     |> assign_registry()}
+      {:noreply,
+       socket
+       |> assign(:registry_query, query)
+       |> assign_registry()}
+    end)
   end
 
   def handle_event("registry_filter", %{"filter" => filter}, socket) do
-    selected = if filter in ~w(all installed not_installed), do: filter, else: "all"
+    with_authorized_control(socket, fn ->
+      selected = if filter in ~w(all installed not_installed), do: filter, else: "all"
 
-    {:noreply,
-     socket
-     |> assign(:registry_filter, selected)
-     |> assign_registry()}
+      {:noreply,
+       socket
+       |> assign(:registry_filter, selected)
+       |> assign_registry()}
+    end)
   end
 
   def handle_event("registry_refresh", _params, socket) do
-    _ = AcpRegistry.refresh()
-    {:noreply, assign_registry(socket)}
+    with_authorized_control(socket, fn ->
+      _ = AcpRegistry.refresh()
+      {:noreply, assign_registry(socket)}
+    end)
   end
 
   def handle_event("registry_install", %{"id" => id}, socket) do
-    case AcpRegistry.install(id) do
-      {:ok, _} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "Installed. Start a thread with Use.")
-         |> assign_registry()}
+    with_authorized_control(socket, fn ->
+      case AcpRegistry.install(id) do
+        {:ok, _} ->
+          {:noreply,
+           socket
+           |> put_flash(:info, "Installed. Start a thread with Use.")
+           |> assign_registry()}
 
-      {:error, :unsupported_distribution} ->
-        {:noreply,
-         put_flash(
-           socket,
-           :error,
-           "This agent needs a CLI on PATH. Install the vendor CLI, then try again."
-         )}
+        {:error, :unsupported_distribution} ->
+          {:noreply,
+           put_flash(
+             socket,
+             :error,
+             "This agent needs a CLI on PATH. Install the vendor CLI, then try again."
+           )}
 
-      {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Could not install that agent.")}
-    end
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, "Could not install that agent.")}
+      end
+    end)
   end
 
   def handle_event("registry_remove", %{"id" => id}, socket) do
-    case AcpRegistry.remove(id) do
-      {:ok, _} -> {:noreply, assign_registry(socket)}
-      {:error, _} -> {:noreply, put_flash(socket, :error, "Could not remove that agent.")}
-    end
+    with_authorized_control(socket, fn ->
+      case AcpRegistry.remove(id) do
+        {:ok, _} -> {:noreply, assign_registry(socket)}
+        {:error, _} -> {:noreply, put_flash(socket, :error, "Could not remove that agent.")}
+      end
+    end)
   end
 
   def handle_event("shortcut", %{"action" => action}, socket) do
@@ -308,74 +363,78 @@ defmodule AgentDeskWeb.WorkspaceLive do
   end
 
   def handle_event("save_shortcuts", params, socket) do
-    shortcuts =
-      @default_shortcuts
-      |> Map.keys()
-      |> Map.new(fn key -> {key, params[key] || @default_shortcuts[key]} end)
+    with_authorized_optional_project(socket, fn _project ->
+      shortcuts =
+        @default_shortcuts
+        |> Map.keys()
+        |> Map.new(fn key -> {key, params[key] || @default_shortcuts[key]} end)
 
-    socket = assign(socket, :shortcuts, shortcuts)
-
-    socket =
-      case socket.assigns.current_project do
-        %Project{} = project ->
-          case Projects.put_settings(project, %{"shortcuts" => shortcuts}) do
-            {:ok, updated} -> assign(socket, :current_project, updated)
-            _ -> socket
-          end
-
-        _ ->
-          socket
-      end
-
-    {:noreply, socket}
+      {:noreply,
+       socket
+       |> assign(:shortcuts, shortcuts)
+       |> persist_project_setting("shortcuts", shortcuts)}
+    end)
   end
 
   def handle_event("onboard_next", _params, socket) do
-    {:noreply, persist_onboard(socket, min(10, socket.assigns.onboard_step + 1))}
+    with_authorized_optional_project(socket, fn _project ->
+      if onboard_step_ready?(socket) do
+        {:noreply, persist_onboard(socket, min(10, socket.assigns.onboard_step + 1))}
+      else
+        {:noreply,
+         socket
+         |> put_flash(:error, "Finish this onboarding step before continuing.")
+         |> announce("Onboarding step is not ready")}
+      end
+    end)
   end
 
   def handle_event("onboard_complete", _params, socket) do
-    {:noreply,
-     socket
-     |> assign(:workspace_view, "new")
-     |> persist_onboard(10, complete: true)}
+    with_authorized_optional_project(socket, fn _project ->
+      {:noreply,
+       socket
+       |> assign(:workspace_view, "new")
+       |> persist_onboard(10, complete: true)}
+    end)
   end
 
   def handle_event("enable_xerj", _params, socket) do
-    AgentDesk.Search.put_xerj(true)
+    with_authorized_optional_project(socket, fn project ->
+      AgentDesk.Search.put_xerj(true)
 
-    socket =
-      socket
-      |> assign(:xerj_enabled, true)
-      |> persist_project_setting("xerj", true)
-      |> then(fn sock ->
-        case sock.assigns.current_project do
-          %Project{} = project ->
-            _ = AgentDesk.Search.rebuild(project)
+      socket =
+        socket
+        |> assign(:xerj_enabled, true)
+        |> persist_project_setting("xerj", true)
+        |> then(fn sock ->
+          if project do
+            _ = AgentDesk.Search.Debouncer.request_rebuild(project.id)
             assign(sock, :search_status, AgentDesk.Search.status(project))
-
-          _ ->
+          else
             sock
-        end
-      end)
+          end
+        end)
 
-    {:noreply, socket}
+      {:noreply, socket}
+    end)
   end
 
   def handle_event("set_delegation_policy", %{"depth" => depth}, socket) do
-    int =
-      case Integer.parse(to_string(depth)) do
-        {value, _} when value in 1..8 -> value
-        _ -> 3
-      end
+    with_authorized_optional_project(socket, fn _project ->
+      int =
+        case Integer.parse(to_string(depth)) do
+          {value, _} when value in 1..8 -> value
+          _ -> 3
+        end
 
-    a2a = %{"max_delegation_depth" => int, "max_delegation_fan_out" => 4}
+      a2a = %{"max_delegation_depth" => int, "max_delegation_fan_out" => 4}
 
-    {:noreply,
-     socket
-     |> assign(:delegation_depth, int)
-     |> persist_project_setting("a2a", a2a)
-     |> put_flash(:info, "Delegation depth set to #{int}.")}
+      {:noreply,
+       socket
+       |> assign(:delegation_depth, int)
+       |> persist_project_setting("a2a", a2a)
+       |> put_flash(:info, "Delegation depth set to #{int}.")}
+    end)
   end
 
   def handle_event(_event, _params, %{assigns: %{current_project: nil}} = socket) do
@@ -392,105 +451,102 @@ defmodule AgentDeskWeb.WorkspaceLive do
   end
 
   def handle_event("start_session", params, socket) do
-    project = socket.assigns.current_project
-    provider = params["provider"]
-    name = params["display_name"]
-    name = if is_binary(name) and String.trim(name) != "", do: name, else: provider
+    with_authorized_project(socket, fn project ->
+      provider = params["provider"]
+      name = params["display_name"]
+      name = if is_binary(name) and String.trim(name) != "", do: name, else: provider
 
-    attrs = %{
-      provider: provider,
-      display_name: name,
-      role_id: params["role_id"],
-      settings: session_settings(params)
-    }
+      attrs = %{
+        provider: provider,
+        display_name: name,
+        role_id: params["role_id"],
+        settings: session_settings(params)
+      }
 
-    case Providers.start_session(Scope.for_project(project), attrs) do
-      {:ok, session} ->
-        {:noreply,
-         socket
-         |> assign(:display_name, "")
-         |> assign(:sessions, Agents.visible_sessions(Scope.for_project(project)))
-         |> select_session(session)
-         |> load_coordination(project)}
+      case Providers.start_session(Scope.for_project(project), attrs) do
+        {:ok, session} ->
+          {:noreply,
+           socket
+           |> assign(:display_name, "")
+           |> assign(:sessions, Agents.visible_sessions(Scope.for_project(project)))
+           |> select_session(session)
+           |> load_coordination(project)}
 
-      {:error, reason} ->
-        {:noreply, put_flash(socket, :error, Providers.start_error_message(reason))}
-    end
+        {:error, reason} ->
+          {:noreply, put_flash(socket, :error, Providers.start_error_message(reason))}
+      end
+    end)
   end
 
   def handle_event("registry_use", %{"id" => id}, socket) do
-    project = socket.assigns.current_project
+    with_authorized_project(socket, fn project ->
+      with {:ok, attrs} <- AcpRegistry.session_attrs(id),
+           {:ok, session} <- Providers.start_session(Scope.for_project(project), attrs) do
+        {:noreply,
+         socket
+         |> assign(:workspace_view, "workspace")
+         |> assign(:sessions, Agents.visible_sessions(Scope.for_project(project)))
+         |> select_session(session)
+         |> load_coordination(project)
+         |> put_flash(:info, "Started #{session.display_name}")}
+      else
+        {:error, :not_installed} ->
+          {:noreply, put_flash(socket, :error, "Install that agent first.")}
 
-    with {:ok, attrs} <- AcpRegistry.session_attrs(id),
-         {:ok, session} <- Providers.start_session(Scope.for_project(project), attrs) do
-      {:noreply,
-       socket
-       |> assign(:workspace_view, "workspace")
-       |> assign(:sessions, Agents.visible_sessions(Scope.for_project(project)))
-       |> select_session(session)
-       |> load_coordination(project)
-       |> put_flash(:info, "Started #{session.display_name}")}
-    else
-      {:error, :not_installed} ->
-        {:noreply, put_flash(socket, :error, "Install that agent first.")}
-
-      {:error, reason} ->
-        {:noreply, put_flash(socket, :error, Providers.start_error_message(reason))}
-    end
+        {:error, reason} ->
+          {:noreply, put_flash(socket, :error, Providers.start_error_message(reason))}
+      end
+    end)
   end
 
   def handle_event("save_role", params, socket) do
-    project = socket.assigns.current_project
+    with_authorized_project(socket, fn project ->
+      attrs = %{
+        name: params["name"],
+        description: params["description"] || "",
+        prompt: params["prompt"] || "",
+        permission_profile: params["permission_profile"] || "default"
+      }
 
-    attrs = %{
-      name: params["name"],
-      description: params["description"] || "",
-      prompt: params["prompt"] || "",
-      permission_profile: params["permission_profile"] || "default"
-    }
+      socket =
+        case AgentDesk.Roles.save(project, attrs) do
+          {:ok, _role} -> put_flash(socket, :info, "Saved role.")
+          {:error, _reason} -> put_flash(socket, :error, "Could not save that role.")
+        end
 
-    socket =
-      case AgentDesk.Roles.save(project, attrs) do
-        {:ok, _role} -> put_flash(socket, :info, "Saved role.")
-        {:error, _reason} -> put_flash(socket, :error, "Could not save that role.")
-      end
-
-    {:noreply, load_coordination(socket, project)}
+      {:noreply, load_coordination(socket, project)}
+    end)
   end
 
   def handle_event("select_tab", %{"id" => id}, socket) do
-    socket = select_session_id(socket, id)
-
-    socket =
-      case socket.assigns.current_project do
-        %Project{} = project -> load_coordination(socket, project)
-        _ -> socket
-      end
-
-    {:noreply, socket}
+    with_authorized_session(socket, id, fn project, session ->
+      {:noreply,
+       socket
+       |> select_session(session)
+       |> load_coordination(project)}
+    end)
   end
 
   def handle_event("close_tab", %{"id" => id}, socket) do
-    project = socket.assigns.current_project
+    with_authorized_session(socket, id, fn project, session ->
+      case Agents.hide_tab(session) do
+        {:ok, _} ->
+          sessions = Agents.visible_sessions(Scope.for_project(project))
+          socket = assign(socket, :sessions, sessions)
 
-    case Agents.get_session(Scope.for_project(project), id) do
-      {:ok, session} ->
-        {:ok, _} = Agents.hide_tab(session)
-        sessions = Agents.visible_sessions(Scope.for_project(project))
-        socket = assign(socket, :sessions, sessions)
+          socket =
+            if socket.assigns.active_session_id == id do
+              select_session(socket, List.first(sessions))
+            else
+              socket
+            end
 
-        socket =
-          if socket.assigns.active_session_id == id do
-            select_session(socket, List.first(sessions))
-          else
-            socket
-          end
+          {:noreply, socket}
 
-        {:noreply, socket}
-
-      {:error, :not_found} ->
-        {:noreply, socket}
-    end
+        {:error, _reason} ->
+          {:noreply, put_flash(socket, :error, "Could not close that tab.")}
+      end
+    end)
   end
 
   def handle_event("validate_prompt", _params, socket), do: {:noreply, socket}
@@ -500,53 +556,64 @@ defmodule AgentDeskWeb.WorkspaceLive do
   end
 
   def handle_event("send_prompt", params, socket) do
-    prompt = params["prompt"] || ""
-    {_done, in_progress} = uploaded_entries(socket, :attachments)
+    with_authorized_active_session(socket, fn project, session ->
+      prompt = params["prompt"] || ""
+      {_done, in_progress} = uploaded_entries(socket, :attachments)
 
-    cond do
-      in_progress != [] ->
-        {:noreply, put_flash(socket, :error, "Wait for attachments to finish uploading.")}
+      cond do
+        in_progress != [] ->
+          {:noreply, put_flash(socket, :error, "Wait for attachments to finish uploading.")}
 
-      true ->
-        dispatch_prompt(socket, prompt)
-    end
+        true ->
+          dispatch_prompt(socket, prompt, project, session)
+      end
+    end)
   end
 
   def handle_event("interrupt", _params, socket) do
-    _ =
-      socket.assigns.active_session_id &&
-        SessionWorker.interrupt(socket.assigns.active_session_id)
-
-    {:noreply, socket}
+    with_authorized_active_session(socket, fn _project, session ->
+      _ = SessionWorker.interrupt(session.id)
+      {:noreply, socket}
+    end)
   end
 
   def handle_event("confirm_terminate", _params, socket) do
-    {:noreply, assign(socket, :confirm_terminate, true)}
+    with_authorized_active_session(socket, fn _project, session ->
+      {:noreply,
+       assign(socket,
+         confirm_terminate: true,
+         confirm_terminate_session_id: session.id
+       )}
+    end)
   end
 
   def handle_event("cancel_terminate", _params, socket) do
-    {:noreply, assign(socket, :confirm_terminate, false)}
+    {:noreply, assign(socket, confirm_terminate: false, confirm_terminate_session_id: nil)}
   end
 
   def handle_event("terminate", _params, socket) do
-    _ =
-      socket.assigns.active_session_id &&
-        SessionWorker.terminate_session(socket.assigns.active_session_id)
+    with_authorized_active_session(socket, fn _project, session ->
+      if socket.assigns.confirm_terminate and
+           socket.assigns.confirm_terminate_session_id == session.id do
+        _ = SessionWorker.terminate_session(session.id)
 
-    {:noreply, assign(socket, confirm_terminate: false, allow_force_terminate: false)}
+        {:noreply,
+         assign(socket,
+           confirm_terminate: false,
+           confirm_terminate_session_id: nil,
+           allow_force_terminate: false
+         )}
+      else
+        sensitive_denied(socket, :confirmation_required)
+      end
+    end)
   end
 
   def handle_event("resume_session", %{"id" => id}, socket) do
-    project = socket.assigns.current_project
-
-    case Agents.get_session(Scope.for_project(project), id) do
-      {:ok, session} ->
-        _ = Providers.resume_session(session)
-        {:noreply, socket}
-
-      {:error, :not_found} ->
-        {:noreply, socket}
-    end
+    with_authorized_session(socket, id, fn _project, session ->
+      _ = Providers.resume_session(session)
+      {:noreply, socket}
+    end)
   end
 
   def handle_event("retry_session", _params, socket) do
@@ -568,13 +635,17 @@ defmodule AgentDeskWeb.WorkspaceLive do
   end
 
   def handle_event("approve", %{"id" => request_id}, socket) do
-    _ = SessionWorker.approve(socket.assigns.active_session_id, request_id, "allow")
-    {:noreply, assign(socket, :pending_approval, nil)}
+    with_authorized_approval(socket, request_id, fn session ->
+      _ = SessionWorker.approve(session.id, request_id, "allow")
+      {:noreply, assign(socket, :pending_approval, nil)}
+    end)
   end
 
   def handle_event("deny", %{"id" => request_id}, socket) do
-    _ = SessionWorker.approve(socket.assigns.active_session_id, request_id, "deny")
-    {:noreply, assign(socket, :pending_approval, nil)}
+    with_authorized_approval(socket, request_id, fn session ->
+      _ = SessionWorker.approve(session.id, request_id, "deny")
+      {:noreply, assign(socket, :pending_approval, nil)}
+    end)
   end
 
   def handle_event("set_activity_mode", %{"mode" => mode}, socket)
@@ -588,7 +659,9 @@ defmodule AgentDeskWeb.WorkspaceLive do
   end
 
   def handle_event("load_older_activity", _params, socket) do
-    {:noreply, load_more_activity(socket)}
+    with_authorized_active_session(socket, fn _project, _session ->
+      {:noreply, load_more_activity(socket)}
+    end)
   end
 
   def handle_event("announce_handoff", _params, socket) do
@@ -600,19 +673,51 @@ defmodule AgentDeskWeb.WorkspaceLive do
   end
 
   def handle_event("message_agent", %{"id" => agent_id}, socket) do
-    {:noreply, peer_action(socket, agent_id, :message)}
+    with_authorized_active_session(socket, fn project, session ->
+      {:noreply, begin_peer_compose(socket, project, session, agent_id, :message)}
+    end)
   end
 
   def handle_event("delegate_agent", %{"id" => agent_id}, socket) do
-    {:noreply, peer_action(socket, agent_id, :delegate)}
+    with_authorized_active_session(socket, fn project, session ->
+      {:noreply, begin_peer_compose(socket, project, session, agent_id, :delegate)}
+    end)
   end
 
   def handle_event("request_review", %{"id" => agent_id}, socket) do
-    {:noreply, peer_action(socket, agent_id, :review)}
+    with_authorized_active_session(socket, fn project, session ->
+      {:noreply, begin_peer_compose(socket, project, session, agent_id, :review)}
+    end)
+  end
+
+  def handle_event("cancel_peer_compose", _params, socket) do
+    {:noreply, assign(socket, :peer_compose, nil)}
+  end
+
+  def handle_event("submit_peer_compose", params, socket) do
+    with_authorized_active_session(socket, fn project, session ->
+      {:noreply, submit_peer_compose(socket, project, session, params)}
+    end)
+  end
+
+  def handle_event("toggle_sidebar", _params, socket) do
+    {:noreply, assign(socket, :sidebar_open, !socket.assigns.sidebar_open)}
+  end
+
+  def handle_event("toggle_context", _params, socket) do
+    {:noreply, assign(socket, :context_open, !socket.assigns.context_open)}
   end
 
   def handle_event("lease_message", %{"id" => id}, socket) do
-    {:noreply, lease_owner_message(socket, id, "Can we coordinate on this resource?")}
+    with_authorized_active_session(socket, fn project, session ->
+      {:noreply,
+       lease_owner_message(
+         socket,
+         Scope.for_agent(project, session),
+         id,
+         "Can we coordinate on this resource?"
+       )}
+    end)
   end
 
   def handle_event("lease_wait", _params, socket) do
@@ -633,11 +738,21 @@ defmodule AgentDeskWeb.WorkspaceLive do
   end
 
   def handle_event("request_lease_release", %{"id" => id}, socket) do
-    {:noreply, lease_owner_message(socket, id, "Please release this resource when you can.")}
+    with_authorized_active_session(socket, fn project, session ->
+      {:noreply,
+       lease_owner_message(
+         socket,
+         Scope.for_agent(project, session),
+         id,
+         "Please release this resource when you can."
+       )}
+    end)
   end
 
   def handle_event("confirm_revoke_lease", %{"id" => id}, socket) do
-    {:noreply, assign(socket, :confirm_revoke_lease_id, id)}
+    with_authorized_project(socket, fn _project ->
+      {:noreply, assign(socket, :confirm_revoke_lease_id, id)}
+    end)
   end
 
   def handle_event("cancel_revoke_lease", _params, socket) do
@@ -645,25 +760,31 @@ defmodule AgentDeskWeb.WorkspaceLive do
   end
 
   def handle_event("revoke_lease", %{"id" => id}, socket) do
-    project = socket.assigns.current_project
+    with_authorized_project(socket, fn project ->
+      if socket.assigns.confirm_revoke_lease_id == id do
+        socket =
+          case Manager.revoke(Scope.for_project(project), id) do
+            {:ok, _} ->
+              socket
+              |> assign(:confirm_revoke_lease_id, nil)
+              |> put_flash(:info, "Lease revoked.")
+              |> announce("Lease revoked")
 
-    socket =
-      case Manager.revoke(Scope.for_project(project), id) do
-        {:ok, _} ->
-          socket
-          |> assign(:confirm_revoke_lease_id, nil)
-          |> put_flash(:info, "Lease revoked.")
-          |> announce("Lease revoked")
+            {:error, _} ->
+              put_flash(socket, :error, "Could not revoke that lease.")
+          end
 
-        {:error, _} ->
-          put_flash(socket, :error, "Could not revoke that lease.")
+        {:noreply, load_coordination(socket, project)}
+      else
+        sensitive_denied(socket, :confirmation_required)
       end
-
-    {:noreply, load_coordination(socket, project)}
+    end)
   end
 
   def handle_event("revoke_delegation", %{"id" => id}, socket) do
-    {:noreply, mutate_delegation(socket, id, :revoke)}
+    with_authorized_active_session(socket, fn project, session ->
+      {:noreply, mutate_delegation(socket, project, session, id, :revoke)}
+    end)
   end
 
   def handle_event(
@@ -671,55 +792,71 @@ defmodule AgentDeskWeb.WorkspaceLive do
         %{"delegation_id" => id, "to_agent_id" => to_id},
         socket
       ) do
-    {:noreply, mutate_delegation(socket, id, :redirect, to_id)}
+    with_authorized_active_session(socket, fn project, session ->
+      {:noreply, mutate_delegation(socket, project, session, id, :redirect, to_id)}
+    end)
   end
 
   def handle_event("forget_memory", %{"namespace" => namespace, "id" => id}, socket) do
-    project = socket.assigns.current_project
-    _ = AgentDesk.Search.forget(Scope.for_project(project), namespace, id)
-    _ = forget_sql_memory(project.id, id)
+    with_authorized_project(socket, fn project ->
+      _ = AgentDesk.Search.forget(Scope.for_project(project), namespace, id)
+      _ = forget_sql_memory(project.id, id)
 
-    {:noreply,
-     socket
-     |> assign(:search_results, search_results(project, socket.assigns.search_query))
-     |> assign(:memories, list_memories(project))
-     |> put_flash(:info, "Forgot that memory.")}
+      {:noreply,
+       socket
+       |> assign(:search_results, search_results(project, socket.assigns.search_query))
+       |> assign(:memories, list_memories(project))
+       |> put_flash(:info, "Forgot that memory.")}
+    end)
   end
 
   def handle_event("accept_delegation", %{"id" => id}, socket) do
-    {:noreply, decide_delegation(socket, id, :accept)}
+    with_authorized_active_session(socket, fn project, session ->
+      {:noreply, decide_delegation(socket, project, session, id, :accept)}
+    end)
   end
 
   def handle_event("reject_delegation", params, socket) do
     id = params["delegation_id"] || params["id"]
     reason = params["reason"] || "ui"
-    {:noreply, decide_delegation(socket, id, :reject, reason)}
+
+    with_authorized_active_session(socket, fn project, session ->
+      {:noreply, decide_delegation(socket, project, session, id, :reject, reason)}
+    end)
   end
 
   def handle_event("commit_worktree", %{"message" => message}, socket) do
-    _ =
-      socket.assigns.active_worktree &&
-        Worktrees.commit(socket.assigns.active_worktree, message)
-
-    {:noreply, load_coordination(socket, socket.assigns.current_project)}
+    with_authorized_worktree(socket, fn project, worktree ->
+      _ = Worktrees.commit(worktree, message)
+      {:noreply, load_coordination(socket, project)}
+    end)
   end
 
   def handle_event("publish_handoff", %{"summary" => summary}, socket) do
-    publish_active_handoff(socket, summary)
+    with_authorized_active_session(socket, fn project, session ->
+      _ = Handoffs.publish(Scope.for_agent(project, session), %{summary: summary})
+      {:noreply, load_coordination(socket, project)}
+    end)
   end
 
   def handle_event("accept_queue_item", %{"artifact_id" => artifact_id}, socket) do
-    _ = Handoffs.accept(reviewer_scope(socket), artifact_id)
-    {:noreply, load_coordination(socket, socket.assigns.current_project)}
+    with_authorized_project(socket, fn project ->
+      _ = Handoffs.accept(reviewer_scope(socket), artifact_id)
+      {:noreply, load_coordination(socket, project)}
+    end)
   end
 
   def handle_event("reject_queue_item", %{"artifact_id" => artifact_id}, socket) do
-    _ = Handoffs.reject(reviewer_scope(socket), artifact_id)
-    {:noreply, load_coordination(socket, socket.assigns.current_project)}
+    with_authorized_project(socket, fn project ->
+      _ = Handoffs.reject(reviewer_scope(socket), artifact_id)
+      {:noreply, load_coordination(socket, project)}
+    end)
   end
 
   def handle_event("confirm_merge", %{"id" => id}, socket) do
-    {:noreply, assign(socket, :confirm_merge_id, id)}
+    with_authorized_project(socket, fn _project ->
+      {:noreply, assign(socket, :confirm_merge_id, id)}
+    end)
   end
 
   def handle_event("cancel_merge", _params, socket) do
@@ -727,105 +864,115 @@ defmodule AgentDeskWeb.WorkspaceLive do
   end
 
   def handle_event("merge_queue_item", %{"id" => id}, socket) do
-    project = socket.assigns.current_project
+    with_authorized_project(socket, fn project ->
+      if socket.assigns.confirm_merge_id == id do
+        socket =
+          case Reviews.merge(project, id) do
+            {:ok, _item} ->
+              socket
+              |> assign(:confirm_merge_id, nil)
+              |> put_flash(:info, "Merged into #{project.default_branch || "HEAD"}.")
 
-    socket =
-      case Reviews.merge(project, id) do
-        {:ok, _item} ->
-          socket
-          |> assign(:confirm_merge_id, nil)
-          |> put_flash(:info, "Merged into #{project.default_branch || "HEAD"}.")
+            {:error, :policy_failed} ->
+              put_flash(socket, :error, "Required checks have not passed.")
 
-        {:error, :policy_failed} ->
-          put_flash(socket, :error, "Required checks have not passed.")
+            {:error, :conflict} ->
+              put_flash(socket, :error, "Git reports unresolved conflicts.")
 
-        {:error, :conflict} ->
-          put_flash(socket, :error, "Git reports unresolved conflicts.")
+            {:error, :dirty_worktree} ->
+              put_flash(socket, :error, "The primary worktree is dirty.")
 
-        {:error, :dirty_worktree} ->
-          put_flash(socket, :error, "The primary worktree is dirty.")
+            {:error, :not_accepted} ->
+              put_flash(socket, :error, "Accept the handoff before merging.")
 
-        {:error, :not_accepted} ->
-          put_flash(socket, :error, "Accept the handoff before merging.")
+            {:error, _reason} ->
+              put_flash(socket, :error, "Could not merge that handoff.")
+          end
 
-        {:error, _reason} ->
-          put_flash(socket, :error, "Could not merge that handoff.")
+        {:noreply, load_coordination(socket, project)}
+      else
+        sensitive_denied(socket, :confirmation_required)
       end
-
-    {:noreply, load_coordination(socket, project)}
+    end)
   end
 
   def handle_event("split_work", params, socket) do
-    project = socket.assigns.current_project
-    scope = reviewer_scope(socket)
-    lanes = params |> Map.get("lanes", []) |> List.wrap()
+    with_authorized_project(socket, fn project ->
+      scope = reviewer_scope(socket)
+      lanes = params |> Map.get("lanes", []) |> List.wrap()
 
-    socket =
-      case Orchestration.start_crew(scope, %{
-             goal: params["goal"],
-             lead_session_id: blank_to_nil(params["lead_session_id"]),
-             provider: blank_to_nil(params["provider"]),
-             lanes: lanes,
-             spawn: true
-           }) do
-        {:ok, result} ->
-          put_flash(socket, :info, "Split work into #{length(result["lanes"])} specialist tasks.")
+      socket =
+        case Orchestration.start_crew(scope, %{
+               goal: params["goal"],
+               lead_session_id: blank_to_nil(params["lead_session_id"]),
+               provider: blank_to_nil(params["provider"]),
+               lanes: lanes,
+               spawn: true
+             }) do
+          {:ok, result} ->
+            put_flash(
+              socket,
+              :info,
+              "Split work into #{length(result["lanes"])} specialist tasks."
+            )
 
-        {:error, :invalid_goal} ->
-          put_flash(socket, :error, "Describe the work to split.")
+          {:error, :invalid_goal} ->
+            put_flash(socket, :error, "Describe the work to split.")
 
-        {:error, {:missing_agent, role}} ->
-          put_flash(socket, :error, "No #{role} agent. Pick a provider to start one.")
+          {:error, {:missing_agent, role}} ->
+            put_flash(socket, :error, "No #{role} agent. Pick a provider to start one.")
 
-        {:error, reason} ->
-          put_flash(socket, :error, Providers.start_error_message(reason))
-      end
+          {:error, reason} ->
+            put_flash(socket, :error, Providers.start_error_message(reason))
+        end
 
-    {:noreply, load_coordination(socket, project)}
+      {:noreply, load_coordination(socket, project)}
+    end)
   end
 
   def handle_event("create_task", params, socket) do
-    project = socket.assigns.current_project
-    scope = reviewer_scope(socket)
-    title = params["title"]
-    skills = csv_list(params["skills"])
-    files = csv_list(params["files"])
+    with_authorized_project(socket, fn project ->
+      scope = reviewer_scope(socket)
+      title = params["title"]
+      skills = csv_list(params["skills"])
+      files = csv_list(params["files"])
 
-    recipient_id =
-      blank_to_nil(params["recipient_id"]) || auto_recipient_id(socket, params)
+      recipient_id =
+        blank_to_nil(params["recipient_id"]) || auto_recipient_id(socket, params)
 
-    reviewer_id = blank_to_nil(params["reviewer_id"])
-    checks = csv_list(params["checks"])
-    isolated? = params["isolated"] != "false"
-    permission = params["permission_profile"] || "default"
-    role_id = blank_to_nil(params["role_id"])
-    depth = blank_to_nil(params["delegation_depth"])
+      reviewer_id = blank_to_nil(params["reviewer_id"])
+      checks = csv_list(params["checks"])
+      isolated? = params["isolated"] != "false"
+      permission = params["permission_profile"] || "default"
+      role_id = blank_to_nil(params["role_id"])
+      depth = blank_to_nil(params["delegation_depth"])
 
-    socket =
-      with {:ok, context} <- A2A.ensure_working_context(scope),
-           {:ok, task} <-
-             A2A.create_task(scope, context, %{
-               title: title,
-               metadata: %{
-                 "skills" => skills,
-                 "required_checks" => checks,
-                 "reviewer_id" => reviewer_id,
-                 "provider" => params["provider"],
-                 "role_id" => role_id,
-                 "permission_profile" => permission,
-                 "isolated" => isolated?,
-                 "delegation_depth" => depth
-               }
-             }) do
-        _ = maybe_claim_task_files(scope, files, title)
-        _ = maybe_propose_task(scope, task, recipient_id, "delegate")
-        _ = maybe_propose_task(scope, task, reviewer_id, "review")
-        socket
-      else
-        {:error, _reason} -> put_flash(socket, :error, "Could not create that task.")
-      end
+      socket =
+        with {:ok, context} <- A2A.ensure_working_context(scope),
+             {:ok, task} <-
+               A2A.create_task(scope, context, %{
+                 title: title,
+                 metadata: %{
+                   "skills" => skills,
+                   "required_checks" => checks,
+                   "reviewer_id" => reviewer_id,
+                   "provider" => params["provider"],
+                   "role_id" => role_id,
+                   "permission_profile" => permission,
+                   "isolated" => isolated?,
+                   "delegation_depth" => depth
+                 }
+               }) do
+          _ = maybe_claim_task_files(scope, files, title)
+          _ = maybe_propose_task(scope, task, recipient_id, "delegate")
+          _ = maybe_propose_task(scope, task, reviewer_id, "review")
+          socket
+        else
+          {:error, _reason} -> put_flash(socket, :error, "Could not create that task.")
+        end
 
-    {:noreply, load_coordination(socket, project)}
+      {:noreply, load_coordination(socket, project)}
+    end)
   end
 
   def handle_event(
@@ -833,144 +980,196 @@ defmodule AgentDeskWeb.WorkspaceLive do
         %{"task_id" => task_id, "depends_on_id" => prereq},
         socket
       ) do
-    project = socket.assigns.current_project
-    scope = reviewer_scope(socket)
+    with_authorized_project(socket, fn project ->
+      scope = reviewer_scope(socket)
 
-    socket =
-      case Graph.add_dependency(scope, task_id, prereq) do
-        {:ok, _edge} -> socket
-        {:error, :cycle} -> put_flash(socket, :error, "That dependency would create a cycle.")
-        {:error, _reason} -> put_flash(socket, :error, "Could not add that dependency.")
-      end
+      socket =
+        case Graph.add_dependency(scope, task_id, prereq) do
+          {:ok, _edge} -> socket
+          {:error, :cycle} -> put_flash(socket, :error, "That dependency would create a cycle.")
+          {:error, _reason} -> put_flash(socket, :error, "Could not add that dependency.")
+        end
 
-    {:noreply, load_coordination(socket, project)}
+      {:noreply, load_coordination(socket, project)}
+    end)
   end
 
   def handle_event("complete_task", %{"id" => id}, socket) do
-    project = socket.assigns.current_project
-    scope = reviewer_scope(socket)
+    with_authorized_project(socket, fn project ->
+      scope = reviewer_scope(socket)
 
-    socket =
-      case Enum.find(socket.assigns.tasks, &(&1.id == id)) do
-        nil ->
-          put_flash(socket, :error, "Task not found.")
+      socket =
+        case Enum.find(socket.assigns.tasks, &(&1.id == id)) do
+          nil ->
+            put_flash(socket, :error, "Task not found.")
 
-        task ->
-          case A2A.update_task(scope, task, %{status: "completed"}) do
-            {:ok, _} ->
-              socket
+          task ->
+            case A2A.update_task(scope, task, %{status: "completed"}) do
+              {:ok, _} ->
+                socket
 
-            {:error, :blocked_by_dependencies} ->
-              put_flash(socket, :error, "That task is still waiting on dependencies.")
+              {:error, :blocked_by_dependencies} ->
+                put_flash(socket, :error, "That task is still waiting on dependencies.")
 
-            {:error, _} ->
-              put_flash(socket, :error, "Could not complete that task.")
-          end
-      end
+              {:error, _} ->
+                put_flash(socket, :error, "Could not complete that task.")
+            end
+        end
 
-    {:noreply, load_coordination(socket, project)}
+      {:noreply, load_coordination(socket, project)}
+    end)
   end
 
   def handle_event("run_workflow", %{"name" => name, "steps" => steps}, socket) do
-    project = socket.assigns.current_project
-    scope = reviewer_scope(socket)
-    titles = String.split(steps || "", "\n", trim: true)
+    with_authorized_project(socket, fn project ->
+      scope = reviewer_scope(socket)
+      titles = String.split(steps || "", "\n", trim: true)
 
-    socket =
-      with {:ok, context} <- A2A.ensure_working_context(scope),
-           {:ok, _tasks} <- Workflows.instantiate_linear(scope, context, name, titles) do
-        put_flash(socket, :info, "Started workflow #{name}.")
-      else
-        {:error, _reason} -> put_flash(socket, :error, "Could not start that workflow.")
-      end
+      socket =
+        with {:ok, context} <- A2A.ensure_working_context(scope),
+             {:ok, _tasks} <- Workflows.instantiate_linear(scope, context, name, titles) do
+          put_flash(socket, :info, "Started workflow #{name}.")
+        else
+          {:error, _reason} -> put_flash(socket, :error, "Could not start that workflow.")
+        end
 
-    {:noreply, load_coordination(socket, project)}
+      {:noreply, load_coordination(socket, project)}
+    end)
   end
 
   def handle_event("instantiate_workflow", %{"id" => id}, socket) do
-    project = socket.assigns.current_project
-    scope = reviewer_scope(socket)
+    with_authorized_project(socket, fn project ->
+      scope = reviewer_scope(socket)
 
-    socket =
-      with {:ok, context} <- A2A.ensure_working_context(scope),
-           {:ok, _tasks} <- Workflows.instantiate(scope, id, context) do
-        socket
-      else
-        {:error, _reason} -> put_flash(socket, :error, "Could not run that workflow.")
-      end
+      socket =
+        with {:ok, context} <- A2A.ensure_working_context(scope),
+             {:ok, _tasks} <- Workflows.instantiate(scope, id, context) do
+          socket
+        else
+          {:error, _reason} -> put_flash(socket, :error, "Could not run that workflow.")
+        end
 
-    {:noreply, load_coordination(socket, project)}
+      {:noreply, load_coordination(socket, project)}
+    end)
   end
 
   def handle_event("cleanup_worktree", _params, socket) do
-    {:noreply, assign(socket, :confirm_cleanup, true)}
+    with_authorized_worktree(socket, fn _project, worktree ->
+      {:noreply,
+       assign(socket,
+         confirm_cleanup: true,
+         confirm_cleanup_worktree_id: worktree.id
+       )}
+    end)
   end
 
   def handle_event("cancel_cleanup", _params, socket) do
-    {:noreply, assign(socket, :confirm_cleanup, false)}
+    {:noreply, assign(socket, confirm_cleanup: false, confirm_cleanup_worktree_id: nil)}
   end
 
   def handle_event("search_project", %{"q" => q}, socket) do
-    project = socket.assigns.current_project
-    results = search_results(project, q)
+    with_authorized_project(socket, fn project ->
+      status = AgentDesk.Search.status(project)
 
-    {:noreply,
-     socket
-     |> assign(:search_query, q)
-     |> assign(:search_results, results)
-     |> assign(:search_status, AgentDesk.Search.status(project))}
+      {results, socket} =
+        case AgentDesk.Search.search(Scope.for_project(project), %{"q" => q}) do
+          {:ok, hits} ->
+            {hits, socket}
+
+          {:error, :unavailable} ->
+            {[], socket}
+
+          {:error, reason} ->
+            {[], put_flash(socket, :error, "Search failed: #{search_error_detail(reason)}")}
+        end
+
+      {:noreply,
+       socket
+       |> assign(:search_query, q)
+       |> assign(:search_results, results)
+       |> assign(:search_status, status)}
+    end)
   end
 
   def handle_event("rebuild_search", _params, socket) do
-    project = socket.assigns.current_project
-    _ = AgentDesk.Search.rebuild(project)
+    with_authorized_project(socket, fn project ->
+      socket =
+        case AgentDesk.Search.Debouncer.request_rebuild(project.id) do
+          :ok ->
+            put_flash(socket, :info, "Search rebuild requested.")
 
-    {:noreply,
-     socket
-     |> assign(:search_status, AgentDesk.Search.status(project))
-     |> put_flash(:info, "Search rebuild requested.")}
+          {:error, :not_started} ->
+            case AgentDesk.Search.rebuild(project) do
+              :ok ->
+                put_flash(socket, :info, "Search rebuild requested.")
+
+              {:error, :unavailable} ->
+                put_flash(
+                  socket,
+                  :info,
+                  "Search is off. Enable SQLite search or XERJ in onboarding."
+                )
+
+              {:error, reason} ->
+                put_flash(
+                  socket,
+                  :error,
+                  "Could not rebuild search: #{search_error_detail(reason)}"
+                )
+            end
+        end
+
+      {:noreply, assign(socket, :search_status, AgentDesk.Search.status(project))}
+    end)
   end
 
   def handle_event("export_sync", _params, socket) do
-    case AgentDesk.Sync.export(socket.assigns.current_project) do
-      {:ok, path} ->
-        {:noreply,
-         socket
-         |> assign(:sync_path, path)
-         |> put_flash(:info, "Sync bundle exported.")}
+    with_authorized_project(socket, fn project ->
+      case AgentDesk.Sync.export(project) do
+        {:ok, path} ->
+          {:noreply,
+           socket
+           |> assign(:sync_path, path)
+           |> put_flash(:info, "Sync bundle exported.")}
 
-      {:error, _reason} ->
-        {:noreply, put_flash(socket, :error, "Could not export a sync bundle.")}
-    end
+        {:error, _reason} ->
+          {:noreply, put_flash(socket, :error, "Could not export a sync bundle.")}
+      end
+    end)
   end
 
   def handle_event("import_sync", %{"path" => path}, socket) do
-    case AgentDesk.Sync.import_bundle(socket.assigns.current_project, path) do
-      {:ok, _counts} ->
-        project = socket.assigns.current_project
+    with_authorized_project(socket, fn project ->
+      case AgentDesk.Sync.import_bundle(project, path) do
+        {:ok, _counts} ->
+          {:noreply,
+           socket
+           |> load_coordination(project)
+           |> put_flash(:info, "Sync bundle imported.")}
 
-        {:noreply,
-         socket
-         |> load_coordination(project)
-         |> put_flash(:info, "Sync bundle imported.")}
+        {:error, :sync_mismatch} ->
+          {:noreply, put_flash(socket, :error, "Bundle does not match this Git repository.")}
 
-      {:error, :sync_mismatch} ->
-        {:noreply, put_flash(socket, :error, "Bundle does not match this Git repository.")}
-
-      {:error, _reason} ->
-        {:noreply, put_flash(socket, :error, "Could not import that sync bundle.")}
-    end
+        {:error, _reason} ->
+          {:noreply, put_flash(socket, :error, "Could not import that sync bundle.")}
+      end
+    end)
   end
 
   def handle_event("confirm_cleanup", _params, socket) do
-    project = socket.assigns.current_project
-    worktree = socket.assigns.active_worktree
-    _ = worktree && Worktrees.cleanup(project, worktree)
+    with_authorized_worktree(socket, fn project, worktree ->
+      if socket.assigns.confirm_cleanup and
+           socket.assigns.confirm_cleanup_worktree_id == worktree.id do
+        _ = Worktrees.cleanup(project, worktree)
 
-    {:noreply,
-     socket
-     |> assign(:confirm_cleanup, false)
-     |> load_coordination(project)}
+        {:noreply,
+         socket
+         |> assign(confirm_cleanup: false, confirm_cleanup_worktree_id: nil)
+         |> load_coordination(project)}
+      else
+        sensitive_denied(socket, :confirmation_required)
+      end
+    end)
   end
 
   @impl true
@@ -1095,20 +1294,6 @@ defmodule AgentDeskWeb.WorkspaceLive do
 
   defp assign_current_project(socket, _params) do
     assign(socket, :current_project, nil)
-  end
-
-  defp assign_project_preview(socket, %{"id" => id}) do
-    case Projects.get_project(id) do
-      {:ok, project} -> assign(socket, :current_project, project)
-      {:error, :not_found} -> assign(socket, :current_project, nil)
-    end
-  end
-
-  defp assign_project_preview(socket, _params) do
-    case Projects.list_open() do
-      [%Project{} = project | _] -> assign(socket, :current_project, project)
-      _ -> assign(socket, :current_project, nil)
-    end
   end
 
   defp after_project_closed(socket, project_id) do
@@ -1240,6 +1425,14 @@ defmodule AgentDeskWeb.WorkspaceLive do
     end
   end
 
+  defp search_error_detail(:unavailable), do: "search is off"
+
+  defp search_error_detail(reason) when is_atom(reason),
+    do: reason |> Atom.to_string() |> String.replace("_", " ")
+
+  defp search_error_detail(reason) when is_binary(reason), do: reason
+  defp search_error_detail(_), do: "unknown error"
+
   defp load_worktrees(socket, project) do
     trees = Worktrees.list_project(project.id)
     active_id = socket.assigns.active_session_id
@@ -1250,6 +1443,7 @@ defmodule AgentDeskWeb.WorkspaceLive do
     |> assign(:worktrees, trees)
     |> assign(:active_worktree, current)
     |> assign(:worktree_diff, diff)
+    |> assign(:handoff_diff, handoff_diff(socket, trees))
     |> assign(:unexpected_edits, Worktrees.unexpected_main_edits(project))
   end
 
@@ -1308,38 +1502,144 @@ defmodule AgentDeskWeb.WorkspaceLive do
     end
   end
 
-  defp publish_active_handoff(socket, summary) do
-    project = socket.assigns.current_project
-    session_id = socket.assigns.active_session_id
+  defp handoff_diff(socket, trees) do
+    item =
+      Enum.find(
+        socket.assigns.merge_queue || [],
+        &(&1.id == socket.assigns[:selected_handoff_id])
+      )
 
-    with true <- is_binary(session_id),
-         {:ok, session} <- Agents.get_session(Scope.for_project(project), session_id) do
-      _ = Handoffs.publish(Scope.for_agent(project, session), %{summary: summary})
-    end
-
-    {:noreply, load_coordination(socket, project)}
+    tree = item && Enum.find(trees, &(&1.id == item.worktree_id))
+    bounded_diff(tree)
   end
 
-  defp decide_delegation(socket, id, action, reason \\ "ui") do
-    project = socket.assigns.current_project
-    session_id = socket.assigns.active_session_id
-
-    with true <- is_binary(session_id),
-         {:ok, session} <- Agents.get_session(Scope.for_project(project), session_id) do
-      scope = Scope.for_agent(project, session)
-
-      attrs = %{
-        idempotency_key: Ids.generate(),
-        expected_version: 1,
-        response_reason: reason
-      }
-
-      _ =
-        case action do
-          :accept -> A2A.accept_delegation(scope, id, attrs)
-          :reject -> A2A.reject_delegation(scope, id, attrs)
-        end
+  defp with_authorized_control(socket, fun) when is_function(fun, 0) do
+    case authorize_control(socket) do
+      :ok -> fun.()
+      {:error, reason} -> sensitive_denied(socket, reason)
     end
+  end
+
+  defp with_authorized_project(socket, fun) when is_function(fun, 1) do
+    case authorize_current_project(socket) do
+      {:ok, project} -> fun.(project)
+      {:error, reason} -> sensitive_denied(socket, reason)
+    end
+  end
+
+  defp with_authorized_open_project(socket, project_id, fun) when is_function(fun, 1) do
+    case authorize_project(socket, project_id) do
+      {:ok, project} -> fun.(project)
+      {:error, reason} -> sensitive_denied(socket, reason)
+    end
+  end
+
+  defp with_authorized_optional_project(socket, fun) when is_function(fun, 1) do
+    case socket.assigns.current_project do
+      nil -> with_authorized_control(socket, fn -> fun.(nil) end)
+      %Project{} -> with_authorized_project(socket, fun)
+    end
+  end
+
+  defp with_authorized_active_session(socket, fun) when is_function(fun, 2) do
+    with_authorized_session(socket, socket.assigns.active_session_id, fun)
+  end
+
+  defp with_authorized_session(socket, session_id, fun) when is_function(fun, 2) do
+    with {:ok, project} <- authorize_current_project(socket),
+         true <- is_binary(session_id),
+         {:ok, session} <- Agents.get_session(Scope.for_project(project), session_id) do
+      fun.(project, session)
+    else
+      {:error, reason} -> sensitive_denied(socket, reason)
+      false -> sensitive_denied(socket, :session_not_owned)
+    end
+  end
+
+  defp with_authorized_approval(socket, request_id, fun) when is_function(fun, 1) do
+    with_authorized_active_session(socket, fn _project, session ->
+      case socket.assigns.pending_approval do
+        %AgentDesk.Providers.Event{payload: %{"request_id" => ^request_id}} ->
+          fun.(session)
+
+        _other ->
+          sensitive_denied(socket, :approval_not_owned)
+      end
+    end)
+  end
+
+  defp with_authorized_worktree(socket, fun) when is_function(fun, 2) do
+    with_authorized_active_session(socket, fn project, session ->
+      worktree =
+        case socket.assigns.active_worktree do
+          %{id: worktree_id} ->
+            Enum.find(
+              Worktrees.list_project(project.id),
+              &(&1.id == worktree_id and
+                  &1.agent_session_id == session.id and &1.project_id == project.id)
+            )
+
+          nil ->
+            nil
+        end
+
+      case worktree do
+        nil -> sensitive_denied(socket, :worktree_not_owned)
+        worktree -> fun.(project, worktree)
+      end
+    end)
+  end
+
+  defp authorize_current_project(socket) do
+    case socket.assigns.current_project do
+      %Project{id: project_id} -> authorize_project(socket, project_id)
+      nil -> {:error, :project_not_owned}
+    end
+  end
+
+  defp authorize_project(socket, project_id) when is_binary(project_id) do
+    with :ok <- authorize_control(socket),
+         {:ok, %Project{open: true} = project} <- Projects.get_project(project_id) do
+      {:ok, project}
+    else
+      {:error, :control_session_expired} = error -> error
+      {:error, :not_found} -> {:error, :project_not_owned}
+      {:ok, %Project{}} -> {:error, :project_not_owned}
+    end
+  end
+
+  defp authorize_project(_socket, _project_id), do: {:error, :project_not_owned}
+
+  defp authorize_control(socket) do
+    if ControlAuth.authorized_binding?(socket.assigns[:control_binding]) do
+      :ok
+    else
+      {:error, :control_session_expired}
+    end
+  end
+
+  defp sensitive_denied(socket, :control_session_expired) do
+    {:noreply, redirect(socket, to: ~p"/control/unauthorized")}
+  end
+
+  defp sensitive_denied(socket, _reason) do
+    {:noreply, put_flash(socket, :error, "That action is not authorized for this project.")}
+  end
+
+  defp decide_delegation(socket, project, session, id, action, reason \\ "ui") do
+    scope = Scope.for_agent(project, session)
+
+    attrs = %{
+      idempotency_key: Ids.generate(),
+      expected_version: 1,
+      response_reason: reason
+    }
+
+    _ =
+      case action do
+        :accept -> A2A.accept_delegation(scope, id, attrs)
+        :reject -> A2A.reject_delegation(scope, id, attrs)
+      end
 
     load_coordination(socket, project)
   end
@@ -1558,23 +1858,11 @@ defmodule AgentDeskWeb.WorkspaceLive do
     |> then(&stream_transcript(&1, session, 200))
   end
 
-  defp select_session_id(socket, id) do
-    case Enum.find(socket.assigns.sessions, &(&1.id == id)) do
-      nil -> socket
-      session -> select_session(socket, session)
-    end
-  end
-
-  defp dispatch_prompt(socket, prompt) do
-    session = active_session(socket.assigns)
-    project = socket.assigns.current_project
+  defp dispatch_prompt(socket, prompt, project, session) do
     {_, in_progress} = uploaded_entries(socket, :attachments)
     pending? = socket.assigns.uploads.attachments.entries != []
 
     cond do
-      is_nil(session) or is_nil(project) ->
-        {:noreply, put_flash(socket, :error, "No active session to prompt.")}
-
       in_progress != [] ->
         {:noreply, put_flash(socket, :error, "Wait for attachments to finish uploading.")}
 
@@ -1594,10 +1882,28 @@ defmodule AgentDeskWeb.WorkspaceLive do
              )}
           end)
 
-        case SessionWorker.prompt(session.id, prompt, attachments) do
-          :ok -> {:noreply, assign(socket, :prompt, "")}
-          _ -> {:noreply, put_flash(socket, :error, "No active session to prompt.")}
+        case prompt_active_session(session, prompt, attachments) do
+          :ok ->
+            {:noreply, assign(socket, :prompt, "")}
+
+          {:error, reason} ->
+            {:noreply, put_flash(socket, :error, Providers.start_error_message(reason))}
         end
+    end
+  end
+
+  defp prompt_active_session(session, prompt, attachments) do
+    case SessionWorker.prompt(session.id, prompt, attachments) do
+      :ok ->
+        :ok
+
+      {:error, :not_started} ->
+        with {:ok, _} <- Providers.resume_session(session) do
+          SessionWorker.prompt(session.id, prompt, attachments)
+        end
+
+      other ->
+        other
     end
   end
 
@@ -1631,6 +1937,23 @@ defmodule AgentDeskWeb.WorkspaceLive do
         {:error, _} -> {key, %{available: false}}
       end
     end)
+  end
+
+  defp checking_providers do
+    Map.new(~w(codex claude cursor opencode), fn key ->
+      {key, %{available: false, checking: true}}
+    end)
+  end
+
+  defp onboard_step_ready?(socket) do
+    project? = match?(%{id: _}, socket.assigns.current_project)
+
+    case socket.assigns.onboard_step do
+      1 -> project?
+      2 -> project?
+      10 -> project?
+      _ -> true
+    end
   end
 
   defp append_activity(event, socket) do
@@ -1691,6 +2014,17 @@ defmodule AgentDeskWeb.WorkspaceLive do
 
   defp transcript_visible?(%{"type" => "initialize_result"}), do: false
 
+  defp transcript_visible?(%{"type" => type, "payload" => payload})
+       when type in [
+              "tool_started",
+              "tool_completed",
+              "provider_error",
+              "stderr",
+              "approval_requested"
+            ] do
+    AgentDesk.Activity.meaningful?(type, payload || %{})
+  end
+
   defp transcript_visible?(%{"type" => "message_delta", "payload" => payload}) do
     text = payload["text"]
     is_binary(text) and String.trim(text) != ""
@@ -1706,14 +2040,25 @@ defmodule AgentDeskWeb.WorkspaceLive do
     %{
       id: Ids.generate(),
       type: type,
-      text:
-        payload["text"] || payload["summary"] || payload["message"] || payload["reason"] ||
-          String.replace(to_string(type), "_", " "),
+      text: AgentDesk.Activity.caption(type, payload),
       payload: payload
     }
   end
 
-  defp activity_visible?(%{type: type}) when type in [:initialize_result], do: false
+  defp activity_visible?(%{type: type})
+       when type in [:initialize_result, :authenticated, :client_request],
+       do: false
+
+  defp activity_visible?(%{type: type, payload: payload})
+       when type in [
+              :tool_started,
+              :tool_completed,
+              :provider_error,
+              :stderr,
+              :approval_requested
+            ] do
+    AgentDesk.Activity.meaningful?(type, payload || %{})
+  end
 
   defp activity_visible?(%{type: :message_delta, payload: payload}) do
     text = payload["text"] || payload["delta"]
@@ -1722,25 +2067,7 @@ defmodule AgentDeskWeb.WorkspaceLive do
 
   defp activity_visible?(_event), do: true
 
-  defp activity_text(%{payload: payload, type: type}) when is_map(payload) do
-    payload["text"] || payload["delta"] || payload["summary"] || payload["message"] ||
-      payload["reason"] || activity_label(Atom.to_string(type))
-  end
-
-  defp activity_label("message_delta"), do: "Agent"
-  defp activity_label("message_completed"), do: "Agent"
-  defp activity_label("turn_started"), do: "Turn"
-  defp activity_label("turn_completed"), do: "Turn complete"
-  defp activity_label("session_ready"), do: "Ready"
-  defp activity_label("file_change"), do: "File change"
-  defp activity_label("provider_error"), do: "Error"
-  defp activity_label("approval_requested"), do: "Approval"
-  defp activity_label("command_started"), do: "Command"
-  defp activity_label("command_completed"), do: "Command"
-  defp activity_label("tool_started"), do: "Tool"
-  defp activity_label("tool_completed"), do: "Tool"
-  defp activity_label("session_exited"), do: "Exited"
-  defp activity_label(type) when is_binary(type), do: String.replace(type, "_", " ")
+  defp activity_text(event), do: AgentDesk.Activity.caption(event)
 
   defp announce(socket, text), do: assign(socket, :announce, text)
 
@@ -1785,51 +2112,82 @@ defmodule AgentDeskWeb.WorkspaceLive do
 
   defp session_inbox(_scope, _session_id), do: []
 
-  defp peer_action(socket, agent_id, kind) do
-    project = socket.assigns.current_project
-    scope = reviewer_scope(socket)
+  defp begin_peer_compose(socket, project, session, agent_id, kind) do
+    if agent_id == session.id do
+      socket
+      |> put_flash(:error, self_peer_flash(kind))
+      |> announce(self_peer_flash(kind))
+    else
+      recipient = Enum.find(socket.assigns.sessions, &(&1.id == agent_id))
+
+      socket
+      |> assign(:peer_compose, %{
+        kind: Atom.to_string(kind),
+        recipient_id: agent_id,
+        recipient_name: (recipient && recipient.display_name) || "agent",
+        sender_name: session.display_name
+      })
+      |> load_coordination(project)
+    end
+  end
+
+  defp submit_peer_compose(socket, project, session, params) do
+    compose = socket.assigns.peer_compose
+    kind = compose && peer_kind(compose.kind)
+    body = String.trim(to_string(params["body"] || params["reason"] || ""))
 
     socket =
       cond do
-        is_nil(scope.agent_session) ->
-          put_flash(socket, :error, "Select a session tab first.")
+        is_nil(compose) or is_nil(kind) ->
+          put_flash(socket, :error, "Choose an agent action first.")
 
-        scope.agent_session.id == agent_id ->
-          put_flash(socket, :error, "Pick another agent for that action.")
+        params["recipient_id"] != compose.recipient_id ->
+          put_flash(socket, :error, "That compose draft no longer matches the recipient.")
+
+        body == "" ->
+          put_flash(socket, :error, "Add a purpose before sending.")
 
         true ->
-          case perform_peer_action(scope, agent_id, kind) do
+          case perform_peer_action(
+                 Scope.for_agent(project, session),
+                 compose.recipient_id,
+                 kind,
+                 body
+               ) do
             :ok ->
               socket
+              |> assign(:peer_compose, nil)
               |> put_flash(:info, peer_flash(kind))
               |> announce(peer_flash(kind))
 
-            {:error, _} ->
-              put_flash(socket, :error, "Could not complete that agent action.")
+            {:error, reason} ->
+              put_flash(socket, :error, peer_error_message(kind, reason))
           end
       end
 
     load_coordination(socket, project)
   end
 
-  defp perform_peer_action(scope, agent_id, :message) do
-    sender = scope.agent_session.display_name
+  defp peer_kind("message"), do: :message
+  defp peer_kind("delegate"), do: :delegate
+  defp peer_kind("review"), do: :review
+  defp peer_kind(_), do: nil
 
+  defp perform_peer_action(scope, agent_id, :message, body) do
     with {:ok, context} <- A2A.ensure_working_context(scope),
          {:ok, _} <-
            A2A.send_direct_message(scope, %{
              context_id: context.id,
              recipient_agent_id: agent_id,
-             body: "Hello from #{sender}",
+             body: body,
              idempotency_key: Ids.generate()
            }) do
       :ok
     end
   end
 
-  defp perform_peer_action(scope, agent_id, kind) when kind in [:delegate, :review] do
+  defp perform_peer_action(scope, agent_id, kind, reason) when kind in [:delegate, :review] do
     title = if kind == :review, do: "Review requested", else: "Delegated work"
-    reason = if kind == :review, do: "review", else: "delegate"
 
     with {:ok, context} <- A2A.ensure_working_context(scope),
          {:ok, task} <- A2A.create_task(scope, context, %{title: title}),
@@ -1848,18 +2206,43 @@ defmodule AgentDeskWeb.WorkspaceLive do
   defp peer_flash(:delegate), do: "Delegation proposed."
   defp peer_flash(:review), do: "Review requested."
 
-  defp lease_owner_message(socket, lease_id, body) do
-    project = socket.assigns.current_project
+  defp self_peer_flash(:message),
+    do: "Open another session tab. An agent cannot message itself."
+
+  defp self_peer_flash(:delegate),
+    do: "Open another session tab. An agent cannot delegate a task to itself."
+
+  defp self_peer_flash(:review),
+    do: "Open another session tab. Request review from a different agent."
+
+  defp self_peer_flash(_),
+    do: "Open another session tab. That action needs a different agent."
+
+  defp peer_error_message(_kind, reason) do
+    detail = peer_error_detail(reason)
+
+    if detail do
+      "Could not complete that agent action: #{detail}"
+    else
+      "Could not complete that agent action."
+    end
+  end
+
+  defp peer_error_detail(reason) when is_atom(reason),
+    do: reason |> Atom.to_string() |> String.replace("_", " ")
+
+  defp peer_error_detail(reason) when is_binary(reason), do: reason
+  defp peer_error_detail({:error, reason}), do: peer_error_detail(reason)
+  defp peer_error_detail(_), do: nil
+
+  defp lease_owner_message(socket, scope, lease_id, body) do
+    project = scope.project
     lease = Enum.find(socket.assigns.leases, &(&1.id == lease_id))
-    scope = reviewer_scope(socket)
 
     socket =
       cond do
         is_nil(lease) ->
           put_flash(socket, :error, "That lease is no longer active.")
-
-        is_nil(scope.agent_session) ->
-          put_flash(socket, :error, "Select a session tab first.")
 
         scope.agent_session.id == lease.agent_session_id ->
           put_flash(socket, :info, "You already hold that lease.")
@@ -1884,28 +2267,20 @@ defmodule AgentDeskWeb.WorkspaceLive do
     load_coordination(socket, project)
   end
 
-  defp mutate_delegation(socket, id, action, to_id \\ nil) do
-    project = socket.assigns.current_project
-    session_id = socket.assigns.active_session_id
+  defp mutate_delegation(socket, project, session, id, action, to_id \\ nil) do
+    scope = Scope.for_agent(project, session)
+    attrs = %{idempotency_key: Ids.generate()}
+
+    result =
+      case action do
+        :revoke -> A2A.revoke_delegation(scope, id, attrs)
+        :redirect -> A2A.redirect_delegation(scope, id, Map.put(attrs, :to_agent_id, to_id))
+      end
 
     socket =
-      with true <- is_binary(session_id),
-           {:ok, session} <- Agents.get_session(Scope.for_project(project), session_id) do
-        scope = Scope.for_agent(project, session)
-        attrs = %{idempotency_key: Ids.generate()}
-
-        result =
-          case action do
-            :revoke -> A2A.revoke_delegation(scope, id, attrs)
-            :redirect -> A2A.redirect_delegation(scope, id, Map.put(attrs, :to_agent_id, to_id))
-          end
-
-        case result do
-          {:ok, _} -> put_flash(socket, :info, "Delegation updated.")
-          {:error, _} -> put_flash(socket, :error, "Could not update that delegation.")
-        end
-      else
-        _ -> put_flash(socket, :error, "Select a session tab first.")
+      case result do
+        {:ok, _} -> put_flash(socket, :info, "Delegation updated.")
+        {:error, _} -> put_flash(socket, :error, "Could not update that delegation.")
       end
 
     load_coordination(socket, project)
@@ -2011,7 +2386,9 @@ defmodule AgentDeskWeb.WorkspaceLive do
   end
 
   defp apply_shortcut(socket, "interrupt"), do: elem(handle_event("interrupt", %{}, socket), 1)
-  defp apply_shortcut(socket, "load_older"), do: load_more_activity(socket)
+
+  defp apply_shortcut(socket, "load_older"),
+    do: elem(handle_event("load_older_activity", %{}, socket), 1)
 
   defp apply_shortcut(socket, "next_tab") do
     rotate_tab(socket, 1)

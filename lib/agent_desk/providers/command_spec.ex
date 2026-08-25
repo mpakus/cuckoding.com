@@ -4,12 +4,14 @@ defmodule AgentDesk.Providers.CommandSpec do
   """
 
   @enforce_keys [:executable]
-  defstruct [:executable, args: [], cwd: ".", env: %{}]
+  @derive {Inspect, except: [:env]}
+  defstruct [:executable, args: [], cwd: ".", env: %{}, env_passthrough: []]
 
   @type t :: %__MODULE__{
           executable: String.t(),
           args: [String.t()],
           cwd: String.t(),
-          env: %{optional(String.t()) => String.t()}
+          env: %{optional(String.t()) => String.t()},
+          env_passthrough: [String.t()]
         }
 end

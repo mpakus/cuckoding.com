@@ -10,6 +10,7 @@ import Config
 config :agent_desk,
   ecto_repos: [AgentDesk.Repo],
   generators: [timestamp_type: :utc_datetime_usec, binary_id: true],
+  control_auth: [mode: :launch_token],
   features: [
     xerj: false,
     shared_workspace_mode: false,
@@ -87,6 +88,8 @@ config :tailwind,
 config :logger, :default_formatter,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id, :project_id, :agent_id, :correlation_id]
+
+config :phoenix, :filter_parameters, ["token", "password", "secret"]
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason

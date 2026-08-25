@@ -21,6 +21,8 @@ defmodule AgentDesk.Providers.Event do
     "provider_error" => :provider_error,
     "session_exited" => :session_exited,
     "initialize_result" => :initialize_result,
+    "authenticated" => :authenticated,
+    "client_request" => :client_request,
     "stderr" => :stderr
   }
 
@@ -45,6 +47,8 @@ defmodule AgentDesk.Providers.Event do
           | :provider_error
           | :session_exited
           | :initialize_result
+          | :authenticated
+          | :client_request
           | :stderr
 
   @type t :: %__MODULE__{

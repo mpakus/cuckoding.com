@@ -9,9 +9,14 @@ defmodule AgentDesk.Providers.Probe do
     if Fixture.enabled?(opts) do
       {:ok, %{key: key, executable: "fixture", version: "fixture", protocol: "fixture"}}
     else
-      with {:ok, executable} <- Discovery.find_executable(binary_name, opts),
-           {:ok, version} <- Discovery.version(executable) do
-        {:ok, %{key: key, executable: executable, version: version}}
+      with {:ok, executable} <- Discovery.find_executable(binary_name, opts) do
+        if Keyword.has_key?(opts, :executable) do
+          {:ok, %{key: key, executable: executable, version: "configured"}}
+        else
+          with {:ok, version} <- Discovery.version(executable) do
+            {:ok, %{key: key, executable: executable, version: version}}
+          end
+        end
       end
     end
   end

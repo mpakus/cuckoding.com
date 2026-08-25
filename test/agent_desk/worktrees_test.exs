@@ -95,12 +95,45 @@ defmodule AgentDesk.WorktreesTest do
   } do
     {:ok, worktree} = Worktrees.ensure_for_session(project, alice)
     File.write!(Path.join(worktree.path, "dirty.txt"), "x\n")
+    {:ok, _alice} = Agents.update_session(alice, %{status: "interrupted"})
     assert {:error, :dirty} = Worktrees.cleanup(project, worktree)
 
     AgentDesk.Projects.Supervisor.stop_runtime(project.id)
     {:ok, _pid} = AgentDesk.Projects.Supervisor.start_runtime(project)
     assert File.exists?(Path.join(worktree.path, "dirty.txt"))
     assert Worktrees.get_for_session(alice.id).path == worktree.path
+  end
+
+  test "cleanup refuses a worktree while its owning session is live", %{
+    project: project,
+    alice: alice
+  } do
+    {:ok, worktree} = Worktrees.ensure_for_session(project, alice)
+
+    assert {:error, _reason} = Worktrees.cleanup(project, worktree)
+    assert File.dir?(worktree.path)
+  end
+
+  test "missing isolated worktrees never resolve to the primary checkout", %{
+    project: project,
+    alice: alice
+  } do
+    {:ok, worktree} = Worktrees.ensure_for_session(project, alice)
+    File.rm_rf!(worktree.path)
+
+    refute Worktrees.working_copy_path(project, alice) == project.canonical_path
+  end
+
+  test "removed isolated worktrees never resolve to the primary checkout", %{
+    project: project,
+    alice: alice
+  } do
+    {:ok, worktree} = Worktrees.ensure_for_session(project, alice)
+    {:ok, alice} = Agents.update_session(alice, %{status: "terminated"})
+    assert :ok = Worktrees.cleanup(project, worktree)
+
+    assert is_nil(Worktrees.get_for_session(alice.id))
+    refute Worktrees.working_copy_path(project, alice) == project.canonical_path
   end
 
   test "isolation names and ports are unique per session", %{
@@ -129,5 +162,62 @@ defmodule AgentDesk.WorktreesTest do
     assert {:ok, nil} = Worktrees.ensure_for_session(project, shared)
     assert Worktrees.working_copy_path(project, shared) == project.canonical_path
     assert is_nil(Worktrees.get_for_session(shared.id))
+  end
+
+  test "creates an isolated worktree when the repository has no commits" do
+    repo = GitRepo.empty_repo!()
+    File.write!(Path.join(repo, "notes.txt"), "draft\n")
+    {:ok, project} = Projects.open_project(repo)
+    on_exit(fn -> AgentDesk.Projects.Supervisor.stop_runtime(project.id) end)
+    scope = Scope.for_project(project)
+    {:ok, session} = Agents.create_session(scope, %{provider: "fake", display_name: "Empty"})
+
+    assert {:ok, worktree} = Worktrees.ensure_for_session(project, session)
+    assert File.dir?(worktree.path)
+    assert worktree.path != project.canonical_path
+    assert {:ok, _} = Git.rev_parse(worktree.path, "HEAD")
+    assert {:error, :empty_repository} = Git.rev_parse(project.canonical_path, "HEAD")
+    assert File.read!(Path.join(worktree.path, "notes.txt")) == "draft\n"
+    assert File.read!(Path.join(project.canonical_path, "notes.txt")) == "draft\n"
+    assert Git.dirty?(project.canonical_path)
+    assert Worktrees.unexpected_main_edits(project) == []
+  end
+
+  test "empty repository seeding never follows an untracked symlink" do
+    repo = GitRepo.empty_repo!("agentdesk-empty-symlink")
+    outside = repo <> "-outside.txt"
+    File.write!(outside, "outside\n")
+    File.ln_s!(outside, Path.join(repo, "linked.txt"))
+    on_exit(fn -> File.rm(outside) end)
+    {project, session} = open_empty_project_session(repo, "Symlink")
+
+    assert {:ok, worktree} = Worktrees.ensure_for_session(project, session)
+    assert {:error, :enoent} = File.lstat(Path.join(worktree.path, "linked.txt"))
+    assert {:ok, %File.Stat{type: :symlink}} = File.lstat(Path.join(repo, "linked.txt"))
+  end
+
+  test "empty repository seeding skips FIFOs when mkfifo is available" do
+    case System.find_executable("mkfifo") do
+      nil ->
+        :ok
+
+      executable ->
+        repo = GitRepo.empty_repo!("agentdesk-empty-fifo")
+        fifo = Path.join(repo, "events.pipe")
+        {_output, 0} = System.cmd(executable, [fifo], stderr_to_stdout: true)
+        {project, session} = open_empty_project_session(repo, "FIFO")
+
+        assert {:ok, worktree} = Worktrees.ensure_for_session(project, session)
+        assert {:error, :enoent} = File.lstat(Path.join(worktree.path, "events.pipe"))
+        assert {:ok, %File.Stat{type: :other}} = File.lstat(fifo)
+    end
+  end
+
+  defp open_empty_project_session(repo, display_name) do
+    {:ok, project} = Projects.open_project(repo)
+    on_exit(fn -> AgentDesk.Projects.Supervisor.stop_runtime(project.id) end)
+    scope = Scope.for_project(project)
+    {:ok, session} = Agents.create_session(scope, %{provider: "fake", display_name: display_name})
+    {project, session}
   end
 end

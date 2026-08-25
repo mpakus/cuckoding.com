@@ -52,7 +52,8 @@ defmodule AgentDesk.Providers.Codex.Exec do
        %CommandSpec{
          executable: Keyword.get(opts, :executable, "codex"),
          args: ["exec", "--json", prompt],
-         cwd: cwd
+         cwd: cwd,
+         env_passthrough: AgentDesk.Env.provider_env_passthrough("codex")
        }}
     end
   end

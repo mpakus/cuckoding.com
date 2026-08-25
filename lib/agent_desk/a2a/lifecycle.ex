@@ -4,6 +4,8 @@ defmodule AgentDesk.A2A.Lifecycle do
   import Ecto.Query
 
   alias AgentDesk.A2A.Artifact
+  alias AgentDesk.A2A.ArtifactFile
+  alias AgentDesk.A2A.Authorization
   alias AgentDesk.A2A.Delegation
   alias AgentDesk.A2A.Idempotency
   alias AgentDesk.A2A.Task
@@ -64,16 +66,26 @@ defmodule AgentDesk.A2A.Lifecycle do
   end
 
   @spec get_artifact(Scope.t(), Ecto.UUID.t()) :: {:ok, Artifact.t()} | {:error, term()}
-  def get_artifact(%Scope{project: project}, id) do
-    case Repo.get_by(Artifact, id: id, project_id: project.id) do
-      nil -> {:error, :not_found}
-      %Artifact{} = artifact -> verify_bytes(artifact)
+  def get_artifact(%Scope{project: project} = scope, id) do
+    with {:ok, _uuid} <- Ecto.UUID.cast(id) do
+      case Repo.get_by(Artifact, id: id, project_id: project.id) do
+        nil ->
+          {:error, :not_found}
+
+        %Artifact{} = artifact ->
+          with :ok <- Authorization.authorize_artifact_read(scope, artifact) do
+            verify_bytes(scope, artifact)
+          end
+      end
+    else
+      :error -> {:error, :not_found}
     end
   end
 
   @spec update_task(Scope.t(), Task.t(), map()) :: {:ok, Task.t()} | {:error, term()}
   def update_task(%Scope{project: project} = scope, %Task{} = task, attrs) do
     with :ok <- if(task.project_id == project.id, do: :ok, else: {:error, :forbidden}),
+         :ok <- Authorization.authorize_task_transition(scope, task, attrs),
          :ok <- AgentDesk.A2A.Graph.guard_completion(task, attrs) do
       expected = Map.get(attrs, :expected_version, task.lock_version)
 
@@ -115,32 +127,32 @@ defmodule AgentDesk.A2A.Lifecycle do
   end
 
   defp transition(%Scope{project: project}, _session, id, status, allowed?) do
-    delegation = Repo.get_by(Delegation, id: id, project_id: project.id)
+    case fetch_delegation(project.id, id) do
+      {:ok, delegation} ->
+        cond do
+          not allowed?.(delegation) ->
+            {:error, :forbidden}
 
-    cond do
-      is_nil(delegation) ->
-        {:error, :not_found}
+          delegation.status != "proposed" ->
+            {:error, :invalid_state}
 
-      not allowed?.(delegation) ->
-        {:error, :forbidden}
+          true ->
+            {:ok, updated} =
+              delegation
+              |> Delegation.changeset(%{status: status, responded_at: Clock.utc_now()})
+              |> Repo.update()
 
-      delegation.status != "proposed" ->
-        {:error, :invalid_state}
+            {:ok, %{"id" => updated.id}}
+        end
 
-      true ->
-        {:ok, updated} =
-          delegation
-          |> Delegation.changeset(%{status: status, responded_at: Clock.utc_now()})
-          |> Repo.update()
-
-        {:ok, %{"id" => updated.id}}
+      {:error, :not_found} = error ->
+        error
     end
   end
 
   defp do_redirect(%Scope{project: project} = scope, session, id, to_id) do
-    with {:ok, _to} <- Agents.get_session(scope, to_id) do
-      delegation = Repo.get_by!(Delegation, id: id, project_id: project.id)
-
+    with {:ok, _to} <- Authorization.eligible_recipient(scope, to_id),
+         {:ok, delegation} <- fetch_delegation(project.id, id) do
       cond do
         delegation.from_agent_id != session.id ->
           {:error, :forbidden}
@@ -162,22 +174,45 @@ defmodule AgentDesk.A2A.Lifecycle do
     end
   end
 
-  defp verify_bytes(%Artifact{} = artifact) do
-    case File.read(artifact.path) do
-      {:ok, bytes} ->
-        hash = :sha256 |> :crypto.hash(bytes) |> Base.encode16(case: :lower)
-
-        if hash == artifact.sha256 do
-          {:ok, artifact}
-        else
-          artifact |> Artifact.changeset(%{state: "corrupt"}) |> Repo.update()
-          {:error, :artifact_integrity}
-        end
-
-      {:error, _} ->
-        artifact |> Artifact.changeset(%{state: "missing"}) |> Repo.update()
-        {:error, :missing_bytes}
+  defp fetch_delegation(project_id, id) when is_binary(id) do
+    with {:ok, _uuid} <- Ecto.UUID.cast(id) do
+      case Repo.get_by(Delegation, id: id, project_id: project_id) do
+        %Delegation{} = delegation -> {:ok, delegation}
+        nil -> {:error, :not_found}
+      end
+    else
+      :error -> {:error, :not_found}
     end
+  end
+
+  defp fetch_delegation(_project_id, _id), do: {:error, :not_found}
+
+  defp verify_bytes(%Scope{} = scope, %Artifact{} = artifact) do
+    case ArtifactFile.validate_read(scope, artifact) do
+      :ok ->
+        {:ok, artifact}
+
+      {:error, :missing_bytes} = error ->
+        mark_artifact(artifact, "missing")
+        error
+
+      {:error, reason} = error
+      when reason in [:artifact_integrity, :artifact_size_mismatch] ->
+        mark_artifact(artifact, "corrupt")
+        error
+
+      {:error, _reason} = error ->
+        mark_artifact(artifact, "quarantined")
+        error
+    end
+  end
+
+  defp mark_artifact(artifact, state) do
+    artifact
+    |> Artifact.changeset(%{state: state})
+    |> Repo.update()
+
+    :ok
   end
 
   defp maybe_card_availability(session, status) do

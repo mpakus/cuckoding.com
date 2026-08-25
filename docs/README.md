@@ -10,20 +10,20 @@ OTP modules remain `AgentDesk` / `AgentDeskWeb`.
 - Show streamed agent activity in independent LiveView tabs.
 - Give every agent built-in peer discovery and capability cards.
 - Let agents delegate tasks, exchange structured messages, publish artifacts, and create durable handoffs.
-- Prevent accidental collisions through leases and isolated Git worktrees.
+- Prevent accidental collisions through leases and isolated Git worktrees (including repositories that have no commits yet).
 - Coordinate shared resources such as databases, migrations, Docker services, and ports.
 - Keep project state local and recover cleanly after crashes.
 - Share coordination state across machines with an explicit redacted sync bundle.
-- Make project code, documentation, decisions, and agent history searchable with XERJ.
+- Make project code, documentation, decisions, and agent history searchable. SQLite projection is the default memory/search path; XERJ is an optional upgrade.
 - Preserve the user's existing provider authentication; AgentDesk must not collect provider passwords.
 
 ## Default operating model
 
-1. The user opens a Git repository.
+1. The user opens a Git repository (including a repo that has no commits yet).
 2. AgentDesk creates project metadata and a private runtime directory.
-3. Each agent session receives a dedicated Git worktree and branch. Isolation templates stay in the app-owned session directory, never the primary tree.
-4. The agent connects to the local Agent Hub through MCP and automatically registers an internal A2A capability card.
-5. Agents discover eligible peers, exchange durable messages, and may delegate tasks through the hub.
+3. Each agent session receives a dedicated Git worktree and branch. A repository with no `HEAD` still gets an isolated worktree from an empty commit on the agent branch only; the user's current branch is not committed. Isolation templates stay in the app-owned session directory, never the primary tree.
+4. The agent connects to the local Agent Hub through MCP (ACP sessions receive those servers on `session/new`) and automatically registers an internal A2A capability card.
+5. Agents discover eligible peers, exchange durable messages, share project memory, and may delegate or split tasks through the hub.
 6. Before changing a resource, the agent requests a time-limited lease.
 7. Activity is normalized into a provider-independent event stream.
 8. Completed work is published as artifacts and handed off as a commit, summary, changed-file list, and validation results.
@@ -36,8 +36,8 @@ OTP modules remain `AgentDesk` / `AgentDeskWeb`.
 - SQLite through Ecto for canonical application state
 - Phoenix PubSub for live internal events
 - Git worktrees for concurrent filesystem isolation
-- A built-in internal A2A Hub for discovery, delegation, messages, tasks, artifacts, and handoffs
-- A local MCP surface through which provider agents call the A2A Hub and other tools
+- A built-in internal A2A Hub for discovery, delegation, messages, tasks, artifacts, shared memory, and handoffs
+- A local MCP surface through which provider agents call the A2A Hub and other tools (injected per session; ACP via `session/new`)
 - XERJ as an optional derived search and long-term memory layer
 
 ## Documentation

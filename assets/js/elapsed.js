@@ -128,7 +128,28 @@ export const Composer = {
   },
 }
 
-export const Shortcuts = {
+export const Tablist = {
+  mounted() {
+    this.onKey = (event) => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return
+      const tabs = [...this.el.querySelectorAll('[role="tab"]')]
+      const current = tabs.indexOf(document.activeElement)
+      if (current < 0) return
+      event.preventDefault()
+      let next = current
+      if (event.key === "ArrowRight") next = (current + 1) % tabs.length
+      if (event.key === "ArrowLeft") next = (current - 1 + tabs.length) % tabs.length
+      if (event.key === "Home") next = 0
+      if (event.key === "End") next = tabs.length - 1
+      tabs[next]?.focus()
+      tabs[next]?.click()
+    }
+    this.el.addEventListener("keydown", this.onKey)
+  },
+  destroyed() {
+    this.el.removeEventListener("keydown", this.onKey)
+  },
+}
   mounted() {
     this.handler = (event) => this.onKey(event)
     window.addEventListener("keydown", this.handler)

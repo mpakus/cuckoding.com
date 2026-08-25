@@ -11,6 +11,8 @@ defmodule AgentDesk.Security.Capability do
 
   import Ecto.Query
 
+  @active_session_statuses ~w(queued starting idle working waiting blocked)
+
   @spec hash(String.t()) :: String.t()
   def hash(token) when is_binary(token) do
     :sha256 |> :crypto.hash(token) |> Base.encode16(case: :lower)
@@ -33,7 +35,7 @@ defmodule AgentDesk.Security.Capability do
   @spec authenticate(String.t()) :: {:ok, Session.t()} | {:error, :unauthorized | :expired}
   def authenticate(token) when is_binary(token) do
     case Repo.get_by(Session, capability_hash: hash(token)) do
-      %Session{} = session -> check_expiry(session)
+      %Session{} = session -> authorize_session(session)
       nil -> {:error, :unauthorized}
     end
   end
@@ -65,12 +67,42 @@ defmodule AgentDesk.Security.Capability do
     :ok
   end
 
-  defp check_expiry(%Session{capability_expires_at: nil} = session), do: {:ok, session}
+  @spec revoke_project(Ecto.UUID.t(), keyword()) :: :ok
+  def revoke_project(project_id, opts \\ []) when is_binary(project_id) do
+    except = Keyword.get(opts, :except, [])
+    now = Clock.utc_now()
+
+    query =
+      from(s in Session,
+        where: s.project_id == ^project_id and not is_nil(s.capability_hash)
+      )
+
+    query =
+      case except do
+        [] -> query
+        ids -> from(s in query, where: s.id not in ^ids)
+      end
+
+    Repo.update_all(query,
+      set: [capability_hash: nil, capability_expires_at: now, updated_at: now]
+    )
+
+    :ok
+  end
+
+  defp authorize_session(%Session{status: status} = session)
+       when status in @active_session_statuses do
+    check_expiry(session)
+  end
+
+  defp authorize_session(%Session{}), do: {:error, :unauthorized}
+
+  defp check_expiry(%Session{capability_expires_at: nil}), do: {:error, :unauthorized}
 
   defp check_expiry(%Session{} = session) do
     case DateTime.compare(Clock.utc_now(), session.capability_expires_at) do
-      :gt -> {:error, :expired}
-      _ -> {:ok, session}
+      :lt -> {:ok, session}
+      _ -> {:error, :expired}
     end
   end
 end

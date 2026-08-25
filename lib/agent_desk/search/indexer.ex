@@ -16,8 +16,13 @@ defmodule AgentDesk.Search.Indexer do
 
   @spec index_project(Project.t()) :: :ok | {:error, term()}
   def index_project(%Project{} = project) do
-    mark(project, "indexing", nil)
+    case mark(project, "indexing", nil) do
+      :ok -> do_index_project(project)
+      {:error, reason} -> {:error, {:index_status_unavailable, reason}}
+    end
+  end
 
+  defp do_index_project(%Project{} = project) do
     docs =
       file_docs(project) ++
         artifact_docs(project) ++
@@ -29,17 +34,22 @@ defmodule AgentDesk.Search.Indexer do
 
     case result do
       :ok ->
-        mark(project, "ready", nil)
-        :ok
+        finish(project, "ready", nil, :ok)
+
+      {:error, :unavailable} ->
+        finish(project, "unavailable", nil, {:error, :unavailable})
 
       {:error, reason} ->
-        mark(project, "error", inspect(reason))
-        {:error, reason}
+        finish(project, "error", human_reason(reason), {:error, reason})
     end
   rescue
     error ->
-      mark(project, "error", Exception.message(error))
+      _ = mark(project, "error", Exception.message(error))
       {:error, error}
+  catch
+    kind, reason ->
+      _ = mark(project, "error", human_reason(reason))
+      {:error, {kind, reason}}
   end
 
   @spec rebuild(Project.t()) :: :ok | {:error, term()}
@@ -179,9 +189,35 @@ defmodule AgentDesk.Search.Indexer do
       on_conflict: {:replace, [:status, :adapter, :last_indexed_at, :error, :updated_at]},
       conflict_target: [:project_id]
     )
+    |> case do
+      {:ok, _state} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
+  rescue
+    error -> {:error, error}
+  catch
+    kind, reason -> {:error, {kind, reason}}
+  end
+
+  defp finish(project, status, error, result) do
+    case mark(project, status, error) do
+      :ok -> result
+      {:error, reason} -> {:error, {:index_status_unavailable, reason}}
+    end
   end
 
   defp adapter_name do
     Search.adapter() |> Module.split() |> List.last()
+  end
+
+  defp human_reason(:unavailable), do: nil
+
+  defp human_reason(reason) when is_atom(reason),
+    do: reason |> Atom.to_string() |> String.replace("_", " ")
+
+  defp human_reason(reason) when is_binary(reason), do: reason
+
+  defp human_reason(reason) do
+    if is_exception(reason), do: Exception.message(reason), else: inspect(reason)
   end
 end

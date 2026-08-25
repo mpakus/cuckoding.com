@@ -191,7 +191,7 @@ The public A2A task model does not replace local coordination for files, databas
 
 ## 6. Built-in MCP surface
 
-Every first-class provider session receives the internal A2A MCP tools automatically.
+Every first-class provider session receives the internal A2A MCP tools automatically. ACP adapters (Cursor, OpenCode, generic ACP) attach those servers on `session/new` (`mcpServers`). Codex, Claude, and SDK use the same `mcp.json` overlay plus provider-specific injection. Agents do not call a later `configure_mcp` ACP method.
 
 Discovery and presence:
 
@@ -223,8 +223,8 @@ Messaging:
 
 - `hub_send_message`
 - `hub_broadcast`
-- `hub_read_inbox`
-- `hub_ack_messages`
+- `hub_list_inbox`
+- `hub_ack_message`
 
 Artifacts and handoffs:
 
@@ -240,7 +240,7 @@ Resource coordination:
 - `hub_release_resources`
 - `hub_list_resources`
 
-Search and memory remain separate Agent Hub capabilities even though agents call them through the same MCP connection.
+Search and memory remain separate Agent Hub capabilities even though agents call them through the same MCP connection (`project_search`, `memory_remember`, `memory_recall`, `memory_forget`).
 
 ## 7. Delegation flow
 

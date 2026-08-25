@@ -8,7 +8,8 @@ defmodule AgentDeskWeb.Endpoint do
     store: :cookie,
     key: "_agent_desk_key",
     signing_salt: "A1+MMiKo",
-    same_site: "Lax"
+    same_site: "Strict",
+    http_only: true
   ]
 
   socket "/live", Phoenix.LiveView.Socket,

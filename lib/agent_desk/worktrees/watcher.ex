@@ -18,7 +18,6 @@ defmodule AgentDesk.Worktrees.Watcher do
 
   @impl true
   def init(%Project{} = project) do
-    Worktrees.reconcile(project)
     Process.send_after(self(), :tick, @tick_ms)
     {:ok, %{project: project}}
   end

@@ -36,14 +36,14 @@ The official OpenAI documentation describes App Server as the rich-client integr
 - Cursor CLI MCP support: https://cursor.com/docs/cli/mcp
 - Cursor CLI authentication: https://cursor.com/docs/cli/reference/authentication
 
-The official Cursor ACP documentation defines `agent acp` as a custom-client interface using JSON-RPC 2.0 over newline-delimited stdio. It documents session creation/loading, streamed updates, cancellation, permission requests, MCP support, and optional `cursor/*` extension methods.
+The official Cursor ACP documentation defines `agent acp` (and, when only the editor CLI is installed, `cursor agent acp`) as a custom-client interface using JSON-RPC 2.0 over newline-delimited stdio. It documents `initialize` with `clientCapabilities`, session creation/loading (`session/new` may include `mcpServers`), streamed updates, cancellation, permission requests, `fs/read_text_file`, MCP support, and optional `cursor/*` extension methods. Do not spawn the editor `cursor` binary with only `["acp"]`.
 
 ## Agent Client Protocol
 
 - ACP introduction and architecture: https://agentclientprotocol.com/get-started/introduction
 - ACP protocol documentation: https://agentclientprotocol.com/protocol/overview
 
-ACP standardizes the client-to-coding-agent control plane. For local agents its documented transport is JSON-RPC over stdio. This is distinct from MCP, which AgentDesk uses as the agent-to-tools coordination plane.
+ACP standardizes the client-to-coding-agent control plane. For local agents its documented transport is JSON-RPC over stdio. Handshake uses `initialize` (`protocolVersion`, `clientInfo`, `clientCapabilities`) then `session/new`, which may include `mcpServers`. Clients may implement `fs/read_text_file`. This is distinct from MCP, which AgentDesk uses as the agent-to-tools coordination plane.
 
 ## Agent2Agent (A2A)
 

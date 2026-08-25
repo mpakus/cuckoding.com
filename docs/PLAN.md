@@ -26,14 +26,14 @@ Goal: prove every high-risk integration before building the product shell.
 - [x] Confirm graceful shutdown of BEAM and child processes.
 - [x] Start `codex app-server` over stdio and complete initialize, thread, turn, stream, approval, interrupt, and resume flows (fixture-backed adapter; live CLI optional).
 - [x] Start Claude Code in structured headless/streaming mode and complete start, stream, interrupt, and resume flows where supported.
-- [x] Start Cursor CLI with `agent acp`; exercise initialize, authenticate, new/load session, stream, permission, cancel, and resume flows, recording any version-gated capability.
+- [x] Start Cursor CLI with `agent acp` or `cursor agent acp` (Cursor.app); sequential initialize (`clientCapabilities`), optional authenticate, `session/new` with MCP servers, stream, permission, `fs/read_text_file`, cancel, and resume; record version-gated capability.
 - [x] Start OpenCode with `opencode acp --cwd <worktree>`; exercise initialize, new/load session, stream, permission, cancel, and resume flows, recording unsupported or version-gated capabilities explicitly.
 - [x] Compare the shared ACP client core against provider-specific Cursor and OpenCode extensions and record the supported protocol versions.
 - [x] Verify how per-session MCP configuration is injected into each provider without modifying global user configuration.
 - [x] Prototype an MCP tool implemented by the Phoenix/Elixir application.
 - [x] Run two fake providers through discovery, delegation, accept/reject, structured message, acknowledgement, artifact publication, and restart recovery.
 - [x] Validate the internal task/message/artifact mapping against A2A 1.0 while keeping the internal transport private and MCP-backed.
-- [x] Create and remove an app-owned Git worktree safely.
+- [x] Create and remove an app-owned Git worktree safely, including repositories with no commits yet (orphan agent branch; no commit on the user's current branch).
 - [x] Start XERJ locally, autoindex a sample repository, search it, store memory, and terminate it cleanly.
 - [x] Measure memory and startup cost with four simultaneous sessions, including one Cursor and one OpenCode session (fake/ACP fixtures; live Cursor+OpenCode load remains Phase 6).
 

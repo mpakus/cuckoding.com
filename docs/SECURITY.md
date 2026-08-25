@@ -100,6 +100,8 @@ For every agent-supplied path:
 6. apply policy for protected files;
 7. record high-risk or denied attempts.
 
+ACP `fs/read_text_file` uses the same checks (`AgentDesk.Paths.within?/2`) and is limited to the session worktree (1MB cap). `writeTextFile` is advertised as false; AgentDesk does not implement ACP writes.
+
 Protected by default:
 
 - `.git` internals except controlled Git commands;
@@ -116,6 +118,7 @@ Protected by default:
 - Use a known executable path and argument array.
 - Minimize inherited environment variables.
 - Never persist the full environment.
+- Pass MCP capability tokens in the per-session server env list (ACP `mcpServers[].env`), not SQLite.
 - Track process identity and creation time, not PID alone.
 - Use process groups/job objects so descendants can be terminated.
 - Distinguish interrupt, graceful terminate, and force-kill.
@@ -168,8 +171,8 @@ Redaction must be tested but presented as risk reduction, not a guarantee. Diagn
 ## 12. Local endpoints
 
 - Bind Phoenix/Agent Hub/XERJ integration endpoints to loopback.
-- Prefer Unix sockets or stdio for internal control where practical.
-- Authenticate shared loopback MCP transport.
+- Authorize the desktop control plane with a per-launch bootstrap token exchanged for a signed Phoenix session (`AgentDesk.Security.ControlAuth`). Development can bootstrap without the native shell; tests use `:test` mode.
+- Authenticate shared loopback MCP transport and re-check the capability on every stdio request.
 - Use random available ports rather than fixed global ports.
 - Do not expose development endpoints in production builds.
 - Disable or protect debug dashboards in packaged builds.

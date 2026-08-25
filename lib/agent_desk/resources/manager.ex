@@ -101,6 +101,23 @@ defmodule AgentDesk.Resources.Manager do
     :ok
   end
 
+  @spec expire_project(Ecto.UUID.t(), keyword()) :: :ok
+  def expire_project(project_id, opts \\ []) when is_binary(project_id) do
+    except = Keyword.get(opts, :except, [])
+    now = Clock.utc_now()
+
+    query = from(l in Lease, where: l.project_id == ^project_id and l.status == "active")
+
+    query =
+      case except do
+        [] -> query
+        ids -> from(l in query, where: l.agent_session_id not in ^ids)
+      end
+
+    Repo.update_all(query, set: [status: "expired", released_at: now, updated_at: now])
+    :ok
+  end
+
   @doc """
   User-initiated administrative revoke. Never a silent force takeover.
   """

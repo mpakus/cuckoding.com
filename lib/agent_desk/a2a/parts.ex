@@ -4,6 +4,7 @@ defmodule AgentDesk.A2A.Parts do
   """
 
   alias AgentDesk.A2A.Artifact
+  alias AgentDesk.A2A.Authorization
   alias AgentDesk.A2A.Policy
   alias AgentDesk.Repo
   alias AgentDesk.Scope
@@ -61,21 +62,27 @@ defmodule AgentDesk.A2A.Parts do
 
   defp data_part(_), do: {:error, :unknown_schema}
 
-  defp artifact_part(%Scope{project: project}, id) when is_binary(id) do
-    case Repo.get_by(Artifact, id: id, project_id: project.id) do
-      %Artifact{state: "available"} = artifact ->
-        {:ok,
-         %{
-           "type" => "artifact_ref",
-           "artifact_id" => artifact.id,
-           "sha256" => artifact.sha256
-         }}
+  defp artifact_part(%Scope{project: project} = scope, id) when is_binary(id) do
+    with {:ok, _uuid} <- Ecto.UUID.cast(id) do
+      case Repo.get_by(Artifact, id: id, project_id: project.id) do
+        %Artifact{state: "available"} = artifact ->
+          with :ok <- Authorization.authorize_artifact_read(scope, artifact) do
+            {:ok,
+             %{
+               "type" => "artifact_ref",
+               "artifact_id" => artifact.id,
+               "sha256" => artifact.sha256
+             }}
+          end
 
-      %Artifact{} ->
-        {:error, :artifact_integrity}
+        %Artifact{} ->
+          {:error, :artifact_integrity}
 
-      nil ->
-        {:error, :foreign_artifact}
+        nil ->
+          {:error, :foreign_artifact}
+      end
+    else
+      :error -> {:error, :foreign_artifact}
     end
   end
 

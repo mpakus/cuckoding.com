@@ -13,14 +13,40 @@ defmodule AgentDeskWeb.WorkspaceHTML do
     ~H"""
     <div
       id="desk-shell"
-      class="desk-shell"
+      class={[
+        "desk-shell",
+        @sidebar_open && "is-sidebar-open",
+        @context_open && "is-context-open"
+      ]}
       phx-hook="Shortcuts"
       data-shortcuts={Jason.encode!(@shortcuts)}
     >
       <div id="status-live" class="sr-only" role="status" aria-live="polite" aria-atomic="true">
         {@announce}
       </div>
-      <aside class="desk-panel w-80 shrink-0">
+      <div class="desk-rail-toggles">
+        <button
+          type="button"
+          id="toggle-sidebar"
+          phx-click="toggle_sidebar"
+          class="btn btn-sm desk-rail-toggle"
+          aria-expanded={to_string(@sidebar_open)}
+          aria-controls="project-rail"
+        >
+          Project
+        </button>
+        <button
+          type="button"
+          id="toggle-context"
+          phx-click="toggle_context"
+          class="btn btn-sm desk-rail-toggle"
+          aria-expanded={to_string(@context_open)}
+          aria-controls="context-rail"
+        >
+          Context
+        </button>
+      </div>
+      <aside id="project-rail" class="desk-panel w-80 shrink-0">
         <div class="desk-panel-header">
           <div class="flex min-w-0 items-center gap-3">
             <span class="desk-mark" aria-hidden="true">
@@ -229,6 +255,7 @@ defmodule AgentDeskWeb.WorkspaceHTML do
           class="desk-tab-row"
           role="tablist"
           aria-label="Workspace tabs"
+          phx-hook="Tablist"
         >
           <button
             type="button"
@@ -237,6 +264,7 @@ defmodule AgentDeskWeb.WorkspaceHTML do
             phx-value-view="dashboard"
             role="tab"
             aria-selected={to_string(@workspace_view == "dashboard")}
+            tabindex={if(@workspace_view == "dashboard", do: "0", else: "-1")}
             class={[
               "desk-tab desk-tab-pinned",
               @workspace_view == "dashboard" && "desk-tab-active"
@@ -262,6 +290,12 @@ defmodule AgentDeskWeb.WorkspaceHTML do
                 aria-selected={
                   to_string(@workspace_view == "workspace" and @active_session_id == session.id)
                 }
+                tabindex={
+                  if(@workspace_view == "workspace" and @active_session_id == session.id,
+                    do: "0",
+                    else: "-1"
+                  )
+                }
                 aria-label={"#{tab_label(session, @sessions)}, #{session.status}"}
                 title={"#{tab_label(session, @sessions)} · #{session.status}"}
                 class={[
@@ -283,7 +317,7 @@ defmodule AgentDeskWeb.WorkspaceHTML do
                 phx-value-id={session.id}
                 class="desk-tab-close"
                 title="Close tab without terminating"
-                aria-label={"Close #{session.display_name}"}
+                aria-label={"Close #{session.display_name} tab"}
               >
                 ×
               </button>
@@ -296,6 +330,7 @@ defmodule AgentDeskWeb.WorkspaceHTML do
             phx-value-view="new"
             role="tab"
             aria-selected={to_string(@workspace_view == "new")}
+            tabindex={if(@workspace_view == "new", do: "0", else: "-1")}
             class={[
               "desk-tab desk-tab-new",
               @workspace_view == "new" && "desk-tab-active"
@@ -368,6 +403,11 @@ defmodule AgentDeskWeb.WorkspaceHTML do
                 <p :if={handoff_warnings(@artifacts, @review_item) != []} class="text-warning text-sm">
                   {Enum.join(handoff_warnings(@artifacts, @review_item), ", ")}
                 </p>
+                <pre
+                  :if={@handoff_diff not in [nil, ""]}
+                  id="handoff-diff"
+                  class="desk-scroll max-h-64 whitespace-pre-wrap text-xs"
+                >{@handoff_diff}</pre>
                 <p :if={handoff_artifact(@artifacts, @review_item)} class="desk-muted text-xs">
                   artifact {short_sha(handoff_artifact(@artifacts, @review_item).id)}
                   <span :if={handoff_artifact(@artifacts, @review_item).context_id}>
@@ -542,24 +582,35 @@ defmodule AgentDeskWeb.WorkspaceHTML do
                 <details class="desk-details mt-2">
                   <summary>Save a role</summary>
                   <form id="save-role-form" phx-submit="save_role" class="desk-toolbar mt-2">
+                    <label class="sr-only" for="save-role-name">Role name</label>
                     <input
+                      id="save-role-name"
                       type="text"
                       name="name"
                       placeholder="Role name"
                       class="input input-bordered input-sm"
                     />
+                    <label class="sr-only" for="save-role-description">Safe card description</label>
                     <input
+                      id="save-role-description"
                       type="text"
                       name="description"
                       placeholder="Safe card description"
                       class="input input-bordered input-sm"
                     />
-                    <select name="permission_profile" class="select select-bordered select-sm">
+                    <label class="sr-only" for="save-role-profile">Permission profile</label>
+                    <select
+                      id="save-role-profile"
+                      name="permission_profile"
+                      class="select select-bordered select-sm"
+                    >
                       <option value="default">default</option>
                       <option value="observer">observer</option>
                       <option value="restricted">restricted</option>
                     </select>
+                    <label class="sr-only" for="save-role-prompt">Session prompt</label>
                     <input
+                      id="save-role-prompt"
                       type="text"
                       name="prompt"
                       placeholder="Session prompt (never published)"
@@ -581,6 +632,19 @@ defmodule AgentDeskWeb.WorkspaceHTML do
                 </p>
               </div>
               <div :if={@active} class="desk-stream-toolbar">
+                <div
+                  :if={attention_items(@pending_approval, @active_status, @lease_previews) != []}
+                  id="attention-bar"
+                  class="desk-attention"
+                >
+                  <a
+                    :for={item <- attention_items(@pending_approval, @active_status, @lease_previews)}
+                    href={item.href}
+                    class={["desk-attention-item", item.tone]}
+                  >
+                    {item.label}
+                  </a>
+                </div>
                 <p class="desk-muted text-xs">
                   Latest {@activity_limit} activity cards
                   <button
@@ -781,7 +845,7 @@ defmodule AgentDeskWeb.WorkspaceHTML do
                     phx-value-id={@active.id}
                     class="btn btn-ghost btn-sm"
                   >
-                    Archive
+                    Close tab
                   </button>
                   <button
                     :if={
@@ -888,7 +952,7 @@ defmodule AgentDeskWeb.WorkspaceHTML do
             </div>
           </section>
 
-          <aside class="desk-context desk-scroll p-4">
+          <aside id="context-rail" class="desk-context desk-scroll p-4">
             <h2 class="desk-kicker">Context</h2>
             <.grove sessions={@sessions} />
             <div class="desk-card-stack">
@@ -973,7 +1037,38 @@ defmodule AgentDeskWeb.WorkspaceHTML do
                 </div>
               </.context_card>
 
-              <.context_card :if={@pending_approval} title="Approval">
+              <.context_card :if={@peer_compose} title="Compose agent action" open={true}>
+                <form id="peer-compose" phx-submit="submit_peer_compose" class="space-y-2">
+                  <input type="hidden" name="recipient_id" value={@peer_compose.recipient_id} />
+                  <p class="text-sm">
+                    To {@peer_compose.recipient_name} · {peer_compose_verb(@peer_compose.kind)}
+                  </p>
+                  <label class="desk-kicker" for="peer-compose-body">
+                    {peer_compose_label(@peer_compose.kind)}
+                  </label>
+                  <textarea
+                    id="peer-compose-body"
+                    name="body"
+                    rows="3"
+                    class="textarea textarea-bordered w-full text-sm"
+                    required
+                  ></textarea>
+                  <div class="flex flex-wrap gap-1">
+                    <button type="submit" class="btn btn-primary btn-xs">
+                      {peer_compose_verb(@peer_compose.kind)}
+                    </button>
+                    <button
+                      type="button"
+                      phx-click="cancel_peer_compose"
+                      class="btn btn-ghost btn-xs"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </.context_card>
+
+              <.context_card :if={@pending_approval} title="Approval" open={true}>
                 <div id="approval-card" class="desk-approval space-y-2">
                   <p>
                     {@pending_approval.payload["action"]} — {@pending_approval.payload["summary"]}
@@ -1708,11 +1803,13 @@ defmodule AgentDeskWeb.WorkspaceHTML do
 
               <.context_card title="Search">
                 <div id="search-panel" class="space-y-2">
-                  <p id="search-status" class="desk-muted">
-                    {@search_status.status} · {@search_status.adapter}
+                  <p id="search-status" class={search_status_class(@search_status)}>
+                    {search_status_copy(@search_status)}
                   </p>
                   <form id="project-search" phx-submit="search_project" class="space-y-2">
+                    <label class="desk-kicker" for="project-search-q">Project search</label>
                     <input
+                      id="project-search-q"
                       name="q"
                       value={@search_query}
                       class="input input-bordered input-sm w-full"
@@ -1730,7 +1827,15 @@ defmodule AgentDeskWeb.WorkspaceHTML do
                   >
                     Rebuild index
                   </button>
-                  <p :if={@search_results == []} class="desk-empty">No search results.</p>
+                  <p :if={@search_results == [] and search_off?(@search_status)} class="desk-empty">
+                    Search is off, so there is no index to query.
+                  </p>
+                  <p
+                    :if={@search_results == [] and not search_off?(@search_status)}
+                    class="desk-empty"
+                  >
+                    No search results.
+                  </p>
                   <div
                     :for={{group, hits} <- grouped_search(@search_results)}
                     class="desk-search-group"
@@ -1820,16 +1925,17 @@ defmodule AgentDeskWeb.WorkspaceHTML do
   end
 
   attr :title, :string, required: true
+  attr :open, :boolean, default: true
   slot :inner_block, required: true
 
   defp context_card(assigns) do
     ~H"""
-    <section class="desk-card">
-      <h3 class="desk-kicker mb-2">{@title}</h3>
+    <details class="desk-card" open={@open}>
+      <summary class="desk-kicker mb-2">{@title}</summary>
       <div class="desk-card-body">
         {render_slot(@inner_block)}
       </div>
-    </section>
+    </details>
     """
   end
 

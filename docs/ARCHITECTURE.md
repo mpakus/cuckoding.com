@@ -83,7 +83,7 @@ end
 
 Codex uses `codex app-server` over the default stdio JSONL transport for rich sessions, approvals, thread resume, steering, and streamed items. `codex exec --json` remains a one-shot fallback. Claude Code receives a separate adapter using its structured headless/streaming interface.
 
-Cursor Agent and OpenCode both expose Agent Client Protocol (ACP) servers over stdio with newline-delimited JSON-RPC. They share `AgentDesk.Providers.ACP.Client` for framing, request correlation, capability negotiation, cancellation, permissions, and session creation/loading. Separate `Cursor` and `OpenCode` adapters normalize provider extensions and capability differences. ACP controls an agent; MCP gives that agent access to AgentDesk coordination tools. See `PROVIDERS.md`.
+Cursor Agent and OpenCode both expose Agent Client Protocol (ACP) servers over stdio with newline-delimited JSON-RPC. They share `AgentDesk.Providers.ACP.Client` for framing, request correlation, capability negotiation, cancellation, permissions, filesystem reads, and session creation/loading. Handshake is sequential: `initialize` (`clientCapabilities`), optional `authenticate`, then `session/new` with Agent Hub MCP servers. User prompts queue until the session is ready. Cursor discovery probes `agent`, `cursor-agent`, then Cursor.app's editor `cursor` (`["agent", "acp"]`). Separate `Cursor` and `OpenCode` adapters normalize provider extensions and capability differences. ACP controls an agent; MCP gives that agent access to AgentDesk coordination tools. See `PROVIDERS.md`.
 
 ### Internal A2A Hub and MCP surface
 
@@ -121,8 +121,8 @@ SQLite stores durable lease state, while the ResourceManager serializes decision
 ### WorktreeManager
 
 - Creates one branch and linked worktree per agent session.
-- Validates repository state before creation.
-- Records base and head commits.
+- Supports repositories with no commits yet: isolated worktree from an empty commit on the agent branch only (does not commit on the user's current branch). Copies untracked, non-ignored files into that worktree.
+- Records base and head commits (`base_commit` is a Git object ID, required).
 - Detects dirty or uncommitted work.
 - Produces diffs and handoff commits.
 - Removes only app-owned worktrees after explicit confirmation or verified cleanup eligibility.
@@ -165,7 +165,7 @@ sequenceDiagram
     Git-->>Session: Worktree path
     Session->>Hub: Issue capability
     Hub-->>Session: MCP endpoint and token
-    Session->>Provider: Start with cwd and MCP config
+    Session->>Provider: Start with cwd; ACP passes MCP servers on session/new
     Provider-->>Session: Ready and provider session ID
     Provider->>Hub: Register Agent Card and heartbeat
     Hub-->>Provider: Peers, inbox cursor, tasks, policy
@@ -290,7 +290,7 @@ The event is persisted before or in the same transaction as the state change whe
 An active model does not automatically understand every broadcast while it is generating a turn. AgentDesk therefore separates:
 
 - **UI notification:** immediate through PubSub;
-- **agent delivery:** injected through provider steering when supported, otherwise queued for the next safe turn boundary;
+- **agent delivery:** `pending` until a live port accepts the prompt (`injected`); `acknowledged` only after explicit `hub_ack_message`; unacked `injected` rows return to `pending` on project restart;
 - **enforcement:** worktree isolation, lease checks, provider hooks where available, and filesystem violation detection.
 
 Correctness must never depend on a model noticing a chat message in time.

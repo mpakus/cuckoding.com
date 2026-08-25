@@ -5,7 +5,7 @@ use tauri_plugin_shell::ShellExt;
 use tauri::Manager;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 
-use std::io::Write;
+use std::io::{Read, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::sync::Mutex;
@@ -157,9 +157,10 @@ fn main() {
         })
         .setup(|app| {
             let port = resolve_port();
-            start_server(app.handle(), port);
-            check_server_started(port);
-            navigate_main_window(app.handle(), port);
+            let control_token = control_token();
+            start_server(app.handle(), port, &control_token);
+            check_server_started(port, &control_token);
+            navigate_main_window(app.handle(), port, &control_token);
             start_channel(app.handle().clone());
             Ok(())
         })
@@ -233,35 +234,22 @@ fn secret_key_base() -> String {
         return secret;
     }
 
-    #[cfg(unix)]
-    {
-        use std::io::Read;
-        if let Ok(mut file) = std::fs::File::open("/dev/urandom") {
-            let mut buf = [0u8; 48];
-            if file.read_exact(&mut buf).is_ok() {
-                return buf.iter().map(|b| format!("{:02x}", b)).collect();
-            }
-        }
-    }
-
-    // Fallback entropy: hash of time + pid. Weak, but only signs local
-    // session cookies for a single-user desktop app.
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let mut out = String::new();
-    for round in 0..8u32 {
-        let mut hasher = DefaultHasher::new();
-        (nanos, std::process::id(), round).hash(&mut hasher);
-        out.push_str(&format!("{:016x}", hasher.finish()));
-    }
-    out
+    random_hex::<48>()
 }
 
-fn start_server(app: &tauri::AppHandle, port: u16) {
+// Generates the one-time desktop control bearer from the operating system CSPRNG.
+// The token is passed only to the sidecar environment and bootstrap navigation.
+fn control_token() -> String {
+    random_hex::<32>()
+}
+
+fn random_hex<const N: usize>() -> String {
+    let mut bytes = [0u8; N];
+    getrandom::fill(&mut bytes).expect("operating system randomness unavailable");
+    bytes.iter().map(|byte| format!("{:02x}", byte)).collect()
+}
+
+fn start_server(app: &tauri::AppHandle, port: u16, control_token: &str) {
     // PORT and SECRET_KEY_BASE are always injected: every server needs a port,
     // and SECRET_KEY_BASE is a random per-launch secret (inert if unused). The
     // remaining pairs come from `config :ex_tauri, :sidecar_env` — the Phoenix
@@ -269,6 +257,7 @@ fn start_server(app: &tauri::AppHandle, port: u16) {
     let env: std::collections::HashMap<String, String> = std::collections::HashMap::from([
         ("PORT".to_string(), port.to_string()),
         ("SECRET_KEY_BASE".to_string(), secret_key_base()),
+        ("AGENTDESK_CONTROL_TOKEN".to_string(), control_token.to_string()),
         ("PHX_SERVER".to_string(), "true".to_string()),
         ("PHX_HOST".to_string(), "127.0.0.1".to_string()),
     ]);
@@ -305,8 +294,10 @@ fn start_server(app: &tauri::AppHandle, port: u16) {
     });
 }
 
-fn check_server_started(port: u16) {
+fn check_server_started(port: u16, control_token: &str) {
     let sleep_interval = std::time::Duration::from_millis(200);
+    let timeout = std::time::Duration::from_secs(30);
+    let started_at = std::time::Instant::now();
     let host = "127.0.0.1".to_string();
     let addr = format!("{}:{}", host, port);
     println!(
@@ -314,19 +305,62 @@ fn check_server_started(port: u16) {
         addr
     );
     loop {
-        if std::net::TcpStream::connect(addr.clone()).is_ok() {
+        if readiness_verified(&addr, control_token) {
            break;
         }
+
+        if started_at.elapsed() >= timeout {
+            panic!("Cuckoding sidecar did not present the expected readiness proof");
+        }
+
         std::thread::sleep(sleep_interval);
     }
+}
+
+fn readiness_verified(addr: &str, control_token: &str) -> bool {
+    use sha2::{Digest, Sha256};
+
+    let mut stream = match std::net::TcpStream::connect(addr) {
+        Ok(stream) => stream,
+        Err(_) => return false,
+    };
+    let io_timeout = Some(std::time::Duration::from_millis(500));
+    let _ = stream.set_read_timeout(io_timeout);
+    let _ = stream.set_write_timeout(io_timeout);
+
+    if write!(
+        stream,
+        "GET /control/readiness HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n\r\n",
+        addr
+    )
+    .is_err()
+    {
+        return false;
+    }
+
+    let mut response = String::new();
+    if stream.read_to_string(&mut response).is_err() {
+        return false;
+    }
+
+    let expected = format!("{:x}", Sha256::digest(control_token.as_bytes()));
+
+    response.starts_with("HTTP/1.1 200") &&
+        response
+            .split_once("\r\n\r\n")
+            .map(|(_, body)| body.trim() == expected)
+            .unwrap_or(false)
 }
 
 // Points the window at the port actually in use. When the OS assigned a free
 // port (production), the compile-time URL in tauri.conf.json is wrong — and
 // even in dev this reload recovers the webview if it raced the server boot.
-fn navigate_main_window(app: &tauri::AppHandle, port: u16) {
+fn navigate_main_window(app: &tauri::AppHandle, port: u16, control_token: &str) {
     if let Some(window) = app.get_webview_window("main") {
-        let url = format!("http://127.0.0.1:{}", port);
+        let url = format!(
+            "http://127.0.0.1:{}/control/bootstrap?token={}",
+            port, control_token
+        );
         if let Ok(url) = url.parse() {
             let _ = window.navigate(url);
         }

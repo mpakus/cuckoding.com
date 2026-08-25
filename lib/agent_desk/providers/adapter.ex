@@ -13,13 +13,17 @@ defmodule AgentDesk.Providers.Adapter do
           :initialize
           | :initialized
           | {:start_session, String.t()}
+          | {:start_session, String.t(), [map()]}
           | {:resume, String.t()}
           | {:prompt, String.t()}
           | {:prompt, String.t(), [map()]}
           | :interrupt
           | {:approve, String.t(), String.t()}
           | {:configure_mcp, String.t()}
+          | {:authenticate, String.t()}
           | {:reject_method, term(), String.t()}
+          | {:jsonrpc_result, term(), map()}
+          | {:jsonrpc_error, term(), integer(), String.t()}
 
   @callback key() :: String.t()
   @callback display_name() :: String.t()

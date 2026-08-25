@@ -78,7 +78,8 @@ defmodule AgentDesk.MCP.ProtocolTest do
                  "arguments" => %{
                    "name" => "Alice",
                    "description" => "dev",
-                   "skills" => [%{"id" => "elixir"}]
+                   "skills" => [%{"id" => "elixir"}],
+                   "idempotency_key" => "register-alice"
                  }
                }
              })
@@ -122,7 +123,7 @@ defmodule AgentDesk.MCP.ProtocolTest do
     refute String.starts_with?(profile["dir"], project.canonical_path)
   end
 
-  test "hub_split_work creates specialist tasks for matching roles", %{
+  test "hub_split_work creates specialist proposals without auto-accepting", %{
     alice: alice,
     bob: bob,
     alice_scope: alice_scope
@@ -138,6 +139,7 @@ defmodule AgentDesk.MCP.ProtocolTest do
                  "name" => "hub_split_work",
                  "arguments" => %{
                    "goal" => "Add login API",
+                   "idempotency_key" => "split-login",
                    "lanes" => [
                      %{
                        "key" => "backend",
@@ -154,6 +156,12 @@ defmodule AgentDesk.MCP.ProtocolTest do
     assert [%{"role" => "backend", "agent_id" => bob_id}] = result["lanes"]
     assert bob_id == bob.id
     tasks = A2A.list_tasks(alice_scope)
-    assert Enum.any?(tasks, &(&1.title =~ "Login API"))
+    lane = Enum.find(tasks, &(&1.title =~ "Login API"))
+    assert is_nil(lane.assigned_agent_id)
+    assert lane.status == "queued"
+
+    assert Enum.any?(A2A.list_delegations(alice_scope), fn delegation ->
+             delegation.to_agent_id == bob.id and delegation.status == "proposed"
+           end)
   end
 end

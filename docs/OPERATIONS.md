@@ -30,6 +30,10 @@ Export writes `<data_root>/projects/<id>/sync/bundle.json`. Copy that file to th
 
 ## Forced termination
 
-Worktrees live on disk under `<data_root>/projects/<id>/worktrees/`. Stopping the BEAM or the project runtime must not delete a dirty worktree. Cleanup is an explicit UI action that refuses dirty trees.
+Worktrees live on disk under `<data_root>/projects/<id>/worktrees/`. Stopping the BEAM or the project runtime must not delete a dirty worktree. Cleanup is an explicit UI action that refuses dirty trees. A Git repository with no commits still gets an isolated worktree (orphan commit on the agent branch only).
 
 Isolation templates live under `<data_root>/projects/<id>/sessions/<session_id>/isolation/`. Isolated sessions never write those files into the Git worktree or the user's primary checkout.
+
+## Project restart
+
+Opening or restoring a project starts its runtime, then reconciles durable state in the caller (not inside the supervisor `init` callback). Crash-restart of an already-seen runtime reconciles again. Reconciliation interrupts sessions that have no live worker, revokes their capabilities, expires their leases, blocks unfinished assigned tasks, and resets uncertain `injected` deliveries to `pending`. Live workers are left alone.

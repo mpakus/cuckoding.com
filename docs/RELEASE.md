@@ -40,6 +40,7 @@ SECRET_KEY_BASE=$(mix phx.gen.secret) MIX_ENV=prod mix release desktop --overwri
 - [ ] Startup reconciliation expires leases, delegations, and tokens; interrupts orphan sessions.
 - [ ] Provider and XERJ crash loops trip `AgentDesk.Circuit` after five failures.
 - [ ] Dirty worktrees survive runtime stop and app quit.
+- [ ] Isolated worktrees start when the primary Git `HEAD` is unborn (no commit on the user's current branch).
 - [ ] SQLite snapshot documented in `OPERATIONS.md`.
 
 ## Accessibility (MVP baseline)

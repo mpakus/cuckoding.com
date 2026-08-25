@@ -33,12 +33,14 @@ Initial primary integration paths:
 | --- | --- | --- | --- |
 | Codex | `codex app-server` | stdio JSONL/JSON-RPC | `codex exec --json` for one-shot work |
 | Claude Code | Structured headless/streaming CLI | stdio JSON/JSONL | Claude Agent SDK evaluation |
-| Cursor Agent | `agent acp` | ACP over stdio JSON-RPC | Headless `agent -p` only for reduced one-shot workflows |
+| Cursor Agent | `agent acp`, or `cursor agent acp` when only the editor CLI is installed | ACP over stdio JSON-RPC | Headless `agent -p` only for reduced one-shot workflows |
 | OpenCode | `opencode acp --cwd <worktree>` | ACP over stdio nd-JSON | Loopback `opencode serve` API evaluation |
 | SDK | User executable JSONL | stdio JSONL | Generic unstructured CLI (no PTY) |
 | Remote | Attach / inbound MCP | loopback MCP stdio | Public A2A gateway (deferred) |
 
 Cursor and OpenCode share ACP framing and request-correlation code. They do not share a single capability declaration: each installed version is probed and each adapter owns provider-specific methods, authentication readiness, and fallbacks.
+
+Discovery searches `PATH` plus extra dirs (`AgentDesk.Env.extra_dirs/0`): Homebrew prefixes, `~/.local/bin`, and Cursor.app `Contents/Resources/app/bin`. Cursor probe order is `agent`, then `cursor-agent`, then the editor `cursor` CLI (`["agent", "acp"]`). Do not spawn editor `cursor` with only `["acp"]`.
 
 Cuckoding also installs extra ACP agents from the official registry (`registry.json`). Mapped ids (`codex-acp`, `claude-acp`, `cursor`, `opencode`) use first-class adapters. Other agents use `AgentDesk.Providers.AcpGeneric`. Install records store executable + argv only.
 
@@ -125,20 +127,21 @@ Claude hooks may improve pre-edit coordination and observability, but correctnes
 
 ### Primary integration: ACP
 
-Run Cursor CLI as an ACP server:
+Run Cursor as an ACP server, preferring `agent` / `cursor-agent`, then the editor `cursor` CLI:
 
 ```text
 agent acp
+cursor agent acp
 ```
 
 Cursor documents stdio transport, JSON-RPC 2.0 envelopes, newline-delimited framing, stderr diagnostics, `session/new`, `session/load`, streamed `session/update`, `session/request_permission`, and `session/cancel`. The adapter should:
 
-1. Probe `agent --version`, command availability, and `agent status` without reading stored credentials.
-2. Spawn `agent acp` with the assigned worktree as the process working directory.
-3. Send `initialize` with AgentDesk client capabilities and record the negotiated ACP version.
-4. Use the advertised authentication method while preserving the user's existing Cursor login.
-5. Create or load the provider session and persist its session ID.
-6. Normalize standard ACP updates and supported `cursor/*` extensions.
+1. Probe `agent`, `cursor-agent`, or Cursor.app's `cursor` CLI without reading stored credentials.
+2. Spawn `agent acp` or `cursor agent acp` with the assigned worktree as the process working directory.
+3. Send `initialize` with `protocolVersion` and `clientCapabilities`, then wait for the result before any other ACP method.
+4. Authenticate only when the agent advertised `authMethods`.
+5. Create or load the session with `session/new` (including Agent Hub MCP servers) or `session/load`, then persist its session ID.
+6. Answer `fs/read_text_file` for paths inside the session worktree. Unknown `cursor/*` methods get a protocol-safe unsupported response; they must not fail the session.
 7. Convert permission requests into AgentDesk approvals and send the selected outcome back to Cursor.
 
 Persist:
@@ -166,7 +169,7 @@ Run OpenCode as an ACP server scoped to the assigned worktree:
 opencode acp --cwd <worktree>
 ```
 
-The documented transport is stdin/stdout with newline-delimited JSON. Reuse the ACP client core for initialize, session, prompt, update, permission, cancellation, and resume operations, but capture fixtures from the installed OpenCode version before enabling a capability.
+The documented transport is stdin/stdout with newline-delimited JSON. Reuse the shared ACP client: sequential `initialize` (`clientCapabilities`), optional `authenticate`, then `session/new` with Agent Hub MCP servers and `--cwd` on the worktree. Capture fixtures from the installed OpenCode version before enabling a capability.
 
 Persist:
 
@@ -191,10 +194,12 @@ OpenCode supports multiple underlying model providers. AgentDesk treats `opencod
 
 - newline-delimited JSON-RPC parsing with partial-line buffering and size limits;
 - request IDs, pending-call timeouts, notifications, and server-initiated requests;
-- initialize/capability negotiation;
-- session creation, loading, prompting, cancellation, and update routing;
+- initialize/capability negotiation (`clientCapabilities`, wait for the result);
+- session creation (`session/new` with MCP servers), loading, prompting, cancellation, and update routing;
+- `fs/read_text_file` replies bounded to the session worktree;
+- queued prompts until handshake completes;
 - normalized permission callbacks;
-- protocol-level errors and stderr separation.
+- protocol-level errors and stderr separation. Unknown methods are rejected without failing the session.
 
 Provider adapters own:
 
@@ -274,9 +279,9 @@ Internal A2A is not an optional provider feature. Every first-class adapter must
 3. publish a safe Agent Card derived from user role settings plus verified runtime capabilities;
 4. load pending delegations, unread inbox state, current task/context, and active leases;
 5. deliver A2A notices through provider steering when safe, otherwise at the next turn boundary;
-6. acknowledge only after the adapter has injected the content successfully;
+6. mark deliveries `injected` only after a live port accepts the prompt; reserve `acknowledged` for explicit `hub_ack_message`;
 7. preserve delivery cursor and provider session identity across supported resume;
-8. mark undeliverable messages explicitly when terminating.
+8. mark undeliverable messages explicitly when terminating, and reset uncertain `injected` rows to `pending` on project reconcile.
 
 Provider adapter code never routes messages directly to another provider process. It receives normalized deliveries from `AgentDesk.A2A.MessageRouter` and returns delivery outcomes.
 
@@ -328,4 +333,4 @@ Every provider adapter ships fixtures covering:
 
 ACP adapters additionally require fixtures for capability negotiation, server-initiated permission requests, unknown extension methods, `session/new`, `session/load`, cancellation, and concurrent request correlation.
 
-Live CLI protocol tests (`test/agent_desk/providers/*_live_test.exs`) skip when the vendor binary is missing and never send a paid prompt. Codex and ACP adapters complete handshake when installed. Claude stream-json waits for a user turn, so the live test asserts a clean handshake timeout and terminate. Cursor/OpenCode skip if `agent`/`opencode` is missing. CI must not require a vendor login. See `TESTING.md`.
+Live CLI protocol tests (`test/agent_desk/providers/*_live_test.exs`) skip when the vendor binary is missing and never send a paid prompt. Codex and ACP adapters complete handshake when installed. Claude stream-json waits for a user turn, so the live test asserts a clean handshake timeout and terminate. Cursor skips unless `agent`, `cursor-agent`, or Cursor.app's `cursor` is present; OpenCode skips if `opencode` is missing. CI must not require a vendor login. See `TESTING.md`.

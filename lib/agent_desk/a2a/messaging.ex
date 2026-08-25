@@ -3,6 +3,7 @@ defmodule AgentDesk.A2A.Messaging do
 
   import Ecto.Query
 
+  alias AgentDesk.A2A.Authorization
   alias AgentDesk.A2A.Delivery
   alias AgentDesk.A2A.Idempotency
   alias AgentDesk.A2A.Message
@@ -17,7 +18,19 @@ defmodule AgentDesk.A2A.Messaging do
   @spec send(Scope.t(), map()) :: {:ok, Message.t()} | {:error, term()}
   def send(%Scope{agent_session: %Session{}} = scope, attrs) do
     key = Map.fetch!(attrs, :idempotency_key)
-    canonical = Map.take(attrs, [:recipient_agent_id, :scope, :body, :context_id, :task_id])
+
+    canonical =
+      Map.take(attrs, [
+        :recipient_agent_id,
+        :scope,
+        :body,
+        :context_id,
+        :task_id,
+        :kind,
+        :causation_id,
+        :reply_to_message_id,
+        :parts
+      ])
 
     case Idempotency.transact(scope, "send_message", key, canonical, fn ->
            do_send(scope, attrs, key)
@@ -27,17 +40,21 @@ defmodule AgentDesk.A2A.Messaging do
     end
   end
 
+  @inbox_limit 100
+
   @spec inbox(Scope.t(), integer() | nil) :: [Delivery.t()]
   def inbox(%Scope{agent_session: %Session{id: id}}, cursor \\ 0) do
     Delivery
     |> where([d], d.agent_session_id == ^id and d.inbox_sequence > ^cursor)
     |> order_by([d], asc: d.inbox_sequence)
+    |> limit(^@inbox_limit)
     |> preload(:message)
     |> Repo.all()
   end
 
   defp do_send(%Scope{project: project, agent_session: sender} = scope, attrs, key) do
-    with {:ok, parts} <- Parts.validate(scope, parts_from(attrs)),
+    with :ok <- Authorization.authorize_message(scope, attrs),
+         {:ok, parts} <- Parts.validate(scope, parts_from(attrs)),
          {:ok, recipients} <- recipients(scope, attrs) do
       correlation =
         Correlation.new(context_id: Map.fetch!(attrs, :context_id), idempotency_key: key)
@@ -78,11 +95,11 @@ defmodule AgentDesk.A2A.Messaging do
         {:ok, other_sessions(project.id, sender.id)}
 
       "context" ->
-        {:ok, context_members(Map.fetch!(attrs, :context_id)) -- [sender.id]}
+        {:ok, active_context_members(project.id, Map.fetch!(attrs, :context_id)) -- [sender.id]}
 
       "task" ->
-        task_id = Map.fetch!(attrs, :task_id)
-        {:ok, Enum.filter(other_sessions(project.id, sender.id), &task_member?(task_id, &1))}
+        context_id = Map.fetch!(attrs, :context_id)
+        {:ok, active_context_members(project.id, context_id) -- [sender.id]}
 
       _other ->
         {:error, :invalid_scope}
@@ -91,28 +108,21 @@ defmodule AgentDesk.A2A.Messaging do
 
   defp other_sessions(project_id, sender_id) do
     Session
-    |> where(
-      [s],
-      s.project_id == ^project_id and s.id != ^sender_id and
-        s.status not in ["terminated", "terminating"]
-    )
-    |> select([s], s.id)
+    |> where([s], s.project_id == ^project_id and s.id != ^sender_id)
     |> Repo.all()
+    |> Enum.filter(&Authorization.eligible_session?/1)
+    |> Enum.map(& &1.id)
   end
 
-  defp context_members(context_id) do
+  defp active_context_members(project_id, context_id) do
     Participant
-    |> where([p], p.context_id == ^context_id)
-    |> select([p], p.agent_session_id)
+    |> join(:inner, [p], s in Session, on: s.id == p.agent_session_id)
+    |> where([p], p.context_id == ^context_id and is_nil(p.left_at))
+    |> where([_p, s], s.project_id == ^project_id)
+    |> select([_p, s], s)
     |> Repo.all()
-  end
-
-  defp task_member?(task_id, session_id) do
-    case Repo.get(AgentDesk.A2A.Task, task_id) do
-      %{assigned_agent_id: ^session_id} -> true
-      %{context_id: context_id} -> session_id in context_members(context_id)
-      _ -> false
-    end
+    |> Enum.filter(&Authorization.eligible_session?/1)
+    |> Enum.map(& &1.id)
   end
 
   defp insert_delivery!(message_id, agent_session_id) do

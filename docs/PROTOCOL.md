@@ -23,6 +23,8 @@ Each provider process receives:
 
 The server derives identity from the authenticated capability. An agent must not be allowed to claim another `agent_id` in request parameters.
 
+ACP providers (Cursor, OpenCode, generic ACP) receive Agent Hub as `mcpServers` on `session/new`. The overlay file is `mcp.json` under the session directory; AgentDesk never edits the user's global provider config. Capability tokens travel in the MCP server env, not SQLite. Codex/Claude/SDK use the same overlay plus provider-specific injection. Remote attach uses `connect.env` (mode 0600) for inbound loopback MCP.
+
 Recommended capability claims:
 
 ```json
@@ -282,13 +284,13 @@ Supported parts are bounded `text`, schema-identified `data`, authorized `artifa
 
 Project-wide message with stricter rate and size limits. `task` and `context` scopes fan out only to authorized active participants; every recipient gets an independent ordered delivery record.
 
-#### `hub_read_inbox`
+#### `hub_list_inbox`
 
-Returns messages after an opaque cursor or per-recipient inbox sequence. The result identifies whether each message is pending, injected, acknowledged, expired, or skipped and whether it was queued for a safe boundary.
+Returns messages after an opaque cursor or per-recipient inbox sequence. The result identifies whether each message is `pending`, `injected`, `acknowledged`, `expired`, or `skipped`.
 
-#### `hub_ack_messages`
+#### `hub_ack_message`
 
-Acknowledges processed message IDs or a monotonic inbox sequence with an idempotency key. Acknowledgement means the provider adapter delivered the context at a safe boundary, not that the model obeyed it.
+Acknowledges one processed message ID with an idempotency key. `injected` means a live provider port accepted the prompt. `acknowledged` is an explicit agent ack through this tool, not completion and not a successful `Port.command`.
 
 ### Artifact tools
 
@@ -360,7 +362,7 @@ There is no MCP tool that merges into the primary tree or that exports/imports a
 - `memory_recall`
 - `memory_forget`
 
-These are implemented through `AgentDesk.Search.Adapter` and must return an explicit `unavailable` error when XERJ is disabled or unhealthy.
+These are implemented through `AgentDesk.Search.Adapter`. `:auto` uses the SQLite projection when XERJ is off or missing, so `memory_*` and `project_search` keep working. They return `unavailable` only when search is explicitly disabled or the selected adapter is unhealthy.
 
 ## 4. Lease semantics
 

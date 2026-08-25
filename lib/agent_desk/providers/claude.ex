@@ -50,15 +50,17 @@ defmodule AgentDesk.Providers.Claude do
       {:ok,
        %CommandSpec{
          executable: Keyword.get(opts, :executable, "claude"),
-         args: [
-           "-p",
-           "--output-format",
-           "stream-json",
-           "--verbose",
-           "--input-format",
-           "stream-json"
-         ],
-         cwd: cwd
+         args:
+           [
+             "-p",
+             "--output-format",
+             "stream-json",
+             "--verbose",
+             "--input-format",
+             "stream-json"
+           ] ++ resume_args(session),
+         cwd: cwd,
+         env_passthrough: AgentDesk.Env.provider_env_passthrough(key())
        }}
     end
   end
@@ -95,9 +97,7 @@ defmodule AgentDesk.Providers.Claude do
   def encode(:initialized, state), do: {:ok, "", state}
   def encode({:start_session, _cwd}, state), do: {:ok, "", state}
 
-  def encode({:resume, session_id}, state) do
-    {:ok, user_line(%{"resume" => session_id, "content" => "resume"}), state}
-  end
+  def encode({:resume, _session_id}, state), do: {:ok, "", state}
 
   def encode({:prompt, text}, state), do: encode({:prompt, text, []}, state)
 
@@ -120,6 +120,11 @@ defmodule AgentDesk.Providers.Claude do
       "message" => %{"role" => "user", "content" => fields["content"] || ""}
     }) <> "\n"
   end
+
+  defp resume_args(%{provider_session_id: id}) when is_binary(id) and id != "",
+    do: ["--resume", id]
+
+  defp resume_args(_session), do: []
 
   defp text_content(list) when is_list(list) do
     list

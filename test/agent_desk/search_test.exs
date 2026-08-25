@@ -27,6 +27,40 @@ defmodule AgentDesk.SearchTest do
     {:ok, project: project, alice: alice, repo: repo}
   end
 
+  test "disabled search is unavailable, not an indexer error", %{project: project} do
+    put_search_config(adapter: :disabled)
+
+    assert {:error, :unavailable} = Indexer.index_project(project)
+    status = Search.status(project)
+    assert status.status == "unavailable"
+    assert status.adapter == "Disabled"
+    assert is_nil(status.error)
+  end
+
+  test "missing project state returns a tagged index status error without raising", %{
+    project: project
+  } do
+    missing = %{project | id: Ecto.UUID.generate()}
+
+    assert {:error, {:index_status_unavailable, _reason}} =
+             Indexer.index_project(missing)
+  end
+
+  test "closing stops the debouncer before the project directory is deleted", %{
+    project: project,
+    repo: repo
+  } do
+    assert [{debouncer, _value}] = Registry.lookup(AgentDesk.SearchRegistry, project.id)
+    ref = Process.monitor(debouncer)
+
+    assert :ok = Projects.close_project(project)
+    assert_receive {:DOWN, ^ref, :process, ^debouncer, _reason}
+
+    File.rm_rf!(repo)
+    assert Registry.lookup(AgentDesk.SearchRegistry, project.id) == []
+    assert Registry.lookup(AgentDesk.SearchSupervisorRegistry, project.id) == []
+  end
+
   test "indexes a fixture repository and returns bounded attributed results", %{
     project: project
   } do
@@ -39,6 +73,18 @@ defmodule AgentDesk.SearchTest do
 
     refute Enum.any?(results, &String.contains?(&1.passage || "", "SECRET"))
     refute Enum.any?(results, &(&1.source_id == "deps/foo/lib.ex"))
+  end
+
+  test "auto search uses the SQLite projection when XERJ is off", %{project: project} do
+    put_search_config(adapter: :auto)
+    AgentDesk.Search.put_xerj(false)
+
+    assert Search.adapter() == AgentDesk.Search.Projection
+    assert :ok = Indexer.index_project(project)
+    status = Search.status(project)
+    assert status.adapter == "Projection"
+    assert status.status in ["ready", "indexing"]
+    refute status.status == "error"
   end
 
   test "namespace authorization denies cross-project memory", %{project: project, alice: alice} do
@@ -75,37 +121,29 @@ defmodule AgentDesk.SearchTest do
   end
 
   test "provider sessions continue while search is unavailable", %{project: project} do
-    Application.put_env(:agent_desk, :search, adapter: :disabled)
+    put_search_config(adapter: :disabled)
 
-    try do
-      assert {:error, :unavailable} = Search.search(Scope.for_project(project), %{"q" => "x"})
+    assert {:error, :unavailable} = Search.search(Scope.for_project(project), %{"q" => "x"})
 
-      {:ok, session} =
-        Providers.start_session(Scope.for_project(project), %{
-          provider: "fake",
-          display_name: "Scout"
-        })
+    {:ok, session} =
+      Providers.start_session(Scope.for_project(project), %{
+        provider: "fake",
+        display_name: "Scout"
+      })
 
-      assert {:ok, pid} = SessionWorker.fetch(session.id)
-      assert Process.alive?(pid)
-    after
-      Application.put_env(:agent_desk, :search, adapter: :projection)
-    end
+    assert {:ok, pid} = SessionWorker.fetch(session.id)
+    assert Process.alive?(pid)
   end
 
   test "MCP search tools return unavailable when search is disabled", %{alice: alice} do
-    Application.put_env(:agent_desk, :search, adapter: :disabled)
+    put_search_config(adapter: :disabled)
 
-    try do
-      assert {:ok, %{"result" => %{"error" => "unavailable"}}} =
-               Protocol.handle(alice, %{
-                 "id" => 9,
-                 "method" => "tools/call",
-                 "params" => %{"name" => "project_search", "arguments" => %{"q" => "sqlite"}}
-               })
-    after
-      Application.put_env(:agent_desk, :search, adapter: :projection)
-    end
+    assert {:ok, %{"result" => %{"error" => "unavailable"}}} =
+             Protocol.handle(alice, %{
+               "id" => 9,
+               "method" => "tools/call",
+               "params" => %{"name" => "project_search", "arguments" => %{"q" => "sqlite"}}
+             })
   end
 
   test "four simultaneous fake sessions record process identity", %{project: project} do
@@ -127,4 +165,15 @@ defmodule AgentDesk.SearchTest do
       assert is_integer(reloaded.process_identity["os_pid"])
     end)
   end
+
+  defp put_search_config(config) do
+    previous = Application.fetch_env(:agent_desk, :search)
+    Application.put_env(:agent_desk, :search, config)
+    on_exit(fn -> restore_search_config(previous) end)
+  end
+
+  defp restore_search_config({:ok, config}),
+    do: Application.put_env(:agent_desk, :search, config)
+
+  defp restore_search_config(:error), do: Application.delete_env(:agent_desk, :search)
 end

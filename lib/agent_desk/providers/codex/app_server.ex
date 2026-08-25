@@ -58,7 +58,8 @@ defmodule AgentDesk.Providers.Codex.AppServer do
        %CommandSpec{
          executable: Keyword.get(opts, :executable, "codex"),
          args: ["app-server"],
-         cwd: cwd
+         cwd: cwd,
+         env_passthrough: AgentDesk.Env.provider_env_passthrough(key())
        }}
     end
   end

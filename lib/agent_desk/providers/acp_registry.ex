@@ -9,6 +9,7 @@ defmodule AgentDesk.Providers.AcpRegistry do
 
   alias AgentDesk.Ids
   alias AgentDesk.Providers.AcpInstall
+  alias AgentDesk.Providers.Cursor
   alias AgentDesk.Providers.Discovery
   alias AgentDesk.Repo
 
@@ -142,6 +143,10 @@ defmodule AgentDesk.Providers.AcpRegistry do
 
   defp native_available?(nil), do: false
 
+  defp native_available?("agent") do
+    match?({:ok, _, _}, Cursor.resolve([]))
+  end
+
   defp native_available?(binary) do
     match?({:ok, _}, Discovery.find_executable(binary))
   end
@@ -209,22 +214,25 @@ defmodule AgentDesk.Providers.AcpRegistry do
     end
   end
 
-  defp native_command(%{"provider_key" => key}) when key in ~w(codex claude cursor opencode) do
-    binary =
-      case key do
-        "cursor" -> "agent"
-        other -> other
+  defp native_command(%{"provider_key" => "cursor"}) do
+    {executable, args} =
+      case Cursor.resolve([]) do
+        {:ok, path, resolved_args} -> {path, resolved_args}
+        _ -> {"agent", ["acp"]}
       end
 
+    {:ok, %{provider_key: "cursor", executable: executable, args: args}}
+  end
+
+  defp native_command(%{"provider_key" => key}) when key in ~w(codex claude opencode) do
     args =
       case key do
         "codex" -> ["app-server"]
-        "cursor" -> ["acp"]
         "opencode" -> ["acp"]
         _ -> []
       end
 
-    {:ok, %{provider_key: key, executable: binary, args: args}}
+    {:ok, %{provider_key: key, executable: key, args: args}}
   end
 
   defp native_command(_), do: {:error, :unsupported_distribution}

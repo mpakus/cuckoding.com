@@ -38,8 +38,7 @@ defmodule AgentDesk.DataCase do
 
   @doc false
   def runtime_pids do
-    supervisor_pids(AgentDesk.Projects.Supervisor) ++
-      supervisor_pids(AgentDesk.ProviderProcessSupervisor)
+    AgentDesk.Projects.Supervisor.runtime_slots()
   end
 
   @doc false
@@ -56,17 +55,14 @@ defmodule AgentDesk.DataCase do
     Enum.each(runtime_pids(), &stop_pid/1)
   end
 
-  defp supervisor_pids(supervisor) do
-    supervisor
-    |> DynamicSupervisor.which_children()
-    |> Enum.flat_map(fn
-      {_id, pid, _type, _modules} when is_pid(pid) -> [pid]
-      _other -> []
-    end)
-  end
-
   defp stop_pid(pid) when is_pid(pid) do
-    if Process.alive?(pid), do: GenServer.stop(pid, :shutdown, 1_000)
+    if Process.alive?(pid) do
+      _ =
+        DynamicSupervisor.terminate_child(
+          AgentDesk.Projects.Supervisor.RuntimePool,
+          pid
+        )
+    end
   end
 
   @doc """

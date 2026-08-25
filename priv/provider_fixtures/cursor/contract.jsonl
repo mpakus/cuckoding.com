@@ -1,0 +1,6 @@
+{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1,"authMethods":[{"id":"cursor-login","name":"Cursor login"}],"serverInfo":{"name":"cursor"}}}
+{"jsonrpc":"2.0","id":2,"result":{"authenticated":true}}
+{"jsonrpc":"2.0","id":3,"result":{"sessionId":"cursor-contract-session"}}
+{"jsonrpc":"2.0","id":9001,"method":"session/request_permission","params":{"options":[{"optionId":"allow-once","name":"Allow once","kind":"allow_once"}],"toolCall":{"title":"Read README","kind":"read"}}}
+{"jsonrpc":"2.0","id":9002,"method":"fs/read_text_file","params":{"path":"/tmp/worktree/README.md","line":1,"limit":20}}
+{"jsonrpc":"2.0","id":4,"result":{}}

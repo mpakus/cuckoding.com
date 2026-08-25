@@ -49,7 +49,11 @@ defmodule AgentDesk.Git do
 
   @spec rev_parse(Path.t(), String.t()) :: {:ok, String.t()} | {:error, term()}
   def rev_parse(path, rev \\ "HEAD") do
-    git(path, ["rev-parse", rev])
+    case git(path, ["rev-parse", rev]) do
+      {:ok, sha} -> {:ok, sha}
+      {:error, {code, out}} -> {:error, empty_head_reason(rev, code, out)}
+      other -> other
+    end
   end
 
   @spec remote_origin(Path.t()) :: {:ok, String.t()} | {:error, term()}
@@ -97,6 +101,52 @@ defmodule AgentDesk.Git do
     git(repo, ["worktree", "add", "-b", branch, worktree_path])
   end
 
+  @doc """
+  Linked worktree for a repository with no commits yet.
+
+  Does not commit on the user's current branch. Creates an empty commit object
+  for the new agent branch only, then falls back to `git worktree add --orphan`.
+  """
+  @spec worktree_add_orphan(Path.t(), Path.t(), String.t()) ::
+          {:ok, String.t()} | {:error, term()}
+  def worktree_add_orphan(repo, worktree_path, branch) do
+    case worktree_add_empty_commit(repo, worktree_path, branch) do
+      {:ok, _} = ok -> ok
+      {:error, _} -> git(repo, ["worktree", "add", "--orphan", "-b", branch, worktree_path])
+    end
+  end
+
+  @spec empty_tree_id() :: String.t()
+  def empty_tree_id, do: "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+
+  @spec untracked_files(Path.t()) :: {:ok, [String.t()]} | {:error, term()}
+  def untracked_files(path) do
+    case git(path, ["ls-files", "--others", "--exclude-standard"]) do
+      {:ok, ""} -> {:ok, []}
+      {:ok, out} -> {:ok, String.split(out, "\n", trim: true)}
+      error -> error
+    end
+  end
+
+  @empty_commit_env [
+    {"GIT_AUTHOR_NAME", "Cuckoding"},
+    {"GIT_AUTHOR_EMAIL", "cuckoding@localhost"},
+    {"GIT_COMMITTER_NAME", "Cuckoding"},
+    {"GIT_COMMITTER_EMAIL", "cuckoding@localhost"}
+  ]
+
+  defp worktree_add_empty_commit(repo, worktree_path, branch) do
+    with {:ok, tree} <- git(repo, ["write-tree"]),
+         {:ok, sha} <-
+           git(
+             repo,
+             ["commit-tree", tree, "-m", "cuckoding isolated empty base"],
+             @empty_commit_env
+           ) do
+      git(repo, ["worktree", "add", "-b", branch, worktree_path, sha])
+    end
+  end
+
   @spec worktree_list(Path.t()) :: {:ok, [String.t()]} | {:error, term()}
   def worktree_list(repo) do
     case git(repo, ["worktree", "list", "--porcelain"]) do
@@ -127,6 +177,22 @@ defmodule AgentDesk.Git do
   @spec worktree_remove(Path.t(), Path.t()) :: :ok | {:error, term()}
   def worktree_remove(repo, worktree_path) do
     case git(repo, ["worktree", "remove", worktree_path]) do
+      {:ok, _} -> :ok
+      error -> error
+    end
+  end
+
+  @spec worktree_remove_force(Path.t(), Path.t()) :: :ok | {:error, term()}
+  def worktree_remove_force(repo, worktree_path) do
+    case git(repo, ["worktree", "remove", "--force", worktree_path]) do
+      {:ok, _} -> :ok
+      error -> error
+    end
+  end
+
+  @spec delete_branch(Path.t(), String.t()) :: :ok | {:error, term()}
+  def delete_branch(repo, branch) do
+    case git(repo, ["branch", "-D", branch]) do
       {:ok, _} -> :ok
       error -> error
     end
@@ -228,16 +294,28 @@ defmodule AgentDesk.Git do
     end
   end
 
-  defp git(path, args) do
+  defp empty_head_reason("HEAD", code, out) do
+    if empty_head_output?(out), do: :empty_repository, else: {code, out}
+  end
+
+  defp empty_head_reason(_rev, code, out), do: {code, out}
+
+  defp empty_head_output?(out) when is_binary(out) do
+    String.contains?(out, "ambiguous argument 'HEAD'") or
+      String.contains?(out, "unknown revision") or
+      String.contains?(out, "does not have any commits")
+  end
+
+  defp git(path, args, env \\ []) do
     case System.find_executable("git") do
       nil ->
         {:error, :git_not_found}
 
       git ->
-        case System.cmd(git, ["-c", "commit.gpgsign=false" | args],
-               cd: path,
-               stderr_to_stdout: true
-             ) do
+        opts = [cd: path, stderr_to_stdout: true]
+        opts = if env == [], do: opts, else: Keyword.put(opts, :env, env)
+
+        case System.cmd(git, ["-c", "commit.gpgsign=false" | args], opts) do
           {out, 0} -> {:ok, String.trim(out)}
           {out, code} -> {:error, {code, String.trim(out)}}
         end

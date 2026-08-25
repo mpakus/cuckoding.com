@@ -83,7 +83,7 @@ defmodule AgentDesk.ContainersTest do
              })
   end
 
-  test "refuses to run compose against the primary checkout", %{repo: repo} do
+  test "refuses to run compose without an isolated worktree", %{repo: repo} do
     {:ok, project} = Projects.open_project(repo)
     scope = Scope.for_project(project)
 
@@ -94,6 +94,6 @@ defmodule AgentDesk.ContainersTest do
         settings: %{"container" => true}
       })
 
-    assert {:error, :primary_tree} = Containers.start(project, session)
+    assert {:error, :outside_worktree} = Containers.start(project, session)
   end
 end

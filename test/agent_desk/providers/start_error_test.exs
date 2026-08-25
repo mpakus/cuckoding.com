@@ -16,7 +16,19 @@ defmodule AgentDesk.Providers.StartErrorTest do
     refute message =~ "more"
   end
 
+  test "explains an empty git repository" do
+    message = Providers.start_error_message(:empty_repository)
+    assert message =~ "empty Git repository"
+    refute message =~ "ambiguous argument"
+    refute message =~ "Make an initial commit"
+  end
+
   test "explains a changeset rejection" do
     assert Providers.start_error_message(%Ecto.Changeset{errors: []}) =~ "Could not save"
+  end
+
+  test "explains a stopped session and handshake timeout" do
+    assert Providers.start_error_message(:not_started) =~ "Resume"
+    assert Providers.start_error_message(:handshake_timeout) =~ "did not finish starting"
   end
 end

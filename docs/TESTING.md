@@ -3,6 +3,7 @@
 ## 1. Principles
 
 - Prefer deterministic offline tests.
+- Run the default suite with `max_cases: 1`. SQLite and project-runtime restart tests share one BEAM supervision tree.
 - Test normalized protocols with fixtures before live providers.
 - Exercise concurrency with real processes where unit mocks hide races.
 - Treat crash recovery as a product feature.
@@ -42,6 +43,7 @@ Pure modules and changesets:
 - project runtime isolation;
 - application restart reconciliation.
 - A2A supervisor, AgentDirectory, TaskCoordinator, MessageRouter, and ArtifactRegistry restart isolation;
+- empty-repository orphan worktree (primary `HEAD` stays unborn; agent branch only);
 
 ### Database tests
 
@@ -69,7 +71,7 @@ Use recorded and hand-authored JSONL fixtures for:
 - Codex interrupt/resume;
 - Codex `exec --json` fallback;
 - Claude structured streaming;
-- Cursor ACP initialize/authenticate/new-load session/update/permission/cancel flows or explicit capability downgrade;
+- Cursor ACP sequential initialize (`clientCapabilities`) / authenticate / `session/new` (with MCP servers) / update / permission / `fs/read_text_file` / cancel flows or explicit capability downgrade;
 - Cursor unknown blocking and notification extension methods;
 - Cursor headless one-shot capability downgrade;
 - OpenCode ACP initialize/new-load session/update/permission/cancel flows or explicit capability downgrade;
@@ -81,9 +83,9 @@ Use recorded and hand-authored JSONL fixtures for:
 
 ### Live CLI protocol tests
 
-When Codex, Claude Code, Cursor `agent`, or OpenCode is installed, `mix test` probes that binary (`fixture: false`) **without sending a paid prompt**. Missing CLIs skip (`@tag skip:`). CI must not require a specific vendor version or login.
+When Codex, Claude Code, Cursor (`agent`, `cursor-agent`, or Cursor.app's `cursor`), or OpenCode is installed, `mix test` probes that binary (`fixture: false`) **without sending a paid prompt**. Missing CLIs skip (`@tag skip:`). CI must not require a specific vendor version or login.
 
-Adapters that emit `session_ready` on spawn (Codex App Server, ACP) complete handshake, Agent Card registration, interrupt, and terminate. Claude Code's stream-json adapter waits for a user turn before `system/init`; the live test asserts a clean handshake timeout and terminate instead of sending a prompt. Cursor and OpenCode skip when `agent` / `opencode` is missing. Live tests also assert isolation templates were written under the session directory (`Isolation.dir/env`).
+Adapters that emit `session_ready` on spawn (Codex App Server, ACP) complete handshake, Agent Card registration, interrupt, and terminate. Claude Code's stream-json adapter waits for a user turn before `system/init`; the live test asserts a clean handshake timeout and terminate instead of sending a prompt. Cursor skips unless `agent`, `cursor-agent`, or editor `cursor` is present; OpenCode skips if `opencode` is missing. Live tests also assert isolation templates were written under the session directory (`Isolation.dir/env`).
 
 ### MCP contract tests
 
@@ -138,7 +140,7 @@ Adapters that emit `session_ready` on spawn (Codex App Server, ACP) complete han
 
 ### End-to-end desktop tests
 
-- open a repository;
+- open a repository (including one with no commits);
 - run two fake providers concurrently;
 - discover peers, delegate a task, exchange structured messages, publish an artifact, and acknowledge delivery;
 - claim conflicting resources;
@@ -200,6 +202,7 @@ This fixture is the basis for CI and load tests without provider accounts.
 - delete XERJ data and rebuild;
 - kill XERJ during indexing;
 - ensure core agent operations continue while search is unavailable;
+- verify `:auto` uses the SQLite projection when XERJ is off;
 - verify namespace isolation across projects and agents.
 
 ## 6. Security tests

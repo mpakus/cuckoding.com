@@ -6,6 +6,7 @@ import Config
 # to provide built-in test partitioning in CI environment.
 # Run `mix help test` for more information.
 config :agent_desk, :data_root, Path.expand("../tmp/test-data", __DIR__)
+config :agent_desk, :control_auth, mode: :test
 
 config :agent_desk, AgentDesk.Repo,
   database: Path.expand("../tmp/test-data/agentdesk_test.sqlite3", __DIR__),
@@ -23,6 +24,8 @@ config :agent_desk, AgentDeskWeb.Endpoint,
 config :logger, level: :warning
 
 config :agent_desk, :providers, use_fixtures: true
+config :agent_desk, :provider_shutdown, interrupt_grace_ms: 50, terminate_grace_ms: 100
+config :agent_desk, :provider_handshake_ms, 10_000
 
 config :agent_desk, :search, adapter: :projection
 

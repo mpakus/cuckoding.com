@@ -12,7 +12,7 @@ Expected toolchain:
 - Git with worktree support;
 - Codex CLI for Codex integration development;
 - Claude Code for Claude integration development;
-- Cursor CLI (`agent`) for Cursor integration development;
+- Cursor CLI (`agent`, `cursor-agent`, or Cursor.app's `cursor`) for Cursor integration development;
 - OpenCode CLI (`opencode`) for OpenCode integration development;
 - optional XERJ binary;
 - macOS signing tools for distribution work.
@@ -25,13 +25,13 @@ The Phoenix application lives at the repository root (`:agent_desk`, module `Age
 
 ```bash
 mix setup
-mix phx.server
+./bin/dev
 ```
 
-The HTTP listener binds to `127.0.0.1:4000`. Desktop window:
+`./bin/dev` runs `mix ex_tauri.dev`: Phoenix with code reload inside a Tauri window. Extra args are forwarded (`./bin/dev --no-watch`). The HTTP listener still binds `127.0.0.1:4000`. Browser-only:
 
 ```bash
-mix ex_tauri.dev
+mix phx.server
 ```
 
 Local unsigned `.app`:
@@ -53,7 +53,7 @@ lib/
 │   ├── isolation.ex         # ADR-026 templates under the session dir
 │   ├── analytics.ex
 │   ├── branding.ex
-│   ├── env.ex               # PATH bootstrap for Finder-launched .app
+│   ├── env.ex               # PATH bootstrap for Finder-launched .app (Homebrew, Cursor.app)
 │   ├── projects/
 │   ├── agents/
 │   ├── a2a/                 # hub, cards, tasks, graphs, workflows, messages, artifacts
@@ -131,6 +131,7 @@ config :agent_desk, :a2a,
 
 ```bash
 mix setup
+./bin/dev
 mix phx.server
 mix ex_tauri.dev
 mix test
@@ -155,7 +156,7 @@ Local packaging (`mix cuckoding.app`) copies the Mix release into the Tauri `.ap
 - Never point cleanup tests at a user's home directory or real repository.
 - Validate every temporary path before recursive deletion.
 - Use the fake provider for the default test suite.
-- Live CLI protocol tests skip when Codex/Claude/`agent`/OpenCode is not installed. They never send a paid prompt. Codex/ACP handshake when installed; Claude stream-json asserts a clean handshake timeout and terminate. See `TESTING.md`.
+- Live CLI protocol tests skip when Codex, Claude, Cursor (`agent` / `cursor-agent` / Cursor.app `cursor`), or OpenCode is not installed. They never send a paid prompt. Codex/ACP handshake when installed; Claude stream-json asserts a clean handshake timeout and terminate. See `TESTING.md`.
 
 ## 7. Provider development
 
@@ -171,7 +172,7 @@ For each installed provider:
 
 For Cursor and OpenCode, run both the shared ACP transport contract suite and the provider-specific fixture suite. A passing Cursor fixture does not prove that the installed OpenCode version has the same methods or semantics, or vice versa.
 
-Every first-class provider adapter must also pass the same internal A2A bootstrap/delivery suite: automatic Agent Card registration, pending-inbox load, safe-boundary injection, acknowledgement, termination handling, and resume without duplicate delivery.
+Every first-class provider adapter must also pass the same internal A2A bootstrap/delivery suite: automatic Agent Card registration, pending-inbox load, live-port injection (`injected`), explicit `hub_ack_message`, termination handling, and resume without duplicate delivery.
 
 Do not make CI depend on whatever provider version happens to be installed on a developer machine.
 

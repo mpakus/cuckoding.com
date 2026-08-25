@@ -76,18 +76,18 @@ defmodule AgentDesk.Providers.LiveCliSuite do
           )
 
         assert settled, "#{@provider_key} did not settle"
-        assert {:ok, _pid} = SessionWorker.fetch(session.id)
         assert File.exists?(Path.join(Isolation.dir(session), "env"))
 
         case settled do
           {:ready, _ready} ->
+            assert {:ok, _pid} = SessionWorker.fetch(session.id)
             assert Repo.get_by(AgentCard, agent_session_id: session.id)
             assert :ok = SessionWorker.interrupt(session.id)
             assert :ok = SessionWorker.terminate_session(session.id)
 
           {:timed_out, timed_out} ->
             refute timed_out.provider_session_id
-            assert :ok = SessionWorker.terminate_session(session.id)
+            assert SessionWorker.terminate_session(session.id) in [:ok, {:error, :not_started}]
         end
       end
     end

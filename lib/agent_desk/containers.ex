@@ -32,7 +32,7 @@ defmodule AgentDesk.Containers do
     if enabled?(session), do: start_stack(project, session), else: :ok
   end
 
-  @spec stop(Session.t()) :: :ok
+  @spec stop(Session.t()) :: :ok | {:error, term()}
   def stop(%Session{} = session) do
     if enabled?(session), do: down(session), else: :ok
   end
@@ -79,15 +79,14 @@ defmodule AgentDesk.Containers do
 
         case command_spec("down", session, dir) do
           {:ok, spec} ->
-            _ = run(spec)
-            :ok
+            run(spec)
 
-          {:error, _} ->
-            :ok
+          {:error, reason} ->
+            {:error, reason}
         end
 
-      _ ->
-        :ok
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 

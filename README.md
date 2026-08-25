@@ -8,8 +8,8 @@ HTTP binds **loopback only** (`127.0.0.1`). The UI is **dark only**.
 
 ```bash
 mix setup
-mix phx.server          # http://127.0.0.1:4000
-mix ex_tauri.dev        # desktop window
+./bin/dev               # desktop window, Phoenix + Tauri hot reload
+mix phx.server          # http://127.0.0.1:4000 (browser only)
 mix check               # format, compile -Werror, test, credo, dialyzer, sobelow
 ```
 
@@ -21,11 +21,11 @@ mix cuckoding.app       # also aliased as mix desktop.app
 
 Quit the running `.app` and leftover `beam.smp` before rebuild. Output: `src-tauri/target/release/bundle/macos/Cuckoding.app`.
 
-Install provider CLIs yourself (Codex, Claude Code, Cursor `agent`, OpenCode). Extra ACP agents come from the registry. Cuckoding does not collect provider passwords.
+Install provider CLIs yourself (Codex, Claude Code, Cursor.app / `agent`, OpenCode). Extra ACP agents come from the registry. Cuckoding does not collect provider passwords. A Git repo with no commits is enough to start an isolated session.
 
 ## What is in tree
 
-Multi-project workspace; Codex / Claude / Cursor / OpenCode adapters plus SDK JSONL and loopback remote attach; extra ACP registry agents; internal A2A Hub over MCP; worktrees; isolation templates off the Git tree; leases; user-confirmed merge queue; search/memory; roles; graphs/workflows; usage; optional Compose; file-based team sync.
+Multi-project workspace; Codex / Claude / Cursor / OpenCode adapters plus SDK JSONL and loopback remote attach; extra ACP registry agents; internal A2A Hub over MCP; worktrees; isolation templates off the Git tree; leases; user-confirmed merge queue; SQLite search/memory with optional XERJ; roles; graphs/workflows; usage; optional Compose; file-based team sync.
 
 `MIX_ENV=prod mix release desktop` works on OTP 28. Signed installers do not. Burrito has no OTP 28 ERTS, so `mix cuckoding.app` copies the Mix release into the Tauri `.app` instead of wrapping a Burrito binary.
 

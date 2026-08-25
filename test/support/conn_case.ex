@@ -35,6 +35,18 @@ defmodule AgentDeskWeb.ConnCase do
     AgentDesk.DataCase.setup_sandbox(tags)
     snapshot = AgentDesk.DataCase.runtime_pids()
     on_exit(fn -> AgentDesk.DataCase.stop_started_runtimes(snapshot) end)
-    {:ok, conn: Phoenix.ConnTest.build_conn()}
+
+    conn =
+      Phoenix.ConnTest.build_conn()
+      |> Plug.Test.init_test_session(%{})
+      |> maybe_authorize_control(tags)
+
+    {:ok, conn: conn}
+  end
+
+  defp maybe_authorize_control(conn, %{control_auth: false}), do: conn
+
+  defp maybe_authorize_control(conn, _tags) do
+    AgentDesk.Security.ControlAuth.authorize_conn_for_test(conn)
   end
 end

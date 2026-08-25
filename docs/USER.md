@@ -20,8 +20,8 @@ You need Elixir, Erlang/OTP, Git, Rust, and the Tauri platform tools. Provider C
 
 ```bash
 mix setup
+./bin/dev               # native window, Phoenix + Tauri hot reload
 mix phx.server          # http://127.0.0.1:4000
-mix ex_tauri.dev        # native window around the same app
 ```
 
 Open `http://127.0.0.1:4000` from this machine only. Other hosts cannot reach it.
@@ -41,7 +41,7 @@ This copies a Mix release (this machine's OTP) into the Tauri app. It is unsigne
 ## Open a Git project
 
 1. Choose folder… uses the native macOS picker. Recent projects reopen a folder you opened before; Check again re-validates that path.
-2. Cuckoding never initializes a repository. Open an existing Git repo.
+2. Cuckoding never initializes a repository. Open an existing Git repo, including one with no commits yet.
 3. The project appears under Recent projects. A live badge means its runtime is running.
 4. First run walks ten onboarding steps: Git health, detected CLIs, roles, internal A2A, isolation, optional search, then the first session.
 
@@ -51,7 +51,7 @@ Coordination state lives in local SQLite under Application Support (`AgentDesk`)
 
 Pick `+` for a new agent. Each agent is its own tab (name and a status dot; close stays inside the tab). Duplicate names get a short id so two sessions stay distinct. Clicking an agent in the sidebar or an Agent Card opens that tab. Optional Role & isolation lets you attach a saved role, opt into isolated Compose, or (experimental) share the primary tree.
 
-The **Dashboard** tab (first in the strip) shows BEAM memory, SQLite size and row counts, search/XERJ health, remembered notes, and token/cost usage. It does not replace agent tabs.
+The **Dashboard** tab (first in the strip) shows BEAM memory, SQLite size and row counts, search/XERJ health, remembered notes, and token/cost usage. It does not replace agent tabs and has no prompt composer. Send prompts from the selected session tab. On a narrow window, **Project** and **Context** become drawers so the session, activity, composer, and attention bar stay on screen. Closing a tab hides it; it does not archive the session.
 
 Default providers:
 
@@ -59,7 +59,7 @@ Default providers:
 | --- | --- | --- |
 | Codex | `codex` | `codex app-server` |
 | Claude | `claude` | stream-json headless |
-| Cursor | `agent` | `agent acp` |
+| Cursor | Cursor.app, `cursor`, `cursor-agent`, or `agent` | `cursor agent acp` or `agent acp` |
 | OpenCode | `opencode` | `opencode acp --cwd <worktree>` |
 | SDK | your executable | JSONL `op` / `type` |
 | Remote | your process | inbound loopback MCP; no child process |
@@ -73,7 +73,7 @@ Sign in with the vendor CLI. Cuckoding never stores provider passwords or tokens
 | Status | Meaning | Typical next step |
 | --- | --- | --- |
 | `queued` | Waiting to start | Cancel |
-| `starting` | Handshake in progress | Wait, or Cancel |
+| `starting` | Handshake in progress | Wait (prompts queue), or Cancel |
 | `idle` | Ready for a prompt | Send, Terminate |
 | `working` | Generating or editing | Interrupt; Steer if the provider supports it |
 | `waiting` | Needs input | Send, Interrupt |
@@ -82,7 +82,7 @@ Sign in with the vendor CLI. Cuckoding never stores provider passwords or tokens
 | `failed` | Provider error | Diagnostics, Retry |
 | `interrupted` | Stopped mid-turn | Resume if supported, Terminate |
 | `terminating` | Shutting down | Wait; Force terminate if it hangs |
-| `terminated` | Gone | Start a new session |
+| `terminated` | Gone | Close tab, start a new session |
 
 Color is never the only cue. Each status uses a labeled chip.
 
@@ -115,12 +115,13 @@ Cuckoding never auto-merges into the primary tree.
 
 Every first-class session registers a project-scoped Agent Card: name, skills, availability, load. Cards never include secrets, hidden prompts, or unrestricted paths.
 
-Agents reach the hub through local MCP. They do not open sockets to one another and do not query SQLite. That hub is internal A2A: discovery, delegation, messages, artifacts, leases. It is not a public A2A 1.0 server.
+Agents reach the hub through local MCP injected into each session (`session/new` mcpServers). They do not open sockets to one another and do not query SQLite. That hub is internal A2A: discovery, delegation, messages, artifacts, leases, and shared memory (`memory_remember` / `memory_recall`). It is not a public A2A 1.0 server.
 
 - Delegation is a proposal until Accept. Assignment is not a lease.
 - A lead crew is the exception for specialists you started for that goal: Split work records delegations and accepts them so the lanes can start. You can still revoke.
-- Ack means the message was delivered, not that the work is done.
+- Ack (`hub_ack_message`) means the agent acknowledged the inbox item, not that the work is done. `injected` only means a live provider port accepted the prompt.
 - Filter Agent Cards by skill or feature. Each card shows a load summary (status and assigned tasks).
+- Start more than one session in the same project if you want agents to plan and share tasks. Each session registers an Agent Card; `hub_list_agents` and `hub_list_tasks` are how they see each other.
 
 **Split work** (Tasks panel): describe a goal, pick a lead session, optionally pick a provider, and choose backend / UI / tests. The Tasks list groups that crew under the parent and shows how many lanes are done. The lead analyzes, specialists work in isolated trees, and the lead is notified when a lane finishes. SQLite keeps the tasks, messages, and memory. Nothing auto-merges to your primary branch.
 
@@ -132,7 +133,7 @@ Remote attach writes a connect file under the session directory. The UI shows th
 
 **Activity** defaults to structured cards (messages, commands, file changes, MCP tools, approvals, errors). Streamed agent tokens are grouped into one card per message so the feed reads as paragraphs, not one card per word. Switch to raw only for diagnostics. Older items load on demand. The stream is bounded.
 
-**Composer** accepts pasted or dropped images and attached files. Meta+Enter still sends.
+**Composer** on a session tab accepts pasted or dropped images and attached files. Meta+Enter still sends. Prompts typed while the tab is `starting` wait until the session is ready.
 
 **Grove** is a small living canvas in the context panel. It grows while sessions are working and rests when they are idle.
 
@@ -153,11 +154,11 @@ Remote attach writes a connect file under the session directory. The UI shows th
 
 ## Provider CLIs
 
-Install and authenticate these yourself. Cuckoding discovers them on `PATH` (including Homebrew and common user bin dirs when launched from Finder).
+Install and authenticate these yourself. Cuckoding discovers them on `PATH` (including Homebrew, common user bin dirs, and Cursor.app when launched from Finder).
 
 - Codex CLI (`codex`)
 - Claude Code (`claude`)
-- Cursor CLI (`agent`)
+- Cursor.app, `cursor`, `cursor-agent`, or `agent`
 - OpenCode (`opencode`)
 - Optional XERJ binary for richer search
 - Extra ACP agents from the registry (often via `npx`)
@@ -170,7 +171,13 @@ A missing CLI is listed as missing. It is not an error until you try to start th
 
 **Rebuild failed or the app will not start after `mix cuckoding.app`.** Quit Cuckoding.app. Check Activity Monitor for leftover `beam.smp` and quit it, then rebuild.
 
-**Provider shows missing.** Install the CLI, confirm it is on `PATH`, and sign in with the vendor tool. Restart Cuckoding after installing.
+**Provider shows missing.** Install the CLI, confirm it is on `PATH`, and sign in with the vendor tool. Restart Cuckoding after installing. Cursor.app is enough: Cuckoding looks for `agent`, `cursor-agent`, or the editor `cursor` CLI inside Cursor.app.
+
+**Handshake timed out / Internal error.** The provider process started but did not finish ACP initialize → session. Wait until the tab is idle, or click Resume, then send the prompt. Do not send a prompt from the Dashboard tab.
+
+**Prompt says the session is not running.** Open the session tab and Resume. A failed handshake stops the worker so Retry/Resume can start a clean one.
+
+**Isolated session on a new Git repo.** You do not need an initial commit on `main`. Isolated sessions start on their own branch from an empty Git tree and copy untracked (non-ignored) files in. Your primary folder is left uncommitted.
 
 **Session stays on starting (Claude).** Claude's stream-json adapter waits for a user turn before it finishes handshake. Send a prompt, or Terminate and try again.
 
@@ -178,7 +185,7 @@ A missing CLI is listed as missing. It is not an error until you try to start th
 
 **Lease conflict.** Use Message owner, Wait and retry, or Reassign. Do not force a takeover.
 
-**Search empty or stale.** Enable XERJ in onboarding if you have the binary, or use the projection adapter. Coordination still works while search is unavailable.
+**Search empty or stale.** Search is optional. When it is off, the Search panel says so — that is not an error. Enable XERJ in onboarding if you have the binary, or use the SQLite projection. Coordination still works while search is unavailable.
 
 **UI is always dark.** That is intentional. There is no theme switch.
 

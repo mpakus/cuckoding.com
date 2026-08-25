@@ -9,6 +9,7 @@ defmodule AgentDesk.A2A.Orchestration do
   import Ecto.Query
 
   alias AgentDesk.A2A
+  alias AgentDesk.A2A.Authorization
   alias AgentDesk.A2A.Graph
   alias AgentDesk.A2A.Participant
   alias AgentDesk.A2A.Task
@@ -58,20 +59,31 @@ defmodule AgentDesk.A2A.Orchestration do
     with {:ok, goal} <- fetch_goal(attrs),
          {:ok, lead} <- resolve_lead(scope, attrs),
          {:ok, lanes} <- resolve_start_lanes(scope, lead, attrs) do
-      split(Scope.for_agent(scope.project, lead), %{
-        "goal" => goal,
-        "lanes" => Enum.map(lanes, &lane_payload/1),
-        "auto_accept" => true,
-        "prompt_lead" => true
-      })
+      do_split(
+        Scope.for_agent(scope.project, lead),
+        %{
+          "goal" => goal,
+          "lanes" => Enum.map(lanes, &lane_payload/1),
+          "prompt_lead" => true
+        },
+        true
+      )
     end
   end
 
   @spec split(Scope.t(), map()) :: {:ok, map()} | {:error, term()}
-  def split(%Scope{agent_session: %Session{} = lead} = scope, attrs) when is_map(attrs) do
+  def split(%Scope{agent_session: %Session{}} = scope, attrs) when is_map(attrs) do
+    do_split(scope, attrs, false)
+  end
+
+  def split(%Scope{agent_session: nil}, _attrs), do: {:error, :forbidden}
+
+  defp do_split(%Scope{agent_session: %Session{} = lead} = scope, attrs, trusted_auto_accept?)
+       when is_map(attrs) and is_boolean(trusted_auto_accept?) do
     _ = Roles.list(scope.project)
 
-    with {:ok, goal} <- fetch_goal(attrs),
+    with {:ok, _lead} <- eligible_session(scope, lead.id, "lead"),
+         {:ok, goal} <- fetch_goal(attrs),
          {:ok, lanes} <- resolve_split_lanes(scope, attrs),
          {:ok, context} <-
            A2A.create_context(scope, %{
@@ -86,9 +98,25 @@ defmodule AgentDesk.A2A.Orchestration do
              metadata: crew_meta("parent", nil, lead.id, nil)
            }),
          {:ok, children} <-
-           create_children(scope, context, parent, lead, goal, lanes, auto_accept?(attrs)),
+           create_children(
+             scope,
+             context,
+             parent,
+             lead,
+             goal,
+             lanes,
+             trusted_auto_accept?
+           ),
          {:ok, review} <-
-           create_review_task(scope, context, parent, lead, goal, Enum.map(children, & &1.task)) do
+           create_review_task(
+             scope,
+             context,
+             parent,
+             lead,
+             goal,
+             Enum.map(children, & &1.task),
+             trusted_auto_accept?
+           ) do
       _ = remember_plan(scope, parent, goal, children, review)
       _ = if prompt_lead?(attrs), do: prompt_lead(lead, parent, goal, children, review), else: :ok
 
@@ -96,15 +124,19 @@ defmodule AgentDesk.A2A.Orchestration do
     end
   end
 
-  def split(%Scope{agent_session: nil}, _attrs), do: {:error, :forbidden}
-
   @spec status(Scope.t(), Ecto.UUID.t()) :: {:ok, map()} | {:error, term()}
   def status(%Scope{project: project}, parent_task_id) when is_binary(parent_task_id) do
-    case Repo.get_by(Task, id: parent_task_id, project_id: project.id) do
-      %Task{} = parent -> {:ok, status_map(parent)}
-      nil -> {:error, :not_found}
+    with {:ok, _uuid} <- Ecto.UUID.cast(parent_task_id) do
+      case Repo.get_by(Task, id: parent_task_id, project_id: project.id) do
+        %Task{} = parent -> {:ok, status_map(parent)}
+        nil -> {:error, :not_found}
+      end
+    else
+      :error -> {:error, :not_found}
     end
   end
+
+  def status(%Scope{}, _parent_task_id), do: {:error, :not_found}
 
   @spec on_task_updated(Scope.t(), Task.t(), Task.t()) :: :ok
   def on_task_updated(%Scope{} = scope, %Task{} = previous, %Task{} = updated) do
@@ -137,7 +169,7 @@ defmodule AgentDesk.A2A.Orchestration do
              metadata: crew_meta("lane", lane.key, lead.id, parent.id)
            }),
          {:ok, _delegation} <- assign_lane(scope, task, lane.session, lane.title, auto_accept?) do
-      _ = prompt_specialist(lane.session, task, goal, lane)
+      _ = if auto_accept?, do: prompt_specialist(lane.session, task, goal, lane), else: :ok
 
       {:ok,
        %{
@@ -150,7 +182,7 @@ defmodule AgentDesk.A2A.Orchestration do
     end
   end
 
-  defp create_review_task(scope, context, parent, lead, goal, children) do
+  defp create_review_task(scope, context, parent, lead, goal, children, auto_accept?) do
     with {:ok, review} <-
            A2A.create_task(scope, context, %{
              title: bounded("Review: " <> goal, 200),
@@ -164,7 +196,8 @@ defmodule AgentDesk.A2A.Orchestration do
              metadata: crew_meta("review", "review", lead.id, parent.id)
            }),
          :ok <- link_review_deps(scope, review, children),
-         {:ok, _delegation} <- assign_lane(scope, review, lead, "Review crew results", true) do
+         {:ok, _delegation} <-
+           assign_lane(scope, review, lead, "Review crew results", auto_accept?) do
       {:ok, Graph.hold_if_waiting(Repo.get!(Task, review.id))}
     end
   end
@@ -195,10 +228,14 @@ defmodule AgentDesk.A2A.Orchestration do
   end
 
   defp accept_now(project, recipient, delegation) do
-    A2A.accept_delegation(Scope.for_agent(project, recipient), delegation.id, %{
-      idempotency_key: Ids.generate(),
-      expected_version: delegation.lock_version
-    })
+    project_scope = Scope.for_project(project)
+
+    with {:ok, current_recipient} <- eligible_session(project_scope, recipient.id) do
+      A2A.accept_delegation(Scope.for_agent(project, current_recipient), delegation.id, %{
+        idempotency_key: Ids.generate(),
+        expected_version: delegation.lock_version
+      })
+    end
   end
 
   defp notify_lead(%Scope{} = scope, %Task{} = task) do
@@ -345,13 +382,15 @@ defmodule AgentDesk.A2A.Orchestration do
 
     cond do
       is_binary(session_id) ->
-        Agents.get_session(scope, session_id)
+        eligible_session(scope, session_id, "lead")
 
       session = find_by_role(scope, "lead") ->
         {:ok, session}
 
       spawn?(attrs) and is_binary(provider) ->
-        start_agent(scope, provider, "Lead", "lead")
+        with {:ok, session} <- start_agent(scope, provider, "Lead", "lead") do
+          eligible_session(scope, session.id, "lead")
+        end
 
       true ->
         {:error, {:missing_agent, "lead"}}
@@ -386,17 +425,22 @@ defmodule AgentDesk.A2A.Orchestration do
     recipient_id = spec["recipient_agent_id"]
 
     cond do
-      is_binary(recipient_id) and recipient_id != lead.id ->
-        with {:ok, session} <- Agents.get_session(scope, recipient_id) do
+      is_binary(recipient_id) and recipient_id == lead.id ->
+        {:error, :forbidden}
+
+      is_binary(recipient_id) ->
+        with {:ok, session} <- eligible_session(scope, recipient_id, spec["role"], lead.id) do
           {:ok, lane_struct(spec, session)}
         end
 
-      session = find_by_role(scope, spec["role"]) ->
+      session = find_by_role(scope, spec["role"], lead.id) ->
         {:ok, lane_struct(spec, session)}
 
       spawn? and is_binary(provider) ->
         with {:ok, session} <- start_agent(scope, provider, spec["title"], spec["role"]) do
-          {:ok, lane_struct(spec, session)}
+          with {:ok, eligible} <- eligible_session(scope, session.id, spec["role"], lead.id) do
+            {:ok, lane_struct(spec, eligible)}
+          end
         end
 
       true ->
@@ -407,14 +451,18 @@ defmodule AgentDesk.A2A.Orchestration do
   defp resolve_existing_lane(scope, spec) do
     spec = stringify(spec)
     recipient_id = spec["recipient_agent_id"]
+    lead_id = Scope.agent_id(scope)
 
     cond do
+      is_binary(recipient_id) and recipient_id == lead_id ->
+        {:error, :forbidden}
+
       is_binary(recipient_id) ->
-        with {:ok, session} <- Agents.get_session(scope, recipient_id) do
+        with {:ok, session} <- eligible_session(scope, recipient_id, spec["role"], lead_id) do
           {:ok, lane_struct(spec, session)}
         end
 
-      session = find_by_role(scope, spec["role"]) ->
+      session = find_by_role(scope, spec["role"], lead_id) ->
         {:ok, lane_struct(spec, session)}
 
       true ->
@@ -432,15 +480,36 @@ defmodule AgentDesk.A2A.Orchestration do
 
   defp project_scope(%Scope{project: project}), do: Scope.for_project(project)
 
-  defp find_by_role(scope, role) when is_binary(role) do
+  defp find_by_role(scope, role, excluded_id \\ nil)
+
+  defp find_by_role(scope, role, excluded_id) when is_binary(role) do
     scope
     |> Agents.list_sessions()
     |> Enum.find(fn session ->
-      session.role == role and session.status not in ["terminated", "terminating", "failed"]
+      session.id != excluded_id and session.role == role and eligible_session?(scope, session)
     end)
   end
 
-  defp find_by_role(_scope, _role), do: nil
+  defp find_by_role(_scope, _role, _excluded_id), do: nil
+
+  defp eligible_session(scope, session_id, expected_role \\ nil, excluded_id \\ nil) do
+    with {:ok, session} <- Agents.get_session(scope, session_id),
+         true <- session.id != excluded_id,
+         true <- role_matches?(session, expected_role),
+         true <- eligible_session?(scope, session) do
+      {:ok, session}
+    else
+      false -> {:error, :forbidden}
+      {:error, :not_found} = error -> error
+    end
+  end
+
+  defp eligible_session?(%Scope{project: project}, %Session{} = session) do
+    session.project_id == project.id and Authorization.eligible_session?(session)
+  end
+
+  defp role_matches?(_session, nil), do: true
+  defp role_matches?(%Session{role: role}, expected_role), do: role == expected_role
 
   defp selected_lanes(attrs) do
     keys =
@@ -622,10 +691,6 @@ defmodule AgentDesk.A2A.Orchestration do
   end
 
   defp lane_counts(_task), do: {0, 0, 0}
-
-  defp auto_accept?(attrs) do
-    truthy?(Map.get(attrs, :auto_accept, Map.get(attrs, "auto_accept", true)))
-  end
 
   defp prompt_lead?(attrs) do
     truthy?(Map.get(attrs, :prompt_lead, Map.get(attrs, "prompt_lead", true)))

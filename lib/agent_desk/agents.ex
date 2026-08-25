@@ -30,11 +30,17 @@ defmodule AgentDesk.Agents do
 
   @spec get_session(Scope.t(), Ecto.UUID.t()) :: {:ok, Session.t()} | {:error, :not_found}
   def get_session(%Scope{project: project}, id) when is_binary(id) do
-    case Repo.get_by(Session, id: id, project_id: project.id) do
-      %Session{} = session -> {:ok, session}
-      nil -> {:error, :not_found}
+    with {:ok, _uuid} <- Ecto.UUID.cast(id) do
+      case Repo.get_by(Session, id: id, project_id: project.id) do
+        %Session{} = session -> {:ok, session}
+        nil -> {:error, :not_found}
+      end
+    else
+      :error -> {:error, :not_found}
     end
   end
+
+  def get_session(%Scope{}, _id), do: {:error, :not_found}
 
   @spec list_sessions(Scope.t() | Ecto.UUID.t()) :: [Session.t()]
   def list_sessions(%Scope{project: project}), do: list_sessions(project.id)
@@ -66,19 +72,29 @@ defmodule AgentDesk.Agents do
     update_session(session, %{settings: settings})
   end
 
-  @spec interrupt_orphans(Ecto.UUID.t()) :: :ok
-  def interrupt_orphans(project_id) when is_binary(project_id) do
+  @spec interrupt_orphans(Ecto.UUID.t(), [Ecto.UUID.t()]) :: :ok
+  def interrupt_orphans(project_id, except \\ [])
+
+  def interrupt_orphans(project_id, except) when is_binary(project_id) and is_list(except) do
     now = Clock.utc_now()
 
-    Session
-    |> where(
-      [s],
-      s.project_id == ^project_id and
-        s.status in ["queued", "starting", "idle", "working", "waiting", "blocked"]
-    )
-    |> Repo.update_all(set: [status: "interrupted", updated_at: now])
+    query =
+      Session
+      |> where(
+        [s],
+        s.project_id == ^project_id and
+          s.status in ["queued", "starting", "idle", "working", "waiting", "blocked"]
+      )
+      |> exclude_ids(except)
 
+    Repo.update_all(query, set: [status: "interrupted", updated_at: now])
     :ok
+  end
+
+  defp exclude_ids(query, []), do: query
+
+  defp exclude_ids(query, ids) when is_list(ids) do
+    where(query, [s], s.id not in ^ids)
   end
 
   defp capability_hash do

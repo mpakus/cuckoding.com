@@ -58,7 +58,7 @@ defmodule AgentDesk.A2A.OrchestrationTest do
     }
   end
 
-  test "splits a goal into lane tasks, review, memory, and accepted delegations", %{
+  test "agent splits create proposed delegations that require recipient acceptance", %{
     lead_scope: lead_scope,
     backend: backend,
     frontend: frontend,
@@ -67,7 +67,6 @@ defmodule AgentDesk.A2A.OrchestrationTest do
     assert {:ok, result} =
              Orchestration.split(lead_scope, %{
                goal: "Ship passwordless auth",
-               auto_accept: true,
                prompt_lead: false
              })
 
@@ -79,7 +78,7 @@ defmodule AgentDesk.A2A.OrchestrationTest do
     review = Enum.find(tasks, &(&1.id == result["review_task_id"]))
 
     assert parent.metadata["orchestration"]["kind"] == "parent"
-    assert review.assigned_agent_id == lead_scope.agent_session.id
+    assert is_nil(review.assigned_agent_id)
     assert review.status == "blocked"
 
     assert {:error, :blocked_by_dependencies} =
@@ -92,10 +91,12 @@ defmodule AgentDesk.A2A.OrchestrationTest do
 
     Enum.each(result["lanes"], fn lane ->
       task = Enum.find(tasks, &(&1.id == lane["task_id"]))
-      assert task.status == "assigned"
-      assert task.assigned_agent_id == lane["agent_id"]
+      assert task.status == "queued"
+      assert is_nil(task.assigned_agent_id)
       assert task.parent_task_id == parent.id
     end)
+
+    assert Enum.all?(A2A.list_delegations(lead_scope), &(&1.status == "proposed"))
 
     {:ok, memories} =
       Search.recall(lead_scope, Namespaces.shared(lead_scope.project.id), %{"q" => "Crew plan"})
@@ -106,15 +107,17 @@ defmodule AgentDesk.A2A.OrchestrationTest do
   end
 
   test "notifies the lead when a specialist completes a lane", %{
+    project_scope: project_scope,
+    lead: lead,
     lead_scope: lead_scope,
     backend_scope: backend_scope
   } do
     {:ok, result} =
-      Orchestration.split(lead_scope, %{
+      Orchestration.start_crew(project_scope, %{
         goal: "Add billing webhook",
+        lead_session_id: lead.id,
         lanes: ["backend"],
-        auto_accept: true,
-        prompt_lead: false
+        spawn: false
       })
 
     [lane] = result["lanes"]
@@ -132,9 +135,10 @@ defmodule AgentDesk.A2A.OrchestrationTest do
     assert review.status == "queued"
   end
 
-  test "start_crew reuses role-matched sessions without spawning", %{
+  test "user-started crew reuses active specialists and auto-accepts assignments", %{
     project_scope: project_scope,
-    lead: lead
+    lead: lead,
+    frontend: frontend
   } do
     assert {:ok, result} =
              Orchestration.start_crew(project_scope, %{
@@ -146,5 +150,62 @@ defmodule AgentDesk.A2A.OrchestrationTest do
 
     assert [%{"role" => "frontend"}] = result["lanes"]
     assert result["lead_agent_id"] == lead.id
+
+    tasks = A2A.list_tasks(project_scope)
+    lane = Enum.find(tasks, &(&1.id == hd(result["lanes"])["task_id"]))
+    review = Enum.find(tasks, &(&1.id == result["review_task_id"]))
+
+    assert lane.assigned_agent_id == frontend.id
+    assert lane.status == "assigned"
+    assert review.assigned_agent_id == lead.id
+    assert Enum.all?(A2A.list_delegations(project_scope), &(&1.status == "accepted"))
+  end
+
+  test "crew targeting rejects role-mismatched, terminated, and hidden recipients", %{
+    lead_scope: lead_scope,
+    backend: backend,
+    frontend: frontend
+  } do
+    assert {:error, :forbidden} =
+             Orchestration.split(lead_scope, %{
+               goal: "Target arbitrary session",
+               lanes: [
+                 %{
+                   "key" => "frontend",
+                   "role" => "frontend",
+                   "recipient_agent_id" => backend.id
+                 }
+               ]
+             })
+
+    {:ok, terminated_backend} = Agents.update_session(backend, %{status: "terminated"})
+
+    assert {:error, :forbidden} =
+             Orchestration.split(lead_scope, %{
+               goal: "Target terminated specialist",
+               lanes: [
+                 %{
+                   "key" => "backend",
+                   "role" => "backend",
+                   "recipient_agent_id" => terminated_backend.id
+                 }
+               ]
+             })
+
+    {:ok, hidden_frontend} = Agents.hide_tab(frontend)
+
+    assert {:error, :forbidden} =
+             Orchestration.split(lead_scope, %{
+               goal: "Target hidden specialist",
+               lanes: [
+                 %{
+                   "key" => "frontend",
+                   "role" => "frontend",
+                   "recipient_agent_id" => hidden_frontend.id
+                 }
+               ]
+             })
+
+    assert A2A.list_tasks(lead_scope) == []
   end
 end

@@ -6,25 +6,47 @@ defmodule AgentDesk.A2A.Directory do
   import Ecto.Query
 
   alias AgentDesk.A2A.AgentCard
+  alias AgentDesk.A2A.Authorization
+  alias AgentDesk.Agents.Session
   alias AgentDesk.Repo
   alias AgentDesk.Scope
 
   @spec list_agents(Scope.t()) :: [map()]
   def list_agents(%Scope{project: project}) do
     AgentCard
-    |> where([c], c.project_id == ^project.id)
+    |> join(:inner, [card], session in Session, on: session.id == card.agent_session_id)
+    |> where([card], card.project_id == ^project.id)
     |> order_by([c], asc: c.name)
+    |> select([card, session], {card, session})
     |> Repo.all()
-    |> Enum.map(&public_card/1)
+    |> Enum.filter(fn {_card, session} -> Authorization.eligible_session?(session) end)
+    |> Enum.map(fn {card, _session} -> public_card(card) end)
   end
 
   @spec get_agent(Scope.t(), Ecto.UUID.t()) :: {:ok, map()} | {:error, :not_found}
-  def get_agent(%Scope{project: project}, agent_id) do
-    case Repo.get_by(AgentCard, project_id: project.id, agent_session_id: agent_id) do
-      %AgentCard{} = card -> {:ok, public_card(card)}
-      nil -> {:error, :not_found}
+  def get_agent(%Scope{project: project}, agent_id) when is_binary(agent_id) do
+    with {:ok, _uuid} <- Ecto.UUID.cast(agent_id) do
+      case Repo.one(
+             from card in AgentCard,
+               join: session in Session,
+               on: session.id == card.agent_session_id,
+               where: card.project_id == ^project.id and card.agent_session_id == ^agent_id,
+               select: {card, session}
+           ) do
+        {%AgentCard{} = card, %Session{} = session} ->
+          if Authorization.eligible_session?(session),
+            do: {:ok, public_card(card)},
+            else: {:error, :not_found}
+
+        nil ->
+          {:error, :not_found}
+      end
+    else
+      :error -> {:error, :not_found}
     end
   end
+
+  def get_agent(%Scope{}, _agent_id), do: {:error, :not_found}
 
   @spec find_agents(Scope.t(), keyword()) :: [map()]
   def find_agents(%Scope{} = scope, opts) do

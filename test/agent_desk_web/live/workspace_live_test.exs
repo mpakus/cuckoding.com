@@ -3,13 +3,20 @@ defmodule AgentDeskWeb.WorkspaceLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias AgentDesk.A2A
   alias AgentDesk.Agents
   alias AgentDesk.GitRepo
   alias AgentDesk.Projects
   alias AgentDesk.Providers
   alias AgentDesk.Providers.Event
   alias AgentDesk.Providers.SessionWorker
+  alias AgentDesk.Repo
+  alias AgentDesk.Resources.Manager
+  alias AgentDesk.Roles
+  alias AgentDesk.Search.Memory
+  alias AgentDesk.Security.ControlAuth
   alias AgentDesk.Scope
+  alias AgentDesk.Worktrees
 
   test "renders the workspace shell", %{conn: conn} do
     {:ok, view, html} = live(conn, ~p"/")
@@ -23,10 +30,12 @@ defmodule AgentDeskWeb.WorkspaceLiveTest do
     assert render(view) =~ "No projects opened yet."
     assert render(view) =~ "Select a Git repository"
     assert has_element?(view, "#onboard-next")
+    assert has_element?(view, "#onboard-next[disabled]")
     assert has_element?(view, "#shortcuts-help")
-
-    view |> element("#onboard-next") |> render_click()
-    assert render(view) =~ "step 2 of 10"
+    assert render(view) =~ "step 1 of 10"
+    html = render_click(view, "onboard_next", %{})
+    assert html =~ "Finish this onboarding step before continuing."
+    assert render(view) =~ "step 1 of 10"
     refute has_element?(view, "#theme-toggle")
     refute html =~ "paste a path"
     refute has_element?(view, "#project-path")
@@ -63,7 +72,308 @@ defmodule AgentDeskWeb.WorkspaceLiveTest do
     {:ok, view, _html} = live(conn, ~p"/projects/#{project.id}")
 
     html = render_click(view, "start_session", %{"provider" => "nope", "display_name" => "X"})
-    assert html =~ "Could not save that session."
+    assert html =~ "That provider is not supported."
+  end
+
+  test "rejects sensitive events for a session owned by another project", %{conn: conn} do
+    first_repo = GitRepo.tmp_repo!()
+    second_repo = GitRepo.tmp_repo!()
+    {:ok, first_project} = Projects.open_project(first_repo)
+    {:ok, second_project} = Projects.open_project(second_repo)
+
+    {:ok, foreign_session} =
+      Providers.start_session(Scope.for_project(second_project), %{
+        provider: "codex",
+        display_name: "Foreign"
+      })
+
+    {:ok, view, _html} = live(conn, ~p"/projects/#{first_project.id}")
+
+    html = render_click(view, "resume_session", %{"id" => foreign_session.id})
+    assert html =~ "That action is not authorized for this project."
+
+    AgentDesk.Projects.Supervisor.stop_runtime(first_project.id)
+    AgentDesk.Projects.Supervisor.stop_runtime(second_project.id)
+  end
+
+  test "requires server-side confirmation before terminating a session", %{conn: conn} do
+    repo = GitRepo.tmp_repo!()
+    {:ok, project} = Projects.open_project(repo)
+
+    {:ok, session} =
+      Providers.start_session(Scope.for_project(project), %{
+        provider: "codex",
+        display_name: "Protected"
+      })
+
+    {:ok, other_session} =
+      Providers.start_session(Scope.for_project(project), %{
+        provider: "codex",
+        display_name: "Other"
+      })
+
+    {:ok, worker} = SessionWorker.fetch(session.id)
+    {:ok, other_worker} = SessionWorker.fetch(other_session.id)
+    {:ok, view, _html} = live(conn, ~p"/projects/#{project.id}")
+    view |> element("#tab-#{session.id}") |> render_click()
+
+    html = render_click(view, "terminate", %{})
+    assert html =~ "That action is not authorized for this project."
+    assert Process.alive?(worker)
+
+    _ = render_click(view, "confirm_terminate", %{})
+    view |> element("#tab-#{other_session.id}") |> render_click()
+
+    html = render_click(view, "terminate", %{})
+    assert html =~ "That action is not authorized for this project."
+    assert Process.alive?(worker)
+    assert Process.alive?(other_worker)
+
+    AgentDesk.Projects.Supervisor.stop_runtime(project.id)
+  end
+
+  test "stale control sockets cannot cross mutation boundaries", %{conn: conn} do
+    repo = GitRepo.tmp_repo!()
+    {:ok, project} = Projects.open_project(repo)
+    scope = Scope.for_project(project)
+    {:ok, session} = Providers.start_session(scope, %{provider: "fake", display_name: "Guarded"})
+    {:ok, worker} = SessionWorker.fetch(session.id)
+    worktree = Worktrees.get_for_session(session.id)
+
+    {:ok, memory} =
+      %Memory{}
+      |> Memory.changeset(%{
+        project_id: project.id,
+        namespace: "shared",
+        text: "must survive a stale socket"
+      })
+      |> Repo.insert()
+
+    {:ok, [lease]} =
+      Manager.claim(
+        Scope.for_agent(project, session),
+        [%{"type" => "file", "key" => "lib/guarded.ex", "mode" => "exclusive"}],
+        reason: "authorization test"
+      )
+
+    cases = [
+      %{family: "registry install", event: "registry_install", params: %{"id" => "cline"}},
+      %{family: "registry remove", event: "registry_remove", params: %{"id" => "cline"}},
+      %{
+        family: "role save",
+        event: "save_role",
+        params: %{"name" => "stale-role", "permission_profile" => "default"}
+      },
+      %{
+        family: "memory delete",
+        event: "forget_memory",
+        params: %{"namespace" => memory.namespace, "id" => memory.id}
+      },
+      %{
+        family: "delegation decision",
+        event: "accept_delegation",
+        params: %{"id" => AgentDesk.Ids.generate()}
+      },
+      %{
+        family: "crew change",
+        event: "split_work",
+        params: %{"goal" => "stale crew", "lanes" => ["backend"]}
+      },
+      %{
+        family: "task change",
+        event: "create_task",
+        params: %{"title" => "stale task"}
+      },
+      %{
+        family: "workflow change",
+        event: "run_workflow",
+        params: %{"name" => "stale workflow", "steps" => "one\ntwo"}
+      },
+      %{family: "sync export", event: "export_sync", params: %{}},
+      %{family: "sync import", event: "import_sync", params: %{"path" => "/missing"}},
+      %{family: "approval", event: "approve", params: %{"id" => "stale-request"}},
+      %{
+        family: "lease revoke",
+        event: "revoke_lease",
+        params: %{"id" => lease.id},
+        prepare: [{"confirm_revoke_lease", %{"id" => lease.id}}]
+      },
+      %{
+        family: "lease revoke confirmation",
+        event: "confirm_revoke_lease",
+        params: %{"id" => lease.id}
+      },
+      %{
+        family: "session start",
+        event: "start_session",
+        params: %{"provider" => "fake", "display_name" => "Stale"}
+      },
+      %{
+        family: "session terminate",
+        event: "terminate",
+        params: %{},
+        prepare: [{"confirm_terminate", %{}}]
+      },
+      %{
+        family: "worktree cleanup",
+        event: "confirm_cleanup",
+        params: %{},
+        prepare: [{"cleanup_worktree", %{}}]
+      },
+      %{
+        family: "project close confirmation",
+        event: "confirm_close_project",
+        params: %{"id" => project.id}
+      },
+      %{
+        family: "recent forget confirmation",
+        event: "confirm_forget_recent",
+        params: %{"id" => project.id}
+      },
+      %{
+        family: "handoff merge",
+        event: "merge_queue_item",
+        params: %{"id" => "stale-merge"},
+        prepare: [{"confirm_merge", %{"id" => "stale-merge"}}]
+      },
+      %{
+        family: "handoff merge confirmation",
+        event: "confirm_merge",
+        params: %{"id" => "stale-merge"}
+      },
+      %{family: "search rebuild", event: "rebuild_search", params: %{}},
+      %{
+        family: "transcript shortcut",
+        event: "shortcut",
+        params: %{"action" => "load_older"}
+      },
+      %{
+        family: "project settings",
+        event: "set_delegation_policy",
+        params: %{"depth" => "8"}
+      }
+    ]
+
+    stale_views =
+      Enum.map(cases, fn test_case ->
+        {:ok, view, _html} = live(conn, ~p"/projects/#{project.id}")
+
+        Enum.each(test_case[:prepare] || [], fn {event, params} ->
+          _ = render_click(view, event, params)
+        end)
+
+        {test_case, view}
+      end)
+
+    role_ids_before = project |> Roles.list() |> MapSet.new(& &1.id)
+    tasks_before = length(A2A.list_tasks(scope))
+    sessions_before = length(Agents.visible_sessions(scope))
+    :ok = ControlAuth.rotate_binding_for_test()
+
+    Enum.each(stale_views, fn {test_case, view} ->
+      result = render_click(view, test_case.event, test_case.params)
+
+      assert match?({:error, {:redirect, %{to: "/control/unauthorized"}}}, result),
+             "#{test_case.family} did not reject the stale control socket: #{inspect(result)}"
+    end)
+
+    assert project |> Roles.list() |> MapSet.new(& &1.id) == role_ids_before
+    assert Repo.get(Memory, memory.id)
+    assert length(A2A.list_tasks(scope)) == tasks_before
+    assert length(Agents.visible_sessions(scope)) == sessions_before
+    assert Enum.any?(Manager.list_project(project.id), &(&1.id == lease.id))
+    assert Process.alive?(worker)
+    assert File.dir?(worktree.path)
+    assert {:ok, %{open: true}} = Projects.get_project(project.id)
+  end
+
+  test "authorized sockets retain control project and session mutations", %{conn: conn} do
+    repo = GitRepo.tmp_repo!()
+    {:ok, project} = Projects.open_project(repo)
+    scope = Scope.for_project(project)
+    {:ok, session} = Providers.start_session(scope, %{provider: "fake", display_name: "Allowed"})
+    {:ok, worker} = SessionWorker.fetch(session.id)
+
+    {:ok, memory} =
+      %Memory{}
+      |> Memory.changeset(%{
+        project_id: project.id,
+        namespace: "shared",
+        text: "authorized deletion"
+      })
+      |> Repo.insert()
+
+    {:ok, [lease]} =
+      Manager.claim(
+        Scope.for_agent(project, session),
+        [%{"type" => "file", "key" => "lib/allowed.ex", "mode" => "exclusive"}],
+        reason: "authorization test"
+      )
+
+    cases = [
+      %{
+        family: "control",
+        event: "registry_install",
+        params: %{"id" => "cline"},
+        verify: fn -> assert Repo.get_by(AgentDesk.Providers.AcpInstall, registry_id: "cline") end
+      },
+      %{
+        family: "project role",
+        event: "save_role",
+        params: %{"name" => "authorized-role", "permission_profile" => "default"},
+        verify: fn -> assert Enum.any?(Roles.list(project), &(&1.name == "authorized-role")) end
+      },
+      %{
+        family: "project memory",
+        event: "forget_memory",
+        params: %{"namespace" => memory.namespace, "id" => memory.id},
+        verify: fn -> refute Repo.get(Memory, memory.id) end
+      },
+      %{
+        family: "project task",
+        event: "create_task",
+        params: %{"title" => "authorized task"},
+        verify: fn ->
+          assert Enum.any?(A2A.list_tasks(scope), &(&1.title == "authorized task"))
+        end
+      },
+      %{
+        family: "project sync",
+        event: "export_sync",
+        params: %{},
+        verify: fn ->
+          assert File.exists?(Path.join(AgentDesk.Storage.sync_dir(project.id), "bundle.json"))
+        end
+      },
+      %{
+        family: "project lease",
+        event: "revoke_lease",
+        params: %{"id" => lease.id},
+        prepare: [{"confirm_revoke_lease", %{"id" => lease.id}}],
+        verify: fn -> refute Enum.any?(Manager.list_project(project.id), &(&1.id == lease.id)) end
+      },
+      %{
+        family: "session",
+        event: "close_tab",
+        params: %{"id" => session.id},
+        verify: fn ->
+          refute Enum.any?(Agents.visible_sessions(scope), &(&1.id == session.id))
+          assert Process.alive?(worker)
+        end
+      }
+    ]
+
+    Enum.each(cases, fn test_case ->
+      {:ok, view, _html} = live(conn, ~p"/projects/#{project.id}")
+
+      Enum.each(test_case[:prepare] || [], fn {event, params} ->
+        assert is_binary(render_click(view, event, params))
+      end)
+
+      result = render_click(view, test_case.event, test_case.params)
+      assert is_binary(result), "#{test_case.family} unexpectedly rejected an authorized socket"
+      test_case.verify.()
+    end)
   end
 
   test "lists recent projects and opens one from recents", %{conn: conn} do
@@ -428,6 +738,12 @@ defmodule AgentDeskWeb.WorkspaceLiveTest do
     |> element(~s(button[phx-click="message_agent"][phx-value-id="#{bob.id}"]))
     |> render_click()
 
+    assert has_element?(view, "#peer-compose")
+
+    view
+    |> form("#peer-compose", %{body: "Hello from Alice"})
+    |> render_submit()
+
     assert render(view) =~ "Hello from Alice" or render(view) =~ "Message queued"
 
     view |> element("#open-agent-#{bob.id}") |> render_click()
@@ -641,6 +957,58 @@ defmodule AgentDeskWeb.WorkspaceLiveTest do
     assert html |> :binary.matches("desk-activity-message_delta") |> length() == 1
   end
 
+  test "search panel does not label off as an error", %{conn: conn} do
+    repo = GitRepo.tmp_repo!()
+    {:ok, project} = Projects.open_project(repo)
+    put_search_config(adapter: :disabled)
+
+    _ = AgentDesk.Search.rebuild(project)
+    {:ok, view, html} = live(conn, ~p"/projects/#{project.id}")
+
+    refute html =~ "error: Disabled"
+    refute html =~ "error · Disabled"
+    assert render(view) =~ "Off. Enable search"
+  end
+
+  test "omits untitled tool cards and shows a titled tool with a failure reason", %{conn: conn} do
+    repo = GitRepo.tmp_repo!()
+    {:ok, project} = Projects.open_project(repo)
+    scope = Scope.for_project(project)
+    {:ok, session} = Agents.create_session(scope, %{provider: "fake", display_name: "tools"})
+
+    {:ok, view, _html} = live(conn, ~p"/projects/#{project.id}")
+    view |> element("#tab-#{session.id}") |> render_click()
+
+    send(
+      view.pid,
+      {:session_activity, session.id,
+       [Event.new(:tool_completed, %{"status" => "completed"}, "cursor")], "working", nil}
+    )
+
+    refute render(view) =~ "tool completed"
+
+    send(
+      view.pid,
+      {:session_activity, session.id,
+       [
+         Event.new(
+           :tool_completed,
+           %{
+             "title" => "Read README",
+             "status" => "failed",
+             "reason" => "path is outside the worktree"
+           },
+           "cursor"
+         )
+       ], "working", nil}
+    )
+
+    html = render(view)
+    assert html =~ "Read README"
+    assert html =~ "path is outside the worktree"
+    refute html =~ "%{"
+  end
+
   test "prompt composer accepts file attachments", %{conn: conn} do
     repo = GitRepo.tmp_repo!()
     {:ok, project} = Projects.open_project(repo)
@@ -664,4 +1032,15 @@ defmodule AgentDeskWeb.WorkspaceLiveTest do
     assert has_element?(view, "#handoff-review")
     assert render(view) =~ "Handoff review"
   end
+
+  defp put_search_config(config) do
+    previous = Application.fetch_env(:agent_desk, :search)
+    Application.put_env(:agent_desk, :search, config)
+    on_exit(fn -> restore_search_config(previous) end)
+  end
+
+  defp restore_search_config({:ok, config}),
+    do: Application.put_env(:agent_desk, :search, config)
+
+  defp restore_search_config(:error), do: Application.delete_env(:agent_desk, :search)
 end

@@ -10,9 +10,9 @@ Local-first Elixir/Phoenix desktop app (OTP modules `AgentDesk`). Working rules:
 Read `AGENTS.md`, then only the spec that matches the change. Do not contradict `docs/DECISIONS.md`.
 
 - LiveView renders; OTP orchestrates; SQLite is canonical; PubSub is ephemeral.
-- Providers stay in `AgentDesk.Providers.*`. A2A stays in `AgentDesk.A2A.*`. Agents use MCP, never peer sockets or the database.
+- Providers stay in `AgentDesk.Providers.*`. A2A stays in `AgentDesk.A2A.*`. Agents reach the hub through per-session MCP (ACP `session/new` mcpServers), never peer sockets or the database.
 - Canonicalize paths. Leases go through `ResourceManager`. No permanent lock files.
 - Bind loopback. Never store provider secrets in SQLite.
-- Isolated mode must not edit the primary worktree.
-- Mutating A2A calls need an idempotency key. Registry keys are strings/UUIDs, never `String.to_atom/1`.
+- Isolated mode must not edit the primary worktree. Empty Git repos still get an isolated worktree (agent branch only).
+- Mutating A2A/MCP calls need a caller-provided idempotency key. Registry keys are strings/UUIDs, never `String.to_atom/1`.
 - Do not implement a public A2A gateway, PTY scraping, or auto-merge to the primary tree.

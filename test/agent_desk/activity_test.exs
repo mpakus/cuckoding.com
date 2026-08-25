@@ -56,6 +56,41 @@ defmodule AgentDesk.ActivityTest do
     assert hd(items).type == "message_completed"
   end
 
+  test "merges a tool start and completion into one titled card" do
+    items =
+      Activity.coalesce([
+        %{
+          id: "1",
+          type: "tool_started",
+          text: nil,
+          payload: %{"toolCallId" => "t1", "title" => "hub_list_tasks", "status" => "pending"}
+        },
+        %{
+          id: "2",
+          type: "tool_completed",
+          text: nil,
+          payload: %{"toolCallId" => "t1", "status" => "completed"}
+        }
+      ])
+
+    assert length(items) == 1
+    assert hd(items).type == "tool_completed"
+    assert hd(items).text == "hub_list_tasks"
+  end
+
+  test "captions a failed tool with its reason and hides empty tool noise" do
+    assert Activity.caption("tool_completed", %{
+             "title" => "Read README",
+             "status" => "failed",
+             "reason" => "path is outside the worktree"
+           }) == "Read README: path is outside the worktree"
+
+    refute Activity.meaningful?("tool_completed", %{"status" => "completed"})
+
+    assert Activity.caption("approval_requested", %{"summary" => "%{\"content\" => []}"}) ==
+             "The agent asked for permission."
+  end
+
   test "does not merge a new delta into a completed message" do
     refute Activity.mergeable?(
              %{type: "message_completed", text: "done", payload: %{}},

@@ -57,7 +57,8 @@ defmodule AgentDesk.Providers.OpenCode do
        %CommandSpec{
          executable: Keyword.get(opts, :executable, "opencode"),
          args: ["acp", "--cwd", cwd],
-         cwd: cwd
+         cwd: cwd,
+         env_passthrough: AgentDesk.Env.provider_env_passthrough(key())
        }}
     end
   end

@@ -6,6 +6,7 @@ defmodule AgentDesk.A2A.Graph do
 
   import Ecto.Query
 
+  alias AgentDesk.A2A.Authorization
   alias AgentDesk.A2A.Dependency
   alias AgentDesk.A2A.Task
   alias AgentDesk.Events
@@ -38,10 +39,14 @@ defmodule AgentDesk.A2A.Graph do
 
   @spec ensure_dependency(Scope.t(), Ecto.UUID.t(), Ecto.UUID.t()) :: :ok | {:error, term()}
   def ensure_dependency(%Scope{project: project} = scope, task_id, depends_on_id) do
-    if edge_exists?(project.id, task_id, depends_on_id) do
-      :ok
-    else
-      wrap_ensure(add_dependency(scope, task_id, depends_on_id))
+    with {:ok, task} <- fetch_task(project.id, task_id),
+         {:ok, prereq} <- fetch_task(project.id, depends_on_id),
+         :ok <- Authorization.authorize_dependency_mutation(scope, task, prereq) do
+      if edge_exists?(project.id, task.id, prereq.id) do
+        :ok
+      else
+        wrap_ensure(add_dependency(scope, task.id, prereq.id))
+      end
     end
   end
 
@@ -50,6 +55,7 @@ defmodule AgentDesk.A2A.Graph do
   def add_dependency(%Scope{project: project} = scope, task_id, depends_on_id) do
     with {:ok, task} <- fetch_task(project.id, task_id),
          {:ok, prereq} <- fetch_task(project.id, depends_on_id),
+         :ok <- Authorization.authorize_dependency_mutation(scope, task, prereq),
          :ok <- acyclic?(project.id, task.id, prereq.id) do
       %Dependency{}
       |> Dependency.changeset(%{
@@ -100,12 +106,14 @@ defmodule AgentDesk.A2A.Graph do
   def release_ready(%Task{}), do: :ok
 
   defp edge_exists?(project_id, task_id, depends_on_id) do
-    Dependency
-    |> where(
-      [d],
-      d.project_id == ^project_id and d.task_id == ^task_id and d.depends_on_id == ^depends_on_id
-    )
-    |> Repo.exists?()
+    valid_uuid?(task_id) and valid_uuid?(depends_on_id) and
+      Dependency
+      |> where(
+        [d],
+        d.project_id == ^project_id and d.task_id == ^task_id and
+          d.depends_on_id == ^depends_on_id
+      )
+      |> Repo.exists?()
   end
 
   defp wrap_ensure({:ok, _edge}), do: :ok
@@ -114,12 +122,21 @@ defmodule AgentDesk.A2A.Graph do
   defp wrap_ensure({:error, %Ecto.Changeset{}}), do: :ok
   defp wrap_ensure({:error, reason}), do: {:error, reason}
 
-  defp fetch_task(project_id, id) do
-    case Repo.get_by(Task, id: id, project_id: project_id) do
-      %Task{} = task -> {:ok, task}
-      nil -> {:error, :not_found}
+  defp fetch_task(project_id, id) when is_binary(id) do
+    with {:ok, _uuid} <- Ecto.UUID.cast(id) do
+      case Repo.get_by(Task, id: id, project_id: project_id) do
+        %Task{} = task -> {:ok, task}
+        nil -> {:error, :not_found}
+      end
+    else
+      :error -> {:error, :not_found}
     end
   end
+
+  defp fetch_task(_project_id, _id), do: {:error, :not_found}
+
+  defp valid_uuid?(id) when is_binary(id), do: match?({:ok, _uuid}, Ecto.UUID.cast(id))
+  defp valid_uuid?(_id), do: false
 
   defp acyclic?(project_id, task_id, depends_on_id) do
     if reaches?(project_id, depends_on_id, task_id) do

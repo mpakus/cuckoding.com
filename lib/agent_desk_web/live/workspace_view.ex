@@ -16,6 +16,7 @@ defmodule AgentDeskWeb.WorkspaceView do
   }
   def provider_ready_mark(status, key) when is_map(status) do
     case status do
+      %{^key => %{checking: true}} -> " · checking"
       %{^key => %{available: true}} -> " · ready"
       %{^key => %{available: false}} -> " · missing"
       _ -> ""
@@ -224,6 +225,92 @@ defmodule AgentDeskWeb.WorkspaceView do
     |> Enum.group_by(&search_group/1)
     |> Enum.sort_by(fn {group, _} -> search_group_rank(group) end)
   end
+
+  def search_off?(%{status: status, adapter: adapter})
+      when status in ["unavailable", "idle"] or adapter == "Disabled",
+      do: true
+
+  def search_off?(%{"status" => status, "adapter" => adapter})
+      when status in ["unavailable", "idle"] or adapter == "Disabled",
+      do: true
+
+  def search_off?(_), do: false
+
+  def search_status_class(status) do
+    state = status[:status] || status["status"]
+
+    if search_off?(status) or state != "error" do
+      "desk-muted"
+    else
+      "text-error"
+    end
+  end
+
+  def search_status_copy(status) when is_map(status) do
+    name = status[:adapter] || status["adapter"]
+    state = status[:status] || status["status"]
+    error = status[:error] || status["error"]
+
+    cond do
+      search_off?(status) ->
+        "Off. Enable search in onboarding for SQLite memory, or XERJ if you have the binary."
+
+      state == "indexing" ->
+        "Indexing…"
+
+      state == "ready" ->
+        "Ready · #{search_adapter_label(name)}"
+
+      state == "stale" ->
+        "Stale · rebuild for a fresh index"
+
+      state == "error" and is_binary(error) and error != "" ->
+        "Error: #{error}"
+
+      state == "error" ->
+        "Search failed. Rebuild the index."
+
+      true ->
+        "#{state} · #{search_adapter_label(name)}"
+    end
+  end
+
+  def search_status_copy(_), do: "Off. Coordination still works without search."
+
+  def attention_items(approval, status, _lease_previews) do
+    []
+    |> maybe_attention(
+      match?(%{payload: _}, approval),
+      %{label: "Approval needed", href: "#approval-card", tone: "desk-attention-warning"}
+    )
+    |> maybe_attention(
+      status == "failed",
+      %{label: "Session failed", href: "#provider-diagnostics", tone: "desk-attention-error"}
+    )
+    |> maybe_attention(
+      status == "blocked",
+      %{label: "Lease conflict", href: "#resource-leases", tone: "desk-attention-warning"}
+    )
+  end
+
+  defp maybe_attention(items, true, item), do: items ++ [item]
+  defp maybe_attention(items, _false, _item), do: items
+
+  def peer_compose_verb("message"), do: "Send message"
+  def peer_compose_verb("delegate"), do: "Delegate task"
+  def peer_compose_verb("review"), do: "Request review"
+  def peer_compose_verb(_), do: "Send"
+
+  def peer_compose_label("message"), do: "Message"
+  def peer_compose_label("delegate"), do: "Delegation reason"
+  def peer_compose_label("review"), do: "Review request"
+  def peer_compose_label(_), do: "Purpose"
+
+  defp search_adapter_label("Disabled"), do: "off"
+  defp search_adapter_label("Projection"), do: "SQLite projection"
+  defp search_adapter_label("Xerj"), do: "XERJ"
+  defp search_adapter_label(name) when is_binary(name), do: name
+  defp search_adapter_label(_), do: "search"
 
   def search_group(%{namespace: _}), do: "memory"
   def search_group(%{source: source}), do: source_group(source)

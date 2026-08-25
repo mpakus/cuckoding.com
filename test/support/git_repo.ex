@@ -19,6 +19,21 @@ defmodule AgentDesk.GitRepo do
     root
   end
 
+  def empty_repo!(prefix \\ "agentdesk-empty") do
+    root =
+      Path.join(
+        System.tmp_dir!(),
+        "#{prefix}-#{System.system_time(:microsecond)}-#{System.unique_integer([:positive])}"
+      )
+
+    File.rm_rf!(root)
+    File.mkdir_p!(root)
+    git!(root, ["init", "-b", "main"])
+    git!(root, ["config", "user.email", "test@agentdesk.test"])
+    git!(root, ["config", "user.name", "AgentDesk Test"])
+    root
+  end
+
   def add_file!(root, name, contents) when is_binary(name) and is_binary(contents) do
     File.write!(Path.join(root, name), contents)
     git!(root, ["add", "-f", name])

@@ -41,24 +41,34 @@ defmodule AgentDesk.Projects do
 
   defp restore_project(%Project{} = project) do
     if File.dir?(project.canonical_path) and Git.repository?(project.canonical_path) do
-      start_restored_runtime(ensure_open(project))
+      start_restored_runtime(project)
     else
       {:error, :missing_repository}
     end
   end
 
-  defp ensure_open(%Project{open: true} = project), do: project
+  defp ensure_open(%Project{open: true} = project), do: {:ok, project}
 
   defp ensure_open(project) do
     project
     |> Project.changeset(%{open: true})
-    |> Repo.update!()
+    |> Repo.update()
   end
 
   defp start_restored_runtime(project) do
     case ProjectSupervisor.start_runtime(project) do
-      {:ok, _pid} -> {:ok, project}
-      {:error, reason} -> {:error, reason}
+      {:ok, _pid} ->
+        case ensure_open(project) do
+          {:ok, opened} ->
+            {:ok, opened}
+
+          {:error, reason} ->
+            _ = ProjectSupervisor.stop_runtime(project.id)
+            {:error, {:project_state_failed, reason}}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -157,24 +167,12 @@ defmodule AgentDesk.Projects do
   def close_project(%Project{} = project), do: close_project(project.id)
 
   def close_project(project_id) when is_binary(project_id) do
-    with {:ok, project} <- get_project(project_id) do
-      :ok = AgentDesk.Providers.stop_for_project(project.id)
-      :ok = ProjectSupervisor.stop_runtime(project.id)
-
-      project
-      |> Project.changeset(%{open: false})
-      |> Repo.update!()
-
-      {:ok, _event} =
-        Events.append(%{
-          project_id: project.id,
-          type: "project.closed",
-          source: "projects",
-          payload: %{"canonical_path" => project.canonical_path}
-        })
-
+    with {:ok, project} <- get_project(project_id),
+         :ok <- AgentDesk.Providers.stop_for_project(project.id),
+         :ok <- ProjectSupervisor.stop_runtime(project.id),
+         {:ok, closed} <- persist_closed(project) do
       Telemetry.project_closed(project.id)
-      broadcast_closed(project)
+      broadcast_closed(closed)
       :ok
     end
   end
@@ -191,58 +189,130 @@ defmodule AgentDesk.Projects do
     now = Clock.utc_now()
     name = Path.basename(canonical)
 
-    case Repo.transaction(fn -> persist_open(canonical, name, now) end) do
+    case prepare_project(canonical, name) do
       {:ok, project} ->
-        {:ok, _pid} = ProjectSupervisor.start_runtime(project)
-        Telemetry.project_opened(project.id)
-        broadcast_opened(project)
-        {:ok, project}
+        start_and_mark_open(project, now)
 
       {:error, reason} ->
-        {:error, reason}
+        {:error, {:project_persist_failed, reason}}
     end
   end
 
-  defp persist_open(canonical, name, now) do
-    project =
-      case Repo.get_by(Project, canonical_path: canonical) do
-        nil ->
-          %Project{id: Ids.generate()}
-          |> Project.changeset(%{
-            name: name,
-            root_path: canonical,
-            canonical_path: canonical,
-            vcs_type: "git",
-            default_branch: default_branch(canonical),
-            last_opened_at: now,
-            open: true,
-            settings: %{}
-          })
-          |> Repo.insert!()
+  defp prepare_project(canonical, name) do
+    Repo.transaction(fn ->
+      attrs = %{
+        name: name,
+        root_path: canonical,
+        canonical_path: canonical,
+        vcs_type: "git",
+        default_branch: default_branch(canonical),
+        open: false
+      }
 
-        %Project{} = project ->
-          project
-          |> Project.changeset(%{
-            name: name,
-            root_path: canonical,
-            default_branch: default_branch(canonical),
-            last_opened_at: now,
-            open: true
-          })
-          |> Repo.update!()
+      result =
+        case Repo.get_by(Project, canonical_path: canonical) do
+          nil ->
+            %Project{id: Ids.generate()}
+            |> Project.changeset(Map.merge(attrs, %{settings: %{}}))
+            |> Repo.insert()
+
+          %Project{} = project ->
+            project
+            |> Project.changeset(attrs)
+            |> Repo.update()
+        end
+
+      case result do
+        {:ok, project} -> project
+        {:error, reason} -> Repo.rollback(reason)
       end
+    end)
+  rescue
+    error -> {:error, error}
+  catch
+    kind, reason -> {:error, {kind, reason}}
+  end
 
-    {:ok, _event} =
-      Events.append(%{
-        id: Ids.generate(),
-        project_id: project.id,
-        type: "project.opened",
-        source: "projects",
-        occurred_at: now,
-        payload: %{"canonical_path" => canonical}
-      })
+  defp start_and_mark_open(project, now) do
+    case ProjectSupervisor.start_runtime(project) do
+      {:ok, _pid} ->
+        finalize_open(project, now)
 
+      {:error, reason} ->
+        _ = ProjectSupervisor.stop_runtime(project.id)
+        _ = ensure_closed(project)
+        {:error, {:runtime_start_failed, reason}}
+    end
+  end
+
+  defp finalize_open(project, now) do
+    case persist_opened(project, now) do
+      {:ok, opened} ->
+        Telemetry.project_opened(opened.id)
+        broadcast_opened(opened)
+        {:ok, opened}
+
+      {:error, reason} ->
+        _ = ProjectSupervisor.stop_runtime(project.id)
+        _ = ensure_closed(project)
+        {:error, {:project_open_failed, reason}}
+    end
+  end
+
+  defp persist_opened(project, now) do
+    Repo.transaction(fn ->
+      with {:ok, opened} <-
+             project
+             |> Project.changeset(%{last_opened_at: now, open: true})
+             |> Repo.update(),
+           {:ok, _event} <-
+             Events.append(%{
+               id: Ids.generate(),
+               project_id: project.id,
+               type: "project.opened",
+               source: "projects",
+               occurred_at: now,
+               payload: %{"canonical_path" => project.canonical_path}
+             }) do
+        opened
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  rescue
+    error -> {:error, error}
+  catch
+    kind, reason -> {:error, {kind, reason}}
+  end
+
+  defp persist_closed(project) do
+    Repo.transaction(fn ->
+      with {:ok, closed} <-
+             project
+             |> Project.changeset(%{open: false})
+             |> Repo.update(),
+           {:ok, _event} <-
+             Events.append(%{
+               project_id: project.id,
+               type: "project.closed",
+               source: "projects",
+               payload: %{"canonical_path" => project.canonical_path}
+             }) do
+        closed
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  rescue
+    error -> {:error, error}
+  catch
+    kind, reason -> {:error, {kind, reason}}
+  end
+
+  defp ensure_closed(project) do
     project
+    |> Project.changeset(%{open: false})
+    |> Repo.update()
   end
 
   defp default_branch(canonical) do

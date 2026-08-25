@@ -74,12 +74,13 @@ defmodule AgentDesk.Providers.SessionTest do
 
     SessionWorker.prompt(session.id, "continue")
 
-    acked =
+    injected =
       wait_until(fn ->
-        Repo.get_by(Delivery, agent_session_id: session.id, state: "acknowledged")
+        Repo.get_by(Delivery, agent_session_id: session.id, state: "injected")
       end)
 
-    assert acked
+    assert injected
+    assert is_nil(injected.acknowledged_at)
   end
 
   test "codex exec decoder understands one-shot JSONL" do

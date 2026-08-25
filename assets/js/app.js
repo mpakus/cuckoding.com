@@ -27,14 +27,14 @@ import topbar from "../vendor/topbar"
 import { TauriHook } from "../vendor/ex_tauri"
 import { Grove } from "./grove"
 import { RepoPicker } from "./tauri_dialog"
-import { Composer, Elapsed, LoadOlder, Shortcuts } from "./elapsed"
+import { Composer, Elapsed, LoadOlder, Shortcuts, Tablist } from "./elapsed"
 
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: { TauriHook, Grove, RepoPicker, Composer, Elapsed, LoadOlder, Shortcuts, ...colocatedHooks},
+  hooks: { TauriHook, Grove, RepoPicker, Composer, Elapsed, LoadOlder, Shortcuts, Tablist, ...colocatedHooks},
 })
 
 // Show progress bar on live navigation and form submits

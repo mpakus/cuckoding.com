@@ -39,7 +39,10 @@ defmodule AgentDesk.SyncTest do
     {:ok, context} = A2A.ensure_working_context(scope)
 
     {:ok, prereq} =
-      A2A.create_task(scope, context, %{title: "Schema", description: "token: leaked-secret"})
+      A2A.create_task(scope, context, %{
+        title: "Schema",
+        description: "Authorization: Bearer leaked-secret-with-suffix"
+      })
 
     {:ok, task} = A2A.create_task(scope, context, %{title: "API"})
     assert {:ok, _} = Graph.add_dependency(scope, task.id, prereq.id)
@@ -56,7 +59,7 @@ defmodule AgentDesk.SyncTest do
                name: "planner",
                description: "Plans work",
                permission_profile: "observer",
-               prompt: "You plan. token: also-secret"
+               prompt: "You plan. Authorization: Bearer also-secret-with-suffix"
              })
 
     assert {:ok, path} = Sync.export(source)

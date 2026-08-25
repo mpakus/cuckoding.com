@@ -33,10 +33,20 @@ defmodule AgentDesk.Providers.Discovery do
     |> Enum.find_value({:error, :not_found}, &locate/1)
   end
 
+  @spec find_first([String.t()], keyword()) :: {:ok, String.t()} | {:error, :not_found}
+  def find_first(names, opts \\ []) when is_list(names) do
+    Enum.find_value(names, {:error, :not_found}, fn name ->
+      case find_executable(name, opts) do
+        {:ok, path} -> {:ok, path}
+        _ -> nil
+      end
+    end)
+  end
+
   defp locate(candidate) do
     cond do
-      File.regular?(candidate) -> {:ok, candidate}
       found = System.find_executable(candidate) -> {:ok, found}
+      executable_file?(candidate) -> {:ok, candidate}
       found = find_in_extra_dirs(candidate) -> {:ok, found}
       true -> nil
     end
@@ -53,7 +63,20 @@ defmodule AgentDesk.Providers.Discovery do
 
   defp regular_on_path(dir, name) do
     path = Path.join(dir, name)
-    if File.regular?(path), do: path
+    if executable_file?(path), do: path
+  end
+
+  defp executable_file?(path) do
+    case {:os.type(), File.stat(path)} do
+      {{:win32, _}, {:ok, %File.Stat{type: :regular}}} ->
+        true
+
+      {{:unix, _}, {:ok, %File.Stat{type: :regular, mode: mode}}} ->
+        Bitwise.band(mode, 0o111) != 0
+
+      _ ->
+        false
+    end
   end
 
   @spec version(String.t(), [String.t()]) :: {:ok, String.t()} | {:error, term()}

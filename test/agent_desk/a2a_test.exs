@@ -9,6 +9,7 @@ defmodule AgentDesk.A2ATest do
   alias AgentDesk.Projects
   alias AgentDesk.Repo
   alias AgentDesk.Scope
+  alias AgentDesk.Worktrees
 
   setup do
     repo = GitRepo.tmp_repo!()
@@ -176,10 +177,13 @@ defmodule AgentDesk.A2ATest do
   end
 
   test "publishes an integrity-checked local artifact and rejects remote URLs", %{
+    project: project,
     alice: alice
   } do
     {:ok, context} = A2A.create_context(alice, %{title: "Auth"})
-
+    {:ok, worktree} = Worktrees.ensure_for_session(project, alice.agent_session)
+    File.mkdir_p!(Path.join(worktree.path, "artifacts"))
+    File.write!(Path.join(worktree.path, "artifacts/plan.md"), "hello")
     sha = :sha256 |> :crypto.hash("hello") |> Base.encode16(case: :lower)
 
     assert {:ok, artifact} =
@@ -194,6 +198,7 @@ defmodule AgentDesk.A2ATest do
              })
 
     assert artifact.state == "available"
+    assert artifact.path == Path.join(worktree.path, "artifacts/plan.md")
 
     assert {:error, changeset} =
              A2A.publish_artifact(alice, %{
@@ -209,19 +214,120 @@ defmodule AgentDesk.A2ATest do
     assert "must be a local app-managed or project-relative path" in errors_on(changeset).path
   end
 
-  test "broadcasts create one ordered delivery per peer", %{alice: alice, bob: bob} do
+  test "artifact publication rejects files outside the session worktree", %{
+    project: project,
+    alice: alice
+  } do
+    {:ok, context} = A2A.create_context(alice, %{title: "Artifacts"})
+    {:ok, _worktree} = Worktrees.ensure_for_session(project, alice.agent_session)
+    path = Path.join(project.canonical_path, "README.md")
+    bytes = File.read!(path)
+
+    assert {:error, _reason} =
+             A2A.publish_artifact(alice, artifact_attrs(context, path, bytes))
+  end
+
+  test "artifact publication rejects non-regular paths", %{project: project, alice: alice} do
+    {:ok, context} = A2A.create_context(alice, %{title: "Artifacts"})
+    {:ok, worktree} = Worktrees.ensure_for_session(project, alice.agent_session)
+    path = Path.join(worktree.path, "artifact-directory")
+    File.mkdir_p!(path)
+
+    assert {:error, _reason} =
+             A2A.publish_artifact(alice, artifact_attrs(context, path, ""))
+  end
+
+  test "artifact publication rejects oversized files", %{project: project, alice: alice} do
+    {:ok, context} = A2A.create_context(alice, %{title: "Artifacts"})
+    {:ok, worktree} = Worktrees.ensure_for_session(project, alice.agent_session)
+    bytes = :binary.copy("x", 1_000_001)
+    path = Path.join(worktree.path, "oversized.bin")
+    File.write!(path, bytes)
+
+    assert {:error, _reason} =
+             A2A.publish_artifact(alice, artifact_attrs(context, path, bytes))
+  end
+
+  test "artifact publication rejects hash-mismatched files", %{
+    project: project,
+    alice: alice
+  } do
+    {:ok, context} = A2A.create_context(alice, %{title: "Artifacts"})
+    {:ok, worktree} = Worktrees.ensure_for_session(project, alice.agent_session)
+    bytes = "artifact bytes"
+    path = Path.join(worktree.path, "mismatched.txt")
+    File.write!(path, bytes)
+
+    attrs =
+      artifact_attrs(context, path, bytes, %{
+        sha256: String.duplicate("0", 64)
+      })
+
+    assert {:error, _reason} = A2A.publish_artifact(alice, attrs)
+  end
+
+  test "broadcasts create exactly one strictly ordered delivery per peer", %{
+    project: project,
+    alice: alice,
+    bob: bob
+  } do
+    {:ok, charlie} =
+      Agents.create_session(Scope.for_project(project), %{
+        provider: "fake",
+        display_name: "Charlie"
+      })
+
     {:ok, context} = A2A.create_context(alice, %{title: "Auth"})
 
-    assert {:ok, message} =
-             A2A.broadcast(alice, %{
-               context_id: context.id,
-               body: "stand-up",
-               idempotency_key: "broadcast-1"
-             })
+    messages =
+      for number <- 1..3 do
+        assert {:ok, message} =
+                 A2A.broadcast(alice, %{
+                   context_id: context.id,
+                   body: "stand-up #{number}",
+                   idempotency_key: "broadcast-#{number}"
+                 })
 
-    assert message.scope == "project"
-    deliveries = Repo.all(Delivery)
-    assert Enum.any?(deliveries, &(&1.agent_session_id == bob.agent_session.id))
+        assert message.scope == "project"
+        message
+      end
+
+    message_ids = Enum.map(messages, & &1.id)
+
+    deliveries =
+      Repo.all(
+        from delivery in Delivery,
+          where: delivery.message_id in ^message_ids,
+          order_by: [asc: delivery.agent_session_id, asc: delivery.inbox_sequence]
+      )
+
+    assert length(deliveries) == 6
+
+    assert Enum.frequencies_by(deliveries, & &1.agent_session_id) == %{
+             bob.agent_session.id => 3,
+             charlie.id => 3
+           }
+
+    expected_delivery_pairs =
+      for recipient <- [bob.agent_session.id, charlie.id],
+          message_id <- message_ids,
+          into: %{} do
+        {{recipient, message_id}, 1}
+      end
+
+    assert Enum.frequencies_by(
+             deliveries,
+             &{&1.agent_session_id, &1.message_id}
+           ) == expected_delivery_pairs
+
+    for {_recipient, recipient_deliveries} <- Enum.group_by(deliveries, & &1.agent_session_id) do
+      sequences = Enum.map(recipient_deliveries, & &1.inbox_sequence)
+      assert length(sequences) == 3
+
+      assert Enum.all?(Enum.chunk_every(sequences, 2, 1, :discard), fn [left, right] ->
+               left < right
+             end)
+    end
   end
 
   test "rejects remote URL parts and supports revoke/redirect", %{alice: alice, bob: bob} do
@@ -283,10 +389,10 @@ defmodule AgentDesk.A2ATest do
     assert Repo.get!(AgentDesk.A2A.Delegation, delegation.id).status == "expired"
   end
 
-  test "get_artifact verifies bytes", %{alice: alice} do
+  test "get_artifact verifies owned bytes", %{project: project, alice: alice} do
     {:ok, context} = A2A.create_context(alice, %{title: "Auth"})
-    dir = System.tmp_dir!()
-    path = Path.join(dir, "artifact-#{System.unique_integer([:positive])}.txt")
+    {:ok, worktree} = Worktrees.ensure_for_session(project, alice.agent_session)
+    path = Path.join(worktree.path, "artifact.txt")
     File.write!(path, "hello")
     sha = :sha256 |> :crypto.hash("hello") |> Base.encode16(case: :lower)
 
@@ -302,7 +408,7 @@ defmodule AgentDesk.A2ATest do
       })
 
     assert {:ok, ^artifact} = A2A.get_artifact(alice, artifact.id)
-    File.write!(path, "tampered")
+    File.write!(path, "jello")
     assert {:error, :artifact_integrity} = A2A.get_artifact(alice, artifact.id)
   end
 
@@ -338,5 +444,20 @@ defmodule AgentDesk.A2ATest do
     assert second.status == "blocked"
     assert [workflow] = AgentDesk.A2A.Workflows.list(alice)
     assert workflow.name == "Ship"
+  end
+
+  defp artifact_attrs(context, path, bytes, overrides \\ %{}) do
+    Map.merge(
+      %{
+        context_id: context.id,
+        kind: "file",
+        name: Path.basename(path),
+        mime_type: "application/octet-stream",
+        path: path,
+        sha256: bytes |> then(&:crypto.hash(:sha256, &1)) |> Base.encode16(case: :lower),
+        size_bytes: byte_size(bytes)
+      },
+      overrides
+    )
   end
 end

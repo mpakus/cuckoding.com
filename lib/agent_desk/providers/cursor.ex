@@ -8,8 +8,10 @@ defmodule AgentDesk.Providers.Cursor do
   alias AgentDesk.Providers.ACP.Client
   alias AgentDesk.Providers.Capabilities
   alias AgentDesk.Providers.CommandSpec
+  alias AgentDesk.Providers.Discovery
   alias AgentDesk.Providers.Fixture
-  alias AgentDesk.Providers.Probe
+
+  @binaries ~w(agent cursor-agent cursor)
 
   @impl true
   def key, do: "cursor"
@@ -37,7 +39,32 @@ defmodule AgentDesk.Providers.Cursor do
   end
 
   @impl true
-  def probe(opts), do: Probe.probe(key(), "agent", opts)
+  def probe(opts) do
+    if Fixture.enabled?(opts) do
+      {:ok, %{key: key(), executable: "fixture", version: "fixture", protocol: "fixture"}}
+    else
+      with {:ok, executable, _args} <- resolve(opts),
+           {:ok, executable} <-
+             Discovery.find_executable(executable, executable: executable) do
+        version = probe_version(executable, opts)
+        {:ok, %{key: key(), executable: executable, version: version}}
+      end
+    end
+  end
+
+  @spec resolve(keyword()) :: {:ok, String.t(), [String.t()]} | {:error, term()}
+  def resolve(opts \\ []) do
+    case Keyword.get(opts, :executable) do
+      exe when is_binary(exe) and exe != "" ->
+        {:ok, exe, acp_args(exe)}
+
+      _ ->
+        case Discovery.find_first(@binaries, opts) do
+          {:ok, path} -> {:ok, path, acp_args(path)}
+          error -> error
+        end
+    end
+  end
 
   @impl true
   def command_spec(session, opts) do
@@ -53,8 +80,19 @@ defmodule AgentDesk.Providers.Cursor do
          )
        )}
     else
-      {:ok,
-       %CommandSpec{executable: Keyword.get(opts, :executable, "agent"), args: ["acp"], cwd: cwd}}
+      case resolve(opts) do
+        {:ok, executable, args} ->
+          {:ok,
+           %CommandSpec{
+             executable: executable,
+             args: args,
+             cwd: cwd,
+             env_passthrough: AgentDesk.Env.provider_env_passthrough(key())
+           }}
+
+        {:error, reason} ->
+          {:error, reason}
+      end
     end
   end
 
@@ -66,4 +104,22 @@ defmodule AgentDesk.Providers.Cursor do
 
   @impl true
   def encode(action, state), do: Client.encode(state, action)
+
+  defp acp_args(path) when is_binary(path) do
+    case path |> Path.basename() |> String.downcase() do
+      name when name in ["cursor", "cursor.exe"] -> ["agent", "acp"]
+      _ -> ["acp"]
+    end
+  end
+
+  defp probe_version(executable, opts) do
+    if Keyword.has_key?(opts, :executable) do
+      "configured"
+    else
+      case Discovery.version(executable) do
+        {:ok, version} -> version
+        _ -> "installed"
+      end
+    end
+  end
 end

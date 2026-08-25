@@ -33,10 +33,15 @@ defmodule AgentDesk.Search.Projection do
 
     Document
     |> where([d], d.project_id == ^project_id)
+    |> then(&maybe_match_document(&1, q))
+    |> order_by([d], fragment("case
+      when ? = 'project_file' then 0
+      when ? = 'handoff' then 1
+      when ? = 'artifact' then 2
+      else 3
+    end", d.source, d.source, d.source))
+    |> limit(@max_results)
     |> Repo.all()
-    |> Enum.filter(&String.contains?(String.downcase(&1.passage <> &1.title), q))
-    |> Enum.sort_by(&source_rank/1)
-    |> Enum.take(@max_results)
     |> bound()
     |> then(&{:ok, &1})
   end
@@ -63,12 +68,15 @@ defmodule AgentDesk.Search.Projection do
     q =
       String.downcase(to_string(query[:q] || query["q"] || query[:query] || query["query"] || ""))
 
+    project_id = query[:project_id] || query["project_id"]
+
     Memory
     |> where([m], m.namespace == ^namespace)
+    |> then(&maybe_scope_memory(&1, project_id))
+    |> then(&maybe_match_memory(&1, q))
     |> order_by([m], desc: m.inserted_at)
     |> limit(20)
     |> Repo.all()
-    |> Enum.filter(&String.contains?(String.downcase(&1.text), q))
     |> Enum.map(&public_memory/1)
     |> then(&{:ok, &1})
   end
@@ -116,10 +124,23 @@ defmodule AgentDesk.Search.Projection do
     )
   end
 
-  defp source_rank(%{source: "project_file"}), do: 0
-  defp source_rank(%{source: "handoff"}), do: 1
-  defp source_rank(%{source: "artifact"}), do: 2
-  defp source_rank(_), do: 3
+  defp maybe_match_document(query, ""), do: query
+
+  defp maybe_match_document(query, q) do
+    where(query, [d], fragment("instr(lower(? || ' ' || ?), ?) > 0", d.title, d.passage, ^q))
+  end
+
+  defp maybe_scope_memory(query, project_id) when is_binary(project_id) do
+    where(query, [m], m.project_id == ^project_id)
+  end
+
+  defp maybe_scope_memory(query, _project_id), do: query
+
+  defp maybe_match_memory(query, ""), do: query
+
+  defp maybe_match_memory(query, q) do
+    where(query, [m], fragment("instr(lower(?), ?) > 0", m.text, ^q))
+  end
 
   defp bound(docs) do
     Enum.reduce_while(docs, {[], 0}, fn doc, {acc, bytes} ->

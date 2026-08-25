@@ -3,18 +3,31 @@ defmodule AgentDesk.ProjectsTest do
 
   alias AgentDesk.Events
   alias AgentDesk.GitRepo
+  alias AgentDesk.Paths
   alias AgentDesk.Projects
+  alias AgentDesk.Projects.Project
   alias AgentDesk.Projects.Runtime
 
   setup do
     repo = GitRepo.tmp_repo!()
-    on_exit(fn -> File.rm_rf(repo) end)
+    {:ok, canonical} = Paths.canonicalize(repo)
+
+    on_exit(fn ->
+      case Repo.get_by(Project, canonical_path: canonical) do
+        %Project{id: id} -> Projects.Supervisor.stop_runtime(id)
+        nil -> :ok
+      end
+
+      File.rm_rf(repo)
+    end)
+
     %{repo: repo}
   end
 
   test "opens a git repository, records an event, and starts a runtime", %{repo: repo} do
     assert {:ok, project} = Projects.open_project(repo)
-    assert project.canonical_path == Path.expand(repo)
+    assert {:ok, canonical} = Paths.canonicalize(repo)
+    assert project.canonical_path == canonical
     assert project.vcs_type == "git"
     assert {:ok, _pid} = Runtime.fetch(project.id)
 
@@ -50,7 +63,8 @@ defmodule AgentDesk.ProjectsTest do
     File.write!(file, "# repo\n")
 
     assert {:ok, project} = Projects.open_project(file)
-    assert project.canonical_path == Path.expand(repo)
+    assert {:ok, canonical} = Paths.canonicalize(repo)
+    assert project.canonical_path == canonical
 
     on_exit(fn -> AgentDesk.Projects.Supervisor.stop_runtime(project.id) end)
   end
@@ -58,6 +72,31 @@ defmodule AgentDesk.ProjectsTest do
   test "rejects a missing path" do
     missing = Path.join(System.tmp_dir!(), "missing-repo-#{System.unique_integer([:positive])}")
     assert Projects.open_project(missing) == {:error, :not_found}
+  end
+
+  test "runtime startup failure returns a tagged error and leaves the project closed", %{
+    repo: repo
+  } do
+    manager = AgentDesk.Projects.Supervisor.Manager
+    assert :ok = Supervisor.terminate_child(Projects.Supervisor, manager)
+
+    on_exit(fn ->
+      case Supervisor.restart_child(Projects.Supervisor, manager) do
+        {:ok, _pid} -> :ok
+        {:ok, _pid, _info} -> :ok
+        {:error, :running} -> :ok
+      end
+    end)
+
+    assert {:error, {:runtime_start_failed, {:project_supervisor_unavailable, _reason}}} =
+             Projects.open_project(repo)
+
+    assert {:ok, canonical} = Paths.canonicalize(repo)
+    project = Repo.get_by!(Project, canonical_path: canonical)
+    refute project.open
+    assert is_nil(project.last_opened_at)
+    assert Runtime.fetch(project.id) == {:error, :not_started}
+    assert Events.list_for_project(project.id) == []
   end
 
   test "restore_last_opened starts the runtime for the most recent project", %{repo: repo} do

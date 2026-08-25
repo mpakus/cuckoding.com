@@ -44,7 +44,8 @@ defmodule AgentDesk.Search do
   @spec recall(Scope.t(), String.t(), map()) :: {:ok, [map()]} | {:error, term()}
   def recall(%Scope{} = scope, namespace, query) do
     if Namespaces.allow?(scope, namespace) do
-      safe(fn -> adapter().recall(namespace, query) end)
+      payload = Map.put(query, :project_id, scope.project.id)
+      safe(fn -> adapter().recall(namespace, payload) end)
     else
       {:error, :forbidden}
     end
@@ -66,21 +67,23 @@ defmodule AgentDesk.Search do
   def status(%Project{} = project) do
     state = Indexer.status(project.id)
     health = health(project)
+    adapter_name = adapter() |> Module.split() |> List.last()
+    {status, error} = present_status(adapter_name, health, state)
 
     %{
-      adapter: adapter() |> Module.split() |> List.last(),
+      adapter: adapter_name,
       health: health,
-      status: (state && state.status) || default_status(health),
+      status: status,
       last_indexed_at: state && state.last_indexed_at,
-      error: state && state.error
+      error: error
     }
   end
 
   defp auto_adapter do
-    cond do
-      not feature_on?() -> Disabled
-      is_nil(Discovery.executable()) -> Disabled
-      true -> Xerj
+    if feature_on?() and not is_nil(Discovery.executable()) do
+      Xerj
+    else
+      Projection
     end
   end
 
@@ -100,6 +103,33 @@ defmodule AgentDesk.Search do
 
   defp default_status(:ok), do: "ready"
   defp default_status(_), do: "unavailable"
+
+  defp present_status("Disabled", _health, _state), do: {"unavailable", nil}
+
+  defp present_status(_adapter, {:error, :unavailable}, _state), do: {"unavailable", nil}
+
+  defp present_status(_adapter, _health, %{status: "error", error: error}) do
+    if unavailable_error?(error) do
+      {"unavailable", nil}
+    else
+      {"error", present_error(error) || "Indexing failed. Rebuild the index."}
+    end
+  end
+
+  defp present_status(_adapter, health, state) do
+    {(state && state.status) || default_status(health), present_error(state && state.error)}
+  end
+
+  defp unavailable_error?(error) when error in [nil, "", ":unavailable", "unavailable"], do: true
+
+  defp unavailable_error?(error) when is_binary(error),
+    do: String.contains?(error, "unavailable")
+
+  defp unavailable_error?(_), do: false
+
+  defp present_error(error) when error in [nil, ""], do: nil
+  defp present_error(error) when is_binary(error), do: error
+  defp present_error(_), do: nil
 
   defp safe(fun) do
     fun.()

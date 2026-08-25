@@ -18,8 +18,20 @@ defmodule AgentDeskWeb.Router do
     }
   end
 
-  scope "/", AgentDeskWeb do
+  pipeline :control_authorized do
+    plug AgentDeskWeb.Plugs.RequireControlAuth
+  end
+
+  scope "/control", AgentDeskWeb do
     pipe_through :browser
+
+    get "/readiness", ControlAuthController, :readiness
+    get "/bootstrap", ControlAuthController, :bootstrap
+    get "/unauthorized", ControlAuthController, :unauthorized
+  end
+
+  scope "/", AgentDeskWeb do
+    pipe_through [:browser, :control_authorized]
 
     live "/", WorkspaceLive, :index
     live "/projects/:id", WorkspaceLive, :show
@@ -29,7 +41,7 @@ defmodule AgentDeskWeb.Router do
     import Phoenix.LiveDashboard.Router
 
     scope "/dev" do
-      pipe_through :browser
+      pipe_through [:browser, :control_authorized]
 
       live_dashboard "/dashboard", metrics: AgentDeskWeb.Telemetry
     end

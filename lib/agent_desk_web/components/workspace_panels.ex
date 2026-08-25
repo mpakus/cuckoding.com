@@ -2,6 +2,8 @@ defmodule AgentDeskWeb.WorkspacePanels do
   @moduledoc false
   use AgentDeskWeb, :html
 
+  import AgentDeskWeb.WorkspaceView
+
   alias AgentDesk.Analytics
 
   attr :query, :string, required: true
@@ -181,8 +183,8 @@ defmodule AgentDeskWeb.WorkspacePanels do
 
         <article class="desk-registry-card">
           <h3 class="desk-kicker">XERJ / search</h3>
-          <p class="mt-2 font-semibold">{@report.xerj.adapter} · {@report.xerj.status}</p>
-          <p class="desk-muted mt-1 text-xs">Health {@report.xerj.health}</p>
+          <p class="mt-2 font-semibold">{search_status_copy(@report.xerj)}</p>
+          <p :if={@report.xerj.error} class="mt-1 text-xs text-error">{@report.xerj.error}</p>
           <p class="desk-muted mt-1 break-all text-xs">{@report.xerj.data_dir}</p>
         </article>
 
@@ -416,6 +418,7 @@ defmodule AgentDeskWeb.WorkspacePanels do
       |> assign(:git?, git?)
       |> assign(:ready, ready)
       |> assign(:copy, copy)
+      |> assign(:can_continue?, onboard_continue?(assigns.step, project?))
 
     ~H"""
     <div id={@id} class="desk-onboard">
@@ -425,10 +428,7 @@ defmodule AgentDeskWeb.WorkspacePanels do
         <p class="mt-1">{@copy.body}</p>
         <ul :if={@step == 3} class="mt-2 space-y-1">
           <li :for={{key, status} <- @provider_status}>
-            {provider_name(key)} · {if(status[:available],
-              do: status[:version] || "ready",
-              else: "missing"
-            )}
+            {provider_name(key)} · {provider_probe_label(status)}
           </li>
         </ul>
         <form
@@ -466,6 +466,7 @@ defmodule AgentDeskWeb.WorkspacePanels do
             id="onboard-next"
             phx-click="onboard_next"
             class="btn btn-xs btn-primary"
+            disabled={not @can_continue?}
           >
             Continue
           </button>
@@ -580,12 +581,28 @@ defmodule AgentDeskWeb.WorkspacePanels do
   defp provider_name("opencode"), do: "OpenCode"
   defp provider_name(key), do: key
 
+  defp provider_probe_label(%{checking: true}), do: "checking"
+
+  defp provider_probe_label(%{available: true, version: version}) when is_binary(version),
+    do: version
+
+  defp provider_probe_label(%{available: true}), do: "ready"
+  defp provider_probe_label(_), do: "missing"
+
+  defp onboard_continue?(1, project?), do: project?
+  defp onboard_continue?(2, project?), do: project?
+  defp onboard_continue?(10, project?), do: project?
+  defp onboard_continue?(_step, _project?), do: true
+
   attr :item, :map, required: true
   attr :mode, :string, default: "cards"
   attr :dom_id, :string, required: true
 
   def activity_card(assigns) do
     payload = activity_payload(assigns.item)
+    title = payload["title"] || payload["tool"] || payload["kind"]
+    body = assigns.item.text
+    failed? = payload["status"] in ["failed", "error", "cancelled"]
 
     assigns =
       assigns
@@ -594,21 +611,29 @@ defmodule AgentDeskWeb.WorkspacePanels do
       |> assign(:output, payload["output"] || payload["stdout"] || payload["result"])
       |> assign(:command, payload["command"] || payload["cmd"] || payload["name"])
       |> assign(:diff, payload["diff"])
-      |> assign(:tool, payload["tool"] || payload["mcp_tool"] || payload["server"])
+      |> assign(:tool, payload["kind"])
+      |> assign(:heading, activity_heading(assigns.item.type, title))
+      |> assign(:body, activity_body(body, title, assigns.item.type))
+      |> assign(:failed?, failed?)
 
     ~H"""
     <article
       id={@dom_id}
-      class={["desk-activity", "desk-activity-#{@item.type}", @mode == "raw" && "desk-activity-raw"]}
+      class={[
+        "desk-activity",
+        "desk-activity-#{@item.type}",
+        @failed? && "desk-activity-error",
+        @mode == "raw" && "desk-activity-raw"
+      ]}
     >
-      <p>{activity_heading(@item.type)}</p>
+      <p>{@heading}</p>
       <%= if @mode == "raw" do %>
         <pre class="desk-activity-pre">{inspect(@item.payload, pretty: true, limit: 24)}</pre>
       <% else %>
         <p :if={@path} class="desk-activity-path">{@path}</p>
         <p :if={@command} class="font-mono text-xs">{@command}</p>
-        <p :if={@tool} class="desk-muted text-xs">MCP {@tool}</p>
-        <p class="desk-activity-body whitespace-pre-wrap">{@item.text}</p>
+        <p :if={@tool} class="desk-muted text-xs">{@tool}</p>
+        <p :if={@body} class="desk-activity-body whitespace-pre-wrap">{@body}</p>
         <pre :if={is_binary(@diff) and @diff != ""} class="desk-activity-pre">{String.slice(@diff, 0, 4000)}</pre>
         <details :if={is_binary(@output) and @output != ""} class="desk-activity-output">
           <summary>Output</summary>
@@ -621,6 +646,40 @@ defmodule AgentDeskWeb.WorkspacePanels do
 
   defp activity_payload(%{payload: payload}) when is_map(payload), do: payload
   defp activity_payload(_), do: %{}
+
+  defp activity_heading(_type, title) when is_binary(title) and title != "", do: title
+  defp activity_heading(type, _title), do: activity_heading(type)
+
+  defp activity_body(body, title, type) do
+    cond do
+      not is_binary(body) -> nil
+      String.trim(body) == "" -> nil
+      dump_text?(body) -> nil
+      generic_activity_text?(body, type) -> nil
+      is_binary(title) and String.trim(body) == String.trim(title) -> nil
+      true -> body
+    end
+  end
+
+  defp generic_activity_text?(text, type) do
+    trimmed = String.trim(text)
+
+    trimmed in [
+      "Tool",
+      "tool started",
+      "tool completed",
+      "MCP tool",
+      "Approval",
+      String.replace(to_string(type), "_", " ")
+    ]
+  end
+
+  defp dump_text?(text) when is_binary(text) do
+    trimmed = String.trim(text)
+    String.starts_with?(trimmed, ["%{", "{", "#"])
+  end
+
+  defp dump_text?(_), do: false
 
   defp activity_heading("message_delta"), do: "Agent"
   defp activity_heading("message_completed"), do: "Agent"

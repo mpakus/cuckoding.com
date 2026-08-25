@@ -29,21 +29,36 @@ defmodule AgentDesk.Providers.ACP.Client do
   def encode(%__MODULE__{} = client, :initialize) do
     request(client, "initialize", %{
       "protocolVersion" => 1,
-      "clientInfo" => %{"name" => "AgentDesk", "version" => "0.1.0"},
-      "capabilities" => %{"fs" => %{"readTextFile" => true, "writeTextFile" => false}}
+      "clientInfo" => %{
+        "name" => "Cuckoding",
+        "title" => "Cuckoding",
+        "version" => "0.1.0"
+      },
+      "clientCapabilities" => %{
+        "fs" => %{"readTextFile" => true, "writeTextFile" => false},
+        "terminal" => false
+      }
     })
   end
 
   def encode(%__MODULE__{} = client, :initialized) do
-    {:ok, JSONRPC.notification("initialized", %{}), client}
+    {:ok, "", client}
   end
 
   def encode(%__MODULE__{} = client, {:start_session, cwd}) do
-    request(client, "session/new", %{"cwd" => cwd, "mcpServers" => []})
+    encode(client, {:start_session, cwd, []})
+  end
+
+  def encode(%__MODULE__{} = client, {:start_session, cwd, servers}) when is_list(servers) do
+    request(client, "session/new", %{"cwd" => cwd, "mcpServers" => servers})
   end
 
   def encode(%__MODULE__{} = client, {:resume, session_id}) do
     request(client, "session/load", %{"sessionId" => session_id})
+  end
+
+  def encode(%__MODULE__{} = client, {:authenticate, method_id}) when is_binary(method_id) do
+    request(client, "authenticate", %{"methodId" => method_id})
   end
 
   def encode(%__MODULE__{} = client, {:prompt, text}) do
@@ -67,12 +82,21 @@ defmodule AgentDesk.Providers.ACP.Client do
     {:ok, JSONRPC.response(id, result), client}
   end
 
-  def encode(%__MODULE__{} = client, {:configure_mcp, path}) do
-    request(client, "session/configure_mcp", %{"path" => path, "sessionId" => client.session_id})
+  def encode(%__MODULE__{} = client, {:configure_mcp, _path}) do
+    {:ok, "", client}
+  end
+
+  def encode(%__MODULE__{} = client, {:jsonrpc_result, id, result}) when is_map(result) do
+    {:ok, JSONRPC.response(parse_id(id), result), client}
+  end
+
+  def encode(%__MODULE__{} = client, {:jsonrpc_error, id, code, message})
+      when is_integer(code) and is_binary(message) do
+    {:ok, JSONRPC.error_response(parse_id(id), code, message), client}
   end
 
   def encode(%__MODULE__{} = client, {:reject_method, id, method}) do
-    {:ok, JSONRPC.error_response(id, -32_601, "Unsupported method #{method}"), client}
+    {:ok, JSONRPC.error_response(parse_id(id), -32_601, "Unsupported method #{method}"), client}
   end
 
   def encode(_client, _action), do: {:error, :unsupported_action}
@@ -94,6 +118,10 @@ defmodule AgentDesk.Providers.ACP.Client do
 
     {:ok, [Event.new(:initialize_result, stringify(result), client.provider)],
      %{client | protocol_version: version}}
+  end
+
+  defp handle(client, {:response, _id, result, "authenticate"}) do
+    {:ok, [Event.new(:authenticated, stringify(result || %{}), client.provider)], client}
   end
 
   defp handle(client, {:response, _id, result, "session/prompt"}) do
@@ -127,14 +155,31 @@ defmodule AgentDesk.Providers.ACP.Client do
     {:ok, [Protocol.from_permission(id, params, client.provider)], client}
   end
 
+  defp handle(client, {:request, id, method, params})
+       when method in ["fs/read_text_file", "fs/write_text_file"] do
+    event =
+      Event.new(
+        :client_request,
+        %{
+          "method" => method,
+          "request_id" => to_string(id),
+          "params" => stringify(params)
+        },
+        client.provider
+      )
+
+    {:ok, [event], client}
+  end
+
   defp handle(client, {:request, id, method, params}) do
     event =
       Event.new(
-        :provider_error,
+        :client_request,
         %{
-          "unsupported_method" => method,
+          "method" => method,
           "request_id" => to_string(id),
-          "params" => params
+          "params" => params,
+          "unsupported" => true
         },
         client.provider
       )
@@ -164,6 +209,7 @@ defmodule AgentDesk.Providers.ACP.Client do
   end
 
   defp stringify(map) when is_map(map), do: Map.new(map, fn {k, v} -> {to_string(k), v} end)
+  defp stringify(other), do: %{"value" => other}
 
   defp parse_id(id) do
     case Integer.parse(to_string(id)) do

@@ -17,9 +17,11 @@ defmodule AgentDesk.Application do
         {Ecto.Migrator,
          repos: Application.fetch_env!(:agent_desk, :ecto_repos), skip: skip_migrations?()},
         {Phoenix.PubSub, name: AgentDesk.PubSub},
+        AgentDesk.Security.ControlAuth,
         AgentDesk.Circuit,
         {Registry, keys: :unique, name: AgentDesk.ProjectRegistry},
         {Registry, keys: :unique, name: AgentDesk.SessionRegistry},
+        {Registry, keys: :unique, name: AgentDesk.ProviderSupervisorRegistry},
         {Registry, keys: :unique, name: AgentDesk.HubRegistry},
         {Registry, keys: :unique, name: AgentDesk.A2ASupervisorRegistry},
         {Registry, keys: :unique, name: AgentDesk.WorktreeRegistry},
@@ -27,12 +29,6 @@ defmodule AgentDesk.Application do
         {Registry, keys: :unique, name: AgentDesk.SearchRegistry},
         {Registry, keys: :unique, name: AgentDesk.SearchSupervisorRegistry},
         AgentDesk.Projects.Supervisor,
-        {DynamicSupervisor, name: AgentDesk.ProviderProcessSupervisor, strategy: :one_for_one},
-        Supervisor.child_spec(
-          {Task, fn -> AgentDesk.Projects.restore_on_boot() end},
-          id: AgentDesk.Projects.Restorer,
-          restart: :temporary
-        ),
         AgentDeskWeb.Endpoint
       ] ++ xerj_children()
 

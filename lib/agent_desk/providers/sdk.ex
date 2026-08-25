@@ -115,8 +115,15 @@ defmodule AgentDesk.Providers.SDK do
     cwd = Keyword.get(opts, :cwd, File.cwd!())
 
     with {:ok, executable} <- resolve_executable(session, opts),
-         {:ok, args} <- resolve_args(session) do
-      {:ok, %CommandSpec{executable: executable, args: args, cwd: cwd}}
+         {:ok, args} <- resolve_args(session),
+         {:ok, env_passthrough} <- resolve_env_passthrough(session) do
+      {:ok,
+       %CommandSpec{
+         executable: executable,
+         args: args,
+         cwd: cwd,
+         env_passthrough: env_passthrough
+       }}
     end
   end
 
@@ -174,6 +181,37 @@ defmodule AgentDesk.Providers.SDK do
       {:error, :invalid_args}
     else
       {:ok, cleaned}
+    end
+  end
+
+  defp resolve_env_passthrough(%Session{settings: settings}) do
+    names =
+      case settings["sdk_env_allowlist"] || settings["sdk_env_passthrough"] do
+        list when is_list(list) ->
+          list
+
+        text when is_binary(text) ->
+          String.split(text, ~r/[\r\n,]+/)
+
+        nil ->
+          []
+
+        _other ->
+          :invalid
+      end
+
+    case names do
+      :invalid ->
+        {:error, :invalid_env_passthrough}
+
+      names ->
+        names
+        |> Enum.map(fn
+          name when is_binary(name) -> String.trim(name)
+          name -> name
+        end)
+        |> Enum.reject(&(&1 == ""))
+        |> AgentDesk.Env.validate_env_passthrough()
     end
   end
 end
