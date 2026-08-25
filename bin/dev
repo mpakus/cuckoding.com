@@ -6,8 +6,9 @@ root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$root"
 
 export MIX_ENV="${MIX_ENV:-dev}"
-# Keep the Tauri host off /var (macOS /var -> /private/var). Tauri's StartingBinary
-# rejects current_exe() paths that contain a symlink, which aborts sidecar setup.
-export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$root/src-tauri/target}"
+# Always use the repo target dir. Cursor injects a CARGO_TARGET_DIR under
+# /var/folders; macOS /var -> /private/var, and Tauri StartingBinary aborts
+# sidecar setup when current_exe() contains that symlink.
+export CARGO_TARGET_DIR="$root/src-tauri/target"
 
 exec mix ex_tauri.dev "$@"

@@ -150,6 +150,8 @@ export const Tablist = {
     this.el.removeEventListener("keydown", this.onKey)
   },
 }
+
+export const Shortcuts = {
   mounted() {
     this.handler = (event) => this.onKey(event)
     window.addEventListener("keydown", this.handler)
