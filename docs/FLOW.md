@@ -48,6 +48,25 @@ Boards may use different workflow templates. Multiple boards and their runs exec
 
 Human review of a passed run is the `human_approval` stage inside the workflow; while there, the task is `waiting` with reason `approval`. The workflow YAML uses stage keys and transition labels only; it never introduces task states.
 
+## Allowed state transitions
+
+| Current state | Task destinations | Run destinations |
+| --- | --- | --- |
+| `draft` | `ready`, `cancelled`, `archived` | — |
+| `ready` | `draft`, `running`, `cancelled`, `archived` | — |
+| `queued` | — | `running`, `cancelled` |
+| `running` | `waiting`, `paused`, `hibernated`, `blocked`, `done`, `failed`, `cancelled` | Same |
+| `waiting` | `running`, `paused`, `hibernated`, `blocked`, `failed`, `cancelled` | Same |
+| `paused` | `running`, `hibernated`, `cancelled` | Same |
+| `hibernated` | `running`, `cancelled`, `archived` | `running`, `cancelled` |
+| `blocked` | `running`, `waiting`, `failed`, `cancelled` | Same |
+| `done` | `archived` | Terminal; a later attempt is a new run |
+| `failed` | `ready`, `archived` | Terminal; retry creates a new run |
+| `cancelled` | `ready`, `archived` | Terminal; restart creates a new run |
+| `archived` | `draft` | — |
+
+Standalone task commands handle pre-run and post-run lifecycle changes. Once a run starts, its transition command updates the run and owning task together. A transition into `waiting` requires a non-blank reason. Every accepted change appends one public event in the same immediate transaction; rejected commands persist an explicit result without an event. Reusing an idempotency key returns its original result without repeating either write.
+
 ## Roles
 
 | Role | Kind | Responsibilities | Required outputs |
@@ -92,6 +111,7 @@ Every stage definition declares: stable key, display name, and role; input artif
 - Changing requirements invalidates downstream stage results and creates a new specification revision.
 - Every retry increments cost and duration budgets; budget exhaustion moves the task to `waiting` for approval.
 - Idempotency keys prevent a retry request from launching duplicate workers.
+- Stage timing updates are also idempotent. They add separately measured monotonic active milliseconds and continuous wall milliseconds, and require each wall delta to include its active delta.
 
 ## Git flow
 

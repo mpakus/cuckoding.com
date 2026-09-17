@@ -190,6 +190,7 @@ defmodule Cuckoding.Workflows.Task do
   @moduledoc false
   use Ecto.Schema
   import Ecto.Changeset
+  @states ~w(draft ready running waiting paused hibernated blocked done failed cancelled archived)
   @primary_key {:id, :binary_id, autogenerate: false}
   schema "tasks" do
     field :board_id, :binary_id
@@ -210,6 +211,24 @@ defmodule Cuckoding.Workflows.Task do
     |> validate_number(:position, greater_than_or_equal_to: 0)
     |> foreign_key_constraint(:board_id)
   end
+
+  @doc false
+  def transition_changeset(record, attrs) do
+    record
+    |> cast(attrs, [:state, :wait_reason, :active_run_id])
+    |> validate_required([:state])
+    |> validate_inclusion(:state, @states)
+    |> validate_wait_reason()
+    |> unique_constraint(:active_run_id)
+  end
+
+  defp validate_wait_reason(changeset) do
+    if get_field(changeset, :state) == "waiting" and blank?(get_field(changeset, :wait_reason)),
+      do: add_error(changeset, :wait_reason, "is required while waiting"),
+      else: changeset
+  end
+
+  defp blank?(value), do: not is_binary(value) or String.trim(value) == ""
 end
 
 defmodule Cuckoding.Workflows.TaskDependency do
@@ -238,11 +257,13 @@ defmodule Cuckoding.Execution.Run do
   @moduledoc false
   use Ecto.Schema
   import Ecto.Changeset
+  @states ~w(queued running waiting paused hibernated blocked done failed cancelled)
   @primary_key {:id, :binary_id, autogenerate: false}
   schema "runs" do
     field :task_id, :binary_id
     field :sequence, :integer
     field :state, :string, default: "queued"
+    field :wait_reason, :string
     field :workflow_snapshot_json, :map
     field :policy_snapshot_id, :binary_id
     field :plugin_snapshot_json, :map, default: %{}
@@ -278,6 +299,23 @@ defmodule Cuckoding.Execution.Run do
     |> foreign_key_constraint(:policy_snapshot_id)
     |> unique_constraint([:task_id, :sequence])
   end
+
+  @doc false
+  def transition_changeset(record, attrs) do
+    record
+    |> cast(attrs, [:state, :wait_reason])
+    |> validate_required([:state])
+    |> validate_inclusion(:state, @states)
+    |> validate_wait_reason()
+  end
+
+  defp validate_wait_reason(changeset) do
+    if get_field(changeset, :state) == "waiting" and blank?(get_field(changeset, :wait_reason)),
+      do: add_error(changeset, :wait_reason, "is required while waiting"),
+      else: changeset
+  end
+
+  defp blank?(value), do: not is_binary(value) or String.trim(value) == ""
 end
 
 defmodule Cuckoding.Execution.StageAttempt do
@@ -310,6 +348,25 @@ defmodule Cuckoding.Execution.StageAttempt do
     |> unique_constraint([:run_id, :stage_key, :attempt])
     |> unique_constraint([:run_id, :stage_key], name: :stage_attempts_one_active_index)
     |> unique_constraint([:run_id, :stage_key], name: :stage_attempts_run_id_stage_key_index)
+  end
+
+  @doc false
+  def timing_changeset(record, attrs) do
+    record
+    |> cast(attrs, [:active_ms, :wall_ms])
+    |> validate_required([:active_ms, :wall_ms])
+    |> validate_number(:active_ms, greater_than_or_equal_to: 0)
+    |> validate_number(:wall_ms, greater_than_or_equal_to: 0)
+    |> validate_wall_time()
+  end
+
+  defp validate_wall_time(changeset) do
+    active_ms = get_field(changeset, :active_ms)
+    wall_ms = get_field(changeset, :wall_ms)
+
+    if is_integer(active_ms) and is_integer(wall_ms) and wall_ms < active_ms,
+      do: add_error(changeset, :wall_ms, "must include active time"),
+      else: changeset
   end
 end
 

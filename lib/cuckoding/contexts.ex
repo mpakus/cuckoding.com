@@ -40,6 +40,10 @@ defmodule Cuckoding.Workflows do
 
   def assign_role(attrs), do: insert(RoleAssignment, attrs)
   def create_task(attrs), do: insert(Task, attrs)
+
+  def transition_task(task_id, to, idempotency_key, attrs \\ %{}),
+    do: Cuckoding.Execution.Transitions.transition_task(task_id, to, idempotency_key, attrs)
+
   def request_approval(attrs), do: insert(Approval, attrs)
   def record_finding(attrs), do: insert(Finding, attrs)
 
@@ -106,12 +110,40 @@ defmodule Cuckoding.Execution do
   alias Cuckoding.Execution.ProcessRecord
   alias Cuckoding.Execution.Run
   alias Cuckoding.Execution.StageAttempt
+  alias Cuckoding.Execution.Transitions
   alias Cuckoding.Identifier
   alias Cuckoding.Projects.Project
+  alias Cuckoding.Projects.ProjectConfigVersion
   alias Cuckoding.Repo
+  alias Cuckoding.Workflows.Board
+  alias Cuckoding.Workflows.RoleAssignment
+  alias Cuckoding.Workflows.Task
+  alias Cuckoding.Workflows.WorkflowVersion
 
-  def create_run(attrs), do: insert(Run, attrs)
+  def create_run(attrs) do
+    Repo.transaction(fn ->
+      with {:ok, attrs} <- snapshot_run(attrs),
+           {:ok, run} <- insert(Run, attrs) do
+        run
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
+
   def create_stage_attempt(attrs), do: insert(StageAttempt, attrs)
+
+  def transition_run(run_id, to, idempotency_key, attrs \\ %{}),
+    do: Transitions.transition_run(run_id, to, idempotency_key, attrs)
+
+  def record_stage_time(stage_attempt_id, active_delta_ms, wall_delta_ms, idempotency_key),
+    do:
+      Transitions.record_stage_time(
+        stage_attempt_id,
+        active_delta_ms,
+        wall_delta_ms,
+        idempotency_key
+      )
 
   def create_environment(attrs) do
     with :ok <- validate_environment_port(attrs[:run_id], attrs[:port]) do
@@ -125,6 +157,54 @@ defmodule Cuckoding.Execution do
   defp insert(schema, attrs) do
     schema.create_changeset(struct(schema), Map.put_new(attrs, :id, Identifier.generate()))
     |> Repo.insert()
+  end
+
+  defp snapshot_run(attrs) do
+    with %Task{} = task <- Repo.get(Task, attrs[:task_id]),
+         %Board{} = board <- Repo.get(Board, task.board_id),
+         %WorkflowVersion{} = workflow <- Repo.get(WorkflowVersion, board.workflow_version_id),
+         %ProjectConfigVersion{} = policy <-
+           Repo.get(ProjectConfigVersion, attrs[:policy_snapshot_id]),
+         :ok <- validate_run_snapshot(board, workflow, policy) do
+      roles =
+        Repo.all(
+          from(role in RoleAssignment,
+            where: role.board_id == ^board.id,
+            order_by: role.role_key
+          )
+        )
+
+      snapshot = %{
+        "workflow_version_id" => workflow.id,
+        "name" => workflow.name,
+        "version" => workflow.version,
+        "definition" => workflow.definition_json,
+        "roles" =>
+          Enum.map(roles, fn role ->
+            %{
+              "role_key" => role.role_key,
+              "role_kind" => role.role_kind,
+              "adapter_key" => role.adapter_key,
+              "model_ref" => role.model_ref,
+              "settings" => role.settings_json
+            }
+          end)
+      }
+
+      {:ok, Map.put(attrs, :workflow_snapshot_json, snapshot)}
+    else
+      nil -> {:error, :snapshot_source_not_found}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp validate_run_snapshot(board, workflow, policy) do
+    cond do
+      workflow.project_id not in [nil, board.project_id] -> {:error, :workflow_project_mismatch}
+      policy.project_id != board.project_id -> {:error, :policy_project_mismatch}
+      is_nil(policy.trusted_at) -> {:error, :policy_not_trusted}
+      true -> :ok
+    end
   end
 
   defp validate_environment_port(_run_id, nil), do: :ok

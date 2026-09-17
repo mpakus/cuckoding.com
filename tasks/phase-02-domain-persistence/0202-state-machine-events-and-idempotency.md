@@ -1,5 +1,13 @@
 # 0202 — State Machine, Events, and Idempotency
 
+```yaml
+status: done
+owner: codex
+started_at: 2026-09-17
+completed_at: 2026-09-17
+worklog: worklog/2026-09-17-0202-state-machine-events.md
+```
+
 ## Objective
 
 Implement the task and run state machine from `docs/FLOW.md` with transition guards, event emission, wait reasons, active/wall time accounting, and idempotent command handling..
@@ -20,14 +28,14 @@ Implement the task and run state machine from `docs/FLOW.md` with transition gua
 
 ## Checklist
 
-- [ ] No transition without an event.
-- [ ] `waiting` carries a reason.
-- [ ] Active and wall durations tracked separately.
+- [x] No accepted transition without an event.
+- [x] `waiting` carries a reason.
+- [x] Active and wall durations tracked separately.
 
 ## Acceptance criteria
 
-- [ ] Invalid transitions are rejected with an explicit outcome.
-- [ ] A replayed command is a no-op with the original result.
+- [x] Invalid transitions are rejected with an explicit outcome.
+- [x] A replayed command is a no-op with the original result.
 
 ## Verification and evidence
 

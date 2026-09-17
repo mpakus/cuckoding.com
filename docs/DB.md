@@ -56,7 +56,7 @@ erDiagram
 | `tasks` | `board_id`, `title`, `description`, `priority`, `position`, `state`, `wait_reason`, `active_run_id` | Kanban card and user intent |
 | `task_dependencies` | `task_id`, `depends_on_task_id`, `kind` | Prevent cycles at write time |
 | `task_comments` | `task_id`, `author_kind`, `body`, `created_at` | User and public agent notes |
-| `runs` | `task_id`, `sequence`, `state`, `workflow_snapshot_json`, `policy_snapshot_id`, `plugin_snapshot_json`, `branch`, `base_sha` | One task may have retries or replacements |
+| `runs` | `task_id`, `sequence`, `state`, `wait_reason`, `workflow_snapshot_json`, `policy_snapshot_id`, `plugin_snapshot_json`, `branch`, `base_sha` | One task may have retries or replacements; workflow and roles are copied from the immutable board version |
 | `stage_attempts` | `run_id`, `stage_key`, `attempt`, `state`, `role_key`, `role_kind`, `started_at`, `finished_at`, `active_ms`, `wall_ms`, `checkpoint_json` | Immutable attempt history plus current state |
 | `approvals` | `run_id`, `stage_attempt_id?`, `kind`, `decision`, `actor`, `reason`, `decided_at` | Trust-boundary evidence |
 | `findings` | `run_id`, `stage_attempt_id`, `severity`, `category`, `status`, `summary`, `evidence_json` | Review and QA findings |
@@ -77,7 +77,7 @@ erDiagram
 | Table | Important fields | Notes |
 | --- | --- | --- |
 | `run_event_sequences` | `run_id`, `last_sequence` | Transactional allocator for gapless per-run event sequence numbers |
-| `run_events` | `run_id`, `sequence`, `event_type`, `public_summary`, `payload`, `occurred_at` | Append-only and strictly sequenced per run |
+| `run_events` | `run_id`, `sequence`, `event_type`, `public_summary`, `payload`, `occurred_at` | Append-only and strictly sequenced per run; standalone pre-run task transitions use the namespaced stream key `task:<uuid>` |
 | `artifacts` | `run_id`, `stage_attempt_id?`, `kind`, `path_or_uri`, `sha256`, `metadata_json` | Specs, patches, logs, test reports, reviews |
 | `usage_records` | `agent_session_id`, `source`, `input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_write_tokens`, `cost_micros`, `currency`, `confidence` | Source is provider-reported or estimated |
 | `resource_samples` | `agent_session_id?`, `process_id?`, `cpu_nanos`, `memory_bytes`, `process_count`, `sampled_at` | Host process sampling |
@@ -102,6 +102,7 @@ erDiagram
 - Dependency insertion runs in an immediate transaction and rejects self-links, cross-board links, duplicate edges, and transitive cycles with a recursive query.
 - Only domain command functions update `runs`, `stage_attempts`, `tasks`, or `boards` state.
 - A state transition and its `run_events` row are written in the same transaction.
+- Transition commands persist explicit accepted or rejected results under their idempotency key. Replays return that original result without updating projections or appending another event.
 - Command rows commit before dispatch begins. Claims increment `attempts`; failures return to `pending` with exponential `not_before` backoff until `max_attempts`, then become terminal `failed` rows.
 - Application startup performs one recovery pass: interrupted `running` claims return to `pending`, then due commands replay through the configured top-level handler.
 - A handler always receives the stable command idempotency key. Replay is exactly once inside Cuckoding's command ledger; an external integration must honor that key because a process can stop after an external side effect but before its result is persisted.
@@ -110,6 +111,7 @@ erDiagram
 - The Power Manager must call the lease sleep-gap hook before expiry reconciliation. Only leases alive when the measured gap began are extended; the hook emits correlated telemetry with `kind: sleep_gap`.
 - Artifact and knowledge files are content-addressed or hash-verified before being referenced; a mismatch between file and index is flagged, never silently resolved.
 - A run snapshots workflow, role assignment, policy, plugin versions, and relevant prices so history remains explainable.
+- Published workflow versions and project configuration versions are immutable. Run creation copies the board's workflow definition and ordered role assignments, and accepts only a trusted policy version owned by the same project.
 
 ## Retention
 
