@@ -566,6 +566,12 @@ defmodule Cuckoding.Execution.AgentSession do
     |> validate_required([:id, :stage_attempt_id, :adapter_key, :effective_grant_json])
     |> foreign_key_constraint(:stage_attempt_id)
   end
+
+  def observation_changeset(record, attrs) do
+    record
+    |> cast(attrs, [:actual_model, :external_session_id, :effective_grant_json, :state])
+    |> validate_required([:effective_grant_json, :state])
+  end
 end
 
 defmodule Cuckoding.Execution.ProcessRecord do

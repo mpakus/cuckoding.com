@@ -67,6 +67,8 @@ Each stage receives an unguessable short-lived capability set: allowed worktree,
 - Redact stdout/stderr before persistence.
 - Build child environments from scratch; reject undeclared and credential-shaped variables instead of inheriting the Phoenix environment.
 - All provider and plugin output is data until parsed and validated.
+- Adapter event normalization accepts only the closed public event vocabulary, recursively redacts summaries and metadata, and fails closed on malformed or unknown provider output.
+- Generated runtime configuration stays in the run's `agent/` directory with owner-only permissions; adapters reject a symlinked configuration directory and never write user-global runtime configuration.
 - On restart or wake, inspect and reconcile before killing or adopting a process.
 
 ## Audit events

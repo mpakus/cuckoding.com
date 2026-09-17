@@ -333,6 +333,8 @@ defmodule Cuckoding.Adapters do
   @moduledoc "Defines replaceable agent-runtime adapter contracts and normalized results."
 
   alias Cuckoding.Adapters.ProviderAccount
+  alias Cuckoding.Execution.EventStore
+  alias Cuckoding.Execution.StageAttempt
   alias Cuckoding.Identifier
   alias Cuckoding.Repo
 
@@ -343,6 +345,40 @@ defmodule Cuckoding.Adapters do
     )
     |> Repo.insert()
   end
+
+  def record_session_observation(session, observation) do
+    effective_grant = Map.from_struct(observation.effective_grant)
+    attempt = Repo.get!(StageAttempt, session.stage_attempt_id)
+
+    changeset =
+      Cuckoding.Execution.AgentSession.observation_changeset(session, %{
+        actual_model: observation.actual_model,
+        external_session_id: observation.external_session_id,
+        effective_grant_json: effective_grant,
+        state: observation.state
+      })
+
+    attrs = %{
+      event_type: "agent.effective_grant_recorded",
+      public_summary: "Agent runtime permission grant recorded",
+      payload: %{
+        "agent_session_id" => session.id,
+        "requested_fields" => grant_fields(effective_grant.requested),
+        "enforced_fields" => grant_fields(effective_grant.enforced),
+        "unenforced_fields" => grant_fields(effective_grant.unenforced)
+      }
+    }
+
+    projection = fn repo, _sequence -> repo.update(changeset) end
+
+    case EventStore.append(attempt.run_id, attrs, projection) do
+      {:ok, {_event, updated}} -> {:ok, updated}
+      {:error, {:projection_failed, error}} -> {:error, error}
+      {:error, error} -> {:error, error}
+    end
+  end
+
+  defp grant_fields(grant), do: grant |> Map.keys() |> Enum.map(&to_string/1) |> Enum.sort()
 end
 
 defmodule Cuckoding.Plugins do

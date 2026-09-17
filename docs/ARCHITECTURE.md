@@ -125,7 +125,7 @@ The root tree owns the unique `Cuckoding.RunRegistry` and `Cuckoding.Execution.R
 
 ## Extension boundaries
 
-- `AgentAdapter`: Claude Code, Codex, Cursor Agent, OpenCode.
+- `AgentAdapter`: provider-neutral typed requests, capability probes, per-run config, normalized untrusted events, recovery, cancellation, and usage; Claude Code, Codex, Cursor Agent, and OpenCode implement the boundary.
 - `RunnerBridge`: `LocalProcessRunner`; future container and remote runners via plugins.
 - `Plugin` kinds: see `docs/PLUGINS.md`.
 - `KnowledgeBackend`: built-in file/index retrieval; XERJ, cognee, Graphiti-style backends via plugins.
@@ -141,6 +141,7 @@ The root tree owns the unique `Cuckoding.RunRegistry` and `Cuckoding.Execution.R
 | Phoenix restart | Reconcile leases, processes, ports, worktrees, pending commands |
 | Shell quit | Graceful shutdown: hibernate or stop runs per policy, then terminate |
 | Agent process exit | Close session, preserve logs, apply retry policy or block |
+| Malformed or unknown provider event | Reject the event; never promote it to workflow state or a command |
 | System sleep | Assertion missing or ignored; gap recorded on wake; heartbeats reconciled; sessions resumed or continued |
 | Network loss | Provider calls fail; classified transient; retry within budget |
 | Plugin unavailable | Feature degraded and labeled; core continues |

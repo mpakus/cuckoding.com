@@ -20,6 +20,8 @@ Agent runtimes differ in authentication, model selection, structured output, per
 
 An adapter records the configured grant and the runtime-reported grant separately. It is unavailable when the runtime starts undeclared global plugins/MCP servers, exposes unrelated configuration, or writes session state outside documented provider paths that the user has accepted. A deny rule for tool invocation does not prove that the corresponding server process was never started.
 
+`Cuckoding.Adapters.AgentAdapter` is the workflow-facing contract. Its shared types keep requested and observed model identity separate, attach source and confidence to usage, classify adapter errors for retry decisions, and mark every normalized provider event as untrusted. Recording an observed session updates the full effective grant and appends a same-transaction audit event whose public payload contains field names rather than path or policy values. `Cuckoding.Adapters.FakeAdapter` exercises the complete contract without a provider dependency. Its generated fixture configuration is mode `0600`, exists only at `<run_dir>/agent/fake-adapter.json`, rejects a symlinked `agent/` directory, and records restrictions the fake cannot enforce under `unenforced`.
+
 ## Stage request envelope
 
 - project, board, task, run, stage, and attempt IDs;
@@ -70,7 +72,7 @@ Store both `requested_model` and `actual_model`. If the runtime does not disclos
 
 - After a detected sleep gap, the adapter probes the process (PID plus start identity) and the session; live processes continue, dead ones enter recovery.
 - Termination ladder: graceful stop, bounded wait, then `SIGINT`, `SIGTERM`, and `SIGKILL` for every owned descendant process group before the root group. Record every step and verify every observed PID and PGID is gone.
-- If native resume is absent, create a continuation package containing the task revision, current spec, relevant diff, completed checks, open findings, artifact hashes, and a concise public handoff. Never replay unbounded transcripts.
+- If native resume is absent, create a size-bounded continuation package containing the task revision, current spec, relevant diff, completed checks, open findings, artifact hashes, and a concise public handoff. Never replay unbounded transcripts.
 
 ## Adapter conformance tests
 
