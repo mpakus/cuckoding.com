@@ -1,0 +1,9 @@
+{"type":"thread.started","thread_id":"<THREAD_ID>"}
+{"type":"turn.started"}
+{"type":"item.started","item":{"id":"item_1","type":"command_execution","command":"rtk sed -n '1,20p' README.md","status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_1","type":"command_execution","command":"rtk sed -n '1,20p' README.md","aggregated_output":"secret-canary","exit_code":0,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"{\"summary\":\"Implementation complete\",\"knowledge_citations\":[{\"id\":\"project:adapter\",\"excerpt\":\"secret-canary\"}]}","status":"completed"}}
+{"type":"turn.completed","usage":{"input_tokens":24763,"cached_input_tokens":24448,"output_tokens":122,"reasoning_output_tokens":0}}
+{"type":"turn.failed","error":{"message":"provider unavailable"}}
+{"type":"item.completed","item":{"id":"item_3","type":"error","message":"transport fallback"}}
+{"type":"error","message":"retry later"}

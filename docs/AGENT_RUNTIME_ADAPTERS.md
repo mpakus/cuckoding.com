@@ -65,6 +65,16 @@ The effective grant marks tool allow/deny rules, approval mode, and the explicit
 
 `--bare` is required to prevent user-global hooks, plugins, MCP servers, auto memory, and instruction discovery. It also intentionally skips OAuth and Keychain authentication. Cuckoding therefore accepts only a host-approved absolute executable `apiKeyHelper` for this mode and does not claim authentication until a separate run-scoped probe succeeds. A machine with only global Claude OAuth login reports `run_scoped_auth_required`; Cuckoding does not expose the user's real home or copy credentials to make that login work. Auto memory and background tasks are disabled independently in the child environment as defense in depth.
 
+### Codex CLI 0.146.0
+
+The implemented adapter pins `0.146.0` and launches `codex exec --json --strict-config` through `LocalProcessRunner`. Its owner-only run configuration sets `approval_policy = "never"`, maps plan work to `read-only` and implementation work to `workspace-write`, denies sandbox network access, disables web search, hooks, apps, remote plugins, and subagents, and repeats those critical values as command-line overrides. It never uses `danger-full-access` or the bypass flag. Reviewed knowledge is injected through `<run_dir>/agent/codex/home/AGENTS.md`; structured output uses a run-scoped JSON schema. The initial process runs at the recorded worktree, and native recovery uses `codex exec resume <UUID>` from that same host-runner environment.
+
+The effective grant records the active Codex sandbox, non-interactive approval policy, worktree-only write boundary, network denial, and disabled web search. Codex `0.146.0` cannot express Cuckoding's per-tool allow/deny vocabulary, and the adapter does not add extra writable paths or expose MCP plugins, so those requested fields are recorded under `unenforced` or unavailable. The host command-policy and process-resource boundaries remain independently authoritative. Codex's own sandbox intentionally keeps Git administrative paths read-only; host-side Git services remain responsible for commits and later push/PR operations.
+
+Authentication and session state use only `<run_dir>/agent/codex/home` via `CODEX_HOME`. A probe on this machine confirmed that the user's global ChatGPT login is not present in that isolated home. The adapter therefore reports `run_scoped_auth_required` unless a separate scoped probe has succeeded; it never copies `auth.json`, passes an API key, exposes the real home, or silently falls back to global state. JSONL normalization accepts the documented public `thread.*`, `turn.*`, `item.*`, and `error` shapes, rejects reasoning items, recursively redacts public summaries and metadata, and preserves provider-reported tokens without inventing a cost.
+
+The flag and event vocabulary follow the [official non-interactive Codex documentation](https://learn.chatgpt.com/docs/non-interactive-mode). Native resume follows the pinned Hydra MIT reference at `electron/agents/providers.ts:112-145`; Cuckoding adds the run-scoped authentication, strict sandbox, host-runner, redaction, and audit boundaries rather than copying its interactive launch code.
+
 ## Model identity
 
 Store both `requested_model` and `actual_model`. If the runtime does not disclose the actual model, display `not reported`; never silently copy the requested value.
