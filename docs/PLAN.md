@@ -27,7 +27,7 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 
 **Outcome:** projects, boards, tasks, workflows, runs, attempts, approvals, artifacts, events, and secrets survive restarts.
 
-- [ ] Implement schemas and domain commands.
+- [x] Implement schemas and domain commands.
 - [ ] Enforce versioned workflow and policy snapshots.
 - [ ] Implement idempotent transitions and event sequencing.
 - [ ] Implement startup reconciliation and recovery.

@@ -65,7 +65,7 @@ erDiagram
 
 | Table | Important fields | Notes |
 | --- | --- | --- |
-| `environments` | `run_id`, `runner_key`, `kind` (`local_process` / `container` / `remote`), `worktree_path`, `run_dir`, `base_sha`, `head_sha`, `ports_json`, `preview_url`, `isolation_claims_json`, `state` | Replaces v1 `workspaces` + `sandboxes`; paths pass confinement checks |
+| `environments` | `run_id`, `runner_key`, `kind` (`local_process` / `container` / `remote`), `worktree_path`, `run_dir`, `base_sha`, `head_sha`, `port`, `ports_json`, `preview_url`, `isolation_claims_json`, `state` | Replaces v1 `workspaces` + `sandboxes`; the scalar port is the MVP ownership key and paths pass confinement checks |
 | `processes` | `environment_id`, `agent_session_id?`, `command_id?`, `pid`, `pgid`, `start_identity`, `role`, `state`, `exit_code`, `ended_at` | Recorded external process identity |
 | `agent_sessions` | `stage_attempt_id`, `adapter_key`, `runtime_version`, `requested_model`, `actual_model`, `external_session_id`, `effective_grant_json`, `state` | Requested and observed model kept separately; effective runtime permission grant recorded |
 | `leases` | `resource_type`, `resource_id`, `owner_id`, `token_hash`, `acquired_at`, `heartbeat_at`, `expires_at`, `released_at`, `release_reason` | One unreleased lease per resource; raw bearer tokens are returned once and never persisted |
@@ -98,6 +98,8 @@ erDiagram
 
 ## State integrity
 
+- Domain rows are created through context commands that assign UUIDv7 identifiers; creation changesets do not accept lifecycle state fields.
+- Dependency insertion runs in an immediate transaction and rejects self-links, cross-board links, duplicate edges, and transitive cycles with a recursive query.
 - Only domain command functions update `runs`, `stage_attempts`, `tasks`, or `boards` state.
 - A state transition and its `run_events` row are written in the same transaction.
 - Command rows commit before dispatch begins. Claims increment `attempts`; failures return to `pending` with exponential `not_before` backoff until `max_attempts`, then become terminal `failed` rows.
