@@ -42,10 +42,12 @@ Each stage receives an unguessable short-lived capability set: allowed worktree,
 ## Secrets
 
 - `SecretStore` is owned by the Phoenix process: macOS Keychain through the `security` CLI (MVP) or a small native library later; the database holds opaque references only.
+- The CLI implementation invokes absolute `/usr/bin/security` paths and sends new values over stdin, never argv. Reads are audited by opaque reference, declared purpose, optional run, and timestamp. A future native implementation replaces only the behaviour adapter with Security.framework calls; reference and audit semantics remain unchanged.
 - Provider authentication belongs to the runtime (Claude Code, Codex, Cursor, OpenCode logins); Cuckoding probes status and never copies credential directories.
 - GitHub credentials are used only by the host-side VCS service for push and PR creation after approval.
 - Never persist complete environment maps, authorization headers, or CLI arguments containing secrets.
 - Redact before disk, UI broadcast, analytics export, and knowledge extraction.
+- The shared recursive redactor replaces configured canary values in strings and removes authorization, cookie, password, secret, token, complete environment, and argv fields before those boundaries.
 - Rotate or revoke credentials after any suspected exposure and record an incident.
 
 ## Local service hardening

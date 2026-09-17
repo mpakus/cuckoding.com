@@ -46,6 +46,7 @@ erDiagram
 | `workflow_versions` | `project_id?`, `name`, `version`, `definition_json`, `published_at` | Immutable once used by a run |
 | `role_assignments` | `board_id`, `role_key`, `adapter_key`, `model_ref`, `settings_json` | Board defaults; run snapshot is separate |
 | `provider_accounts` | `adapter_key`, `label`, `auth_mode`, `status`, `capabilities_json`, `probed_at` | Runtime auth is observed, never stored |
+| `secret_access_audits` | `secret_ref`, `purpose`, `run_id?`, `occurred_at` | Opaque reference-use audit; never stores the value |
 | `plugins` | `key`, `kind`, `version`, `manifest_hash`, `manifest_json`, `health`, `detected_at`, `last_error` | Registry state |
 | `plugin_activations` | `plugin_id`, `scope_type`, `scope_id`, `enabled`, `config_json`, `approved_by`, `approved_at` | Per-scope enablement with audit |
 
@@ -110,6 +111,7 @@ erDiagram
 - A partial unique index prevents more than one unreleased lease for an exclusive resource. Acquisition first closes an expired row in the same immediate transaction, so a new owner can recover the resource without a race.
 - The Power Manager must call the lease sleep-gap hook before expiry reconciliation. Only leases alive when the measured gap began are extended; the hook emits correlated telemetry with `kind: sleep_gap`.
 - Artifact and knowledge files are content-addressed or hash-verified before being referenced; a mismatch between file and index is flagged, never silently resolved.
+- Secret values remain in the configured `SecretStore`; SQLite stores opaque references and value-free access audits only.
 - A run snapshots workflow, role assignment, policy, plugin versions, and relevant prices so history remains explainable.
 - Published workflow versions and project configuration versions are immutable. Run creation copies the board's workflow definition and ordered role assignments, and accepts only a trusted policy version owned by the same project.
 
