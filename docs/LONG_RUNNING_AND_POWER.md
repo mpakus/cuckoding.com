@@ -15,7 +15,7 @@ A run may last minutes, hours, or days: waiting for provider rate limits, runnin
 
 - Sample `CLOCK_MONOTONIC` and `CLOCK_UPTIME_RAW` on every heartbeat tick. On macOS 27, monotonic time continues during sleep while uptime does not. A continuous-minus-uptime divergence above the one-second tolerance is a sleep gap; record the measured divergence in a `power_events` row. Keep wall time only for UTC event timestamps and wall-duration reporting so an NTP or manual clock change cannot forge a sleep gap.
 - On wake:
-  1. Mark all heartbeats inside the gap as `sleep_gap`, not `missed`; do not expire leases for the gap duration.
+  1. Call `Cuckoding.Execution.Leases.extend_for_sleep_gap/2` before expiry reconciliation. It extends only leases that were alive when the measured gap began and emits a correlated heartbeat telemetry event with `kind: sleep_gap`; do not classify the gap as missed heartbeats.
   2. Inspect every recorded process: alive with matching start identity → continue; gone → adapter recovery (native resume or continuation package).
   3. Probe provider sessions; treat dropped HTTP streams as transient and retry within budget.
   4. Re-probe preview ports and dev servers; restart declared services if they died.

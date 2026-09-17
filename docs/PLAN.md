@@ -21,7 +21,7 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 - [x] Create the Phoenix application and quality gates.
 - [x] Configure SQLite durability and migrations.
 - [x] Implement append-only events and durable command dispatch.
-- [ ] Add process registry, supervision, leases, and correlation IDs.
+- [x] Add process registry, supervision, leases, and correlation IDs.
 
 ## Phase 2 — Domain and persistence
 

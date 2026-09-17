@@ -68,7 +68,7 @@ erDiagram
 | `environments` | `run_id`, `runner_key`, `kind` (`local_process` / `container` / `remote`), `worktree_path`, `run_dir`, `base_sha`, `head_sha`, `ports_json`, `preview_url`, `isolation_claims_json`, `state` | Replaces v1 `workspaces` + `sandboxes`; paths pass confinement checks |
 | `processes` | `environment_id`, `agent_session_id?`, `command_id?`, `pid`, `pgid`, `start_identity`, `role`, `state`, `exit_code`, `ended_at` | Recorded external process identity |
 | `agent_sessions` | `stage_attempt_id`, `adapter_key`, `runtime_version`, `requested_model`, `actual_model`, `external_session_id`, `effective_grant_json`, `state` | Requested and observed model kept separately; effective runtime permission grant recorded |
-| `leases` | `resource_type`, `resource_id`, `owner_id`, `token_hash`, `expires_at`, `heartbeat_at` | Unique active lease per resource; sleep gaps extend expiry |
+| `leases` | `resource_type`, `resource_id`, `owner_id`, `token_hash`, `acquired_at`, `heartbeat_at`, `expires_at`, `released_at`, `release_reason` | One unreleased lease per resource; raw bearer tokens are returned once and never persisted |
 | `commands` | `idempotency_key`, `kind`, `target_type`, `target_id`, `payload`, `state`, `attempts`, `max_attempts`, `not_before`, `last_error`, `result` | Durable side-effect dispatch; duplicate keys return the original row/result |
 | `power_events` | `kind` (`assertion_on` / `assertion_off` / `sleep_gap` / `wake_reconciled`), `gap_ms`, `affected_runs_json`, `occurred_at` | Feeds timelines and active/wall accounting |
 
@@ -104,7 +104,8 @@ erDiagram
 - Application startup performs one recovery pass: interrupted `running` claims return to `pending`, then due commands replay through the configured top-level handler.
 - A handler always receives the stable command idempotency key. Replay is exactly once inside Cuckoding's command ledger; an external integration must honor that key because a process can stop after an external side effect but before its result is persisted.
 - Constraints prevent two active attempts for the same run and stage, two active environments per run, and two active allocations of the same port.
-- Partial unique indexes prevent more than one current lease for an exclusive resource.
+- A partial unique index prevents more than one unreleased lease for an exclusive resource. Acquisition first closes an expired row in the same immediate transaction, so a new owner can recover the resource without a race.
+- The Power Manager must call the lease sleep-gap hook before expiry reconciliation. Only leases alive when the measured gap began are extended; the hook emits correlated telemetry with `kind: sleep_gap`.
 - Artifact and knowledge files are content-addressed or hash-verified before being referenced; a mismatch between file and index is flagged, never silently resolved.
 - A run snapshots workflow, role assignment, policy, plugin versions, and relevant prices so history remains explainable.
 

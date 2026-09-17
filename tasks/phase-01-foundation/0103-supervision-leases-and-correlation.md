@@ -1,8 +1,16 @@
 # 0103 — Supervision, Leases, and Correlation
 
+```yaml
+status: done
+owner: codex
+started_at: 2026-09-17
+completed_at: 2026-09-17
+worklog: worklog/2026-09-17-0103-supervision-leases-correlation.md
+```
+
 ## Objective
 
-Implement the process registry, `DynamicSupervisor` layout from `docs/ARCHITECTURE.md`, leases with TTL and heartbeat (including sleep-gap extension hooks), and correlation propagation through logs and telemetry..
+Implement the process registry, `DynamicSupervisor` layout from `docs/ARCHITECTURE.md`, leases with TTL and heartbeat (including sleep-gap extension hooks), and correlation propagation through logs and telemetry.
 
 ## Dependencies
 
@@ -20,14 +28,14 @@ Implement the process registry, `DynamicSupervisor` layout from `docs/ARCHITECTU
 
 ## Checklist
 
-- [ ] Partial unique index guarantees one active lease per resource.
-- [ ] Heartbeat gaps flagged as `sleep_gap` when the Power Manager reports one.
-- [ ] Restart never invents progress.
+- [x] Partial unique index guarantees one active lease per resource.
+- [x] Heartbeat gaps flagged as `sleep_gap` when the Power Manager reports one.
+- [x] Restart never invents progress.
 
 ## Acceptance criteria
 
-- [ ] Expired leases are recoverable by a new owner.
-- [ ] Sleep gaps do not expire leases.
+- [x] Expired leases are recoverable by a new owner.
+- [x] Sleep gaps do not expire leases.
 
 ## Verification and evidence
 

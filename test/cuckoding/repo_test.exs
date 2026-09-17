@@ -9,6 +9,14 @@ defmodule Cuckoding.RepoTest do
     assert Application.fetch_env!(:cuckoding, Repo)[:busy_timeout] == 5_000
   end
 
+  test "enforces one active lease per resource with a partial unique index" do
+    %{rows: rows} = Ecto.Adapters.SQL.query!(Repo, "PRAGMA index_list('leases')", [])
+
+    assert Enum.any?(rows, fn [_sequence, name, unique, _origin, partial] ->
+             name == "leases_one_active_resource_index" and unique == 1 and partial == 1
+           end)
+  end
+
   defp pragma(name) do
     %{rows: [[value]]} = Ecto.Adapters.SQL.query!(Repo, "PRAGMA #{name}", [])
     value

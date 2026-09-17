@@ -67,6 +67,8 @@ Durable schemas and commands begin in task 0102. LiveViews render context result
 - `/status` adds an allowlisted configuration snapshot; sensitive configuration is never inspected wholesale.
 - Requests receive `x-request-id` and matching `x-correlation-id` response headers, and both identifiers are included in key-value log metadata.
 
+Use `Cuckoding.Correlation.capture/0` before spawning work and `with_context/2` inside the child process. Emit application telemetry through `Cuckoding.Correlation.execute/3` so the current public correlation ID is carried without copying Logger process metadata by hand.
+
 The injected `Cuckoding.Clock` behaviour supplies wall and monotonic time. Tests use `Cuckoding.TestClock`; durable code must not call system time directly when behavior depends on time.
 
 ## Reference coding
@@ -74,3 +76,5 @@ The injected `Cuckoding.Clock` behaviour supplies wall and monotonic time. Tests
 The local XERJ search for task 0101 returned the existing loopback endpoint at `spikes/0003-menubar-release/control_plane/lib/cuckoding_shell_spike/endpoint.ex:1-27` and Vibe Kanban's request-ID and health route at `crates/remote/src/routes/mod.rs:161-183` in pinned revision `735654971bd396aa97b65166955678e4c34f8bf8` (Apache-2.0). This foundation adapts only the patterns: loopback service boundaries, propagated request IDs, and a small versioned health response. Cuckoding adds separate dependency health, correlation metadata, secret-safe diagnostics, and the repository's release constraints.
 
 For task 0102, XERJ returned Agetor's WAL, synchronous `NORMAL`, and foreign-key setup at `src/bun/db.ts:61-73` in pinned revision `eb74ab5f3d6d71dfb91d5bd34e9c679c5a955a6a` (MIT). Cuckoding adapts those SQLite durability settings through the official Ecto SQLite3 adapter and adds a busy timeout, immediate write transactions, append-only event triggers, transactional per-run sequencing, and a durable idempotent command ledger.
+
+For task 0103, XERJ returned Hydra's persisted-agent hydration at `electron/agents/AgentManager.ts:300-346` in pinned revision `d8ad56112c2c3acfb2f65f53b6890f30a25c693c` (MIT). Cuckoding adapts only the restart principle: reconstruct volatile workers from durable identifiers and reset transient state. Cuckoding keeps lease ownership in SQLite, hashes bearer tokens, orders sleep-gap extension before expiry, and uses OTP registry/supervision rather than an in-memory agent map.

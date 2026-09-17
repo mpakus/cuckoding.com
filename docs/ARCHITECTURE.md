@@ -99,6 +99,8 @@ flowchart TD
 
 Workers may restart, but a restart never invents progress. On startup and after wake the dispatcher reconciles database state, active leases, operating-system processes, ports, and Git worktrees before continuing or marking a run blocked.
 
+The root tree owns the unique `Cuckoding.RunRegistry` and `Cuckoding.Execution.RunSupervisors` dynamic supervisor. Each active run receives one registered `RunSupervisor`; its worker child specs contain durable identifiers, not authoritative progress. If that supervisor restarts, workers reload their state from SQLite and recorded external identities.
+
 ## Command and event pattern
 
 1. A UI or API command arrives with an idempotency key.

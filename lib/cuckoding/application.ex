@@ -8,6 +8,8 @@ defmodule Cuckoding.Application do
     children = [
       Cuckoding.Repo,
       Cuckoding.Execution.CommandRecovery,
+      {Registry, keys: :unique, name: Cuckoding.RunRegistry},
+      Cuckoding.Execution.RunSupervisors,
       {Phoenix.PubSub, name: Cuckoding.PubSub},
       CuckodingWeb.Endpoint
     ]
