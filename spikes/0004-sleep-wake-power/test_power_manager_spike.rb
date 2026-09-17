@@ -67,6 +67,20 @@ class PowerManagerSpikeTest < Minitest::Test
       PowerManagerSpike.classify_stream_drop(EOFError.new, after_sleep: false)
   end
 
+  def test_sleep_log_keeps_only_current_cycle_events
+    output = <<~LOG
+      2026-09-17 11:12:17 -0500 Sleep old cycle
+      2026-09-17 11:46:24 -0500 Assertions unrelated detail
+      2026-09-17 11:46:34 -0500 Sleep current cycle
+      2026-09-17 11:46:56 -0500 Wake current cycle
+    LOG
+
+    assert_equal <<~LOG, PowerManagerSpike.scoped_sleep_log(output, Time.new(2026, 9, 17, 11, 46, 24, "-05:00"))
+      2026-09-17 11:46:34 -0500 Sleep current cycle
+      2026-09-17 11:46:56 -0500 Wake current cycle
+    LOG
+  end
+
   private
 
   def run_state

@@ -1,6 +1,6 @@
 # Sleep/Wake and Power Assertion Spike
 
-Task 0004 has completed the safe automated portion of the Power Manager spike. The code and evidence are under `spikes/0004-sleep-wake-power/`. Real system-sleep and lid-close drills remain intentionally open for a human-coordinated test window.
+Task 0004 has completed the safe automated portion and a coordinated software-sleep cycle. The code and evidence are under `spikes/0004-sleep-wake-power/`. AC and battery lid-close drills remain open for physical testing.
 
 ## Reproduce without sleeping the Mac
 
@@ -17,6 +17,7 @@ The second command creates and releases an idle-sleep assertion, starts disposab
 | --- | --- |
 | Clock contract | macOS 27 `CLOCK_MONOTONIC` continues through sleep; `CLOCK_UPTIME_RAW` stops |
 | Simulated gap | one tick reported exactly 10,000 ms from continuous-minus-uptime divergence |
+| Software-sleep gap | first resumed tick reported 11,549 ms; continuous 23,945 ms versus uptime 12,396 ms |
 | Clock-change guard | a one-hour UTC wall-clock jump with equal continuous/uptime elapsed time produced no gap |
 | Delayed-tick guard | a ten-second scheduler delay with equal continuous/uptime elapsed time produced no gap |
 | Assertion visible | target `caffeinate` PID appeared in `pmset -g assertions` while held |
@@ -26,8 +27,9 @@ The second command creates and releases an idle-sleep assertion, starts disposab
 | Dead process after gap | provider worker recovered once; durable stage execution count stayed one |
 | Duplicate reconciliation | replaying the same gap ID emitted no second event or recovery |
 | Provider stream EOF | classified transient only in post-sleep context |
+| Software-sleep survival | worker, loopback server, port, and provider stream survived; assertion reacquired; one event and one stage execution |
 
-Six unit tests with 14 assertions pass. The live verifier produced two reconciliation events, one `continued` and one `recovered`, while preserving `stage_execution_count: 1`. No verifier `sleep` or `caffeinate` process remained afterward.
+Seven unit tests with 15 assertions pass. The live verifier produced two reconciliation events, one `continued` and one `recovered`, while preserving `stage_execution_count: 1`. No verifier `sleep` or `caffeinate` process remained afterward.
 
 ## Decision
 
@@ -39,13 +41,12 @@ Use `CLOCK_MONOTONIC` as continuous elapsed time and `CLOCK_UPTIME_RAW` as activ
 
 ## Reference coding
 
-The refreshed lexical XERJ generation `cuckoding-project-v5` indexed 22 of 22 code files. None of the pinned peers implements macOS power assertions. The closest reusable behavior is Agetor at `src/cli/sse.ts:112-130`, which uses abortable full-jitter backoff after a stream disconnect. Cuckoding may adapt that retry shape in the adapter layer, but only after the durable Power Manager records and reconciles the sleep gap.
+The refreshed lexical XERJ generation `cuckoding-project-v6` indexed 22 of 22 code files. None of the pinned peers implements macOS power assertions. The closest reusable behavior is Agetor at `src/cli/sse.ts:112-130`, which uses abortable full-jitter backoff after a stream disconnect. Cuckoding may adapt that retry shape in the adapter layer, but only after the durable Power Manager records and reconciles the sleep gap.
 
 ## Required coordinated evidence
 
-These checks are still open and must not be inferred from simulation:
+The successful software-sleep cycle covered the live disposable stage, first-tick detection, process identity, provider stream, port, assertion reacquisition, and one durable stage execution. These checks remain open and must not be inferred:
 
-- run `pmset sleepnow` during a live disposable stage, wake the Mac, and verify detection on the first tick, live process identity, provider stream behavior, port behavior, and one durable stage execution;
 - repeat with the disposable worker killed during sleep and verify exactly one recovery;
 - close and reopen the lid on AC, then on battery, recording `pmset -g batt`, assertion state, process/session/port outcomes, and gap duration.
 
@@ -55,7 +56,9 @@ The current machine was on AC at 76% battery during the assertion test. That obs
 
 Five `pmset sleepnow` attempts were made after explicit approval. The first request entered a 31-second software sleep only after the initial verifier had already sampled, failed, and released its processes, so it cannot prove recovery. The next four requests reached sleep preparation but were cancelled before entry by fresh `WindowServer UserIsActive` and login-window activity. The final first-tick sample correctly reported no gap: continuous, uptime, and wall clocks each advanced 30,115 ms.
 
-The attempts also showed that this host kept the software-sleep request pending while the owned `caffeinate -i` assertion was present. Later attempts therefore verified and deliberately released the assertion before requesting sleep, with reacquisition designed for the post-wake path. None reached that path. Full sanitized evidence is in `spikes/0004-sleep-wake-power/evidence/real-sleep-attempts.md`; unrelated process and hardware details from `pmset` were not committed.
+The attempts also showed that this host kept the software-sleep request pending while the owned `caffeinate -i` assertion was present. Later attempts therefore verified and deliberately released the assertion before requesting sleep, with reacquisition designed for the post-wake path.
+
+A sixth approved attempt succeeded after the display was put to sleep. The machine entered software sleep on AC at 76%, the first resumed verifier tick measured an 11,549 ms gap, and the worker, loopback server, port, and provider stream remained live. The verifier reacquired its assertion and idempotent reconciliation emitted one `continued` event while `stage_execution_count` remained one. The summary, clock sample, and scoped power log are committed beside the earlier attempt report; unrelated assertion and hardware details were excluded.
 
 The opt-in command remains:
 
@@ -63,4 +66,4 @@ The opt-in command remains:
 rtk proxy ruby spikes/0004-sleep-wake-power/power_manager_spike.rb --real-sleep spikes/0004-sleep-wake-power/evidence
 ```
 
-Run it only on a quiet or locked test Mac with a coordinated wake plan. Task 0004 remains in review.
+Run it only on a quiet or locked test Mac with a coordinated wake plan. Task 0004 remains in review for the killed-during-sleep recovery and physical AC/battery lid-close checks.

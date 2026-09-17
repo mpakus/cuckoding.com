@@ -26,7 +26,7 @@
 
 ## Human-coordinated checks
 
-`pmset sleepnow` and lid-close tests intentionally remain pending until an immediate safe test window is confirmed. They change the workstation's power state and can interrupt the user's session; broad implementation approval is not treated as permission to sleep the machine at an arbitrary moment.
+Software-sleep and lid-close tests require an immediate safe test window because they change the workstation's power state. The user explicitly approved continuing the coordinated drill; physical lid-close checks remain pending.
 
 ## Work performed
 
@@ -40,21 +40,22 @@
 ## Verification
 
 - `rtk proxy ruby -w -c spikes/0004-sleep-wake-power/power_manager_spike.rb` — syntax OK.
-- `rtk proxy ruby spikes/0004-sleep-wake-power/test_power_manager_spike.rb` — 6 runs, 14 assertions, 0 failures, 0 errors.
+- `rtk proxy ruby spikes/0004-sleep-wake-power/test_power_manager_spike.rb` — 7 runs, 15 assertions, 0 failures, 0 errors.
 - `rtk proxy ruby spikes/0004-sleep-wake-power/power_manager_spike.rb spikes/0004-sleep-wake-power/evidence` — live assertion, owner-exit release, live/dead reconciliation, and cleanup passed.
 - `rtk ps -axo pid,ppid,pgid,command` scoped to the verifier commands — no owned `sleep` or `caffeinate` process remained.
 - `rtk xerj autoindex ... --prefix cuckoding-project-v4` — generation 1 committed, 424 records, 20/20 code files indexed, exit 3 only for declared junk files.
 - `rtk xerj autoindex ... --prefix cuckoding-project-v5` — generation 1 committed, followed by documentation and final source refreshes through generation 3; 493 records and 22/22 code files are live, with exit 3 only for declared junk files. The immutable v4 schema rejected the new evidence shape, so v5 became the documented current generation.
-- XERJ v5 required a temporary 97% flood-stage watermark with 45 GiB free; the default was restored immediately after indexing and verified as `null`.
+- The accepted real-sleep JSON required immutable schema generation `cuckoding-project-v6`; generation 1 committed 499 records with 22/22 code files indexed. `rtk xerj def --prefix cuckoding-project-v6 -k 5 scoped_sleep_log` returned the current implementation at `power_manager_spike.rb:115`.
+- XERJ v5 and v6 required a temporary 97% flood-stage watermark with 45 GiB free; the default was restored immediately after each index and verified as `null`.
 - `rtk xerj def --prefix cuckoding-project-v5 -k 5 RealSleepVerifier` — returned the current class at `spikes/0004-sleep-wake-power/power_manager_spike.rb:268`.
 - `rtk proxy ruby spikes/0004-sleep-wake-power/power_manager_spike.rb --real-sleep ...` — five approved attempts. One 31-second sleep started only after the initial verifier had failed and cleaned up; four later preparations were cancelled by fresh user-activity assertions. No attempt is counted as recovery evidence.
 - Final rejected attempt — continuous 30,115 ms, uptime 30,115 ms, wall 30,115 ms, detected gap `null`; correct rejection rather than a false sleep event.
 - Cleanup inspection after every attempt — no owned worker, loopback server, provider-stream fixture, or `caffeinate -i -w` process remained.
+- Sixth approved `--real-sleep` attempt — passed after `rtk pmset displaysleepnow`: continuous 23,945 ms, uptime 12,396 ms, detected gap 11,549 ms on the first resumed tick; live worker/server/port/stream survived; assertion reacquired; one reconciliation event and one stage execution.
+- `real-sleep-pmset.log` — scoped to the accepted cycle, recording software sleep and wake on AC at 76%; unrelated assertion and hardware lines were excluded.
 
 ## Handoff
 
 ADR-022 selects supervised `caffeinate -i -w <beam_pid>` and continuous-minus-uptime gap detection. Task 0306 should carry this contract into the Phoenix Power Manager and persist reconciliation before scheduling.
 
-Task 0004 remains in review. It still needs an immediate human-coordinated window for `pmset sleepnow`, AC lid close, and battery lid close. Do not mark those outcomes from simulation.
-
-The active workstation could not provide that window reliably: current user/login activity cancelled four sleep preparations. Repeat on a quiet or locked test Mac rather than retrying indefinitely in an active session.
+Task 0004 remains in review. Software sleep now has accepted evidence; it still needs a killed-during-sleep recovery drill plus physical AC and battery lid-close checks. Do not infer those outcomes from the successful live-process cycle.

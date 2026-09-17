@@ -1,0 +1,39 @@
+{
+  "before_utc": "2026-09-17T16:46:24.662566Z",
+  "after_utc": "2026-09-17T16:46:48.820588Z",
+  "before_sleep_uuid": "A5A22172-8DC6-49DB-9E2A-3D6BE12BF172",
+  "after_sleep_uuid": "149E5D26-2926-40A0-A39B-CE1682DE302A",
+  "power_before": {
+    "source": "AC Power",
+    "percent": 76,
+    "ac_attached": true
+  },
+  "power_after": {
+    "source": "AC Power",
+    "percent": 76,
+    "ac_attached": true
+  },
+  "continuous_elapsed_ms": 23945,
+  "uptime_elapsed_ms": 12396,
+  "detected_gap_ms": 11549,
+  "detected_on_first_tick": true,
+  "worker_survived": true,
+  "provider_stream_fixture_survived": true,
+  "provider_stream_classification": "connected",
+  "provider_stream_reconnected": true,
+  "dev_server_survived": true,
+  "port_responded": true,
+  "assertion_verified_before_sleep": true,
+  "assertion_released_for_forced_drill": true,
+  "assertion_reacquired_after_wake": true,
+  "stage_execution_count": 1,
+  "reconciliation_events": [
+    {
+      "type": "run.resumed_after_sleep",
+      "gap_id": "real-sleep-2026-09-17T16:46:24.662566Z",
+      "gap_ms": 11549,
+      "outcome": "continued",
+      "occurred_at": "2026-09-17T16:46:48.820568Z"
+    }
+  ]
+}

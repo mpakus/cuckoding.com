@@ -28,14 +28,14 @@ Prototype the Power Manager: hold an idle-sleep assertion via a supervised `caff
 ## Checklist
 
 - [x] Assertion visible in `pmset -g assertions` only while active.
-- [x] Simulated gap detected with correct duration; real gap pending coordination.
+- [x] Simulated and real software-sleep gaps detected with correct duration.
 - [x] Simulated agent process alive after wake → continues; killed during sleep → recovered.
 - [x] Simulated provider HTTP stream drop classified as transient.
 - [ ] Battery + lid close behavior documented honestly.
 
 ## Acceptance criteria
 
-- [ ] Simulated and real gaps are detected within one tick. Simulated passes; real sleep is pending.
+- [x] Simulated and real software-sleep gaps are detected within one tick.
 - [x] No duplicate stage execution after simulated wake in the spike.
 - [x] Assertion lifecycle is correct.
 
@@ -43,8 +43,10 @@ Prototype the Power Manager: hold an idle-sleep assertion via a supervised `caff
 
 Attach `pmset` logs, timeline of events, and process inspection before/after sleep.
 
-Safe automated evidence is under `spikes/0004-sleep-wake-power/evidence/` and summarized in `docs/SLEEP_WAKE_POWER_SPIKE.md`. Task remains in review until a coordinated real-sleep and AC/battery lid-close window supplies the remaining evidence.
+Safe automated and coordinated software-sleep evidence is under `spikes/0004-sleep-wake-power/evidence/` and summarized in `docs/SLEEP_WAKE_POWER_SPIKE.md`. Task remains in review until AC/battery lid-close tests supply the remaining evidence.
 
 Five approved `pmset sleepnow` attempts were made on 2026-09-17. One sleep occurred only after the verifier had already cleaned up; four were cancelled during sleep preparation by new user-activity assertions. None is accepted as real recovery evidence. See `spikes/0004-sleep-wake-power/evidence/real-sleep-attempts.md`.
+
+A sixth approved attempt succeeded after `pmset displaysleepnow`: the first resumed tick measured an 11,549 ms gap, the disposable worker, loopback server, port, and provider stream survived, the assertion was reacquired, and reconciliation retained one stage execution with one event. See `real-sleep-summary.json`, `real-sleep-clocks.json`, and the scoped `real-sleep-pmset.log` in the evidence directory.
 
 Discovery correction: macOS 27 `CLOCK_MONOTONIC` continues while asleep. ADR-022 replaces the proposed wall/monotonic detector with continuous-monotonic versus `CLOCK_UPTIME_RAW` divergence.

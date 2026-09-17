@@ -112,6 +112,13 @@ module PowerManagerSpike
     transient && after_sleep ? :transient : :unclassified
   end
 
+  def scoped_sleep_log(output, since)
+    cutoff = since.getlocal.strftime("%Y-%m-%d %H:%M:%S")
+    output.lines.grep(
+      /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} [+-]\d{4} (?:Sleep|DarkWake|Wake|WakeTime|HibernateStats)\s/
+    ).select { |line| line[0, 19] >= cutoff }.last(12).join
+  end
+
   class Verifier
     def initialize(evidence_dir)
       @evidence_dir = File.expand_path(evidence_dir)
@@ -282,7 +289,8 @@ module PowerManagerSpike
       wait_for("caffeinate assertion to appear") { assertion_present?(assertion_pid) }
       sleep 10
       before = PowerManagerSpike.sample
-      before_utc = Time.now.utc.iso8601(6)
+      before_time = Time.now
+      before_utc = before_time.utc.iso8601(6)
       before_uuid = pmset("uuid").strip
       before_power = power_source
       assertion.release
@@ -368,7 +376,8 @@ module PowerManagerSpike
         "reconciliation_events" => run_state.fetch("events")
       }
       write("real-sleep-summary.json", JSON.pretty_generate(summary) << "\n")
-      write("real-sleep-pmset.log", sleep_log)
+      sleep 10
+      write("real-sleep-pmset.log", sleep_log(before_time))
       puts JSON.pretty_generate(summary)
     ensure
       stream&.close
@@ -484,12 +493,8 @@ module PowerManagerSpike
       output
     end
 
-    def sleep_log
-      output = pmset("log")
-      lines = output.lines.grep(
-        /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} [+-]\d{4} (?:Sleep|DarkWake|WakeTime|HibernateStats)\s/
-      ).last(12)
-      lines.join
+    def sleep_log(since)
+      PowerManagerSpike.scoped_sleep_log(pmset("log"), since)
     end
 
     def stop(pid)

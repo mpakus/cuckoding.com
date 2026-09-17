@@ -44,14 +44,9 @@ Prepared on 2026-09-17 from revision `897bc30a0712bdd68bec745daa8a1b987190df57`.
 
 Tasks 0002 and 0003 may run in parallel after 0001. Task 0004 requires the observed runtime behavior from 0002. Phase 1 starts only after all Phase 0 acceptance criteria have evidence and any architecture changes are recorded in `docs/DECISIONS.md`.
 
-## Next executable task: 0004
+## Remaining Phase 0 gates
 
-Tasks 0001–0002 and 0005–0007 are complete. Task 0003's implementation and acceptance checks pass, but its distinct clean-user-account run remains in review. Task 0004 can proceed from task 0002 and must now prove power-assertion ownership and sleep/wake reconciliation before Phase 1:
-
-- hold and release the idle-sleep assertion with observable ownership;
-- detect simulated and coordinated real sleep gaps without duplicate stage execution;
-- classify provider-stream interruption separately from agent-process survival;
-- record honest AC, battery, and lid-close evidence and confirm or revise ADR-016.
+Tasks 0001–0002 and 0005–0007 are complete. Task 0003's implementation and acceptance checks pass, but its distinct clean-user-account run remains in review. Task 0004 has proven assertion ownership plus simulated and coordinated software-sleep reconciliation without duplicate execution; AC and battery lid-close evidence remains open.
 
 Task 0003 confirmed the tray-shell architecture and bundled-release path. Its clean-user-account review item remains a Phase 1 gate. Developer ID signing and notarization remain Phase 9 gates.
 
@@ -64,7 +59,7 @@ Before task 0101 may scaffold Phoenix:
 3. The supported Elixir/OTP/Phoenix/Tailwind versions are pinned from official sources.
 4. The task 0003 release experiment proves whether the Phoenix release and ERTS can be embedded and launched without an interactive shell environment.
 5. The task 0002 adapter experiment produces redacted fixtures and an observed capability report.
-6. The task 0004 sleep experiment records a safe test window; real sleep and lid-close tests require explicit human coordination.
+6. The task 0004 sleep experiment records a successful software-sleep cycle; AC and battery lid-close tests require explicit human coordination.
 7. The branch is clean except for intentionally excluded local assets, and the Phase 0 evidence is committed.
 
 When the gate passes, task 0101 should generate a fresh minimal Phoenix/LiveView application and reuse only the reviewed root tooling files. Old v1 code is historical reference through Git, not a scaffold.
@@ -72,6 +67,6 @@ When the gate passes, task 0101 should generate a fresh minimal Phoenix/LiveView
 ## Working rules
 
 - Prefix every repository shell command with `rtk`; use `rtk proxy` only for exact unfiltered streams.
-- Search `cuckoding-project-v5` and the relevant pinned peer index before unfamiliar implementation work, then inspect and cite `path:line`.
+- Search `cuckoding-project-v6` and the relevant pinned peer index before unfamiliar implementation work, then inspect and cite `path:line`.
 - Keep implementation changes within the claimed task and its branch.
 - Do not enable the MCP example, activate a plugin, use credentials, publish externally, or perform real sleep tests without the corresponding task and approval.

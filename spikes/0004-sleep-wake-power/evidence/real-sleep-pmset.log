@@ -1,0 +1,4 @@
+2026-09-17 11:46:34 -0500 Sleep                Entering Sleep state due to 'Software Sleep pid=29792':TCPKeepAlive=active Using AC (Charge:76%) 22 secs
+2026-09-17 11:46:56 -0500 Wake                 Wake from Deep Idle [CDNVA] due to [redacted local wake source] Using AC (Charge:76%)
+2026-09-17 11:46:56 -0500 HibernateStats       hibmode=3 standbydelaylow=0 standbydelayhigh=0 3
+2026-09-17 11:46:56 -0500 WakeTime             WakeTime: 7.856 sec
