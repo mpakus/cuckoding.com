@@ -69,14 +69,15 @@ erDiagram
 | `processes` | `environment_id`, `agent_session_id?`, `command_id?`, `pid`, `pgid`, `start_identity`, `role`, `state`, `exit_code`, `ended_at` | Recorded external process identity |
 | `agent_sessions` | `stage_attempt_id`, `adapter_key`, `runtime_version`, `requested_model`, `actual_model`, `external_session_id`, `effective_grant_json`, `state` | Requested and observed model kept separately; effective runtime permission grant recorded |
 | `leases` | `resource_type`, `resource_id`, `owner_id`, `token_hash`, `expires_at`, `heartbeat_at` | Unique active lease per resource; sleep gaps extend expiry |
-| `commands` | `idempotency_key`, `kind`, `target_type`, `target_id`, `state`, `attempts`, `not_before`, `last_error` | Durable side-effect dispatch |
+| `commands` | `idempotency_key`, `kind`, `target_type`, `target_id`, `payload`, `state`, `attempts`, `max_attempts`, `not_before`, `last_error`, `result` | Durable side-effect dispatch; duplicate keys return the original row/result |
 | `power_events` | `kind` (`assertion_on` / `assertion_off` / `sleep_gap` / `wake_reconciled`), `gap_ms`, `affected_runs_json`, `occurred_at` | Feeds timelines and active/wall accounting |
 
 ### Evidence and observability
 
 | Table | Important fields | Notes |
 | --- | --- | --- |
-| `run_events` | `run_id`, `sequence`, `event_type`, `public_summary`, `payload_json`, `occurred_at` | Append-only and strictly sequenced per run |
+| `run_event_sequences` | `run_id`, `last_sequence` | Transactional allocator for gapless per-run event sequence numbers |
+| `run_events` | `run_id`, `sequence`, `event_type`, `public_summary`, `payload`, `occurred_at` | Append-only and strictly sequenced per run |
 | `artifacts` | `run_id`, `stage_attempt_id?`, `kind`, `path_or_uri`, `sha256`, `metadata_json` | Specs, patches, logs, test reports, reviews |
 | `usage_records` | `agent_session_id`, `source`, `input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_write_tokens`, `cost_micros`, `currency`, `confidence` | Source is provider-reported or estimated |
 | `resource_samples` | `agent_session_id?`, `process_id?`, `cpu_nanos`, `memory_bytes`, `process_count`, `sampled_at` | Host process sampling |
@@ -99,6 +100,9 @@ erDiagram
 
 - Only domain command functions update `runs`, `stage_attempts`, `tasks`, or `boards` state.
 - A state transition and its `run_events` row are written in the same transaction.
+- Command rows commit before dispatch begins. Claims increment `attempts`; failures return to `pending` with exponential `not_before` backoff until `max_attempts`, then become terminal `failed` rows.
+- Application startup performs one recovery pass: interrupted `running` claims return to `pending`, then due commands replay through the configured top-level handler.
+- A handler always receives the stable command idempotency key. Replay is exactly once inside Cuckoding's command ledger; an external integration must honor that key because a process can stop after an external side effect but before its result is persisted.
 - Constraints prevent two active attempts for the same run and stage, two active environments per run, and two active allocations of the same port.
 - Partial unique indexes prevent more than one current lease for an exclusive resource.
 - Artifact and knowledge files are content-addressed or hash-verified before being referenced; a mismatch between file and index is flagged, never silently resolved.

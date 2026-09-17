@@ -1,5 +1,5 @@
 defmodule CuckodingWeb.StatusLiveTest do
-  use CuckodingWeb.ConnCase, async: true
+  use CuckodingWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
 

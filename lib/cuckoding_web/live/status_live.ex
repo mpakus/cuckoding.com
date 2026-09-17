@@ -67,6 +67,7 @@ defmodule CuckodingWeb.StatusLive do
   end
 
   defp dependency_label(:pubsub), do: "Phoenix PubSub"
+  defp dependency_label(:database), do: "SQLite database"
   defp dependency_label(:web_endpoint), do: "Loopback web endpoint"
   defp status_label(:ok), do: "Operational"
   defp status_label(:degraded), do: "Degraded"

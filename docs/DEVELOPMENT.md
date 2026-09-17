@@ -10,6 +10,7 @@ Task 0101 pins the application foundation to versions verified from official ups
 | Elixir / Mix | 1.19.5 compiled for OTP 28 |
 | Phoenix / `phx_new` | 1.8.14 |
 | Phoenix LiveView | 1.2.12 |
+| Ecto SQL / SQLite3 adapter | 3.14.0 / 0.24.1 |
 | Tailwind wrapper / binary | 0.5.1 / 4.2.1 |
 | Esbuild wrapper / binary | 0.10.0 / 0.25.4 |
 | Bandit | 1.12.5 |
@@ -37,7 +38,9 @@ rtk env MIX_ENV=prod mix assets.deploy
 rtk env MIX_ENV=prod mix release --overwrite
 ```
 
-The release requires `CUCKODING_SECRET_KEY_BASE`, uses `CUCKODING_PORT` when present, and starts the web endpoint only when `PHX_SERVER=true`. It always binds IPv4 loopback. Never commit or print the production secret; the native shell bootstrap in task 0901 will provide it through the approved launch boundary.
+The release requires `CUCKODING_SECRET_KEY_BASE` and a writable `CUCKODING_DATABASE_PATH`, uses `CUCKODING_PORT` when present, and starts the web endpoint only when `PHX_SERVER=true`. It always binds IPv4 loopback. Never commit or print the production secret; the native shell bootstrap in task 0901 will provide it through the approved launch boundary.
+
+SQLite connections use WAL journaling, foreign keys, a 5-second busy timeout, synchronous `NORMAL`, and immediate write transactions. `mix setup` creates and migrates the development database; `mix test` creates and migrates the disposable test database before running tests.
 
 ## Context boundaries
 
@@ -69,3 +72,5 @@ The injected `Cuckoding.Clock` behaviour supplies wall and monotonic time. Tests
 ## Reference coding
 
 The local XERJ search for task 0101 returned the existing loopback endpoint at `spikes/0003-menubar-release/control_plane/lib/cuckoding_shell_spike/endpoint.ex:1-27` and Vibe Kanban's request-ID and health route at `crates/remote/src/routes/mod.rs:161-183` in pinned revision `735654971bd396aa97b65166955678e4c34f8bf8` (Apache-2.0). This foundation adapts only the patterns: loopback service boundaries, propagated request IDs, and a small versioned health response. Cuckoding adds separate dependency health, correlation metadata, secret-safe diagnostics, and the repository's release constraints.
+
+For task 0102, XERJ returned Agetor's WAL, synchronous `NORMAL`, and foreign-key setup at `src/bun/db.ts:61-73` in pinned revision `eb74ab5f3d6d71dfb91d5bd34e9c679c5a955a6a` (MIT). Cuckoding adapts those SQLite durability settings through the official Ecto SQLite3 adapter and adds a busy timeout, immediate write transactions, append-only event triggers, transactional per-run sequencing, and a durable idempotent command ledger.

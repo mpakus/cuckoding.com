@@ -6,6 +6,8 @@ defmodule Cuckoding.Application do
   @impl true
   def start(_type, _args) do
     children = [
+      Cuckoding.Repo,
+      Cuckoding.Execution.CommandRecovery,
       {Phoenix.PubSub, name: Cuckoding.PubSub},
       CuckodingWeb.Endpoint
     ]

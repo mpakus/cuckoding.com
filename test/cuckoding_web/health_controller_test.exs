@@ -1,5 +1,5 @@
 defmodule CuckodingWeb.HealthControllerTest do
-  use CuckodingWeb.ConnCase, async: true
+  use CuckodingWeb.ConnCase, async: false
 
   test "GET /health returns separated application and dependency status", %{conn: conn} do
     conn = get(conn, ~p"/health")
@@ -7,7 +7,11 @@ defmodule CuckodingWeb.HealthControllerTest do
     assert %{
              "status" => "ok",
              "application" => %{"status" => "ok"},
-             "dependencies" => %{"pubsub" => "ok", "web_endpoint" => "ok"}
+             "dependencies" => %{
+               "database" => "ok",
+               "pubsub" => "ok",
+               "web_endpoint" => "ok"
+             }
            } = json_response(conn, 200)
 
     assert [request_id] = get_resp_header(conn, "x-request-id")

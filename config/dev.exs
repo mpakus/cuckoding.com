@@ -1,5 +1,9 @@
 import Config
 
+config :cuckoding, Cuckoding.Repo,
+  database: Path.expand("../cuckoding_dev.db", __DIR__),
+  pool_size: 5
+
 config :cuckoding, CuckodingWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4000],
   code_reloader: true,

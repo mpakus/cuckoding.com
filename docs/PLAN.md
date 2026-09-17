@@ -19,8 +19,8 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 **Outcome:** a testable Phoenix/LiveView application with SQLite, supervision, durable commands, and local developer tooling.
 
 - [x] Create the Phoenix application and quality gates.
-- [ ] Configure SQLite durability and migrations.
-- [ ] Implement append-only events and durable command dispatch.
+- [x] Configure SQLite durability and migrations.
+- [x] Implement append-only events and durable command dispatch.
 - [ ] Add process registry, supervision, leases, and correlation IDs.
 
 ## Phase 2 — Domain and persistence

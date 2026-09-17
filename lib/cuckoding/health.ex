@@ -7,6 +7,7 @@ defmodule Cuckoding.Health do
     application = process_status(Cuckoding.Supervisor)
 
     dependencies = %{
+      database: database_status(),
       pubsub: process_status(Cuckoding.PubSub),
       web_endpoint: process_status(CuckodingWeb.Endpoint)
     }
@@ -33,5 +34,14 @@ defmodule Cuckoding.Health do
 
   defp process_status(name) do
     if Process.whereis(name), do: :ok, else: :unavailable
+  end
+
+  defp database_status do
+    case Ecto.Adapters.SQL.query(Cuckoding.Repo, "SELECT 1", []) do
+      {:ok, _result} -> :ok
+      {:error, _reason} -> :unavailable
+    end
+  rescue
+    _error -> :unavailable
   end
 end

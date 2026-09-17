@@ -2,7 +2,17 @@ import Config
 
 config :cuckoding,
   clock: Cuckoding.SystemClock,
-  environment: config_env()
+  command_handler: Cuckoding.Execution.UnconfiguredCommandHandler,
+  environment: config_env(),
+  ecto_repos: [Cuckoding.Repo]
+
+config :cuckoding, Cuckoding.Repo,
+  adapter: Ecto.Adapters.SQLite3,
+  busy_timeout: 5_000,
+  default_transaction_mode: :immediate,
+  foreign_keys: :on,
+  journal_mode: :wal,
+  synchronous: :normal
 
 config :cuckoding, CuckodingWeb.Endpoint,
   url: [host: "127.0.0.1"],
@@ -36,7 +46,7 @@ config :tailwind,
 
 config :logger, :default_formatter,
   format: "time=$time level=$level $metadata$message\n",
-  metadata: [:request_id, :correlation_id]
+  metadata: [:request_id, :correlation_id, :recovered_commands, :dispatched_commands]
 
 config :phoenix, :json_library, Jason
 

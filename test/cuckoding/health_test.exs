@@ -1,5 +1,5 @@
 defmodule Cuckoding.HealthTest do
-  use ExUnit.Case, async: true
+  use Cuckoding.DataCase, async: true
 
   test "distinguishes application health from dependency health" do
     assert Cuckoding.Health.overall_status(:ok, %{pubsub: :ok}) == :ok
@@ -12,6 +12,6 @@ defmodule Cuckoding.HealthTest do
 
     assert health.status == :ok
     assert health.application.status == :ok
-    assert health.dependencies == %{pubsub: :ok, web_endpoint: :ok}
+    assert health.dependencies == %{database: :ok, pubsub: :ok, web_endpoint: :ok}
   end
 end
