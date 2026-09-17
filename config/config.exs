@@ -6,6 +6,12 @@ config :cuckoding,
   environment: config_env(),
   ecto_repos: [Cuckoding.Repo]
 
+config :cuckoding, :power_manager,
+  enabled: true,
+  prevent_display_sleep: false,
+  tick_ms: 5_000,
+  tolerance_ms: 1_000
+
 config :cuckoding, Cuckoding.Repo,
   adapter: Ecto.Adapters.SQLite3,
   busy_timeout: 5_000,

@@ -55,6 +55,8 @@ The implemented host bridge covers prepare, asynchronous start, synchronous exec
 
 Safe cleanup delegates the exact registered path to Git only after the ownership marker, canonical workspace confinement, branch/head/base identity, clean status, and absence of running process records all pass. It removes the worktree without force, retains the run directory and artifacts, and records the retained-artifact inventory in start/completion events.
 
+`Cuckoding.Power.Manager` is a supervised control-plane child after startup reconciliation. It samples the supported macOS continuous and uptime clocks, persists a `sleep_gap` before delegating to the same reconciler used at startup, and records `wake_reconciled` after leases, commands, processes, ports, worktrees, sessions, and services are classified. It owns one scrubbed `/usr/bin/caffeinate -i -w <beam-pid>` child only while eligible provider work or a durable unattended board window needs it.
+
 ### Agent adapter layer
 
 Each runtime adapter converts a common stage request into a provider-specific host process and converts output into normalized events, artifacts, usage, checkpoints, and completion status. Agents run on the host; their own permission systems (allowed tools, working directory, approval modes) are configured by the adapter from the stage capability grant, and the granted set is recorded. Capability discovery is explicit.

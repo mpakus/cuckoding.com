@@ -40,6 +40,8 @@ The current schema exposes UI-ready classification records. Declared commands, p
 
 When `commands.dev_server` is present, its declaration is launched through the same declared-command boundary. `ports.range` is enforced by the project record; `ports.health_path` must be an origin-relative path with no control characters. Cuckoding supplies `HOST=127.0.0.1` plus matching `PORT` and `CUCKODING_PORT` values, so a compatible development server needs no interpolated shell command.
 
+Application power defaults live under `:cuckoding, :power_manager`: `enabled: true`, a 5-second `tick_ms`, a 1-second `tolerance_ms`, and `prevent_display_sleep: false`. Idle-sleep prevention uses `caffeinate -i`; enabling display-sleep prevention adds `-d` but never adds AC-only `-s`. A board's `unattended_until` is a durable UTC expiry, not an approval override.
+
 ## Validation
 
 - Define and version a schema for every YAML document.

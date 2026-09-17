@@ -355,6 +355,57 @@ end
 
 defmodule Cuckoding.Power do
   @moduledoc "Owns power assertions, sleep-gap detection, and wake reconciliation."
+
+  alias Cuckoding.Identifier
+  alias Cuckoding.Power.PowerEvent
+  alias Cuckoding.Repo
+  alias Cuckoding.Workflows.Board
+
+  def record_event(attrs) do
+    attrs
+    |> Map.put_new(:id, Identifier.generate())
+    |> Map.put_new(:affected_runs_json, [])
+    |> Map.put_new(:metadata_json, %{})
+    |> Map.put_new(:occurred_at, Cuckoding.Clock.wall_now())
+    |> then(&PowerEvent.create_changeset(%PowerEvent{}, &1))
+    |> Repo.insert()
+  end
+
+  def set_unattended(%Board{} = board, until) do
+    with :ok <- valid_unattended_until(until) do
+      Repo.transaction(fn -> persist_unattended(board, until) end)
+    end
+  end
+
+  defp persist_unattended(board, until) do
+    updated =
+      board
+      |> Board.unattended_changeset(%{unattended_until: until})
+      |> Repo.update!()
+
+    kind = if until, do: "unattended_on", else: "unattended_off"
+
+    {:ok, _event} =
+      record_event(%{
+        kind: kind,
+        metadata_json: %{"board_id" => board.id, "unattended_until" => encode_time(until)}
+      })
+
+    updated
+  end
+
+  defp valid_unattended_until(nil), do: :ok
+
+  defp valid_unattended_until(%DateTime{} = until) do
+    if DateTime.after?(until, Cuckoding.Clock.wall_now()),
+      do: :ok,
+      else: {:error, :unattended_window_must_be_future}
+  end
+
+  defp valid_unattended_until(_until), do: {:error, :invalid_unattended_window}
+
+  defp encode_time(nil), do: nil
+  defp encode_time(time), do: DateTime.to_iso8601(time)
 end
 
 defmodule Cuckoding.Telemetry do

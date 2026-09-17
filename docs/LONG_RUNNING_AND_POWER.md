@@ -41,6 +41,10 @@ A run may last minutes, hours, or days: waiting for provider rate limits, runnin
 
 The startup reconciler blocks supervisor startup until one pass completes. It extends sleep-gap leases before expiry, returns interrupted command claims to `pending`, inspects every active run, persists one idempotent continue/recover/block decision and public event, then dispatches due commands. The inspection boundary is read-only: it can report PID start identity, loopback-port ownership, and worktree status, but it cannot signal, adopt, delete, or rewrite a host resource. A live PID with a different start identity, an unknown port owner, worktree drift, or an unavailable inspector blocks the run. Missing owned resources move the run and task to `waiting` with reason `reconciliation`; recovery services added in Phase 3 resume the existing attempt rather than creating a duplicate.
 
+The implemented `Cuckoding.Power.Manager` uses the task 0004 clock contract through a sterile Ruby probe because BEAM does not expose `CLOCK_UPTIME_RAW`. Each sample returns continuous and uptime milliseconds from one process. A divergence strictly above the configured one-second tolerance writes `sleep_gap`, then calls `Execution.Reconciler` with the power-event ID as its stable cycle ID; the reconciler extends leases before expiry and writes per-run `run.resumed_after_sleep` events. `wake_reconciled` is written only after that pass succeeds. A failed pass retains and retries the same cycle rather than recording another gap or losing the wake work.
+
+The manager starts and stops a scrubbed `caffeinate -i -w <beam-pid>` child after verifying its PID/start identity. Eligible provider sessions hold it unless the run is waiting on a pending human approval. A durable, unexpired unattended board window may also hold it while the board has active or queued work, but the manager never decides or mutates an approval. The test environment starts the manager disabled and exercises it through explicit injected clock ticks.
+
 ## Budgets for long runs
 
 - Per-run `max_elapsed_hours` (active time) and `max_wall_hours` are separate; sleep gaps count toward wall time only.

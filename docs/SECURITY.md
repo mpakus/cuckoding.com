@@ -79,6 +79,8 @@ Preview URLs and probes accept only `http://127.0.0.1:<allocated-port>`; health 
 
 Lifecycle cleanup fails closed unless the database relationship, canonical workspace paths, ownership marker, base/branch/head identities, clean Git status, and lack of running process records all agree. It never uses force removal, preserves the run directory and artifacts, and records cleanup intent before invoking Git so startup reconciliation can diagnose an interrupted cleanup.
 
+The power manager launches only absolute system binaries behind `/usr/bin/env -i`, records the assertion PID and start identity, and refuses to signal a reused PID. Unattended mode changes assertion eligibility only: pending approvals remain pending and no capability, policy, budget, push, or merge gate is bypassed.
+
 Mandatory for policy escalation, newly modified execution configuration, enabling plugins with host or network permissions, destructive cleanup with uncertain ownership, global knowledge publication, external push/PR, final merge/release, and installation of untrusted skills or binaries.
 
 ## Security verification

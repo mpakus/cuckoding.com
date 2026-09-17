@@ -71,7 +71,7 @@ erDiagram
 | `agent_sessions` | `stage_attempt_id`, `adapter_key`, `runtime_version`, `requested_model`, `actual_model`, `external_session_id`, `effective_grant_json`, `state` | Requested and observed model kept separately; effective runtime permission grant recorded |
 | `leases` | `resource_type`, `resource_id`, `owner_id`, `token_hash`, `acquired_at`, `heartbeat_at`, `expires_at`, `released_at`, `release_reason` | One unreleased lease per resource; raw bearer tokens are returned once and never persisted |
 | `commands` | `idempotency_key`, `kind`, `target_type`, `target_id`, `payload`, `state`, `attempts`, `max_attempts`, `not_before`, `last_error`, `result` | Durable side-effect dispatch; duplicate keys return the original row/result |
-| `power_events` | `kind` (`assertion_on` / `assertion_off` / `sleep_gap` / `wake_reconciled`), `gap_ms`, `affected_runs_json`, `occurred_at` | Feeds timelines and active/wall accounting |
+| `power_events` | `kind` (`assertion_on` / `assertion_off` / `sleep_gap` / `wake_reconciled` / `unattended_on` / `unattended_off`), `gap_ms`, `affected_runs_json`, `metadata_json`, `occurred_at` | Append-only power timeline; measured gaps are positive milliseconds and assertion metadata contains no capability-bearing value |
 
 ### Evidence and observability
 

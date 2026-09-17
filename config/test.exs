@@ -12,6 +12,7 @@ config :cuckoding, CuckodingWeb.Endpoint,
   server: false
 
 config :logger, level: :warning
+config :cuckoding, :power_manager, enabled: false
 config :phoenix, :plug_init_mode, :runtime
 config :phoenix, sort_verified_routes_query_params: true
 config :phoenix_live_view, enable_expensive_runtime_checks: true

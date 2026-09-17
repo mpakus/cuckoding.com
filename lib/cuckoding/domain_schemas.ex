@@ -143,6 +143,11 @@ defmodule Cuckoding.Workflows.Board do
     |> foreign_key_constraint(:workflow_version_id)
     |> unique_constraint([:project_id, :name])
   end
+
+  def unattended_changeset(record, attrs) do
+    record
+    |> cast(attrs, [:unattended_until])
+  end
 end
 
 defmodule Cuckoding.Workflows.RoleAssignment do
@@ -631,5 +636,31 @@ defmodule Cuckoding.Adapters.ProviderAccount do
     |> cast(attrs, [:id, :adapter_key, :label, :auth_mode, :capabilities_json])
     |> validate_required([:id, :adapter_key, :label, :auth_mode, :capabilities_json])
     |> unique_constraint([:adapter_key, :label])
+  end
+end
+
+defmodule Cuckoding.Power.PowerEvent do
+  @moduledoc false
+  use Ecto.Schema
+  import Ecto.Changeset
+
+  @kinds ~w(assertion_on assertion_off sleep_gap wake_reconciled unattended_on unattended_off)
+  @primary_key {:id, :binary_id, autogenerate: false}
+
+  schema "power_events" do
+    field :kind, :string
+    field :gap_ms, :integer
+    field :affected_runs_json, {:array, :binary_id}, default: []
+    field :metadata_json, :map, default: %{}
+    field :occurred_at, :utc_datetime_usec
+    timestamps(type: :utc_datetime_usec, updated_at: false)
+  end
+
+  def create_changeset(event, attrs) do
+    event
+    |> cast(attrs, [:id, :kind, :gap_ms, :affected_runs_json, :metadata_json, :occurred_at])
+    |> validate_required([:id, :kind, :affected_runs_json, :metadata_json, :occurred_at])
+    |> validate_inclusion(:kind, @kinds)
+    |> validate_number(:gap_ms, greater_than: 0)
   end
 end

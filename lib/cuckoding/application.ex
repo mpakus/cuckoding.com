@@ -8,6 +8,7 @@ defmodule Cuckoding.Application do
     children = [
       Cuckoding.Repo,
       Cuckoding.Execution.StartupReconciler,
+      {Cuckoding.Power.Manager, []},
       {Registry, keys: :unique, name: Cuckoding.RunRegistry},
       Cuckoding.Execution.RunSupervisors,
       {DynamicSupervisor, strategy: :one_for_one, name: Cuckoding.Execution.ProcessWorkers},
