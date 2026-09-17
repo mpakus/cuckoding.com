@@ -76,4 +76,3 @@ When the gate passes, task 0101 should generate a fresh minimal Phoenix/LiveView
 - Search `cuckoding-project-v2` and the relevant pinned peer index before unfamiliar implementation work, then inspect and cite `path:line`.
 - Keep implementation changes within the claimed task and its branch.
 - Do not enable the MCP example, activate a plugin, use credentials, publish externally, or perform real sleep tests without the corresponding task and approval.
-

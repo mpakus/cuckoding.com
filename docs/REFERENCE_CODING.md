@@ -78,4 +78,3 @@ For every implementation decision influenced by a peer, record the repository, p
 ## RTK rule
 
 Prefix every repository shell command with `rtk`, including Git, Mix, test, format, lint, XERJ, and inspection commands. Use `rtk proxy <command> ...` only when the exact unfiltered stream is operationally required or an RTK adapter changes semantics. Product configuration continues to store the underlying command, such as `mix test`; the runtime validates that command first and applies the RTK shell-filter plugin afterward.
-
