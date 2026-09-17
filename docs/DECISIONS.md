@@ -134,6 +134,15 @@ This file records accepted product-level decisions. Add a dated ADR section when
 - **Consequences:** No billing implementation belongs in the MVP until interviews validate willingness to pay and the paid feature boundary.
 - **Verification:** Task 1003 interviews and a dated pricing review by 2026-10-01.
 
+## ADR-021 — Process-forest cancellation and measured provider isolation
+
+- **Date:** 2026-09-17
+- **Status:** Accepted
+- **Context:** The host runtime spike observed Cursor Agent launch a sandbox shell in a process group separate from the CLI. Signaling only the root group temporarily orphaned that shell. Cursor also started a user-global Claude-compatible MCP process and wrote under `~/.cursor/projects` despite isolated config directories and an MCP deny rule.
+- **Decision:** `LocalProcessRunner` owns and terminates the full observed process forest, signaling descendant groups before the root and verifying all PIDs/PGIDs are gone. Adapter availability requires measured config, state, plugin, and MCP isolation; configured deny rules are not treated as proof that a server did not start.
+- **Consequences:** Cursor remains experimental under ADR-017. Task 0404 must prove a credential-safe isolated home or a provider-supported no-global-plugins mode before enabling it. Runtime-reported grants and global writes are first-class audit evidence.
+- **Verification:** Task 0002 report and fixtures; task 0302 process-tree tests; task 0404 adapter conformance.
+
 ## ADR template
 
 ### ADR-NNN — Title

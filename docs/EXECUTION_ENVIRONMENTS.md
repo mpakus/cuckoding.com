@@ -36,9 +36,9 @@ The workspace root defaults to `~/Library/Application Support/Cuckoding/workspac
 
 ## Process supervision
 
-- Every launched process gets its own session/process group (`setsid`) so cancellation kills descendants.
+- Every launched process gets its own session/process group (`setsid`). Because a runtime may create additional descendant groups, inspect and own the full process forest; signaling only the initial group is insufficient.
 - Record PID plus start timestamp; verify both before signalling to avoid PID reuse.
-- Termination ladder: adapter graceful stop → `SIGINT` → `SIGTERM` → `SIGKILL`, each with a bounded wait and an event.
+- Termination ladder: adapter graceful stop → signal owned descendant groups before the root group with `SIGINT` → `SIGTERM` → `SIGKILL`, each with a bounded wait and an event. Completion requires every observed PID and PGID to be gone.
 - Bound stdout/stderr, apply redaction before persistence, and stream a public summary to the UI.
 - Environment is built from an allowlist: `PATH` (resolved tool paths), `HOME`, locale, `PORT`/`CUCKODING_*`, and only the variables the policy declares. Never inherit the shell's full environment.
 
@@ -75,6 +75,7 @@ The workspace root defaults to `~/Library/Application Support/Cuckoding/workspac
 - No network isolation or egress control.
 - No hard CPU/memory limits.
 - Malicious repository content can instruct an agent to act on the host; mitigations are the runtime's permission mode, protected paths, no secrets in environment, and human approval gates.
+- Provider-specific config-directory switches may not redirect transcripts, workspace trust, plugins, or compatibility configuration. Each adapter must inventory actual child processes and global writes before it is enabled.
 
 These limitations are shown in the project settings and in the run detail when the local runner is active.
 

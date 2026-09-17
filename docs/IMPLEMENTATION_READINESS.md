@@ -24,8 +24,8 @@ Prepared on 2026-09-17 from revision `897bc30a0712bdd68bec745daa8a1b987190df57`.
 | Node / npm | 24.13.0 / 11.6.2 | Phoenix assets and Tauri tooling |
 | Claude Code | 2.1.142 | available adapter candidate |
 | Codex CLI | 0.146.0 | available adapter candidate |
-| Cursor Agent | 2026.08.11-e8db854 | available adapter candidate |
-| OpenCode | not found | optional until task 0404 |
+| Cursor Agent | 2026.09.15-d2fe57e | measured; experimental and blocked from production enablement by task 0002 isolation findings |
+| OpenCode | reported installed; executable not found in the current shell | resolve path and probe in task 0404 |
 | GitHub CLI | 2.87.3 | later host-side VCS spike; no credential is given to agents |
 | RTK / XERJ | 0.49.0 / 1.0.0-rc.74 | required repository command wrapper / reference retrieval |
 

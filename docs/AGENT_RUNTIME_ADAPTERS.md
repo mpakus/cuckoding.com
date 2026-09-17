@@ -18,6 +18,8 @@ Agent runtimes differ in authentication, model selection, structured output, per
 - `collect_usage/2`: provider-reported facts plus source and confidence.
 - `render_config/2`: generate the per-run instruction/permission/MCP/skill files inside the run's `agent/` folder from the grant, knowledge injection set, and enabled plugins; return the effective grant for audit.
 
+An adapter records the configured grant and the runtime-reported grant separately. It is unavailable when the runtime starts undeclared global plugins/MCP servers, exposes unrelated configuration, or writes session state outside documented provider paths that the user has accepted. A deny rule for tool invocation does not prove that the corresponding server process was never started.
+
 ## Stage request envelope
 
 - project, board, task, run, stage, and attempt IDs;
@@ -67,7 +69,7 @@ Store both `requested_model` and `actual_model`. If the runtime does not disclos
 ## Sleep, cancellation, and recovery
 
 - After a detected sleep gap, the adapter probes the process (PID plus start identity) and the session; live processes continue, dead ones enter recovery.
-- Termination ladder: graceful stop, bounded wait, process-group `SIGTERM`, then `SIGKILL` if policy permits. Record every step.
+- Termination ladder: graceful stop, bounded wait, then `SIGINT`, `SIGTERM`, and `SIGKILL` for every owned descendant process group before the root group. Record every step and verify every observed PID and PGID is gone.
 - If native resume is absent, create a continuation package containing the task revision, current spec, relevant diff, completed checks, open findings, artifact hashes, and a concise public handoff. Never replay unbounded transcripts.
 
 ## Adapter conformance tests
