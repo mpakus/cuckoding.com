@@ -17,11 +17,13 @@ Use Cuckoding on several real repositories and workflow types for multi-day runs
 ## Deliverables
 
 - Dogfood and beta reports with prioritized findings.
+- Anonymized notes and decisions from 3–5 developer interviews led by the sole stakeholder.
 
 ## Checklist
 
 - [ ] Long runs across sleep included.
 - [ ] Knowledge review quality assessed.
+- [ ] Interview developers running two or more agents and review positioning, naming, licensing, and pricing hypotheses.
 
 ## Acceptance criteria
 

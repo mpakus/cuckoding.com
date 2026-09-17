@@ -4,11 +4,11 @@
 
 - Date/time (UTC): 2026-09-17
 - Task: 0001
-- Status: review
+- Status: done
 - Human/agent owner: Codex
 - Branch: `feature/0001-product-threat-model`
 - Start revision: `d53de8d`
-- End revision: pending
+- End revision: task-closing commit (see Git history)
 - Environment: macOS Apple Silicon planning and security review
 
 ## Intended outcome
@@ -35,6 +35,7 @@ Confirm the MVP boundary, positioning, launch adapters, product hypotheses, trus
 - `docs/MVP_BOUNDARY_AND_POSITIONING.md`
 - `docs/TRUSTED_HOST_THREAT_MODEL.md`
 - ADR-017 through ADR-020 in `docs/DECISIONS.md`
+- Root Apache-2.0 `LICENSE`
 - Synchronized `docs/PRODUCT.md`, `docs/SECURITY.md`, and `README.md`
 
 ## Verification
@@ -47,6 +48,8 @@ Confirm the MVP boundary, positioning, launch adapters, product hypotheses, trus
 | `rtk xerj search --prefix ref-hydra-v1 -k 8 "workspace agents lifecycle orchestration resume"` | pass | Retrieved process identity, recovery, and risk-gate patterns. |
 | Pinned source inspection at Agetor `eb74ab5f`, Vibe Kanban `73565497`, and Hydra `d8ad5611` | pass | Exact files and line ranges are recorded in the positioning document. |
 | Official-source web review | pass | Links and claims are recorded in `docs/MVP_BOUNDARY_AND_POSITIONING.md`; checked 2026-09-17. |
+| Sole-stakeholder review | pass | The user approved the MVP boundary and will lead the controlled-beta interviews on 2026-09-17. |
+| Apache-2.0 license review | pass | Root `LICENSE` uses the standard text linked from the accepted ADR. |
 | Threat-boundary coverage review | pass | Each boundary maps to at least one risk and primary control; every High-impact risk has an owner and validation task. |
 | Validation-task reference check | pass | All 21 task IDs named by the risk register resolve to task files. |
 | Malicious-repository tabletop | pass | Records both enforced controls and the unresolved unrestricted-host-shell risk. |
@@ -63,19 +66,18 @@ No runtime telemetry applies to this discovery task.
 - Claude Code and Codex are the two launch-supported adapters; Cursor Agent and OpenCode remain contract-compatible stubs until conformance passes.
 - Outbound analytics/crash telemetry is off by default. Required local operational evidence remains enabled.
 - `Cuckoding` is an internal codename. The public name is deferred to 2026-10-01.
-- Apache-2.0 is proposed for the open core, pending owner/legal approval by 2026-09-24; no license file was added.
-- Community/Pro/Teams prices are interview hypotheses, not shipped commitments.
+- The sole stakeholder approved the MVP boundary, internal-name deferral, Apache-2.0 open-core license, and Community/Pro/Teams interview hypothesis on 2026-09-17.
+- Community/Pro/Teams prices remain interview hypotheses, not shipped commitments.
+- The sole stakeholder owns 3–5 developer interviews during controlled beta task 1003; participant and calendar details stay outside Git.
 - No task implementation code exists yet, so compile/test/runtime gates do not apply to this documentation decision task.
 
 ## Risks and blockers
 
-- User-interview scheduling requires human participants and calendar ownership. Do not record contact details in Git.
-- Stakeholder approval remains required for the launch boundary, name deferral, license proposal, and price experiment.
 - The host runner cannot confine an arbitrary runtime launched with unrestricted shell permissions; this is a disclosed residual risk and a Phase 3/10 validation focus.
 
 ## Handoff
 
-The research and specifications are ready for stakeholder review. To complete task 0001, the owner must approve or amend the product decisions and provide 3–5 interview participants plus calendar availability. After those gates are recorded, mark task 0001 complete and begin task 0002; do not bypass the Phase 0 dependency.
+Task 0001 is complete. Begin task 0002 with Claude Code as the first observed host runtime; task 1003 owns the approved controlled-beta interview follow-up.
 
 ## Checklist
 

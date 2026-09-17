@@ -1,6 +1,6 @@
 # MVP Boundary and Positioning
 
-**Decision date:** 2026-09-17  
+**Decision date:** 2026-09-17; approved by the sole stakeholder  
 **Review date:** 2026-10-01, after the first user interviews  
 **Scope:** task 0001
 
@@ -76,11 +76,11 @@ Core local orchestration, basic adapters, and the plugin system must remain usef
 
 ## Interview gate
 
-Recruit 3–5 developers who currently run at least two coding agents. Schedule 30-minute interviews before 2026-10-01 and include at least one independent developer, one small-team lead, and one security-sensitive developer.
+The sole stakeholder will interview 3–5 developers who currently run at least two coding agents during controlled beta task 1003. Use 30-minute interviews and include at least one independent developer, one small-team lead, and one security-sensitive developer.
 
 Ask each participant to walk through their last multi-agent task, interruptions and recovery, worktree/terminal coordination, evidence needed before merge, security concerns, and current spend. Then test the positioning, launch adapters, public-name candidates, open-core boundary, and pricing without leading them. Record anonymized notes and decisions in a dated worklog; do not put contact details in the repository.
 
-Scheduling is a human-owned gate because the repository has no participant list or calendar authority.
+Participant recruitment and calendar details remain outside Git. Task 1003 owns anonymized interview evidence and the 2026-10-01 product-hypothesis review.
 
 ## Sources checked
 

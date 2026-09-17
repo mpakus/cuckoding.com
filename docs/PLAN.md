@@ -6,7 +6,7 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 
 **Outcome:** agreed MVP boundary, competitive position, trusted-host threat model, and proof that one agent runtime, the menubar shell, and sleep/wake handling work on macOS Apple Silicon.
 
-- [ ] Record product boundaries, competitors, name/license/pricing hypotheses, and threat model.
+- [x] Record product boundaries, competitors, name/license/pricing hypotheses, and threat model.
 - [ ] Spike one agent runtime on the host in a worktree with permissions, cancel, and resume.
 - [ ] Spike the menubar shell launching a bundled release and opening the browser.
 - [ ] Spike sleep/wake detection and power assertions.

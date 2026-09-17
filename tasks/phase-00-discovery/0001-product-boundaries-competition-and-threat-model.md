@@ -1,10 +1,10 @@
 # 0001 — Confirm Product Boundaries, Competitive Position, and Trusted-Host Threat Model
 
 ```yaml
-status: review
+status: done
 owner: codex
 started_at: 2026-09-17
-completed_at: null
+completed_at: 2026-09-17
 worklog: worklog/2026-09-17-0001-product-threat-model.md
 ```
 
@@ -35,11 +35,11 @@ Review `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/SECURITY.md`, and `docs/
 - [x] Cover repository prompt injection on the host runner, secret theft, local web access, plugin abuse, cost denial, knowledge poisoning, and sleep/wake corruption.
 - [x] Identify every mandatory human approval.
 - [x] Record residual risks the MVP discloses rather than solves.
-- [ ] Schedule 3–5 user interviews with developers running two or more agents.
+- [x] Assign the sole stakeholder as interviewer for 3–5 developer interviews during controlled beta task 1003.
 
 ## Acceptance criteria
 
-- [ ] Stakeholders can state what the MVP does and does not do without contradiction.
+- [x] The sole stakeholder approved the documented MVP boundary on 2026-09-17.
 - [x] Every trust boundary has at least one threat and control.
 - [x] No high-severity risk lacks an owner and verification path.
 - [x] Name, license, and pricing hypothesis are decided or explicitly deferred with a date.

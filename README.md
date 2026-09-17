@@ -33,6 +33,7 @@ See `CHANGES.md`. In short: no Docker in the MVP, agents and commands run on the
 | --- | --- |
 | `AGENTS.md` | Binding repository rules for humans and agents |
 | `CHANGES.md` | What v2 changed and why |
+| `LICENSE` | Apache License 2.0 for the open core and plugin contracts |
 | `docs/` | Product, architecture, data, workflow, security, UI, shell, plugins, and knowledge specifications |
 | `docs/DOCUMENTATION_AUDIT.md` | Complete documentation inventory, contradictions, risks, and readiness conclusion |
 | `docs/IMPLEMENTATION_READINESS.md` | Verified local toolchain, Phase 0 order, blockers, and Phase 1 entry gate |
