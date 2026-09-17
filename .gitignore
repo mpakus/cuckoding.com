@@ -22,6 +22,9 @@ erl_crash.dump
 # Temporary files, for example, from tests.
 /tmp/
 
+# Finder metadata is not project documentation.
+.DS_Store
+
 # Ignore package tarball (built via "mix hex.build").
 agent_desk-*.tar
 
@@ -53,4 +56,3 @@ npm-debug.log
 /src-tauri/target/
 /src-tauri/gen/
 /burrito_out/
-

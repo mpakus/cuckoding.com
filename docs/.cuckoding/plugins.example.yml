@@ -1,0 +1,18 @@
+schema_version: 1
+# Plugins the project proposes. Nothing here is enabled automatically;
+# the user reviews manifests and permissions in Settings → Plugins.
+plugins:
+  - key: rtk
+    kind: shell_filter
+    scopes: [stage:development, stage:qa]
+  - key: ponytail
+    kind: instruction_skill
+    scopes: [stage:development]
+    config: {mode: full}
+  - key: xerj
+    kind: knowledge_backend
+    scopes: [project]
+  - key: mcp-github-readonly
+    kind: mcp_server
+    scopes: [stage:spec, stage:qa]
+    manifest: .cuckoding/plugins/mcp-github-readonly/plugin.yml

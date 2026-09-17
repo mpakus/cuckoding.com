@@ -1,0 +1,66 @@
+schema_version: 2
+workflows:
+  - key: default-feature
+    name: Default feature delivery
+    version: 2
+    concurrency:
+      max_active_tasks: 2
+    stages:
+      - key: spec
+        name: Spec preparation
+        role: spec_writer
+        role_kind: agent
+        knowledge_triggers: [facts, decisions, patterns]
+        required_outputs: [specification, acceptance_criteria]
+        budgets: {max_active_minutes: 30, max_attempts: 2}
+        checkpoint_interval_minutes: 10
+        transitions:
+          passed: development
+          changes_requested: spec
+          failed: blocked
+
+      - key: development
+        name: Development
+        role: implementer
+        role_kind: agent
+        knowledge_triggers: [facts, recipes, patterns, skills]
+        required_inputs: [specification]
+        required_outputs: [commits, implementation_summary, test_results]
+        budgets: {max_active_minutes: 180, max_attempts: 3}
+        checkpoint_interval_minutes: 10
+        transitions:
+          passed: qa
+          failed: blocked
+
+      - key: qa
+        name: QA and review
+        role: reviewer
+        role_kind: agent
+        knowledge_triggers: [recipes, patterns]
+        required_inputs: [specification, commits]
+        required_outputs: [review_report, gate_result]
+        budgets: {max_active_minutes: 60, max_attempts: 3}
+        transitions:
+          passed: human_approval
+          code_changes_requested: development
+          spec_changes_requested: spec
+          failed: blocked
+
+      - key: human_approval
+        name: Human approval
+        role: human_approver
+        role_kind: human
+        required_outputs: [approval]
+        transitions:
+          approved: release_handoff
+          changes_requested: development
+          rejected: cancelled
+
+      - key: release_handoff
+        name: Release handoff
+        role: release_handoff
+        role_kind: system
+        required_outputs: [evidence_bundle, ready_branch, pull_request]
+        transitions:
+          passed: done
+          failed: blocked

@@ -1,0 +1,66 @@
+schema_version: 2
+
+execution:
+  default_runner: local_process
+  require_trusted_config_hash: true
+  require_human_approval_for_policy_change: true
+  env_allowlist: [LANG, LC_ALL, TZ]
+
+resources:
+  global:
+    max_active_agent_sessions: 4
+  per_run:
+    memory_mb_ceiling: 4096          # advisory: true (host runner cannot enforce)
+    sustained_breach_action: hibernate
+
+network:
+  default_class: model_provider_and_registries   # advisory: true (passed to runtime, not enforced)
+
+secrets:
+  agent_processes: none              # enforced: no Cuckoding-managed secret reaches an agent
+  system_stages:
+    release_handoff: [github_project_token]
+
+approvals:
+  required_for:
+    - execution_policy_escalation
+    - changed_execution_configuration
+    - plugin_enablement_with_host_or_network_permissions
+    - global_knowledge_publication
+    - destructive_cleanup_with_uncertain_ownership
+    - git_push
+    - pull_request_creation
+
+budgets:
+  per_run:
+    max_cost_usd: 10.00
+    max_active_hours: 4
+    max_wall_hours: 48
+  on_exhaustion: wait_for_approval
+
+power:
+  prevent_idle_sleep_while_active: true
+  prevent_display_sleep: false
+  checkpoint_interval_minutes: 10
+  reauthorize_browser_after_wake: false
+
+unattended:
+  allowed: true
+  max_window_hours: 12
+  notify: [macos_notification]
+
+retention:
+  raw_log_days: 7
+  resource_sample_days: 30
+  audit_events: retain
+  artifacts: retain_until_project_archive
+
+knowledge:
+  cross_project_retrieval: false
+  require_redaction_scan: true
+  require_human_global_publish: true
+
+telemetry:
+  external_export_enabled: false
+  persist_hidden_reasoning: false
+  label_estimates: true

@@ -1,0 +1,51 @@
+schema_version: 2
+project:
+  name: example-project
+  description: Replace with a short description of the repository and product.
+  default_branch: main
+
+repository:
+  include_paths:
+    - lib
+    - test
+    - config
+  exclude_paths:
+    - .git
+    - deps
+    - _build
+    - node_modules
+    - tmp
+  protected_paths:
+    - .cuckoding
+    - .github/workflows
+
+commands:
+  bootstrap: mix deps.get
+  format_check: mix format --check-formatted
+  compile_check: mix compile --warnings-as-errors
+  test: mix test
+  static_analysis: mix credo --strict
+  dev_server: mix phx.server        # optional; receives PORT and CUCKODING_PORT
+
+ports:
+  range: "4300-4399"
+  health_path: /health
+
+workspace:
+  branch_prefix: cuckoding
+  worktree_root: managed            # under the application workspace root
+  require_clean_base: true
+
+knowledge:
+  directory: .cuckoding/knowledge
+  auto_accept_kinds: [facts, recipes]
+  global_retrieval_enabled: false
+  extraction: on_stage_pass         # on_stage_pass | on_run_complete | manual
+  consolidation: idle               # idle | manual
+
+plugins:
+  # proposals only; the user enables them in Settings → Plugins
+  - key: rtk
+    scopes: [stage:development, stage:qa]
+  - key: ponytail
+    scopes: [stage:development]

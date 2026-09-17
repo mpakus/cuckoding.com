@@ -1,0 +1,45 @@
+schema_version: 1
+reviewed_at: "2026-09-17"
+
+storage:
+  checkout_root: ~/.local/share/cuckoding/reference-code
+  xerj_data: ~/.local/share/cuckoding/xerj/data
+  autoindex_state_root: ~/.local/share/cuckoding/xerj/autoindex
+
+project:
+  key: cuckoding
+  checkout: repository-root
+  base_revision: b101eee347e6b19d53209decd7504d1f61a94a85
+  includes_working_tree: true
+  license: project-local
+  xerj_prefix: cuckoding-project-v2
+  mode: lexical
+  purpose: authoritative product, architecture, security, workflow, and task constraints
+
+peers:
+  - key: agetor
+    repository: https://github.com/alamops/agetor.git
+    checkout: agetor
+    revision: eb74ab5f3d6d71dfb91d5bd34e9c679c5a955a6a
+    license: MIT
+    xerj_prefix: ref-agetor-v1
+    mode: lexical
+    use_for: local loopback control plane, SQLite task board, host agent processes, and Git worktrees
+
+  - key: vibe-kanban
+    repository: https://github.com/BloopAI/vibe-kanban.git
+    checkout: vibe-kanban
+    revision: 735654971bd396aa97b65166955678e4c34f8bf8
+    license: Apache-2.0
+    xerj_prefix: ref-vibe-kanban-v1
+    mode: lexical
+    use_for: mature Rust worktree lifecycle, task execution, executor adapters, and desktop control-plane patterns
+
+  - key: hydra
+    repository: https://github.com/jpdlr/hydra.git
+    checkout: hydra
+    revision: d8ad56112c2c3acfb2f65f53b6890f30a25c693c
+    license: MIT
+    xerj_prefix: ref-hydra-v1
+    mode: lexical
+    use_for: cross-provider desktop sessions, provider-session resume, MCP integration, and usage accounting

@@ -1,0 +1,143 @@
+# Architecture
+
+## System shape
+
+Cuckoding is a menubar application whose real body is a local Phoenix control plane. The control plane owns workflow state, supervision, adapters, plugins, policy, knowledge, and telemetry. Agent processes and project commands run on the host inside per-run Git worktrees and process groups. SQLite is the durable source of truth; knowledge is Markdown on disk indexed in SQLite. The UI is LiveView served on a loopback port and opened in the default browser.
+
+```mermaid
+flowchart TD
+    M["Menubar shell (tray only)"] -->|launch + bootstrap token| P["Phoenix control plane"]
+    B["Default browser"] -->|loopback session| P
+    P --> D["SQLite event and state store"]
+    P --> KF["Knowledge files (Markdown)"]
+    P --> R["RunnerBridge: LocalProcessRunner"]
+    P --> A["Agent adapter layer"]
+    P --> PL["Plugin registry"]
+    R --> W["Git worktrees, process groups, ports"]
+    A --> W
+    PL --> X["XERJ / RTK / Ponytail / MCP / container runners"]
+    P --> PW["Power manager"]
+```
+
+## Component responsibilities
+
+### Menubar shell
+
+- Starts the bundled Phoenix release as a child process with a one-time bootstrap token on a free loopback port.
+- Waits for a structured readiness message, then shows the status-bar menu: Cuckoding (open dashboard), About, Settings, Quit.
+- Shows a compact status line (active runs, attention needed) fed by a read-only status endpoint.
+- Handles login item, updates, and graceful shutdown with a termination ladder.
+- Contains no workflow, provider, or knowledge logic. See `docs/DESKTOP_SHELL.md`.
+
+### Phoenix control plane
+
+- Serves the LiveView UI on `127.0.0.1` only; the shell opens `http://127.0.0.1:<port>/open?token=<one-time>` which exchanges the token for a browser session cookie.
+- Owns commands, state transitions, approvals, policy checks, durable dispatch, recovery, and sleep/wake reconciliation.
+- Supervises provider adapters, runner workers, plugin processes, and knowledge jobs through `DynamicSupervisor`.
+- Persists events before broadcasting UI updates through PubSub.
+- Rebuilds current projections from durable state after restart.
+
+### SQLite persistence
+
+- Stores configuration snapshots, workflow projections, append-only events, artifacts, approvals, usage, rollups, plugin state, knowledge index, provenance, and usage records.
+- Uses WAL mode, foreign keys, a busy timeout, and short transactions.
+- Is authoritative for business state; in-memory processes cache or execute work only.
+
+### Runner bridge
+
+`RunnerBridge` separates orchestration from execution location. Required operations: prepare, start, exec, pause, hibernate, resume, inspect, stream events, allocate/release ports, and destroy. The MVP implementation is `LocalProcessRunner` (`docs/EXECUTION_ENVIRONMENTS.md`). Container runners (Docker, OrbStack, Colima, Apple Containers) and remote runners implement the same behaviour as plugins later.
+
+### Agent adapter layer
+
+Each runtime adapter converts a common stage request into a provider-specific host process and converts output into normalized events, artifacts, usage, checkpoints, and completion status. Agents run on the host; their own permission systems (allowed tools, working directory, approval modes) are configured by the adapter from the stage capability grant, and the granted set is recorded. Capability discovery is explicit.
+
+### Plugin registry
+
+Discovers, validates, enables, and health-checks connectors described by manifests (`docs/PLUGINS.md`). Plugin kinds: `knowledge_backend`, `shell_filter`, `instruction_skill`, `mcp_server`, `runner`, `metric_source`, `vcs_host`, `secret_store`. Core code never imports a plugin directly; it talks to behaviours.
+
+### Knowledge service
+
+Owns knowledge files, the SQLite index, per-run extraction, consolidation jobs, the review queue, publication, skill packaging, injection into runtimes, and usage tracking (`docs/KNOWLEDGE_COMPRESSION.md`). A knowledge backend plugin may add semantic retrieval; without one, retrieval is file- and index-based.
+
+### Power manager
+
+Holds a power assertion while runs are active, detects sleep gaps, and drives reconciliation of heartbeats, sessions, and leases after wake (`docs/LONG_RUNNING_AND_POWER.md`).
+
+## Packaging model
+
+The Phoenix production release is bundled with its ERTS and native dependencies inside the `.app` bundle as a resource directory. An Elixir release is a directory tree, not a single portable binary; builds are per OS/architecture. The MVP target is macOS Apple Silicon. The shell does not depend on an interactive user's dotfile `PATH`; it resolves bundled executables and configured tool paths explicitly, and the settings UI reports missing Git, agent CLIs, and plugin binaries.
+
+## Runtime topology
+
+Each active run receives:
+
+- a unique Git worktree and branch under the workspace root;
+- a process group for every command and agent process it launches;
+- a port allocation from the project's range and a preview URL when the project declares a dev server;
+- a lease with heartbeat;
+- a policy snapshot tied to a trusted configuration revision;
+- a capability grant that the adapter maps onto the runtime's permission settings.
+
+Host-side Git operations manage credentials and upstream synchronization. Everything the agent does happens as the user on the host; the security model is described honestly in `docs/SECURITY.md`.
+
+## OTP supervision outline
+
+```mermaid
+flowchart TD
+    Root["Cuckoding.Supervisor"] --> Repo["Repo and migrations"]
+    Root --> Dispatch["Durable dispatcher"]
+    Root --> Runs["Run supervisors"]
+    Root --> Plugins["Plugin supervisor"]
+    Root --> Knowledge["Knowledge jobs"]
+    Root --> Power["Power manager"]
+    Root --> Metrics["Metric collectors"]
+    Root --> Web["Phoenix endpoint"]
+    Runs --> Stage["Stage attempt worker"]
+    Runs --> Adapter["Agent session worker"]
+    Runs --> Runner["Runner worker"]
+```
+
+Workers may restart, but a restart never invents progress. On startup and after wake the dispatcher reconciles database state, active leases, operating-system processes, ports, and Git worktrees before continuing or marking a run blocked.
+
+## Command and event pattern
+
+1. A UI or API command arrives with an idempotency key.
+2. Authorization and current-state guards run inside a short transaction.
+3. The command writes the state projection change and append-only event.
+4. Post-commit dispatch schedules side effects.
+5. A worker records external identifiers (PID plus start time, port, session ID) before or immediately after process creation.
+6. Normalized activity events are persisted and then broadcast.
+7. Completion writes artifacts, usage, knowledge usage, and the next state atomically where practical.
+
+## Extension boundaries
+
+- `AgentAdapter`: Claude Code, Codex, Cursor Agent, OpenCode.
+- `RunnerBridge`: `LocalProcessRunner`; future container and remote runners via plugins.
+- `Plugin` kinds: see `docs/PLUGINS.md`.
+- `KnowledgeBackend`: built-in file/index retrieval; XERJ, cognee, Graphiti-style backends via plugins.
+- `VcsHost`: local Git and GitHub; future GitLab.
+- `SecretStore`: macOS Keychain; future platform implementations.
+- `MetricCollector`: host process metrics, provider usage, plugin analytics.
+
+## Failure domains
+
+| Failure | Expected behavior |
+| --- | --- |
+| Browser tab closed or reloaded | LiveView reconnects and reads current projections; no state changes by inference |
+| Phoenix restart | Reconcile leases, processes, ports, worktrees, pending commands |
+| Shell quit | Graceful shutdown: hibernate or stop runs per policy, then terminate |
+| Agent process exit | Close session, preserve logs, apply retry policy or block |
+| System sleep | Assertion missing or ignored; gap recorded on wake; heartbeats reconciled; sessions resumed or continued |
+| Network loss | Provider calls fail; classified transient; retry within budget |
+| Plugin unavailable | Feature degraded and labeled; core continues |
+| Provider auth failure | Block only the affected adapter/session |
+| Power loss | WAL recovery; reconcile on next start; hibernated state resumes |
+
+## Architectural constraints
+
+- No direct agent-to-agent hidden channel. Delegation, messages, artifacts, and handoffs use the hub and are auditable.
+- No workflow state inferred solely from Kanban column position.
+- No automatic cross-project knowledge sharing.
+- No destructive cleanup until ownership is proven by recorded identifiers.
+- No hard dependency on plugins for core project access and history.
+- No isolation claim stronger than what the active runner provides.

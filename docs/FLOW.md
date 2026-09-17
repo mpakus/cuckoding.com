@@ -1,0 +1,115 @@
+# Workflow and State Machines
+
+## Default feature flow
+
+The workflow is data-driven and versioned. The default template is:
+
+```mermaid
+flowchart TD
+    I["Inbox"] --> S["Spec preparation"]
+    S --> G1{"Spec gate"}
+    G1 -->|pass| D["Development"]
+    G1 -->|revise| S
+    D --> Q["QA and review"]
+    Q --> G2{"Quality gate"}
+    G2 -->|fix code| D
+    G2 -->|fix intent| S
+    G2 -->|pass| H["Human approval"]
+    H -->|approve| R["Release handoff (system)"]
+    H -->|changes| D
+    R --> X["Done: branch pushed, draft PR"]
+```
+
+Boards may use different workflow templates. Multiple boards and their runs execute independently, subject to project and machine resource budgets.
+
+## Domain levels
+
+- **Board:** a durable process with a workflow version, role assignments, concurrency budget, and Kanban view.
+- **Task:** user intent represented as a card. It may be edited while in Draft or Ready; material edits during execution create a new revision and may invalidate the current run.
+- **Run:** one execution of a task against a fixed base revision, workflow, policy, and plugin snapshot.
+- **Stage attempt:** one try at a workflow stage.
+- **Agent session:** a concrete runtime/model invocation serving a stage attempt.
+
+## Task states (single vocabulary)
+
+| State | Meaning | Allowed user actions |
+| --- | --- | --- |
+| `draft` | Incomplete request | Edit, delete, mark ready |
+| `ready` | Validated and queued | Start, reprioritize, return to draft |
+| `running` | Active run owns the task | Pause, hibernate, stop, inspect |
+| `waiting` | Approval, dependency, budget, rate limit, or reconciliation | Resolve, approve, extend budget, pause, stop |
+| `paused` | Soft stop; runtime may remain allocated | Resume, hibernate, stop |
+| `hibernated` | Compute released; durable state preserved | Resume, stop, archive |
+| `blocked` | Cannot continue automatically | Retry, edit policy, reassign, stop |
+| `done` | Release handoff completed or task closed | Extract knowledge, archive, reopen as new run |
+| `failed` | Retry policy exhausted | Retry as new attempt, diagnose, stop |
+| `cancelled` | Explicitly ended | Archive or restart as new run |
+| `archived` | Removed from active boards; history kept | Restore, delete (confirmed) |
+
+Human review of a passed run is the `human_approval` stage inside the workflow; while there, the task is `waiting` with reason `approval`. The workflow YAML uses stage keys and transition labels only; it never introduces task states.
+
+## Roles
+
+| Role | Kind | Responsibilities | Required outputs |
+| --- | --- | --- | --- |
+| Spec writer | agent | Clarify intent, inspect code and knowledge, define scope and acceptance criteria | Versioned specification and testable acceptance criteria |
+| Implementer | agent | Change only approved scope, add tests, report decisions | Commits, implementation summary, test evidence |
+| Reviewer/QA | agent | Independently test and review correctness, security, and scope | Structured findings, gate result, reproducible commands |
+| Human approver | human | Verify diff and evidence bundle | Approval decision |
+| Release handoff | system | Push the branch and create the draft PR with the host-side VCS service | Evidence bundle, ready branch, PR link |
+
+The same runtime may fill multiple agent roles, but the default policy prevents the exact same agent session from both implementing and independently approving its work. System roles never run an LLM and never receive a capability grant; they run application code under the user's Git credentials after approval.
+
+## Pause, hibernate, and resume
+
+### Pause
+
+Pause requests a safe checkpoint from the adapter and stops scheduling new tools. If the provider supports session suspension, keep the resumable session. Processes may remain alive for fast continuation. If no safe checkpoint is available within the timeout, the UI offers forced hibernation or continued waiting.
+
+### Hibernate
+
+1. Stop accepting new tools.
+2. Persist the latest public session summary, artifact hashes, and checkpoint or continuation package.
+3. Store provider session identifiers when resumable.
+4. Stop the agent process group with the termination ladder.
+5. Stop declared services (dev server) and release ports.
+6. Preserve the worktree, branch, database state, and checkpoint.
+7. Release leases and update resource accounting.
+
+### Resume
+
+Resume reacquires leases, validates the worktree and policy hashes, reallocates ports, restores declared services, and either resumes the provider session or creates a new session with a bounded continuation package. Drift in the base branch or trusted configuration blocks resume until the user chooses rebase, continue unchanged, or restart. Resume after a sleep gap follows `docs/LONG_RUNNING_AND_POWER.md`.
+
+## Stage contract
+
+Every stage definition declares: stable key, display name, and role; input artifact types and required context; knowledge triggers; allowed tool categories; maximum attempts, active duration, wall duration, token budget, and cost budget; entry guards and exit gates; required output artifact schema; transitions for success, findings, timeout, cancellation, and system failure; whether pause and provider-native resume are supported; whether a human approval is mandatory; checkpoint interval.
+
+## Retry semantics
+
+- A retry always creates a new stage attempt.
+- Automatic retry is allowed only for classified transient failures (network, rate limit, provider 5xx, process killed by sleep/wake).
+- Review findings route to the responsible stage with structured evidence.
+- Changing requirements invalidates downstream stage results and creates a new specification revision.
+- Every retry increments cost and duration budgets; budget exhaustion moves the task to `waiting` for approval.
+- Idempotency keys prevent a retry request from launching duplicate workers.
+
+## Git flow
+
+1. Resolve and record the base branch SHA.
+2. Create a feature branch and worktree under the workspace root.
+3. Agents commit in the feature worktree on the host, or produce a patch according to policy.
+4. Before QA, record a clean status or explicitly list uncommitted files.
+5. QA runs on the same immutable candidate revision when possible.
+6. Human approval verifies the diff and evidence bundle.
+7. The release handoff stage pushes the branch and optionally creates a draft PR host-side.
+8. Merge remains outside the autonomous workflow for MVP.
+
+## Concurrency and scheduling
+
+- Board concurrency limits cap active tasks.
+- Project limits cap active runs, ports, and aggregate memory.
+- Global limits protect the machine and provider budgets.
+- Priority, readiness, dependencies, age, and resource fit determine scheduling.
+- Fair scheduling prevents one board from starving another.
+- A user can pause or hibernate a board, which drains or stops its active work according to policy.
+- Unattended mode keeps a board's queue moving and the machine awake up to approval gates.
