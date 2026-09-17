@@ -12,7 +12,7 @@ The pinned corpus is declared in `docs/reference-corpus.yml`. Clones and XERJ st
 | XERJ node data | `~/.local/share/cuckoding/xerj/data/` |
 | Autoindex journals | `~/.local/share/cuckoding/xerj/autoindex/` |
 
-The verified baseline is XERJ `v1.0.0-rc.74` in lexical mode. Lexical is the upstream default; do not call it neural or semantic retrieval. The current project index is `cuckoding-project-v6`; v5 remains frozen before the accepted real-sleep evidence schema. A future neural index requires an explicit model, a distinct prefix, measured benefit, and updated evidence.
+The verified baseline is XERJ `v1.0.0-rc.74` in lexical mode. Lexical is the upstream default; do not call it neural or semantic retrieval. The current project index is `cuckoding-project-v7`; v6 remains frozen before the accepted lid-close evidence schema. A future neural index requires an explicit model, a distinct prefix, measured benefit, and updated evidence.
 
 ## Start the local node
 
@@ -48,8 +48,8 @@ Revalidate the license at the pinned revision before adapting code. Keep copied 
 Run the same command with `--dry-run` first. The estimate covers client extraction, not server indexing. Use a dedicated state directory and prefix for every corpus. Project indexing uses `--no-graph` so later runs can reconcile additions, changes, moves, and removals.
 
 ```sh
-rtk xerj autoindex . --dry-run --no-graph --prefix cuckoding-project-v6 --state-dir ~/.local/share/cuckoding/xerj/autoindex/cuckoding-project-v6 --progress plain
-rtk xerj autoindex . --no-graph --prefix cuckoding-project-v6 --state-dir ~/.local/share/cuckoding/xerj/autoindex/cuckoding-project-v6 --progress plain --yes
+rtk xerj autoindex . --dry-run --no-graph --prefix cuckoding-project-v7 --state-dir ~/.local/share/cuckoding/xerj/autoindex/cuckoding-project-v7 --progress plain
+rtk xerj autoindex . --no-graph --prefix cuckoding-project-v7 --state-dir ~/.local/share/cuckoding/xerj/autoindex/cuckoding-project-v7 --progress plain --yes
 ```
 
 Use the same dry-run/actual pair for peers, substituting the checkout, prefix, and state directory from the manifest. Pinned peer revisions are immutable snapshots; index a changed revision under a new prefix and validate it before switching readers.
@@ -61,7 +61,7 @@ XERJ exit code `3` with `reason=completed-with-junk` is successful indexing with
 Start narrow and identify the responsible symbol. Retrieve definitions when possible, then inspect the surrounding source in the pinned checkout.
 
 ```sh
-rtk xerj search --prefix cuckoding-project-v6 -k 5 "event before broadcast durable state"
+rtk xerj search --prefix cuckoding-project-v7 -k 5 "event before broadcast durable state"
 rtk xerj def --prefix ref-vibe-kanban-v1 -k 5 WorktreeManager
 rtk xerj def --prefix ref-agetor-v1 -k 5 API_TOKEN
 rtk xerj def --prefix ref-hydra-v1 -k 5 hydrateWorkspaceAgents

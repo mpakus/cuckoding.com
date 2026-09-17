@@ -4,9 +4,9 @@
 
 - Date/time (UTC): 2026-09-17
 - Task: 0004
-- Status: review
+- Status: done
 - Human/agent owner: Codex
-- Branch: `feature/0004-sleep-wake-power-spike`
+- Branches: `feature/0004-sleep-wake-power-spike`, `feature/0004-real-sleep-evidence`, `feature/0004-lid-close-evidence`
 - Start revision: `07c7a2c`
 - Environment: Apple Silicon macOS 27.0, Ruby 3.4.2
 
@@ -26,7 +26,7 @@
 
 ## Human-coordinated checks
 
-Software-sleep and lid-close tests require an immediate safe test window because they change the workstation's power state. The user explicitly approved continuing the coordinated drill; physical lid-close checks remain pending.
+Software-sleep and lid-close tests require an immediate safe test window because they change the workstation's power state. The user explicitly approved and completed the coordinated software-sleep, AC lid-close, and battery lid-close drills.
 
 ## Work performed
 
@@ -36,6 +36,9 @@ Software-sleep and lid-close tests require an immediate safe test window because
 - Kept captured `pmset` evidence scoped to the target PID so unrelated user processes and hardware do not enter the repository.
 - Corrected the power documentation and added ADR-022 rather than rewriting ADR-016's history.
 - Refreshed XERJ under `cuckoding-project-v4`, updated the corpus manifest and commands, and inspected Agetor's bounded stream-reconnect pattern.
+- Extended the existing verifier with an explicit lid-close mode instead of adding another harness. It validates AC/battery state, records distinct evidence, keeps the idle assertion across clamshell sleep, and can inject a missing worker before first reconciliation.
+- Corrected the recovery injection after its first battery run showed the worker stopped before sleep. The final verifier waits for `AppleClamshellState=Yes`, schedules the deadline 30 seconds later, verifies PID plus start identity before signaling, and records both due and observed times so the report distinguishes a deadline during suspension from termination delivered after resume.
+- XERJ project retrieval returned the existing task/docs and no closer peer implementation; the existing `RealSleepVerifier` and `Reconciler` remained the source pattern.
 
 ## Verification
 
@@ -46,16 +49,24 @@ Software-sleep and lid-close tests require an immediate safe test window because
 - `rtk xerj autoindex ... --prefix cuckoding-project-v4` — generation 1 committed, 424 records, 20/20 code files indexed, exit 3 only for declared junk files.
 - `rtk xerj autoindex ... --prefix cuckoding-project-v5` — generation 1 committed, followed by documentation and final source refreshes through generation 3; 493 records and 22/22 code files are live, with exit 3 only for declared junk files. The immutable v4 schema rejected the new evidence shape, so v5 became the documented current generation.
 - The accepted real-sleep JSON required immutable schema generation `cuckoding-project-v6`; generation 1 committed 499 records with 22/22 code files indexed. `rtk xerj def --prefix cuckoding-project-v6 -k 5 scoped_sleep_log` returned the current implementation at `power_manager_spike.rb:115`.
+- The lid-close evidence required immutable schema generation `cuckoding-project-v7`; its accepted dry run was followed by generation 1 and a final documentation refresh through generation 2, with 517 records and 22/22 code files indexed. Exit 3 represented only the 10 declared junk files.
 - XERJ v5 and v6 required a temporary 97% flood-stage watermark with 45 GiB free; the default was restored immediately after each index and verified as `null`.
+- XERJ v7 required a temporary 99% flood-stage watermark with 24.1 GiB free for the sub-megabyte corpus write. The override was restored immediately and verified as `null`.
 - `rtk xerj def --prefix cuckoding-project-v5 -k 5 RealSleepVerifier` — returned the current class at `spikes/0004-sleep-wake-power/power_manager_spike.rb:268`.
 - `rtk proxy ruby spikes/0004-sleep-wake-power/power_manager_spike.rb --real-sleep ...` — five approved attempts. One 31-second sleep started only after the initial verifier had failed and cleaned up; four later preparations were cancelled by fresh user-activity assertions. No attempt is counted as recovery evidence.
 - Final rejected attempt — continuous 30,115 ms, uptime 30,115 ms, wall 30,115 ms, detected gap `null`; correct rejection rather than a false sleep event.
 - Cleanup inspection after every attempt — no owned worker, loopback server, provider-stream fixture, or `caffeinate -i -w` process remained.
 - Sixth approved `--real-sleep` attempt — passed after `rtk pmset displaysleepnow`: continuous 23,945 ms, uptime 12,396 ms, detected gap 11,549 ms on the first resumed tick; live worker/server/port/stream survived; assertion reacquired; one reconciliation event and one stage execution.
 - `real-sleep-pmset.log` — scoped to the accepted cycle, recording software sleep and wake on AC at 76%; unrelated assertion and hardware lines were excluded.
+- `rtk proxy ruby -w -c spikes/0004-sleep-wake-power/power_manager_spike.rb` — syntax OK.
+- `rtk proxy ruby spikes/0004-sleep-wake-power/test_power_manager_spike.rb` — 8 runs, 17 assertions, 0 failures, 0 errors.
+- Non-sleeping verifier in `/private/tmp/cuckoding-0004-final.9zg8rE` — live assertion, simulated live/dead reconciliation, provider classification, and cleanup passed without changing tracked evidence. The host Ruby printed warnings for unrelated unbuilt global gem extensions before the test process ran.
+- AC lid-close verifier — 4,096 ms first-tick gap; worker, provider stream, server, port, and existing assertion survived; one `continued` event and one stage execution. Evidence: `lid-close-ac-live-*`.
+- Battery lid-close verifier — 121,169 ms first-tick gap; worker-loss deadline was inside the recorded sleep interval and delivered after resume; one recovery, assertion reacquired, stream/server/port survived, one stage execution. Evidence: `lid-close-battery-recover-*`.
+- Cleanup inspection after both physical drills — no owned worker, loopback server, verifier, or `caffeinate -i -w` process remained.
 
 ## Handoff
 
 ADR-022 selects supervised `caffeinate -i -w <beam_pid>` and continuous-minus-uptime gap detection. Task 0306 should carry this contract into the Phoenix Power Manager and persist reconciliation before scheduling.
 
-Task 0004 remains in review. Software sleep now has accepted evidence; it still needs a killed-during-sleep recovery drill plus physical AC and battery lid-close checks. Do not infer those outcomes from the successful live-process cycle.
+Task 0004 is complete. Physical AC and battery clamshell evidence confirms the selected clocks, assertion semantics, survival path, and missing-worker recovery path. The battery result records the precise suspension limitation: a deadline can elapse during sleep, but termination is delivered only after CPU resume and before reconciliation.

@@ -81,6 +81,15 @@ class PowerManagerSpikeTest < Minitest::Test
     LOG
   end
 
+  def test_lid_close_configuration_rejects_invalid_modes
+    assert_raises(ArgumentError) do
+      PowerManagerSpike::RealSleepVerifier.new("evidence", lid_source: "usb")
+    end
+    assert_raises(ArgumentError) do
+      PowerManagerSpike::RealSleepVerifier.new("evidence", worker_mode: "recover")
+    end
+  end
+
   private
 
   def run_state

@@ -1,0 +1,5 @@
+2026-09-17 13:37:20 -0500 Sleep               	Entering Sleep state due to 'Clamshell Sleep':TCPKeepAlive=active Using Batt (Charge:80%) 131 secs
+2026-09-17 13:37:22 -0500 Wake Requests       	[process=dasd request=SleepService deltaSecs=1071 wakeAt=2026-09-17 13:55:13 info="com.apple.dasd:501:com.apple.intelligenceflow.toolbox.update.fastpass"] [process=mDNSResponder request=Maintenance deltaSecs=6309 wakeAt=2026-09-17 15:22:31 info="DHCP lease renewal"] [process=powerd request=TCPKATurnOff deltaSecs=316858 wakeAt=2026-09-21 05:38:20] [process=powerd request=CSPNEvaluation deltaSecs=7248 wakeAt=2026-09-17 15:38:10] [*process=powerd request=UserWake deltaSecs=589 wakeAt=2026-09-17 13:47:11 info="com.apple.alarm.user-invisible-com.apple.acmd.alarm,99"]
+2026-09-17 13:39:31 -0500 Wake                	Wake from Deep Idle [CDNVA] : due to smc.sysState.Wake(0x70070000) lid SMC.OutboxNotEmpty RTP.multi-touch/HID Activity Using BATT (Charge:80%)
+2026-09-17 13:39:31 -0500 HibernateStats      	hibmode=3 standbydelaylow=0 standbydelayhigh=0                             	          8
+2026-09-17 13:39:31 -0500 WakeTime            	WakeTime: 7.658 sec

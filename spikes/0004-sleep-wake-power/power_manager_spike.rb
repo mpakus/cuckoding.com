@@ -196,9 +196,9 @@ module PowerManagerSpike
         "provider_session_count" => run_state.fetch("provider_session_count"),
         "provider_stream_drop" => stream_class.to_s,
         "events" => run_state.fetch("events"),
-        "real_sleep_test" => "pending_human_coordination",
-        "lid_close_ac_test" => "pending_human_coordination",
-        "lid_close_battery_test" => "pending_human_coordination"
+        "real_sleep_test" => "passed_in_committed_evidence",
+        "lid_close_ac_test" => "passed_in_committed_evidence",
+        "lid_close_battery_test" => "passed_in_committed_evidence"
       }
       write("timeline.json", JSON.pretty_generate(run_state) << "\n")
       write("summary.json", JSON.pretty_generate(summary) << "\n")
@@ -273,8 +273,14 @@ module PowerManagerSpike
   end
 
   class RealSleepVerifier
-    def initialize(evidence_dir)
+    def initialize(evidence_dir, lid_source: nil, worker_mode: "live")
+      raise ArgumentError, "invalid lid source" unless [nil, "ac", "battery"].include?(lid_source)
+      raise ArgumentError, "invalid worker mode" unless ["live", "recover"].include?(worker_mode)
+      raise ArgumentError, "worker recovery requires lid-close mode" if worker_mode == "recover" && !lid_source
+
       @evidence_dir = File.expand_path(evidence_dir)
+      @lid_source = lid_source
+      @worker_mode = worker_mode
       @owned_pids = []
     end
 
@@ -293,25 +299,32 @@ module PowerManagerSpike
       before_utc = before_time.utc.iso8601(6)
       before_uuid = pmset("uuid").strip
       before_power = power_source
-      assertion.release
-      wait_for("caffeinate assertion to disappear") { !assertion_present?(assertion_pid) }
+      validate_power_source!(before_power) if @lid_source
+      worker_loss = schedule_worker_loss(worker)
 
-      sleep_pid = Process.spawn(
-        {"PATH" => SAFE_PATH}, "/usr/bin/pmset", "sleepnow",
-        out: File::NULL, err: File::NULL, pgroup: true, unsetenv_others: true
-      )
-      _, sleep_status = Process.wait2(sleep_pid)
-      raise "pmset sleepnow failed with #{sleep_status.exitstatus}" unless sleep_status.success?
+      if @lid_source
+        puts "READY close the lid within 10 seconds, leave it closed for at least 60 seconds, then reopen it"
+        $stdout.flush
+      else
+        assertion.release
+        wait_for("caffeinate assertion to disappear") { !assertion_present?(assertion_pid) }
+        force_sleep
+      end
 
       after = wait_for_sleep_gap(before)
       detected_gap_ms = PowerManagerSpike.gap_ms(before, after)
-      write("real-sleep-clocks.json", JSON.pretty_generate(
+      write("#{evidence_prefix}-clocks.json", JSON.pretty_generate(
         "continuous_elapsed_ms" => ((after.continuous - before.continuous) * 1000).round,
         "uptime_elapsed_ms" => ((after.uptime - before.uptime) * 1000).round,
         "wall_elapsed_ms" => ((after.wall - before.wall) * 1000).round,
         "detected_gap_ms" => detected_gap_ms
       ) << "\n")
       raise "first post-wake tick did not detect a sleep gap" unless detected_gap_ms
+      raise "worker-loss injection did not finish" if worker_loss && !worker_loss.fetch("thread").join(20)
+      if worker_loss
+        wait_for("owner-exit assertion to disappear") { !assertion_present?(assertion_pid) }
+        assertion.release
+      end
 
       worker_alive = same_process?(worker)
       server_alive = same_process?(server)
@@ -327,13 +340,8 @@ module PowerManagerSpike
       end
       stream_reconnected = stream_survived || !stream.closed?
       port_responded = probe_port(port)
-      wake_assertion_pid = assertion.hold(worker.fetch("pid"))
-      wait_for("post-wake assertion to appear") { assertion_present?(wake_assertion_pid) }
-      assertion_reacquired = assertion_present?(wake_assertion_pid)
-      raise "worker did not survive forced sleep" unless worker_alive
       raise "dev server did not survive forced sleep" unless server_alive && port_responded
       raise "provider stream fixture did not reconnect after forced sleep" unless stream_reconnected
-      raise "power assertion was not reacquired after wake" unless assertion_reacquired
 
       run_state = {
         "stage_execution_count" => 1,
@@ -344,40 +352,67 @@ module PowerManagerSpike
       }
       reconciler = Reconciler.new
       alive = ->(record) { same_process?(record) }
-      recover = -> { raise "live process must not recover" }
+      recover = if @worker_mode == "recover"
+        -> { spawn_process("/bin/sleep", "600") }
+      else
+        -> { raise "live process must not recover" }
+      end
       2.times do
         reconciler.reconcile(run_state, gap_id: "real-sleep-#{before_utc}",
           gap_ms: detected_gap_ms, process_alive: alive, recover: recover)
       end
       raise "real sleep duplicated stage execution" unless run_state.fetch("stage_execution_count") == 1
       raise "real sleep emitted duplicate events" unless run_state.fetch("events").length == 1
+      outcome = run_state.fetch("events").first.fetch("outcome")
+      expected_outcome = @worker_mode == "recover" ? "recovered" : "continued"
+      raise "unexpected reconciliation outcome #{outcome}" unless outcome == expected_outcome
+      raise "worker did not survive forced sleep" if @worker_mode == "live" && !worker_alive
+      raise "worker-loss injection did not remove the process" if @worker_mode == "recover" && worker_alive
+
+      assertion_survived = !@lid_source.nil? && @worker_mode == "live" && assertion_present?(assertion_pid)
+      assertion_reacquired = false
+      unless assertion_survived
+        wake_assertion_pid = assertion.hold(run_state.fetch("process").fetch("pid"))
+        wait_for("post-wake assertion to appear") { assertion_present?(wake_assertion_pid) }
+        assertion_reacquired = assertion_present?(wake_assertion_pid)
+        raise "power assertion was not reacquired after wake" unless assertion_reacquired
+      end
+
+      after_power = power_source
+      validate_power_source!(after_power) if @lid_source
 
       summary = {
+        "trigger" => @lid_source ? "lid_close" : "pmset_sleepnow",
+        "expected_power_source" => @lid_source,
+        "worker_mode" => @worker_mode,
         "before_utc" => before_utc,
         "after_utc" => Time.now.utc.iso8601(6),
         "before_sleep_uuid" => before_uuid,
         "after_sleep_uuid" => pmset("uuid").strip,
         "power_before" => before_power,
-        "power_after" => power_source,
+        "power_after" => after_power,
         "continuous_elapsed_ms" => ((after.continuous - before.continuous) * 1000).round,
         "uptime_elapsed_ms" => ((after.uptime - before.uptime) * 1000).round,
         "detected_gap_ms" => detected_gap_ms,
         "detected_on_first_tick" => true,
         "worker_survived" => worker_alive,
+        "worker_recovered" => outcome == "recovered",
+        "worker_loss" => worker_loss&.except("thread"),
         "provider_stream_fixture_survived" => stream_survived,
         "provider_stream_classification" => stream_class,
         "provider_stream_reconnected" => stream_reconnected,
         "dev_server_survived" => server_alive,
         "port_responded" => port_responded,
         "assertion_verified_before_sleep" => true,
-        "assertion_released_for_forced_drill" => true,
+        "assertion_released_for_forced_drill" => !@lid_source,
+        "assertion_survived_sleep" => assertion_survived,
         "assertion_reacquired_after_wake" => assertion_reacquired,
         "stage_execution_count" => run_state.fetch("stage_execution_count"),
         "reconciliation_events" => run_state.fetch("events")
       }
-      write("real-sleep-summary.json", JSON.pretty_generate(summary) << "\n")
+      write("#{evidence_prefix}-summary.json", JSON.pretty_generate(summary) << "\n")
       sleep 10
-      write("real-sleep-pmset.log", sleep_log(before_time))
+      write("#{evidence_prefix}-pmset.log", sleep_log(before_time))
       puts JSON.pretty_generate(summary)
     ensure
       stream&.close
@@ -386,6 +421,61 @@ module PowerManagerSpike
     end
 
     private
+
+    def evidence_prefix
+      return "real-sleep" unless @lid_source
+
+      "lid-close-#{@lid_source}-#{@worker_mode}"
+    end
+
+    def validate_power_source!(power)
+      expected_ac = @lid_source == "ac"
+      return if power.fetch("ac_attached") == expected_ac
+
+      raise "expected #{@lid_source} power, got #{power.fetch("source").inspect}"
+    end
+
+    def schedule_worker_loss(worker)
+      return unless @worker_mode == "recover"
+
+      evidence = {}
+      evidence["thread"] = Thread.new do
+        wait_for_lid_close
+        evidence["lid_closed_at"] = Time.now.utc.iso8601(6)
+        evidence["scheduled_at"] = (Time.now + 30).utc.iso8601(6)
+        sleep 30
+        raise "worker identity changed before loss injection" unless same_process?(worker)
+
+        stop(worker.fetch("pid"))
+        evidence["observed_at"] = Time.now.utc.iso8601(6)
+      end
+      evidence
+    end
+
+    def wait_for_lid_close
+      deadline = Time.now + 180
+      until clamshell_closed?
+        raise "lid did not close" if Time.now >= deadline
+
+        sleep 0.1
+      end
+    end
+
+    def clamshell_closed?
+      output, status = Open3.capture2(
+        "/usr/sbin/ioreg", "-r", "-k", "AppleClamshellState", "-d", "4"
+      )
+      status.success? && output.include?('"AppleClamshellState" = Yes')
+    end
+
+    def force_sleep
+      sleep_pid = Process.spawn(
+        {"PATH" => SAFE_PATH}, "/usr/bin/pmset", "sleepnow",
+        out: File::NULL, err: File::NULL, pgroup: true, unsetenv_others: true
+      )
+      _, sleep_status = Process.wait2(sleep_pid)
+      raise "pmset sleepnow failed with #{sleep_status.exitstatus}" unless sleep_status.success?
+    end
 
     def spawn_process(*command, out: File::NULL)
       pid = Process.spawn(
@@ -537,9 +627,13 @@ if $PROGRAM_NAME == __FILE__
     PowerManagerSpike.run_server
   in ["--real-sleep", evidence_dir]
     PowerManagerSpike::RealSleepVerifier.new(evidence_dir).run
+  in ["--lid-close", source, worker_mode, evidence_dir]
+    PowerManagerSpike::RealSleepVerifier.new(
+      evidence_dir, lid_source: source, worker_mode: worker_mode
+    ).run
   in [evidence_dir]
     PowerManagerSpike::Verifier.new(evidence_dir).run
   else
-    abort "usage: #{$PROGRAM_NAME} [--real-sleep] EVIDENCE_DIR"
+    abort "usage: #{$PROGRAM_NAME} [--real-sleep | --lid-close SOURCE MODE] EVIDENCE_DIR"
   end
 end

@@ -9,8 +9,8 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 - [x] Record product boundaries, competitors, name/license/pricing hypotheses, and threat model.
 - [x] Spike one agent runtime on the host in a worktree with permissions, cancel, and resume.
 - [x] Spike the menubar shell launching a bundled release and opening the browser. Protocol, clean-account, browser-handoff, and shutdown checks pass.
-- [ ] Spike sleep/wake detection and power assertions. Simulated reconciliation, live assertion, and coordinated software-sleep checks pass; AC/battery lid-close checks remain.
-- [ ] Record findings and revise decisions.
+- [x] Spike sleep/wake detection and power assertions. Simulated, software-sleep, AC lid-close, and battery recovery checks pass.
+- [x] Record findings and revise decisions.
 - [x] Audit the planning pack and establish RTK/XERJ reference coding.
 - [x] Place repository skills/configuration at root and verify the local toolchain.
 
