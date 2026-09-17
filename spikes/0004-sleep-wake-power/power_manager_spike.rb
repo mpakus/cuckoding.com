@@ -4,6 +4,8 @@
 require "fileutils"
 require "json"
 require "open3"
+require "rbconfig"
+require "socket"
 require "time"
 
 module PowerManagerSpike
@@ -106,7 +108,7 @@ module PowerManagerSpike
 
   def classify_stream_drop(error, after_sleep:)
     transient = error.is_a?(EOFError) || error.is_a?(Errno::ECONNRESET) ||
-      error.is_a?(Errno::ETIMEDOUT)
+      error.is_a?(Errno::ETIMEDOUT) || error.is_a?(Errno::EPIPE)
     transient && after_sleep ? :transient : :unclassified
   end
 
@@ -196,7 +198,7 @@ module PowerManagerSpike
       puts JSON.pretty_generate(summary)
     ensure
       assertion&.release
-      @owned_pids.each { |pid| stop(pid) }
+      @owned_pids.dup.each { |pid| stop(pid) }
     end
 
     private
@@ -262,10 +264,277 @@ module PowerManagerSpike
       File.write(File.join(@evidence_dir, name), contents)
     end
   end
+
+  class RealSleepVerifier
+    def initialize(evidence_dir)
+      @evidence_dir = File.expand_path(evidence_dir)
+      @owned_pids = []
+    end
+
+    def run
+      FileUtils.mkdir_p(@evidence_dir)
+      worker = spawn_process("/bin/sleep", "600")
+      server, port = spawn_server
+      stream = connect_stream(port)
+
+      assertion = Assertion.new
+      assertion_pid = assertion.hold(worker.fetch("pid"))
+      wait_for("caffeinate assertion to appear") { assertion_present?(assertion_pid) }
+      sleep 10
+      before = PowerManagerSpike.sample
+      before_utc = Time.now.utc.iso8601(6)
+      before_uuid = pmset("uuid").strip
+      before_power = power_source
+      assertion.release
+      wait_for("caffeinate assertion to disappear") { !assertion_present?(assertion_pid) }
+
+      sleep_pid = Process.spawn(
+        {"PATH" => SAFE_PATH}, "/usr/bin/pmset", "sleepnow",
+        out: File::NULL, err: File::NULL, pgroup: true, unsetenv_others: true
+      )
+      _, sleep_status = Process.wait2(sleep_pid)
+      raise "pmset sleepnow failed with #{sleep_status.exitstatus}" unless sleep_status.success?
+
+      after = wait_for_sleep_gap(before)
+      detected_gap_ms = PowerManagerSpike.gap_ms(before, after)
+      write("real-sleep-clocks.json", JSON.pretty_generate(
+        "continuous_elapsed_ms" => ((after.continuous - before.continuous) * 1000).round,
+        "uptime_elapsed_ms" => ((after.uptime - before.uptime) * 1000).round,
+        "wall_elapsed_ms" => ((after.wall - before.wall) * 1000).round,
+        "detected_gap_ms" => detected_gap_ms
+      ) << "\n")
+      raise "first post-wake tick did not detect a sleep gap" unless detected_gap_ms
+
+      worker_alive = same_process?(worker)
+      server_alive = same_process?(server)
+      stream_survived, stream_error = ping_stream(stream)
+      stream_class = if stream_error
+        PowerManagerSpike.classify_stream_drop(stream_error, after_sleep: true).to_s
+      else
+        "connected"
+      end
+      unless stream_survived
+        stream.close
+        stream = connect_stream(port)
+      end
+      stream_reconnected = stream_survived || !stream.closed?
+      port_responded = probe_port(port)
+      wake_assertion_pid = assertion.hold(worker.fetch("pid"))
+      wait_for("post-wake assertion to appear") { assertion_present?(wake_assertion_pid) }
+      assertion_reacquired = assertion_present?(wake_assertion_pid)
+      raise "worker did not survive forced sleep" unless worker_alive
+      raise "dev server did not survive forced sleep" unless server_alive && port_responded
+      raise "provider stream fixture did not reconnect after forced sleep" unless stream_reconnected
+      raise "power assertion was not reacquired after wake" unless assertion_reacquired
+
+      run_state = {
+        "stage_execution_count" => 1,
+        "provider_session_count" => 1,
+        "process" => worker,
+        "reconciled_gap_ids" => [],
+        "events" => []
+      }
+      reconciler = Reconciler.new
+      alive = ->(record) { same_process?(record) }
+      recover = -> { raise "live process must not recover" }
+      2.times do
+        reconciler.reconcile(run_state, gap_id: "real-sleep-#{before_utc}",
+          gap_ms: detected_gap_ms, process_alive: alive, recover: recover)
+      end
+      raise "real sleep duplicated stage execution" unless run_state.fetch("stage_execution_count") == 1
+      raise "real sleep emitted duplicate events" unless run_state.fetch("events").length == 1
+
+      summary = {
+        "before_utc" => before_utc,
+        "after_utc" => Time.now.utc.iso8601(6),
+        "before_sleep_uuid" => before_uuid,
+        "after_sleep_uuid" => pmset("uuid").strip,
+        "power_before" => before_power,
+        "power_after" => power_source,
+        "continuous_elapsed_ms" => ((after.continuous - before.continuous) * 1000).round,
+        "uptime_elapsed_ms" => ((after.uptime - before.uptime) * 1000).round,
+        "detected_gap_ms" => detected_gap_ms,
+        "detected_on_first_tick" => true,
+        "worker_survived" => worker_alive,
+        "provider_stream_fixture_survived" => stream_survived,
+        "provider_stream_classification" => stream_class,
+        "provider_stream_reconnected" => stream_reconnected,
+        "dev_server_survived" => server_alive,
+        "port_responded" => port_responded,
+        "assertion_verified_before_sleep" => true,
+        "assertion_released_for_forced_drill" => true,
+        "assertion_reacquired_after_wake" => assertion_reacquired,
+        "stage_execution_count" => run_state.fetch("stage_execution_count"),
+        "reconciliation_events" => run_state.fetch("events")
+      }
+      write("real-sleep-summary.json", JSON.pretty_generate(summary) << "\n")
+      write("real-sleep-pmset.log", sleep_log)
+      puts JSON.pretty_generate(summary)
+    ensure
+      stream&.close
+      assertion&.release
+      @owned_pids.dup.each { |pid| stop(pid) }
+    end
+
+    private
+
+    def spawn_process(*command, out: File::NULL)
+      pid = Process.spawn(
+        {"PATH" => SAFE_PATH}, *command,
+        out: out, err: File::NULL, pgroup: true, unsetenv_others: true
+      )
+      @owned_pids << pid
+      {
+        "pid" => pid,
+        "pgid" => Process.getpgid(pid),
+        "start_identity" => PowerManagerSpike.process_start_identity(pid)
+      }
+    end
+
+    def spawn_server
+      reader, writer = IO.pipe
+      process = spawn_process(RbConfig.ruby, __FILE__, "--server", out: writer)
+      writer.close
+      raise "dev server did not become ready" unless IO.select([reader], nil, nil, 3)
+
+      message = JSON.parse(reader.gets)
+      reader.close
+      [process, message.fetch("port")]
+    ensure
+      writer&.close unless writer&.closed?
+      reader&.close unless reader&.closed?
+    end
+
+    def same_process?(record)
+      PowerManagerSpike.process_alive?(record.fetch("pid")) &&
+        PowerManagerSpike.process_start_identity(record.fetch("pid")) == record.fetch("start_identity")
+    end
+
+    def probe_port(port)
+      TCPSocket.open("127.0.0.1", port) do |socket|
+        socket.puts("probe")
+        read_line(socket) == "ok\n"
+      end
+    rescue SystemCallError
+      false
+    end
+
+    def connect_stream(port)
+      socket = TCPSocket.new("127.0.0.1", port)
+      socket.puts("stream")
+      raise "provider stream did not connect" unless read_line(socket) == "ready\n"
+
+      socket
+    end
+
+    def ping_stream(socket)
+      socket.puts("ping")
+      [read_line(socket) == "pong\n", nil]
+    rescue EOFError, Errno::ECONNRESET, Errno::ETIMEDOUT, Errno::EPIPE => error
+      [false, error]
+    end
+
+    def read_line(socket)
+      raise Errno::ETIMEDOUT unless IO.select([socket], nil, nil, 3)
+
+      socket.gets || raise(EOFError)
+    end
+
+    def assertions
+      pmset("assertions")
+    end
+
+    def assertion_present?(pid)
+      assertions.include?("pid #{pid}(caffeinate)")
+    end
+
+    def wait_for(description)
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 3
+      until yield
+        raise "timed out waiting for #{description}" if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+
+        sleep 0.05
+      end
+    end
+
+    def wait_for_sleep_gap(before)
+      deadline = Time.now + 180
+      loop do
+        after = PowerManagerSpike.sample
+        return after if PowerManagerSpike.gap_ms(before, after)
+        raise "no sleep gap detected" if Time.now >= deadline
+
+        sleep 0.1
+      end
+    end
+
+    def power_source
+      output = pmset("batt")
+      {
+        "source" => output[/Now drawing from '([^']+)'/, 1],
+        "percent" => output[/\b(\d+)%/, 1]&.to_i,
+        "ac_attached" => output.include?("AC attached")
+      }
+    end
+
+    def pmset(argument)
+      output, status = Open3.capture2e("/usr/bin/pmset", "-g", argument)
+      raise "pmset -g #{argument} failed: #{output}" unless status.success?
+
+      output
+    end
+
+    def sleep_log
+      output = pmset("log")
+      lines = output.lines.grep(
+        /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} [+-]\d{4} (?:Sleep|DarkWake|WakeTime|HibernateStats)\s/
+      ).last(12)
+      lines.join
+    end
+
+    def stop(pid)
+      Process.kill("TERM", -Process.getpgid(pid)) if PowerManagerSpike.process_alive?(pid)
+      Process.wait(pid)
+    rescue Errno::ESRCH, Errno::ECHILD
+      nil
+    ensure
+      @owned_pids.delete(pid)
+    end
+
+    def write(name, contents)
+      File.write(File.join(@evidence_dir, name), contents)
+    end
+  end
+
+  def run_server
+    server = TCPServer.new("127.0.0.1", 0)
+    STDOUT.sync = true
+    puts JSON.generate("port" => server.addr[1])
+    loop do
+      socket = server.accept
+      Thread.new(socket) do |client|
+        if client.gets == "stream\n"
+          client.puts("ready")
+          client.puts("pong") while client.gets == "ping\n"
+        else
+          client.puts("ok")
+        end
+      ensure
+        client.close
+      end
+    end
+  end
 end
 
 if $PROGRAM_NAME == __FILE__
-  abort "usage: #{$PROGRAM_NAME} EVIDENCE_DIR" unless ARGV.one?
-
-  PowerManagerSpike::Verifier.new(ARGV.fetch(0)).run
+  case ARGV
+  in ["--server"]
+    PowerManagerSpike.run_server
+  in ["--real-sleep", evidence_dir]
+    PowerManagerSpike::RealSleepVerifier.new(evidence_dir).run
+  in [evidence_dir]
+    PowerManagerSpike::Verifier.new(evidence_dir).run
+  else
+    abort "usage: #{$PROGRAM_NAME} [--real-sleep] EVIDENCE_DIR"
+  end
 end

@@ -72,6 +72,6 @@ When the gate passes, task 0101 should generate a fresh minimal Phoenix/LiveView
 ## Working rules
 
 - Prefix every repository shell command with `rtk`; use `rtk proxy` only for exact unfiltered streams.
-- Search `cuckoding-project-v4` and the relevant pinned peer index before unfamiliar implementation work, then inspect and cite `path:line`.
+- Search `cuckoding-project-v5` and the relevant pinned peer index before unfamiliar implementation work, then inspect and cite `path:line`.
 - Keep implementation changes within the claimed task and its branch.
 - Do not enable the MCP example, activate a plugin, use credentials, publish externally, or perform real sleep tests without the corresponding task and approval.

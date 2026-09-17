@@ -1,6 +1,6 @@
 {
   "assertion": {
-    "pid": 14389,
+    "pid": 28446,
     "visible_while_active": true,
     "released_while_owner_alive": true,
     "released_when_owner_exited": true
@@ -15,14 +15,14 @@
       "gap_id": "simulated-live",
       "gap_ms": 10000,
       "outcome": "continued",
-      "occurred_at": "2026-09-17T15:23:36.287557Z"
+      "occurred_at": "2026-09-17T16:41:27.148889Z"
     },
     {
       "type": "run.resumed_after_sleep",
       "gap_id": "simulated-dead",
       "gap_ms": 10000,
       "outcome": "recovered",
-      "occurred_at": "2026-09-17T15:23:36.316045Z"
+      "occurred_at": "2026-09-17T16:41:27.184520Z"
     }
   ],
   "real_sleep_test": "pending_human_coordination",

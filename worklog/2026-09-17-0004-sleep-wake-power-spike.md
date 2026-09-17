@@ -44,9 +44,17 @@
 - `rtk proxy ruby spikes/0004-sleep-wake-power/power_manager_spike.rb spikes/0004-sleep-wake-power/evidence` — live assertion, owner-exit release, live/dead reconciliation, and cleanup passed.
 - `rtk ps -axo pid,ppid,pgid,command` scoped to the verifier commands — no owned `sleep` or `caffeinate` process remained.
 - `rtk xerj autoindex ... --prefix cuckoding-project-v4` — generation 1 committed, 424 records, 20/20 code files indexed, exit 3 only for declared junk files.
+- `rtk xerj autoindex ... --prefix cuckoding-project-v5` — generation 1 committed, followed by documentation and final source refreshes through generation 3; 493 records and 22/22 code files are live, with exit 3 only for declared junk files. The immutable v4 schema rejected the new evidence shape, so v5 became the documented current generation.
+- XERJ v5 required a temporary 97% flood-stage watermark with 45 GiB free; the default was restored immediately after indexing and verified as `null`.
+- `rtk xerj def --prefix cuckoding-project-v5 -k 5 RealSleepVerifier` — returned the current class at `spikes/0004-sleep-wake-power/power_manager_spike.rb:268`.
+- `rtk proxy ruby spikes/0004-sleep-wake-power/power_manager_spike.rb --real-sleep ...` — five approved attempts. One 31-second sleep started only after the initial verifier had failed and cleaned up; four later preparations were cancelled by fresh user-activity assertions. No attempt is counted as recovery evidence.
+- Final rejected attempt — continuous 30,115 ms, uptime 30,115 ms, wall 30,115 ms, detected gap `null`; correct rejection rather than a false sleep event.
+- Cleanup inspection after every attempt — no owned worker, loopback server, provider-stream fixture, or `caffeinate -i -w` process remained.
 
 ## Handoff
 
 ADR-022 selects supervised `caffeinate -i -w <beam_pid>` and continuous-minus-uptime gap detection. Task 0306 should carry this contract into the Phoenix Power Manager and persist reconciliation before scheduling.
 
 Task 0004 remains in review. It still needs an immediate human-coordinated window for `pmset sleepnow`, AC lid close, and battery lid close. Do not mark those outcomes from simulation.
+
+The active workstation could not provide that window reliably: current user/login activity cancelled four sleep preparations. Repeat on a quiet or locked test Mac rather than retrying indefinitely in an active session.

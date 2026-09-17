@@ -1,0 +1,7 @@
+{
+  "continuous_elapsed_ms": 30115,
+  "uptime_elapsed_ms": 30115,
+  "wall_elapsed_ms": 30115,
+  "detected_gap_ms": null,
+  "result": "sleep_cancelled_before_entry"
+}

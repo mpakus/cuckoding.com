@@ -45,4 +45,6 @@ Attach `pmset` logs, timeline of events, and process inspection before/after sle
 
 Safe automated evidence is under `spikes/0004-sleep-wake-power/evidence/` and summarized in `docs/SLEEP_WAKE_POWER_SPIKE.md`. Task remains in review until a coordinated real-sleep and AC/battery lid-close window supplies the remaining evidence.
 
+Five approved `pmset sleepnow` attempts were made on 2026-09-17. One sleep occurred only after the verifier had already cleaned up; four were cancelled during sleep preparation by new user-activity assertions. None is accepted as real recovery evidence. See `spikes/0004-sleep-wake-power/evidence/real-sleep-attempts.md`.
+
 Discovery correction: macOS 27 `CLOCK_MONOTONIC` continues while asleep. ADR-022 replaces the proposed wall/monotonic detector with continuous-monotonic versus `CLOCK_UPTIME_RAW` divergence.

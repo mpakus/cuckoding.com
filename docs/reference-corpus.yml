@@ -9,10 +9,10 @@ storage:
 project:
   key: cuckoding
   checkout: repository-root
-  base_revision: 07c7a2c9e3eef7a557f8fcb8d8b3c7b249ed2f7e
+  base_revision: 142997aafb39e0ac505c8e203a541b1062341085
   includes_working_tree: true
   license: project-local
-  xerj_prefix: cuckoding-project-v4
+  xerj_prefix: cuckoding-project-v5
   mode: lexical
   purpose: authoritative product, architecture, security, workflow, task, spike-source, and fixture constraints
 

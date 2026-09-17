@@ -39,7 +39,7 @@ Use `CLOCK_MONOTONIC` as continuous elapsed time and `CLOCK_UPTIME_RAW` as activ
 
 ## Reference coding
 
-The refreshed lexical XERJ generation `cuckoding-project-v4` indexed 20 of 20 code files. None of the pinned peers implements macOS power assertions. The closest reusable behavior is Agetor at `src/cli/sse.ts:112-130`, which uses abortable full-jitter backoff after a stream disconnect. Cuckoding may adapt that retry shape in the adapter layer, but only after the durable Power Manager records and reconciles the sleep gap.
+The refreshed lexical XERJ generation `cuckoding-project-v5` indexed 22 of 22 code files. None of the pinned peers implements macOS power assertions. The closest reusable behavior is Agetor at `src/cli/sse.ts:112-130`, which uses abortable full-jitter backoff after a stream disconnect. Cuckoding may adapt that retry shape in the adapter layer, but only after the durable Power Manager records and reconciles the sleep gap.
 
 ## Required coordinated evidence
 
@@ -50,3 +50,17 @@ These checks are still open and must not be inferred from simulation:
 - close and reopen the lid on AC, then on battery, recording `pmset -g batt`, assertion state, process/session/port outcomes, and gap duration.
 
 The current machine was on AC at 76% battery during the assertion test. That observation does not establish lid-close or battery behavior.
+
+## Coordinated drill result
+
+Five `pmset sleepnow` attempts were made after explicit approval. The first request entered a 31-second software sleep only after the initial verifier had already sampled, failed, and released its processes, so it cannot prove recovery. The next four requests reached sleep preparation but were cancelled before entry by fresh `WindowServer UserIsActive` and login-window activity. The final first-tick sample correctly reported no gap: continuous, uptime, and wall clocks each advanced 30,115 ms.
+
+The attempts also showed that this host kept the software-sleep request pending while the owned `caffeinate -i` assertion was present. Later attempts therefore verified and deliberately released the assertion before requesting sleep, with reacquisition designed for the post-wake path. None reached that path. Full sanitized evidence is in `spikes/0004-sleep-wake-power/evidence/real-sleep-attempts.md`; unrelated process and hardware details from `pmset` were not committed.
+
+The opt-in command remains:
+
+```sh
+rtk proxy ruby spikes/0004-sleep-wake-power/power_manager_spike.rb --real-sleep spikes/0004-sleep-wake-power/evidence
+```
+
+Run it only on a quiet or locked test Mac with a coordinated wake plan. Task 0004 remains in review.
