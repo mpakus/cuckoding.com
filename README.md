@@ -35,6 +35,7 @@ See `CHANGES.md`. In short: no Docker in the MVP, agents and commands run on the
 | `CHANGES.md` | What v2 changed and why |
 | `docs/` | Product, architecture, data, workflow, security, UI, shell, plugins, and knowledge specifications |
 | `docs/DOCUMENTATION_AUDIT.md` | Complete documentation inventory, contradictions, risks, and readiness conclusion |
+| `docs/IMPLEMENTATION_READINESS.md` | Verified local toolchain, Phase 0 order, blockers, and Phase 1 entry gate |
 | `docs/REFERENCE_CODING.md` | XERJ-backed retrieve-before-code workflow and RTK command convention |
 | `docs/reference-corpus.yml` | Pinned peer repositories, licenses, revisions, and XERJ prefixes |
 | `docs/plugins/` | Reference plugin specifications (XERJ, RTK, Ponytail) |
@@ -59,9 +60,9 @@ Prefix every repository shell command with `rtk`. This applies to inspection, Gi
 
 The commands stored in `.cuckoding/project.yml` remain the underlying commands, such as `mix test`. Cuckoding validates the underlying command and its policy first; the optional RTK plugin wraps it afterward. See `docs/REFERENCE_CODING.md` before implementing an unfamiliar problem.
 
-## Pack placement check
+## Pack placement
 
-This pack's `.agents/` and `.cuckoding/` directories belong at the implementation repository root. In the current planning checkout they are nested under `docs/`; resolve that placement before Phase 01 rather than keeping two sources of truth. The finding and alternatives are recorded in `docs/DOCUMENTATION_AUDIT.md`.
+The `.agents/` and `.cuckoding/` directories are at the repository root, matching the execution and configuration contracts. Do not create nested or duplicate copies. Read `docs/IMPLEMENTATION_READINESS.md` before claiming the first implementation task.
 
 ## MVP boundary
 

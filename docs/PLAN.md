@@ -11,6 +11,8 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 - [ ] Spike the menubar shell launching a bundled release and opening the browser.
 - [ ] Spike sleep/wake detection and power assertions.
 - [ ] Record findings and revise decisions.
+- [x] Audit the planning pack and establish RTK/XERJ reference coding.
+- [x] Place repository skills/configuration at root and verify the local toolchain.
 
 ## Phase 1 — Phoenix foundation
 
