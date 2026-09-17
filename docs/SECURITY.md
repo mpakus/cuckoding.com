@@ -77,6 +77,8 @@ At minimum: authentication changes, capability grants, effective runtime permiss
 
 Preview URLs and probes accept only `http://127.0.0.1:<allocated-port>`; health paths reject CR/LF injection and redirects are not followed. Listener recovery uses `/usr/sbin/lsof`, the process-group leader, and its recorded start identity, and ambiguous output fails closed. Finder/editor actions operate only on the database-recorded worktree after physical path resolution and invoke absolute `/usr/bin/open` with argv.
 
+Lifecycle cleanup fails closed unless the database relationship, canonical workspace paths, ownership marker, base/branch/head identities, clean Git status, and lack of running process records all agree. It never uses force removal, preserves the run directory and artifacts, and records cleanup intent before invoking Git so startup reconciliation can diagnose an interrupted cleanup.
+
 Mandatory for policy escalation, newly modified execution configuration, enabling plugins with host or network permissions, destructive cleanup with uncertain ownership, global knowledge publication, external push/PR, final merge/release, and installation of untrusted skills or binaries.
 
 ## Security verification

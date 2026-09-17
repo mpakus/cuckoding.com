@@ -99,6 +99,10 @@ Pause requests a safe checkpoint from the adapter and stops scheduling new tools
 
 Resume reacquires leases, validates the worktree and policy hashes, reallocates ports, restores declared services, and either resumes the provider session or creates a new session with a bounded continuation package. Drift in the base branch or trusted configuration blocks resume until the user chooses rebase, continue unchanged, or restart. Resume after a sleep gap follows `docs/LONG_RUNNING_AND_POWER.md`.
 
+The host lifecycle implementation requires an adapter checkpoint for an active stage before pause or hibernate. Hibernate stops only PID/start-identity-verified process groups and releases the in-memory bearer lease before the durable transition. After relaunch, resume reconstructs the run, environment, and active attempt from SQLite, verifies the ownership marker plus recorded base/branch/head and policy hash, acquires a new port lease, and passes the existing attempt and checkpoint to the adapter. It never creates a retry attempt.
+
+Destroy uses the same owned-process shutdown first, then asks Git to remove the exact recorded worktree without `--force`. A dirty worktree, ownership drift, an unverified path, or any still-running process refuses cleanup. The run directory and artifacts remain, and their relative path/type/size inventory is attached to cleanup events.
+
 ## Stage contract
 
 Every stage definition declares: stable key, display name, and role; input artifact types and required context; knowledge triggers; allowed tool categories; maximum attempts, active duration, wall duration, token budget, and cost budget; entry guards and exit gates; required output artifact schema; transitions for success, findings, timeout, cancellation, and system failure; whether pause and provider-native resume are supported; whether a human approval is mandatory; checkpoint interval.

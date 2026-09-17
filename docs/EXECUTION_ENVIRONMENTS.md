@@ -77,6 +77,12 @@ The dev server is the immutable snapshot's declared `dev_server` command. Cuckod
 
 The shared LiveView preview panel renders textual health, a guarded preview link, and keyboard-accessible Finder/editor buttons. The user-triggered opener re-reads the environment, requires the recorded worktree path, resolves its physical directory, and invokes `/usr/bin/open` with argv rather than a shell.
 
+## Lifecycle and cleanup
+
+`Cuckoding.Execution.Lifecycle` composes the runner operations; it does not make an in-memory process the workflow owner. Pause verifies every recorded live process and persists the adapter's public checkpoint before the task/run transition. Hibernate persists a fresh checkpoint before the termination ladder, then releases the port lease and preserves the worktree. A checkpoint failure leaves the processes and run state unchanged.
+
+Resume reloads durable rows, accepts only a hibernated run, calls the read-only Git ownership/drift inspection, reallocates a port, and gives the adapter the same active attempt plus `checkpoint_json`. A failed resume releases the new allocation back to hibernated state. Cleanup stops owned processes, releases the port, and removes only a clean registered worktree whose canonical paths and `run.json` ownership fields still match. The run directory and artifacts are retained and enumerated; Cuckoding never force-removes a dirty or ambiguous path.
+
 ## Resource accounting
 
 - Sample CPU time, RSS, thread/process count, and open ports for every process group every 2–5 seconds while active.

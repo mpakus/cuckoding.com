@@ -44,6 +44,17 @@ defmodule Cuckoding.Execution.LocalProcessRunner do
   end
 
   @impl true
+  def pause(%Environment{} = environment, _options \\ []) do
+    with :ok <- verify_owned_processes(environment), do: {:ok, environment}
+  end
+
+  @impl true
+  def hibernate(%Environment{} = environment, options \\ []), do: destroy(environment, options)
+
+  @impl true
+  def resume(%Environment{} = environment, options \\ []), do: prepare(environment, options)
+
+  @impl true
   def inspect(%ProcessRecord{} = process, _options \\ []) do
     Cuckoding.Execution.LocalHostInspector.inspect_process(process)
   end
@@ -112,6 +123,21 @@ defmodule Cuckoding.Execution.LocalProcessRunner do
           :ok
         end
     end
+  end
+
+  defp verify_owned_processes(environment) do
+    Repo.all(
+      from(process in ProcessRecord,
+        where: process.environment_id == ^environment.id and process.state == "running"
+      )
+    )
+    |> Enum.reduce_while(:ok, fn process, :ok ->
+      case Cuckoding.Execution.LocalHostInspector.inspect_process(process) do
+        {:ok, %{status: :matching}} -> {:cont, :ok}
+        {:ok, %{status: status}} -> {:halt, {:error, {:process_ownership_unverified, status}}}
+        {:error, reason} -> {:halt, {:error, {:process_ownership_unverified, reason}}}
+      end
+    end)
   end
 
   defp directory?(path) do

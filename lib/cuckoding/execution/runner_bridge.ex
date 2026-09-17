@@ -4,6 +4,9 @@ defmodule Cuckoding.Execution.RunnerBridge do
   @callback prepare(struct(), keyword()) :: {:ok, struct()} | {:error, term()}
   @callback start(struct(), map(), keyword()) :: {:ok, term()} | {:error, term()}
   @callback exec(struct(), map(), keyword()) :: {:ok, map()} | {:error, term()}
+  @callback pause(struct(), keyword()) :: {:ok, struct()} | {:error, term()}
+  @callback hibernate(struct(), keyword()) :: :ok | {:error, term()}
+  @callback resume(struct(), keyword()) :: {:ok, struct()} | {:error, term()}
   @callback inspect(struct(), keyword()) :: {:ok, map()} | {:error, term()}
   @callback stream_events(struct(), keyword()) :: {:ok, list()} | {:error, term()}
   @callback destroy(struct(), keyword()) :: :ok | {:error, term()}
@@ -19,6 +22,12 @@ defmodule Cuckoding.Execution.FakeRunner do
   def start(subject, _command, options), do: result(:start, subject, options)
   @impl true
   def exec(subject, _command, options), do: result(:exec, subject, options)
+  @impl true
+  def pause(subject, options), do: result(:pause, subject, options)
+  @impl true
+  def hibernate(_subject, options), do: Keyword.get(options, :hibernate, :ok)
+  @impl true
+  def resume(subject, options), do: result(:resume, subject, options)
   @impl true
   def inspect(subject, options), do: result(:inspect, subject, options)
   @impl true

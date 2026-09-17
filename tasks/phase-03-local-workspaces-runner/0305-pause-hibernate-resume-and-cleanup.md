@@ -1,8 +1,16 @@
 # 0305 — Pause, Hibernate, Resume, and Safe Cleanup
 
+```yaml
+status: done
+owner: codex
+started_at: 2026-09-17
+completed_at: 2026-09-17
+worklog: worklog/2026-09-17-0305-lifecycle-cleanup.md
+```
+
 ## Objective
 
-Implement pause, hibernate, resume, and destroy on the host runner per `docs/FLOW.md` and `docs/EXECUTION_ENVIRONMENTS.md`, including ownership verification before cleanup..
+Implement pause, hibernate, resume, and destroy on the host runner per `docs/FLOW.md` and `docs/EXECUTION_ENVIRONMENTS.md`, including ownership verification before cleanup.
 
 ## Dependencies
 
@@ -19,14 +27,14 @@ Implement pause, hibernate, resume, and destroy on the host runner per `docs/FLO
 
 ## Checklist
 
-- [ ] Hibernate completes checkpoints before stopping processes.
-- [ ] Resume revalidates hashes and reallocates ports.
-- [ ] Destroy only with recorded ownership.
+- [x] Hibernate completes checkpoints before stopping processes.
+- [x] Resume revalidates hashes and reallocates ports.
+- [x] Destroy only with recorded ownership.
 
 ## Acceptance criteria
 
-- [ ] Hibernate → quit → relaunch → resume yields single stage execution.
-- [ ] Cleanup never removes another run's files.
+- [x] Hibernate → quit → relaunch → resume yields single stage execution.
+- [x] Cleanup never removes another run's files.
 
 ## Verification and evidence
 

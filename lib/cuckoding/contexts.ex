@@ -231,6 +231,20 @@ defmodule Cuckoding.Execution do
     |> Repo.update()
   end
 
+  def checkpoint_stage_attempt(attempt, checkpoint) when is_map(checkpoint) do
+    attrs = %{
+      event_type: "stage.checkpointed",
+      public_summary: "Stage checkpoint persisted",
+      payload: %{"stage_attempt_id" => attempt.id}
+    }
+
+    projection = fn repo, _sequence ->
+      repo.update(StageAttempt.checkpoint_changeset(attempt, %{checkpoint_json: checkpoint}))
+    end
+
+    Cuckoding.Execution.EventStore.append(attempt.run_id, attrs, projection)
+  end
+
   def finish_process(process, exit_code, ended_at) do
     state = if exit_code == 0, do: "exited", else: "failed"
 

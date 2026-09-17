@@ -41,7 +41,7 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 - [x] `LocalProcessRunner` with process groups, environment allowlist, timeouts.
 - [x] Command policy and protected paths.
 - [x] Port allocation and preview URLs.
-- [ ] Pause, hibernate, resume, safe cleanup.
+- [x] Pause, hibernate, resume, safe cleanup.
 - [ ] Power assertions and sleep/wake reconciliation.
 
 ## Phase 4 — Agent adapters and walking skeleton

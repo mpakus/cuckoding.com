@@ -7,8 +7,13 @@ defmodule Cuckoding.Execution.GitService do
 
   require Logger
 
+  import Kernel, except: [inspect: 1]
+  import Ecto.Query, only: [from: 2]
+
   alias Cuckoding.Execution
   alias Cuckoding.Execution.Environment
+  alias Cuckoding.Execution.EventStore
+  alias Cuckoding.Execution.ProcessRecord
   alias Cuckoding.Execution.Run
   alias Cuckoding.Projects.Project
   alias Cuckoding.Projects.ProjectConfigVersion
@@ -111,6 +116,28 @@ defmodule Cuckoding.Execution.GitService do
     end
   end
 
+  @doc "Removes one clean, owned worktree while retaining the run directory and artifacts."
+  def cleanup(%Environment{} = environment) do
+    with {:ok, %{clean?: true}} <- inspect(environment),
+         :ok <- no_running_processes?(environment),
+         {:ok, artifacts} <- retained_artifacts(environment.run_dir),
+         {:ok, _started} <- cleanup_started(environment, artifacts),
+         %Run{} = run <- Repo.get(Run, environment.run_id),
+         %Task{} = task <- Repo.get(Task, run.task_id),
+         %Board{} = board <- Repo.get(Board, task.board_id),
+         %Project{} = project <- Repo.get(Project, board.project_id),
+         {:ok, repo} <- canonical_directory(project.repo_path),
+         {:ok, _output} <- git(repo, ["worktree", "remove", environment.worktree_path]),
+         {:ok, {_event, stopped}} <- cleanup_completed(environment, artifacts) do
+      {:ok, %{environment: stopped, retained_artifacts: artifacts}}
+    else
+      {:ok, %{clean?: false}} -> {:error, :dirty_worktree}
+      nil -> {:error, :ownership_source_not_found}
+      {:drift, reason} -> {:error, {:ownership_drift, reason}}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
   defp drift_status(current_base, branch, head_sha, clean, run, environment) do
     cond do
       current_base != environment.base_sha -> {:drift, :base_changed}
@@ -118,6 +145,94 @@ defmodule Cuckoding.Execution.GitService do
       head_sha != environment.head_sha -> {:drift, :head_changed}
       true -> {:ok, %{clean?: clean, head_sha: head_sha}}
     end
+  end
+
+  defp no_running_processes?(environment) do
+    if Repo.exists?(
+         from(process in ProcessRecord,
+           where: process.environment_id == ^environment.id and process.state == "running"
+         )
+       ),
+       do: {:error, :running_processes},
+       else: :ok
+  end
+
+  defp retained_artifacts(run_dir) do
+    root = Path.join(run_dir, "artifacts")
+
+    case File.lstat(root) do
+      {:ok, %{type: :directory}} -> artifact_entries(root, root)
+      {:error, :enoent} -> {:ok, []}
+      {:ok, _stat} -> {:error, :invalid_artifacts_directory}
+      {:error, reason} -> {:error, {:artifact_inspection_failed, reason}}
+    end
+  end
+
+  defp artifact_entries(directory, root) do
+    case File.ls(directory) do
+      {:ok, names} ->
+        names
+        |> Enum.sort()
+        |> Enum.reduce_while(
+          {:ok, []},
+          &collect_artifact(&1, &2, directory, root)
+        )
+
+      {:error, reason} ->
+        {:error, {:artifact_inspection_failed, reason}}
+    end
+  end
+
+  defp collect_artifact(name, {:ok, entries}, directory, root) do
+    case artifact_entry(Path.join(directory, name), root) do
+      {:ok, found} -> {:cont, {:ok, entries ++ found}}
+      {:error, reason} -> {:halt, {:error, reason}}
+    end
+  end
+
+  defp artifact_entry(path, root) do
+    case File.lstat(path) do
+      {:ok, %{type: :directory}} ->
+        artifact_entries(path, root)
+
+      {:ok, %{type: type, size: size}} ->
+        {:ok,
+         [%{"path" => Path.relative_to(path, root), "type" => to_string(type), "bytes" => size}]}
+
+      {:error, reason} ->
+        {:error, {:artifact_inspection_failed, reason}}
+    end
+  end
+
+  defp cleanup_started(environment, artifacts) do
+    EventStore.append(environment.run_id, %{
+      event_type: "environment.cleanup_started",
+      public_summary: "Owned worktree cleanup started",
+      payload: %{"environment_id" => environment.id, "retained_artifacts" => artifacts}
+    })
+  end
+
+  defp cleanup_completed(environment, artifacts) do
+    projection = fn repo, _sequence ->
+      environment
+      |> Environment.preview_changeset(%{
+        port: nil,
+        preview_url: nil,
+        ports_json: %{},
+        state: "stopped"
+      })
+      |> repo.update()
+    end
+
+    EventStore.append(
+      environment.run_id,
+      %{
+        event_type: "environment.cleanup_completed",
+        public_summary: "Owned worktree removed; run artifacts retained",
+        payload: %{"environment_id" => environment.id, "retained_artifacts" => artifacts}
+      },
+      projection
+    )
   end
 
   defp workspace_root(path) do

@@ -360,6 +360,12 @@ defmodule Cuckoding.Execution.StageAttempt do
     |> validate_wall_time()
   end
 
+  def checkpoint_changeset(record, attrs) do
+    record
+    |> cast(attrs, [:checkpoint_json])
+    |> validate_required([:checkpoint_json])
+  end
+
   defp validate_wall_time(changeset) do
     active_ms = get_field(changeset, :active_ms)
     wall_ms = get_field(changeset, :wall_ms)

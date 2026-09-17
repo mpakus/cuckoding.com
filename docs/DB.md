@@ -58,7 +58,7 @@ erDiagram
 | `task_dependencies` | `task_id`, `depends_on_task_id`, `kind` | Prevent cycles at write time |
 | `task_comments` | `task_id`, `author_kind`, `body`, `created_at` | User and public agent notes |
 | `runs` | `task_id`, `sequence`, `state`, `wait_reason`, `workflow_snapshot_json`, `policy_snapshot_id`, `plugin_snapshot_json`, `branch`, `base_sha` | One task may have retries or replacements; workflow and roles are copied from the immutable board version |
-| `stage_attempts` | `run_id`, `stage_key`, `attempt`, `state`, `role_key`, `role_kind`, `started_at`, `finished_at`, `active_ms`, `wall_ms`, `checkpoint_json` | Immutable attempt history plus current state |
+| `stage_attempts` | `run_id`, `stage_key`, `attempt`, `state`, `role_key`, `role_kind`, `started_at`, `finished_at`, `active_ms`, `wall_ms`, `checkpoint_json` | Immutable attempt history plus current state; checkpoint replacement is projected in the same transaction as `stage.checkpointed` |
 | `approvals` | `run_id`, `stage_attempt_id?`, `kind`, `decision`, `actor`, `reason`, `decided_at` | Trust-boundary evidence; protected-path approvals include the exact sorted change-set digest in `kind` |
 | `findings` | `run_id`, `stage_attempt_id`, `severity`, `category`, `status`, `summary`, `evidence_json` | Review and QA findings |
 
