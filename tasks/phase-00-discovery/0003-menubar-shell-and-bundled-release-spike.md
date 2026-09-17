@@ -1,5 +1,12 @@
 # 0003 — Menubar Shell and Bundled Release Spike
 
+```yaml
+status: review
+owner: codex
+started_at: 2026-09-17
+worklog: worklog/2026-09-17-0003-menubar-release-spike.md
+```
+
 ## Objective
 
 Build disposable spike code for the shell decision in `docs/DESKTOP_SHELL.md`: package a minimal Phoenix release with ERTS inside an `.app`, launch it from a tray-only shell with Accessory activation policy, pass a bootstrap token safely, parse a READY line, open the default browser through a single-use token, poll a status endpoint, and quit through the termination ladder.
@@ -21,21 +28,25 @@ Build disposable spike code for the shell decision in `docs/DESKTOP_SHELL.md`: p
 
 ## Checklist
 
-- [ ] Build the release for macOS arm64 with ERTS.
-- [ ] No dock icon; tray menu with Cuckoding, About, Settings, Quit.
-- [ ] Reject a browser request without a valid single-use token; reject replay.
-- [ ] Parse readiness without scraping arbitrary logs.
-- [ ] Handle child crash before and after readiness.
-- [ ] Terminate descendants on normal quit and forced quit.
+- [x] Build the release for macOS arm64 with ERTS.
+- [x] No dock icon; tray menu with Cuckoding, About, Settings, Quit.
+- [x] Reject a browser request without a valid single-use token; reject replay.
+- [x] Parse readiness without scraping arbitrary logs.
+- [x] Handle child crash before and after readiness.
+- [x] Terminate descendants on normal quit and forced quit.
 - [ ] Repeat on a clean user account.
 
 ## Acceptance criteria
 
-- [ ] The app reaches an authenticated LiveView in the default browser without system Elixir/Erlang.
-- [ ] Unauthorized local requests cannot open a session.
-- [ ] Quit leaves no child process running.
-- [ ] The chosen protocol is documented in an ADR.
+- [x] The app reaches an authenticated LiveView through the default-browser handoff without system Elixir/Erlang.
+- [x] Unauthorized local requests cannot open a session.
+- [x] Quit leaves no child process running.
+- [x] The chosen protocol is documented in ADR-011.
 
 ## Verification and evidence
 
 Provide a screen recording or timestamped log for startup, rejected access, replayed token, simulated child crash, and clean shutdown.
+
+Evidence: `spikes/0003-menubar-release/evidence/verification.log` and `docs/MENUBAR_SHELL_SPIKE.md`. The macOS session was locked during the final accessibility capture, so no redundant screen recording was produced; the timestamped release protocol and native process/socket inspections passed.
+
+Review item: this Mac has only one non-system local user. A sterile temporary `HOME` and empty inherited environment proved that the bundle does not depend on the current user's Elixir/Erlang installation, but that is not equivalent to an actual clean user account. Keep the checklist item open until a separate account or clean Mac is available.

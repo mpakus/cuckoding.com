@@ -1,0 +1,14 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Cuckoding Shell Spike",
+  "version": "0.1.0",
+  "identifier": "com.cuckoding.shell-spike",
+  "build": { "frontendDist": "../frontend" },
+  "app": { "windows": [] },
+  "bundle": {
+    "active": true,
+    "targets": ["app"],
+    "resources": { "../release": "release" },
+    "macOS": { "minimumSystemVersion": "13.0", "hardenedRuntime": true }
+  }
+}

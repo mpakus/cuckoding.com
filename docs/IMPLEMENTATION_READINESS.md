@@ -19,7 +19,7 @@ Prepared on 2026-09-17 from revision `897bc30a0712bdd68bec745daa8a1b987190df57`.
 | Elixir / Mix | 1.19.5, compiled for OTP 28 | pinned project runtime; installed during task 0006 |
 | Git | 2.51.1 | worktrees and branches |
 | SQLite | 3.54.0 | durable local store |
-| Rust / Cargo | 1.97.1 | Tauri shell spike |
+| Rust / Cargo | 1.97.1 installed; task 0003 pins 1.90.0 | Tauri shell; 1.90 avoids a macOS 27 stripped proc-macro defect during the discovery build |
 | Xcode / Swift | Xcode 27.0 / Swift 6.4 | macOS shell and signing experiments |
 | Node / npm | 24.13.0 / 11.6.2 | Phoenix assets and Tauri tooling |
 | Claude Code | 2.1.142 | available adapter candidate |
@@ -44,17 +44,16 @@ Prepared on 2026-09-17 from revision `897bc30a0712bdd68bec745daa8a1b987190df57`.
 
 Tasks 0002 and 0003 may run in parallel after 0001. Task 0004 requires the observed runtime behavior from 0002. Phase 1 starts only after all Phase 0 acceptance criteria have evidence and any architecture changes are recorded in `docs/DECISIONS.md`.
 
-## Next executable task: 0001
+## Next executable task: 0004
 
-Task 0001 must settle or date-bound the choices that would otherwise leak into scaffolding and public identity:
+Tasks 0001–0002 and 0005–0007 are complete. Task 0003's implementation and acceptance checks pass, but its distinct clean-user-account run remains in review. Task 0004 can proceed from task 0002 and must now prove power-assertion ownership and sleep/wake reconciliation before Phase 1:
 
-- product name, open-core license, and pricing hypothesis;
-- the two launch adapters and which runtime task 0002 will exercise first;
-- data classes, retention defaults, and whether external telemetry is off by default;
-- the trusted-host risk register, mandatory approvals, residual-risk disclosure, and validation owners;
-- interview ownership and schedule.
+- hold and release the idle-sleep assertion with observable ownership;
+- detect simulated and coordinated real sleep gaps without duplicate stage execution;
+- classify provider-stream interruption separately from agent-process survival;
+- record honest AC, battery, and lid-close evidence and confirm or revise ADR-016.
 
-Do not infer these product decisions from installed tools. Claude Code, Codex, and Cursor Agent being present only proves local spike availability.
+Task 0003 confirmed the tray-shell architecture and bundled-release path. Its clean-user-account review item remains a Phase 1 gate. Developer ID signing and notarization remain Phase 9 gates.
 
 ## Phase 1 entry gate
 

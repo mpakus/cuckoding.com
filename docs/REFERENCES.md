@@ -4,13 +4,17 @@ Reviewed on 2026-09-16. External behavior, commands, licensing, and product term
 
 ## Desktop shell and Elixir packaging
 
-- Tauri 2 tray icon and macOS activation policy: https://v2.tauri.app/
+- Tauri 2 macOS app bundles: https://v2.tauri.app/distribute/macos-application-bundle/
+- Tauri 2 bundled resources: https://v2.tauri.app/develop/resources/
+- Tauri 2 system tray: https://v2.tauri.app/learn/system-tray/
 - elixir-desktop: https://github.com/elixir-desktop/desktop
 - Burrito: https://github.com/burrito-elixir/burrito
 - Elixir releases: https://hexdocs.pm/mix/Mix.Tasks.Release.html
 - Phoenix LiveView: https://hexdocs.pm/phoenix_live_view/
 - Ecto SQLite3 adapter: https://hexdocs.pm/ecto_sqlite3/
 - Apple notarization and hardened runtime: https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution
+- Apple JIT guidance for hardened Apple Silicon applications: https://developer.apple.com/documentation/Apple-Silicon/porting-just-in-time-compilers-to-apple-silicon
+- Rust macOS 27 stripped proc-macro dylib issue: https://github.com/rust-lang/rust/issues/157750
 
 ## Execution and source control
 

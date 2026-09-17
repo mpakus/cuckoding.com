@@ -52,12 +52,12 @@ This file records accepted product-level decisions. Add a dated ADR section when
 ## ADR-011 — Menubar-only shell, UI in the default browser
 
 - **Date:** 2026-09-16
-- **Status:** Accepted
+- **Status:** Accepted; confirmed by task 0003 on 2026-09-17
 - **Context:** The user wants an installed app whose only native surface is a status-bar menu (Cuckoding, About, Settings, Quit), with the whole interface in the browser.
-- **Decision:** Tauri 2 in tray-only mode with Accessory activation policy launches the bundled mix release and opens the browser with single-use tokens. Alternatives kept viable through the shell contract: Swift/AppKit shell; elixir-desktop taskbar icon. Burrito is not used for the app bundle.
+- **Decision:** Tauri 2 in tray-only mode with `LSUIElement` and Accessory activation policy launches the bundled mix release and opens the browser with single-use tokens. The shell passes a unique mode-0600 bootstrap file, waits for exact readiness JSON, disables Erlang distribution, and owns the child process group through a bounded shutdown ladder. Alternatives remain viable through the shell contract: Swift/AppKit shell; elixir-desktop taskbar icon. Burrito is not used for the app bundle.
 - **Alternatives:** Full Tauri window (rejected: not wanted); elixir-desktop (wxWidgets bundling, fallback); Burrito (packaging only, no shell).
-- **Consequences:** The Phoenix side owns everything, including secrets; the shell is replaceable.
-- **Verification:** Task 0003 spike and Phase 9 packaging tests.
+- **Consequences:** The Phoenix side owns product state; the shell retains only its in-memory control credential. The shell is replaceable. Developer ID signing, nested ERTS signing, BEAM JIT entitlements, notarization, stapling, and clean-Mac install remain Phase 9 gates.
+- **Verification:** Task 0003 passed release, authentication, replay, crash, signal, process cleanup, loopback-only, and sterile-home checks. See `docs/MENUBAR_SHELL_SPIKE.md`. Phase 9 owns distribution signing and notarization.
 
 ## ADR-012 — Host process runner first; container runners as plugins
 

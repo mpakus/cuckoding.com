@@ -56,3 +56,10 @@ npm-debug.log
 /src-tauri/target/
 /src-tauri/gen/
 /burrito_out/
+
+# Discovery spike build output
+/spikes/0003-menubar-release/control_plane/_build/
+/spikes/0003-menubar-release/control_plane/deps/
+/spikes/0003-menubar-release/shell/release/
+/spikes/0003-menubar-release/shell/src-tauri/gen/
+/spikes/0003-menubar-release/shell/src-tauri/target/

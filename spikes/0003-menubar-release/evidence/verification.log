@@ -1,0 +1,28 @@
+2026-09-17T15:07:15.630Z PASS release emits exact READY JSON in 0.781s
+2026-09-17T15:07:15.630Z PASS bootstrap file is deleted after startup
+2026-09-17T15:07:15.631Z PASS non-loopback Host header is rejected
+2026-09-17T15:07:15.631Z PASS missing bootstrap token is rejected
+2026-09-17T15:07:15.632Z PASS invalid bootstrap token is rejected
+2026-09-17T15:07:15.632Z PASS bootstrap token is exchanged once
+2026-09-17T15:07:15.633Z PASS bootstrap replay is rejected
+2026-09-17T15:07:15.633Z PASS missing shell token is rejected
+2026-09-17T15:07:15.634Z PASS invalid shell token is rejected
+2026-09-17T15:07:15.634Z PASS authenticated shell status is available
+2026-09-17T15:07:15.635Z PASS shell can mint a short-lived browser token
+2026-09-17T15:07:15.636Z PASS browser token creates a session for the requested safe path (code=302, location="/settings", cookie=true)
+2026-09-17T15:07:15.636Z PASS browser token replay is rejected
+2026-09-17T15:07:15.637Z PASS invalid browser token is rejected
+2026-09-17T15:07:15.638Z PASS browser handoff rejects an external redirect target
+2026-09-17T15:07:15.639Z PASS authenticated LiveView renders
+2026-09-17T15:07:15.639Z PASS unauthenticated LiveView redirects
+2026-09-17T15:07:15.640Z PASS authenticated crash injection is accepted
+2026-09-17T15:07:15.796Z PASS post-readiness crash exits with the injected status
+2026-09-17T15:07:15.796Z PASS post-readiness crash is detected within 2s
+2026-09-17T15:07:15.998Z PASS post-readiness crash leaves no process-group descendants
+2026-09-17T15:07:16.324Z PASS authenticated graceful shutdown is accepted
+2026-09-17T15:07:17.458Z PASS graceful shutdown exits successfully
+2026-09-17T15:07:17.458Z PASS graceful shutdown completes within 3s
+2026-09-17T15:07:17.661Z PASS graceful shutdown leaves no process-group descendants
+2026-09-17T15:07:17.979Z PASS pre-readiness crash exits without a false READY signal
+2026-09-17T15:07:17.979Z PASS pre-readiness crash is detected within 2s
+2026-09-17T15:07:18.182Z PASS pre-readiness crash leaves no process-group descendants
