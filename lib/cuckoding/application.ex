@@ -10,6 +10,7 @@ defmodule Cuckoding.Application do
       Cuckoding.Execution.StartupReconciler,
       {Registry, keys: :unique, name: Cuckoding.RunRegistry},
       Cuckoding.Execution.RunSupervisors,
+      {DynamicSupervisor, strategy: :one_for_one, name: Cuckoding.Execution.ProcessWorkers},
       {Phoenix.PubSub, name: Cuckoding.PubSub},
       CuckodingWeb.Endpoint
     ]

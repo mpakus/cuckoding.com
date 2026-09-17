@@ -47,6 +47,8 @@ flowchart TD
 
 `RunnerBridge` separates orchestration from execution location. Required operations: prepare, start, exec, pause, hibernate, resume, inspect, stream events, allocate/release ports, and destroy. The MVP implementation is `LocalProcessRunner` (`docs/EXECUTION_ENVIRONMENTS.md`). Container runners (Docker, OrbStack, Colima, Apple Containers) and remote runners implement the same behaviour as plugins later.
 
+The implemented host bridge covers prepare, asynchronous start, synchronous exec, read-only inspection/resource sampling, durable lifecycle-event retrieval, and environment-wide process destruction. Port allocation and pause/hibernate/resume remain the bounded follow-on tasks 0304 and 0305 rather than hidden behavior in the process launcher.
+
 ### Agent adapter layer
 
 Each runtime adapter converts a common stage request into a provider-specific host process and converts output into normalized events, artifacts, usage, checkpoints, and completion status. Agents run on the host; their own permission systems (allowed tools, working directory, approval modes) are configured by the adapter from the stage capability grant, and the granted set is recorded. Capability discovery is explicit.

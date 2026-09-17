@@ -63,6 +63,7 @@ Each stage receives an unguessable short-lived capability set: allowed worktree,
 - Child processes in their own process groups; PID plus start identity recorded.
 - Timeouts and termination ladders; every step recorded.
 - Redact stdout/stderr before persistence.
+- Build child environments from scratch; reject undeclared and credential-shaped variables instead of inheriting the Phoenix environment.
 - All provider and plugin output is data until parsed and validated.
 - On restart or wake, inspect and reconcile before killing or adopting a process.
 

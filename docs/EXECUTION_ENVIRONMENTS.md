@@ -38,12 +38,18 @@ The workspace root defaults to `~/Library/Application Support/Cuckoding/workspac
 
 ## Process supervision
 
-- Every launched process gets its own session/process group (`setsid`). Because a runtime may create additional descendant groups, inspect and own the full process forest; signaling only the initial group is insufficient.
+- Every launched process gets its own process group. Because a runtime may create additional descendant groups, inspect and own the full process forest; signaling only the initial group is insufficient.
 - Record PID plus start timestamp; verify both before signalling to avoid PID reuse.
 - Startup and wake reconciliation use a read-only inspector. A numeric PID alone is never sufficient to continue, adopt, or signal a process; the observed start identity must match the durable record.
 - Termination ladder: adapter graceful stop → signal owned descendant groups before the root group with `SIGINT` → `SIGTERM` → `SIGKILL`, each with a bounded wait and an event. Completion requires every observed PID and PGID to be gone.
 - Bound stdout/stderr, apply redaction before persistence, and stream a public summary to the UI.
 - Environment is built from an allowlist: `PATH` (resolved tool paths), `HOME`, locale, `PORT`/`CUCKODING_*`, and only the variables the policy declares. Never inherit the shell's full environment.
+
+`Cuckoding.Execution.LocalProcessRunner` owns each Erlang port through a temporary supervised worker. The macOS port launcher creates the process group; a short `/usr/bin/ruby` argv-preserving shim delays `exec` long enough to record the leader's PID, PGID, and `ps` start identity. The runner snapshots descendant groups, signals child groups before the root group, records each attempted signal before sending it, and refuses to signal when the durable start identity differs. This is supervision, not sandboxing.
+
+The child environment starts empty: Cuckoding removes every inherited key, supplies a fixed system `PATH`, a per-run `HOME`, locale/timezone defaults, explicit `CUCKODING_*` values, and only policy-allowlisted additions. Credential-shaped names are refused. macOS may add its own platform bookkeeping variables after launch; ambient application values are not copied.
+
+Stdout and stderr are combined into one ordered stream. Redaction runs before a mode-`0600` artifact write. The in-memory/UI preview stops at the configured byte limit and emits a durable truncation event that points callers to the complete redacted artifact; truncation is never silent.
 
 ## Path and command policy
 

@@ -1,5 +1,13 @@
 # 0302 — LocalProcessRunner with Process Groups and Environment Allowlist
 
+```yaml
+status: done
+owner: codex
+started_at: 2026-09-17
+completed_at: 2026-09-17
+worklog: worklog/2026-09-17-0302-local-process-runner.md
+```
+
 ## Objective
 
 Implement `RunnerBridge` for the host: prepare, start, exec, inspect, stream events, destroy; process groups; PID and start identity; termination ladder; environment allowlist; output bounds and redaction..
@@ -20,14 +28,14 @@ Implement `RunnerBridge` for the host: prepare, start, exec, inspect, stream eve
 
 ## Checklist
 
-- [ ] Every process in its own group.
-- [ ] Environment built from allowlist only.
-- [ ] Every ladder step recorded.
+- [x] Every process in its own group.
+- [x] Environment built from allowlist only.
+- [x] Every ladder step recorded.
 
 ## Acceptance criteria
 
-- [ ] Killing a run leaves no orphan.
-- [ ] Output beyond limits is truncated with an artifact, never lost silently.
+- [x] Killing a run leaves no orphan.
+- [x] Output beyond limits is truncated with an artifact, never lost silently.
 
 ## Verification and evidence
 

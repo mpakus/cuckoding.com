@@ -570,6 +570,13 @@ defmodule Cuckoding.Execution.ProcessRecord do
     |> foreign_key_constraint(:command_id)
     |> unique_constraint([:pid, :start_identity])
   end
+
+  def finish_changeset(record, attrs) do
+    record
+    |> cast(attrs, [:state, :exit_code, :ended_at])
+    |> validate_required([:state, :ended_at])
+    |> validate_inclusion(:state, ~w(exited killed failed))
+  end
 end
 
 defmodule Cuckoding.Adapters.ProviderAccount do

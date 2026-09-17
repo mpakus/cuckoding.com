@@ -154,6 +154,14 @@ defmodule Cuckoding.Execution do
   def create_agent_session(attrs), do: insert(AgentSession, attrs)
   def record_process(attrs), do: insert(ProcessRecord, attrs)
 
+  def finish_process(process, exit_code, ended_at) do
+    state = if exit_code == 0, do: "exited", else: "failed"
+
+    process
+    |> ProcessRecord.finish_changeset(%{state: state, exit_code: exit_code, ended_at: ended_at})
+    |> Repo.update()
+  end
+
   defp insert(schema, attrs) do
     schema.create_changeset(struct(schema), Map.put_new(attrs, :id, Identifier.generate()))
     |> Repo.insert()
