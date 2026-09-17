@@ -30,7 +30,7 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 - [x] Implement schemas and domain commands.
 - [x] Enforce versioned workflow and policy snapshots.
 - [x] Implement idempotent transitions and event sequencing.
-- [ ] Implement startup reconciliation and recovery.
+- [x] Implement startup reconciliation and recovery.
 - [ ] Implement Keychain-backed `SecretStore` and redaction.
 
 ## Phase 3 — Local workspaces and process runner

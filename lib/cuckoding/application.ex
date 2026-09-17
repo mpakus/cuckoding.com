@@ -7,7 +7,7 @@ defmodule Cuckoding.Application do
   def start(_type, _args) do
     children = [
       Cuckoding.Repo,
-      Cuckoding.Execution.CommandRecovery,
+      Cuckoding.Execution.StartupReconciler,
       {Registry, keys: :unique, name: Cuckoding.RunRegistry},
       Cuckoding.Execution.RunSupervisors,
       {Phoenix.PubSub, name: Cuckoding.PubSub},

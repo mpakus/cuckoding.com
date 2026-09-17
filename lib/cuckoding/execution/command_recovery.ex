@@ -12,21 +12,28 @@ defmodule Cuckoding.Execution.CommandRecovery do
 
   def start_link(_options), do: Task.start_link(&run/0)
 
-  def run do
+  def run(options \\ []) do
+    now = Keyword.get(options, :now, Cuckoding.Clock.wall_now())
+    {recovered, nil} = recover(now)
+    results = dispatch(now: now)
+
+    log(recovered, results)
+    {:ok, recovered, results}
+  end
+
+  def recover(now \\ Cuckoding.Clock.wall_now()), do: CommandDispatcher.recover_interrupted(now)
+
+  def dispatch(options \\ []) do
     case CommandDispatcher.configured_handler() do
-      UnconfiguredCommandHandler ->
-        :skipped
-
-      handler ->
-        {recovered, nil} = CommandDispatcher.recover_interrupted()
-        results = CommandDispatcher.dispatch_due(handler: handler)
-
-        Logger.info("durable command recovery completed",
-          recovered_commands: recovered,
-          dispatched_commands: length(results)
-        )
-
-        {:ok, recovered, results}
+      UnconfiguredCommandHandler -> []
+      handler -> CommandDispatcher.dispatch_due(Keyword.put(options, :handler, handler))
     end
+  end
+
+  defp log(recovered, results) do
+    Logger.info("durable command recovery completed",
+      recovered_commands: recovered,
+      dispatched_commands: length(results)
+    )
   end
 end

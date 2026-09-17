@@ -38,6 +38,7 @@ The workspace root defaults to `~/Library/Application Support/Cuckoding/workspac
 
 - Every launched process gets its own session/process group (`setsid`). Because a runtime may create additional descendant groups, inspect and own the full process forest; signaling only the initial group is insufficient.
 - Record PID plus start timestamp; verify both before signalling to avoid PID reuse.
+- Startup and wake reconciliation use a read-only inspector. A numeric PID alone is never sufficient to continue, adopt, or signal a process; the observed start identity must match the durable record.
 - Termination ladder: adapter graceful stop → signal owned descendant groups before the root group with `SIGINT` → `SIGTERM` → `SIGKILL`, each with a bounded wait and an event. Completion requires every observed PID and PGID to be gone.
 - Bound stdout/stderr, apply redaction before persistence, and stream a public summary to the UI.
 - Environment is built from an allowlist: `PATH` (resolved tool paths), `HOME`, locale, `PORT`/`CUCKODING_*`, and only the variables the policy declares. Never inherit the shell's full environment.
@@ -48,6 +49,7 @@ The workspace root defaults to `~/Library/Application Support/Cuckoding/workspac
 - Declared commands in `project.yml` are the only commands Cuckoding itself executes. The agent runtime executes its own commands under its own permission system; Cuckoding records the tool activity it can observe and does not claim to filter it.
 - Resolve symlinks before confinement checks. Reject worktree roots outside the workspace root.
 - Reject commands referencing paths outside the worktree in Cuckoding-executed commands.
+- Reconciliation treats a missing worktree as recoverable only when no recorded process is still alive. Drift, an unverified canonical path, or a missing worktree with a live process blocks the run for human inspection.
 
 ## Preview ports and local URLs
 
@@ -55,6 +57,7 @@ The workspace root defaults to `~/Library/Application Support/Cuckoding/workspac
 - `prepare` allocates a free port from the range, passes it as `PORT` and `CUCKODING_PORT`, and records `preview_url` (`http://127.0.0.1:<port>`) on the environment row.
 - The UI shows the preview link, health (probe on `/` or a declared `health_path`), and the worktree path with an "Open in Finder/editor" action.
 - Ports are released on hibernate/stop and reallocated on resume; a run never reuses another active run's port.
+- Reconciliation accepts a bound port only when its owner PID and start identity match one of the environment's durable process records. A free expected service port requests recovery; an unknown owner blocks the run.
 - Optional later: a Cuckoding reverse proxy giving stable `http://127.0.0.1:<app>/preview/<run>/` paths.
 
 ## Resource accounting

@@ -99,6 +99,8 @@ flowchart TD
 
 Workers may restart, but a restart never invents progress. On startup and after wake the dispatcher reconciles database state, active leases, operating-system processes, ports, and Git worktrees before continuing or marking a run blocked.
 
+`Cuckoding.Execution.StartupReconciler` is the first supervised child after the repository. Its synchronous initialization must finish before the run registry and dynamic run supervisor start, so no stage scheduling can race the initial ownership check. Reconciliation has only read access to host resources; Phase 3 runner services own any later restart or cleanup action.
+
 The root tree owns the unique `Cuckoding.RunRegistry` and `Cuckoding.Execution.RunSupervisors` dynamic supervisor. Each active run receives one registered `RunSupervisor`; its worker child specs contain durable identifiers, not authoritative progress. If that supervisor restarts, workers reload their state from SQLite and recorded external identities.
 
 ## Command and event pattern

@@ -39,6 +39,8 @@ A run may last minutes, hours, or days: waiting for provider rate limits, runnin
 - Schema-changing updates require hibernation; the updater refuses to proceed with running stages.
 - On start, reconciliation runs before any scheduling: leases, processes, ports, worktrees, and pending commands.
 
+The startup reconciler blocks supervisor startup until one pass completes. It extends sleep-gap leases before expiry, returns interrupted command claims to `pending`, inspects every active run, persists one idempotent continue/recover/block decision and public event, then dispatches due commands. The inspection boundary is read-only: it can report PID start identity, loopback-port ownership, and worktree status, but it cannot signal, adopt, delete, or rewrite a host resource. A live PID with a different start identity, an unknown port owner, worktree drift, or an unavailable inspector blocks the run. Missing owned resources move the run and task to `waiting` with reason `reconciliation`; recovery services added in Phase 3 resume the existing attempt rather than creating a duplicate.
+
 ## Budgets for long runs
 
 - Per-run `max_elapsed_hours` (active time) and `max_wall_hours` are separate; sleep gaps count toward wall time only.
