@@ -1,0 +1,31 @@
+{
+  "assertion": {
+    "pid": 14389,
+    "visible_while_active": true,
+    "released_while_owner_alive": true,
+    "released_when_owner_exited": true
+  },
+  "simulated_gap_ms": 10000,
+  "stage_execution_count": 1,
+  "provider_session_count": 2,
+  "provider_stream_drop": "transient",
+  "events": [
+    {
+      "type": "run.resumed_after_sleep",
+      "gap_id": "simulated-live",
+      "gap_ms": 10000,
+      "outcome": "continued",
+      "occurred_at": "2026-09-17T15:23:36.287557Z"
+    },
+    {
+      "type": "run.resumed_after_sleep",
+      "gap_id": "simulated-dead",
+      "gap_ms": 10000,
+      "outcome": "recovered",
+      "occurred_at": "2026-09-17T15:23:36.316045Z"
+    }
+  ],
+  "real_sleep_test": "pending_human_coordination",
+  "lid_close_ac_test": "pending_human_coordination",
+  "lid_close_battery_test": "pending_human_coordination"
+}

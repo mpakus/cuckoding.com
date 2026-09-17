@@ -1,0 +1,30 @@
+{
+  "stage_key": "development",
+  "stage_execution_count": 1,
+  "provider_session_count": 2,
+  "process": {
+    "pid": 14401,
+    "pgid": 14401,
+    "start_identity": "Thu Sep 17 10:23:36 2026"
+  },
+  "reconciled_gap_ids": [
+    "simulated-live",
+    "simulated-dead"
+  ],
+  "events": [
+    {
+      "type": "run.resumed_after_sleep",
+      "gap_id": "simulated-live",
+      "gap_ms": 10000,
+      "outcome": "continued",
+      "occurred_at": "2026-09-17T15:23:36.287557Z"
+    },
+    {
+      "type": "run.resumed_after_sleep",
+      "gap_id": "simulated-dead",
+      "gap_ms": 10000,
+      "outcome": "recovered",
+      "occurred_at": "2026-09-17T15:23:36.316045Z"
+    }
+  ]
+}

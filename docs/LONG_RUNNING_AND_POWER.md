@@ -6,21 +6,21 @@ A run may last minutes, hours, or days: waiting for provider rate limits, runnin
 
 ## Power assertions
 
-- While at least one run is `running` or `waiting` with an active provider session, the Power Manager holds an idle-sleep assertion. Implementation options: `caffeinate -i -w <beam_pid>` supervised as a child process (simple, no native code), or an `IOPMAssertionCreateWithName` call from the shell. Prevent display sleep only if the user enables it.
+- While at least one run is `running` or `waiting` with an active provider session, the Power Manager holds an idle-sleep assertion through a supervised `caffeinate -i -w <beam_pid>`. The Power Manager explicitly stops `caffeinate` when no run needs the assertion; `-w` also releases it if BEAM exits. Prevent display sleep only if the user enables it.
 - `-s` (system sleep prevention) applies only on AC power; on battery with the lid closed macOS will sleep regardless. The UI shows "sleep prevented" / "sleep possible" status and the reason.
 - The assertion is released when no run needs it; unattended mode (below) can keep it while a board is active.
 - Runs whose next step is a human approval do not hold the assertion.
 
 ## Sleep detection and reconciliation
 
-- Compare monotonic time with wall-clock time on every heartbeat tick. On macOS the monotonic clock does not advance during sleep, so a wall-clock jump larger than the tick interval plus tolerance means a sleep gap. Record a `power_events` row with the gap.
+- Sample `CLOCK_MONOTONIC` and `CLOCK_UPTIME_RAW` on every heartbeat tick. On macOS 27, monotonic time continues during sleep while uptime does not. A continuous-minus-uptime divergence above the one-second tolerance is a sleep gap; record the measured divergence in a `power_events` row. Keep wall time only for UTC event timestamps and wall-duration reporting so an NTP or manual clock change cannot forge a sleep gap.
 - On wake:
   1. Mark all heartbeats inside the gap as `sleep_gap`, not `missed`; do not expire leases for the gap duration.
   2. Inspect every recorded process: alive with matching start identity → continue; gone → adapter recovery (native resume or continuation package).
   3. Probe provider sessions; treat dropped HTTP streams as transient and retry within budget.
   4. Re-probe preview ports and dev servers; restart declared services if they died.
   5. Emit a `run.resumed_after_sleep` event with the gap duration for the timeline.
-- The dashboard shows sleep gaps on the run timeline so elapsed time and cost are explainable. Duration metrics store both wall-clock and active (monotonic) time.
+- The dashboard shows sleep gaps on the run timeline so elapsed time and cost are explainable. Duration metrics store both wall-clock duration and active uptime duration.
 
 ## Checkpoint cadence
 
@@ -46,7 +46,7 @@ A run may last minutes, hours, or days: waiting for provider rate limits, runnin
 
 ## Verification
 
-- Simulated sleep gap: freeze the monotonic clock source in tests, advance wall time, assert reconciliation events.
+- Simulated sleep gap: freeze the uptime clock, advance continuous monotonic time, and assert reconciliation events. Advance wall time alone and assert that no gap is inferred.
 - Real sleep drill: `pmset sleepnow` during a running stage on a test machine; assert resume, single execution of the stage, and timeline gap.
 - Kill the agent process during sleep; assert continuation without duplicate commits.
 - Assertion lifecycle: assert `caffeinate`/assertion present only while needed (`pmset -g assertions`).

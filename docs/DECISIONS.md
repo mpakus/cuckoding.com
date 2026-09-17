@@ -143,6 +143,16 @@ This file records accepted product-level decisions. Add a dated ADR section when
 - **Consequences:** Cursor remains experimental under ADR-017. Task 0404 must prove a credential-safe isolated home or a provider-supported no-global-plugins mode before enabling it. Runtime-reported grants and global writes are first-class audit evidence.
 - **Verification:** Task 0002 report and fixtures; task 0302 process-tree tests; task 0404 adapter conformance.
 
+## ADR-022 — Uptime divergence and supervised caffeinate for power handling
+
+- **Date:** 2026-09-17
+- **Status:** Accepted; simulated and assertion lifecycle checks passed, real sleep checks pending
+- **Context:** ADR-016 requires sleep-gap detection and a power assertion but did not pin the macOS clocks or assertion owner. The task 0004 platform check found that macOS 27 `CLOCK_MONOTONIC` continues during sleep; `CLOCK_UPTIME_RAW` is the clock that stops. Wall time can change independently through synchronization or manual adjustment.
+- **Decision:** Detect gaps from `CLOCK_MONOTONIC - CLOCK_UPTIME_RAW` divergence above one second. Use wall time only for UTC labels and reported wall duration. The MVP control plane supervises `caffeinate -i -w <beam_pid>`, stops it when no eligible work remains, and relies on `-w` for crash cleanup. Do not request `-s` by default because it applies only on AC. Keep direct IOKit assertion ownership as a later shell optimization, not an MVP dependency.
+- **Alternatives:** Wall-minus-monotonic divergence (rejected because monotonic includes sleep on the supported macOS); direct `IOPMAssertionCreateWithName` in the shell (valid and requires no special privilege, but adds cross-process ownership and native lifecycle code without improving the MVP contract).
+- **Consequences:** Clock sources are injected and named explicitly in tests. Reconciliation is idempotent by sleep-gap ID and runs before scheduling. The UI must distinguish idle-sleep prevention from forced sleep, lid close, and battery behavior.
+- **Verification:** Task 0004 unit and live assertion evidence; coordinated `pmset sleepnow`, AC lid-close, and battery lid-close drills remain required before Phase 1.
+
 ## ADR template
 
 ### ADR-NNN — Title

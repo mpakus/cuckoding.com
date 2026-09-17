@@ -19,7 +19,8 @@ Reviewed on 2026-09-16. External behavior, commands, licensing, and product term
 ## Execution and source control
 
 - Git worktree: https://git-scm.com/docs/git-worktree
-- macOS `caffeinate` and `pmset` man pages; IOKit power assertions
+- macOS 27 `caffeinate(8)`, `pmset(1)`, and `clock_gettime(3)` man pages, verified locally on 2026-09-17
+- Apple `IOPMAssertionCreateWithName`: https://developer.apple.com/documentation/iokit/1557134-iopmassertioncreatewithname
 - GitHub Apps: https://docs.github.com/en/apps
 
 ## Agent runtimes
