@@ -1,7 +1,7 @@
 # 0003 — Menubar Shell and Bundled Release Spike
 
 ```yaml
-status: review
+status: done
 owner: codex
 started_at: 2026-09-17
 worklog: worklog/2026-09-17-0003-menubar-release-spike.md
@@ -34,7 +34,7 @@ Build disposable spike code for the shell decision in `docs/DESKTOP_SHELL.md`: p
 - [x] Parse readiness without scraping arbitrary logs.
 - [x] Handle child crash before and after readiness.
 - [x] Terminate descendants on normal quit and forced quit.
-- [ ] Repeat on a clean user account.
+- [x] Repeat on a clean user account.
 
 ## Acceptance criteria
 
@@ -47,6 +47,4 @@ Build disposable spike code for the shell decision in `docs/DESKTOP_SHELL.md`: p
 
 Provide a screen recording or timestamped log for startup, rejected access, replayed token, simulated child crash, and clean shutdown.
 
-Evidence: `spikes/0003-menubar-release/evidence/verification.log` and `docs/MENUBAR_SHELL_SPIKE.md`. The macOS session was locked during the final accessibility capture, so no redundant screen recording was produced; the timestamped release protocol and native process/socket inspections passed.
-
-Review item: this Mac has only one non-system local user. A sterile temporary `HOME` and empty inherited environment proved that the bundle does not depend on the current user's Elixir/Erlang installation, but that is not equivalent to an actual clean user account. Keep the checklist item open until a separate account or clean Mac is available.
+Evidence: `spikes/0003-menubar-release/evidence/verification.log`, `spikes/0003-menubar-release/evidence/clean-account-qa.log`, and `docs/MENUBAR_SHELL_SPIKE.md`. The clean-account log records the app running as UID 502 with its bundled ERTS, a loopback-only listener, successful authenticated browser handoff, and no surviving shell or runtime process after quit.

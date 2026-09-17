@@ -1,0 +1,11 @@
+2026-09-17T17:58:29Z PASS running as separate account qa (uid 502)
+2026-09-17T17:58:29Z PASS app bundle is readable and executable
+2026-09-17T17:58:29Z PASS shell and bundled runtime belong to qa
+2026-09-17T17:58:29Z PASS bundled ERTS is running from the app
+2026-09-17T17:58:29Z PASS runtime listens only on loopback
+
+In the menu bar, open Cuckoding and choose Cuckoding.
+Confirm the browser shows the authenticated Cuckoding page, then type yes and press Return:
+2026-09-17T17:58:53Z PASS human confirmed authenticated browser handoff
+2026-09-17T17:58:53Z PASS quit left no shell or bundled runtime process
+2026-09-17T17:58:53Z PASS clean-account verification complete

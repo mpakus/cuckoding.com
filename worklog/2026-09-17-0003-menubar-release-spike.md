@@ -4,9 +4,9 @@
 
 - Date/time (UTC): 2026-09-17
 - Task: 0003
-- Status: review
+- Status: done
 - Human/agent owner: Codex
-- Branch: `feature/0003-menubar-release-spike`
+- Branches: `feature/0003-menubar-release-spike`, `feature/0003-clean-account-verification`
 - Start revision: `de4eefe`
 
 ## Acceptance criteria restatement
@@ -30,6 +30,8 @@
 - Added reproducible build/test automation, focused Elixir and Rust tests, a timestamped integration verifier, spike report, ADR confirmation, and shell contract updates.
 - Built and launched the 36 MiB arm64 `.app` from a sterile temporary `HOME` with an empty inherited environment and no Elixir/Mix in `PATH`; process inspection showed the bundled ERTS and only `127.0.0.1` listening.
 - Inspected local signing: the app is only ad-hoc linker-signed and strict deep verification fails. Recorded inside-out nested signing, BEAM JIT entitlement, hardened runtime, notarization, and stapling as Phase 9 gates.
+- Added a standard-library clean-account verifier, copied the rebuilt bundle to `/Users/Shared`, and ran it from the separate `qa` account (UID 502). The verifier checks bundle execution, process ownership, bundled ERTS, loopback-only listening, human-confirmed browser handoff, and descendant cleanup.
+- Fixed a verifier-only shutdown race found by the first QA run: the shell had exited and the runtime was still terminating when checked. The verifier now waits up to five seconds for that exact runtime PID and cleans it up on failure; the rerun passed.
 
 ## Verification
 
@@ -45,9 +47,13 @@
 - Sterile-home launch — passed with `HOME=/private/tmp/cuckoding-clean.*`, `env -i`, and system-only `PATH`; temporary evidence directory removed afterward.
 - `codesign --verify --deep --strict` — expected failure for the unsigned discovery artifact; this is evidence for the recorded Phase 9 signing work, not a release-ready claim.
 - Visual menu/browser capture — blocked because macOS was locked. Protocol-level browser handoff, safe redirect, cookie session, and authenticated LiveView all passed against the real release.
+- `rtk proxy sh -n spikes/0003-menubar-release/verify-clean-account.command` — passed. `shellcheck` was unavailable on the host and is not recorded as passing.
+- `rtk proxy sh spikes/0003-menubar-release/build.sh` — passed after the clean-account request: dependency audit clean, 1 Elixir test and 3 Rust tests passed, formatter/compiler/clippy passed, the 36 MiB `.app` rebuilt, and all 28 protocol checks passed.
+- Clean-account bundle verifier — passed from `qa` (UID 502): bundled ERTS, loopback-only listener, authenticated default-browser handoff, and no surviving shell/runtime process. Evidence: `spikes/0003-menubar-release/evidence/clean-account-qa.log`.
+- `rtk proxy /Users/Shared/Cuckoding-QA-Test/verify-clean-account.command mpak` — final verifier regression passed after stale-PID safety was added; the separate QA run above remains the clean-account evidence.
 
 ## Handoff
 
 ADR-011 is technically confirmed. Task 0004 can proceed from task 0002. Do not reuse the spike as production structure wholesale; carry forward the shell contract, `RELEASE_DISTRIBUTION=none`, signal cleanup, and signing gates when Phase 9 implements the supported shell.
 
-Task 0003 remains in review because this Mac has no second non-system local user. The sterile-home test proves the bundled runtime is independent of the current user's shell and Elixir/Erlang installation, but an actual clean-account run is still required before Phase 1.
+Task 0003 is complete. The shell protocol and actual separate-account bundle run both pass; production signing, notarization, installation, updating, and uninstall remain Phase 9 gates rather than discovery claims.

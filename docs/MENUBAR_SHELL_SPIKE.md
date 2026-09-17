@@ -1,6 +1,6 @@
 # Menubar Shell and Bundled Release Spike
 
-The task 0003 implementation supports ADR-011 for the MVP. A small Tauri 2 process can own a tray-only macOS application, launch an embedded Phoenix release and ERTS without an interactive shell, authenticate browser handoff, report status, and cleanly stop its child tree. The task remains in review until the same bundle is exercised from a separate clean user account.
+The completed task 0003 implementation supports ADR-011 for the MVP. A small Tauri 2 process can own a tray-only macOS application, launch an embedded Phoenix release and ERTS without an interactive shell, authenticate browser handoff, report status, and cleanly stop its child tree. The same bundle also passed from a separate clean macOS account.
 
 ## Reproduce
 
@@ -32,11 +32,10 @@ Environment: Apple Silicon, macOS 27.0, Erlang/OTP 28 with ERTS 16.4, Elixir 1.1
 | Native surface | `LSUIElement=true`, Accessory activation policy, no native window |
 | Network | one `beam.smp` listener on `127.0.0.1`; Erlang distribution disabled; no `epmd` |
 | Sterile-home run | launched with a new temporary `HOME`, empty inherited environment, and no Elixir/Mix in `PATH`; bundled `beam.smp` served LiveView |
+| Clean-account run | UID 502 launched the copied `.app`; bundled ERTS, loopback-only listening, authenticated browser handoff, and descendant cleanup passed |
 | Signal shutdown | `SIGINT` reached the Tauri signal waiter, invoked the same shutdown ladder, and left no shell, BEAM, helper, or `epmd` process |
 
-The timestamped protocol log is `spikes/0003-menubar-release/evidence/verification.log`. The app was also launched twice from the bundle for process-tree, listener, `LSUIElement`, sterile-home, and signal-shutdown inspection. The final visual menu click could not be captured because macOS was locked; the same token issuance, redirect, session cookie, and authenticated LiveView path passed over the real release endpoint.
-
-The sterile-home run is not labeled as a clean-user-account run. This Mac has no second non-system local account, so that checklist item remains open.
+The timestamped protocol log is `spikes/0003-menubar-release/evidence/verification.log`; the separate-account log is `spikes/0003-menubar-release/evidence/clean-account-qa.log`. The app was also launched from the bundle for process-tree, listener, `LSUIElement`, sterile-home, signal-shutdown, and clean-account inspection. The clean-account operator used the tray action and confirmed the authenticated LiveView in the default browser before the verifier exercised shutdown.
 
 The first reproducibility run surfaced Cowlib advisories in the then-current Cowboy graph. The spike switched to Phoenix's default Bandit server at pinned version 1.12.5; the final dependency resolution shown by `build.sh` contains no Cowboy or Cowlib package and emitted no advisory warning.
 
