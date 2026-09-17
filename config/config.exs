@@ -1,0 +1,43 @@
+import Config
+
+config :cuckoding,
+  clock: Cuckoding.SystemClock,
+  environment: config_env()
+
+config :cuckoding, CuckodingWeb.Endpoint,
+  url: [host: "127.0.0.1"],
+  http: [ip: {127, 0, 0, 1}],
+  adapter: Bandit.PhoenixAdapter,
+  render_errors: [
+    formats: [html: CuckodingWeb.ErrorHTML, json: CuckodingWeb.ErrorJSON],
+    layout: false
+  ],
+  pubsub_server: Cuckoding.PubSub,
+  live_view: [signing_salt: "cuckoding-live"]
+
+config :phoenix_live_view,
+  root_tag_attribute: "phx-r"
+
+config :esbuild,
+  version: "0.25.4",
+  cuckoding: [
+    args:
+      ~w(js/app.js --bundle --target=es2022 --outdir=../priv/static/assets/js --external:/fonts/* --external:/images/*),
+    cd: Path.expand("../assets", __DIR__),
+    env: %{"NODE_PATH" => [Path.expand("../deps", __DIR__), Mix.Project.build_path()]}
+  ]
+
+config :tailwind,
+  version: "4.2.1",
+  cuckoding: [
+    args: ~w(--input=assets/css/app.css --output=priv/static/assets/css/app.css),
+    cd: Path.expand("..", __DIR__)
+  ]
+
+config :logger, :default_formatter,
+  format: "time=$time level=$level $metadata$message\n",
+  metadata: [:request_id, :correlation_id]
+
+config :phoenix, :json_library, Jason
+
+import_config "#{config_env()}.exs"

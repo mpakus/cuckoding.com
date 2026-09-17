@@ -1,13 +1,13 @@
 # Implementation Readiness
 
-Prepared on 2026-09-17 from revision `897bc30a0712bdd68bec745daa8a1b987190df57`. This repository is structurally ready for Phase 0 discovery spikes. It is not yet approved for Phase 1 product implementation.
+Originally prepared on 2026-09-17 from revision `897bc30a0712bdd68bec745daa8a1b987190df57`, then updated as the gates closed. Phase 0 is complete and task 0101 has started the Phase 1 product implementation.
 
 ## Repository baseline
 
 - Commit `b101eee` deliberately removed the v1 application. The current tree is a clean-slate planning, policy, task, and tooling baseline; do not restore or copy v1 wholesale.
 - Repository skills are at `.agents/skills/` and example Cuckoding configuration is at `.cuckoding/`, matching `AGENTS.md`, `README.md`, and `docs/CONFIGURATION.md`.
-- No `mix.exs`, Phoenix application, database, assets, or native shell source exists yet. That is expected until task 0101.
-- `inspire.jpg` remains untracked because its source and redistribution license are unknown. It is not an implementation input.
+- Task 0101 now owns the Phoenix application and asset foundation. SQLite schemas remain intentionally absent until task 0102, and the production native shell remains Phase 9 work.
+- `inspire.jpg` remains excluded as an implementation input because its source and redistribution license are unknown.
 - The generic GitHub MCP example remains disabled because its npm package is not exactly pinned with integrity evidence.
 
 ## Verified local toolchain
@@ -29,7 +29,7 @@ Prepared on 2026-09-17 from revision `897bc30a0712bdd68bec745daa8a1b987190df57`.
 | GitHub CLI | 2.87.3 | later host-side VCS spike; no credential is given to agents |
 | RTK / XERJ | 0.49.0 / 1.0.0-rc.74 | required repository command wrapper / reference retrieval |
 
-`phx.new` is not installed. Leave it absent until task 0101 pins the Phoenix generator version from official release evidence; installing an arbitrary latest archive now would make the clean bootstrap non-reproducible.
+Task 0101 installed and recorded the officially published `phx_new` 1.8.14 generator, then reduced its scaffold to the reviewed local-only application boundary. Application and asset dependencies are pinned in `mix.exs` and `mix.lock`.
 
 ## Required execution order
 
@@ -44,15 +44,15 @@ Prepared on 2026-09-17 from revision `897bc30a0712bdd68bec745daa8a1b987190df57`.
 
 Tasks 0002 and 0003 may run in parallel after 0001. Task 0004 requires the observed runtime behavior from 0002. Phase 1 starts only after all Phase 0 acceptance criteria have evidence and any architecture changes are recorded in `docs/DECISIONS.md`.
 
-## Remaining Phase 0 gates
+## Phase 0 gate result
 
-Tasks 0001–0002 and 0005–0007 are complete. Task 0003's implementation and acceptance checks pass, but its distinct clean-user-account run remains in review. Task 0004 has proven assertion ownership plus simulated and coordinated software-sleep reconciliation without duplicate execution; AC and battery lid-close evidence remains open.
+Tasks 0001–0007 are complete. Task 0003 passed its distinct clean-user-account launch, browser handoff, and shutdown check. Task 0004 passed assertion ownership, simulated and software-sleep reconciliation, and physical AC/battery lid-close checks without duplicate execution.
 
-Task 0003 confirmed the tray-shell architecture and bundled-release path. Its clean-user-account review item remains a Phase 1 gate. Developer ID signing and notarization remain Phase 9 gates.
+Task 0003 confirmed the tray-shell architecture and bundled-release path. Developer ID signing and notarization remain Phase 9 gates.
 
 ## Phase 1 entry gate
 
-Before task 0101 may scaffold Phoenix:
+Task 0101 began only after these conditions passed:
 
 1. Tasks 0001–0004 are `done`, with worklogs and measured evidence.
 2. ADR-011, ADR-012, and ADR-016 are confirmed or superseded from spike results.
@@ -62,11 +62,11 @@ Before task 0101 may scaffold Phoenix:
 6. The task 0004 sleep experiment records a successful software-sleep cycle; AC and battery lid-close tests require explicit human coordination.
 7. The branch is clean except for intentionally excluded local assets, and the Phase 0 evidence is committed.
 
-When the gate passes, task 0101 should generate a fresh minimal Phoenix/LiveView application and reuse only the reviewed root tooling files. Old v1 code is historical reference through Git, not a scaffold.
+Task 0101 generated a fresh minimal Phoenix/LiveView scaffold and reused only the reviewed root tooling files. Old v1 code remains historical reference through Git, not a scaffold.
 
 ## Working rules
 
 - Prefix every repository shell command with `rtk`; use `rtk proxy` only for exact unfiltered streams.
-- Search `cuckoding-project-v6` and the relevant pinned peer index before unfamiliar implementation work, then inspect and cite `path:line`.
+- Search `cuckoding-project-v7` and the relevant pinned peer index before unfamiliar implementation work, then inspect and cite `path:line`.
 - Keep implementation changes within the claimed task and its branch.
 - Do not enable the MCP example, activate a plugin, use credentials, publish externally, or perform real sleep tests without the corresponding task and approval.

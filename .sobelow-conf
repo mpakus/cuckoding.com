@@ -3,7 +3,7 @@
   private: false,
   skip: false,
   router: "",
-  exit: false,
+  exit: :low,
   format: "txt",
   ignore: ["Config.HTTPS", "Traversal.FileModule", "CI.System"],
   ignore_files: []

@@ -1,8 +1,10 @@
-# Cuckoding Project Pack (v2)
+# Cuckoding
 
 Cuckoding is a local-first macOS control plane for orchestrating coding agents across durable, auditable software-development workflows. A developer connects a repository, creates one or more boards, assigns roles such as spec writer, implementer, and reviewer to installed agent runtimes, watches the work move through gates on a visual dashboard, and receives a Git branch ready for human review. Completed work is compressed into reviewed, reusable project knowledge and skills that later runs can use.
 
-This repository is a planning and execution pack, not the product implementation. It is designed to be copied into the implementation repository and used by both humans and coding agents.
+Implementation is underway from the reviewed v2 planning pack. The current foundation is a loopback-only Phoenix LiveView application; durable SQLite workflows, host runners, agent adapters, and the native shell arrive in the ordered tasks under `tasks/`.
+
+For a clean local bootstrap, pinned versions, quality gates, and runtime endpoints, see `docs/DEVELOPMENT.md`.
 
 ## What changed in v2
 
