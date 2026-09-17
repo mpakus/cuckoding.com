@@ -16,13 +16,13 @@ Before unfamiliar implementation work, also follow `docs/REFERENCE_CODING.md`. I
 | `knowledge-compression` | Extraction, consolidation, publication, injection, usage tracking |
 | `plugin-system` | Adding or changing any connector kind or reference plugin |
 | `rtk-optimization` | Working on the RTK plugin |
-| `ponytail-minimalism` | Working on the Ponytail plugin or applying it to suitable stages |
+| `ponytail-minimalism` | Every repository change or review, and work on the Ponytail plugin |
 | `security-review` | Touching execution, credentials, paths, processes, network, updates, plugins, or publication |
 | `quality-gates` | Defining or running verification and release evidence |
 
 ## Skill selection
 
-Use the minimum relevant set. Security review is additive and cannot be disabled by a minimalism skill. If a skill conflicts with `AGENTS.md`, architecture decisions, or the assigned task, follow the higher-level repository rule and record the conflict.
+Every repository change or review uses Ponytail in full mode by default, and every shell command uses RTK. Add only the other skills relevant to the task. Security review and quality gates are additive and cannot be disabled by minimalism. If a skill conflicts with `AGENTS.md`, architecture decisions, or the assigned task, follow the higher-level repository rule and record the conflict.
 
 ## Skill lifecycle
 

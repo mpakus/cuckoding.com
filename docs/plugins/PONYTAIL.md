@@ -2,7 +2,7 @@
 
 ## Role
 
-Ponytail is an optional instruction skill that pushes agents toward minimal, YAGNI-oriented solutions. It is enabled per role and stage, never globally, and never weakens safety, correctness, accessibility, observability, or trust boundaries.
+Repository contributors and agents use Ponytail for every change and review, in full mode by default. The product integration described here remains an optional, replaceable instruction-skill plugin so Cuckoding still works when the external package is absent. Neither use may weaken safety, correctness, accessibility, observability, or trust boundaries.
 
 ## Manifest highlights
 
@@ -10,7 +10,9 @@ Ponytail is an optional instruction skill that pushes agents toward minimal, YAG
 - Permissions: none beyond injection.
 - Scopes: role, stage.
 
-## Suggested activation
+## Suggested product activation
+
+This table configures workflows orchestrated by the product. It does not override the mandatory repository contributor rule in `AGENTS.md`.
 
 | Role/stage | Mode |
 | --- | --- |

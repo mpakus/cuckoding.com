@@ -17,7 +17,7 @@ Before changing implementation code, read:
 5. `docs/SECURITY.md`
 6. `docs/EXECUTION_ENVIRONMENTS.md`
 7. The task file assigned to the work
-8. Any relevant skill in `.agents/skills/`
+8. The Ponytail skill and any relevant skill in `.agents/skills/`
 
 ## Non-negotiable boundaries
 
@@ -34,6 +34,10 @@ Before changing implementation code, read:
 ## Engineering rules
 
 - Prefix every repository shell command with `rtk`. Use `rtk proxy <command> ...` only when exact unfiltered streaming output is required or RTK changes semantics, and record that exception in the worklog. Commands stored in product configuration remain unwrapped so policy validates the underlying command before the optional runtime shell filter is applied.
+- Load and apply the Ponytail skill, in full mode by default, for every repository change or review. Use the smallest coherent root-cause solution: reuse existing code, prefer the standard library and native platform features, avoid speculative abstractions and dependencies, and keep the diff to the fewest necessary files.
+- Ponytail controls accidental complexity, never required quality. It may not remove validation, error handling, durability, security, privacy, accessibility, observability, migration safety, or acceptance criteria.
+- Cover every behavioral change with the smallest focused runnable regression check that would fail if the behavior regressed. Documentation-only and metadata-only changes require proportionate structural validation instead of invented product tests.
+- A change is complete only after the relevant formatter, compiler, tests, static analysis, and domain-specific gates pass. Record exact commands and results in the worklog; distinguish skipped or unavailable checks from passing evidence.
 - Before implementing an unfamiliar problem, follow `docs/REFERENCE_CODING.md`: search the project and pinned peer indices, inspect the cited source at `path:line`, verify its license, and record what was adapted and which Cuckoding boundary changes the solution.
 - Prefer small, explicit OTP components with supervision and restart semantics.
 - Use behaviours at every replaceable boundary: runner, provider adapter, plugin kinds, knowledge backend, metrics collector, VCS host, and secret store.
@@ -83,7 +87,7 @@ Record the exact commands and results in `worklog/`.
 2. Restate the task's acceptance criteria before implementation.
 3. Inspect existing code and dirty worktree state before editing.
 4. Make the smallest coherent change that satisfies the task.
-5. Add tests and operational telemetry with the feature.
+5. Add focused regression coverage and operational telemetry with each behavioral feature; use proportionate structural checks for documentation-only changes.
 6. Update affected docs and decisions in the same change.
 7. Run verification, record evidence, and check every completed item honestly.
 8. Leave an explicit handoff if work is blocked or partial.
@@ -97,8 +101,10 @@ Record the exact commands and results in `worklog/`.
 
 ## Use of repository skills
 
-Choose only the skills relevant to the current task. Skills guide execution; task acceptance criteria remain authoritative. In particular:
+Use the mandatory defaults below, then choose only the additional skills relevant to the current task. Skills guide execution; task acceptance criteria remain authoritative. In particular:
 
+- Use Ponytail for every repository change and review; full mode is the default. Minimalism never overrides safety or quality obligations.
+- Use `quality-gates` before completing every task to select and record proportionate verification.
 - Use `local-runner` for worktrees, process groups, ports, confinement, and power handling.
 - Use `plugin-system` when adding or changing any connector kind.
 - Use `knowledge-compression` for extraction, consolidation, publication, and usage tracking.

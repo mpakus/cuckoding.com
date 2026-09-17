@@ -16,7 +16,7 @@ Tasks are grouped by gated phase and numbered so dependencies are visible. Compl
 
 | Phase | Goal | Tasks |
 | --- | --- | --- |
-| 00 | Validate boundaries, competition, threat model, runtime, shell, power handling, reference coding, and implementation readiness | 0001, 0002, 0003, 0004, 0005, 0006 |
+| 00 | Validate boundaries, competition, threat model, runtime, shell, power handling, reference coding, and implementation readiness | 0001, 0002, 0003, 0004, 0005, 0006, 0007 |
 | 01 | Establish Phoenix and durable execution foundation | 0101, 0102, 0103 |
 | 02 | Implement durable domain, persistence, secrets | 0201, 0202, 0203, 0204 |
 | 03 | Isolate Git workspaces and host process runtimes; ports; power | 0301, 0302, 0303, 0304, 0305, 0306 |

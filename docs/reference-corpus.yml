@@ -12,7 +12,7 @@ project:
   base_revision: b101eee347e6b19d53209decd7504d1f61a94a85
   includes_working_tree: true
   license: project-local
-  xerj_prefix: cuckoding-project-v2
+  xerj_prefix: cuckoding-project-v3
   mode: lexical
   purpose: authoritative product, architecture, security, workflow, and task constraints
 

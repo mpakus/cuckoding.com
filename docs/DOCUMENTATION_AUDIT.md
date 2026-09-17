@@ -4,7 +4,7 @@ Audited on 2026-09-17 against the planning-pack working tree at `b101eee347e6b19
 
 ## Scope and method
 
-Every file in the original planning pack under `docs/` was inspected. Cross-references were checked against the root `README.md`, `AGENTS.md`, the original 49 numbered task files, and the worklog templates because those files define how the documentation is executed. Task 0006 subsequently added the 50th task and promoted the skill and configuration packs to their intended repository-root locations.
+Every file in the original planning pack under `docs/` was inspected. Cross-references were checked against the root `README.md`, `AGENTS.md`, the original 49 numbered task files, and the worklog templates because those files define how the documentation is executed. Task 0006 subsequently added the 50th task and promoted the skill and configuration packs to their intended repository-root locations; task 0007 added the 51st task for mandatory engineering defaults.
 
 | Class | Files | Current location | Result |
 | --- | ---: | --- | --- |
