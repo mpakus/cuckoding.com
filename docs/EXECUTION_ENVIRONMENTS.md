@@ -34,6 +34,8 @@ Container isolation is a `RunnerBridge` plugin family added later (Docker, OrbSt
 
 The workspace root defaults to `~/Library/Application Support/Cuckoding/workspaces` and is configurable per project. Worktrees are created from the trusted base SHA. The main repository's `.git` stays where the user keeps it; because everything runs on the host, worktree `gitdir` pointers work without special handling.
 
+`Cuckoding.Execution.GitService` requires the registered repository to be clean, resolves the repository and workspace directories before comparing paths, and creates a new non-protected branch from the recorded default-branch SHA. Each run directory starts with an atomic `run.json` ownership marker and its environment records the same base and head SHA. Existing branches, existing run directories, traversal identifiers, and symlink components below the resolved workspace root are refused rather than cleaned automatically.
+
 ## Process supervision
 
 - Every launched process gets its own session/process group (`setsid`). Because a runtime may create additional descendant groups, inspect and own the full process forest; signaling only the initial group is insufficient.
@@ -50,6 +52,7 @@ The workspace root defaults to `~/Library/Application Support/Cuckoding/workspac
 - Resolve symlinks before confinement checks. Reject worktree roots outside the workspace root.
 - Reject commands referencing paths outside the worktree in Cuckoding-executed commands.
 - Reconciliation treats a missing worktree as recoverable only when no recorded process is still alive. Drift, an unverified canonical path, or a missing worktree with a live process blocks the run for human inspection.
+- Git inspection is read-only: a changed default-branch SHA, checked-out branch, recorded head SHA, or ownership marker returns drift and blocks resume. It never rebases, resets, deletes, or accepts the new state without the later user decision.
 
 ## Preview ports and local URLs
 

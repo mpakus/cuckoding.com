@@ -13,7 +13,7 @@ defmodule Cuckoding.FakeRecoveryInspector do
   end
 
   @impl true
-  def worktree_status(path, _base_sha, options) do
-    options |> Keyword.get(:worktrees, %{}) |> Map.get(path, :missing)
+  def worktree_status(environment, options) do
+    options |> Keyword.get(:worktrees, %{}) |> Map.get(environment.worktree_path, :missing)
   end
 end

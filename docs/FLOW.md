@@ -115,14 +115,16 @@ Every stage definition declares: stable key, display name, and role; input artif
 
 ## Git flow
 
-1. Resolve and record the base branch SHA.
-2. Create a feature branch and worktree under the workspace root.
+1. Require a clean registered repository, resolve and record the default branch SHA, and refuse protected target branches (`main`, `master`, and the configured default branch).
+2. Resolve the workspace root, reject traversal and symlink escapes, then create a unique feature branch and per-run worktree with an ownership marker.
 3. Agents commit in the feature worktree on the host, or produce a patch according to policy.
 4. Before QA, record a clean status or explicitly list uncommitted files.
 5. QA runs on the same immutable candidate revision when possible.
 6. Human approval verifies the diff and evidence bundle.
 7. The release handoff stage pushes the branch and optionally creates a draft PR host-side.
 8. Merge remains outside the autonomous workflow for MVP.
+
+Before resume, the host Git service compares the current default branch, checked-out worktree branch, recorded head SHA, and ownership marker with the durable environment. Any mismatch remains blocked until the user explicitly chooses rebase, continue unchanged, or restart; task 0301 does not perform any of those destructive or history-changing actions.
 
 ## Concurrency and scheduling
 

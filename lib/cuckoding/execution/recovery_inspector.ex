@@ -10,7 +10,7 @@ defmodule Cuckoding.Execution.RecoveryInspector do
               {:ok, String.t()} | :gone | {:error, atom()}
   @callback port_owner(:inet.port_number(), keyword()) ::
               :free | {:ok, pos_integer(), String.t()} | {:error, atom()}
-  @callback worktree_status(String.t(), String.t(), keyword()) ::
+  @callback worktree_status(struct(), keyword()) ::
               :present | :missing | {:drift, atom()} | {:error, atom()}
 end
 
@@ -25,5 +25,26 @@ defmodule Cuckoding.Execution.UnavailableRecoveryInspector do
   def port_owner(_port, _options), do: {:error, :inspector_unavailable}
 
   @impl true
-  def worktree_status(_path, _base_sha, _options), do: {:error, :inspector_unavailable}
+  def worktree_status(_environment, _options), do: {:error, :inspector_unavailable}
+end
+
+defmodule Cuckoding.Execution.GitRecoveryInspector do
+  @moduledoc false
+  @behaviour Cuckoding.Execution.RecoveryInspector
+
+  alias Cuckoding.Execution.GitService
+
+  @impl true
+  def process_identity(_pid, _options), do: {:error, :inspector_unavailable}
+
+  @impl true
+  def port_owner(_port, _options), do: {:error, :inspector_unavailable}
+
+  @impl true
+  def worktree_status(environment, _options) do
+    case GitService.inspect(environment) do
+      {:ok, _status} -> :present
+      other -> other
+    end
+  end
 end

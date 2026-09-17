@@ -37,7 +37,7 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 
 **Outcome:** confined worktrees, supervised host processes, ports and preview URLs, hibernate/resume, and power handling.
 
-- [ ] Git worktree lifecycle and path confinement.
+- [x] Git worktree lifecycle and path confinement.
 - [ ] `LocalProcessRunner` with process groups, environment allowlist, timeouts.
 - [ ] Command policy and protected paths.
 - [ ] Port allocation and preview URLs.

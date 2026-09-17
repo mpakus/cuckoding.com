@@ -137,10 +137,7 @@ defmodule Cuckoding.Execution.Reconciler do
 
         %{
           environment: environment,
-          worktree:
-            normalize_worktree(
-              inspector.worktree_status(environment.worktree_path, environment.base_sha, options)
-            ),
+          worktree: normalize_worktree(inspector.worktree_status(environment, options)),
           port: inspect_port(environment.port, processes, inspector, options),
           processes: processes
         }

@@ -66,7 +66,7 @@ erDiagram
 
 | Table | Important fields | Notes |
 | --- | --- | --- |
-| `environments` | `run_id`, `runner_key`, `kind` (`local_process` / `container` / `remote`), `worktree_path`, `run_dir`, `base_sha`, `head_sha`, `port`, `ports_json`, `preview_url`, `isolation_claims_json`, `state` | Replaces v1 `workspaces` + `sandboxes`; the scalar port is the MVP ownership key and paths pass confinement checks |
+| `environments` | `run_id`, `runner_key`, `kind` (`local_process` / `container` / `remote`), `worktree_path`, `run_dir`, `base_sha`, `head_sha`, `port`, `ports_json`, `preview_url`, `isolation_claims_json`, `state` | One active owner per worktree and run directory; the scalar port is the MVP port-ownership key and paths pass confinement checks |
 | `processes` | `environment_id`, `agent_session_id?`, `command_id?`, `pid`, `pgid`, `start_identity`, `role`, `state`, `exit_code`, `ended_at` | Recorded external process identity |
 | `agent_sessions` | `stage_attempt_id`, `adapter_key`, `runtime_version`, `requested_model`, `actual_model`, `external_session_id`, `effective_grant_json`, `state` | Requested and observed model kept separately; effective runtime permission grant recorded |
 | `leases` | `resource_type`, `resource_id`, `owner_id`, `token_hash`, `acquired_at`, `heartbeat_at`, `expires_at`, `released_at`, `release_reason` | One unreleased lease per resource; raw bearer tokens are returned once and never persisted |

@@ -468,6 +468,7 @@ defmodule Cuckoding.Execution.Environment do
       :worktree_path,
       :run_dir,
       :base_sha,
+      :head_sha,
       :ports_json,
       :port,
       :preview_url,
@@ -489,6 +490,10 @@ defmodule Cuckoding.Execution.Environment do
     |> foreign_key_constraint(:run_id)
     |> unique_constraint(:run_id, name: :environments_one_active_run_index)
     |> unique_constraint(:run_id, name: :environments_run_id_index)
+    |> unique_constraint(:worktree_path)
+    |> unique_constraint(:worktree_path, name: :environments_one_active_worktree_index)
+    |> unique_constraint(:run_dir)
+    |> unique_constraint(:run_dir, name: :environments_one_active_run_dir_index)
     |> unique_constraint(:port, name: :environments_one_active_port_index)
     |> unique_constraint(:port, name: :environments_port_index)
   end
