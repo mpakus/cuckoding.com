@@ -44,6 +44,7 @@ Each stage receives an unguessable short-lived capability set: allowed worktree,
 - `SecretStore` is owned by the Phoenix process: macOS Keychain through the `security` CLI (MVP) or a small native library later; the database holds opaque references only.
 - The CLI implementation invokes absolute `/usr/bin/security` paths and sends new values over stdin, never argv. Reads are audited by opaque reference, declared purpose, optional run, and timestamp. A future native implementation replaces only the behaviour adapter with Security.framework calls; reference and audit semantics remain unchanged.
 - Provider authentication belongs to the runtime (Claude Code, Codex, Cursor, OpenCode logins); Cuckoding probes status and never copies credential directories.
+- Claude Code bare-mode authentication may use only a host-approved absolute executable helper referenced from run-scoped settings. Helper presence is not treated as successful authentication; an isolated probe must confirm it. Global OAuth state never causes Cuckoding to expose the real home directory or copy credential files into a run.
 - GitHub credentials are used only by the host-side VCS service for push and PR creation after approval.
 - Never persist complete environment maps, authorization headers, or CLI arguments containing secrets.
 - Redact before disk, UI broadcast, analytics export, and knowledge extraction.

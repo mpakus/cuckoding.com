@@ -57,6 +57,14 @@ Capabilities must be probed at runtime and documented per supported version; thi
 | Cursor Agent | CLI/headless | Cursor account | Non-interactive behavior, model observability, usage detail, cancellation |
 | OpenCode | CLI/server | Provider-specific | Provider/model mapping, event normalization, permission boundary |
 
+### Claude Code 2.1.142
+
+The implemented adapter pins `2.1.142`, uses `--bare --print --output-format stream-json`, `dontAsk` plus explicit allow/deny rules, strict run-scoped MCP configuration, run-scoped settings and skills, bounded budget/schema flags, and native `--resume`. It launches only through `LocalProcessRunner`, so cancellation uses the recorded process group. A non-interactive follow-up uses the tracked resume path; `send/3` fails closed instead of launching an untracked second process. Provider events are accepted from the pinned redacted fixture vocabulary, with hidden-reasoning and unknown shapes rejected; public text, tool metadata, and knowledge citations are redacted before becoming normalized events.
+
+The effective grant marks tool allow/deny rules, approval mode, and the explicit plugin set as enforced by Claude Code. Worktree path, network, and resource limits remain `unenforced` at the adapter layer and rely on the host runner/runtime sandbox controls. The adapter never uses bypass-permissions mode.
+
+`--bare` is required to prevent user-global hooks, plugins, MCP servers, auto memory, and instruction discovery. It also intentionally skips OAuth and Keychain authentication. Cuckoding therefore accepts only a host-approved absolute executable `apiKeyHelper` for this mode and does not claim authentication until a separate run-scoped probe succeeds. A machine with only global Claude OAuth login reports `run_scoped_auth_required`; Cuckoding does not expose the user's real home or copy credentials to make that login work. Auto memory and background tasks are disabled independently in the child environment as defense in depth.
+
 ## Model identity
 
 Store both `requested_model` and `actual_model`. If the runtime does not disclose the actual model, display `not reported`; never silently copy the requested value.

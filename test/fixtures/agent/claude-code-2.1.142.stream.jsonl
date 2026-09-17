@@ -1,0 +1,7 @@
+{"type":"system","subtype":"init","session_id":"<SESSION_ID>","uuid":"init-1","model":"claude-sonnet-4-6","permissionMode":"dontAsk","tools":["Read","Edit"],"mcp_servers":[],"plugins":[]}
+{"type":"assistant","session_id":"<SESSION_ID>","message":{"id":"message-1","content":[{"type":"text","text":"Inspecting secret-canary"}]}}
+{"type":"assistant","session_id":"<SESSION_ID>","message":{"id":"message-2","content":[{"type":"tool_use","id":"tool-1","name":"Read","input":{"file_path":"README.md"}}]}}
+{"type":"user","session_id":"<SESSION_ID>","message":{"id":"message-3","content":[{"type":"tool_result","tool_use_id":"tool-1","content":"secret-canary output"}]}}
+{"type":"system","subtype":"api_retry","session_id":"<SESSION_ID>","uuid":"retry-1","attempt":1,"max_retries":3,"retry_delay_ms":1000,"error_status":429,"error":"rate_limit"}
+{"type":"result","subtype":"success","session_id":"<SESSION_ID>","request_id":"request-1","is_error":false,"result":"Completed","duration_ms":1250,"total_cost_usd":0.001,"usage":{"input_tokens":10,"output_tokens":4,"cache_read_input_tokens":2,"cache_creation_input_tokens":1},"structured_output":{"knowledge_citations":[{"id":"project:adapter","excerpt":"secret-canary"}]}}
+{"type":"result","subtype":"error","session_id":"<SESSION_ID>","request_id":"request-2","is_error":true,"result":"authentication_failed","duration_ms":10,"total_cost_usd":0,"usage":{"input_tokens":0,"output_tokens":0}}

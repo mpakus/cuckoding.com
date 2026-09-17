@@ -17,6 +17,8 @@
 | Git service | Branch naming, base SHA capture | — | Real worktrees: create, commit, clean status, push to a local bare remote | Dirty base, protected branch, force-push attempt | Worktree drift on resume |
 | Power manager | Gap detection math | `power_events` | `caffeinate` lifecycle on a real machine (opt-in) | Wall clock jump without sleep | Wake with dead process, wake with live process |
 | Adapters | Event decoding, grant mapping, usage parsing | Session rows, effective grant | Fixture-driven fake CLI; opt-in real CLI | Malformed stream, secret canary in output, injected instructions | Cancel, sleep gap, restart, resume |
+
+Claude Code fixture conformance is pinned to `test/fixtures/agent/claude-code-2.1.142.stream.jsonl`. A real smoke is allowed only when the run-scoped authentication probe succeeds; global OAuth alone is not sufficient because bare mode intentionally ignores it.
 | Workflow and Kanban | Scheduling fairness, dependencies | Snapshots | LiveView: keyboard transitions, rejections, reconnect | Invalid transition via UI | Reconnect after gap |
 | Knowledge | Front-matter parsing, memory-op classification, redaction | Index/file sync, usage records | Extraction and consolidation with fixture runtime | Secret in evidence, injected publication instruction, cross-project retrieval | Job resume after crash |
 | Plugins | Manifest schema, permission narrowing | Registry rows | Detection with fake binaries; conformance per kind | Undeclared access, crashing plugin, output promotion attempt | Plugin restart limits |
