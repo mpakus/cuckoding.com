@@ -4,6 +4,8 @@
 
 Cuckoding runs powerful agent runtimes on a developer machine against untrusted repository content, without container isolation in the MVP. The design must constrain what Cuckoding itself grants, make the runtime's own permission grant explicit and recorded, protect credentials, preserve trustworthy audit evidence, require humans at irreversible boundaries, and never claim isolation it does not have.
 
+`docs/TRUSTED_HOST_THREAT_MODEL.md` enumerates assets and attackers, maps every boundary to risks and validation tasks, records the malicious-repository tabletop, and states the residual risks disclosed by the MVP.
+
 ## Trust boundaries
 
 - Menubar shell ↔ local Phoenix service.

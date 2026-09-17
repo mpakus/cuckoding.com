@@ -95,6 +95,45 @@ This file records accepted product-level decisions. Add a dated ADR section when
 - **Status:** Accepted
 - **Decision:** Power assertions while work is active, sleep-gap detection from clock divergence, reconciliation before scheduling, active vs wall time, unattended mode up to approval gates.
 
+## ADR-017 — Claude Code and Codex are the launch adapters
+
+- **Date:** 2026-09-17
+- **Status:** Accepted
+- **Context:** The MVP needs two real provider adapters while keeping product logic provider-neutral. Supporting four launch adapters would expand the first conformance and recovery surface without proving the walking skeleton.
+- **Decision:** Claude Code and Codex must pass the launch conformance suite. Cursor Agent and OpenCode keep stable adapter contracts and test doubles but are not launch-supported until their suites pass.
+- **Alternatives:** Launch all four adapters (rejected as excess MVP scope); launch one adapter (rejected because cross-provider orchestration is part of the product claim).
+- **Consequences:** Phase 4 prioritizes tasks 0402 and 0403; documentation and UI must label the other adapters as unavailable or experimental.
+- **Verification:** Tasks 0401 through 0405 and the Phase 10 release matrix.
+
+## ADR-018 — Public product name is deferred
+
+- **Date:** 2026-09-17
+- **Status:** Proposed
+- **Context:** The current name has an avoidable negative English connotation, while unverified alternatives create trademark and domain risk.
+- **Decision:** Keep `Cuckoding` as an internal codename. Choose the public name by 2026-10-01 after 3–5 user interviews and trademark/domain screening. Initial candidates are `Runstead`, `Branchyard`, and `Agent Harbor`; none is approved or claimed available.
+- **Consequences:** Do not invest in public branding, domains, or signed-bundle identifiers under a new name before the review.
+- **Verification:** Task 0001 interview gate and task 0902 packaging identifiers.
+
+## ADR-019 — Apache-2.0 open-core license hypothesis
+
+- **Date:** 2026-09-17
+- **Status:** Proposed
+- **Context:** The local core and plugin contracts need broad adoption and an express patent grant, while future hosted/team modules may be commercial.
+- **Decision:** Subject to owner/legal approval by 2026-09-24, license the local core and plugin contracts under Apache-2.0 and keep separately distributed paid modules proprietary. Do not add `LICENSE` until approval.
+- **Alternatives:** MIT (simpler but lacks an express patent grant); AGPL (stronger reciprocity but conflicts with the proposed plugin/open-core adoption path); fully proprietary (weakens trust and local ecosystem adoption).
+- **Consequences:** Source boundaries and third-party notices must remain explicit.
+- **Verification:** Owner/legal approval, dependency-license scan, and task 1004 release review.
+
+## ADR-020 — Initial pricing is an interview hypothesis
+
+- **Date:** 2026-09-17
+- **Status:** Proposed
+- **Context:** The product needs a testable commercial boundary without prematurely paywalling the local orchestration wedge.
+- **Decision:** Test Community at $0, individual Pro at $20/month or $200/year, and post-MVP Teams at $40/user/month. Keep core local orchestration, basic adapters, and the plugin system useful for free.
+- **Alternatives:** Usage-based pricing (rejected for the initial hypothesis because provider usage is already variable); paid-only local app (rejected because it weakens open-core adoption).
+- **Consequences:** No billing implementation belongs in the MVP until interviews validate willingness to pay and the paid feature boundary.
+- **Verification:** Task 0001 interviews and a dated pricing review by 2026-10-01.
+
 ## ADR template
 
 ### ADR-NNN — Title

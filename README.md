@@ -23,7 +23,7 @@ See `CHANGES.md`. In short: no Docker in the MVP, agents and commands run on the
 - A thin native menubar shell (Tauri 2 in tray-only mode; alternatives in `docs/DESKTOP_SHELL.md`) that launches the bundled release and offers Cuckoding, About, Settings, Quit.
 - SQLite with Ecto for local durable state; Markdown files for human-readable knowledge.
 - Git worktrees and a `LocalProcessRunner` for concurrent feature work on the host.
-- Provider adapters for Claude Code, Codex, Cursor Agent, and OpenCode.
+- Launch adapters for Claude Code and Codex, with stable adapter contracts for Cursor Agent and OpenCode.
 - A plugin system for connectors: knowledge backends (XERJ, others), shell-output filters (RTK), instruction skills (Ponytail, any `SKILL.md`), MCP servers, and future container runners (Docker, OrbStack, Colima, Apple Containers).
 - OpenTelemetry-compatible events and local metric rollups.
 
@@ -36,7 +36,9 @@ See `CHANGES.md`. In short: no Docker in the MVP, agents and commands run on the
 | `docs/` | Product, architecture, data, workflow, security, UI, shell, plugins, and knowledge specifications |
 | `docs/DOCUMENTATION_AUDIT.md` | Complete documentation inventory, contradictions, risks, and readiness conclusion |
 | `docs/IMPLEMENTATION_READINESS.md` | Verified local toolchain, Phase 0 order, blockers, and Phase 1 entry gate |
+| `docs/MVP_BOUNDARY_AND_POSITIONING.md` | Launch contract, competitive scan, data defaults, and commercial hypotheses |
 | `docs/REFERENCE_CODING.md` | XERJ-backed retrieve-before-code workflow and RTK command convention |
+| `docs/TRUSTED_HOST_THREAT_MODEL.md` | Trusted-host boundaries, risks, approvals, tabletop, and residual-risk disclosure |
 | `docs/reference-corpus.yml` | Pinned peer repositories, licenses, revisions, and XERJ prefixes |
 | `docs/plugins/` | Reference plugin specifications (XERJ, RTK, Ponytail) |
 | `tasks/` | Ordered implementation tasks grouped by phase |

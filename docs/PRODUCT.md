@@ -32,7 +32,7 @@ It is not a chat client and it is not an autonomous merge bot. Its product value
 - Local project registry and Git repository connection.
 - Multiple boards and concurrent task flows per project.
 - Configurable stage templates and role-to-runtime assignment.
-- Claude Code, Codex, Cursor Agent, and OpenCode adapter contracts; at least two fully working adapters for MVP.
+- Claude Code and Codex as supported launch adapters; Cursor Agent and OpenCode retain stable contracts and test doubles until their conformance suites pass.
 - Git worktree per run, host process runner with process-group supervision, path and command policy, per-run port allocation and preview URL.
 - Durable state machine, retries, approvals, pause, hibernate, resume, crash recovery, and sleep/wake reconciliation.
 - Power assertions while runs are active; unattended mode for long runs.
@@ -53,6 +53,8 @@ It is not a chat client and it is not an autonomous merge bot. Its product value
 - Training or fine-tuning foundation models.
 - Perfect cost comparison across providers that expose incompatible usage data.
 - Mobile clients, Windows distribution, or x86 macOS distribution. Linux is a candidate second target because it needs no shell beyond a tray icon.
+
+The complete launch contract, competitive basis, retention defaults, and commercial hypotheses are recorded in `docs/MVP_BOUNDARY_AND_POSITIONING.md`.
 
 ## Product principles
 
@@ -92,4 +94,4 @@ It is not a chat client and it is not an autonomous merge bot. Its product value
 
 ## Commercial path
 
-The local application can support a paid product through advanced workflows, enterprise policy packs, container and remote runners, team synchronization, SSO, audit export, centralized budgets, and managed knowledge catalogs. The open core keeps local execution, core orchestration, basic adapters, and the plugin system useful without a subscription. Name, license, and pricing hypothesis are decided in task 0001.
+The local application can support a paid product through advanced workflows, enterprise policy packs, container and remote runners, team synchronization, SSO, audit export, centralized budgets, and managed knowledge catalogs. The open core keeps local execution, core orchestration, basic adapters, and the plugin system useful without a subscription. The name, license, and pricing hypotheses and their review dates are recorded in `docs/MVP_BOUNDARY_AND_POSITIONING.md` and ADR-018 through ADR-020.

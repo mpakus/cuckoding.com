@@ -1,5 +1,13 @@
 # 0001 — Confirm Product Boundaries, Competitive Position, and Trusted-Host Threat Model
 
+```yaml
+status: review
+owner: codex
+started_at: 2026-09-17
+completed_at: null
+worklog: worklog/2026-09-17-0001-product-threat-model.md
+```
+
 ## Objective
 
 Review `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/SECURITY.md`, and `docs/EXECUTION_ENVIRONMENTS.md`.
@@ -22,19 +30,19 @@ Review `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/SECURITY.md`, and `docs/
 
 ## Checklist
 
-- [ ] Confirm which two adapters must work at launch.
-- [ ] Confirm data classes, retention defaults, and telemetry default.
-- [ ] Cover repository prompt injection on the host runner, secret theft, local web access, plugin abuse, cost denial, knowledge poisoning, and sleep/wake corruption.
-- [ ] Identify every mandatory human approval.
-- [ ] Record residual risks the MVP discloses rather than solves.
+- [x] Confirm which two adapters must work at launch.
+- [x] Confirm data classes, retention defaults, and telemetry default.
+- [x] Cover repository prompt injection on the host runner, secret theft, local web access, plugin abuse, cost denial, knowledge poisoning, and sleep/wake corruption.
+- [x] Identify every mandatory human approval.
+- [x] Record residual risks the MVP discloses rather than solves.
 - [ ] Schedule 3–5 user interviews with developers running two or more agents.
 
 ## Acceptance criteria
 
 - [ ] Stakeholders can state what the MVP does and does not do without contradiction.
-- [ ] Every trust boundary has at least one threat and control.
-- [ ] No high-severity risk lacks an owner and verification path.
-- [ ] Name, license, and pricing hypothesis are decided or explicitly deferred with a date.
+- [x] Every trust boundary has at least one threat and control.
+- [x] No high-severity risk lacks an owner and verification path.
+- [x] Name, license, and pricing hypothesis are decided or explicitly deferred with a date.
 
 ## Verification and evidence
 
