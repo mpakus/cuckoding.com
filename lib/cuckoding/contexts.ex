@@ -18,6 +18,8 @@ end
 defmodule Cuckoding.Workflows do
   @moduledoc "Owns workflow definitions, boards, tasks, approvals, and domain transitions."
 
+  import Ecto.Query
+
   alias Cuckoding.Identifier
   alias Cuckoding.Repo
   alias Cuckoding.Workflows.Approval
@@ -45,6 +47,75 @@ defmodule Cuckoding.Workflows do
     do: Cuckoding.Execution.Transitions.transition_task(task_id, to, idempotency_key, attrs)
 
   def request_approval(attrs), do: insert(Approval, attrs)
+
+  def decide_approval(approval_id, decision, actor, reason) do
+    case Repo.get(Approval, approval_id) do
+      %Approval{decision: "pending"} = approval ->
+        decide_pending_approval(approval, decision, actor, reason)
+
+      %Approval{} ->
+        {:error, :approval_already_decided}
+
+      nil ->
+        {:error, :approval_not_found}
+    end
+  end
+
+  defp decide_pending_approval(approval, decision, actor, reason) do
+    decided_at = Cuckoding.Clock.wall_now()
+
+    changeset =
+      Approval.decision_changeset(approval, %{
+        decision: decision,
+        actor: actor,
+        reason: reason,
+        decided_at: decided_at
+      })
+
+    with {:ok, validated} <- Ecto.Changeset.apply_action(changeset, :update) do
+      attrs = %{
+        event_type: "approval.decided",
+        public_summary: "Human decided a policy approval",
+        payload: %{
+          "approval_id" => approval.id,
+          "kind" => approval.kind,
+          "decision" => validated.decision,
+          "actor" => validated.actor
+        }
+      }
+
+      projection = approval_projection(approval, validated, decided_at)
+
+      case Cuckoding.Execution.EventStore.append(approval.run_id, attrs, projection) do
+        {:ok, {_event, decided}} -> {:ok, decided}
+        {:error, {:projection_failed, error}} -> {:error, error}
+        {:error, error} -> {:error, error}
+      end
+    end
+  end
+
+  defp approval_projection(approval, validated, decided_at) do
+    fn repo, _sequence ->
+      query =
+        from(candidate in Approval,
+          where: candidate.id == ^approval.id and candidate.decision == "pending"
+        )
+
+      updates = [
+        decision: validated.decision,
+        actor: validated.actor,
+        reason: validated.reason,
+        decided_at: validated.decided_at,
+        updated_at: decided_at
+      ]
+
+      case repo.update_all(query, set: updates) do
+        {1, _rows} -> {:ok, repo.get!(Approval, approval.id)}
+        {0, _rows} -> {:error, :approval_already_decided}
+      end
+    end
+  end
+
   def record_finding(attrs), do: insert(Finding, attrs)
 
   def add_dependency(task_id, depends_on_task_id, kind \\ "blocks") do

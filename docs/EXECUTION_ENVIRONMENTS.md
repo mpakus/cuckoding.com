@@ -55,6 +55,8 @@ Stdout and stderr are combined into one ordered stream. Redaction runs before a 
 
 - The run may write only inside its worktree and run folder; `protected_paths` (for example `.cuckoding/`, `.github/workflows/`) are read-only for agents and changes to them are flagged for approval.
 - Declared commands in `project.yml` are the only commands Cuckoding itself executes. The agent runtime executes its own commands under its own permission system; Cuckoding records the tool activity it can observe and does not claim to filter it.
+- The project loader hashes a validated, non-symlinked version 2 file. Command strings are tokenized without a shell, resolved to an absolute executable, and passed as argv; undeclared names, shell executables, NUL bytes, and statically visible absolute or parent-traversal arguments fail closed.
+- The protected-path scanner combines the frozen-base commit range with staged, unstaged, and untracked changes. It includes both sides of renames/copies, always protects `.cuckoding/`, and keys approval to the exact sorted path-set digest. Pending or rejected approval blocks QA; a broader later diff needs another decision.
 - Resolve symlinks before confinement checks. Reject worktree roots outside the workspace root.
 - Reject commands referencing paths outside the worktree in Cuckoding-executed commands.
 - Reconciliation treats a missing worktree as recoverable only when no recorded process is still alive. Drift, an unverified canonical path, or a missing worktree with a live process blocks the run for human inspection.

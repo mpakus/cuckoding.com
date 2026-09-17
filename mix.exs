@@ -41,6 +41,7 @@ defmodule Cuckoding.MixProject do
       {:esbuild, "== 0.10.0", runtime: Mix.env() == :dev},
       {:tailwind, "== 0.5.1", runtime: Mix.env() == :dev},
       {:jason, "== 1.4.5"},
+      {:yaml_elixir, "== 2.12.2"},
       {:bandit, "== 1.12.5"},
       {:credo, "== 1.7.19", only: [:dev, :test], runtime: false},
       {:sobelow, "== 0.15.0", only: [:dev, :test], runtime: false}

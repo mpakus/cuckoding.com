@@ -393,6 +393,13 @@ defmodule Cuckoding.Workflows.Approval do
     |> foreign_key_constraint(:run_id)
     |> foreign_key_constraint(:stage_attempt_id)
   end
+
+  def decision_changeset(record, attrs) do
+    record
+    |> cast(attrs, [:decision, :actor, :reason, :decided_at])
+    |> validate_required([:decision, :actor, :reason, :decided_at])
+    |> validate_inclusion(:decision, ~w(approved rejected))
+  end
 end
 
 defmodule Cuckoding.Workflows.Finding do

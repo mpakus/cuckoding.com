@@ -13,6 +13,8 @@ Projects may commit a `.cuckoding/` directory:
 
 Example files in this pack use the `.example.yml` suffix. Rename and review them before execution.
 
+The implemented project loader accepts one regular, non-symlinked `project.yml` up to 1 MiB, requires `schema_version: 2`, validates command declarations and protected paths, and computes the SHA-256 source hash used by the immutable configuration version. Commands may be written as a shell-like string for readability or as an argv list. Parsing never invokes a shell: Cuckoding resolves the executable once per execution and passes the remaining tokens directly to `RunnerBridge`. Shell executables, NUL bytes, absolute argument paths, and parent traversal are rejected. This is a static policy check on trusted declarations, not filesystem isolation for the child process.
+
 ## Precedence
 
 From lowest to highest:
@@ -33,6 +35,8 @@ Configuration from a repository is untrusted until the user reviews and trusts a
 ## Enforced versus advisory
 
 Every policy field is classified. Enforced fields change what Cuckoding does (budgets, approvals, protected paths, ports, plugin enablement, checkpoint cadence). Advisory fields are passed to the runtime or shown to the user but not enforced by Cuckoding (network class, resource ceilings on the host runner). Advisory fields are marked `advisory: true` in the schema and rendered with that label in the UI. A runner plugin may promote an advisory field to enforced by declaring it in its manifest.
+
+The current schema exposes UI-ready classification records. Declared commands, protected paths, and preview port ranges are `enforced`; host-runner network class and memory ceilings are `advisory`. The shared badge renders the latter as **Advisory · not enforced**, including an explicit accessible label.
 
 ## Validation
 

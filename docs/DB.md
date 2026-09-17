@@ -59,7 +59,7 @@ erDiagram
 | `task_comments` | `task_id`, `author_kind`, `body`, `created_at` | User and public agent notes |
 | `runs` | `task_id`, `sequence`, `state`, `wait_reason`, `workflow_snapshot_json`, `policy_snapshot_id`, `plugin_snapshot_json`, `branch`, `base_sha` | One task may have retries or replacements; workflow and roles are copied from the immutable board version |
 | `stage_attempts` | `run_id`, `stage_key`, `attempt`, `state`, `role_key`, `role_kind`, `started_at`, `finished_at`, `active_ms`, `wall_ms`, `checkpoint_json` | Immutable attempt history plus current state |
-| `approvals` | `run_id`, `stage_attempt_id?`, `kind`, `decision`, `actor`, `reason`, `decided_at` | Trust-boundary evidence |
+| `approvals` | `run_id`, `stage_attempt_id?`, `kind`, `decision`, `actor`, `reason`, `decided_at` | Trust-boundary evidence; protected-path approvals include the exact sorted change-set digest in `kind` |
 | `findings` | `run_id`, `stage_attempt_id`, `severity`, `category`, `status`, `summary`, `evidence_json` | Review and QA findings |
 
 ### Execution
@@ -114,6 +114,7 @@ erDiagram
 - Secret values remain in the configured `SecretStore`; SQLite stores opaque references and value-free access audits only.
 - A run snapshots workflow, role assignment, policy, plugin versions, and relevant prices so history remains explainable.
 - Published workflow versions and project configuration versions are immutable. Run creation copies the board's workflow definition and ordered role assignments, and accepts only a trusted policy version owned by the same project.
+- Approval decisions are atomically single-use and append an audit event in the same transaction. A protected-path approval authorizes only its run, stage attempt, and path-set digest; a changed set cannot reuse it.
 
 ## Retention
 

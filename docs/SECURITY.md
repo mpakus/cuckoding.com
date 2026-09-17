@@ -62,6 +62,8 @@ Each stage receives an unguessable short-lived capability set: allowed worktree,
 
 - Child processes in their own process groups; PID plus start identity recorded.
 - Timeouts and termination ladders; every step recorded.
+- Cuckoding-executed repository commands come only from the run's immutable trusted configuration snapshot and are launched without a shell. This narrows command injection but does not turn a trusted-host child into a sandbox.
+- Protected-path QA approvals are scoped to a digest of the exact changed path set. Approval decisions use a pending-only atomic update and append a durable event, so they cannot be silently overwritten or reused for a broader later diff.
 - Redact stdout/stderr before persistence.
 - Build child environments from scratch; reject undeclared and credential-shaped variables instead of inheriting the Phoenix environment.
 - All provider and plugin output is data until parsed and validated.

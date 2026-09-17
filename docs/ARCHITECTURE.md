@@ -49,6 +49,8 @@ flowchart TD
 
 The implemented host bridge covers prepare, asynchronous start, synchronous exec, read-only inspection/resource sampling, durable lifecycle-event retrieval, and environment-wide process destruction. Port allocation and pause/hibernate/resume remain the bounded follow-on tasks 0304 and 0305 rather than hidden behavior in the process launcher.
 
+`CommandPolicy` reads a size-bounded, non-symlinked `project.yml`, validates version 2 security fields, and resolves only a named command from the run's immutable trusted configuration snapshot. It tokenizes string declarations without a shell, passes an absolute executable plus argv to `RunnerBridge`, and rejects statically visible absolute or parent-traversal arguments. `ProtectedPaths` inspects committed, staged, unstaged, untracked, renamed, and copied paths with NUL-delimited Git output. A QA gate can pass a protected change only when the exact sorted path-set digest has a human approval; a later broader change requires a new approval.
+
 ### Agent adapter layer
 
 Each runtime adapter converts a common stage request into a provider-specific host process and converts output into normalized events, artifacts, usage, checkpoints, and completion status. Agents run on the host; their own permission systems (allowed tools, working directory, approval modes) are configured by the adapter from the stage capability grant, and the granted set is recorded. Capability discovery is explicit.

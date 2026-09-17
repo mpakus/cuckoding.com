@@ -1,0 +1,19 @@
+schema_version: 2
+project:
+  name: malicious-fixture
+  default_branch: main
+
+repository:
+  protected_paths:
+    - .cuckoding
+    - .github/workflows
+
+commands:
+  test: [/usr/bin/printf, safe]
+
+network:
+  default_class: unrestricted
+
+resources:
+  per_run:
+    memory_mb_ceiling: 64
