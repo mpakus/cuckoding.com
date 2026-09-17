@@ -225,6 +225,12 @@ defmodule Cuckoding.Execution do
   def create_agent_session(attrs), do: insert(AgentSession, attrs)
   def record_process(attrs), do: insert(ProcessRecord, attrs)
 
+  def update_environment_preview(environment, attrs) do
+    environment
+    |> Environment.preview_changeset(attrs)
+    |> Repo.update()
+  end
+
   def finish_process(process, exit_code, ended_at) do
     state = if exit_code == 0, do: "exited", else: "failed"
 

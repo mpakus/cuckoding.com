@@ -1,0 +1,15 @@
+schema_version: 2
+project:
+  name: preview-fixture
+  default_branch: main
+
+repository:
+  protected_paths:
+    - .cuckoding
+
+commands:
+  dev_server: [/usr/bin/ruby, preview_server.rb]
+
+ports:
+  range: "45000-45010"
+  health_path: /health

@@ -509,7 +509,19 @@ defmodule Cuckoding.Execution.LocalHostInspector do
   end
 
   @impl true
-  def port_owner(_port, _options), do: {:error, :inspector_unavailable}
+  def port_owner(port, _options) when is_integer(port) and port in 1_024..65_535 do
+    case System.cmd(
+           "/usr/sbin/lsof",
+           ["-nP", "-a", "-iTCP:#{port}", "-sTCP:LISTEN", "-Fp"],
+           stderr_to_stdout: true
+         ) do
+      {output, 0} -> listener_owner(output)
+      {_output, 1} -> :free
+      {_output, _status} -> {:error, :port_inspection_failed}
+    end
+  end
+
+  def port_owner(_port, _options), do: {:error, :invalid_port}
 
   @impl true
   def worktree_status(environment, options),
@@ -564,6 +576,37 @@ defmodule Cuckoding.Execution.LocalHostInspector do
 
   def groups_empty?(pgids) do
     process_rows() |> Enum.all?(&(&1.pgid not in pgids))
+  end
+
+  defp listener_owner(output) do
+    roots =
+      output
+      |> String.split("\n", trim: true)
+      |> Enum.filter(&String.starts_with?(&1, "p"))
+      |> Enum.map(&String.trim_leading(&1, "p"))
+      |> Enum.map(&Integer.parse/1)
+      |> Enum.flat_map(fn
+        {pid, ""} ->
+          case process_group(pid) do
+            {:ok, pgid} -> [pgid]
+            _other -> []
+          end
+
+        _other ->
+          []
+      end)
+      |> Enum.uniq()
+
+    case roots do
+      [pid] ->
+        with {:ok, identity} <- process_identity(pid, []), do: {:ok, pid, identity}
+
+      [] ->
+        {:error, :port_owner_unverified}
+
+      _many ->
+        {:error, :multiple_port_owners}
+    end
   end
 
   defp descendants(rows, root_pid) do

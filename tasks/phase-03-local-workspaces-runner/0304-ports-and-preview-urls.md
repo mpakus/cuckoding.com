@@ -1,5 +1,13 @@
 # 0304 — Port Allocation and Preview URLs
 
+```yaml
+status: done
+owner: codex
+started_at: 2026-09-17
+completed_at: 2026-09-17
+worklog: worklog/2026-09-17-0304-port-preview.md
+```
+
 ## Objective
 
 Implement per-project port ranges, allocation and release, `PORT`/`CUCKODING_PORT` injection, dev-server start via declared command, health probing, and preview links in the UI..
@@ -20,14 +28,14 @@ Implement per-project port ranges, allocation and release, `PORT`/`CUCKODING_POR
 
 ## Checklist
 
-- [ ] Ports released on hibernate/stop, reallocated on resume.
-- [ ] No two active runs share a port.
-- [ ] Health status visible.
+- [x] Ports released on hibernate/stop, reallocated on resume.
+- [x] No two active runs share a port.
+- [x] Health status visible.
 
 ## Acceptance criteria
 
-- [ ] Concurrent allocations never collide.
-- [ ] Preview URL reachable in the e2e sample project.
+- [x] Concurrent allocations never collide.
+- [x] Preview URL reachable in the e2e sample project.
 
 ## Verification and evidence
 

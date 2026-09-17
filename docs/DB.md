@@ -66,7 +66,7 @@ erDiagram
 
 | Table | Important fields | Notes |
 | --- | --- | --- |
-| `environments` | `run_id`, `runner_key`, `kind` (`local_process` / `container` / `remote`), `worktree_path`, `run_dir`, `base_sha`, `head_sha`, `port`, `ports_json`, `preview_url`, `isolation_claims_json`, `state` | One active owner per worktree and run directory; the scalar port is the MVP port-ownership key and paths pass confinement checks |
+| `environments` | `run_id`, `runner_key`, `kind` (`local_process` / `container` / `remote`), `worktree_path`, `run_dir`, `base_sha`, `head_sha`, `port`, `ports_json`, `preview_url`, `isolation_claims_json`, `state` | One active owner per worktree and run directory; the scalar port is the MVP ownership key and its preview URL must match the allocated loopback port |
 | `processes` | `environment_id`, `agent_session_id?`, `command_id?`, `pid`, `pgid`, `start_identity`, `role`, `state`, `exit_code`, `ended_at` | Recorded external process identity; exit status and end time are durable before the worker retires |
 | `agent_sessions` | `stage_attempt_id`, `adapter_key`, `runtime_version`, `requested_model`, `actual_model`, `external_session_id`, `effective_grant_json`, `state` | Requested and observed model kept separately; effective runtime permission grant recorded |
 | `leases` | `resource_type`, `resource_id`, `owner_id`, `token_hash`, `acquired_at`, `heartbeat_at`, `expires_at`, `released_at`, `release_reason` | One unreleased lease per resource; raw bearer tokens are returned once and never persisted |
@@ -109,6 +109,7 @@ erDiagram
 - A handler always receives the stable command idempotency key. Replay is exactly once inside Cuckoding's command ledger; an external integration must honor that key because a process can stop after an external side effect but before its result is persisted.
 - Constraints prevent two active attempts for the same run and stage, two active environments per run, and two active allocations of the same port.
 - A partial unique index prevents more than one unreleased lease for an exclusive resource. Acquisition first closes an expired row in the same immediate transaction, so a new owner can recover the resource without a race.
+- Preview allocation additionally uses the environment active-port unique index. The durable lease stores `tcp:127.0.0.1:<port>` and its owner, while the bearer token exists only in the supervised allocation handle.
 - The Power Manager must call the lease sleep-gap hook before expiry reconciliation. Only leases alive when the measured gap began are extended; the hook emits correlated telemetry with `kind: sleep_gap`.
 - Artifact and knowledge files are content-addressed or hash-verified before being referenced; a mismatch between file and index is flagged, never silently resolved.
 - Secret values remain in the configured `SecretStore`; SQLite stores opaque references and value-free access audits only.

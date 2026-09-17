@@ -38,6 +38,8 @@ Every policy field is classified. Enforced fields change what Cuckoding does (bu
 
 The current schema exposes UI-ready classification records. Declared commands, protected paths, and preview port ranges are `enforced`; host-runner network class and memory ceilings are `advisory`. The shared badge renders the latter as **Advisory · not enforced**, including an explicit accessible label.
 
+When `commands.dev_server` is present, its declaration is launched through the same declared-command boundary. `ports.range` is enforced by the project record; `ports.health_path` must be an origin-relative path with no control characters. Cuckoding supplies `HOST=127.0.0.1` plus matching `PORT` and `CUCKODING_PORT` values, so a compatible development server needs no interpolated shell command.
+
 ## Validation
 
 - Define and version a schema for every YAML document.

@@ -103,12 +103,21 @@ defmodule Cuckoding.Execution.CommandPolicy do
 
   @doc "Executes a declared command through the selected runner."
   def execute(%Run{} = run, environment, command_key, options \\ []) do
+    invoke(:exec, run, environment, command_key, options)
+  end
+
+  @doc "Starts a declared command through the selected runner."
+  def start(%Run{} = run, environment, command_key, options \\ []) do
+    invoke(:start, run, environment, command_key, options)
+  end
+
+  defp invoke(operation, run, environment, command_key, options) do
     runner = Keyword.get(options, :runner, LocalProcessRunner)
     runner_options = Keyword.delete(options, :runner)
 
     if environment.run_id == run.id do
       with {:ok, command} <- resolve(run, command_key),
-           do: runner.exec(environment, command, runner_options)
+           do: apply(runner, operation, [environment, command, runner_options])
     else
       {:error, :environment_run_mismatch}
     end

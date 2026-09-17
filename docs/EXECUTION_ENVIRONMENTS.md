@@ -71,6 +71,12 @@ Stdout and stderr are combined into one ordered stream. Redaction runs before a 
 - Reconciliation accepts a bound port only when its owner PID and start identity match one of the environment's durable process records. A free expected service port requests recovery; an unknown owner blocks the run.
 - Optional later: a Cuckoding reverse proxy giving stable `http://127.0.0.1:<app>/preview/<run>/` paths.
 
+The implemented allocator checks the OS with a temporary loopback listener, acquires an exclusive SQLite lease, checks the OS again, and then writes the port and exact `http://127.0.0.1:<port>` URL under the database's active-port uniqueness constraint. Concurrent Cuckoding allocations therefore cannot collide. An arbitrary development server cannot inherit the probe socket, so another same-user host process can still win the short bind race; health exposes the failure and cleanup or lease expiry recovers it.
+
+The dev server is the immutable snapshot's declared `dev_server` command. Cuckoding injects `HOST=127.0.0.1`, `PORT`, and `CUCKODING_PORT`; the health probe accepts only a loopback HTTP URL and an origin-relative path, follows no redirects, and reports `Healthy`, `Unhealthy · HTTP <status>`, or `Unavailable`. Stop terminates the owned process group before releasing the port. Hibernate uses the same release with `hibernated` state; resume performs a new allocation rather than trusting the prior port.
+
+The shared LiveView preview panel renders textual health, a guarded preview link, and keyboard-accessible Finder/editor buttons. The user-triggered opener re-reads the environment, requires the recorded worktree path, resolves its physical directory, and invokes `/usr/bin/open` with argv rather than a shell.
+
 ## Resource accounting
 
 - Sample CPU time, RSS, thread/process count, and open ports for every process group every 2–5 seconds while active.

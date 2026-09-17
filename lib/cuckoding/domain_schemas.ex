@@ -504,6 +504,25 @@ defmodule Cuckoding.Execution.Environment do
     |> unique_constraint(:port, name: :environments_one_active_port_index)
     |> unique_constraint(:port, name: :environments_port_index)
   end
+
+  def preview_changeset(record, attrs) do
+    record
+    |> cast(attrs, [:port, :preview_url, :ports_json, :state])
+    |> validate_inclusion(:state, ~w(prepared running hibernated stopped failed))
+    |> validate_number(:port, greater_than_or_equal_to: 1_024, less_than_or_equal_to: 65_535)
+    |> validate_preview_url()
+    |> unique_constraint(:port, name: :environments_one_active_port_index)
+    |> unique_constraint(:port, name: :environments_port_index)
+  end
+
+  defp validate_preview_url(changeset) do
+    port = get_field(changeset, :port)
+    url = get_field(changeset, :preview_url)
+
+    if (is_nil(port) and is_nil(url)) or url == "http://127.0.0.1:#{port}",
+      do: changeset,
+      else: add_error(changeset, :preview_url, "must match the allocated loopback port")
+  end
 end
 
 defmodule Cuckoding.Execution.AgentSession do

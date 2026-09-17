@@ -47,9 +47,11 @@ flowchart TD
 
 `RunnerBridge` separates orchestration from execution location. Required operations: prepare, start, exec, pause, hibernate, resume, inspect, stream events, allocate/release ports, and destroy. The MVP implementation is `LocalProcessRunner` (`docs/EXECUTION_ENVIRONMENTS.md`). Container runners (Docker, OrbStack, Colima, Apple Containers) and remote runners implement the same behaviour as plugins later.
 
-The implemented host bridge covers prepare, asynchronous start, synchronous exec, read-only inspection/resource sampling, durable lifecycle-event retrieval, and environment-wide process destruction. Port allocation and pause/hibernate/resume remain the bounded follow-on tasks 0304 and 0305 rather than hidden behavior in the process launcher.
+The implemented host bridge covers prepare, asynchronous start, synchronous exec, read-only inspection/resource sampling, durable lifecycle-event retrieval, environment-wide process destruction, leased preview ports, loopback health probes, and listener ownership inspection. Pause/hibernate/resume orchestration remains the bounded follow-on task 0305 rather than hidden behavior in the process launcher.
 
 `CommandPolicy` reads a size-bounded, non-symlinked `project.yml`, validates version 2 security fields, and resolves only a named command from the run's immutable trusted configuration snapshot. It tokenizes string declarations without a shell, passes an absolute executable plus argv to `RunnerBridge`, and rejects statically visible absolute or parent-traversal arguments. `ProtectedPaths` inspects committed, staged, unstaged, untracked, renamed, and copied paths with NUL-delimited Git output. A QA gate can pass a protected change only when the exact sorted path-set digest has a human approval; a later broader change requires a new approval.
+
+`PortAllocator` combines SQLite's exclusive resource lease with a physical `127.0.0.1` bind probe and the environment's active-port unique index. The lease token stays in the supervised service handle, never SQLite. `Preview` starts only the trusted `dev_server` declaration with fixed `HOST`, `PORT`, and `CUCKODING_PORT`, performs a bounded HTTP probe without redirects, and stops the process before releasing its lease. `LocalHostInspector` maps the listening PID back to the runner's process-group leader and start identity for recovery decisions.
 
 ### Agent adapter layer
 
