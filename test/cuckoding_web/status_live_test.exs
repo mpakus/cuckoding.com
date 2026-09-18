@@ -11,6 +11,11 @@ defmodule CuckodingWeb.StatusLiveTest do
     assert has_element?(view, "h1", "Cuckoding is ready")
     assert has_element?(view, "[role=status]", "Application status: Operational")
     assert has_element?(view, "nav[aria-label=Diagnostics] a[href='/health']", "Health JSON")
+    assert has_element?(view, "fieldset legend", "Experimental runtimes")
+    assert has_element?(view, "input[name=runtime][value=cursor_agent][disabled]")
+    assert has_element?(view, "#runtime-cursor_agent-warning", "user-global MCP process")
+    assert has_element?(view, "input[name=runtime][value=opencode][disabled]")
+    assert has_element?(view, "#runtime-opencode-warning", "no supported OpenCode CLI")
   end
 
   test "sets a restrictive content security policy", %{conn: conn} do

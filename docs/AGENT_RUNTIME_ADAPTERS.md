@@ -75,6 +75,14 @@ Authentication and session state use only `<run_dir>/agent/codex/home` via `CODE
 
 The flag and event vocabulary follow the [official non-interactive Codex documentation](https://learn.chatgpt.com/docs/non-interactive-mode). Native resume follows the pinned Hydra MIT reference at `electron/agents/providers.ts:112-145`; Cuckoding adds the run-scoped authentication, strict sandbox, host-runner, redaction, and audit boundaries rather than copying its interactive launch code.
 
+### Cursor Agent and OpenCode stable stubs
+
+Cursor Agent `2026.09.15-d2fe57e` remains unavailable despite exposing headless JSONL, sandbox, usage, cancellation, and native resume. The accepted host-runtime spike observed it writing transcripts and repository metadata under the user's global Cursor directory and starting a user-global Claude-compatible MCP process despite isolated configuration directories and an MCP deny rule. `CURSOR_CONFIG_DIR` therefore does not meet Cuckoding's state/plugin isolation boundary. Its probe reports the detected version and boolean authentication state without account details, but `available?` stays false and every operational callback returns `adapter_unavailable` with the same visible explanation.
+
+The installed OpenCode `1.18.21` application is a desktop app, not evidence of the documented OpenCode CLI. No `opencode` executable is on `PATH`, so the OpenCode stub reports `cli_not_installed`, exposes no adapter capabilities, and rejects every operational callback. If a CLI is later installed, the stub can report its version but remains unavailable as `runtime_isolation_unverified` until pure mode, run-scoped config/state, authentication, permissions, events, cancellation, and recovery pass the adapter conformance suite.
+
+Both stubs are present in the runtime catalog as non-selectable options. The LiveView renders disabled radio controls with adjacent plain-language warnings, so installation or desktop-app detection cannot silently imply production support.
+
 ## Model identity
 
 Store both `requested_model` and `actual_model`. If the runtime does not disclose the actual model, display `not reported`; never silently copy the requested value.

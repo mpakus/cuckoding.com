@@ -6,7 +6,8 @@ defmodule CuckodingWeb.StatusLive do
     {:ok,
      assign(socket,
        page_title: "System status",
-       health: Cuckoding.Health.snapshot()
+       health: Cuckoding.Health.snapshot(),
+       experimental_runtimes: Cuckoding.Adapters.Catalog.experimental_options()
      )}
   end
 
@@ -46,6 +47,19 @@ defmodule CuckodingWeb.StatusLive do
             </div>
           </dl>
         </section>
+
+        <fieldset class="space-y-3">
+          <legend class="text-xl font-semibold text-slate-950">Experimental runtimes</legend>
+          <p class="text-sm leading-6 text-slate-700">
+            These runtimes are detected for evaluation but cannot be selected for a stage.
+          </p>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <CuckodingWeb.RuntimeComponents.runtime_option
+              :for={runtime <- @experimental_runtimes}
+              runtime={runtime}
+            />
+          </div>
+        </fieldset>
 
         <nav aria-label="Diagnostics" class="flex flex-wrap gap-3">
           <a

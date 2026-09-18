@@ -49,8 +49,8 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 **Outcome:** normalized adapters and one end-to-end thin slice.
 
 - [x] Adapter behaviour, fake adapter, conformance suite.
-- [ ] Claude Code and Codex adapters.
-- [ ] Cursor Agent and OpenCode adapters or stable stubs.
+- [x] Claude Code and Codex adapters.
+- [x] Cursor Agent and OpenCode adapters or stable stubs.
 - [ ] Walking skeleton: spec → development → review → branch with one adapter and a minimal UI.
 
 ## Phase 5 — Workflow engine and Kanban

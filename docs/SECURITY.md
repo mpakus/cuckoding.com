@@ -46,6 +46,7 @@ Each stage receives an unguessable short-lived capability set: allowed worktree,
 - Provider authentication belongs to the runtime (Claude Code, Codex, Cursor, OpenCode logins); Cuckoding probes status and never copies credential directories.
 - Claude Code bare-mode authentication may use only a host-approved absolute executable helper referenced from run-scoped settings. Helper presence is not treated as successful authentication; an isolated probe must confirm it. Global OAuth state never causes Cuckoding to expose the real home directory or copy credential files into a run.
 - Codex authentication and session state use a run-scoped `CODEX_HOME`. A global ChatGPT login is not copied or exposed; the adapter remains unavailable until the scoped home passes a separate authentication probe. Cuckoding never passes an API key to the agent subprocess.
+- Cursor Agent remains a non-selectable stub because a verified run loaded a user-global MCP process and wrote user-global state despite scoped configuration. An MCP call deny is not treated as proof that the server never started. OpenCode remains a stub until its separate CLI and isolation boundaries are verified; the desktop app alone grants no capability.
 - GitHub credentials are used only by the host-side VCS service for push and PR creation after approval.
 - Never persist complete environment maps, authorization headers, or CLI arguments containing secrets.
 - Redact before disk, UI broadcast, analytics export, and knowledge extraction.
