@@ -15,6 +15,7 @@ defmodule Cuckoding.Power.ManagerTest do
 
   @now ~U[2026-09-17 23:30:00.000000Z]
 
+  @tag recovery_drill: true
   test "records one simulated sleep gap and holds assertions only while eligible" do
     domain = running_domain()
     parent = self()
@@ -117,6 +118,7 @@ defmodule Cuckoding.Power.ManagerTest do
     assert_receive {:assertion_released, ^second_pid}
   end
 
+  @tag recovery_drill: true
   test "macOS clock and caffeinate driver expose and release owned resources" do
     assert {:ok, %{continuous_ms: continuous, uptime_ms: uptime}} = MacOSClock.sample()
     assert continuous > 0
@@ -129,6 +131,7 @@ defmodule Cuckoding.Power.ManagerTest do
     assert :gone = await_gone(assertion.pid)
   end
 
+  @tag recovery_drill: true
   test "failed wake reconciliation retries the same durable gap cycle" do
     parent = self()
 

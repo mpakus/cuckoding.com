@@ -64,9 +64,9 @@ A sixth approved attempt succeeded after the display was put to sleep. The machi
 The opt-in commands are:
 
 ```sh
-rtk proxy ruby spikes/0004-sleep-wake-power/power_manager_spike.rb --real-sleep spikes/0004-sleep-wake-power/evidence
-rtk proxy ruby spikes/0004-sleep-wake-power/power_manager_spike.rb --lid-close ac live spikes/0004-sleep-wake-power/evidence
-rtk proxy ruby spikes/0004-sleep-wake-power/power_manager_spike.rb --lid-close battery recover spikes/0004-sleep-wake-power/evidence
+rtk proxy ruby spikes/0004-sleep-wake-power/power_manager_spike.rb --real-sleep development spikes/0004-sleep-wake-power/evidence
+rtk proxy ruby spikes/0004-sleep-wake-power/power_manager_spike.rb --lid-close ac live development spikes/0004-sleep-wake-power/evidence
+rtk proxy ruby spikes/0004-sleep-wake-power/power_manager_spike.rb --lid-close battery recover development spikes/0004-sleep-wake-power/evidence
 ```
 
 Run these only on a quiet or locked test Mac with a coordinated wake plan. The lid-close verifier validates the declared power source before and after sleep and writes distinct evidence files for each mode.

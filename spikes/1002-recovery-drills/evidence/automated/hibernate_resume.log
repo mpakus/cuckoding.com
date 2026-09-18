@@ -1,0 +1,8 @@
+$ rtk proxy mix test test/cuckoding/execution/lifecycle_test.exs --only recovery_drill --seed 0
+Running ExUnit with seed: 0, max_cases: 32
+Excluding tags: [:test]
+Including tags: [:recovery_drill]
+
+.
+Finished in 1.0 seconds (0.00s async, 1.0s sync)
+1 test, 0 failures (2 excluded)

@@ -41,6 +41,7 @@ defmodule Cuckoding.Execution.LifecycleTest do
     {:ok, domain: domain}
   end
 
+  @tag recovery_drill: true
   test "hibernate, relaunch, and resume preserve one stage execution", %{domain: domain} do
     lifecycle = running_environment(domain, "feature/lifecycle")
     artifact = Path.join([lifecycle.environment.run_dir, "artifacts", "review.txt"])

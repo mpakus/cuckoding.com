@@ -83,10 +83,24 @@ class PowerManagerSpikeTest < Minitest::Test
 
   def test_lid_close_configuration_rejects_invalid_modes
     assert_raises(ArgumentError) do
-      PowerManagerSpike::RealSleepVerifier.new("evidence", lid_source: "usb")
+      PowerManagerSpike::RealSleepVerifier.new(
+        "evidence", stage_key: "development", lid_source: "usb"
+      )
     end
     assert_raises(ArgumentError) do
-      PowerManagerSpike::RealSleepVerifier.new("evidence", worker_mode: "recover")
+      PowerManagerSpike::RealSleepVerifier.new(
+        "evidence", stage_key: "development", worker_mode: "recover"
+      )
+    end
+    assert_raises(ArgumentError) do
+      PowerManagerSpike::RealSleepVerifier.new("evidence", stage_key: "unknown")
+    end
+  end
+
+  def test_accepts_every_default_workflow_stage
+    PowerManagerSpike::DEFAULT_STAGES.each do |stage_key|
+      verifier = PowerManagerSpike::RealSleepVerifier.new("evidence", stage_key: stage_key)
+      assert_equal stage_key, verifier.instance_variable_get(:@stage_key)
     end
   end
 

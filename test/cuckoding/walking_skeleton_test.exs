@@ -80,6 +80,7 @@ defmodule Cuckoding.WalkingSkeletonTest do
      bare: bare}
   end
 
+  @tag recovery_drill: true
   test "fake CI lane resumes one attempt and pushes only after approval", fixture do
     assert {:ok, created} = WalkingSkeleton.create(fixture.attrs)
     assert {:ok, pending} = WalkingSkeleton.run(created)

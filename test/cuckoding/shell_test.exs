@@ -11,6 +11,7 @@ defmodule Cuckoding.ShellTest do
 
   @now ~U[2026-09-18 15:30:00.000000Z]
 
+  @tag recovery_drill: true
   test "quit policy pauses admission and hibernates active runs" do
     %{run: run, board: board, environment: environment} = running_run_fixture()
 

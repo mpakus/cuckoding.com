@@ -11,6 +11,7 @@ require "time"
 module PowerManagerSpike
   TOLERANCE_SECONDS = 1.0
   SAFE_PATH = "/usr/bin:/bin:/usr/sbin:/sbin"
+  DEFAULT_STAGES = %w[specification development qa human_approval release_handoff].freeze
 
   Sample = Data.define(:wall, :continuous, :uptime)
 
@@ -196,9 +197,9 @@ module PowerManagerSpike
         "provider_session_count" => run_state.fetch("provider_session_count"),
         "provider_stream_drop" => stream_class.to_s,
         "events" => run_state.fetch("events"),
-        "real_sleep_test" => "passed_in_committed_evidence",
-        "lid_close_ac_test" => "passed_in_committed_evidence",
-        "lid_close_battery_test" => "passed_in_committed_evidence"
+        "real_sleep_test" => "not_run",
+        "lid_close_ac_test" => "not_run",
+        "lid_close_battery_test" => "not_run"
       }
       write("timeline.json", JSON.pretty_generate(run_state) << "\n")
       write("summary.json", JSON.pretty_generate(summary) << "\n")
@@ -273,12 +274,14 @@ module PowerManagerSpike
   end
 
   class RealSleepVerifier
-    def initialize(evidence_dir, lid_source: nil, worker_mode: "live")
+    def initialize(evidence_dir, stage_key:, lid_source: nil, worker_mode: "live")
+      raise ArgumentError, "invalid stage" unless DEFAULT_STAGES.include?(stage_key)
       raise ArgumentError, "invalid lid source" unless [nil, "ac", "battery"].include?(lid_source)
       raise ArgumentError, "invalid worker mode" unless ["live", "recover"].include?(worker_mode)
       raise ArgumentError, "worker recovery requires lid-close mode" if worker_mode == "recover" && !lid_source
 
       @evidence_dir = File.expand_path(evidence_dir)
+      @stage_key = stage_key
       @lid_source = lid_source
       @worker_mode = worker_mode
       @owned_pids = []
@@ -344,6 +347,7 @@ module PowerManagerSpike
       raise "provider stream fixture did not reconnect after forced sleep" unless stream_reconnected
 
       run_state = {
+        "stage_key" => @stage_key,
         "stage_execution_count" => 1,
         "provider_session_count" => 1,
         "process" => worker,
@@ -382,6 +386,7 @@ module PowerManagerSpike
       validate_power_source!(after_power) if @lid_source
 
       summary = {
+        "stage_key" => @stage_key,
         "trigger" => @lid_source ? "lid_close" : "pmset_sleepnow",
         "expected_power_source" => @lid_source,
         "worker_mode" => @worker_mode,
@@ -423,9 +428,9 @@ module PowerManagerSpike
     private
 
     def evidence_prefix
-      return "real-sleep" unless @lid_source
+      return "real-sleep-#{@stage_key.tr("_", "-")}" unless @lid_source
 
-      "lid-close-#{@lid_source}-#{@worker_mode}"
+      "lid-close-#{@lid_source}-#{@worker_mode}-#{@stage_key.tr("_", "-")}"
     end
 
     def validate_power_source!(power)
@@ -625,15 +630,15 @@ if $PROGRAM_NAME == __FILE__
   case ARGV
   in ["--server"]
     PowerManagerSpike.run_server
-  in ["--real-sleep", evidence_dir]
-    PowerManagerSpike::RealSleepVerifier.new(evidence_dir).run
-  in ["--lid-close", source, worker_mode, evidence_dir]
+  in ["--real-sleep", stage_key, evidence_dir]
+    PowerManagerSpike::RealSleepVerifier.new(evidence_dir, stage_key: stage_key).run
+  in ["--lid-close", source, worker_mode, stage_key, evidence_dir]
     PowerManagerSpike::RealSleepVerifier.new(
-      evidence_dir, lid_source: source, worker_mode: worker_mode
+      evidence_dir, stage_key: stage_key, lid_source: source, worker_mode: worker_mode
     ).run
   in [evidence_dir]
     PowerManagerSpike::Verifier.new(evidence_dir).run
   else
-    abort "usage: #{$PROGRAM_NAME} [--real-sleep | --lid-close SOURCE MODE] EVIDENCE_DIR"
+    abort "usage: #{$PROGRAM_NAME} [--real-sleep STAGE | --lid-close SOURCE MODE STAGE] EVIDENCE_DIR"
   end
 end

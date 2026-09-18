@@ -19,6 +19,7 @@ defmodule Cuckoding.ReconcilerTest do
 
   @now ~U[2026-09-17 20:42:53.000000Z]
 
+  @tag recovery_drill: true
   test "a surviving process continues exactly once when every identity matches" do
     fixture = running_fixture()
     options = healthy_inspection(fixture)
@@ -44,6 +45,7 @@ defmodule Cuckoding.ReconcilerTest do
     assert count_attempts(fixture.run.id) == 1
   end
 
+  @tag recovery_drill: true
   property "interrupted process fixtures recover without starting a duplicate stage" do
     check all(_variation <- integer(1..20), max_runs: 20) do
       fixture = running_fixture()
@@ -137,6 +139,7 @@ defmodule Cuckoding.ReconcilerTest do
     assert Repo.get!(ProcessRecord, fixture.process.id).state == "running"
   end
 
+  @tag recovery_drill: true
   test "sleep-gap leases extend before expiry and the run records the measured gap" do
     fixture = running_fixture()
     lease_start = DateTime.add(@now, -10_000, :millisecond)
@@ -167,6 +170,7 @@ defmodule Cuckoding.ReconcilerTest do
     assert event.payload["gap_ms"] == 10_000
   end
 
+  @tag recovery_drill: true
   test "a killed database transaction leaves no invented transition or event" do
     path =
       Path.join(

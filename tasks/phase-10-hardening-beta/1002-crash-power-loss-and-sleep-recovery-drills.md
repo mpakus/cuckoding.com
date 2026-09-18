@@ -2,7 +2,14 @@
 
 ## Objective
 
-Run drills: kill -9 during transactions, power loss simulation, real sleep during each default stage, lid close on battery, quit during hibernate; verify single execution, evidence preservation, and timeline gaps..
+Run drills: kill -9 during transactions, power loss simulation, real sleep during each default stage, lid close on battery, quit during hibernate; verify single execution, evidence preservation, and timeline gaps.
+
+```yaml
+status: in_progress
+owner: codex
+started_at: 2026-09-18
+worklog: worklog/2026-09-18-1002-recovery-drills.md
+```
 
 ## Dependencies
 

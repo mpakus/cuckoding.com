@@ -1,0 +1,5 @@
+source: /usr/bin/pmset -g assertions
+target_pid: 41005
+target_present: true
+pid 41005(caffeinate): [0x0004dd2c00019fbc] 00:00:00 PreventUserIdleSystemSleep named: "caffeinate command-line tool"
+Details: caffeinate asserting on behalf of Process ID 41003

@@ -1,0 +1,8 @@
+$ rtk proxy mix test test/cuckoding/reconciler_test.exs --only recovery_drill --seed 0
+Running ExUnit with seed: 0, max_cases: 32
+Excluding tags: [:test]
+Including tags: [:recovery_drill]
+
+....
+Finished in 0.3 seconds (0.00s async, 0.3s sync)
+1 property, 3 tests, 0 failures (3 excluded)
