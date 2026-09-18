@@ -116,6 +116,51 @@ defmodule Cuckoding.Execution.GitService do
     end
   end
 
+  @doc "Commits an explicit set of regular files and records the resulting candidate revision."
+  def commit_candidate(%Environment{} = environment, relative_paths, message)
+      when is_list(relative_paths) and is_binary(message) do
+    with {:ok, %{clean?: false}} <- inspect(environment),
+         :ok <- valid_commit_message?(message),
+         {:ok, paths} <- candidate_paths(environment, relative_paths),
+         {:ok, _output} <- git(environment.worktree_path, ["add", "--" | paths]),
+         {:ok, _output} <- git(environment.worktree_path, ["commit", "-m", message]),
+         do: record_candidate(environment)
+  end
+
+  @doc "Accepts a clean agent-created commit as the immutable candidate revision."
+  def record_candidate(%Environment{} = environment) do
+    with %Run{} = run <- Repo.get(Run, environment.run_id),
+         %Task{} = task <- Repo.get(Task, run.task_id),
+         %Board{} = board <- Repo.get(Board, task.board_id),
+         %Project{} = project <- Repo.get(Project, board.project_id),
+         %ProjectConfigVersion{} = policy <-
+           Repo.get(ProjectConfigVersion, run.policy_snapshot_id),
+         {:ok, repo} <- canonical_directory(project.repo_path),
+         {:ok, workspace_root} <- canonical_directory(project.workspace_root),
+         :ok <- confined_directory?(environment.run_dir, workspace_root),
+         :ok <- confined_directory?(environment.worktree_path, workspace_root),
+         :ok <- marker_matches?(environment, project, task, run, policy),
+         {:ok, current_base} <-
+           git(repo, ["rev-parse", "--verify", "refs/heads/#{project.default_branch}^{commit}"]),
+         :ok <- base_matches?(environment.base_sha, current_base),
+         {:ok, branch} <-
+           git(environment.worktree_path, ["symbolic-ref", "--quiet", "--short", "HEAD"]),
+         true <- String.trim(branch) == run.branch,
+         {:ok, true} <- clean?(environment.worktree_path),
+         {:ok, candidate_sha} <- head(environment.worktree_path),
+         true <- candidate_sha != environment.head_sha,
+         {:ok, {_event, accepted}} <- accept_candidate(environment, candidate_sha),
+         :ok <- update_marker_head(environment.run_dir, candidate_sha) do
+      {:ok, accepted}
+    else
+      nil -> {:error, :ownership_source_not_found}
+      false -> {:error, :candidate_revision_unchanged}
+      {:ok, false} -> {:error, :dirty_worktree}
+      {:drift, reason} -> {:error, {:ownership_drift, reason}}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
   @doc "Removes one clean, owned worktree while retaining the run directory and artifacts."
   def cleanup(%Environment{} = environment) do
     with {:ok, %{clean?: true}} <- inspect(environment),
@@ -210,6 +255,91 @@ defmodule Cuckoding.Execution.GitService do
       public_summary: "Owned worktree cleanup started",
       payload: %{"environment_id" => environment.id, "retained_artifacts" => artifacts}
     })
+  end
+
+  defp accept_candidate(environment, candidate_sha) do
+    projection = fn repo, _sequence ->
+      repo.update(Environment.candidate_changeset(environment, %{head_sha: candidate_sha}))
+    end
+
+    EventStore.append(
+      environment.run_id,
+      %{
+        event_type: "git.candidate_recorded",
+        public_summary: "Candidate revision recorded after agent development",
+        payload: %{"environment_id" => environment.id, "head_sha" => candidate_sha}
+      },
+      projection
+    )
+  end
+
+  defp update_marker_head(run_dir, candidate_sha) do
+    path = Path.join(run_dir, "run.json")
+    temporary = path <> ".candidate.tmp"
+
+    with {:ok, contents} <- File.read(path),
+         {:ok, marker} <- Jason.decode(contents),
+         :ok <-
+           File.write(
+             temporary,
+             Jason.encode_to_iodata!(Map.put(marker, "head_sha", candidate_sha))
+           ),
+         :ok <- File.chmod(temporary, 0o600),
+         do: File.rename(temporary, path)
+  end
+
+  defp candidate_paths(environment, paths) when paths != [] do
+    paths
+    |> Enum.reduce_while({:ok, []}, fn path, {:ok, accepted} ->
+      case candidate_path(environment.worktree_path, path) do
+        {:ok, relative} -> {:cont, {:ok, accepted ++ [relative]}}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
+
+  defp candidate_paths(_environment, _paths), do: {:error, :candidate_paths_required}
+
+  defp candidate_path(worktree, path) when is_binary(path) do
+    expanded = Path.expand(path, worktree)
+    relative = Path.relative_to(expanded, Path.expand(worktree))
+
+    with :ok <- relative_candidate?(path, relative),
+         {:ok, %{type: type}} <- File.lstat(expanded),
+         :ok <- regular_candidate?(type) do
+      {:ok, relative}
+    else
+      {:error, reason}
+      when reason in [:candidate_path_must_be_relative, :candidate_path_escape] ->
+        {:error, reason}
+
+      {:error, reason} when reason in [:candidate_path_symlink, :candidate_path_not_regular] ->
+        {:error, reason}
+
+      {:error, reason} ->
+        {:error, {:candidate_path_invalid, reason}}
+    end
+  end
+
+  defp candidate_path(_worktree, _path), do: {:error, :invalid_candidate_path}
+
+  defp relative_candidate?(path, relative) do
+    cond do
+      Path.type(path) == :absolute -> {:error, :candidate_path_must_be_relative}
+      Path.type(relative) == :absolute -> {:error, :candidate_path_escape}
+      relative == ".." or String.starts_with?(relative, "../") -> {:error, :candidate_path_escape}
+      true -> :ok
+    end
+  end
+
+  defp regular_candidate?(:regular), do: :ok
+  defp regular_candidate?(:symlink), do: {:error, :candidate_path_symlink}
+  defp regular_candidate?(_type), do: {:error, :candidate_path_not_regular}
+
+  defp valid_commit_message?(message) do
+    if String.trim(message) == "" or String.contains?(message, <<0>>),
+      do: {:error, :invalid_commit_message},
+      else: :ok
   end
 
   defp cleanup_completed(environment, artifacts) do

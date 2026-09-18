@@ -46,7 +46,24 @@ defmodule Cuckoding.Workflows do
   def transition_task(task_id, to, idempotency_key, attrs \\ %{}),
     do: Cuckoding.Execution.Transitions.transition_task(task_id, to, idempotency_key, attrs)
 
-  def request_approval(attrs), do: insert(Approval, attrs)
+  def request_approval(attrs) do
+    Repo.transaction(fn ->
+      with {:ok, approval} <- insert(Approval, attrs),
+           {:ok, _event} <- approval_requested(approval) do
+        approval
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
+
+  defp approval_requested(approval) do
+    Cuckoding.Execution.EventStore.append_in_transaction(approval.run_id, %{
+      event_type: "approval.requested",
+      public_summary: "Human approval requested",
+      payload: %{"approval_id" => approval.id, "kind" => approval.kind}
+    })
+  end
 
   def decide_approval(approval_id, decision, actor, reason) do
     case Repo.get(Approval, approval_id) do
@@ -206,6 +223,9 @@ defmodule Cuckoding.Execution do
 
   def transition_run(run_id, to, idempotency_key, attrs \\ %{}),
     do: Transitions.transition_run(run_id, to, idempotency_key, attrs)
+
+  def transition_stage_attempt(stage_attempt_id, to, idempotency_key),
+    do: Transitions.transition_stage_attempt(stage_attempt_id, to, idempotency_key)
 
   def record_stage_time(stage_attempt_id, active_delta_ms, wall_delta_ms, idempotency_key),
     do:

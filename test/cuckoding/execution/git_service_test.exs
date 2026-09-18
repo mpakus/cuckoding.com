@@ -143,6 +143,23 @@ defmodule Cuckoding.Execution.GitServiceTest do
     refute File.exists?(Path.join(outside, symlink_run.id))
   end
 
+  test "candidate commits reject paths outside the owned worktree and symlinks", fixture do
+    {:ok, base_sha} = GitService.capture_base(fixture.project)
+    run = run_fixture(fixture, "feature/candidate-paths", base_sha)
+    {:ok, environment} = GitService.prepare(fixture.project, run)
+    File.write!(Path.join(environment.worktree_path, "change.txt"), "change\n")
+
+    assert {:error, :candidate_path_escape} =
+             GitService.commit_candidate(environment, ["../change.txt"], "candidate")
+
+    outside = Path.join(fixture.root, "outside.txt")
+    File.write!(outside, "outside\n")
+    File.ln_s!(outside, Path.join(environment.worktree_path, "linked.txt"))
+
+    assert {:error, :candidate_path_symlink} =
+             GitService.commit_candidate(environment, ["linked.txt"], "candidate")
+  end
+
   test "distinct runs cannot share a branch or worktree", fixture do
     {:ok, base_sha} = GitService.capture_base(fixture.project)
     first = run_fixture(fixture, "feature/shared", base_sha)

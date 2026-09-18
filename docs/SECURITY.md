@@ -48,6 +48,7 @@ Each stage receives an unguessable short-lived capability set: allowed worktree,
 - Codex authentication and session state use a run-scoped `CODEX_HOME`. A global ChatGPT login is not copied or exposed; the adapter remains unavailable until the scoped home passes a separate authentication probe. Cuckoding never passes an API key to the agent subprocess.
 - Cursor Agent remains a non-selectable stub because a verified run loaded a user-global MCP process and wrote user-global state despite scoped configuration. An MCP call deny is not treated as proof that the server never started. OpenCode remains a stub until its separate CLI and isolation boundaries are verified; the desktop app alone grants no capability.
 - GitHub credentials are used only by the host-side VCS service for push and PR creation after approval.
+- The Phase 4 local VCS host accepts only an absolute existing bare `origin`, the exact approved run and recorded clean candidate SHA, disables terminal prompting, constructs a non-force `refs/heads/<branch>:refs/heads/<branch>` refspec, and records the result. It never receives provider credentials or performs merge.
 - Never persist complete environment maps, authorization headers, or CLI arguments containing secrets.
 - Redact before disk, UI broadcast, analytics export, and knowledge extraction.
 - The shared recursive redactor replaces configured canary values in strings and removes authorization, cookie, password, secret, token, complete environment, and argv fields before those boundaries.

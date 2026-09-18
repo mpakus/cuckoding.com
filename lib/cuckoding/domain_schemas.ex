@@ -371,6 +371,14 @@ defmodule Cuckoding.Execution.StageAttempt do
     |> validate_required([:checkpoint_json])
   end
 
+  @doc false
+  def transition_changeset(record, attrs) do
+    record
+    |> cast(attrs, [:state, :started_at, :finished_at])
+    |> validate_required([:state])
+    |> validate_inclusion(:state, ~w(pending running waiting succeeded failed cancelled))
+  end
+
   defp validate_wall_time(changeset) do
     active_ms = get_field(changeset, :active_ms)
     wall_ms = get_field(changeset, :wall_ms)
@@ -524,6 +532,14 @@ defmodule Cuckoding.Execution.Environment do
     |> validate_preview_url()
     |> unique_constraint(:port, name: :environments_one_active_port_index)
     |> unique_constraint(:port, name: :environments_port_index)
+  end
+
+  @doc false
+  def candidate_changeset(record, attrs) do
+    record
+    |> cast(attrs, [:head_sha])
+    |> validate_required([:head_sha])
+    |> validate_format(:head_sha, ~r/\A[0-9a-f]{40}\z/)
   end
 
   defp validate_preview_url(changeset) do

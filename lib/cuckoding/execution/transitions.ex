@@ -26,6 +26,14 @@ defmodule Cuckoding.Execution.Transitions do
                                  {"archived", "draft"}
                                ])
   @terminal_states ~w(done failed cancelled)
+  @stage_transitions %{
+    "pending" => ~w(running cancelled),
+    "running" => ~w(waiting succeeded failed cancelled),
+    "waiting" => ~w(running failed cancelled),
+    "succeeded" => [],
+    "failed" => [],
+    "cancelled" => []
+  }
 
   def transition_task(task_id, to, idempotency_key, attrs \\ %{}) do
     command = command_attrs(idempotency_key, "task.transition", "task", task_id, to, attrs)
@@ -47,6 +55,25 @@ defmodule Cuckoding.Execution.Transitions do
         transition_run_and_task(run, task, to, wait_reason(attrs))
       else
         nil -> {:ok, rejected("run", run_id, nil, to, :not_found)}
+      end
+    end)
+  end
+
+  def transition_stage_attempt(stage_attempt_id, to, idempotency_key) do
+    command =
+      command_attrs(
+        idempotency_key,
+        "stage.transition",
+        "stage_attempt",
+        stage_attempt_id,
+        to,
+        %{}
+      )
+
+    Commands.execute_once(command, fn _command ->
+      case Repo.get(StageAttempt, stage_attempt_id) do
+        nil -> {:ok, rejected("stage_attempt", stage_attempt_id, nil, to, :not_found)}
+        attempt -> transition_stage_attempt(attempt, to)
       end
     end)
   end
@@ -80,6 +107,23 @@ defmodule Cuckoding.Execution.Transitions do
       end)
     else
       {:error, reason} -> {:ok, rejected("task", task.id, task.state, to, reason)}
+    end
+  end
+
+  defp transition_stage_attempt(attempt, to) do
+    if to in Map.fetch!(@stage_transitions, attempt.state) do
+      now = Cuckoding.Clock.wall_now()
+
+      attrs =
+        %{state: to}
+        |> maybe_put(:started_at, attempt.state == "pending", now)
+        |> maybe_put(:finished_at, to in ~w(succeeded failed cancelled), now)
+
+      append_transition(attempt.run_id, "stage_attempt", attempt, to, nil, fn repo, _sequence ->
+        repo.update(StageAttempt.transition_changeset(attempt, attrs))
+      end)
+    else
+      {:ok, rejected("stage_attempt", attempt.id, attempt.state, to, :invalid_transition)}
     end
   end
 
@@ -225,4 +269,7 @@ defmodule Cuckoding.Execution.Transitions do
       "to" => to
     }
   end
+
+  defp maybe_put(map, key, true, value), do: Map.put(map, key, value)
+  defp maybe_put(map, _key, false, _value), do: map
 end

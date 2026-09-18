@@ -61,6 +61,8 @@ Safe cleanup delegates the exact registered path to Git only after the ownership
 
 Each runtime adapter converts a common stage request into a provider-specific host process and converts output into normalized events, artifacts, usage, checkpoints, and completion status. Agents run on the host; their own permission systems (allowed tools, working directory, approval modes) are configured by the adapter from the stage capability grant, and the granted set is recorded. Capability discovery is explicit.
 
+The Phase 4 walking skeleton composes the existing contexts without adding an authoritative workflow process: SQLite owns stage, run, task, approval, candidate, and event state. The deterministic CI adapter and an opt-in real adapter use the same stage request path. Human approval precedes the system release attempt, whose `VcsHost` implementation performs an idempotent, non-force push to a validated local bare remote. See `docs/WALKING_SKELETON.md`.
+
 ### Plugin registry
 
 Discovers, validates, enables, and health-checks connectors described by manifests (`docs/PLUGINS.md`). Plugin kinds: `knowledge_backend`, `shell_filter`, `instruction_skill`, `mcp_server`, `runner`, `metric_source`, `vcs_host`, `secret_store`. Core code never imports a plugin directly; it talks to behaviours.

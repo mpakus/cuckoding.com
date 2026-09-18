@@ -17,15 +17,16 @@
 | Git service | Branch naming, base SHA capture | — | Real worktrees: create, commit, clean status, push to a local bare remote | Dirty base, protected branch, force-push attempt | Worktree drift on resume |
 | Power manager | Gap detection math | `power_events` | `caffeinate` lifecycle on a real machine (opt-in) | Wall clock jump without sleep | Wake with dead process, wake with live process |
 | Adapters | Event decoding, grant mapping, usage parsing | Session rows, effective grant | Fixture-driven fake CLI; opt-in real CLI | Malformed stream, secret canary in output, injected instructions | Cancel, sleep gap, restart, resume |
-
-Claude Code fixture conformance is pinned to `test/fixtures/agent/claude-code-2.1.142.stream.jsonl`. A real smoke is allowed only when the run-scoped authentication probe succeeds; global OAuth alone is not sufficient because bare mode intentionally ignores it.
-Codex fixture conformance is pinned to `test/fixtures/agent/codex-0.146.0.jsonl`. Strict config is validated against the installed CLI with an isolated unauthenticated `CODEX_HOME`; a real provider smoke is allowed only after that scoped home authenticates, never by copying the user's global `auth.json` or passing a provider key to the child process.
-Cursor and OpenCode are stable-stub tests, not provider conformance claims. Tests assert real probe parsing, zero advertised adapter capabilities, fail-closed operational callbacks, and disabled LiveView controls with visible isolation/install warnings. Cursor's retained spike fixture remains evidence for its current rejection, not evidence of production eligibility.
 | Workflow and Kanban | Scheduling fairness, dependencies | Snapshots | LiveView: keyboard transitions, rejections, reconnect | Invalid transition via UI | Reconnect after gap |
 | Knowledge | Front-matter parsing, memory-op classification, redaction | Index/file sync, usage records | Extraction and consolidation with fixture runtime | Secret in evidence, injected publication instruction, cross-project retrieval | Job resume after crash |
 | Plugins | Manifest schema, permission narrowing | Registry rows | Detection with fake binaries; conformance per kind | Undeclared access, crashing plugin, output promotion attempt | Plugin restart limits |
 | Shell | Token generation, readiness parsing | — | Launch, `/open` exchange, status polling, quit ladder | Token replay, unauthorized browser | Child crash before/after readiness |
 | Telemetry | Cost formula, rollups, active vs wall | Samples and rollups | — | Missing samples not interpolated | — |
+
+Claude Code fixture conformance is pinned to `test/fixtures/agent/claude-code-2.1.142.stream.jsonl`. A real smoke is allowed only when the run-scoped authentication probe succeeds; global OAuth alone is not sufficient because bare mode intentionally ignores it.
+Codex fixture conformance is pinned to `test/fixtures/agent/codex-0.146.0.jsonl`. Strict config is validated against the installed CLI with an isolated unauthenticated `CODEX_HOME`; a real provider smoke is allowed only after that scoped home authenticates, never by copying the user's global `auth.json` or passing a provider key to the child process.
+Cursor and OpenCode are stable-stub tests, not provider conformance claims. Tests assert real probe parsing, zero advertised adapter capabilities, fail-closed operational callbacks, and disabled LiveView controls with visible isolation/install warnings. Cursor's retained spike fixture remains evidence for its current rejection, not evidence of production eligibility.
+The Phase 4 walking-skeleton test uses the fake adapter but real SQLite state, Git repositories, worktree, candidate commit, hibernate/resume lifecycle, evidence files, LiveView confirmation, and local bare push. It asserts a single specification attempt across the sleep simulation, rejects release before approval, rejects candidate path traversal and symlinks, and replays the release command without another push event. A real-provider demo remains opt-in and must use a separately authenticated run-scoped home.
 
 ## Fixtures
 

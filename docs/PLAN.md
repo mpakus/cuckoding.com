@@ -51,7 +51,7 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 - [x] Adapter behaviour, fake adapter, conformance suite.
 - [x] Claude Code and Codex adapters.
 - [x] Cursor Agent and OpenCode adapters or stable stubs.
-- [ ] Walking skeleton: spec → development → review → branch with one adapter and a minimal UI.
+- [ ] Walking skeleton: the fake CI, sleep/resume, approval UI, evidence, and local-bare-remote lanes are implemented; the isolated real-adapter demo remains the Phase 4 exit gate.
 
 ## Phase 5 — Workflow engine and Kanban
 
