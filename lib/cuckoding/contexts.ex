@@ -502,6 +502,7 @@ defmodule Cuckoding.Knowledge do
 
   alias Cuckoding.Knowledge.Consolidator
   alias Cuckoding.Knowledge.Extractor
+  alias Cuckoding.Knowledge.Injection
   alias Cuckoding.Knowledge.PublicationService
   alias Cuckoding.Knowledge.Store
   alias Cuckoding.Knowledge.Sync
@@ -530,6 +531,20 @@ defmodule Cuckoding.Knowledge do
 
   defdelegate rollback(publication_id, target_version, approval_id, actor, options \\ []),
     to: PublicationService
+
+  defdelegate prepare_injection(request, options \\ []), to: Injection, as: :prepare
+  defdelegate record_injection(request), to: Injection
+
+  defdelegate issue_retrieval_token(run_id, stage_attempt_id, options \\ []),
+    to: Injection,
+    as: :issue_token
+
+  defdelegate retrieve(token, query, options \\ []), to: Injection
+  defdelegate record_citations(run_id, stage_attempt_id, citations, options \\ []), to: Injection
+
+  defdelegate record_knowledge_outcome(run_id, stage_attempt_id, item_id, kind, evidence \\ %{}),
+    to: Injection,
+    as: :record_outcome
 end
 
 defmodule Cuckoding.Power do

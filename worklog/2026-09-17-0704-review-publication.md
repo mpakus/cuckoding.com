@@ -4,11 +4,11 @@
 
 - Date/time (UTC): 2026-09-17
 - Task: 0704
-- Status: review
+- Status: done
 - Human/agent owner: codex
 - Branch: `feature/0704-review-publication`
 - Start revision: `b9aa034`
-- End revision: pending commit
+- End revision: `b518af7`
 
 ## Acceptance criteria
 
@@ -47,4 +47,4 @@
 
 ## Handoff
 
-Implementation is review-ready. E2E scenario 8 passes through extraction, consolidation prerequisites, rejection/acceptance, global publication, files, hashes, and audit. Its final “usage records in the next run” step remains explicitly open for task 0705, so this task is not marked done yet.
+Complete. Task 0705 supplied the deferred next-run usage and correction-lineage evidence, so scenario 8 now passes end to end.

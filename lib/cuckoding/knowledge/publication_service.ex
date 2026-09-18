@@ -6,6 +6,7 @@ defmodule Cuckoding.Knowledge.PublicationService do
   alias Cuckoding.Execution.EventStore
   alias Cuckoding.Identifier
   alias Cuckoding.Knowledge.Candidate
+  alias Cuckoding.Knowledge.Injection
   alias Cuckoding.Knowledge.Item
   alias Cuckoding.Knowledge.Job
   alias Cuckoding.Knowledge.Parser
@@ -298,7 +299,7 @@ defmodule Cuckoding.Knowledge.PublicationService do
            |> Candidate.decision_changeset(decision_attrs)
            |> Ecto.Changeset.apply_action(:update) do
       projection = fn repo, _sequence ->
-        persist_candidate_review(repo, context.candidate.id, validated, now)
+        persist_candidate_review(repo, context, validated, now)
       end
 
       case EventStore.append(context.job.scope_id, attrs, projection) do
@@ -309,7 +310,9 @@ defmodule Cuckoding.Knowledge.PublicationService do
     end
   end
 
-  defp persist_candidate_review(repo, candidate_id, validated, now) do
+  defp persist_candidate_review(repo, context, validated, now) do
+    candidate_id = context.candidate.id
+
     query =
       from(candidate in Candidate,
         where: candidate.id == ^candidate_id and candidate.decision == "pending"
@@ -325,10 +328,80 @@ defmodule Cuckoding.Knowledge.PublicationService do
     ]
 
     case repo.update_all(query, set: updates) do
-      {1, _rows} -> {:ok, repo.get!(Candidate, candidate_id)}
-      {0, _rows} -> {:error, :candidate_already_reviewed}
+      {1, _rows} ->
+        candidate = repo.get!(Candidate, candidate_id)
+
+        case record_review_outcomes(repo, context, candidate) do
+          :ok -> {:ok, candidate}
+          {:error, reason} -> {:error, reason}
+        end
+
+      {0, _rows} ->
+        {:error, :candidate_already_reviewed}
     end
   end
+
+  defp record_review_outcomes(_repo, _context, %{decision: "rejected"}), do: :ok
+
+  defp record_review_outcomes(repo, context, %{decision: "accepted"} = candidate) do
+    attempt =
+      repo.one(
+        from(attempt in Cuckoding.Execution.StageAttempt,
+          where: attempt.run_id == ^context.job.scope_id,
+          order_by: [desc: attempt.inserted_at, desc: attempt.id],
+          limit: 1
+        )
+      )
+
+    with %Cuckoding.Execution.StageAttempt{} <- attempt,
+         {:ok, usage_context} <- Injection.context(context.job.scope_id, attempt.id),
+         %Item{} = accepted <- repo.get(Item, candidate.accepted_item_id),
+         {:ok, _usage} <-
+           Injection.insert_usage(
+             repo,
+             accepted,
+             usage_context,
+             "accepted",
+             %{"candidate_id" => candidate.id, "reviewer" => candidate.reviewed_by},
+             "accepted:#{candidate.id}:#{accepted.id}:#{accepted.version}"
+           ),
+         :ok <- record_contradiction(repo, usage_context, candidate) do
+      :ok
+    else
+      nil -> {:error, :knowledge_review_outcome_owner_not_found}
+      {:error, _reason} = error -> error
+    end
+  end
+
+  defp record_contradiction(
+         repo,
+         context,
+         %{operation: operation, target_item_id: target_id} = candidate
+       )
+       when operation in ~w(update supersede) and is_binary(target_id) do
+    case repo.get(Item, target_id) do
+      %Item{} = target ->
+        case Injection.insert_usage(
+               repo,
+               target,
+               context,
+               "contradicted",
+               %{
+                 "candidate_id" => candidate.id,
+                 "replacement_item_id" => candidate.accepted_item_id
+               },
+               "contradicted:#{candidate.id}:#{target.id}:#{target.version}"
+             ) do
+          {:ok, _usage} -> :ok
+          {:error, reason} -> {:error, reason}
+        end
+
+      nil ->
+        {:error, :candidate_target_not_found}
+    end
+  end
+
+  defp record_contradiction(_repo, _context, _candidate), do: :ok
 
   defp request_approval(context, kind) do
     existing =

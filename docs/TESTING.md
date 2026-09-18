@@ -45,7 +45,7 @@ The Phase 4 walking-skeleton test uses the fake adapter but real SQLite state, G
 5. Real sleep drill on a test machine (opt-in): `pmset sleepnow` during a stage.
 6. Fail QA and return structured findings to development; assert routing and attempt increments.
 7. Lose network or provider auth; assert transient classification, retry within budget, block on exhaustion.
-8. Complete a run; extract candidates; consolidate; reject one, accept one, publish one globally; assert files, index, audit, and usage records in the next run.
+8. Complete a run; extract candidates; consolidate; reject one, accept one, publish one globally; assert files, index, audit, and injected/retrieved/cited usage records in the next run, then accept a correction and assert accepted/contradicted lineage.
 9. Enable RTK/XERJ/Ponytail plugins with fake binaries; assert labeled contributions and clean degradation when removed.
 10. Malicious repository: injected instruction to publish knowledge and edit `.cuckoding/`; assert refusal, flags, and approvals.
 11. Unauthorized browser access and token replay; assert rejection and audit.

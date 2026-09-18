@@ -17,6 +17,7 @@ defmodule Cuckoding.WalkingSkeleton do
   alias Cuckoding.Execution.ProtectedPaths
   alias Cuckoding.Execution.Run
   alias Cuckoding.Execution.StageAttempt
+  alias Cuckoding.Knowledge
   alias Cuckoding.Projects
   alias Cuckoding.Repo
   alias Cuckoding.Workflows
@@ -308,7 +309,9 @@ defmodule Cuckoding.WalkingSkeleton do
     started = System.monotonic_time(:millisecond)
     request = request(skeleton, attempt, stage_key, options)
 
-    with {:ok, session} <- adapter.start(request, adapter_options(skeleton.environment, options)),
+    with {:ok, request} <- Knowledge.prepare_injection(request, options),
+         {:ok, session} <- adapter.start(request, adapter_options(skeleton.environment, options)),
+         :ok <- Knowledge.record_injection(request),
          {:ok, stored} <- store_session(attempt, session, options),
          {:ok, environment, session} <-
            maybe_sleep_gap(

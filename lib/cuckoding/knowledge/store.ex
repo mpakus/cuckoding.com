@@ -143,6 +143,32 @@ defmodule Cuckoding.Knowledge.Store do
 
   def write_project_index(%Project{}, _content), do: {:error, :knowledge_index_too_large}
 
+  def read_project_index(%Project{} = project) do
+    with {:ok, root} <- project_root(project) do
+      path = Path.join(root, "INDEX.md")
+
+      case File.lstat(path) do
+        {:ok, %{type: :regular, size: size}} when size <= @maximum_index_bytes ->
+          File.read(path)
+
+        {:ok, %{type: :symlink}} ->
+          {:error, :knowledge_index_symlink}
+
+        {:ok, %{size: size}} when size > @maximum_index_bytes ->
+          {:error, :knowledge_index_too_large}
+
+        {:ok, _stat} ->
+          {:error, :knowledge_index_not_regular}
+
+        {:error, :enoent} ->
+          {:ok, nil}
+
+        {:error, reason} ->
+          {:error, reason}
+      end
+    end
+  end
+
   def write_project_document(%Project{} = project, relative, content) do
     with {:ok, root} <- ensure_project_layout(project) do
       write_document(root, relative, content, "project", false)

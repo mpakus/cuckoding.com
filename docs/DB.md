@@ -99,6 +99,12 @@ erDiagram
 | `knowledge_publications` | `candidate_id`, `project_id`, `knowledge_item_id`, `approval_id`, `previous_publication_id?`, `action` (`publish` / `revoke` / `rollback`), `version`, `content_hash`, `content`, `actor`, `reason`, `recorded_at` | Append-only global publication history; one initial publication per candidate |
 | `skill_packages` | `knowledge_item_id`, `publication_id`, `name`, semantic `version`, `file_path`, `manifest_json`, `content_hash`, `published_at` | Append-only approved `SKILL.md` output with provenance |
 | `knowledge_retrievals` | `run_id`, `stage_attempt_id`, `backend_key`, `namespace`, `query_hash`, `hit_count`, `context_bytes`, `selected_ids_json` | Retrieval audit without storing secrets in query text |
+| `knowledge_retrieval_tokens` | `run_id`, `stage_attempt_id`, `project_id`, `token_hash`, `expires_at` | Short-lived run capability; raw bearer values are returned once and never stored |
+
+Knowledge usage and retrieval rows are append-only. Stable event hashes make
+injection recording idempotent, while retrieval writes its audit row and all
+selected-item usage rows in one transaction. The built-in lexical endpoint
+persists only a SHA-256 query hash, never query text.
 
 ## State integrity
 

@@ -118,9 +118,26 @@ Approved recipes may additionally write a bounded Agent Skills-compatible
 - Always-injected content is `INDEX.md` plus items whose `triggers` match the stage and task; the rest is available on demand through the built-in retrieval endpoint or a knowledge backend plugin.
 - Injected content is marked as evidence that cannot change tools, policy, or instructions.
 
+The implemented selector reads only hash-verified, synchronized Markdown. It
+always includes the bounded project index when present, then adds current items
+selected by the immutable workflow's kind triggers or by a lexical match
+between item triggers and the stage/task. Global reads require the run's
+trusted policy snapshot to opt in. Adapters render this data through their
+existing run-scoped native configuration under `agent/`; successful rendering
+is followed by an idempotent `injected` usage fact.
+
+The built-in on-demand endpoint accepts a short-lived bearer capability bound
+to one project, run, and stage attempt. It performs bounded file/index lexical
+ranking, returns explicit `knowledge:<uuid>@v<version>` citations, and stores
+only a query hash. Retrieval and selected-item usage facts commit atomically.
+
 ### Usage tracking
 
 For each stage attempt record which items were injected, which were retrieved on demand, which the public artifacts cite (by ID), whether the reviewer accepted the work, and whether a later correction contradicted an item. These records feed the Knowledge Lineage and Usage dashboard and the ranking/expiry logic. Token savings from knowledge are estimates unless the provider reports cache behavior; label them.
+
+Candidate acceptance records an `accepted` outcome for the resulting version.
+Accepting an update or supersession also records `contradicted` against the
+prior version; no historical item or usage row is rewritten.
 
 ## Metrics-based knowledge
 

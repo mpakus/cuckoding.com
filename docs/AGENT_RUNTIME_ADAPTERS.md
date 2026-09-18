@@ -30,6 +30,9 @@ An adapter records the configured grant and the runtime-reported grant separatel
 - worktree path, run folder, ports, preview URL;
 - allowed tool categories, paths, network class (advisory), budgets;
 - knowledge injection set (always-injected index and triggered items) and on-demand retrieval endpoint;
+- every injected item includes its immutable ID/version citation and an
+  explicit untrusted-evidence marker; the orchestrator records usage only
+  after the adapter successfully renders/starts from its run-owned config;
 - enabled plugins for the stage (instruction skills, MCP servers, shell filters);
 - required output schema;
 - correlation ID and idempotency key.

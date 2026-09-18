@@ -44,5 +44,6 @@ defmodule CuckodingWeb.Router do
     pipe_through :api
     get "/health", HealthController, :health
     get "/status", HealthController, :status
+    post "/api/knowledge/retrieve", KnowledgeRetrievalController, :create
   end
 end

@@ -5,7 +5,7 @@
 Build the review queue UI with evidence preview and redaction report, project acceptance per policy, global publication with approval, `SKILL.md` packaging with manifest, supersession, revocation, and rollback..
 
 ```yaml
-status: review
+status: done
 owner: codex
 started_at: 2026-09-17
 worklog: worklog/2026-09-17-0704-review-publication.md
@@ -32,10 +32,9 @@ Build the review queue UI with evidence preview and redaction report, project ac
 
 ## Acceptance criteria
 
-- [ ] E2E scenario 8 passes.
+- [x] E2E scenario 8 passes.
 
-The review/publication portion passes. Scenario 8's final next-run usage-record
-assertion is owned by dependent task 0705.
+Task 0705 completed the final next-run usage and correction-lineage assertions.
 
 ## Verification and evidence
 

@@ -94,6 +94,11 @@ Mandatory for policy escalation, newly modified execution configuration, enablin
 - Threat-model review before beta and after material architecture changes.
 - Path traversal and symlink race tests on confinement.
 - Prompt injection and tool-output forgery fixtures.
+- Knowledge retrieval capabilities store only a SHA-256 token hash, expire
+  after a bounded interval, and are resolved back through the recorded
+  project/run/stage ownership chain. Project items never cross that chain;
+  global items additionally require the run's trusted policy snapshot to opt
+  in. Retrieval queries are not persisted in plaintext.
 - Secret canary tests across logs, database, UI, exports, and knowledge files.
 - Local unauthorized browser/session and token replay tests.
 - Cross-project knowledge and port isolation tests.
