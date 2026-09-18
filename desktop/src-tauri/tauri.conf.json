@@ -5,6 +5,7 @@
   "identifier": "com.cuckoding.desktop",
   "build": { "frontendDist": "../frontend" },
   "app": { "windows": [] },
+  "plugins": { "updater": { "pubkey": "", "endpoints": [] } },
   "bundle": {
     "active": true,
     "targets": ["app"],

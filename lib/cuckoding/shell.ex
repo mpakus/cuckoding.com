@@ -18,7 +18,9 @@ defmodule Cuckoding.Shell do
           from(approval in Approval, where: approval.decision == "pending"),
           :count,
           :id
-        )
+        ),
+      safe_mode: Cuckoding.Application.safe_mode?(),
+      runtime_workers: is_pid(Process.whereis(Cuckoding.Execution.RunSupervisors))
     }
   end
 

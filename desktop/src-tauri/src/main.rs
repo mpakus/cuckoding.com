@@ -7,7 +7,10 @@ use std::{
         process::CommandExt,
     },
     process::{Child, Command, Stdio},
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
     thread,
     time::{Duration, Instant},
 };
@@ -19,8 +22,13 @@ use tauri::{
     tray::TrayIconBuilder,
     ActivationPolicy, Manager,
 };
+use tauri_plugin_updater::UpdaterExt;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
+const UPDATE_ENDPOINT: Option<&str> = option_env!("CUCKODING_UPDATE_ENDPOINT");
+const UPDATE_PUBLIC_KEY: Option<&str> = option_env!("CUCKODING_UPDATER_PUBLIC_KEY");
+static UPDATE_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
+static UPDATE_APPROVAL: Mutex<Option<String>> = Mutex::new(None);
 
 struct Runtime {
     child: Mutex<Child>,
@@ -28,6 +36,9 @@ struct Runtime {
     port: u16,
     shell_token: String,
     log_path: std::path::PathBuf,
+    data_dir: std::path::PathBuf,
+    release_path: std::path::PathBuf,
+    safe_mode: bool,
 }
 
 struct RemoveOnDrop(std::path::PathBuf);
@@ -42,6 +53,11 @@ fn main() {
     block_shutdown_signals().expect("failed to install shutdown signal mask");
 
     let app = tauri::Builder::default()
+        .plugin(
+            tauri_plugin_updater::Builder::new()
+                .pubkey(UPDATE_PUBLIC_KEY.unwrap_or_default())
+                .build(),
+        )
         .setup(|app| {
             app.handle()
                 .set_activation_policy(ActivationPolicy::Accessory)?;
@@ -81,6 +97,7 @@ fn start_runtime(app: &mut tauri::App) -> Result<Runtime, Box<dyn std::error::Er
     let data_dir = app.path().app_data_dir()?;
     fs::create_dir_all(&data_dir)?;
     fs::set_permissions(&data_dir, Permissions::from_mode(0o700))?;
+    let safe_mode = consume_safe_mode(&data_dir)?;
 
     let bootstrap = random_token()?;
     let session_secret = format!("{}{}", random_token()?, random_token()?);
@@ -106,7 +123,7 @@ fn start_runtime(app: &mut tauri::App) -> Result<Runtime, Box<dyn std::error::Er
         .open(&log_path)?;
     fs::set_permissions(&log_path, Permissions::from_mode(0o600))?;
 
-    let mut migrate = release_command(&release, &data_dir, port, &token_path);
+    let mut migrate = release_command(&release, &data_dir, port, &token_path, safe_mode);
     let migration_status = migrate
         .args(["eval", "Cuckoding.Release.migrate()"])
         .stdin(Stdio::null())
@@ -114,10 +131,11 @@ fn start_runtime(app: &mut tauri::App) -> Result<Runtime, Box<dyn std::error::Er
         .stderr(Stdio::from(stderr.try_clone()?))
         .status()?;
     if !migration_status.success() {
+        let _ = rollback_candidate(&release, &data_dir, port, "migration_failed");
         return Err("database migration failed".into());
     }
 
-    let mut command = release_command(&release, &data_dir, port, &token_path);
+    let mut command = release_command(&release, &data_dir, port, &token_path, safe_mode);
     command
         .arg("start")
         .stdin(Stdio::null())
@@ -164,9 +182,17 @@ fn start_runtime(app: &mut tauri::App) -> Result<Runtime, Box<dyn std::error::Er
         Ok(token) => token,
         Err(error) => {
             kill_process_group(&mut child, pgid);
+            let _ = rollback_candidate(&release, &data_dir, port, "candidate_health_failed");
             return Err(error);
         }
     };
+
+    if matches!(
+        http(port, "POST", "/shell/update/healthy", Some(&shell_token),),
+        Ok((200, _))
+    ) {
+        remove_previous_app_backup(&data_dir);
+    }
 
     Ok(Runtime {
         child: Mutex::new(child),
@@ -174,6 +200,9 @@ fn start_runtime(app: &mut tauri::App) -> Result<Runtime, Box<dyn std::error::Er
         port,
         shell_token,
         log_path,
+        data_dir,
+        release_path: release,
+        safe_mode,
     })
 }
 
@@ -182,6 +211,7 @@ fn release_command(
     data_dir: &std::path::Path,
     port: u16,
     token_path: &std::path::Path,
+    safe_mode: bool,
 ) -> Command {
     let mut command = Command::new(release);
     command
@@ -197,6 +227,9 @@ fn release_command(
             data_dir.join("cuckoding.sqlite3"),
         )
         .env("CUCKODING_BOOTSTRAP_FILE", token_path);
+    if safe_mode {
+        command.env("CUCKODING_SAFE_MODE", "true");
+    }
     command
 }
 
@@ -217,11 +250,26 @@ fn build_tray(
     let about = PredefinedMenuItem::about(app, Some("About Cuckoding"), Some(about_metadata))?;
     let settings = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
     let logs = MenuItem::with_id(app, "logs", "Open Logs", true, None::<&str>)?;
+    let update = MenuItem::with_id(
+        app,
+        "update",
+        if update_configured() {
+            "Check for Updates"
+        } else {
+            "Updates not configured"
+        },
+        update_configured(),
+        None::<&str>,
+    )?;
+    let safe_mode =
+        MenuItem::with_id(app, "safe_mode", "Restart in Safe Mode", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
     let menu = Menu::with_items(
         app,
-        &[&status, &open, &about, &settings, &logs, &separator, &quit],
+        &[
+            &status, &open, &about, &settings, &logs, &update, &safe_mode, &separator, &quit,
+        ],
     )?;
     let icon = Image::new_owned([0, 0, 0, 255].repeat(16 * 16), 16, 16);
 
@@ -237,6 +285,8 @@ fn build_tray(
             "open" => open_browser(&menu_runtime, "/"),
             "settings" => open_browser(&menu_runtime, "/settings/plugins"),
             "logs" => open_path(&menu_runtime.log_path),
+            "update" => start_update(app.clone(), menu_runtime.clone(), update.clone()),
+            "safe_mode" => restart_in_safe_mode(app, &menu_runtime),
             "quit" => match stop_runtime(&menu_runtime) {
                 Ok(()) => app.exit(0),
                 Err(_) => {
@@ -271,12 +321,325 @@ fn build_tray(
             if let Ok(value) = serde_json::from_str::<Value>(&body) {
                 let runs = value["active_runs"].as_u64().unwrap_or(0);
                 let attention = value["attention"].as_u64().unwrap_or(0);
-                let _ = status.set_text(format!("{runs} running · {attention} need attention"));
+                let mode = if runtime.safe_mode {
+                    " · safe mode"
+                } else {
+                    ""
+                };
+                let _ =
+                    status.set_text(format!("{runs} running · {attention} need attention{mode}"));
             }
         }
     });
 
     Ok(())
+}
+
+fn update_configured() -> bool {
+    UPDATE_ENDPOINT.is_some_and(|value| value.starts_with("https://"))
+        && UPDATE_PUBLIC_KEY.is_some_and(|value| !value.is_empty())
+}
+
+fn start_update(app: tauri::AppHandle, runtime: Arc<Runtime>, status: MenuItem<tauri::Wry>) {
+    if UPDATE_IN_PROGRESS.swap(true, Ordering::SeqCst) {
+        return;
+    }
+
+    let _ = status.set_text("Checking for Updates…");
+    tauri::async_runtime::spawn(async move {
+        let result = install_update(&app, &runtime, &status).await;
+        if let Err(error) = result {
+            let _ = status.set_text(format!("Update failed · {error}"));
+        }
+        UPDATE_IN_PROGRESS.store(false, Ordering::SeqCst);
+    });
+}
+
+async fn install_update(
+    app: &tauri::AppHandle,
+    runtime: &Runtime,
+    status: &MenuItem<tauri::Wry>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let endpoint = UPDATE_ENDPOINT.ok_or("update endpoint is not configured")?;
+    let endpoint = endpoint.parse()?;
+    let updater = app
+        .updater_builder()
+        .endpoints(vec![endpoint])?
+        .timeout(Duration::from_secs(30))
+        .build()?;
+
+    let Some(update) = updater.check().await? else {
+        *UPDATE_APPROVAL.lock().unwrap() = None;
+        status.set_text("Cuckoding is up to date")?;
+        return Ok(());
+    };
+
+    let schema_change = update
+        .raw_json
+        .get("schema_change")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
+    if !approve_update(&update.version.to_string()) {
+        let impact = if schema_change {
+            " · data backup required"
+        } else {
+            ""
+        };
+        status.set_text(format!("Install {}{impact} · click again", update.version))?;
+        return Ok(());
+    }
+
+    status.set_text(format!("Downloading {}…", update.version))?;
+    let bytes = update.download(|_, _| {}, || {}).await?;
+    let prepare = serde_json::json!({
+        "version": update.version,
+        "schema_change": schema_change
+    })
+    .to_string();
+    let (prepare_status, body) = http_json(
+        runtime.port,
+        "/shell/update/prepare",
+        &runtime.shell_token,
+        &prepare,
+    )?;
+    if prepare_status != 200 {
+        return Err(format!("update preparation returned HTTP {prepare_status}").into());
+    }
+
+    let attempt_id = serde_json::from_str::<Value>(&body)?["attempt_id"]
+        .as_str()
+        .ok_or("update preparation omitted attempt id")?
+        .to_owned();
+    if let Err(error) = backup_current_app(&runtime.data_dir) {
+        record_update_failure(runtime, &attempt_id, "application_backup_failed");
+        return Err(error);
+    }
+
+    let installing = serde_json::json!({"attempt_id": attempt_id}).to_string();
+    let (installing_status, _) = http_json(
+        runtime.port,
+        "/shell/update/installing",
+        &runtime.shell_token,
+        &installing,
+    )?;
+    if installing_status != 200 {
+        record_update_failure(runtime, &attempt_id, "install_gate_failed");
+        remove_previous_app_backup(&runtime.data_dir);
+        return Err(format!("update install gate returned HTTP {installing_status}").into());
+    }
+
+    status.set_text(format!("Installing {}…", update.version))?;
+    if let Err(error) = stop_runtime(runtime) {
+        record_update_failure(runtime, &attempt_id, "runtime_shutdown_failed");
+        remove_previous_app_backup(&runtime.data_dir);
+        return Err(error);
+    }
+
+    if let Err(error) = update.install(bytes) {
+        let _ = rollback_candidate(
+            &runtime.release_path,
+            &runtime.data_dir,
+            runtime.port,
+            "installation_failed",
+        );
+        app.exit(1);
+        return Err(error.into());
+    }
+
+    if let Err(error) = open_current_app() {
+        let _ = rollback_candidate(
+            &runtime.release_path,
+            &runtime.data_dir,
+            runtime.port,
+            "candidate_relaunch_failed",
+        );
+        app.exit(1);
+        return Err(error);
+    }
+
+    app.exit(0);
+    Ok(())
+}
+
+fn approve_update(version: &str) -> bool {
+    let mut approved = UPDATE_APPROVAL.lock().unwrap();
+    if approved.as_deref() == Some(version) {
+        *approved = None;
+        true
+    } else {
+        *approved = Some(version.to_owned());
+        false
+    }
+}
+
+fn record_update_failure(runtime: &Runtime, attempt_id: &str, reason: &str) {
+    let body = serde_json::json!({"attempt_id": attempt_id, "reason": reason}).to_string();
+    let _ = http_json(
+        runtime.port,
+        "/shell/update/failed",
+        &runtime.shell_token,
+        &body,
+    );
+}
+
+fn consume_safe_mode(data_dir: &std::path::Path) -> std::io::Result<bool> {
+    let marker = data_dir.join("safe-mode");
+    match fs::symlink_metadata(&marker) {
+        Ok(metadata)
+            if metadata.file_type().is_file() && metadata.permissions().mode() & 0o077 == 0 =>
+        {
+            fs::remove_file(marker)?;
+            Ok(true)
+        }
+        Ok(_) => Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "safe-mode marker must be a private regular file",
+        )),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error),
+    }
+}
+
+fn restart_in_safe_mode(app: &tauri::AppHandle, runtime: &Runtime) {
+    let result = (|| -> Result<(), Box<dyn std::error::Error>> {
+        let marker = runtime.data_dir.join("safe-mode");
+        write_safe_mode_marker(&marker)?;
+        stop_runtime(runtime)?;
+        open_current_app()
+    })();
+
+    if result.is_ok() {
+        app.exit(0);
+    }
+}
+
+fn write_safe_mode_marker(marker: &std::path::Path) -> std::io::Result<()> {
+    match fs::symlink_metadata(marker) {
+        Ok(metadata)
+            if metadata.file_type().is_file() && metadata.permissions().mode() & 0o077 == 0 =>
+        {
+            Ok(())
+        }
+        Ok(_) => Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "safe-mode marker must be a private regular file",
+        )),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .mode(0o600)
+            .custom_flags(libc::O_NOFOLLOW)
+            .open(marker)?
+            .write_all(b"1"),
+        Err(error) => Err(error),
+    }
+}
+
+fn current_app_path() -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
+    std::env::current_exe()?
+        .ancestors()
+        .find(|path| path.extension().is_some_and(|extension| extension == "app"))
+        .map(std::path::Path::to_path_buf)
+        .ok_or_else(|| "current executable is not inside an app bundle".into())
+}
+
+fn previous_app_path(data_dir: &std::path::Path) -> std::path::PathBuf {
+    data_dir.join("updates/previous/Cuckoding.app")
+}
+
+fn backup_current_app(data_dir: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+    let current = current_app_path()?;
+    let backup = previous_app_path(data_dir);
+    let parent = backup.parent().ok_or("missing update backup parent")?;
+    let staging = parent.with_extension("staging");
+    if staging.exists() {
+        fs::remove_dir_all(&staging)?;
+    }
+    fs::create_dir_all(&staging)?;
+    let staged_app = staging.join("Cuckoding.app");
+    let status = Command::new("/usr/bin/ditto")
+        .args([&current, &staged_app])
+        .status()?;
+    if !status.success() {
+        let _ = fs::remove_dir_all(staging);
+        return Err("application backup failed".into());
+    }
+
+    if parent.exists() {
+        fs::remove_dir_all(parent)?;
+    }
+    fs::rename(staging, parent)?;
+    Ok(())
+}
+
+fn remove_previous_app_backup(data_dir: &std::path::Path) {
+    let backup = previous_app_path(data_dir);
+    if backup.exists() {
+        let _ = fs::remove_dir_all(backup.parent().unwrap_or(&backup));
+    }
+}
+
+fn open_current_app() -> Result<(), Box<dyn std::error::Error>> {
+    let status = Command::new("/usr/bin/open")
+        .arg(current_app_path()?)
+        .status()?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err("application relaunch failed".into())
+    }
+}
+
+fn rollback_candidate(
+    release: &std::path::Path,
+    data_dir: &std::path::Path,
+    port: u16,
+    reason: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let backup = previous_app_path(data_dir);
+    let backup_metadata = fs::symlink_metadata(&backup)?;
+    if !backup_metadata.file_type().is_dir() || !backup.join("Contents/MacOS").is_dir() {
+        return Err("previous application backup is invalid".into());
+    }
+
+    let credential = data_dir.join(format!("rollback-{}", &random_token()?[..16]));
+    let _credential_cleanup = RemoveOnDrop(credential.clone());
+    write_runtime_credential(&credential)?;
+    let expression = format!("Cuckoding.Release.rollback_pending({reason:?})");
+    let rollback = release_command(release, data_dir, port, &credential, true)
+        .args(["eval", &expression])
+        .status()?;
+    if !rollback.success() {
+        return Err("data rollback failed".into());
+    }
+
+    let current = current_app_path()?;
+    let replacement = current.with_extension("rollback.app");
+    if replacement.exists() {
+        fs::remove_dir_all(&replacement)?;
+    }
+    let copied = Command::new("/usr/bin/ditto")
+        .args([&backup, &replacement])
+        .status()?;
+    if !copied.success() {
+        return Err("application rollback copy failed".into());
+    }
+    fs::remove_dir_all(&current)?;
+    fs::rename(replacement, &current)?;
+    Command::new("/usr/bin/open").arg(current).spawn()?;
+    Ok(())
+}
+
+fn write_runtime_credential(path: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+    let session_secret = format!("{}{}", random_token()?, random_token()?);
+    let bootstrap = random_token()?;
+    Ok(OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW)
+        .open(path)?
+        .write_all(format!("{session_secret}\n{bootstrap}").as_bytes())?)
 }
 
 fn open_browser(runtime: &Runtime, path: &str) {
@@ -424,16 +787,37 @@ fn http(
     path: &str,
     bearer: Option<&str>,
 ) -> Result<(u16, String), Box<dyn std::error::Error>> {
+    http_request(port, method, path, bearer, None)
+}
+
+fn http_json(
+    port: u16,
+    path: &str,
+    bearer: &str,
+    body: &str,
+) -> Result<(u16, String), Box<dyn std::error::Error>> {
+    http_request(port, "POST", path, Some(bearer), Some(body))
+}
+
+fn http_request(
+    port: u16,
+    method: &str,
+    path: &str,
+    bearer: Option<&str>,
+    body: Option<&str>,
+) -> Result<(u16, String), Box<dyn std::error::Error>> {
     let mut stream = TcpStream::connect(("127.0.0.1", port))?;
     stream.set_read_timeout(Some(Duration::from_secs(3)))?;
+    let body = body.unwrap_or_default();
     write!(
         stream,
-        "{method} {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\nContent-Length: 0\r\n"
+        "{method} {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: {}\r\n",
+        body.len()
     )?;
     if let Some(token) = bearer {
         write!(stream, "Authorization: Bearer {token}\r\n")?;
     }
-    write!(stream, "\r\n")?;
+    write!(stream, "\r\n{body}")?;
 
     let mut response = String::new();
     stream.read_to_string(&mut response)?;
@@ -486,5 +870,45 @@ mod tests {
     #[test]
     fn token_is_32_random_bytes_in_hex() {
         assert_eq!(random_token().unwrap().len(), 64);
+    }
+
+    #[test]
+    fn safe_mode_marker_is_private_idempotent_and_consumed_once() {
+        let directory =
+            std::env::temp_dir().join(format!("cuckoding-safe-{}", random_token().unwrap()));
+        fs::create_dir(&directory).unwrap();
+        let marker = directory.join("safe-mode");
+
+        write_safe_mode_marker(&marker).unwrap();
+        write_safe_mode_marker(&marker).unwrap();
+        assert_eq!(
+            fs::metadata(&marker).unwrap().permissions().mode() & 0o077,
+            0
+        );
+        assert!(consume_safe_mode(&directory).unwrap());
+        assert!(!consume_safe_mode(&directory).unwrap());
+
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn safe_mode_rejects_symlink_marker() {
+        let directory =
+            std::env::temp_dir().join(format!("cuckoding-safe-{}", random_token().unwrap()));
+        fs::create_dir(&directory).unwrap();
+        std::os::unix::fs::symlink("missing", directory.join("safe-mode")).unwrap();
+
+        assert!(consume_safe_mode(&directory).is_err());
+
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn update_install_requires_confirmation_for_the_exact_version() {
+        *UPDATE_APPROVAL.lock().unwrap() = None;
+        assert!(!approve_update("0.2.0"));
+        assert!(!approve_update("0.3.0"));
+        assert!(approve_update("0.3.0"));
+        assert!(!approve_update("0.3.0"));
     }
 }

@@ -1,11 +1,33 @@
 defmodule CuckodingWeb.ShellControllerTest do
   use CuckodingWeb.ConnCase, async: false
 
+  alias Cuckoding.Repo
   alias Cuckoding.Shell.Auth
+  alias Cuckoding.Updates.Attempt
 
   setup do
     path = bootstrap_file()
     start_supervised!({Auth, path})
+
+    update_root =
+      Path.join(System.tmp_dir!(), "cuckoding-shell-update-#{System.unique_integer([:positive])}")
+
+    previous_snapshot = Application.get_env(:cuckoding, :update_snapshot_options)
+    previous_pending = Application.get_env(:cuckoding, :update_pending_path)
+
+    Application.put_env(:cuckoding, :update_snapshot_options,
+      backup_root: update_root,
+      database_backup: &File.cp/2
+    )
+
+    Application.put_env(:cuckoding, :update_pending_path, Path.join(update_root, "pending.json"))
+
+    on_exit(fn ->
+      restore_env(:update_snapshot_options, previous_snapshot)
+      restore_env(:update_pending_path, previous_pending)
+      File.rm_rf!(update_root)
+    end)
+
     %{bootstrap: bootstrap_token()}
   end
 
@@ -133,6 +155,65 @@ defmodule CuckodingWeb.ShellControllerTest do
 
     assert json_response(response, 409) == %{"error" => "shutdown_blocked"}
     refute_receive :stopped, 150
+  end
+
+  test "update preparation snapshots state before install and health promotion", %{
+    conn: conn,
+    bootstrap: bootstrap
+  } do
+    shell = bootstrap_shell(conn, bootstrap)
+
+    prepared =
+      conn
+      |> loopback()
+      |> put_req_header("authorization", "Bearer #{shell}")
+      |> post("/shell/update/prepare", %{version: "0.2.0", schema_change: true})
+      |> json_response(200)
+
+    attempt_id = prepared["attempt_id"]
+    assert prepared["status"] == "prepared"
+    assert Repo.get!(Attempt, attempt_id).backup_manifest_hash
+
+    assert %{"status" => "installing"} =
+             conn
+             |> loopback()
+             |> put_req_header("authorization", "Bearer #{shell}")
+             |> post("/shell/update/installing", %{attempt_id: attempt_id})
+             |> json_response(200)
+
+    assert %{"status" => "healthy"} =
+             conn
+             |> loopback()
+             |> put_req_header("authorization", "Bearer #{shell}")
+             |> post("/shell/update/healthy")
+             |> json_response(200)
+  end
+
+  test "update failure is audited and clears the pending install", %{
+    conn: conn,
+    bootstrap: bootstrap
+  } do
+    shell = bootstrap_shell(conn, bootstrap)
+
+    attempt_id =
+      conn
+      |> loopback()
+      |> put_req_header("authorization", "Bearer #{shell}")
+      |> post("/shell/update/prepare", %{version: "0.2.0", schema_change: false})
+      |> json_response(200)
+      |> Map.fetch!("attempt_id")
+
+    assert %{"status" => "failed"} =
+             conn
+             |> loopback()
+             |> put_req_header("authorization", "Bearer #{shell}")
+             |> post("/shell/update/failed", %{
+               attempt_id: attempt_id,
+               reason: "application_backup_failed"
+             })
+             |> json_response(200)
+
+    assert Repo.get!(Attempt, attempt_id).failure_reason == "application_backup_failed"
   end
 
   defp bootstrap_shell(conn, bootstrap) do

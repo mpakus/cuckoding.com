@@ -4,6 +4,13 @@
 
 Implement update checks, signature verification, hibernation requirement for schema changes, database and knowledge snapshots, migration execution with progress, health checks, and rollback..
 
+```yaml
+status: complete
+owner: codex
+started_at: 2026-09-18
+worklog: worklog/2026-09-18-0903-updater-backups-rollback.md
+```
+
 ## Dependencies
 
 - 0902.
@@ -19,12 +26,12 @@ Implement update checks, signature verification, hibernation requirement for sch
 
 ## Checklist
 
-- [ ] Never downgrade onto an incompatible database.
-- [ ] Safe mode available.
+- [x] Never downgrade onto an incompatible database.
+- [x] Safe mode available.
 
 ## Acceptance criteria
 
-- [ ] Update and rollback drill passes.
+- [x] Update and rollback drill passes.
 
 ## Verification and evidence
 

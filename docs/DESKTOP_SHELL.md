@@ -22,7 +22,7 @@ Primary: **Tauri 2 in tray-only mode**, confirmed by task 0003 on 2026-09-17. Fa
 The production shell is under `desktop/`. `rtk proxy sh desktop/build.sh`
 builds the Phoenix release, runs the pinned Rust checks, creates the local
 unsigned `.app`, and executes the sterile-environment protocol verifier.
-Signing, notarization, and distribution policy remain Task 0902.
+Signing, notarization, and distribution policy are in `docs/DISTRIBUTION.md`.
 
 ## Shell contract
 
@@ -36,8 +36,17 @@ Signing, notarization, and distribution policy remain Task 0902.
    - **Settings** → browser `/settings/plugins` via the same token flow.
    - **Quit** → `POST /shell/shutdown`; Phoenix pauses admission and hibernates active runs before accepting shutdown. A failed hibernate returns a conflict and keeps the release alive. After acceptance the shell waits three seconds, then sends `SIGINT`, `SIGTERM`, and `SIGKILL` to the child process group as needed. Shell `SIGINT` and `SIGTERM` use the same policy path.
 6. Status line: poll `GET /shell/status` every few seconds for active runs and attention items; render as menu text (for example "3 running · 1 needs approval").
-7. Login item toggle and update checks live in the shell; update policy is in `docs/DISTRIBUTION.md`.
-8. Crash of the child: show "Cuckoding stopped unexpectedly" and keep the
+7. **Check for Updates** uses the compile-time HTTPS endpoint and public key.
+   The first click shows the exact version and schema impact; a second click
+   confirms that version. Tauri verifies the downloaded bundle signature
+   before Phoenix hibernates runs and snapshots data. The shell then backs up
+   the current app, stops the runtime, installs, and opens the candidate.
+   Candidate migration or READY failure restores both data and the previous
+   app.
+8. **Restart in Safe Mode** writes a private one-shot marker and relaunches.
+   Safe mode serves authenticated history while omitting every runner and
+   plugin worker; the status line labels the mode explicitly.
+9. Crash of the child: show "Cuckoding stopped unexpectedly" and keep the
    diagnostics action available. The MVP does not auto-restart; an explicit
    bounded restart action may be added with the updater/recovery work.
 

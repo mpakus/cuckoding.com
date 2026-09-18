@@ -150,6 +150,16 @@ Holds a power assertion while runs are active, detects sleep gaps, and drives re
 
 The Phoenix production release is bundled with its ERTS and native dependencies inside the `.app` bundle as a resource directory. An Elixir release is a directory tree, not a single portable binary; builds are per OS/architecture. The MVP target is macOS Apple Silicon. The shell does not depend on an interactive user's dotfile `PATH`; it resolves bundled executables and configured tool paths explicitly, and the settings UI reports missing Git, agent CLIs, and plugin binaries.
 
+The shell owns update download and application replacement; Phoenix owns the
+durable update attempt, hibernation gate, and data snapshot. Tauri verifies the
+detached update signature before returning download bytes. Only then may the
+shell request a snapshot, copy the installed app, stop Phoenix, and install.
+Candidate startup runs guarded forward migrations and must report healthy
+before the previous app backup is removed. Migration or readiness failure
+restores the hash-verified data snapshot and prior app. Safe mode starts only
+Repo, PubSub, shell authentication, and the endpoint, leaving runners, plugins,
+reconciliation, power, and metric workers stopped.
+
 ## Runtime topology
 
 Each active run receives:

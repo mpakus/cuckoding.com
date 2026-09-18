@@ -6,18 +6,11 @@ defmodule Cuckoding.Application do
   @impl true
   def start(_type, _args) do
     children =
-      [
-        Cuckoding.Repo,
-        Cuckoding.Execution.StartupReconciler,
-        {Cuckoding.Power.Manager, []},
-        {Registry, keys: :unique, name: Cuckoding.RunRegistry},
-        Cuckoding.Execution.RunSupervisors,
-        {DynamicSupervisor, strategy: :one_for_one, name: Cuckoding.Execution.ProcessWorkers},
-        {Cuckoding.Plugins.Registry, Application.get_env(:cuckoding, :plugin_registry, [])},
-        {Cuckoding.Plugins.Supervisor, []},
-        {Cuckoding.Telemetry.ResourceSampler, []},
-        {Phoenix.PubSub, name: Cuckoding.PubSub}
-      ] ++ shell_auth_child() ++ [CuckodingWeb.Endpoint]
+      [Cuckoding.Repo] ++
+        runtime_children() ++
+        [
+          {Phoenix.PubSub, name: Cuckoding.PubSub}
+        ] ++ shell_auth_child() ++ [CuckodingWeb.Endpoint]
 
     case Supervisor.start_link(children, strategy: :one_for_one, name: Cuckoding.Supervisor) do
       {:ok, _supervisor} = started ->
@@ -33,6 +26,25 @@ defmodule Cuckoding.Application do
   def config_change(changed, _new, removed) do
     CuckodingWeb.Endpoint.config_change(changed, removed)
     :ok
+  end
+
+  def safe_mode?, do: Application.get_env(:cuckoding, :safe_mode, false)
+
+  defp runtime_children do
+    if safe_mode?() do
+      []
+    else
+      [
+        Cuckoding.Execution.StartupReconciler,
+        {Cuckoding.Power.Manager, []},
+        {Registry, keys: :unique, name: Cuckoding.RunRegistry},
+        Cuckoding.Execution.RunSupervisors,
+        {DynamicSupervisor, strategy: :one_for_one, name: Cuckoding.Execution.ProcessWorkers},
+        {Cuckoding.Plugins.Registry, Application.get_env(:cuckoding, :plugin_registry, [])},
+        {Cuckoding.Plugins.Supervisor, []},
+        {Cuckoding.Telemetry.ResourceSampler, []}
+      ]
+    end
   end
 
   defp shell_auth_child do

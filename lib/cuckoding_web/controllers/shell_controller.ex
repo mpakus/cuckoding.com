@@ -3,6 +3,7 @@ defmodule CuckodingWeb.ShellController do
 
   alias Cuckoding.Shell
   alias Cuckoding.Shell.Auth
+  alias Cuckoding.Updates
 
   plug CuckodingWeb.LoopbackOnly
 
@@ -55,6 +56,56 @@ defmodule CuckodingWeb.ShellController do
     else
       false -> unauthorized(conn)
       {:error, _reason} -> conn |> put_status(:conflict) |> json(%{error: "shutdown_blocked"})
+    end
+  end
+
+  def prepare_update(conn, params) do
+    with true <- shell?(conn),
+         version when is_binary(version) <- params["version"],
+         schema_change when is_boolean(schema_change) <- Map.get(params, "schema_change", true),
+         {:ok, attempt} <- Updates.prepare(version, schema_change) do
+      json(conn, %{attempt_id: attempt.id, status: attempt.state})
+    else
+      false -> unauthorized(conn)
+      _other -> conn |> put_status(:conflict) |> json(%{error: "update_prepare_blocked"})
+    end
+  end
+
+  def update_installing(conn, %{"attempt_id" => attempt_id}) do
+    with true <- shell?(conn),
+         {:ok, attempt} <- Updates.mark_installing(attempt_id) do
+      json(conn, %{attempt_id: attempt.id, status: attempt.state})
+    else
+      false -> unauthorized(conn)
+      _other -> conn |> put_status(:conflict) |> json(%{error: "update_not_prepared"})
+    end
+  end
+
+  def update_installing(conn, _params),
+    do: conn |> put_status(:bad_request) |> json(%{error: "invalid_update"})
+
+  def update_failed(conn, %{"attempt_id" => attempt_id, "reason" => reason})
+      when is_binary(reason) do
+    with true <- shell?(conn),
+         {:ok, attempt} <- Updates.mark_failed(attempt_id, reason) do
+      json(conn, %{attempt_id: attempt.id, status: attempt.state})
+    else
+      false -> unauthorized(conn)
+      _other -> conn |> put_status(:conflict) |> json(%{error: "update_failure_not_recorded"})
+    end
+  end
+
+  def update_failed(conn, _params),
+    do: conn |> put_status(:bad_request) |> json(%{error: "invalid_update"})
+
+  def update_healthy(conn, _params) do
+    with true <- shell?(conn),
+         {:ok, attempt} <- Updates.mark_healthy_pending() do
+      json(conn, %{attempt_id: attempt.id, status: attempt.state})
+    else
+      false -> unauthorized(conn)
+      {:error, :update_not_pending} -> json(conn, %{status: "no_pending_update"})
+      _other -> conn |> put_status(:conflict) |> json(%{error: "update_health_failed"})
     end
   end
 

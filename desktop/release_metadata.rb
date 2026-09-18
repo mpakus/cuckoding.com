@@ -6,6 +6,7 @@ require "fileutils"
 require "json"
 require "open3"
 require "time"
+require "uri"
 
 module ReleaseMetadata
   module_function
@@ -122,7 +123,7 @@ module ReleaseMetadata
     output.strip
   end
 
-  def generate(root:, app:, archive:, output:)
+  def generate(root:, app:, archive:, output:, update_archive: nil, update_signature: nil, update_base_url: nil)
     FileUtils.mkdir_p(output)
     version = JSON.parse(File.read(File.join(root, "desktop/src-tauri/tauri.conf.json"))).fetch("version")
     components = (release_components(root, app) + cargo_components(root) + native_components(app))
@@ -169,15 +170,58 @@ module ReleaseMetadata
     }
     File.write(provenance_path, JSON.pretty_generate(provenance) << "\n")
 
+    update_paths = []
+    if update_archive && update_signature && update_base_url
+      manifest_path = File.join(output, "latest.json")
+      write_update_manifest(
+        path: manifest_path,
+        version: version,
+        archive: update_archive,
+        signature: update_signature,
+        base_url: update_base_url,
+        timestamp: timestamp
+      )
+      update_paths = [update_archive, update_signature, manifest_path]
+    end
+
     checksum_path = File.join(output, "SHA256SUMS")
-    paths = [archive, sbom_path, provenance_path]
+    paths = [archive, sbom_path, provenance_path] + update_paths
     File.write(checksum_path, paths.map { |path| "#{Digest::SHA256.file(path).hexdigest}  #{File.basename(path)}" }.join("\n") << "\n")
     puts "Generated #{components.length} SBOM components, provenance, and checksums in #{output}"
+  end
+
+  def write_update_manifest(path:, version:, archive:, signature:, base_url:, timestamp: Time.now.utc)
+    uri = URI.parse(base_url)
+    raise "update base URL must use HTTPS" unless uri.is_a?(URI::HTTPS) && uri.host
+
+    manifest = {
+      "version" => version,
+      "notes" => "https://github.com/mpakus/cuckoding.com/releases/tag/v#{version}",
+      "pub_date" => timestamp.utc.iso8601,
+      "platforms" => {
+        "darwin-aarch64" => {
+          "signature" => File.read(signature).strip,
+          "url" => "#{base_url.delete_suffix("/")}/#{File.basename(archive)}"
+        }
+      },
+      "schema_change" => true
+    }
+    File.write(path, JSON.pretty_generate(manifest) << "\n")
   end
 end
 
 if $PROGRAM_NAME == __FILE__
-  abort "usage: release_metadata.rb ROOT APP ARCHIVE OUTPUT" unless ARGV.length == 4
+  unless [4, 7].include?(ARGV.length)
+    abort "usage: release_metadata.rb ROOT APP ARCHIVE OUTPUT [UPDATE_ARCHIVE UPDATE_SIGNATURE UPDATE_BASE_URL]"
+  end
 
-  ReleaseMetadata.generate(root: ARGV[0], app: ARGV[1], archive: ARGV[2], output: ARGV[3])
+  ReleaseMetadata.generate(
+    root: ARGV[0],
+    app: ARGV[1],
+    archive: ARGV[2],
+    output: ARGV[3],
+    update_archive: ARGV[4],
+    update_signature: ARGV[5],
+    update_base_url: ARGV[6]
+  )
 end

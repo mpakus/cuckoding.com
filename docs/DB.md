@@ -77,6 +77,8 @@ unbounded provider data.
 | `leases` | `resource_type`, `resource_id`, `owner_id`, `token_hash`, `acquired_at`, `heartbeat_at`, `expires_at`, `released_at`, `release_reason` | One unreleased lease per resource; raw bearer tokens are returned once and never persisted |
 | `commands` | `idempotency_key`, `kind`, `target_type`, `target_id`, `payload`, `state`, `attempts`, `max_attempts`, `not_before`, `last_error`, `result` | Durable side-effect dispatch; duplicate keys return the original row/result |
 | `power_events` | `kind` (`assertion_on` / `assertion_off` / `sleep_gap` / `wake_reconciled` / `unattended_on` / `unattended_off`), `gap_ms`, `affected_runs_json`, `metadata_json`, `occurred_at` | Append-only power timeline; measured gaps are positive milliseconds and assertion metadata contains no capability-bearing value |
+| `update_attempts` | `from_version`, `to_version`, `schema_change`, `state`, `backup_path`, `backup_manifest_hash`, `active_run_ids_json`, `failure_reason` | Durable update projection; snapshot identity and pre-hibernation run inventory remain reviewable |
+| `update_events` | `update_attempt_id`, `event_type`, `command_key`, `details_json`, `occurred_at` | Append-only, idempotently keyed update lifecycle facts |
 
 ### Evidence and observability
 
@@ -145,3 +147,9 @@ persists only a SHA-256 query hash, never query text.
 - The updater creates a database backup and a knowledge-folder snapshot before migration.
 - Migrations that transform large event tables run in bounded batches and expose progress.
 - Startup failure after migration offers restore instructions and never silently creates a new empty database.
+- An existing database may run a pending migration only while a private,
+  hash-bound pending-update marker exists. An unknown applied migration means
+  the database is newer than the binary and startup refuses to downgrade it.
+- Snapshot restore validates the manifest and every file hash, rejects symlink
+  sources and targets, preserves the failed database for diagnosis, and does
+  not delete knowledge files created after the snapshot.

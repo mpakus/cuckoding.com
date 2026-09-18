@@ -54,6 +54,11 @@ jobs:
           CUCKODING_NOTARY_KEY_PATH: ${{ runner.temp }}/cuckoding-notary-key.p8
           CUCKODING_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
           CUCKODING_NOTARY_ISSUER: ${{ secrets.APPLE_NOTARY_ISSUER }}
+          CUCKODING_UPDATE_ENDPOINT: ${{ vars.CUCKODING_UPDATE_ENDPOINT }}
+          CUCKODING_UPDATE_BASE_URL: ${{ vars.CUCKODING_UPDATE_BASE_URL }}
+          CUCKODING_UPDATER_PUBLIC_KEY: ${{ vars.CUCKODING_UPDATER_PUBLIC_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: rtk proxy sh desktop/release.sh
 
       - name: Remove notarization key

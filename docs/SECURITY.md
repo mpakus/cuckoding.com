@@ -96,6 +96,16 @@ remain in memory; browser handoff tokens expire after 60 seconds and are removed
 on their first use. If shell authentication is configured but its process is
 unavailable, browser authorization remains fail-closed.
 
+The updater embeds only an HTTPS metadata endpoint and the Tauri public
+verification key. The private updater key is release-only. Downloaded bytes
+are not installed until Tauri verifies their detached signature. Phoenix
+requires shell authentication for every update transition, records the
+attempt before snapshotting, writes a private pending marker, and rejects
+forward migration of an existing database without that marker. Backups and
+manifests are owner-only and hash-verified; symlinks and path escape are
+rejected. Rollback preserves the failed database before restoring compatible
+data, and an older binary refuses any unknown applied migration.
+
 ## Process safety
 
 - Child processes in their own process groups; PID plus start identity recorded.

@@ -31,4 +31,5 @@ if config_env() == :prod do
   config :cuckoding, Cuckoding.Repo, database: database_path, pool_size: 5
   config :cuckoding, CuckodingWeb.Endpoint, secret_key_base: secret_key_base
   config :cuckoding, :shell_bootstrap_file, bootstrap_file
+  config :cuckoding, :safe_mode, System.get_env("CUCKODING_SAFE_MODE") in ["1", "true"]
 end

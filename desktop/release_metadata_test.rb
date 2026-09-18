@@ -75,4 +75,44 @@ class ReleaseMetadataTest < Minitest::Test
       assert_equal "Apache-2.0", component.fetch("licenses").fetch(0).fetch("expression")
     end
   end
+
+  def test_writes_tauri_update_manifest_with_signature_and_schema_impact
+    Dir.mktmpdir do |directory|
+      archive = File.join(directory, "Cuckoding-0.2.0-macos-arm64.app.tar.gz")
+      signature = "#{archive}.sig"
+      manifest = File.join(directory, "latest.json")
+      File.write(archive, "archive")
+      File.write(signature, "signed-value\n")
+
+      ReleaseMetadata.write_update_manifest(
+        path: manifest,
+        version: "0.2.0",
+        archive: archive,
+        signature: signature,
+        base_url: "https://updates.example.test/releases/",
+        timestamp: Time.utc(2026, 9, 18, 12)
+      )
+
+      parsed = JSON.parse(File.read(manifest))
+      assert_equal "0.2.0", parsed.fetch("version")
+      assert_equal true, parsed.fetch("schema_change")
+      assert_equal "signed-value", parsed.dig("platforms", "darwin-aarch64", "signature")
+      assert_equal(
+        "https://updates.example.test/releases/Cuckoding-0.2.0-macos-arm64.app.tar.gz",
+        parsed.dig("platforms", "darwin-aarch64", "url")
+      )
+    end
+  end
+
+  def test_rejects_non_https_update_base_url
+    assert_raises(RuntimeError) do
+      ReleaseMetadata.write_update_manifest(
+        path: "unused",
+        version: "0.2.0",
+        archive: "archive",
+        signature: "signature",
+        base_url: "http://updates.example.test"
+      )
+    end
+  end
 end
