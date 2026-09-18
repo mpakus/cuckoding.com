@@ -88,6 +88,14 @@ a host process, these controls are not described as OS isolation.
 - Disable debug endpoints and source disclosure in release builds.
 - Artifact serving by authorized opaque IDs, not paths.
 
+The production shell uses a unique regular mode-0600 file containing separate
+per-launch session-signing and bootstrap secrets. Runtime configuration reads
+the signing secret, the supervised auth process deletes the file before READY,
+and the bootstrap exchange is then consumed exactly once. Shell bearer tokens
+remain in memory; browser handoff tokens expire after 60 seconds and are removed
+on their first use. If shell authentication is configured but its process is
+unavailable, browser authorization remains fail-closed.
+
 ## Process safety
 
 - Child processes in their own process groups; PID plus start identity recorded.

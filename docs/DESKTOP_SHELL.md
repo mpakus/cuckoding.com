@@ -19,6 +19,11 @@ Burrito and elixir-desktop are not alternatives to each other: one packages, the
 
 Primary: **Tauri 2 in tray-only mode**, confirmed by task 0003 on 2026-09-17. Fallbacks remain documented so the boundary stays stable: Swift/AppKit shell if the Rust toolchain is unwanted, elixir-desktop if native code is unwanted. The Phoenix side never depends on which shell is used; the shell contract below is the only interface. Measured evidence and remaining signing gates are in `docs/MENUBAR_SHELL_SPIKE.md`.
 
+The production shell is under `desktop/`. `rtk proxy sh desktop/build.sh`
+builds the Phoenix release, runs the pinned Rust checks, creates the local
+unsigned `.app`, and executes the sterile-environment protocol verifier.
+Signing, notarization, and distribution policy remain Task 0902.
+
 ## Shell contract
 
 1. Resolve the bundled release path and application data directory.
@@ -28,11 +33,13 @@ Primary: **Tauri 2 in tray-only mode**, confirmed by task 0003 on 2026-09-17. Fa
 5. Menu items:
    - **Cuckoding** → `GET /open?token=<one-time>` in the default browser; Phoenix exchanges it for a session cookie and redirects to the dashboard. Tokens are single-use with a short TTL; the shell requests a fresh one from `POST /shell/tokens` using the bootstrap credential.
    - **About** → native panel with version, release notes link, and the port.
-   - **Settings** → browser `/settings` via the same token flow.
-   - **Quit** → `POST /shell/shutdown` (hibernate or stop runs per policy), wait three seconds, then send `SIGINT`, `SIGTERM`, and `SIGKILL` to the child process group as needed. Shell `SIGINT` and `SIGTERM` use the same path.
+   - **Settings** → browser `/settings/plugins` via the same token flow.
+   - **Quit** → `POST /shell/shutdown`; Phoenix pauses admission and hibernates active runs before accepting shutdown. A failed hibernate returns a conflict and keeps the release alive. After acceptance the shell waits three seconds, then sends `SIGINT`, `SIGTERM`, and `SIGKILL` to the child process group as needed. Shell `SIGINT` and `SIGTERM` use the same policy path.
 6. Status line: poll `GET /shell/status` every few seconds for active runs and attention items; render as menu text (for example "3 running · 1 needs approval").
 7. Login item toggle and update checks live in the shell; update policy is in `docs/DISTRIBUTION.md`.
-8. Crash of the child: show "Cuckoding stopped unexpectedly" with restart and diagnostics options; never auto-restart in a loop more than N times per hour.
+8. Crash of the child: show "Cuckoding stopped unexpectedly" and keep the
+   diagnostics action available. The MVP does not auto-restart; an explicit
+   bounded restart action may be added with the updater/recovery work.
 
 ## Security notes
 

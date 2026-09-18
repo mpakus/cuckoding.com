@@ -48,6 +48,7 @@ See `CHANGES.md`. In short: no Docker in the MVP, agents and commands run on the
 | `worklog/` | Durable implementation notes, decisions, and incident records |
 | `.cuckoding/` | Example project, workflow, policy, plugin, and role definitions |
 | `.agents/skills/` | Repository-local skills for recurring engineering work |
+| `desktop/` | Tray-only Tauri shell, pinned Rust project, local build, and launch verifier |
 
 ## How to execute the plan
 

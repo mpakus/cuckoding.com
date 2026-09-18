@@ -31,16 +31,22 @@ defmodule CuckodingWeb.Router do
 
   scope "/", CuckodingWeb do
     pipe_through :browser
-    live "/", StatusLive, :index
-    live "/agents", AgentFloorLive, :index
-    live "/agents/:id", AgentLive, :show
-    live "/knowledge", KnowledgeReviewLive, :index
-    live "/knowledge/growth", KnowledgeGrowthLive, :index
-    live "/knowledge/lineage", KnowledgeLineageLive, :index
-    live "/settings/plugins", PluginSettingsLive, :index
-    live "/runs/:id", RunLive, :show
-    live "/boards/:id", BoardLive, :show
-    live "/boards/:board_id/tasks/:id", TaskLive, :show
+
+    get "/open", ShellController, :open
+    get "/unauthorized", ShellController, :unauthorized
+
+    live_session :browser, on_mount: [{CuckodingWeb.ShellAuthHook, :browser}] do
+      live "/", StatusLive, :index
+      live "/agents", AgentFloorLive, :index
+      live "/agents/:id", AgentLive, :show
+      live "/knowledge", KnowledgeReviewLive, :index
+      live "/knowledge/growth", KnowledgeGrowthLive, :index
+      live "/knowledge/lineage", KnowledgeLineageLive, :index
+      live "/settings/plugins", PluginSettingsLive, :index
+      live "/runs/:id", RunLive, :show
+      live "/boards/:id", BoardLive, :show
+      live "/boards/:board_id/tasks/:id", TaskLive, :show
+    end
   end
 
   scope "/", CuckodingWeb do
@@ -48,5 +54,14 @@ defmodule CuckodingWeb.Router do
     get "/health", HealthController, :health
     get "/status", HealthController, :status
     post "/api/knowledge/retrieve", KnowledgeRetrievalController, :create
+  end
+
+  scope "/shell", CuckodingWeb do
+    pipe_through :api
+
+    post "/bootstrap", ShellController, :bootstrap
+    post "/tokens", ShellController, :token
+    get "/status", ShellController, :status
+    post "/shutdown", ShellController, :shutdown
   end
 end

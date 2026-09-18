@@ -659,7 +659,3 @@ end
 defmodule Cuckoding.Telemetry do
   @moduledoc "Owns normalized activity, measurements, estimates, and diagnostics."
 end
-
-defmodule Cuckoding.Shell do
-  @moduledoc "Defines the authenticated boundary between the native shell and control plane."
-end

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Cuckoding",
+  "version": "0.1.0",
+  "identifier": "com.cuckoding.desktop",
+  "build": { "frontendDist": "../frontend" },
+  "app": { "windows": [] },
+  "bundle": {
+    "active": true,
+    "targets": ["app"],
+    "icon": ["icons/icon.icns", "icons/icon.png"],
+    "resources": { "../release": "release" },
+    "macOS": { "minimumSystemVersion": "13.0", "hardenedRuntime": true }
+  }
+}

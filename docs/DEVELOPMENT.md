@@ -38,7 +38,12 @@ rtk env MIX_ENV=prod mix assets.deploy
 rtk env MIX_ENV=prod mix release --overwrite
 ```
 
-The release requires `CUCKODING_SECRET_KEY_BASE` and a writable `CUCKODING_DATABASE_PATH`, uses `CUCKODING_PORT` when present, and starts the web endpoint only when `PHX_SERVER=true`. It always binds IPv4 loopback. Never commit or print the production secret; the native shell bootstrap in task 0901 will provide it through the approved launch boundary.
+The release requires a writable `CUCKODING_DATABASE_PATH` and a unique mode-0600
+`CUCKODING_BOOTSTRAP_FILE` containing the per-launch session secret and bootstrap
+token. It uses `CUCKODING_PORT` when present and starts the web endpoint only
+when `PHX_SERVER=true`. It always binds IPv4 loopback. The desktop shell creates
+and deletes the credential file; credentials never appear in argv or ordinary
+environment variables.
 
 SQLite connections use WAL journaling, foreign keys, a 5-second busy timeout, synchronous `NORMAL`, and immediate write transactions. `mix setup` creates and migrates the development database; `mix test` creates and migrates the disposable test database before running tests.
 

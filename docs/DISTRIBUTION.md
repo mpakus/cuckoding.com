@@ -16,7 +16,9 @@ The first supported artifact is a macOS Apple Silicon `.app` built from the menu
 
 ## Startup contract
 
-See the shell contract in `docs/DESKTOP_SHELL.md`.
+See the shell contract in `docs/DESKTOP_SHELL.md`. The production Tauri project
+is `desktop/`; its local build embeds the release and runs `desktop/verify.rb`
+under a sterile environment. That local artifact is not signed or notarized.
 
 ## Tool discovery
 
