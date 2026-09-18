@@ -77,12 +77,24 @@ traffic, so its runtime network boundary remains visibly advisory.
 
 ## Contracts
 
-- All plugin calls carry the correlation IDs and a capability token limited to the run's scope.
-- Plugins return typed results with `source: measured | reported | estimated` where numbers are involved.
+- All plugin calls carry a signed, short-lived capability token bound to the
+  exact run, plugin, current activation, optional stage/role, permissions, and
+  network grant. The manifest hash and approved configuration are signed;
+  disabling or changing that activation invalidates the token.
+- `Cuckoding.Plugins.Contracts` exposes the closed operations for all nine
+  behaviours and rejects unregistered operations or incomplete implementations.
+- Public plugin results are recursively redacted and bounded to 1 MiB. Numbers
+  are accepted only as typed measurements with
+  `source: measured | reported | estimated`; arbitrary numeric output is
+  rejected rather than relabeled.
 - Plugins never receive raw secrets unless their manifest lists the secret reference and the user approved it.
 - Network permission is explicit: `none`, `loopback`, or `external`. A loopback HTTP service such as XERJ is not declared `none`; external access requires a separate approval surface.
 - A plugin's output is untrusted data to the workflow: it cannot promote to commands, change policy, or expand capabilities.
-- Every kind has a conformance test suite and a fake implementation used by core tests.
+- Secret-store private results are the only non-public envelope field. They stay
+  in memory, are hidden by inspection, and never enter events, logs, or UI.
+- Every kind has a deterministic fake in `test/support/plugin_fakes.ex`; the
+  reusable `Cuckoding.PluginConformance.check/3` exercises every declared
+  operation and is also used by future runner stubs.
 
 ## Reference plugins
 

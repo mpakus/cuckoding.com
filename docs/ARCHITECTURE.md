@@ -77,7 +77,7 @@ The walking skeleton composes the existing contexts without adding an authoritat
 
 ### Plugin registry
 
-Discovers, validates, enables, and health-checks connectors described by manifests (`docs/PLUGINS.md`). Plugin kinds: `knowledge_backend`, `shell_filter`, `instruction_skill`, `mcp_server`, `runner`, `metric_source`, `vcs_host`, `secret_store`. Core code never imports a plugin directly; it talks to behaviours.
+Discovers, validates, enables, and health-checks connectors described by manifests (`docs/PLUGINS.md`). Plugin kinds: `knowledge_backend`, `shell_filter`, `instruction_skill`, `mcp_server`, `runner`, `metric_source`, `vcs_host`, `secret_store`, `notifier`. Core code never imports a plugin directly; it talks to behaviours.
 
 The implemented registry scans regular, non-symlinked `plugin.yml` files in
 bundled and user directories, validates a closed manifest schema, runs only
@@ -88,6 +88,16 @@ Each plugin process has a bounded restart host; exhausting the budget marks only
 that plugin unhealthy. Network approvals preserve the exact `none`, `loopback`,
 or `external` class, while host-runner enforcement remains advisory as described
 in `docs/EXECUTION_ENVIRONMENTS.md`.
+
+`Cuckoding.Plugins.Contracts` is the shared invocation boundary for all nine
+kinds. It verifies a short-lived signed token against the current durable
+activation and exact run, plugin, optional stage/role, permissions, and network
+grant before calling an implementation. The manifest hash and approved config
+are signed too, so either change revokes the old authority. Results use a closed public envelope:
+recursive redaction happens before the caller receives public data, and every
+numeric measurement must say `measured`, `reported`, or `estimated`. The
+secret-store contract is the sole private-result exception; that value is
+memory-only and its `Inspect` representation is redacted.
 
 ### Knowledge service
 
@@ -192,11 +202,14 @@ The root tree owns the unique `Cuckoding.RunRegistry` and `Cuckoding.Execution.R
 
 - `AgentAdapter`: provider-neutral typed requests, capability probes, per-run config, normalized untrusted events, recovery, cancellation, and usage; Claude Code, Codex, Cursor Agent, and OpenCode implement the boundary.
 - `RunnerBridge`: `LocalProcessRunner`; future container and remote runners via plugins.
-- `Plugin` kinds: see `docs/PLUGINS.md`.
-- `KnowledgeBackend`: built-in file/index retrieval; XERJ, cognee, Graphiti-style backends via plugins.
-- `VcsHost`: local Git and GitHub; future GitLab.
-- `SecretStore`: macOS Keychain; future platform implementations.
-- `MetricCollector`: host process metrics, provider usage, plugin analytics.
+- `Plugin` kinds: closed behaviours and guarded invocation in `Cuckoding.Plugins.Contracts`; see `docs/PLUGINS.md`.
+- `KnowledgeBackend`: built-in file/index retrieval; optional backends enter through the knowledge contract while Markdown stays authoritative.
+- `ShellFilter`, `InstructionSkill`, and `McpServer`: provide validated run configuration to agent adapters; they do not bypass command policy or runtime grants.
+- `Runner`: mirrors the `RunnerBridge` lifecycle for container and remote implementations.
+- `VcsHost`: local Git and GitHub; plugin handoff remains behind host approval.
+- `SecretStore`: macOS Keychain; private results remain on the host-only secret path.
+- `MetricSource`: feeds source-labeled measurements into telemetry; it never rewrites provider usage facts.
+- `Notifier`: delivers idempotently keyed notices; it never decides an approval.
 
 The built-in `LocalMetricCollector` revalidates the recorded PID/start identity, discovers only that root's owned process groups, and measures their cumulative CPU time, RSS, process count, and listening TCP ports. `ResourceSampler` runs every three seconds (the supported configuration range is two to five seconds), persists no row when ownership or the process is missing, and always labels host limits unenforced. Its minute maintenance pass creates completed-minute and final-stage rollups, then enforces the documented seven-day raw and 30-day rollup retention. Rollups aggregate only stored samples; stage timing comes from the durable active/wall counters rather than inferred sample gaps.
 

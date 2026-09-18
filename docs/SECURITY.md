@@ -48,6 +48,16 @@ only narrow an enabled ancestor grant. `none`, `loopback`, and `external` are
 stored as distinct grants; on the host runner they remain approval and runtime
 configuration boundaries, not a claim of network sandboxing.
 
+Plugin invocation uses a signed token with a maximum fifteen-minute lifetime
+(five minutes by default). Verification re-resolves the current activation and
+requires the signed run, plugin, activation, optional stage/role, permission
+map, approved configuration, manifest hash, and network class to match;
+activation revocation or mutation fails closed.
+Public results reject unlabeled numbers, unknown shapes, private fields from
+non-secret plugins, and payloads over 1 MiB. Plugin failures collapse to a
+public `plugin_failed` error so raw third-party errors are not promoted into
+trusted output.
+
 ## Secrets
 
 - `SecretStore` is owned by the Phoenix process: macOS Keychain through the `security` CLI (MVP) or a small native library later; the database holds opaque references only.

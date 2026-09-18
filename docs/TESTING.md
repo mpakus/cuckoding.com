@@ -35,6 +35,9 @@ The Phase 4 walking-skeleton test uses the fake adapter but real SQLite state, G
 - Fake agent CLI that emits configurable event streams, delays, crashes, and usage.
 - Knowledge fixtures: duplicate facts, contradictory decisions, stale observations, secrets in evidence.
 - Plugin fixtures: valid manifests, over-permissive manifests, missing binaries, wrong versions.
+- Plugin-kind fakes: one deterministic implementation per closed behaviour;
+  the reusable conformance checker validates every operation through a current
+  run-scoped capability and the public result boundary.
 
 ## End-to-end scenarios
 

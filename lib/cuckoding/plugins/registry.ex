@@ -61,6 +61,20 @@ defmodule Cuckoding.Plugins.Registry do
 
   def get(id), do: Repo.get(Plugin, id)
 
+  def effective_activation(plugin_id, run_id, options \\ []) do
+    with %Plugin{health: "available"} = plugin <- Repo.get(Plugin, plugin_id),
+         %Run{} = run <- Repo.get(Run, run_id),
+         %Task{} = task <- Repo.get(Task, run.task_id),
+         %Board{} = board <- Repo.get(Board, task.board_id),
+         {:ok, scopes} <- effective_scopes(run, board, options) do
+      select_effective_activation(plugin, scopes)
+    else
+      %Plugin{} -> {:error, :plugin_unavailable}
+      nil -> {:error, :plugin_scope_not_found}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
   def enable(plugin_id, scope_type, scope_id, attrs) when is_map(attrs) do
     with %Plugin{health: "available"} = plugin <- Repo.get(Plugin, plugin_id),
          {:ok, context} <- scope_context(scope_type, blank_to_nil(scope_id)),
@@ -207,6 +221,62 @@ defmodule Cuckoding.Plugins.Registry do
   end
 
   defp scope_context(_scope_type, _scope_id), do: {:error, :invalid_activation_scope}
+
+  defp effective_scopes(run, board, options) do
+    with {:ok, stage} <- optional_stage(run.id, Keyword.get(options, :stage_id)),
+         {:ok, role} <- optional_role(board.id, Keyword.get(options, :role_id)) do
+      {:ok,
+       Enum.reject(
+         [
+           optional_scope("stage", stage),
+           optional_scope("role", role),
+           {"board", board.id},
+           {"project", board.project_id},
+           {"global", nil}
+         ],
+         &is_nil/1
+       )}
+    end
+  end
+
+  defp optional_stage(_run_id, nil), do: {:ok, nil}
+
+  defp optional_stage(run_id, stage_id) do
+    case Repo.get(StageAttempt, stage_id) do
+      %StageAttempt{run_id: ^run_id} = stage -> {:ok, stage}
+      _stage -> {:error, :plugin_stage_scope_mismatch}
+    end
+  end
+
+  defp optional_role(_board_id, nil), do: {:ok, nil}
+
+  defp optional_role(board_id, role_id) do
+    case Repo.get(RoleAssignment, role_id) do
+      %RoleAssignment{board_id: ^board_id} = role -> {:ok, role}
+      _role -> {:error, :plugin_role_scope_mismatch}
+    end
+  end
+
+  defp optional_scope(_scope_type, nil), do: nil
+  defp optional_scope(scope_type, record), do: {scope_type, record.id}
+
+  defp select_effective_activation(plugin, scopes) do
+    activations =
+      Enum.map(scopes, fn {scope_type, scope_id} ->
+        activation(plugin.id, scope_type, scope_id)
+      end)
+
+    cond do
+      Enum.any?(activations, &match?(%Activation{enabled: false}, &1)) ->
+        {:error, :plugin_disabled}
+
+      enabled = Enum.find(activations, &match?(%Activation{enabled: true}, &1)) ->
+        {:ok, {plugin, enabled}}
+
+      true ->
+        {:error, :plugin_not_enabled}
+    end
+  end
 
   defp allowed_scope(_plugin, "global"), do: :ok
 

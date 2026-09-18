@@ -496,6 +496,8 @@ end
 defmodule Cuckoding.Plugins do
   @moduledoc "Owns plugin discovery, manifests, activation, capabilities, and health."
 
+  alias Cuckoding.Plugins.Capability
+  alias Cuckoding.Plugins.Contracts
   alias Cuckoding.Plugins.Registry
 
   defdelegate discover(options \\ []), to: Registry
@@ -504,6 +506,10 @@ defmodule Cuckoding.Plugins do
   defdelegate get(id), to: Registry
   defdelegate enable(plugin_id, scope_type, scope_id, attrs), to: Registry
   defdelegate disable(plugin_id, scope_type, scope_id, actor, reason), to: Registry
+  defdelegate issue_capability(plugin_id, run_id, options \\ []), to: Capability, as: :issue
+
+  def invoke(kind, implementation, operation, input, context, options \\ []),
+    do: Contracts.call(kind, implementation, operation, input, context, options)
 end
 
 defmodule Cuckoding.Knowledge do
