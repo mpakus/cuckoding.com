@@ -574,6 +574,7 @@ defmodule Cuckoding.Adapters.ClaudeCode do
        confidence: "reported",
        input_tokens: usage["input_tokens"] || usage["inputTokens"],
        output_tokens: usage["output_tokens"] || usage["outputTokens"],
+       reasoning_tokens: usage["reasoning_tokens"] || usage["reasoningTokens"],
        cache_read_tokens: usage["cache_read_input_tokens"] || usage["cacheReadTokens"],
        cache_write_tokens: usage["cache_creation_input_tokens"] || usage["cacheWriteTokens"],
        cost_micros: dollars_to_micros(usage["total_cost_usd"]),

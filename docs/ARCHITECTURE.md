@@ -141,6 +141,8 @@ The root tree owns the unique `Cuckoding.RunRegistry` and `Cuckoding.Execution.R
 
 The built-in `LocalMetricCollector` revalidates the recorded PID/start identity, discovers only that root's owned process groups, and measures their cumulative CPU time, RSS, process count, and listening TCP ports. `ResourceSampler` runs every three seconds (the supported configuration range is two to five seconds), persists no row when ownership or the process is missing, and always labels host limits unenforced. Its minute maintenance pass creates completed-minute and final-stage rollups, then enforces the documented seven-day raw and 30-day rollup retention. Rollups aggregate only stored samples; stage timing comes from the durable active/wall counters rather than inferred sample gaps.
 
+`Cuckoding.Telemetry.Accounting` persists idempotent adapter usage facts keyed by an agent-session-scoped event digest. Provider token provenance is independent from cost provenance: a provider-reported monetary value wins, while an estimate requires an explicit API billing mode and the immutable catalog effective at the usage timestamp. Subscription and unknown billing modes remain unavailable. Plugin optimization claims are append-only records in a separate table and never reduce provider tokens or cost.
+
 ## Failure domains
 
 | Failure | Expected behavior |

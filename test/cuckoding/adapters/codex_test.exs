@@ -232,6 +232,7 @@ defmodule Cuckoding.Adapters.CodexTest do
     assert {:ok, reported} = Codex.collect_usage(session(), usage: usage)
     assert reported.source == "provider"
     assert reported.confidence == "reported"
+    assert reported.reasoning_tokens == 0
     assert reported.cache_read_tokens == 24_448
     assert is_nil(reported.cost_micros)
 

@@ -655,6 +655,7 @@ defmodule Cuckoding.Adapters.Codex do
        confidence: "reported",
        input_tokens: usage["input_tokens"],
        output_tokens: usage["output_tokens"],
+       reasoning_tokens: usage["reasoning_output_tokens"],
        cache_read_tokens: usage["cached_input_tokens"],
        cache_write_tokens: nil,
        cost_micros: nil,

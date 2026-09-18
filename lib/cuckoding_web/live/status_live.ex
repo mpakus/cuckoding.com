@@ -2,6 +2,7 @@ defmodule CuckodingWeb.StatusLive do
   use CuckodingWeb, :live_view
 
   import CuckodingWeb.ActivityComponents
+  import CuckodingWeb.UsageComponents
 
   @impl true
   def mount(_params, _session, socket) do
@@ -17,6 +18,7 @@ defmodule CuckodingWeb.StatusLive do
        pending_approvals: Cuckoding.WalkingSkeleton.pending_approvals(),
        confirming_approval: nil,
        release_notice: nil,
+       usage_records: Cuckoding.Telemetry.Accounting.recent_usage(),
        activity: activity,
        activity_status:
          Cuckoding.ActivityStream.status(activity, Cuckoding.Clock.wall_now(), 60_000)
@@ -228,6 +230,8 @@ defmodule CuckodingWeb.StatusLive do
         </section>
 
         <.activity_stream events={@activity} status={@activity_status} />
+
+        <.usage_summary records={@usage_records} />
 
         <section aria-labelledby="boards-heading" class="space-y-3">
           <h2 id="boards-heading" class="text-xl font-semibold text-slate-950">Boards</h2>

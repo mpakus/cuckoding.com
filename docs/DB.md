@@ -80,11 +80,11 @@ erDiagram
 | `run_event_sequences` | `run_id`, `last_sequence` | Transactional allocator for gapless per-run event sequence numbers |
 | `run_events` | `run_id`, `sequence`, `event_type`, `public_summary`, `payload`, `occurred_at` | Append-only and strictly sequenced per stream; standalone board/task transitions use `board:<uuid>` / `task:<uuid>`. The redacted payload carries the nullable project → board → task → run → stage-attempt → agent-session correlation chain. |
 | `artifacts` | `run_id`, `stage_attempt_id?`, `kind`, `path_or_uri`, `sha256`, `metadata_json` | Specs, patches, logs, test reports, reviews |
-| `usage_records` | `agent_session_id`, `source`, `input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_write_tokens`, `cost_micros`, `currency`, `confidence` | Source is provider-reported or estimated |
+| `usage_records` | `agent_session_id`, `event_key_hash`, `provider`, `model`, token dimensions, `source`, `confidence`, `billing_mode`, `cost_micros`, `currency`, `cost_source`, `cost_confidence`, `price_catalog_version_id?`, `formula_json?`, `occurred_at` | Append-only idempotent usage fact; provider usage provenance stays separate from reported, catalog-estimated, or unavailable cost provenance |
 | `resource_samples` | `agent_session_id`, `process_id`, `cpu_nanos`, `memory_bytes`, `process_count`, `open_ports_json`, `sampled_at`, `limits_enforced` | Measured host process-group samples; missing intervals have no row and host limits are false/unenforced |
-| `optimization_records` | `run_id`, `plugin_key`, `kind`, `raw_units`, `optimized_units`, `saved_units`, `estimation_method`, `metadata_json` | Plugin-reported and always labeled |
+| `optimization_records` | `run_id`, `plugin_key`, `kind`, `raw_units`, `optimized_units`, `saved_units`, `source`, `confidence`, `estimation_method`, `metadata_json`, `recorded_at` | Append-only plugin-reported claim, always separate from usage and cost |
 | `metric_rollups` | `scope_type`, `scope_id`, `window`, `bucket_start`, `sample_count`, CPU/RSS/process/port aggregates, `active_ms?`, `wall_ms?`, `limits_enforced`, `computed_at` | Replaceable one-minute/session and stage projections; timing is populated only from durable stage counters, never interpolated from sample gaps |
-| `price_catalog_versions` | `provider`, `effective_from`, `source_uri`, `catalog_json` | Required for reproducible estimated cost |
+| `price_catalog_versions` | `provider`, `version`, `effective_from`, `source_uri`, `catalog_json` | Immutable integer-micros rates required for reproducible estimated cost |
 
 ### Knowledge
 

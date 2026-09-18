@@ -18,6 +18,8 @@ Queue time, stage active and wall duration, attempts, retries, waits by reason, 
 
 Input, output, reasoning when explicitly reported, cache-read, and cache-write tokens; request count, rate-limit time, provider-reported cost, currency; estimated cost using a versioned price catalog only when provider cost is absent; confidence/source: `provider_reported`, `catalog_estimate`, `unavailable`.
 
+The implemented accounting path hashes the provider event key for idempotent agent-session attribution and keeps usage provenance separate from cost provenance. Provider-reported monetary cost always wins. When it is absent, only an explicitly declared `api` billing mode may use the immutable catalog effective at the usage timestamp; `subscription` and `unknown` remain unavailable. Missing model rates make the entire estimate unavailable rather than partially pricing it. The status dashboard renders provider values without a prefix, catalog estimates with `≈`, and unavailable cost as text.
+
 ### Host resources
 
 CPU time and percentage, RSS, process and thread count, open ports per process group; sampled every 2–5 seconds while active; aggregated to 1-minute and stage rollups. Hard limits are not enforced on the host runner and are never displayed as if they were.
@@ -48,9 +50,12 @@ Assertion time, sleep gaps per run, reconciliation outcomes (continued, resumed,
 1. Prefer provider-reported monetary cost.
 2. Otherwise select the price catalog effective at request time.
 3. Apply input/output/cache categories separately.
-4. Record the formula, catalog version, currency, and rounding.
-5. Show estimated values with an `≈` indicator and tooltip.
-6. Never infer subscription-plan marginal cost as if it were API billing.
+4. Sum integer `tokens × micros-per-million` numerators, divide once by `1,000,000`, and round to the nearest micro with halves up. The reconciliation error is therefore at most half a micro before the integer result.
+5. Record every formula dimension, total numerator, denominator, rounding rule, catalog version, and currency.
+6. Show estimated values with an `≈` indicator and explicit source label.
+7. Never infer subscription-plan marginal cost as if it were API billing.
+
+Plugin optimization claims record raw, optimized, and saved units with their own source, confidence, method, and metadata. They are not subtracted from provider token counts or monetary cost.
 
 ## Event pipeline
 
