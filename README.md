@@ -40,6 +40,8 @@ See `CHANGES.md`. In short: no Docker in the MVP, agents and commands run on the
 | `docs/DOCUMENTATION_AUDIT.md` | Complete documentation inventory, contradictions, risks, and readiness conclusion |
 | `docs/IMPLEMENTATION_READINESS.md` | Verified local toolchain, Phase 0 order, blockers, and Phase 1 entry gate |
 | `docs/MVP_BOUNDARY_AND_POSITIONING.md` | Launch contract, competitive scan, data defaults, and commercial hypotheses |
+| `docs/BETA_RUNBOOK.md` | Safe dogfood protocol, interview guide, knowledge rubric, and beta exit gates |
+| `docs/BETA_REPORT.md` | Anonymized run, interview, knowledge, finding, and decision ledger |
 | `docs/REFERENCE_CODING.md` | XERJ-backed retrieve-before-code workflow and RTK command convention |
 | `docs/TRUSTED_HOST_THREAT_MODEL.md` | Trusted-host boundaries, risks, approvals, tabletop, and residual-risk disclosure |
 | `docs/reference-corpus.yml` | Pinned peer repositories, licenses, revisions, and XERJ prefixes |

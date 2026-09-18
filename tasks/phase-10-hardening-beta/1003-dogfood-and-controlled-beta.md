@@ -2,7 +2,14 @@
 
 ## Objective
 
-Use Cuckoding on several real repositories and workflow types for multi-day runs; run a controlled beta with a small group; collect usability, reliability, security, and knowledge-quality findings..
+Use Cuckoding on several real repositories and workflow types for multi-day runs; run a controlled beta with a small group; collect usability, reliability, security, and knowledge-quality findings.
+
+```yaml
+status: in_progress
+owner: codex
+started_at: 2026-09-18
+worklog: worklog/2026-09-18-1003-dogfood-beta.md
+```
 
 ## Dependencies
 
