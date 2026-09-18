@@ -9,6 +9,8 @@ execution:
 resources:
   global:
     max_active_agent_sessions: 4
+  per_project:
+    max_active_runs: 2
   per_run:
     memory_mb_ceiling: 4096          # advisory: true (host runner cannot enforce)
     sustained_breach_action: hibernate

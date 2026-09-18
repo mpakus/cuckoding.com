@@ -48,6 +48,39 @@ defmodule Cuckoding.Workflows do
   def list_boards, do: Repo.all(from(board in Board, order_by: [asc: board.name, asc: board.id]))
   def get_board(id), do: Repo.get(Board, id)
 
+  def set_board_status(board_id, status) when status in ~w(active paused) do
+    case Repo.get(Board, board_id) do
+      %Board{status: ^status} = board ->
+        {:ok, board}
+
+      %Board{status: current} = board
+      when {current, status} in [{"active", "paused"}, {"paused", "active"}] ->
+        event = %{
+          event_type: "board.transitioned",
+          public_summary: "Board moved from #{current} to #{status}",
+          payload: %{"board_id" => board.id, "from" => current, "to" => status}
+        }
+
+        projection = fn repo, _sequence ->
+          repo.update(Board.status_changeset(board, %{status: status}))
+        end
+
+        case Cuckoding.Execution.EventStore.append("board:" <> board.id, event, projection) do
+          {:ok, {_event, updated}} -> {:ok, updated}
+          {:error, {:projection_failed, error}} -> {:error, error}
+          {:error, reason} -> {:error, reason}
+        end
+
+      %Board{} ->
+        {:error, :invalid_board_transition}
+
+      nil ->
+        {:error, :board_not_found}
+    end
+  end
+
+  def set_board_status(_board_id, _status), do: {:error, :invalid_board_status}
+
   def assign_role(attrs), do: insert(RoleAssignment, attrs)
   def create_task(attrs), do: insert(Task, attrs)
 
@@ -471,8 +504,11 @@ end
 defmodule Cuckoding.Power do
   @moduledoc "Owns power assertions, sleep-gap detection, and wake reconciliation."
 
+  import Ecto.Query
+
   alias Cuckoding.Identifier
   alias Cuckoding.Power.PowerEvent
+  alias Cuckoding.Projects.ProjectConfigVersion
   alias Cuckoding.Repo
   alias Cuckoding.Workflows.Board
 
@@ -487,7 +523,7 @@ defmodule Cuckoding.Power do
   end
 
   def set_unattended(%Board{} = board, until) do
-    with :ok <- valid_unattended_until(until) do
+    with :ok <- valid_unattended_until(board, until) do
       Repo.transaction(fn -> persist_unattended(board, until) end)
     end
   end
@@ -509,15 +545,48 @@ defmodule Cuckoding.Power do
     updated
   end
 
-  defp valid_unattended_until(nil), do: :ok
+  defp valid_unattended_until(_board, nil), do: :ok
 
-  defp valid_unattended_until(%DateTime{} = until) do
-    if DateTime.after?(until, Cuckoding.Clock.wall_now()),
-      do: :ok,
-      else: {:error, :unattended_window_must_be_future}
+  defp valid_unattended_until(board, %DateTime{} = until) do
+    now = Cuckoding.Clock.wall_now()
+    policy = unattended_policy(board.project_id)
+
+    cond do
+      policy.allowed? == false ->
+        {:error, :unattended_mode_not_allowed}
+
+      not DateTime.after?(until, now) ->
+        {:error, :unattended_window_must_be_future}
+
+      DateTime.diff(until, now, :second) > policy.max_window_hours * 3_600 ->
+        {:error, :unattended_window_too_long}
+
+      true ->
+        :ok
+    end
   end
 
-  defp valid_unattended_until(_until), do: {:error, :invalid_unattended_window}
+  defp valid_unattended_until(_board, _until), do: {:error, :invalid_unattended_window}
+
+  defp unattended_policy(project_id) do
+    config =
+      Repo.one(
+        from(policy in ProjectConfigVersion,
+          where: policy.project_id == ^project_id and not is_nil(policy.trusted_at),
+          order_by: [desc: policy.revision],
+          limit: 1,
+          select: policy.config_json
+        )
+      ) || %{}
+
+    %{
+      allowed?: get_in(config, ["unattended", "allowed"]) != false,
+      max_window_hours: positive_integer(get_in(config, ["unattended", "max_window_hours"]), 12)
+    }
+  end
+
+  defp positive_integer(value, _default) when is_integer(value) and value > 0, do: value
+  defp positive_integer(_value, default), do: default
 
   defp encode_time(nil), do: nil
   defp encode_time(time), do: DateTime.to_iso8601(time)

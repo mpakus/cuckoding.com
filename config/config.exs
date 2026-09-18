@@ -13,6 +13,8 @@ config :cuckoding, :power_manager,
   tick_ms: 5_000,
   tolerance_ms: 1_000
 
+config :cuckoding, :scheduler, max_active_agent_sessions: 4
+
 config :cuckoding, Cuckoding.Repo,
   adapter: Ecto.Adapters.SQLite3,
   busy_timeout: 5_000,

@@ -143,3 +143,5 @@ Before resume, the host Git service compares the current default branch, checked
 - Fair scheduling prevents one board from starving another.
 - A user can pause or hibernate a board, which drains or stops its active work according to policy.
 - Unattended mode keeps a board's queue moving and the machine awake up to approval gates.
+
+`Cuckoding.Execution.Scheduler` implements the Phase 5 admission plan from durable rows. It excludes unmet dependencies, orders each board by priority and age, rotates boards by their oldest last-scheduled time, and then applies board, trusted-policy project, and global agent-session limits. Admission fails closed when the replaceable host probe cannot establish available memory or loopback-port capacity. The scheduler returns stable unattended approval notification keys and delegates all process-starting and notification side effects through behaviours; it does not make the planner process authoritative. Board pause or hibernate first durably pauses new admission, then delegates each active run to the ownership-aware run controller. Resume reopens admission but leaves each run's resume as an explicit lifecycle action.

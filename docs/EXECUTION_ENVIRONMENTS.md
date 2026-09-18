@@ -95,6 +95,8 @@ Resume reloads durable rows, accepts only a hibernated run, calls the read-only 
 - A global limit on active agent sessions protects the machine and provider quotas.
 - The scheduler checks free ports and memory headroom before starting a run.
 
+The Phase 5 scheduler reads the global session cap from application configuration, each board limit from SQLite, and the project run limit plus per-run advisory memory ceiling from the latest trusted project configuration (`resources.per_project.max_active_runs` and `resources.per_run.memory_mb_ceiling`). Its macOS host probe counts only loopback ports that are both physically bindable and free of an active durable lease, and derives available memory from `vm_stat`. These checks are admission signals, not a claim of hard host resource isolation; `PortAllocator` still performs the authoritative lease-and-bind claim when a run starts.
+
 ## Honest limitations of the host runner
 
 - No filesystem isolation beyond policy and the runtime's permission prompts.

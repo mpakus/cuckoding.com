@@ -148,6 +148,13 @@ defmodule Cuckoding.Workflows.Board do
     record
     |> cast(attrs, [:unattended_until])
   end
+
+  def status_changeset(record, attrs) do
+    record
+    |> cast(attrs, [:status])
+    |> validate_required([:status])
+    |> validate_inclusion(:status, ~w(active paused archived))
+  end
 end
 
 defmodule Cuckoding.Workflows.RoleAssignment do

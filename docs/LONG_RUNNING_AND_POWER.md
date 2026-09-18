@@ -33,6 +33,8 @@ A run may last minutes, hours, or days: waiting for provider rate limits, runnin
 - A board can be marked unattended for a time window: approvals are queued, notifications are sent (macOS notification through the shell, optional webhook plugin), sleep prevention stays on while the board has queued work, and budget alerts pause the board instead of blocking.
 - Unattended mode never bypasses human approval gates; it only keeps the machine awake and the queue moving up to the gate.
 
+The latest trusted project policy may disable unattended mode or cap `unattended.max_window_hours`; the default cap is 12 hours. Pending approvals inside an active window are returned through the scheduler's notifier behaviour with a stable key derived from the approval ID. Expired windows produce neither notifier work nor a power-assertion reason. Notification delivery never decides an approval.
+
 ## Quit, update, and restart
 
 - Quit offers: hibernate all runs (default), stop all runs, or cancel quit. Hibernate completes checkpoints before the shell terminates the release.

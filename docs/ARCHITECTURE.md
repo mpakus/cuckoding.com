@@ -57,6 +57,8 @@ Safe cleanup delegates the exact registered path to Git only after the ownership
 
 `Cuckoding.Power.Manager` is a supervised control-plane child after startup reconciliation. It samples the supported macOS continuous and uptime clocks, persists a `sleep_gap` before delegating to the same reconciler used at startup, and records `wake_reconciled` after leases, commands, processes, ports, worktrees, sessions, and services are classified. It owns one scrubbed `/usr/bin/caffeinate -i -w <beam-pid>` child only while eligible provider work or a durable unattended board window needs it.
 
+`Cuckoding.Execution.Scheduler` is a stateless admission planner over SQLite projections. It uses durable run history as the fairness cursor, checks dependencies and layered capacity, and returns candidates to a replaceable host dispatcher rather than launching processes itself. The same boundary exposes stable unattended approval notifications to a notifier and fail-closed board control to a runtime-aware pause/hibernate controller. This keeps process handles and lease tokens in supervised runtime services while the database remains authoritative.
+
 ### Agent adapter layer
 
 Each runtime adapter converts a common stage request into a provider-specific host process and converts output into normalized events, artifacts, usage, checkpoints, and completion status. Agents run on the host; their own permission systems (allowed tools, working directory, approval modes) are configured by the adapter from the stage capability grant, and the granted set is recorded. Capability discovery is explicit.

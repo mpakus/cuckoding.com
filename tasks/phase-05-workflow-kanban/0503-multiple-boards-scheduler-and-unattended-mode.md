@@ -2,7 +2,14 @@
 
 ## Objective
 
-Implement board and project concurrency limits, global session limits, fair scheduling with priority/dependencies/age/resource fit, board pause/hibernate, and unattended-mode windows with notifications..
+Implement board and project concurrency limits, global session limits, fair scheduling with priority/dependencies/age/resource fit, board pause/hibernate, and unattended-mode windows with notifications.
+
+```yaml
+status: done
+owner: codex
+started_at: 2026-09-17
+worklog: worklog/2026-09-17-0503-board-scheduler.md
+```
 
 ## Dependencies
 
@@ -20,15 +27,15 @@ Implement board and project concurrency limits, global session limits, fair sche
 
 ## Checklist
 
-- [ ] No board starves another.
-- [ ] Scheduler checks ports and memory headroom.
-- [ ] Unattended mode queues approvals and holds the assertion only with queued work.
+- [x] No board starves another.
+- [x] Scheduler checks ports and memory headroom.
+- [x] Unattended mode queues approvals and holds the assertion only with queued work.
 
 ## Acceptance criteria
 
-- [ ] Two boards run concurrently without crossover.
-- [ ] Overnight simulation passes.
+- [x] Two boards run concurrently without crossover.
+- [x] Overnight simulation passes.
 
 ## Verification and evidence
 
-Run scheduler fairness tests and the unattended simulation.
+`test/cuckoding/execution/scheduler_test.exs` covers independent two-board admission, durable fairness rotation, dependencies, board/project/global capacity, port and memory headroom, board-scoped hibernation, unattended approval notifications, policy window limits, and assertion release on expiry. Exact commands and results are recorded in the linked worklog.

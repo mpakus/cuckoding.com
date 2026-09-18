@@ -59,7 +59,7 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 
 - [x] Workflow validation and transition evaluation.
 - [x] Accessible Kanban and task detail.
-- [ ] Multiple boards, dependencies, budgets, concurrency, unattended mode.
+- [x] Multiple boards, dependencies, budgets, concurrency, unattended mode.
 - [ ] Gates, human approval, host-side release handoff.
 
 ## Phase 6 — Agent Floor and telemetry
