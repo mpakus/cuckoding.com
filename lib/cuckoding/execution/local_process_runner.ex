@@ -589,9 +589,45 @@ defmodule Cuckoding.Execution.LocalHostInspector do
     end
   end
 
+  def resource_sample(process) do
+    case process_identity(process.pid, []) do
+      {:ok, identity} when identity == process.start_identity ->
+        with {:ok, rows} <- resource_rows(),
+             pgids = owned_process_groups(rows, process.pid, process.pgid),
+             members = Enum.filter(rows, &(&1.pgid in pgids)),
+             true <- members != [],
+             {:ok, ports} <- listening_ports(members) do
+          {:ok,
+           %{
+             status: :matching,
+             cpu_nanos: Enum.sum(Enum.map(members, & &1.cpu_nanos)),
+             memory_bytes: Enum.sum(Enum.map(members, & &1.rss_kb)) * 1_024,
+             process_count: length(members),
+             open_ports_json: ports
+           }}
+        else
+          false -> {:ok, %{status: :gone}}
+          {:error, reason} -> {:error, reason}
+        end
+
+      {:ok, _identity} ->
+        {:error, :process_identity_mismatch}
+
+      :gone ->
+        {:ok, %{status: :gone}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
   def owned_process_groups(root_pid, root_pgid) do
     rows = process_rows()
 
+    owned_process_groups(rows, root_pid, root_pgid)
+  end
+
+  defp owned_process_groups(rows, root_pid, root_pgid) do
     rows
     |> descendants(root_pid)
     |> Enum.map(& &1.pgid)
@@ -658,6 +694,43 @@ defmodule Cuckoding.Execution.LocalHostInspector do
     end
   end
 
+  defp resource_rows do
+    case System.cmd("/bin/ps", ["-axo", "pid=,ppid=,pgid=,rss=,time="], stderr_to_stdout: true) do
+      {output, 0} ->
+        {:ok, Enum.flat_map(String.split(output, "\n", trim: true), &parse_resource_row/1)}
+
+      _error ->
+        {:error, :resource_inspection_failed}
+    end
+  end
+
+  defp listening_ports(members) do
+    pids = members |> Enum.map(& &1.pid) |> Enum.uniq() |> Enum.join(",")
+
+    case System.cmd(
+           "/usr/sbin/lsof",
+           ["-nP", "-a", "-p", pids, "-iTCP", "-sTCP:LISTEN", "-Fn"],
+           stderr_to_stdout: true
+         ) do
+      {output, 0} -> {:ok, parse_ports(output)}
+      {_output, 1} -> {:ok, []}
+      {_output, _status} -> {:error, :port_inspection_failed}
+    end
+  end
+
+  defp parse_ports(output) do
+    output
+    |> String.split("\n", trim: true)
+    |> Enum.flat_map(fn line ->
+      case Regex.run(~r/^n.*:(\d+)$/, line, capture: :all_but_first) do
+        [port] -> [String.to_integer(port)]
+        _other -> []
+      end
+    end)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
   defp parse_row(line) do
     case line |> String.split() |> Enum.map(&Integer.parse/1) do
       [{pid, ""}, {ppid, ""}, {pgid, ""}, {rss_kb, ""}] ->
@@ -667,6 +740,45 @@ defmodule Cuckoding.Execution.LocalHostInspector do
         []
     end
   end
+
+  defp parse_resource_row(line) do
+    with [pid, ppid, pgid, rss_kb, cpu] <- String.split(line),
+         {pid, ""} <- Integer.parse(pid),
+         {ppid, ""} <- Integer.parse(ppid),
+         {pgid, ""} <- Integer.parse(pgid),
+         {rss_kb, ""} <- Integer.parse(rss_kb),
+         {:ok, cpu_nanos} <- cpu_nanos(cpu) do
+      [%{pid: pid, ppid: ppid, pgid: pgid, rss_kb: rss_kb, cpu_nanos: cpu_nanos}]
+    else
+      _other -> []
+    end
+  end
+
+  defp cpu_nanos(value) do
+    case Regex.run(
+           ~r/\A(?:(\d+)-)?(?:(\d+):)?(\d+):(\d+(?:\.\d+)?)\z/,
+           value,
+           capture: :all_but_first
+         ) do
+      [days, hours, minutes, seconds] ->
+        case Float.parse(seconds) do
+          {seconds, ""} ->
+            total =
+              number(days) * 86_400 + number(hours) * 3_600 + number(minutes) * 60 + seconds
+
+            {:ok, round(total * 1_000_000_000)}
+
+          _other ->
+            {:error, :invalid_cpu_time}
+        end
+
+      _other ->
+        {:error, :invalid_cpu_time}
+    end
+  end
+
+  defp number(""), do: 0
+  defp number(value), do: String.to_integer(value)
 
   defp parsed_integer({value, ""}), do: {:ok, value}
   defp parsed_integer(_other), do: {:error, :process_inspection_failed}

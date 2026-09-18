@@ -67,7 +67,7 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 **Outcome:** users see who is doing what, what it costs, and what happened during sleep.
 
 - [x] Normalized activity stream.
-- [ ] Host resource metrics and rollups.
+- [x] Host resource metrics and rollups.
 - [ ] Usage and cost accounting with confidence labels.
 - [ ] Agent Floor, run detail, agent inspector.
 

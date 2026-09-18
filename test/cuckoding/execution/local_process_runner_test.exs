@@ -110,6 +110,41 @@ defmodule Cuckoding.Execution.LocalProcessRunnerTest do
     assert Enum.any?(events, &(&1.event_type == "process.signal"))
   end
 
+  test "samples CPU, RSS, process count, and listening ports for the owned group", fixture do
+    port_path = Path.join(fixture.environment.worktree_path, "listener.port")
+
+    assert {:ok, handle} =
+             LocalProcessRunner.start(
+               fixture.environment,
+               %{
+                 executable: "/usr/bin/ruby",
+                 args: [
+                   "-rsocket",
+                   "-e",
+                   "server=TCPServer.new('127.0.0.1',0); File.write('listener.port', server.addr[1]); sleep 60"
+                 ]
+               },
+               timeout: :infinity,
+               termination_grace_ms: 25
+             )
+
+    on_exit(fn ->
+      if Process.alive?(handle.worker), do: LocalProcessRunner.stop(handle)
+    end)
+
+    assert :ok = wait_for_file(port_path)
+    port = port_path |> File.read!() |> String.to_integer()
+
+    assert {:ok, sample} = LocalHostInspector.resource_sample(handle.process)
+    assert sample.status == :matching
+    assert sample.cpu_nanos >= 0
+    assert sample.memory_bytes > 0
+    assert sample.process_count >= 1
+    assert port in sample.open_ports_json
+
+    assert {:ok, _result} = LocalProcessRunner.stop(handle)
+  end
+
   test "timeouts run the termination ladder and persist the outcome", fixture do
     assert {:ok, result} =
              LocalProcessRunner.exec(

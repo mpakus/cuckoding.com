@@ -22,6 +22,8 @@ Input, output, reasoning when explicitly reported, cache-read, and cache-write t
 
 CPU time and percentage, RSS, process and thread count, open ports per process group; sampled every 2–5 seconds while active; aggregated to 1-minute and stage rollups. Hard limits are not enforced on the host runner and are never displayed as if they were.
 
+The implemented host sampler uses a three-second default and accepts only intervals from two through five seconds. Before every read it verifies the recorded root PID and start identity, then attributes the owned group to the process row's agent session. A missing, exited, mismatched, or uninspectable group produces no sample. Each minute, maintenance rolls up the completed minute and any newly finished stage before pruning raw samples older than seven days and rollups older than 30 days. Minute rollups expose sample count and measured resource aggregates but leave active/wall duration unavailable; stage rollups use the attempt's separately persisted `active_ms` and `wall_ms`. Neither path fills gaps or treats absent rows as zero.
+
 ### Plugins and caches
 
 Separate dimensions; never summed into one number:

@@ -12,6 +12,7 @@ defmodule Cuckoding.Application do
       {Registry, keys: :unique, name: Cuckoding.RunRegistry},
       Cuckoding.Execution.RunSupervisors,
       {DynamicSupervisor, strategy: :one_for_one, name: Cuckoding.Execution.ProcessWorkers},
+      {Cuckoding.Telemetry.ResourceSampler, []},
       {Phoenix.PubSub, name: Cuckoding.PubSub},
       CuckodingWeb.Endpoint
     ]

@@ -139,6 +139,8 @@ The root tree owns the unique `Cuckoding.RunRegistry` and `Cuckoding.Execution.R
 - `SecretStore`: macOS Keychain; future platform implementations.
 - `MetricCollector`: host process metrics, provider usage, plugin analytics.
 
+The built-in `LocalMetricCollector` revalidates the recorded PID/start identity, discovers only that root's owned process groups, and measures their cumulative CPU time, RSS, process count, and listening TCP ports. `ResourceSampler` runs every three seconds (the supported configuration range is two to five seconds), persists no row when ownership or the process is missing, and always labels host limits unenforced. Its minute maintenance pass creates completed-minute and final-stage rollups, then enforces the documented seven-day raw and 30-day rollup retention. Rollups aggregate only stored samples; stage timing comes from the durable active/wall counters rather than inferred sample gaps.
+
 ## Failure domains
 
 | Failure | Expected behavior |
