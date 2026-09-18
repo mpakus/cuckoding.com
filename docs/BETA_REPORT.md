@@ -18,7 +18,7 @@ Blank rows mean `not observed`; they are not passing evidence.
 | Gate | Status | Evidence or action |
 | --- | --- | --- |
 | Deterministic and physical recovery matrix | pass | Task 1002, 27/27 observations; this is prerequisite evidence and does not count as a beta run |
-| Signed and notarized build identified | pending | record build SHA and notarization evidence before enrollment |
+| Signed and notarized build identified | pending | the retained notarized artifact is from source `32fb8fb`; produce an enrollment build from the accepted beta revision before external use |
 | Claude Code adapter conformance | pass for current fixture contract | 2026-09-18 focused adapter suite; real beta use still requires separately verified run-scoped authentication |
 | Codex adapter conformance | pass for current fixture contract | 2026-09-18 focused adapter suite; real beta use must use the run-scoped home |
 | Outbound product telemetry off | pending | verify on the enrolled build |
@@ -100,7 +100,7 @@ acceptance evidence, retest, and decision owner.
 
 | ID | Severity | Observation | Evidence | Status | Owner | Closure/retest or acceptance rationale and expiry |
 | --- | --- | --- | --- | --- | --- | --- |
-| — | — | No beta findings recorded yet | — | pending beta | — | — |
+| F-1003-001 | High | A new user could not register a repository, create a board/task, or start a workflow from the shipped UI | Original evidence: `lib/cuckoding_web/router.ex:38-49`; `lib/cuckoding_web/live/status_live.ex`; `lib/cuckoding_web/live/board_live.ex`; only the internal `WalkingSkeleton.create/1` assembled the flow | closed locally; enrollment build pending | codex | dashboard now validates and queues the project-to-worktree flow; run control verifies scoped auth before start; 15 focused tests and full gate with 206 tests pass |
 
 ## Decision synthesis
 
@@ -134,5 +134,7 @@ retain important disagreement instead of averaging it away.
   the sole stakeholder with scope, mitigation, and expiry.
 
 **Current conclusion:** Task 1003 is not complete. The protocol and ledger are
-ready, but controlled-beta runs, elapsed multi-day evidence, interviews, and
-resulting decisions remain external evidence gates.
+ready and F-1003-001 is closed in source. A fresh signed enrollment build is
+still required before participant enrollment. Controlled-beta runs, elapsed
+multi-day evidence, interviews, and resulting decisions remain external
+evidence gates.

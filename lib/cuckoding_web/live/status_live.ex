@@ -2,6 +2,7 @@ defmodule CuckodingWeb.StatusLive do
   use CuckodingWeb, :live_view
 
   import CuckodingWeb.ActivityComponents
+  import CuckodingWeb.PolicyComponents
   import CuckodingWeb.UsageComponents
 
   @impl true
@@ -18,6 +19,8 @@ defmodule CuckodingWeb.StatusLive do
        pending_approvals: Cuckoding.WalkingSkeleton.pending_approvals(),
        confirming_approval: nil,
        release_notice: nil,
+       guided_run: guided_run_defaults(),
+       guided_run_error: nil,
        usage_records: Cuckoding.Telemetry.Accounting.recent_usage(),
        activity: activity,
        activity_status:
@@ -56,6 +59,28 @@ defmodule CuckodingWeb.StatusLive do
 
   def handle_event("cancel-release", _params, socket),
     do: {:noreply, assign(socket, :confirming_approval, nil)}
+
+  def handle_event("create-guided-run", %{"guided_run" => attrs}, socket) do
+    if attrs["confirmed"] == "true" do
+      case Cuckoding.GuidedRun.create(attrs) do
+        {:ok, skeleton} ->
+          {:noreply, push_navigate(socket, to: ~p"/runs/#{skeleton.run.id}")}
+
+        {:error, reason} ->
+          {:noreply,
+           assign(socket,
+             guided_run: Map.merge(guided_run_defaults(), attrs),
+             guided_run_error: guided_run_error(reason)
+           )}
+      end
+    else
+      {:noreply,
+       assign(socket,
+         guided_run: Map.merge(guided_run_defaults(), attrs),
+         guided_run_error: "Confirm the trusted-host and worktree changes before continuing."
+       )}
+    end
+  end
 
   def handle_event("approve-release", %{"id" => approval_id}, socket) do
     if socket.assigns.confirming_approval == approval_id do
@@ -233,6 +258,137 @@ defmodule CuckodingWeb.StatusLive do
 
         <.usage_summary records={@usage_records} />
 
+        <section
+          aria-labelledby="guided-run-heading"
+          class="space-y-4 rounded-lg border border-slate-300 bg-white p-5"
+        >
+          <div class="space-y-2">
+            <h2 id="guided-run-heading" class="text-xl font-semibold text-slate-950">
+              Start a project
+            </h2>
+            <p class="max-w-3xl text-sm leading-6 text-slate-700">
+              Register a clean local Git repository and create its first Product board, task,
+              queued run, feature branch, and confined worktree. Provider work starts only after
+              its run-scoped authentication is verified on the run page.
+            </p>
+            <p class="max-w-3xl text-sm leading-6 text-slate-700">
+              Controlled-beta release handoff uses an authorized local bare <code>origin</code>;
+              GitHub handoff requires a separately reviewed policy and Keychain credential reference.
+            </p>
+          </div>
+
+          <.host_runner_notice />
+
+          <p
+            :if={@guided_run_error}
+            id="guided-run-error"
+            role="alert"
+            class="text-sm font-medium text-red-800"
+          >
+            {@guided_run_error}
+          </p>
+
+          <form id="guided-run-form" phx-submit="create-guided-run" class="grid gap-4 md:grid-cols-2">
+            <label class="grid gap-1 text-sm font-medium text-slate-800">
+              Project name
+              <input
+                required
+                type="text"
+                name="guided_run[name]"
+                value={@guided_run["name"]}
+                class="min-h-10 rounded-md border border-slate-400 px-3"
+              />
+            </label>
+            <label class="grid gap-1 text-sm font-medium text-slate-800">
+              Clean Git repository path
+              <input
+                required
+                type="text"
+                name="guided_run[repo_path]"
+                value={@guided_run["repo_path"]}
+                class="min-h-10 rounded-md border border-slate-400 px-3"
+              />
+            </label>
+            <label class="grid gap-1 text-sm font-medium text-slate-800">
+              Default branch
+              <input
+                required
+                type="text"
+                name="guided_run[default_branch]"
+                value={@guided_run["default_branch"]}
+                class="min-h-10 rounded-md border border-slate-400 px-3"
+              />
+            </label>
+            <label class="grid gap-1 text-sm font-medium text-slate-800">
+              Runtime
+              <select
+                name="guided_run[runtime]"
+                class="min-h-10 rounded-md border border-slate-400 bg-white px-3"
+              >
+                <option value="codex" selected={@guided_run["runtime"] == "codex"}>Codex</option>
+                <option value="claude_code" selected={@guided_run["runtime"] == "claude_code"}>
+                  Claude Code
+                </option>
+              </select>
+            </label>
+            <label class="grid gap-1 text-sm font-medium text-slate-800 md:col-span-2">
+              Runtime executable path
+              <input
+                required
+                type="text"
+                name="guided_run[executable_path]"
+                value={@guided_run["executable_path"]}
+                placeholder="/absolute/path/to/codex"
+                class="min-h-10 rounded-md border border-slate-400 px-3"
+              />
+            </label>
+            <label class="grid gap-1 text-sm font-medium text-slate-800 md:col-span-2">
+              Claude API key helper path
+              <span class="font-normal text-slate-600">(required only for Claude Code)</span>
+              <input
+                type="text"
+                name="guided_run[api_key_helper]"
+                value={@guided_run["api_key_helper"]}
+                class="min-h-10 rounded-md border border-slate-400 px-3"
+              />
+            </label>
+            <label class="grid gap-1 text-sm font-medium text-slate-800 md:col-span-2">
+              First task
+              <input
+                required
+                type="text"
+                name="guided_run[task_title]"
+                value={@guided_run["task_title"]}
+                class="min-h-10 rounded-md border border-slate-400 px-3"
+              />
+            </label>
+            <label class="grid gap-1 text-sm font-medium text-slate-800 md:col-span-2">
+              Task details <textarea
+                name="guided_run[task_description]"
+                rows="4"
+                class="rounded-md border border-slate-400 px-3 py-2"
+              >{@guided_run["task_description"]}</textarea>
+            </label>
+            <label class="flex gap-3 text-sm leading-6 text-slate-800 md:col-span-2">
+              <input
+                required
+                type="checkbox"
+                name="guided_run[confirmed]"
+                value="true"
+                checked={@guided_run["confirmed"] == "true"}
+                class="mt-1 size-4"
+              />
+              <span>I reviewed the trusted-host notice and authorize Cuckoding to create a feature branch and worktree for this repository.</span>
+            </label>
+            <button
+              type="submit"
+              class="min-h-10 rounded-md bg-slate-950 px-4 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2 md:w-fit"
+            >
+              Create queued run
+            </button>
+          </form>
+        </section>
+
         <.link
           navigate={~p"/agents"}
           class="inline-flex min-h-10 items-center rounded-md bg-slate-950 px-4 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
@@ -304,4 +460,35 @@ defmodule CuckodingWeb.StatusLive do
   defp status_label(:ok), do: "Operational"
   defp status_label(:degraded), do: "Degraded"
   defp status_label(:unavailable), do: "Unavailable"
+
+  defp guided_run_defaults do
+    %{
+      "name" => "",
+      "repo_path" => "",
+      "default_branch" => "main",
+      "runtime" => "codex",
+      "executable_path" => "",
+      "api_key_helper" => "",
+      "task_title" => "",
+      "task_description" => "",
+      "confirmed" => "false"
+    }
+  end
+
+  defp guided_run_error(%Ecto.Changeset{}),
+    do: "The project details are invalid or already registered."
+
+  defp guided_run_error(:dirty_repository),
+    do: "The repository must be clean before a run starts."
+
+  defp guided_run_error(:missing_directory), do: "The repository path does not exist."
+  defp guided_run_error(:not_a_repository), do: "The selected path is not a Git repository."
+
+  defp guided_run_error(:invalid_runtime_executable),
+    do: "Choose an absolute executable runtime path."
+
+  defp guided_run_error(:unsupported_runtime), do: "Choose a supported runtime."
+
+  defp guided_run_error(_reason),
+    do: "The queued run could not be created. Review the repository and runtime settings."
 end

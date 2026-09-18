@@ -22,12 +22,16 @@ defmodule CuckodingWeb.RunLive do
           Process.send_after(self(), :refresh_run, @refresh_ms)
         end
 
+        setup = runtime_setup(detail.run)
+
         {:ok,
          assign(socket,
            page_title: "Run #{detail.run.sequence}",
            detail: detail,
+           runtime_setup: setup,
            refresh_pending: false,
-           notice: ""
+           notice: "",
+           error: nil
          )}
     end
   end
@@ -51,9 +55,35 @@ defmodule CuckodingWeb.RunLive do
     {:noreply, refresh(socket, "Run activity updated.")}
   end
 
+  @impl true
+  def handle_event("start-guided-run", _params, socket) do
+    case Cuckoding.GuidedRun.start(socket.assigns.detail.run.id) do
+      {:ok, :started} ->
+        {:noreply,
+         socket
+         |> refresh("Workflow started. Durable progress will appear here.")
+         |> assign(error: nil)}
+
+      {:error, :run_scoped_auth_required} ->
+        {:noreply,
+         assign(socket,
+           error: "Run-scoped authentication is not ready. Complete the setup below and retry."
+         )}
+
+      {:error, reason} ->
+        {:noreply, assign(socket, error: start_error(reason))}
+    end
+  end
+
   defp refresh(socket, notice) do
     detail = AgentFloor.get_run(socket.assigns.detail.run.id)
-    assign(socket, detail: detail, refresh_pending: false, notice: notice)
+
+    assign(socket,
+      detail: detail,
+      runtime_setup: runtime_setup(detail.run),
+      refresh_pending: false,
+      notice: notice
+    )
   end
 
   @impl true
@@ -79,8 +109,41 @@ defmodule CuckodingWeb.RunLive do
         </header>
 
         <p role="status" aria-live="polite" class="text-sm text-emerald-900">{@notice}</p>
+        <p :if={@error} id="run-error" role="alert" class="text-sm font-medium text-red-800">
+          {@error}
+        </p>
 
         <.host_runner_notice />
+
+        <section
+          :if={@detail.run.state == "queued"}
+          id="runtime-setup"
+          aria-labelledby="runtime-setup-heading"
+          class="space-y-4 rounded-lg border border-amber-300 bg-amber-50 p-5"
+        >
+          <h2 id="runtime-setup-heading" class="text-xl font-semibold text-amber-950">
+            Verify {@runtime_setup.runtime} before starting
+          </h2>
+          <div :if={@runtime_setup[:home]} class="space-y-2 text-sm text-amber-950">
+            <p>In Terminal, set <code>CODEX_HOME</code> to this run-owned directory:</p>
+            <p class="overflow-x-auto rounded bg-white p-2"><code>{@runtime_setup.home}</code></p>
+            <p>Then run this executable with <code>{@runtime_setup.login_args}</code>:</p>
+            <p class="overflow-x-auto rounded bg-white p-2">
+              <code>{@runtime_setup.executable}</code>
+            </p>
+          </div>
+          <div :if={@runtime_setup[:helper]} class="space-y-2 text-sm text-amber-950">
+            <p>Claude Code will use the reviewed run-scoped API key helper:</p>
+            <p class="overflow-x-auto rounded bg-white p-2"><code>{@runtime_setup.helper}</code></p>
+          </div>
+          <button
+            type="button"
+            phx-click="start-guided-run"
+            class="min-h-10 rounded-md bg-slate-950 px-4 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            Check authentication and start workflow
+          </button>
+        </section>
 
         <nav aria-label="Run controls" class="flex flex-wrap gap-3">
           <.link
@@ -199,4 +262,22 @@ defmodule CuckodingWeb.RunLive do
 
   defp plugin_entries(_snapshot), do: []
   defp state_label(state), do: state |> String.replace("_", " ") |> String.capitalize()
+
+  defp runtime_setup(%{state: "queued", id: run_id}) do
+    case Cuckoding.GuidedRun.runtime_setup(run_id) do
+      {:ok, setup} -> setup
+      {:error, _reason} -> %{runtime: "configured runtime"}
+    end
+  end
+
+  defp runtime_setup(_run), do: %{}
+
+  defp start_error(%Cuckoding.Adapters.Types.Error{code: :not_installed}),
+    do: "The configured runtime executable is unavailable."
+
+  defp start_error(%Cuckoding.Adapters.Types.Error{code: :unsupported_version}),
+    do: "The configured runtime version is not supported by this build."
+
+  defp start_error(:run_not_queued), do: "This run has already started."
+  defp start_error(_reason), do: "The workflow could not start. Inspect runtime setup and retry."
 end

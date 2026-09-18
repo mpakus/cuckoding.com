@@ -164,6 +164,100 @@ defmodule Cuckoding.WalkingSkeletonTest do
     assert Enum.count(event_types, &(&1 == "release.handoff_completed")) == 1
   end
 
+  test "guided run stays queued until the user starts the durable workflow", fixture do
+    attrs = Map.merge(fixture.attrs, %{adapter_key: "fake", start_run: false})
+
+    assert {:ok, created} = WalkingSkeleton.create(attrs)
+    assert created.run.state == "queued"
+    assert {:ok, loaded} = WalkingSkeleton.load(created.run.id)
+    assert loaded.environment.worktree_path == created.environment.worktree_path
+
+    assert {:ok, pending} = Cuckoding.GuidedRun.start(created.run.id, async: false)
+    assert pending.run.state == "waiting"
+    assert Repo.get!(Cuckoding.Execution.Run, created.run.id).state == "waiting"
+  end
+
+  test "guided onboarding validates the repository before creating a queued run", fixture do
+    previous = Application.get_env(:cuckoding, :workspace_root)
+    Application.put_env(:cuckoding, :workspace_root, fixture.attrs.workspace_root)
+
+    on_exit(fn ->
+      if previous,
+        do: Application.put_env(:cuckoding, :workspace_root, previous),
+        else: Application.delete_env(:cuckoding, :workspace_root)
+    end)
+
+    assert {:error, :missing_directory} =
+             Cuckoding.GuidedRun.create(%{
+               "name" => "Missing",
+               "repo_path" => Path.join(fixture.attrs.repo_path, "missing"),
+               "default_branch" => "main",
+               "runtime" => "codex",
+               "executable_path" => "/usr/bin/true",
+               "task_title" => "Never created"
+             })
+
+    assert {:error, :invalid_runtime_executable} =
+             Cuckoding.GuidedRun.create(%{
+               "name" => "Relative runtime",
+               "repo_path" => fixture.attrs.repo_path,
+               "default_branch" => "main",
+               "runtime" => "codex",
+               "executable_path" => "codex",
+               "task_title" => "Never created"
+             })
+
+    refute Repo.exists?(Cuckoding.Projects.Project)
+
+    assert {:ok, created} =
+             Cuckoding.GuidedRun.create(%{
+               "name" => "Guided project",
+               "repo_path" => fixture.attrs.repo_path,
+               "default_branch" => "main",
+               "runtime" => "codex",
+               "executable_path" => "/usr/bin/true",
+               "task_title" => "Guided task",
+               "task_description" => "A bounded first run"
+             })
+
+    assert created.run.state == "queued"
+    assert File.dir?(created.environment.worktree_path)
+
+    assert %Cuckoding.Workflows.RoleAssignment{
+             adapter_key: "codex",
+             settings_json: %{"executable_path" => "/usr/bin/true"}
+           } =
+             Repo.get_by!(Cuckoding.Workflows.RoleAssignment,
+               board_id: created.board.id,
+               role_key: "implementer"
+             )
+
+    assert {:error, %Cuckoding.Adapters.Types.Error{code: :invalid_version}} =
+             Cuckoding.GuidedRun.start(created.run.id)
+
+    assert Repo.get!(Cuckoding.Execution.Run, created.run.id).state == "queued"
+  end
+
+  test "queued run starts from the accessible run control", %{conn: conn} = fixture do
+    attrs = Map.merge(fixture.attrs, %{adapter_key: "fake", start_run: false})
+    assert {:ok, created} = WalkingSkeleton.create(attrs)
+    assert {:ok, view, _html} = live(conn, ~p"/runs/#{created.run.id}")
+
+    assert has_element?(view, "#runtime-setup", "Deterministic test adapter")
+    assert has_element?(view, "button", "Check authentication and start workflow")
+
+    view |> element("button", "Check authentication and start workflow") |> render_click()
+    assert has_element?(view, "[role=status]", "Workflow started")
+
+    eventually(fn ->
+      Repo.get!(Cuckoding.Execution.Run, created.run.id).state == "waiting"
+    end)
+
+    send(view.pid, :refresh_run_activity)
+    _html = render(view)
+    refute has_element?(view, "#runtime-setup")
+  end
+
   test "LiveView requires an explicit confirmation before host-side release",
        %{
          conn: conn
@@ -429,4 +523,17 @@ defmodule Cuckoding.WalkingSkeletonTest do
         else: Application.delete_env(:cuckoding, :secret_store)
     end)
   end
+
+  defp eventually(assertion, attempts \\ 100)
+
+  defp eventually(assertion, attempts) when attempts > 0 do
+    if assertion.() do
+      :ok
+    else
+      Process.sleep(20)
+      eventually(assertion, attempts - 1)
+    end
+  end
+
+  defp eventually(_assertion, 0), do: flunk("condition did not become true")
 end

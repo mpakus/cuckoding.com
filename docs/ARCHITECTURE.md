@@ -76,6 +76,13 @@ Each runtime adapter converts a common stage request into a provider-specific ho
 
 The walking skeleton composes the existing contexts without adding an authoritative workflow process: SQLite owns stage, run, task, approval, candidate, and event state. The deterministic CI adapter and an opt-in real adapter use the same stage request path. Before approval, the host validates a versioned evidence bundle and verifies every artifact and project-knowledge citation against its SHA-256 digest. Human approval then precedes the system release attempt. `VcsHost` implementations either perform an idempotent, non-force push to a validated local bare remote or fetch an opaque GitHub credential through `SecretStore`, push the candidate, and create a draft pull request. Both paths reject protected branches and unapproved runs. See `docs/WALKING_SKELETON.md`.
 
+`Cuckoding.GuidedRun` exposes that loop to the dashboard without moving truth
+into LiveView. It validates the clean repository and absolute runtime path
+before registration, creates a queued run and worktree, and verifies pinned,
+run-scoped provider authentication before the durable running transition. A
+supervised ephemeral task drives the existing stage loop; failures move the
+run to a durable blocked state, while all progress remains in SQLite.
+
 ### Plugin registry
 
 Discovers, validates, enables, and health-checks connectors described by manifests (`docs/PLUGINS.md`). Plugin kinds: `knowledge_backend`, `shell_filter`, `instruction_skill`, `mcp_server`, `runner`, `metric_source`, `vcs_host`, `secret_store`, `notifier`. Core code never imports a plugin directly; it talks to behaviours.

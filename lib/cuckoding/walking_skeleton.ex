@@ -28,21 +28,29 @@ defmodule Cuckoding.WalkingSkeleton do
 
   @doc "Creates one project, default board, ready task, run, and confined host worktree."
   def create(attrs) when is_map(attrs) do
-    with {:ok, project} <- Projects.register(project_attrs(attrs)),
+    with {:ok, {repo_path, base_sha}} <-
+           GitService.validate_repository(
+             Map.fetch!(attrs, :repo_path),
+             Map.get(attrs, :default_branch, "main")
+           ),
+         attrs = Map.put(attrs, :repo_path, repo_path),
+         {:ok, project} <- Projects.register(project_attrs(attrs)),
          {:ok, policy} <- Projects.add_config_version(policy_attrs(project, attrs)),
          {:ok, workflow} <- Workflows.publish_workflow(workflow_attrs(project)),
          {:ok, board} <- Workflows.create_board(board_attrs(project, workflow, attrs)),
-         :ok <- assign_roles(board, Map.get(attrs, :adapter_key, "fake")),
+         :ok <-
+           assign_roles(
+             board,
+             Map.get(attrs, :adapter_key, "fake"),
+             Map.get(attrs, :adapter_settings, %{})
+           ),
          {:ok, task} <- Workflows.create_task(task_attrs(board, attrs)),
          {:ok, ready} <- Workflows.transition_task(task.id, "ready", "walking:#{task.id}:ready"),
          true <- ready.result["outcome"] == "transitioned",
-         {:ok, base_sha} <- GitService.capture_base(project),
          {:ok, run} <- Execution.create_run(run_attrs(task, policy, base_sha)),
          {:ok, environment} <- GitService.prepare(project, run),
          {:ok, environment} <- LocalProcessRunner.prepare(environment, []),
-         {:ok, started} <-
-           Execution.transition_run(run.id, "running", "walking:#{run.id}:running"),
-         true <- started.result["outcome"] == "transitioned" do
+         {:ok, run} <- maybe_start_run(run, Map.get(attrs, :start_run, true)) do
       {:ok,
        %{
          project: project,
@@ -54,6 +62,21 @@ defmodule Cuckoding.WalkingSkeleton do
     else
       false -> {:error, :transition_rejected}
       error -> error
+    end
+  end
+
+  @doc "Reloads a walking-skeleton run from durable ownership records."
+  def load(run_id) when is_binary(run_id) do
+    with %Run{} = run <- Repo.get(Run, run_id),
+         %Task{} = task <- Repo.get(Task, run.task_id),
+         %Cuckoding.Workflows.Board{} = board <-
+           Repo.get(Cuckoding.Workflows.Board, task.board_id),
+         %Cuckoding.Projects.Project{} = project <-
+           Repo.get(Cuckoding.Projects.Project, board.project_id),
+         %Environment{} = environment <- Repo.get_by(Environment, run_id: run.id) do
+      {:ok, %{project: project, board: board, task: task, run: run, environment: environment}}
+    else
+      nil -> {:error, :run_not_found}
     end
   end
 
@@ -719,7 +742,8 @@ defmodule Cuckoding.WalkingSkeleton do
     }
   end
 
-  defp assign_roles(board, adapter_key) when is_binary(adapter_key) do
+  defp assign_roles(board, adapter_key, settings)
+       when is_binary(adapter_key) and is_map(settings) do
     [
       {"spec_writer", "agent", adapter_key},
       {"implementer", "agent", adapter_key},
@@ -733,12 +757,25 @@ defmodule Cuckoding.WalkingSkeleton do
              role_key: key,
              role_kind: kind,
              adapter_key: adapter,
-             settings_json: %{}
+             settings_json: if(kind == "agent", do: settings, else: %{})
            }) do
         {:ok, _role} -> {:cont, :ok}
         {:error, reason} -> {:halt, {:error, reason}}
       end
     end)
+  end
+
+  defp maybe_start_run(run, false), do: {:ok, run}
+
+  defp maybe_start_run(run, true) do
+    with {:ok, started} <-
+           Execution.transition_run(run.id, "running", "walking:#{run.id}:running"),
+         true <- started.result["outcome"] == "transitioned" do
+      {:ok, Repo.get!(Run, run.id)}
+    else
+      false -> {:error, :transition_rejected}
+      error -> error
+    end
   end
 
   defp objective("specification", task) do

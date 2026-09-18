@@ -78,6 +78,29 @@ The isolation rule adapts Agetor's practice of using dedicated development
 data and temporary repositories. Cuckoding additionally requires recorded
 capabilities, per-project knowledge boundaries, redaction, and human approval.
 
+### Guided enrollment
+
+On the dashboard, use **Start a project** with a clean authorized repository,
+its actual default branch, and the absolute path to the pinned Codex or Claude
+Code executable. Claude Code additionally requires the already reviewed
+absolute API key helper path. Review the trusted-host notice and confirm the
+worktree change. Cuckoding validates the repository and runtime path before it
+persists the project, then creates a queued run and opens its run page.
+
+For Codex, the run page shows its private run-owned `CODEX_HOME`. Set that
+environment variable in Terminal and run the displayed executable with
+`login --device-auth`; the credential remains in that run directory. Return to
+the run page and choose **Check authentication and start workflow**. Cuckoding
+checks the pinned runtime version and isolated authentication before changing
+the durable run from queued to running. Claude Code performs the same start
+gate through the reviewed helper. A failed probe leaves the run queued.
+
+For the controlled beta, use an authorized disposable clone whose `origin` is
+a local bare repository when exercising release handoff. GitHub handoff exists
+behind a trusted policy snapshot and Keychain reference, but the guided form
+does not create or infer either. Never replace that explicit configuration with
+ambient Git or provider credentials.
+
 ## Run procedure
 
 For each repository, record the following in `docs/BETA_REPORT.md` before the

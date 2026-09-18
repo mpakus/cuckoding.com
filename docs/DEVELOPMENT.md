@@ -29,6 +29,29 @@ rtk mix phx.server
 
 `mix setup` fetches dependencies, installs the pinned Tailwind and esbuild binaries, and builds assets. `mix quality` runs the formatter check, warnings-as-errors compilation, tests, Credo, Sobelow, and the Hex retirement audit. The server listens only on `127.0.0.1:4000`; open `http://127.0.0.1:4000`.
 
+## Guided first run
+
+The dashboard's **Start a project** form is the user-facing path into the
+default workflow. It accepts a clean Git repository, default branch, first
+task, supported runtime, and absolute runtime executable. Submission requires
+an explicit trusted-host confirmation and creates a queued run plus confined
+worktree. It does not launch a provider or read ambient credentials.
+
+The run page shows the runtime-specific authentication boundary. Codex uses a
+new run-owned `CODEX_HOME`; authenticate it with the displayed
+`login --device-auth` command. Claude Code requires a reviewed absolute API key
+helper. **Check authentication and start workflow** verifies the pinned runtime
+and scoped authentication before atomically moving the durable run to running
+and starting the existing project-to-approval loop. Probe failure leaves the
+run queued. The orchestration task is supervised but never owns workflow truth;
+SQLite transitions, attempts, sessions, artifacts, and events remain
+authoritative.
+
+The guided form intentionally does not infer or store GitHub credentials. A
+controlled-beta release uses an authorized local bare `origin`, or a separately
+reviewed GitHub policy whose credential is already represented by an opaque
+Keychain reference.
+
 ## Production release smoke test
 
 Build assets and the release with production configuration:

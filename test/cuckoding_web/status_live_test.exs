@@ -16,6 +16,33 @@ defmodule CuckodingWeb.StatusLiveTest do
     assert has_element?(view, "#runtime-cursor_agent-warning", "user-global MCP process")
     assert has_element?(view, "input[name=runtime][value=opencode][disabled]")
     assert has_element?(view, "#runtime-opencode-warning", "no supported OpenCode CLI")
+    assert has_element?(view, "#guided-run-form input[name='guided_run[repo_path]']")
+    assert has_element?(view, "#guided-run-form select[name='guided_run[runtime]']")
+    assert has_element?(view, "#guided-run-form input[name='guided_run[confirmed]'][required]")
+    assert has_element?(view, "#host-runner-notice", "not a sandbox")
+  end
+
+  test "guided setup requires an explicit trusted-host confirmation", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/")
+
+    view
+    |> form("#guided-run-form",
+      guided_run: %{
+        name: "Example",
+        repo_path: "/tmp/example",
+        default_branch: "main",
+        runtime: "codex",
+        executable_path: "/usr/bin/true",
+        task_title: "Example task"
+      }
+    )
+    |> render_submit()
+
+    assert has_element?(
+             view,
+             "#guided-run-error[role=alert]",
+             "Confirm the trusted-host and worktree changes"
+           )
   end
 
   test "sets a restrictive content security policy", %{conn: conn} do

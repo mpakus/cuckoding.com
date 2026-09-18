@@ -37,6 +37,7 @@ defmodule Cuckoding.Application do
       [
         Cuckoding.Execution.StartupReconciler,
         {Cuckoding.Power.Manager, []},
+        {Task.Supervisor, name: Cuckoding.GuidedRunSupervisor},
         {Registry, keys: :unique, name: Cuckoding.RunRegistry},
         Cuckoding.Execution.RunSupervisors,
         {DynamicSupervisor, strategy: :one_for_one, name: Cuckoding.Execution.ProcessWorkers},

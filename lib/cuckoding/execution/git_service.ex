@@ -27,18 +27,29 @@ defmodule Cuckoding.Execution.GitService do
 
   @doc "Captures the clean default-branch revision used to create a run."
   def capture_base(%Project{} = project) do
-    with {:ok, repo} <- canonical_directory(project.repo_path),
+    with {:ok, {_repo, sha}} <-
+           validate_repository(project.repo_path, project.default_branch) do
+      {:ok, sha}
+    end
+  end
+
+  @doc "Validates and canonicalizes a clean repository and its default-branch revision."
+  def validate_repository(path, default_branch)
+      when is_binary(path) and is_binary(default_branch) do
+    with {:ok, repo} <- canonical_directory(path),
          :ok <- repository_root?(repo),
-         :ok <- valid_branch?(project.default_branch),
+         :ok <- valid_branch?(default_branch),
          {:ok, true} <- clean?(repo),
          {:ok, sha} <-
-           git(repo, ["rev-parse", "--verify", "refs/heads/#{project.default_branch}^{commit}"]) do
-      {:ok, String.trim(sha)}
+           git(repo, ["rev-parse", "--verify", "refs/heads/#{default_branch}^{commit}"]) do
+      {:ok, {repo, String.trim(sha)}}
     else
       {:ok, false} -> {:error, :dirty_repository}
       error -> error
     end
   end
+
+  def validate_repository(_path, _default_branch), do: {:error, :invalid_repository}
 
   @doc "Creates the run-owned branch/worktree and its durable environment row."
   def prepare(%Project{} = project, %Run{} = run) do
