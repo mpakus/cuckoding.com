@@ -39,7 +39,7 @@ module ReleaseMetadata
 
   def cargo_metadata(root)
     command = [
-      "rtk", "proxy", "cargo", "metadata", "--manifest-path",
+      ENV.fetch("RTK_BIN", "rtk"), "proxy", ENV.fetch("CARGO_BIN", "cargo"), "metadata", "--manifest-path",
       File.join(root, "desktop/src-tauri/Cargo.toml"), "--locked", "--offline",
       "--filter-platform", "aarch64-apple-darwin", "--format-version", "1"
     ]
@@ -116,7 +116,7 @@ module ReleaseMetadata
   end
 
   def git(root, *args)
-    output, error, status = Open3.capture3("rtk", "git", "-C", root, *args)
+    output, error, status = Open3.capture3(ENV.fetch("RTK_BIN", "rtk"), "git", "-C", root, *args)
     raise "git #{args.join(" ")} failed: #{error}" unless status.success?
 
     output.strip
