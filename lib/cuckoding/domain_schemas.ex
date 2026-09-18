@@ -217,6 +217,12 @@ defmodule Cuckoding.Workflows.Task do
     |> foreign_key_constraint(:board_id)
   end
 
+  def edit_changeset(record, attrs) do
+    record
+    |> cast(attrs, [:title, :description, :priority])
+    |> validate_required([:title, :priority])
+  end
+
   @doc false
   def transition_changeset(record, attrs) do
     record

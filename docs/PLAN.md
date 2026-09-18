@@ -58,7 +58,7 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 **Outcome:** tasks move through configurable durable workflows across multiple boards.
 
 - [x] Workflow validation and transition evaluation.
-- [ ] Accessible Kanban and task detail.
+- [x] Accessible Kanban and task detail.
 - [ ] Multiple boards, dependencies, budgets, concurrency, unattended mode.
 - [ ] Gates, human approval, host-side release handoff.
 

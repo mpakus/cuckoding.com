@@ -40,6 +40,8 @@ Each board has its own Kanban, workflow template, assignments, budgets, and conc
 
 Cards show title, priority, dependencies, current role, runtime/model badge, attempt count, elapsed time, budget consumption, blocking reason, and a knowledge indicator (number of items injected in the current stage). Drag-and-drop is allowed only for transitions the state machine permits, with equivalent keyboard and menu actions.
 
+The Phase 5 MVP board currently renders durable task lifecycle states as semantic sections and shows title, priority, waiting reason, and an honest `Knowledge: 0 linked` indicator until Phase 7 supplies usage records. Filters live in the URL so reload and browser history preserve them. Each permitted move has a labeled native select and submit button; drag-and-drop exposes the same server-authorized targets, applies only an optimistic DOM move, and then reconciles from the durable command result. Accepted moves are announced through a polite status region and rejected moves through an alert with the reason. Task title, description, and priority are editable only while the task is Draft or Ready, with each edit recorded as a public event before its projection changes.
+
 ### Run detail
 
 - Stage timeline with attempts, sleep gaps, and handoffs.

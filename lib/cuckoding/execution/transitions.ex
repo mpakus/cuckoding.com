@@ -46,6 +46,15 @@ defmodule Cuckoding.Execution.Transitions do
     end)
   end
 
+  def allowed_task_transitions(%Task{active_run_id: nil, state: state}) do
+    @standalone_task_transitions
+    |> Enum.filter(&(elem(&1, 0) == state))
+    |> Enum.map(&elem(&1, 1))
+    |> Enum.sort()
+  end
+
+  def allowed_task_transitions(%Task{}), do: []
+
   def transition_run(run_id, to, idempotency_key, attrs \\ %{}) do
     command = command_attrs(idempotency_key, "run.transition", "run", run_id, to, attrs)
 

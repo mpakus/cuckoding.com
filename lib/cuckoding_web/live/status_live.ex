@@ -7,6 +7,7 @@ defmodule CuckodingWeb.StatusLive do
      assign(socket,
        page_title: "System status",
        health: Cuckoding.Health.snapshot(),
+       boards: Cuckoding.Workflows.list_boards(),
        experimental_runtimes: Cuckoding.Adapters.Catalog.experimental_options(),
        pending_approvals: Cuckoding.WalkingSkeleton.pending_approvals(),
        confirming_approval: nil,
@@ -143,6 +144,21 @@ defmodule CuckodingWeb.StatusLive do
               </div>
             </div>
           </article>
+        </section>
+
+        <section aria-labelledby="boards-heading" class="space-y-3">
+          <h2 id="boards-heading" class="text-xl font-semibold text-slate-950">Boards</h2>
+          <p :if={@boards == []} class="text-sm text-slate-700">No boards yet.</p>
+          <ul :if={@boards != []} class="grid gap-3 sm:grid-cols-2">
+            <li :for={board <- @boards}>
+              <.link
+                navigate={~p"/boards/#{board.id}"}
+                class="flex min-h-10 items-center rounded-md border border-slate-300 bg-white px-4 font-medium text-slate-950 underline decoration-slate-400 underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
+              >
+                {board.name}
+              </.link>
+            </li>
+          </ul>
         </section>
 
         <fieldset class="space-y-3">

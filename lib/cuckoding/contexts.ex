@@ -45,8 +45,33 @@ defmodule Cuckoding.Workflows do
       else: {:error, :workflow_project_mismatch}
   end
 
+  def list_boards, do: Repo.all(from(board in Board, order_by: [asc: board.name, asc: board.id]))
+  def get_board(id), do: Repo.get(Board, id)
+
   def assign_role(attrs), do: insert(RoleAssignment, attrs)
   def create_task(attrs), do: insert(Task, attrs)
+
+  def list_tasks(board_id) do
+    Repo.all(
+      from(task in Task,
+        where: task.board_id == ^board_id,
+        order_by: [desc: task.priority, asc: task.position, asc: task.id]
+      )
+    )
+  end
+
+  def get_task(id), do: Repo.get(Task, id)
+
+  def update_task(task_id, attrs) do
+    case Repo.get(Task, task_id) do
+      %Task{state: state} = task when state in ["draft", "ready"] -> edit_task(task, attrs)
+      %Task{} -> {:error, :task_not_editable}
+      nil -> {:error, :task_not_found}
+    end
+  end
+
+  def allowed_task_transitions(%Task{} = task),
+    do: Cuckoding.Execution.Transitions.allowed_task_transitions(task)
 
   def transition_task(task_id, to, idempotency_key, attrs \\ %{}),
     do: Cuckoding.Execution.Transitions.transition_task(task_id, to, idempotency_key, attrs)
@@ -68,6 +93,35 @@ defmodule Cuckoding.Workflows do
       public_summary: "Human approval requested",
       payload: %{"approval_id" => approval.id, "kind" => approval.kind}
     })
+  end
+
+  defp edit_task(task, attrs) do
+    changeset = Task.edit_changeset(task, attrs)
+
+    with {:ok, validated} <- Ecto.Changeset.apply_action(changeset, :update) do
+      event = %{
+        event_type: "task.edited",
+        public_summary: "Task details edited",
+        payload: %{
+          "task_id" => task.id,
+          "fields" => changed_fields(task, validated)
+        }
+      }
+
+      projection = fn repo, _sequence -> repo.update(Task.edit_changeset(task, attrs)) end
+
+      case Cuckoding.Execution.EventStore.append("task:" <> task.id, event, projection) do
+        {:ok, {_event, updated}} -> {:ok, updated}
+        {:error, {:projection_failed, error}} -> {:error, error}
+        {:error, reason} -> {:error, reason}
+      end
+    end
+  end
+
+  defp changed_fields(before, updated) do
+    ~w(title description priority)a
+    |> Enum.filter(&(Map.get(before, &1) != Map.get(updated, &1)))
+    |> Enum.map(&Atom.to_string/1)
   end
 
   def decide_approval(approval_id, decision, actor, reason) do
