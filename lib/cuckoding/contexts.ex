@@ -495,6 +495,15 @@ end
 
 defmodule Cuckoding.Plugins do
   @moduledoc "Owns plugin discovery, manifests, activation, capabilities, and health."
+
+  alias Cuckoding.Plugins.Registry
+
+  defdelegate discover(options \\ []), to: Registry
+  defdelegate refresh(), to: Registry
+  defdelegate list(), to: Registry
+  defdelegate get(id), to: Registry
+  defdelegate enable(plugin_id, scope_type, scope_id, attrs), to: Registry
+  defdelegate disable(plugin_id, scope_type, scope_id, actor, reason), to: Registry
 end
 
 defmodule Cuckoding.Knowledge do

@@ -47,8 +47,13 @@ erDiagram
 | `role_assignments` | `board_id`, `role_key`, `adapter_key`, `model_ref`, `settings_json` | Board defaults; run snapshot is separate |
 | `provider_accounts` | `adapter_key`, `label`, `auth_mode`, `status`, `capabilities_json`, `probed_at` | Runtime auth is observed, never stored |
 | `secret_access_audits` | `secret_ref`, `purpose`, `run_id?`, `occurred_at` | Opaque reference-use audit; never stores the value |
-| `plugins` | `key`, `kind`, `version`, `manifest_hash`, `manifest_json`, `health`, `detected_at`, `last_error` | Registry state |
-| `plugin_activations` | `plugin_id`, `scope_type`, `scope_id`, `enabled`, `config_json`, `approved_by`, `approved_at` | Per-scope enablement with audit |
+| `plugins` | `key`, `kind`, `version`, `source`, `manifest_path`, `manifest_hash`, `manifest_json`, `detected_binaries_json`, `health`, `detected_at`, `last_error` | Validated bundled/user registry state |
+| `plugin_activations` | `plugin_id`, `scope_type`, `scope_id`, `enabled`, `permissions_json`, `config_json`, `network`, `approval_kind`, `approved_by`, `approval_reason`, `approved_at` | Current per-scope projection; enable/disable facts remain in the event stream |
+
+Plugin activation events use the `plugin:<plugin-id>` stream. The projection has
+database constraints for the closed scope, network, and approval vocabularies;
+the event payload records manifest and permission hashes instead of secret or
+unbounded provider data.
 
 ### Work management
 

@@ -15,6 +15,7 @@ config :cuckoding, :power_manager,
 
 config :cuckoding, :scheduler, max_active_agent_sessions: 4
 config :cuckoding, :resource_sampler, enabled: true, interval_ms: 3_000
+config :cuckoding, :plugin_registry, enabled: true
 
 config :cuckoding, Cuckoding.Repo,
   adapter: Ecto.Adapters.SQLite3,

@@ -1,0 +1,25 @@
+schema_version: 1
+key: valid-shell
+name: Valid shell filter
+version: 1.0.0
+kind: shell_filter
+homepage: https://example.com/valid-shell
+license: MIT
+detect:
+  binaries:
+    - name: fake-tool
+      version_command: [fake-tool, --version]
+      min_version: 1.2.0
+  paths: []
+  env: []
+capabilities:
+  - shell_filter.wrap_command
+permissions:
+  host_process: true
+  network: external
+  read_paths: ["${RUN_WORKTREE}"]
+  write_paths: []
+  secrets: []
+config_schema: {}
+scopes: [project, board, role, stage]
+isolation_claims: []

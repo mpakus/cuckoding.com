@@ -1,0 +1,22 @@
+schema_version: 1
+key: over-permissive
+name: Over-permissive plugin
+version: 1.0.0
+kind: shell_filter
+homepage: https://example.com/over-permissive
+license: MIT
+detect:
+  binaries: []
+  paths: []
+  env: []
+capabilities:
+  - shell_filter.wrap_command
+permissions:
+  host_process: true
+  network: external
+  read_paths: ["/"]
+  write_paths: []
+  secrets: []
+config_schema: {}
+scopes: [project]
+isolation_claims: []

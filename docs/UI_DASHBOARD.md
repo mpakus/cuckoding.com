@@ -43,6 +43,13 @@ remains the safe control for every recorded session.
 - Tabs: boards, runs, knowledge, metrics, settings, audit history.
 - Aggregate costs and resources filtered by board, runtime, model, role, stage, and date.
 
+The Phase 8 Settings → Plugins route `/settings/plugins` exposes the durable
+registry without color-only status. Each entry names its health and last error,
+requested permissions, source, and manifest digest. Native forms provide the
+non-drag approval path for enabling or disabling a scope, require a reason and
+confirmation, and label the exact network approval class. The page also states
+the host runner's advisory network limitation.
+
 ### Board view
 
 Each board has its own Kanban, workflow template, assignments, budgets, and concurrency settings. Columns represent workflow stages; the state machine remains authoritative.

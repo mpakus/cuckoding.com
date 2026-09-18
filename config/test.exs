@@ -14,6 +14,7 @@ config :cuckoding, CuckodingWeb.Endpoint,
 config :logger, level: :warning
 config :cuckoding, :power_manager, enabled: false
 config :cuckoding, :resource_sampler, enabled: false
+config :cuckoding, :plugin_registry, enabled: false
 config :phoenix, :plug_init_mode, :runtime
 config :phoenix, sort_verified_routes_query_params: true
 config :phoenix_live_view, enable_expensive_runtime_checks: true

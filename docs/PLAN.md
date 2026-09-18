@@ -86,7 +86,7 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 
 **Outcome:** optional tools connect through manifests without touching the core.
 
-- [ ] Manifest schema, discovery, registry, health, enablement.
+- [x] Manifest schema, discovery, registry, health, enablement.
 - [ ] Behaviours and conformance suites per kind.
 - [ ] Reference plugins: RTK, Ponytail, XERJ, generic MCP server.
 - [ ] Container runner plugin contract and stub.

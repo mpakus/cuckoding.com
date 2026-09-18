@@ -1,0 +1,25 @@
+schema_version: 1
+key: wrong-version
+name: Wrong version
+version: 1.0.0
+kind: shell_filter
+homepage: https://example.com/wrong-version
+license: MIT
+detect:
+  binaries:
+    - name: old-tool
+      version_command: [old-tool, --version]
+      min_version: 9.0.0
+  paths: []
+  env: []
+capabilities:
+  - shell_filter.wrap_command
+permissions:
+  host_process: true
+  network: none
+  read_paths: ["${RUN_WORKTREE}"]
+  write_paths: []
+  secrets: []
+config_schema: {}
+scopes: [project]
+isolation_claims: []

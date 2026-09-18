@@ -61,6 +61,20 @@ isolation_claims: []          # only runners declare these
 5. Plugin processes run under the plugin supervisor with restart limits; a crashing plugin degrades its feature and never the core.
 6. Plugin updates change the recorded version; runs snapshot the plugin versions they used.
 
+The Phase 8 registry implements the first five lifecycle boundaries. It scans
+only direct, regular plugin directories and rejects symlinked manifests,
+duplicate YAML keys, unknown fields, traversal-capable permissions, unsupported
+network classes, and shell-like version probes. Bundled manifests take
+precedence over duplicate user keys. Repository configuration remains a
+proposal and is never discovered or activated automatically.
+
+Activation resolves the global → project → board → role/stage ancestry and
+requires every more-specific permission to be present in its enabled parent.
+The approval record distinguishes standard, loopback-network, and
+external-network grants. This distinction is enforced by the registry and
+shown in Settings; the current host runner cannot technically isolate network
+traffic, so its runtime network boundary remains visibly advisory.
+
 ## Contracts
 
 - All plugin calls carry the correlation IDs and a capability token limited to the run's scope.
@@ -79,6 +93,9 @@ isolation_claims: []          # only runners declare these
 
 ## UI
 
-- Settings → Plugins: list with kind, version, health, enabled scopes, permissions, last error, and analytics where the plugin reports them.
+- Settings → Plugins (`/settings/plugins`): implemented list with source, kind,
+  version, textual health, requested permissions, manifest hash, enabled scopes,
+  approval class, and last error. Enable and disable actions require an explicit
+  confirmation and reason; unavailable plugins cannot be enabled.
 - Run detail shows which plugins were active for each stage and their labeled contribution.
 - Missing tools are shown with install hints from the manifest, never auto-installed.

@@ -1,0 +1,25 @@
+schema_version: 1
+key: missing-tool
+name: Missing tool
+version: 1.0.0
+kind: knowledge_backend
+homepage: https://example.com/missing
+license: Apache-2.0
+detect:
+  binaries:
+    - name: absent-tool
+      version_command: [absent-tool, --version]
+      min_version: 1.0.0
+  paths: []
+  env: []
+capabilities:
+  - knowledge_backend.search
+permissions:
+  host_process: true
+  network: loopback
+  read_paths: ["${RUN_WORKTREE}"]
+  write_paths: []
+  secrets: []
+config_schema: {}
+scopes: [project, stage]
+isolation_claims: []

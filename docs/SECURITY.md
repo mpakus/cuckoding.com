@@ -39,6 +39,15 @@ Cuckoding runs powerful agent runtimes on a developer machine against untrusted 
 
 Each stage receives an unguessable short-lived capability set: allowed worktree, tool categories, network class (advisory on the host runner), secret references (Cuckoding-managed only), knowledge namespaces, plugin set, budget, expiry, approval requirements. The adapter maps tool categories and worktree onto the runtime's permission settings and records the effective grant. Capabilities can be narrowed but not expanded by an agent or a plugin.
 
+Plugin discovery treats manifests as untrusted input: it accepts only regular,
+non-symlinked files below configured plugin roots, a closed schema, confined
+permission roots, and fixed single-argument version probes executed without a
+shell. Discovery never enables a plugin. Activation requires an explicit reason
+and approval class, persists an event before the projection changes, and may
+only narrow an enabled ancestor grant. `none`, `loopback`, and `external` are
+stored as distinct grants; on the host runner they remain approval and runtime
+configuration boundaries, not a claim of network sandboxing.
+
 ## Secrets
 
 - `SecretStore` is owned by the Phoenix process: macOS Keychain through the `security` CLI (MVP) or a small native library later; the database holds opaque references only.

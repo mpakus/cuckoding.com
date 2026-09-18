@@ -79,6 +79,16 @@ The walking skeleton composes the existing contexts without adding an authoritat
 
 Discovers, validates, enables, and health-checks connectors described by manifests (`docs/PLUGINS.md`). Plugin kinds: `knowledge_backend`, `shell_filter`, `instruction_skill`, `mcp_server`, `runner`, `metric_source`, `vcs_host`, `secret_store`. Core code never imports a plugin directly; it talks to behaviours.
 
+The implemented registry scans regular, non-symlinked `plugin.yml` files in
+bundled and user directories, validates a closed manifest schema, runs only
+bounded binary-version probes without a shell, and persists the manifest hash,
+detected version, and health. Per-scope activation is an audited projection:
+specific scopes may disable or narrow an ancestor grant but cannot expand it.
+Each plugin process has a bounded restart host; exhausting the budget marks only
+that plugin unhealthy. Network approvals preserve the exact `none`, `loopback`,
+or `external` class, while host-runner enforcement remains advisory as described
+in `docs/EXECUTION_ENVIRONMENTS.md`.
+
 ### Knowledge service
 
 Owns knowledge files, the SQLite index, per-run extraction, consolidation jobs, the review queue, publication, skill packaging, injection into runtimes, and usage tracking (`docs/KNOWLEDGE_COMPRESSION.md`). A knowledge backend plugin may add semantic retrieval; without one, retrieval is file- and index-based.
