@@ -60,6 +60,16 @@ generation all succeed. It additionally requires the
 plus `CUCKODING_UPDATE_ENDPOINT`, `CUCKODING_UPDATE_BASE_URL`, and
 `CUCKODING_UPDATER_PUBLIC_KEY` repository variables.
 
+The production update host is GitHub Releases. Both update URL variables use
+GitHub's `latest/download` redirect: the endpoint ends in `latest.json`, while
+the base URL is the same path without that filename. A `v*` tag runs the
+verified build in a read-only job, then a separate job with only
+`contents: write` downloads that exact Actions artifact and publishes all
+release, updater, checksum, provenance, SBOM, and notarization evidence assets.
+Manual workflow runs retain the Actions artifact but do not publish a release.
+The updater private key and its password remain secrets; only the public key is
+a repository variable and embedded in the application.
+
 `desktop/sign.sh` may be run independently to exercise local Developer ID
 signing before notarization. Only `beam.smp` receives
 `com.apple.security.cs.allow-jit`; every other Mach-O uses hardened runtime with

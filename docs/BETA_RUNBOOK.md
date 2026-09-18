@@ -101,6 +101,14 @@ behind a trusted policy snapshot and Keychain reference, but the guided form
 does not create or infer either. Never replace that explicit configuration with
 ambient Git or provider credentials.
 
+The enrollment application is distributed through the repository's GitHub
+Release. Before creating the version tag, confirm that `desktop/release.sh`
+passes locally with the long-lived updater key and `Cuckoding` notarization
+profile. A pushed `v*` tag publishes only after the signed build, notarization,
+Gatekeeper, updater signature, SBOM, provenance, and checksum gates pass. Record
+the release URL, source revision, notarization submission, and artifact digest
+in the report before sharing the build.
+
 ## Run procedure
 
 For each repository, record the following in `docs/BETA_REPORT.md` before the
