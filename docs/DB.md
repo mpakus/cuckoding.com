@@ -78,7 +78,7 @@ erDiagram
 | Table | Important fields | Notes |
 | --- | --- | --- |
 | `run_event_sequences` | `run_id`, `last_sequence` | Transactional allocator for gapless per-run event sequence numbers |
-| `run_events` | `run_id`, `sequence`, `event_type`, `public_summary`, `payload`, `occurred_at` | Append-only and strictly sequenced per run; standalone pre-run task transitions use the namespaced stream key `task:<uuid>` |
+| `run_events` | `run_id`, `sequence`, `event_type`, `public_summary`, `payload`, `occurred_at` | Append-only and strictly sequenced per stream; standalone board/task transitions use `board:<uuid>` / `task:<uuid>`. The redacted payload carries the nullable project → board → task → run → stage-attempt → agent-session correlation chain. |
 | `artifacts` | `run_id`, `stage_attempt_id?`, `kind`, `path_or_uri`, `sha256`, `metadata_json` | Specs, patches, logs, test reports, reviews |
 | `usage_records` | `agent_session_id`, `source`, `input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_write_tokens`, `cost_micros`, `currency`, `confidence` | Source is provider-reported or estimated |
 | `resource_samples` | `agent_session_id?`, `process_id?`, `cpu_nanos`, `memory_bytes`, `process_count`, `sampled_at` | Host process sampling |

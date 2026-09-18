@@ -84,6 +84,8 @@ Per project and global:
 
 The UI displays a stale indicator if no heartbeat arrives within the configured interval and a "reconciling after sleep" indicator after a detected gap. A disconnected browser never changes workflow state by inference.
 
+The Phase 6 activity component uses the append-only event stream as its table alternative. PubSub carries only a committed stream ID and sequence hint; the LiveView fetches all later rows, deduplicates them by durable event ID, and caps the rendered recent list. Reload/reconnect uses the same `after_sequence` query. Sleep-gap milliseconds are rendered as explicit timeline text, and stale/reconciling labels remain informational rather than changing workflow state.
+
 ## Visual status language
 
 | Status | Shape/icon cue | Typical color cue | Meaning |

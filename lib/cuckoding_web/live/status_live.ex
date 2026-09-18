@@ -1,8 +1,13 @@
 defmodule CuckodingWeb.StatusLive do
   use CuckodingWeb, :live_view
 
+  import CuckodingWeb.ActivityComponents
+
   @impl true
   def mount(_params, _session, socket) do
+    if connected?(socket), do: Cuckoding.ActivityStream.subscribe(:all)
+    activity = Cuckoding.ActivityStream.recent()
+
     {:ok,
      assign(socket,
        page_title: "System status",
@@ -11,7 +16,32 @@ defmodule CuckodingWeb.StatusLive do
        experimental_runtimes: Cuckoding.Adapters.Catalog.experimental_options(),
        pending_approvals: Cuckoding.WalkingSkeleton.pending_approvals(),
        confirming_approval: nil,
-       release_notice: nil
+       release_notice: nil,
+       activity: activity,
+       activity_status:
+         Cuckoding.ActivityStream.status(activity, Cuckoding.Clock.wall_now(), 60_000)
+     )}
+  end
+
+  @impl true
+  def handle_info({:activity_event, stream_id, _sequence}, socket) do
+    acknowledged =
+      socket.assigns.activity
+      |> Enum.filter(&(&1.stream_id == stream_id))
+      |> Enum.map(& &1.sequence)
+      |> Enum.max(fn -> 0 end)
+
+    activity =
+      (socket.assigns.activity ++ Cuckoding.ActivityStream.list(stream_id, acknowledged))
+      |> Enum.uniq_by(& &1.id)
+      |> Enum.sort_by(&{DateTime.to_unix(&1.occurred_at, :microsecond), &1.id})
+      |> Enum.take(-20)
+
+    {:noreply,
+     assign(socket,
+       activity: activity,
+       activity_status:
+         Cuckoding.ActivityStream.status(activity, Cuckoding.Clock.wall_now(), 60_000)
      )}
   end
 
@@ -196,6 +226,8 @@ defmodule CuckodingWeb.StatusLive do
             </div>
           </article>
         </section>
+
+        <.activity_stream events={@activity} status={@activity_status} />
 
         <section aria-labelledby="boards-heading" class="space-y-3">
           <h2 id="boards-heading" class="text-xl font-semibold text-slate-950">Boards</h2>

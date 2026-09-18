@@ -110,7 +110,7 @@ defmodule Cuckoding.Workflows do
     do: Cuckoding.Execution.Transitions.transition_task(task_id, to, idempotency_key, attrs)
 
   def request_approval(attrs) do
-    Repo.transaction(fn ->
+    Cuckoding.Execution.EventStore.transaction(fn ->
       with {:ok, approval} <- insert(Approval, attrs),
            {:ok, _event} <- approval_requested(approval) do
         approval

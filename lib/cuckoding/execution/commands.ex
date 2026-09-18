@@ -5,6 +5,7 @@ defmodule Cuckoding.Execution.Commands do
 
   alias Cuckoding.Execution.Command
   alias Cuckoding.Execution.CommandDispatcher
+  alias Cuckoding.Execution.EventStore
   alias Cuckoding.Repo
 
   def enqueue(attrs, options \\ []) when is_map(attrs) do
@@ -21,7 +22,7 @@ defmodule Cuckoding.Execution.Commands do
     now = Keyword.get(options, :now, Cuckoding.Clock.wall_now())
     attrs = defaults(attrs, now)
 
-    Repo.transaction(fn ->
+    EventStore.transaction(fn ->
       changeset = Command.create_changeset(%Command{}, attrs)
 
       case Repo.insert(changeset) do

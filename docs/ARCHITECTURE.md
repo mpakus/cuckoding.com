@@ -127,6 +127,8 @@ The root tree owns the unique `Cuckoding.RunRegistry` and `Cuckoding.Execution.R
 6. Normalized activity events are persisted and then broadcast.
 7. Completion writes artifacts, usage, knowledge usage, and the next state atomically where practical.
 
+`Cuckoding.Execution.EventStore` collects appended events inside the outer database transaction and broadcasts only the committed stream ID and sequence after that transaction succeeds. `Cuckoding.ActivityStream` subscribes before reading events after the browser's last acknowledged per-stream sequence, so the durable SQLite log closes the subscribe/read race and duplicate PubSub hints are harmless. Public payloads are recursively redacted before persistence and carry a nullable project → board → task → run → stage-attempt → agent-session chain, including role, runtime, model, and request correlation when known.
+
 ## Extension boundaries
 
 - `AgentAdapter`: provider-neutral typed requests, capability probes, per-run config, normalized untrusted events, recovery, cancellation, and usage; Claude Code, Codex, Cursor Agent, and OpenCode implement the boundary.
