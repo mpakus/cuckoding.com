@@ -104,7 +104,7 @@ defmodule CuckodingWeb.StatusLive do
             <div>
               <h3 class="font-semibold text-slate-950">{item.task.title}</h3>
               <p class="text-sm text-slate-700">
-                Waiting for approval · branch <code>{item.run.branch}</code>
+                {release_status(item.approval)} · branch <code>{item.run.branch}</code>
               </p>
             </div>
             <button
@@ -114,7 +114,7 @@ defmodule CuckodingWeb.StatusLive do
               phx-value-id={item.approval.id}
               class="min-h-10 rounded-md bg-slate-950 px-4 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
             >
-              Review release
+              {release_action(item.approval)}
             </button>
             <div
               :if={@confirming_approval == item.approval.id}
@@ -180,6 +180,10 @@ defmodule CuckodingWeb.StatusLive do
   defp dependency_label(:pubsub), do: "Phoenix PubSub"
   defp dependency_label(:database), do: "SQLite database"
   defp dependency_label(:web_endpoint), do: "Loopback web endpoint"
+  defp release_status(%{decision: "approved"}), do: "Approved · release retry available"
+  defp release_status(_approval), do: "Waiting for approval"
+  defp release_action(%{decision: "approved"}), do: "Retry release"
+  defp release_action(_approval), do: "Review release"
   defp status_label(:ok), do: "Operational"
   defp status_label(:degraded), do: "Degraded"
   defp status_label(:unavailable), do: "Unavailable"

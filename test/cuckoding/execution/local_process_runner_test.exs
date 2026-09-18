@@ -126,6 +126,21 @@ defmodule Cuckoding.Execution.LocalProcessRunnerTest do
     assert Enum.any?(events, &(&1.event_type == "process.signal"))
   end
 
+  test "noninteractive commands receive stdin EOF", fixture do
+    assert {:ok, result} =
+             LocalProcessRunner.exec(
+               fixture.environment,
+               %{
+                 executable: "/usr/bin/ruby",
+                 args: ["-e", "puts STDIN.read.empty?"]
+               },
+               timeout: 2_000
+             )
+
+    assert result.exit_status == 0
+    assert result.output == "true\n"
+  end
+
   test "refuses to signal a reused PID identity", fixture do
     assert {:ok, handle} =
              LocalProcessRunner.start(

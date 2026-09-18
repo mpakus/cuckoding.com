@@ -160,7 +160,7 @@ defmodule Cuckoding.Execution.LocalProcessWorker do
   alias Cuckoding.Security.Redactor
 
   @ruby "/usr/bin/ruby"
-  @shim "STDOUT.sync=true; STDERR.reopen(STDOUT); sleep 0.05; exec(*ARGV)"
+  @shim "STDIN.reopen(File::NULL); STDOUT.sync=true; STDERR.reopen(STDOUT); sleep 0.05; exec(*ARGV)"
   @safe_path "/usr/bin:/bin:/usr/sbin:/sbin"
   @base_keys ~w(PATH HOME LANG LC_ALL TZ PORT)
   @sensitive ~r/(AUTH|COOKIE|CREDENTIAL|KEY|PASSWORD|SECRET|TOKEN)/i

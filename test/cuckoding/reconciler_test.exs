@@ -11,6 +11,7 @@ defmodule Cuckoding.ReconcilerTest do
   alias Cuckoding.Execution.Run
   alias Cuckoding.Execution.RunEvent
   alias Cuckoding.Execution.StageAttempt
+  alias Cuckoding.Execution.UnavailableRecoveryInspector
   alias Cuckoding.FakeRecoveryInspector
   alias Cuckoding.Projects
   alias Cuckoding.Workflows
@@ -124,7 +125,12 @@ defmodule Cuckoding.ReconcilerTest do
     fixture = running_fixture()
 
     assert {:ok, %{decisions: [{:ok, command}]}} =
-             Reconciler.run(now: @now, cycle_id: "unavailable", run_ids: [fixture.run.id])
+             Reconciler.run(
+               now: @now,
+               cycle_id: "unavailable",
+               run_ids: [fixture.run.id],
+               inspector: UnavailableRecoveryInspector
+             )
 
     assert command.result["outcome"] == "block"
     assert command.result["reasons"] == ["worktree_unverified"]

@@ -213,7 +213,8 @@ defmodule Cuckoding.Adapters.Codex do
          true <- Keyword.get(options, :run_scoped_authenticated?, false),
          :ok <- valid_model(request.requested_model),
          :ok <- valid_resume_session(options),
-         :ok <- config_ready(request) do
+         :ok <- config_ready(request),
+         {:ok, timeout} <- wall_timeout(request.grant) do
       home = Path.join([request.run_dir, "agent", "codex", "home"])
 
       {:ok,
@@ -224,7 +225,8 @@ defmodule Cuckoding.Adapters.Codex do
            role: "agent:codex"
          },
          environment: %{"CODEX_HOME" => home},
-         environment_allowlist: ["CODEX_HOME"]
+         environment_allowlist: ["CODEX_HOME"],
+         timeout: timeout
        }}
     else
       false -> error(:run_scoped_auth_required, :authentication, false)
@@ -241,6 +243,7 @@ defmodule Cuckoding.Adapters.Codex do
       case runner.start(environment, spec.command,
              env: spec.environment,
              environment_allowlist: spec.environment_allowlist,
+             timeout: spec.timeout,
              redact: Keyword.get(options, :redact, [])
            ) do
         {:ok, handle} -> {:ok, %{runner: runner, handle: handle, launch: spec}}
@@ -348,6 +351,13 @@ defmodule Cuckoding.Adapters.Codex do
 
       _other ->
         {:error, :invalid_session_id}
+    end
+  end
+
+  defp wall_timeout(grant) do
+    case get_in(grant, ["resource_limits", "wall_ms"]) do
+      timeout when is_integer(timeout) and timeout > 0 and timeout <= 86_400_000 -> {:ok, timeout}
+      _other -> {:error, :invalid_wall_time_limit}
     end
   end
 

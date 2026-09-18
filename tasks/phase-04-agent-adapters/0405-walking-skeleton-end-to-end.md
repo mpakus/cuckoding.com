@@ -1,7 +1,7 @@
 # 0405 — Walking Skeleton: One Task End to End
 
 ```yaml
-status: in_progress
+status: done
 owner: codex
 started_at: 2026-09-17
 worklog: worklog/2026-09-17-0405-walking-skeleton.md
@@ -30,12 +30,12 @@ Deliver the thinnest complete slice before building more infrastructure: create 
 ## Checklist
 
 - [x] One adapter, one board, host runner, no plugins.
-- [ ] Use the fake adapter in CI; real adapter in the demo.
+- [x] Use the fake adapter in CI; real adapter in the demo.
 - [x] Release handoff pushes to a local bare remote.
 
 ## Acceptance criteria
 
-- [ ] A real task completes end to end with evidence bundle and branch.
+- [x] A real task completes end to end with evidence bundle and branch.
 - [x] Sleep-gap simulation does not duplicate work.
 - [x] The team records a go/no-go on the product loop.
 
@@ -43,4 +43,4 @@ Deliver the thinnest complete slice before building more infrastructure: create 
 
 Attach the demo, evidence bundle, and go/no-go note to the worklog.
 
-Partial evidence merged by explicit stakeholder direction: the deterministic CI lane completes the full durable loop with real SQLite, worktree, commit, sleep/resume, LiveView confirmation, evidence files, and local bare push. The full repository gate passes 8 properties and 90 tests. The prepared isolated Codex demo remains at the real-provider gate while its run-scoped device login is pending; task status therefore remains `in_progress`. See the linked worklog and `docs/WALKING_SKELETON.md`.
+The deterministic CI lane and the isolated Codex demo both complete the durable loop. Real run `01a0b1e6-ae77-73d3-85cd-a368d5eed432` produced candidate `5c040f3bae8652f4cf57b9315b49debd164d4ca3`, owner-only evidence and release artifacts, a project-only knowledge candidate, visible two-step LiveView approval, and an exact non-force push to the local bare remote. The pushed SHA matches the candidate SHA. See the linked worklog and `docs/WALKING_SKELETON.md` for timings, surfaced failures, and the remaining agent-toolchain PATH follow-up.

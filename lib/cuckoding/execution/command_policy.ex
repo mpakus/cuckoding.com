@@ -249,13 +249,19 @@ defmodule Cuckoding.Execution.ProtectedPaths do
   @doc "Returns protected files changed since the environment's frozen base, including dirty files."
   def scan(%Environment{} = environment, configured_paths) do
     with {:ok, protected} <- normalize(configured_paths),
-         {:ok, root} <- repository_root(environment.worktree_path),
+         {:ok, changed} <- changed_paths(environment) do
+      {:ok, Enum.filter(changed, &protected?(&1, protected)) |> Enum.sort()}
+    end
+  end
+
+  @doc "Returns every committed, staged, unstaged, and untracked path for the run."
+  def changed_paths(%Environment{} = environment) do
+    with {:ok, root} <- repository_root(environment.worktree_path),
          {:ok, committed} <- diff_paths(root, [environment.base_sha, "HEAD"]),
          {:ok, unstaged} <- diff_paths(root, []),
          {:ok, staged} <- diff_paths(root, ["--cached"]),
          {:ok, untracked} <- untracked_paths(root) do
-      changed = Enum.uniq(committed ++ unstaged ++ staged ++ untracked)
-      {:ok, Enum.filter(changed, &protected?(&1, protected)) |> Enum.sort()}
+      {:ok, Enum.uniq(committed ++ unstaged ++ staged ++ untracked) |> Enum.sort()}
     end
   end
 

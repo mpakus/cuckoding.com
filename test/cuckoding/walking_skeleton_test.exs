@@ -12,6 +12,33 @@ defmodule Cuckoding.WalkingSkeletonTest do
 
   @git "/usr/bin/git"
 
+  defmodule FailingAdapter do
+    def start(_request, _options), do: {:error, :provider_failed}
+  end
+
+  defmodule CapturingAdapter do
+    def start(request, options) do
+      send(Keyword.fetch!(options, :caller), {:stage_request, request})
+      {:error, :captured}
+    end
+  end
+
+  defmodule PatchAdapter do
+    alias Cuckoding.Adapters.FakeAdapter
+
+    def start(%{stage_key: "development", worktree_path: worktree} = request, options) do
+      File.write!(Path.join(worktree, "PATCH.txt"), "created by adapter\n")
+      start_session(request, options)
+    end
+
+    def start(request, options), do: start_session(request, options)
+
+    defp start_session(request, options) do
+      with {:ok, session} <- FakeAdapter.start(request, options),
+           do: {:ok, %{session | adapter: "patch"}}
+    end
+  end
+
   setup do
     root =
       Path.join(System.tmp_dir!(), "cuckoding-walking-#{System.unique_integer([:positive])}")
@@ -141,6 +168,123 @@ defmodule Cuckoding.WalkingSkeletonTest do
     view |> element("#{selector} button", "Approve and push") |> render_click()
     assert render(view) =~ "Approved branch pushed to the local bare remote."
     refute has_element?(view, selector)
+  end
+
+  test "an approved release can retry after a failed host handoff", fixture do
+    assert {:ok, created} = WalkingSkeleton.create(fixture.attrs)
+    assert {:ok, pending} = WalkingSkeleton.run(created, simulate_sleep_gap: false)
+
+    dirty_path = Path.join(pending.environment.worktree_path, "UNTRACKED.txt")
+    File.write!(dirty_path, "blocks release\n")
+
+    assert {:error, :dirty_worktree} =
+             WalkingSkeleton.approve_and_release(pending.approval.id, "tester")
+
+    assert Repo.get!(Cuckoding.Workflows.Approval, pending.approval.id).decision == "approved"
+    assert Repo.get!(Cuckoding.Execution.Run, created.run.id).state == "running"
+
+    assert [%{attempt: 1, state: "failed"}] =
+             Repo.all(
+               from(attempt in StageAttempt,
+                 where:
+                   attempt.run_id == ^created.run.id and
+                     attempt.stage_key == "release_handoff",
+                 select: %{attempt: attempt.attempt, state: attempt.state}
+               )
+             )
+
+    assert [%{approval: %{id: approval_id}}] = WalkingSkeleton.pending_approvals()
+    assert approval_id == pending.approval.id
+
+    File.rm!(dirty_path)
+    assert {:ok, released} = WalkingSkeleton.approve_and_release(pending.approval.id, "tester")
+    assert released.run.state == "done"
+
+    assert [%{attempt: 1, state: "failed"}, %{attempt: 2, state: "succeeded"}] =
+             Repo.all(
+               from(attempt in StageAttempt,
+                 where:
+                   attempt.run_id == ^created.run.id and
+                     attempt.stage_key == "release_handoff",
+                 order_by: attempt.attempt,
+                 select: %{attempt: attempt.attempt, state: attempt.state}
+               )
+             )
+
+    approval_events =
+      Repo.aggregate(
+        from(event in RunEvent,
+          where: event.run_id == ^created.run.id and event.event_type == "approval.decided"
+        ),
+        :count
+      )
+
+    assert approval_events == 1
+  end
+
+  test "failed provider attempts remain durable and a retry gets a new ordinal", fixture do
+    assert {:ok, created} = WalkingSkeleton.create(fixture.attrs)
+
+    assert {:error, :provider_failed} =
+             WalkingSkeleton.run(created,
+               adapter: FailingAdapter,
+               simulate_sleep_gap: false
+             )
+
+    assert [%{attempt: 1, state: "failed"}] =
+             Repo.all(
+               from(attempt in StageAttempt,
+                 where:
+                   attempt.run_id == ^created.run.id and
+                     attempt.stage_key == "specification",
+                 select: %{attempt: attempt.attempt, state: attempt.state}
+               )
+             )
+
+    assert {:ok, _pending} = WalkingSkeleton.run(created, simulate_sleep_gap: false)
+
+    assert [%{attempt: 1, state: "failed"}, %{attempt: 2, state: "succeeded"}] =
+             Repo.all(
+               from(attempt in StageAttempt,
+                 where:
+                   attempt.run_id == ^created.run.id and
+                     attempt.stage_key == "specification",
+                 order_by: attempt.attempt,
+                 select: %{attempt: attempt.attempt, state: attempt.state}
+               )
+             )
+  end
+
+  test "real-provider response schema is a closed object", fixture do
+    assert {:ok, created} = WalkingSkeleton.create(fixture.attrs)
+
+    assert {:error, :captured} =
+             WalkingSkeleton.run(created,
+               adapter: CapturingAdapter,
+               adapter_options: [caller: self()]
+             )
+
+    assert_receive {:stage_request, request}
+    assert request.required_output_schema["additionalProperties"] == false
+    assert request.grant["approval_mode"] == "plan"
+  end
+
+  test "host commits a real adapter patch without granting Git metadata", fixture do
+    assert {:ok, created} = WalkingSkeleton.create(fixture.attrs)
+
+    assert {:ok, pending} =
+             WalkingSkeleton.run(created,
+               adapter: PatchAdapter,
+               simulate_sleep_gap: false
+             )
+
+    assert File.read!(Path.join(pending.environment.worktree_path, "PATCH.txt")) ==
+             "created by adapter\n"
+
+    assert git!(pending.environment.worktree_path, ["status", "--porcelain"]) == ""
+
+    assert git!(pending.environment.worktree_path, ["log", "-1", "--pretty=%s"]) ==
+             "feat: Ship the walking skeleton"
   end
 
   defp configure_identity!(repo) do

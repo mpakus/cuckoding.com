@@ -2,9 +2,9 @@
 
 ## Implemented loop
 
-`Cuckoding.WalkingSkeleton` creates one project, immutable policy and default-workflow snapshot, one board, five role assignments, one task, one run, and one owned worktree. It then runs specification, development, and QA through one adapter, creates owner-only evidence and project-scoped knowledge-candidate files, and stops in the durable `waiting` state for human approval.
+`Cuckoding.WalkingSkeleton` creates one project, immutable policy and default-workflow snapshot, one board, five role assignments, one task, one run, and one owned worktree. It then runs specification, development, and QA through one adapter, creates owner-only evidence and project-scoped knowledge-candidate files, and stops in the durable `waiting` state for human approval. Specification and QA use read-only provider grants. Development may leave a patch for the host Git service to validate and commit when the provider sandbox correctly denies access to the worktree's Git metadata.
 
-The status LiveView lists pending approvals. Release is a two-step keyboard-accessible action: **Review release**, then **Approve and push**. Approval is persisted before the system release stage calls `Cuckoding.Execution.LocalBareRemote`. That host-side VCS implementation accepts only an absolute existing local bare `origin`, a clean recorded candidate revision, an approval for the same run, and a non-force exact branch refspec. Merge remains outside the MVP workflow.
+The status LiveView lists pending approvals. Release is a two-step keyboard-accessible action: **Review release**, then **Approve and push**. Approval is persisted before the system release stage calls `Cuckoding.Execution.LocalBareRemote`. That host-side VCS implementation accepts only an absolute existing local bare `origin`, a clean recorded candidate revision, an approval for the same run, and a non-force exact branch refspec. If the handoff fails after approval, the attempt is durably failed and the approved release remains visible as **Retry release**; startup recovery can resume a waiting handoff without creating another approval decision. Merge remains outside the MVP workflow.
 
 The simulated sleep gap occurs while the specification attempt is active. The adapter checkpoint is persisted, the run hibernates, the worktree and policy marker are revalidated, and resume reuses the same attempt ID. The temporary preview-port lease used by the existing lifecycle is released before the stage continues.
 
@@ -24,9 +24,9 @@ Every file creation, stage transition, checkpoint, approval, candidate revision,
 
 | Current Phase 4 choice | What is real | Replacement owner |
 | --- | --- | --- |
-| `FakeAdapter` in CI | Database state, worktree, commit, sleep/resume lifecycle, evidence files, approval UI, and local Git push | Opt-in Codex or Claude Code demo after a run-scoped login is provisioned |
-| Deterministic `WALKING_SKELETON.md` change | Candidate confinement, explicit file staging, commit, SHA recording, and remote branch are real | A supported adapter creates and commits the requested project change |
-| Generated specification and QA summaries | Files, hashes, timing, event ordering, and approval gate are real | Typed provider output and later Phase 5 quality gates |
+| `FakeAdapter` in CI | Database state, worktree, commit, sleep/resume lifecycle, evidence files, approval UI, and local Git push | Retain as the deterministic regression lane; the opt-in Codex lane is now demonstrated |
+| Deterministic `WALKING_SKELETON.md` CI change | Candidate confinement, explicit file staging, commit, SHA recording, and remote branch are real | The real demo generated `Greeting.hello/1` and tests; the host committed the confined patch |
+| Provider specification and QA output | Typed provider output, files, hashes, measured timing, event ordering, and approval gate are real in the demo | Phase 5 adds configurable quality-gate policy and richer review surfaces |
 | Plain knowledge candidate | Owner-only Markdown and project scope are real | Phase 7 review, index, provenance, publication, and usage tracking |
 | Local bare `origin` | Approval-gated, idempotent non-force push is real | Phase 5 `VcsHost` plugin and draft-PR support |
 
@@ -53,6 +53,12 @@ Open `http://127.0.0.1:4000`, review the pending item, confirm the release, and 
 
 For an opt-in real provider run, set `adapter_key` during `create/1`, pass the matching adapter module to `run/2`, disable the fake-only sleep simulation, and supply only verified run-scoped authentication options. Global provider credentials must not be copied into the run directory.
 
+## Real-provider checkpoint
+
+On 2026-09-17, Codex `0.146.0` authenticated inside the run-scoped home and completed run `01a0b1e6-ae77-73d3-85cd-a368d5eed432`. The three successful provider stages measured 25,462 ms, 46,781 ms, and 42,312 ms. The host committed candidate `5c040f3bae8652f4cf57b9315b49debd164d4ca3`; the browser approval pushed that exact SHA to `feature/walking-01a0b1e6` in the local bare remote. `evidence.json` has SHA-256 `056a1fc184f45c3de94471786ddeee8465309e682c902ffb85c9eb25380022a0`, and `release.json` has SHA-256 `a9dd4019064082e7207f2cef72eecdcc32380b78e63e01071a52e7d764d9dbab`. Both files were verified mode `0600`.
+
+The run exposed five failed specification attempts before the successful retry: an unapplied local migration, delayed stdin EOF, a provider schema incompatibility, correctly protected Git metadata, and an adapter timeout that ignored its declared wall limit. Each failure remained durable and led to the narrow fixes documented in the worklog. The provider's safe PATH did not contain Mix, so the host independently ran the generated fixture's explicit-file formatter check and two-test suite. Run-scoped toolchain resolution remains a Phase 5 runner follow-up, not hidden demo evidence.
+
 ## Product judgment
 
-**Conditional GO.** The loop is useful enough to continue: one action surface exposes durable progress, a recoverable pause boundary, evidence, and a clearly human-controlled release. The condition is intentional and release-blocking for task 0405 completion: repeat the same loop with a supported real adapter using isolated authentication. Fixture conformance and the deterministic CI adapter are not relabeled as that real-provider evidence.
+**GO.** The real-provider checkpoint confirms that the loop is valuable enough to continue: one action surface exposes durable progress, recoverable provider and release failures, evidence, a host-owned candidate revision, and a clearly human-controlled release. Phase 5 should keep the existing boundaries and close the recorded toolchain-resolution gap instead of widening the walking skeleton.

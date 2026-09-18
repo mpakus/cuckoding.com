@@ -14,6 +14,7 @@ defmodule Cuckoding.WalkingSkeleton do
   alias Cuckoding.Execution.LocalBareRemote
   alias Cuckoding.Execution.LocalProcessRunner
   alias Cuckoding.Execution.PortAllocator
+  alias Cuckoding.Execution.ProtectedPaths
   alias Cuckoding.Execution.Run
   alias Cuckoding.Execution.StageAttempt
   alias Cuckoding.Projects
@@ -128,7 +129,9 @@ defmodule Cuckoding.WalkingSkeleton do
         on: run.id == approval.run_id,
         join: task in Task,
         on: task.id == run.task_id,
-        where: approval.decision == "pending" and run.state == "waiting",
+        where:
+          (approval.decision == "pending" and run.state == "waiting") or
+            (approval.decision == "approved" and run.state in ["running", "waiting"]),
         order_by: [asc: approval.inserted_at],
         select: %{approval: approval, run: run, task: task}
       )
@@ -141,7 +144,17 @@ defmodule Cuckoding.WalkingSkeleton do
          %Run{} = run <- Repo.get(Run, approval.run_id),
          %Environment{} = environment <- Repo.get_by(Environment, run_id: run.id),
          %StageAttempt{} = human_attempt <- Repo.get(StageAttempt, approval.stage_attempt_id),
-         {:ok, approved} <-
+         {:ok, approved} <- approve_or_resume(approval, run, human_attempt, actor),
+         {:ok, release_attempt} <- release_attempt(run) do
+      release(run, environment, approved, release_attempt)
+    else
+      nil -> {:error, :approval_not_found}
+      error -> error
+    end
+  end
+
+  defp approve_or_resume(%Approval{decision: "pending"} = approval, run, human_attempt, actor) do
+    with {:ok, approved} <-
            Workflows.decide_approval(approval.id, "approved", actor, "Approved in local UI"),
          {:ok, _resumed} <-
            Execution.transition_stage_attempt(
@@ -157,21 +170,69 @@ defmodule Cuckoding.WalkingSkeleton do
            ),
          {:ok, running} <-
            Execution.transition_run(run.id, "running", "walking:#{run.id}:release-running"),
-         true <- running.result["outcome"] == "transitioned",
-         {:ok, release_attempt} <- stage_attempt(run, "release_handoff", "release", "system"),
-         {:ok, handoff} <-
-           LocalBareRemote.handoff(
-             environment,
-             approved,
-             "walking:#{run.id}:release-handoff"
-           ),
-         {:ok, _completed} <-
+         true <- running.result["outcome"] == "transitioned" do
+      {:ok, approved}
+    else
+      false -> {:error, :transition_rejected}
+      error -> error
+    end
+  end
+
+  defp approve_or_resume(
+         %Approval{decision: "approved"} = approval,
+         %Run{state: state} = run,
+         %StageAttempt{state: "succeeded"},
+         _actor
+       )
+       when state in ["running", "waiting"] do
+    if state == "waiting" do
+      attempt = latest_release_attempt(run)
+
+      with %StageAttempt{} <- attempt,
+           {:ok, command} <-
+             Execution.transition_run(
+               run.id,
+               "running",
+               "walking:#{run.id}:release-retry:#{attempt.id}"
+             ),
+           true <- command.result["outcome"] == "transitioned" do
+        {:ok, approval}
+      else
+        nil -> {:error, :release_attempt_not_found}
+        false -> {:error, :transition_rejected}
+        error -> error
+      end
+    else
+      {:ok, approval}
+    end
+  end
+
+  defp approve_or_resume(%Approval{}, _run, _human_attempt, _actor),
+    do: {:error, :release_not_retryable}
+
+  defp release(run, environment, approved, release_attempt) do
+    case LocalBareRemote.handoff(
+           environment,
+           approved,
+           "walking:#{run.id}:release-handoff"
+         ) do
+      {:ok, handoff} ->
+        finalize_release(run, environment, approved, release_attempt, handoff)
+
+      {:error, reason} ->
+        fail_stage_attempt(release_attempt, reason)
+    end
+  end
+
+  defp finalize_release(run, environment, approved, release_attempt, handoff) do
+    with {:ok, _stage_command} <-
            Execution.transition_stage_attempt(
              release_attempt.id,
              "succeeded",
              "walking:#{release_attempt.id}:succeeded"
            ),
-         {:ok, done} <- Execution.transition_run(run.id, "done", "walking:#{run.id}:done"),
+         {:ok, done} <-
+           Execution.transition_run(run.id, "done", "walking:#{run.id}:done"),
          true <- done.result["outcome"] == "transitioned",
          {:ok, release_artifact} <- write_release_artifact(environment, handoff.result) do
       {:ok,
@@ -183,18 +244,62 @@ defmodule Cuckoding.WalkingSkeleton do
          release_artifact: release_artifact
        }}
     else
-      nil -> {:error, :approval_not_found}
       false -> {:error, :transition_rejected}
       error -> error
     end
   end
 
-  defp run_stage(skeleton, stage_key, role_key, adapter, options) do
-    started = System.monotonic_time(:millisecond)
+  defp release_attempt(run) do
+    case latest_release_attempt(run) do
+      %StageAttempt{state: "running"} = attempt ->
+        {:ok, attempt}
 
-    with {:ok, attempt} <- stage_attempt(skeleton.run, stage_key, role_key, "agent"),
-         request = request(skeleton, attempt, stage_key, options),
-         {:ok, session} <- adapter.start(request, adapter_options(skeleton.environment, options)),
+      %StageAttempt{state: "waiting"} = attempt ->
+        with {:ok, command} <-
+               Execution.transition_stage_attempt(
+                 attempt.id,
+                 "running",
+                 "walking:#{attempt.id}:release-retry"
+               ),
+             true <- command.result["outcome"] == "transitioned" do
+          {:ok, Repo.get!(StageAttempt, attempt.id)}
+        else
+          false -> {:error, :transition_rejected}
+          error -> error
+        end
+
+      nil ->
+        stage_attempt(run, "release_handoff", "release", "system")
+
+      %StageAttempt{} ->
+        stage_attempt(run, "release_handoff", "release", "system")
+    end
+  end
+
+  defp latest_release_attempt(run) do
+    Repo.one(
+      from(attempt in StageAttempt,
+        where: attempt.run_id == ^run.id and attempt.stage_key == "release_handoff",
+        order_by: [desc: attempt.attempt],
+        limit: 1
+      )
+    )
+  end
+
+  defp run_stage(skeleton, stage_key, role_key, adapter, options) do
+    with {:ok, attempt} <- stage_attempt(skeleton.run, stage_key, role_key, "agent") do
+      case run_stage_attempt(skeleton, attempt, stage_key, adapter, options) do
+        {:ok, result} -> {:ok, result}
+        {:error, reason} -> fail_stage_attempt(attempt, reason)
+      end
+    end
+  end
+
+  defp run_stage_attempt(skeleton, attempt, stage_key, adapter, options) do
+    started = System.monotonic_time(:millisecond)
+    request = request(skeleton, attempt, stage_key, options)
+
+    with {:ok, session} <- adapter.start(request, adapter_options(skeleton.environment, options)),
          {:ok, stored} <- store_session(attempt, session, options),
          {:ok, environment, session} <-
            maybe_sleep_gap(
@@ -228,6 +333,20 @@ defmodule Cuckoding.WalkingSkeleton do
          command: completed,
          environment: environment
        }}
+    end
+  end
+
+  defp fail_stage_attempt(attempt, reason) do
+    case Execution.transition_stage_attempt(
+           attempt.id,
+           "failed",
+           "walking:#{attempt.id}:failed"
+         ) do
+      {:ok, _command} ->
+        {:error, reason}
+
+      {:error, transition_reason} ->
+        {:error, {:stage_failure_persist_failed, reason, transition_reason}}
     end
   end
 
@@ -267,8 +386,20 @@ defmodule Cuckoding.WalkingSkeleton do
     action.(environment)
   end
 
-  defp candidate(_stage, environment, _adapter, _task, _options),
+  defp candidate(_stage, environment, _adapter, task, _options) do
+    with {:ok, inspection} <- GitService.inspect(environment) do
+      candidate(inspection, environment, task)
+    end
+  end
+
+  defp candidate(%{clean?: true}, environment, _task),
     do: GitService.record_candidate(environment)
+
+  defp candidate(_inspection, environment, task) do
+    with {:ok, paths} <- ProtectedPaths.changed_paths(environment) do
+      GitService.commit_candidate(environment, paths, "feat: #{task.title}")
+    end
+  end
 
   defp fake_implementation(environment, task) do
     path = Path.join(environment.worktree_path, "WALKING_SKELETON.md")
@@ -296,11 +427,21 @@ defmodule Cuckoding.WalkingSkeleton do
   end
 
   defp stage_attempt(run, stage_key, role_key, role_kind) do
+    attempt_number =
+      Repo.one(
+        from(attempt in StageAttempt,
+          where: attempt.run_id == ^run.id and attempt.stage_key == ^stage_key,
+          select: max(attempt.attempt)
+        )
+      )
+      |> Kernel.||(0)
+      |> Kernel.+(1)
+
     with {:ok, attempt} <-
            Execution.create_stage_attempt(%{
              run_id: run.id,
              stage_key: stage_key,
-             attempt: 1,
+             attempt: attempt_number,
              role_key: role_key,
              role_kind: role_kind
            }),
@@ -333,7 +474,7 @@ defmodule Cuckoding.WalkingSkeleton do
       grant: %{
         "tools" => ["read", "write", "shell"],
         "deny_tools" => ["network"],
-        "approval_mode" => if(stage_key == "qa", do: "plan", else: "default"),
+        "approval_mode" => if(stage_key in ["specification", "qa"], do: "plan", else: "default"),
         "paths" => [skeleton.environment.worktree_path],
         "network" => "deny",
         "resource_limits" => %{"wall_ms" => 300_000}
@@ -342,7 +483,8 @@ defmodule Cuckoding.WalkingSkeleton do
       required_output_schema: %{
         "type" => "object",
         "properties" => %{"summary" => %{"type" => "string"}},
-        "required" => ["summary"]
+        "required" => ["summary"],
+        "additionalProperties" => false
       },
       correlation_id: Cuckoding.Identifier.generate(),
       idempotency_key: "walking:#{attempt.id}:adapter"
@@ -529,9 +671,17 @@ defmodule Cuckoding.WalkingSkeleton do
     end)
   end
 
-  defp objective("specification", task), do: "Write a testable specification for: #{task.title}"
-  defp objective("development", task), do: "Implement and commit: #{task.title}"
-  defp objective("qa", task), do: "Review and test the candidate for: #{task.title}"
+  defp objective("specification", task) do
+    "Inspect only; do not change files or commit. Describe a testable specification for: #{task.title}"
+  end
+
+  defp objective("development", task) do
+    "Implement and test: #{task.title}. Leave the changes uncommitted for the host VCS service."
+  end
+
+  defp objective("qa", task) do
+    "Inspect and test only; do not change files or commit. Review the candidate for: #{task.title}"
+  end
 
   defp specification(task) do
     "# Specification\n\n## Objective\n\n#{task.title}\n\n## Acceptance\n\n- The candidate branch contains the requested change.\n- QA records a passing result.\n"

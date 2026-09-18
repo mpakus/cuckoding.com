@@ -123,6 +123,7 @@ defmodule Cuckoding.Adapters.CodexTest do
     assert "features.hooks=false" in spec.command.args
     assert request.worktree_path in spec.command.args
     assert spec.environment["CODEX_HOME"] == Path.join(root, "home")
+    assert spec.timeout == 60_000
     refute "--dangerously-bypass-approvals-and-sandbox" in spec.command.args
 
     assert {:error, %Types.Error{code: :run_scoped_auth_required}} =
@@ -137,6 +138,14 @@ defmodule Cuckoding.Adapters.CodexTest do
 
     assert {:error, %Types.Error{code: :plugins_unsupported}} =
              Codex.render_config(%{request | plugins: [%{"kind" => "mcp"}]}, [])
+
+    invalid_limit = put_in(request.grant, ["resource_limits", "wall_ms"], 0)
+
+    assert {:error, %Types.Error{code: :invalid_wall_time_limit}} =
+             Codex.launch_spec(%{request | grant: invalid_limit},
+               path: executable,
+               run_scoped_authenticated?: true
+             )
   end
 
   test "refuses a symlinked run configuration directory", %{request: request} do
@@ -165,6 +174,7 @@ defmodule Cuckoding.Adapters.CodexTest do
     assert {:ok, session} = Codex.start(request, options)
     assert session.requested_model == "gpt-5.6-sol"
     assert session.process.runner == FakeRunner
+    assert elem(session.process.handle, 2)[:timeout] == 60_000
 
     assert {:error, %Types.Error{code: :follow_up_requires_resume}} =
              Codex.send(session, %{"summary" => "Continue"}, [])

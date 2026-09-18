@@ -4,7 +4,8 @@ config :cuckoding,
   clock: Cuckoding.SystemClock,
   command_handler: Cuckoding.Execution.UnconfiguredCommandHandler,
   environment: config_env(),
-  ecto_repos: [Cuckoding.Repo]
+  ecto_repos: [Cuckoding.Repo],
+  recovery_inspector: Cuckoding.Execution.LocalHostInspector
 
 config :cuckoding, :power_manager,
   enabled: true,
