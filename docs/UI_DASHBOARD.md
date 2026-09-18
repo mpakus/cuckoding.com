@@ -28,6 +28,15 @@ A live view of who is doing what.
 
 Lanes can be grouped by role (default), by runtime, or by project.
 
+The Phase 6 MVP implements this surface at `/agents` from durable agent-session,
+attempt, run, task, board, and project records. It caps the projection at 100
+cards, keeps current resource, cost, activity, attention, and handoff context on
+each card, and provides native links to the run and agent inspectors. PubSub
+hints are coalesced into one refresh per 250 milliseconds. A semantic table
+contains the same 100-session projection. Mutating lifecycle controls are not
+shown unless the application can supply their live ownership handles; inspect
+remains the safe control for every recorded session.
+
 ### Project workspace
 
 - Project status, repository folder, base branch, configuration revision, runner (host, with limitation notice), plugins in use, tool health.
@@ -54,9 +63,21 @@ The Phase 5 MVP board currently renders durable task lifecycle states as semanti
 - Plugins active for each stage and their labeled contribution (for example "RTK: ≈ 41% shell output reduction, estimated").
 - Pause, resume, hibernate, retry, stop controls governed by current state.
 
+The Phase 6 MVP route `/runs/:id` renders the durable timeline, public activity,
+preview state, direct regular-file artifacts, findings, usage and cost
+provenance, measured resource history, captured plugin keys, and labeled plugin
+optimization claims. The knowledge panel is an explicit Phase 7 placeholder.
+Resource history uses native progress elements plus a complete table; periodic
+metric refreshes run every five seconds and committed activity hints are
+coalesced separately.
+
 ### Agent inspector
 
 Role and granted permissions (as configured on the runtime), adapter and runtime version, requested and observed model, session identifiers with redaction, current stage, last heartbeat, process group and lease, usage, cost, tool activity, errors, resume capability.
+
+The Phase 6 MVP route `/agents/:id` shows only public durable identifiers and
+grant keys, never grant values or provider payloads. It attributes process
+records, resource samples, usage, and public activity to the selected session.
 
 ### Knowledge Growth
 

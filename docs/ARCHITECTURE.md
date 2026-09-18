@@ -43,6 +43,16 @@ flowchart TD
 - Uses WAL mode, foreign keys, a busy timeout, and short transactions.
 - Is authoritative for business state; in-memory processes cache or execute work only.
 
+### Agent Floor read model
+
+`Cuckoding.AgentFloor` is a read-only projection over the durable execution,
+workflow, telemetry, and project tables. It serves `/agents`, `/runs/:id`, and
+`/agents/:id` without becoming another source of truth. The floor uses a bounded
+base query plus fixed related queries rather than per-card reads, and detail
+views bound activity, metrics, usage, optimization, process, and artifact lists.
+LiveViews treat PubSub messages as refresh hints, coalesce bursts, and reload
+committed rows; periodic resource refresh never infers workflow state.
+
 ### Runner bridge
 
 `RunnerBridge` separates orchestration from execution location. Required operations: prepare, start, exec, pause, hibernate, resume, inspect, stream events, allocate/release ports, and destroy. The MVP implementation is `LocalProcessRunner` (`docs/EXECUTION_ENVIRONMENTS.md`). Container runners (Docker, OrbStack, Colima, Apple Containers) and remote runners implement the same behaviour as plugins later.

@@ -32,6 +32,9 @@ defmodule CuckodingWeb.Router do
   scope "/", CuckodingWeb do
     pipe_through :browser
     live "/", StatusLive, :index
+    live "/agents", AgentFloorLive, :index
+    live "/agents/:id", AgentLive, :show
+    live "/runs/:id", RunLive, :show
     live "/boards/:id", BoardLive, :show
     live "/boards/:board_id/tasks/:id", TaskLive, :show
   end

@@ -69,7 +69,7 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 - [x] Normalized activity stream.
 - [x] Host resource metrics and rollups.
 - [x] Usage and cost accounting with confidence labels.
-- [ ] Agent Floor, run detail, agent inspector.
+- [x] Agent Floor, run detail, agent inspector.
 
 ## Phase 7 — Knowledge
 
