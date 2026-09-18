@@ -2,7 +2,14 @@
 
 ## Objective
 
-Implement the Markdown knowledge layout, front-matter schema, SQLite mirror (`knowledge_items`), hash verification, user-edit detection, and project/global scopes..
+Implement the Markdown knowledge layout, front-matter schema, SQLite mirror (`knowledge_items`), hash verification, user-edit detection, and project/global scopes.
+
+```yaml
+status: done
+owner: codex
+started_at: 2026-09-17
+worklog: worklog/2026-09-17-0701-knowledge-store.md
+```
 
 ## Dependencies
 
@@ -20,14 +27,14 @@ Implement the Markdown knowledge layout, front-matter schema, SQLite mirror (`kn
 
 ## Checklist
 
-- [ ] File is the content; index mirrors front matter.
-- [ ] Mismatch flagged, never silently resolved.
+- [x] File is the content; index mirrors front matter.
+- [x] Mismatch flagged, never silently resolved.
 
 ## Acceptance criteria
 
-- [ ] Sync round-trips fixtures without loss.
-- [ ] Cross-project retrieval is refused.
+- [x] Sync round-trips fixtures without loss.
+- [x] Cross-project retrieval is refused.
 
 ## Verification and evidence
 
-Run parser, sync, and scope tests.
+`rtk mix test test/cuckoding/knowledge/store_test.exs` passes six parser, sync, edit-detection, symlink, scope, and exact-byte tests. A fresh disposable test database applies the migration cleanly. Final `rtk mix quality` passes 10 properties and 139 tests plus formatter, warnings-as-errors compilation, Credo, Sobelow, and dependency audit.

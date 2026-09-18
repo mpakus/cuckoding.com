@@ -90,7 +90,7 @@ erDiagram
 
 | Table | Important fields | Notes |
 | --- | --- | --- |
-| `knowledge_items` | `scope`, `project_id?`, `kind`, `title`, `file_path`, `content_hash`, `status`, `version`, `confidence`, `valid_from`, `invalid_at`, `supersedes_id`, `triggers_json`, `evidence_json`, `produced_by_json`, `reviewed_by`, `reviewed_at` | Mirror of Markdown front matter; file is the content |
+| `knowledge_items` | `scope`, `project_id?`, `kind`, `title`, `file_path`, `content_hash`, `observed_hash?`, `sync_state`, `revision_source`, `status`, `version`, `confidence`, `valid_from`, `invalid_at`, `supersedes_id`, `triggers_json`, `evidence_json`, `produced_by_json`, `review_json`, `reviewed_by`, `reviewed_at` | Mirror of Markdown front matter; file is the content; observed mismatch never overwrites accepted metadata |
 | `knowledge_candidates` | `extraction_job_id`, `project_id`, `kind`, `operation` (`add` / `update` / `supersede` / `noop`), `target_item_id?`, `title`, `content`, `confidence`, `evidence_json`, `redaction_state`, `decision` | Reviewed before becoming items |
 | `knowledge_jobs` | `kind` (`extract` / `consolidate` / `publish`), `scope_type`, `scope_id`, `state`, `runtime`, `policy_version`, `input_budget`, `started_at`, `finished_at`, `summary_json` | Non-destructive, resumable |
 | `knowledge_usages` | `knowledge_item_id`, `item_version`, `run_id`, `stage_attempt_id`, `kind` (`injected` / `retrieved` / `cited` / `accepted` / `contradicted`), `evidence_json`, `occurred_at` | Feeds lineage and usage views |

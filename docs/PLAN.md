@@ -75,7 +75,7 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 
 **Outcome:** evidence becomes reviewed project and global knowledge and skills; use is visible.
 
-- [ ] Knowledge store, front matter, index sync.
+- [x] Knowledge store, front matter, index sync.
 - [ ] Per-run extraction with memory operations.
 - [ ] Consolidation jobs and redaction.
 - [ ] Review queue, publication, skill packaging, revocation.

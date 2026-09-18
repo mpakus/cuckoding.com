@@ -499,6 +499,16 @@ end
 
 defmodule Cuckoding.Knowledge do
   @moduledoc "Owns project knowledge, provenance, review, publication, and retrieval records."
+
+  alias Cuckoding.Knowledge.Store
+  alias Cuckoding.Knowledge.Sync
+
+  defdelegate ensure_project_layout(project), to: Store
+  defdelegate ensure_global_layout(options \\ []), to: Store
+  defdelegate sync_project(project), to: Sync, as: :run_project
+  defdelegate sync_global(options \\ []), to: Sync, as: :run_global
+  defdelegate read_for_project(project_id, item_id, options \\ []), to: Store
+  defdelegate accept_user_edit(project, item_id), to: Store
 end
 
 defmodule Cuckoding.Power do

@@ -38,6 +38,18 @@ Conclusion: file-based, human-readable knowledge with an indexed provenance laye
 
 Every file has front matter: `id`, `kind`, `title`, `scope`, `status` (`candidate | project | global | superseded | revoked`), `version`, `confidence`, `valid_from`, `invalid_at`, `supersedes`, `evidence` (run/stage/artifact/event IDs and repository SHAs), `produced_by` (runtime, model, policy version), `triggers` (when to retrieve), `review` (approver, date). SQLite mirrors the front matter in `knowledge_items` and links usage in `knowledge_usages`; the files remain the human-readable truth and can be edited by hand, after which the index re-syncs and marks the edit as a user revision.
 
+The Phase 7 store baseline accepts only bounded regular Markdown files in the
+declared kind directory, rejects symlinks, duplicate/unknown fields, invalid
+UUIDs and timestamps, incomplete provenance, and inconsistent scope/status.
+Confidence is numeric from `0.0` through `1.0`. A new file is indexed as a user
+revision. A later hash mismatch records `modified` and the observed hash while
+retaining the previously accepted metadata and hash. The user must explicitly
+accept a matching-ID, matching-scope edit with a higher version; same-version
+changes remain flagged. Missing and invalid files remain visible in the mirror.
+Project retrieval checks the owning project before reading any path. Global
+items require a human review in front matter and an explicit per-call opt-in;
+task 0705 will bind that opt-in to the run capability and project policy.
+
 ## Pipeline
 
 ```mermaid

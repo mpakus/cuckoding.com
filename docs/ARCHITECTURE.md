@@ -83,6 +83,14 @@ Discovers, validates, enables, and health-checks connectors described by manifes
 
 Owns knowledge files, the SQLite index, per-run extraction, consolidation jobs, the review queue, publication, skill packaging, injection into runtimes, and usage tracking (`docs/KNOWLEDGE_COMPRESSION.md`). A knowledge backend plugin may add semantic retrieval; without one, retrieval is file- and index-based.
 
+The implemented store treats the exact Markdown bytes as content truth and
+uses `knowledge_items` only as a validated, scope-bound mirror. Sync records
+observed hashes and `synced`, `modified`, `missing`, or `invalid` state; it does
+not silently accept a hand edit. Project roots are derived from the registered
+repository and checked for symlinks and confinement. Project ownership is
+authorized before the file path is resolved, while global reads require an
+explicit opt-in.
+
 ### Power manager
 
 Holds a power assertion while runs are active, detects sleep gaps, and drives reconciliation of heartbeats, sessions, and leases after wake (`docs/LONG_RUNNING_AND_POWER.md`).
