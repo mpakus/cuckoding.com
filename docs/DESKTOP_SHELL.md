@@ -19,10 +19,11 @@ Burrito and elixir-desktop are not alternatives to each other: one packages, the
 
 Primary: **Tauri 2 in tray-only mode**, confirmed by task 0003 on 2026-09-17. Fallbacks remain documented so the boundary stays stable: Swift/AppKit shell if the Rust toolchain is unwanted, elixir-desktop if native code is unwanted. The Phoenix side never depends on which shell is used; the shell contract below is the only interface. Measured evidence and remaining signing gates are in `docs/MENUBAR_SHELL_SPIKE.md`.
 
-The production shell is under `desktop/`. `rtk proxy sh desktop/build.sh`
-builds the Phoenix release, runs the pinned Rust checks, creates the local
-unsigned `.app`, and executes the sterile-environment protocol verifier.
-Signing, notarization, and distribution policy are in `docs/DISTRIBUTION.md`.
+The production shell is under `desktop/`. Developers run
+`rtk ./bin/dev.build`, which delegates to `desktop/build.sh`, builds the Phoenix
+release, runs the pinned Rust checks, creates the local unsigned `.app`, and
+executes the sterile-environment protocol verifier. Signing, notarization, and
+distribution policy are in `docs/DISTRIBUTION.md`.
 
 ## Shell contract
 

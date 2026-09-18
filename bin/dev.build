@@ -1,0 +1,9 @@
+#!/bin/sh
+set -eu
+
+script_dir=${0%/*}
+root_dir=$(CDPATH= cd -- "$script_dir/.." && pwd)
+app="$root_dir/desktop/src-tauri/target/release/bundle/macos/Cuckoding.app"
+
+rtk proxy sh "$root_dir/desktop/build.sh"
+printf 'Developer build: %s\n' "$app"

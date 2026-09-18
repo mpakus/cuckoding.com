@@ -29,6 +29,22 @@ rtk mix phx.server
 
 `mix setup` fetches dependencies, installs the pinned Tailwind and esbuild binaries, and builds assets. `mix quality` runs the formatter check, warnings-as-errors compilation, tests, Credo, Sobelow, and the Hex retirement audit. The server listens only on `127.0.0.1:4000`; open `http://127.0.0.1:4000`.
 
+## Developer application build
+
+On Apple Silicon macOS, create the unsigned application used for local testing:
+
+```sh
+rtk ./bin/dev.build
+```
+
+The entrypoint delegates to the one existing desktop build pipeline. It builds
+the production Phoenix release, runs the release-metadata and pinned Rust
+checks, bundles the Tauri application, and runs the sterile shell verifier. The
+verified application is written to
+`desktop/src-tauri/target/release/bundle/macos/Cuckoding.app`. This command does
+not Developer ID sign, notarize, or create distributable update artifacts; use
+`desktop/release.sh` only for an authorized release.
+
 ## Guided first run
 
 The dashboard's **Start a project** form is the user-facing path into the

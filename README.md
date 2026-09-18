@@ -2,9 +2,27 @@
 
 Cuckoding is a local-first macOS control plane for orchestrating coding agents across durable, auditable software-development workflows. A developer connects a repository, creates one or more boards, assigns roles such as spec writer, implementer, and reviewer to installed agent runtimes, watches the work move through gates on a visual dashboard, and receives a Git branch ready for human review. Completed work is compressed into reviewed, reusable project knowledge and skills that later runs can use.
 
-Implementation is underway from the reviewed v2 planning pack. The current foundation is a loopback-only Phoenix LiveView application; durable SQLite workflows, host runners, agent adapters, and the native shell arrive in the ordered tasks under `tasks/`.
+Implementation has reached controlled-beta preparation. The repository includes
+the loopback-only Phoenix LiveView control plane, durable SQLite workflows,
+host runner, supported Codex and Claude Code adapters, plugin and knowledge
+boundaries, and the verified native macOS shell. Remaining beta evidence is
+tracked in `docs/BETA_REPORT.md` and the ordered tasks under `tasks/`.
 
-For a clean local bootstrap, pinned versions, quality gates, and runtime endpoints, see `docs/DEVELOPMENT.md`.
+For a clean local bootstrap, pinned versions, quality gates, runtime endpoints,
+and the verified developer application build, see `docs/DEVELOPMENT.md`.
+
+## Developer build
+
+On Apple Silicon macOS, build the unsigned local application and run its full
+sterile launch/update verification with:
+
+```sh
+rtk ./bin/dev.build
+```
+
+The resulting application is
+`desktop/src-tauri/target/release/bundle/macos/Cuckoding.app`. This developer
+artifact is for local testing; it is not Developer ID signed or notarized.
 
 ## What changed in v2
 
@@ -19,7 +37,7 @@ See `CHANGES.md`. In short: no Docker in the MVP, agents and commands run on the
 - Turn completed-project evidence into approved, reusable knowledge without silently contaminating future projects — and show how that knowledge is used.
 - Keep human approval at trust boundaries: configuration changes, destructive operations, knowledge publication, and merge/release.
 
-## Proposed stack
+## Stack
 
 - Elixir/OTP and Phoenix LiveView for orchestration and the real-time UI, served on a loopback port and opened in the user's default browser.
 - A thin native menubar shell (Tauri 2 in tray-only mode; alternatives in `docs/DESKTOP_SHELL.md`) that launches the bundled release and offers Cuckoding, About, Settings, Quit.
@@ -50,6 +68,7 @@ See `CHANGES.md`. In short: no Docker in the MVP, agents and commands run on the
 | `worklog/` | Durable implementation notes, decisions, and incident records |
 | `.cuckoding/` | Example project, workflow, policy, plugin, and role definitions |
 | `.agents/skills/` | Repository-local skills for recurring engineering work |
+| `bin/dev.build` | Verified unsigned macOS developer application build |
 | `desktop/` | Tray-only Tauri shell, pinned Rust project, local build, and launch verifier |
 
 ## How to execute the plan
