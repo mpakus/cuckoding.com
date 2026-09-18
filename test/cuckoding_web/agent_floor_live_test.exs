@@ -66,6 +66,7 @@ defmodule CuckodingWeb.AgentFloorLiveTest do
 
     {:ok, agent, _html} = live(conn, agent_path)
     assert has_element?(agent, "h1", "agent-001 inspector")
+    assert has_element?(agent, "#host-runner-notice", "not a sandbox")
     assert has_element?(agent, "section[aria-labelledby=identity-heading]")
     assert has_element?(agent, "table caption", "Processes attributed")
     assert has_element?(agent, "section[aria-labelledby=resources-heading]")
@@ -73,6 +74,7 @@ defmodule CuckodingWeb.AgentFloorLiveTest do
     run_path = ~p"/runs/#{fixture.run.id}"
     {:ok, run, _html} = live(conn, run_path)
     assert has_element?(run, "h1", "Run 1")
+    assert has_element?(run, "#host-runner-notice", "not a sandbox")
     assert has_element?(run, "section[aria-labelledby=timeline-heading]")
     assert has_element?(run, "section[aria-labelledby=preview-heading]", "No preview is active")
     assert has_element?(run, "section[aria-labelledby=artifacts-heading]", "evidence.txt")
@@ -84,6 +86,7 @@ defmodule CuckodingWeb.AgentFloorLiveTest do
 
     assert has_element?(run, "section[aria-labelledby=resources-heading] table")
     assert has_element?(run, "section[aria-labelledby=usage-heading]", "$0.000123 USD")
+    refute render(run) =~ fixture.run_dir
   end
 
   test "activity hints coalesce behind one floor refresh", %{conn: conn} do
@@ -179,7 +182,7 @@ defmodule CuckodingWeb.AgentFloorLiveTest do
       enrich_fixture(run, environment, hd(attempts), hd(sessions), run_dir)
     end
 
-    %{project: project, run: run, sessions: sessions}
+    %{project: project, run: run, run_dir: run_dir, sessions: sessions}
   end
 
   defp create_sessions(run, count) do

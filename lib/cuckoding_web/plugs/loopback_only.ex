@@ -3,12 +3,17 @@ defmodule CuckodingWeb.LoopbackOnly do
 
   import Plug.Conn
 
+  alias Cuckoding.Security.Audit
+
   def init(options), do: options
 
   def call(conn, _options) do
     if conn.remote_ip == {127, 0, 0, 1} and conn.host == "127.0.0.1" and valid_origin?(conn) do
       conn
     else
+      _audit =
+        Audit.record("auth.loopback_boundary_rejected", conn.method, conn.request_path, 403)
+
       conn |> send_resp(:forbidden, "forbidden") |> halt()
     end
   end

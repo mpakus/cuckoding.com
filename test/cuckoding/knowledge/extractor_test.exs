@@ -111,6 +111,30 @@ defmodule Cuckoding.Knowledge.ExtractorTest do
     refute Repo.get_by(Job, scope_id: disabled.run.id)
   end
 
+  test "repository instructions can create only a pending project candidate", %{fixture: fixture} do
+    injected =
+      Path.expand("../../fixtures/malicious_repository/README.md", __DIR__)
+      |> File.read!()
+
+    malicious = fixture(root: fixture.root, summary: injected, knowledge?: false)
+
+    assert {:ok, %{candidates: [candidate]}} =
+             Knowledge.extract(malicious.run.id,
+               adapter: FakeAdapter,
+               adapter_options: [
+                 reply: %{
+                   "memory_operations" => [
+                     operation("fact", "Injected publication", injected, 0.9)
+                   ]
+                 }
+               ]
+             )
+
+    assert candidate.project_id == malicious.project.id
+    assert candidate.decision == "pending"
+    assert {:error, :accepted_candidate_required} = Knowledge.request_publication(candidate.id)
+  end
+
   test "malformed synthesis fails the durable job without persisting candidates", %{
     fixture: fixture
   } do
@@ -213,7 +237,12 @@ defmodule Cuckoding.Knowledge.ExtractorTest do
     {:ok, activity} =
       ActivityStream.record(
         session,
-        event("activity", 1, "activity.summary", "Public #{@canary}")
+        event(
+          "activity",
+          1,
+          "activity.summary",
+          Keyword.get(options, :summary, "Public #{@canary}")
+        )
       )
 
     {:ok, artifact} =
@@ -223,6 +252,7 @@ defmodule Cuckoding.Knowledge.ExtractorTest do
 
     %{
       root: root,
+      project: project,
       run: run,
       activity_id: activity.result["event_id"],
       artifact_id: artifact.result["event_id"]

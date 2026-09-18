@@ -104,7 +104,7 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 
 **Outcome:** the product withstands common threats and recovers predictably; controlled external testing.
 
-- [ ] Capability and secret hardening, adversarial prompt and plugin tests.
+- [x] Capability and secret hardening, adversarial prompt and plugin tests.
 - [ ] Crash, power-loss, and sleep recovery drills.
 - [ ] Dogfood and controlled beta.
 - [ ] MVP release readiness.

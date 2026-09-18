@@ -78,6 +78,12 @@ Resource history uses native progress elements plus a complete table; periodic
 metric refreshes run every five seconds and committed activity hints are
 coalesced separately.
 
+Task detail, run detail, and agent inspector show the same non-color-only host
+runner warning: a worktree prevents normal Git overlap but is not filesystem,
+network, CPU, or memory isolation. It tells the user to review permission mode,
+worktree, protected paths, network class, plugins, opaque secret references,
+budget, expiry, and the enforced/unenforced grant split before starting work.
+
 ### Agent inspector
 
 Role and granted permissions (as configured on the runtime), adapter and runtime version, requested and observed model, session identifiers with redaction, current stage, last heartbeat, process group and lease, usage, cost, tool activity, errors, resume capability.

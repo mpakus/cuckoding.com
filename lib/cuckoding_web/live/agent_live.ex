@@ -3,6 +3,7 @@ defmodule CuckodingWeb.AgentLive do
 
   import CuckodingWeb.ActivityComponents
   import CuckodingWeb.AgentFloorComponents
+  import CuckodingWeb.PolicyComponents
   import CuckodingWeb.UsageComponents
 
   alias Cuckoding.AgentFloor
@@ -72,6 +73,8 @@ defmodule CuckodingWeb.AgentLive do
         </header>
 
         <p role="status" aria-live="polite" class="text-sm text-emerald-900">{@notice}</p>
+
+        <.host_runner_notice />
 
         <section aria-labelledby="identity-heading" class="space-y-3">
           <h2 id="identity-heading" class="text-xl font-semibold text-slate-950">Session</h2>

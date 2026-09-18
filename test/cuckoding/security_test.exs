@@ -1,10 +1,14 @@
 defmodule Cuckoding.SecurityTest do
   use Cuckoding.DataCase, async: false
 
+  import Ecto.Query
+
   alias Cuckoding.Execution.EventStore
   alias Cuckoding.Execution.RunEvent
   alias Cuckoding.FakeCommandRunner
   alias Cuckoding.FakeSecretStore
+  alias Cuckoding.Security.Audit
+  alias Cuckoding.Security.AuditEvent
   alias Cuckoding.Security.KeychainSecretStore
   alias Cuckoding.Security.Redactor
   alias Cuckoding.Security.SecretAccessAudit
@@ -104,5 +108,31 @@ defmodule Cuckoding.SecurityTest do
     send(self(), {:broadcast, broadcast_payload})
     assert_receive {:broadcast, safe_payload}
     refute inspect(safe_payload) =~ @canary
+  end
+
+  test "authentication rejection audits are bounded, secret-free, and append-only" do
+    assert {:ok, event} =
+             Audit.record(
+               "auth.browser_token_rejected",
+               "GET",
+               "/open",
+               401
+             )
+
+    assert event.path == "/open"
+    refute inspect(event) =~ @canary
+
+    assert {:error, :invalid_security_audit} =
+             Audit.record("auth.unknown", "GET", "/open?token=#{@canary}", 401)
+
+    assert_raise Exqlite.Error, ~r/append-only/, fn ->
+      Repo.update_all(from(item in AuditEvent, where: item.id == ^event.id),
+        set: [path: "/changed"]
+      )
+    end
+
+    assert_raise Exqlite.Error, ~r/append-only/, fn ->
+      Repo.delete_all(from(item in AuditEvent, where: item.id == ^event.id))
+    end
   end
 end

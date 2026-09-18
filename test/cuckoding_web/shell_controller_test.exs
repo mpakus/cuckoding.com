@@ -2,6 +2,7 @@ defmodule CuckodingWeb.ShellControllerTest do
   use CuckodingWeb.ConnCase, async: false
 
   alias Cuckoding.Repo
+  alias Cuckoding.Security.AuditEvent
   alias Cuckoding.Shell.Auth
   alias Cuckoding.Updates.Attempt
 
@@ -102,6 +103,18 @@ defmodule CuckodingWeb.ShellControllerTest do
            |> loopback()
            |> get("/open?token=#{safe_token}&next=https://example.com")
            |> redirected_to() == "/"
+
+    events = Repo.all(AuditEvent)
+
+    assert Enum.count(events, &(&1.event_type == "auth.authorization_rejected")) == 2
+    assert Enum.count(events, &(&1.event_type == "auth.loopback_boundary_rejected")) == 2
+
+    assert [%AuditEvent{path: "/open", status: 401}] =
+             Enum.filter(events, &(&1.event_type == "auth.browser_token_rejected"))
+
+    refute inspect(events) =~ bootstrap
+    refute inspect(events) =~ shell
+    refute inspect(events) =~ browser
   end
 
   test "shutdown completes the run policy before stopping the runtime", %{

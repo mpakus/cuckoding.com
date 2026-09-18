@@ -90,9 +90,13 @@ defmodule Cuckoding.Plugins.ContractsTest do
   } do
     context = contexts["notifier"]
     tampered = %{context | run_id: Identifier.generate()}
+    expanded = %{context | permissions: Map.put(context.permissions, "network", "external")}
 
     assert {:error, :invalid_plugin_capability} =
              Contracts.call("notifier", Cuckoding.PluginFakes.Notifier, :notify, %{}, tampered)
+
+    assert {:error, :invalid_plugin_capability} =
+             Contracts.call("notifier", Cuckoding.PluginFakes.Notifier, :notify, %{}, expanded)
 
     assert {:ok, _activation} =
              Registry.disable(

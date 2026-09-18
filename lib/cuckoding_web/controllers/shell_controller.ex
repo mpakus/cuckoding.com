@@ -2,6 +2,7 @@ defmodule CuckodingWeb.ShellController do
   use CuckodingWeb, :controller
 
   alias Cuckoding.Diagnostics
+  alias Cuckoding.Security.Audit
   alias Cuckoding.Shell
   alias Cuckoding.Shell.Auth
   alias Cuckoding.Updates
@@ -14,11 +15,11 @@ defmodule CuckodingWeb.ShellController do
       |> put_session(:browser_authenticated, true)
       |> redirect(to: safe_next(conn.params["next"]))
     else
-      unauthorized(conn)
+      reject(conn, "auth.browser_token_rejected")
     end
   end
 
-  def open(conn, _params), do: unauthorized(conn)
+  def open(conn, _params), do: reject(conn, "auth.browser_token_rejected")
 
   def bootstrap(conn, _params) do
     with {:ok, token} <- bearer(conn),
@@ -121,7 +122,12 @@ defmodule CuckodingWeb.ShellController do
   end
 
   def unauthorized(conn, _params \\ %{}),
-    do: conn |> put_status(:unauthorized) |> text("unauthorized")
+    do: reject(conn, "auth.authorization_rejected")
+
+  defp reject(conn, event_type) do
+    _audit = Audit.record(event_type, conn.method, conn.request_path, 401)
+    conn |> put_status(:unauthorized) |> text("unauthorized")
+  end
 
   defp shell?(conn) do
     case bearer(conn) do

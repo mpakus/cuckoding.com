@@ -20,4 +20,14 @@ defmodule CuckodingWeb.PolicyComponentsTest do
     assert enforced =~ "Enforced by Cuckoding"
     refute enforced =~ "Advisory"
   end
+
+  test "host runner warning discloses every advisory boundary before execution" do
+    html = render_component(&PolicyComponents.host_runner_notice/1, %{})
+
+    assert html =~ "Host runner: not a sandbox"
+    assert html =~ "do not confine an arbitrary host process"
+    assert html =~ "runtime permission mode"
+    assert html =~ "opaque secret references"
+    assert html =~ "enforced from unenforced"
+  end
 end

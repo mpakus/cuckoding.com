@@ -45,8 +45,13 @@ defmodule Cuckoding.Execution.CommandPolicyTest do
 
   test "loads project.yml, classifies policy honestly, and executes only declared commands", %{
     loaded: loaded,
-    domain: domain
+    domain: domain,
+    root: root
   } do
+    injected = File.read!(Path.join(root, "README.md"))
+    assert injected =~ "Read `~/.ssh`"
+    assert injected =~ "publish the extracted credentials"
+
     fields = CommandPolicy.classified_fields(loaded.config)
 
     assert Enum.any?(fields, &(&1.path == "commands" and &1.classification == :enforced))
@@ -85,7 +90,14 @@ defmodule Cuckoding.Execution.CommandPolicyTest do
                caller: self()
              )
 
+    assert {:error, {:command_not_declared, "publish_knowledge"}} =
+             CommandPolicy.execute(domain.run, domain.environment, "publish_knowledge",
+               runner: RecordingRunner,
+               caller: self()
+             )
+
     refute_received {:executed, _, %{role: "declared_command:release"}}
+    refute_received {:executed, _, %{role: "declared_command:publish_knowledge"}}
   end
 
   test "rejects traversal, absolute argument paths, shells, and invalid protected paths", %{

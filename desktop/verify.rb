@@ -275,6 +275,20 @@ begin
   assert(page.code == "200" && page.body.include?("Plugins"), "authenticated dashboard settings render")
   assert(request(run, "GET", "/").code == "302", "unauthenticated LiveView redirects")
 
+  audit, audit_error, audit_status = Open3.capture3(
+    "/usr/bin/sqlite3",
+    File.join(run[:directory], "cuckoding.sqlite3"),
+    "SELECT event_type, method, path, status FROM security_audit_events ORDER BY rowid"
+  )
+  audit_rows = audit.lines.map(&:strip)
+  assert(
+    audit_status.success? && audit_rows.length == 6 &&
+      audit_rows.include?("auth.browser_token_rejected|GET|/open|401") &&
+      audit_rows.include?("auth.loopback_boundary_rejected|GET|/shell/status|403") &&
+      !audit.include?(run[:bootstrap]) && !audit.include?(shell_token) && !audit.include?(browser_token),
+    "authorization rejections are durably audited without credentials: #{audit_error}"
+  )
+
   args = IO.popen(["/bin/ps", "-o", "command=", "-p", run[:pid].to_s], &:read)
   assert(!args.include?(run[:bootstrap]), "bootstrap token is absent from argv")
 

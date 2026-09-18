@@ -1,6 +1,8 @@
 defmodule CuckodingWeb.TaskLive do
   use CuckodingWeb, :live_view
 
+  import CuckodingWeb.PolicyComponents
+
   alias Cuckoding.Workflows
 
   @impl true
@@ -72,6 +74,8 @@ defmodule CuckodingWeb.TaskLive do
         <p :if={@error} id="task-error" role="alert" class="text-sm font-medium text-red-800">
           {@error}
         </p>
+
+        <.host_runner_notice />
 
         <form :if={editable?(@task)} id="task-edit" phx-submit="save" class="space-y-5">
           <label class="grid gap-1 font-medium text-slate-800">

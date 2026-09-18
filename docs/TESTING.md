@@ -58,6 +58,12 @@ The Phase 4 walking-skeleton test uses the fake adapter but real SQLite state, G
 11. Unauthorized browser access and token replay; assert rejection and audit.
 12. Unattended mode overnight simulation: queued approvals, notifications, assertion held only while work is queued.
 
+Scenarios 10 and 11 are implemented by the focused tests documented in
+`docs/SECURITY_TEST_MATRIX.md`. Scenario 10 combines the malicious fixture,
+command-policy/protected-path checks, and the pending-only knowledge extraction
+boundary. Scenario 11 combines loopback/origin/token rejection with secret-free,
+append-only security audit rows.
+
 ## Quality gates
 
 - Elixir formatting and compilation with warnings treated as errors.

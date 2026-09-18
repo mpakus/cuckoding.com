@@ -130,6 +130,7 @@ defmodule CuckodingWeb.BoardLiveTest do
     assert has_element?(view, "#task-edit label", "Title")
     assert has_element?(view, "#task-edit label", "Description")
     assert has_element?(view, "#task-edit label", "Priority")
+    assert has_element?(view, "#host-runner-notice", "not a sandbox")
 
     view
     |> form("#task-edit",

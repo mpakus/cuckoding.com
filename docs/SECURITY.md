@@ -131,6 +131,12 @@ before creation. There is no switch that expands the bundle to sensitive data.
 
 At minimum: authentication changes, capability grants, effective runtime permission grants, policy exceptions, plugin enablement and permission changes, stage transitions, approvals, secret reference use, process group creation/destruction, Git push/PR creation, knowledge publication/revocation, update installation, destructive retention actions, sleep gaps and reconciliation outcomes.
 
+Rejected shell/browser authorization and loopback-boundary requests are stored
+in append-only `security_audit_events`. The closed record contains only event
+type, HTTP method, route path without its query string, response status, and UTC
+time. Authorization headers, tokens, origins, hosts, IP addresses, and arbitrary
+descriptions are never accepted by this audit boundary.
+
 ## Human approval gates
 
 Preview URLs and probes accept only `http://127.0.0.1:<allocated-port>`; health paths reject CR/LF injection and redirects are not followed. Listener recovery uses `/usr/sbin/lsof`, the process-group leader, and its recorded start identity, and ambiguous output fails closed. Finder/editor actions operate only on the database-recorded worktree after physical path resolution and invoke absolute `/usr/bin/open` with argv.
@@ -142,6 +148,10 @@ The power manager launches only absolute system binaries behind `/usr/bin/env -i
 Mandatory for policy escalation, newly modified execution configuration, enabling plugins with host or network permissions, destructive cleanup with uncertain ownership, global knowledge publication, external push/PR, final merge/release, and installation of untrusted skills or binaries.
 
 ## Security verification
+
+`docs/SECURITY_TEST_MATRIX.md` maps risks R1–R14 to current executable evidence
+and keeps the residual physical-machine, provider, signing, and reviewer gates
+explicit.
 
 - Threat-model review before beta and after material architecture changes.
 - Path traversal and symlink race tests on confinement.

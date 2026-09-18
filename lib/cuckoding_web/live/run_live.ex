@@ -3,6 +3,7 @@ defmodule CuckodingWeb.RunLive do
 
   import CuckodingWeb.ActivityComponents
   import CuckodingWeb.AgentFloorComponents
+  import CuckodingWeb.PolicyComponents
   import CuckodingWeb.UsageComponents
 
   alias Cuckoding.AgentFloor
@@ -78,6 +79,8 @@ defmodule CuckodingWeb.RunLive do
         </header>
 
         <p role="status" aria-live="polite" class="text-sm text-emerald-900">{@notice}</p>
+
+        <.host_runner_notice />
 
         <nav aria-label="Run controls" class="flex flex-wrap gap-3">
           <.link
