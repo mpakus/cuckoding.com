@@ -8,6 +8,26 @@ defmodule CuckodingWeb.PluginSettingsLiveTest do
   alias Cuckoding.Plugins.Registry
   alias Cuckoding.Repo
 
+  setup do
+    root =
+      System.tmp_dir!()
+      |> String.replace_prefix("/var/", "/private/var/")
+      |> Path.join("cuckoding-live-diagnostics-#{System.unique_integer([:positive])}")
+
+    previous = Application.get_env(:cuckoding, :diagnostics_output_root)
+    Application.put_env(:cuckoding, :diagnostics_output_root, root)
+
+    on_exit(fn ->
+      if previous,
+        do: Application.put_env(:cuckoding, :diagnostics_output_root, previous),
+        else: Application.delete_env(:cuckoding, :diagnostics_output_root)
+
+      File.rm_rf!(root)
+    end)
+
+    :ok
+  end
+
   test "settings exposes health and requires reviewed activation controls", %{conn: conn} do
     discover()
     plugin = Repo.get_by!(Plugin, key: "valid-shell")
@@ -63,6 +83,19 @@ defmodule CuckodingWeb.PluginSettingsLiveTest do
 
     assert has_element?(view, "p[role=alert]", "Review and confirm")
     assert Repo.aggregate(Activation, :count) == 0
+  end
+
+  test "settings discloses exclusions before creating a local diagnostics bundle", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/settings/plugins")
+
+    assert has_element?(view, "#diagnostics-heading", "Diagnostics")
+    assert has_element?(view, "#diagnostics-heading + p", "Review a private support bundle")
+    assert render(view) =~ "excludes source files"
+
+    view |> element("button", "Create diagnostics bundle") |> render_click()
+
+    assert has_element?(view, "p[role=status]", "Diagnostics bundle created for review.")
+    assert render(view) =~ "Saved locally:"
   end
 
   test "runner isolation label comes from its validated manifest", %{conn: conn} do

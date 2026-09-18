@@ -9,6 +9,7 @@ tauri-build = { version = "=2.6.3", features = [] }
 [dependencies]
 getrandom = "=0.4.3"
 libc = "=0.2.189"
+objc2-service-management = "=0.3.2"
 serde_json = "=1.0.151"
 tauri = { version = "=2.11.5", features = ["tray-icon"] }
 tauri-plugin-updater = "=2.11.0"

@@ -98,7 +98,7 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 - [x] Menubar shell and handshake.
 - [x] Release bundling, signing, notarization.
 - [x] Updater, backups, migrations, rollback.
-- [ ] Login item and diagnostics bundle.
+- [x] Login item and diagnostics bundle.
 
 ## Phase 10 — Hardening and beta
 

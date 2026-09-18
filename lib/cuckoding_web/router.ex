@@ -62,6 +62,7 @@ defmodule CuckodingWeb.Router do
     post "/bootstrap", ShellController, :bootstrap
     post "/tokens", ShellController, :token
     get "/status", ShellController, :status
+    post "/diagnostics", ShellController, :diagnostics
     post "/update/prepare", ShellController, :prepare_update
     post "/update/installing", ShellController, :update_installing
     post "/update/failed", ShellController, :update_failed

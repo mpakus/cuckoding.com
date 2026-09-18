@@ -1,6 +1,7 @@
 defmodule CuckodingWeb.ShellController do
   use CuckodingWeb, :controller
 
+  alias Cuckoding.Diagnostics
   alias Cuckoding.Shell
   alias Cuckoding.Shell.Auth
   alias Cuckoding.Updates
@@ -39,6 +40,16 @@ defmodule CuckodingWeb.ShellController do
 
   def status(conn, _params) do
     if shell?(conn), do: json(conn, Shell.status()), else: unauthorized(conn)
+  end
+
+  def diagnostics(conn, _params) do
+    with true <- shell?(conn),
+         {:ok, path} <- Diagnostics.export() do
+      json(conn, %{path: path, contents: Diagnostics.contents()})
+    else
+      false -> unauthorized(conn)
+      {:error, _reason} -> conn |> put_status(:conflict) |> json(%{error: "diagnostics_failed"})
+    end
   end
 
   def shutdown(conn, _params) do

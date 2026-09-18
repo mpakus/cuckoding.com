@@ -2,7 +2,7 @@
 
 ## Requirement
 
-After installation the user launches Cuckoding like any app. The only native surface is a status-bar (menubar) icon with a menu: **Cuckoding** (open the dashboard in the default browser), **About**, **Settings** (opens the settings page in the browser), **Quit**. No dock icon, no native window. The whole interface is a Phoenix LiveView application on a loopback port.
+After installation the user launches Cuckoding like any app. The only native surface is a status-bar (menubar) icon with controls for the dashboard, About, Settings, logs, launch at login, updates, diagnostics, safe mode, and Quit. No dock icon, no native window. The whole interface is a Phoenix LiveView application on a loopback port.
 
 ## Options compared
 
@@ -34,6 +34,12 @@ Signing, notarization, and distribution policy are in `docs/DISTRIBUTION.md`.
    - **Cuckoding** → `GET /open?token=<one-time>` in the default browser; Phoenix exchanges it for a session cookie and redirects to the dashboard. Tokens are single-use with a short TTL; the shell requests a fresh one from `POST /shell/tokens` using the bootstrap credential.
    - **About** → native panel with version, release notes link, and the port.
    - **Settings** → browser `/settings/plugins` via the same token flow.
+   - **Launch at Login** → the native macOS 13+ `SMAppService.mainApp`
+     registration. The checkmark reflects the system status. A pending approval
+     opens System Settings; registration failures are shown as unavailable.
+   - **Export Diagnostics** → authenticated `POST /shell/diagnostics`; after
+     validating that the returned regular file remains inside the application
+     data diagnostics directory, reveal it in Finder for user review.
    - **Quit** → `POST /shell/shutdown`; Phoenix pauses admission and hibernates active runs before accepting shutdown. A failed hibernate returns a conflict and keeps the release alive. After acceptance the shell waits three seconds, then sends `SIGINT`, `SIGTERM`, and `SIGKILL` to the child process group as needed. Shell `SIGINT` and `SIGTERM` use the same policy path.
 6. Status line: poll `GET /shell/status` every few seconds for active runs and attention items; render as menu text (for example "3 running · 1 needs approval").
 7. **Check for Updates** uses the compile-time HTTPS endpoint and public key.

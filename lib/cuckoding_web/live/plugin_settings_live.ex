@@ -1,6 +1,7 @@
 defmodule CuckodingWeb.PluginSettingsLive do
   use CuckodingWeb, :live_view
 
+  alias Cuckoding.Diagnostics
   alias Cuckoding.Plugins
 
   @actor "local-user"
@@ -9,7 +10,7 @@ defmodule CuckodingWeb.PluginSettingsLive do
   def mount(_params, _session, socket) do
     {:ok,
      socket
-     |> assign(page_title: "Plugin settings", notice: "", error: "")
+     |> assign(page_title: "Plugin settings", notice: "", error: "", diagnostics_path: nil)
      |> load()}
   end
 
@@ -17,6 +18,26 @@ defmodule CuckodingWeb.PluginSettingsLive do
   def handle_event("refresh", _params, socket) do
     result = Plugins.refresh()
     finish(socket, {:ok, result}, "Plugin detection refreshed.")
+  end
+
+  def handle_event("export_diagnostics", _params, socket) do
+    case Diagnostics.export() do
+      {:ok, path} ->
+        {:noreply,
+         assign(socket,
+           diagnostics_path: path,
+           notice: "Diagnostics bundle created for review.",
+           error: ""
+         )}
+
+      {:error, _reason} ->
+        {:noreply,
+         assign(socket,
+           diagnostics_path: nil,
+           notice: "",
+           error: "Diagnostics export failed. No bundle was created."
+         )}
+    end
   end
 
   def handle_event("enable", %{"plugin_id" => plugin_id} = params, socket) do
@@ -99,6 +120,33 @@ defmodule CuckodingWeb.PluginSettingsLive do
         >
           {@error}
         </p>
+
+        <section
+          aria-labelledby="diagnostics-heading"
+          class="space-y-4 rounded-lg border border-slate-300 bg-white p-5"
+        >
+          <div class="space-y-2">
+            <h2 id="diagnostics-heading" class="text-xl font-semibold text-slate-950">
+              Diagnostics
+            </h2>
+            <p class="max-w-3xl text-sm text-slate-700">
+              Review a private support bundle with versions, allowlisted configuration, migration status, plugin health, power events, normalized error IDs, and aggregate process states.
+            </p>
+            <p class="max-w-3xl text-sm text-slate-700">
+              It excludes source files, worktree contents, prompts, provider output, credentials, raw logs, command output, arguments, environment variables, and private paths.
+            </p>
+          </div>
+          <button
+            type="button"
+            phx-click="export_diagnostics"
+            class="min-h-10 rounded-md border border-slate-400 bg-white px-4 font-medium text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            Create diagnostics bundle
+          </button>
+          <p :if={@diagnostics_path} class="break-all text-sm text-slate-700">
+            Saved locally: <span class="font-mono">{@diagnostics_path}</span>
+          </p>
+        </section>
 
         <p :if={@plugins == []} class="rounded-md border border-slate-300 p-5 text-slate-700">
           No valid plugin manifests were discovered.

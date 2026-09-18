@@ -101,12 +101,24 @@ Application data in `~/Library/Application Support/Cuckoding/`: SQLite, artifact
   READY and authenticated shell startup succeed. Failure restores the snapshot
   and app while retaining the failed database in the backup directory.
 - Safe mode exposes authenticated history without starting runner, plugin,
-  reconciliation, power, or sampling workers. The diagnostics export arrives
-  with Task 0904.
+  reconciliation, power, or sampling workers. Diagnostics export remains
+  available for recovery evidence.
 
 ## Diagnostics bundle
 
-Generate a user-reviewed, redacted archive containing versions, configuration schemas and hashes, health checks, plugin states, power events, recent normalized errors, migration status, process summaries, and selected event IDs. Exclude source contents, raw prompts, credentials, and full environment variables by default.
+The settings page discloses the fixed bundle contents and exclusions before an
+explicit export. The generated owner-only ZIP is stored under the application
+data diagnostics directory and contains exactly seven bounded JSON files:
+manifest, allowlisted runtime/project configuration, migration status, plugin
+identity and health, power-event summaries, normalized recent error IDs, and
+aggregate process states.
+
+The bundle never includes repository or worktree contents, prompts, provider
+output, credentials, raw logs or command output, argv, environment variables,
+plugin manifests or free-form errors, or absolute repository, manifest,
+artifact, and knowledge paths. Every member passes through the shared redactor,
+the total uncompressed input is capped at 2 MiB, row sets are bounded, and
+symlinked output locations are rejected. The same export works in safe mode.
 
 ## Future targets
 

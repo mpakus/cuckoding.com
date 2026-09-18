@@ -4,6 +4,7 @@
 require "fileutils"
 require "json"
 require "net/http"
+require "open3"
 require "securerandom"
 require "socket"
 require "tmpdir"
@@ -243,6 +244,25 @@ begin
     "shell status is authenticated"
   )
 
+  diagnostics = request(run, "POST", "/shell/diagnostics", token: shell_token)
+  diagnostics_body = JSON.parse(diagnostics.body)
+  diagnostics_path = diagnostics_body.fetch("path")
+  expected_entries = %w[
+    manifest.json configuration.json migrations.json plugins.json
+    power-events.json recent-errors.json processes.json
+  ]
+  listed, list_error, list_status = Open3.capture3("/usr/bin/unzip", "-Z1", diagnostics_path)
+  assert(
+    diagnostics.code == "200" && list_status.success? && listed.lines.map(&:strip) == expected_entries,
+    "diagnostics archive exposes only the reviewed file set: #{list_error}"
+  )
+  extracted, extract_error, extract_status = Open3.capture3("/usr/bin/unzip", "-p", diagnostics_path)
+  assert(
+    extract_status.success? && !extracted.include?(run[:bootstrap]) && !extracted.include?(shell_token),
+    "diagnostics archive excludes launch credentials: #{extract_error}"
+  )
+  assert(File.stat(diagnostics_path).mode & 0o077 == 0, "diagnostics archive is owner-only")
+
   token_response = request(run, "POST", "/shell/tokens", token: shell_token)
   browser_token = JSON.parse(token_response.body).fetch("token")
   open_path = "/open?token=#{browser_token}&next=/settings/plugins"
@@ -302,6 +322,10 @@ begin
   assert(
     status.code == "200" && safe_status.fetch("safe_mode") && !safe_status.fetch("runtime_workers"),
     "safe mode starts without runtime workers"
+  )
+  assert(
+    request(run, "POST", "/shell/diagnostics", token: shell_token).code == "200",
+    "safe mode can export diagnostics"
   )
   assert(request(run, "POST", "/shell/shutdown", token: shell_token).code == "200", "safe mode accepts graceful shutdown")
   assert(wait_exit(run).success?, "safe mode exits successfully")

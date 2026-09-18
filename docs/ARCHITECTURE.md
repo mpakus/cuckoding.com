@@ -24,9 +24,10 @@ flowchart TD
 ### Menubar shell
 
 - Starts the bundled Phoenix release as a child process with a one-time bootstrap token on a free loopback port.
-- Waits for a structured readiness message, then shows the status-bar menu: Cuckoding (open dashboard), About, Settings, Quit.
+- Waits for a structured readiness message, then shows the status-bar menu for the dashboard, About, Settings, logs, login-item status, updates, diagnostics, safe mode, and Quit.
 - Shows a compact status line (active runs, attention needed) fed by a read-only status endpoint.
-- Handles login item, updates, and graceful shutdown with a termination ladder.
+- Uses native `SMAppService` for the login-item registration, and handles
+  updates, diagnostics reveal, and graceful shutdown with a termination ladder.
 - Contains no workflow, provider, or knowledge logic. See `docs/DESKTOP_SHELL.md`.
 
 ### Phoenix control plane
@@ -158,7 +159,10 @@ Candidate startup runs guarded forward migrations and must report healthy
 before the previous app backup is removed. Migration or readiness failure
 restores the hash-verified data snapshot and prior app. Safe mode starts only
 Repo, PubSub, shell authentication, and the endpoint, leaving runners, plugins,
-reconciliation, power, and metric workers stopped.
+reconciliation, power, and metric workers stopped. Phoenix creates diagnostics
+from fixed, bounded database projections; the native shell only authenticates
+the request, confines the returned path to application data, and reveals the
+archive for review.
 
 ## Runtime topology
 

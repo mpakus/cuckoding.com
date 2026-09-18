@@ -10,10 +10,13 @@ defmodule CuckodingWeb.ShellControllerTest do
     start_supervised!({Auth, path})
 
     update_root =
-      Path.join(System.tmp_dir!(), "cuckoding-shell-update-#{System.unique_integer([:positive])}")
+      System.tmp_dir!()
+      |> String.replace_prefix("/var/", "/private/var/")
+      |> Path.join("cuckoding-shell-update-#{System.unique_integer([:positive])}")
 
     previous_snapshot = Application.get_env(:cuckoding, :update_snapshot_options)
     previous_pending = Application.get_env(:cuckoding, :update_pending_path)
+    previous_diagnostics = Application.get_env(:cuckoding, :diagnostics_output_root)
 
     Application.put_env(:cuckoding, :update_snapshot_options,
       backup_root: update_root,
@@ -22,9 +25,16 @@ defmodule CuckodingWeb.ShellControllerTest do
 
     Application.put_env(:cuckoding, :update_pending_path, Path.join(update_root, "pending.json"))
 
+    Application.put_env(
+      :cuckoding,
+      :diagnostics_output_root,
+      Path.join(update_root, "diagnostics")
+    )
+
     on_exit(fn ->
       restore_env(:update_snapshot_options, previous_snapshot)
       restore_env(:update_pending_path, previous_pending)
+      restore_env(:diagnostics_output_root, previous_diagnostics)
       File.rm_rf!(update_root)
     end)
 
@@ -214,6 +224,25 @@ defmodule CuckodingWeb.ShellControllerTest do
              |> json_response(200)
 
     assert Repo.get!(Attempt, attempt_id).failure_reason == "application_backup_failed"
+  end
+
+  test "diagnostics export requires shell authentication and returns a private bundle", %{
+    conn: conn,
+    bootstrap: bootstrap
+  } do
+    assert conn |> loopback() |> post("/shell/diagnostics") |> response(401) == "unauthorized"
+    shell = bootstrap_shell(conn, bootstrap)
+
+    exported =
+      conn
+      |> loopback()
+      |> put_req_header("authorization", "Bearer #{shell}")
+      |> post("/shell/diagnostics")
+      |> json_response(200)
+
+    assert exported["contents"] == Cuckoding.Diagnostics.contents()
+    assert File.regular?(exported["path"])
+    assert File.stat!(exported["path"]).mode |> Bitwise.band(0o077) == 0
   end
 
   defp bootstrap_shell(conn, bootstrap) do

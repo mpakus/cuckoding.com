@@ -15,10 +15,11 @@ use std::{
     time::{Duration, Instant},
 };
 
+use objc2_service_management::{SMAppService, SMAppServiceStatus};
 use serde_json::Value;
 use tauri::{
     image::Image,
-    menu::{AboutMetadataBuilder, Menu, MenuItem, PredefinedMenuItem},
+    menu::{AboutMetadataBuilder, CheckMenuItem, Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
     ActivationPolicy, Manager,
 };
@@ -42,6 +43,14 @@ struct Runtime {
 }
 
 struct RemoveOnDrop(std::path::PathBuf);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum LoginItemState {
+    NotRegistered,
+    Enabled,
+    RequiresApproval,
+    Unavailable,
+}
 
 impl Drop for RemoveOnDrop {
     fn drop(&mut self) {
@@ -250,6 +259,16 @@ fn build_tray(
     let about = PredefinedMenuItem::about(app, Some("About Cuckoding"), Some(about_metadata))?;
     let settings = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
     let logs = MenuItem::with_id(app, "logs", "Open Logs", true, None::<&str>)?;
+    let login_state = login_item_state();
+    let (login_text, login_enabled, login_checked) = login_item_presentation(login_state);
+    let login_item = CheckMenuItem::with_id(
+        app,
+        "login_item",
+        login_text,
+        login_enabled,
+        login_checked,
+        None::<&str>,
+    )?;
     let update = MenuItem::with_id(
         app,
         "update",
@@ -263,12 +282,24 @@ fn build_tray(
     )?;
     let safe_mode =
         MenuItem::with_id(app, "safe_mode", "Restart in Safe Mode", true, None::<&str>)?;
+    let diagnostics =
+        MenuItem::with_id(app, "diagnostics", "Export Diagnostics", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
     let menu = Menu::with_items(
         app,
         &[
-            &status, &open, &about, &settings, &logs, &update, &safe_mode, &separator, &quit,
+            &status,
+            &open,
+            &about,
+            &settings,
+            &logs,
+            &login_item,
+            &update,
+            &diagnostics,
+            &safe_mode,
+            &separator,
+            &quit,
         ],
     )?;
     let icon = Image::new_owned([0, 0, 0, 255].repeat(16 * 16), 16, 16);
@@ -285,7 +316,18 @@ fn build_tray(
             "open" => open_browser(&menu_runtime, "/"),
             "settings" => open_browser(&menu_runtime, "/settings/plugins"),
             "logs" => open_path(&menu_runtime.log_path),
+            "login_item" => {
+                if toggle_login_item(&login_item).is_err() {
+                    let _ = login_item.set_text("Launch at Login (Unavailable)");
+                    let _ = login_item.set_checked(false);
+                }
+            }
             "update" => start_update(app.clone(), menu_runtime.clone(), update.clone()),
+            "diagnostics" => {
+                if export_diagnostics(&menu_runtime).is_err() {
+                    let _ = quit_status.set_text("Diagnostics failed · open logs");
+                }
+            }
             "safe_mode" => restart_in_safe_mode(app, &menu_runtime),
             "quit" => match stop_runtime(&menu_runtime) {
                 Ok(()) => app.exit(0),
@@ -333,6 +375,78 @@ fn build_tray(
     });
 
     Ok(())
+}
+
+fn login_item_state() -> LoginItemState {
+    // SAFETY: SMAppService is called from Tauri's main-thread menu setup/callback.
+    let status = unsafe { SMAppService::mainAppService().status() };
+    match status {
+        SMAppServiceStatus::NotRegistered => LoginItemState::NotRegistered,
+        SMAppServiceStatus::Enabled => LoginItemState::Enabled,
+        SMAppServiceStatus::RequiresApproval => LoginItemState::RequiresApproval,
+        _ => LoginItemState::Unavailable,
+    }
+}
+
+fn login_item_presentation(state: LoginItemState) -> (&'static str, bool, bool) {
+    match state {
+        LoginItemState::NotRegistered => ("Launch at Login", true, false),
+        LoginItemState::Enabled => ("Launch at Login", true, true),
+        LoginItemState::RequiresApproval => ("Launch at Login (Approval Required)", true, false),
+        LoginItemState::Unavailable => ("Launch at Login (Unavailable)", false, false),
+    }
+}
+
+fn toggle_login_item(item: &CheckMenuItem<tauri::Wry>) -> Result<(), &'static str> {
+    // SAFETY: mainAppService is the current signed application and this runs on
+    // Tauri's main-thread menu callback.
+    let service = unsafe { SMAppService::mainAppService() };
+    match login_item_state() {
+        LoginItemState::Enabled => unsafe { service.unregisterAndReturnError() }
+            .map_err(|_| "login item unregister failed")?,
+        LoginItemState::NotRegistered => unsafe { service.registerAndReturnError() }
+            .map_err(|_| "login item registration failed")?,
+        LoginItemState::RequiresApproval => unsafe { SMAppService::openSystemSettingsLoginItems() },
+        LoginItemState::Unavailable => return Err("login item unavailable"),
+    }
+
+    let (text, enabled, checked) = login_item_presentation(login_item_state());
+    item.set_text(text).map_err(|_| "login item menu failed")?;
+    item.set_enabled(enabled)
+        .map_err(|_| "login item menu failed")?;
+    item.set_checked(checked)
+        .map_err(|_| "login item menu failed")
+}
+
+fn export_diagnostics(runtime: &Runtime) -> Result<(), Box<dyn std::error::Error>> {
+    let (status, body) = http(
+        runtime.port,
+        "POST",
+        "/shell/diagnostics",
+        Some(&runtime.shell_token),
+    )?;
+    if status != 200 {
+        return Err(format!("diagnostics returned HTTP {status}").into());
+    }
+
+    let response = serde_json::from_str::<Value>(&body)?;
+    let path = response["path"]
+        .as_str()
+        .ok_or("diagnostics response omitted path")?;
+    let path = fs::canonicalize(path)?;
+    let root = fs::canonicalize(runtime.data_dir.join("diagnostics"))?;
+    if !path.starts_with(&root) || !path.is_file() {
+        return Err("diagnostics path escaped application data".into());
+    }
+
+    let revealed = Command::new("/usr/bin/open")
+        .args(["-R", path.to_str().ok_or("invalid diagnostics path")?])
+        .status()?;
+    if revealed.success() {
+        Ok(())
+    } else {
+        Err("diagnostics reveal failed".into())
+    }
 }
 
 fn update_configured() -> bool {
@@ -910,5 +1024,36 @@ mod tests {
         assert!(!approve_update("0.3.0"));
         assert!(approve_update("0.3.0"));
         assert!(!approve_update("0.3.0"));
+    }
+
+    #[test]
+    fn login_item_menu_reflects_native_service_status() {
+        assert_eq!(
+            login_item_presentation(LoginItemState::NotRegistered),
+            ("Launch at Login", true, false)
+        );
+        assert_eq!(
+            login_item_presentation(LoginItemState::Enabled),
+            ("Launch at Login", true, true)
+        );
+        assert_eq!(
+            login_item_presentation(LoginItemState::RequiresApproval),
+            ("Launch at Login (Approval Required)", true, false)
+        );
+        assert_eq!(
+            login_item_presentation(LoginItemState::Unavailable),
+            ("Launch at Login (Unavailable)", false, false)
+        );
+    }
+
+    #[test]
+    fn native_login_item_status_is_queryable() {
+        assert!(matches!(
+            login_item_state(),
+            LoginItemState::NotRegistered
+                | LoginItemState::Enabled
+                | LoginItemState::RequiresApproval
+                | LoginItemState::Unavailable
+        ));
     }
 }

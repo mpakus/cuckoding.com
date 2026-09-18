@@ -106,6 +106,14 @@ manifests are owner-only and hash-verified; symlinks and path escape are
 rejected. Rollback preserves the failed database before restoring compatible
 data, and an older binary refuses any unknown applied migration.
 
+Diagnostics export is an authenticated, explicit local action. Its schema is a
+fixed allowlist of bounded summaries, not a log collector: source, prompts,
+provider and command output, credentials, argv, environment variables, private
+paths, plugin manifests, and free-form errors are excluded before serialization.
+Every JSON member is redacted again, written to an owner-only archive beneath a
+non-symlinked application-data directory, and disclosed in the settings UI
+before creation. There is no switch that expands the bundle to sensitive data.
+
 ## Process safety
 
 - Child processes in their own process groups; PID plus start identity recorded.
