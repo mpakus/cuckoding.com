@@ -126,3 +126,14 @@ For task 0604, the local XERJ node remained unavailable, so pinned Hydra revisio
 For task 0701, the local XERJ node remained unavailable, so the pinned peers were inspected directly. Agetor revision `eb74ab5f3d6d71dfb91d5bd34e9c679c5a955a6a` reads Markdown front matter only from a successfully readable project-tree file and keeps project/global source identity explicit at `src/bun/commands.ts:49-119,300-356` (MIT). Cuckoding adapts only those file-authority and scope-separation ideas. It adds a strict bounded schema, exact-byte hashes, confined non-symlink paths, durable mismatch states, explicit higher-version user acceptance, required global review, and project authorization before path resolution. No peer code was copied.
 
 For task 0702, the local XERJ node remained unavailable and direct inspection of pinned MIT Agetor plus Apache-2.0 Vibe Kanban found no knowledge-extraction pipeline to adapt. Cuckoding therefore follows its own documented boundary: only normalized public events and artifact descriptors enter a bounded fixed template; redaction runs before and after the recorded run adapter; the control plane assigns evidence and classifies memory operations; and a failed job cannot leave partial candidates. No peer code was copied.
+
+For tasks 0802 and 0803, the local XERJ node remained unavailable. Direct
+inspection of pinned Apache-2.0 Vibe Kanban
+`crates/executors/src/executors/mod.rs:222-285` and
+`crates/executors/src/executors/qa_mock.rs:1-85` informed explicit contracts
+with deterministic fakes. Pinned MIT Agetor
+`src/bun/commands.ts:380-420,610-682` informed scoped MCP discovery and
+credential-free descriptions. Cuckoding adds current durable activation,
+signed run-scoped grants, closed/redacted outputs, source-labeled numbers,
+server-derived namespaces, offline exact-package configuration, and tool
+allowlists. No peer code was copied.

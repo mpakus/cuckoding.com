@@ -10,6 +10,11 @@ Repository contributors and agents use Ponytail for every change and review, in 
 - Permissions: none beyond injection.
 - Scopes: role, stage.
 
+The bundled reviewed package is adapted from upstream 4.10.0 under MIT; its
+reviewed upstream SHA-256 and notice ship beside the manifest. The runtime
+adapter requires an exact stage capability, accepts only `lite` or `full`, and
+refuses any requested waiver of the policy overlay.
+
 ## Suggested product activation
 
 This table configures workflows orchestrated by the product. It does not override the mandatory repository contributor rule in `AGENTS.md`.

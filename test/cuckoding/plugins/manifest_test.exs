@@ -23,6 +23,13 @@ defmodule Cuckoding.Plugins.ManifestTest do
     assert {:error, :invalid_plugin_permissions} = load_text(unknown_network)
   end
 
+  test "detection paths stay inside their plugin directory" do
+    valid = File.read!(fixture("valid"))
+    unsafe = String.replace(valid, "paths: []", "paths: [../outside]")
+
+    assert {:error, :invalid_detection_paths} = load_text(unsafe)
+  end
+
   defp fixture(name), do: Path.expand("../../fixtures/plugins/#{name}/plugin.yml", __DIR__)
 
   defp load_text(text) do

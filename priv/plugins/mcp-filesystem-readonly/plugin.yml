@@ -1,0 +1,30 @@
+schema_version: 1
+key: mcp-filesystem-readonly
+name: Read-only filesystem MCP server
+version: 2026.8.31
+kind: mcp_server
+homepage: https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem
+license: MIT
+detect:
+  binaries:
+    - name: npx
+      version_command: [npx, --version]
+      min_version: 11.6.2
+  paths: []
+  env: []
+capabilities:
+  - mcp.configuration
+  - mcp.read_worktree
+permissions:
+  host_process: true
+  network: none
+  read_paths: ["${RUN_WORKTREE}"]
+  write_paths: []
+  secrets: []
+config_schema:
+  package: {const: "@modelcontextprotocol/server-filesystem@2026.8.31"}
+  integrity: {const: "sha512-kKaFkyAh6oipvc9+EAbJ552JafnMnOq5nzmzWkp1jJdBhTAAGpmIpWihUG1+rfNhmEFM98gUZDdCHCDD4v6a7Q=="}
+  tools_allow:
+    const: [read_text_file, read_media_file, read_multiple_files, list_directory, list_directory_with_sizes, directory_tree, search_files, get_file_info, list_allowed_directories]
+scopes: [project, board, role, stage]
+isolation_claims: []

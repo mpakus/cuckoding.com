@@ -83,9 +83,23 @@ defmodule Cuckoding.Plugins.Discovery do
   end
 
   defp detect(manifest, finder, runner) do
-    manifest.data["detect"]["binaries"]
-    |> Enum.map(&detect_binary(&1, finder, runner))
+    binaries = Enum.map(manifest.data["detect"]["binaries"], &detect_binary(&1, finder, runner))
+    paths = Enum.map(manifest.data["detect"]["paths"], &detect_path(manifest, &1))
+
+    (binaries ++ paths)
     |> detection_result()
+  end
+
+  defp detect_path(manifest, relative_path) do
+    path = Path.join(Path.dirname(manifest.path), relative_path)
+
+    case File.lstat(path) do
+      {:ok, %{type: :regular}} ->
+        %{name: "path:#{relative_path}", state: "available", version: nil, path: path}
+
+      _missing ->
+        %{name: "path:#{relative_path}", state: "missing", version: nil, path: nil}
+    end
   end
 
   defp detect_binary(binary, finder, runner) do
@@ -119,7 +133,9 @@ defmodule Cuckoding.Plugins.Discovery do
   end
 
   defp version_result(path, binary, output) do
-    case Regex.run(~r/\b\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?\b/, output) do
+    pattern = ~r/(?:^|[^0-9A-Za-z])v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)(?=$|[^0-9A-Za-z.-])/
+
+    case Regex.run(pattern, output, capture: :all_but_first) do
       [version] ->
         state =
           if Version.compare(version, binary["min_version"]) in [:eq, :gt],

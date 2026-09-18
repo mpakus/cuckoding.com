@@ -13,7 +13,7 @@ defmodule Cuckoding.Plugins.Manifest do
   @key_pattern ~r/^[a-z][a-z0-9_-]{0,63}$/
   @name_pattern ~r/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
   @version_arguments ~w(--version -V version)
-  @path_roots ["${RUN_WORKTREE}", "${RUN_DIR}"]
+  @path_roots ["${RUN_WORKTREE}", "${RUN_DIR}", "${PROJECT_REPO}"]
 
   defstruct [:path, :source, :hash, :data]
 
@@ -81,7 +81,7 @@ defmodule Cuckoding.Plugins.Manifest do
   defp detect(detect) when is_map(detect) do
     with :ok <- exact_fields(detect, @detect_fields, @detect_fields, "detect"),
          :ok <- binaries(detect["binaries"]),
-         :ok <- string_list(detect["paths"], :invalid_detection_paths) do
+         :ok <- detection_paths(detect["paths"]) do
       named_list(detect["env"], :invalid_detection_environment)
     end
   end
@@ -98,6 +98,20 @@ defmodule Cuckoding.Plugins.Manifest do
   end
 
   defp binaries(_binaries), do: {:error, :invalid_detection_binaries}
+
+  defp detection_paths(paths) when is_list(paths) do
+    if Enum.uniq(paths) == paths and Enum.all?(paths, &safe_detection_path?/1),
+      do: :ok,
+      else: {:error, :invalid_detection_paths}
+  end
+
+  defp detection_paths(_paths), do: {:error, :invalid_detection_paths}
+
+  defp safe_detection_path?(path) when is_binary(path) and path != "" do
+    Path.type(path) == :relative and ".." not in Path.split(path)
+  end
+
+  defp safe_detection_path?(_path), do: false
 
   defp binary(binary) when is_map(binary) do
     with :ok <- exact_fields(binary, @binary_fields, @binary_fields, "detect.binary"),

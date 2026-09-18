@@ -215,6 +215,14 @@ The built-in `LocalMetricCollector` revalidates the recorded PID/start identity,
 
 `Cuckoding.Telemetry.Accounting` persists idempotent adapter usage facts keyed by an agent-session-scoped event digest. Provider token provenance is independent from cost provenance: a provider-reported monetary value wins, while an estimate requires an explicit API billing mode and the immutable catalog effective at the usage timestamp. Subscription and unknown billing modes remain unavailable. Plugin optimization claims are append-only records in a separate table and never reduce provider tokens or cost.
 
+The bundled reference layer implements RTK, Ponytail, XERJ, and a read-only
+filesystem MCP configuration without making any of them a core dependency.
+RTK resolves the immutable command policy before wrapping and records only
+estimated optimization claims. Ponytail requires stage authority and retains a
+fixed safety overlay. XERJ derives namespaces from the durable run ownership
+chain. MCP configuration fixes the official package version and integrity,
+uses offline execution, and accepts only its reviewed read-tool allowlist.
+
 ## Failure domains
 
 | Failure | Expected behavior |

@@ -78,7 +78,10 @@ defmodule CuckodingWeb.AgentFloorLiveTest do
     assert has_element?(run, "section[aria-labelledby=artifacts-heading]", "evidence.txt")
     assert has_element?(run, "section[aria-labelledby=findings-heading]", "Fixture finding")
     assert has_element?(run, "section[aria-labelledby=knowledge-heading]", "Phase 7")
-    assert has_element?(run, "section[aria-labelledby=plugins-heading]", "rtk")
+
+    assert render(run) =~ "Estimated shell-output tokens avoided"
+    assert render(run) =~ "(estimated)"
+
     assert has_element?(run, "section[aria-labelledby=resources-heading] table")
     assert has_element?(run, "section[aria-labelledby=usage-heading]", "$0.000123 USD")
   end
@@ -147,7 +150,13 @@ defmodule CuckodingWeb.AgentFloorLiveTest do
         task_id: task.id,
         sequence: 1,
         policy_snapshot_id: config.id,
-        plugin_snapshot_json: %{"rtk" => %{"enabled" => true}},
+        plugin_snapshot_json: %{
+          "rtk" => %{
+            "enabled" => true,
+            "contribution" => "Estimated shell-output tokens avoided",
+            "source" => "estimated"
+          }
+        },
         branch: "feature/floor-#{suffix}",
         base_sha: String.duplicate("a", 40)
       })

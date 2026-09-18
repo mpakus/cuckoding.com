@@ -49,7 +49,11 @@ The Phase 4 walking-skeleton test uses the fake adapter but real SQLite state, G
 6. Fail QA and return structured findings to development; assert routing and attempt increments.
 7. Lose network or provider auth; assert transient classification, retry within budget, block on exhaustion.
 8. Complete a run; extract candidates; consolidate; reject one, accept one, publish one globally; assert files, index, audit, and injected/retrieved/cited usage records in the next run, then accept a correction and assert accepted/contradicted lineage.
-9. Enable RTK/XERJ/Ponytail plugins with fake binaries; assert labeled contributions and clean degradation when removed.
+9. Enable RTK/XERJ/Ponytail and the read-only MCP plugin with fake binaries;
+   assert policy-first wrapping, stage overlay, server-derived namespaces,
+   exact package/tool configuration, labeled contributions, and clean
+   degradation when binaries disappear. Implemented by the focused reference
+   plugin and run-detail tests.
 10. Malicious repository: injected instruction to publish knowledge and edit `.cuckoding/`; assert refusal, flags, and approvals.
 11. Unauthorized browser access and token replay; assert rejection and audit.
 12. Unattended mode overnight simulation: queued approvals, notifications, assertion held only while work is queued.

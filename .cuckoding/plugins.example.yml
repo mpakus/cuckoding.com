@@ -12,7 +12,6 @@ plugins:
   - key: xerj
     kind: knowledge_backend
     scopes: [project]
-  - key: mcp-github-readonly
+  - key: mcp-filesystem-readonly
     kind: mcp_server
     scopes: [stage:spec, stage:qa]
-    manifest: .cuckoding/plugins/mcp-github-readonly/plugin.yml

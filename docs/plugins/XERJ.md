@@ -10,6 +10,12 @@ XERJ is an optional local code-index and memory backend exposed to Cuckoding thr
 - Permissions: `host_process: true`, `read_paths: ["${RUN_WORKTREE}", "${PROJECT_REPO}"]`, `network: loopback`. External network access is not required.
 - Capabilities: `knowledge.index_code`, `knowledge.search_code`, `knowledge.recall`, `knowledge.write_candidate`.
 
+The bundled manifest pins `1.0.0-rc.74`. The implemented adapter ignores any
+caller-provided namespace and derives project/board ownership from the durable
+run chain. It emits bounded lexical CLI configuration and untrusted result
+labels; binary or node loss invalidates the capability without affecting the
+built-in Markdown knowledge path.
+
 ## Behaviour mapping
 
 - `index/2`: schedule incremental indexing of the trusted worktree or repository (for example `rtk xerj autoindex <folder> --no-graph` on the current upstream version); record repository SHA and index revision; ignore `.git`, secrets, dependency trees, hidden paths, and denied paths. Keep the node data and autoindex journal outside every indexed tree.

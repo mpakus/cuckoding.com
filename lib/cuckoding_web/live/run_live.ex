@@ -150,11 +150,17 @@ defmodule CuckodingWeb.RunLive do
 
         <section aria-labelledby="plugins-heading" class="space-y-3">
           <h2 id="plugins-heading" class="text-xl font-semibold text-slate-950">Plugins</h2>
-          <p :if={plugin_keys(@detail.run.plugin_snapshot_json) == []} class="text-sm text-slate-700">
+          <p
+            :if={plugin_entries(@detail.run.plugin_snapshot_json) == []}
+            class="text-sm text-slate-700"
+          >
             No plugins were captured in this run snapshot.
           </p>
           <ul class="list-disc pl-5">
-            <li :for={key <- plugin_keys(@detail.run.plugin_snapshot_json)}>{key}</li>
+            <li :for={plugin <- plugin_entries(@detail.run.plugin_snapshot_json)}>
+              <span class="font-medium">{plugin.key}</span>
+              <span :if={plugin.contribution}>: {plugin.contribution} ({plugin.source})</span>
+            </li>
           </ul>
           <ul :if={@detail.optimizations != []} class="space-y-2">
             <li :for={record <- @detail.optimizations}>
@@ -172,8 +178,22 @@ defmodule CuckodingWeb.RunLive do
   defp activity_status(events),
     do: Cuckoding.ActivityStream.status(events, Cuckoding.Clock.wall_now(), 60_000)
 
-  defp plugin_keys(snapshot) when is_map(snapshot), do: snapshot |> Map.keys() |> Enum.sort()
-  defp plugin_keys(snapshot) when is_list(snapshot), do: Enum.map(snapshot, &to_string/1)
-  defp plugin_keys(_snapshot), do: []
+  defp plugin_entries(snapshot) when is_map(snapshot) do
+    snapshot
+    |> Enum.map(fn {key, value} ->
+      %{
+        key: key,
+        contribution: is_map(value) && value["contribution"],
+        source: (is_map(value) && value["source"]) || "unlabeled"
+      }
+    end)
+    |> Enum.sort_by(& &1.key)
+  end
+
+  defp plugin_entries(snapshot) when is_list(snapshot) do
+    Enum.map(snapshot, &%{key: to_string(&1), contribution: nil, source: "unlabeled"})
+  end
+
+  defp plugin_entries(_snapshot), do: []
   defp state_label(state), do: state |> String.replace("_", " ") |> String.capitalize()
 end

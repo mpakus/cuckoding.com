@@ -58,6 +58,13 @@ non-secret plugins, and payloads over 1 MiB. Plugin failures collapse to a
 public `plugin_failed` error so raw third-party errors are not promoted into
 trusted output.
 
+Reference adapters do not accept model-selected executables, namespaces, MCP
+packages, integrity values, roots, or unreviewed tools. RTK resolves the
+underlying trusted command before adding its wrapper. XERJ namespaces come from
+the run's project and board records. The filesystem MCP package is exact and
+offline with no write tools, secrets, or network permission; because it remains
+a host process, these controls are not described as OS isolation.
+
 ## Secrets
 
 - `SecretStore` is owned by the Phoenix process: macOS Keychain through the `security` CLI (MVP) or a small native library later; the database holds opaque references only.

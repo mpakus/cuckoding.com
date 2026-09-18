@@ -1,0 +1,24 @@
+schema_version: 1
+key: ponytail
+name: Ponytail minimalism skill
+version: 4.10.0
+kind: instruction_skill
+homepage: https://github.com/DietrichGebert/ponytail
+license: MIT
+detect:
+  binaries: []
+  paths: [SKILL.md, NOTICE.md]
+  env: []
+capabilities:
+  - instruction_skill.package
+permissions:
+  host_process: false
+  network: none
+  read_paths: []
+  write_paths: []
+  secrets: []
+config_schema:
+  mode: {type: string, enum: [lite, full], default: full}
+  upstream_sha256: {const: 1316a2f3f95741d2300b116fe0c2d81ce4a9568656ed0a62643f54aaf09957f2}
+scopes: [role, stage]
+isolation_claims: []

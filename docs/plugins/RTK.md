@@ -11,11 +11,18 @@ Repository contributors and agents nevertheless use RTK for every shell command 
 - `kind: shell_filter`; detect a pinned `rtk` binary and version.
 - Permissions: `host_process: true`, `read_paths: ["${RUN_WORKTREE}"]`.
 - Capabilities: `shell_filter.wrap_command`, `shell_filter.analytics`.
+- Bundled manifest version: `0.49.0`; absence changes plugin health to `missing`
+  and leaves the underlying declared command available without filtering.
 
 ## Behaviour mapping
 
 - `wrap/3`: given a declared command and the runtime's hook conventions, return the wrapped invocation or `:passthrough`. Policy validation runs on the underlying command, never on the wrapper. Exit code, duration, and enough diagnostics to debug failures are preserved.
 - `analytics/2`: import machine-readable gain data (for example `rtk gain --all --format json`) and attribute to run/session where possible; store raw and compact bytes, estimated tokens, filter version, and estimation method.
+
+The implemented adapter resolves the command key through the run's immutable
+trusted policy before returning an RTK invocation. Streaming requests return
+passthrough. Analytics persist separately from provider usage and every numeric
+claim is labeled `estimated`.
 
 ## Safety rules
 

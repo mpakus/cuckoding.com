@@ -1,0 +1,30 @@
+schema_version: 1
+key: xerj
+name: XERJ local knowledge backend
+version: 1.0.0-rc.74
+kind: knowledge_backend
+homepage: https://xerj.org/
+license: Apache-2.0
+detect:
+  binaries:
+    - name: xerj
+      version_command: [xerj, --version]
+      min_version: 1.0.0-rc.74
+  paths: []
+  env: []
+capabilities:
+  - knowledge.index_code
+  - knowledge.search_code
+  - knowledge.recall
+  - knowledge.write_candidate
+permissions:
+  host_process: true
+  network: loopback
+  read_paths: ["${RUN_WORKTREE}", "${PROJECT_REPO}"]
+  write_paths: ["${RUN_DIR}"]
+  secrets: []
+config_schema:
+  mode: {type: string, enum: [lexical], default: lexical}
+  endpoint: {const: "http://127.0.0.1:9200"}
+scopes: [project, board, role, stage]
+isolation_claims: []

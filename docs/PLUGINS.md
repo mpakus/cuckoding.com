@@ -101,7 +101,8 @@ traffic, so its runtime network boundary remains visibly advisory.
 - `docs/plugins/XERJ.md` — knowledge backend with namespaced memory and code index.
 - `docs/plugins/RTK.md` — shell output filter with estimated token reduction.
 - `docs/plugins/PONYTAIL.md` — instruction skill for minimalism on selected stages.
-- Generic MCP server plugin — declares command, args, env references, and permissions; adapters translate it into the runtime's MCP configuration for the run only.
+- `docs/plugins/MCP_FILESYSTEM.md` — integrity-pinned official filesystem MCP
+  package with offline execution and a read-only tool allowlist.
 
 ## UI
 
