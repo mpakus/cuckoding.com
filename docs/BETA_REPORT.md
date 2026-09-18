@@ -18,7 +18,7 @@ Blank rows mean `not observed`; they are not passing evidence.
 | Gate | Status | Evidence or action |
 | --- | --- | --- |
 | Deterministic and physical recovery matrix | pass | Task 1002, 27/27 observations; this is prerequisite evidence and does not count as a beta run |
-| Signed and notarized build identified | pending | the retained notarized artifact is from source `32fb8fb`; produce an enrollment build from the accepted beta revision before external use |
+| Signed and notarized build identified | blocked on deployment inputs | Developer ID identity and the `Cuckoding` notary profile are valid; the retained artifact is from source `32fb8fb`. A fresh build still requires the long-lived Tauri updater keypair and real HTTPS update endpoint/artifact base. |
 | Claude Code adapter conformance | pass for current fixture contract | 2026-09-18 focused adapter suite; real beta use still requires separately verified run-scoped authentication |
 | Codex adapter conformance | pass for current fixture contract | 2026-09-18 focused adapter suite; real beta use must use the run-scoped home |
 | Outbound product telemetry off | pending | verify on the enrolled build |
