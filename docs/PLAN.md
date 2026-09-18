@@ -96,7 +96,7 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 **Outcome:** a signed, notarized, updateable macOS build with the menubar shell.
 
 - [x] Menubar shell and handshake.
-- [ ] Release bundling, signing, notarization.
+- [x] Release bundling, signing, notarization.
 - [ ] Updater, backups, migrations, rollback.
 - [ ] Login item and diagnostics bundle.
 

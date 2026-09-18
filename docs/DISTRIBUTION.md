@@ -49,6 +49,18 @@ signing before notarization. Only `beam.smp` receives
 no exception entitlement. Successful local signing is not notarization and is
 not clean-Mac acceptance evidence.
 
+The release build discovers OTP crypto's linked `libcrypto`, copies it beside
+the OTP NIFs, rewrites their load commands to `@loader_path`, and fails if any
+non-system absolute library dependency remains. The final SBOM includes that
+bundled OpenSSL binary and its post-signing SHA-256 digest.
+
+Task 0902 release evidence is complete for the Apple Silicon host: Apple
+accepted submission `ec1ecdef-220e-418b-a4f3-29557d53721b` with zero issues;
+the ticket was stapled and validated; Gatekeeper accepted the quarantined,
+freshly extracted ZIP; and all 22 sterile runtime checks passed under the
+separate `qa` macOS account. This verifies a clean account on the supported
+host, not a second physical Mac.
+
 ## Tool discovery
 
 macOS GUI applications do not inherit an interactive shell's dotfile `PATH`. Search configured paths and known safe locations (Homebrew, `~/.local/bin`, npm global, cargo), allow the user to select an executable, and store verified paths. Display version and health for Git, each agent runtime, and each plugin binary.

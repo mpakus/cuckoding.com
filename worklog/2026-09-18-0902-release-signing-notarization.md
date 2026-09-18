@@ -4,11 +4,11 @@
 
 - Date/time (UTC): 2026-09-18
 - Task: 0902
-- Status: in progress
+- Status: complete
 - Human/agent owner: codex
 - Branch: `feature/0902-release-signing-notarization`
 - Start revision: `88f0182`
-- End revision: pending
+- End revision: task commit
 
 ## Acceptance criteria
 
@@ -34,9 +34,8 @@
   and a stapled ticket. Tauri's current macOS distribution guidance confirms
   the Developer ID identity and hardened-runtime configuration points.
 - The host has one valid Developer ID Application identity. No credentials are
-  copied into the repository or agent environment. The expected local
-  `notarytool` Keychain profile is not present, so notarization submission is a
-  known external gate after the signed artifact is ready.
+  copied into the repository or agent environment. The human created and
+  validated the `Cuckoding` `notarytool` Keychain profile interactively.
 
 ## Work performed
 
@@ -58,21 +57,34 @@
 - Documented local and CI credential boundaries and made the existing sterile
   verifier accept an explicit bundled-release path so the signed artifact can
   exercise the same 22 protocol and cleanup checks.
+- Diagnosed the first notarized artifact's clean launch failure to OTP crypto
+  loading Homebrew's external `libcrypto`. The build now embeds that one native
+  dependency, rewrites both affected NIFs to `@loader_path`, ad-hoc signs the
+  rewritten binaries for local verification, and rejects any remaining
+  non-system absolute dependency. Developer ID signing replaces the ad-hoc
+  signatures for release.
+- Added bundled OpenSSL provenance to the SBOM and made pre-readiness verifier
+  failures retain bounded runtime output so native launch defects are directly
+  actionable.
 
 ## Verification
 
 | Check | Result |
 | --- | --- |
 | Shell and system-Ruby syntax | pass |
-| Release helper regression tests | pass; 3 runs, 7 assertions |
+| Release helper regression tests | pass; 4 runs, 10 assertions |
 | Workflow YAML parsing | pass with system Ruby and `YamlElixir` |
-| SBOM/provenance/checksum fixture | pass; 291 target components, 275 with declared licenses; all three checksums verified |
+| Final SBOM, provenance, and checksums | pass; 292 target components including OpenSSL 3.6.3; post-signing binary digest present; clean source revision `32fb8fb`; all three checksums verified |
 | Ad-hoc nested signing rehearsal | pass; all 25 Mach-O signatures, hardened-runtime flags, deep bundle seal, and BEAM JIT entitlement verified |
 | Ad-hoc bundled runtime | expected rejection; hardened library validation rejects NIFs because ad-hoc signatures have no Team ID; no weakening entitlement was added |
 | `rtk proxy sh desktop/build.sh` | pass; 4 Rust tests and all 22 sterile release checks passed |
 | `rtk mix quality` | pass; 10 properties and 185 tests, 0 failures; Credo, Sobelow, and dependency audit passed |
-| Developer ID signing | blocked at the macOS Keychain approval dialog before the first signature completed |
-| Apple notarization and Gatekeeper | blocked; the `Cuckoding` notary profile is not present |
+| Developer ID signing | pass; all 26 Mach-O files use hardened runtime, valid strict signatures, matching Team IDs, and only `beam.smp` has the JIT entitlement |
+| Apple notarization and Gatekeeper | pass; final submission `ec1ecdef-220e-418b-a4f3-29557d53721b` accepted with zero issues, ticket stapled and validated, Gatekeeper reports `Notarized Developer ID` |
+| Extracted quarantined ZIP | pass; stapler and Gatekeeper accepted it and all 22 sterile runtime checks passed |
+| Separate clean macOS account | pass on repeat; all 22 checks passed as UID 502 with a separate home and sterile `PATH`; the first cold run passed 20 checks but its synthetic pre-readiness failure exceeded the 8-second harness bound before cleanup |
+| Native dependency audit | pass; 26 Mach-O files and no non-system absolute load dependency after excluding dylib identity records |
+| Shellcheck | unavailable on the host; shell syntax checks passed |
 
 `rtk proxy` was used where exact build, signing, notarization, or subprocess
 output is operationally required. GitHub Actions has one unavoidable bootstrap
@@ -80,9 +92,8 @@ command to install RTK; every subsequent workflow shell command uses RTK.
 
 ## Handoff
 
-In progress. Approve the pending `codesign` Keychain request with **Always
-Allow**, then create the `Cuckoding` profile interactively with `xcrun
-notarytool store-credentials Cuckoding` so no password enters command history.
-No signed artifact is treated as notarized or Gatekeeper-ready until Apple
-accepts it, the ticket is stapled and validated, and the installed artifact
-passes the clean-Mac check.
+Task complete after final review and local-main merge. The ignored release
+artifact is `desktop/dist/Cuckoding-0.1.0-macos-arm64.zip` with SHA-256
+`a7d80cd5961be643215505a9a90db3d91987d50cee64ab4d298c8bb439081faf`.
+The clean-account evidence is from the supported host rather than a second
+physical Mac. Task 0903 owns updates, backups, migrations, and rollback.
