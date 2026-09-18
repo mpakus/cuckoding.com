@@ -91,7 +91,11 @@ candidate rows.
 
 - Runs when the machine is idle and no run needs the runtime, or on demand; never during an active stage on the same project without the user asking.
 - Merges duplicates, resolves contradictions by supersession with both items kept in history, rewrites `INDEX.md` within its size budget, and proposes expiries for stale observations.
-- Every rewrite is a versioned commit of the knowledge files with a job record.
+- The implemented pass is deterministic: it leaves source Markdown untouched,
+  collapses duplicate and superseded entries in the derived index, redacts
+  before its atomic write, and stores every `INDEX.md` version in an
+  append-only revision row. Its durable scan checkpoint resumes after process
+  interruption without creating a second version for the same job revision.
 
 ### Publication
 

@@ -176,6 +176,24 @@ defmodule Cuckoding.Power.Manager do
   def tick(server \\ __MODULE__), do: GenServer.call(server, :tick, :infinity)
   def status(server \\ __MODULE__), do: GenServer.call(server, :status)
 
+  def project_idle?(project_id) when is_binary(project_id) do
+    not Repo.exists?(
+      from(attempt in StageAttempt,
+        join: run in Run,
+        on: run.id == attempt.run_id,
+        join: task in Task,
+        on: task.id == run.task_id,
+        join: board in Board,
+        on: board.id == task.board_id,
+        where:
+          board.project_id == ^project_id and run.state in ^@active_run_states and
+            attempt.state in ^@active_attempt_states
+      )
+    )
+  end
+
+  def project_idle?(_project_id), do: false
+
   @impl true
   def init(options) do
     state = %{

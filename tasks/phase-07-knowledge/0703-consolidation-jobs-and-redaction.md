@@ -2,7 +2,15 @@
 
 ## Objective
 
-Implement idle-time and manual consolidation: merge duplicates, resolve contradictions by supersession, refresh `INDEX.md` within budget, propose expiries, version every rewrite, and resume after crash..
+Implement idle-time and manual consolidation: merge duplicates, resolve contradictions by supersession, refresh `INDEX.md` within budget, propose expiries, version every rewrite, and resume after crash.
+
+```yaml
+status: complete
+owner: codex
+started_at: 2026-09-17
+completed_at: 2026-09-17
+worklog: worklog/2026-09-17-0703-knowledge-consolidation.md
+```
 
 ## Dependencies
 
@@ -19,13 +27,13 @@ Implement idle-time and manual consolidation: merge duplicates, resolve contradi
 
 ## Checklist
 
-- [ ] Never runs during an active stage on the same project without user request.
-- [ ] History kept for superseded items.
+- [x] Never runs during an active stage on the same project without user request.
+- [x] History kept for superseded items.
 
 ## Acceptance criteria
 
-- [ ] Contradiction fixtures resolve with both versions retained.
-- [ ] Job resumes after kill.
+- [x] Contradiction fixtures resolve with both versions retained.
+- [x] Job resumes after kill.
 
 ## Verification and evidence
 

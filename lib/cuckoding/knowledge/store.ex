@@ -14,6 +14,7 @@ defmodule Cuckoding.Knowledge.Store do
     "observations" => "observation"
   }
   @maximum_files 1_000
+  @maximum_index_bytes 32_768
 
   def ensure_project_layout(%Project{} = project) do
     with {:ok, repo} <- canonical_directory(project.repo_path),
@@ -129,6 +130,19 @@ defmodule Cuckoding.Knowledge.Store do
     end
   end
 
+  def write_project_index(%Project{} = project, content)
+      when is_binary(content) and byte_size(content) <= @maximum_index_bytes do
+    with {:ok, root} <- ensure_project_layout(project),
+         path = Path.join(root, "INDEX.md"),
+         :ok <- writable_index?(path),
+         {:ok, previous_hash} <- optional_file_hash(path),
+         :ok <- atomic_write(path, content) do
+      {:ok, %{path: path, previous_hash: previous_hash, content_hash: sha256(content)}}
+    end
+  end
+
+  def write_project_index(%Project{}, _content), do: {:error, :knowledge_index_too_large}
+
   defp create_layout(root) do
     [root | Enum.map(Map.keys(@directories), &Path.join(root, &1))]
     |> Enum.concat([Path.join(root, "skills")])
@@ -138,6 +152,37 @@ defmodule Cuckoding.Knowledge.Store do
         {:error, reason} -> {:halt, {:error, {:knowledge_layout_failed, reason}}}
       end
     end)
+  end
+
+  defp writable_index?(path) do
+    case File.lstat(path) do
+      {:ok, %{type: :regular}} -> :ok
+      {:ok, %{type: :symlink}} -> {:error, :knowledge_index_symlink}
+      {:ok, _stat} -> {:error, :knowledge_index_not_regular}
+      {:error, :enoent} -> :ok
+      {:error, reason} -> {:error, {:knowledge_index_unavailable, reason}}
+    end
+  end
+
+  defp optional_file_hash(path) do
+    case File.lstat(path) do
+      {:ok, _stat} -> file_hash(path)
+      {:error, :enoent} -> {:ok, nil}
+      {:error, reason} -> {:error, {:knowledge_index_unavailable, reason}}
+    end
+  end
+
+  defp atomic_write(path, content) do
+    temporary = path <> ".tmp-#{System.unique_integer([:positive])}"
+
+    result =
+      case File.write(temporary, content, [:binary, :exclusive]) do
+        :ok -> File.rename(temporary, path)
+        {:error, _reason} = error -> error
+      end
+
+    if result != :ok, do: File.rm(temporary)
+    result
   end
 
   defp scan_directories(root) do

@@ -91,6 +91,13 @@ repository and checked for symlinks and confinement. Project ownership is
 authorized before the file path is resolved, while global reads require an
 explicit opt-in.
 
+Consolidation is deterministic and project-scoped. The Power Manager's durable
+active-stage query gates automatic work; an explicit manual run may override
+that gate. A job checkpoints after scanning, replaces only the bounded derived
+`INDEX.md` atomically, and stores each redacted index revision append-only.
+Duplicate and superseded source Markdown remains intact, while stale
+observations are proposed for review rather than invalidated automatically.
+
 `Cuckoding.Knowledge.Extractor` is a run-completion service, not an agent-owned
 memory process. It reads only committed public activity, bounds and redacts the
 fixed extraction input, uses the run's recorded adapter session, validates and
