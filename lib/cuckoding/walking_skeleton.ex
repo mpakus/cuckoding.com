@@ -21,15 +21,8 @@ defmodule Cuckoding.WalkingSkeleton do
   alias Cuckoding.Repo
   alias Cuckoding.Workflows
   alias Cuckoding.Workflows.Approval
+  alias Cuckoding.Workflows.Definition
   alias Cuckoding.Workflows.Task
-
-  @stages [
-    %{"key" => "specification", "role" => "spec_writer"},
-    %{"key" => "development", "role" => "implementer"},
-    %{"key" => "qa", "role" => "reviewer"},
-    %{"key" => "human_approval", "role" => "approver"},
-    %{"key" => "release_handoff", "role" => "release"}
-  ]
 
   @doc "Creates one project, default board, ready task, run, and confined host worktree."
   def create(attrs) when is_map(attrs) do
@@ -615,7 +608,7 @@ defmodule Cuckoding.WalkingSkeleton do
       project_id: project.id,
       name: "default",
       version: 1,
-      definition_json: %{"stages" => @stages},
+      definition_json: Definition.default(),
       published_at: Cuckoding.Clock.wall_now()
     }
   end

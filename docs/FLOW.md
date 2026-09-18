@@ -107,6 +107,10 @@ Destroy uses the same owned-process shutdown first, then asks Git to remove the 
 
 Every stage definition declares: stable key, display name, and role; input artifact types and required context; knowledge triggers; allowed tool categories; maximum attempts, active duration, wall duration, token budget, and cost budget; entry guards and exit gates; required output artifact schema; transitions for success, findings, timeout, cancellation, and system failure; whether pause and provider-native resume are supported; whether a human approval is mandatory; checkpoint interval.
 
+`Cuckoding.Workflows.Definition` is the Phase 5 executable subset of this contract. A compact definition must provide at least one stage with a unique `key` and `role`; publication expands the display name, role kind, finite budgets, knowledge triggers, gates, checkpoint interval, and sequential `pass` transition defaults before storing the immutable version. Explicit transitions must target another declared stage or `$done`. The entry stage and every other stage must be reachable. A strongly connected component made only of `pass` edges is rejected as an unsafe cycle; labeled revision/fix loops remain valid under finite attempt budgets.
+
+The evaluator checks attempt, active-time, wall-time, token, and cost budgets; requires all declared gates; and then resolves the requested transition label. QA findings carry a transition label and are grouped by its resolved target without changing their evidence. Task/run lifecycle states remain separate from stage keys and transition labels.
+
 ## Retry semantics
 
 - A retry always creates a new stage attempt.

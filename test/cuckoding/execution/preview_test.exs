@@ -176,7 +176,7 @@ defmodule Cuckoding.Execution.PreviewTest do
         project_id: project.id,
         name: "default",
         version: 1,
-        definition_json: %{"stages" => []},
+        definition_json: %{"stages" => [%{"key" => "implementation", "role" => "implementer"}]},
         published_at: @now
       })
 

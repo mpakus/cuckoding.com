@@ -164,7 +164,7 @@ defmodule Cuckoding.StateMachineTest do
              "workflow_version_id" => domain.workflow.id,
              "name" => "default",
              "version" => 1,
-             "definition" => %{"stages" => []},
+             "definition" => domain.workflow.definition_json,
              "roles" => [
                %{
                  "role_key" => role.role_key,
@@ -245,7 +245,7 @@ defmodule Cuckoding.StateMachineTest do
         project_id: project.id,
         name: "default",
         version: 1,
-        definition_json: %{"stages" => []},
+        definition_json: %{"stages" => [%{"key" => "implementation", "role" => "implementer"}]},
         published_at: @now
       })
 

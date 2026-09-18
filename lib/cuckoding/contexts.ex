@@ -24,13 +24,18 @@ defmodule Cuckoding.Workflows do
   alias Cuckoding.Repo
   alias Cuckoding.Workflows.Approval
   alias Cuckoding.Workflows.Board
+  alias Cuckoding.Workflows.Definition
   alias Cuckoding.Workflows.Finding
   alias Cuckoding.Workflows.RoleAssignment
   alias Cuckoding.Workflows.Task
   alias Cuckoding.Workflows.TaskDependency
   alias Cuckoding.Workflows.WorkflowVersion
 
-  def publish_workflow(attrs), do: insert(WorkflowVersion, attrs)
+  def publish_workflow(attrs) do
+    with {:ok, definition} <- Definition.validate(attrs[:definition_json]) do
+      insert(WorkflowVersion, Map.put(attrs, :definition_json, definition))
+    end
+  end
 
   def create_board(attrs) do
     workflow = Repo.get(WorkflowVersion, attrs[:workflow_version_id])

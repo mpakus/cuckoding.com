@@ -60,6 +60,16 @@ defmodule Cuckoding.DomainTest do
              })
   end
 
+  test "workflow publication rejects an empty definition" do
+    assert {:error, {:invalid_workflow, :missing_stages}} =
+             Workflows.publish_workflow(%{
+               name: "invalid",
+               version: 1,
+               definition_json: %{"stages" => []},
+               published_at: @now
+             })
+  end
+
   property "task dependencies reject every generated cycle" do
     check all(task_count <- integer(2..10), max_runs: 20) do
       domain = domain_fixture()
@@ -155,7 +165,7 @@ defmodule Cuckoding.DomainTest do
         project_id: project.id,
         name: "default",
         version: 1,
-        definition_json: %{"stages" => []},
+        definition_json: %{"stages" => [%{"key" => "implementation", "role" => "implementer"}]},
         published_at: @now
       })
 

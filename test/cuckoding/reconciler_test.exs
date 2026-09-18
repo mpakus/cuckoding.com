@@ -234,7 +234,7 @@ defmodule Cuckoding.ReconcilerTest do
         project_id: project.id,
         name: "recovery",
         version: 1,
-        definition_json: %{"stages" => []},
+        definition_json: %{"stages" => [%{"key" => "implementation", "role" => "implementer"}]},
         published_at: @now
       })
 
