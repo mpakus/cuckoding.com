@@ -81,6 +81,13 @@ class PowerManagerSpikeTest < Minitest::Test
     LOG
   end
 
+  def test_sleep_log_discards_malformed_bytes
+    output = "2026-09-17 11:46:56 -0500 Wake current cycle\n\xFF".dup.force_encoding(Encoding::UTF_8)
+
+    assert_equal "2026-09-17 11:46:56 -0500 Wake current cycle\n",
+      PowerManagerSpike.scoped_sleep_log(output, Time.new(2026, 9, 17, 11, 46, 24, "-05:00"))
+  end
+
   def test_lid_close_configuration_rejects_invalid_modes
     assert_raises(ArgumentError) do
       PowerManagerSpike::RealSleepVerifier.new(

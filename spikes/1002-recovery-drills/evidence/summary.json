@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "verified_at": "2026-09-18T22:00:22.253428Z",
+  "target_percent": 95.0,
+  "observations": 27,
+  "passed": 27,
+  "failed": 0,
+  "recovery_percent": 100.0,
+  "target_met": true,
+  "automated_summary": "automated/summary.json",
+  "physical": [
+    {
+      "name": "real_sleep_specification",
+      "stage_key": "specification",
+      "status": "passed",
+      "errors": [],
+      "summary": "real-sleep-specification-summary.json",
+      "pmset_log": "real-sleep-specification-pmset.log",
+      "clocks": "real-sleep-specification-clocks.json"
+    },
+    {
+      "name": "real_sleep_development",
+      "stage_key": "development",
+      "status": "passed",
+      "errors": [],
+      "summary": "real-sleep-development-summary.json",
+      "pmset_log": "real-sleep-development-pmset.log",
+      "clocks": "real-sleep-development-clocks.json"
+    },
+    {
+      "name": "real_sleep_qa",
+      "stage_key": "qa",
+      "status": "passed",
+      "errors": [],
+      "summary": "real-sleep-qa-summary.json",
+      "pmset_log": "real-sleep-qa-pmset.log",
+      "clocks": "real-sleep-qa-clocks.json"
+    },
+    {
+      "name": "real_sleep_human_approval",
+      "stage_key": "human_approval",
+      "status": "passed",
+      "errors": [],
+      "summary": "real-sleep-human-approval-summary.json",
+      "pmset_log": "real-sleep-human-approval-pmset.log",
+      "clocks": "real-sleep-human-approval-clocks.json"
+    },
+    {
+      "name": "real_sleep_release_handoff",
+      "stage_key": "release_handoff",
+      "status": "passed",
+      "errors": [],
+      "summary": "real-sleep-release-handoff-summary.json",
+      "pmset_log": "real-sleep-release-handoff-pmset.log",
+      "clocks": "real-sleep-release-handoff-clocks.json"
+    },
+    {
+      "name": "battery_lid_close",
+      "stage_key": "development",
+      "status": "passed",
+      "errors": [],
+      "summary": "lid-close-battery-recover-development-summary.json",
+      "pmset_log": "lid-close-battery-recover-development-pmset.log",
+      "clocks": "lid-close-battery-recover-development-clocks.json"
+    }
+  ]
+}

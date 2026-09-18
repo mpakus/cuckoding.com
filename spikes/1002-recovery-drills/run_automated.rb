@@ -15,7 +15,7 @@ CASES = [
   ["hibernate_resume", 1, %w[mix test test/cuckoding/execution/lifecycle_test.exs --only recovery_drill --seed 0]],
   ["quit_hibernate", 1, %w[mix test test/cuckoding/shell_test.exs --only recovery_drill --seed 0]],
   ["single_release", 1, %w[mix test test/cuckoding/walking_skeleton_test.exs --only recovery_drill --seed 0]],
-  ["power_contract", 9, %w[ruby spikes/0004-sleep-wake-power/test_power_manager_spike.rb]],
+  ["power_contract", 10, %w[ruby spikes/0004-sleep-wake-power/test_power_manager_spike.rb]],
   ["safe_process_drill", 1,
    %w[ruby spikes/0004-sleep-wake-power/power_manager_spike.rb] + ["EVIDENCE_DIR"]]
 ].freeze

@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "started_at": "2026-09-18T19:37:14.140762Z",
-  "completed_at": "2026-09-18T19:37:19.540245Z",
+  "started_at": "2026-09-18T22:00:07.551460Z",
+  "completed_at": "2026-09-18T22:00:13.027611Z",
   "target_percent": 95.0,
-  "observations": 20,
-  "passed": 20,
+  "observations": 21,
+  "passed": 21,
   "failed": 0,
   "recovery_percent": 100.0,
   "target_met": true,
@@ -15,7 +15,7 @@
       "observed": 4,
       "failures": 0,
       "status": "passed",
-      "duration_ms": 814,
+      "duration_ms": 822,
       "command": "rtk proxy mix test test/cuckoding/reconciler_test.exs --only recovery_drill --seed 0",
       "log": "reconciler.log"
     },
@@ -25,7 +25,7 @@
       "observed": 3,
       "failures": 0,
       "status": "passed",
-      "duration_ms": 685,
+      "duration_ms": 715,
       "command": "rtk proxy mix test test/cuckoding/power/manager_test.exs --only recovery_drill --seed 0",
       "log": "power_manager.log"
     },
@@ -35,7 +35,7 @@
       "observed": 1,
       "failures": 0,
       "status": "passed",
-      "duration_ms": 1509,
+      "duration_ms": 1535,
       "command": "rtk proxy mix test test/cuckoding/execution/lifecycle_test.exs --only recovery_drill --seed 0",
       "log": "hibernate_resume.log"
     },
@@ -45,7 +45,7 @@
       "observed": 1,
       "failures": 0,
       "status": "passed",
-      "duration_ms": 550,
+      "duration_ms": 557,
       "command": "rtk proxy mix test test/cuckoding/shell_test.exs --only recovery_drill --seed 0",
       "log": "quit_hibernate.log"
     },
@@ -55,17 +55,17 @@
       "observed": 1,
       "failures": 0,
       "status": "passed",
-      "duration_ms": 1550,
+      "duration_ms": 1574,
       "command": "rtk proxy mix test test/cuckoding/walking_skeleton_test.exs --only recovery_drill --seed 0",
       "log": "single_release.log"
     },
     {
       "name": "power_contract",
-      "expected_observations": 9,
-      "observed": 9,
+      "expected_observations": 10,
+      "observed": 10,
       "failures": 0,
       "status": "passed",
-      "duration_ms": 73,
+      "duration_ms": 75,
       "command": "rtk proxy ruby spikes/0004-sleep-wake-power/test_power_manager_spike.rb",
       "log": "power_contract.log"
     },
@@ -75,7 +75,7 @@
       "observed": 1,
       "failures": 0,
       "status": "passed",
-      "duration_ms": 217,
+      "duration_ms": 197,
       "command": "rtk proxy ruby spikes/0004-sleep-wake-power/power_manager_spike.rb spikes/1002-recovery-drills/evidence/automated/safe_process_drill",
       "log": "safe_process_drill.log"
     }

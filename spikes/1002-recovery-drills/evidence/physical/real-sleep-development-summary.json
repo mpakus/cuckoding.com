@@ -1,0 +1,46 @@
+{
+  "stage_key": "development",
+  "trigger": "pmset_sleepnow",
+  "expected_power_source": null,
+  "worker_mode": "live",
+  "before_utc": "2026-09-18T20:15:10.982569Z",
+  "after_utc": "2026-09-18T20:15:37.402559Z",
+  "before_sleep_uuid": "40DE0298-4371-4C52-8C2F-FAB1D87610CA",
+  "after_sleep_uuid": "DE2E36BE-694D-4BF9-A163-3DD567D39A11",
+  "power_before": {
+    "source": "AC Power",
+    "percent": 100,
+    "ac_attached": false
+  },
+  "power_after": {
+    "source": "AC Power",
+    "percent": 100,
+    "ac_attached": false
+  },
+  "continuous_elapsed_ms": 26210,
+  "uptime_elapsed_ms": 13481,
+  "detected_gap_ms": 12729,
+  "detected_on_first_tick": true,
+  "worker_survived": true,
+  "worker_recovered": false,
+  "worker_loss": null,
+  "provider_stream_fixture_survived": true,
+  "provider_stream_classification": "connected",
+  "provider_stream_reconnected": true,
+  "dev_server_survived": true,
+  "port_responded": true,
+  "assertion_verified_before_sleep": true,
+  "assertion_released_for_forced_drill": true,
+  "assertion_survived_sleep": false,
+  "assertion_reacquired_after_wake": true,
+  "stage_execution_count": 1,
+  "reconciliation_events": [
+    {
+      "type": "run.resumed_after_sleep",
+      "gap_id": "real-sleep-2026-09-18T20:15:10.982569Z",
+      "gap_ms": 12729,
+      "outcome": "continued",
+      "occurred_at": "2026-09-18T20:15:37.343718Z"
+    }
+  ]
+}

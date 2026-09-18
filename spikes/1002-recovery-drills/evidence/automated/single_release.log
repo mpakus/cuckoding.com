@@ -4,5 +4,5 @@ Excluding tags: [:test]
 Including tags: [:recovery_drill]
 
 .
-Finished in 1.0 seconds (0.00s async, 1.0s sync)
+Finished in 1.1 seconds (0.00s async, 1.1s sync)
 1 test, 0 failures (8 excluded)

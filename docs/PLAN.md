@@ -105,7 +105,7 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 **Outcome:** the product withstands common threats and recovers predictably; controlled external testing.
 
 - [x] Capability and secret hardening, adversarial prompt and plugin tests.
-- [ ] Crash, power-loss, and sleep recovery drills.
+- [x] Crash, power-loss, and sleep recovery drills.
 - [ ] Dogfood and controlled beta.
 - [ ] MVP release readiness.
 
@@ -113,7 +113,7 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 
 - [ ] Two supported agent runtimes complete the default workflow on the host runner.
 - [ ] Two boards run concurrently without worktree, port, process, or event crossover.
-- [ ] A running task survives hibernate, app quit, relaunch, and a real sleep/wake cycle with a single execution of each stage.
+- [x] A running task survives hibernate, app quit, relaunch, and a real sleep/wake cycle with a single execution of each stage.
 - [ ] The Agent Floor attributes every action to a role, runtime, model, and run.
 - [ ] Provider-reported and estimated costs are visually distinguishable; active and wall time are both shown.
 - [ ] A failed QA gate returns structured findings to development.

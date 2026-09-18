@@ -1,7 +1,7 @@
 $ rtk proxy ruby spikes/0004-sleep-wake-power/power_manager_spike.rb spikes/1002-recovery-drills/evidence/automated/safe_process_drill
 {
   "assertion": {
-    "pid": 41005,
+    "pid": 62543,
     "visible_while_active": true,
     "released_while_owner_alive": true,
     "released_when_owner_exited": true
@@ -16,14 +16,14 @@ $ rtk proxy ruby spikes/0004-sleep-wake-power/power_manager_spike.rb spikes/1002
       "gap_id": "simulated-live",
       "gap_ms": 10000,
       "outcome": "continued",
-      "occurred_at": "2026-09-18T19:37:19.500595Z"
+      "occurred_at": "2026-09-18T22:00:12.994588Z"
     },
     {
       "type": "run.resumed_after_sleep",
       "gap_id": "simulated-dead",
       "gap_ms": 10000,
       "outcome": "recovered",
-      "occurred_at": "2026-09-18T19:37:19.534696Z"
+      "occurred_at": "2026-09-18T22:00:13.021977Z"
     }
   ],
   "real_sleep_test": "not_run",

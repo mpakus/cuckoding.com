@@ -3,9 +3,9 @@
   "stage_execution_count": 1,
   "provider_session_count": 2,
   "process": {
-    "pid": 41017,
-    "pgid": 41017,
-    "start_identity": "Fri Sep 18 14:37:19 2026"
+    "pid": 62555,
+    "pgid": 62555,
+    "start_identity": "Fri Sep 18 17:00:13 2026"
   },
   "reconciled_gap_ids": [
     "simulated-live",
@@ -17,14 +17,14 @@
       "gap_id": "simulated-live",
       "gap_ms": 10000,
       "outcome": "continued",
-      "occurred_at": "2026-09-18T19:37:19.500595Z"
+      "occurred_at": "2026-09-18T22:00:12.994588Z"
     },
     {
       "type": "run.resumed_after_sleep",
       "gap_id": "simulated-dead",
       "gap_ms": 10000,
       "outcome": "recovered",
-      "occurred_at": "2026-09-18T19:37:19.534696Z"
+      "occurred_at": "2026-09-18T22:00:13.021977Z"
     }
   ]
 }

@@ -115,7 +115,7 @@ module PowerManagerSpike
 
   def scoped_sleep_log(output, since)
     cutoff = since.getlocal.strftime("%Y-%m-%d %H:%M:%S")
-    output.lines.grep(
+    output.encode(Encoding::UTF_8, invalid: :replace, undef: :replace, replace: "").lines.grep(
       /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} [+-]\d{4} (?:Sleep|DarkWake|Wake|WakeTime|HibernateStats)\s/
     ).select { |line| line[0, 19] >= cutoff }.last(12).join
   end
@@ -445,41 +445,32 @@ module PowerManagerSpike
 
       evidence = {}
       evidence["thread"] = Thread.new do
-        wait_for_lid_close
-        evidence["lid_closed_at"] = Time.now.utc.iso8601(6)
-        evidence["scheduled_at"] = (Time.now + 30).utc.iso8601(6)
+        started_at = Time.now
+        evidence["scheduled_at"] = (started_at + 30).utc.iso8601(6)
         sleep 30
         raise "worker identity changed before loss injection" unless same_process?(worker)
 
         stop(worker.fetch("pid"))
-        evidence["observed_at"] = Time.now.utc.iso8601(6)
+        observed_at = Time.now
+        evidence["observed_at"] = observed_at.utc.iso8601(6)
+        evidence["timer_elapsed_ms"] = ((observed_at - started_at) * 1000).round
       end
       evidence
     end
 
-    def wait_for_lid_close
-      deadline = Time.now + 180
-      until clamshell_closed?
-        raise "lid did not close" if Time.now >= deadline
-
-        sleep 0.1
-      end
-    end
-
-    def clamshell_closed?
-      output, status = Open3.capture2(
-        "/usr/sbin/ioreg", "-r", "-k", "AppleClamshellState", "-d", "4"
-      )
-      status.success? && output.include?('"AppleClamshellState" = Yes')
-    end
-
     def force_sleep
-      sleep_pid = Process.spawn(
-        {"PATH" => SAFE_PATH}, "/usr/bin/pmset", "sleepnow",
+      run_pmset_command("displaysleepnow")
+      sleep 1
+      run_pmset_command("sleepnow")
+    end
+
+    def run_pmset_command(command)
+      pid = Process.spawn(
+        {"PATH" => SAFE_PATH}, "/usr/bin/pmset", command,
         out: File::NULL, err: File::NULL, pgroup: true, unsetenv_others: true
       )
-      _, sleep_status = Process.wait2(sleep_pid)
-      raise "pmset sleepnow failed with #{sleep_status.exitstatus}" unless sleep_status.success?
+      _, status = Process.wait2(pid)
+      raise "pmset #{command} failed with #{status.exitstatus}" unless status.success?
     end
 
     def spawn_process(*command, out: File::NULL)

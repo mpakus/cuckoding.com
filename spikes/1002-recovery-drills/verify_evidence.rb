@@ -21,7 +21,11 @@ def validate(summary, stage_key:, outcome:)
     "outcome" => event&.fetch("outcome", nil) == outcome,
     "loopback_service" => truthy?(summary["dev_server_survived"]) && truthy?(summary["port_responded"]),
     "provider_stream" => truthy?(summary["provider_stream_reconnected"]),
-    "worker" => outcome == "continued" ? truthy?(summary["worker_survived"]) : truthy?(summary["worker_recovered"])
+    "worker" => outcome == "continued" ? truthy?(summary["worker_survived"]) : truthy?(summary["worker_recovered"]),
+    "battery_lid" => outcome != "recovered" ||
+      (summary["trigger"] == "lid_close" && summary["expected_power_source"] == "battery" &&
+       !truthy?(summary.dig("power_before", "ac_attached")) &&
+       !truthy?(summary.dig("power_after", "ac_attached")))
   }
   [checks, checks.values.all?]
 end
@@ -57,6 +61,11 @@ physical = expectations.map do |name, prefix, stage_key, outcome|
       passed = false
       errors << "missing_#{kind}"
     end
+  end
+
+  if outcome == "recovered" && File.file?(pmset_path) && !File.read(pmset_path).include?("Clamshell Sleep")
+    passed = false
+    errors << "missing_clamshell_sleep"
   end
 
   {

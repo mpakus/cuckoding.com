@@ -142,3 +142,11 @@ credential-free descriptions. Cuckoding adds current durable activation,
 signed run-scoped grants, closed/redacted outputs, source-labeled numbers,
 server-derived namespaces, offline exact-package configuration, and tool
 allowlists. No peer code was copied.
+
+For task 1002, the local XERJ node was unreachable, so pinned MIT Agetor
+revision `eb74ab5f3d6d71dfb91d5bd34e9c679c5a955a6a` was inspected directly.
+Its abortable full-jitter stream retry at `src/cli/sse.ts:112-130` remains an
+adapter-layer option only after Cuckoding durably records the sleep gap,
+extends leases, and performs one idempotent reconciliation. The drill reuses
+the repository's existing lifecycle, power, reconciler, and release fixtures;
+no peer code was copied.

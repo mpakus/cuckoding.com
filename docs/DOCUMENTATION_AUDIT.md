@@ -40,9 +40,12 @@ The previous XERJ plugin text called all retrieval semantic even though the curr
 
 Task 0504 consumes `SecretStore` but originally depended only on 0503 and 0301. Its dependency list now includes 0204 so the credential boundary exists before host-side push and pull-request work.
 
-### P2 — Recovery percentage is underspecified
+### Resolved P2 — Recovery percentage was underspecified
 
-Tasks 0203 and 1002 use a 95% recovery target but do not define a fixture count, failure matrix, confidence rule, or whether retries change the denominator. Before implementing those gates, define a deterministic drill matrix and report numerator, denominator, failure classes, and retries. A percentage over a tiny or changing sample is not release evidence.
+`docs/RECOVERY_DRILLS.md` now fixes the denominator at 27 named observations,
+keeps retries outside the denominator, requires every row to pass even if the
+aggregate remains above 95%, and records automated, five-stage real-sleep, and
+battery-clamshell evidence. The committed combined report is 27/27.
 
 ### P3 — Generated task prose needs cleanup
 

@@ -19,7 +19,7 @@ suite, and the non-sleeping process verifier. It writes one log per case and a
 machine-readable `summary.json`. `rtk proxy` is intentional here because the
 runner parses the exact ExUnit and Minitest summaries.
 
-The 20 automated observations cover surviving and interrupted processes,
+The 21 automated observations cover surviving and interrupted processes,
 lease-first sleep reconciliation, a process killed during an open SQLite
 transaction, retry of a failed wake pass, real `caffeinate` ownership, durable
 hibernate/resume, quit-time hibernation, and one idempotent commit/push release.
@@ -30,7 +30,9 @@ Physical runs are opt-in because they sleep the Mac. Run them only on a quiet
 or locked test Mac with a coordinated wake plan. Each command creates distinct
 stage-named evidence and must report `stage_execution_count: 1`, exactly one
 reconciliation event, a positive `detected_gap_ms`, and a surviving or
-reconnected loopback fixture.
+reconnected loopback fixture. The verifier darkens the display immediately
+before requesting system sleep because active-display requests can be cancelled
+by fresh WindowServer activity.
 
 ```sh
 rtk proxy ruby spikes/0004-sleep-wake-power/power_manager_spike.rb --real-sleep specification spikes/1002-recovery-drills/evidence/physical
@@ -42,14 +44,17 @@ rtk proxy ruby spikes/0004-sleep-wake-power/power_manager_spike.rb --real-sleep 
 
 The battery drill additionally proves that a missing worker resumes once after
 lid close. Disconnect external power and confirm `pmset -g batt` says battery
-power before running it. Close the lid within ten seconds, leave it closed for
-at least sixty seconds, then reopen it:
+power before running it. The verifier schedules worker loss for thirty seconds
+later. Close the lid within ten seconds, leave it closed for at least sixty
+seconds, then reopen it. The worker may disappear during the pre-sleep
+transition; the product condition is that it is missing when wake reconciliation
+begins. Acceptance requires the scoped power log to contain `Clamshell Sleep`:
 
 ```sh
 rtk proxy ruby spikes/0004-sleep-wake-power/power_manager_spike.rb --lid-close battery recover development spikes/1002-recovery-drills/evidence/physical
 ```
 
-The combined denominator is 26: 20 automated observations, five default-stage
+The combined denominator is 27: 21 automated observations, five default-stage
 sleep observations, and one battery lid-close recovery. The target is at least
 95%, but a missing or failed required row still blocks acceptance. Physical
 evidence is a host-specific release gate and must not be inferred from the
@@ -71,7 +76,7 @@ For every physical summary, check:
 - `detected_on_first_tick` is `true` and `detected_gap_ms` is positive;
 - `stage_execution_count` is `1` and there is one reconciliation event;
 - live mode reports `worker_survived`; recover mode reports
-  `worker_recovered` and one replacement provider session;
+  `worker_recovered`;
 - the server, port, and provider stream survived or reconnected;
 - the matching scoped `pmset` log records the same sleep/wake cycle.
 

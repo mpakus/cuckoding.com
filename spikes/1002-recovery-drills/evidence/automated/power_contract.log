@@ -1,13 +1,13 @@
 $ rtk proxy ruby spikes/0004-sleep-wake-power/test_power_manager_spike.rb
-Run options: --seed 44138
+Run options: --seed 31333
 
 # Running:
 
-.........
+..........
 
-Finished in 0.000525s, 17142.8578 runs/s, 43809.5254 assertions/s.
+Finished in 0.000671s, 14903.1299 runs/s, 35767.5119 assertions/s.
 
-9 runs, 23 assertions, 0 failures, 0 errors, 0 skips
+10 runs, 24 assertions, 0 failures, 0 errors, 0 skips
 Ignoring appsignal-4.8.4 because its extensions are not built. Try: gem pristine appsignal --version 4.8.4
 Ignoring bigdecimal-3.3.1 because its extensions are not built. Try: gem pristine bigdecimal --version 3.3.1
 Ignoring cbor-0.5.10.1 because its extensions are not built. Try: gem pristine cbor --version 0.5.10.1
