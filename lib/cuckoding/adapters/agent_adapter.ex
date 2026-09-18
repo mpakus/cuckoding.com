@@ -226,13 +226,15 @@ defmodule Cuckoding.Adapters.FakeAdapter do
   @impl true
   def send(%Types.Session{}, input, options) when is_map(input) do
     result(:send, options, fn ->
+      metadata = Keyword.get(options, :reply, Map.drop(input, ["summary"]))
+
       decode_event(
         %{
           "event_id" => Identifier.generate(),
           "sequence" => Keyword.get(options, :sequence, 1),
           "type" => "activity.summary",
           "summary" => Map.get(input, "summary", "Fake follow-up accepted"),
-          "metadata" => Map.drop(input, ["summary"])
+          "metadata" => metadata
         },
         options
       )

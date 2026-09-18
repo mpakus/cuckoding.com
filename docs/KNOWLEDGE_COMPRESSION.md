@@ -75,6 +75,18 @@ flowchart TD
 - Produces candidates with evidence IDs; each candidate is compared to existing items and labeled as an explicit operation.
 - Redaction runs before synthesis and again before storage: secrets, personal data, absolute private paths, proprietary identifiers.
 
+The Phase 7 extraction baseline runs only after a durable run reaches `done`
+and the trusted policy permits `on_completion`. It selects that run's recorded
+agent runtime, builds a size-bounded fixed-template prompt from the normalized
+public activity stream and public artifact event descriptors, and stores only
+the prompt hash. Registered secret values and sensitive keyed fields are
+redacted before the runtime call and again on its untrusted structured output.
+The application—not the runtime—assigns evidence IDs and classifies exact
+content matches as `noop`, matching kind/title revisions as `update`, valid
+explicit replacements as `supersede`, and otherwise as `add`. Jobs are
+idempotent per run; failed synthesis leaves a durable failed job and no partial
+candidate rows.
+
 ### Consolidation ("dream")
 
 - Runs when the machine is idle and no run needs the runtime, or on demand; never during an active stage on the same project without the user asking.

@@ -91,6 +91,13 @@ repository and checked for symlinks and confinement. Project ownership is
 authorized before the file path is resolved, while global reads require an
 explicit opt-in.
 
+`Cuckoding.Knowledge.Extractor` is a run-completion service, not an agent-owned
+memory process. It reads only committed public activity, bounds and redacts the
+fixed extraction input, uses the run's recorded adapter session, validates and
+redacts structured output, assigns provenance from trusted database rows, and
+atomically writes review candidates. Runtime-suggested operation labels and
+evidence are ignored; the control plane computes both.
+
 ### Power manager
 
 Holds a power assertion while runs are active, detects sleep gaps, and drives reconciliation of heartbeats, sessions, and leases after wake (`docs/LONG_RUNNING_AND_POWER.md`).

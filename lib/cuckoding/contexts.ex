@@ -500,6 +500,7 @@ end
 defmodule Cuckoding.Knowledge do
   @moduledoc "Owns project knowledge, provenance, review, publication, and retrieval records."
 
+  alias Cuckoding.Knowledge.Extractor
   alias Cuckoding.Knowledge.Store
   alias Cuckoding.Knowledge.Sync
 
@@ -509,6 +510,7 @@ defmodule Cuckoding.Knowledge do
   defdelegate sync_global(options \\ []), to: Sync, as: :run_global
   defdelegate read_for_project(project_id, item_id, options \\ []), to: Store
   defdelegate accept_user_edit(project, item_id), to: Store
+  defdelegate extract(run_id, options \\ []), to: Extractor, as: :run
 end
 
 defmodule Cuckoding.Power do
