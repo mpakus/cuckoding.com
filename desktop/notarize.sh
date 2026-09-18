@@ -66,8 +66,8 @@ if [ "$status" != "Accepted" ]; then
   exit 1
 fi
 
-issue_count=$(rtk proxy env -u GEM_HOME -u GEM_PATH /usr/bin/ruby -rjson \
-  -e 'puts JSON.parse(File.read(ARGV[0])).fetch("issues", []).length' "$log")
+issue_count=$(rtk proxy env -u GEM_HOME -u GEM_PATH PATH=/usr/bin:/bin:/usr/sbin:/sbin \
+  /usr/bin/ruby -rjson -e 'puts Array(JSON.parse(File.read(ARGV[0]))["issues"]).length' "$log")
 if [ "$issue_count" -ne 0 ]; then
   echo "notarization returned $issue_count issue(s); inspect $log" >&2
   exit 1

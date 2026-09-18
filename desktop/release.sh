@@ -6,7 +6,7 @@ desktop_dir=$(CDPATH= cd -- "$script_dir" && pwd)
 root_dir=$(CDPATH= cd -- "$desktop_dir/.." && pwd)
 app="$desktop_dir/src-tauri/target/release/bundle/macos/Cuckoding.app"
 dist="$desktop_dir/dist"
-version=$(rtk proxy env -u GEM_HOME -u GEM_PATH /usr/bin/ruby -rjson \
+version=$(rtk proxy env -u GEM_HOME -u GEM_PATH PATH=/usr/bin:/bin:/usr/sbin:/sbin /usr/bin/ruby -rjson \
   -e 'puts JSON.parse(File.read(ARGV[0])).fetch("version")' \
   "$desktop_dir/src-tauri/tauri.conf.json")
 archive="$dist/Cuckoding-$version-macos-arm64.zip"
@@ -46,7 +46,7 @@ rtk proxy ditto -c -k --keepParent "$app" "$notary_archive"
 rtk proxy sh "$desktop_dir/notarize.sh" "$app" "$notary_archive" "$dist/evidence"
 rtk proxy rm -f "$archive"
 rtk proxy ditto -c -k --keepParent "$app" "$archive"
-rtk proxy env -u GEM_HOME -u GEM_PATH /usr/bin/ruby \
+rtk proxy env -u GEM_HOME -u GEM_PATH PATH=/usr/bin:/bin:/usr/sbin:/sbin /usr/bin/ruby \
   "$desktop_dir/release_metadata.rb" "$root_dir" "$app" "$archive" "$dist"
 
 echo "Release artifact: $archive"

@@ -50,4 +50,29 @@ class ReleaseMetadataTest < Minitest::Test
       assert_equal [macho], MachOFiles.list(root)
     end
   end
+
+  def test_reads_bundled_native_dependency
+    Dir.mktmpdir do |app|
+      release = File.join(app, "Contents/Resources/release")
+      binary = File.join(release, "lib/crypto/lib/libcrypto.3.dylib")
+      FileUtils.mkdir_p(File.dirname(binary))
+      File.binwrite(binary, "signed native library")
+      File.write(
+        File.join(release, "native-dependencies.json"),
+        JSON.generate(
+          "dependencies" => [{
+            "name" => "openssl",
+            "version" => "3.6.3",
+            "license" => "Apache-2.0",
+            "path" => "lib/crypto/lib/libcrypto.3.dylib"
+          }]
+        )
+      )
+
+      component = ReleaseMetadata.native_components(app).fetch(0)
+      assert_equal "pkg:generic/openssl@3.6.3", component.fetch("bom-ref")
+      assert_equal Digest::SHA256.hexdigest("signed native library"), component.fetch("hashes").fetch(0).fetch("content")
+      assert_equal "Apache-2.0", component.fetch("licenses").fetch(0).fetch("expression")
+    end
+  end
 end

@@ -95,6 +95,26 @@ module ReleaseMetadata
     end
   end
 
+  def native_components(app)
+    release = File.join(app, "Contents/Resources/release")
+    manifest = File.join(release, "native-dependencies.json")
+    return [] unless File.file?(manifest)
+
+    JSON.parse(File.read(manifest)).fetch("dependencies").map do |dependency|
+      binary = File.join(release, dependency.fetch("path"))
+      raise "bundled native dependency is missing: #{binary}" unless File.file?(binary)
+
+      {
+        "type" => "library",
+        "name" => dependency.fetch("name"),
+        "version" => dependency.fetch("version"),
+        "bom-ref" => "pkg:generic/#{dependency.fetch("name")}@#{dependency.fetch("version")}",
+        "hashes" => [{"alg" => "SHA-256", "content" => Digest::SHA256.file(binary).hexdigest}],
+        "licenses" => [{"expression" => dependency.fetch("license")}]
+      }
+    end
+  end
+
   def git(root, *args)
     output, error, status = Open3.capture3("rtk", "git", "-C", root, *args)
     raise "git #{args.join(" ")} failed: #{error}" unless status.success?
@@ -105,7 +125,7 @@ module ReleaseMetadata
   def generate(root:, app:, archive:, output:)
     FileUtils.mkdir_p(output)
     version = JSON.parse(File.read(File.join(root, "desktop/src-tauri/tauri.conf.json"))).fetch("version")
-    components = (release_components(root, app) + cargo_components(root))
+    components = (release_components(root, app) + cargo_components(root) + native_components(app))
                  .uniq { |component| component.fetch("bom-ref") }
                  .sort_by { |component| component.fetch("bom-ref") }
     sbom_path = File.join(output, "Cuckoding-#{version}.cdx.json")

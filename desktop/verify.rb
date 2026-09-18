@@ -122,12 +122,15 @@ end
 
 def wait_ready(run, timeout: 15)
   deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
+  output = []
 
   while (remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)).positive?
     next unless IO.select([run[:output]], nil, nil, remaining)
 
     line = run[:output].gets
     break unless line
+    output << line
+    output.shift while output.length > 40
     next unless line.start_with?("READY ")
 
     payload = JSON.parse(line.delete_prefix("READY "))
@@ -138,7 +141,7 @@ def wait_ready(run, timeout: 15)
     return payload
   end
 
-  raise "release did not emit exact READY payload"
+  raise "release did not emit exact READY payload:\n#{output.join}"
 end
 
 def request(run, method, path, token: nil, cookie: nil, host: nil)
@@ -170,8 +173,11 @@ rescue Errno::ESRCH
 end
 
 def cleanup(run)
-  Process.kill("KILL", -run[:pid]) if group_alive?(run[:pid])
-  Process.waitpid(run[:pid])
+  exited = Process.waitpid2(run[:pid], Process::WNOHANG)
+  unless exited
+    Process.kill("KILL", -run[:pid]) if group_alive?(run[:pid])
+    Process.waitpid(run[:pid])
+  end
 rescue Errno::ESRCH, Errno::ECHILD
   nil
 ensure
