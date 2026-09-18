@@ -2,7 +2,14 @@
 
 ## Objective
 
-Build the Knowledge Growth view (items over time by kind/status, consolidation history, coverage, review queue) and the Lineage/Usage view (evidence → candidate → item → runs → outcome graph with counts, usage table, unused/contradicted lists, skills view), each with table alternatives..
+Build the Knowledge Growth view (items over time by kind/status, consolidation history, coverage, review queue) and the Lineage/Usage view (evidence → candidate → item → runs → outcome graph with counts, usage table, unused/contradicted lists, skills view), each with table alternatives.
+
+```yaml
+status: done
+owner: codex
+started_at: 2026-09-18
+worklog: worklog/2026-09-18-0706-knowledge-views.md
+```
 
 ## Dependencies
 
@@ -20,14 +27,15 @@ Build the Knowledge Growth view (items over time by kind/status, consolidation h
 
 ## Checklist
 
-- [ ] Graph nodes open their records.
-- [ ] Aggregations server-side; batched updates.
+- [x] Graph nodes open their records.
+- [x] Aggregations server-side; batched updates.
 
 ## Acceptance criteria
 
-- [ ] Both views render for the e2e knowledge scenario.
-- [ ] Useful at 5,000 items.
+- [x] Both views render for the e2e knowledge scenario.
+- [x] Useful at 5,000 items.
 
 ## Verification and evidence
 
-Run LiveView, accessibility, and load tests.
+- Focused LiveView, accessibility, lineage, and 5,000-item load checks passed: 5 tests, 0 failures.
+- Full `rtk mix quality` passed on retry: 10 properties, 156 tests, 0 failures; Credo, Sobelow, and dependency audit clean.

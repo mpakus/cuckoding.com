@@ -114,6 +114,14 @@ hash-indexed, while every published version and optional `SKILL.md` manifest
 is append-only. `/knowledge` reloads this durable state and exposes native,
 keyboard-operable review and approval forms.
 
+`Cuckoding.Knowledge.Analytics` is the read-only projection for
+`/knowledge/growth` and `/knowledge/lineage`. Counts and time buckets are
+aggregated in SQLite; detailed candidates, usage summaries, run links,
+unused/contradicted items, consolidations, and skills are independently
+bounded. LiveViews replace the projection in one assignment on each periodic
+refresh, so the database remains authoritative and the browser never owns
+lineage state.
+
 ### Power manager
 
 Holds a power assertion while runs are active, detects sleep gaps, and drives reconciliation of heartbeats, sessions, and leases after wake (`docs/LONG_RUNNING_AND_POWER.md`).

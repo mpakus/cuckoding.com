@@ -139,6 +139,13 @@ Candidate acceptance records an `accepted` outcome for the resulting version.
 Accepting an update or supersession also records `contradicted` against the
 prior version; no historical item or usage row is rewritten.
 
+The Knowledge Growth and Lineage/Usage views aggregate those immutable records
+server-side. Growth exposes bounded daily kind/status counts, review coverage,
+scope/use coverage, and consolidation history. Lineage renders linked durable
+records plus a table alternative, aggregated usage/outcome counts, current
+retrieval rank, unused and contradicted lists, and published skills. Detailed
+lists are capped so a 5,000-item store does not become a 5,000-row LiveView.
+
 ## Metrics-based knowledge
 
 Observations about runtimes and models include sample size, task mix, dates, and cost source. A single task never becomes a universal claim.

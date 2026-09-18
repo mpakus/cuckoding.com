@@ -1,6 +1,8 @@
 defmodule CuckodingWeb.KnowledgeReviewLive do
   use CuckodingWeb, :live_view
 
+  import CuckodingWeb.KnowledgeComponents
+
   alias Cuckoding.Knowledge
 
   @actor "local-user"
@@ -80,6 +82,8 @@ defmodule CuckodingWeb.KnowledgeReviewLive do
     ~H"""
     <Layouts.app>
       <section aria-labelledby="knowledge-review-heading" class="space-y-8">
+        <.knowledge_nav current="review" />
+
         <header class="space-y-2">
           <p class="text-sm font-semibold uppercase tracking-wide text-slate-600">
             Project knowledge

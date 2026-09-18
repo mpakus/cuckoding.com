@@ -83,25 +83,32 @@ records, resource samples, usage, and public activity to the selected session.
 
 Per project and global:
 
-- Items over time by kind and status (candidate, project, global, superseded, revoked), as a stacked area chart.
-- Consolidation history: jobs, merges, contradictions resolved, index size.
-- Coverage: which areas of the repository have facts/recipes, which do not (by path prefix declared in `project.yml`).
-- Review queue with evidence preview and one-click accept/reject/supersede.
+- Items over time by kind and status in a bounded daily trend table.
+- Consolidation history: project, state, revision, and index hash.
+- Coverage: total, used, project-scoped, and global-scoped items.
+- Review-queue coverage by candidate kind and decision, linked to the full review surface.
 
 ### Knowledge Lineage and Usage
 
 - A lineage graph: evidence (runs/artifacts) → candidate → item → versions → runs where injected/retrieved/cited → outcome (accepted, corrected, contradicted). Rendered as a left-to-right flow with counts on edges; click any node to open it.
-- Usage table: item, times injected, times cited, acceptance rate, last used, contradiction count, current rank.
+- Usage table: item, times injected/retrieved/cited, acceptance rate, last used, contradiction count, and current retrieval rank.
 - "Unused" and "contradicted" lists as candidates for expiry.
-- Skills view: published skills, versions, which workflows enable them, usage and outcome per version.
+- Skills view: published skills, versions, source items, and publication time.
 
 The Phase 7 review surface at `/knowledge` renders a bounded durable candidate
 queue, redaction/evidence disclosure, labeled native review and approval
 forms, and an append-only publication history table. Global publication is not
 offered until its candidate-specific approval is recorded. Revocation and
 rollback are separate approval requests, and every dynamic result is announced
-through a polite status region or an error alert. Growth charts, lineage, and
-usage remain task 0706.
+through a polite status region or an error alert.
+
+`/knowledge/growth` and `/knowledge/lineage` load bounded server-side
+projections. Growth caps its daily groups and consolidation rows. Lineage caps
+reviewed chains, run edges, unused/contradicted lists, skills, and usage
+summaries. Its left-to-right flow uses linked evidence, candidate, item, run,
+and outcome nodes, followed immediately by a semantic table alternative.
+Both pages refresh their complete durable snapshot in one LiveView assignment
+every ten seconds rather than applying per-row updates.
 
 ## Real-time update model
 

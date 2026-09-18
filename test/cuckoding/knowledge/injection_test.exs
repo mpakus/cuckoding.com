@@ -124,6 +124,19 @@ defmodule Cuckoding.Knowledge.InjectionTest do
              &(&1.kind == "contradicted" and &1.knowledge_item_id == accepted.accepted_item_id)
            )
 
+    lineage = Knowledge.knowledge_lineage()
+    growth = Knowledge.knowledge_growth()
+    assert growth.coverage.used >= 2
+
+    assert Enum.any?(
+             lineage.contradicted,
+             &(&1.item.id == accepted.accepted_item_id and &1.count == 1)
+           )
+
+    assert Enum.any?(lineage.usages, fn row ->
+             row.item.id == accepted.accepted_item_id and row.contradicted == 1
+           end)
+
     Repo.update_all(
       from(token in RetrievalToken, where: token.token_hash == ^sha256(capability.token)),
       set: [expires_at: DateTime.add(Cuckoding.Clock.wall_now(), -1, :second)]

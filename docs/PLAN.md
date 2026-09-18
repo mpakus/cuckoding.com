@@ -80,7 +80,7 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 - [x] Consolidation jobs and redaction.
 - [x] Review queue, publication, skill packaging, revocation.
 - [x] Injection into runtimes and usage tracking.
-- [ ] Knowledge Growth and Lineage/Usage views.
+- [x] Knowledge Growth and Lineage/Usage views.
 
 ## Phase 8 — Plugin system
 

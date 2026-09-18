@@ -41,6 +41,52 @@ defmodule CuckodingWeb.KnowledgeReviewLiveTest do
     assert has_element?(view, "#candidate-#{candidate.id}", "accepted")
     refute has_element?(view, "#candidate-#{candidate.id}", "Publish globally")
 
+    assert {:ok, _consolidation} = Knowledge.consolidate(fixture.project.id, manual: true)
+
+    {:ok, growth, growth_html} = live(conn, ~p"/knowledge/growth")
+    assert has_element?(growth, "h1", "Knowledge Growth")
+
+    assert has_element?(
+             growth,
+             "nav[aria-label='Knowledge views'] a[aria-current=page]",
+             "Growth"
+           )
+
+    assert has_element?(growth, "section[aria-labelledby=coverage-heading]", "Used by runs")
+    assert has_element?(growth, "table caption", "Daily knowledge item growth")
+    assert has_element?(growth, "table caption", "Recent project knowledge consolidation jobs")
+    send(growth.pid, :refresh)
+    assert render(growth) =~ "Knowledge growth updated."
+    refute growth_html =~ ~r/tabindex="[1-9]/
+
+    {:ok, lineage, lineage_html} = live(conn, ~p"/knowledge/lineage")
+    assert has_element?(lineage, "h1", "Lineage and Usage")
+
+    assert has_element?(
+             lineage,
+             "nav[aria-label='Knowledge views'] a[aria-current=page]",
+             "Lineage and Usage"
+           )
+
+    assert has_element?(lineage, "ol[aria-label='Knowledge lineage graph'] article")
+    assert has_element?(lineage, "a[href='/runs/#{fixture.run.id}']")
+    assert has_element?(lineage, "a[href='/knowledge#candidate-#{candidate.id}']")
+
+    item = Repo.get!(Cuckoding.Knowledge.Item, candidate.id)
+    assert has_element?(lineage, "a[href='#lineage-item-#{item.id}']")
+    assert has_element?(lineage, "#lineage-item-#{item.id}")
+    assert has_element?(lineage, "table caption", "Accessible table alternative")
+    assert has_element?(lineage, "table caption", "Knowledge usage counts")
+
+    assert has_element?(
+             lineage,
+             "ol[aria-label='Knowledge lineage graph'] article a[href]"
+           )
+
+    send(lineage.pid, :refresh)
+    assert render(lineage) =~ "Knowledge lineage updated."
+    refute lineage_html =~ ~r/tabindex="[1-9]/
+
     view
     |> form("#candidate-#{candidate.id} form[phx-submit=request-publication]", %{
       "candidate_id" => candidate.id
@@ -158,7 +204,7 @@ defmodule CuckodingWeb.KnowledgeReviewLiveTest do
 
     {:ok, _command} = Execution.transition_run(run.id, "running", "review:#{run.id}:running")
     {:ok, _command} = Execution.transition_run(run.id, "done", "review:#{run.id}:done")
-    %{run: Repo.get!(Cuckoding.Execution.Run, run.id)}
+    %{project: project, run: Repo.get!(Cuckoding.Execution.Run, run.id)}
   end
 
   defp extract_candidate(run_id) do

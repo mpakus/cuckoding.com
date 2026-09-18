@@ -500,6 +500,7 @@ end
 defmodule Cuckoding.Knowledge do
   @moduledoc "Owns project knowledge, provenance, review, publication, and retrieval records."
 
+  alias Cuckoding.Knowledge.Analytics
   alias Cuckoding.Knowledge.Consolidator
   alias Cuckoding.Knowledge.Extractor
   alias Cuckoding.Knowledge.Injection
@@ -518,6 +519,8 @@ defmodule Cuckoding.Knowledge do
   defdelegate list_candidates(project_id \\ nil), to: PublicationService
   defdelegate list_publications(project_id \\ nil), to: PublicationService
   defdelegate list_knowledge_approvals(), to: PublicationService, as: :list_approvals
+  defdelegate knowledge_growth(), to: Analytics, as: :growth
+  defdelegate knowledge_lineage(), to: Analytics, as: :lineage
 
   defdelegate review_candidate(candidate_id, decision, actor, reason, options \\ []),
     to: PublicationService,
