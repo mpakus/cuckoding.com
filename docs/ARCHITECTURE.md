@@ -105,6 +105,15 @@ redacts structured output, assigns provenance from trusted database rows, and
 atomically writes review candidates. Runtime-suggested operation labels and
 evidence are ignored; the control plane computes both.
 
+The review service materializes accepted candidates as project Markdown and
+records the decision with a run event. Corrections create a new item with
+`supersedes_id`; they never replace the prior file. Global publication,
+revocation, and rollback each require the latest human approval whose run and
+subject exactly match the requested action. The resulting global Markdown is
+hash-indexed, while every published version and optional `SKILL.md` manifest
+is append-only. `/knowledge` reloads this durable state and exposes native,
+keyboard-operable review and approval forms.
+
 ### Power manager
 
 Holds a power assertion while runs are active, detects sleep gaps, and drives reconciliation of heartbeats, sessions, and leases after wake (`docs/LONG_RUNNING_AND_POWER.md`).

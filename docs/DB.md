@@ -91,12 +91,13 @@ erDiagram
 | Table | Important fields | Notes |
 | --- | --- | --- |
 | `knowledge_items` | `scope`, `project_id?`, `kind`, `title`, `file_path`, `content_hash`, `observed_hash?`, `sync_state`, `revision_source`, `status`, `version`, `confidence`, `valid_from`, `invalid_at`, `supersedes_id`, `triggers_json`, `evidence_json`, `produced_by_json`, `review_json`, `reviewed_by`, `reviewed_at` | Mirror of Markdown front matter; file is the content; observed mismatch never overwrites accepted metadata |
-| `knowledge_candidates` | `extraction_job_id`, `project_id`, `kind`, `operation` (`add` / `update` / `supersede` / `noop`), `target_item_id?`, `title`, `content`, `confidence`, `evidence_json`, `redaction_state`, `decision` | Reviewed before becoming items |
+| `knowledge_candidates` | `extraction_job_id`, `project_id`, `kind`, `operation` (`add` / `update` / `supersede` / `noop`), `target_item_id?`, `accepted_item_id?`, `title`, `content`, `confidence`, `evidence_json`, `redaction_state`, `decision`, `reviewed_by`, `reviewed_at`, `decision_reason` | Reviewed before becoming items; accepted corrections create a new item rather than overwrite history |
 | `knowledge_jobs` | `kind` (`extract`), `scope_type`, `scope_id`, `state`, `runtime`, `policy_version`, `input_budget`, `started_at`, `finished_at`, `summary_json` | Idempotent per-run extraction |
 | `knowledge_consolidation_jobs` | `project_id`, `state`, `input_hash`, `policy_version`, `input_budget`, `revision`, `checkpoint_json`, `summary_json`, `started_at`, `finished_at` | One resumable consolidation projection per project |
 | `knowledge_index_revisions` | `consolidation_job_id`, `project_id`, `job_revision`, `previous_hash`, `content_hash`, `content`, `recorded_at` | Append-only redacted `INDEX.md` history; unique by project/job revision |
 | `knowledge_usages` | `knowledge_item_id`, `item_version`, `run_id`, `stage_attempt_id`, `kind` (`injected` / `retrieved` / `cited` / `accepted` / `contradicted`), `evidence_json`, `occurred_at` | Feeds lineage and usage views |
-| `skill_packages` | `knowledge_item_id`, `name`, `version`, `manifest_json`, `content_hash`, `published_at` | Approved `SKILL.md` output with provenance |
+| `knowledge_publications` | `candidate_id`, `project_id`, `knowledge_item_id`, `approval_id`, `previous_publication_id?`, `action` (`publish` / `revoke` / `rollback`), `version`, `content_hash`, `content`, `actor`, `reason`, `recorded_at` | Append-only global publication history; one initial publication per candidate |
+| `skill_packages` | `knowledge_item_id`, `publication_id`, `name`, semantic `version`, `file_path`, `manifest_json`, `content_hash`, `published_at` | Append-only approved `SKILL.md` output with provenance |
 | `knowledge_retrievals` | `run_id`, `stage_attempt_id`, `backend_key`, `namespace`, `query_hash`, `hit_count`, `context_bytes`, `selected_ids_json` | Retrieval audit without storing secrets in query text |
 
 ## State integrity

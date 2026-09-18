@@ -77,8 +77,8 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 
 - [x] Knowledge store, front matter, index sync.
 - [x] Per-run extraction with memory operations.
-- [ ] Consolidation jobs and redaction.
-- [ ] Review queue, publication, skill packaging, revocation.
+- [x] Consolidation jobs and redaction.
+- [ ] Review queue, publication, skill packaging, revocation. Implementation is complete; final scenario-8 usage evidence lands with 0705.
 - [ ] Injection into runtimes and usage tracking.
 - [ ] Knowledge Growth and Lineage/Usage views.
 

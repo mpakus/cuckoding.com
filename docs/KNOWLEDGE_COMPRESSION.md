@@ -103,6 +103,15 @@ candidate rows.
 - Global publication always requires a human with a visible evidence preview and a redaction report. Published items record the exact content hash and support supersession, revocation, and rollback.
 - Skills are published as `SKILL.md` packages with name, semantic version, trigger description, prerequisites, instructions, safety limits, verification checklist, evidence, ownership, and review date. An approved skill is not enabled for every role; workflows select it.
 
+The implemented review queue is available at `/knowledge`. Human decisions
+and policy-allowed system decisions are recorded against the candidate and its
+source run. Acceptance writes a new project file; update and supersede
+operations point at the prior item. Publication, revocation, and rollback
+validate the latest approval for the exact run and action before writing.
+Global versions retain their exact Markdown and hash in append-only rows.
+Approved recipes may additionally write a bounded Agent Skills-compatible
+`SKILL.md` and manifest under the global knowledge root.
+
 ### Injection
 
 - Adapters inject knowledge through the runtime's native mechanism for the run only: generated instruction files in the run's `agent/` folder (`CLAUDE.md`/`AGENTS.md` fragments), skill directories, or a scoped MCP resource. Cuckoding never writes into the user's global runtime configuration.

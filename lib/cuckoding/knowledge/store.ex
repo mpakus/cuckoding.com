@@ -143,6 +143,79 @@ defmodule Cuckoding.Knowledge.Store do
 
   def write_project_index(%Project{}, _content), do: {:error, :knowledge_index_too_large}
 
+  def write_project_document(%Project{} = project, relative, content) do
+    with {:ok, root} <- ensure_project_layout(project) do
+      write_document(root, relative, content, "project", false)
+    end
+  end
+
+  def write_global_document(relative, content, options \\ []) do
+    with {:ok, root} <- ensure_global_layout(options) do
+      write_document(root, relative, content, "global", Keyword.get(options, :overwrite, false))
+    end
+  end
+
+  def accept_system_edit(item_id, options \\ [])
+
+  def accept_system_edit(item_id, options) when is_binary(item_id) do
+    case Repo.get(Item, item_id) do
+      %Item{scope: "global", sync_state: "modified"} = item ->
+        with {:ok, path} <- confined_file(global_root(options), item.file_path),
+             {:ok, document} <- Parser.parse_file(path),
+             :ok <- same_identity(document, item),
+             :ok <- matching_kind(document, item.file_path),
+             true <- document.metadata.version > item.version do
+          item
+          |> Item.system_revision_changeset(document_attrs(document))
+          |> Repo.update()
+        else
+          false -> {:error, :knowledge_version_must_increase}
+          {:error, _reason} = error -> error
+        end
+
+      %Item{scope: "global"} ->
+        {:error, :knowledge_item_not_modified}
+
+      %Item{} ->
+        {:error, :knowledge_scope_refused}
+
+      nil ->
+        {:error, :knowledge_item_not_found}
+    end
+  end
+
+  def accept_system_edit(_item_id, _options), do: {:error, :invalid_knowledge_identity}
+
+  def write_global_skill(name, skill, manifest, options \\ [])
+
+  def write_global_skill(name, skill, manifest, options)
+      when is_binary(name) and is_binary(skill) and is_map(manifest) and
+             byte_size(skill) <= 32_768 do
+    encoded_manifest = Jason.encode!(manifest, pretty: true) <> "\n"
+
+    with true <- Regex.match?(~r/^[a-z0-9]+(?:-[a-z0-9]+)*$/, name),
+         true <- byte_size(encoded_manifest) <= 8_192,
+         {:ok, root} <- ensure_global_layout(options),
+         directory = Path.join([root, "skills", name]),
+         :ok <- reject_symlink_components(directory, root),
+         :ok <- File.mkdir_p(directory),
+         :ok <- reject_symlink_components(directory, root),
+         :ok <- write_regular(Path.join(directory, "SKILL.md"), skill, true),
+         :ok <- write_regular(Path.join(directory, "manifest.json"), encoded_manifest, true) do
+      {:ok,
+       %{
+         file_path: Path.join(["skills", name, "SKILL.md"]),
+         content_hash: sha256(skill)
+       }}
+    else
+      false -> {:error, :invalid_skill_package}
+      {:error, _reason} = error -> error
+    end
+  end
+
+  def write_global_skill(_name, _skill, _manifest, _options),
+    do: {:error, :invalid_skill_package}
+
   defp create_layout(root) do
     [root | Enum.map(Map.keys(@directories), &Path.join(root, &1))]
     |> Enum.concat([Path.join(root, "skills")])
@@ -152,6 +225,53 @@ defmodule Cuckoding.Knowledge.Store do
         {:error, reason} -> {:halt, {:error, {:knowledge_layout_failed, reason}}}
       end
     end)
+  end
+
+  defp write_document(root, relative, content, scope, overwrite?)
+       when is_binary(relative) and is_binary(content) and byte_size(content) <= 1_048_576 do
+    with {:ok, expected_kind} <- expected_kind(relative),
+         {:ok, document} <- Parser.parse(content),
+         true <- document.metadata.scope == scope,
+         true <- document.metadata.kind == expected_kind,
+         {:ok, path} <- confined_file(root, relative),
+         :ok <- write_regular(path, content, overwrite?) do
+      {:ok, document}
+    else
+      false -> {:error, :knowledge_document_scope_or_kind_mismatch}
+      :error -> {:error, :invalid_knowledge_file_path}
+      {:error, _reason} = error -> error
+    end
+  end
+
+  defp write_document(_root, _relative, _content, _scope, _overwrite?),
+    do: {:error, :invalid_knowledge_document}
+
+  defp write_regular(path, content, overwrite?) do
+    case File.lstat(path) do
+      {:ok, %{type: :regular}} ->
+        update_regular(path, content, overwrite?)
+
+      {:ok, %{type: :symlink}} ->
+        {:error, :knowledge_file_symlink}
+
+      {:ok, _stat} ->
+        {:error, :knowledge_file_not_regular}
+
+      {:error, :enoent} ->
+        atomic_write(path, content)
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp update_regular(path, content, overwrite?) do
+    case File.read(path) do
+      {:ok, ^content} -> :ok
+      {:ok, _current} when overwrite? -> atomic_write(path, content)
+      {:ok, _current} -> {:error, :knowledge_file_exists}
+      {:error, _reason} = error -> error
+    end
   end
 
   defp writable_index?(path) do

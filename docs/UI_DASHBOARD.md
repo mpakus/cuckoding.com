@@ -95,6 +95,14 @@ Per project and global:
 - "Unused" and "contradicted" lists as candidates for expiry.
 - Skills view: published skills, versions, which workflows enable them, usage and outcome per version.
 
+The Phase 7 review surface at `/knowledge` renders a bounded durable candidate
+queue, redaction/evidence disclosure, labeled native review and approval
+forms, and an append-only publication history table. Global publication is not
+offered until its candidate-specific approval is recorded. Revocation and
+rollback are separate approval requests, and every dynamic result is announced
+through a polite status region or an error alert. Growth charts, lineage, and
+usage remain task 0706.
+
 ## Real-time update model
 
 1. Workers persist normalized events.

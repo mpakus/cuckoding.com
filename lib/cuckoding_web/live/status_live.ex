@@ -240,6 +240,13 @@ defmodule CuckodingWeb.StatusLive do
           Open Agent Floor
         </.link>
 
+        <.link
+          navigate={~p"/knowledge"}
+          class="ml-3 inline-flex min-h-10 items-center rounded-md border border-slate-400 bg-white px-4 font-medium text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2"
+        >
+          Review knowledge
+        </.link>
+
         <section aria-labelledby="boards-heading" class="space-y-3">
           <h2 id="boards-heading" class="text-xl font-semibold text-slate-950">Boards</h2>
           <p :if={@boards == []} class="text-sm text-slate-700">No boards yet.</p>

@@ -82,6 +82,15 @@ defmodule Cuckoding.Knowledge.Item do
     |> foreign_key_constraint(:supersedes_id)
   end
 
+  def system_revision_changeset(item, attrs) do
+    item
+    |> cast(attrs, @metadata_fields)
+    |> put_change(:sync_state, "synced")
+    |> put_change(:revision_source, "system")
+    |> validate_item()
+    |> foreign_key_constraint(:supersedes_id)
+  end
+
   defp validate_item(changeset) do
     changeset
     |> validate_required([

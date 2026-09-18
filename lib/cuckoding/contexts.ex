@@ -502,6 +502,7 @@ defmodule Cuckoding.Knowledge do
 
   alias Cuckoding.Knowledge.Consolidator
   alias Cuckoding.Knowledge.Extractor
+  alias Cuckoding.Knowledge.PublicationService
   alias Cuckoding.Knowledge.Store
   alias Cuckoding.Knowledge.Sync
 
@@ -513,6 +514,22 @@ defmodule Cuckoding.Knowledge do
   defdelegate accept_user_edit(project, item_id), to: Store
   defdelegate extract(run_id, options \\ []), to: Extractor, as: :run
   defdelegate consolidate(project_id, options \\ []), to: Consolidator, as: :run
+  defdelegate list_candidates(project_id \\ nil), to: PublicationService
+  defdelegate list_publications(project_id \\ nil), to: PublicationService
+  defdelegate list_knowledge_approvals(), to: PublicationService, as: :list_approvals
+
+  defdelegate review_candidate(candidate_id, decision, actor, reason, options \\ []),
+    to: PublicationService,
+    as: :review
+
+  defdelegate request_publication(candidate_id), to: PublicationService
+  defdelegate publish(candidate_id, approval_id, actor, options \\ []), to: PublicationService
+  defdelegate request_revocation(publication_id), to: PublicationService
+  defdelegate revoke(publication_id, approval_id, actor, options \\ []), to: PublicationService
+  defdelegate request_rollback(publication_id, target_version), to: PublicationService
+
+  defdelegate rollback(publication_id, target_version, approval_id, actor, options \\ []),
+    to: PublicationService
 end
 
 defmodule Cuckoding.Power do

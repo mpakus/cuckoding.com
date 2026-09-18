@@ -227,6 +227,10 @@ defmodule Cuckoding.Knowledge.Candidate do
     field :evidence_json, :map
     field :redaction_state, :string
     field :decision, :string, default: "pending"
+    field :accepted_item_id, :binary_id
+    field :reviewed_by, :string
+    field :reviewed_at, :utc_datetime_usec
+    field :decision_reason, :string
     timestamps(type: :utc_datetime_usec)
   end
 
@@ -274,6 +278,16 @@ defmodule Cuckoding.Knowledge.Candidate do
     |> foreign_key_constraint(:project_id)
     |> foreign_key_constraint(:target_item_id)
     |> unique_constraint([:extraction_job_id, :content_hash, :operation])
+  end
+
+  def decision_changeset(candidate, attrs) do
+    candidate
+    |> cast(attrs, [:decision, :accepted_item_id, :reviewed_by, :reviewed_at, :decision_reason])
+    |> validate_required([:decision, :reviewed_by, :reviewed_at, :decision_reason])
+    |> validate_inclusion(:decision, ~w(accepted rejected))
+    |> validate_length(:reviewed_by, min: 1, max: 100)
+    |> validate_length(:decision_reason, min: 1, max: 500)
+    |> foreign_key_constraint(:accepted_item_id)
   end
 
   defp validate_target(changeset) do
