@@ -1,0 +1,69 @@
+name: release-macos
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-macos-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-15
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: erlef/setup-beam@0f75c29430f34bb5af4cce5e3b7f6a8860fca236 # v1
+        with:
+          otp-version: "28.4"
+          elixir-version: "1.19.5"
+          version-type: strict
+
+      - name: Install pinned build tools
+        run: |
+          brew install rtk-ai/tap/rtk
+          rtk rustup toolchain install 1.90.0 --profile minimal
+          rtk cargo +1.90.0 install tauri-cli --version 2.11.4 --locked
+
+      - uses: apple-actions/import-codesign-certs@7abe6dfe88f6bf6b1fa06e6a5704a2605d897418 # v7
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+
+      - name: Prepare notarization key
+        env:
+          APPLE_NOTARY_KEY: ${{ secrets.APPLE_NOTARY_KEY }}
+        run: |
+          rtk proxy /usr/bin/install -m 600 /dev/null "$RUNNER_TEMP/cuckoding-notary-key.p8"
+          rtk proxy /usr/bin/printf '%s' "$APPLE_NOTARY_KEY" > "$RUNNER_TEMP/cuckoding-notary-key.p8"
+
+      - name: Record reproducible source timestamp
+        run: rtk git log -1 --format=SOURCE_DATE_EPOCH=%ct >> "$GITHUB_ENV"
+
+      - name: Build, sign, notarize, and verify
+        env:
+          CUCKODING_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          CUCKODING_NOTARY_KEY_PATH: ${{ runner.temp }}/cuckoding-notary-key.p8
+          CUCKODING_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          CUCKODING_NOTARY_ISSUER: ${{ secrets.APPLE_NOTARY_ISSUER }}
+        run: rtk proxy sh desktop/release.sh
+
+      - name: Remove notarization key
+        if: always()
+        run: rtk proxy /bin/rm -f "$RUNNER_TEMP/cuckoding-notary-key.p8"
+
+      - name: Upload verified release evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Cuckoding-macos-arm64
+          path: desktop/dist/
+          if-no-files-found: error
+          retention-days: 30

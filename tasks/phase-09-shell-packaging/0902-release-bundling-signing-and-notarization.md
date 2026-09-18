@@ -4,6 +4,13 @@
 
 Automate the build pipeline: release with ERTS in the bundle, per-binary signing with hardened runtime and required entitlements, notarization, SBOM, checksums, provenance..
 
+```yaml
+status: in_progress
+owner: codex
+started_at: 2026-09-18
+worklog: worklog/2026-09-18-0902-release-signing-notarization.md
+```
+
 ## Dependencies
 
 - 0901.

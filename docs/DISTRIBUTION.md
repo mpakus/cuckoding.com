@@ -20,6 +20,35 @@ See the shell contract in `docs/DESKTOP_SHELL.md`. The production Tauri project
 is `desktop/`; its local build embeds the release and runs `desktop/verify.rb`
 under a sterile environment. That local artifact is not signed or notarized.
 
+## Release commands
+
+`desktop/release.sh` is the single Apple Silicon release entrypoint. It requires
+a clean worktree and `CUCKODING_SIGNING_IDENTITY`, builds the embedded release,
+discovers and signs every Mach-O in the app, submits a temporary ZIP to Apple's
+notary service, staples and validates the ticket, asks Gatekeeper to assess the
+app, then emits the final ZIP, CycloneDX SBOM, provenance, checksums, and the
+complete notarization response and log under ignored `desktop/dist/`.
+
+For a developer workstation, set `CUCKODING_NOTARY_PROFILE` to a profile
+created with `xcrun notarytool store-credentials`; do not put the credential in
+the repository or command history. CI instead uses an App Store Connect private
+key file plus its key ID and issuer ID. The private key and Developer ID
+certificate are repository secrets, written only to the ephemeral runner.
+
+The pinned `.github/workflows/release-macos.yml` workflow expects these GitHub
+Actions secrets: `APPLE_CERTIFICATE` (base64 PKCS#12),
+`APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_NOTARY_KEY`
+(the `.p8` contents), `APPLE_NOTARY_KEY_ID`, and `APPLE_NOTARY_ISSUER`. It has
+read-only repository permissions, removes the temporary private-key file even
+after failure, and uploads artifacts only after signing, notarization, stapling,
+Gatekeeper assessment, SBOM generation, and checksum generation all succeed.
+
+`desktop/sign.sh` may be run independently to exercise local Developer ID
+signing before notarization. Only `beam.smp` receives
+`com.apple.security.cs.allow-jit`; every other Mach-O uses hardened runtime with
+no exception entitlement. Successful local signing is not notarization and is
+not clean-Mac acceptance evidence.
+
 ## Tool discovery
 
 macOS GUI applications do not inherit an interactive shell's dotfile `PATH`. Search configured paths and known safe locations (Homebrew, `~/.local/bin`, npm global, cargo), allow the user to select an executable, and store verified paths. Display version and health for Git, each agent runtime, and each plugin binary.

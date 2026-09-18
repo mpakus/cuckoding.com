@@ -10,7 +10,7 @@ require "tmpdir"
 require "time"
 
 ROOT = File.expand_path(__dir__)
-RELEASE = File.join(ROOT, "release/bin/cuckoding")
+RELEASE = ENV.fetch("CUCKODING_RELEASE_PATH", File.join(ROOT, "release/bin/cuckoding"))
 SAFE_PATH = "/usr/bin:/bin:/usr/sbin:/sbin"
 
 def assert(condition, message)
@@ -47,17 +47,22 @@ def spawn_release
   port = free_port
   env = release_env(directory, token_path, port)
 
-  migrated = Process.spawn(
-    env,
-    RELEASE,
-    "eval",
-    "Cuckoding.Release.migrate()",
-    out: File::NULL,
-    err: File::NULL,
-    unsetenv_others: true
-  )
-  _, migration_status = Process.waitpid2(migrated)
-  raise "release migration failed" unless migration_status.success?
+  migration_log = File.join(directory, "migration.log")
+  migration_status = File.open(migration_log, "w", 0o600) do |output|
+    migrated = Process.spawn(
+      env,
+      RELEASE,
+      "eval",
+      "Cuckoding.Release.migrate()",
+      out: output,
+      err: [:child, :out],
+      unsetenv_others: true
+    )
+    Process.waitpid2(migrated).last
+  end
+  unless migration_status.success?
+    raise "release migration failed (#{migration_status.inspect}): #{File.read(migration_log)}"
+  end
 
   reader, writer = IO.pipe
   started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
