@@ -31,11 +31,11 @@ defmodule CuckodingWeb.StatusLive do
         {:ok, _release} ->
           {:noreply,
            socket
-           |> put_flash(:info, "Approved branch pushed to the local bare remote.")
+           |> put_flash(:info, "Approved release handoff completed.")
            |> assign(
              pending_approvals: Cuckoding.WalkingSkeleton.pending_approvals(),
              confirming_approval: nil,
-             release_notice: "Approved branch pushed to the local bare remote."
+             release_notice: "Approved release handoff completed."
            )}
 
         {:error, reason} ->
@@ -108,8 +108,59 @@ defmodule CuckodingWeb.StatusLive do
                 {release_status(item.approval)} · branch <code>{item.run.branch}</code>
               </p>
             </div>
+            <div
+              :if={item.review["outcome"] == "passed"}
+              class="space-y-4 rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-800"
+            >
+              <div>
+                <h4 class="font-semibold text-slate-950">Candidate diff</h4>
+                <p>
+                  <code>{item.review["evidence"]["base_sha"]}</code>
+                  → <code>{item.review["evidence"]["head_sha"]}</code>
+                </p>
+                <ul class="mt-1 list-disc pl-5">
+                  <li :for={path <- item.review["changed_paths"]}><code>{path}</code></li>
+                </ul>
+              </div>
+              <div>
+                <h4 class="font-semibold text-slate-950">Tests</h4>
+                <ul class="mt-1 list-disc pl-5">
+                  <li :for={result <- item.review["evidence"]["tests"]}>
+                    <code>{result["command"]}</code>: {result["status"]} ({result["passed"]} passed, {result[
+                      "failed"
+                    ]} failed)
+                  </li>
+                </ul>
+              </div>
+              <div>
+                <h4 class="font-semibold text-slate-950">Artifacts</h4>
+                <ul class="mt-1 list-disc pl-5">
+                  <li :for={artifact <- item.review["evidence"]["artifacts"]}>
+                    <code>{artifact["path"]}</code> · {artifact["type"]}
+                  </li>
+                </ul>
+              </div>
+              <div>
+                <h4 class="font-semibold text-slate-950">Knowledge citations</h4>
+                <ul class="mt-1 list-disc pl-5">
+                  <li :for={citation <- item.review["evidence"]["knowledge_citations"]}>
+                    <code>{citation["path"]}</code>
+                  </li>
+                </ul>
+              </div>
+            </div>
+            <p
+              :if={item.review["outcome"] == "failed"}
+              class="rounded-md border border-red-300 bg-red-50 p-4 text-sm text-red-950"
+              role="alert"
+            >
+              Evidence validation failed: {item.review["error"]}
+            </p>
             <button
-              :if={@confirming_approval != item.approval.id}
+              :if={
+                item.review["outcome"] == "passed" and
+                  @confirming_approval != item.approval.id
+              }
               type="button"
               phx-click="prepare-release"
               phx-value-id={item.approval.id}
@@ -123,7 +174,7 @@ defmodule CuckodingWeb.StatusLive do
               role="alert"
             >
               <p class="text-sm text-amber-950">
-                Confirm pushing this approved feature branch to its configured local bare remote.
+                Confirm the host-side push and draft pull-request handoff for this candidate.
               </p>
               <div class="flex flex-wrap gap-3">
                 <button
@@ -132,7 +183,7 @@ defmodule CuckodingWeb.StatusLive do
                   phx-value-id={item.approval.id}
                   class="min-h-10 rounded-md bg-slate-950 px-4 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
                 >
-                  Approve and push
+                  Approve and release
                 </button>
                 <button
                   type="button"

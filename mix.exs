@@ -17,7 +17,7 @@ defmodule Cuckoding.MixProject do
   def application do
     [
       mod: {Cuckoding.Application, []},
-      extra_applications: [:crypto, :logger, :runtime_tools]
+      extra_applications: [:crypto, :inets, :logger, :runtime_tools, :ssl]
     ]
   end
 

@@ -22,12 +22,13 @@ defmodule Cuckoding.WalkingSkeleton do
   alias Cuckoding.Workflows
   alias Cuckoding.Workflows.Approval
   alias Cuckoding.Workflows.Definition
+  alias Cuckoding.Workflows.GateEvaluator
   alias Cuckoding.Workflows.Task
 
   @doc "Creates one project, default board, ready task, run, and confined host worktree."
   def create(attrs) when is_map(attrs) do
     with {:ok, project} <- Projects.register(project_attrs(attrs)),
-         {:ok, policy} <- Projects.add_config_version(policy_attrs(project)),
+         {:ok, policy} <- Projects.add_config_version(policy_attrs(project, attrs)),
          {:ok, workflow} <- Workflows.publish_workflow(workflow_attrs(project)),
          {:ok, board} <- Workflows.create_board(board_attrs(project, workflow, attrs)),
          :ok <- assign_roles(board, Map.get(attrs, :adapter_key, "fake")),
@@ -65,7 +66,12 @@ defmodule Cuckoding.WalkingSkeleton do
     with {:ok, spec} <- run_stage(skeleton, "specification", "spec_writer", adapter, options),
          environment = spec.environment,
          {:ok, spec_artifact} <-
-           write_artifact(environment, "specification.md", specification(skeleton.task)),
+           write_artifact(
+             environment,
+             "specification",
+             "specification.md",
+             specification(skeleton.task)
+           ),
          {:ok, development} <-
            run_stage(
              %{skeleton | environment: environment},
@@ -78,7 +84,8 @@ defmodule Cuckoding.WalkingSkeleton do
            candidate(development, environment, adapter, skeleton.task, options),
          {:ok, qa} <-
            run_stage(%{skeleton | environment: environment}, "qa", "reviewer", adapter, options),
-         {:ok, qa_artifact} <- write_artifact(environment, "qa.md", qa_report(environment)),
+         {:ok, qa_artifact} <-
+           write_artifact(environment, "qa_report", "qa.md", qa_report(environment)),
          {:ok, knowledge} <- write_knowledge_candidate(environment, skeleton.task),
          {:ok, evidence} <-
            write_evidence(
@@ -129,17 +136,20 @@ defmodule Cuckoding.WalkingSkeleton do
         select: %{approval: approval, run: run, task: task}
       )
     )
+    |> Enum.map(&Map.put(&1, :review, approval_review(&1)))
   end
 
   @doc "Records human approval, pushes through the host VCS service, and completes the run."
-  def approve_and_release(approval_id, actor) when is_binary(approval_id) and is_binary(actor) do
+  def approve_and_release(approval_id, actor, options \\ [])
+      when is_binary(approval_id) and is_binary(actor) and is_list(options) do
     with %Approval{} = approval <- Repo.get(Approval, approval_id),
          %Run{} = run <- Repo.get(Run, approval.run_id),
          %Environment{} = environment <- Repo.get_by(Environment, run_id: run.id),
          %StageAttempt{} = human_attempt <- Repo.get(StageAttempt, approval.stage_attempt_id),
+         {:ok, _evidence} <- validated_evidence(environment),
          {:ok, approved} <- approve_or_resume(approval, run, human_attempt, actor),
          {:ok, release_attempt} <- release_attempt(run) do
-      release(run, environment, approved, release_attempt)
+      release(run, environment, approved, release_attempt, options)
     else
       nil -> {:error, :approval_not_found}
       error -> error
@@ -203,12 +213,11 @@ defmodule Cuckoding.WalkingSkeleton do
   defp approve_or_resume(%Approval{}, _run, _human_attempt, _actor),
     do: {:error, :release_not_retryable}
 
-  defp release(run, environment, approved, release_attempt) do
-    case LocalBareRemote.handoff(
-           environment,
-           approved,
-           "walking:#{run.id}:release-handoff"
-         ) do
+  defp release(run, environment, approved, release_attempt, options) do
+    vcs_host = Keyword.get(options, :vcs_host, LocalBareRemote)
+    key = "walking:#{run.id}:release-handoff"
+
+    case handoff(vcs_host, environment, approved, key) do
       {:ok, handoff} ->
         finalize_release(run, environment, approved, release_attempt, handoff)
 
@@ -216,6 +225,13 @@ defmodule Cuckoding.WalkingSkeleton do
         fail_stage_attempt(release_attempt, reason)
     end
   end
+
+  defp handoff({module, options}, environment, approval, key)
+       when is_atom(module) and is_list(options),
+       do: module.handoff(environment, approval, key, options)
+
+  defp handoff(module, environment, approval, key) when is_atom(module),
+    do: module.handoff(environment, approval, key)
 
   defp finalize_release(run, environment, approved, release_attempt, handoff) do
     with {:ok, _stage_command} <-
@@ -513,7 +529,7 @@ defmodule Cuckoding.WalkingSkeleton do
 
   defp await_session(%Types.Session{}), do: {:ok, %{adapter: "fake", exit_status: 0}}
 
-  defp write_artifact(environment, name, contents) do
+  defp write_artifact(environment, type, name, contents) do
     path = Path.join([environment.run_dir, "artifacts", name])
 
     with :ok <- owner_file(path, contents),
@@ -522,9 +538,9 @@ defmodule Cuckoding.WalkingSkeleton do
            EventStore.append(environment.run_id, %{
              event_type: "artifact.created",
              public_summary: "Walking-skeleton evidence artifact created",
-             payload: %{"path" => name, "sha256" => sha}
+             payload: %{"type" => type, "path" => name, "sha256" => sha}
            }) do
-      {:ok, %{"path" => name, "sha256" => sha}}
+      {:ok, %{"type" => type, "path" => name, "sha256" => sha}}
     end
   end
 
@@ -548,11 +564,13 @@ defmodule Cuckoding.WalkingSkeleton do
   end
 
   defp write_evidence(environment, run, adapter, stages, artifacts, knowledge) do
-    contents =
-      Jason.encode!(%{
+    bundle =
+      %{
+        "schema_version" => 1,
         "run_id" => run.id,
         "adapter" => adapter |> Module.split() |> List.last(),
         "branch" => run.branch,
+        "base_sha" => environment.base_sha,
         "head_sha" => Repo.get!(Environment, environment.id).head_sha,
         "stages" =>
           Enum.map(stages, fn stage ->
@@ -564,14 +582,64 @@ defmodule Cuckoding.WalkingSkeleton do
             }
           end),
         "artifacts" => artifacts,
-        "knowledge_candidate" => knowledge
-      }) <> "\n"
+        "tests" => [
+          %{
+            "command" => "qa stage",
+            "status" => "passed",
+            "passed" => 1,
+            "failed" => 0
+          }
+        ],
+        "findings" => [],
+        "knowledge_citations" => [knowledge]
+      }
 
-    write_artifact(environment, "evidence.json", contents)
+    case GateEvaluator.verify(bundle, environment.run_dir) do
+      {:ok, validated} ->
+        contents = Jason.encode!(validated) <> "\n"
+        write_artifact(environment, "evidence_bundle", "evidence.json", contents)
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   defp write_release_artifact(environment, result) do
-    write_artifact(environment, "release.json", Jason.encode!(result) <> "\n")
+    write_artifact(
+      environment,
+      "release_receipt",
+      "release.json",
+      Jason.encode!(result) <> "\n"
+    )
+  end
+
+  defp approval_review(%{run: run}) do
+    case Repo.get_by(Environment, run_id: run.id) do
+      %Environment{} = environment ->
+        with {:ok, evidence} <- validated_evidence(environment),
+             {:ok, changed_paths} <- ProtectedPaths.changed_paths(environment) do
+          %{"outcome" => "passed", "evidence" => evidence, "changed_paths" => changed_paths}
+        else
+          {:error, reason} -> %{"outcome" => "failed", "error" => inspect(reason)}
+        end
+
+      nil ->
+        %{"outcome" => "failed", "error" => "environment not found"}
+    end
+  end
+
+  defp validated_evidence(environment) do
+    path = Path.join([environment.run_dir, "artifacts", "evidence.json"])
+
+    case File.lstat(path) do
+      {:ok, %{type: :regular, size: size}} when size <= 1_048_576 ->
+        with {:ok, contents} <- File.read(path),
+             {:ok, bundle} <- Jason.decode(contents),
+             do: GateEvaluator.verify(bundle, environment.run_dir)
+
+      _other ->
+        {:error, :invalid_evidence_file}
+    end
   end
 
   defp owner_file(path, contents) do
@@ -593,12 +661,18 @@ defmodule Cuckoding.WalkingSkeleton do
     }
   end
 
-  defp policy_attrs(project) do
+  defp policy_attrs(project, attrs) do
+    config =
+      Map.merge(
+        %{"version" => 1, "runner" => "local_process", "plugins" => []},
+        Map.get(attrs, :policy_config, %{})
+      )
+
     %{
       project_id: project.id,
       revision: 1,
-      source_hash: :crypto.hash(:sha256, "walking-skeleton-v1") |> Base.encode16(case: :lower),
-      config_json: %{"version" => 1, "runner" => "local_process", "plugins" => []},
+      source_hash: :crypto.hash(:sha256, Jason.encode!(config)) |> Base.encode16(case: :lower),
+      config_json: config,
       trusted_at: Cuckoding.Clock.wall_now()
     }
   end

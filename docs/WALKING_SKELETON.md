@@ -4,7 +4,7 @@
 
 `Cuckoding.WalkingSkeleton` creates one project, immutable policy and default-workflow snapshot, one board, five role assignments, one task, one run, and one owned worktree. It then runs specification, development, and QA through one adapter, creates owner-only evidence and project-scoped knowledge-candidate files, and stops in the durable `waiting` state for human approval. Specification and QA use read-only provider grants. Development may leave a patch for the host Git service to validate and commit when the provider sandbox correctly denies access to the worktree's Git metadata.
 
-The status LiveView lists pending approvals. Release is a two-step keyboard-accessible action: **Review release**, then **Approve and push**. Approval is persisted before the system release stage calls `Cuckoding.Execution.LocalBareRemote`. That host-side VCS implementation accepts only an absolute existing local bare `origin`, a clean recorded candidate revision, an approval for the same run, and a non-force exact branch refspec. If the handoff fails after approval, the attempt is durably failed and the approved release remains visible as **Retry release**; startup recovery can resume a waiting handoff without creating another approval decision. Merge remains outside the MVP workflow.
+The status LiveView lists pending approvals and shows the candidate base/head, changed files, tests, typed artifacts, and project-knowledge citations. Release is a two-step keyboard-accessible action: **Review release**, then **Approve and release**. Approval is persisted before the system release stage calls the configured `VcsHost`. `LocalBareRemote` accepts only an absolute existing local bare `origin`; `GitHubVcsHost` fetches an opaque credential through `SecretStore`, pushes the candidate, and creates a draft pull request. Both require a clean recorded candidate revision, an approval for the same run, a non-protected branch, and a non-force exact branch refspec. If the handoff fails after approval, the attempt is durably failed and the approved release remains visible as **Retry release**; startup recovery can resume a waiting handoff without creating another approval decision. Merge remains outside the MVP workflow.
 
 The simulated sleep gap occurs while the specification attempt is active. The adapter checkpoint is persisted, the run hibernates, the worktree and policy marker are revalidated, and resume reuses the same attempt ID. The temporary preview-port lease used by the existing lifecycle is released before the stage continues.
 
@@ -14,7 +14,7 @@ Each run writes owner-only files under its run directory:
 
 - `artifacts/specification.md`
 - `artifacts/qa.md`
-- `artifacts/evidence.json`, including adapter, branch, candidate SHA, artifact hashes, and measured active/wall milliseconds for each agent stage
+- `artifacts/evidence.json`, a versioned typed bundle containing adapter, branch, base/candidate SHA, test results, structured findings, artifact hashes, knowledge citations, and measured active/wall milliseconds for each agent stage
 - `artifacts/release.json` after the approved push
 - `knowledge/candidates/walking-skeleton.md`, labeled project-only and unreviewed
 
@@ -26,11 +26,11 @@ Every file creation, stage transition, checkpoint, approval, candidate revision,
 | --- | --- | --- |
 | `FakeAdapter` in CI | Database state, worktree, commit, sleep/resume lifecycle, evidence files, approval UI, and local Git push | Retain as the deterministic regression lane; the opt-in Codex lane is now demonstrated |
 | Deterministic `WALKING_SKELETON.md` CI change | Candidate confinement, explicit file staging, commit, SHA recording, and remote branch are real | The real demo generated `Greeting.hello/1` and tests; the host committed the confined patch |
-| Provider specification and QA output | Typed provider output, files, hashes, measured timing, event ordering, and approval gate are real in the demo | Phase 5 adds configurable quality-gate policy and richer review surfaces |
+| Provider specification and QA output | Typed provider output, digest-verified files, structured findings, measured timing, event ordering, and approval evidence are real | Later tasks can add project-specific gate types without changing the bundle boundary |
 | Plain knowledge candidate | Owner-only Markdown and project scope are real | Phase 7 review, index, provenance, publication, and usage tracking |
-| Local bare `origin` | Approval-gated, idempotent non-force push is real | Phase 5 `VcsHost` plugin and draft-PR support |
+| Local bare `origin` | Approval-gated, idempotent non-force push is real | `GitHubVcsHost` now provides the credential-isolated draft-PR path; later plugin work can add hosts |
 
-No scheduler, plugin registry, GitHub credential flow, knowledge database, or second frontend was added for this checkpoint.
+No plugin registry, knowledge database, automatic merge, or second frontend is part of this loop.
 
 ## Demo procedure
 

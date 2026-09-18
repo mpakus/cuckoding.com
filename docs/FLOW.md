@@ -128,8 +128,8 @@ The evaluator checks attempt, active-time, wall-time, token, and cost budgets; r
 3. Agents commit in the feature worktree on the host, or produce a patch according to policy.
 4. Before QA, record a clean status or explicitly list uncommitted files.
 5. QA runs on the same immutable candidate revision when possible.
-6. Human approval verifies the diff and evidence bundle.
-7. The release handoff stage pushes the branch and optionally creates a draft PR host-side.
+6. The host validates the typed evidence bundle, verifies artifact and knowledge-citation digests, and shows the candidate base/head, changed files, tests, artifacts, and citations for human approval.
+7. The release handoff stage revalidates that evidence, refuses protected branches or missing approval, and then pushes the branch. The GitHub implementation fetches the credential only inside the host service and creates a draft PR whose body carries the test evidence, artifacts, and knowledge citations.
 8. Merge remains outside the autonomous workflow for MVP.
 
 Before resume, the host Git service compares the current default branch, checked-out worktree branch, recorded head SHA, and ownership marker with the durable environment. Any mismatch remains blocked until the user explicitly chooses rebase, continue unchanged, or restart; task 0301 does not perform any of those destructive or history-changing actions.

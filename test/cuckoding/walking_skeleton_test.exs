@@ -4,11 +4,16 @@ defmodule Cuckoding.WalkingSkeletonTest do
   import Ecto.Query
   import Phoenix.LiveViewTest
 
+  alias Cuckoding.Execution.Command
   alias Cuckoding.Execution.LocalBareRemote
   alias Cuckoding.Execution.RunEvent
   alias Cuckoding.Execution.StageAttempt
+  alias Cuckoding.FakeSecretStore
   alias Cuckoding.Repo
+  alias Cuckoding.Security.SecretAccessAudit
+  alias Cuckoding.Security.SecretStore
   alias Cuckoding.WalkingSkeleton
+  alias Cuckoding.Workflows
 
   @git "/usr/bin/git"
 
@@ -116,6 +121,16 @@ defmodule Cuckoding.WalkingSkeletonTest do
     assert Bitwise.band(File.stat!(evidence).mode, 0o777) == 0o600
     assert Bitwise.band(File.stat!(knowledge).mode, 0o777) == 0o600
 
+    bundle = evidence |> File.read!() |> Jason.decode!()
+    assert bundle["schema_version"] == 1
+    assert bundle["base_sha"] == pending.environment.base_sha
+    assert bundle["head_sha"] == pending.environment.head_sha
+    assert Enum.map(bundle["artifacts"], & &1["type"]) == ["specification", "qa_report"]
+    assert [%{"status" => "passed", "failed" => 0}] = bundle["tests"]
+
+    assert [%{"path" => "knowledge/candidates/walking-skeleton.md"}] =
+             bundle["knowledge_citations"]
+
     assert {:ok, released} = WalkingSkeleton.approve_and_release(pending.approval.id, "tester")
     assert released.run.state == "done"
     assert released.task.state == "done"
@@ -158,16 +173,112 @@ defmodule Cuckoding.WalkingSkeletonTest do
 
     selector = "#approval-#{pending.approval.id}"
     assert has_element?(view, selector, "Ship the walking skeleton")
-    refute has_element?(view, "#{selector} button", "Approve and push")
+    assert has_element?(view, selector, "Candidate diff")
+    assert has_element?(view, selector, "WALKING_SKELETON.md")
+    assert has_element?(view, selector, "qa stage")
+    assert has_element?(view, selector, "specification.md")
+    assert has_element?(view, selector, "knowledge/candidates/walking-skeleton.md")
+    refute has_element?(view, "#{selector} button", "Approve and release")
 
     view |> element("#{selector} button", "Review release") |> render_click()
-    assert has_element?(view, "#{selector} [role=alert]", "Confirm pushing")
-    assert has_element?(view, "#{selector} button", "Approve and push")
+    assert has_element?(view, "#{selector} [role=alert]", "Confirm the host-side push")
+    assert has_element?(view, "#{selector} button", "Approve and release")
     assert has_element?(view, "#{selector} button", "Cancel")
 
-    view |> element("#{selector} button", "Approve and push") |> render_click()
-    assert render(view) =~ "Approved branch pushed to the local bare remote."
+    view |> element("#{selector} button", "Approve and release") |> render_click()
+    assert render(view) =~ "Approved release handoff completed."
     refute has_element?(view, selector)
+  end
+
+  test "approved handoff refuses a protected branch", fixture do
+    assert {:ok, created} = WalkingSkeleton.create(fixture.attrs)
+    assert {:ok, pending} = WalkingSkeleton.run(created, simulate_sleep_gap: false)
+
+    assert {:ok, approved} =
+             Workflows.decide_approval(
+               pending.approval.id,
+               "approved",
+               "tester",
+               "Protected-branch test"
+             )
+
+    created.run |> Ecto.Changeset.change(branch: "main") |> Repo.update!()
+
+    assert {:error, :protected_branch} =
+             LocalBareRemote.handoff(
+               pending.environment,
+               approved,
+               "walking:test:protected"
+             )
+  end
+
+  test "approval fails closed when a referenced artifact changes", fixture do
+    assert {:ok, created} = WalkingSkeleton.create(fixture.attrs)
+    assert {:ok, pending} = WalkingSkeleton.run(created, simulate_sleep_gap: false)
+
+    File.write!(Path.join([pending.environment.run_dir, "artifacts", "qa.md"]), "tampered\n")
+
+    assert {:error, %{"outcome" => "failed", "findings" => [finding]}} =
+             WalkingSkeleton.approve_and_release(pending.approval.id, "tester")
+
+    assert finding["severity"] == "blocker"
+    assert finding["category"] == "artifact_schema"
+    assert finding["summary"] =~ "artifact integrity check failed"
+    assert Repo.get!(Cuckoding.Workflows.Approval, pending.approval.id).decision == "pending"
+  end
+
+  test "approval keeps the credential host-side and creates a draft GitHub PR", fixture do
+    use_fake_secret_store!()
+    token = "github-fixture-token"
+    assert {:ok, credential_ref} = SecretStore.put(token)
+
+    attrs =
+      Map.put(fixture.attrs, :policy_config, %{
+        "vcs" => %{
+          "provider" => "github",
+          "repository" => "example/cuckoding",
+          "credential_ref" => credential_ref
+        }
+      })
+
+    assert {:ok, created} = WalkingSkeleton.create(attrs)
+    assert {:ok, pending} = WalkingSkeleton.run(created, simulate_sleep_gap: false)
+    owner = self()
+
+    push = fn environment, run, repository, received_token ->
+      send(owner, {:github_push, environment.id, run.branch, repository, received_token})
+      {:ok, %{"outcome" => "pushed"}}
+    end
+
+    create_pr = fn repository, payload, received_token ->
+      send(owner, {:github_pr, repository, payload, received_token})
+      {:ok, %{"url" => "https://github.example/pull/1"}}
+    end
+
+    assert {:ok, released} =
+             WalkingSkeleton.approve_and_release(pending.approval.id, "tester",
+               vcs_host: {Cuckoding.Execution.GitHubVcsHost, push: push, create_pr: create_pr}
+             )
+
+    assert_receive {:github_push, _, branch, "example/cuckoding", ^token}
+    assert branch == released.run.branch
+
+    assert_receive {:github_pr, "example/cuckoding", payload, ^token}
+    assert payload["draft"] == true
+    assert payload["head"] == released.run.branch
+    assert payload["base"] == "main"
+    assert payload["body"] =~ "## Evidence"
+    assert payload["body"] =~ "qa stage"
+    assert payload["body"] =~ "## Knowledge citations"
+    assert payload["body"] =~ "knowledge/candidates/walking-skeleton.md"
+    assert released.handoff.result["draft_pr_url"] == "https://github.example/pull/1"
+
+    assert %SecretAccessAudit{purpose: "github.release_handoff", run_id: run_id} =
+             Repo.one!(SecretAccessAudit)
+
+    assert run_id == released.run.id
+    refute inspect(Repo.all(Command)) =~ token
+    refute inspect(Repo.all(RunEvent)) =~ token
   end
 
   test "an approved release can retry after a failed host handoff", fixture do
@@ -304,5 +415,17 @@ defmodule Cuckoding.WalkingSkeletonTest do
     {:ok, {_address, port}} = :inet.sockname(socket)
     :ok = :gen_tcp.close(socket)
     port
+  end
+
+  defp use_fake_secret_store! do
+    previous = Application.get_env(:cuckoding, :secret_store)
+    Application.put_env(:cuckoding, :secret_store, FakeSecretStore)
+    FakeSecretStore.reset()
+
+    on_exit(fn ->
+      if previous,
+        do: Application.put_env(:cuckoding, :secret_store, previous),
+        else: Application.delete_env(:cuckoding, :secret_store)
+    end)
   end
 end
