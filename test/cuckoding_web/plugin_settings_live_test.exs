@@ -65,6 +65,23 @@ defmodule CuckodingWeb.PluginSettingsLiveTest do
     assert Repo.aggregate(Activation, :count) == 0
   end
 
+  test "runner isolation label comes from its validated manifest", %{conn: conn} do
+    Registry.discover(
+      bundled_dir: Application.app_dir(:cuckoding, "priv/plugins"),
+      user_dir: Path.join(System.tmp_dir!(), "missing-plugin-dir"),
+      find_executable: fn _name -> nil end
+    )
+
+    plugin = Repo.get_by!(Plugin, key: "container-runner-stub")
+    {:ok, view, _html} = live(conn, ~p"/settings/plugins")
+
+    assert has_element?(
+             view,
+             "#plugin-#{plugin.id}",
+             "Isolation No container isolation declared"
+           )
+  end
+
   defp discover do
     Registry.discover(
       bundled_dir: Path.expand("../fixtures/plugins", __DIR__),

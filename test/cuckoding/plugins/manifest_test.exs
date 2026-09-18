@@ -30,6 +30,25 @@ defmodule Cuckoding.Plugins.ManifestTest do
     assert {:error, :invalid_detection_paths} = load_text(unsafe)
   end
 
+  test "runner isolation claims are closed and visibly declared" do
+    valid = File.read!(fixture("valid"))
+
+    runner =
+      valid
+      |> String.replace("kind: shell_filter", "kind: runner")
+      |> String.replace("isolation_claims: []", "isolation_claims: [network, filesystem]")
+
+    unknown = String.replace(runner, "network, filesystem", "network, magic")
+
+    assert {:ok, manifest} = load_text(runner)
+
+    assert Manifest.isolation_label(manifest.data["isolation_claims"]) ==
+             "Declared: filesystem, network"
+
+    assert Manifest.isolation_label([]) == "No container isolation declared"
+    assert {:error, :invalid_isolation_claims} = load_text(unknown)
+  end
+
   defp fixture(name), do: Path.expand("../../fixtures/plugins/#{name}/plugin.yml", __DIR__)
 
   defp load_text(text) do

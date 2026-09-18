@@ -142,6 +142,14 @@ defmodule CuckodingWeb.PluginSettingsLive do
                   <dt class="font-medium text-slate-700">Manifest</dt>
                   <dd class="font-mono">{String.slice(plugin.manifest_hash, 0, 12)}</dd>
                 </div>
+                <div :if={plugin.kind == "runner"}>
+                  <dt class="font-medium text-slate-700">Isolation</dt>
+                  <dd>
+                    {Cuckoding.Plugins.Manifest.isolation_label(
+                      plugin.manifest_json["isolation_claims"]
+                    )}
+                  </dd>
+                </div>
               </dl>
 
               <p

@@ -4,7 +4,7 @@
 
 The MVP runs every agent and every repository command on the host, as the current user, through `LocalProcessRunner`. Isolation between runs comes from Git worktrees, per-run folders, port allocations, and process groups. Isolation from the rest of the machine comes only from Cuckoding's path/command policy and from the runtime's own permission system. This is a trusted-host model, not a sandbox, and the UI says so.
 
-Container isolation is a `RunnerBridge` plugin family added later (Docker, OrbStack, Colima, Apple Containers). Nothing in the domain layer may assume either runner.
+Container isolation is a `RunnerBridge` plugin family added later (Docker, OrbStack, Colima, Apple Containers). Its frozen stub contract is in `docs/CONTAINER_RUNNER_CONTRACT.md`; no container backend is selectable yet. Nothing in the domain layer may assume either runner.
 
 ## RunnerBridge contract
 
@@ -109,4 +109,4 @@ These limitations are shown in the project settings and in the run detail when t
 
 ## Future container runners
 
-A container runner plugin implements `RunnerBridge` and declares in its manifest which isolation properties it provides (filesystem, network, resource limits, egress). The UI upgrades its isolation label from the manifest, never from assumptions. Candidate backends: Docker Desktop, OrbStack, Colima, Apple Containers. The plugin owns image policy, bind-mount confinement, and the `.git` visibility question (mount the worktree plus a read-only copy of the needed gitdir, or run Git host-side only).
+A container runner plugin implements `RunnerBridge` and declares in its manifest which isolation properties it provides (filesystem, network, resource limits, egress). The UI labels these as declared, never inferred. Candidate backends are Docker Desktop, OrbStack, Colima, and Apple Containers. The stable contract keeps Git host-side and confines mounts to the run worktree and run directory; see `docs/CONTAINER_RUNNER_CONTRACT.md`.

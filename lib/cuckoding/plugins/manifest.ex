@@ -14,10 +14,17 @@ defmodule Cuckoding.Plugins.Manifest do
   @name_pattern ~r/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
   @version_arguments ~w(--version -V version)
   @path_roots ["${RUN_WORKTREE}", "${RUN_DIR}", "${PROJECT_REPO}"]
+  @isolation_claims ~w(filesystem network resource_limits egress)
 
   defstruct [:path, :source, :hash, :data]
 
   def kinds, do: @kinds
+
+  def isolation_label([]), do: "No container isolation declared"
+
+  def isolation_label(claims) when is_list(claims) do
+    "Declared: " <> (claims |> Enum.sort() |> Enum.join(", "))
+  end
 
   def load(path, source) when source in ~w(bundled user) do
     with {:ok, %{type: :regular, size: size}} when size <= @maximum_bytes <- File.lstat(path),
@@ -159,7 +166,13 @@ defmodule Cuckoding.Plugins.Manifest do
 
   defp safe_path?(_path), do: false
 
-  defp isolation_claims("runner", claims), do: string_list(claims, :invalid_isolation_claims)
+  defp isolation_claims("runner", claims) when is_list(claims) do
+    if Enum.uniq(claims) == claims and Enum.all?(claims, &(&1 in @isolation_claims)),
+      do: :ok,
+      else: {:error, :invalid_isolation_claims}
+  end
+
+  defp isolation_claims("runner", _claims), do: {:error, :invalid_isolation_claims}
   defp isolation_claims(_kind, []), do: :ok
   defp isolation_claims(_kind, _claims), do: {:error, :isolation_claims_require_runner}
 

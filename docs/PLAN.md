@@ -89,7 +89,7 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 - [x] Manifest schema, discovery, registry, health, enablement.
 - [x] Behaviours and conformance suites per kind.
 - [x] Reference plugins: RTK, Ponytail, XERJ, generic MCP server.
-- [ ] Container runner plugin contract and stub.
+- [x] Container runner plugin contract and stub.
 
 ## Phase 9 — Shell and packaging
 

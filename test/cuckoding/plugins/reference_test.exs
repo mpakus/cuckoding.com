@@ -23,8 +23,12 @@ defmodule Cuckoding.Plugins.ReferenceTest do
 
     assert result.errors == []
 
-    assert Enum.sort(Enum.map(result.plugins, & &1.key)) ==
-             ~w(mcp-filesystem-readonly ponytail rtk xerj)
+    keys = MapSet.new(result.plugins, & &1.key)
+
+    assert MapSet.subset?(
+             MapSet.new(~w(mcp-filesystem-readonly ponytail rtk xerj)),
+             keys
+           )
 
     contexts = enable_reference_plugins(fixture)
     %{fixture: fixture, contexts: contexts}
@@ -170,6 +174,7 @@ defmodule Cuckoding.Plugins.ReferenceTest do
         "rtk" -> "/opt/fake/rtk"
         "xerj" -> "/opt/fake/xerj"
         "npx" -> "/opt/fake/npx"
+        _name -> nil
       end,
       command_runner: fn
         "/opt/fake/rtk", ["--version"], _options -> {"rtk 0.49.0", 0}

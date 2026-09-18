@@ -1,0 +1,26 @@
+schema_version: 1
+key: container-runner-stub
+name: Container runner contract stub
+version: 0.1.0
+kind: runner
+homepage: https://cuckoding.local/docs/container-runner
+license: Proprietary
+detect:
+  binaries:
+    - name: cuckoding-container-runner-stub
+      version_command: [cuckoding-container-runner-stub, --version]
+      min_version: 0.1.0
+  paths: []
+  env: []
+capabilities: [runner.contract]
+permissions:
+  host_process: true
+  network: none
+  read_paths: ["${RUN_WORKTREE}"]
+  write_paths: ["${RUN_WORKTREE}", "${RUN_DIR}"]
+  secrets: []
+config_schema:
+  backend: {type: string, enum: [docker, orbstack, colima, apple_containers]}
+  image_digest: {type: string}
+scopes: [project, board, role, stage]
+isolation_claims: []
