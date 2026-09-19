@@ -500,6 +500,8 @@ end
 defmodule Cuckoding.Adapters do
   @moduledoc "Defines replaceable agent-runtime adapter contracts and normalized results."
 
+  import Ecto.Query
+
   alias Cuckoding.Adapters.ProviderAccount
   alias Cuckoding.Execution.EventStore
   alias Cuckoding.Execution.StageAttempt
@@ -512,6 +514,48 @@ defmodule Cuckoding.Adapters do
       Map.put_new(attrs, :id, Identifier.generate())
     )
     |> Repo.insert()
+  end
+
+  def list_provider_accounts do
+    Repo.all(from(account in ProviderAccount, order_by: [asc: account.label, asc: account.id]))
+  end
+
+  def get_provider_account(id) when is_binary(id), do: Repo.get(ProviderAccount, id)
+  def get_provider_account(_id), do: nil
+
+  def save_provider_account(attrs) when is_map(attrs) do
+    case Map.get(attrs, :id) || Map.get(attrs, "id") do
+      nil ->
+        ProviderAccount.create_changeset(
+          %ProviderAccount{},
+          Map.put(attrs, :id, Identifier.generate())
+        )
+        |> Repo.insert()
+
+      id ->
+        case Repo.get(ProviderAccount, id) do
+          %ProviderAccount{} = account ->
+            account |> ProviderAccount.update_changeset(attrs) |> Repo.update()
+
+          nil ->
+            {:error, :provider_account_not_found}
+        end
+    end
+  end
+
+  def record_provider_status(id, status) when is_binary(id) and is_binary(status) do
+    case Repo.get(ProviderAccount, id) do
+      %ProviderAccount{} = account ->
+        account
+        |> ProviderAccount.update_changeset(%{
+          status: status,
+          probed_at: Cuckoding.Clock.wall_now()
+        })
+        |> Repo.update()
+
+      nil ->
+        {:error, :provider_account_not_found}
+    end
   end
 
   def record_session_observation(session, observation) do

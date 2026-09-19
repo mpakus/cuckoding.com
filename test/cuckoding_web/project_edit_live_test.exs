@@ -4,6 +4,7 @@ defmodule CuckodingWeb.ProjectEditLiveTest do
   import Ecto.Query
   import Phoenix.LiveViewTest
 
+  alias Cuckoding.Adapters
   alias Cuckoding.ProjectOnboarding
   alias Cuckoding.Projects
   alias Cuckoding.Projects.ProjectConfigVersion
@@ -141,6 +142,8 @@ defmodule CuckodingWeb.ProjectEditLiveTest do
 
     assert has_element?(view, "#project-edit-status", "Primary Codex saved")
     assert has_element?(view, "#agent-connection-0 button", "Update agent")
+    assert has_element?(view, "#saved-agents-heading", "Saved agents")
+    assert has_element?(view, "[id^='saved-agent-command-'] input[data-copy-source][readonly]")
     assert Projects.latest_config_version(project.id).revision == 2
 
     updated = put_in(config, ["agent_connections", "0", "label"], "Updated Codex")
@@ -153,6 +156,63 @@ defmodule CuckodingWeb.ProjectEditLiveTest do
     assert latest.revision == 3
     assert [%{"label" => "Updated Codex"}] = latest.config_json["agent_connections"]
     assert Enum.all?(latest.config_json["default_roles"], &is_nil(&1["agent_connection_key"]))
+  end
+
+  test "attaches a saved agent without re-entering runtime settings", %{
+    conn: conn,
+    project: project
+  } do
+    assert {:ok, account} =
+             Adapters.save_provider_account(%{
+               adapter_key: "codex",
+               label: "Shared Codex",
+               auth_mode: "os_keyring",
+               capabilities_json: %{
+                 "settings" => %{"executable_path" => "/usr/bin/true"}
+               }
+             })
+
+    {:ok, view, _html} = live(conn, ~p"/projects/#{project.id}/edit")
+
+    assert has_element?(view, "#saved-agent-#{account.id}", "Use in this project")
+    render_click(view, "use-saved-agent", %{"id" => account.id})
+
+    assert has_element?(
+             view,
+             "input[name='config[agent_connections][0][provider_account_id]'][value='#{account.id}']"
+           )
+
+    assert has_element?(view, "#agent-connection-0 input[value='Shared Codex']")
+    assert has_element?(view, "#saved-agent-#{account.id} button[disabled]", "Attached")
+  end
+
+  test "checks one saved Codex authorization and records its status", %{
+    conn: conn,
+    project: project
+  } do
+    executable = Path.join(project.repo_path, "codex-test")
+
+    File.write!(
+      executable,
+      "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo 'codex-cli 0.146.0'; else echo 'Logged in using ChatGPT'; fi\n"
+    )
+
+    File.chmod!(executable, 0o700)
+
+    assert {:ok, account} =
+             Adapters.save_provider_account(%{
+               adapter_key: "codex",
+               label: "Authorized Codex",
+               auth_mode: "os_keyring",
+               capabilities_json: %{"settings" => %{"executable_path" => executable}}
+             })
+
+    {:ok, view, _html} = live(conn, ~p"/projects/#{project.id}/edit")
+    render_click(view, "check-agent-authorization", %{"id" => account.id})
+
+    assert has_element?(view, "#project-edit-status", "authorized and ready for every project")
+    assert has_element?(view, "#saved-agent-#{account.id}", "Authorized")
+    assert Adapters.get_provider_account(account.id).status == "authenticated"
   end
 
   defp role_params do

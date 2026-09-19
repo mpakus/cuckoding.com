@@ -54,17 +54,18 @@ defmodule Cuckoding.Adapters.Codex do
   end
 
   @impl true
-  def render_config(%Types.StageRequest{} = request, _options) do
+  def render_config(%Types.StageRequest{} = request, options) do
     root = Path.join(request.run_dir, "agent")
     codex_dir = Path.join(root, "codex")
     home = Path.join(codex_dir, "home")
 
     with {:ok, mode} <- sandbox_mode(request.grant),
+         {:ok, credentials_store} <- credentials_store(options),
          :ok <- plugins_disabled(request.plugins),
          :ok <- prepare_directory(root, request.run_dir),
          :ok <- prepare_directory(codex_dir, root),
          :ok <- prepare_directory(home, codex_dir),
-         :ok <- write_file(Path.join(home, "config.toml"), config(mode)),
+         :ok <- write_file(Path.join(home, "config.toml"), config(mode, credentials_store)),
          :ok <- write_file(Path.join(home, "AGENTS.md"), instructions(request)),
          :ok <- write_file(Path.join(codex_dir, "output-schema.json"), schema(request)) do
       {:ok, effective_grant(request, mode)}
@@ -318,7 +319,7 @@ defmodule Cuckoding.Adapters.Codex do
         _other -> [stderr_to_stdout: true]
       end
 
-    case runner.(path, ["login", "status"], command_options) do
+    case runner.(path, auth_status_args(options), command_options) do
       {output, 0} -> {:ok, String.starts_with?(String.trim(output), "Logged in")}
       {_output, _status} -> {:ok, false}
     end
@@ -328,6 +329,13 @@ defmodule Cuckoding.Adapters.Codex do
   defp probe_status(true, true, false), do: "run_scoped_auth_unverified"
   defp probe_status(true, false, _verified), do: "run_scoped_auth_required"
   defp probe_status(false, _scoped, _verified), do: "authentication_required"
+
+  defp auth_status_args(options) do
+    case Keyword.get(options, :credentials_store) do
+      "keyring" -> ["-c", ~s(cli_auth_credentials_store="keyring"), "login", "status"]
+      _other -> ["login", "status"]
+    end
+  end
 
   defp valid_model(nil), do: :ok
 
@@ -393,31 +401,45 @@ defmodule Cuckoding.Adapters.Codex do
     %Types.EffectiveGrant{requested: request.grant, enforced: enforced, unenforced: unenforced}
   end
 
-  defp config(mode) do
-    """
-    approval_policy = "never"
-    sandbox_mode = "#{mode}"
-    web_search = "disabled"
+  defp credentials_store(options) do
+    case Keyword.get(options, :credentials_store) do
+      nil -> {:ok, nil}
+      "keyring" -> {:ok, "keyring"}
+      _other -> error(:unsupported_credentials_store, :authentication, false)
+    end
+  end
 
-    [sandbox_workspace_write]
-    writable_roots = []
-    network_access = false
-    exclude_tmpdir_env_var = true
-    exclude_slash_tmp = true
+  defp config(mode, credentials_store) do
+    credentials =
+      if credentials_store == "keyring",
+        do: ~s(cli_auth_credentials_store = "keyring"\n),
+        else: ""
 
-    [shell_environment_policy]
-    inherit = "core"
-    ignore_default_excludes = false
+    credentials <>
+      """
+      approval_policy = "never"
+      sandbox_mode = "#{mode}"
+      web_search = "disabled"
 
-    [agents]
-    enabled = false
+      [sandbox_workspace_write]
+      writable_roots = []
+      network_access = false
+      exclude_tmpdir_env_var = true
+      exclude_slash_tmp = true
 
-    [features]
-    apps = false
-    hooks = false
-    multi_agent = false
-    remote_plugin = false
-    """
+      [shell_environment_policy]
+      inherit = "core"
+      ignore_default_excludes = false
+
+      [agents]
+      enabled = false
+
+      [features]
+      apps = false
+      hooks = false
+      multi_agent = false
+      remote_plugin = false
+      """
   end
 
   defp instructions(request) do

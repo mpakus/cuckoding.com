@@ -1,6 +1,7 @@
 defmodule Cuckoding.ProjectOnboarding do
   @moduledoc "Registers projects and versions their agent and role defaults."
 
+  alias Cuckoding.Adapters
   alias Cuckoding.Adapters.RuntimeConfiguration
   alias Cuckoding.Clock
   alias Cuckoding.Execution.GitService
@@ -54,7 +55,13 @@ defmodule Cuckoding.ProjectOnboarding do
       with project when not is_nil(project) <- Projects.get_project(project_id),
            current when not is_nil(current) <- Projects.latest_config_version(project_id),
            :ok <- current_revision(current.revision, expected_revision),
-           {:ok, connections} <- validate_connections(attrs["agent_connections"]),
+           connections <-
+             inherit_provider_accounts(
+               attrs["agent_connections"],
+               current.config_json["agent_connections"] || []
+             ),
+           {:ok, connections} <- validate_connections(connections),
+           {:ok, connections} <- persist_connections(connections),
            {:ok, roles} <- validate_roles(attrs["default_roles"], connections),
            config <-
              current.config_json
@@ -74,7 +81,10 @@ defmodule Cuckoding.ProjectOnboarding do
       with project when not is_nil(project) <- Projects.get_project(project_id),
            current when not is_nil(current) <- Projects.latest_config_version(project_id),
            :ok <- current_revision(current.revision, expected_revision),
+           attrs <-
+             inherit_provider_account(attrs, current.config_json["agent_connections"] || []),
            {:ok, connection} <- validate_connection(attrs),
+           {:ok, connection} <- persist_connection(connection),
            {:ok, connections} <-
              upsert_connection(current.config_json["agent_connections"] || [], connection),
            config <- Map.put(current.config_json, "agent_connections", connections),
@@ -158,6 +168,7 @@ defmodule Cuckoding.ProjectOnboarding do
   defp validate_connection(connection) when is_map(connection) do
     with {:ok, key} <- valid_key(connection["key"], :invalid_agent_key),
          {:ok, label} <- bounded_text(connection["label"], :agent_label_required, 120),
+         {:ok, provider_account_id} <- optional_uuid(connection["provider_account_id"]),
          {:ok, runtime} <-
            RuntimeConfiguration.validate(%{
              "runtime" => connection["adapter_key"],
@@ -169,6 +180,7 @@ defmodule Cuckoding.ProjectOnboarding do
          "key" => key,
          "label" => label,
          "adapter_key" => runtime.runtime,
+         "provider_account_id" => provider_account_id,
          "settings" => runtime.settings
        }}
     end
@@ -191,6 +203,60 @@ defmodule Cuckoding.ProjectOnboarding do
   end
 
   defp upsert_connection(_connections, _connection), do: {:error, :invalid_agent_connections}
+
+  defp persist_connections(connections) do
+    Enum.reduce_while(connections, {:ok, []}, fn connection, {:ok, saved} ->
+      case persist_connection(connection) do
+        {:ok, connection} -> {:cont, {:ok, [connection | saved]}}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+    |> case do
+      {:ok, saved} -> {:ok, Enum.reverse(saved)}
+      error -> error
+    end
+  end
+
+  defp inherit_provider_accounts(connections, current) when is_list(connections),
+    do: Enum.map(connections, &inherit_provider_account(&1, current))
+
+  defp inherit_provider_accounts(connections, _current), do: connections
+
+  defp inherit_provider_account(connection, current) when is_map(connection) do
+    if connection["provider_account_id"] in [nil, ""] do
+      case Enum.find(current, &(&1["key"] == connection["key"])) do
+        %{"provider_account_id" => id} when is_binary(id) ->
+          Map.put(connection, "provider_account_id", id)
+
+        _other ->
+          connection
+      end
+    else
+      connection
+    end
+  end
+
+  defp inherit_provider_account(connection, _current), do: connection
+
+  defp persist_connection(connection) do
+    attrs = %{
+      id: connection["provider_account_id"],
+      adapter_key: connection["adapter_key"],
+      label: connection["label"],
+      auth_mode: auth_mode(connection["adapter_key"]),
+      capabilities_json: %{"settings" => connection["settings"]}
+    }
+
+    case Adapters.save_provider_account(attrs) do
+      {:ok, account} -> {:ok, Map.put(connection, "provider_account_id", account.id)}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp auth_mode("codex"), do: "os_keyring"
+  defp auth_mode("claude_code"), do: "api_key_helper"
+  defp auth_mode("cursor_agent"), do: "run_scoped"
+  defp auth_mode(_adapter), do: "unsupported"
 
   defp validate_roles(roles, connections)
        when is_list(roles) and roles != [] and length(roles) <= @max_roles do
@@ -238,6 +304,17 @@ defmodule Cuckoding.ProjectOnboarding do
   end
 
   defp valid_key(_value, error), do: {:error, error}
+
+  defp optional_uuid(value) when value in [nil, ""], do: {:ok, nil}
+
+  defp optional_uuid(value) when is_binary(value) do
+    case Ecto.UUID.cast(value) do
+      {:ok, id} -> {:ok, id}
+      :error -> {:error, :invalid_provider_account}
+    end
+  end
+
+  defp optional_uuid(_value), do: {:error, :invalid_provider_account}
 
   defp bounded_text(value, error, max_length) when is_binary(value) do
     value = String.trim(value)

@@ -3,7 +3,9 @@ defmodule CuckodingWeb.ProjectEditLive do
 
   import CuckodingWeb.PolicyComponents
 
+  alias Cuckoding.Adapters
   alias Cuckoding.Adapters.RuntimeConfiguration
+  alias Cuckoding.AgentRuntime
   alias Cuckoding.ProjectOnboarding
   alias Cuckoding.Projects
   alias Cuckoding.ProjectWorkflow
@@ -16,7 +18,8 @@ defmodule CuckodingWeb.ProjectEditLive do
     with project when not is_nil(project) <- Projects.get_project(project_id),
          config when not is_nil(config) <- Projects.latest_config_version(project_id) do
       {:ok,
-       assign(socket,
+       socket
+       |> assign(
          page_title: "Edit #{project.name}",
          project: project,
          revision: config.revision,
@@ -26,7 +29,8 @@ defmodule CuckodingWeb.ProjectEditLive do
          board_form: %{"name" => "Product", "description" => "", "concurrency_limit" => "1"},
          notice: nil,
          error: nil
-       )}
+       )
+       |> refresh_saved_agents()}
     else
       nil -> raise Phoenix.Router.NoRouteError, conn: socket, router: CuckodingWeb.Router
     end
@@ -43,6 +47,7 @@ defmodule CuckodingWeb.ProjectEditLive do
       "key" => next_key(socket.assigns.config["agent_connections"], "agent"),
       "label" => "",
       "adapter_key" => "codex",
+      "provider_account_id" => "",
       "executable_path" => RuntimeConfiguration.default_executable("codex"),
       "api_key_helper" => "",
       "persisted" => false
@@ -54,6 +59,51 @@ defmodule CuckodingWeb.ProjectEditLive do
        Map.update!(config, "agent_connections", &(&1 ++ [connection]))
      end)
      |> assign(notice: nil, error: nil)}
+  end
+
+  def handle_event("use-saved-agent", %{"id" => id}, socket) do
+    with account when not is_nil(account) <- Adapters.get_provider_account(id),
+         false <- attached?(socket.assigns.config, account.id) do
+      settings = account.capabilities_json["settings"] || %{}
+
+      connection = %{
+        "key" => next_key(socket.assigns.config["agent_connections"], "agent"),
+        "label" => account.label,
+        "adapter_key" => account.adapter_key,
+        "provider_account_id" => account.id,
+        "executable_path" => settings["executable_path"] || "",
+        "api_key_helper" => settings["api_key_helper"] || "",
+        "persisted" => false
+      }
+
+      {:noreply,
+       socket
+       |> update(:config, fn config ->
+         Map.update!(config, "agent_connections", &(&1 ++ [connection]))
+       end)
+       |> assign(
+         notice: "#{account.label} added. Save it to attach it to this project.",
+         error: nil
+       )}
+    else
+      true -> {:noreply, assign(socket, error: "That saved agent is already attached.")}
+      nil -> {:noreply, assign(socket, error: "That saved agent no longer exists.")}
+    end
+  end
+
+  def handle_event("check-agent-authorization", %{"id" => id}, socket) do
+    with account when not is_nil(account) <- Adapters.get_provider_account(id),
+         {:ok, updated} <- AgentRuntime.check_account(account) do
+      notice =
+        if updated.status == "authenticated",
+          do: "#{updated.label} is authorized and ready for every project.",
+          else: "#{updated.label} is not authorized yet. Run the command below, then check again."
+
+      {:noreply, socket |> refresh_saved_agents() |> assign(notice: notice, error: nil)}
+    else
+      nil -> {:noreply, assign(socket, error: "That saved agent no longer exists.")}
+      {:error, reason} -> {:noreply, assign(socket, error: authorization_error(reason))}
+    end
   end
 
   def handle_event("remove_connection", %{"index" => index}, socket) do
@@ -126,12 +176,14 @@ defmodule CuckodingWeb.ProjectEditLive do
       updated = Map.update!(config, "agent_connections", &List.replace_at(&1, index, saved))
 
       {:noreply,
-       assign(socket,
+       socket
+       |> assign(
          revision: version.revision,
          config: updated,
          notice: "#{saved["label"]} saved as configuration revision #{version.revision}.",
          error: nil
-       )}
+       )
+       |> refresh_saved_agents()}
     else
       :error ->
         {:noreply,
@@ -161,12 +213,14 @@ defmodule CuckodingWeb.ProjectEditLive do
          ) do
       {:ok, version} ->
         {:noreply,
-         assign(socket,
+         socket
+         |> assign(
            revision: version.revision,
            config: edit_config(version.config_json),
            notice: "Agent and role configuration saved as revision #{version.revision}.",
            error: nil
-         )}
+         )
+         |> refresh_saved_agents()}
 
       {:error, reason} ->
         {:noreply, assign(socket, config: config, notice: nil, error: error_message(reason))}
@@ -237,6 +291,103 @@ defmodule CuckodingWeb.ProjectEditLive do
           {@error}
         </p>
 
+        <section
+          :if={@saved_agents != []}
+          aria-labelledby="saved-agents-heading"
+          class="space-y-4"
+        >
+          <div>
+            <h2 id="saved-agents-heading" class="text-xl font-semibold text-slate-950">
+              Saved agents
+            </h2>
+            <p class="mt-1 text-sm leading-6 text-slate-700">
+              Reuse these machine-wide connections in any project. Credentials stay in the
+              provider or macOS Keychain; Cuckoding stores only connection settings and status.
+            </p>
+          </div>
+
+          <div class="grid gap-4 lg:grid-cols-2">
+            <article
+              :for={account <- @saved_agents}
+              id={"saved-agent-#{account.id}"}
+              class="space-y-4 rounded-xl border border-slate-200 bg-white p-5"
+            >
+              <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 class="font-semibold text-slate-950">{account.label}</h3>
+                  <p class="mt-1 text-sm text-slate-600">
+                    {runtime_label(account.adapter_key)} · {authorization_status(account.status)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  phx-click="use-saved-agent"
+                  phx-value-id={account.id}
+                  disabled={attached?(@config, account.id)}
+                  class="min-h-10 rounded-md border border-slate-400 px-3 text-sm font-medium text-slate-950 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 focus-visible:outline-2 focus-visible:outline-offset-2"
+                >
+                  {if attached?(@config, account.id), do: "Attached", else: "Use in this project"}
+                </button>
+              </div>
+
+              <div
+                :for={setup <- List.wrap(@agent_setups[account.id])}
+                id={"saved-agent-command-#{account.id}"}
+                phx-hook="CopyCommand"
+                class="space-y-2"
+              >
+                <label class="grid gap-2 text-sm font-medium text-slate-800">
+                  One-time authorization command
+                  <span class="flex gap-2">
+                    <input
+                      data-copy-source
+                      readonly
+                      value={setup.command}
+                      class="min-h-11 min-w-0 flex-1 rounded-md border border-slate-400 px-3 font-mono text-xs text-slate-800"
+                    />
+                    <button
+                      type="button"
+                      data-copy-button
+                      class="min-h-11 rounded-md border border-slate-400 px-4 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
+                    >
+                      Copy
+                    </button>
+                  </span>
+                </label>
+                <p
+                  data-copy-status
+                  role="status"
+                  aria-live="polite"
+                  class="min-h-5 text-sm text-slate-600"
+                >
+                </p>
+                <button
+                  type="button"
+                  phx-click="check-agent-authorization"
+                  phx-value-id={account.id}
+                  class="min-h-10 rounded-md bg-slate-950 px-4 text-sm font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
+                >
+                  Check authorization
+                </button>
+              </div>
+
+              <p
+                :if={account.adapter_key == "claude_code"}
+                class="text-sm leading-6 text-slate-700"
+              >
+                The configured API-key helper is reused without storing its secret output.
+              </p>
+              <p
+                :if={account.adapter_key == "cursor_agent"}
+                class="text-sm leading-6 text-slate-700"
+              >
+                Cursor authorization remains run-specific because its CLI writes user-global
+                session state.
+              </p>
+            </article>
+          </div>
+        </section>
+
         <form id="project-config-form" phx-change="sync" phx-submit="save" class="space-y-8">
           <section aria-labelledby="agents-heading" class="space-y-4">
             <div class="flex flex-wrap items-end justify-between gap-3">
@@ -277,6 +428,11 @@ defmodule CuckodingWeb.ProjectEditLive do
                   type="hidden"
                   name={"config[agent_connections][#{index}][key]"}
                   value={connection["key"]}
+                />
+                <input
+                  type="hidden"
+                  name={"config[agent_connections][#{index}][provider_account_id]"}
+                  value={connection["provider_account_id"]}
                 />
                 <label class="grid gap-2 text-sm font-medium text-slate-800">
                   Connection name
@@ -547,6 +703,7 @@ defmodule CuckodingWeb.ProjectEditLive do
             "key" => connection["key"],
             "label" => connection["label"] || humanize(connection["key"]),
             "adapter_key" => connection["adapter_key"],
+            "provider_account_id" => connection["provider_account_id"] || "",
             "executable_path" => settings["executable_path"] || "",
             "api_key_helper" => settings["api_key_helper"] || "",
             "persisted" => true
@@ -649,6 +806,7 @@ defmodule CuckodingWeb.ProjectEditLive do
   defp error_message(:role_name_required), do: "Every role needs a name."
   defp error_message(:role_instructions_required), do: "Every role needs instructions."
   defp error_message(:role_agent_required), do: "Assign an agent to every role."
+  defp error_message(:invalid_provider_account), do: "Choose a valid saved agent."
 
   defp error_message(:default_role_missing),
     do: "The built-in workflow roles must remain configured."
@@ -657,6 +815,15 @@ defmodule CuckodingWeb.ProjectEditLive do
     do: "Configuration could not be saved: #{inspect(changeset.errors)}"
 
   defp error_message(reason), do: "Configuration could not be saved: #{inspect(reason)}"
+
+  defp authorization_error(%Cuckoding.Adapters.Types.Error{code: :executable_not_found}),
+    do: "The saved runtime executable no longer exists. Update the agent path and try again."
+
+  defp authorization_error(%Cuckoding.Adapters.Types.Error{code: code}),
+    do: "Authorization could not be checked (#{code}). Verify the executable and try again."
+
+  defp authorization_error(reason),
+    do: "Authorization could not be checked: #{inspect(reason)}"
 
   defp board_error(:roles_not_configured),
     do: "Save an agent assignment for every built-in role before creating a board."
@@ -667,6 +834,35 @@ defmodule CuckodingWeb.ProjectEditLive do
   defp board_error(reason), do: "Board could not be created: #{inspect(reason)}"
 
   defp default_role?(key), do: MapSet.member?(@default_role_keys, key)
+
+  defp refresh_saved_agents(socket) do
+    accounts = Adapters.list_provider_accounts()
+
+    setups =
+      Map.new(accounts, fn account ->
+        case AgentRuntime.account_setup(account) do
+          {:ok, %{command: _command} = setup} -> {account.id, setup}
+          _other -> {account.id, nil}
+        end
+      end)
+
+    assign(socket, saved_agents: accounts, agent_setups: setups)
+  end
+
+  defp attached?(config, account_id) do
+    Enum.any?(config["agent_connections"], &(&1["provider_account_id"] == account_id))
+  end
+
+  defp authorization_status("authenticated"), do: "Authorized"
+  defp authorization_status("authentication_required"), do: "Authorization required"
+  defp authorization_status(_status), do: "Authorization not checked"
+
+  defp runtime_label("codex"), do: "Codex"
+  defp runtime_label("claude_code"), do: "Claude Code"
+  defp runtime_label("cursor_agent"), do: "Cursor Agent"
+  defp runtime_label("opencode"), do: "OpenCode"
+  defp runtime_label("custom_agent"), do: "Custom Agent"
+  defp runtime_label(runtime), do: humanize(runtime)
 
   defp blank_to(value, fallback) when value in [nil, ""], do: fallback
   defp blank_to(value, _fallback), do: value

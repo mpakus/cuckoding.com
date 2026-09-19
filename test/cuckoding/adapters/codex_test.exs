@@ -61,8 +61,14 @@ defmodule Cuckoding.Adapters.CodexTest do
   test "probe reports only verified run-scoped authentication", %{executable: executable} do
     command_runner = fn _path, args, options ->
       case args do
-        ["--version"] -> {"codex-cli 0.146.0\n", 0}
-        ["login", "status"] -> {"Logged in using ChatGPT\n#{inspect(options[:env])}", 0}
+        ["--version"] ->
+          {"codex-cli 0.146.0\n", 0}
+
+        ["login", "status"] ->
+          {"Logged in using ChatGPT\n#{inspect(options[:env])}", 0}
+
+        ["-c", ~s(cli_auth_credentials_store="keyring"), "login", "status"] ->
+          {"Logged in using ChatGPT\n#{inspect(options[:env])}", 0}
       end
     end
 
@@ -90,6 +96,17 @@ defmodule Cuckoding.Adapters.CodexTest do
 
     assert verified.authenticated?
     refute inspect(verified) =~ "ChatGPT"
+
+    assert {:ok, keyring} =
+             Codex.probe(
+               path: executable,
+               codex_home: "/global/codex/home",
+               credentials_store: "keyring",
+               run_scoped_authenticated?: true,
+               command_runner: command_runner
+             )
+
+    assert keyring.authenticated?
   end
 
   test "renders a run-scoped home and least-privilege launch", %{
@@ -108,8 +125,14 @@ defmodule Cuckoding.Adapters.CodexTest do
     assert config =~ ~s(sandbox_mode = "workspace-write")
     assert config =~ "network_access = false"
     assert config =~ "remote_plugin = false"
+    refute config =~ "auth.json"
     assert File.read!(Path.join(root, "home/AGENTS.md")) =~ "project:adapter"
     assert Bitwise.band(File.stat!(Path.join(root, "home/config.toml")).mode, 0o777) == 0o600
+
+    assert {:ok, _grant} = Codex.render_config(request, credentials_store: "keyring")
+
+    assert File.read!(Path.join(root, "home/config.toml")) =~
+             ~s(cli_auth_credentials_store = "keyring")
 
     assert {:ok, spec} =
              Codex.launch_spec(request,

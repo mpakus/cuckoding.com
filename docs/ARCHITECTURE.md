@@ -84,8 +84,11 @@ may onboarding initialize a selected non-repository or create the first local
 commit in an unborn repository; an existing branch remains read-only. It then
 atomically writes the project plus an initial trusted configuration with no
 agent connection. The project edit surface validates multiple machine-local
-runtime paths and role mappings, then appends a new immutable configuration
-revision with an expected-revision guard. It creates no board, task, run,
+runtime paths, upserts credential-free records in the global `provider_accounts`
+catalog, and appends stable account references plus role mappings to a new
+immutable configuration revision with an expected-revision guard. Another
+project can attach the same account without re-entering its runtime settings.
+It creates no board, task, run,
 branch, worktree, port, lease, or provider process. Board setup later publishes
 a workflow and snapshots role assignments; task start alone prepares the
 execution environment.
@@ -97,8 +100,8 @@ only once, validates the current repository revision and runnable role snapshot,
 creates a queued run, and delegates owned worktree setup to `GitService`; no
 provider process starts from a board or task form.
 
-`Cuckoding.GuidedRun` launches that queued default workflow after run-scoped
-authentication. It resolves the Specifications, Coding, and Review adapters
+`Cuckoding.GuidedRun` launches that queued default workflow after authorization
+verification. It resolves the Specifications, Coding, and Review adapters
 separately from the immutable run snapshot, while `WalkingSkeleton` remains the
 bounded workflow executor and release-evidence path. `Cuckoding.AgentFloor`
 rebuilds both session cards and the bounded recent-operation projection from

@@ -80,9 +80,9 @@ capabilities, per-project knowledge boundaries, redaction, and human approval.
 
 ### Project-first enrollment
 
-On the dashboard, use **Add project**. Complete the four steps for project
-identity, the existing repository and actual base branch, the absolute path to
-the pinned Codex or Claude Code executable, and review. Claude Code additionally
+On the dashboard, use **Add project**. Complete the three steps for project
+identity, the existing repository and actual base branch, and review. After
+registration, save or attach agents on the project page. Claude Code additionally
 requires the already reviewed absolute API key helper path. A dirty working tree
 may be registered, but use a dedicated authorized clone for beta execution.
 
@@ -93,13 +93,13 @@ substitute the legacy internal walking-skeleton constructor for those UI steps;
 controlled-beta enrollment remains paused until the project workspace and task
 start surfaces are complete.
 
-After an explicitly started task creates a run, the Codex run page shows one
-complete sign-in command in a read-only field with an adjacent copy button. The
-command sets the private run-owned `CODEX_HOME` and runs `login --device-auth`;
-the credential remains in that run directory. Run the copied command in
-Terminal, complete sign-in, and return to the run page. Choose **Check
-authentication and start workflow**. Cuckoding
-checks the pinned runtime version and isolated authentication before changing
+The project page shows a saved Codex agent's complete one-time sign-in command
+in a read-only field with an adjacent copy button. The command selects Keychain
+credential storage and an owner-only application-data home. Run it in Terminal,
+complete sign-in, then choose **Check authorization**. Later run directories
+remain isolated and contain no copied token file. After an explicitly started
+task creates a run, choose **Check authentication and start workflow**. Cuckoding
+checks the pinned runtime version and saved authorization before changing
 the durable run from queued to running. Claude Code performs the same start
 gate through the reviewed helper. A failed probe leaves the run queued.
 

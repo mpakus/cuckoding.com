@@ -163,6 +163,16 @@ This file records accepted product-level decisions. Add a dated ADR section when
 - **Consequences:** The dashboard becomes useful before any run exists. Agent connections can be reused, while project, board, and run snapshots preserve history. Project registration may accept a dirty repository, but task start still requires a clean verified base. The Phase 4 guided-run path remains test-only compatibility until its callers are retired.
 - **Verification:** Project onboarding tests prove that registration creates no board, task, run, environment, or worktree; LiveView tests cover the wizard and project-first dashboard; board and run snapshot tests cover later tranches.
 
+## ADR-024 — Global agent catalog with credential-only authorization reuse
+
+- **Date:** 2026-09-19
+- **Status:** Accepted by the sole stakeholder
+- **Context:** Project configuration already snapshots agent metadata for reproducible boards and runs, but saving the same machine-local runtime separately in every project and authenticating every run contradicts the reusable-agent product flow. Reusing an entire provider home would also share configuration, history, sessions, skills, and metadata across projects.
+- **Decision:** `provider_accounts` is the global machine-local agent catalog. Project configurations store a stable account ID plus an immutable copy of the non-secret runtime settings; boards and runs keep their existing snapshot chain. Codex uses its supported macOS Keychain credential store for one-time authorization while retaining a separate generated `CODEX_HOME` for every run. Claude's reviewed helper remains reusable. Cursor keeps run-owned authentication until credential-only reuse passes the same global-write and MCP-isolation verification as its adapter.
+- **Alternatives:** Reuse one complete provider home (rejected because it shares project state); copy file-backed credential directories into every run (rejected because it duplicates plaintext tokens); replace snapshots with live account references (rejected because history would drift).
+- **Consequences:** Users enter agent metadata once and attach saved agents to any project. Authorization state may change globally without rewriting historical snapshots, while executable paths and role settings remain explainable. Revoking a provider login blocks future launches using that account.
+- **Verification:** Provider-account persistence and cross-project attachment tests; Codex keyring/run-home adapter tests; LiveView save, attach, and authorization-command tests; secret-canary and full quality gates.
+
 ## ADR template
 
 ### ADR-NNN — Title

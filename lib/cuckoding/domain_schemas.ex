@@ -734,8 +734,23 @@ defmodule Cuckoding.Adapters.ProviderAccount do
 
   def create_changeset(record, attrs) do
     record
-    |> cast(attrs, [:id, :adapter_key, :label, :auth_mode, :capabilities_json])
+    |> cast(attrs, [
+      :id,
+      :adapter_key,
+      :label,
+      :auth_mode,
+      :status,
+      :capabilities_json,
+      :probed_at
+    ])
     |> validate_required([:id, :adapter_key, :label, :auth_mode, :capabilities_json])
+    |> unique_constraint([:adapter_key, :label])
+  end
+
+  def update_changeset(record, attrs) do
+    record
+    |> cast(attrs, [:adapter_key, :label, :auth_mode, :status, :capabilities_json, :probed_at])
+    |> validate_required([:adapter_key, :label, :auth_mode, :status, :capabilities_json])
     |> unique_constraint([:adapter_key, :label])
   end
 end

@@ -109,12 +109,13 @@ defmodule Cuckoding.ProjectWorkflowTest do
     implementer = Enum.find(snapshot_roles, &(&1["role_key"] == "implementer"))
     assert implementer["adapter_key"] == "codex"
     assert implementer["settings"]["connection_label"] == "Local Codex"
+    assert is_binary(implementer["settings"]["provider_account_id"])
 
     assert {:ok, setups} = Cuckoding.GuidedRun.runtime_setups(run.id)
     setup = Enum.find(setups, &(&1.role_key == "implementer"))
 
     assert setup.command ==
-             "CODEX_HOME='#{setup.home}' '/usr/bin/true' login --device-auth"
+             "CODEX_HOME='#{setup.home}' '/usr/bin/true' -c 'cli_auth_credentials_store=\"keyring\"' login --device-auth"
 
     assert {:error, :run_already_prepared} = ProjectWorkflow.prepare_task(task.id)
 

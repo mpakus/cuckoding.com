@@ -199,6 +199,7 @@ defmodule Cuckoding.ProjectWorkflow do
           Map.merge(connection["settings"] || %{}, %{
             "connection_key" => connection["key"],
             "connection_label" => connection["label"],
+            "provider_account_id" => connection["provider_account_id"],
             "role_name" => role["name"],
             "instructions" => role["instructions"]
           })

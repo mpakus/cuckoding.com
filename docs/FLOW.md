@@ -8,22 +8,24 @@ Project setup, board setup, board task intake, and delivery execution are separa
    base branch through Project → Repository → Review. Folder inspection is
    read-only until review is confirmed. A confirmed empty or unborn folder is
    initialized with a first local commit; an existing branch is not changed.
-   Registration redirects to project settings, where reusable agent connections
-   and project role defaults are versioned separately. Neither action creates a
+   Registration redirects to project settings, where machine-wide saved agents
+   can be attached and project role defaults are versioned separately. A saved
+   agent holds only validated runtime settings and authorization status; supported
+   credentials stay in the provider's credential store. Neither action creates a
    board, task, run, feature branch, worktree, or provider process.
 2. **Board setup** selects a versioned workflow and snapshots board role
    assignments, budgets, and concurrency settings from project defaults.
 3. **Task execution** has two explicit actions. **Prepare run** accepts only a
    Ready task on an active board, rejects setup-only runtimes, snapshots the
    board configuration and trusted project policy, and creates the owned branch
-   and worktree. The queued run page then verifies each role's run-scoped
-   authentication before it starts any agent process. Required shell setup is
+   and worktree. The queued run page then verifies each role's saved authorization
+   or isolated runtime setup before it starts any agent process. Required shell setup is
    shown as one complete read-only command with an adjacent copy control. A
    queued run is visible on the global operation monitor even before its first
    agent session.
 4. **Board task intake** accepts a bounded prompt and one snapshotted agent
    role. It creates a hidden planning task and normal queued run, verifies that
-   role's run-scoped authentication, and launches a single read-only,
+   role's saved authorization or isolated runtime setup, and launches a single read-only,
    network-denied stage. The agent may use read-only inspection commands inside
    the runtime sandbox so it can open project files. The run waits at `task proposal review`; validated
    proposals remain separate rows until a human selects them. Import creates
@@ -121,7 +123,8 @@ The same runtime may fill multiple agent roles, but the default policy prevents 
 Role display names, instructions, and required outputs are editable project
 defaults. Workflow stages reference stable role keys. Boards snapshot their
 assignments, and runs snapshot the board assignments again, so editing an agent
-profile or role never rewrites active or historical work.
+profile or role never rewrites active or historical work. Reauthorizing a saved
+agent changes only provider credential state and its current health projection.
 
 The default board launcher resolves Specifications, Coding, and Review
 independently from that snapshot. Each stage receives its assigned connection,

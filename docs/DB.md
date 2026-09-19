@@ -45,7 +45,7 @@ erDiagram
 | `boards` | `project_id`, `name`, `description`, `workflow_version_id`, `status`, `concurrency_limit`, `unattended_until` | Multiple independent processes per project |
 | `workflow_versions` | `project_id?`, `name`, `version`, `definition_json`, `published_at` | Immutable once used by a run |
 | `role_assignments` | `board_id`, `role_key`, `adapter_key`, `model_ref`, `settings_json` | Board snapshot of project role defaults; run snapshot is separate |
-| `provider_accounts` | `adapter_key`, `label`, `auth_mode`, `status`, `capabilities_json`, `probed_at` | Reusable machine-local agent connection/profile; runtime auth is observed, never stored |
+| `provider_accounts` | `adapter_key`, `label`, `auth_mode`, `status`, `capabilities_json`, `probed_at` | Reusable machine-local agent connection/profile; contains validated non-secret settings and observed auth status, never credential values |
 | `secret_access_audits` | `secret_ref`, `purpose`, `run_id?`, `occurred_at` | Opaque reference-use audit; never stores the value |
 | `security_audit_events` | `event_type`, `method`, `path`, `status`, `occurred_at` | Append-only shell/browser rejection audit; never stores credentials or query strings |
 | `plugins` | `key`, `kind`, `version`, `source`, `manifest_path`, `manifest_hash`, `manifest_json`, `detected_binaries_json`, `health`, `detected_at`, `last_error` | Validated bundled/user registry state |
@@ -58,8 +58,10 @@ unbounded provider data.
 
 Project registration stores an initial `project_config_versions.config_json`
 with the built-in role definitions unassigned and no agent connections. Project
-settings append immutable revisions containing validated machine-local agent
-connections and default role mappings. A board copies the selected mappings
+settings append immutable revisions containing stable `provider_account_id`
+references, validated machine-local agent settings, and default role mappings.
+Updating a saved agent updates its global catalog row but never rewrites those
+immutable revisions. A board copies the selected mappings
 into `role_assignments`; a run copies them into its workflow snapshot. This
 deliberate snapshot chain means later project, role, or agent-profile edits never
 rewrite an active or historical run. Project creation and settings saves must

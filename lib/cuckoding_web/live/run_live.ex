@@ -73,6 +73,14 @@ defmodule CuckodingWeb.RunLive do
                "command below, finish sign-in, then check authentication again."
          )}
 
+      {:error, :provider_auth_required} ->
+        {:noreply,
+         assign(socket,
+           error:
+             "The saved agent is not authorized. Open project settings, run its one-time " <>
+               "authorization command, choose Check authorization, then retry this run."
+         )}
+
       {:error, reason} ->
         {:noreply, assign(socket, error: start_error(reason))}
     end
@@ -462,8 +470,15 @@ defmodule CuckodingWeb.RunLive do
     |> Enum.reverse()
     |> Enum.find(&(&1.event_type == "task_intake.failed"))
     |> case do
-      %{public_summary: summary} -> summary
-      nil -> detail.run.wait_reason || "Task planning failed. Inspect recent activity below."
+      %{metadata: %{"code" => "task_intake_failed"}} ->
+        "This older run did not record a specific validation error. The agent response was not " <>
+          "accepted; create a new planning run to retry with detailed diagnostics."
+
+      %{public_summary: summary} ->
+        summary
+
+      nil ->
+        detail.run.wait_reason || "Task planning failed. Inspect recent activity below."
     end
   end
 

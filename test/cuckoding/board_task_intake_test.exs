@@ -6,6 +6,7 @@ defmodule Cuckoding.BoardTaskIntakeTest do
 
   alias Cuckoding.BoardTaskIntake
   alias Cuckoding.Execution.AgentSession
+  alias Cuckoding.Execution.EventStore
   alias Cuckoding.Execution.Run
   alias Cuckoding.Execution.RunEvent
   alias Cuckoding.ProjectWorkflow
@@ -183,6 +184,43 @@ defmodule Cuckoding.BoardTaskIntakeTest do
     assert {:ok, intake} = create_intake(created.board.id)
     assert intake.task.intake_role_key == "spec_writer"
     assert intake.run.state == "queued"
+  end
+
+  test "explains a legacy planning failure without a recorded cause", %{
+    conn: conn,
+    created: created
+  } do
+    assert {:ok, intake} = create_intake(created.board.id)
+
+    assert {:ok, _command} =
+             Cuckoding.Execution.transition_run(
+               intake.run.id,
+               "running",
+               "test:#{intake.run.id}:running"
+             )
+
+    assert {:ok, _event} =
+             EventStore.append(intake.run.id, %{
+               event_type: "task_intake.failed",
+               public_summary: "Task planning failed.",
+               payload: %{"code" => "task_intake_failed"}
+             })
+
+    assert {:ok, _command} =
+             Cuckoding.Execution.transition_run(
+               intake.run.id,
+               "blocked",
+               "test:#{intake.run.id}:blocked",
+               wait_reason: "Task planning failed."
+             )
+
+    assert {:ok, run_view, _html} = live(conn, ~p"/runs/#{intake.run.id}")
+
+    assert has_element?(
+             run_view,
+             "#run-failure[role=alert]",
+             "This older run did not record a specific validation error"
+           )
   end
 
   test "board creates the planning run and run page imports reviewed proposals", %{

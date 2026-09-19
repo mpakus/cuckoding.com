@@ -1,6 +1,8 @@
 defmodule Cuckoding.ProjectOnboardingTest do
   use Cuckoding.DataCase, async: false
 
+  alias Cuckoding.Adapters
+  alias Cuckoding.Adapters.ProviderAccount
   alias Cuckoding.Execution.Environment
   alias Cuckoding.Execution.Run
   alias Cuckoding.ProjectOnboarding
@@ -154,7 +156,9 @@ defmodule Cuckoding.ProjectOnboardingTest do
     assert [coder, reviewer] = config.config_json["agent_connections"]
     assert coder["key"] == "coder"
     assert coder["adapter_key"] == "codex"
+    assert is_binary(coder["provider_account_id"])
     assert reviewer["key"] == "reviewer"
+    assert is_binary(reviewer["provider_account_id"])
     assert reviewer["settings"] == %{"executable_path" => "/usr/bin/true"}
     assert Enum.at(config.config_json["default_roles"], 2)["agent_connection_key"] == "reviewer"
 
@@ -206,7 +210,12 @@ defmodule Cuckoding.ProjectOnboardingTest do
 
     assert {:ok, created} = ProjectOnboarding.save_connection(project.id, 1, agent)
     assert created.revision == 2
-    assert [%{"label" => "Primary Codex"}] = created.config_json["agent_connections"]
+
+    assert [%{"label" => "Primary Codex", "provider_account_id" => account_id}] =
+             created.config_json["agent_connections"]
+
+    assert %ProviderAccount{label: "Primary Codex", auth_mode: "os_keyring"} =
+             Adapters.get_provider_account(account_id)
 
     assert Enum.all?(
              created.config_json["default_roles"],
@@ -221,7 +230,13 @@ defmodule Cuckoding.ProjectOnboardingTest do
              )
 
     assert updated.revision == 3
-    assert [%{"label" => "Updated Codex"}] = updated.config_json["agent_connections"]
+
+    assert [%{"label" => "Updated Codex", "provider_account_id" => ^account_id}] =
+             updated.config_json["agent_connections"]
+
+    assert [%ProviderAccount{id: ^account_id, label: "Updated Codex"}] =
+             Adapters.list_provider_accounts()
+
     assert updated.config_json["default_roles"] == created.config_json["default_roles"]
 
     assert {:error, :stale_configuration} =
