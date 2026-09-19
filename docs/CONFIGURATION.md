@@ -1,5 +1,35 @@
 # Project Configuration
 
+## Current UI configuration flow
+
+The three-step project wizard creates identity, repository/branch, and a first
+trusted configuration revision with unassigned default roles. Agent setup lives
+on `/projects/:id/edit`, after registration.
+
+| Layer | Stored information | Effect of later edits |
+| --- | --- | --- |
+| Machine-local `provider_accounts` | Saved label, adapter, validated non-secret settings, authentication mode/status | Catalog metadata changes; existing project copies are not synchronized |
+| Project configuration revision | Connections with stable account IDs, copied settings, role names/instructions/assignments | New saves append revisions; newly created boards use the latest revision |
+| Board | Default workflow version and copied role assignments/settings | Existing boards are not rewritten by project saves |
+| Run | Board workflow/roles plus trusted project policy and fixed repository revision | Historical snapshots remain unchanged |
+
+**Use in this project** stages a saved connection in the form; save the agent
+or full configuration to persist attachment. Saving the full configuration
+requires every role to be assigned. Removing a connection from a project does
+not delete or revoke the machine-wide account. Custom roles can be saved, but
+the default delivery launcher uses Specifications, Coding, and Review.
+
+Runtime authentication is a live dependency: `AgentRuntime` looks up the saved
+account's current authentication mode by ID. It is not fully frozen by the role
+snapshot. A cached successful check is not a launch guarantee. Codex account
+login and run probes use different homes; credential-only reuse across them is
+still an explicit real-provider verification gate in [TESTING.md](TESTING.md).
+
+Legacy board/run snapshots without `provider_account_id` keep their run-scoped
+setup. Saving the project cannot upgrade them, even for a new run on that old
+board. Create a new board after saving the desired assignments; retain the old
+board and its tasks/history. There is no automatic board migration in the UI.
+
 ## Configuration layout
 
 Projects may commit a `.cuckoding/` directory:

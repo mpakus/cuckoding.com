@@ -67,6 +67,12 @@ deliberate snapshot chain means later project, role, or agent-profile edits neve
 rewrite an active or historical run. Project creation and settings saves must
 not insert board, task, run, environment, or process rows.
 
+`provider_accounts.status` and its check time are current observations, not an
+append-only authorization history. `AgentRuntime` resolves the account's live
+`auth_mode` by the snapshotted ID at launch. This does not rewrite the run row,
+but it can change its authentication dependency; snapshot immutability must not
+be interpreted as frozen credential availability or mode.
+
 ### Work management
 
 | Table | Important fields | Notes |

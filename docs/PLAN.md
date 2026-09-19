@@ -106,15 +106,24 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 
 - [x] Capability and secret hardening, adversarial prompt and plugin tests.
 - [x] Crash, power-loss, and sleep recovery drills.
-- [ ] Replace the beta bootstrap form with the accepted project-first product flow:
+- [ ] Complete the accepted project-first product flow (setup and task surfaces are implemented; workflow integration remains):
   - [x] Global dashboard lists projects, health, resources, active work, and attention.
   - [x] Add-project wizard separates identity, repository/branch, and review; project settings versions multiple agents and role assignments.
-  - [ ] Project workspace creates boards independently from project registration.
-  - [ ] Board task creation uses Specifications → Coding → Review loops and snapshots role/agent configuration at run start.
+  - [x] Project settings creates boards independently from project registration.
+  - [x] Board task creation and run preparation use the default Specifications → Coding → Review workflow and copied board role assignments.
+  - [x] Board prompts create planning runs; validated, user-selected proposals become Draft tasks.
+  - [x] Saved machine-local agent metadata can be attached across projects without rewriting old board/run snapshots.
+  - [ ] Connect Review findings to actual Specifications/Coding reruns and support local completion without release; the current launcher runs sequential stages then waits for release approval.
+- [ ] Verify one saved Codex login across distinct run homes in two projects, including revocation; current configuration tests are not proof of credential reuse.
+- [ ] Complete shared-account audit/revocation UX and explain the impact of shared edits; preserve existing snapshots during any future board migration.
 - [ ] Dogfood and controlled beta.
 - [ ] MVP release readiness.
 
 ## Definition of done for MVP
+
+The [current-flow audit](DOCUMENTATION_AUDIT.md) separates implemented UI/domain
+surfaces from real-provider and release evidence. Custom workflow/board editors
+and execution through OpenCode/Custom Agent are not shipped capabilities.
 
 - [ ] Two supported agent runtimes complete the default workflow on the host runner.
 - [ ] Two boards run concurrently without worktree, port, process, or event crossover.

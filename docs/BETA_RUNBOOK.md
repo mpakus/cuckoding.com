@@ -90,18 +90,35 @@ Confirmation registers only the project and its trusted configuration version.
 It does not create a board, task, run, branch, worktree, port, or process. Board
 creation, task creation, and task start are separate participant actions. Do not
 substitute the legacy internal walking-skeleton constructor for those UI steps;
-controlled-beta enrollment remains paused until the project workspace and task
-start surfaces are complete.
+those project/board/task surfaces are now implemented. Enrollment still requires
+the entry gates, a fresh signed build, and demonstrated current provider behavior;
+local fixture tests do not establish those outcomes. The current launcher is
+sequential and waits for release approval; the required QA-return observation
+below cannot be marked passed until return-loop scheduling is integrated.
 
-The project page shows a saved Codex agent's complete one-time sign-in command
+The project page shows a saved Codex agent's complete sign-in command
 in a read-only field with an adjacent copy button. The command selects Keychain
 credential storage and an owner-only application-data home. Run it in Terminal,
-complete sign-in, then choose **Check authorization**. Later run directories
-remain isolated and contain no copied token file. After an explicitly started
-task creates a run, choose **Check authentication and start workflow**. Cuckoding
-checks the pinned runtime version and saved authorization before changing
+complete sign-in, then choose **Check authorization**. This checks the account
+home, not a newly isolated run home. Cross-home reuse must pass the real-provider
+check in [TESTING.md](TESTING.md) before it is called one-time authorization.
+Run directories remain isolated and contain no copied token file. After
+**Prepare run** creates a queued run, choose **Check authentication and start workflow**.
+Cuckoding checks the pinned runtime version and run authentication before changing
 the durable run from queued to running. Claude Code performs the same start
 gate through the reviewed helper. A failed probe leaves the run queued.
+
+Save each attachment and assign all project roles before creating the board.
+Existing boards retain their copied connections; create a new board to test
+newly saved account references. Do not delete old task/run history. Cursor still
+requires run-owned login; OpenCode and Custom Agent cannot execute tasks.
+
+To test planning, open the board, choose an assigned role, and ask it to read
+committed `docs/` and propose tasks from the actual task file path. **Create
+planning run** must show immediate submission feedback and open the queued run.
+Authenticate/start analysis there, observe durable progress or an actionable
+error, review source-cited proposals, and import only selected proposals as Draft
+cards. Mark an imported card Ready and prepare/start its delivery run separately.
 
 For the controlled beta, use an authorized disposable clone whose `origin` is
 a local bare repository when exercising release handoff. GitHub handoff exists

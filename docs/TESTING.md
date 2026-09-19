@@ -25,6 +25,16 @@
 
 Claude Code fixture conformance is pinned to `test/fixtures/agent/claude-code-2.1.142.stream.jsonl`. A real smoke is allowed only when the run-scoped authentication probe succeeds; global OAuth alone is not sufficient because bare mode intentionally ignores it.
 Codex fixture conformance is pinned to `test/fixtures/agent/codex-0.146.0.jsonl`. Strict config is validated against the installed CLI with an isolated unauthenticated `CODEX_HOME`; a real provider smoke is allowed only after that scoped home authenticates, never by copying the user's global `auth.json` or passing a provider key to the child process.
+
+Saved-agent tests cover persistence, cross-project attachment, immutable copies,
+complete login commands, and keyring configuration. They use mocked probes and
+do not prove one-time login reuse across separate Codex homes. The explicit
+acceptance check is: authorize one saved account, attach/save it in two projects,
+create new boards and runs, and authenticate/start both distinct run homes
+without another login or copied credentials. Check that histories/configuration
+stay separate, then revoke authorization and confirm a fresh launch fails
+clearly. Record actual results; account-page status alone is not a pass. Old
+boards without account IDs must retain their documented run-scoped fallback.
 Cursor adapter tests assert run-owned home/config/Claude paths, scoped-auth probing, owner-only generated policy, empty MCP configuration, project-override rejection, launch/resume/cancel behavior, fixture event normalization, redaction, and usage. The retained real-runtime fixture proves its event contract and earlier lifecycle behavior; the current change does not claim a new authenticated real-provider smoke. OpenCode remains a stable-stub test with fail-closed operational callbacks.
 The Phase 4 walking-skeleton test uses the fake adapter but real SQLite state, Git repositories, worktree, candidate commit, hibernate/resume lifecycle, evidence files, LiveView confirmation, and local bare push. It asserts a single specification attempt across the sleep simulation, rejects release before approval, rejects candidate path traversal and symlinks, and replays the release command without another push event. A real-provider demo remains opt-in and must use a separately authenticated run-scoped home.
 

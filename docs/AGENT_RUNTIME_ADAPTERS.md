@@ -74,7 +74,20 @@ The implemented adapter pins `0.146.0` and launches `codex exec --json --strict-
 
 The effective grant records the active Codex sandbox, non-interactive approval policy, worktree-only write boundary, network denial, and disabled web search. Codex `0.146.0` cannot express Cuckoding's per-tool allow/deny vocabulary, and the adapter does not add extra writable paths or expose MCP plugins, so those requested fields are recorded under `unenforced` or unavailable. The host command-policy and process-resource boundaries remain independently authoritative. Codex's own sandbox intentionally keeps Git administrative paths read-only; host-side Git services remain responsible for commits and later push/PR operations.
 
-The saved Codex account uses `cli_auth_credentials_store = "keyring"`, the [official Codex credential-store setting](https://developers.openai.com/codex/auth), so one device authorization stores only its credential in the operating-system Keychain. Login commands use an owner-only directory below `~/Library/Application Support/Cuckoding/provider-accounts/`; every execution still receives a fresh `<run_dir>/agent/codex/home` containing only that run's configuration, history, instructions, and schema. The adapter verifies the Keychain login before launch and never copies `auth.json`, passes an API key, exposes the real home, or shares run state. JSONL normalization accepts the documented public `thread.*`, `turn.*`, `item.*`, and `error` shapes, rejects reasoning items, recursively redacts public summaries and metadata, and preserves provider-reported tokens without inventing a cost.
+Saved Codex accounts select `cli_auth_credentials_store = "keyring"`, the
+[official operating-system credential-store setting](https://learn.chatgpt.com/docs/auth).
+Login commands use an owner-only home below
+`~/Library/Application Support/Cuckoding/provider-accounts/`; execution uses a
+separate `<run_dir>/agent/codex/home`. The launch probe must succeed in that run
+home. Existing tests prove configuration selection, not credential lookup
+across different homes: one-login reuse remains a real-provider verification
+gate. Cuckoding does not copy `auth.json`, pass an API key, expose the real home,
+or share run state to bypass a failed probe. Legacy snapshots without an account
+reference retain provider-owned file login in their run home.
+
+JSONL normalization accepts public `thread.*`, `turn.*`, `item.*`, and `error`
+shapes, rejects reasoning items, recursively redacts public summaries and
+metadata, and preserves provider-reported tokens without inventing a cost.
 
 The flag and event vocabulary follow the [official non-interactive Codex documentation](https://learn.chatgpt.com/docs/non-interactive-mode). Native resume follows the pinned Hydra MIT reference at `electron/agents/providers.ts:112-145`; Cuckoding adds the run-scoped authentication, strict sandbox, host-runner, redaction, and audit boundaries rather than copying its interactive launch code.
 

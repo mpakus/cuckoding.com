@@ -1,5 +1,85 @@
 # Documentation Audit
 
+## Current-flow audit — 2026-09-19
+
+Source baseline: `57bac64` (`feat(agents): reuse authorization across projects`).
+Task 1015 reconciles the product-flow documentation with implementation. This
+is a source/documentation audit, not a new browser test, authenticated provider
+run, or release acceptance. The original planning-pack audit is retained below
+as history, not as a description of today's implementation.
+
+### Implemented journey
+
+| Step | Route / action | Source of truth |
+| --- | --- | --- |
+| Monitor projects | `/` | `lib/cuckoding_web/live/status_live.ex` |
+| Register project | `/projects/new`: Project → Repository → Review; confirm Git initialization/first commit only when needed | `lib/cuckoding_web/live/project_setup_live.ex`, `lib/cuckoding/project_onboarding.ex` |
+| Configure agents | `/projects/:id/edit`: save/attach global agents, assign project roles, save revision | `lib/cuckoding_web/live/project_edit_live.ex`, `lib/cuckoding/agent_runtime.ex` |
+| Create board | Project settings: default workflow, name/description/concurrency, copied roles | `lib/cuckoding/project_workflow.ex` |
+| Add work | `/boards/:id`: add Draft task or create a queued planning run | `lib/cuckoding_web/live/board_live.ex`, `lib/cuckoding/board_task_intake.ex` |
+| Review planning | `/runs/:id`: authenticate/start analysis, inspect proposals, import selected Draft cards | `lib/cuckoding_web/live/run_live.ex`, `lib/cuckoding/board_task_intake.ex` |
+| Execute task | `/boards/:board_id/tasks/:id`: mark Ready, Prepare run; run page verifies authentication and starts workflow | `lib/cuckoding_web/live/task_live.ex`, `lib/cuckoding/guided_run.ex` |
+| Monitor execution | `/runs/:id`, `/agents`, `/agents/:id`; durable state with LiveView refresh | `lib/cuckoding_web/live/run_live.ex`, `lib/cuckoding_web/live/agent_floor_live.ex` |
+
+Planning and execution require a clean committed base. Registration does not.
+A planning prompt can read committed `docs/` files with read-only inspection
+commands; proposals are untrusted data until validated and manually imported.
+Creating a run is not launching an agent. Queued work appears on the dashboard
+before an agent session exists. Kanban columns are lifecycle states, not stages.
+
+### Findings and remaining gates
+
+1. **High — reusable Codex authorization is not demonstrated end to end.**
+   `AgentRuntime.account_setup/1` signs into an account-owned home, while
+   `AgentRuntime.resolve/2` probes a separate run-owned home. The existing
+   fixture/mocked tests assert keyring configuration, not that both homes
+   resolve the same authenticated credential. The official
+   [credential-storage documentation](https://learn.chatgpt.com/docs/auth)
+   establishes the storage mode, not this cross-home guarantee. Do not mark
+   “authorize once for all projects” verified until two isolated runs in two
+   projects succeed after one login, then fail safely after revocation.
+2. **Medium — old boards do not adopt saved-agent references.** Project saves
+   leave board roles unchanged; preparing another run from a legacy board uses
+   its old copies. The supported current path is a new board after saving the
+   desired assignments. No existing tasks/history should be deleted to do this.
+3. **Medium — shared-account lifecycle is incomplete.** There is no dedicated
+   global catalog page or global delete/revoke control. Authorization checks
+   update the status row, not an append-only authorization event, and other
+   open settings pages do not receive catalog broadcasts. Authentication mode
+   is resolved live even though runtime settings are snapshotted. Audit events,
+   clear impact/confirmation for shared edits, and revocation behavior need an
+   implementation follow-up; this docs task does not add them.
+4. **High — the launcher does not execute the accepted workflow branches.**
+   `lib/cuckoding/workflows/definition.ex` defines Review returns, but
+   `lib/cuckoding/walking_skeleton.ex` runs a fixed three-stage sequence and
+   waits for human release approval. GuidedRun does not connect the finding
+   evaluator to rerun scheduling. Local completion without release is also
+   absent from this launch path. Domain evaluator tests are not evidence that
+   the user can complete those paths from a board.
+5. **Medium — workflow customization is narrower than the original design.**
+   Custom roles can be saved, but the default delivery launcher resolves the
+   three built-in roles. The board UI has no workflow picker, assignment editor,
+   or budget editor. OpenCode and Custom Agent remain setup-only; Cursor retains
+   run-owned login. A saved connection does not imply execution support.
+6. **Release gate — local implementation is not beta acceptance.** Task 1014
+   recorded 241 tests and 10 properties passing, but that is prior automated
+   evidence, not a fresh test result here. Authenticated cross-project reuse,
+   the full current provider workflow, and a fresh signed enrollment build
+   remain separately required. Historical failed runs with missing validation
+   details cannot retroactively acquire those details.
+
+### Documentation corrections
+
+Aligned the wizard and folder picker, saved-account/project/board/run ownership,
+planning permissions, task launch steps, routes, and LiveView boundaries.
+Removed test-only claims about the current GuidedRun launcher and distinguished
+shipped board controls from design targets. The implementation checkboxes in
+[PLAN.md](PLAN.md) do not close the provider/beta gates. See
+[UI_DASHBOARD.md](UI_DASHBOARD.md), [CONFIGURATION.md](CONFIGURATION.md),
+[TESTING.md](TESTING.md), and [BETA_RUNBOOK.md](BETA_RUNBOOK.md) for the operational flow.
+
+## Historical planning-pack audit — 2026-09-17
+
 Audited on 2026-09-17 against the planning-pack working tree at `b101eee347e6b19d53209decd7504d1f61a94a85`. This is a documentation and configuration audit, not evidence that the product has been implemented.
 
 ## Scope and method

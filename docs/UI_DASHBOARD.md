@@ -36,9 +36,10 @@ one **Add project** action.
 Adding a project is a keyboard-operable wizard:
 
 1. **Project** — name and optional description.
-2. **Repository** — choose an existing folder, verify that it is a Git
-   repository, and choose a base branch. A dirty working tree may be registered
-   but must be clean before starting a run.
+2. **Repository** — select a folder with the system chooser and choose a base
+   branch. Empty folders, freshly initialized Git repositories, and existing
+   projects are accepted. A dirty existing repository may be registered but
+   must be clean before run preparation.
 3. **Review** — show repository, branch, pending Git action, runner limitations,
    and the non-executing registration boundary before confirmation.
 
@@ -49,9 +50,30 @@ one connection to every role. Saving appends a configuration version. Board
 creation and task creation remain separate follow-up actions, and active boards
 and runs keep their original snapshots.
 
-The browser cannot open a native folder chooser by itself. The menubar shell
-provides the folder-picker bridge; development/browser fallback accepts an
-absolute path with the same canonicalization and Git validation.
+The local Phoenix service invokes the macOS folder chooser; no browser upload
+or menubar-only bridge is required. Inspection does not modify the folder.
+Final review requires explicit consent before initializing Git or creating the
+first commit from existing contents when the repository has no revision.
+
+### Project agents and roles
+
+`/projects/:id/edit` contains the machine-wide saved-agent catalog and the
+project's connections and role assignments. **Use in this project** adds a
+connection to the form; **Save agent** or **Save agents and roles** persists it.
+Each agent can be saved independently; the complete configuration requires an
+assignment for every role. Removing a project connection does not delete its
+global account or log it out.
+
+Codex offers a saved-account sign-in command and **Check authorization**;
+Claude Code uses a reviewed helper; Cursor requires run-owned login. OpenCode
+and Custom Agent are setup-only. Complete commands use read-only fields with
+adjacent copy buttons. Account status is the last observation, not proof that
+a new run's isolated environment authenticates; see [testing](TESTING.md).
+
+Save assignments before creating a board. Existing boards retain their copied
+settings, including legacy connections without saved-account IDs. There is no
+board-assignment migration/editor in this UI; create a new board to adopt the
+latest project assignments without changing historical work.
 
 ### Agent Floor
 
@@ -79,6 +101,10 @@ remains the safe control for every recorded session.
 
 ### Project workspace
 
+Current entry point: `/projects/:id/edit`, with project settings, boards, and
+**Create board**. The tabbed workspace and aggregate filters below remain design
+targets, not additional shipped routes:
+
 - Project status, repository folder, base branch, configuration revision, runner (host, with limitation notice), plugins in use, tool health.
 - Tabs: boards, runs, knowledge, metrics, settings, audit history.
 - Aggregate costs and resources filtered by board, runtime, model, role, stage, and date.
@@ -93,16 +119,29 @@ the host runner's advisory network limitation.
 
 ### Board view
 
-Each board has its own Kanban, workflow template, assignments, budgets, and concurrency settings. Columns represent workflow stages; the state machine remains authoritative.
+Each board has its own Kanban and snapshotted workflow and assignments. Current
+board creation accepts name, description, and concurrency; workflow selection,
+budget editing, and board-assignment editing are not exposed there. Kanban
+columns represent task lifecycle states, not Specifications/Coding/Review stages.
 
-The default board template is Specifications → Coding → Review → Complete.
-Review can route structured findings back to Specifications or Coding. Optional
-release approval and host-side handoff are explicit extra stages rather than an
-implicit consequence of project creation.
+The intended flow is Specifications → Coding → Review → Complete, with Review
+returns and optional release. The current launcher instead runs the three agent
+stages sequentially and waits for human release approval. Return-loop execution
+and local completion without release are not wired into that launcher; see
+[FLOW.md](FLOW.md). No release is triggered by project creation.
 
 Cards show title, priority, dependencies, current role, runtime/model badge, attempt count, elapsed time, budget consumption, blocking reason, and a knowledge indicator (number of items injected in the current stage). Drag-and-drop is allowed only for transitions the state machine permits, with equivalent keyboard and menu actions.
 
-The Phase 5 MVP board currently renders durable task lifecycle states as semantic sections and shows title, priority, waiting reason, and an honest `Knowledge: 0 linked` indicator until Phase 7 supplies usage records. Filters live in the URL so reload and browser history preserve them. Each permitted move has a labeled native select and submit button; drag-and-drop exposes the same server-authorized targets, applies only an optimistic DOM move, and then reconciles from the durable command result. Accepted moves are announced through a polite status region and rejected moves through an alert with the reason. Task title, description, and priority are editable only while the task is Draft or Ready, with each edit recorded as a public event before its projection changes.
+The board currently renders durable task lifecycle states as semantic sections and shows title, priority, waiting reason, and an honest `Knowledge: 0 linked` placeholder; the card is not yet wired to Phase 7 usage records. Filters live in the URL so reload and browser history preserve them. Each permitted move has a labeled native select and submit button; drag-and-drop exposes the same server-authorized targets, applies only an optimistic DOM move, and then reconciles from the durable command result. Accepted moves are announced through a polite status region and rejected moves through an alert with the reason. Task title, description, and priority are editable only while the task is Draft or Ready, with each edit recorded as a public event before its projection changes.
+
+At `/boards/:id`, add a Draft task directly or use **Ask an agent to plan tasks**.
+Choose an assigned role and enter a prompt such as “Read docs/ and propose tasks
+from docs/TASKS.md.” **Create planning run** shows submit feedback and navigates
+to a queued run; it does not silently start the provider or import cards. On
+the run page, authenticate and start analysis, inspect progress, then select
+validated proposals to import as Draft tasks. No proposal is imported without
+review. A manually created or imported Ready task offers **Prepare run** on
+`/boards/:board_id/tasks/:id`; authentication and launch are separate run actions.
 
 ### Run detail
 
@@ -123,6 +162,14 @@ optimization claims. The knowledge panel is an explicit Phase 7 placeholder.
 Resource history uses native progress elements plus a complete table; periodic
 metric refreshes run every five seconds and committed activity hints are
 coalesced separately.
+
+Queued planning runs show the next authentication/start action before any
+agent session exists. Failures show a sanitized cause and recovery guidance;
+older runs without retained diagnostics explicitly say so. Planning output
+validation failures remain distinct from provider process failures. The home
+dashboard includes queued operations; Agent Floor requires a recorded session.
+The saved-agent catalog refreshes after its own actions, not through a global
+real-time subscription. Do not describe every settings view as auto-updating.
 
 Task detail, run detail, and agent inspector show the same non-color-only host
 runner warning: a worktree prevents normal Git overlap but is not filesystem,

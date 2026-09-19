@@ -163,6 +163,18 @@ This file records accepted product-level decisions. Add a dated ADR section when
 - **Consequences:** The dashboard becomes useful before any run exists. Agent connections can be reused, while project, board, and run snapshots preserve history. Project registration may accept a dirty repository, but task start still requires a clean verified base. The Phase 4 guided-run path remains test-only compatibility until its callers are retired.
 - **Verification:** Project onboarding tests prove that registration creates no board, task, run, environment, or worktree; LiveView tests cover the wizard and project-first dashboard; board and run snapshot tests cover later tranches.
 
+**2026-09-19 implementation amendment:** The accepted wizard is now exactly
+Project → Repository → Review. The Phoenix service opens the native folder
+chooser; explicit final consent permits Git initialization/first commit for
+empty or unborn repositories. Registration redirects to project settings for
+saved agents and role assignments. Boards are created there with the default
+workflow and copied roles; a workflow picker is not implemented. GuidedRun is
+the live queued-run launcher, not test-only compatibility. ADR-024 adds the
+global catalog; [CONFIGURATION.md](CONFIGURATION.md) defines snapshot behavior.
+The accepted Review-return/local-complete flow remains a target: the current
+launcher runs sequential stages then waits for release approval. The domain
+definition's return transitions are not yet connected to rerun scheduling.
+
 ## ADR-024 — Global agent catalog with credential-only authorization reuse
 
 - **Date:** 2026-09-19
@@ -172,6 +184,14 @@ This file records accepted product-level decisions. Add a dated ADR section when
 - **Alternatives:** Reuse one complete provider home (rejected because it shares project state); copy file-backed credential directories into every run (rejected because it duplicates plaintext tokens); replace snapshots with live account references (rejected because history would drift).
 - **Consequences:** Users enter agent metadata once and attach saved agents to any project. Authorization state may change globally without rewriting historical snapshots, while executable paths and role settings remain explainable. Revoking a provider login blocks future launches using that account.
 - **Verification:** Provider-account persistence and cross-project attachment tests; Codex keyring/run-home adapter tests; LiveView save, attach, and authorization-command tests; secret-canary and full quality gates.
+
+**2026-09-19 evidence qualification:** The tests above demonstrate metadata and
+configuration behavior, not successful shared authentication between the
+account-owned login home and a different run-owned home. That real-provider
+gate remains open. Authentication mode is looked up live from the account;
+authorization status is a mutable projection without its own append-only event.
+There is no global revoke/delete UI or automatic migration of legacy boards.
+These are explicit follow-ups, not completed guarantees of this decision.
 
 ## ADR template
 

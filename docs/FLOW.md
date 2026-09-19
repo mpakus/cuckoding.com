@@ -13,8 +13,9 @@ Project setup, board setup, board task intake, and delivery execution are separa
    agent holds only validated runtime settings and authorization status; supported
    credentials stay in the provider's credential store. Neither action creates a
    board, task, run, feature branch, worktree, or provider process.
-2. **Board setup** selects a versioned workflow and snapshots board role
-   assignments, budgets, and concurrency settings from project defaults.
+2. **Board setup** creates a named board with the default versioned workflow,
+   copied project role assignments, and a chosen concurrency limit. Workflow
+   selection and board-level role/budget editors remain design targets.
 3. **Task execution** has two explicit actions. **Prepare run** accepts only a
    Ready task on an active board, rejects setup-only runtimes, snapshots the
    board configuration and trusted project policy, and creates the owned branch
@@ -39,9 +40,10 @@ Project setup, board setup, board task intake, and delivery execution are separa
 This boundary keeps onboarding reversible and lets one project own several
 boards without fabricating a first task.
 
-## Default feature flow
+## Intended default feature flow
 
-The workflow is data-driven and versioned. The default template is:
+The accepted product flow is below. It is a target, not a claim that the current
+launcher follows every branch:
 
 ```mermaid
 flowchart TD
@@ -60,7 +62,16 @@ flowchart TD
     R --> Z["Released: branch pushed, draft PR"]
 ```
 
-Boards may use different workflow templates. Multiple boards and their runs execute independently, subject to project and machine resource budgets.
+The domain supports versioned workflow templates; the current creation UI uses
+`Definition.default()`, whose Review pass routes to human approval and release,
+not an optional local Complete stage. `GuidedRun` currently invokes the bounded
+`WalkingSkeleton.run/2` sequence: Specifications → Coding → Review → waiting for
+release approval. That path does not invoke `Definition.route_findings/3` to
+schedule Review return loops. Wiring the validated definition into execution,
+including local completion without release, remains an implementation gap.
+Multiple boards and their runs execute independently,
+subject to project and machine resource budgets. Kanban columns show task
+lifecycle states; workflow stages appear in the run timeline.
 
 ## Domain levels
 
@@ -120,11 +131,15 @@ Standalone task commands handle pre-run and post-run lifecycle changes. Once a r
 
 The same runtime may fill multiple agent roles, but the default policy prevents the exact same agent session from both implementing and independently approving its work. System roles never run an LLM and never receive a capability grant; they run application code under the user's Git credentials after approval.
 
-Role display names, instructions, and required outputs are editable project
-defaults. Workflow stages reference stable role keys. Boards snapshot their
+Role display names and instructions are editable project defaults; required
+output contracts remain part of the workflow/adapter configuration, not a
+dedicated role-form editor. Workflow stages reference stable role keys. Boards snapshot their
 assignments, and runs snapshot the board assignments again, so editing an agent
 profile or role never rewrites active or historical work. Reauthorizing a saved
-agent changes only provider credential state and its current health projection.
+agent changes provider credential state and its current health projection.
+Authentication mode is also resolved from the current saved account at launch;
+it is not pinned in the role copy. Existing boards do not acquire account IDs
+from later project saves. See [configuration boundaries](CONFIGURATION.md).
 
 The default board launcher resolves Specifications, Coding, and Review
 independently from that snapshot. Each stage receives its assigned connection,

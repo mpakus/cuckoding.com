@@ -88,6 +88,10 @@ runtime paths, upserts credential-free records in the global `provider_accounts`
 catalog, and appends stable account references plus role mappings to a new
 immutable configuration revision with an expected-revision guard. Another
 project can attach the same account without re-entering its runtime settings.
+Catalog status and authentication mode are live dependencies, not immutable
+run facts. Account-home authentication does not prove that a separate run home
+can reuse the credential; the real-provider gate remains open. Existing boards
+do not inherit later saved-account IDs. See [configuration boundaries](CONFIGURATION.md).
 It creates no board, task, run,
 branch, worktree, port, lease, or provider process. Board setup later publishes
 a workflow and snapshots role assignments; task start alone prepares the
@@ -103,7 +107,10 @@ provider process starts from a board or task form.
 `Cuckoding.GuidedRun` launches that queued default workflow after authorization
 verification. It resolves the Specifications, Coding, and Review adapters
 separately from the immutable run snapshot, while `WalkingSkeleton` remains the
-bounded workflow executor and release-evidence path. `Cuckoding.AgentFloor`
+bounded sequential executor and release-evidence path. The workflow definition's
+Review-return evaluator is not connected to this launcher's scheduling; the
+current path waits for release approval, without a local-complete alternative.
+`Cuckoding.AgentFloor`
 rebuilds both session cards and the bounded recent-operation projection from
 SQLite. The home dashboard refreshes that projection after committed PubSub
 hints and on a periodic bounded timer, so PubSub is never the state owner.
@@ -117,7 +124,7 @@ evidence paths are canonicalized against the owned worktree before proposals
 are inserted. The planning task remains hidden from the delivery Kanban. The
 Codex parser accepts only its fixed stdin prelude before the JSONL stream;
 unknown non-JSON output still fails closed.
-run waits while `task_proposals` are reviewed, and one idempotent import command
+The run waits while `task_proposals` are reviewed, and one idempotent import command
 creates only the selected Draft tasks and links each proposal to its result.
 Its LiveViews expose transient submit state, but render progress from the
 durable run projection and reload that projection after committed activity

@@ -57,7 +57,7 @@ when needed. Registration records only the project and its first trusted
 configuration version, then redirects to project settings. It does not create a
 board, task, queued run, feature branch, worktree, port, or provider process.
 
-Project settings can store multiple named agent connections and assign them to
+Project settings can save machine-wide agents, attach them to projects, and assign them to
 the built-in Specifications, Coding, and Review roles or user-added roles.
 Every save appends an immutable configuration revision. The runtime selector
 shows Codex, Claude Code, Cursor Agent, OpenCode, and Custom Agent; the Claude
@@ -73,12 +73,19 @@ organize existing work. Starting a task remains stricter: the run boundary
 requires a clean repository, captures the base revision, snapshots workflow and
 role configuration, and only then creates the feature worktree.
 
-The legacy `Cuckoding.GuidedRun` path remains available to the Phase 4 walking
-skeleton and tests while project, board, and task setup are separated. It is no
-longer a dashboard onboarding surface. Runtime-specific authentication remains
-run-scoped: Codex uses a run-owned `CODEX_HOME`; Claude Code requires a reviewed
-absolute API-key helper. Cuckoding never infers or stores GitHub credentials in
-the project wizard.
+`Cuckoding.ProjectWorkflow` creates boards and prepares task runs;
+`Cuckoding.GuidedRun` is the current run-page delivery launcher, delegating to
+the walking-skeleton execution service. Its old all-in-one constructor is not
+the dashboard onboarding flow. `Cuckoding.BoardTaskIntake` handles planning and
+proposal import separately. The run page must authenticate and start a queued
+run; preparing it does not launch a provider.
+
+Saved Codex accounts select keyring storage, but account login and execution
+use distinct homes; cross-home reuse still needs the real check described in
+[TESTING.md](TESTING.md). Legacy board snapshots without saved-account IDs keep
+per-run login. Claude Code uses a reviewed helper, and Cursor stays run-scoped.
+See [CONFIGURATION.md](CONFIGURATION.md) before expecting a project edit to
+affect an existing board. The wizard never infers GitHub credentials.
 
 ## Production release smoke test
 
@@ -100,7 +107,7 @@ SQLite connections use WAL journaling, foreign keys, a 5-second busy timeout, sy
 
 ## Context boundaries
 
-The foundation declares boundaries without implementing workflows prematurely:
+The application contexts own these implemented domain boundaries:
 
 | Context | Responsibility |
 | --- | --- |
@@ -114,12 +121,17 @@ The foundation declares boundaries without implementing workflows prematurely:
 | `Cuckoding.Telemetry` | Activity, measurements, estimates, and diagnostics |
 | `Cuckoding.Shell` | Authenticated native-shell/control-plane boundary |
 
-Durable schemas and commands begin in task 0102. LiveViews render context results; they do not own workflow state.
+LiveViews render durable context results; they do not own workflow state.
 
 ## Runtime surfaces
 
 - `/` is the project-first operations dashboard.
 - `/projects/new` is the non-executing project registration wizard.
+- `/projects/:id/edit` manages saved agents, project role assignments, and boards.
+- `/boards/:id` creates Draft tasks and planning runs and shows the Kanban.
+- `/boards/:board_id/tasks/:id` edits eligible tasks and prepares their runs.
+- `/runs/:id` authenticates/starts queued work and shows progress, failures, proposals, and evidence.
+- `/agents` is Agent Floor; `/agents/:id` inspects a recorded session, not a saved account.
 - `/health` reports application and dependency health separately.
 - `/status` adds an allowlisted configuration snapshot; sensitive configuration is never inspected wholesale.
 - Requests receive `x-request-id` and matching `x-correlation-id` response headers, and both identifiers are included in key-value log metadata.
