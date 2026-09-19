@@ -48,13 +48,16 @@ not Developer ID sign, notarize, or create distributable update artifacts; use
 ## Project-first onboarding
 
 The dashboard's **Add project** action opens a four-step wizard: project
-identity, existing Git repository and base branch, an initial validated agent
-runtime with the default roles, then review. Reusing multiple saved connections
-and editing role definitions are the next Phase 10 tranche. The
-development/browser fallback accepts an absolute path; the packaged shell will
-provide the native folder picker. Registration records only the project and its
-trusted configuration version. It does not create a board, task, queued run,
-feature branch, worktree, port, or provider process.
+identity, a native macOS folder chooser and base branch, an initial validated
+agent runtime with the default roles, then review. Reusing multiple saved
+connections and editing role definitions are the next Phase 10 tranche. The
+local Phoenix service opens the system chooser, so the browser never uploads or
+enumerates the selected folder. Registration accepts an empty folder, an unborn
+Git repository, or an existing project. Inspection is read-only until final
+confirmation; then Cuckoding initializes Git and creates the first local commit
+when needed. Registration records only the project and its trusted configuration
+version. It does not create a board, task, queued run, feature branch, worktree,
+port, or provider process.
 
 A project may be registered while its working tree is dirty so the user can
 organize existing work. Starting a task remains stricter: the run boundary

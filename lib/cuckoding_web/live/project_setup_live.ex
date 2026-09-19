@@ -4,6 +4,7 @@ defmodule CuckodingWeb.ProjectSetupLive do
   import CuckodingWeb.PolicyComponents
 
   alias Cuckoding.Adapters.RuntimeConfiguration
+  alias Cuckoding.FolderPicker
   alias Cuckoding.ProjectOnboarding
 
   @steps ["Project", "Repository", "Agents and roles", "Review"]
@@ -23,6 +24,7 @@ defmodule CuckodingWeb.ProjectSetupLive do
          "description" => "",
          "repo_path" => "",
          "default_branch" => "main",
+         "repository_action" => nil,
          "runtime" => "codex",
          "executable_path" => System.find_executable("codex") || "",
          "api_key_helper" => "",
@@ -51,6 +53,31 @@ defmodule CuckodingWeb.ProjectSetupLive do
 
   def handle_event("back", _params, socket) do
     {:noreply, assign(socket, step: max(socket.assigns.step - 1, 1), error: nil)}
+  end
+
+  def handle_event("choose_folder", _params, socket) do
+    case choose_folder() do
+      {:ok, path} ->
+        branch =
+          ProjectOnboarding.suggested_branch(path, socket.assigns.project["default_branch"])
+
+        {:noreply,
+         assign(socket,
+           project:
+             Map.merge(socket.assigns.project, %{
+               "repo_path" => path,
+               "default_branch" => branch,
+               "repository_action" => nil
+             }),
+           error: nil
+         )}
+
+      :cancelled ->
+        {:noreply, socket}
+
+      {:error, reason} ->
+        {:noreply, assign(socket, error: error_message(reason))}
+    end
   end
 
   def handle_event("create", %{"project" => params}, socket) do
@@ -87,7 +114,7 @@ defmodule CuckodingWeb.ProjectSetupLive do
             Add a project
           </h1>
           <p class="max-w-2xl text-base leading-7 text-slate-700">
-            Register an existing repository, connect an agent runtime, and review the default roles.
+            Choose a project folder, connect an agent runtime, and review the default roles.
             Setup does not create a board, task, branch, worktree, or running process.
           </p>
         </header>
@@ -148,22 +175,32 @@ defmodule CuckodingWeb.ProjectSetupLive do
           <fieldset class="space-y-5 rounded-xl border border-slate-200 bg-white p-6">
             <legend class="px-2 text-lg font-semibold text-slate-950">Repository</legend>
             <p class="text-sm leading-6 text-slate-700">
-              Choose the root folder of an existing local Git repository. Uncommitted work is allowed;
-              Cuckoding only reads the selected branch revision during setup.
+              Choose an empty folder, an initialized Git folder, or an existing project. Cuckoding
+              will prepare a local Git repository only after you confirm the review step.
             </p>
-            <label class="grid gap-2 font-medium text-slate-800">
-              Repository folder
-              <input
-                name="project[repo_path]"
-                value={@project["repo_path"]}
-                type="text"
-                required
-                placeholder="/absolute/path/to/repository"
-                autocapitalize="none"
-                spellcheck="false"
-                class="min-h-11 rounded-md border border-slate-400 px-3 font-mono text-sm focus-visible:outline-2 focus-visible:outline-offset-2"
-              />
-            </label>
+            <div class="grid gap-2 font-medium text-slate-800">
+              <label for="project-repo-path">Repository folder</label>
+              <div class="flex flex-col gap-3 sm:flex-row">
+                <input
+                  id="project-repo-path"
+                  name="project[repo_path]"
+                  value={@project["repo_path"]}
+                  type="text"
+                  required
+                  readonly
+                  placeholder="Choose a folder"
+                  class="min-h-11 min-w-0 flex-1 rounded-md border border-slate-400 bg-slate-50 px-3 font-mono text-sm focus-visible:outline-2 focus-visible:outline-offset-2"
+                />
+                <button
+                  id="choose-project-folder"
+                  type="button"
+                  phx-click="choose_folder"
+                  class="min-h-11 rounded-md border border-slate-400 bg-white px-5 font-medium text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2"
+                >
+                  Choose folder…
+                </button>
+              </div>
+            </div>
             <label class="grid gap-2 font-medium text-slate-800">
               Git branch
               <input
@@ -264,6 +301,19 @@ defmodule CuckodingWeb.ProjectSetupLive do
                   {@project["repo_path"]}
                 </dd>
               </div>
+              <div class="sm:col-span-2">
+                <dt class="text-sm text-slate-600">Git setup</dt><dd class="font-medium text-slate-950">
+                  {repository_action_label(@project["repository_action"])}
+                </dd>
+                <p
+                  :if={@project["repository_action"] in ["initialize", "initial_commit"]}
+                  class="mt-2 text-sm leading-6 text-amber-900"
+                >
+                  The initial commit includes every non-ignored file. Go back and review
+                  <span class="font-mono">.gitignore</span>
+                  before confirming.
+                </p>
+              </div>
               <div>
                 <dt class="text-sm text-slate-600">Agent runtime</dt><dd class="font-medium text-slate-950">
                   {runtime_label(@runtime_options, @project["runtime"])}
@@ -287,8 +337,8 @@ defmodule CuckodingWeb.ProjectSetupLive do
               checked={@project["confirmed"] == "true"}
               required
               class="mt-1"
-            />
-            I reviewed this repository and local runtime configuration. Add the project without starting agents or changing the repository.
+            /> I reviewed this folder and local runtime configuration. If needed, initialize Git and
+            create an initial local commit from the folder contents. Do not start agents or create a run.
           </label>
 
           <div class="flex flex-wrap items-center justify-between gap-3">
@@ -338,8 +388,15 @@ defmodule CuckodingWeb.ProjectSetupLive do
 
   defp validate_step(2, project) do
     case ProjectOnboarding.validate_repository(project) do
-      {:ok, {repo_path, _sha}} -> {:ok, %{"repo_path" => repo_path}}
-      {:error, reason} -> {:error, reason}
+      {:ok, {repo_path, registration}} ->
+        {:ok,
+         %{
+           "repo_path" => repo_path,
+           "repository_action" => Atom.to_string(registration.action)
+         }}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -360,6 +417,12 @@ defmodule CuckodingWeb.ProjectSetupLive do
     do: "Choose the repository root, not a subfolder."
 
   defp error_message(:invalid_branch), do: "Enter a valid local Git branch name."
+  defp error_message(:branch_not_found), do: "That local Git branch does not exist."
+  defp error_message(:folder_picker_failed), do: "The system folder chooser could not be opened."
+
+  defp error_message({:git_failed, _status, _output}),
+    do:
+      "Git could not prepare this folder. Review its files and Git configuration, then try again."
 
   defp error_message(:invalid_runtime_executable),
     do: "Choose an absolute path to an executable runtime."
@@ -375,5 +438,20 @@ defmodule CuckodingWeb.ProjectSetupLive do
   defp runtime_label(options, value) do
     options
     |> Enum.find_value(value, fn {label, option} -> if option == value, do: label end)
+  end
+
+  defp repository_action_label("initialize"),
+    do: "Initialize Git and create an initial local commit"
+
+  defp repository_action_label("initial_commit"),
+    do: "Create the first local commit in this Git repository"
+
+  defp repository_action_label(_action), do: "Use the existing repository without changing it"
+
+  defp choose_folder do
+    case Application.get_env(:cuckoding, :folder_picker, FolderPicker) do
+      picker when is_function(picker, 0) -> picker.()
+      picker -> picker.choose()
+    end
   end
 end

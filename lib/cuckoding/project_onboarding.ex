@@ -28,13 +28,20 @@ defmodule Cuckoding.ProjectOnboarding do
   def default_roles, do: @default_roles
 
   def validate_repository(attrs) when is_map(attrs) do
-    GitService.validate_registration(attrs["repo_path"], attrs["default_branch"])
+    with {:ok, registration} <-
+           GitService.inspect_registration(attrs["repo_path"], attrs["default_branch"]) do
+      {:ok, {registration.repo, registration}}
+    end
   end
+
+  def suggested_branch(path, fallback),
+    do: GitService.suggested_registration_branch(path, fallback)
 
   def create(attrs) when is_map(attrs) do
     with {:ok, name} <- required_text(attrs["name"]),
-         {:ok, {repo_path, base_sha}} <- validate_repository(attrs),
-         {:ok, runtime} <- RuntimeConfiguration.validate(attrs) do
+         {:ok, runtime} <- RuntimeConfiguration.validate(attrs),
+         {:ok, {repo_path, base_sha}} <-
+           GitService.ensure_registration(attrs["repo_path"], attrs["default_branch"]) do
       persist(attrs, name, repo_path, base_sha, runtime)
     end
   end

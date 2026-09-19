@@ -29,6 +29,7 @@ Cuckoding runs powerful agent runtimes on a developer machine against untrusted 
 | Cross-run and cross-project leakage | Worktree per run; port ranges; knowledge scope; per-run generated runtime configuration; tests |
 | Config self-escalation | Trusted config hash; changed execution policy or plugin set requires independent human approval |
 | Destructive Git action | Host-side constrained Git service; protected branches; explicit approval; no force-push |
+| Project-folder initialization | Native folder selection, canonical root validation, a review that names the pending Git mutation, and no initialization or commit before explicit confirmation |
 | Forged completion | Typed artifact schemas, exit-code checks, independent QA, immutable event sequence |
 | Cost/resource denial | Per-stage and global budgets, concurrency limits, pause/hibernate, alerts, unattended-mode caps |
 | Malicious plugin | Manifest permissions, user approval to enable, supervised process, untrusted output, no secret access without declaration |

@@ -4,9 +4,12 @@
 
 Project setup, board setup, and task execution are three separate commands:
 
-1. **Project setup** registers identity, an existing repository and base branch,
-   reusable agent connections, and project role defaults. It creates no board,
-   task, run, branch, worktree, or provider process.
+1. **Project setup** registers identity, a system-selected project folder and
+   base branch, reusable agent connections, and project role defaults. Folder
+   inspection is read-only until review is confirmed. A confirmed empty or
+   unborn folder is initialized with a first local commit; an existing branch
+   is not changed. Setup creates no board, task, run, feature branch, worktree, or
+   provider process.
 2. **Board setup** selects a versioned workflow and snapshots board role
    assignments, budgets, and concurrency settings from project defaults.
 3. **Task start** snapshots the board configuration and only then allocates the

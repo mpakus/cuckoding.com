@@ -52,10 +52,24 @@ defmodule CuckodingWeb.ProjectSetupLiveTest do
 
     assert has_element?(view, "#project-step-2")
     assert has_element?(view, "[aria-current=step]", "Repository")
+    assert has_element?(view, "#project-repo-path[readonly]")
+    assert has_element?(view, "#choose-project-folder", "Choose folder")
+
+    previous_picker = Application.get_env(:cuckoding, :folder_picker)
+    Application.put_env(:cuckoding, :folder_picker, fn -> {:ok, repo_path} end)
+
+    on_exit(fn ->
+      if previous_picker,
+        do: Application.put_env(:cuckoding, :folder_picker, previous_picker),
+        else: Application.delete_env(:cuckoding, :folder_picker)
+    end)
+
+    render_click(view, "choose_folder")
+    assert has_element?(view, "#project-repo-path[value='#{repo_path}']")
 
     view
     |> form("#project-step-2",
-      project: %{repo_path: repo_path, default_branch: "main"}
+      project: %{default_branch: "main"}
     )
     |> render_submit()
 
@@ -77,7 +91,8 @@ defmodule CuckodingWeb.ProjectSetupLiveTest do
 
     assert has_element?(view, "#project-step-4")
     assert has_element?(view, "#host-runner-notice", "not a sandbox")
-    assert has_element?(view, "#project-step-4", "without starting agents")
+    assert has_element?(view, "#project-step-4", "Use the existing repository")
+    assert has_element?(view, "#project-step-4", "Do not start agents")
 
     before_counts = execution_counts()
 

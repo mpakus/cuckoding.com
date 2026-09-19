@@ -51,23 +51,41 @@ defmodule Cuckoding.Execution.GitService do
 
   def validate_repository(_path, _default_branch), do: {:error, :invalid_repository}
 
-  @doc "Validates project registration without requiring a clean working tree."
-  def validate_registration(path, default_branch)
+  @doc "Inspects a project folder without changing it and reports any required Git setup."
+  def inspect_registration(path, default_branch)
       when is_binary(path) and is_binary(default_branch) do
     if Path.type(path) == :absolute and String.trim(path) != "" do
       with {:ok, repo} <- canonical_directory(path),
-           :ok <- repository_root?(repo),
-           :ok <- valid_branch?(default_branch),
-           {:ok, sha} <-
-             git(repo, ["rev-parse", "--verify", "refs/heads/#{default_branch}^{commit}"]) do
-        {:ok, {repo, String.trim(sha)}}
+           :ok <- valid_branch?(default_branch) do
+        inspect_registration_repo(repo, default_branch)
       end
     else
       {:error, :invalid_repository_path}
     end
   end
 
-  def validate_registration(_path, _default_branch), do: {:error, :invalid_repository}
+  def inspect_registration(_path, _default_branch), do: {:error, :invalid_repository}
+
+  @doc "Makes a confirmed project folder a usable Git repository and returns its base revision."
+  def ensure_registration(path, default_branch) do
+    with {:ok, registration} <- inspect_registration(path, default_branch) do
+      prepare_registration(registration)
+    end
+  end
+
+  @doc "Returns the checked-out branch when the selected folder is already a Git repository."
+  def suggested_registration_branch(path, fallback)
+      when is_binary(path) and is_binary(fallback) do
+    with true <- Path.type(path) == :absolute,
+         {:ok, repo} <- canonical_directory(path),
+         {:ok, branch} <- git(repo, ["symbolic-ref", "--quiet", "--short", "HEAD"]) do
+      String.trim(branch)
+    else
+      _reason -> fallback
+    end
+  end
+
+  def suggested_registration_branch(_path, fallback), do: fallback
 
   @doc "Creates the run-owned branch/worktree and its durable environment row."
   def prepare(%Project{} = project, %Run{} = run) do
@@ -556,6 +574,79 @@ defmodule Cuckoding.Execution.GitService do
 
       {:error, _reason} ->
         {:error, :not_a_git_repository}
+    end
+  end
+
+  defp inspect_registration_repo(repo, default_branch) do
+    case git(repo, ["rev-parse", "--show-toplevel"]) do
+      {:ok, root} ->
+        if String.trim(root) == repo,
+          do: inspect_registration_branch(repo, default_branch),
+          else: {:error, :repository_root_mismatch}
+
+      {:error, _reason} ->
+        if File.exists?(Path.join(repo, ".git")),
+          do: {:error, :not_a_git_repository},
+          else: {:ok, %{repo: repo, branch: default_branch, action: :initialize, base_sha: nil}}
+    end
+  end
+
+  defp inspect_registration_branch(repo, default_branch) do
+    case git(repo, ["rev-parse", "--verify", "refs/heads/#{default_branch}^{commit}"]) do
+      {:ok, sha} ->
+        {:ok,
+         %{
+           repo: repo,
+           branch: default_branch,
+           action: :use_existing,
+           base_sha: String.trim(sha)
+         }}
+
+      {:error, _reason} ->
+        if local_branch_exists?(repo),
+          do: {:error, :branch_not_found},
+          else:
+            {:ok, %{repo: repo, branch: default_branch, action: :initial_commit, base_sha: nil}}
+    end
+  end
+
+  defp local_branch_exists?(repo) do
+    case System.cmd(@git, ["-C", repo, "show-ref", "--heads", "--quiet"], stderr_to_stdout: true) do
+      {_output, 0} -> true
+      {_output, _status} -> false
+    end
+  end
+
+  defp prepare_registration(%{action: :use_existing, repo: repo, base_sha: sha}),
+    do: {:ok, {repo, sha}}
+
+  defp prepare_registration(%{action: :initialize, repo: repo, branch: branch}) do
+    with {:ok, _output} <- git(repo, ["init", "-b", branch]),
+         do: create_initial_commit(repo, branch)
+  end
+
+  defp prepare_registration(%{action: :initial_commit, repo: repo, branch: branch}) do
+    with {:ok, _output} <- git(repo, ["symbolic-ref", "HEAD", "refs/heads/#{branch}"]),
+         do: create_initial_commit(repo, branch)
+  end
+
+  defp create_initial_commit(repo, branch) do
+    with {:ok, _output} <- git(repo, ["add", "--all"]),
+         {:ok, _output} <-
+           git(repo, [
+             "-c",
+             "user.name=Cuckoding",
+             "-c",
+             "user.email=cuckoding@localhost",
+             "commit",
+             "--allow-empty",
+             "--no-gpg-sign",
+             "--no-verify",
+             "-m",
+             "Initial commit"
+           ]),
+         {:ok, sha} <- git(repo, ["rev-parse", "--verify", "refs/heads/#{branch}^{commit}"]) do
+      {:ok, {repo, String.trim(sha)}}
     end
   end
 
