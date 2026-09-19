@@ -53,7 +53,7 @@ defmodule CuckodingWeb.AgentLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app>
+    <Layouts.app flash={@flash}>
       <article aria-labelledby="agent-heading" class="space-y-8">
         <.link
           navigate={~p"/runs/#{@detail.run.id}"}

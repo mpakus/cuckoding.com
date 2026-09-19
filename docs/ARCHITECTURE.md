@@ -114,6 +114,9 @@ evidence paths are canonicalized against the owned worktree before proposals
 are inserted. The planning task remains hidden from the delivery Kanban. The
 run waits while `task_proposals` are reviewed, and one idempotent import command
 creates only the selected Draft tasks and links each proposal to its result.
+Its LiveViews expose transient submit state, but render progress from the
+durable run projection and reload that projection after committed activity
+events.
 
 ### Plugin registry
 

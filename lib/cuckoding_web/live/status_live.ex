@@ -103,7 +103,7 @@ defmodule CuckodingWeb.StatusLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app>
+    <Layouts.app flash={@flash}>
       <section aria-labelledby="dashboard-heading" class="space-y-10">
         <header class="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div class="space-y-3">

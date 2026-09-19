@@ -26,7 +26,7 @@ defmodule CuckodingWeb.KnowledgeLineageLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app>
+    <Layouts.app flash={@flash}>
       <section aria-labelledby="knowledge-lineage-heading" class="space-y-8">
         <.knowledge_nav current="lineage" />
 

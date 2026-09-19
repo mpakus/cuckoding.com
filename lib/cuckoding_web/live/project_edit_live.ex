@@ -194,7 +194,7 @@ defmodule CuckodingWeb.ProjectEditLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app>
+    <Layouts.app flash={@flash}>
       <section aria-labelledby="project-edit-heading" class="mx-auto max-w-5xl space-y-8">
         <header class="space-y-3">
           <p class="text-sm font-semibold uppercase tracking-wide text-slate-600">Project settings</p>

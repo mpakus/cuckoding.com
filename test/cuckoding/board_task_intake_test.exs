@@ -156,14 +156,35 @@ defmodule Cuckoding.BoardTaskIntakeTest do
     assert has_element?(board_view, "#agent-task-intake", "Ask an agent to plan tasks")
     assert has_element?(board_view, "#task-intake-form option[value=spec_writer]")
 
+    assert has_element?(
+             board_view,
+             "#task-intake-form button[phx-disable-with='Creating planning run…'][aria-describedby='task-intake-submit-status']"
+           )
+
+    assert has_element?(
+             board_view,
+             "#task-intake-submit-status[role=status][aria-live=polite]"
+           )
+
     board_view
-    |> form("#task-intake-form",
-      intake: %{
-        role_key: "spec_writer",
-        prompt: "Analyze docs/PLAN.md and docs/tasks.md, then propose board tasks."
-      }
-    )
+    |> form("#task-intake-form", intake: %{role_key: "spec_writer", prompt: ""})
     |> render_submit()
+
+    assert has_element?(
+             board_view,
+             "#agent-task-intake #task-intake-error[role=alert]",
+             "Enter a planning prompt"
+           )
+
+    redirect =
+      board_view
+      |> form("#task-intake-form",
+        intake: %{
+          role_key: "spec_writer",
+          prompt: "Analyze docs/PLAN.md and docs/tasks.md, then propose board tasks."
+        }
+      )
+      |> render_submit()
 
     intake =
       Repo.one!(
@@ -175,10 +196,20 @@ defmodule Cuckoding.BoardTaskIntakeTest do
       )
 
     [run] = Cuckoding.Execution.list_runs(intake.id)
-    assert_redirect(board_view, ~p"/runs/#{run.id}")
+    assert {:ok, run_view, _html} = follow_redirect(redirect, conn, ~p"/runs/#{run.id}")
+    assert has_element?(run_view, "#flash-info[role=status]", "Planning run created")
+
+    assert has_element?(
+             run_view,
+             "#planning-progress [role=status]",
+             "Verify agent authentication below, then start analysis"
+           )
 
     assert {:ok, [proposal]} = BoardTaskIntake.start(run.id, async: false)
-    {:ok, run_view, _html} = live(conn, ~p"/runs/#{run.id}")
+
+    eventually(fn ->
+      render(run_view) =~ "Analysis finished. Review the proposed tasks below."
+    end)
 
     assert has_element?(run_view, "#task-proposal-review", "Review proposed tasks")
     assert has_element?(run_view, "input[name='proposal_ids[]'][value='#{proposal.id}']")
@@ -191,6 +222,19 @@ defmodule Cuckoding.BoardTaskIntakeTest do
     assert Repo.get!(Task, proposal.intake_task_id).state == "done"
     assert Repo.get_by!(Task, board_id: created.board.id, title: "Review project documentation")
   end
+
+  defp eventually(assertion, attempts \\ 100)
+
+  defp eventually(assertion, attempts) when attempts > 0 do
+    if assertion.() do
+      :ok
+    else
+      Process.sleep(20)
+      eventually(assertion, attempts - 1)
+    end
+  end
+
+  defp eventually(_assertion, 0), do: flunk("LiveView did not show the durable planning state")
 
   defp create_intake(board_id) do
     ProjectWorkflow.create_task_intake(board_id, %{

@@ -25,7 +25,9 @@ Project setup, board setup, board task intake, and delivery execution are separa
    network-denied stage. The run waits at `task proposal review`; validated
    proposals remain separate rows until a human selects them. Import creates
    normal Draft tasks and links each proposal to the created task so retries do
-   not duplicate cards.
+   not duplicate cards. The board shows LiveView submit feedback immediately,
+   then the run page derives progress from durable run state and refreshes after
+   committed PubSub hints; browser state is never authoritative.
 
 This boundary keeps onboarding reversible and lets one project own several
 boards without fabricating a first task.

@@ -55,7 +55,7 @@ defmodule CuckodingWeb.AgentFloorLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app>
+    <Layouts.app flash={@flash}>
       <section aria-labelledby="agent-floor-heading" class="space-y-8">
         <header class="space-y-2">
           <p class="text-sm font-semibold uppercase tracking-wide text-slate-600">Live operations</p>

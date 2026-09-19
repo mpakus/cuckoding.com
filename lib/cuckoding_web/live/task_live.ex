@@ -83,7 +83,7 @@ defmodule CuckodingWeb.TaskLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app>
+    <Layouts.app flash={@flash}>
       <article aria-labelledby="task-heading" class="max-w-3xl space-y-8">
         <.link
           navigate={~p"/boards/#{@board.id}"}

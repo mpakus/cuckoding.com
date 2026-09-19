@@ -109,7 +109,7 @@ defmodule CuckodingWeb.RunLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app>
+    <Layouts.app flash={@flash}>
       <article aria-labelledby="run-heading" class="space-y-8">
         <.link
           navigate={back_path(@detail)}
@@ -132,6 +132,20 @@ defmodule CuckodingWeb.RunLive do
         <p :if={@error} id="run-error" role="alert" class="text-sm font-medium text-red-800">
           {@error}
         </p>
+
+        <section
+          :if={intake?(@detail)}
+          id="planning-progress"
+          aria-labelledby="planning-progress-heading"
+          class="rounded-lg border border-slate-300 bg-white p-5"
+        >
+          <h2 id="planning-progress-heading" class="text-xl font-semibold text-slate-950">
+            Planning progress
+          </h2>
+          <p role="status" aria-live="polite" aria-atomic="true" class="mt-2 text-slate-700">
+            {planning_status(@detail)}
+          </p>
+        </section>
 
         <.host_runner_notice />
 
@@ -401,6 +415,24 @@ defmodule CuckodingWeb.RunLive do
   defp task_proposals(_detail), do: []
   defp intake?(%{task: %{kind: "board_intake"}}), do: true
   defp intake?(_detail), do: false
+
+  defp planning_status(%{run: %{state: "queued"}}),
+    do: "Planning run created. Verify agent authentication below, then start analysis."
+
+  defp planning_status(%{run: %{state: "running"}}),
+    do: "The agent is analyzing the project. This page updates automatically."
+
+  defp planning_status(%{run: %{state: "waiting"}}),
+    do: "Analysis finished. Review the proposed tasks below."
+
+  defp planning_status(%{run: %{state: "done"}}),
+    do: "Planning complete. Selected proposals are now Draft tasks on the board."
+
+  defp planning_status(%{run: %{state: state}}) when state in ["blocked", "failed"],
+    do: "Planning stopped and needs attention. Review the error and recent activity below."
+
+  defp planning_status(%{run: %{state: "cancelled"}}), do: "Planning was cancelled."
+  defp planning_status(_detail), do: "Planning status is updating."
   defp back_path(%{task: %{kind: "board_intake"}, board: board}), do: ~p"/boards/#{board.id}"
   defp back_path(detail), do: ~p"/boards/#{detail.board.id}/tasks/#{detail.task.id}"
   defp back_label(%{task: %{kind: "board_intake"}}), do: "board"

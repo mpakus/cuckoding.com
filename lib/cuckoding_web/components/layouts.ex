@@ -4,6 +4,7 @@ defmodule CuckodingWeb.Layouts do
 
   embed_templates "layouts/*"
 
+  attr :flash, :map, default: %{}
   slot :inner_block, required: true
 
   def app(assigns) do
@@ -20,6 +21,25 @@ defmodule CuckodingWeb.Layouts do
       </div>
     </header>
     <main id="main-content" class="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+      <div id="flash-group" class="mb-6 space-y-3">
+        <p
+          :if={message = Phoenix.Flash.get(@flash, :info)}
+          id="flash-info"
+          role="status"
+          aria-live="polite"
+          class="rounded-md border border-emerald-300 bg-emerald-50 p-4 text-sm font-medium text-emerald-950"
+        >
+          {message}
+        </p>
+        <p
+          :if={message = Phoenix.Flash.get(@flash, :error)}
+          id="flash-error"
+          role="alert"
+          class="rounded-md border border-red-300 bg-red-50 p-4 text-sm font-medium text-red-950"
+        >
+          {message}
+        </p>
+      </div>
       {render_slot(@inner_block)}
     </main>
     """

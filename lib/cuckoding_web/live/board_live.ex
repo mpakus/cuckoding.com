@@ -27,6 +27,7 @@ defmodule CuckodingWeb.BoardLive do
            intake_form: %{"prompt" => "", "role_key" => "spec_writer"},
            agent_roles: Workflows.list_agent_roles(board.id),
            tasks: [],
+           intake_error: nil,
            notice: nil,
            error: nil
          )}
@@ -91,14 +92,20 @@ defmodule CuckodingWeb.BoardLive do
   def handle_event("create-task-intake", %{"intake" => attrs}, socket) do
     case ProjectWorkflow.create_task_intake(socket.assigns.board.id, attrs) do
       {:ok, %{run: run}} ->
-        {:noreply, push_navigate(socket, to: ~p"/runs/#{run.id}")}
+        {:noreply,
+         socket
+         |> assign(:intake_error, nil)
+         |> put_flash(
+           :info,
+           "Planning run created. Verify agent authentication, then start project analysis."
+         )
+         |> push_navigate(to: ~p"/runs/#{run.id}")}
 
       {:error, reason} ->
         {:noreply,
          assign(socket,
            intake_form: Map.merge(socket.assigns.intake_form, attrs),
-           notice: nil,
-           error: intake_error(reason)
+           intake_error: intake_error(reason)
          )}
     end
   end
@@ -106,7 +113,7 @@ defmodule CuckodingWeb.BoardLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app>
+    <Layouts.app flash={@flash}>
       <section aria-labelledby="board-heading" class="space-y-8">
         <header class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div class="space-y-2">
@@ -222,14 +229,39 @@ defmodule CuckodingWeb.BoardLive do
             </label>
             <div>
               <button
+                type="submit"
                 disabled={@agent_roles == []}
-                class="min-h-11 rounded-md bg-slate-950 px-5 font-medium text-white disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2"
+                aria-describedby={
+                  if(@intake_error,
+                    do: "task-intake-submit-status task-intake-error",
+                    else: "task-intake-submit-status"
+                  )
+                }
+                phx-disable-with="Creating planning run…"
+                class="min-h-11 rounded-md bg-slate-950 px-5 font-medium text-white disabled:cursor-not-allowed disabled:opacity-50 phx-submit-loading:cursor-wait focus-visible:outline-2 focus-visible:outline-offset-2"
               >
                 Create planning run
               </button>
+              <span
+                id="task-intake-submit-status"
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+                class="ml-3 hidden text-sm text-slate-700 phx-submit-loading:inline"
+              >
+                Creating the planning run and isolated worktree…
+              </span>
             </div>
             <p :if={@agent_roles == []} class="text-sm font-medium text-amber-900">
               Assign an agent role in Project settings before planning tasks.
+            </p>
+            <p
+              :if={@intake_error}
+              id="task-intake-error"
+              role="alert"
+              class="text-sm font-medium text-red-800"
+            >
+              {@intake_error}
             </p>
           </form>
         </section>
