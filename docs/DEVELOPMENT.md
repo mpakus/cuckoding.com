@@ -45,28 +45,28 @@ verified application is written to
 not Developer ID sign, notarize, or create distributable update artifacts; use
 `desktop/release.sh` only for an authorized release.
 
-## Guided first run
+## Project-first onboarding
 
-The dashboard's **Start a project** form is the user-facing path into the
-default workflow. It accepts a clean Git repository, default branch, first
-task, supported runtime, and absolute runtime executable. Submission requires
-an explicit trusted-host confirmation and creates a queued run plus confined
-worktree. It does not launch a provider or read ambient credentials.
+The dashboard's **Add project** action opens a four-step wizard: project
+identity, existing Git repository and base branch, an initial validated agent
+runtime with the default roles, then review. Reusing multiple saved connections
+and editing role definitions are the next Phase 10 tranche. The
+development/browser fallback accepts an absolute path; the packaged shell will
+provide the native folder picker. Registration records only the project and its
+trusted configuration version. It does not create a board, task, queued run,
+feature branch, worktree, port, or provider process.
 
-The run page shows the runtime-specific authentication boundary. Codex uses a
-new run-owned `CODEX_HOME`; authenticate it with the displayed
-`login --device-auth` command. Claude Code requires a reviewed absolute API key
-helper. **Check authentication and start workflow** verifies the pinned runtime
-and scoped authentication before atomically moving the durable run to running
-and starting the existing project-to-approval loop. Probe failure leaves the
-run queued. The orchestration task is supervised but never owns workflow truth;
-SQLite transitions, attempts, sessions, artifacts, and events remain
-authoritative.
+A project may be registered while its working tree is dirty so the user can
+organize existing work. Starting a task remains stricter: the run boundary
+requires a clean repository, captures the base revision, snapshots workflow and
+role configuration, and only then creates the feature worktree.
 
-The guided form intentionally does not infer or store GitHub credentials. A
-controlled-beta release uses an authorized local bare `origin`, or a separately
-reviewed GitHub policy whose credential is already represented by an opaque
-Keychain reference.
+The legacy `Cuckoding.GuidedRun` path remains available to the Phase 4 walking
+skeleton and tests while project, board, and task setup are separated. It is no
+longer a dashboard onboarding surface. Runtime-specific authentication remains
+run-scoped: Codex uses a run-owned `CODEX_HOME`; Claude Code requires a reviewed
+absolute API-key helper. Cuckoding never infers or stores GitHub credentials in
+the project wizard.
 
 ## Production release smoke test
 
@@ -106,7 +106,8 @@ Durable schemas and commands begin in task 0102. LiveViews render context result
 
 ## Runtime surfaces
 
-- `/` is the basic LiveView status shell.
+- `/` is the project-first operations dashboard.
+- `/projects/new` is the non-executing project registration wizard.
 - `/health` reports application and dependency health separately.
 - `/status` adds an allowlisted configuration snapshot; sensitive configuration is never inspected wholesale.
 - Requests receive `x-request-id` and matching `x-correlation-id` response headers, and both identifiers are included in key-value log metadata.

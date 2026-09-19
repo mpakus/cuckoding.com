@@ -1,6 +1,8 @@
 defmodule Cuckoding.Projects do
   @moduledoc "Owns project registration, configuration revisions, and repository identity."
 
+  import Ecto.Query
+
   alias Cuckoding.Identifier
   alias Cuckoding.Projects.Project
   alias Cuckoding.Projects.ProjectConfigVersion
@@ -8,6 +10,11 @@ defmodule Cuckoding.Projects do
 
   def register(attrs), do: insert(Project, attrs)
   def add_config_version(attrs), do: insert(ProjectConfigVersion, attrs)
+
+  def list_projects,
+    do: Repo.all(from(project in Project, order_by: [asc: project.name, asc: project.id]))
+
+  def get_project(id), do: Repo.get(Project, id)
 
   defp insert(schema, attrs) do
     schema.create_changeset(struct(schema), Map.put_new(attrs, :id, Identifier.generate()))
@@ -46,6 +53,16 @@ defmodule Cuckoding.Workflows do
   end
 
   def list_boards, do: Repo.all(from(board in Board, order_by: [asc: board.name, asc: board.id]))
+
+  def list_boards(project_id) when is_binary(project_id) do
+    Repo.all(
+      from(board in Board,
+        where: board.project_id == ^project_id,
+        order_by: [asc: board.name, asc: board.id]
+      )
+    )
+  end
+
   def get_board(id), do: Repo.get(Board, id)
 
   def set_board_status(board_id, status) when status in ~w(active paused) do

@@ -76,12 +76,19 @@ Each runtime adapter converts a common stage request into a provider-specific ho
 
 The walking skeleton composes the existing contexts without adding an authoritative workflow process: SQLite owns stage, run, task, approval, candidate, and event state. The deterministic CI adapter and an opt-in real adapter use the same stage request path. Before approval, the host validates a versioned evidence bundle and verifies every artifact and project-knowledge citation against its SHA-256 digest. Human approval then precedes the system release attempt. `VcsHost` implementations either perform an idempotent, non-force push to a validated local bare remote or fetch an opaque GitHub credential through `SecretStore`, push the candidate, and create a draft pull request. Both paths reject protected branches and unapproved runs. See `docs/WALKING_SKELETON.md`.
 
-`Cuckoding.GuidedRun` exposes that loop to the dashboard without moving truth
-into LiveView. It validates the clean repository and absolute runtime path
-before registration, creates a queued run and worktree, and verifies pinned,
-run-scoped provider authentication before the durable running transition. A
-supervised ephemeral task drives the existing stage loop; failures move the
-run to a durable blocked state, while all progress remains in SQLite.
+`Cuckoding.ProjectOnboarding` is the project-registration boundary used by the
+dashboard wizard. It validates and canonicalizes an existing repository and
+base branch, validates machine-local agent configuration, and atomically writes
+the project plus its first trusted configuration version. It creates no board,
+task, run, branch, worktree, port, lease, or provider process. Board setup later
+publishes a workflow and snapshots role assignments; task start alone prepares
+the execution environment.
+
+`Cuckoding.GuidedRun` remains a compatibility path for the bounded Phase 4/early
+beta walking skeleton while the new project → board → task surfaces land. It is
+not rendered on the home dashboard. Its runtime configuration validation is
+shared with onboarding so the compatibility path cannot weaken the new trust
+boundary.
 
 ### Plugin registry
 

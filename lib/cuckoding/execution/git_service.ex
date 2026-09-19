@@ -51,6 +51,24 @@ defmodule Cuckoding.Execution.GitService do
 
   def validate_repository(_path, _default_branch), do: {:error, :invalid_repository}
 
+  @doc "Validates project registration without requiring a clean working tree."
+  def validate_registration(path, default_branch)
+      when is_binary(path) and is_binary(default_branch) do
+    if Path.type(path) == :absolute and String.trim(path) != "" do
+      with {:ok, repo} <- canonical_directory(path),
+           :ok <- repository_root?(repo),
+           :ok <- valid_branch?(default_branch),
+           {:ok, sha} <-
+             git(repo, ["rev-parse", "--verify", "refs/heads/#{default_branch}^{commit}"]) do
+        {:ok, {repo, String.trim(sha)}}
+      end
+    else
+      {:error, :invalid_repository_path}
+    end
+  end
+
+  def validate_registration(_path, _default_branch), do: {:error, :invalid_repository}
+
   @doc "Creates the run-owned branch/worktree and its durable environment row."
   def prepare(%Project{} = project, %Run{} = run) do
     with :ok <- valid_id?(project.id),

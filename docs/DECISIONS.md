@@ -153,6 +153,16 @@ This file records accepted product-level decisions. Add a dated ADR section when
 - **Consequences:** Clock sources are injected and named explicitly in tests. Reconciliation is idempotent by sleep-gap ID and runs before scheduling. The UI must distinguish idle-sleep prevention from forced sleep, lid close, and battery behavior.
 - **Verification:** Task 0004 unit, live assertion, coordinated `pmset sleepnow`, AC lid-close survival, and battery missing-worker recovery evidence.
 
+## ADR-023 — Project-first onboarding and reusable agent roles
+
+- **Date:** 2026-09-18
+- **Status:** Accepted by the sole stakeholder
+- **Context:** The first beta UI placed project identity, repository selection, runtime configuration, first task creation, branch/worktree authorization, and run creation in one dashboard form. The stakeholder expects Cuckoding to open as a project and operations dashboard, with project setup, board setup, and task execution as distinct flows.
+- **Decision:** `/` is the global project and operations dashboard. Add/edit project uses a wizard for identity, existing repository and branch, reusable machine-local agent connections, role definitions, and review. Completing it creates only a project and trusted configuration version. Boards separately choose a workflow and snapshot role assignments. Tasks separately start runs. The default board flow is Specifications → Coding → Review → Complete, with labeled Review returns to Specifications or Coding and optional approved release stages.
+- **Alternatives:** Keep the all-in-one queued-run form (rejected because it hides durable product objects and makes onboarding destructive); make the board the top-level object (rejected because one repository needs several independent boards); store only live agent-profile references (rejected because later edits would make run history irreproducible).
+- **Consequences:** The dashboard becomes useful before any run exists. Agent connections can be reused, while project, board, and run snapshots preserve history. Project registration may accept a dirty repository, but task start still requires a clean verified base. The Phase 4 guided-run path remains test-only compatibility until its callers are retired.
+- **Verification:** Project onboarding tests prove that registration creates no board, task, run, environment, or worktree; LiveView tests cover the wizard and project-first dashboard; board and run snapshot tests cover later tranches.
+
 ## ADR template
 
 ### ADR-NNN — Title

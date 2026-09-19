@@ -106,6 +106,11 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 
 - [x] Capability and secret hardening, adversarial prompt and plugin tests.
 - [x] Crash, power-loss, and sleep recovery drills.
+- [ ] Replace the beta bootstrap form with the accepted project-first product flow:
+  - [x] Global dashboard lists projects, health, resources, active work, and attention.
+  - [ ] Add/edit project wizard separates identity, repository/branch, agents/roles, and review.
+  - [ ] Project workspace creates boards independently from project registration.
+  - [ ] Board task creation uses Specifications → Coding → Review loops and snapshots role/agent configuration at run start.
 - [ ] Dogfood and controlled beta.
 - [ ] MVP release readiness.
 

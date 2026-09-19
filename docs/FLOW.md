@@ -1,23 +1,39 @@
 # Workflow and State Machines
 
+## Setup boundaries
+
+Project setup, board setup, and task execution are three separate commands:
+
+1. **Project setup** registers identity, an existing repository and base branch,
+   reusable agent connections, and project role defaults. It creates no board,
+   task, run, branch, worktree, or provider process.
+2. **Board setup** selects a versioned workflow and snapshots board role
+   assignments, budgets, and concurrency settings from project defaults.
+3. **Task start** snapshots the board configuration and only then allocates the
+   run branch, worktree, process groups, ports, and agent sessions.
+
+This boundary keeps onboarding reversible and lets one project own several
+boards without fabricating a first task.
+
 ## Default feature flow
 
 The workflow is data-driven and versioned. The default template is:
 
 ```mermaid
 flowchart TD
-    I["Inbox"] --> S["Spec preparation"]
-    S --> G1{"Spec gate"}
-    G1 -->|pass| D["Development"]
+    I["Inbox"] --> S["Specifications"]
+    S --> G1{"Specification gate"}
+    G1 -->|pass| D["Coding"]
     G1 -->|revise| S
-    D --> Q["QA and review"]
-    Q --> G2{"Quality gate"}
-    G2 -->|fix code| D
-    G2 -->|fix intent| S
-    G2 -->|pass| H["Human approval"]
+    D --> Q["Review"]
+    Q --> G2{"Review gate"}
+    G2 -->|fix implementation| D
+    G2 -->|improve specification| S
+    G2 -->|pass| X["Complete"]
+    X -. optional .-> H["Human release approval"]
     H -->|approve| R["Release handoff (system)"]
     H -->|changes| D
-    R --> X["Done: branch pushed, draft PR"]
+    R --> Z["Released: branch pushed, draft PR"]
 ```
 
 Boards may use different workflow templates. Multiple boards and their runs execute independently, subject to project and machine resource budgets.
@@ -71,13 +87,18 @@ Standalone task commands handle pre-run and post-run lifecycle changes. Once a r
 
 | Role | Kind | Responsibilities | Required outputs |
 | --- | --- | --- | --- |
-| Spec writer | agent | Clarify intent, inspect code and knowledge, define scope and acceptance criteria | Versioned specification and testable acceptance criteria |
-| Implementer | agent | Change only approved scope, add tests, report decisions | Commits, implementation summary, test evidence |
-| Reviewer/QA | agent | Independently test and review correctness, security, and scope | Structured findings, gate result, reproducible commands |
+| Specifications | agent | Clarify intent, inspect code and knowledge, define scope and acceptance criteria | Versioned specification and testable acceptance criteria |
+| Coding | agent | Change only approved scope, add tests, report decisions | Commits, implementation summary, test evidence |
+| Review | agent | Independently test and review correctness, security, and scope | Structured findings, gate result, reproducible commands |
 | Human approver | human | Verify diff and evidence bundle | Approval decision |
 | Release handoff | system | Push the branch and create the draft PR with the host-side VCS service | Evidence bundle, ready branch, PR link |
 
 The same runtime may fill multiple agent roles, but the default policy prevents the exact same agent session from both implementing and independently approving its work. System roles never run an LLM and never receive a capability grant; they run application code under the user's Git credentials after approval.
+
+Role display names, instructions, and required outputs are editable project
+defaults. Workflow stages reference stable role keys. Boards snapshot their
+assignments, and runs snapshot the board assignments again, so editing an agent
+profile or role never rewrites active or historical work.
 
 ## Pause, hibernate, and resume
 

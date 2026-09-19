@@ -372,6 +372,8 @@ defmodule Cuckoding.AgentFloor do
   defp group_key(card, "runtime"), do: card.session.adapter_key
   defp group_key(card, "project"), do: card.project.name
 
-  defp attention?(row),
-    do: row.attempt.state in ~w(waiting failed) or row.run.state in ~w(blocked failed)
+  defp attention?(row) do
+    row.run.state in ~w(blocked failed) or
+      (row.run.state in ~w(running waiting) and row.attempt.state in ~w(waiting failed))
+  end
 end

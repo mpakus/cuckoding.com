@@ -4,17 +4,15 @@ defmodule Cuckoding.GuidedRun do
   alias Cuckoding.Adapters.ClaudeCode
   alias Cuckoding.Adapters.Codex
   alias Cuckoding.Adapters.FakeAdapter
+  alias Cuckoding.Adapters.RuntimeConfiguration
   alias Cuckoding.Execution
   alias Cuckoding.Identifier
   alias Cuckoding.Repo
   alias Cuckoding.WalkingSkeleton
   alias Cuckoding.Workflows.RoleAssignment
 
-  @runtimes ~w(codex claude_code)
-
   def create(attrs) when is_map(attrs) do
-    with {:ok, runtime} <- runtime(attrs["runtime"]),
-         {:ok, settings} <- settings(runtime, attrs) do
+    with {:ok, configuration} <- RuntimeConfiguration.validate(attrs) do
       WalkingSkeleton.create(%{
         name: attrs["name"],
         repo_path: attrs["repo_path"],
@@ -23,8 +21,8 @@ defmodule Cuckoding.GuidedRun do
         board_name: "Product",
         task_title: attrs["task_title"],
         task_description: attrs["task_description"],
-        adapter_key: runtime,
-        adapter_settings: settings,
+        adapter_key: configuration.runtime,
+        adapter_settings: configuration.settings,
         start_run: false,
         port_range_start: 43_000,
         port_range_end: 43_999
@@ -154,39 +152,6 @@ defmodule Cuckoding.GuidedRun do
     end
   end
 
-  defp settings(runtime, attrs) do
-    with {:ok, executable} <- executable(attrs["executable_path"]),
-         {:ok, helper} <- helper(runtime, attrs["api_key_helper"]) do
-      {:ok,
-       %{"executable_path" => executable}
-       |> maybe_put("api_key_helper", helper)}
-    end
-  end
-
-  defp executable(path) when is_binary(path) do
-    expanded = Path.expand(path)
-
-    if Path.type(path) == :absolute do
-      case File.stat(expanded) do
-        {:ok, %{type: :regular, mode: mode}} when Bitwise.band(mode, 0o111) != 0 ->
-          {:ok, expanded}
-
-        _other ->
-          {:error, :invalid_runtime_executable}
-      end
-    else
-      {:error, :invalid_runtime_executable}
-    end
-  end
-
-  defp executable(_path), do: {:error, :invalid_runtime_executable}
-
-  defp helper("codex", _path), do: {:ok, nil}
-  defp helper("claude_code", path), do: executable(path)
-
-  defp runtime(runtime) when runtime in @runtimes, do: {:ok, runtime}
-  defp runtime(_runtime), do: {:error, :unsupported_runtime}
-
   defp workspace_root do
     Application.get_env(:cuckoding, :workspace_root) ||
       Application.fetch_env!(:cuckoding, Cuckoding.Repo)
@@ -194,9 +159,6 @@ defmodule Cuckoding.GuidedRun do
       |> Path.dirname()
       |> Path.join("workspaces")
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
   defp block(run_id, reason \\ :workflow_failed) do
     case Execution.transition_run(run_id, "blocked", "guided:#{run_id}:blocked",

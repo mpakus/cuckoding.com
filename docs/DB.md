@@ -44,8 +44,8 @@ erDiagram
 | `project_config_versions` | `project_id`, `revision`, `source_hash`, `config_json`, `trusted_at` | Immutable policy/config snapshots |
 | `boards` | `project_id`, `name`, `description`, `workflow_version_id`, `status`, `concurrency_limit`, `unattended_until` | Multiple independent processes per project |
 | `workflow_versions` | `project_id?`, `name`, `version`, `definition_json`, `published_at` | Immutable once used by a run |
-| `role_assignments` | `board_id`, `role_key`, `adapter_key`, `model_ref`, `settings_json` | Board defaults; run snapshot is separate |
-| `provider_accounts` | `adapter_key`, `label`, `auth_mode`, `status`, `capabilities_json`, `probed_at` | Runtime auth is observed, never stored |
+| `role_assignments` | `board_id`, `role_key`, `adapter_key`, `model_ref`, `settings_json` | Board snapshot of project role defaults; run snapshot is separate |
+| `provider_accounts` | `adapter_key`, `label`, `auth_mode`, `status`, `capabilities_json`, `probed_at` | Reusable machine-local agent connection/profile; runtime auth is observed, never stored |
 | `secret_access_audits` | `secret_ref`, `purpose`, `run_id?`, `occurred_at` | Opaque reference-use audit; never stores the value |
 | `security_audit_events` | `event_type`, `method`, `path`, `status`, `occurred_at` | Append-only shell/browser rejection audit; never stores credentials or query strings |
 | `plugins` | `key`, `kind`, `version`, `source`, `manifest_path`, `manifest_hash`, `manifest_json`, `detected_binaries_json`, `health`, `detected_at`, `last_error` | Validated bundled/user registry state |
@@ -55,6 +55,13 @@ Plugin activation events use the `plugin:<plugin-id>` stream. The projection has
 database constraints for the closed scope, network, and approval vocabularies;
 the event payload records manifest and permission hashes instead of secret or
 unbounded provider data.
+
+Project setup stores versioned role definitions and default agent mappings in
+`project_config_versions.config_json` until a board is created. A board copies
+the selected mappings into `role_assignments`; a run copies them into its
+workflow snapshot. This deliberate snapshot chain means later project, role, or
+agent-profile edits never rewrite an active or historical run. Project creation
+must not insert board, task, run, environment, or process rows.
 
 ### Work management
 

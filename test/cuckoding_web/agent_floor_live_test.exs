@@ -7,6 +7,7 @@ defmodule CuckodingWeb.AgentFloorLiveTest do
   alias Cuckoding.Adapters.Types
   alias Cuckoding.AgentFloor
   alias Cuckoding.Execution
+  alias Cuckoding.Execution.StageAttempt
   alias Cuckoding.Identifier
   alias Cuckoding.Projects
   alias Cuckoding.Repo
@@ -100,6 +101,21 @@ defmodule CuckodingWeb.AgentFloorLiveTest do
     assert :sys.get_state(floor.pid).socket.assigns.refresh_pending
     send(floor.pid, :refresh_floor)
     assert render(floor) =~ "Agent Floor updated."
+  end
+
+  test "resolved runs do not retain stale attention from earlier attempts" do
+    fixture = domain_fixture(1)
+    session = hd(fixture.sessions)
+    attempt = Repo.get!(StageAttempt, session.stage_attempt_id)
+
+    attempt |> Ecto.Changeset.change(state: "failed") |> Repo.update!()
+    fixture.run |> Ecto.Changeset.change(state: "done") |> Repo.update!()
+
+    refute AgentFloor.list_sessions() |> hd() |> Map.fetch!(:attention?)
+
+    fixture.run |> Ecto.Changeset.change(state: "failed") |> Repo.update!()
+
+    assert AgentFloor.list_sessions() |> hd() |> Map.fetch!(:attention?)
   end
 
   defp domain_fixture(count, options \\ []) do

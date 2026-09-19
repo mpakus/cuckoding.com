@@ -2,7 +2,7 @@
 
 ## Vision
 
-Cuckoding is a visual, local-first operating system for coding-agent work on a developer's Mac. It turns an issue into a durable multi-stage process, assigns each stage to an agent role and runtime, keeps the work alive for hours or days, and exposes the state, evidence, cost, resource load, accumulated knowledge, and controls in one browser dashboard reachable from a menubar icon.
+Cuckoding is a visual, local-first operating system for coding-agent work on a developer's Mac. It begins with the developer's existing projects, reusable agent connections, and role definitions; boards then turn tasks into durable multi-stage processes. Cuckoding keeps that work alive for hours or days and exposes project state, active roles, evidence, cost, resource load, accumulated knowledge, and controls in one browser dashboard reachable from a menubar icon.
 
 It is not a chat client and it is not an autonomous merge bot. Its product value is coordination, durability, evidence, and compounding project knowledge.
 
@@ -15,21 +15,23 @@ It is not a chat client and it is not an autonomous merge bot. Its product value
 
 ## Core jobs to be done
 
-1. Connect a repository folder and describe how it may be built, tested, run, and modified.
-2. Create several independent boards for a project, such as product features, maintenance, and security remediation.
-3. Configure a workflow and map roles to installed agent runtimes and models.
-4. Add tasks, approve them for execution, and let them progress through gates for as long as they need, including across laptop sleep.
-5. Watch on the Agent Floor which role and runtime is doing what, without exposing private reasoning.
-6. Open each run's worktree and local preview URL.
-7. Pause, hibernate, retry, or stop work without losing durable state.
-8. Inspect changes, test results, review findings, cost, tokens, cache behavior, CPU, and memory.
-9. Produce a branch and optional draft pull request for human review.
-10. Compress completed work into reviewed project knowledge and skills, see the knowledge base grow, and see where it was used and whether it helped.
-11. Plug in tools already installed on the machine (XERJ, RTK, Ponytail, MCP servers, container runtimes) through connectors.
+1. Open the application and immediately see registered projects, application health, current resource use, attention items, and who is working on what.
+2. Add or edit a project through a guided setup: name, existing repository folder, Git base branch, reusable agent connections, and default role assignments.
+3. Create several independent boards for a project, such as product features, maintenance, and security remediation.
+4. Choose or customize a workflow and map its roles to the project's connected agents.
+5. Add tasks to a board and let them progress through gates for as long as they need, including across laptop sleep.
+6. Watch on the global dashboard and Agent Floor which role and runtime is doing what, without exposing private reasoning.
+7. Open each run's worktree and local preview URL.
+8. Pause, hibernate, retry, or stop work without losing durable state.
+9. Inspect changes, test results, review findings, cost, tokens, cache behavior, CPU, and memory.
+10. Produce a branch and optional draft pull request for human review.
+11. Compress completed work into reviewed project knowledge and skills, see the knowledge base grow, and see where it was used and whether it helped.
+12. Plug in tools already installed on the machine (XERJ, RTK, Ponytail, MCP servers, container runtimes) through connectors.
 
 ## MVP capabilities
 
-- Local project registry and Git repository connection.
+- Local project registry with separate add/edit setup; creating a project does not create a board, task, run, branch, or worktree.
+- Reusable agent connections and project role defaults. The built-in roles are Specifications, Coding, and Review; users may add roles and edit their instructions and output contracts.
 - Multiple boards and concurrent task flows per project.
 - Configurable stage templates and role-to-runtime assignment.
 - Claude Code and Codex as supported launch adapters; Cursor Agent and OpenCode retain stable contracts and test doubles until their conformance suites pass.
@@ -69,17 +71,16 @@ The complete launch contract, competitive basis, retention defaults, and commerc
 
 ## Primary user journey
 
-1. The user clicks the menubar icon → Cuckoding; the dashboard opens in the browser.
-2. The user creates a project and selects a local Git repository folder.
-3. Cuckoding validates the repository, project policy, toolchain, installed runtimes, and plugins.
-4. The user creates a board from a workflow template and adds a feature.
-5. The user assigns roles or accepts board defaults.
-6. Cuckoding creates a worktree, branch, port allocation, and process group, then starts the specification stage.
-7. Each stage produces typed artifacts and must pass its exit gate; relevant project knowledge is injected and its use recorded.
-8. The Agent Floor streams who is doing what; the laptop can sleep and wake without corrupting the run.
-9. Failed gates return the task to the configured stage with findings attached.
-10. Human approval triggers the host-side release stage: push and draft PR.
-11. On completion or archive, the user runs consolidation, reviews candidates, and publishes project or global knowledge and skills.
+1. The user clicks the menubar icon → Cuckoding; the global dashboard opens with registered projects, health, resources, active work, and attention items.
+2. The user chooses **Add project** or edits an existing project.
+3. A wizard collects project identity, an existing repository folder, its Git base branch, reusable agent connections, and role defaults. Cuckoding validates each boundary before showing the review step.
+4. Confirming the wizard registers only the project and its trusted configuration. It does not create or start work.
+5. Inside the project, the user creates a board from a workflow template and accepts or overrides its role assignments.
+6. The user adds a task. Starting that task snapshots the workflow, role assignments, policy, and agent profiles, then creates its feature branch, worktree, ports, and process group.
+7. The default workflow moves through Specifications → Coding → Review. Review findings may return to Specifications to correct intent or Coding to correct implementation; a pass completes locally or enters an optional approved release handoff.
+8. Each stage produces typed artifacts and must pass its exit gate; relevant project knowledge is injected and its use recorded.
+9. The global dashboard and Agent Floor stream who is doing what; the laptop can sleep and wake without corrupting the run.
+10. On completion or archive, the user runs consolidation, reviews candidates, and publishes project or global knowledge and skills.
 
 ## Success metrics
 

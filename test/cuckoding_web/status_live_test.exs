@@ -3,46 +3,42 @@ defmodule CuckodingWeb.StatusLiveTest do
 
   import Phoenix.LiveViewTest
 
-  test "renders accessible application and dependency status", %{conn: conn} do
+  alias Cuckoding.Projects
+
+  test "renders the project-first dashboard and resource status", %{conn: conn} do
     {:ok, view, html} = live(conn, ~p"/")
 
-    assert html =~ "Cuckoding is ready"
+    assert html =~ "Your Cuckoding workspace"
     assert has_element?(view, "main#main-content")
-    assert has_element?(view, "h1", "Cuckoding is ready")
-    assert has_element?(view, "[role=status]", "Application status: Operational")
+    assert has_element?(view, "h1", "Your Cuckoding workspace")
+    assert has_element?(view, "#overview-heading", "Application and resources")
+    assert has_element?(view, "#active-agent-count", "0")
+    assert has_element?(view, "#projects-heading", "Projects")
+    assert has_element?(view, "#projects-empty", "Nothing runs during project setup")
+    assert has_element?(view, "a[href='/projects/new']", "Add project")
+    refute has_element?(view, "#guided-run-form")
+    refute html =~ "Create queued run"
     assert has_element?(view, "nav[aria-label=Diagnostics] a[href='/health']", "Health JSON")
-    assert has_element?(view, "fieldset legend", "Experimental runtimes")
-    assert has_element?(view, "input[name=runtime][value=cursor_agent][disabled]")
-    assert has_element?(view, "#runtime-cursor_agent-warning", "user-global MCP process")
-    assert has_element?(view, "input[name=runtime][value=opencode][disabled]")
-    assert has_element?(view, "#runtime-opencode-warning", "no supported OpenCode CLI")
-    assert has_element?(view, "#guided-run-form input[name='guided_run[repo_path]']")
-    assert has_element?(view, "#guided-run-form select[name='guided_run[runtime]']")
-    assert has_element?(view, "#guided-run-form input[name='guided_run[confirmed]'][required]")
-    assert has_element?(view, "#host-runner-notice", "not a sandbox")
   end
 
-  test "guided setup requires an explicit trusted-host confirmation", %{conn: conn} do
+  test "lists a previously registered project and its next action", %{conn: conn} do
+    suffix = System.unique_integer([:positive])
+
+    {:ok, project} =
+      Projects.register(%{
+        name: "Existing project #{suffix}",
+        repo_path: "/tmp/existing-project-#{suffix}",
+        default_branch: "main",
+        workspace_root: "/tmp/existing-workspaces-#{suffix}",
+        port_range_start: 47_000,
+        port_range_end: 47_100
+      })
+
     {:ok, view, _html} = live(conn, ~p"/")
 
-    view
-    |> form("#guided-run-form",
-      guided_run: %{
-        name: "Example",
-        repo_path: "/tmp/example",
-        default_branch: "main",
-        runtime: "codex",
-        executable_path: "/usr/bin/true",
-        task_title: "Example task"
-      }
-    )
-    |> render_submit()
-
-    assert has_element?(
-             view,
-             "#guided-run-error[role=alert]",
-             "Confirm the trusted-host and worktree changes"
-           )
+    assert has_element?(view, "#project-#{project.id}", project.name)
+    assert has_element?(view, "#project-#{project.id}", "main")
+    assert has_element?(view, "#project-#{project.id}", "Ready for board setup")
   end
 
   test "sets a restrictive content security policy", %{conn: conn} do

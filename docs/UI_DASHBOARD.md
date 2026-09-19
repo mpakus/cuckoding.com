@@ -4,17 +4,56 @@
 
 The dashboard must answer immediately:
 
-1. What is running, and which role, runtime, and model owns each action?
-2. What progress or evidence has been produced?
-3. What is each run costing and consuming, and did the machine sleep in the middle?
-4. What knowledge has the project accumulated, and where is it being used?
-5. What can the user safely do next?
+1. Which projects have I added, and which need attention?
+2. Is Cuckoding healthy, and what CPU, memory, process, and port capacity is active?
+3. What is running, and which project, board, task, role, runtime, and model owns each action?
+4. What progress or evidence has been produced?
+5. What can I safely do next?
 
 The UI shows normalized public activity, not private chain-of-thought.
 
 ## Information architecture
 
-### Agent Floor (default screen)
+### Home dashboard (default screen)
+
+The `/` route is the project-first entry point. It contains:
+
+| Area | Content |
+| --- | --- |
+| Projects | Every registered project with repository identity, base branch, status, board count, active task count, and attention count |
+| Primary action | **Add project** opens the setup wizard; existing project actions remain on each project, not in a global bootstrap form |
+| Application status | Control-plane health, version, degraded dependencies, sleep-prevention state, and last reconciliation |
+| Resource snapshot | Active agents, measured memory, owned process count, allocated ports, and source/age labels; zero or unavailable is stated in text |
+| Active work | Compact project/board/task/role cards with elapsed time and safe inspect controls |
+| Attention | Approvals, blocked tasks, failed runtimes, policy changes, budgets, and degraded plugins |
+
+The home dashboard never asks for project, runtime, task, and release details in
+one form. Empty state explains the project → board → task sequence and offers
+one **Add project** action.
+
+### Project setup wizard
+
+Adding or editing a project is a resumable, keyboard-operable wizard:
+
+1. **Project** — name and optional description.
+2. **Repository** — choose an existing folder, verify that it is a Git
+   repository, and choose a base branch. A dirty working tree may be registered
+   but must be clean before starting a run.
+3. **Agents and roles** — reuse or connect agent profiles, then assign the
+   built-in Specifications, Coding, and Review roles. Users may add a role and
+   edit its display name, instructions, responsibilities, and required outputs.
+4. **Review** — show repository, branch, agents, effective role mapping, runner
+   limitations, and trusted configuration before confirmation.
+
+Completing this wizard registers only the project and its trusted configuration.
+Board creation and task creation are separate follow-up actions. Editing creates
+a new configuration version; active runs keep their original snapshots.
+
+The browser cannot open a native folder chooser by itself. The menubar shell
+provides the folder-picker bridge; development/browser fallback accepts an
+absolute path with the same canonicalization and Git validation.
+
+### Agent Floor
 
 A live view of who is doing what.
 
@@ -26,7 +65,8 @@ A live view of who is doing what.
 | Attention | Blocked approvals, crashed agents, policy flags, budget exhaustion, degraded plugins, post-sleep reconciliation results |
 | Controls | Pause board, hibernate run, retry stage, stop run, inspect evidence, open preview URL, open worktree |
 
-Lanes can be grouped by role (default), by runtime, or by project.
+Lanes can be grouped by role (default), by runtime, or by project. The home
+dashboard links here for the complete global operations view.
 
 The Phase 6 MVP implements this surface at `/agents` from durable agent-session,
 attempt, run, task, board, and project records. It caps the projection at 100
@@ -42,6 +82,7 @@ remains the safe control for every recorded session.
 - Project status, repository folder, base branch, configuration revision, runner (host, with limitation notice), plugins in use, tool health.
 - Tabs: boards, runs, knowledge, metrics, settings, audit history.
 - Aggregate costs and resources filtered by board, runtime, model, role, stage, and date.
+- **Create board** is the primary action when a project has no boards; **Add task** belongs to a board, never project setup.
 
 The Phase 8 Settings → Plugins route `/settings/plugins` exposes the durable
 registry without color-only status. Each entry names its health and last error,
@@ -53,6 +94,11 @@ the host runner's advisory network limitation.
 ### Board view
 
 Each board has its own Kanban, workflow template, assignments, budgets, and concurrency settings. Columns represent workflow stages; the state machine remains authoritative.
+
+The default board template is Specifications → Coding → Review → Complete.
+Review can route structured findings back to Specifications or Coding. Optional
+release approval and host-side handoff are explicit extra stages rather than an
+implicit consequence of project creation.
 
 Cards show title, priority, dependencies, current role, runtime/model badge, attempt count, elapsed time, budget consumption, blocking reason, and a knowledge indicator (number of items injected in the current stage). Drag-and-drop is allowed only for transitions the state machine permits, with equivalent keyboard and menu actions.
 
