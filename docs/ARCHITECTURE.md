@@ -105,6 +105,16 @@ rebuilds both session cards and the bounded recent-operation projection from
 SQLite. The home dashboard refreshes that projection after committed PubSub
 hints and on a periodic bounded timer, so PubSub is never the state owner.
 
+`Cuckoding.BoardTaskIntake` is the separate planning-run boundary behind the
+board prompt. It reuses `ProjectWorkflow` preparation and `AgentRuntime`
+resolution, launches only the selected snapshotted role, and supplies a
+read-only, network-denied stage request with a closed output schema. Provider
+JSONL is bounded and decoded by `Adapters.OutputParser`; repository-relative
+evidence paths are canonicalized against the owned worktree before proposals
+are inserted. The planning task remains hidden from the delivery Kanban. The
+run waits while `task_proposals` are reviewed, and one idempotent import command
+creates only the selected Draft tasks and links each proposal to its result.
+
 ### Plugin registry
 
 Discovers, validates, enables, and health-checks connectors described by manifests (`docs/PLUGINS.md`). Plugin kinds: `knowledge_backend`, `shell_filter`, `instruction_skill`, `mcp_server`, `runner`, `metric_source`, `vcs_host`, `secret_store`, `notifier`. Core code never imports a plugin directly; it talks to behaviours.

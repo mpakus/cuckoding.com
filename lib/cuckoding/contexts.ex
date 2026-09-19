@@ -46,6 +46,7 @@ defmodule Cuckoding.Workflows do
   alias Cuckoding.Workflows.RoleAssignment
   alias Cuckoding.Workflows.Task
   alias Cuckoding.Workflows.TaskDependency
+  alias Cuckoding.Workflows.TaskProposal
   alias Cuckoding.Workflows.WorkflowVersion
 
   def publish_workflow(attrs) do
@@ -109,13 +110,32 @@ defmodule Cuckoding.Workflows do
   def set_board_status(_board_id, _status), do: {:error, :invalid_board_status}
 
   def assign_role(attrs), do: insert(RoleAssignment, attrs)
+
+  def list_agent_roles(board_id) when is_binary(board_id) do
+    Repo.all(
+      from(role in RoleAssignment,
+        where: role.board_id == ^board_id and role.role_kind == "agent",
+        order_by: [asc: role.role_key, asc: role.id]
+      )
+    )
+  end
+
   def create_task(attrs), do: insert(Task, attrs)
 
   def list_tasks(board_id) do
     Repo.all(
       from(task in Task,
-        where: task.board_id == ^board_id,
+        where: task.board_id == ^board_id and task.kind == "delivery",
         order_by: [desc: task.priority, asc: task.position, asc: task.id]
+      )
+    )
+  end
+
+  def list_task_proposals(intake_task_id) when is_binary(intake_task_id) do
+    Repo.all(
+      from(proposal in TaskProposal,
+        where: proposal.intake_task_id == ^intake_task_id,
+        order_by: [asc: proposal.position, asc: proposal.id]
       )
     )
   end

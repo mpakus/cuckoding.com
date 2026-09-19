@@ -210,6 +210,8 @@ defmodule Cuckoding.Workflows.Task do
     field :description, :string
     field :priority, :integer, default: 0
     field :position, :integer
+    field :kind, :string, default: "delivery"
+    field :intake_role_key, :string
     field :state, :string, default: "draft"
     field :wait_reason, :string
     field :active_run_id, :binary_id
@@ -218,9 +220,20 @@ defmodule Cuckoding.Workflows.Task do
 
   def create_changeset(record, attrs) do
     record
-    |> cast(attrs, [:id, :board_id, :title, :description, :priority, :position])
-    |> validate_required([:id, :board_id, :title, :priority, :position])
+    |> cast(attrs, [
+      :id,
+      :board_id,
+      :title,
+      :description,
+      :priority,
+      :position,
+      :kind,
+      :intake_role_key
+    ])
+    |> validate_required([:id, :board_id, :title, :priority, :position, :kind])
+    |> validate_inclusion(:kind, ~w(delivery board_intake))
     |> validate_number(:position, greater_than_or_equal_to: 0)
+    |> validate_intake_role()
     |> foreign_key_constraint(:board_id)
   end
 
@@ -246,7 +259,60 @@ defmodule Cuckoding.Workflows.Task do
       else: changeset
   end
 
+  defp validate_intake_role(changeset) do
+    if get_field(changeset, :kind) == "board_intake" and
+         blank?(get_field(changeset, :intake_role_key)),
+       do: add_error(changeset, :intake_role_key, "is required for a board intake"),
+       else: changeset
+  end
+
   defp blank?(value), do: not is_binary(value) or String.trim(value) == ""
+end
+
+defmodule Cuckoding.Workflows.TaskProposal do
+  @moduledoc false
+  use Ecto.Schema
+  import Ecto.Changeset
+  @primary_key {:id, :binary_id, autogenerate: false}
+
+  schema "task_proposals" do
+    field :intake_task_id, :binary_id
+    field :position, :integer
+    field :title, :string
+    field :description, :string
+    field :priority, :integer, default: 0
+    field :source_json, :map, default: %{}
+    field :imported_task_id, :binary_id
+    timestamps(type: :utc_datetime_usec)
+  end
+
+  def create_changeset(record, attrs) do
+    record
+    |> cast(attrs, [
+      :id,
+      :intake_task_id,
+      :position,
+      :title,
+      :description,
+      :priority,
+      :source_json
+    ])
+    |> validate_required([:id, :intake_task_id, :position, :title, :priority, :source_json])
+    |> validate_length(:title, min: 1, max: 200)
+    |> validate_length(:description, max: 10_000)
+    |> validate_number(:position, greater_than_or_equal_to: 0)
+    |> validate_number(:priority, greater_than_or_equal_to: -100, less_than_or_equal_to: 100)
+    |> foreign_key_constraint(:intake_task_id)
+    |> unique_constraint([:intake_task_id, :position])
+  end
+
+  def import_changeset(record, task_id) do
+    record
+    |> cast(%{imported_task_id: task_id}, [:imported_task_id])
+    |> validate_required([:imported_task_id])
+    |> foreign_key_constraint(:imported_task_id)
+    |> unique_constraint(:imported_task_id)
+  end
 end
 
 defmodule Cuckoding.Workflows.TaskDependency do

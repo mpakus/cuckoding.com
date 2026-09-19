@@ -82,6 +82,23 @@ defmodule Cuckoding.ProjectWorkflow do
     end)
   end
 
+  def create_task_intake(board_id, attrs) when is_binary(board_id) and is_map(attrs) do
+    with {:ok, prompt} <- bounded_text(attrs["prompt"], :intake_prompt_required, 10_000),
+         {:ok, role} <- intake_role(board_id, attrs["role_key"]),
+         {:ok, task} <- create_intake_task(board_id, prompt, role.role_key),
+         {:ok, %{result: %{"outcome" => "transitioned"}}} <-
+           Workflows.transition_task(task.id, "ready", "intake:#{task.id}:ready"),
+         {:ok, prepared} <- prepare_task(task.id) do
+      {:ok, Map.put(prepared, :task, Repo.get!(Task, task.id))}
+    else
+      {:ok, %{result: %{"outcome" => "rejected", "reason" => reason}}} ->
+        {:error, {:intake_transition_rejected, reason}}
+
+      error ->
+        error
+    end
+  end
+
   def prepare_task(task_id) when is_binary(task_id) do
     with %Task{state: "ready", active_run_id: nil} = task <- Workflows.get_task(task_id),
          board when not is_nil(board) <- Workflows.get_board(task.board_id),
@@ -89,7 +106,7 @@ defmodule Cuckoding.ProjectWorkflow do
          project when not is_nil(project) <- Projects.get_project(board.project_id),
          policy when not is_nil(policy) <- Projects.latest_config_version(project.id),
          :ok <- trusted_policy(policy.trusted_at),
-         :ok <- runnable_roles(board.id),
+         :ok <- runnable_roles(board.id, task),
          :ok <- no_queued_run(task.id),
          {:ok, base_sha} <- GitService.capture_base(project),
          {:ok, run} <- Execution.create_run(run_attrs(task, policy, base_sha)),
@@ -208,6 +225,51 @@ defmodule Cuckoding.ProjectWorkflow do
     end
   end
 
+  defp intake_role(board_id, role_key) when is_binary(role_key) do
+    case Repo.get_by(RoleAssignment,
+           board_id: board_id,
+           role_key: role_key,
+           role_kind: "agent"
+         ) do
+      %RoleAssignment{} = role -> {:ok, role}
+      nil -> {:error, :intake_role_required}
+    end
+  end
+
+  defp intake_role(_board_id, _role_key), do: {:error, :intake_role_required}
+
+  defp create_intake_task(board_id, prompt, role_key) do
+    EventStore.transaction(fn ->
+      with board when not is_nil(board) <- Workflows.get_board(board_id),
+           {:ok, task} <-
+             Workflows.create_task(%{
+               board_id: board.id,
+               title: "Plan board tasks",
+               description: prompt,
+               priority: 0,
+               position: next_position(board.id),
+               kind: "board_intake",
+               intake_role_key: role_key
+             }),
+           {:ok, _event} <-
+             EventStore.append_in_transaction("task:" <> task.id, %{
+               event_type: "task_intake.created",
+               public_summary: "Board task-planning request created",
+               payload: %{
+                 "project_id" => board.project_id,
+                 "board_id" => board.id,
+                 "task_id" => task.id,
+                 "role_key" => role_key
+               }
+             }) do
+        task
+      else
+        nil -> Repo.rollback(:board_not_found)
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
+
   defp required_roles_present(roles) do
     keys = MapSet.new(roles, & &1["key"])
 
@@ -216,7 +278,19 @@ defmodule Cuckoding.ProjectWorkflow do
       else: {:error, :roles_not_configured}
   end
 
-  defp runnable_roles(board_id) do
+  defp runnable_roles(board_id, %Task{kind: "board_intake", intake_role_key: role_key}) do
+    case Repo.get_by(RoleAssignment,
+           board_id: board_id,
+           role_key: role_key,
+           role_kind: "agent"
+         ) do
+      %RoleAssignment{adapter_key: adapter} when adapter in @runnable_adapters -> :ok
+      %RoleAssignment{} -> {:error, :runtime_setup_only}
+      nil -> {:error, :roles_not_configured}
+    end
+  end
+
+  defp runnable_roles(board_id, %Task{}) do
     roles =
       Repo.all(
         from(role in RoleAssignment,

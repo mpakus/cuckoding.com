@@ -24,6 +24,8 @@ defmodule CuckodingWeb.BoardLive do
            states: @states,
            filters: %{"q" => "", "state" => "all"},
            task_form: %{"title" => "", "description" => "", "priority" => "0"},
+           intake_form: %{"prompt" => "", "role_key" => "spec_writer"},
+           agent_roles: Workflows.list_agent_roles(board.id),
            tasks: [],
            notice: nil,
            error: nil
@@ -82,6 +84,21 @@ defmodule CuckodingWeb.BoardLive do
            task_form: Map.merge(socket.assigns.task_form, attrs),
            notice: nil,
            error: task_error(reason)
+         )}
+    end
+  end
+
+  def handle_event("create-task-intake", %{"intake" => attrs}, socket) do
+    case ProjectWorkflow.create_task_intake(socket.assigns.board.id, attrs) do
+      {:ok, %{run: run}} ->
+        {:noreply, push_navigate(socket, to: ~p"/runs/#{run.id}")}
+
+      {:error, reason} ->
+        {:noreply,
+         assign(socket,
+           intake_form: Map.merge(socket.assigns.intake_form, attrs),
+           notice: nil,
+           error: intake_error(reason)
          )}
     end
   end
@@ -162,6 +179,58 @@ defmodule CuckodingWeb.BoardLive do
                 Create draft task
               </button>
             </div>
+          </form>
+        </section>
+
+        <section
+          id="agent-task-intake"
+          aria-labelledby="agent-task-intake-heading"
+          class="rounded-xl border border-slate-200 bg-white p-5"
+        >
+          <h2 id="agent-task-intake-heading" class="text-xl font-semibold text-slate-950">
+            Ask an agent to plan tasks
+          </h2>
+          <p class="mt-1 max-w-3xl text-sm text-slate-700">
+            The selected role reads the project in an isolated, network-denied planning run. You review every proposal before it becomes a Draft task.
+          </p>
+          <form id="task-intake-form" phx-submit="create-task-intake" class="mt-4 grid gap-4">
+            <label class="grid gap-2 text-sm font-medium text-slate-800">
+              Agent role
+              <select
+                name="intake[role_key]"
+                required
+                class="min-h-11 rounded-md border border-slate-400 bg-white px-3 focus-visible:outline-2 focus-visible:outline-offset-2"
+              >
+                <option
+                  :for={role <- @agent_roles}
+                  value={role.role_key}
+                  selected={@intake_form["role_key"] == role.role_key}
+                >
+                  {role_label(role)}
+                </option>
+              </select>
+            </label>
+            <label class="grid gap-2 text-sm font-medium text-slate-800">
+              Planning prompt <textarea
+                name="intake[prompt]"
+                rows="5"
+                required
+                maxlength="10000"
+                placeholder="Analyze docs/, including PLAN.md and tasks.md, then propose implementation tasks with source evidence."
+                class="rounded-md border border-slate-400 px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2"
+              >{@intake_form["prompt"]}</textarea>
+            </label>
+            <div>
+              <button
+                disabled={@agent_roles == []}
+                class="min-h-11 rounded-md bg-slate-950 px-5 font-medium text-white disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2"
+              >
+                Create planning run
+              </button>
+            </div>
+            <p :if={@agent_roles == []} class="text-sm font-medium text-amber-900">
+              Assign an agent role in Project settings before planning tasks.
+            </p>
           </form>
         </section>
 
@@ -332,6 +401,7 @@ defmodule CuckodingWeb.BoardLive do
   defp tasks_in(tasks, state), do: Enum.filter(tasks, &(&1.state == state))
   defp count_tasks(tasks, state), do: Enum.count(tasks, &(&1.state == state))
   defp state_label(state), do: state |> String.replace("_", " ") |> String.capitalize()
+  defp role_label(role), do: role.settings_json["role_name"] || state_label(role.role_key)
   defp reason_label(reason) when is_atom(reason), do: reason |> Atom.to_string() |> reason_label()
   defp reason_label(reason), do: reason |> to_string() |> String.replace("_", " ")
 
@@ -346,4 +416,16 @@ defmodule CuckodingWeb.BoardLive do
     do: "Task could not be created: #{inspect(changeset.errors)}"
 
   defp task_error(reason), do: "Task could not be created: #{inspect(reason)}"
+
+  defp intake_error(:intake_prompt_required),
+    do: "Enter a planning prompt of 10,000 characters or fewer."
+
+  defp intake_error(:intake_role_required), do: "Choose an assigned agent role."
+  defp intake_error(:policy_not_trusted), do: "Review and trust the project policy first."
+
+  defp intake_error({:intake_transition_rejected, reason}),
+    do: "The planning task could not become Ready: #{reason_label(reason)}."
+
+  defp intake_error(reason),
+    do: "The planning run could not be created: #{reason_label(reason)}."
 end

@@ -69,7 +69,8 @@ not insert board, task, run, environment, or process rows.
 
 | Table | Important fields | Notes |
 | --- | --- | --- |
-| `tasks` | `board_id`, `title`, `description`, `priority`, `position`, `state`, `wait_reason`, `active_run_id` | Kanban card and user intent |
+| `tasks` | `board_id`, `title`, `description`, `priority`, `position`, `kind`, `intake_role_key?`, `state`, `wait_reason`, `active_run_id` | Kanban card or hidden `board_intake` run owner; only `delivery` tasks render as cards |
+| `task_proposals` | `intake_task_id`, `position`, `title`, `description`, `priority`, `source_json`, `imported_task_id?` | Bounded, source-cited, untrusted agent proposals; import linkage makes reviewed creation idempotent |
 | `task_dependencies` | `task_id`, `depends_on_task_id`, `kind` | Prevent cycles at write time |
 | `task_comments` | `task_id`, `author_kind`, `body`, `created_at` | User and public agent notes |
 | `runs` | `task_id`, `sequence`, `state`, `wait_reason`, `workflow_snapshot_json`, `policy_snapshot_id`, `plugin_snapshot_json`, `branch`, `base_sha` | One task may have retries or replacements; workflow and roles are copied from the immutable board version |

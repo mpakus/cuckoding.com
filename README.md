@@ -9,10 +9,13 @@ boundaries, and the verified native macOS shell. Remaining beta evidence is
 tracked in `docs/BETA_REPORT.md` and the ordered tasks under `tasks/`.
 
 The current product path is project settings → board → Draft task → Ready →
-prepared run. Board creation snapshots the saved agent-role mappings; the run
-page verifies each role's authentication before launch. The home dashboard
-monitors queued work as well as active sessions, while Agent Floor provides the
-per-agent operational view.
+prepared run. From a board, a user can also ask one assigned agent to inspect
+project documentation in a read-only planning run, review its source-cited
+proposals, and import selected proposals as Draft tasks. Board creation
+snapshots the saved agent-role mappings; every run page verifies the selected
+role's authentication before launch. The home dashboard monitors queued work as
+well as active sessions, while Agent Floor provides the per-agent operational
+view.
 
 For a clean local bootstrap, pinned versions, quality gates, runtime endpoints,
 and the verified developer application build, see `docs/DEVELOPMENT.md`.

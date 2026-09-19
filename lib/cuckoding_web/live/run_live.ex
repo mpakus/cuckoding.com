@@ -29,6 +29,7 @@ defmodule CuckodingWeb.RunLive do
            page_title: "Run #{detail.run.sequence}",
            detail: detail,
            runtime_setups: setups,
+           task_proposals: task_proposals(detail),
            refresh_pending: false,
            notice: "",
            error: nil
@@ -57,11 +58,11 @@ defmodule CuckodingWeb.RunLive do
 
   @impl true
   def handle_event("start-guided-run", _params, socket) do
-    case Cuckoding.GuidedRun.start(socket.assigns.detail.run.id) do
+    case start_run(socket.assigns.detail) do
       {:ok, :started} ->
         {:noreply,
          socket
-         |> refresh("Workflow started. Durable progress will appear here.")
+         |> refresh(start_notice(socket.assigns.detail))
          |> assign(error: nil)}
 
       {:error, :run_scoped_auth_required} ->
@@ -75,12 +76,31 @@ defmodule CuckodingWeb.RunLive do
     end
   end
 
+  def handle_event("import-task-proposals", params, socket) do
+    proposal_ids = Map.get(params, "proposal_ids", [])
+
+    case Cuckoding.BoardTaskIntake.import(socket.assigns.detail.run.id, proposal_ids) do
+      {:ok, tasks} ->
+        {:noreply,
+         socket
+         |> refresh("Imported #{length(tasks)} reviewed proposal(s) as Draft tasks.")
+         |> assign(error: nil)}
+
+      {:error, :proposal_selection_required} ->
+        {:noreply, assign(socket, error: "Select at least one proposal to import.")}
+
+      {:error, reason} ->
+        {:noreply, assign(socket, error: "Proposals could not be imported: #{inspect(reason)}")}
+    end
+  end
+
   defp refresh(socket, notice) do
     detail = AgentFloor.get_run(socket.assigns.detail.run.id)
 
     assign(socket,
       detail: detail,
       runtime_setups: runtime_setups(detail.run),
+      task_proposals: task_proposals(detail),
       refresh_pending: false,
       notice: notice
     )
@@ -92,10 +112,10 @@ defmodule CuckodingWeb.RunLive do
     <Layouts.app>
       <article aria-labelledby="run-heading" class="space-y-8">
         <.link
-          navigate={~p"/boards/#{@detail.board.id}/tasks/#{@detail.task.id}"}
+          navigate={back_path(@detail)}
           class="inline-flex min-h-10 items-center rounded underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
         >
-          Back to {@detail.task.title}
+          Back to {back_label(@detail)}
         </.link>
 
         <header class="space-y-2">
@@ -153,8 +173,59 @@ defmodule CuckodingWeb.RunLive do
             phx-click="start-guided-run"
             class="min-h-10 rounded-md bg-slate-950 px-4 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
           >
-            Check authentication and start workflow
+            {start_button_label(@detail)}
           </button>
+        </section>
+
+        <section
+          :if={intake?(@detail) and @task_proposals != []}
+          id="task-proposal-review"
+          aria-labelledby="task-proposal-review-heading"
+          class="space-y-4 rounded-lg border border-slate-300 bg-white p-5"
+        >
+          <div>
+            <h2 id="task-proposal-review-heading" class="text-xl font-semibold text-slate-950">
+              Review proposed tasks
+            </h2>
+            <p class="mt-1 text-sm text-slate-700">
+              Agent output is untrusted. Select only the proposals you want added to the board.
+            </p>
+          </div>
+          <form id="task-proposal-form" phx-submit="import-task-proposals" class="space-y-3">
+            <label
+              :for={proposal <- @task_proposals}
+              class="flex gap-3 rounded-md border border-slate-300 p-4"
+            >
+              <input
+                type="checkbox"
+                name="proposal_ids[]"
+                value={proposal.id}
+                checked={is_nil(proposal.imported_task_id)}
+                disabled={not is_nil(proposal.imported_task_id)}
+                class="mt-1 size-5"
+              />
+              <span class="min-w-0 space-y-2">
+                <span class="block font-semibold text-slate-950">{proposal.title}</span>
+                <span class="block text-sm text-slate-700">{proposal.description}</span>
+                <span class="block text-sm text-slate-600">Priority {proposal.priority}</span>
+                <span class="block text-sm text-slate-600">
+                  Sources: {proposal_sources(proposal)}
+                </span>
+                <span
+                  :if={proposal.imported_task_id}
+                  class="block text-sm font-medium text-emerald-900"
+                >
+                  Imported
+                </span>
+              </span>
+            </label>
+            <button
+              :if={Enum.any?(@task_proposals, &is_nil(&1.imported_task_id))}
+              class="min-h-10 rounded-md bg-slate-950 px-4 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
+            >
+              Import selected Draft tasks
+            </button>
+          </form>
         </section>
 
         <nav aria-label="Run controls" class="flex flex-wrap gap-3">
@@ -276,9 +347,18 @@ defmodule CuckodingWeb.RunLive do
   defp state_label(state), do: state |> String.replace("_", " ") |> String.capitalize()
 
   defp runtime_setups(%{state: "queued", id: run_id}) do
-    case Cuckoding.GuidedRun.runtime_setups(run_id) do
-      {:ok, setups} -> setups
-      {:error, _reason} -> [%{role_key: "configured", runtime: "configured runtime"}]
+    case Cuckoding.WalkingSkeleton.load(run_id) do
+      {:ok, %{task: %{kind: "board_intake"}}} ->
+        case Cuckoding.BoardTaskIntake.runtime_setup(run_id) do
+          {:ok, setup} -> [setup]
+          {:error, _reason} -> [%{role_key: "configured", runtime: "configured runtime"}]
+        end
+
+      _other ->
+        case Cuckoding.GuidedRun.runtime_setups(run_id) do
+          {:ok, setups} -> setups
+          {:error, _reason} -> [%{role_key: "configured", runtime: "configured runtime"}]
+        end
     end
   end
 
@@ -300,4 +380,45 @@ defmodule CuckodingWeb.RunLive do
 
   defp start_error(:run_not_queued), do: "This run has already started."
   defp start_error(_reason), do: "The workflow could not start. Inspect runtime setup and retry."
+
+  defp start_run(%{task: %{kind: "board_intake"}, run: run}),
+    do: Cuckoding.BoardTaskIntake.start(run.id)
+
+  defp start_run(%{run: run}), do: Cuckoding.GuidedRun.start(run.id)
+
+  defp start_notice(%{task: %{kind: "board_intake"}}),
+    do: "Task-planning agent started. Durable proposals will appear here for review."
+
+  defp start_notice(_detail), do: "Workflow started. Durable progress will appear here."
+
+  defp task_proposals(%{task: %{kind: "board_intake"}, run: run}) do
+    case Cuckoding.BoardTaskIntake.proposals(run.id) do
+      {:ok, proposals} -> proposals
+      {:error, _reason} -> []
+    end
+  end
+
+  defp task_proposals(_detail), do: []
+  defp intake?(%{task: %{kind: "board_intake"}}), do: true
+  defp intake?(_detail), do: false
+  defp back_path(%{task: %{kind: "board_intake"}, board: board}), do: ~p"/boards/#{board.id}"
+  defp back_path(detail), do: ~p"/boards/#{detail.board.id}/tasks/#{detail.task.id}"
+  defp back_label(%{task: %{kind: "board_intake"}}), do: "board"
+  defp back_label(detail), do: detail.task.title
+
+  defp start_button_label(%{task: %{kind: "board_intake"}}),
+    do: "Check authentication and analyze project"
+
+  defp start_button_label(_detail), do: "Check authentication and start workflow"
+
+  defp proposal_sources(proposal) do
+    proposal.source_json
+    |> Map.get("sources", [])
+    |> Enum.map_join(", ", fn source ->
+      case source["line"] do
+        line when is_integer(line) -> "#{source["path"]}:#{line}"
+        _missing -> source["path"]
+      end
+    end)
+  end
 end

@@ -1,11 +1,8 @@
 defmodule Cuckoding.GuidedRun do
   @moduledoc "Creates and launches the user-facing default workflow."
 
-  alias Cuckoding.Adapters.ClaudeCode
-  alias Cuckoding.Adapters.Codex
-  alias Cuckoding.Adapters.CursorAgent
-  alias Cuckoding.Adapters.FakeAdapter
   alias Cuckoding.Adapters.RuntimeConfiguration
+  alias Cuckoding.AgentRuntime
   alias Cuckoding.Execution
   alias Cuckoding.Identifier
   alias Cuckoding.Repo
@@ -52,7 +49,7 @@ defmodule Cuckoding.GuidedRun do
   def runtime_setup(run_id) when is_binary(run_id) do
     with {:ok, skeleton} <- WalkingSkeleton.load(run_id),
          {:ok, role} <- agent_role(skeleton) do
-      runtime_setup(skeleton, role)
+      AgentRuntime.setup(skeleton, role.role_key)
     end
   end
 
@@ -69,8 +66,8 @@ defmodule Cuckoding.GuidedRun do
   end
 
   defp collect_runtime_setup(role, {:ok, setups}, skeleton) do
-    case runtime_setup(skeleton, role) do
-      {:ok, setup} -> {:cont, {:ok, [Map.put(setup, :role_key, role.role_key) | setups]}}
+    case AgentRuntime.setup(skeleton, role.role_key) do
+      {:ok, setup} -> {:cont, {:ok, [setup | setups]}}
       {:error, reason} -> {:halt, {:error, reason}}
     end
   end
@@ -108,16 +105,9 @@ defmodule Cuckoding.GuidedRun do
     skeleton
     |> roles()
     |> Enum.reduce_while({:ok, %{}}, fn role, {:ok, configured} ->
-      case adapter(skeleton, role) do
-        {:ok, module, options, version} ->
-          value = %{
-            adapter: module,
-            options: options,
-            version: version,
-            settings: role.settings_json
-          }
-
-          {:cont, {:ok, Map.put(configured, role.role_key, value)}}
+      case AgentRuntime.resolve(skeleton, role.role_key) do
+        {:ok, runtime} ->
+          {:cont, {:ok, Map.put(configured, role.role_key, runtime)}}
 
         {:error, reason} ->
           {:halt, {:error, reason}}
@@ -126,45 +116,6 @@ defmodule Cuckoding.GuidedRun do
     |> case do
       {:ok, configured} when map_size(configured) == length(@agent_roles) -> {:ok, configured}
       {:ok, _configured} -> {:error, :role_assignment_not_found}
-      error -> error
-    end
-  end
-
-  defp adapter(skeleton, role) do
-    path = role.settings_json["executable_path"]
-
-    case role.adapter_key do
-      "codex" ->
-        home = Path.join([skeleton.environment.run_dir, "agent", "codex", "home"])
-        options = [path: path, codex_home: home, run_scoped_authenticated?: true]
-        probe(Codex, options)
-
-      "claude_code" ->
-        options = [
-          path: path,
-          api_key_helper: role.settings_json["api_key_helper"],
-          run_scoped_authenticated?: true
-        ]
-
-        probe(ClaudeCode, options)
-
-      "cursor_agent" ->
-        root = Path.join([skeleton.environment.run_dir, "agent", "cursor"])
-        options = [path: path, cursor_home: root, run_scoped_authenticated?: true]
-        probe(CursorAgent, options)
-
-      "fake" ->
-        {:ok, FakeAdapter, [], "test"}
-
-      _other ->
-        {:error, :unsupported_runtime}
-    end
-  end
-
-  defp probe(module, options) do
-    case module.probe(options) do
-      {:ok, %{authenticated?: true, version: version}} -> {:ok, module, options, version}
-      {:ok, _probe} -> {:error, :run_scoped_auth_required}
       error -> error
     end
   end
@@ -187,68 +138,6 @@ defmodule Cuckoding.GuidedRun do
       }
     end)
     |> Enum.sort_by(& &1.role_key)
-  end
-
-  defp runtime_setup(skeleton, role) do
-    home = Path.join([skeleton.environment.run_dir, "agent", "codex", "home"])
-
-    case role.adapter_key do
-      "codex" ->
-        :ok = File.mkdir_p(home)
-        :ok = File.chmod(home, 0o700)
-
-        {:ok,
-         %{
-           runtime: "Codex",
-           connection: role.settings_json["connection_label"],
-           executable: role.settings_json["executable_path"],
-           home: home,
-           login_args: "login --device-auth"
-         }}
-
-      "claude_code" ->
-        {:ok,
-         %{
-           runtime: "Claude Code",
-           connection: role.settings_json["connection_label"],
-           executable: role.settings_json["executable_path"],
-           helper: role.settings_json["api_key_helper"]
-         }}
-
-      "cursor_agent" ->
-        root = Path.join([skeleton.environment.run_dir, "agent", "cursor"])
-        home = Path.join(root, "home")
-        config = Path.join(root, "config")
-        claude = Path.join(root, "claude")
-
-        Enum.each([root, home, config, claude], fn path ->
-          :ok = File.mkdir_p(path)
-          :ok = File.chmod(path, 0o700)
-        end)
-
-        {:ok,
-         %{
-           runtime: "Cursor Agent",
-           connection: role.settings_json["connection_label"],
-           executable: role.settings_json["executable_path"],
-           environment: %{
-             "HOME" => home,
-             "CURSOR_CONFIG_DIR" => config,
-             "CLAUDE_CONFIG_DIR" => claude
-           },
-           login_args: "login"
-         }}
-
-      "fake" ->
-        {:ok,
-         %{
-           runtime: "Deterministic test adapter",
-           connection: role.settings_json["connection_label"]
-         }}
-
-      _other ->
-        {:error, :unsupported_runtime}
-    end
   end
 
   defp workspace_root do

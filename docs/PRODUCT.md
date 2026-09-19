@@ -19,20 +19,22 @@ It is not a chat client and it is not an autonomous merge bot. Its product value
 2. Add a project through a short guided setup for its name, native-selected folder, and Git base branch, then manage reusable agent connections and default role assignments on the project page. The folder may be empty, an unborn Git repository, or an existing project.
 3. Create several independent boards for a project, such as product features, maintenance, and security remediation.
 4. Choose or customize a workflow and map its roles to the project's connected agents.
-5. Add tasks to a board and let them progress through gates for as long as they need, including across laptop sleep.
-6. Watch on the global dashboard and Agent Floor which role and runtime is doing what, without exposing private reasoning.
-7. Open each run's worktree and local preview URL.
-8. Pause, hibernate, retry, or stop work without losing durable state.
-9. Inspect changes, test results, review findings, cost, tokens, cache behavior, CPU, and memory.
-10. Produce a branch and optional draft pull request for human review.
-11. Compress completed work into reviewed project knowledge and skills, see the knowledge base grow, and see where it was used and whether it helped.
-12. Plug in tools already installed on the machine (XERJ, RTK, Ponytail, MCP servers, container runtimes) through connectors.
+5. Add tasks manually or ask one assigned agent to inspect project documentation and propose tasks; review the proposals before importing them as Draft cards.
+6. Let approved tasks progress through gates for as long as they need, including across laptop sleep.
+7. Watch on the global dashboard and Agent Floor which role and runtime is doing what, without exposing private reasoning.
+8. Open each run's worktree and local preview URL.
+9. Pause, hibernate, retry, or stop work without losing durable state.
+10. Inspect changes, test results, review findings, cost, tokens, cache behavior, CPU, and memory.
+11. Produce a branch and optional draft pull request for human review.
+12. Compress completed work into reviewed project knowledge and skills, see the knowledge base grow, and see where it was used and whether it helped.
+13. Plug in tools already installed on the machine (XERJ, RTK, Ponytail, MCP servers, container runtimes) through connectors.
 
 ## MVP capabilities
 
 - Local project registry with separate add/edit setup; creating a project does not create a board, task, run, branch, or worktree.
 - Reusable agent connections and project role defaults. The built-in roles are Specifications, Coding, and Review; users may add roles and edit their instructions and output contracts.
 - Multiple boards and concurrent task flows per project.
+- Read-only board planning runs that turn a bounded prompt into source-cited task proposals; only human-selected proposals become Draft tasks.
 - Configurable stage templates and role-to-runtime assignment.
 - Claude Code, Codex, and Cursor Agent as supported launch adapters. Cursor requires a fresh login in each run-owned home and refuses project Cursor MCP, sandbox, CLI, or plugin overrides. Project setup may also save OpenCode and Custom Agent connections, but task execution remains blocked until a reviewed adapter passes the conformance suite.
 - Git worktree per run, host process runner with process-group supervision, path and command policy, per-run port allocation and preview URL.
@@ -76,11 +78,12 @@ The complete launch contract, competitive basis, retention defaults, and commerc
 3. A three-step wizard collects project identity and a system-selected project folder plus Git base branch, then reviews the pending registration. Before confirmation it only inspects the folder. After explicit review, it initializes Git and creates the first local commit when no branch revision exists; an existing repository with the selected branch is not changed.
 4. Confirming the wizard registers only the project and redirects to its settings page. There the user can add multiple agent connections, save or update each agent independently, edit or add roles, and assign one connection to each role. Every save creates an immutable trusted configuration revision; it does not create or start work.
 5. Inside project settings, the user creates a board from the default versioned workflow. The board copies the latest saved role assignments and concurrency limit; later project edits do not rewrite that snapshot.
-6. The user adds a Draft task, refines it, and marks it Ready. **Prepare run** snapshots the workflow, role assignments, policy, and agent profiles, then creates the feature branch and owned worktree. The run page requires explicit run-scoped authentication before it starts an agent or allocates runtime resources.
-7. The default workflow moves through Specifications → Coding → Review. Review findings may return to Specifications to correct intent or Coding to correct implementation; a pass completes locally or enters an optional approved release handoff.
-8. Each stage produces typed artifacts and must pass its exit gate; relevant project knowledge is injected and its use recorded.
-9. The global dashboard lists recent operations from the durable run projection, including queued runs before an agent session exists, and refreshes role, runtime, elapsed-time, resource, and attention data after committed events. Agent Floor provides the session-level view; the laptop can sleep and wake without corrupting the run.
-10. On completion or archive, the user runs consolidation, reviews candidates, and publishes project or global knowledge and skills.
+6. The user adds a Draft task directly or asks one assigned role to analyze project files. A planning request creates a hidden run, requires the same run-scoped authentication as delivery work, grants read-only/network-denied access, and pauses with source-cited proposals. The user selects which proposals become Draft cards; provider output never creates tasks without that review.
+7. The user refines a Draft task and marks it Ready. **Prepare run** snapshots the workflow, role assignments, policy, and agent profiles, then creates the feature branch and owned worktree. The run page requires explicit run-scoped authentication before it starts an agent or allocates runtime resources.
+8. The default workflow moves through Specifications → Coding → Review. Review findings may return to Specifications to correct intent or Coding to correct implementation; a pass completes locally or enters an optional approved release handoff.
+9. Each stage produces typed artifacts and must pass its exit gate; relevant project knowledge is injected and its use recorded.
+10. The global dashboard lists recent operations from the durable run projection, including queued runs before an agent session exists, and refreshes role, runtime, elapsed-time, resource, and attention data after committed events. Agent Floor provides the session-level view; the laptop can sleep and wake without corrupting the run.
+11. On completion or archive, the user runs consolidation, reviews candidates, and publishes project or global knowledge and skills.
 
 ## Success metrics
 

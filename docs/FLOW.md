@@ -2,7 +2,7 @@
 
 ## Setup boundaries
 
-Project setup, board setup, and task execution are three separate commands:
+Project setup, board setup, board task intake, and delivery execution are separate commands:
 
 1. **Project setup** registers identity, a system-selected project folder, and
    base branch through Project → Repository → Review. Folder inspection is
@@ -19,6 +19,13 @@ Project setup, board setup, and task execution are three separate commands:
    and worktree. The queued run page then verifies each role's run-scoped
    authentication before it starts any agent process. A queued run is visible
    on the global operation monitor even before its first agent session.
+4. **Board task intake** accepts a bounded prompt and one snapshotted agent
+   role. It creates a hidden planning task and normal queued run, verifies that
+   role's run-scoped authentication, and launches a single read-only,
+   network-denied stage. The run waits at `task proposal review`; validated
+   proposals remain separate rows until a human selects them. Import creates
+   normal Draft tasks and links each proposal to the created task so retries do
+   not duplicate cards.
 
 This boundary keeps onboarding reversible and lets one project own several
 boards without fabricating a first task.
@@ -50,6 +57,7 @@ Boards may use different workflow templates. Multiple boards and their runs exec
 
 - **Board:** a durable process with a workflow version, role assignments, concurrency budget, and Kanban view.
 - **Task:** user intent represented as a card. It may be edited while in Draft or Ready; material edits during execution create a new revision and may invalidate the current run.
+- **Task proposal:** untrusted, source-cited planning output owned by a hidden board-intake task. It is not a Kanban card until selected by a human and imported.
 - **Run:** one execution of a task against a fixed base revision, workflow, policy, and plugin snapshot.
 - **Stage attempt:** one try at a workflow stage.
 - **Agent session:** a concrete runtime/model invocation serving a stage attempt.
