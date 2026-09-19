@@ -8,6 +8,7 @@ defmodule Cuckoding.BoardTaskIntake do
   alias Cuckoding.Adapters.Types
   alias Cuckoding.AgentRuntime
   alias Cuckoding.Execution
+  alias Cuckoding.Execution.AgentSession
   alias Cuckoding.Execution.EventStore
   alias Cuckoding.Execution.LocalProcessRunner
   alias Cuckoding.Execution.Run
@@ -81,9 +82,14 @@ defmodule Cuckoding.BoardTaskIntake do
     work = fn ->
       result = run(skeleton, runtime, options)
 
-      if match?({:error, _reason}, result) do
-        fail_active_attempt(skeleton.run.id)
-        block(skeleton.run.id)
+      case result do
+        {:error, reason} ->
+          _recorded = record_failure(skeleton.run.id, reason)
+          fail_active_attempt(skeleton.run.id)
+          block(skeleton.run.id, reason)
+
+        _success ->
+          :ok
       end
 
       result
@@ -206,7 +212,8 @@ defmodule Cuckoding.BoardTaskIntake do
     """
   end
 
-  defp output_schema do
+  @doc false
+  def output_schema do
     %{
       "type" => "object",
       "properties" => %{
@@ -228,9 +235,9 @@ defmodule Cuckoding.BoardTaskIntake do
                   "type" => "object",
                   "properties" => %{
                     "path" => %{"type" => "string", "minLength" => 1, "maxLength" => 500},
-                    "line" => %{"type" => "integer", "minimum" => 1}
+                    "line" => %{"type" => ["integer", "null"], "minimum" => 1}
                   },
-                  "required" => ["path"],
+                  "required" => ["path", "line"],
                   "additionalProperties" => false
                 }
               }
@@ -464,7 +471,7 @@ defmodule Cuckoding.BoardTaskIntake do
   defp await_session(%Types.Session{process: %{runner: runner, handle: handle}}, _options) do
     case runner.result(handle) do
       {:ok, %{exit_status: 0} = result} -> {:ok, result}
-      {:ok, %{exit_status: status}} -> {:error, {:adapter_exit, status}}
+      {:ok, %{exit_status: status} = result} -> {:error, adapter_failure(result, status)}
       {:error, reason} -> {:error, reason}
     end
   end
@@ -536,11 +543,83 @@ defmodule Cuckoding.BoardTaskIntake do
     end
   end
 
-  defp block(run_id, reason \\ :task_intake_failed) do
+  defp record_failure(run_id, reason) do
+    summary = public_failure(reason)
+
+    attrs = %{
+      event_type: "task_intake.failed",
+      public_summary: summary,
+      payload: %{"code" => failure_code(reason)}
+    }
+
+    case latest_session(run_id) do
+      %AgentSession{} = session ->
+        changeset =
+          AgentSession.observation_changeset(session, %{
+            effective_grant_json: session.effective_grant_json,
+            state: "failed"
+          })
+
+        attrs = %{
+          attrs
+          | payload:
+              attrs.payload
+              |> Map.put("agent_session_id", session.id)
+              |> Map.put("stage_attempt_id", session.stage_attempt_id)
+        }
+
+        EventStore.append(run_id, attrs, fn repo, _sequence -> repo.update(changeset) end)
+
+      nil ->
+        EventStore.append(run_id, attrs)
+    end
+  end
+
+  defp latest_session(run_id) do
+    Repo.one(
+      from(session in AgentSession,
+        join: attempt in StageAttempt,
+        on: attempt.id == session.stage_attempt_id,
+        where: attempt.run_id == ^run_id,
+        order_by: [desc: session.inserted_at, desc: session.id],
+        limit: 1
+      )
+    )
+  end
+
+  defp adapter_failure(%{output: output}, status) when is_binary(output) do
+    if String.contains?(output, "invalid_json_schema"),
+      do: :invalid_output_schema,
+      else: {:adapter_exit, status}
+  end
+
+  defp adapter_failure(_result, status), do: {:adapter_exit, status}
+
+  defp public_failure(:invalid_output_schema),
+    do:
+      "The agent runtime rejected Cuckoding's task output schema. Update Cuckoding and create a new planning run."
+
+  defp public_failure(:invalid_task_proposals),
+    do:
+      "The agent returned task proposals that failed validation. Review the cited files and create a new planning run."
+
+  defp public_failure({:adapter_exit, status}) when is_integer(status),
+    do:
+      "The planning agent exited with status #{status}. Inspect the redacted process artifact and create a new planning run."
+
+  defp public_failure(_reason),
+    do: "Task planning failed. Inspect recent activity and create a new planning run."
+
+  defp failure_code(:invalid_output_schema), do: "invalid_output_schema"
+  defp failure_code(:invalid_task_proposals), do: "invalid_task_proposals"
+  defp failure_code({:adapter_exit, _status}), do: "adapter_exit"
+  defp failure_code(_reason), do: "task_intake_failed"
+
+  defp block(run_id, reason) do
     case Repo.get!(Run, run_id).state do
       "running" ->
         case Execution.transition_run(run_id, "blocked", "intake:#{run_id}:blocked",
-               wait_reason: "task planning failed; inspect the run evidence"
+               wait_reason: public_failure(reason)
              ) do
           {:ok, _command} -> {:error, reason}
           {:error, transition_reason} -> {:error, {:block_failed, reason, transition_reason}}

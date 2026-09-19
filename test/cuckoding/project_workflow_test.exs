@@ -110,6 +110,12 @@ defmodule Cuckoding.ProjectWorkflowTest do
     assert implementer["adapter_key"] == "codex"
     assert implementer["settings"]["connection_label"] == "Local Codex"
 
+    assert {:ok, setups} = Cuckoding.GuidedRun.runtime_setups(run.id)
+    setup = Enum.find(setups, &(&1.role_key == "implementer"))
+
+    assert setup.command ==
+             "CODEX_HOME='#{setup.home}' '/usr/bin/true' login --device-auth"
+
     assert {:error, :run_already_prepared} = ProjectWorkflow.prepare_task(task.id)
 
     assert Repo.exists?(
@@ -128,6 +134,20 @@ defmodule Cuckoding.ProjectWorkflowTest do
     {:ok, task_view, _html} = live(conn, ~p"/boards/#{board.id}/tasks/#{task.id}")
     assert has_element?(task_view, "#run-history-heading", "Run history")
     assert has_element?(task_view, "a[href='/runs/#{run.id}']", "Open run")
+
+    {:ok, run_view, _html} = live(conn, ~p"/runs/#{run.id}")
+
+    assert has_element?(
+             run_view,
+             "#runtime-command-implementer input[data-copy-source][readonly]"
+           )
+
+    assert has_element?(
+             run_view,
+             "#runtime-command-implementer button[data-copy-button]",
+             "Copy"
+           )
+
     assert has_element?(task_view, "p", "waiting for authentication")
 
     {:ok, dashboard, _html} = live(conn, ~p"/")
@@ -220,6 +240,10 @@ defmodule Cuckoding.ProjectWorkflowTest do
       assert setup.environment["HOME"] =~ "/agent/cursor/home"
       assert setup.environment["CURSOR_CONFIG_DIR"] =~ "/agent/cursor/config"
       assert setup.environment["CLAUDE_CONFIG_DIR"] =~ "/agent/cursor/claude"
+      assert setup.command =~ "CLAUDE_CONFIG_DIR='"
+      assert setup.command =~ "CURSOR_CONFIG_DIR='"
+      assert setup.command =~ "HOME='"
+      assert setup.command =~ "'/usr/bin/true' login"
     end
   end
 

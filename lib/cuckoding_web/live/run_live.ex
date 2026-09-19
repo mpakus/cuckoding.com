@@ -68,7 +68,9 @@ defmodule CuckodingWeb.RunLive do
       {:error, :run_scoped_auth_required} ->
         {:noreply,
          assign(socket,
-           error: "Run-scoped authentication is not ready. Complete the setup below and retry."
+           error:
+             "Run-scoped authentication is still missing. Copy and run the complete sign-in " <>
+               "command below, finish sign-in, then check authentication again."
          )}
 
       {:error, reason} ->
@@ -147,6 +149,23 @@ defmodule CuckodingWeb.RunLive do
           </p>
         </section>
 
+        <section
+          :if={intake_failure?(@detail)}
+          id="run-failure"
+          role="alert"
+          aria-labelledby="run-failure-heading"
+          class="space-y-2 rounded-lg border border-red-300 bg-red-50 p-5 text-red-950"
+        >
+          <h2 id="run-failure-heading" class="text-xl font-semibold">Planning failed</h2>
+          <p>{intake_failure(@detail)}</p>
+          <.link
+            navigate={~p"/boards/#{@detail.board.id}"}
+            class="inline-flex min-h-10 items-center rounded underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            Return to board and create a new planning run
+          </.link>
+        </section>
+
         <.host_runner_notice />
 
         <section
@@ -166,16 +185,39 @@ defmodule CuckodingWeb.RunLive do
               {role_label(setup.role_key)} · {setup[:connection] || setup.runtime}
             </h3>
             <p :if={setup[:connection]}>{setup.runtime}</p>
-            <div :if={setup[:home] || setup[:environment]} class="space-y-2">
-              <p>In Terminal, use these run-owned runtime directories:</p>
-              <dl class="space-y-2">
-                <div :for={{name, value} <- runtime_environment(setup)}>
-                  <dt class="font-semibold"><code>{name}</code></dt>
-                  <dd class="overflow-x-auto rounded bg-white p-2"><code>{value}</code></dd>
-                </div>
-              </dl>
-              <p>Then run this executable with <code>{setup.login_args}</code>:</p>
-              <p class="overflow-x-auto rounded bg-white p-2"><code>{setup.executable}</code></p>
+            <div :if={setup[:command]} class="space-y-2">
+              <p>Copy and run this complete sign-in command in Terminal:</p>
+              <div
+                id={"runtime-command-#{setup.role_key}"}
+                phx-hook="CopyCommand"
+                class="flex flex-col gap-2 sm:flex-row"
+              >
+                <label for={"runtime-command-input-#{setup.role_key}"} class="sr-only">
+                  Sign-in command for {role_label(setup.role_key)}
+                </label>
+                <input
+                  id={"runtime-command-input-#{setup.role_key}"}
+                  data-copy-source
+                  type="text"
+                  readonly
+                  value={setup.command}
+                  class="min-h-10 min-w-0 flex-1 rounded-md border border-amber-300 bg-white px-3 font-mono text-sm text-slate-950"
+                />
+                <button
+                  type="button"
+                  data-copy-button
+                  aria-label={"Copy sign-in command for #{role_label(setup.role_key)}"}
+                  class="min-h-10 shrink-0 rounded-md border border-slate-400 bg-white px-4 font-medium text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2"
+                >
+                  Copy
+                </button>
+                <span
+                  data-copy-status
+                  role="status"
+                  aria-live="polite"
+                  class="sr-only"
+                ></span>
+              </div>
             </div>
             <div :if={setup[:helper]} class="space-y-2">
               <p>Claude Code will use the reviewed run-scoped API key helper:</p>
@@ -380,12 +422,6 @@ defmodule CuckodingWeb.RunLive do
 
   defp role_label(role_key), do: role_key |> String.replace("_", " ") |> String.capitalize()
 
-  defp runtime_environment(%{environment: environment}) when is_map(environment),
-    do: Enum.sort(environment)
-
-  defp runtime_environment(%{home: home}), do: [{"CODEX_HOME", home}]
-  defp runtime_environment(_setup), do: []
-
   defp start_error(%Cuckoding.Adapters.Types.Error{code: :not_installed}),
     do: "The configured runtime executable is unavailable."
 
@@ -415,6 +451,21 @@ defmodule CuckodingWeb.RunLive do
   defp task_proposals(_detail), do: []
   defp intake?(%{task: %{kind: "board_intake"}}), do: true
   defp intake?(_detail), do: false
+
+  defp intake_failure?(%{task: %{kind: "board_intake"}, run: %{state: state}}),
+    do: state in ["blocked", "failed"]
+
+  defp intake_failure?(_detail), do: false
+
+  defp intake_failure(detail) do
+    detail.activity
+    |> Enum.reverse()
+    |> Enum.find(&(&1.event_type == "task_intake.failed"))
+    |> case do
+      %{public_summary: summary} -> summary
+      nil -> detail.run.wait_reason || "Task planning failed. Inspect recent activity below."
+    end
+  end
 
   defp planning_status(%{run: %{state: "queued"}}),
     do: "Planning run created. Verify agent authentication below, then start analysis."

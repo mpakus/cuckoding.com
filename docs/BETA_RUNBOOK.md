@@ -93,11 +93,12 @@ substitute the legacy internal walking-skeleton constructor for those UI steps;
 controlled-beta enrollment remains paused until the project workspace and task
 start surfaces are complete.
 
-After an explicitly started task creates a run, the Codex run page shows its
-private run-owned `CODEX_HOME`. Set that
-environment variable in Terminal and run the displayed executable with
-`login --device-auth`; the credential remains in that run directory. Return to
-the run page and choose **Check authentication and start workflow**. Cuckoding
+After an explicitly started task creates a run, the Codex run page shows one
+complete sign-in command in a read-only field with an adjacent copy button. The
+command sets the private run-owned `CODEX_HOME` and runs `login --device-auth`;
+the credential remains in that run directory. Run the copied command in
+Terminal, complete sign-in, and return to the run page. Choose **Check
+authentication and start workflow**. Cuckoding
 checks the pinned runtime version and isolated authentication before changing
 the durable run from queued to running. Claude Code performs the same start
 gate through the reviewed helper. A failed probe leaves the run queued.

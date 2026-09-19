@@ -85,13 +85,20 @@ defmodule Cuckoding.AgentRuntime do
         home = Path.join([skeleton.environment.run_dir, "agent", "codex", "home"])
         prepare_directories([home])
 
+        command =
+          login_command(%{"CODEX_HOME" => home}, role.settings_json["executable_path"], [
+            "login",
+            "--device-auth"
+          ])
+
         {:ok,
          %{
            runtime: "Codex",
            connection: role.settings_json["connection_label"],
            executable: role.settings_json["executable_path"],
            home: home,
-           login_args: "login --device-auth"
+           login_args: "login --device-auth",
+           command: command
          }}
 
       "claude_code" ->
@@ -114,13 +121,17 @@ defmodule Cuckoding.AgentRuntime do
 
         prepare_directories([root | Map.values(environment)])
 
+        command =
+          login_command(environment, role.settings_json["executable_path"], ["login"])
+
         {:ok,
          %{
            runtime: "Cursor Agent",
            connection: role.settings_json["connection_label"],
            executable: role.settings_json["executable_path"],
            environment: environment,
-           login_args: "login"
+           login_args: "login",
+           command: command
          }}
 
       "fake" ->
@@ -141,4 +152,15 @@ defmodule Cuckoding.AgentRuntime do
       :ok = File.chmod(path, 0o700)
     end)
   end
+
+  defp login_command(environment, executable, args) do
+    assignments =
+      environment
+      |> Enum.sort()
+      |> Enum.map(fn {name, value} -> "#{name}=#{shell_quote(value)}" end)
+
+    Enum.join(assignments ++ [shell_quote(executable) | args], " ")
+  end
+
+  defp shell_quote(value), do: "'" <> String.replace(value, "'", "'\"'\"'") <> "'"
 end

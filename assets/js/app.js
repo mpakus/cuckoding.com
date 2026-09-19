@@ -47,10 +47,37 @@ const TaskBoard = {
   },
 }
 
+const CopyCommand = {
+  mounted() {
+    this.input = this.el.querySelector("[data-copy-source]")
+    this.button = this.el.querySelector("[data-copy-button]")
+    this.status = this.el.querySelector("[data-copy-status]")
+    this.copy = async () => {
+      try {
+        await navigator.clipboard.writeText(this.input.value)
+        this.button.textContent = "Copied"
+        this.status.textContent = "Command copied to clipboard."
+        clearTimeout(this.resetTimer)
+        this.resetTimer = setTimeout(() => { this.button.textContent = "Copy" }, 2000)
+      } catch (_error) {
+        this.input.focus()
+        this.input.select()
+        this.status.textContent = "Copy failed. The command is selected; copy it manually."
+      }
+    }
+    this.button.addEventListener("click", this.copy)
+  },
+
+  destroyed() {
+    clearTimeout(this.resetTimer)
+    this.button.removeEventListener("click", this.copy)
+  },
+}
+
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {TaskBoard},
+  hooks: {CopyCommand, TaskBoard},
 })
 
 liveSocket.connect()

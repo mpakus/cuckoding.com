@@ -92,6 +92,13 @@ defmodule Cuckoding.BoardTaskIntakeTest do
     assert session.effective_grant_json["requested"]["approval_mode"] == "plan"
     assert session.effective_grant_json["requested"]["network"] == "deny"
 
+    schema =
+      BoardTaskIntake.output_schema()
+      |> get_in(["properties", "tasks", "items", "properties", "sources", "items"])
+
+    assert schema["required"] == ["path", "line"]
+    assert schema["properties"]["line"]["type"] == ["integer", "null"]
+
     selected = Enum.map(proposals, & &1.id)
     assert {:ok, imported} = BoardTaskIntake.import(intake.run.id, selected)
     assert Enum.map(imported, & &1.title) == ["Build the dashboard", "Cover task creation"]
@@ -112,7 +119,8 @@ defmodule Cuckoding.BoardTaskIntakeTest do
            )
   end
 
-  test "rejects proposal evidence outside the owned worktree without creating tasks", %{
+  test "rejects proposal evidence outside the owned worktree and shows the failure", %{
+    conn: conn,
     created: created
   } do
     assert {:ok, intake} = create_intake(created.board.id)
@@ -133,6 +141,34 @@ defmodule Cuckoding.BoardTaskIntakeTest do
 
     assert Repo.get!(Run, intake.run.id).state == "blocked"
     assert Workflows.list_task_proposals(intake.task.id) == []
+
+    session =
+      Repo.one!(
+        from(session in AgentSession,
+          join: attempt in Cuckoding.Execution.StageAttempt,
+          on: attempt.id == session.stage_attempt_id,
+          where: attempt.run_id == ^intake.run.id
+        )
+      )
+
+    assert session.state == "failed"
+
+    failure =
+      Repo.one!(
+        from(event in RunEvent,
+          where: event.run_id == ^intake.run.id and event.event_type == "task_intake.failed"
+        )
+      )
+
+    assert failure.payload["code"] == "invalid_task_proposals"
+
+    assert {:ok, run_view, _html} = live(conn, ~p"/runs/#{intake.run.id}")
+
+    assert has_element?(
+             run_view,
+             "#run-failure[role=alert]",
+             "The agent returned task proposals that failed validation"
+           )
   end
 
   test "planning requires only the selected role to have a runnable adapter", %{created: created} do

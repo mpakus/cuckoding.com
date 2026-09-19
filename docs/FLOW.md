@@ -17,8 +17,10 @@ Project setup, board setup, board task intake, and delivery execution are separa
    Ready task on an active board, rejects setup-only runtimes, snapshots the
    board configuration and trusted project policy, and creates the owned branch
    and worktree. The queued run page then verifies each role's run-scoped
-   authentication before it starts any agent process. A queued run is visible
-   on the global operation monitor even before its first agent session.
+   authentication before it starts any agent process. Required shell setup is
+   shown as one complete read-only command with an adjacent copy control. A
+   queued run is visible on the global operation monitor even before its first
+   agent session.
 4. **Board task intake** accepts a bounded prompt and one snapshotted agent
    role. It creates a hidden planning task and normal queued run, verifies that
    role's run-scoped authentication, and launches a single read-only,
@@ -27,7 +29,9 @@ Project setup, board setup, board task intake, and delivery execution are separa
    normal Draft tasks and links each proposal to the created task so retries do
    not duplicate cards. The board shows LiveView submit feedback immediately,
    then the run page derives progress from durable run state and refreshes after
-   committed PubSub hints; browser state is never authoritative.
+   committed PubSub hints. A failed planning run records a sanitized cause,
+   marks its agent session failed, and shows the recovery action beside its
+   progress state; browser state is never authoritative.
 
 This boundary keeps onboarding reversible and lets one project own several
 boards without fabricating a first task.
