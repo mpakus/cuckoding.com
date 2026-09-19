@@ -28,6 +28,7 @@ config :cuckoding, Cuckoding.Repo,
 config :cuckoding, CuckodingWeb.Endpoint,
   url: [host: "127.0.0.1"],
   http: [ip: {127, 0, 0, 1}],
+  check_origin: ["//127.0.0.1", "//localhost"],
   adapter: Bandit.PhoenixAdapter,
   render_errors: [
     formats: [html: CuckodingWeb.ErrorHTML, json: CuckodingWeb.ErrorJSON],

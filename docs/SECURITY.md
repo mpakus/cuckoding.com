@@ -84,7 +84,9 @@ a host process, these controls are not described as OS isolation.
 
 ## Local service hardening
 
-- Random port on `127.0.0.1`; never bind `0.0.0.0`.
+- Random port on `127.0.0.1`; never bind `0.0.0.0`. LiveView accepts only the
+  `127.0.0.1` and `localhost` browser origins used to reach that loopback
+  listener.
 - Bootstrap token passed via file descriptor or 0600 file, never argv or logs; exchanged once.
 - Strict origin and host validation; secure cookies and CSRF.
 - Disable debug endpoints and source disclosure in release builds.

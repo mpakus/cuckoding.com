@@ -23,4 +23,8 @@ defmodule Cuckoding.ConfigTest do
     refute serialized =~ "secret_key_base"
     refute serialized =~ "secret-canary"
   end
+
+  test "LiveView accepts only the supported loopback origins" do
+    assert CuckodingWeb.Endpoint.config(:check_origin) == ["//127.0.0.1", "//localhost"]
+  end
 end
