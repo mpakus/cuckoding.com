@@ -11,6 +11,9 @@ tracked in `docs/BETA_REPORT.md` and the ordered tasks under `tasks/`.
 For a clean local bootstrap, pinned versions, quality gates, runtime endpoints,
 and the verified developer application build, see `docs/DEVELOPMENT.md`.
 
+The static source for [cuckoding.com](https://cuckoding.com) lives in
+`github.page/` and deploys to GitHub Pages from `main`.
+
 ## Developer build
 
 On Apple Silicon macOS, build the unsigned local application and run its full
@@ -69,6 +72,7 @@ See `CHANGES.md`. In short: no Docker in the MVP, agents and commands run on the
 | `.cuckoding/` | Example project, workflow, policy, plugin, and role definitions |
 | `.agents/skills/` | Repository-local skills for recurring engineering work |
 | `bin/dev.build` | Verified unsigned macOS developer application build |
+| `github.page/` | Dependency-free public site and its focused verifier |
 | `desktop/` | Tray-only Tauri shell, pinned Rust project, local build, and launch verifier |
 
 ## How to execute the plan
