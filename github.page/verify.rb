@@ -21,16 +21,30 @@ images = html.scan(/<img\b[^>]*>/m)
 assert(images.all? { |tag| tag.match?(/\balt="[^"]*"/) }, "every image needs alt text")
 assert(images.all? { |tag| tag.match?(/\bwidth="\d+"/) && tag.match?(/\bheight="\d+"/) }, "every image needs intrinsic dimensions")
 assert(html.include?('href="#main"') && html.match?(/<main\b[^>]*\bid="main"/), "skip link must target main")
-assert(html.include?('src="assets/main.webp"'), "main image must lead the page")
-assert(html.include?('class="hero-logo"') && html.include?('src="assets/logo.webp"'), "full logo must be prominent in the hero")
-assert(html.scan('src="assets/brand-mark.webp"').length == 2, "brand mark must appear in the header and footer")
-%w[bender fry leila prof].each do |name|
-  assert(html.include?("assets/#{name}.webp"), "missing layered #{name} artwork")
+assert(html.include?('src="assets/pic1.webp"'), "new primary image must lead the page")
+assert(html.scan('src="assets/icon.webp"').length == 3, "new logo must appear in the header, hero, and footer")
+%w[pic1 pic2 pic3 pic4 square].each do |name|
+  assert(html.include?("assets/#{name}.webp"), "missing new #{name} artwork")
 end
-assert(html.include?("trusted-host runner") && html.include?("not a container or sandbox"), "host-runner limitation must stay public")
+(1..6).each do |number|
+  assert(html.include?("assets/person#{number}.webp"), "missing layered person#{number} artwork")
+end
+assert(
+  html.include?("Project → Repository → Review") &&
+    html.include?("Project settings → Agents → Roles"),
+  "new project and agent flow must stay public"
+)
+assert(
+  html.include?("Available now") &&
+    html.include?("Next in beta") &&
+    html.include?("Foundation live"),
+  "current and planned capabilities must be distinguished"
+)
+assert(html.include?("trusted-host") && html.include?("not a container or sandbox"), "host-runner limitation must stay public")
+assert(html.include?("setup-only") && html.include?("never autonomously merges or deploys"), "runtime and automation limits must stay public")
 assert(css.include?("prefers-reduced-motion: reduce"), "reduced motion support is required")
-assert(css.match?(/\.art-frame img\s*\{[^}]*object-fit:\s*contain/m), "primary artwork must preserve its proportions")
-assert(css.match?(/\.concept-strip img\s*\{[^}]*object-fit:\s*contain/m), "concept artwork must preserve its proportions")
+assert(css.match?(/\.hero-stage img,[^{]+\{[^}]*object-fit:\s*contain/m), "primary artwork must preserve its proportions")
+assert(css.match?(/\.crew-member img\s*\{[^}]*object-fit:\s*contain/m), "character artwork must preserve its proportions")
 assert(!css.match?(/transition\s*:\s*all\b/), "transition: all is not allowed")
 assert(javascript.include?("IntersectionObserver") && javascript.include?("requestAnimationFrame"), "scroll behavior must use native browser APIs")
 uses = workflow.lines.grep(/^\s*(?:-\s*)?uses:/)

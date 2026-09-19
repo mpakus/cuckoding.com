@@ -1,8 +1,5 @@
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 const revealElements = [...document.querySelectorAll("[data-reveal]")];
-const storySteps = [...document.querySelectorAll("[data-story-step]")];
-const storyImages = [...document.querySelectorAll("[data-story-image]")];
-const storyLabel = document.querySelector("[data-story-label]");
 const parallaxLayers = [...document.querySelectorAll("[data-parallax]")];
 const progress = document.querySelector(".scroll-progress span");
 
@@ -30,25 +27,6 @@ if (reduceMotion.matches || !("IntersectionObserver" in window)) {
       revealObserver.observe(element);
     }
   }));
-}
-
-const activateStory = (index) => {
-  storySteps.forEach((step) => step.classList.toggle("is-active", step.dataset.storyStep === index));
-  storyImages.forEach((image) => image.classList.toggle("is-active", image.dataset.storyImage === index));
-  if (storyLabel) storyLabel.textContent = storySteps[Number(index)]?.dataset.label ?? "";
-};
-
-if ("IntersectionObserver" in window) {
-  const storyObserver = new IntersectionObserver(
-    (entries) => {
-      const current = entries
-        .filter((entry) => entry.isIntersecting)
-        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-      if (current) activateStory(current.target.dataset.storyStep);
-    },
-    { rootMargin: "-28% 0px -28%", threshold: [0.2, 0.5, 0.8] },
-  );
-  storySteps.forEach((step) => storyObserver.observe(step));
 }
 
 let frameRequested = false;

@@ -3,25 +3,19 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#090613">
-    <meta
-      name="description"
-      content="Cuckoding is a local-first macOS control plane for durable, auditable coding-agent workflows."
-    >
-    <meta property="og:title" content="Cuckoding — human ideas, AI agents, real problems">
-    <meta
-      property="og:description"
-      content="Plan, delegate, observe, recover, and review multi-agent coding work on your Mac."
-    >
+    <meta name="theme-color" content="#08060d">
+    <meta name="description" content="Cuckoding is a local-first macOS control plane for projects, agent roles, durable workflows, and reviewable coding work.">
+    <meta property="og:title" content="Cuckoding — put your coding agents to work">
+    <meta property="og:description" content="Register projects, connect agents, assign roles, and monitor durable coding workflows from one local control plane.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://cuckoding.com/">
-    <meta property="og:image" content="https://cuckoding.com/main.png">
+    <meta property="og:image" content="https://cuckoding.com/pic1.png">
     <meta name="twitter:card" content="summary_large_image">
     <link rel="canonical" href="https://cuckoding.com/">
-    <link rel="icon" href="assets/brand-mark.webp" type="image/webp">
-    <link rel="preload" href="assets/main.webp" as="image" type="image/webp">
-    <link rel="stylesheet" href="styles.css?v=20260919">
-    <script src="script.js?v=20260919" defer></script>
+    <link rel="icon" href="assets/icon.webp" type="image/webp">
+    <link rel="preload" href="assets/pic1.webp" as="image" type="image/webp">
+    <link rel="stylesheet" href="styles.css?v=20260919b">
+    <script src="script.js?v=20260919b" defer></script>
     <title>Cuckoding — local-first agent orchestration</title>
   </head>
   <body>
@@ -30,335 +24,341 @@
 
     <header class="site-header">
       <a class="brand" href="#top" aria-label="Cuckoding home" translate="no">
-        <img src="assets/brand-mark.webp" width="733" height="733" alt="">
+        <img src="assets/icon.webp" width="600" height="645" alt="">
         <span>Cuckoding</span>
       </a>
       <nav aria-label="Primary navigation">
-        <a href="#mission">Mission</a>
-        <a href="#features">Features</a>
-        <a href="#how">How it works</a>
-        <a class="nav-source" href="https://github.com/mpakus/cuckoding.com">View source ↗</a>
+        <a href="#flow">Flow</a>
+        <a href="#crew">Agents</a>
+        <a href="#control">Control room</a>
+        <a class="nav-source" href="https://github.com/mpakus/cuckoding.com">Source ↗</a>
       </nav>
     </header>
 
     <main id="main" tabindex="-1">
       <section class="hero" id="top" aria-labelledby="hero-title">
-        <div class="hero-orbit" aria-hidden="true"></div>
-        <div class="hero-layout">
-          <div class="hero-copy" data-reveal>
+        <div class="hero-glow" aria-hidden="true"></div>
+        <div class="hero-copy" data-reveal>
+          <p class="eyebrow"><span>Controlled beta</span> · local-first · macOS</p>
+          <div class="hero-lockup">
+            <img src="assets/icon.webp" width="600" height="645" alt="Cuckoding illustrated logo">
+            <div>
+              <span class="hero-kicker">Human ideas</span>
+              <span class="hero-kicker">Agent crew</span>
+              <span class="hero-kicker">One control room</span>
+            </div>
+          </div>
+          <h1 id="hero-title">Put your coding agents to work. <em>Keep yourself in charge.</em></h1>
+          <p class="hero-lede">
+            Register a project, connect the agents already on your Mac, give each
+            one a role, then follow the work from specification to review without
+            losing the durable trail.
+          </p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="https://github.com/mpakus/cuckoding.com">
+              Explore the source <span aria-hidden="true">↗</span>
+            </a>
+            <a class="button button-quiet" href="#flow">Meet the new flow <span aria-hidden="true">↓</span></a>
+          </div>
+        </div>
+
+        <figure class="hero-stage" data-reveal>
+          <div class="tape tape-top" aria-hidden="true">LOCAL NIGHT SHIFT</div>
+          <img
+            src="assets/pic1.webp"
+            width="1672"
+            height="941"
+            fetchpriority="high"
+            alt="Concept illustration of people relaxing while a crew of friendly robots works in a neon coding workshop."
+          >
+          <figcaption>Concept artwork · agents work, humans stay accountable</figcaption>
+        </figure>
+
+        <div class="status-rail" aria-label="Cuckoding product principles" data-reveal>
+          <span><b>01</b> Project-first</span>
+          <span><b>02</b> Role-driven</span>
+          <span><b>03</b> Durable state</span>
+          <span><b>04</b> Human gates</span>
+        </div>
+      </section>
+
+      <section class="flow" id="flow" aria-labelledby="flow-title">
+        <header class="section-heading" data-reveal>
+          <p class="eyebrow">The new product flow</p>
+          <h2 id="flow-title">Projects first. Then the crew. Then the board.</h2>
+          <p>
+            Setup no longer fabricates a task or starts an agent. Each decision
+            happens on the surface where it belongs.
+          </p>
+        </header>
+
+        <div class="flow-grid">
+          <ol class="flow-steps">
+            <li class="flow-step current" data-reveal>
+              <span class="step-no">01</span>
+              <div>
+                <p class="state-label live">Available now</p>
+                <h3>Register the project</h3>
+                <p>
+                  Use the native folder picker, name the project, choose a Git
+                  branch, and review. Empty folders, fresh Git repositories, and
+                  existing projects are all valid starting points.
+                </p>
+                <span class="route">Project → Repository → Review</span>
+              </div>
+            </li>
+            <li class="flow-step current" data-reveal>
+              <span class="step-no">02</span>
+              <div>
+                <p class="state-label live">Available now</p>
+                <h3>Build the agent crew</h3>
+                <p>
+                  After registration, project settings opens. Add multiple local
+                  agent connections and assign Specifications, Coding, Review,
+                  or your own custom roles.
+                </p>
+                <span class="route">Project settings → Agents → Roles</span>
+              </div>
+            </li>
+            <li class="flow-step next" data-reveal>
+              <span class="step-no">03</span>
+              <div>
+                <p class="state-label planned">Next in beta</p>
+                <h3>Create a board and tasks</h3>
+                <p>
+                  Give each project one or more boards, choose a versioned
+                  workflow, add tasks, and start work through Specifications →
+                  Coding → Review.
+                </p>
+                <span class="route">Board → Task → Run</span>
+              </div>
+            </li>
+            <li class="flow-step next" data-reveal>
+              <span class="step-no">04</span>
+              <div>
+                <p class="state-label foundation">Foundation live</p>
+                <h3>Monitor the whole operation</h3>
+                <p>
+                  The Agent Floor already exposes durable run activity. The next
+                  dashboard joins project health, resources, agents, boards, and
+                  blockers into one operational view.
+                </p>
+                <span class="route">Dashboard → Agent Floor → Evidence</span>
+              </div>
+            </li>
+          </ol>
+
+          <figure class="flow-art" data-reveal>
             <img
-              class="hero-logo"
-              src="assets/logo.webp"
-              width="1254"
-              height="1254"
-              alt="Cuckoding"
+              src="assets/pic2.webp"
+              width="1672"
+              height="941"
+              loading="lazy"
+              alt="Satirical concept illustration of robot agents working at Plan, Build, Test, and Review stations."
             >
-            <p class="eyebrow">Local-first · macOS · open source</p>
-            <h1 id="hero-title">Your agents need a control room. <em>Not another chat.</em></h1>
-            <p class="hero-lede">
-              Turn an issue into a durable workflow. Give every role a runtime,
-              watch the work move, recover after sleep, and keep the evidence on
-              your Mac.
-            </p>
-            <div class="hero-actions">
-              <a class="button button-primary" href="https://github.com/mpakus/cuckoding.com">
-                View the source <span aria-hidden="true">↗</span>
-              </a>
-              <a class="button button-quiet" href="#mission">See how it works <span aria-hidden="true">↓</span></a>
-            </div>
-            <p class="availability">Controlled beta · Apple Silicon macOS</p>
-          </div>
-          <figure class="hero-art" data-reveal>
-            <div class="art-frame">
-              <img
-                src="assets/main.webp"
-                width="1536"
-                height="1024"
-                fetchpriority="high"
-                alt="An illustrated late-night workshop where humans and robots collaborate around a laptop."
-              >
-            </div>
-            <figcaption>Local mission control · concept artwork</figcaption>
-          </figure>
-        </div>
-        <p class="scroll-cue" aria-hidden="true">Scroll to launch <span>↓</span></p>
-      </section>
-
-      <section class="manifesto" aria-labelledby="manifesto-title">
-        <div class="noise-card" data-reveal>
-          <p class="eyebrow">The premise</p>
-          <h2 id="manifesto-title">One human idea. A whole crew. One durable trail.</h2>
-          <p>
-            Cuckoding coordinates coding agents as a workflow—not a pile of
-            terminals. State survives workers. Every gate leaves evidence.
-            Humans keep the irreversible decisions.
-          </p>
-        </div>
-        <img
-          class="character character-fry"
-          src="assets/fry.webp"
-          width="1278"
-          height="1230"
-          alt=""
-          data-parallax="0.08"
-          data-rotate="-8"
-        >
-        <img
-          class="character character-leila"
-          src="assets/leila.webp"
-          width="1024"
-          height="1536"
-          alt=""
-          data-parallax="-0.1"
-          data-rotate="7"
-        >
-        <span class="sticker sticker-one" aria-hidden="true">No cloud control plane</span>
-        <span class="sticker sticker-two" aria-hidden="true">Sleep happens</span>
-      </section>
-
-      <section class="story" id="mission" aria-labelledby="mission-title">
-        <div class="story-visual" aria-hidden="true">
-          <div class="story-frame">
-            <img class="story-image is-active" src="assets/concept-4.webp" width="598" height="471" alt="" data-story-image="0">
-            <img class="story-image" src="assets/concept-5.webp" width="447" height="471" alt="" data-story-image="1">
-            <img class="story-image" src="assets/concept-2.webp" width="459" height="553" alt="" data-story-image="2">
-            <img class="story-image" src="assets/concept-6.webp" width="491" height="471" alt="" data-story-image="3">
-            <div class="story-hud">
-              <span>Mission control</span>
-              <strong data-story-label>01 · Plan</strong>
-            </div>
-          </div>
-        </div>
-
-        <div class="story-copy">
-          <header class="section-intro" data-reveal>
-            <p class="eyebrow">From issue to evidence</p>
-            <h2 id="mission-title">Scroll through the loop.</h2>
-          </header>
-
-          <article class="story-step is-active" data-story-step="0" data-label="01 · Plan">
-            <span class="step-number">01</span>
-            <h3>Plan the work, not the prompt.</h3>
-            <p>
-              Start with a repository, a task, and a versioned workflow. Define
-              roles, gates, budgets, tools, and the exact evidence needed to
-              move forward.
-            </p>
-            <ul class="tag-list" aria-label="Planning capabilities">
-              <li>Multiple boards</li><li>Versioned workflows</li><li>Role assignments</li>
-            </ul>
-          </article>
-
-          <article class="story-step" data-story-step="1" data-label="02 · Delegate">
-            <span class="step-number">02</span>
-            <h3>Give every agent its own lane.</h3>
-            <p>
-              Each run gets a Git worktree, branch, process group, policy
-              snapshot, and loopback preview port. Codex and Claude Code enter
-              through one normalized adapter boundary.
-            </p>
-            <ul class="tag-list" aria-label="Delegation capabilities">
-              <li>Isolated worktrees</li><li>Host supervision</li><li>Scoped grants</li>
-            </ul>
-          </article>
-
-          <article class="story-step" data-story-step="2" data-label="03 · Observe">
-            <span class="step-number">03</span>
-            <h3>See the work without reading minds.</h3>
-            <p>
-              The Agent Floor shows state, role, runtime, model, elapsed time,
-              resources, cost confidence, artifacts, findings, and safe
-              controls—never hidden chain-of-thought.
-            </p>
-            <ul class="tag-list" aria-label="Observability capabilities">
-              <li>Live activity</li><li>Cost and tokens</li><li>CPU and memory</li>
-            </ul>
-          </article>
-
-          <article class="story-step" data-story-step="3" data-label="04 · Recover">
-            <span class="step-number">04</span>
-            <h3>Crash. Sleep. Wake. Continue.</h3>
-            <p>
-              SQLite owns the truth. Leases, checkpoints, append-only events,
-              and ownership checks let Cuckoding reconcile interrupted work
-              instead of pretending nothing happened.
-            </p>
-            <ul class="tag-list" aria-label="Recovery capabilities">
-              <li>Pause and hibernate</li><li>Sleep reconciliation</li><li>Safe retry</li>
-            </ul>
-          </article>
-        </div>
-      </section>
-
-      <section class="feature-zone" id="features" aria-labelledby="features-title">
-        <img
-          class="feature-character feature-bender"
-          src="assets/bender.webp"
-          width="1208"
-          height="1302"
-          alt=""
-          data-parallax="0.12"
-          data-rotate="8"
-          loading="lazy"
-        >
-        <img
-          class="feature-character feature-prof"
-          src="assets/prof.webp"
-          width="1536"
-          height="1024"
-          alt=""
-          data-parallax="-0.08"
-          data-rotate="-7"
-          loading="lazy"
-        >
-
-        <div class="section-intro centered" data-reveal>
-          <p class="eyebrow">What it can do</p>
-          <h2 id="features-title">Serious machinery. Slightly unhinged energy.</h2>
-          <p>Everything important is durable, attributable, and reviewable.</p>
-        </div>
-
-        <div class="feature-grid">
-          <article class="feature-card hot" data-reveal>
-            <span class="feature-index">01</span>
-            <h3>Run parallel work</h3>
-            <p>Move independent tasks across boards without mixing branches, ports, or process ownership.</p>
-          </article>
-          <article class="feature-card cyan" data-reveal>
-            <span class="feature-index">02</span>
-            <h3>Gate every stage</h3>
-            <p>Require tests, typed artifacts, QA findings, and human approval before release handoff.</p>
-          </article>
-          <article class="feature-card amber" data-reveal>
-            <span class="feature-index">03</span>
-            <h3>Keep work alive</h3>
-            <p>Pause, hibernate, resume, and reconcile across crashes, app restarts, and laptop sleep.</p>
-          </article>
-          <article class="feature-card purple" data-reveal>
-            <span class="feature-index">04</span>
-            <h3>Inspect the evidence</h3>
-            <p>Open diffs, test reports, artifacts, usage, costs, resource samples, and the exact blocker.</p>
-          </article>
-          <article class="feature-card green" data-reveal>
-            <span class="feature-index">05</span>
-            <h3>Compound knowledge</h3>
-            <p>Extract project lessons into readable Markdown, review them, and track where they help later runs.</p>
-          </article>
-          <article class="feature-card pink" data-reveal>
-            <span class="feature-index">06</span>
-            <h3>Plug in your tools</h3>
-            <p>Detect and govern RTK, Ponytail, XERJ, MCP servers, secret stores, metrics, and VCS hosts.</p>
-          </article>
-        </div>
-      </section>
-
-      <section class="how" id="how" aria-labelledby="how-title">
-        <div class="section-intro" data-reveal>
-          <p class="eyebrow">How it works</p>
-          <h2 id="how-title">A workflow with receipts.</h2>
-          <p>Agents do the reversible work. The control plane owns the durable story.</p>
-        </div>
-
-        <ol class="how-list">
-          <li data-reveal>
-            <span>01</span><div><h3>Connect a local repository</h3><p>Cuckoding validates Git, policy, installed runtimes, and optional plugins.</p></div>
-          </li>
-          <li data-reveal>
-            <span>02</span><div><h3>Create a board and task</h3><p>Choose a versioned workflow and map roles to supported agent runtimes.</p></div>
-          </li>
-          <li data-reveal>
-            <span>03</span><div><h3>Run inside a dedicated worktree</h3><p>The trusted-host runner supervises processes and confines Cuckoding commands to declared paths.</p></div>
-          </li>
-          <li data-reveal>
-            <span>04</span><div><h3>Watch gates and recoveries</h3><p>Committed events drive the UI; sleep gaps and failures are reconciled from durable state.</p></div>
-          </li>
-          <li data-reveal>
-            <span>05</span><div><h3>Approve the handoff</h3><p>After evidence review, a host-side service can push the branch and prepare a draft pull request.</p></div>
-          </li>
-        </ol>
-
-        <div class="concept-strip" aria-label="Illustrated Cuckoding workflow concepts">
-          <figure data-reveal><img src="assets/concept-1.webp" width="515" height="553" loading="lazy" alt="Illustration of developers planning work beside a Cuckoding laptop."><figcaption>Plan</figcaption></figure>
-          <figure data-reveal><img src="assets/concept-2.webp" width="459" height="553" loading="lazy" alt="Illustration of robots working together in a repair shop."><figcaption>Build</figcaption></figure>
-          <figure data-reveal><img src="assets/concept-3.webp" width="562" height="553" loading="lazy" alt="Illustration of a motorcycle ride into a sunset city."><figcaption>Ship</figcaption></figure>
-        </div>
-      </section>
-
-      <section class="stack" id="stack" aria-labelledby="stack-title">
-        <div class="stack-layout">
-          <div class="stack-content">
-            <div class="stack-copy" data-reveal>
-              <p class="eyebrow">Built from boring, durable things</p>
-              <h2 id="stack-title">The stack that survives the night shift.</h2>
-              <p>
-                One local application. One browser UI. No hosted control plane and
-                no second frontend framework.
-              </p>
-            </div>
-            <ul class="stack-grid">
-              <li data-reveal><strong>Elixir / OTP</strong><span>Supervision and durable orchestration</span></li>
-              <li data-reveal><strong>Phoenix LiveView</strong><span>Loopback-only real-time interface</span></li>
-              <li data-reveal><strong>SQLite + WAL</strong><span>Events, projections, evidence, recovery</span></li>
-              <li data-reveal><strong>Tauri + Rust</strong><span>Tray shell, updates, diagnostics</span></li>
-              <li data-reveal><strong>Git worktrees</strong><span>Per-run branches and workspace isolation</span></li>
-              <li data-reveal><strong>macOS Keychain</strong><span>Opaque secret references, never agent payloads</span></li>
-            </ul>
-          </div>
-          <figure class="stack-art" data-reveal>
-            <div class="art-frame">
-              <img
-                class="stack-character"
-                src="assets/fry-bender.webp"
-                width="1536"
-                height="1024"
-                alt="Two illustrated collaborators working together at a laptop."
-                loading="lazy"
-              >
-            </div>
-            <figcaption>Different runtimes · one durable workflow</figcaption>
+            <figcaption>Concept artwork · the neon slogan is a joke, not an employment or autonomy claim</figcaption>
           </figure>
         </div>
       </section>
 
-      <section class="truth" aria-labelledby="truth-title">
-        <div class="truth-card" data-reveal>
-          <p class="eyebrow">Honest by design</p>
-          <h2 id="truth-title">Powerful agents. Real boundaries.</h2>
+      <section class="crew" id="crew" aria-labelledby="crew-title">
+        <header class="section-heading centered" data-reveal>
+          <p class="eyebrow">Agents are connections · roles are responsibilities</p>
+          <h2 id="crew-title">Assemble a crew that fits the project.</h2>
           <p>
-            The MVP runs agent processes on your Mac. Worktrees, policy,
-            permission grants, and human gates reduce risk—but the host runner
-            is not a container or sandbox.
+            One runtime can fill several roles, or each role can have its own
+            specialist. Configuration is versioned; active and historical work
+            keeps the assignments it started with.
           </p>
-          <ul>
-            <li>Apple Silicon macOS is the first supported target.</li>
-            <li>Codex and Claude Code are supported; Cursor Agent and OpenCode remain non-selectable until conformance passes.</li>
-            <li>Cuckoding never autonomously merges or deploys production changes.</li>
+        </header>
+
+        <div class="crew-stage" aria-label="Illustrated agent role examples">
+          <figure class="crew-member member-specs" data-reveal>
+            <img src="assets/person1.webp" width="1024" height="1536" loading="lazy" alt="Illustrated planning robot holding a motorcycle blueprint and task notes.">
+            <figcaption><b>Specifications</b><span>clarify and plan</span></figcaption>
+          </figure>
+          <figure class="crew-member member-code" data-reveal>
+            <img src="assets/person2.webp" width="1024" height="1536" loading="lazy" alt="Illustrated builder robot using a drill and soldering tool.">
+            <figcaption><b>Coding</b><span>build the change</span></figcaption>
+          </figure>
+          <figure class="crew-member member-custom" data-reveal>
+            <img src="assets/person3.webp" width="1024" height="1536" loading="lazy" alt="Illustrated service robot carrying pizza and drinks while cleaning.">
+            <figcaption><b>Custom role</b><span>your rules, your job</span></figcaption>
+          </figure>
+          <figure class="crew-member member-review" data-reveal>
+            <img src="assets/person4.webp" width="1024" height="1536" loading="lazy" alt="Illustrated reviewer robot stamping a completed checklist.">
+            <figcaption><b>Review</b><span>challenge the result</span></figcaption>
+          </figure>
+          <figure class="crew-member member-qa" data-reveal>
+            <img src="assets/person5.webp" width="1180" height="1333" loading="lazy" alt="Illustrated QA robot inspecting a glowing bug specimen through a magnifying lens.">
+            <figcaption><b>QA</b><span>find the bug</span></figcaption>
+          </figure>
+          <figure class="crew-member member-ops" data-reveal>
+            <img src="assets/person6.webp" width="1024" height="1536" loading="lazy" alt="Illustrated maintenance robot carrying motorcycle tools and safety gear.">
+            <figcaption><b>Integration</b><span>keep it running</span></figcaption>
+          </figure>
+        </div>
+
+        <p class="crew-note" data-reveal>
+          Codex and Claude Code are supported launch adapters. Cursor Agent,
+          OpenCode, and Custom Agent can be configured now but remain setup-only
+          until their execution adapters pass conformance.
+        </p>
+      </section>
+
+      <section class="board" aria-labelledby="board-title">
+        <div class="board-copy" data-reveal>
+          <p class="eyebrow">Per-project Kanban · next in beta</p>
+          <h2 id="board-title">A board is where work gets a life cycle.</h2>
+          <p>
+            Tasks move through explicit stages and gates. Review can send work
+            back with findings, improve the specification, or mark the task
+            complete. Drag and drop will be optional; every transition will have
+            an accessible action.
+          </p>
+          <div class="board-route" aria-label="Default planned workflow">
+            <span>Specifications</span><i aria-hidden="true">→</i>
+            <span>Coding</span><i aria-hidden="true">→</i>
+            <span>Review</span><i aria-hidden="true">↺ / ✓</i>
+          </div>
+        </div>
+
+        <div class="kanban" aria-label="Illustrative planned Kanban board" data-reveal>
+          <div class="kanban-column">
+            <header><span>Specifications</span><b>2</b></header>
+            <article><small>CUK-41</small><strong>Define recovery evidence</strong><span>Planner · Codex</span></article>
+            <article><small>CUK-44</small><strong>Bound custom role inputs</strong><span>Planner · Claude</span></article>
+          </div>
+          <div class="kanban-column active">
+            <header><span>Coding</span><b>1</b></header>
+            <article><small>CUK-39</small><strong>Restore after sleep</strong><span>Builder · 18m</span></article>
+          </div>
+          <div class="kanban-column">
+            <header><span>Review</span><b>1</b></header>
+            <article><small>CUK-36</small><strong>Verify path confinement</strong><span>Reviewer · blocked</span></article>
+          </div>
+          <div class="kanban-column done">
+            <header><span>Complete</span><b>8</b></header>
+            <article><small>CUK-31</small><strong>Native folder picker</strong><span>Evidence accepted</span></article>
+          </div>
+        </div>
+      </section>
+
+      <section class="control" id="control" aria-labelledby="control-title">
+        <figure class="control-art" data-reveal>
+          <img
+            src="assets/pic3.webp"
+            width="1672"
+            height="941"
+            loading="lazy"
+            alt="Satirical concept illustration of a neon agent operations scoreboard during a coding sprint."
+          >
+          <figcaption>Concept artwork · scoreboard values are satire, not product telemetry</figcaption>
+        </figure>
+        <div class="control-copy" data-reveal>
+          <p class="eyebrow">One global dashboard</p>
+          <h2 id="control-title">See who is doing what. See what it costs.</h2>
+          <p>
+            Monitor project health, active role, runtime, model when known,
+            elapsed time, CPU, memory, token and cost confidence, blockers, and
+            the latest durable event—without storing hidden chain-of-thought.
+          </p>
+          <ul class="signal-list">
+            <li><span class="signal green"></span><b>Working</b><span>coding · 18m</span></li>
+            <li><span class="signal amber"></span><b>Needs review</b><span>2 findings</span></li>
+            <li><span class="signal cyan"></span><b>Sleeping</b><span>checkpoint safe</span></li>
+            <li><span class="signal pink"></span><b>Blocked</b><span>human decision</span></li>
           </ul>
         </div>
       </section>
 
-      <section class="finale" aria-labelledby="finale-title">
-        <div class="finale-layout">
-          <div class="finale-copy" data-reveal>
-            <p class="eyebrow">Human ideas · AI agents · real problems</p>
-            <h2 id="finale-title">Build tomorrow.<br>Keep the receipts.</h2>
-            <p>Cuckoding is open source and preparing for controlled beta.</p>
-            <a class="button button-primary" href="https://github.com/mpakus/cuckoding.com">
-              Read the source on GitHub <span aria-hidden="true">↗</span>
-            </a>
-          </div>
-          <figure class="finale-art" data-reveal>
-            <div class="art-frame">
-              <img src="assets/rocket.webp" width="1536" height="1024" loading="lazy" alt="An illustrated crew launching into space in a Cuckoding rocket.">
-            </div>
-            <figcaption>Launch only after human approval</figcaption>
-          </figure>
+      <section class="minimal" aria-labelledby="minimal-title">
+        <div class="minimal-copy" data-reveal>
+          <p class="eyebrow">Ponytail inside</p>
+          <h2 id="minimal-title">Ask for an oil change. Get an oil change.</h2>
+          <p>
+            Cuckoding treats minimalism as an engineering constraint. Agents
+            search existing code, prefer native tools, make the smallest coherent
+            change, and prove the behavior with focused checks.
+          </p>
+          <ul>
+            <li>RTK keeps command output focused.</li>
+            <li>XERJ anchors unfamiliar work in indexed reference source.</li>
+            <li>Ponytail cuts speculative abstractions and dependency sprawl.</li>
+          </ul>
         </div>
+        <figure class="minimal-art" data-reveal>
+          <img
+            src="assets/pic4.webp"
+            width="1672"
+            height="941"
+            loading="lazy"
+            alt="Satirical concept illustration of robot mechanics overengineering a simple motorcycle oil change."
+          >
+          <figcaption>Concept artwork · a warning, not a product promise</figcaption>
+        </figure>
+      </section>
+
+      <section class="stack" aria-labelledby="stack-title">
+        <header class="section-heading" data-reveal>
+          <p class="eyebrow">Boring machinery · wild crew</p>
+          <h2 id="stack-title">A local stack built to survive the night shift.</h2>
+        </header>
+        <div class="stack-grid">
+          <article data-reveal><span>01</span><h3>Elixir / OTP</h3><p>Supervised orchestration and recovery.</p></article>
+          <article data-reveal><span>02</span><h3>Phoenix LiveView</h3><p>A loopback-only real-time interface.</p></article>
+          <article data-reveal><span>03</span><h3>SQLite + WAL</h3><p>Durable state, events, and projections.</p></article>
+          <article data-reveal><span>04</span><h3>Git worktrees</h3><p>Reviewable per-run branches.</p></article>
+          <article data-reveal><span>05</span><h3>Tauri + Rust</h3><p>Native tray shell and diagnostics.</p></article>
+          <article data-reveal><span>06</span><h3>macOS Keychain</h3><p>Opaque secret references outside agents.</p></article>
+        </div>
+      </section>
+
+      <section class="truth" aria-labelledby="truth-title">
+        <div class="truth-copy" data-reveal>
+          <p class="eyebrow">The honest boundary</p>
+          <h2 id="truth-title">Local power. Real limits.</h2>
+          <p>
+            The MVP runs agent processes on your Mac. Worktrees, policy,
+            permission grants, and human gates reduce risk—but the trusted-host
+            runner is not a container or sandbox.
+          </p>
+          <ul>
+            <li>Apple Silicon macOS is the first supported target.</li>
+            <li>Project setup never starts a board, task, worktree, or agent.</li>
+            <li>Cuckoding never autonomously merges or deploys production changes.</li>
+          </ul>
+        </div>
+        <figure class="truth-art" data-reveal>
+          <img
+            src="assets/square.webp"
+            width="600"
+            height="645"
+            loading="lazy"
+            alt="Cuckoding concept illustration of a human and robot crew around a laptop under the words Plan, Prompt, Code, Review, Repeat."
+          >
+        </figure>
+      </section>
+
+      <section class="finale" aria-labelledby="finale-title">
+        <img class="finale-agent finale-agent-left" src="assets/person5.webp" width="1180" height="1333" alt="" loading="lazy" data-parallax="0.06" data-rotate="-10">
+        <div class="finale-copy" data-reveal>
+          <p class="eyebrow">Human ideas · agent crew · durable evidence</p>
+          <h2 id="finale-title">Make the agents busy.<br>Keep the work legible.</h2>
+          <p>Cuckoding is open source and preparing for controlled beta.</p>
+          <a class="button button-primary" href="https://github.com/mpakus/cuckoding.com">
+            Follow development on GitHub <span aria-hidden="true">↗</span>
+          </a>
+        </div>
+        <img class="finale-agent finale-agent-right" src="assets/person2.webp" width="1024" height="1536" alt="" loading="lazy" data-parallax="-0.05" data-rotate="9">
       </section>
     </main>
 
     <footer>
-      <a class="footer-brand" href="#top" translate="no"><img src="assets/brand-mark.webp" width="733" height="733" alt=""><span>Cuckoding</span></a>
+      <a class="footer-brand" href="#top" translate="no">
+        <img src="assets/icon.webp" width="600" height="645" alt="">
+        <span>Cuckoding</span>
+      </a>
       <p>Built in Austin. Runs on your Mac. Humans remain accountable.</p>
       <a href="https://github.com/mpakus/cuckoding.com">GitHub source ↗</a>
     </footer>
