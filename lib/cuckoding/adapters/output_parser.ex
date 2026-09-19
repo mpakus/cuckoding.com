@@ -10,18 +10,18 @@ defmodule Cuckoding.Adapters.OutputParser do
 
   def extract(adapter, %{artifact_path: path})
       when adapter in ~w(codex claude_code cursor_agent) and is_binary(path) do
-    with {:ok, rows} <- rows(path) do
+    with {:ok, rows} <- rows(path, adapter) do
       extract_rows(adapter, rows)
     end
   end
 
   def extract(_adapter, _result), do: error(:structured_output_missing)
 
-  defp rows(path) do
+  defp rows(path, adapter) do
     case File.lstat(path) do
       {:ok, %{type: :regular, size: size}} when size <= @maximum_bytes ->
         with {:ok, contents} <- File.read(path),
-             lines = String.split(contents, "\n", trim: true),
+             lines = contents |> String.split("\n", trim: true) |> drop_known_prelude(adapter),
              true <- length(lines) <= @maximum_rows,
              {:ok, rows} <- decode_rows(lines) do
           {:ok, rows}
@@ -38,6 +38,11 @@ defmodule Cuckoding.Adapters.OutputParser do
         error(:structured_output_missing)
     end
   end
+
+  defp drop_known_prelude(["Reading additional input from stdin..." | lines], "codex"),
+    do: lines
+
+  defp drop_known_prelude(lines, _adapter), do: lines
 
   defp decode_rows(lines) do
     Enum.reduce_while(lines, {:ok, []}, fn line, {:ok, rows} ->

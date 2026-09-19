@@ -88,7 +88,8 @@ defmodule Cuckoding.BoardTaskIntakeTest do
         )
       )
 
-    assert session.effective_grant_json["requested"]["tools"] == ["read"]
+    assert session.effective_grant_json["requested"]["tools"] == ["read", "shell"]
+    assert session.effective_grant_json["requested"]["deny_tools"] == ["write", "network"]
     assert session.effective_grant_json["requested"]["approval_mode"] == "plan"
     assert session.effective_grant_json["requested"]["network"] == "deny"
 

@@ -39,6 +39,27 @@ defmodule Cuckoding.Adapters.OutputParserTest do
     assert {:ok, ^output} = OutputParser.extract("fake", %{structured_output: output})
   end
 
+  test "accepts the Codex stdin prelude and keeps other non-JSON output invalid", %{root: root} do
+    output = %{"tasks" => [%{"title" => "One"}]}
+    valid = Path.join(root, "codex-with-prelude.jsonl")
+
+    File.write!(
+      valid,
+      "Reading additional input from stdin...\n" <>
+        Jason.encode!(%{
+          "type" => "item.completed",
+          "item" => %{"type" => "agent_message", "text" => Jason.encode!(output)}
+        }) <> "\n"
+    )
+
+    assert {:ok, ^output} = OutputParser.extract("codex", %{artifact_path: valid})
+
+    File.write!(valid, "unexpected output\n" <> File.read!(valid))
+
+    assert {:error, %Types.Error{code: :malformed_output}} =
+             OutputParser.extract("codex", %{artifact_path: valid})
+  end
+
   test "rejects malformed or non-regular output", %{root: root} do
     malformed = Path.join(root, "malformed.jsonl")
     File.write!(malformed, "not-json\n")

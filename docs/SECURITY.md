@@ -24,7 +24,7 @@ Cuckoding runs powerful agent runtimes on a developer machine against untrusted 
 | --- | --- |
 | Unauthorized local web access | Loopback bind, one-time bootstrap secret, single-use `/open` tokens, short-lived cookie sessions, origin/host checks, CSRF, optional re-auth after sleep |
 | Prompt injection from repository | Separate trusted instructions from data; least-privilege runtime permission grant configured by the adapter; protected paths; approvals; no output-to-command promotion |
-| Agent-generated board tasks | Closed structured-output schema; 1 MiB/2,000-row JSONL bounds; maximum 20 proposals; canonical, regular, worktree-confined evidence files; human selection before transactional Draft-task import |
+| Agent-generated board tasks | Closed structured-output schema; 1 MiB/2,000-row JSONL bounds; only fixed provider preludes may precede JSONL; maximum 20 proposals; canonical, regular, worktree-confined evidence files; human selection before transactional Draft-task import |
 | Secret theft | Keychain references; no secrets in agent environment or argv; provider CLIs use their own auth; environment allowlist; argument/environment scrubbing; redaction tests |
 | Host mutation outside the worktree | Path confinement for Cuckoding-executed commands; runtime permission grant limited to the worktree; protected paths flagged; honest limitation notice |
 | Cross-run and cross-project leakage | Worktree per run; port ranges; knowledge scope; per-run generated runtime configuration; tests |

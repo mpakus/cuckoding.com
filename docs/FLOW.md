@@ -24,7 +24,8 @@ Project setup, board setup, board task intake, and delivery execution are separa
 4. **Board task intake** accepts a bounded prompt and one snapshotted agent
    role. It creates a hidden planning task and normal queued run, verifies that
    role's run-scoped authentication, and launches a single read-only,
-   network-denied stage. The run waits at `task proposal review`; validated
+   network-denied stage. The agent may use read-only inspection commands inside
+   the runtime sandbox so it can open project files. The run waits at `task proposal review`; validated
    proposals remain separate rows until a human selects them. Import creates
    normal Draft tasks and links each proposal to the created task so retries do
    not duplicate cards. The board shows LiveView submit feedback immediately,

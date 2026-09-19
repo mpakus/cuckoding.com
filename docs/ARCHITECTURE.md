@@ -112,6 +112,8 @@ read-only, network-denied stage request with a closed output schema. Provider
 JSONL is bounded and decoded by `Adapters.OutputParser`; repository-relative
 evidence paths are canonicalized against the owned worktree before proposals
 are inserted. The planning task remains hidden from the delivery Kanban. The
+Codex parser accepts only its fixed stdin prelude before the JSONL stream;
+unknown non-JSON output still fails closed.
 run waits while `task_proposals` are reviewed, and one idempotent import command
 creates only the selected Draft tasks and links each proposal to its result.
 Its LiveViews expose transient submit state, but render progress from the
