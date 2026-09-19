@@ -19,6 +19,7 @@ defmodule Cuckoding.AgentFloor do
   alias Cuckoding.Workflows.Task
 
   @maximum_cards 100
+  @maximum_operations 50
   @maximum_detail_rows 200
 
   def list_sessions(limit \\ @maximum_cards)
@@ -75,6 +76,41 @@ defmodule Cuckoding.AgentFloor do
 
   def group_sessions(cards, _group_by), do: group_sessions(cards, "role")
 
+  def list_operations(limit \\ 12)
+      when is_integer(limit) and limit in 1..@maximum_operations do
+    rows =
+      Repo.all(
+        from(run in Run,
+          join: task in Task,
+          on: task.id == run.task_id,
+          join: board in Board,
+          on: board.id == task.board_id,
+          join: project in Project,
+          on: project.id == board.project_id,
+          order_by: [desc: run.updated_at, desc: run.id],
+          limit: ^limit,
+          select: %{run: run, task: task, board: board, project: project}
+        )
+      )
+
+    run_ids = Enum.map(rows, & &1.run.id)
+    attempts = latest_attempts(run_ids)
+    sessions = latest_sessions(attempts)
+    resources = latest_resources(Enum.map(sessions, fn {_id, session} -> session.id end))
+
+    Enum.map(rows, fn row ->
+      attempt = attempts[row.run.id]
+      session = attempt && sessions[attempt.id]
+
+      Map.merge(row, %{
+        attempt: attempt,
+        session: session,
+        resource: session && resources[session.id],
+        attention?: row.run.state in ~w(waiting blocked failed)
+      })
+    end)
+  end
+
   def get_run(run_id) when is_binary(run_id) do
     case run_context(run_id) do
       nil -> nil
@@ -102,6 +138,32 @@ defmodule Cuckoding.AgentFloor do
         select: %{run: run, task: task, board: board, project: project}
       )
     )
+  end
+
+  defp latest_attempts([]), do: %{}
+
+  defp latest_attempts(run_ids) do
+    Repo.all(
+      from(attempt in StageAttempt,
+        where: attempt.run_id in ^run_ids,
+        order_by: [desc: attempt.inserted_at, desc: attempt.id]
+      )
+    )
+    |> Enum.reduce(%{}, &Map.put_new(&2, &1.run_id, &1))
+  end
+
+  defp latest_sessions(attempts) when map_size(attempts) == 0, do: %{}
+
+  defp latest_sessions(attempts) do
+    attempt_ids = Enum.map(attempts, fn {_run_id, attempt} -> attempt.id end)
+
+    Repo.all(
+      from(session in AgentSession,
+        where: session.stage_attempt_id in ^attempt_ids,
+        order_by: [desc: session.inserted_at, desc: session.id]
+      )
+    )
+    |> Enum.reduce(%{}, &Map.put_new(&2, &1.stage_attempt_id, &1))
   end
 
   defp session_context(session_id) do

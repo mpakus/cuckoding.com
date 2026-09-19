@@ -90,11 +90,20 @@ branch, worktree, port, lease, or provider process. Board setup later publishes
 a workflow and snapshots role assignments; task start alone prepares the
 execution environment.
 
-`Cuckoding.GuidedRun` remains a compatibility path for the bounded Phase 4/early
-beta walking skeleton while the new project → board → task surfaces land. It is
-not rendered on the home dashboard. Its runtime configuration validation is
-shared with onboarding so the compatibility path cannot weaken the new trust
-boundary.
+`Cuckoding.ProjectWorkflow` is the command boundary behind the landed project →
+board → task surfaces. Board and task creation persist redacted audit events in
+the same transaction as their projections. Run preparation accepts a Ready task
+only once, validates the current repository revision and runnable role snapshot,
+creates a queued run, and delegates owned worktree setup to `GitService`; no
+provider process starts from a board or task form.
+
+`Cuckoding.GuidedRun` launches that queued default workflow after run-scoped
+authentication. It resolves the Specifications, Coding, and Review adapters
+separately from the immutable run snapshot, while `WalkingSkeleton` remains the
+bounded workflow executor and release-evidence path. `Cuckoding.AgentFloor`
+rebuilds both session cards and the bounded recent-operation projection from
+SQLite. The home dashboard refreshes that projection after committed PubSub
+hints and on a periodic bounded timer, so PubSub is never the state owner.
 
 ### Plugin registry
 

@@ -6,28 +6,29 @@ defmodule CuckodingWeb.StatusLive do
 
   @active_session_states ~w(starting running waiting)
   @active_run_states ~w(running waiting)
+  @refresh_ms 5_000
 
   @impl true
   def mount(_params, _session, socket) do
-    if connected?(socket), do: Cuckoding.ActivityStream.subscribe(:all)
+    if connected?(socket) do
+      Cuckoding.ActivityStream.subscribe(:all)
+      Process.send_after(self(), :refresh_dashboard, @refresh_ms)
+    end
 
     activity = Cuckoding.ActivityStream.recent()
-    agent_cards = Cuckoding.AgentFloor.list_sessions()
 
     {:ok,
-     assign(socket,
+     socket
+     |> assign(
        page_title: "Projects and operations",
-       health: Cuckoding.Health.snapshot(),
-       project_cards: project_cards(agent_cards),
-       resource_summary: resource_summary(agent_cards),
-       pending_approvals: Cuckoding.WalkingSkeleton.pending_approvals(),
        confirming_approval: nil,
        release_notice: nil,
-       usage_records: Cuckoding.Telemetry.Accounting.recent_usage(),
+       refresh_pending: false,
        activity: activity,
        activity_status:
          Cuckoding.ActivityStream.status(activity, Cuckoding.Clock.wall_now(), 60_000)
-     )}
+     )
+     |> load_dashboard()}
   end
 
   @impl true
@@ -44,12 +45,28 @@ defmodule CuckodingWeb.StatusLive do
       |> Enum.sort_by(&{DateTime.to_unix(&1.occurred_at, :microsecond), &1.id})
       |> Enum.take(-20)
 
-    {:noreply,
-     assign(socket,
-       activity: activity,
-       activity_status:
-         Cuckoding.ActivityStream.status(activity, Cuckoding.Clock.wall_now(), 60_000)
-     )}
+    socket =
+      assign(socket,
+        activity: activity,
+        activity_status:
+          Cuckoding.ActivityStream.status(activity, Cuckoding.Clock.wall_now(), 60_000)
+      )
+
+    if socket.assigns.refresh_pending do
+      {:noreply, socket}
+    else
+      Process.send_after(self(), :refresh_dashboard_activity, 250)
+      {:noreply, assign(socket, refresh_pending: true)}
+    end
+  end
+
+  def handle_info(:refresh_dashboard, socket) do
+    if connected?(socket), do: Process.send_after(self(), :refresh_dashboard, @refresh_ms)
+    {:noreply, socket |> assign(refresh_pending: false) |> load_dashboard()}
+  end
+
+  def handle_info(:refresh_dashboard_activity, socket) do
+    {:noreply, socket |> assign(refresh_pending: false) |> load_dashboard()}
   end
 
   @impl true
@@ -144,6 +161,79 @@ defmodule CuckodingWeb.StatusLive do
           </dl>
         </section>
 
+        <section aria-labelledby="operations-heading" class="space-y-4">
+          <div class="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 id="operations-heading" class="text-xl font-semibold text-slate-950">
+                Operations
+              </h2>
+              <p class="mt-1 text-sm text-slate-700">
+                Recent durable runs, including queued work before its first agent session.
+              </p>
+            </div>
+            <.link
+              navigate={~p"/agents"}
+              class="inline-flex min-h-10 items-center rounded-md border border-slate-400 bg-white px-4 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
+            >
+              Open Agent Floor
+            </.link>
+          </div>
+
+          <p
+            :if={@operations == []}
+            id="operations-empty"
+            class="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-700"
+          >
+            No task runs have been prepared yet.
+          </p>
+          <ul :if={@operations != []} id="operation-list" class="grid gap-3 lg:grid-cols-2">
+            <li
+              :for={operation <- @operations}
+              id={"operation-#{operation.run.id}"}
+              class="rounded-xl border border-slate-200 bg-white p-5"
+            >
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <p class="text-sm font-medium text-slate-600">
+                    {operation.project.name} · {operation.board.name}
+                  </p>
+                  <h3 class="mt-1 font-semibold text-slate-950">{operation.task.title}</h3>
+                </div>
+                <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-800">
+                  {state_label(operation.run.state)}
+                </span>
+              </div>
+              <dl class="mt-4 grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <dt class="text-slate-600">Current role</dt>
+                  <dd class="font-medium text-slate-950">{operation_role(operation)}</dd>
+                </div>
+                <div>
+                  <dt class="text-slate-600">Runtime</dt>
+                  <dd class="font-medium text-slate-950">{operation_runtime(operation)}</dd>
+                </div>
+                <div>
+                  <dt class="text-slate-600">Elapsed</dt>
+                  <dd class="font-medium text-slate-950">{elapsed(operation.run.inserted_at)}</dd>
+                </div>
+                <div>
+                  <dt class="text-slate-600">Measured memory</dt>
+                  <dd class="font-medium text-slate-950">{operation_memory(operation)}</dd>
+                </div>
+              </dl>
+              <p :if={operation.run.wait_reason} class="mt-3 text-sm font-medium text-amber-950">
+                Attention: {operation.run.wait_reason}
+              </p>
+              <.link
+                navigate={~p"/runs/#{operation.run.id}"}
+                class="mt-4 inline-flex min-h-10 items-center rounded-md bg-slate-950 px-4 text-sm font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
+              >
+                Inspect run
+              </.link>
+            </li>
+          </ul>
+        </section>
+
         <section aria-labelledby="projects-heading" class="space-y-4">
           <div class="flex items-center justify-between gap-4">
             <h2 id="projects-heading" class="text-xl font-semibold text-slate-950">Projects</h2>
@@ -185,10 +275,15 @@ defmodule CuckodingWeb.StatusLive do
                   {card.project.status}
                 </span>
               </div>
-              <dl class="mt-5 grid grid-cols-3 gap-3 text-sm">
+              <dl class="mt-5 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
                 <div>
                   <dt class="text-slate-600">Boards</dt><dd class="font-semibold">
                     {length(card.boards)}
+                  </dd>
+                </div>
+                <div>
+                  <dt class="text-slate-600">Tasks</dt><dd class="font-semibold">
+                    {card.task_count}
                   </dd>
                 </div>
                 <div>
@@ -216,9 +311,13 @@ defmodule CuckodingWeb.StatusLive do
                 >
                   {board.name}
                 </.link>
-                <span :if={card.boards == []} class="text-sm text-slate-600">
-                  Ready for board setup
-                </span>
+                <.link
+                  :if={card.boards == []}
+                  navigate={~p"/projects/#{card.project.id}/edit#boards-heading"}
+                  class="inline-flex min-h-10 items-center rounded-md border border-slate-300 px-3 text-sm font-medium text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2"
+                >
+                  Create board
+                </.link>
               </div>
             </li>
           </ul>
@@ -385,10 +484,15 @@ defmodule CuckodingWeb.StatusLive do
 
     Enum.map(Cuckoding.Projects.list_projects(), fn project ->
       cards = Map.get(agents_by_project, project.id, [])
+      boards = Cuckoding.Workflows.list_boards(project.id)
 
       %{
         project: project,
-        boards: Cuckoding.Workflows.list_boards(project.id),
+        boards: boards,
+        task_count:
+          boards
+          |> Enum.flat_map(&Cuckoding.Workflows.list_tasks(&1.id))
+          |> length(),
         active_agents: Enum.count(cards, &active_session?/1),
         attention:
           cards
@@ -411,12 +515,45 @@ defmodule CuckodingWeb.StatusLive do
     }
   end
 
+  defp load_dashboard(socket) do
+    agent_cards = Cuckoding.AgentFloor.list_sessions()
+
+    assign(socket,
+      health: Cuckoding.Health.snapshot(),
+      project_cards: project_cards(agent_cards),
+      operations: Cuckoding.AgentFloor.list_operations(),
+      resource_summary: resource_summary(agent_cards),
+      pending_approvals: Cuckoding.WalkingSkeleton.pending_approvals(),
+      usage_records: Cuckoding.Telemetry.Accounting.recent_usage()
+    )
+  end
+
   defp active_session?(card),
     do: card.session.state in @active_session_states and card.run.state in @active_run_states
 
   defp format_bytes(0), do: "No active samples"
   defp format_bytes(bytes) when bytes < 1_048_576, do: "#{div(bytes, 1_024)} KiB"
   defp format_bytes(bytes), do: "#{Float.round(bytes / 1_048_576, 1)} MiB"
+
+  defp operation_role(%{attempt: %{role_key: role_key}}), do: state_label(role_key)
+  defp operation_role(_operation), do: "Waiting for launch"
+  defp operation_runtime(%{session: %{adapter_key: adapter}}), do: state_label(adapter)
+  defp operation_runtime(_operation), do: "Not started"
+
+  defp operation_memory(%{resource: %{memory_bytes: bytes}}), do: format_bytes(bytes)
+  defp operation_memory(_operation), do: "No sample"
+
+  defp elapsed(inserted_at) do
+    seconds = max(DateTime.diff(Cuckoding.Clock.wall_now(), inserted_at, :second), 0)
+
+    cond do
+      seconds < 60 -> "#{seconds}s"
+      seconds < 3_600 -> "#{div(seconds, 60)}m"
+      true -> "#{div(seconds, 3_600)}h #{div(rem(seconds, 3_600), 60)}m"
+    end
+  end
+
+  defp state_label(state), do: state |> String.replace("_", " ") |> String.capitalize()
 
   defp dependency_label(:pubsub), do: "Phoenix PubSub"
   defp dependency_label(:database), do: "SQLite database"

@@ -86,6 +86,7 @@ defmodule Cuckoding.WalkingSkeleton do
         options \\ []
       ) do
     adapter = Keyword.get(options, :adapter, FakeAdapter)
+    {development_adapter, _development_options} = stage_runtime("implementer", adapter, options)
 
     with {:ok, spec} <- run_stage(skeleton, "specification", "spec_writer", adapter, options),
          environment = spec.environment,
@@ -105,7 +106,7 @@ defmodule Cuckoding.WalkingSkeleton do
              options
            ),
          {:ok, environment} <-
-           candidate(development, environment, adapter, skeleton.task, options),
+           candidate(development, environment, development_adapter, skeleton.task, options),
          {:ok, qa} <-
            run_stage(%{skeleton | environment: environment}, "qa", "reviewer", adapter, options),
          {:ok, qa_artifact} <-
@@ -115,7 +116,7 @@ defmodule Cuckoding.WalkingSkeleton do
            write_evidence(
              environment,
              run,
-             adapter,
+             development_adapter,
              [spec, development, qa],
              [spec_artifact, qa_artifact],
              knowledge
@@ -320,6 +321,8 @@ defmodule Cuckoding.WalkingSkeleton do
   end
 
   defp run_stage(skeleton, stage_key, role_key, adapter, options) do
+    {adapter, options} = stage_runtime(role_key, adapter, options)
+
     with {:ok, attempt} <- stage_attempt(skeleton.run, stage_key, role_key, "agent") do
       case run_stage_attempt(skeleton, attempt, stage_key, adapter, options) do
         {:ok, result} -> {:ok, result}
@@ -502,7 +505,7 @@ defmodule Cuckoding.WalkingSkeleton do
       run_id: skeleton.run.id,
       stage_key: stage_key,
       attempt_id: attempt.id,
-      objective: objective(stage_key, skeleton.task),
+      objective: role_objective(attempt.role_key, stage_key, skeleton.task, options),
       worktree_path: skeleton.environment.worktree_path,
       run_dir: skeleton.environment.run_dir,
       requested_model: Keyword.get(options, :requested_model),
@@ -531,6 +534,33 @@ defmodule Cuckoding.WalkingSkeleton do
     |> Keyword.get(:adapter_options, [])
     |> Keyword.put_new(:runner, LocalProcessRunner)
     |> Keyword.put_new(:environment, environment)
+  end
+
+  defp stage_runtime(role_key, default_adapter, options) do
+    case options |> Keyword.get(:role_adapters, %{}) |> Map.get(role_key) do
+      %{adapter: adapter, options: adapter_options, version: version} ->
+        {adapter,
+         options
+         |> Keyword.put(:adapter_options, adapter_options)
+         |> Keyword.put(:runtime_version, version)}
+
+      _missing ->
+        {default_adapter, options}
+    end
+  end
+
+  defp role_objective(role_key, stage_key, task, options) do
+    instructions =
+      options
+      |> Keyword.get(:role_adapters, %{})
+      |> Map.get(role_key, %{})
+      |> Map.get(:settings, %{})
+      |> Map.get("instructions")
+
+    case instructions do
+      text when is_binary(text) and text != "" -> text <> "\n\n" <> objective(stage_key, task)
+      _missing -> objective(stage_key, task)
+    end
   end
 
   defp store_session(attempt, session, options) do

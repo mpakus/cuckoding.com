@@ -75,11 +75,11 @@ The complete launch contract, competitive basis, retention defaults, and commerc
 2. The user chooses **Add project** or edits an existing project.
 3. A three-step wizard collects project identity and a system-selected project folder plus Git base branch, then reviews the pending registration. Before confirmation it only inspects the folder. After explicit review, it initializes Git and creates the first local commit when no branch revision exists; an existing repository with the selected branch is not changed.
 4. Confirming the wizard registers only the project and redirects to its settings page. There the user can add multiple agent connections, edit or add roles, and assign one connection to each role. Every save creates an immutable trusted configuration revision; it does not create or start work.
-5. Inside the project, the user creates a board from a workflow template and accepts or overrides the current role assignments.
-6. The user adds a task. Starting that task snapshots the workflow, role assignments, policy, and agent profiles, then creates its feature branch, worktree, ports, and process group.
+5. Inside project settings, the user creates a board from the default versioned workflow. The board copies the latest saved role assignments and concurrency limit; later project edits do not rewrite that snapshot.
+6. The user adds a Draft task, refines it, and marks it Ready. **Prepare run** snapshots the workflow, role assignments, policy, and agent profiles, then creates the feature branch and owned worktree. The run page requires explicit run-scoped authentication before it starts an agent or allocates runtime resources.
 7. The default workflow moves through Specifications → Coding → Review. Review findings may return to Specifications to correct intent or Coding to correct implementation; a pass completes locally or enters an optional approved release handoff.
 8. Each stage produces typed artifacts and must pass its exit gate; relevant project knowledge is injected and its use recorded.
-9. The global dashboard and Agent Floor stream who is doing what; the laptop can sleep and wake without corrupting the run.
+9. The global dashboard lists recent operations from the durable run projection, including queued runs before an agent session exists, and refreshes role, runtime, elapsed-time, resource, and attention data after committed events. Agent Floor provides the session-level view; the laptop can sleep and wake without corrupting the run.
 10. On completion or archive, the user runs consolidation, reviews candidates, and publishes project or global knowledge and skills.
 
 ## Success metrics

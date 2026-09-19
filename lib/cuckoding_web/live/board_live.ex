@@ -1,6 +1,8 @@
 defmodule CuckodingWeb.BoardLive do
   use CuckodingWeb, :live_view
 
+  alias Cuckoding.Projects
+  alias Cuckoding.ProjectWorkflow
   alias Cuckoding.Workflows
 
   @states ~w(draft ready running waiting paused hibernated blocked done failed cancelled archived)
@@ -12,12 +14,16 @@ defmodule CuckodingWeb.BoardLive do
         raise Phoenix.Router.NoRouteError, conn: socket, router: CuckodingWeb.Router
 
       board ->
+        project = Projects.get_project(board.project_id)
+
         {:ok,
          assign(socket,
            page_title: board.name,
            board: board,
+           project: project,
            states: @states,
            filters: %{"q" => "", "state" => "all"},
+           task_form: %{"title" => "", "description" => "", "priority" => "0"},
            tasks: [],
            notice: nil,
            error: nil
@@ -58,18 +64,106 @@ defmodule CuckodingWeb.BoardLive do
     end
   end
 
+  def handle_event("create-task", %{"task" => attrs}, socket) do
+    case ProjectWorkflow.create_task(socket.assigns.board.id, attrs) do
+      {:ok, task} ->
+        {:noreply,
+         socket
+         |> assign(
+           task_form: %{"title" => "", "description" => "", "priority" => "0"},
+           notice: "Created #{task.title} in Draft.",
+           error: nil
+         )
+         |> load_tasks()}
+
+      {:error, reason} ->
+        {:noreply,
+         assign(socket,
+           task_form: Map.merge(socket.assigns.task_form, attrs),
+           notice: nil,
+           error: task_error(reason)
+         )}
+    end
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
     <Layouts.app>
       <section aria-labelledby="board-heading" class="space-y-8">
-        <header class="space-y-2">
-          <p class="text-sm font-semibold uppercase tracking-wide text-slate-600">Board</p>
-          <h1 id="board-heading" class="text-3xl font-semibold tracking-tight text-slate-950">
-            {@board.name}
-          </h1>
-          <p :if={@board.description} class="max-w-3xl text-slate-700">{@board.description}</p>
+        <header class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div class="space-y-2">
+            <p class="text-sm font-semibold uppercase tracking-wide text-slate-600">
+              {@project.name} · Board
+            </p>
+            <h1 id="board-heading" class="text-3xl font-semibold tracking-tight text-slate-950">
+              {@board.name}
+            </h1>
+            <p :if={@board.description} class="max-w-3xl text-slate-700">{@board.description}</p>
+          </div>
+          <nav aria-label="Board links" class="flex flex-wrap gap-2">
+            <.link
+              navigate={~p"/projects/#{@project.id}/edit"}
+              class="inline-flex min-h-10 items-center rounded-md border border-slate-400 bg-white px-4 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
+            >
+              Project settings
+            </.link>
+            <.link
+              navigate={~p"/agents"}
+              class="inline-flex min-h-10 items-center rounded-md border border-slate-400 bg-white px-4 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
+            >
+              Monitor agents
+            </.link>
+          </nav>
         </header>
+
+        <section
+          aria-labelledby="new-task-heading"
+          class="rounded-xl border border-slate-200 bg-white p-5"
+        >
+          <h2 id="new-task-heading" class="text-xl font-semibold text-slate-950">Add a task</h2>
+          <p class="mt-1 text-sm text-slate-700">
+            New tasks start in Draft so you can refine them before marking them Ready.
+          </p>
+          <form id="create-task-form" phx-submit="create-task" class="mt-4 grid gap-4 sm:grid-cols-4">
+            <label class="grid gap-2 text-sm font-medium text-slate-800 sm:col-span-3">
+              Title
+              <input
+                name="task[title]"
+                value={@task_form["title"]}
+                required
+                maxlength="200"
+                placeholder="Describe a concrete outcome"
+                class="min-h-11 rounded-md border border-slate-400 px-3 focus-visible:outline-2 focus-visible:outline-offset-2"
+              />
+            </label>
+            <label class="grid gap-2 text-sm font-medium text-slate-800">
+              Priority
+              <input
+                type="number"
+                name="task[priority]"
+                value={@task_form["priority"]}
+                min="-100"
+                max="100"
+                required
+                class="min-h-11 rounded-md border border-slate-400 px-3 focus-visible:outline-2 focus-visible:outline-offset-2"
+              />
+            </label>
+            <label class="grid gap-2 text-sm font-medium text-slate-800 sm:col-span-4">
+              Details <textarea
+                name="task[description]"
+                rows="4"
+                maxlength="10000"
+                class="rounded-md border border-slate-400 px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2"
+              >{@task_form["description"]}</textarea>
+            </label>
+            <div class="sm:col-span-4">
+              <button class="min-h-11 rounded-md bg-slate-950 px-5 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2">
+                Create draft task
+              </button>
+            </div>
+          </form>
+        </section>
 
         <form
           id="task-filters"
@@ -240,4 +334,16 @@ defmodule CuckodingWeb.BoardLive do
   defp state_label(state), do: state |> String.replace("_", " ") |> String.capitalize()
   defp reason_label(reason) when is_atom(reason), do: reason |> Atom.to_string() |> reason_label()
   defp reason_label(reason), do: reason |> to_string() |> String.replace("_", " ")
+
+  defp task_error(:task_title_required), do: "Enter a task title of 200 characters or fewer."
+
+  defp task_error(:invalid_task_description),
+    do: "Task details must be 10,000 characters or fewer."
+
+  defp task_error(:invalid_number), do: "Priority must be between -100 and 100."
+
+  defp task_error(%Ecto.Changeset{} = changeset),
+    do: "Task could not be created: #{inspect(changeset.errors)}"
+
+  defp task_error(reason), do: "Task could not be created: #{inspect(reason)}"
 end

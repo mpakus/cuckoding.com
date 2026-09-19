@@ -6,6 +6,8 @@ defmodule CuckodingWeb.ProjectEditLive do
   alias Cuckoding.Adapters.RuntimeConfiguration
   alias Cuckoding.ProjectOnboarding
   alias Cuckoding.Projects
+  alias Cuckoding.ProjectWorkflow
+  alias Cuckoding.Workflows
 
   @default_role_keys MapSet.new(~w(spec_writer implementer reviewer))
 
@@ -20,6 +22,8 @@ defmodule CuckodingWeb.ProjectEditLive do
          revision: config.revision,
          config: edit_config(config.config_json),
          runtime_options: RuntimeConfiguration.options(),
+         boards: Workflows.list_boards(project.id),
+         board_form: %{"name" => "Product", "description" => "", "concurrency_limit" => "1"},
          notice: nil,
          error: nil
        )}
@@ -125,6 +129,24 @@ defmodule CuckodingWeb.ProjectEditLive do
 
       {:error, reason} ->
         {:noreply, assign(socket, config: config, notice: nil, error: error_message(reason))}
+    end
+  end
+
+  def handle_event("create-board", %{"board" => attrs}, socket) do
+    case ProjectWorkflow.create_board(socket.assigns.project.id, attrs) do
+      {:ok, board} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Board created with the current role assignments.")
+         |> push_navigate(to: ~p"/boards/#{board.id}")}
+
+      {:error, reason} ->
+        {:noreply,
+         assign(socket,
+           board_form: Map.merge(socket.assigns.board_form, attrs),
+           notice: nil,
+           error: board_error(reason)
+         )}
     end
   end
 
@@ -385,6 +407,82 @@ defmodule CuckodingWeb.ProjectEditLive do
             </button>
           </div>
         </form>
+
+        <section aria-labelledby="boards-heading" class="space-y-5 border-t border-slate-200 pt-8">
+          <div>
+            <h2 id="boards-heading" class="text-2xl font-semibold text-slate-950">Boards</h2>
+            <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-700">
+              Each board copies the latest saved role assignments. Existing boards and runs keep
+              their snapshots when project defaults change.
+            </p>
+          </div>
+
+          <ul :if={@boards != []} class="grid gap-3 sm:grid-cols-2">
+            <li
+              :for={board <- @boards}
+              id={"project-board-#{board.id}"}
+              class="rounded-xl border border-slate-200 bg-white p-5"
+            >
+              <h3 class="font-semibold text-slate-950">{board.name}</h3>
+              <p class="mt-1 text-sm text-slate-600">
+                {String.capitalize(board.status)} · up to {board.concurrency_limit} active run{if board.concurrency_limit ==
+                                                                                                    1,
+                                                                                                  do:
+                                                                                                    "",
+                                                                                                  else:
+                                                                                                    "s"}
+              </p>
+              <.link
+                navigate={~p"/boards/#{board.id}"}
+                class="mt-4 inline-flex min-h-10 items-center rounded-md border border-slate-400 px-4 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
+              >
+                Open board
+              </.link>
+            </li>
+          </ul>
+
+          <form
+            id="create-board-form"
+            phx-submit="create-board"
+            class="grid gap-4 rounded-xl border border-slate-200 bg-white p-5 sm:grid-cols-2"
+          >
+            <label class="grid gap-2 text-sm font-medium text-slate-800">
+              Board name
+              <input
+                name="board[name]"
+                value={@board_form["name"]}
+                required
+                maxlength="120"
+                class="min-h-11 rounded-md border border-slate-400 px-3 focus-visible:outline-2 focus-visible:outline-offset-2"
+              />
+            </label>
+            <label class="grid gap-2 text-sm font-medium text-slate-800">
+              Concurrent runs
+              <input
+                type="number"
+                name="board[concurrency_limit]"
+                value={@board_form["concurrency_limit"]}
+                min="1"
+                max="32"
+                required
+                class="min-h-11 rounded-md border border-slate-400 px-3 focus-visible:outline-2 focus-visible:outline-offset-2"
+              />
+            </label>
+            <label class="grid gap-2 text-sm font-medium text-slate-800 sm:col-span-2">
+              Description <textarea
+                name="board[description]"
+                rows="3"
+                maxlength="2000"
+                class="rounded-md border border-slate-400 px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2"
+              >{@board_form["description"]}</textarea>
+            </label>
+            <div class="sm:col-span-2">
+              <button class="min-h-11 rounded-md bg-slate-950 px-5 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2">
+                Create board
+              </button>
+            </div>
+          </form>
+        </section>
       </section>
     </Layouts.app>
     """
@@ -509,6 +607,14 @@ defmodule CuckodingWeb.ProjectEditLive do
     do: "Configuration could not be saved: #{inspect(changeset.errors)}"
 
   defp error_message(reason), do: "Configuration could not be saved: #{inspect(reason)}"
+
+  defp board_error(:roles_not_configured),
+    do: "Save an agent assignment for every built-in role before creating a board."
+
+  defp board_error(%Ecto.Changeset{} = changeset),
+    do: "Board could not be created: #{inspect(changeset.errors)}"
+
+  defp board_error(reason), do: "Board could not be created: #{inspect(reason)}"
 
   defp default_role?(key), do: MapSet.member?(@default_role_keys, key)
 

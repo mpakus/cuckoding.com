@@ -338,6 +338,15 @@ defmodule Cuckoding.Execution do
     end)
   end
 
+  def list_runs(task_id) when is_binary(task_id) do
+    Repo.all(
+      from(run in Run,
+        where: run.task_id == ^task_id,
+        order_by: [desc: run.sequence, desc: run.id]
+      )
+    )
+  end
+
   def create_stage_attempt(attrs), do: insert(StageAttempt, attrs)
 
   def transition_run(run_id, to, idempotency_key, attrs \\ %{}),

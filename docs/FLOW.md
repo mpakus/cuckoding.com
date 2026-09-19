@@ -13,8 +13,12 @@ Project setup, board setup, and task execution are three separate commands:
    board, task, run, feature branch, worktree, or provider process.
 2. **Board setup** selects a versioned workflow and snapshots board role
    assignments, budgets, and concurrency settings from project defaults.
-3. **Task start** snapshots the board configuration and only then allocates the
-   run branch, worktree, process groups, ports, and agent sessions.
+3. **Task execution** has two explicit actions. **Prepare run** accepts only a
+   Ready task on an active board, rejects setup-only runtimes, snapshots the
+   board configuration and trusted project policy, and creates the owned branch
+   and worktree. The queued run page then verifies each role's run-scoped
+   authentication before it starts any agent process. A queued run is visible
+   on the global operation monitor even before its first agent session.
 
 This boundary keeps onboarding reversible and lets one project own several
 boards without fabricating a first task.
@@ -103,6 +107,13 @@ Role display names, instructions, and required outputs are editable project
 defaults. Workflow stages reference stable role keys. Boards snapshot their
 assignments, and runs snapshot the board assignments again, so editing an agent
 profile or role never rewrites active or historical work.
+
+The default board launcher resolves Specifications, Coding, and Review
+independently from that snapshot. Each stage receives its assigned connection,
+runtime version, and role instructions; a single implementation runtime is not
+silently reused for the other roles. Cursor Agent, OpenCode, and Custom Agent
+remain saveable project connections but fail closed at run preparation until
+their reviewed launch adapters pass conformance.
 
 ## Pause, hibernate, and resume
 

@@ -22,13 +22,13 @@ defmodule CuckodingWeb.RunLive do
           Process.send_after(self(), :refresh_run, @refresh_ms)
         end
 
-        setup = runtime_setup(detail.run)
+        setups = runtime_setups(detail.run)
 
         {:ok,
          assign(socket,
            page_title: "Run #{detail.run.sequence}",
            detail: detail,
-           runtime_setup: setup,
+           runtime_setups: setups,
            refresh_pending: false,
            notice: "",
            error: nil
@@ -80,7 +80,7 @@ defmodule CuckodingWeb.RunLive do
 
     assign(socket,
       detail: detail,
-      runtime_setup: runtime_setup(detail.run),
+      runtime_setups: runtime_setups(detail.run),
       refresh_pending: false,
       notice: notice
     )
@@ -122,20 +122,27 @@ defmodule CuckodingWeb.RunLive do
           class="space-y-4 rounded-lg border border-amber-300 bg-amber-50 p-5"
         >
           <h2 id="runtime-setup-heading" class="text-xl font-semibold text-amber-950">
-            Verify {@runtime_setup.runtime} before starting
+            Verify each role before starting
           </h2>
-          <div :if={@runtime_setup[:home]} class="space-y-2 text-sm text-amber-950">
-            <p>In Terminal, set <code>CODEX_HOME</code> to this run-owned directory:</p>
-            <p class="overflow-x-auto rounded bg-white p-2"><code>{@runtime_setup.home}</code></p>
-            <p>Then run this executable with <code>{@runtime_setup.login_args}</code>:</p>
-            <p class="overflow-x-auto rounded bg-white p-2">
-              <code>{@runtime_setup.executable}</code>
-            </p>
-          </div>
-          <div :if={@runtime_setup[:helper]} class="space-y-2 text-sm text-amber-950">
-            <p>Claude Code will use the reviewed run-scoped API key helper:</p>
-            <p class="overflow-x-auto rounded bg-white p-2"><code>{@runtime_setup.helper}</code></p>
-          </div>
+          <article
+            :for={setup <- @runtime_setups}
+            class="space-y-2 rounded-md border border-amber-200 bg-white/70 p-4 text-sm text-amber-950"
+          >
+            <h3 class="font-semibold">
+              {role_label(setup.role_key)} · {setup[:connection] || setup.runtime}
+            </h3>
+            <p :if={setup[:connection]}>{setup.runtime}</p>
+            <div :if={setup[:home]} class="space-y-2">
+              <p>In Terminal, set <code>CODEX_HOME</code> to this run-owned directory:</p>
+              <p class="overflow-x-auto rounded bg-white p-2"><code>{setup.home}</code></p>
+              <p>Then run this executable with <code>{setup.login_args}</code>:</p>
+              <p class="overflow-x-auto rounded bg-white p-2"><code>{setup.executable}</code></p>
+            </div>
+            <div :if={setup[:helper]} class="space-y-2">
+              <p>Claude Code will use the reviewed run-scoped API key helper:</p>
+              <p class="overflow-x-auto rounded bg-white p-2"><code>{setup.helper}</code></p>
+            </div>
+          </article>
           <button
             type="button"
             phx-click="start-guided-run"
@@ -263,14 +270,16 @@ defmodule CuckodingWeb.RunLive do
   defp plugin_entries(_snapshot), do: []
   defp state_label(state), do: state |> String.replace("_", " ") |> String.capitalize()
 
-  defp runtime_setup(%{state: "queued", id: run_id}) do
-    case Cuckoding.GuidedRun.runtime_setup(run_id) do
-      {:ok, setup} -> setup
-      {:error, _reason} -> %{runtime: "configured runtime"}
+  defp runtime_setups(%{state: "queued", id: run_id}) do
+    case Cuckoding.GuidedRun.runtime_setups(run_id) do
+      {:ok, setups} -> setups
+      {:error, _reason} -> [%{role_key: "configured", runtime: "configured runtime"}]
     end
   end
 
-  defp runtime_setup(_run), do: %{}
+  defp runtime_setups(_run), do: []
+
+  defp role_label(role_key), do: role_key |> String.replace("_", " ") |> String.capitalize()
 
   defp start_error(%Cuckoding.Adapters.Types.Error{code: :not_installed}),
     do: "The configured runtime executable is unavailable."

@@ -1,12 +1,15 @@
 defmodule CuckodingWeb.ProjectEditLiveTest do
   use CuckodingWeb.ConnCase, async: false
 
+  import Ecto.Query
   import Phoenix.LiveViewTest
 
   alias Cuckoding.ProjectOnboarding
   alias Cuckoding.Projects
   alias Cuckoding.Projects.ProjectConfigVersion
   alias Cuckoding.Repo
+  alias Cuckoding.Workflows
+  alias Cuckoding.Workflows.RoleAssignment
 
   setup do
     repo_path =
@@ -92,6 +95,27 @@ defmodule CuckodingWeb.ProjectEditLiveTest do
 
     original = Repo.get_by!(ProjectConfigVersion, project_id: project.id, revision: 1)
     assert original.config_json["agent_connections"] == []
+
+    view
+    |> form("#create-board-form",
+      board: %{name: "Product", description: "Default delivery flow", concurrency_limit: "2"}
+    )
+    |> render_submit()
+
+    assert [board] = Workflows.list_boards(project.id)
+    assert_redirect(view, ~p"/boards/#{board.id}")
+    assert board.concurrency_limit == 2
+
+    assert Repo.aggregate(
+             from(role in RoleAssignment, where: role.board_id == ^board.id),
+             :count
+           ) == 6
+
+    assert Repo.get_by!(RoleAssignment, board_id: board.id, role_key: "spec_writer").adapter_key ==
+             "claude_code"
+
+    assert Repo.get_by!(RoleAssignment, board_id: board.id, role_key: "implementer").adapter_key ==
+             "codex"
   end
 
   defp role_params do

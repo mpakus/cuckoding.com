@@ -44,6 +44,22 @@ defmodule Cuckoding.WalkingSkeletonTest do
     end
   end
 
+  defmodule RoleAdapter do
+    alias Cuckoding.Adapters.FakeAdapter
+
+    def start(request, options) do
+      tag = Keyword.fetch!(options, :tag)
+
+      send(
+        Keyword.fetch!(options, :caller),
+        {:role_stage, tag, request.stage_key, request.objective}
+      )
+
+      with {:ok, session} <- FakeAdapter.start(request, options),
+           do: {:ok, %{session | adapter: Atom.to_string(tag)}}
+    end
+  end
+
   setup do
     root =
       Path.join(System.tmp_dir!(), "cuckoding-walking-#{System.unique_integer([:positive])}")
@@ -175,6 +191,63 @@ defmodule Cuckoding.WalkingSkeletonTest do
     assert {:ok, pending} = Cuckoding.GuidedRun.start(created.run.id, async: false)
     assert pending.run.state == "waiting"
     assert Repo.get!(Cuckoding.Execution.Run, created.run.id).state == "waiting"
+  end
+
+  test "workflow resolves the configured adapter and instructions for each agent role", fixture do
+    attrs = Map.merge(fixture.attrs, %{adapter_key: "fake", start_run: true})
+    assert {:ok, created} = WalkingSkeleton.create(attrs)
+
+    role_adapters = %{
+      "spec_writer" => %{
+        adapter: RoleAdapter,
+        options: [caller: self(), tag: :spec_agent],
+        version: "spec-1",
+        settings: %{"instructions" => "Write a bounded specification."}
+      },
+      "implementer" => %{
+        adapter: Cuckoding.Adapters.FakeAdapter,
+        options: [],
+        version: "implementation-1",
+        settings: %{"instructions" => "Implement only the accepted scope."}
+      },
+      "reviewer" => %{
+        adapter: RoleAdapter,
+        options: [caller: self(), tag: :review_agent],
+        version: "review-1",
+        settings: %{"instructions" => "Review independently."}
+      }
+    }
+
+    assert {:ok, pending} =
+             WalkingSkeleton.run(created,
+               role_adapters: role_adapters,
+               simulate_sleep_gap: false
+             )
+
+    assert pending.run.state == "waiting"
+
+    assert_receive {:role_stage, :spec_agent, "specification", specification}
+    assert specification =~ "Write a bounded specification."
+
+    assert_receive {:role_stage, :review_agent, "qa", review}
+    assert review =~ "Review independently."
+
+    sessions =
+      Repo.all(
+        from(session in Cuckoding.Execution.AgentSession,
+          join: attempt in StageAttempt,
+          on: attempt.id == session.stage_attempt_id,
+          where: attempt.run_id == ^created.run.id,
+          order_by: attempt.inserted_at,
+          select: {attempt.role_key, session.adapter_key, session.runtime_version}
+        )
+      )
+
+    assert sessions == [
+             {"spec_writer", "spec_agent", "spec-1"},
+             {"implementer", "fake", "implementation-1"},
+             {"reviewer", "review_agent", "review-1"}
+           ]
   end
 
   test "guided onboarding validates the repository before creating a queued run", fixture do

@@ -119,6 +119,28 @@ defmodule CuckodingWeb.BoardLiveTest do
     assert has_element?(view, "#column-ready #task-#{alpha.id}")
   end
 
+  test "creates a bounded draft task from the board", %{conn: conn, board: board} do
+    {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}")
+
+    view
+    |> form("#create-task-form",
+      task: %{title: "New outcome", description: "Acceptance details", priority: "7"}
+    )
+    |> render_submit()
+
+    task = Repo.get_by!(Cuckoding.Workflows.Task, board_id: board.id, title: "New outcome")
+    assert task.state == "draft"
+    assert task.priority == 7
+    assert has_element?(view, "#board-status", "Created New outcome in Draft")
+    assert has_element?(view, "#column-draft #task-#{task.id}")
+
+    assert Repo.exists?(
+             from(event in RunEvent,
+               where: event.run_id == ^("task:" <> task.id) and event.event_type == "task.created"
+             )
+           )
+  end
+
   test "task detail edits draft tasks with labels and durable audit evidence", %{
     conn: conn,
     board: board,

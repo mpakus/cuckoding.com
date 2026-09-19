@@ -45,7 +45,7 @@ defmodule CuckodingWeb.StatusLiveTest do
              "Edit project"
            )
 
-    assert has_element?(view, "#project-#{project.id}", "Ready for board setup")
+    assert has_element?(view, "#project-#{project.id} a", "Create board")
   end
 
   test "sets a restrictive content security policy", %{conn: conn} do
