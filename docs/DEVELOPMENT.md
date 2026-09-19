@@ -59,6 +59,13 @@ when needed. Registration records only the project and its trusted configuration
 version. It does not create a board, task, queued run, feature branch, worktree,
 port, or provider process.
 
+The runtime selector shows Codex, Claude Code, Cursor Agent, OpenCode, and
+Custom Agent. The Claude API-key helper is rendered and validated only for
+Claude Code. Cursor Agent and OpenCode reuse their stable unavailable adapter
+contracts, while Custom Agent records only an executable path; all three carry
+an explicit setup-only warning and cannot start task runs until their adapter
+contract and conformance evidence are complete.
+
 A project may be registered while its working tree is dirty so the user can
 organize existing work. Starting a task remains stricter: the run boundary
 requires a clean repository, captures the base revision, snapshots workflow and

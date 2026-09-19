@@ -78,13 +78,26 @@ defmodule CuckodingWeb.ProjectSetupLiveTest do
     assert has_element?(view, "li", "Specifications")
     assert has_element?(view, "li", "Coding")
     assert has_element?(view, "li", "Review")
+    assert has_element?(view, "option[value=cursor_agent]", "Cursor Agent")
+    assert has_element?(view, "option[value=opencode]", "OpenCode")
+    assert has_element?(view, "option[value=custom_agent]", "Custom Agent")
+    refute has_element?(view, "input[name='project[api_key_helper]']")
+
+    render_change(view, "runtime_changed", %{"project" => %{"runtime" => "claude_code"}})
+    assert has_element?(view, "input[name='project[api_key_helper]']")
+
+    render_change(view, "runtime_changed", %{"project" => %{"runtime" => "custom_agent"}})
+    refute has_element?(view, "input[name='project[api_key_helper]']")
+    assert has_element?(view, "#runtime-availability-warning", "runs remain blocked")
+
+    render_change(view, "runtime_changed", %{"project" => %{"runtime" => "codex"}})
+    refute has_element?(view, "#runtime-availability-warning")
 
     view
     |> form("#project-step-3",
       project: %{
         runtime: "codex",
-        executable_path: "/usr/bin/true",
-        api_key_helper: ""
+        executable_path: "/usr/bin/true"
       }
     )
     |> render_submit()

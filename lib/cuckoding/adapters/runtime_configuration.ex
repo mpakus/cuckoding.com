@@ -1,9 +1,38 @@
 defmodule Cuckoding.Adapters.RuntimeConfiguration do
   @moduledoc "Validates machine-local settings for selectable agent runtimes."
 
-  @runtimes ~w(codex claude_code)
+  alias Cuckoding.Adapters.CursorAgent
+  alias Cuckoding.Adapters.OpenCode
 
-  def options, do: [{"Codex", "codex"}, {"Claude Code", "claude_code"}]
+  @options [
+    {"Codex", "codex"},
+    {"Claude Code", "claude_code"},
+    {"Cursor Agent", "cursor_agent"},
+    {"OpenCode", "opencode"},
+    {"Custom Agent", "custom_agent"}
+  ]
+  @runtimes Enum.map(@options, &elem(&1, 1))
+
+  def options, do: @options
+
+  def default_executable("codex"), do: System.find_executable("codex") || ""
+  def default_executable("claude_code"), do: System.find_executable("claude") || ""
+
+  def default_executable("cursor_agent"),
+    do: System.find_executable("cursor-agent") || System.find_executable("agent") || ""
+
+  def default_executable("opencode"), do: System.find_executable("opencode") || ""
+  def default_executable("custom_agent"), do: ""
+  def default_executable(_runtime), do: ""
+
+  def warning("cursor_agent"), do: CursorAgent.warning()
+  def warning("opencode"), do: OpenCode.warning()
+
+  def warning("custom_agent"),
+    do:
+      "Custom Agent can be saved as a project connection, but runs remain blocked until a compatible adapter is implemented and reviewed."
+
+  def warning(_runtime), do: nil
 
   def validate(attrs) when is_map(attrs) do
     with {:ok, runtime} <- runtime(attrs["runtime"]),
@@ -38,8 +67,8 @@ defmodule Cuckoding.Adapters.RuntimeConfiguration do
 
   defp executable(_path), do: {:error, :invalid_runtime_executable}
 
-  defp helper("codex", _path), do: {:ok, nil}
   defp helper("claude_code", path), do: executable(path)
+  defp helper(_runtime, _path), do: {:ok, nil}
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)

@@ -3,7 +3,30 @@ defmodule Cuckoding.Adapters.StableStubsTest do
 
   alias Cuckoding.Adapters.CursorAgent
   alias Cuckoding.Adapters.OpenCode
+  alias Cuckoding.Adapters.RuntimeConfiguration
   alias Cuckoding.Adapters.Types
+
+  test "project setup exposes guarded and custom runtime connections without Claude secrets" do
+    assert [
+             {"Codex", "codex"},
+             {"Claude Code", "claude_code"},
+             {"Cursor Agent", "cursor_agent"},
+             {"OpenCode", "opencode"},
+             {"Custom Agent", "custom_agent"}
+           ] = RuntimeConfiguration.options()
+
+    for runtime <- ~w(cursor_agent opencode custom_agent) do
+      assert {:ok, %{runtime: ^runtime, settings: settings}} =
+               RuntimeConfiguration.validate(%{
+                 "runtime" => runtime,
+                 "executable_path" => "/usr/bin/true",
+                 "api_key_helper" => "/must/not/be/used"
+               })
+
+      assert settings == %{"executable_path" => "/usr/bin/true"}
+      assert is_binary(RuntimeConfiguration.warning(runtime))
+    end
+  end
 
   test "Cursor probe reports the real runtime but keeps it unavailable" do
     runner = fn _path, args, _options ->

@@ -115,6 +115,20 @@ defmodule Cuckoding.ProjectOnboardingTest do
     assert git!(repo_path, ["status", "--porcelain"]) == ""
   end
 
+  test "stores a setup-only custom agent connection without starting work", %{
+    repo_path: repo_path
+  } do
+    attrs = project_attrs(repo_path, "Custom runtime") |> Map.put("runtime", "custom_agent")
+
+    assert {:ok, %{config: config}} = ProjectOnboarding.create(attrs)
+
+    assert [%{"adapter_key" => "custom_agent", "settings" => settings}] =
+             config.config_json["agent_connections"]
+
+    assert settings == %{"executable_path" => "/usr/bin/true"}
+    assert execution_counts() == %{boards: 0, tasks: 0, runs: 0, environments: 0}
+  end
+
   defp execution_counts do
     %{
       boards: Repo.aggregate(Board, :count),

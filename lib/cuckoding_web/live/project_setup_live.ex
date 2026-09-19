@@ -26,7 +26,7 @@ defmodule CuckodingWeb.ProjectSetupLive do
          "default_branch" => "main",
          "repository_action" => nil,
          "runtime" => "codex",
-         "executable_path" => System.find_executable("codex") || "",
+         "executable_path" => RuntimeConfiguration.default_executable("codex"),
          "api_key_helper" => "",
          "confirmed" => "false"
        }
@@ -53,6 +53,19 @@ defmodule CuckodingWeb.ProjectSetupLive do
 
   def handle_event("back", _params, socket) do
     {:noreply, assign(socket, step: max(socket.assigns.step - 1, 1), error: nil)}
+  end
+
+  def handle_event("runtime_changed", %{"project" => params}, socket) do
+    previous_runtime = socket.assigns.project["runtime"]
+    runtime = params["runtime"]
+
+    project =
+      socket.assigns.project
+      |> Map.merge(params)
+      |> maybe_change_executable(previous_runtime, runtime)
+      |> maybe_clear_claude_helper(runtime)
+
+    {:noreply, assign(socket, project: project, error: nil)}
   end
 
   def handle_event("choose_folder", _params, socket) do
@@ -216,7 +229,13 @@ defmodule CuckodingWeb.ProjectSetupLive do
           <.wizard_actions step={@step} />
         </form>
 
-        <form :if={@step == 3} id="project-step-3" phx-submit="next" class="space-y-6">
+        <form
+          :if={@step == 3}
+          id="project-step-3"
+          phx-change="runtime_changed"
+          phx-submit="next"
+          class="space-y-6"
+        >
           <fieldset class="space-y-5 rounded-xl border border-slate-200 bg-white p-6">
             <legend class="px-2 text-lg font-semibold text-slate-950">Agent connection</legend>
             <p class="text-sm leading-6 text-slate-700">
@@ -238,24 +257,36 @@ defmodule CuckodingWeb.ProjectSetupLive do
                 </option>
               </select>
             </label>
+            <p
+              :if={RuntimeConfiguration.warning(@project["runtime"])}
+              id="runtime-availability-warning"
+              role="status"
+              class="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm leading-6 text-amber-950"
+            >
+              {RuntimeConfiguration.warning(@project["runtime"])}
+            </p>
             <label class="grid gap-2 font-medium text-slate-800">
               Runtime executable
               <input
                 name="project[executable_path]"
                 value={@project["executable_path"]}
                 required
-                placeholder="/absolute/path/to/codex"
+                placeholder="/absolute/path/to/agent"
                 autocapitalize="none"
                 spellcheck="false"
                 class="min-h-11 rounded-md border border-slate-400 px-3 font-mono text-sm focus-visible:outline-2 focus-visible:outline-offset-2"
               />
             </label>
-            <label class="grid gap-2 font-medium text-slate-800">
+            <label
+              :if={@project["runtime"] == "claude_code"}
+              class="grid gap-2 font-medium text-slate-800"
+            >
               Claude API-key helper
               <span class="text-sm font-normal text-slate-600">Required only for Claude Code</span>
               <input
                 name="project[api_key_helper]"
                 value={@project["api_key_helper"]}
+                required
                 placeholder="/absolute/path/to/helper"
                 autocapitalize="none"
                 spellcheck="false"
@@ -325,6 +356,12 @@ defmodule CuckodingWeb.ProjectSetupLive do
                 </dd>
               </div>
             </dl>
+            <p
+              :if={RuntimeConfiguration.warning(@project["runtime"])}
+              class="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm leading-6 text-amber-950"
+            >
+              {RuntimeConfiguration.warning(@project["runtime"])}
+            </p>
           </section>
 
           <.host_runner_notice />
@@ -454,4 +491,12 @@ defmodule CuckodingWeb.ProjectSetupLive do
       picker -> picker.choose()
     end
   end
+
+  defp maybe_change_executable(project, runtime, runtime), do: project
+
+  defp maybe_change_executable(project, _previous_runtime, runtime),
+    do: Map.put(project, "executable_path", RuntimeConfiguration.default_executable(runtime))
+
+  defp maybe_clear_claude_helper(project, "claude_code"), do: project
+  defp maybe_clear_claude_helper(project, _runtime), do: Map.put(project, "api_key_helper", "")
 end

@@ -34,7 +34,7 @@ It is not a chat client and it is not an autonomous merge bot. Its product value
 - Reusable agent connections and project role defaults. The built-in roles are Specifications, Coding, and Review; users may add roles and edit their instructions and output contracts.
 - Multiple boards and concurrent task flows per project.
 - Configurable stage templates and role-to-runtime assignment.
-- Claude Code and Codex as supported launch adapters; Cursor Agent and OpenCode retain stable contracts and test doubles until their conformance suites pass.
+- Claude Code and Codex as supported launch adapters. Project setup may also save Cursor Agent, OpenCode, and Custom Agent connections, but the UI marks them setup-only and task execution remains blocked until a reviewed adapter passes the conformance suite.
 - Git worktree per run, host process runner with process-group supervision, path and command policy, per-run port allocation and preview URL.
 - Durable state machine, retries, approvals, pause, hibernate, resume, crash recovery, and sleep/wake reconciliation.
 - Power assertions while runs are active; unattended mode for long runs.

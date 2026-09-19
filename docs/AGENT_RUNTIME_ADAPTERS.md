@@ -84,7 +84,17 @@ Cursor Agent `2026.09.15-d2fe57e` remains unavailable despite exposing headless 
 
 The installed OpenCode `1.18.21` application is a desktop app, not evidence of the documented OpenCode CLI. No `opencode` executable is on `PATH`, so the OpenCode stub reports `cli_not_installed`, exposes no adapter capabilities, and rejects every operational callback. If a CLI is later installed, the stub can report its version but remains unavailable as `runtime_isolation_unverified` until pure mode, run-scoped config/state, authentication, permissions, events, cancellation, and recovery pass the adapter conformance suite.
 
-Both stubs are present in the runtime catalog as non-selectable options. The LiveView renders disabled radio controls with adjacent plain-language warnings, so installation or desktop-app detection cannot silently imply production support.
+Both stubs remain non-selectable for execution. Project setup may nevertheless
+save a Cursor Agent or OpenCode connection so roles can be configured before
+support lands; the selector renders the same plain-language warning and no task
+may start through either stub. Installation or desktop-app detection therefore
+cannot silently imply production support.
+
+Custom Agent is the same honest setup boundary without an execution adapter:
+project configuration stores its reviewed absolute executable path, while the
+UI states that runs remain blocked until a concrete `AgentAdapter` implementation
+and conformance evidence exist. Cuckoding does not guess argv, permissions,
+authentication, event, recovery, or usage protocols for an arbitrary binary.
 
 ## Model identity
 
