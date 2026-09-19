@@ -55,7 +55,8 @@ defmodule CuckodingWeb.TaskLive do
 
     case Workflows.transition_task(socket.assigns.task.id, "ready", key) do
       {:ok, %{result: %{"outcome" => "transitioned"}}} ->
-        {:noreply, reload(socket, "Task is ready to run.")}
+        {:noreply,
+         reload(socket, "Task is Ready. Choose Prepare run, then start it on the run page.")}
 
       {:ok, %{result: %{"reason" => reason}}} ->
         {:noreply,
@@ -116,8 +117,8 @@ defmodule CuckodingWeb.TaskLive do
           <div>
             <h2 id="task-run-heading" class="text-xl font-semibold text-slate-950">Run this task</h2>
             <p class="mt-1 text-sm leading-6 text-slate-700">
-              Draft tasks can be edited. Ready tasks can prepare a branch and worktree; agent
-              authentication and execution begin only from the run page.
+              Ready does not start automatically. Choose Prepare run to create its branch and
+              worktree, then check authentication and start the workflow on the run page.
             </p>
           </div>
           <button
@@ -134,6 +135,7 @@ defmodule CuckodingWeb.TaskLive do
             id="prepare-task-run"
             type="button"
             phx-click="prepare-run"
+            phx-disable-with="Preparing run…"
             class="min-h-11 rounded-md bg-slate-950 px-5 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
           >
             Prepare run
@@ -141,6 +143,13 @@ defmodule CuckodingWeb.TaskLive do
           <p :if={@task.state == "ready" and queued_run?(@runs)} class="text-sm text-slate-700">
             A run is prepared and waiting for authentication.
           </p>
+          <.link
+            :for={run <- Enum.filter(@runs, &(&1.state == "queued"))}
+            navigate={~p"/runs/#{run.id}"}
+            class="inline-flex min-h-11 items-center rounded-md bg-slate-950 px-5 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            Open prepared run and start
+          </.link>
         </section>
 
         <.host_runner_notice />

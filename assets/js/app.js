@@ -74,10 +74,25 @@ const CopyCommand = {
   },
 }
 
+const LogTail = {
+  mounted() {
+    this.el.scrollTop = this.el.scrollHeight
+  },
+  beforeUpdate() {
+    this.follow = this.el.scrollHeight - this.el.scrollTop - this.el.clientHeight < 24
+    this.processId = this.el.dataset.processId
+  },
+  updated() {
+    if (this.follow || this.processId !== this.el.dataset.processId) {
+      this.el.scrollTop = this.el.scrollHeight
+    }
+  },
+}
+
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {CopyCommand, TaskBoard},
+  hooks: {CopyCommand, TaskBoard, LogTail},
 })
 
 liveSocket.connect()

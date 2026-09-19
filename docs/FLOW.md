@@ -16,14 +16,19 @@ Project setup, board setup, board task intake, and delivery execution are separa
 2. **Board setup** creates a named board with the default versioned workflow,
    copied project role assignments, and a chosen concurrency limit. Workflow
    selection and board-level role/budget editors remain design targets.
-3. **Task execution** has two explicit actions. **Prepare run** accepts only a
+3. **Task execution** has two explicit actions. Moving a task to Ready does not
+   start it automatically. The Ready card's **Set up and start** link opens task
+   detail; an already prepared task links directly to its queued run.
+   **Prepare run** accepts only a
    Ready task on an active board, rejects setup-only runtimes, snapshots the
    board configuration and trusted project policy, and creates the owned branch
    and worktree. The queued run page then verifies each role's saved authorization
    or isolated runtime setup before it starts any agent process. Required shell setup is
    shown as one complete read-only command with an adjacent copy control. A
    queued run is visible on the global operation monitor even before its first
-   agent session.
+   agent session. Once output exists, Artifacts follows the selected log's last
+   5,000 lines in LiveView and offers a full filtered download; viewer pause does
+   not pause execution. See [UI_DASHBOARD.md](UI_DASHBOARD.md) for safety limits.
 4. **Board task intake** accepts a bounded prompt and one snapshotted agent
    role. It creates a hidden planning task and normal queued run, verifies that
    role's saved authorization or isolated runtime setup, and launches a single read-only,

@@ -34,6 +34,7 @@ defmodule CuckodingWeb.Router do
 
     get "/open", ShellController, :open
     get "/unauthorized", ShellController, :unauthorized
+    get "/runs/:id/logs/:process_id", RunLogController, :show
 
     live_session :browser, on_mount: [{CuckodingWeb.ShellAuthHook, :browser}] do
       live "/", StatusLive, :index

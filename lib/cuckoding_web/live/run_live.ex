@@ -7,6 +7,7 @@ defmodule CuckodingWeb.RunLive do
   import CuckodingWeb.UsageComponents
 
   alias Cuckoding.AgentFloor
+  alias Cuckoding.RunLog
 
   @refresh_ms 5_000
 
@@ -20,12 +21,14 @@ defmodule CuckodingWeb.RunLive do
         if connected?(socket) do
           Cuckoding.ActivityStream.subscribe(run_id)
           Process.send_after(self(), :refresh_run, @refresh_ms)
+          Process.send_after(self(), :refresh_log, 1_000)
         end
 
         setups = runtime_setups(detail.run)
 
         {:ok,
-         assign(socket,
+         socket
+         |> assign(
            page_title: "Run #{detail.run.sequence}",
            detail: detail,
            runtime_setups: setups,
@@ -33,7 +36,9 @@ defmodule CuckodingWeb.RunLive do
            refresh_pending: false,
            notice: "",
            error: nil
-         )}
+         )
+         |> assign(log_process_id: nil, log_tail: nil, log_error: nil, log_paused: false)
+         |> refresh_log()}
     end
   end
 
@@ -56,7 +61,24 @@ defmodule CuckodingWeb.RunLive do
     {:noreply, refresh(socket, "Run activity updated.")}
   end
 
+  def handle_info(:refresh_log, socket) do
+    if connected?(socket), do: Process.send_after(self(), :refresh_log, 1_000)
+    {:noreply, refresh_log(socket)}
+  end
+
   @impl true
+  def handle_event("select-log", %{"process_id" => id}, socket) do
+    if Enum.any?(RunLog.entries(socket.assigns.detail.artifacts), &(&1.id == id)) do
+      {:noreply, socket |> assign(log_process_id: id, log_paused: false) |> refresh_log()}
+    else
+      {:noreply, assign(socket, log_error: "Choose a log artifact belonging to this run.")}
+    end
+  end
+
+  def handle_event("toggle-log", _params, socket) do
+    {:noreply, socket |> assign(:log_paused, !socket.assigns.log_paused) |> refresh_log()}
+  end
+
   def handle_event("start-guided-run", _params, socket) do
     case start_run(socket.assigns.detail) do
       {:ok, :started} ->
@@ -107,13 +129,42 @@ defmodule CuckodingWeb.RunLive do
   defp refresh(socket, notice) do
     detail = AgentFloor.get_run(socket.assigns.detail.run.id)
 
-    assign(socket,
+    socket
+    |> assign(
       detail: detail,
       runtime_setups: runtime_setups(detail.run),
       task_proposals: task_proposals(detail),
       refresh_pending: false,
       notice: notice
     )
+    |> refresh_log()
+  end
+
+  defp refresh_log(%{assigns: %{log_paused: true}} = socket), do: socket
+
+  defp refresh_log(socket) do
+    process_id =
+      socket.assigns.log_process_id ||
+        case RunLog.entries(socket.assigns.detail.artifacts) do
+          [log | _] -> log.id
+          [] -> nil
+        end
+
+    case process_id && RunLog.tail(socket.assigns.detail.run.id, process_id) do
+      {:ok, tail} ->
+        assign(socket, log_process_id: process_id, log_tail: tail, log_error: nil)
+
+      nil ->
+        socket
+
+      {:error, _reason} ->
+        assign(socket,
+          log_process_id: process_id,
+          log_tail: nil,
+          log_error:
+            "Log unavailable. The file may not exist yet or may no longer be safe to read."
+        )
+    end
   end
 
   @impl true
@@ -332,6 +383,73 @@ defmodule CuckodingWeb.RunLive do
               <span>{artifact.name}</span><span class="text-slate-600">{artifact.size} bytes</span>
             </li>
           </ul>
+          <section id="run-logs" aria-labelledby="run-logs-heading" class="min-w-0 space-y-3">
+            <h3 id="run-logs-heading" class="text-lg font-semibold text-slate-950">
+              Live process logs
+            </h3>
+            <p class="text-sm text-slate-700">
+              Follows the latest 5,000 lines, refreshing every second. Provider entries
+              show public summaries and tool metadata only; private or unsupported entries are omitted.
+              Scroll up to read earlier lines, or pause updates. Downloads use the same filtering.
+            </p>
+            <p :if={RunLog.entries(@detail.artifacts) == []} class="text-sm text-slate-700">
+              No log file is available yet. It will appear here when a process writes output.
+            </p>
+            <form
+              :if={RunLog.entries(@detail.artifacts) != []}
+              phx-change="select-log"
+              id="run-log-select"
+            >
+              <label for="run-log-process" class="block text-sm font-medium text-slate-800">Log file</label>
+              <select
+                id="run-log-process"
+                name="process_id"
+                class="mt-1 min-h-11 w-full rounded-md border border-slate-400 bg-white px-3"
+              >
+                <option
+                  :for={log <- RunLog.entries(@detail.artifacts)}
+                  value={log.id}
+                  selected={log.id == @log_process_id}
+                >
+                  {log.name}
+                </option>
+              </select>
+            </form>
+            <div :if={@log_process_id} class="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                phx-click="toggle-log"
+                aria-pressed={to_string(@log_paused)}
+                class="min-h-11 rounded-md border border-slate-400 px-4 focus-visible:outline-2 focus-visible:outline-offset-2"
+              >
+                {if @log_paused, do: "Resume live log", else: "Pause live log"}
+              </button>
+              <a
+                href={~p"/runs/#{@detail.run.id}/logs/#{@log_process_id}"}
+                class="inline-flex min-h-11 items-center rounded underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
+              >
+                Download full filtered log
+              </a>
+            </div>
+            <p id="run-log-status" role="status" class="text-sm text-slate-700">
+              {if @log_paused, do: "Updates paused.", else: "Following live output."}
+              <span :if={@log_tail}>Showing {@log_tail.lines} lines.</span>
+              <span :if={@log_tail && @log_tail.limited?}>
+                Earlier output is in the download. The preview also has an 8 MiB safety limit.
+              </span>
+            </p>
+            <p :if={@log_error} role="alert" class="text-sm text-red-800">{@log_error}</p>
+            <pre
+              :if={@log_tail}
+              id="run-log-output"
+              phx-hook="LogTail"
+              data-process-id={@log_process_id}
+              tabindex="0"
+              aria-label="Latest process log lines"
+              aria-live="off"
+              class="max-h-[32rem] overflow-auto rounded-lg bg-slate-950 p-4 text-xs leading-5 whitespace-pre-wrap break-all text-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2"
+            ><code>{@log_tail.text}</code></pre>
+          </section>
         </section>
 
         <section aria-labelledby="findings-heading" class="space-y-3">

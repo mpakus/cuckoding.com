@@ -112,6 +112,19 @@ defmodule CuckodingWeb.BoardLiveTest do
     assert has_element?(view, "#board-status", "Moved Alpha task to Ready")
     assert has_element?(view, "#column-ready #task-#{alpha.id}")
     assert Repo.get!(Cuckoding.Workflows.Task, alpha.id).state == "ready"
+    assert has_element?(view, "#column-ready", "Ready tasks do not start automatically")
+    assert has_element?(view, "#start-task-#{alpha.id}", "Set up and start")
+    task_path = ~p"/boards/#{board.id}/tasks/#{alpha.id}"
+
+    assert {:error, {:live_redirect, %{to: ^task_path}}} =
+             view |> element("#start-task-#{alpha.id}") |> render_click()
+
+    {:ok, task_view, _html} = live(conn, task_path)
+    assert has_element?(task_view, "#prepare-task-run", "Prepare run")
+    assert has_element?(task_view, "#prepare-task-run[phx-disable-with='Preparing run…']")
+    assert Cuckoding.Execution.list_runs(alpha.id) == []
+
+    {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}")
 
     render_hook(view, "transition-task", %{"id" => alpha.id, "to" => "done"})
 

@@ -140,8 +140,12 @@ from docs/TASKS.md.” **Create planning run** shows submit feedback and navigat
 to a queued run; it does not silently start the provider or import cards. On
 the run page, authenticate and start analysis, inspect progress, then select
 validated proposals to import as Draft tasks. No proposal is imported without
-review. A manually created or imported Ready task offers **Prepare run** on
-`/boards/:board_id/tasks/:id`; authentication and launch are separate run actions.
+review. Ready does not mean automatically scheduled: each Ready card has
+**Set up and start**, linking to **Prepare run** on
+`/boards/:board_id/tasks/:id`. Preparation creates the branch/worktree but does
+not launch an agent. A task with a queued run instead offers **Open prepared run
+and start**; authentication and launch are separate run actions. Move selectors
+start with **Choose a state**, not a destructive destination.
 
 ### Run detail
 
@@ -162,6 +166,25 @@ optimization claims. The knowledge panel is an explicit Phase 7 placeholder.
 Resource history uses native progress elements plus a complete table; periodic
 metric refreshes run every five seconds and committed activity hints are
 coalesced separately.
+
+Under **Artifacts**, **Live process logs** follows the selected run-owned log
+every second with at most the latest 5,000 lines. Scroll-up preserves the reading
+position; **Pause live log** stops viewer updates only, not the agent. Selecting
+another log follows its tail. Reconnect reloads from disk; truncation/replacement
+is picked up on refresh. **Download full filtered log** streams a snapshot of
+the selected file, including earlier output outside the preview.
+
+Both views normalize supported provider events into public summaries and tool
+metadata and redact secrets. Hidden reasoning, unsupported/plain output,
+malformed entries, and lines over 64 KiB become omission markers; this is not a
+raw terminal transcript. Preview reads are additionally bounded to the final
+8 MiB, so unusually large lines can yield fewer than 5,000 rows, with a visible
+limit notice. The download is streamed without that preview byte cap. Its
+loopback-only endpoint requires the same browser authentication as the app
+when authentication is enabled, disables caching, and resolves only a validated
+artifact ID beneath the run's recorded artifact directory. User-supplied paths,
+symlinks (except the fixed macOS `/var` and `/tmp` system aliases), and hardlinked
+files are rejected. Raw artifacts remain on disk; they are never served directly.
 
 Queued planning runs show the next authentication/start action before any
 agent session exists. Failures show a sanitized cause and recovery guidance;

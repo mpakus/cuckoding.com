@@ -320,6 +320,9 @@ defmodule CuckodingWeb.BoardLive do
               {state_label(state)}
               <span class="font-normal text-slate-600">({count_tasks(@tasks, state)})</span>
             </h2>
+            <p :if={state == "ready"} class="mt-2 text-sm text-slate-700">
+              Ready tasks do not start automatically. Set up a run, then verify authentication and start it.
+            </p>
             <div data-task-list class="mt-3 space-y-3">
               <article
                 :for={task <- tasks_in(@tasks, state)}
@@ -348,6 +351,15 @@ defmodule CuckodingWeb.BoardLive do
                   </p>
                 </div>
 
+                <.link
+                  :if={task.state == "ready"}
+                  id={"start-task-#{task.id}"}
+                  navigate={~p"/boards/#{@board.id}/tasks/#{task.id}"}
+                  class="inline-flex min-h-11 items-center rounded-md bg-slate-950 px-4 text-sm font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
+                >
+                  Set up and start
+                </.link>
+
                 <form
                   :if={Workflows.allowed_task_transitions(task) != []}
                   id={"task-#{task.id}-transition"}
@@ -364,6 +376,7 @@ defmodule CuckodingWeb.BoardLive do
                       name="to"
                       class="min-h-10 flex-1 rounded-md border border-slate-400 bg-white px-2 focus-visible:outline-2 focus-visible:outline-offset-2"
                     >
+                      <option value="" selected disabled>Choose a state</option>
                       <option :for={target <- Workflows.allowed_task_transitions(task)} value={target}>
                         {state_label(target)}
                       </option>
