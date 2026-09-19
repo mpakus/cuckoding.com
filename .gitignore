@@ -48,6 +48,9 @@ npm-debug.log
 *.sqlite3
 *.sqlite3-*
 
+# Run-owned project checkouts and runtime state
+/workspaces/
+
 # Language server and Dialyzer PLTs
 .elixir_ls/
 /priv/plts/

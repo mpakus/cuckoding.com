@@ -26,7 +26,7 @@ Tasks are grouped by gated phase and numbered so dependencies are visible. Compl
 | 07 | Deliver knowledge store, pipeline, injection, usage, and views | 0701, 0702, 0703, 0704, 0705, 0706 |
 | 08 | Deliver the plugin system and reference plugins | 0801, 0802, 0803, 0804 |
 | 09 | Deliver the menubar shell, packaging, updater | 0901, 0902, 0903, 0904 |
-| 10 | Harden security and recovery; beta; release | 1001, 1002, 1003, 1004 |
+| 10 | Harden security and recovery; beta; release | 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009 |
 
 ## Status header
 

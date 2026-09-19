@@ -6,11 +6,9 @@ defmodule Cuckoding.Application do
   @impl true
   def start(_type, _args) do
     children =
-      [Cuckoding.Repo] ++
+      [Cuckoding.Repo, {Phoenix.PubSub, name: Cuckoding.PubSub}] ++
         runtime_children() ++
-        [
-          {Phoenix.PubSub, name: Cuckoding.PubSub}
-        ] ++ shell_auth_child() ++ [CuckodingWeb.Endpoint]
+        shell_auth_child() ++ [CuckodingWeb.Endpoint]
 
     case Supervisor.start_link(children, strategy: :one_for_one, name: Cuckoding.Supervisor) do
       {:ok, _supervisor} = started ->
