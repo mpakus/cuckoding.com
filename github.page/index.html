@@ -18,10 +18,10 @@
     <meta property="og:image" content="https://cuckoding.com/main.png">
     <meta name="twitter:card" content="summary_large_image">
     <link rel="canonical" href="https://cuckoding.com/">
-    <link rel="icon" href="assets/logo.webp" type="image/webp">
+    <link rel="icon" href="assets/brand-mark.webp" type="image/webp">
     <link rel="preload" href="assets/main.webp" as="image" type="image/webp">
-    <link rel="stylesheet" href="styles.css?v=20260918-2">
-    <script src="script.js?v=20260918" defer></script>
+    <link rel="stylesheet" href="styles.css?v=20260919">
+    <script src="script.js?v=20260919" defer></script>
     <title>Cuckoding — local-first agent orchestration</title>
   </head>
   <body>
@@ -29,8 +29,8 @@
     <div class="scroll-progress" aria-hidden="true"><span></span></div>
 
     <header class="site-header">
-      <a class="brand" href="#top" aria-label="Cuckoding home">
-        <img src="assets/logo.webp" width="48" height="48" alt="">
+      <a class="brand" href="#top" aria-label="Cuckoding home" translate="no">
+        <img src="assets/brand-mark.webp" width="733" height="733" alt="">
         <span>Cuckoding</span>
       </a>
       <nav aria-label="Primary navigation">
@@ -43,29 +43,43 @@
 
     <main id="main" tabindex="-1">
       <section class="hero" id="top" aria-labelledby="hero-title">
-        <img
-          class="hero-media"
-          src="assets/main.webp"
-          width="1536"
-          height="1024"
-          alt="An illustrated late-night workshop where humans and robots collaborate around a laptop."
-        >
-        <div class="hero-shade"></div>
-        <div class="hero-copy" data-reveal>
-          <p class="eyebrow">Local-first · macOS · open source</p>
-          <h1 id="hero-title">Your agents need a control room. <em>Not another chat.</em></h1>
-          <p class="hero-lede">
-            Turn an issue into a durable workflow. Give every role a runtime,
-            watch the work move, recover after sleep, and keep the evidence on
-            your Mac.
-          </p>
-          <div class="hero-actions">
-            <a class="button button-primary" href="https://github.com/mpakus/cuckoding.com">
-              Explore the source <span aria-hidden="true">↗</span>
-            </a>
-            <a class="button button-quiet" href="#mission">Enter the chaos <span aria-hidden="true">↓</span></a>
+        <div class="hero-orbit" aria-hidden="true"></div>
+        <div class="hero-layout">
+          <div class="hero-copy" data-reveal>
+            <img
+              class="hero-logo"
+              src="assets/logo.webp"
+              width="1254"
+              height="1254"
+              alt="Cuckoding"
+            >
+            <p class="eyebrow">Local-first · macOS · open source</p>
+            <h1 id="hero-title">Your agents need a control room. <em>Not another chat.</em></h1>
+            <p class="hero-lede">
+              Turn an issue into a durable workflow. Give every role a runtime,
+              watch the work move, recover after sleep, and keep the evidence on
+              your Mac.
+            </p>
+            <div class="hero-actions">
+              <a class="button button-primary" href="https://github.com/mpakus/cuckoding.com">
+                View the source <span aria-hidden="true">↗</span>
+              </a>
+              <a class="button button-quiet" href="#mission">See how it works <span aria-hidden="true">↓</span></a>
+            </div>
+            <p class="availability">Controlled beta · Apple Silicon macOS</p>
           </div>
-          <p class="availability">Controlled beta · Apple Silicon macOS</p>
+          <figure class="hero-art" data-reveal>
+            <div class="art-frame">
+              <img
+                src="assets/main.webp"
+                width="1536"
+                height="1024"
+                fetchpriority="high"
+                alt="An illustrated late-night workshop where humans and robots collaborate around a laptop."
+              >
+            </div>
+            <figcaption>Local mission control · concept artwork</figcaption>
+          </figure>
         </div>
         <p class="scroll-cue" aria-hidden="true">Scroll to launch <span>↓</span></p>
       </section>
@@ -105,10 +119,10 @@
       <section class="story" id="mission" aria-labelledby="mission-title">
         <div class="story-visual" aria-hidden="true">
           <div class="story-frame">
-            <img class="story-image is-active" src="assets/concept-4.webp" alt="" data-story-image="0">
-            <img class="story-image" src="assets/concept-5.webp" alt="" data-story-image="1">
-            <img class="story-image" src="assets/concept-2.webp" alt="" data-story-image="2">
-            <img class="story-image" src="assets/concept-6.webp" alt="" data-story-image="3">
+            <img class="story-image is-active" src="assets/concept-4.webp" width="598" height="471" alt="" data-story-image="0">
+            <img class="story-image" src="assets/concept-5.webp" width="447" height="471" alt="" data-story-image="1">
+            <img class="story-image" src="assets/concept-2.webp" width="459" height="553" alt="" data-story-image="2">
+            <img class="story-image" src="assets/concept-6.webp" width="491" height="471" alt="" data-story-image="3">
             <div class="story-hud">
               <span>Mission control</span>
               <strong data-story-label>01 · Plan</strong>
@@ -271,32 +285,39 @@
       </section>
 
       <section class="stack" id="stack" aria-labelledby="stack-title">
-        <img
-          class="stack-character"
-          src="assets/fry-bender.webp"
-          width="1536"
-          height="1024"
-          alt=""
-          data-parallax="0.07"
-          data-rotate="-4"
-          loading="lazy"
-        >
-        <div class="stack-copy" data-reveal>
-          <p class="eyebrow">Built from boring, durable things</p>
-          <h2 id="stack-title">The stack that survives the night shift.</h2>
-          <p>
-            One local application. One browser UI. No hosted control plane and
-            no second frontend framework.
-          </p>
+        <div class="stack-layout">
+          <div class="stack-content">
+            <div class="stack-copy" data-reveal>
+              <p class="eyebrow">Built from boring, durable things</p>
+              <h2 id="stack-title">The stack that survives the night shift.</h2>
+              <p>
+                One local application. One browser UI. No hosted control plane and
+                no second frontend framework.
+              </p>
+            </div>
+            <ul class="stack-grid">
+              <li data-reveal><strong>Elixir / OTP</strong><span>Supervision and durable orchestration</span></li>
+              <li data-reveal><strong>Phoenix LiveView</strong><span>Loopback-only real-time interface</span></li>
+              <li data-reveal><strong>SQLite + WAL</strong><span>Events, projections, evidence, recovery</span></li>
+              <li data-reveal><strong>Tauri + Rust</strong><span>Tray shell, updates, diagnostics</span></li>
+              <li data-reveal><strong>Git worktrees</strong><span>Per-run branches and workspace isolation</span></li>
+              <li data-reveal><strong>macOS Keychain</strong><span>Opaque secret references, never agent payloads</span></li>
+            </ul>
+          </div>
+          <figure class="stack-art" data-reveal>
+            <div class="art-frame">
+              <img
+                class="stack-character"
+                src="assets/fry-bender.webp"
+                width="1536"
+                height="1024"
+                alt="Two illustrated collaborators working together at a laptop."
+                loading="lazy"
+              >
+            </div>
+            <figcaption>Different runtimes · one durable workflow</figcaption>
+          </figure>
         </div>
-        <ul class="stack-grid">
-          <li data-reveal><strong>Elixir / OTP</strong><span>Supervision and durable orchestration</span></li>
-          <li data-reveal><strong>Phoenix LiveView</strong><span>Loopback-only real-time interface</span></li>
-          <li data-reveal><strong>SQLite + WAL</strong><span>Events, projections, evidence, recovery</span></li>
-          <li data-reveal><strong>Tauri + Rust</strong><span>Tray shell, updates, diagnostics</span></li>
-          <li data-reveal><strong>Git worktrees</strong><span>Per-run branches and workspace isolation</span></li>
-          <li data-reveal><strong>macOS Keychain</strong><span>Opaque secret references, never agent payloads</span></li>
-        </ul>
       </section>
 
       <section class="truth" aria-labelledby="truth-title">
@@ -317,21 +338,27 @@
       </section>
 
       <section class="finale" aria-labelledby="finale-title">
-        <img class="finale-media" src="assets/rocket.webp" width="1536" height="1024" loading="lazy" alt="An illustrated crew launching into space in a Cuckoding rocket.">
-        <div class="finale-shade"></div>
-        <div class="finale-copy" data-reveal>
-          <p class="eyebrow">Human ideas · AI agents · real problems</p>
-          <h2 id="finale-title">Build tomorrow.<br>Keep the receipts.</h2>
-          <p>Cuckoding is open source and preparing for controlled beta.</p>
-          <a class="button button-primary" href="https://github.com/mpakus/cuckoding.com">
-            Read the source on GitHub <span aria-hidden="true">↗</span>
-          </a>
+        <div class="finale-layout">
+          <div class="finale-copy" data-reveal>
+            <p class="eyebrow">Human ideas · AI agents · real problems</p>
+            <h2 id="finale-title">Build tomorrow.<br>Keep the receipts.</h2>
+            <p>Cuckoding is open source and preparing for controlled beta.</p>
+            <a class="button button-primary" href="https://github.com/mpakus/cuckoding.com">
+              Read the source on GitHub <span aria-hidden="true">↗</span>
+            </a>
+          </div>
+          <figure class="finale-art" data-reveal>
+            <div class="art-frame">
+              <img src="assets/rocket.webp" width="1536" height="1024" loading="lazy" alt="An illustrated crew launching into space in a Cuckoding rocket.">
+            </div>
+            <figcaption>Launch only after human approval</figcaption>
+          </figure>
         </div>
       </section>
     </main>
 
     <footer>
-      <a class="footer-brand" href="#top"><img src="assets/logo.webp" width="64" height="64" alt=""><span>Cuckoding</span></a>
+      <a class="footer-brand" href="#top" translate="no"><img src="assets/brand-mark.webp" width="733" height="733" alt=""><span>Cuckoding</span></a>
       <p>Built in Austin. Runs on your Mac. Humans remain accountable.</p>
       <a href="https://github.com/mpakus/cuckoding.com">GitHub source ↗</a>
     </footer>

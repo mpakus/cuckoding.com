@@ -67,7 +67,7 @@ const paintScroll = () => {
     const rotation = Number(layer.dataset.rotate || 0);
     const rect = layer.parentElement.getBoundingClientRect();
     const distance = rect.top + rect.height / 2 - viewportCenter;
-    const offset = Math.max(-180, Math.min(180, distance * -speed));
+    const offset = Math.max(-96, Math.min(96, distance * -speed));
     const turn = rotation + offset * 0.035;
     layer.style.transform = `translate3d(0, ${offset}px, 0) rotate(${turn}deg)`;
   });
