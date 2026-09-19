@@ -4,6 +4,7 @@ defmodule Cuckoding.ProjectOnboardingTest do
   alias Cuckoding.Execution.Environment
   alias Cuckoding.Execution.Run
   alias Cuckoding.ProjectOnboarding
+  alias Cuckoding.Projects
   alias Cuckoding.Projects.ProjectConfigVersion
   alias Cuckoding.Workflows.Board
   alias Cuckoding.Workflows.Task
@@ -61,10 +62,8 @@ defmodule Cuckoding.ProjectOnboardingTest do
              "Review"
            ]
 
-    assert Enum.all?(
-             config.config_json["default_roles"],
-             &(&1["agent_connection_key"] == "primary")
-           )
+    assert config.config_json["agent_connections"] == []
+    assert Enum.all?(config.config_json["default_roles"], &is_nil(&1["agent_connection_key"]))
 
     assert execution_counts() == before_counts
     assert Repo.aggregate(ProjectConfigVersion, :count) > 0
@@ -115,18 +114,81 @@ defmodule Cuckoding.ProjectOnboardingTest do
     assert git!(repo_path, ["status", "--porcelain"]) == ""
   end
 
-  test "stores a setup-only custom agent connection without starting work", %{
+  test "versions multiple agent connections and role assignments without starting work", %{
     repo_path: repo_path
   } do
-    attrs = project_attrs(repo_path, "Custom runtime") |> Map.put("runtime", "custom_agent")
+    assert {:ok, %{project: project, config: original}} =
+             ProjectOnboarding.create(project_attrs(repo_path, "Multiple agents"))
 
-    assert {:ok, %{config: config}} = ProjectOnboarding.create(attrs)
+    roles =
+      ProjectOnboarding.default_roles()
+      |> Enum.with_index()
+      |> Enum.map(fn {role, index} ->
+        Map.put(role, "agent_connection_key", if(index == 2, do: "reviewer", else: "coder"))
+      end)
 
-    assert [%{"adapter_key" => "custom_agent", "settings" => settings}] =
-             config.config_json["agent_connections"]
+    attrs = %{
+      "agent_connections" => [
+        %{
+          "key" => "coder",
+          "label" => "Primary Codex",
+          "adapter_key" => "codex",
+          "executable_path" => "/usr/bin/true",
+          "api_key_helper" => ""
+        },
+        %{
+          "key" => "reviewer",
+          "label" => "Independent reviewer",
+          "adapter_key" => "custom_agent",
+          "executable_path" => "/usr/bin/true",
+          "api_key_helper" => "ignored"
+        }
+      ],
+      "default_roles" => roles
+    }
 
-    assert settings == %{"executable_path" => "/usr/bin/true"}
+    assert {:ok, config} = ProjectOnboarding.update_configuration(project.id, 1, attrs)
+    assert config.revision == 2
+    assert original.config_json["agent_connections"] == []
+
+    assert [coder, reviewer] = config.config_json["agent_connections"]
+    assert coder["key"] == "coder"
+    assert coder["adapter_key"] == "codex"
+    assert reviewer["key"] == "reviewer"
+    assert reviewer["settings"] == %{"executable_path" => "/usr/bin/true"}
+    assert Enum.at(config.config_json["default_roles"], 2)["agent_connection_key"] == "reviewer"
+
+    assert Projects.latest_config_version(project.id).id == config.id
+
+    assert {:error, :stale_configuration} =
+             ProjectOnboarding.update_configuration(project.id, 1, attrs)
+
     assert execution_counts() == %{boards: 0, tasks: 0, runs: 0, environments: 0}
+  end
+
+  test "refuses an unassigned role without creating a configuration revision", %{
+    repo_path: repo_path
+  } do
+    assert {:ok, %{project: project}} =
+             ProjectOnboarding.create(project_attrs(repo_path, "Invalid role mapping"))
+
+    roles =
+      Enum.map(ProjectOnboarding.default_roles(), &Map.put(&1, "agent_connection_key", ""))
+
+    assert {:error, :role_agent_required} =
+             ProjectOnboarding.update_configuration(project.id, 1, %{
+               "agent_connections" => [
+                 %{
+                   "key" => "agent-1",
+                   "label" => "Codex",
+                   "adapter_key" => "codex",
+                   "executable_path" => "/usr/bin/true"
+                 }
+               ],
+               "default_roles" => roles
+             })
+
+    assert Projects.latest_config_version(project.id).revision == 1
   end
 
   defp execution_counts do
@@ -171,10 +233,7 @@ defmodule Cuckoding.ProjectOnboardingTest do
       "name" => name,
       "description" => "",
       "repo_path" => repo_path,
-      "default_branch" => "main",
-      "runtime" => "codex",
-      "executable_path" => "/usr/bin/true",
-      "api_key_helper" => ""
+      "default_branch" => "main"
     }
   end
 end

@@ -56,12 +56,14 @@ database constraints for the closed scope, network, and approval vocabularies;
 the event payload records manifest and permission hashes instead of secret or
 unbounded provider data.
 
-Project setup stores versioned role definitions and default agent mappings in
-`project_config_versions.config_json` until a board is created. A board copies
-the selected mappings into `role_assignments`; a run copies them into its
-workflow snapshot. This deliberate snapshot chain means later project, role, or
-agent-profile edits never rewrite an active or historical run. Project creation
-must not insert board, task, run, environment, or process rows.
+Project registration stores an initial `project_config_versions.config_json`
+with the built-in role definitions unassigned and no agent connections. Project
+settings append immutable revisions containing validated machine-local agent
+connections and default role mappings. A board copies the selected mappings
+into `role_assignments`; a run copies them into its workflow snapshot. This
+deliberate snapshot chain means later project, role, or agent-profile edits never
+rewrite an active or historical run. Project creation and settings saves must
+not insert board, task, run, environment, or process rows.
 
 ### Work management
 

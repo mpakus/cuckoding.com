@@ -16,6 +16,16 @@ defmodule Cuckoding.Projects do
 
   def get_project(id), do: Repo.get(Project, id)
 
+  def latest_config_version(project_id) do
+    Repo.one(
+      from(config in ProjectConfigVersion,
+        where: config.project_id == ^project_id,
+        order_by: [desc: config.revision],
+        limit: 1
+      )
+    )
+  end
+
   defp insert(schema, attrs) do
     schema.create_changeset(struct(schema), Map.put_new(attrs, :id, Identifier.generate()))
     |> Repo.insert()

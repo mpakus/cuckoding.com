@@ -74,47 +74,21 @@ defmodule CuckodingWeb.ProjectSetupLiveTest do
     |> render_submit()
 
     assert has_element?(view, "#project-step-3")
-    assert has_element?(view, "#roles-heading", "Default roles")
-    assert has_element?(view, "li", "Specifications")
-    assert has_element?(view, "li", "Coding")
-    assert has_element?(view, "li", "Review")
-    assert has_element?(view, "option[value=cursor_agent]", "Cursor Agent")
-    assert has_element?(view, "option[value=opencode]", "OpenCode")
-    assert has_element?(view, "option[value=custom_agent]", "Custom Agent")
-    refute has_element?(view, "input[name='project[api_key_helper]']")
-
-    render_change(view, "runtime_changed", %{"project" => %{"runtime" => "claude_code"}})
-    assert has_element?(view, "input[name='project[api_key_helper]']")
-
-    render_change(view, "runtime_changed", %{"project" => %{"runtime" => "custom_agent"}})
-    refute has_element?(view, "input[name='project[api_key_helper]']")
-    assert has_element?(view, "#runtime-availability-warning", "runs remain blocked")
-
-    render_change(view, "runtime_changed", %{"project" => %{"runtime" => "codex"}})
-    refute has_element?(view, "#runtime-availability-warning")
-
-    view
-    |> form("#project-step-3",
-      project: %{
-        runtime: "codex",
-        executable_path: "/usr/bin/true"
-      }
-    )
-    |> render_submit()
-
-    assert has_element?(view, "#project-step-4")
+    assert has_element?(view, "[aria-current=step]", "Review")
+    refute has_element?(view, "select[name='project[runtime]']")
     assert has_element?(view, "#host-runner-notice", "not a sandbox")
-    assert has_element?(view, "#project-step-4", "Use the existing repository")
-    assert has_element?(view, "#project-step-4", "Do not start agents")
+    assert has_element?(view, "#project-step-3", "Use the existing repository")
+    assert has_element?(view, "#project-step-3", "Configure after registration")
+    assert has_element?(view, "#project-step-3", "Do not start agents")
 
     before_counts = execution_counts()
 
     view
-    |> form("#project-step-4", project: %{confirmed: "true"})
+    |> form("#project-step-3", project: %{confirmed: "true"})
     |> render_submit()
 
-    assert_redirect(view, ~p"/")
-    assert Projects.list_projects() |> Enum.any?(&(&1.name == "My application"))
+    project = Enum.find(Projects.list_projects(), &(&1.name == "My application"))
+    assert_redirect(view, ~p"/projects/#{project.id}/edit")
     assert execution_counts() == before_counts
   end
 

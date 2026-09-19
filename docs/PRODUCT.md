@@ -16,7 +16,7 @@ It is not a chat client and it is not an autonomous merge bot. Its product value
 ## Core jobs to be done
 
 1. Open the application and immediately see registered projects, application health, current resource use, attention items, and who is working on what.
-2. Add or edit a project through a guided setup: name, a folder chosen with the native macOS picker, Git base branch, reusable agent connections, and default role assignments. The folder may be empty, an unborn Git repository, or an existing project.
+2. Add a project through a short guided setup for its name, native-selected folder, and Git base branch, then manage reusable agent connections and default role assignments on the project page. The folder may be empty, an unborn Git repository, or an existing project.
 3. Create several independent boards for a project, such as product features, maintenance, and security remediation.
 4. Choose or customize a workflow and map its roles to the project's connected agents.
 5. Add tasks to a board and let them progress through gates for as long as they need, including across laptop sleep.
@@ -73,9 +73,9 @@ The complete launch contract, competitive basis, retention defaults, and commerc
 
 1. The user clicks the menubar icon → Cuckoding; the global dashboard opens with registered projects, health, resources, active work, and attention items.
 2. The user chooses **Add project** or edits an existing project.
-3. A wizard collects project identity, a system-selected project folder, its Git base branch, reusable agent connections, and role defaults. Before confirmation it only inspects the folder. After explicit review, it initializes Git and creates the first local commit when no branch revision exists; an existing repository with the selected branch is not changed.
-4. Confirming the wizard registers only the project and its trusted configuration. It does not create or start work.
-5. Inside the project, the user creates a board from a workflow template and accepts or overrides its role assignments.
+3. A three-step wizard collects project identity and a system-selected project folder plus Git base branch, then reviews the pending registration. Before confirmation it only inspects the folder. After explicit review, it initializes Git and creates the first local commit when no branch revision exists; an existing repository with the selected branch is not changed.
+4. Confirming the wizard registers only the project and redirects to its settings page. There the user can add multiple agent connections, edit or add roles, and assign one connection to each role. Every save creates an immutable trusted configuration revision; it does not create or start work.
+5. Inside the project, the user creates a board from a workflow template and accepts or overrides the current role assignments.
 6. The user adds a task. Starting that task snapshots the workflow, role assignments, policy, and agent profiles, then creates its feature branch, worktree, ports, and process group.
 7. The default workflow moves through Specifications → Coding → Review. Review findings may return to Specifications to correct intent or Coding to correct implementation; a pass completes locally or enters an optional approved release handoff.
 8. Each stage produces typed artifacts and must pass its exit gate; relevant project knowledge is injected and its use recorded.

@@ -38,6 +38,7 @@ defmodule CuckodingWeb.Router do
     live_session :browser, on_mount: [{CuckodingWeb.ShellAuthHook, :browser}] do
       live "/", StatusLive, :index
       live "/projects/new", ProjectSetupLive, :new
+      live "/projects/:id/edit", ProjectEditLive, :edit
       live "/agents", AgentFloorLive, :index
       live "/agents/:id", AgentLive, :show
       live "/knowledge", KnowledgeReviewLive, :index

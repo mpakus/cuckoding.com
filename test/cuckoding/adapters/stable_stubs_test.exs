@@ -6,7 +6,7 @@ defmodule Cuckoding.Adapters.StableStubsTest do
   alias Cuckoding.Adapters.RuntimeConfiguration
   alias Cuckoding.Adapters.Types
 
-  test "project setup exposes guarded and custom runtime connections without Claude secrets" do
+  test "project settings expose guarded and custom runtime connections without Claude secrets" do
     assert [
              {"Codex", "codex"},
              {"Claude Code", "claude_code"},

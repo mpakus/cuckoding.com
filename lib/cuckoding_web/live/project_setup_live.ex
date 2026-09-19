@@ -3,11 +3,10 @@ defmodule CuckodingWeb.ProjectSetupLive do
 
   import CuckodingWeb.PolicyComponents
 
-  alias Cuckoding.Adapters.RuntimeConfiguration
   alias Cuckoding.FolderPicker
   alias Cuckoding.ProjectOnboarding
 
-  @steps ["Project", "Repository", "Agents and roles", "Review"]
+  @steps ["Project", "Repository", "Review"]
 
   @impl true
   def mount(_params, _session, socket) do
@@ -17,17 +16,12 @@ defmodule CuckodingWeb.ProjectSetupLive do
        step: 1,
        steps: @steps,
        error: nil,
-       roles: ProjectOnboarding.default_roles(),
-       runtime_options: RuntimeConfiguration.options(),
        project: %{
          "name" => "",
          "description" => "",
          "repo_path" => "",
          "default_branch" => "main",
          "repository_action" => nil,
-         "runtime" => "codex",
-         "executable_path" => RuntimeConfiguration.default_executable("codex"),
-         "api_key_helper" => "",
          "confirmed" => "false"
        }
      )}
@@ -53,19 +47,6 @@ defmodule CuckodingWeb.ProjectSetupLive do
 
   def handle_event("back", _params, socket) do
     {:noreply, assign(socket, step: max(socket.assigns.step - 1, 1), error: nil)}
-  end
-
-  def handle_event("runtime_changed", %{"project" => params}, socket) do
-    previous_runtime = socket.assigns.project["runtime"]
-    runtime = params["runtime"]
-
-    project =
-      socket.assigns.project
-      |> Map.merge(params)
-      |> maybe_change_executable(previous_runtime, runtime)
-      |> maybe_clear_claude_helper(runtime)
-
-    {:noreply, assign(socket, project: project, error: nil)}
   end
 
   def handle_event("choose_folder", _params, socket) do
@@ -101,8 +82,11 @@ defmodule CuckodingWeb.ProjectSetupLive do
         {:ok, %{project: created}} ->
           {:noreply,
            socket
-           |> put_flash(:info, "#{created.name} was added. Create a board when you are ready.")
-           |> push_navigate(to: ~p"/")}
+           |> put_flash(
+             :info,
+             "#{created.name} was added. Connect agents and assign their roles."
+           )
+           |> push_navigate(to: ~p"/projects/#{created.id}/edit")}
 
         {:error, reason} ->
           {:noreply, assign(socket, project: project, error: error_message(reason))}
@@ -127,13 +111,13 @@ defmodule CuckodingWeb.ProjectSetupLive do
             Add a project
           </h1>
           <p class="max-w-2xl text-base leading-7 text-slate-700">
-            Choose a project folder, connect an agent runtime, and review the default roles.
+            Choose a project folder and review the registration.
             Setup does not create a board, task, branch, worktree, or running process.
           </p>
         </header>
 
         <nav aria-label="Project setup progress">
-          <ol class="grid gap-2 sm:grid-cols-4">
+          <ol class="grid gap-2 sm:grid-cols-3">
             <li :for={{label, index} <- Enum.with_index(@steps, 1)}>
               <span
                 aria-current={if index == @step, do: "step"}
@@ -229,88 +213,7 @@ defmodule CuckodingWeb.ProjectSetupLive do
           <.wizard_actions step={@step} />
         </form>
 
-        <form
-          :if={@step == 3}
-          id="project-step-3"
-          phx-change="runtime_changed"
-          phx-submit="next"
-          class="space-y-6"
-        >
-          <fieldset class="space-y-5 rounded-xl border border-slate-200 bg-white p-6">
-            <legend class="px-2 text-lg font-semibold text-slate-950">Agent connection</legend>
-            <p class="text-sm leading-6 text-slate-700">
-              Start with one local agent connection. The same connection is assigned to each default role;
-              assignments can be changed before work starts.
-            </p>
-            <label class="grid gap-2 font-medium text-slate-800">
-              Runtime
-              <select
-                name="project[runtime]"
-                class="min-h-11 rounded-md border border-slate-400 bg-white px-3 focus-visible:outline-2 focus-visible:outline-offset-2"
-              >
-                <option
-                  :for={{label, value} <- @runtime_options}
-                  value={value}
-                  selected={@project["runtime"] == value}
-                >
-                  {label}
-                </option>
-              </select>
-            </label>
-            <p
-              :if={RuntimeConfiguration.warning(@project["runtime"])}
-              id="runtime-availability-warning"
-              role="status"
-              class="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm leading-6 text-amber-950"
-            >
-              {RuntimeConfiguration.warning(@project["runtime"])}
-            </p>
-            <label class="grid gap-2 font-medium text-slate-800">
-              Runtime executable
-              <input
-                name="project[executable_path]"
-                value={@project["executable_path"]}
-                required
-                placeholder="/absolute/path/to/agent"
-                autocapitalize="none"
-                spellcheck="false"
-                class="min-h-11 rounded-md border border-slate-400 px-3 font-mono text-sm focus-visible:outline-2 focus-visible:outline-offset-2"
-              />
-            </label>
-            <label
-              :if={@project["runtime"] == "claude_code"}
-              class="grid gap-2 font-medium text-slate-800"
-            >
-              Claude API-key helper
-              <span class="text-sm font-normal text-slate-600">Required only for Claude Code</span>
-              <input
-                name="project[api_key_helper]"
-                value={@project["api_key_helper"]}
-                required
-                placeholder="/absolute/path/to/helper"
-                autocapitalize="none"
-                spellcheck="false"
-                class="min-h-11 rounded-md border border-slate-400 px-3 font-mono text-sm focus-visible:outline-2 focus-visible:outline-offset-2"
-              />
-            </label>
-          </fieldset>
-
-          <section aria-labelledby="roles-heading" class="space-y-3">
-            <div>
-              <h2 id="roles-heading" class="text-lg font-semibold text-slate-950">Default roles</h2>
-              <p class="text-sm text-slate-700">The board workflow will use these role snapshots.</p>
-            </div>
-            <ul class="grid gap-3 md:grid-cols-3">
-              <li :for={role <- @roles} class="rounded-lg border border-slate-200 bg-white p-4">
-                <h3 class="font-semibold text-slate-950">{role["name"]}</h3>
-                <p class="mt-2 text-sm leading-6 text-slate-700">{role["instructions"]}</p>
-              </li>
-            </ul>
-          </section>
-          <.wizard_actions step={@step} />
-        </form>
-
-        <form :if={@step == 4} id="project-step-4" phx-submit="create" class="space-y-6">
+        <form :if={@step == 3} id="project-step-3" phx-submit="create" class="space-y-6">
           <section
             aria-labelledby="review-heading"
             class="space-y-5 rounded-xl border border-slate-200 bg-white p-6"
@@ -345,23 +248,12 @@ defmodule CuckodingWeb.ProjectSetupLive do
                   before confirming.
                 </p>
               </div>
-              <div>
-                <dt class="text-sm text-slate-600">Agent runtime</dt><dd class="font-medium text-slate-950">
-                  {runtime_label(@runtime_options, @project["runtime"])}
-                </dd>
-              </div>
-              <div>
-                <dt class="text-sm text-slate-600">Roles</dt><dd class="font-medium text-slate-950">
-                  Specifications, Coding, Review
+              <div class="sm:col-span-2">
+                <dt class="text-sm text-slate-600">Agents and roles</dt><dd class="font-medium text-slate-950">
+                  Configure after registration on the project settings page
                 </dd>
               </div>
             </dl>
-            <p
-              :if={RuntimeConfiguration.warning(@project["runtime"])}
-              class="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm leading-6 text-amber-950"
-            >
-              {RuntimeConfiguration.warning(@project["runtime"])}
-            </p>
           </section>
 
           <.host_runner_notice />
@@ -374,7 +266,7 @@ defmodule CuckodingWeb.ProjectSetupLive do
               checked={@project["confirmed"] == "true"}
               required
               class="mt-1"
-            /> I reviewed this folder and local runtime configuration. If needed, initialize Git and
+            /> I reviewed this folder. If needed, initialize Git and
             create an initial local commit from the folder contents. Do not start agents or create a run.
           </label>
 
@@ -437,13 +329,6 @@ defmodule CuckodingWeb.ProjectSetupLive do
     end
   end
 
-  defp validate_step(3, project) do
-    case RuntimeConfiguration.validate(project) do
-      {:ok, _runtime} -> {:ok, %{}}
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
   defp error_message(:project_name_required), do: "Enter a project name."
   defp error_message(:missing_directory), do: "That repository folder does not exist."
   defp error_message(:not_a_directory), do: "The repository path must point to a folder."
@@ -461,21 +346,11 @@ defmodule CuckodingWeb.ProjectSetupLive do
     do:
       "Git could not prepare this folder. Review its files and Git configuration, then try again."
 
-  defp error_message(:invalid_runtime_executable),
-    do: "Choose an absolute path to an executable runtime."
-
-  defp error_message(:unsupported_runtime), do: "Choose a supported agent runtime."
-
   defp error_message(%Ecto.Changeset{} = changeset) do
     "Project could not be added: #{inspect(changeset.errors)}"
   end
 
   defp error_message(reason), do: "Project could not be added: #{inspect(reason)}"
-
-  defp runtime_label(options, value) do
-    options
-    |> Enum.find_value(value, fn {label, option} -> if option == value, do: label end)
-  end
 
   defp repository_action_label("initialize"),
     do: "Initialize Git and create an initial local commit"
@@ -491,12 +366,4 @@ defmodule CuckodingWeb.ProjectSetupLive do
       picker -> picker.choose()
     end
   end
-
-  defp maybe_change_executable(project, runtime, runtime), do: project
-
-  defp maybe_change_executable(project, _previous_runtime, runtime),
-    do: Map.put(project, "executable_path", RuntimeConfiguration.default_executable(runtime))
-
-  defp maybe_clear_claude_helper(project, "claude_code"), do: project
-  defp maybe_clear_claude_helper(project, _runtime), do: Map.put(project, "api_key_helper", "")
 end

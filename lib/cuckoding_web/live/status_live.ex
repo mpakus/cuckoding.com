@@ -204,6 +204,12 @@ defmodule CuckodingWeb.StatusLive do
               </dl>
               <div class="mt-5 flex flex-wrap gap-2">
                 <.link
+                  navigate={~p"/projects/#{card.project.id}/edit"}
+                  class="inline-flex min-h-10 items-center rounded-md border border-slate-300 px-3 text-sm font-medium text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2"
+                >
+                  Edit project
+                </.link>
+                <.link
                   :for={board <- card.boards}
                   navigate={~p"/boards/#{board.id}"}
                   class="inline-flex min-h-10 items-center rounded-md border border-slate-300 px-3 text-sm font-medium text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2"

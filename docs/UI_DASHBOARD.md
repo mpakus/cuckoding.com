@@ -33,21 +33,21 @@ one **Add project** action.
 
 ### Project setup wizard
 
-Adding or editing a project is a resumable, keyboard-operable wizard:
+Adding a project is a keyboard-operable wizard:
 
 1. **Project** — name and optional description.
 2. **Repository** — choose an existing folder, verify that it is a Git
    repository, and choose a base branch. A dirty working tree may be registered
    but must be clean before starting a run.
-3. **Agents and roles** — reuse or connect agent profiles, then assign the
-   built-in Specifications, Coding, and Review roles. Users may add a role and
-   edit its display name, instructions, responsibilities, and required outputs.
-4. **Review** — show repository, branch, agents, effective role mapping, runner
-   limitations, and trusted configuration before confirmation.
+3. **Review** — show repository, branch, pending Git action, runner limitations,
+   and the non-executing registration boundary before confirmation.
 
-Completing this wizard registers only the project and its trusted configuration.
-Board creation and task creation are separate follow-up actions. Editing creates
-a new configuration version; active runs keep their original snapshots.
+Completing this wizard registers only the project and its initial trusted
+configuration, then redirects to the project settings page. That page adds,
+edits, or removes multiple agent connections; edits or adds roles; and assigns
+one connection to every role. Saving appends a configuration version. Board
+creation and task creation remain separate follow-up actions, and active boards
+and runs keep their original snapshots.
 
 The browser cannot open a native folder chooser by itself. The menubar shell
 provides the folder-picker bridge; development/browser fallback accepts an

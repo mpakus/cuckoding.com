@@ -82,11 +82,13 @@ making the browser disclose filesystem contents. The review step first performs
 a read-only canonical-path and Git inspection. Only after explicit confirmation
 may onboarding initialize a selected non-repository or create the first local
 commit in an unborn repository; an existing branch remains read-only. It then
-validates machine-local agent configuration and atomically writes
-the project plus its first trusted configuration version. It creates no board,
-task, run, branch, worktree, port, lease, or provider process. Board setup later
-publishes a workflow and snapshots role assignments; task start alone prepares
-the execution environment.
+atomically writes the project plus an initial trusted configuration with no
+agent connection. The project edit surface validates multiple machine-local
+runtime paths and role mappings, then appends a new immutable configuration
+revision with an expected-revision guard. It creates no board, task, run,
+branch, worktree, port, lease, or provider process. Board setup later publishes
+a workflow and snapshots role assignments; task start alone prepares the
+execution environment.
 
 `Cuckoding.GuidedRun` remains a compatibility path for the bounded Phase 4/early
 beta walking skeleton while the new project → board → task surfaces land. It is
