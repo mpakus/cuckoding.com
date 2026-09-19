@@ -2,9 +2,9 @@
 
 ## Decision
 
-Cursor Agent `2026.09.15-d2fe57e` on Apple Silicon macOS passed the host lifecycle experiment but is **not production-eligible** for the MVP adapter. It edited and committed only the assigned worktree, emitted structured events and token usage, resumed the same session, and stopped without surviving descendants. It also started a user-global Claude-compatible MCP process and wrote session state under `~/.cursor/projects` despite run-scoped Cursor and Claude configuration directories and an MCP deny rule.
+Cursor Agent `2026.09.15-d2fe57e` on Apple Silicon macOS passed the host lifecycle experiment but initially failed the MVP isolation boundary. It edited and committed only the assigned worktree, emitted structured events and token usage, resumed the same session, and stopped without surviving descendants. It also started a user-global Claude-compatible MCP process and wrote session state under `~/.cursor/projects` because the experiment retained the user's real `HOME` for global authentication despite scoped Cursor and Claude configuration directories and an MCP deny rule.
 
-Task 0404 must keep Cursor unavailable/experimental until it proves an isolated authenticated home or a provider-supported switch that disables all user-global plugins and state. ADR-017 remains unchanged: Claude Code and Codex are the launch adapters.
+Task 1006 resolves that retained failure by never exposing the real home: each run uses owner-only `HOME`, `CURSOR_CONFIG_DIR`, and `CLAUDE_CONFIG_DIR` paths and requires a fresh login there. A controlled unauthenticated probe wrote only the scoped Cursor config. The adapter also writes an empty run-owned MCP file and refuses project Cursor CLI, sandbox, MCP, and plugin overrides. This makes Cursor selectable without copying global credentials; a fresh authenticated provider smoke remains release evidence, not an implementation prerequisite.
 
 ## Tested environment
 

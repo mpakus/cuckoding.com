@@ -19,7 +19,7 @@ defmodule Cuckoding.ProjectWorkflow do
   alias Cuckoding.Workflows.WorkflowVersion
 
   @agent_roles ~w(spec_writer implementer reviewer)
-  @runnable_adapters ~w(codex claude_code fake)
+  @runnable_adapters ~w(codex claude_code cursor_agent fake)
 
   def create_board(project_id, attrs) when is_binary(project_id) and is_map(attrs) do
     EventStore.transaction(fn ->

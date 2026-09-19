@@ -69,6 +69,24 @@ defmodule Cuckoding.ProjectOnboarding do
     end)
   end
 
+  def save_connection(project_id, expected_revision, attrs) when is_map(attrs) do
+    Repo.transaction(fn ->
+      with project when not is_nil(project) <- Projects.get_project(project_id),
+           current when not is_nil(current) <- Projects.latest_config_version(project_id),
+           :ok <- current_revision(current.revision, expected_revision),
+           {:ok, connection} <- validate_connection(attrs),
+           {:ok, connections} <-
+             upsert_connection(current.config_json["agent_connections"] || [], connection),
+           config <- Map.put(current.config_json, "agent_connections", connections),
+           {:ok, version} <- put_config_version(project.id, current, config) do
+        version
+      else
+        nil -> Repo.rollback(:project_not_found)
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
+
   defp persist(attrs, name, repo_path, base_sha) do
     Repo.transaction(fn ->
       with {:ok, project} <-
@@ -157,6 +175,22 @@ defmodule Cuckoding.ProjectOnboarding do
   end
 
   defp validate_connection(_connection), do: {:error, :invalid_agent_connection}
+
+  defp upsert_connection(connections, connection) when length(connections) < @max_connections do
+    case Enum.find_index(connections, &(&1["key"] == connection["key"])) do
+      nil -> {:ok, connections ++ [connection]}
+      index -> {:ok, List.replace_at(connections, index, connection)}
+    end
+  end
+
+  defp upsert_connection(connections, connection) when length(connections) == @max_connections do
+    case Enum.find_index(connections, &(&1["key"] == connection["key"])) do
+      nil -> {:error, :too_many_agent_connections}
+      index -> {:ok, List.replace_at(connections, index, connection)}
+    end
+  end
+
+  defp upsert_connection(_connections, _connection), do: {:error, :invalid_agent_connections}
 
   defp validate_roles(roles, connections)
        when is_list(roles) and roles != [] and length(roles) <= @max_roles do

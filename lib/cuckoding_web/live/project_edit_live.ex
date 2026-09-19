@@ -44,7 +44,8 @@ defmodule CuckodingWeb.ProjectEditLive do
       "label" => "",
       "adapter_key" => "codex",
       "executable_path" => RuntimeConfiguration.default_executable("codex"),
-      "api_key_helper" => ""
+      "api_key_helper" => "",
+      "persisted" => false
     }
 
     {:noreply,
@@ -102,6 +103,46 @@ defmodule CuckodingWeb.ProjectEditLive do
     else
       true -> {:noreply, assign(socket, error: "Built-in workflow roles cannot be removed.")}
       _invalid -> {:noreply, assign(socket, error: "That role no longer exists.")}
+    end
+  end
+
+  def handle_event("save-agent", %{"index" => index}, socket) do
+    config = socket.assigns.config
+
+    with {:ok, index} <- parse_index(index),
+         connection when not is_nil(connection) <- Enum.at(config["agent_connections"], index),
+         {:ok, version} <-
+           ProjectOnboarding.save_connection(
+             socket.assigns.project.id,
+             socket.assigns.revision,
+             connection
+           ) do
+      saved =
+        version.config_json
+        |> edit_config()
+        |> Map.fetch!("agent_connections")
+        |> Enum.find(&(&1["key"] == connection["key"]))
+
+      updated = Map.update!(config, "agent_connections", &List.replace_at(&1, index, saved))
+
+      {:noreply,
+       assign(socket,
+         revision: version.revision,
+         config: updated,
+         notice: "#{saved["label"]} saved as configuration revision #{version.revision}.",
+         error: nil
+       )}
+    else
+      :error ->
+        {:noreply,
+         assign(socket, config: config, notice: nil, error: "That agent no longer exists.")}
+
+      nil ->
+        {:noreply,
+         assign(socket, config: config, notice: nil, error: "That agent no longer exists.")}
+
+      {:error, reason} ->
+        {:noreply, assign(socket, config: config, notice: nil, error: error_message(reason))}
     end
   end
 
@@ -305,6 +346,14 @@ defmodule CuckodingWeb.ProjectEditLive do
                 >
                   Remove agent
                 </button>
+                <button
+                  type="button"
+                  phx-click="save-agent"
+                  phx-value-index={index}
+                  class="min-h-10 rounded-md bg-slate-950 px-4 text-sm font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
+                >
+                  {if connection["persisted"], do: "Update agent", else: "Save agent"}
+                </button>
               </fieldset>
             </div>
           </section>
@@ -499,7 +548,8 @@ defmodule CuckodingWeb.ProjectEditLive do
             "label" => connection["label"] || humanize(connection["key"]),
             "adapter_key" => connection["adapter_key"],
             "executable_path" => settings["executable_path"] || "",
-            "api_key_helper" => settings["api_key_helper"] || ""
+            "api_key_helper" => settings["api_key_helper"] || "",
+            "persisted" => true
           }
         end),
       "default_roles" => config["default_roles"] || ProjectOnboarding.default_roles()

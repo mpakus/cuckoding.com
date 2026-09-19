@@ -44,7 +44,7 @@ Adding a project is a keyboard-operable wizard:
 
 Completing this wizard registers only the project and its initial trusted
 configuration, then redirects to the project settings page. That page adds,
-edits, or removes multiple agent connections; edits or adds roles; and assigns
+saves, updates, or removes multiple agent connections; edits or adds roles; and assigns
 one connection to every role. Saving appends a configuration version. Board
 creation and task creation remain separate follow-up actions, and active boards
 and runs keep their original snapshots.

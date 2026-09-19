@@ -22,74 +22,6 @@ defmodule Cuckoding.Adapters.StableStub do
     do: {:error, Types.Error.new(:adapter_unavailable, :availability, false, warning)}
 end
 
-defmodule Cuckoding.Adapters.CursorAgent do
-  @moduledoc "Stable Cursor Agent stub blocked by observed global state and plugin leakage."
-  @behaviour Cuckoding.Adapters.AgentAdapter
-
-  alias Cuckoding.Adapters.StableStub
-  alias Cuckoding.Adapters.Types
-
-  @warning "Cursor Agent is unavailable: the verified CLI wrote user-global session state and started a user-global MCP process despite run-scoped configuration."
-
-  def warning, do: @warning
-
-  @impl true
-  def probe(options) do
-    runner = Keyword.get(options, :command_runner, &System.cmd/3)
-
-    with {:ok, path} <- cursor_executable(options),
-         {version, 0} <- runner.(path, ["--version"], stderr_to_stdout: true),
-         {auth, 0} <- runner.(path, ["status", "--format", "json"], stderr_to_stdout: true),
-         {:ok, %{"isAuthenticated" => authenticated?}} when is_boolean(authenticated?) <-
-           Jason.decode(auth) do
-      {:ok,
-       %Types.Probe{
-         adapter: "cursor_agent",
-         path: path,
-         version: String.trim(version),
-         available?: false,
-         authenticated?: authenticated?,
-         status: "unsupported_global_state_isolation"
-       }}
-    else
-      {:error, %Types.Error{} = error} -> {:error, error}
-      _other -> {:error, Types.Error.new(:probe_failed, :provider, true)}
-    end
-  end
-
-  @impl true
-  def capabilities(_options), do: StableStub.capabilities()
-
-  @impl true
-  def render_config(_request, _options), do: StableStub.unavailable(@warning)
-  @impl true
-  def start(_request, _options), do: StableStub.unavailable(@warning)
-  @impl true
-  def send(_session, _input, _options), do: StableStub.unavailable(@warning)
-  @impl true
-  def pause(_session, _options), do: StableStub.unavailable(@warning)
-  @impl true
-  def resume(_subject, _checkpoint, _options), do: StableStub.unavailable(@warning)
-  @impl true
-  def recover(_session, _inspection, _options), do: StableStub.unavailable(@warning)
-  @impl true
-  def cancel(_session, _options), do: StableStub.unavailable(@warning)
-  @impl true
-  def inspect(_session, _options), do: StableStub.unavailable(@warning)
-  @impl true
-  def decode_event(_event, _options), do: StableStub.unavailable(@warning)
-  @impl true
-  def collect_usage(_session, _options), do: StableStub.unavailable(@warning)
-
-  defp cursor_executable(options) do
-    case Keyword.get(options, :path) || System.find_executable("cursor-agent") ||
-           System.find_executable("agent") do
-      path when is_binary(path) -> {:ok, Path.expand(path)}
-      _other -> {:error, Types.Error.new(:not_installed, :availability, false)}
-    end
-  end
-end
-
 defmodule Cuckoding.Adapters.OpenCode do
   @moduledoc "Stable OpenCode stub used until a supported CLI and isolated runtime are verified."
   @behaviour Cuckoding.Adapters.AgentAdapter
@@ -166,12 +98,11 @@ end
 defmodule Cuckoding.Adapters.Catalog do
   @moduledoc "User-visible runtime availability and selection policy."
 
-  alias Cuckoding.Adapters.CursorAgent
   alias Cuckoding.Adapters.OpenCode
 
   def experimental_options do
     [
-      option("cursor_agent", "Cursor Agent", CursorAgent.warning()),
+      %{key: "cursor_agent", label: "Cursor Agent", selectable?: true, warning: nil},
       option("opencode", "OpenCode", OpenCode.warning())
     ]
   end

@@ -237,7 +237,7 @@ defmodule CuckodingWeb.TaskLive do
 
   defp prepare_error(:runtime_setup_only),
     do:
-      "A board role uses a setup-only runtime. Assign Codex or Claude Code, then create a new board snapshot."
+      "A board role uses a setup-only runtime. Assign Codex, Claude Code, or Cursor Agent, then create a new board snapshot."
 
   defp prepare_error(:roles_not_configured),
     do: "This board does not have all required role assignments."

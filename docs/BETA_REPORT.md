@@ -121,7 +121,7 @@ retain important disagreement instead of averaging it away.
 
 - [ ] Three authorized repositories and required workflow variations are
   evidenced.
-- [ ] Claude Code and Codex each complete a default workflow.
+- [ ] Claude Code, Codex, and Cursor Agent each complete a default workflow.
 - [ ] Two boards run concurrently without crossover.
 - [ ] One beta run spans real sleep/wake and at least 24 wall-clock hours.
 - [ ] Quit/relaunch recovery completes without duplicated work.

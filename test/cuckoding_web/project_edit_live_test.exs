@@ -118,6 +118,43 @@ defmodule CuckodingWeb.ProjectEditLiveTest do
              "codex"
   end
 
+  test "saves and updates an agent before roles are assigned", %{conn: conn, project: project} do
+    {:ok, view, _html} = live(conn, ~p"/projects/#{project.id}/edit")
+
+    render_click(view, "add_connection")
+    assert has_element?(view, "#agent-connection-0 button", "Save agent")
+
+    config = %{
+      "agent_connections" => %{
+        "0" => %{
+          "key" => "agent-1",
+          "label" => "Primary Codex",
+          "adapter_key" => "codex",
+          "executable_path" => "/usr/bin/true"
+        }
+      },
+      "default_roles" => role_params_without_agents()
+    }
+
+    render_change(view, "sync", %{"config" => config})
+    view |> element("#agent-connection-0 button", "Save agent") |> render_click()
+
+    assert has_element?(view, "#project-edit-status", "Primary Codex saved")
+    assert has_element?(view, "#agent-connection-0 button", "Update agent")
+    assert Projects.latest_config_version(project.id).revision == 2
+
+    updated = put_in(config, ["agent_connections", "0", "label"], "Updated Codex")
+
+    render_change(view, "sync", %{"config" => updated})
+    view |> element("#agent-connection-0 button", "Update agent") |> render_click()
+
+    assert has_element?(view, "#project-edit-status", "Updated Codex saved")
+    latest = Projects.latest_config_version(project.id)
+    assert latest.revision == 3
+    assert [%{"label" => "Updated Codex"}] = latest.config_json["agent_connections"]
+    assert Enum.all?(latest.config_json["default_roles"], &is_nil(&1["agent_connection_key"]))
+  end
+
   defp role_params do
     ProjectOnboarding.default_roles()
     |> Enum.with_index()
@@ -136,6 +173,20 @@ defmodule CuckodingWeb.ProjectEditLiveTest do
       "instructions" => "Review trust boundaries and produce actionable findings.",
       "agent_connection_key" => "agent-1"
     })
+  end
+
+  defp role_params_without_agents do
+    ProjectOnboarding.default_roles()
+    |> Enum.with_index()
+    |> Map.new(fn {role, index} ->
+      {Integer.to_string(index),
+       %{
+         "key" => role["key"],
+         "name" => role["name"],
+         "instructions" => role["instructions"],
+         "agent_connection_key" => ""
+       }}
+    end)
   end
 
   defp git!(repo_path, args) do

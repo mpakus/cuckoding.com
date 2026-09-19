@@ -176,6 +176,53 @@ defmodule Cuckoding.ProjectWorkflowTest do
     assert Execution.list_runs(task.id) == []
   end
 
+  test "Cursor roles prepare a queued run with run-owned authentication setup", %{
+    project: project
+  } do
+    assert {:ok, _config} =
+             ProjectOnboarding.update_configuration(project.id, 2, %{
+               "agent_connections" => [
+                 %{
+                   "key" => "cursor-local",
+                   "label" => "Local Cursor",
+                   "adapter_key" => "cursor_agent",
+                   "executable_path" => "/usr/bin/true"
+                 }
+               ],
+               "default_roles" =>
+                 Enum.map(ProjectOnboarding.default_roles(), fn role ->
+                   Map.put(role, "agent_connection_key", "cursor-local")
+                 end)
+             })
+
+    assert {:ok, board} =
+             ProjectWorkflow.create_board(project.id, %{
+               "name" => "Cursor board",
+               "description" => "",
+               "concurrency_limit" => "1"
+             })
+
+    assert {:ok, task} =
+             ProjectWorkflow.create_task(board.id, %{
+               "title" => "Run Cursor safely",
+               "description" => "",
+               "priority" => "0"
+             })
+
+    assert {:ok, _command} =
+             Workflows.transition_task(task.id, "ready", "test:#{task.id}:ready")
+
+    assert {:ok, %{run: run}} = ProjectWorkflow.prepare_task(task.id)
+    assert {:ok, setups} = Cuckoding.GuidedRun.runtime_setups(run.id)
+    assert Enum.all?(setups, &(&1.runtime == "Cursor Agent"))
+
+    for setup <- setups do
+      assert setup.environment["HOME"] =~ "/agent/cursor/home"
+      assert setup.environment["CURSOR_CONFIG_DIR"] =~ "/agent/cursor/config"
+      assert setup.environment["CLAUDE_CONFIG_DIR"] =~ "/agent/cursor/claude"
+    end
+  end
+
   defp git!(repo_path, args) do
     assert {_output, 0} =
              System.cmd("/usr/bin/git", args,

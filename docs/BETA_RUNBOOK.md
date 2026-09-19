@@ -16,7 +16,7 @@ Begin external testing only when all of the following are true:
 
 - the build is identified by a Git SHA and was produced by the documented
   signed build path;
-- the supported Claude Code and Codex adapters pass their current conformance
+- the supported Claude Code, Codex, and Cursor Agent adapters pass their current conformance
   gates;
 - the recovery matrix in `docs/RECOVERY_DRILLS.md` is green;
 - outbound product telemetry is off;

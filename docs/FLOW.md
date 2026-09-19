@@ -111,9 +111,10 @@ profile or role never rewrites active or historical work.
 The default board launcher resolves Specifications, Coding, and Review
 independently from that snapshot. Each stage receives its assigned connection,
 runtime version, and role instructions; a single implementation runtime is not
-silently reused for the other roles. Cursor Agent, OpenCode, and Custom Agent
-remain saveable project connections but fail closed at run preparation until
-their reviewed launch adapters pass conformance.
+silently reused for the other roles. Cursor Agent prepares a run-owned login and
+configuration tree before launch. OpenCode and Custom Agent remain saveable
+project connections but fail closed at run preparation until their reviewed
+launch adapters pass conformance.
 
 ## Pause, hibernate, and resume
 

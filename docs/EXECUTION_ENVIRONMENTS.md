@@ -103,7 +103,7 @@ The Phase 5 scheduler reads the global session cap from application configuratio
 - No network isolation or egress control.
 - No hard CPU/memory limits.
 - Malicious repository content can instruct an agent to act on the host; mitigations are the runtime's permission mode, protected paths, no secrets in environment, and human approval gates.
-- Provider-specific config-directory switches may not redirect transcripts, workspace trust, plugins, or compatibility configuration. Each adapter must inventory actual child processes and global writes before it is enabled.
+- Provider-specific config-directory switches may not redirect transcripts, workspace trust, plugins, or compatibility configuration. Cursor therefore combines its config switch with a run-owned `HOME` and `CLAUDE_CONFIG_DIR`, requires a separate scoped login, and rejects project runtime/MCP/plugin overrides. Each adapter must inventory actual child processes and global writes before it is enabled.
 
 These limitations are shown in the project settings and in the run detail when the local runner is active.
 

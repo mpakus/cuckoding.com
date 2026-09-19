@@ -132,9 +132,14 @@ defmodule CuckodingWeb.RunLive do
               {role_label(setup.role_key)} · {setup[:connection] || setup.runtime}
             </h3>
             <p :if={setup[:connection]}>{setup.runtime}</p>
-            <div :if={setup[:home]} class="space-y-2">
-              <p>In Terminal, set <code>CODEX_HOME</code> to this run-owned directory:</p>
-              <p class="overflow-x-auto rounded bg-white p-2"><code>{setup.home}</code></p>
+            <div :if={setup[:home] || setup[:environment]} class="space-y-2">
+              <p>In Terminal, use these run-owned runtime directories:</p>
+              <dl class="space-y-2">
+                <div :for={{name, value} <- runtime_environment(setup)}>
+                  <dt class="font-semibold"><code>{name}</code></dt>
+                  <dd class="overflow-x-auto rounded bg-white p-2"><code>{value}</code></dd>
+                </div>
+              </dl>
               <p>Then run this executable with <code>{setup.login_args}</code>:</p>
               <p class="overflow-x-auto rounded bg-white p-2"><code>{setup.executable}</code></p>
             </div>
@@ -280,6 +285,12 @@ defmodule CuckodingWeb.RunLive do
   defp runtime_setups(_run), do: []
 
   defp role_label(role_key), do: role_key |> String.replace("_", " ") |> String.capitalize()
+
+  defp runtime_environment(%{environment: environment}) when is_map(environment),
+    do: Enum.sort(environment)
+
+  defp runtime_environment(%{home: home}), do: [{"CODEX_HOME", home}]
+  defp runtime_environment(_setup), do: []
 
   defp start_error(%Cuckoding.Adapters.Types.Error{code: :not_installed}),
     do: "The configured runtime executable is unavailable."

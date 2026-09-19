@@ -61,11 +61,12 @@ Project settings can store multiple named agent connections and assign them to
 the built-in Specifications, Coding, and Review roles or user-added roles.
 Every save appends an immutable configuration revision. The runtime selector
 shows Codex, Claude Code, Cursor Agent, OpenCode, and Custom Agent; the Claude
-API-key helper is rendered and validated only for Claude Code. Cursor Agent and
-OpenCode reuse their stable unavailable adapter contracts, while Custom Agent
-records only an executable path; all three carry an explicit setup-only warning
-and cannot start task runs until their adapter contract and conformance evidence
-are complete.
+API-key helper is rendered and validated only for Claude Code. Cursor uses a
+fresh login in run-owned runtime directories. OpenCode and Custom Agent record
+only reviewed machine-local settings, carry an explicit setup-only warning, and
+cannot start task runs until their adapter contract and conformance evidence are
+complete. Each agent card saves or updates independently; role saves remain a
+separate immutable configuration revision.
 
 A project may be registered while its working tree is dirty so the user can
 organize existing work. Starting a task remains stricter: the run boundary

@@ -52,7 +52,7 @@ See `CHANGES.md`. In short: no Docker in the MVP, agents and commands run on the
 - A thin native menubar shell (Tauri 2 in tray-only mode; alternatives in `docs/DESKTOP_SHELL.md`) that launches the bundled release and offers Cuckoding, About, Settings, Quit.
 - SQLite with Ecto for local durable state; Markdown files for human-readable knowledge.
 - Git worktrees and a `LocalProcessRunner` for concurrent feature work on the host.
-- Launch adapters for Claude Code and Codex, with stable adapter contracts for Cursor Agent and OpenCode.
+- Launch adapters for Claude Code, Codex, and run-scoped Cursor Agent, with a stable adapter contract for OpenCode.
 - A plugin system for connectors: knowledge backends (XERJ, others), shell-output filters (RTK), instruction skills (Ponytail, any `SKILL.md`), MCP servers, and future container runners (Docker, OrbStack, Colima, Apple Containers).
 - OpenTelemetry-compatible events and local metric rollups.
 

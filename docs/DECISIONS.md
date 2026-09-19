@@ -95,15 +95,15 @@ This file records accepted product-level decisions. Add a dated ADR section when
 - **Status:** Accepted
 - **Decision:** Power assertions while work is active, sleep-gap detection from clock divergence, reconciliation before scheduling, active vs wall time, unattended mode up to approval gates.
 
-## ADR-017 — Claude Code and Codex are the launch adapters
+## ADR-017 — Reviewed run-scoped CLIs are launch adapters
 
 - **Date:** 2026-09-17
 - **Status:** Accepted
-- **Context:** The MVP needs two real provider adapters while keeping product logic provider-neutral. Supporting four launch adapters would expand the first conformance and recovery surface without proving the walking skeleton.
-- **Decision:** Claude Code and Codex must pass the launch conformance suite. Cursor Agent and OpenCode keep stable adapter contracts and test doubles but are not launch-supported until their suites pass.
+- **Context:** The MVP needs multiple real provider adapters while keeping product logic provider-neutral. Each additional launch adapter must prove the same authentication, isolation, event, cancellation, and recovery boundaries.
+- **Decision:** Claude Code, Codex, and Cursor Agent must pass the launch conformance suite. Cursor is eligible only with a run-owned `HOME`, Cursor/Claude config directories, separate scoped login, empty MCP configuration, and no project runtime/MCP/plugin overrides. OpenCode keeps a stable adapter contract and test double but is not launch-supported until its suite passes.
 - **Alternatives:** Launch all four adapters (rejected as excess MVP scope); launch one adapter (rejected because cross-provider orchestration is part of the product claim).
-- **Consequences:** Phase 4 prioritizes tasks 0402 and 0403; documentation and UI must label the other adapters as unavailable or experimental.
-- **Verification:** Tasks 0401 through 0405 and the Phase 10 release matrix.
+- **Consequences:** Phase 4 delivered Claude Code and Codex first; task 1006 enables Cursor only through its stricter run-owned-home path. Documentation and UI keep OpenCode and Custom Agent setup-only.
+- **Verification:** Tasks 0401 through 0405, task 1006, and the Phase 10 release matrix.
 
 ## ADR-018 — Public product name is deferred
 
@@ -140,8 +140,8 @@ This file records accepted product-level decisions. Add a dated ADR section when
 - **Status:** Accepted
 - **Context:** The host runtime spike observed Cursor Agent launch a sandbox shell in a process group separate from the CLI. Signaling only the root group temporarily orphaned that shell. Cursor also started a user-global Claude-compatible MCP process and wrote under `~/.cursor/projects` despite isolated config directories and an MCP deny rule.
 - **Decision:** `LocalProcessRunner` owns and terminates the full observed process forest, signaling descendant groups before the root and verifying all PIDs/PGIDs are gone. Adapter availability requires measured config, state, plugin, and MCP isolation; configured deny rules are not treated as proof that a server did not start.
-- **Consequences:** Cursor remains experimental under ADR-017. Task 0404 must prove a credential-safe isolated home or a provider-supported no-global-plugins mode before enabling it. Runtime-reported grants and global writes are first-class audit evidence.
-- **Verification:** Task 0002 report and fixtures; task 0302 process-tree tests; task 0404 adapter conformance.
+- **Consequences:** Task 1006 resolves Cursor's retained failure by removing the real home and requiring run-owned authentication; it does not reinterpret an MCP deny as server isolation. Runtime-reported grants and global writes remain first-class audit evidence.
+- **Verification:** Task 0002 report and fixtures; task 0302 process-tree tests; task 0404 rejection evidence; task 1006 scoped-home adapter conformance.
 
 ## ADR-022 — Uptime divergence and supervised caffeinate for power handling
 

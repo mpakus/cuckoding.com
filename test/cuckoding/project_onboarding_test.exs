@@ -191,6 +191,52 @@ defmodule Cuckoding.ProjectOnboardingTest do
     assert Projects.latest_config_version(project.id).revision == 1
   end
 
+  test "saves and updates one agent without requiring or rewriting role assignments", %{
+    repo_path: repo_path
+  } do
+    assert {:ok, %{project: project}} =
+             ProjectOnboarding.create(project_attrs(repo_path, "Independent agent save"))
+
+    agent = %{
+      "key" => "agent-1",
+      "label" => "Primary Codex",
+      "adapter_key" => "codex",
+      "executable_path" => "/usr/bin/true"
+    }
+
+    assert {:ok, created} = ProjectOnboarding.save_connection(project.id, 1, agent)
+    assert created.revision == 2
+    assert [%{"label" => "Primary Codex"}] = created.config_json["agent_connections"]
+
+    assert Enum.all?(
+             created.config_json["default_roles"],
+             &is_nil(&1["agent_connection_key"])
+           )
+
+    assert {:ok, updated} =
+             ProjectOnboarding.save_connection(
+               project.id,
+               2,
+               Map.put(agent, "label", "Updated Codex")
+             )
+
+    assert updated.revision == 3
+    assert [%{"label" => "Updated Codex"}] = updated.config_json["agent_connections"]
+    assert updated.config_json["default_roles"] == created.config_json["default_roles"]
+
+    assert {:error, :stale_configuration} =
+             ProjectOnboarding.save_connection(project.id, 2, agent)
+
+    assert {:error, :invalid_runtime_executable} =
+             ProjectOnboarding.save_connection(
+               project.id,
+               3,
+               Map.put(agent, "executable_path", "relative")
+             )
+
+    assert Projects.latest_config_version(project.id).revision == 3
+  end
+
   defp execution_counts do
     %{
       boards: Repo.aggregate(Board, :count),

@@ -3,6 +3,7 @@ defmodule Cuckoding.GuidedRun do
 
   alias Cuckoding.Adapters.ClaudeCode
   alias Cuckoding.Adapters.Codex
+  alias Cuckoding.Adapters.CursorAgent
   alias Cuckoding.Adapters.FakeAdapter
   alias Cuckoding.Adapters.RuntimeConfiguration
   alias Cuckoding.Execution
@@ -147,6 +148,11 @@ defmodule Cuckoding.GuidedRun do
 
         probe(ClaudeCode, options)
 
+      "cursor_agent" ->
+        root = Path.join([skeleton.environment.run_dir, "agent", "cursor"])
+        options = [path: path, cursor_home: root, run_scoped_authenticated?: true]
+        probe(CursorAgent, options)
+
       "fake" ->
         {:ok, FakeAdapter, [], "test"}
 
@@ -207,6 +213,30 @@ defmodule Cuckoding.GuidedRun do
            connection: role.settings_json["connection_label"],
            executable: role.settings_json["executable_path"],
            helper: role.settings_json["api_key_helper"]
+         }}
+
+      "cursor_agent" ->
+        root = Path.join([skeleton.environment.run_dir, "agent", "cursor"])
+        home = Path.join(root, "home")
+        config = Path.join(root, "config")
+        claude = Path.join(root, "claude")
+
+        Enum.each([root, home, config, claude], fn path ->
+          :ok = File.mkdir_p(path)
+          :ok = File.chmod(path, 0o700)
+        end)
+
+        {:ok,
+         %{
+           runtime: "Cursor Agent",
+           connection: role.settings_json["connection_label"],
+           executable: role.settings_json["executable_path"],
+           environment: %{
+             "HOME" => home,
+             "CURSOR_CONFIG_DIR" => config,
+             "CLAUDE_CONFIG_DIR" => claude
+           },
+           login_args: "login"
          }}
 
       "fake" ->

@@ -1,7 +1,6 @@
 defmodule Cuckoding.Adapters.StableStubsTest do
   use ExUnit.Case, async: true
 
-  alias Cuckoding.Adapters.CursorAgent
   alias Cuckoding.Adapters.OpenCode
   alias Cuckoding.Adapters.RuntimeConfiguration
   alias Cuckoding.Adapters.Types
@@ -24,31 +23,11 @@ defmodule Cuckoding.Adapters.StableStubsTest do
                })
 
       assert settings == %{"executable_path" => "/usr/bin/true"}
-      assert is_binary(RuntimeConfiguration.warning(runtime))
-    end
-  end
-
-  test "Cursor probe reports the real runtime but keeps it unavailable" do
-    runner = fn _path, args, _options ->
-      case args do
-        ["--version"] ->
-          {"2026.09.15-d2fe57e\n", 0}
-
-        ["status", "--format", "json"] ->
-          {~s({"isAuthenticated":true,"email":"private@example.test"}), 0}
-      end
     end
 
-    assert {:ok, probe} = CursorAgent.probe(path: "/bin/false", command_runner: runner)
-    assert probe.version == "2026.09.15-d2fe57e"
-    assert probe.authenticated?
-    refute probe.available?
-    assert probe.status == "unsupported_global_state_isolation"
-    refute inspect(probe) =~ "private@example.test"
-
-    assert {:ok, capabilities} = CursorAgent.capabilities([])
-    refute capabilities.structured_output?
-    refute capabilities.native_resume?
+    assert is_nil(RuntimeConfiguration.warning("cursor_agent"))
+    assert is_binary(RuntimeConfiguration.warning("opencode"))
+    assert is_binary(RuntimeConfiguration.warning("custom_agent"))
   end
 
   test "OpenCode distinguishes a desktop app from an installed CLI" do
@@ -64,21 +43,19 @@ defmodule Cuckoding.Adapters.StableStubsTest do
     assert detected.status == "runtime_isolation_unverified"
   end
 
-  test "both stable stubs reject operational callbacks with visible details" do
-    for adapter <- [CursorAgent, OpenCode] do
-      assert {:error,
-              %Types.Error{
-                code: :adapter_unavailable,
-                category: :availability,
-                retryable?: false,
-                detail: detail
-              }} = adapter.start(%{}, [])
+  test "OpenCode stable stub rejects operational callbacks with visible details" do
+    assert {:error,
+            %Types.Error{
+              code: :adapter_unavailable,
+              category: :availability,
+              retryable?: false,
+              detail: detail
+            }} = OpenCode.start(%{}, [])
 
-      assert is_binary(detail)
-      assert detail =~ "unavailable"
+    assert is_binary(detail)
+    assert detail =~ "unavailable"
 
-      assert {:error, %Types.Error{code: :adapter_unavailable}} =
-               adapter.decode_event(%{}, [])
-    end
+    assert {:error, %Types.Error{code: :adapter_unavailable}} =
+             OpenCode.decode_event(%{}, [])
   end
 end

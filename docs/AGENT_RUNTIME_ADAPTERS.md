@@ -78,17 +78,19 @@ Authentication and session state use only `<run_dir>/agent/codex/home` via `CODE
 
 The flag and event vocabulary follow the [official non-interactive Codex documentation](https://learn.chatgpt.com/docs/non-interactive-mode). Native resume follows the pinned Hydra MIT reference at `electron/agents/providers.ts:112-145`; Cuckoding adds the run-scoped authentication, strict sandbox, host-runner, redaction, and audit boundaries rather than copying its interactive launch code.
 
-### Cursor Agent and OpenCode stable stubs
+### Cursor Agent 2026.09.15-d2fe57e
 
-Cursor Agent `2026.09.15-d2fe57e` remains unavailable despite exposing headless JSONL, sandbox, usage, cancellation, and native resume. The accepted host-runtime spike observed it writing transcripts and repository metadata under the user's global Cursor directory and starting a user-global Claude-compatible MCP process despite isolated configuration directories and an MCP deny rule. `CURSOR_CONFIG_DIR` therefore does not meet Cuckoding's state/plugin isolation boundary. Its probe reports the detected version and boolean authentication state without account details, but `available?` stays false and every operational callback returns `adapter_unavailable` with the same visible explanation.
+The Cursor adapter uses headless streamed JSON, the runtime sandbox with network denied, native resume, provider token usage, and the host runner's process-forest cancellation. Its entire runtime identity is run-owned: `HOME`, `CURSOR_CONFIG_DIR`, and `CLAUDE_CONFIG_DIR` point below `<run_dir>/agent/cursor`, generated files are owner-only, and the run page requires login in those directories before launch. It never copies or falls back to the user's global Cursor login.
+
+Cursor automatically discovers MCP configuration, so a tool permission deny is insufficient. Cuckoding writes an empty run-owned MCP file, does not pass `--approve-mcps`, rejects enabled Cuckoding plugins for this adapter, refuses repositories containing project Cursor CLI, sandbox, MCP, or plugin overrides, and refuses plugin directories created inside the isolated login profile. The effective grant records the runtime sandbox, worktree path, network deny, and disabled MCP/plugins separately from advisory host resource limits. The retained real-runtime fixture covers public events and usage; a new authenticated scoped-provider smoke remains an explicit release-evidence item.
+
+### OpenCode stable stub
 
 The installed OpenCode `1.18.21` application is a desktop app, not evidence of the documented OpenCode CLI. No `opencode` executable is on `PATH`, so the OpenCode stub reports `cli_not_installed`, exposes no adapter capabilities, and rejects every operational callback. If a CLI is later installed, the stub can report its version but remains unavailable as `runtime_isolation_unverified` until pure mode, run-scoped config/state, authentication, permissions, events, cancellation, and recovery pass the adapter conformance suite.
 
-Both stubs remain non-selectable for execution. Project setup may nevertheless
-save a Cursor Agent or OpenCode connection so roles can be configured before
-support lands; the selector renders the same plain-language warning and no task
-may start through either stub. Installation or desktop-app detection therefore
-cannot silently imply production support.
+OpenCode remains non-selectable for execution. Project setup may nevertheless
+save an OpenCode connection so roles can be configured before support lands;
+installation or desktop-app detection cannot silently imply production support.
 
 Custom Agent is the same honest setup boundary without an execution adapter:
 project configuration stores its reviewed absolute executable path, while the
