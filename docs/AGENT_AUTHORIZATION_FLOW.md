@@ -141,6 +141,10 @@ Running/completed runs are never rewritten.
 - The confirmed disconnect control is implemented and regression-tested. It is
   a provider-scoped logout, not destructive profile-directory deletion, and it
   never touches personal profiles. Real post-login revocation evidence remains open.
+- Browser acceptance verifies both root sign-in commands remain complete,
+  read-only fields with adjacent copy controls and polite copied-status feedback.
+  At a 320 px viewport the page has no horizontal overflow and retains every
+  runtime, model, provider-sign-in, edit, copy, and authorization-check control.
 
 Official Codex documentation describes cached login reuse and file/keyring
 storage; Cuckoding now avoids the former cross-home assumption:

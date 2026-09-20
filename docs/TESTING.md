@@ -22,6 +22,9 @@ linked named agents and current project/board roles, that only a confirmed root
 control is rendered, and that scoped provider logout records value-free request/completion events
 while propagating authorization-required status. The fake command runner asserts
 the app-owned environment and provider logout argv without reading credentials.
+Live browser acceptance on 2026-09-20 verifies the real Codex and Cursor command
+copy interactions, polite status feedback, and exact 320 px reflow without
+horizontal overflow. The viewport override is reset after the check.
 
 | Component | Unit / property | Persistence | Integration | Adversarial | Recovery |
 | --- | --- | --- | --- | --- | --- |

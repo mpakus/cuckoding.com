@@ -175,6 +175,12 @@ and real post-revocation checks remain open, so task 1018 stays in progress.
   selection, and no duplicate login cards. Both current real profiles still say
   sign-in required, so the disconnect control correctly remains hidden until a
   profile is connected.
+- A follow-up real browser check at 18:16 UTC re-probed both saved profiles;
+  each still returned sign-in required. Both adjacent **Copy** controls changed
+  to **Copied** and announced `Command copied to clipboard.` through the live
+  status region. At an exact 320×844 viewport, `innerWidth`, document width, and
+  body width were all 320 px; every add/edit/model/sign-in/copy/check control
+  remained in the accessibility tree. The temporary viewport override was reset.
 - Scoped changed-line security review found no credential value, token content,
   private key, password assignment, provider output persistence, personal-home
   fallback, or unconfirmed destructive action. Provider command output is discarded.
