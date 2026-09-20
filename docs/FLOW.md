@@ -22,9 +22,10 @@ Project setup, board setup, board task intake, and delivery execution are separa
    **Prepare run** accepts only a
    Ready task on an active board, rejects setup-only runtimes, snapshots the
    board configuration and trusted project policy, and creates the owned branch
-   and worktree. The queued run page then verifies each role's saved authorization
-   or isolated runtime setup before it starts any agent process. Required shell setup is
-   shown as one complete read-only command with an adjacent copy control. A
+   and worktree. Start checks each distinct saved account automatically before
+   starting provider work. One card groups its assigned roles. Sign in once on
+   **Agents**, using a complete read-only command with an adjacent copy control;
+   old unbound queued runs offer an explicit saved-account selector. A
    queued run is visible on the global operation monitor even before its first
    agent session. Once output exists, Artifacts follows the selected log's last
    5,000 lines in LiveView and offers a full filtered download; viewer pause does
@@ -149,8 +150,10 @@ from later project saves. See [configuration boundaries](CONFIGURATION.md).
 The default board launcher resolves Specifications, Coding, and Review
 independently from that snapshot. Each stage receives its assigned connection,
 runtime version, and role instructions; a single implementation runtime is not
-silently reused for the other roles. Cursor Agent prepares a run-owned login and
-configuration tree before launch. OpenCode and Custom Agent remain saveable
+silently reused for the other roles. Identical account/runtime settings share one
+authentication check, while role instructions stay distinct. Saved Codex and
+Cursor accounts use shared app-owned profiles; execution configuration stays
+run-specific. OpenCode and Custom Agent remain saveable
 project connections but fail closed at run preparation until their reviewed
 launch adapters pass conformance.
 

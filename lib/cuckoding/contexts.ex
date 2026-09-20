@@ -520,10 +520,32 @@ defmodule Cuckoding.Adapters do
     Repo.all(from(account in ProviderAccount, order_by: [asc: account.label, asc: account.id]))
   end
 
-  def get_provider_account(id) when is_binary(id), do: Repo.get(ProviderAccount, id)
+  def get_provider_account(id) when is_binary(id) do
+    case Ecto.UUID.cast(id) do
+      {:ok, id} -> Repo.get(ProviderAccount, id)
+      :error -> nil
+    end
+  end
+
   def get_provider_account(_id), do: nil
 
   def save_provider_account(attrs) when is_map(attrs) do
+    EventStore.transaction(fn ->
+      with {:ok, account} <- persist_provider_account(attrs),
+           {:ok, _event} <-
+             EventStore.append_in_transaction("provider:" <> account.id, %{
+               event_type: "provider.saved",
+               public_summary: "Shared agent settings saved",
+               payload: %{"provider_account_id" => account.id}
+             }) do
+        account
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
+
+  defp persist_provider_account(attrs) do
     case Map.get(attrs, :id) || Map.get(attrs, "id") do
       nil ->
         ProviderAccount.create_changeset(
@@ -535,7 +557,7 @@ defmodule Cuckoding.Adapters do
       id ->
         case Repo.get(ProviderAccount, id) do
           %ProviderAccount{} = account ->
-            account |> ProviderAccount.update_changeset(attrs) |> Repo.update()
+            update_provider_account(account, attrs)
 
           nil ->
             {:error, :provider_account_not_found}
@@ -543,8 +565,42 @@ defmodule Cuckoding.Adapters do
     end
   end
 
-  def record_provider_status(id, status) when is_binary(id) and is_binary(status) do
+  defp update_provider_account(account, attrs) do
+    changeset = ProviderAccount.update_changeset(account, attrs)
+
+    changeset =
+      if Ecto.Changeset.changed?(changeset, :capabilities_json),
+        do: Ecto.Changeset.change(changeset, status: "unknown", probed_at: nil),
+        else: changeset
+
+    if Ecto.Changeset.changed?(changeset, :adapter_key),
+      do: {:error, :provider_account_mismatch},
+      else: Repo.update(changeset)
+  end
+
+  def record_provider_status(id, status, expected_settings \\ nil)
+      when is_binary(id) and is_binary(status) do
+    EventStore.transaction(fn ->
+      with {:ok, account} <- update_provider_status(id, status, expected_settings),
+           {:ok, _event} <-
+             EventStore.append_in_transaction("provider:" <> id, %{
+               event_type: "provider.authorization_checked",
+               public_summary: "Shared agent authorization checked",
+               payload: %{"provider_account_id" => id, "status" => status}
+             }) do
+        account
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
+
+  defp update_provider_status(id, status, expected_settings) do
     case Repo.get(ProviderAccount, id) do
+      %ProviderAccount{capabilities_json: current}
+      when expected_settings != nil and current != expected_settings ->
+        {:error, :provider_configuration_changed}
+
       %ProviderAccount{} = account ->
         account
         |> ProviderAccount.update_changeset(%{

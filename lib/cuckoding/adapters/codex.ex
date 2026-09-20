@@ -1,7 +1,8 @@
 defmodule Cuckoding.Adapters.Codex do
-  @moduledoc "Codex CLI 0.146.0 adapter with a run-scoped home and active runtime sandbox."
+  @moduledoc "Codex CLI 0.146.0 adapter with account-owned profiles and run-scoped permissions."
   @behaviour Cuckoding.Adapters.AgentAdapter
 
+  alias Cuckoding.Adapters.SharedProfile
   alias Cuckoding.Adapters.Types
   alias Cuckoding.Identifier
   alias Cuckoding.Security.Redactor
@@ -215,9 +216,8 @@ defmodule Cuckoding.Adapters.Codex do
          :ok <- valid_model(request.requested_model),
          :ok <- valid_resume_session(options),
          :ok <- config_ready(request),
+         {:ok, home} <- execution_home(request, options),
          {:ok, timeout} <- wall_timeout(request.grant) do
-      home = Path.join([request.run_dir, "agent", "codex", "home"])
-
       {:ok,
        %{
          command: %{
@@ -284,6 +284,8 @@ defmodule Cuckoding.Adapters.Codex do
       ]
       |> maybe_arg("--model", request.requested_model)
 
+    common = common ++ shared_config(request, options)
+
     prompt = Keyword.get(options, :prompt, request.objective)
 
     case Keyword.get(options, :resume_session) do
@@ -292,6 +294,38 @@ defmodule Cuckoding.Adapters.Codex do
 
       _other ->
         ["exec"] ++ common ++ ["--cd", request.worktree_path, "--", prompt]
+    end
+  end
+
+  defp execution_home(request, options) do
+    case options[:shared_profile_id] do
+      nil -> {:ok, Path.join([request.run_dir, "agent", "codex", "home"])}
+      id -> SharedProfile.prepare(id, "codex")
+    end
+  end
+
+  defp shared_config(request, options) do
+    if options[:shared_profile_id] do
+      [
+        "--ignore-user-config",
+        "--ignore-rules",
+        "-c",
+        ~s(cli_auth_credentials_store="keyring"),
+        "-c",
+        "sandbox_workspace_write.writable_roots=[]",
+        "-c",
+        "sandbox_workspace_write.exclude_tmpdir_env_var=true",
+        "-c",
+        "sandbox_workspace_write.exclude_slash_tmp=true",
+        "-c",
+        ~s(shell_environment_policy.inherit="core"),
+        "-c",
+        "shell_environment_policy.ignore_default_excludes=false",
+        "-c",
+        "developer_instructions=" <> Jason.encode!(instructions(request))
+      ]
+    else
+      []
     end
   end
 

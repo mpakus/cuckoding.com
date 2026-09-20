@@ -2,9 +2,13 @@
 
 ## Current UI configuration flow
 
+Task 1018 adds independent **Agents** management at `/settings/agents`:
+authorize once, then select the same connection across projects. See the
+[accepted shared-profile flow and verification boundaries](AGENT_AUTHORIZATION_FLOW.md).
+
 The three-step project wizard creates identity, repository/branch, and a first
-trusted configuration revision with unassigned default roles. Agent setup lives
-on `/projects/:id/edit`, after registration.
+trusted configuration revision with unassigned default roles. Project settings
+at `/projects/:id/edit` attach saved agents and assign roles after registration.
 
 | Layer | Stored information | Effect of later edits |
 | --- | --- | --- |
@@ -21,14 +25,18 @@ the default delivery launcher uses Specifications, Coding, and Review.
 
 Runtime authentication is a live dependency: `AgentRuntime` looks up the saved
 account's current authentication mode by ID. It is not fully frozen by the role
-snapshot. A cached successful check is not a launch guarantee. Codex account
-login and run probes use different homes; credential-only reuse across them is
-still an explicit real-provider verification gate in [TESTING.md](TESTING.md).
+snapshot. A cached successful check is not a launch guarantee. Codex uses one
+account-owned `CODEX_HOME` for login, probes and launch. Cursor uses a shared
+app-owned HOME with separate run-owned config directories. Provider history may
+be shared across projects using that account; create separate saved agents to
+separate their profiles. Cuckoding never reads or copies credential files.
 
-Legacy board/run snapshots without `provider_account_id` keep their run-scoped
-setup. Saving the project cannot upgrade them, even for a new run on that old
-board. Create a new board after saving the desired assignments; retain the old
-board and its tasks/history. There is no automatic board migration in the UI.
+Legacy snapshots keep their old setup until explicitly connected. In project
+settings, **Connect saved agents** links a board's existing connection keys to
+compatible saved accounts for future runs. A queued run offers a per-role saved
+agent selector. The selected runtime/executable/helper must match its snapshot;
+the binding is a separate append-only event, not a snapshot rewrite. Tasks and
+history stay intact. Running/completed runs cannot be rebound.
 
 ## Configuration layout
 

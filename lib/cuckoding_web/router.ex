@@ -46,6 +46,7 @@ defmodule CuckodingWeb.Router do
       live "/knowledge/growth", KnowledgeGrowthLive, :index
       live "/knowledge/lineage", KnowledgeLineageLive, :index
       live "/settings/plugins", PluginSettingsLive, :index
+      live "/settings/agents", AgentSettingsLive, :index
       live "/runs/:id", RunLive, :show
       live "/boards/:id", BoardLive, :show
       live "/boards/:board_id/tasks/:id", TaskLive, :show

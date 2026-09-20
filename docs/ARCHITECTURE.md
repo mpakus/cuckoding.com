@@ -110,6 +110,12 @@ separately from the immutable run snapshot, while `WalkingSkeleton` remains the
 bounded sequential executor and release-evidence path. The workflow definition's
 Review-return evaluator is not connected to this launcher's scheduling; the
 current path waits for release approval, without a local-complete alternative.
+`AgentRuntime` deduplicates authentication checks by account and executable/helper
+settings. `SharedProfile` resolves only private app-owned account directories;
+login, probe and launch use the same identity. `AgentBindings` stores explicit
+queued-run authentication overrides as events without rewriting snapshots.
+Provider settings/status writes commit an audit event before broadcasting to
+the independent Agents LiveView. See ADR-025 for shared-history consent.
 `Cuckoding.AgentFloor`
 rebuilds both session cards and the bounded recent-operation projection from
 SQLite. The home dashboard refreshes that projection after committed PubSub

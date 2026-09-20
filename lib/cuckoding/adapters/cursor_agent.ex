@@ -1,7 +1,8 @@
 defmodule Cuckoding.Adapters.CursorAgent do
-  @moduledoc "Cursor Agent adapter with a run-owned home, config, sessions, and MCP boundary."
+  @moduledoc "Cursor Agent adapter with account-owned profiles and run-owned configuration."
   @behaviour Cuckoding.Adapters.AgentAdapter
 
+  alias Cuckoding.Adapters.SharedProfile
   alias Cuckoding.Adapters.Types
   alias Cuckoding.Identifier
   alias Cuckoding.Security.Redactor
@@ -70,7 +71,7 @@ defmodule Cuckoding.Adapters.CursorAgent do
   end
 
   @impl true
-  def render_config(%Types.StageRequest{} = request, _options) do
+  def render_config(%Types.StageRequest{} = request, options) do
     root = Path.join([request.run_dir, "agent", "cursor"])
     home = Path.join(root, "home")
     cursor_home = Path.join(home, ".cursor")
@@ -87,8 +88,16 @@ defmodule Cuckoding.Adapters.CursorAgent do
          :ok <- profile_plugins_absent(root),
          :ok <- write_file(Path.join(config, "cli-config.json"), cli_config(request)),
          :ok <- write_file(Path.join(cursor_home, "sandbox.json"), sandbox_config()),
-         :ok <- write_file(Path.join(cursor_home, "mcp.json"), ~s({"mcpServers":{}})) do
-      {:ok, effective_grant(request)}
+         :ok <- write_file(Path.join(cursor_home, "mcp.json"), ~s({"mcpServers":{}})),
+         {:ok, _environment} <- scoped_environment(Keyword.put(options, :cursor_home, root)) do
+      grant = effective_grant(request)
+
+      grant =
+        if options[:shared_profile_id],
+          do: %{grant | enforced: Map.put(grant.enforced, "runtime_home", "shared_agent_profile")},
+          else: grant
+
+      {:ok, grant}
     else
       {:error, %Types.Error{} = error} -> {:error, error}
       {:error, reason} -> error(reason, :capability, false)
@@ -226,7 +235,8 @@ defmodule Cuckoding.Adapters.CursorAgent do
          :ok <- valid_resume_session(options),
          :ok <- project_overrides_absent(request.worktree_path),
          :ok <- config_ready(request),
-         {:ok, environment} <- scoped_environment(cursor_root(request)),
+         {:ok, environment} <-
+           scoped_environment(Keyword.put(options, :cursor_home, cursor_root(request))),
          {:ok, timeout} <- wall_timeout(request.grant) do
       args =
         [
@@ -290,8 +300,12 @@ defmodule Cuckoding.Adapters.CursorAgent do
 
   defp scoped_environment(options) when is_list(options) do
     case Keyword.get(options, :cursor_home) do
-      path when is_binary(path) -> scoped_environment(path)
-      _other -> error(:run_scoped_config_required, :authentication, false)
+      path when is_binary(path) ->
+        with {:ok, environment} <- scoped_environment(path),
+             do: shared_environment(environment, options[:shared_profile_id])
+
+      _other ->
+        error(:run_scoped_config_required, :authentication, false)
     end
   end
 
@@ -304,6 +318,46 @@ defmodule Cuckoding.Adapters.CursorAgent do
        "CURSOR_CONFIG_DIR" => Path.join(root, "config"),
        "CLAUDE_CONFIG_DIR" => Path.join(root, "claude")
      }}
+  end
+
+  defp shared_environment(environment, nil), do: {:ok, environment}
+
+  defp shared_environment(environment, id) do
+    with {:ok, root} <- SharedProfile.prepare(id, "cursor_agent"),
+         {:ok, shared} <- account_environment(root),
+         do: {:ok, Map.put(environment, "HOME", shared["HOME"])}
+  end
+
+  def account_environment(root) do
+    with :ok <- prepare_directory(Path.join(root, "home"), root),
+         :ok <- prepare_directory(Path.join(root, "config"), root),
+         :ok <- prepare_directory(Path.join(root, "claude"), root),
+         :ok <- prepare_directory(Path.join(root, "home/.cursor"), Path.join(root, "home")),
+         :ok <- profile_plugins_absent(root),
+         :ok <- fixed_file(Path.join(root, "home/.cursor/sandbox.json"), sandbox_config()),
+         :ok <- fixed_file(Path.join(root, "home/.cursor/mcp.json"), ~s({"mcpServers":{}})) do
+      scoped_environment(root)
+    end
+  end
+
+  # Shared security files are constant, never overwritten with another run's policy.
+  defp fixed_file(path, contents) do
+    case File.lstat(path) do
+      {:error, :enoent} ->
+        case File.write(path, contents, [:exclusive]) do
+          :ok -> File.chmod(path, 0o600)
+          {:error, :eexist} -> fixed_file(path, contents)
+          error -> error
+        end
+
+      {:ok, %{type: :regular}} ->
+        if File.read(path) == {:ok, contents},
+          do: :ok,
+          else: {:error, :shared_profile_configuration_changed}
+
+      _other ->
+        {:error, :config_path_symlink}
+    end
   end
 
   defp cursor_root(request), do: Path.join([request.run_dir, "agent", "cursor"])

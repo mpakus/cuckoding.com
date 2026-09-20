@@ -99,12 +99,33 @@ defmodule CuckodingWeb.RunLive do
         {:noreply,
          assign(socket,
            error:
-             "The saved agent is not authorized. Open project settings, run its one-time " <>
-               "authorization command, choose Check authorization, then retry this run."
+             "A saved agent needs sign-in. Open Agents, reconnect it and retry. " <>
+               "Your task and worktree are unchanged."
          )}
 
       {:error, reason} ->
         {:noreply, assign(socket, error: start_error(reason))}
+    end
+  end
+
+  def handle_event("connect-agent", %{"binding" => params}, socket) do
+    case Cuckoding.AgentBindings.connect_run(
+           socket.assigns.detail.run.id,
+           params["role_key"],
+           params["account_id"]
+         ) do
+      {:ok, :connected} ->
+        {:noreply,
+         socket
+         |> refresh("Saved agent connected. This run will reuse its sign-in.")
+         |> assign(error: nil)}
+
+      {:error, _reason} ->
+        {:noreply,
+         assign(socket,
+           error:
+             "Choose a saved agent with the same runtime and executable. Only queued runs can be connected."
+         )}
     end
   end
 
@@ -254,17 +275,53 @@ defmodule CuckodingWeb.RunLive do
           class="space-y-4 rounded-lg border border-amber-300 bg-amber-50 p-5"
         >
           <h2 id="runtime-setup-heading" class="text-xl font-semibold text-amber-950">
-            Verify each role before starting
+            Agents for this run
           </h2>
+          <p class="text-sm">
+            Start when ready. Saved agents reuse their sign-in; access is checked automatically before work begins.
+          </p>
           <article
             :for={setup <- @runtime_setups}
             class="space-y-2 rounded-md border border-amber-200 bg-white/70 p-4 text-sm text-amber-950"
           >
             <h3 class="font-semibold">
-              {role_label(setup.role_key)} · {setup[:connection] || setup.runtime}
+              {setup[:connection] || setup.runtime}
             </h3>
             <p :if={setup[:connection]}>{setup.runtime}</p>
-            <div :if={setup[:command]} class="space-y-2">
+            <p>Roles: {Enum.map_join(setup[:role_keys] || [setup.role_key], ", ", &role_label/1)}</p>
+            <.link
+              :if={setup[:account_id]}
+              navigate={~p"/settings/agents"}
+              class="inline-flex min-h-11 items-center underline underline-offset-4"
+            >Manage shared agent</.link>
+            <form
+              :if={!setup[:account_id]}
+              id={"connect-agent-#{setup.role_key}"}
+              phx-submit="connect-agent"
+              class="space-y-3"
+              data-confirm="Use this saved agent's shared sign-in and history for this role? The original run snapshot stays unchanged."
+            >
+              <input type="hidden" name="binding[role_key]" value={setup.role_key} />
+              <label class="grid gap-2">
+                Connect a saved agent to {role_label(setup.role_key)}
+                <select
+                  name="binding[account_id]"
+                  required
+                  class="min-h-11 min-w-0 rounded border border-slate-400 bg-white px-3"
+                >
+                  <option value="">Choose saved agent</option>
+                  <option
+                    :for={account <- Cuckoding.Adapters.list_provider_accounts()}
+                    value={account.id}
+                  >
+                    {account.label}
+                  </option>
+                </select>
+              </label>
+              <button class="min-h-11 rounded border border-slate-400 bg-white px-4">Connect saved agent</button>
+              <.link navigate={~p"/settings/agents"} class="ml-3 underline">Add or sign in to an agent</.link>
+            </form>
+            <div :if={setup[:command] && !setup[:account_id]} class="space-y-2">
               <p>Copy and run this complete sign-in command in Terminal:</p>
               <div
                 id={"runtime-command-#{setup.role_key}"}
@@ -584,6 +641,19 @@ defmodule CuckodingWeb.RunLive do
     do: "The configured runtime version is not supported by this build."
 
   defp start_error(:run_not_queued), do: "This run has already started."
+
+  defp start_error(:provider_account_mismatch),
+    do:
+      "The saved agent does not match this run's runtime settings. Connect a compatible agent or prepare a new run from updated board settings."
+
+  defp start_error(:provider_account_not_found),
+    do:
+      "The saved agent is missing. Open Agents and reconnect a compatible account to this queued run."
+
+  defp start_error(:profile_path_unsafe),
+    do:
+      "The shared agent profile contains an unsafe path. Check its app-owned directory for symlinks before retrying."
+
   defp start_error(_reason), do: "The workflow could not start. Inspect runtime setup and retry."
 
   defp start_run(%{task: %{kind: "board_intake"}, run: run}),

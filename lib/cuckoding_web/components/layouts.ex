@@ -23,6 +23,7 @@ defmodule CuckodingWeb.Layouts do
             :for={
               {label, path, key} <- [
                 {"Projects", ~p"/", "projects"},
+                {"Agents", ~p"/settings/agents", "agent_settings"},
                 {"Agent activity", ~p"/agents", "agents"},
                 {"Knowledge", ~p"/knowledge", "knowledge"}
               ]

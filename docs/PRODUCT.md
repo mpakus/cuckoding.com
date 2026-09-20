@@ -73,6 +73,13 @@ The complete launch contract, competitive basis, retention defaults, and commerc
 
 ## Primary user journey
 
+**Agent setup (task 1018, implementation delivered; real-provider acceptance pending):**
+Add and authorize agents once in machine-wide **Agents** management; projects
+select those connections and assign roles. Run start automatically checks each
+distinct connection and asks for reconnect only when needed. The detailed
+[agent-first flow](AGENT_AUTHORIZATION_FLOW.md) documents the app-owned shared
+profiles, provider-history sharing and remaining acceptance checks.
+
 1. The user clicks the menubar icon → Cuckoding; the global dashboard opens with registered projects, health, resources, active work, and attention items.
 2. The user chooses **Add project** or edits an existing project.
 3. A three-step wizard collects project identity and a system-selected project folder plus Git base branch, then reviews the pending registration. Before confirmation it only inspects the folder. After explicit review, it initializes Git and creates the first local commit when no branch revision exists; an existing repository with the selected branch is not changed.

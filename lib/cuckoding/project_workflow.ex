@@ -21,6 +21,51 @@ defmodule Cuckoding.ProjectWorkflow do
   @agent_roles ~w(spec_writer implementer reviewer)
   @runnable_adapters ~w(codex claude_code cursor_agent fake)
 
+  def connect_saved_agents(board_id, expected_revision) do
+    EventStore.transaction(fn ->
+      with board when not is_nil(board) <- Workflows.get_board(board_id),
+           %{revision: ^expected_revision} = config <-
+             Projects.latest_config_version(board.project_id),
+           :ok <- connect_board_roles(board.id, config.config_json),
+           {:ok, _event} <-
+             EventStore.append_in_transaction("board:" <> board.id, %{
+               event_type: "board.agents_connected",
+               public_summary: "Board roles linked to saved agents",
+               payload: %{
+                 "board_id" => board.id,
+                 "project_id" => board.project_id,
+                 "config_revision" => config.revision
+               }
+             }) do
+        board
+      else
+        {:error, reason} -> Repo.rollback(reason)
+        _other -> Repo.rollback(:stale_configuration)
+      end
+    end)
+  end
+
+  defp connect_board_roles(board_id, config) do
+    connections = Map.new(config["agent_connections"] || [], &{&1["key"], &1})
+
+    Enum.reduce_while(Workflows.list_agent_roles(board_id), :ok, fn role, :ok ->
+      connection = connections[role.settings_json["connection_key"]] || %{}
+      id = connection["provider_account_id"]
+
+      with :ok <- Cuckoding.AgentBindings.compatible(role.adapter_key, role.settings_json, id),
+           {:ok, _role} <-
+             role
+             |> Ecto.Changeset.change(
+               settings_json: Map.put(role.settings_json, "provider_account_id", id)
+             )
+             |> Repo.update() do
+        {:cont, :ok}
+      else
+        error -> {:halt, error}
+      end
+    end)
+  end
+
   def create_board(project_id, attrs) when is_binary(project_id) and is_map(attrs) do
     EventStore.transaction(fn ->
       with project when not is_nil(project) <- Projects.get_project(project_id),

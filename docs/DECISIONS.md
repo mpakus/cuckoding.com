@@ -193,6 +193,15 @@ authorization status is a mutable projection without its own append-only event.
 There is no global revoke/delete UI or automatic migration of legacy boards.
 These are explicit follow-ups, not completed guarantees of this decision.
 
+## ADR-025 — Agent-first authorization and connection-level readiness
+
+- **Date:** 2026-09-19
+- **Status:** Accepted shared-profile mechanism on 2026-09-20; implementation delivered, real-provider acceptance pending
+- **Context:** The stakeholder rejects repeating sign-in per run and displaying the same saved agent once per role. ADR-024's catalog alone did not deliver reusable authentication.
+- **Decision:** Add and authorize an agent once in machine-wide Agents management; projects select saved agents and assign roles. The stakeholder explicitly selected one app-owned profile per saved agent, including shared provider history. This supersedes ADR-024's credential-only default and the per-run login requirement in ADR-017/021 for saved accounts. Run start checks distinct connections automatically. See [the flow contract](AGENT_AUTHORIZATION_FLOW.md).
+- **Consequences:** Never use a personal CLI home or copy tokens. Codex uses the same account home with saved execution config ignored and run-specific permission overrides/instructions. Cursor shares HOME, but task config directories remain run-owned; shared sandbox/MCP files are fixed and checked, never rewritten with task policy. Separate account IDs get separate profiles. Boards and queued runs have explicit audited binding actions; historical snapshots remain immutable. Removing/revoking accounts is not added in this tranche.
+- **Verification:** Deterministic tests cover two-project paths, distinct-account grouping, revocation, per-run settings and legacy binding preservation. Actual token refresh, concurrent authenticated provider sessions and global-write/MCP acceptance remain release gates, not inferred from passing mock checks.
+
 ## ADR template
 
 ### ADR-NNN — Title

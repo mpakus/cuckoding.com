@@ -59,7 +59,7 @@ defmodule Cuckoding.GuidedRun do
       |> roles()
       |> Enum.reduce_while({:ok, []}, &collect_runtime_setup(&1, &2, skeleton))
       |> case do
-        {:ok, setups} -> {:ok, Enum.reverse(setups)}
+        {:ok, setups} -> {:ok, setups |> Enum.reverse() |> AgentRuntime.group_setups()}
         error -> error
       end
     end
@@ -102,17 +102,7 @@ defmodule Cuckoding.GuidedRun do
   end
 
   defp adapters(skeleton) do
-    skeleton
-    |> roles()
-    |> Enum.reduce_while({:ok, %{}}, fn role, {:ok, configured} ->
-      case AgentRuntime.resolve(skeleton, role.role_key) do
-        {:ok, runtime} ->
-          {:cont, {:ok, Map.put(configured, role.role_key, runtime)}}
-
-        {:error, reason} ->
-          {:halt, {:error, reason}}
-      end
-    end)
+    AgentRuntime.resolve_roles(skeleton, roles(skeleton))
     |> case do
       {:ok, configured} when map_size(configured) == length(@agent_roles) -> {:ok, configured}
       {:ok, _configured} -> {:error, :role_assignment_not_found}

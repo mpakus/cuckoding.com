@@ -24,7 +24,7 @@ From a clean checkout with RTK available:
 ```sh
 rtk mix setup
 rtk mix quality
-rtk mix phx.server
+rtk env PHX_SERVER=true mix phx.server
 ```
 
 `mix setup` fetches dependencies, installs the pinned Tailwind and esbuild binaries, and builds assets. `mix quality` runs the formatter check, warnings-as-errors compilation, tests, Credo, Sobelow, and the Hex retirement audit. The server listens only on `127.0.0.1:4000`; open `http://127.0.0.1:4000`.

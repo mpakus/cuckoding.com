@@ -138,16 +138,15 @@ defmodule Cuckoding.ProjectWorkflowTest do
 
     {:ok, run_view, _html} = live(conn, ~p"/runs/#{run.id}")
 
-    assert has_element?(
-             run_view,
-             "#runtime-command-implementer input[data-copy-source][readonly]"
-           )
+    refute has_element?(run_view, "#runtime-setup input[data-copy-source]")
 
     assert has_element?(
              run_view,
-             "#runtime-command-implementer button[data-copy-button]",
-             "Copy"
+             "#runtime-setup a[href='/settings/agents']",
+             "Manage shared agent"
            )
+
+    assert has_element?(run_view, "#runtime-setup p", "Roles: Implementer, Reviewer, Spec writer")
 
     assert has_element?(task_view, "p", "waiting for authentication")
 
@@ -197,7 +196,7 @@ defmodule Cuckoding.ProjectWorkflowTest do
     assert Execution.list_runs(task.id) == []
   end
 
-  test "Cursor roles prepare a queued run with run-owned authentication setup", %{
+  test "Cursor roles share one saved account setup", %{
     project: project
   } do
     assert {:ok, _config} =
@@ -236,16 +235,67 @@ defmodule Cuckoding.ProjectWorkflowTest do
     assert {:ok, %{run: run}} = ProjectWorkflow.prepare_task(task.id)
     assert {:ok, setups} = Cuckoding.GuidedRun.runtime_setups(run.id)
     assert Enum.all?(setups, &(&1.runtime == "Cursor Agent"))
+    assert length(setups) == 1
 
     for setup <- setups do
-      assert setup.environment["HOME"] =~ "/agent/cursor/home"
-      assert setup.environment["CURSOR_CONFIG_DIR"] =~ "/agent/cursor/config"
-      assert setup.environment["CLAUDE_CONFIG_DIR"] =~ "/agent/cursor/claude"
+      assert setup.home =~ "/#{setup.account_id}/cursor"
+      assert setup.reusable?
       assert setup.command =~ "CLAUDE_CONFIG_DIR='"
       assert setup.command =~ "CURSOR_CONFIG_DIR='"
       assert setup.command =~ "HOME='"
       assert setup.command =~ "'/usr/bin/true' login"
     end
+  end
+
+  test "explicit legacy connections preserve tasks and immutable run snapshots", %{
+    project: project,
+    conn: conn
+  } do
+    {:ok, board} =
+      ProjectWorkflow.create_board(project.id, %{"name" => "Legacy", "concurrency_limit" => "1"})
+
+    roles = Workflows.list_agent_roles(board.id)
+    account_id = hd(roles).settings_json["provider_account_id"]
+
+    for role <- roles do
+      role
+      |> Ecto.Changeset.change(
+        settings_json: Map.delete(role.settings_json, "provider_account_id")
+      )
+      |> Repo.update!()
+    end
+
+    {:ok, task} = ProjectWorkflow.create_task(board.id, %{"title" => "Keep this task"})
+    {:ok, _transition} = Workflows.transition_task(task.id, "ready", "legacy-ready")
+    {:ok, %{run: run}} = ProjectWorkflow.prepare_task(task.id)
+    snapshot = run.workflow_snapshot_json
+    assert {:ok, _board} = ProjectWorkflow.connect_saved_agents(board.id, 2)
+
+    assert Enum.all?(
+             Workflows.list_agent_roles(board.id),
+             &(&1.settings_json["provider_account_id"] == account_id)
+           )
+
+    assert Repo.get!(Cuckoding.Execution.Run, run.id).workflow_snapshot_json == snapshot
+    assert Workflows.get_task(task.id).title == "Keep this task"
+    {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+
+    view
+    |> form("#connect-agent-implementer", binding: %{account_id: account_id})
+    |> render_submit()
+
+    assert Cuckoding.AgentBindings.for_run(run.id)["implementer"] == account_id
+    assert Repo.get!(Cuckoding.Execution.Run, run.id).workflow_snapshot_json == snapshot
+    refute has_element?(view, "#connect-agent-implementer")
+    assert has_element?(view, "#runtime-setup a", "Manage shared agent")
+
+    assert {:error, :provider_account_mismatch} =
+             Cuckoding.AgentBindings.connect_run(run.id, "reviewer", Ecto.UUID.generate())
+
+    run |> Ecto.Changeset.change(state: "running") |> Repo.update!()
+
+    assert {:error, :run_not_queued_or_role_missing} =
+             Cuckoding.AgentBindings.connect_run(run.id, "reviewer", account_id)
   end
 
   defp git!(repo_path, args) do

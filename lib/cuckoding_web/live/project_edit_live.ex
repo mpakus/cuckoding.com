@@ -254,6 +254,30 @@ defmodule CuckodingWeb.ProjectEditLive do
     end
   end
 
+  def handle_event("connect-board-agents", %{"id" => id}, socket) do
+    if Enum.any?(socket.assigns.boards, &(&1.id == id)) and
+         socket.assigns.config == socket.assigns.saved_config do
+      case ProjectWorkflow.connect_saved_agents(id, socket.assigns.revision) do
+        {:ok, _board} ->
+          {:noreply,
+           assign(socket,
+             notice:
+               "Board connected to saved agents for future runs. Existing tasks and run snapshots are unchanged.",
+             error: nil
+           )}
+
+        {:error, _reason} ->
+          {:noreply,
+           assign(socket,
+             error:
+               "The board's runtime settings do not match these saved agents. Keep its existing assignments; connect a compatible saved agent on each queued run instead."
+           )}
+      end
+    else
+      {:noreply, assign(socket, error: "Save project settings before connecting this board.")}
+    end
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -278,10 +302,14 @@ defmodule CuckodingWeb.ProjectEditLive do
             </span>
           </div>
           <p class="max-w-3xl text-base leading-7 text-slate-700">
-            Connect local agent runtimes, then assign one connection to every project role.
+            Choose saved agents, then assign one connection to every project role.
             New boards copy these defaults; existing boards and runs keep their snapshots.
           </p>
         </header>
+        <.link
+          navigate={~p"/settings/agents"}
+          class="inline-flex min-h-11 items-center rounded-md border border-slate-400 bg-white px-4 underline underline-offset-4"
+        >Manage shared agents and sign-in</.link>
 
         <nav aria-label="Project sections" class="grid gap-3 sm:grid-cols-3">
           <a
@@ -418,8 +446,8 @@ defmodule CuckodingWeb.ProjectEditLive do
                 :if={account.adapter_key == "cursor_agent"}
                 class="text-sm leading-6 text-slate-700"
               >
-                Cursor authorization remains run-specific because its CLI writes user-global
-                session state.
+                Cursor uses this agent's Cuckoding profile across projects. Sign-in and
+                provider history are shared; task permissions stay run-specific.
               </p>
             </article>
           </div>
@@ -694,6 +722,15 @@ defmodule CuckodingWeb.ProjectEditLive do
               >
                 Open board
               </.link>
+              <button
+                type="button"
+                phx-click="connect-board-agents"
+                phx-value-id={board.id}
+                data-confirm="Connect this board's existing roles to matching saved agents shown above? Future runs share their profiles. Tasks and existing run snapshots stay unchanged."
+                class="mt-3 min-h-11 rounded-md border border-slate-400 px-4 text-sm"
+              >
+                Connect saved agents
+              </button>
             </li>
           </ul>
 

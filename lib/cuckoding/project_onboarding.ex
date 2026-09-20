@@ -4,6 +4,7 @@ defmodule Cuckoding.ProjectOnboarding do
   alias Cuckoding.Adapters
   alias Cuckoding.Adapters.RuntimeConfiguration
   alias Cuckoding.Clock
+  alias Cuckoding.Execution.EventStore
   alias Cuckoding.Execution.GitService
   alias Cuckoding.Projects
   alias Cuckoding.Repo
@@ -51,7 +52,7 @@ defmodule Cuckoding.ProjectOnboarding do
   end
 
   def update_configuration(project_id, expected_revision, attrs) when is_map(attrs) do
-    Repo.transaction(fn ->
+    EventStore.transaction(fn ->
       with project when not is_nil(project) <- Projects.get_project(project_id),
            current when not is_nil(current) <- Projects.latest_config_version(project_id),
            :ok <- current_revision(current.revision, expected_revision),
@@ -77,7 +78,7 @@ defmodule Cuckoding.ProjectOnboarding do
   end
 
   def save_connection(project_id, expected_revision, attrs) when is_map(attrs) do
-    Repo.transaction(fn ->
+    EventStore.transaction(fn ->
       with project when not is_nil(project) <- Projects.get_project(project_id),
            current when not is_nil(current) <- Projects.latest_config_version(project_id),
            :ok <- current_revision(current.revision, expected_revision),
@@ -238,6 +239,13 @@ defmodule Cuckoding.ProjectOnboarding do
 
   defp inherit_provider_account(connection, _current), do: connection
 
+  def save_agent(attrs) when is_map(attrs) do
+    with {:ok, connection} <- validate_connection(Map.put(attrs, "key", "saved-agent")),
+         {:ok, saved} <- persist_connection(connection) do
+      {:ok, Adapters.get_provider_account(saved["provider_account_id"])}
+    end
+  end
+
   defp persist_connection(connection) do
     attrs = %{
       id: connection["provider_account_id"],
@@ -255,7 +263,7 @@ defmodule Cuckoding.ProjectOnboarding do
 
   defp auth_mode("codex"), do: "os_keyring"
   defp auth_mode("claude_code"), do: "api_key_helper"
-  defp auth_mode("cursor_agent"), do: "run_scoped"
+  defp auth_mode("cursor_agent"), do: "shared_profile"
   defp auth_mode(_adapter), do: "unsupported"
 
   defp validate_roles(roles, connections)

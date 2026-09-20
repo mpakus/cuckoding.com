@@ -7,6 +7,7 @@ defmodule Cuckoding.AgentRuntime do
   alias Cuckoding.Adapters.CursorAgent
   alias Cuckoding.Adapters.FakeAdapter
   alias Cuckoding.Adapters.ProviderAccount
+  alias Cuckoding.Adapters.SharedProfile
 
   def resolve(skeleton, role_key) when is_binary(role_key) do
     with {:ok, role} <- role(skeleton, role_key),
@@ -22,20 +23,53 @@ defmodule Cuckoding.AgentRuntime do
     end
   end
 
+  def resolve_roles(skeleton, roles) do
+    Enum.reduce_while(roles, {:ok, %{}, %{}}, fn role, {:ok, resolved, checked} ->
+      case cached_runtime(skeleton, role.role_key, checked) do
+        {:ok, runtime, key} ->
+          {:cont,
+           {:ok, Map.put(resolved, role.role_key, runtime), Map.put(checked, key, runtime)}}
+
+        error ->
+          {:halt, error}
+      end
+    end)
+    |> case do
+      {:ok, resolved, _checked} -> {:ok, resolved}
+      error -> error
+    end
+  end
+
+  defp cached_runtime(skeleton, role_key, checked) do
+    with {:ok, assignment} <- role(skeleton, role_key),
+         settings = assignment.settings_json,
+         key =
+           {assignment.adapter_key, settings["provider_account_id"], settings["executable_path"],
+            settings["api_key_helper"]},
+         {:ok, runtime} <-
+           if(Map.has_key?(checked, key),
+             do: {:ok, checked[key]},
+             else: resolve(skeleton, role_key)
+           ) do
+      {:ok, %{runtime | role_key: role_key, settings: settings}, key}
+    end
+  end
+
   def setup(skeleton, role_key) when is_binary(role_key) do
     with {:ok, role} <- role(skeleton, role_key),
          {:ok, setup} <- runtime_setup(skeleton, role) do
-      {:ok, Map.put(setup, :role_key, role_key)}
+      {:ok,
+       setup
+       |> Map.put(:role_key, role_key)
+       |> Map.put(:account_id, role.settings_json["provider_account_id"])}
     end
   end
 
   def account_setup(%ProviderAccount{adapter_key: "codex"} = account) do
-    home = account_home(account)
     executable = get_in(account.capabilities_json, ["settings", "executable_path"])
 
-    if is_binary(executable) and executable != "" do
-      prepare_directories([home])
-
+    with true <- is_binary(executable) and executable != "",
+         {:ok, home} <- SharedProfile.prepare(account.id, "codex") do
       {:ok,
        %{
          runtime: "Codex",
@@ -53,7 +87,30 @@ defmodule Cuckoding.AgentRuntime do
          status: account.status
        }}
     else
-      {:error, :runtime_executable_missing}
+      false -> {:error, :runtime_executable_missing}
+      error -> error
+    end
+  end
+
+  def account_setup(%ProviderAccount{adapter_key: "cursor_agent"} = account) do
+    executable = get_in(account.capabilities_json, ["settings", "executable_path"])
+
+    with true <- is_binary(executable) and executable != "",
+         {:ok, root} <- SharedProfile.prepare(account.id, "cursor_agent"),
+         {:ok, environment} <- CursorAgent.account_environment(root) do
+      {:ok,
+       %{
+         runtime: "Cursor Agent",
+         connection: account.label,
+         executable: executable,
+         home: root,
+         command: login_command(environment, executable, ["login"]),
+         reusable?: true,
+         status: account.status
+       }}
+    else
+      false -> {:error, :runtime_executable_missing}
+      error -> error
     end
   end
 
@@ -77,11 +134,36 @@ defmodule Cuckoding.AgentRuntime do
              run_scoped_authenticated?: true
            ) do
       status = if(probe.authenticated?, do: "authenticated", else: "authentication_required")
-      Adapters.record_provider_status(account.id, status)
+      Adapters.record_provider_status(account.id, status, account.capabilities_json)
+    end
+  end
+
+  def check_account(%ProviderAccount{adapter_key: "cursor_agent"} = account) do
+    with {:ok, setup} <- account_setup(account),
+         {:ok, probe} <-
+           CursorAgent.probe(
+             path: setup.executable,
+             cursor_home: setup.home,
+             run_scoped_authenticated?: true
+           ) do
+      status = if(probe.authenticated?, do: "authenticated", else: "authentication_required")
+      Adapters.record_provider_status(account.id, status, account.capabilities_json)
     end
   end
 
   def check_account(%ProviderAccount{} = account), do: {:ok, account}
+
+  def group_setups(setups) do
+    setups
+    |> Enum.group_by(fn setup ->
+      {setup[:account_id] || setup.role_key, setup.runtime, setup[:executable]}
+    end)
+    |> Enum.map(fn {_key, group} ->
+      group = Enum.sort_by(group, & &1.role_key)
+      Map.put(hd(group), :role_keys, Enum.map(group, & &1.role_key))
+    end)
+    |> Enum.sort_by(& &1.role_key)
+  end
 
   defp role(skeleton, role_key) do
     skeleton.run.workflow_snapshot_json["roles"]
@@ -91,11 +173,19 @@ defmodule Cuckoding.AgentRuntime do
         {:error, :role_assignment_not_found}
 
       role ->
+        settings = role["settings"] || %{}
+
+        settings =
+          case Cuckoding.AgentBindings.for_run(skeleton.run.id)[role_key] do
+            nil -> settings
+            id -> Map.put(settings, "provider_account_id", id)
+          end
+
         {:ok,
          %{
            role_key: role["role_key"],
            adapter_key: role["adapter_key"],
-           settings_json: role["settings"] || %{}
+           settings_json: settings
          }}
     end
   end
@@ -105,13 +195,16 @@ defmodule Cuckoding.AgentRuntime do
 
     case role.adapter_key do
       "codex" ->
-        home = Path.join([skeleton.environment.run_dir, "agent", "codex", "home"])
+        with {:ok, shared} <- shared_options(role) do
+          home =
+            Keyword.get(
+              shared,
+              :codex_home,
+              Path.join([skeleton.environment.run_dir, "agent", "codex", "home"])
+            )
 
-        options =
-          [path: path, codex_home: home, run_scoped_authenticated?: true] ++
-            shared_credentials(role)
-
-        probe(Codex, options)
+          probe(Codex, [path: path, codex_home: home, run_scoped_authenticated?: true] ++ shared)
+        end
 
       "claude_code" ->
         probe(ClaudeCode,
@@ -122,7 +215,13 @@ defmodule Cuckoding.AgentRuntime do
 
       "cursor_agent" ->
         root = Path.join([skeleton.environment.run_dir, "agent", "cursor"])
-        probe(CursorAgent, path: path, cursor_home: root, run_scoped_authenticated?: true)
+
+        with {:ok, shared} <- shared_options(role) do
+          probe(
+            CursorAgent,
+            [path: path, cursor_home: root, run_scoped_authenticated?: true] ++ shared
+          )
+        end
 
       "fake" ->
         {:ok, FakeAdapter, [], "test"}
@@ -138,7 +237,7 @@ defmodule Cuckoding.AgentRuntime do
         {:ok, module, options, version}
 
       {:ok, _probe} ->
-        if Keyword.get(options, :credentials_store) == "keyring",
+        if Keyword.has_key?(options, :shared_profile_id),
           do: {:error, :provider_auth_required},
           else: {:error, :run_scoped_auth_required}
 
@@ -148,28 +247,29 @@ defmodule Cuckoding.AgentRuntime do
   end
 
   defp runtime_setup(skeleton, role) do
+    case provider_account(role) do
+      %ProviderAccount{adapter_key: runtime} = account
+      when runtime in ["codex", "cursor_agent"] ->
+        if runtime == role.adapter_key,
+          do: account_setup(account),
+          else: {:error, :provider_account_mismatch}
+
+      _other ->
+        legacy_setup(skeleton, role)
+    end
+  end
+
+  defp legacy_setup(skeleton, role) do
     case role.adapter_key do
       "codex" ->
-        account = provider_account(role)
+        home = Path.join([skeleton.environment.run_dir, "agent", "codex", "home"])
+        prepare_directories([home])
 
-        {home, command, reusable?} =
-          case account do
-            %ProviderAccount{auth_mode: "os_keyring"} = account ->
-              {:ok, setup} = account_setup(account)
-              {setup.home, setup.command, true}
-
-            _other ->
-              home = Path.join([skeleton.environment.run_dir, "agent", "codex", "home"])
-              prepare_directories([home])
-
-              command =
-                login_command(%{"CODEX_HOME" => home}, role.settings_json["executable_path"], [
-                  "login",
-                  "--device-auth"
-                ])
-
-              {home, command, false}
-          end
+        command =
+          login_command(%{"CODEX_HOME" => home}, role.settings_json["executable_path"], [
+            "login",
+            "--device-auth"
+          ])
 
         {:ok,
          %{
@@ -179,7 +279,7 @@ defmodule Cuckoding.AgentRuntime do
            home: home,
            login_args: "login --device-auth",
            command: command,
-           reusable?: reusable?
+           reusable?: false
          }}
 
       "claude_code" ->
@@ -249,30 +349,29 @@ defmodule Cuckoding.AgentRuntime do
 
   defp shell_quote(value), do: "'" <> String.replace(value, "'", "'\"'\"'") <> "'"
 
-  defp shared_credentials(role) do
+  defp shared_options(role) do
     case provider_account(role) do
-      %ProviderAccount{auth_mode: "os_keyring"} -> [credentials_store: "keyring"]
-      _other -> []
+      %ProviderAccount{adapter_key: runtime} = account when runtime == role.adapter_key ->
+        with {:ok, home} <- SharedProfile.prepare(account.id, runtime) do
+          {:ok, [shared_profile_id: account.id] ++ profile_options(runtime, home)}
+        end
+
+      nil ->
+        if role.settings_json["provider_account_id"],
+          do: {:error, :provider_account_not_found},
+          else: {:ok, []}
+
+      _other ->
+        {:error, :provider_account_mismatch}
     end
   end
+
+  defp profile_options("codex", home), do: [codex_home: home, credentials_store: "keyring"]
+  defp profile_options("cursor_agent", _home), do: []
 
   defp provider_account(role) do
     role.settings_json["provider_account_id"]
     |> Adapters.get_provider_account()
-  end
-
-  defp account_home(account) do
-    root =
-      Application.get_env(:cuckoding, :provider_account_root) ||
-        Path.join([
-          System.user_home!(),
-          "Library",
-          "Application Support",
-          "Cuckoding",
-          "provider-accounts"
-        ])
-
-    Path.join([root, account.id, "codex-home"])
   end
 
   defp runtime_name("claude_code"), do: "Claude Code"

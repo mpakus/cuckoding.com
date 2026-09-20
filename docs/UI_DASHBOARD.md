@@ -31,7 +31,7 @@ The home dashboard never asks for project, runtime, task, and release details in
 one form. Empty state explains the project → board → task sequence and offers
 one **Add project** action.
 
-The shared header links to **Projects**, **Agent activity**, and **Knowledge**.
+The shared header links to **Projects**, **Agents**, **Agent activity**, and **Knowledge**.
 Dashboard shortcuts jump to projects, recent runs, and approvals. Creation age
 is labeled **Created**, not elapsed execution time. Long paths wrap on narrow
 screens; activity tables scroll horizontally without squeezing their headings.
@@ -65,7 +65,10 @@ first commit from existing contents when the repository has no revision.
 
 ### Project agents and roles
 
-`/projects/:id/edit` contains the machine-wide saved-agent catalog and the
+`/settings/agents` manages machine-wide agents independently of projects, with
+add/edit, copyable sign-in commands, async checks and live status. The page
+explains that an agent's app-owned profile/history is shared across projects.
+`/projects/:id/edit` contains a saved-agent picker and the
 project's connections and role assignments. **Use in this project** adds a
 connection to the form; **Save agent** or **Save agents and roles** persists it.
 Each agent can be saved independently; the complete configuration requires an
@@ -78,11 +81,11 @@ distinguishes saved settings from local edits. Board creation refuses unsaved
 configuration, so its snapshot cannot silently use older role assignments.
 Save controls show pending feedback; removing a connection asks for confirmation.
 
-Codex offers a saved-account sign-in command and **Check authorization**;
-Claude Code uses a reviewed helper; Cursor requires run-owned login. OpenCode
+Codex and Cursor offer saved-account sign-in commands and **Check sign-in**;
+Claude Code uses a reviewed helper. OpenCode
 and Custom Agent are setup-only. Complete commands use read-only fields with
 adjacent copy buttons. Account status is the last observation, not proof that
-a new run's isolated environment authenticates; see [testing](TESTING.md).
+a new run can authenticate; every start probes its selected account. See [testing](TESTING.md).
 
 Save assignments before creating a board. Existing boards retain their copied
 settings, including legacy connections without saved-account IDs. There is no
