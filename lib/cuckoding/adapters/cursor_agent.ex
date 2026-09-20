@@ -314,6 +314,7 @@ defmodule Cuckoding.Adapters.CursorAgent do
 
     {:ok,
      %{
+       "AGENT_CLI_CREDENTIAL_STORE" => "file",
        "HOME" => Path.join(root, "home"),
        "CURSOR_CONFIG_DIR" => Path.join(root, "config"),
        "CLAUDE_CONFIG_DIR" => Path.join(root, "claude")

@@ -184,3 +184,42 @@ and real post-revocation checks remain open, so task 1018 stays in progress.
 - Scoped changed-line security review found no credential value, token content,
   private key, password assignment, provider output persistence, personal-home
   fallback, or unconfirmed destructive action. Provider command output is discarded.
+
+## 2026-09-20 Cursor Keychain persistence fix
+
+The real Cursor browser authorization completed, but the CLI could not save its
+login because the approved app-owned `HOME` has no macOS default keychain. A
+read-only check reproduced that boundary: `security default-keychain -d user`
+succeeded under the personal HOME and failed under an isolated HOME; setting
+`CFFIXED_USER_HOME` did not change the result. No keychain item was read,
+deleted, reset, or changed.
+
+XERJ remained unreachable. Direct inspection of the installed pinned Cursor CLI
+`2026.09.15-d2fe57e` found its supported
+`AGENT_CLI_CREDENTIAL_STORE=file` mode in `src/utils/credential-store.ts` and
+the provider implementation in `cli-credentials/dist/index.js`. On macOS that
+mode stores refreshable credentials at `~/.cursor/auth.json`, creates the parent
+with `0700`, and writes the file with `0600`. No vendor code was copied.
+
+The adapter now selects that mode for login, probes, execution and logout while
+retaining the app-owned HOME, run-owned task configuration, fixed empty MCP and
+sandbox files, plugin rejection, and personal-home prohibition. Cuckoding does
+not read, copy, serialize, display or inject credential values. The browser
+login must be repeated before authenticated two-project/restart/concurrency
+acceptance can close task 1018.
+
+Verification:
+
+- `rtk env -u CR_PAT mix test test/cuckoding/adapters/cursor_agent_test.exs test/cuckoding/shared_agent_profile_test.exs test/cuckoding_web/live/agent_settings_live_test.exs`
+  — 12 tests, zero failures. Login, probe, launch and logout all select the same
+  persistent credential mode while preserving account/run path separation.
+- Real `cursor-agent status --format json` under the corrected app-owned
+  environment returned unauthenticated without a Keychain prompt; no token or
+  personal provider state was read.
+- `rtk env -u CR_PAT mix quality` — exit 0: 265 tests and 10 properties, formatter,
+  warnings-as-errors compile, Credo, Sobelow and dependency audit all passed.
+  The two logged fixture crashes are the expected supervisor-restart test.
+- `rtk env -u CR_PAT mix assets.build` and `rtk git diff --check` — passed.
+- Live browser verification after a server restart showed the Cursor command
+  beginning with `AGENT_CLI_CREDENTIAL_STORE='file'`; the personal HOME and
+  Keychain are absent from the command.

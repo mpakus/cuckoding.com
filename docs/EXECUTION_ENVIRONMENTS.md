@@ -104,7 +104,7 @@ The Phase 5 scheduler reads the global session cap from application configuratio
 - No network isolation or egress control.
 - No hard CPU/memory limits.
 - Malicious repository content can instruct an agent to act on the host; mitigations are the runtime's permission mode, protected paths, no secrets in environment, and human approval gates.
-- Provider-specific config-directory switches may not redirect transcripts, workspace trust, plugins, or compatibility configuration. Cursor uses an app-owned account HOME for saved agents (legacy unbound runs retain their run-owned HOME), run-owned config directories and no project runtime/MCP/plugin overrides. ADR-025 explicitly permits history sharing between projects using the same saved agent, never access to the personal home. Each adapter must inventory actual child processes and global writes before release acceptance.
+- Provider-specific config-directory switches may not redirect transcripts, workspace trust, plugins, or compatibility configuration. Cursor uses an app-owned account HOME and its native owner-only file credential store for saved agents (legacy unbound runs retain their run-owned HOME), run-owned config directories and no project runtime/MCP/plugin overrides. ADR-025 explicitly permits history and authentication sharing between projects using the same saved agent, never access to the personal home or macOS login keychain. Each adapter must inventory actual child processes and global writes before release acceptance.
 
 These limitations are shown in the project settings and in the run detail when the local runner is active.
 

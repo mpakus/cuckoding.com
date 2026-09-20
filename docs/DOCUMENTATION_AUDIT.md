@@ -37,8 +37,10 @@ before an agent session exists. Kanban columns are lifecycle states, not stages.
    against real providers.** Login, probe, grouped setup, and launch now resolve
    the same immutable root profile, and named agents may select independent
    models. Fixture tests cover restart-shaped reuse, revocation propagation,
-   two accounts, paths, and MCP/config separation. They do not prove native
-   refresh or concurrent authenticated Codex/Cursor execution. Do not close
+   two accounts, paths, credential-store selection, and MCP/config separation.
+   A real Cursor browser login exposed and fixed isolated-HOME Keychain failure,
+   but does not yet prove persisted authentication, native refresh, or concurrent
+   authenticated Codex/Cursor execution. Do not close
    task 1018 until one login completes isolated runs in two projects, survives
    restart/refresh, and fails safely after provider revocation.
 2. **Resolved implementation gap — shared-account impact and disconnect.** The

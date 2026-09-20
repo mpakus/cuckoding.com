@@ -30,11 +30,12 @@ Runtime authentication is a live dependency: `AgentRuntime` looks up the saved
 account's current authentication mode by ID. It is not fully frozen by the role
 snapshot. A cached successful check is not a launch guarantee. Codex uses one
 account-owned `CODEX_HOME` for login, probes and launch. Cursor uses a shared
-app-owned HOME with separate run-owned config directories. Provider history may
-be shared across projects and agents using that authorization; explicitly choose
-a separate sign-in to separate profiles. Authorization references do not change
-after save; model edits do not force another login. Cuckoding never reads or
-copies credential files, imposes a sign-out timer, or guarantees provider expiry.
+app-owned HOME and its native owner-only file credential store, with separate
+run-owned config directories. Provider history may be shared across projects and
+agents using that authorization; explicitly choose a separate sign-in to separate
+profiles. Authorization references do not change after save; model edits do not
+force another login. Cuckoding never reads or copies credential values, imposes a
+sign-out timer, or guarantees provider expiry.
 
 Model settings are copied through project/board/run snapshots into requested
 stage models. Later edits do not change existing board/run models. Actual model

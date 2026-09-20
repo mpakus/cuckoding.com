@@ -58,6 +58,7 @@ defmodule Cuckoding.Adapters.CursorAgentTest do
   } do
     runner = fn _path, args, options ->
       environment = Map.new(options[:env])
+      assert environment["AGENT_CLI_CREDENTIAL_STORE"] == "file"
       assert environment["HOME"] == Path.join(cursor_home, "home")
       assert environment["CURSOR_CONFIG_DIR"] == Path.join(cursor_home, "config")
       assert environment["CLAUDE_CONFIG_DIR"] == Path.join(cursor_home, "claude")
@@ -141,6 +142,7 @@ defmodule Cuckoding.Adapters.CursorAgentTest do
 
     assert request.worktree_path in spec.command.args
     refute "--approve-mcps" in spec.command.args
+    assert spec.environment["AGENT_CLI_CREDENTIAL_STORE"] == "file"
     assert spec.environment["HOME"] == Path.join(cursor_home, "home")
     assert spec.environment["CURSOR_CONFIG_DIR"] == Path.join(cursor_home, "config")
     assert spec.environment["CLAUDE_CONFIG_DIR"] == Path.join(cursor_home, "claude")

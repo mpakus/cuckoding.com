@@ -56,8 +56,8 @@ Cuckoding. Only the provider runtime handles token values. See
   remain run-owned; shared state is not reviewed project knowledge.
 - Database rows, events, logs, prompts, artifacts, clipboard commands, and
   exported configuration contain no credential values. Provider-native storage
-  remains responsible for secrets; choosing Keychain alone is not evidence
-  that two distinct runtime homes resolve the same login.
+  remains responsible for secrets. Cursor's native file store is confined to
+  the private app-owned profile; Cuckoding never reads or copies its token file.
 - `provider_accounts.authorization_account_id` points only to a compatible root
   account (same runtime/executable/helper). New automatic selection prefers a
   connected root, then the oldest compatible root. Existing accounts remain
@@ -68,7 +68,8 @@ Cuckoding. Only the provider runtime handles token values. See
   workflow stage requests forward that model; reported actual model stays separate.
 - Shared profiles are now explicitly approved. Codex uses the same account
   home for login, probes and execution, with saved execution config ignored.
-  Cursor shares its app-owned HOME but keeps task configuration run-owned.
+  Cursor shares its app-owned HOME and native credential file but keeps task
+  configuration run-owned.
 - Editing and status checks record a value-free audit event before broadcasting
   status. Future launches fail clearly after revocation; they do not silently
   switch to another account or restart/kill existing work. Root account cards
@@ -119,9 +120,12 @@ Running/completed runs are never rewritten.
 - Codex login, probe and launch now resolve the same account-owned home, with
   Keychain selection passed at launch as well as login. Per-run instructions and
   permission overrides do not overwrite shared configuration.
-- Cursor shares only the approved app-owned HOME during launch; task config and
-  compatibility directories remain per-run. Fixed shared sandbox/MCP files are
-  checked against expected contents and unsafe paths fail closed.
+- Cursor uses `AGENT_CLI_CREDENTIAL_STORE=file` for login, probes, launch and
+  logout. The pinned CLI stores refreshable credentials at owner-only
+  `<account-home>/.cursor/auth.json`; Cuckoding does not read, copy, log or place
+  them in argv/environment. Task config and compatibility directories remain
+  per-run. Fixed shared sandbox/MCP files are checked against expected contents
+  and unsafe paths fail closed.
 - Claude Code has a reusable reviewed helper; OpenCode and Custom Agent remain
   setup-only and cannot be advertised as working reusable launch adapters.
 - Saved-agent cards group assigned roles; legacy unbound roles have an explicit
@@ -134,10 +138,13 @@ Running/completed runs are never rewritten.
   board and role assignments before a confirmed shared-sign-in disconnect.
   Linked cards continue to point to the one root instead of offering duplicate
   login or logout controls. Cuckoding never silently logs out an idle account.
-- Real CLI status checks on 2026-09-20 at 18:05 UTC returned sign-in required for both existing
-  app-owned accounts. No credentials were read/copied and no paid task launched.
-  Sign in once per saved profile, then verify authenticated two-project use,
-  token refresh/restart and concurrent provider behavior before closing task 1018.
+- Real CLI status checks on 2026-09-20 at 18:05 UTC returned sign-in required for
+  both existing app-owned accounts. A later Cursor login exposed that an
+  isolated `HOME` cannot resolve the macOS default keychain; the browser step
+  succeeded but credential persistence failed. Cursor now uses its native
+  account-owned file store instead. Sign in again, then verify authenticated
+  two-project use, token refresh/restart and concurrent provider behavior before
+  closing task 1018.
 - The confirmed disconnect control is implemented and regression-tested. It is
   a provider-scoped logout, not destructive profile-directory deletion, and it
   never touches personal profiles. Real post-login revocation evidence remains open.

@@ -133,6 +133,7 @@ defmodule Cuckoding.SharedAgentProfileTest do
     {:ok, account} = account("cursor_agent", "/usr/bin/true")
     {:ok, setup} = AgentRuntime.account_setup(account)
     home = Path.join(setup.home, "home")
+    assert setup.command =~ "AGENT_CLI_CREDENTIAL_STORE='file'"
     assert setup.command =~ "HOME='#{home}'"
 
     specs =
@@ -151,6 +152,7 @@ defmodule Cuckoding.SharedAgentProfileTest do
         assert {:ok, grant} = CursorAgent.render_config(request, opts)
         assert grant.enforced["runtime_home"] == "shared_agent_profile"
         assert {:ok, spec} = CursorAgent.launch_spec(request, opts)
+        assert spec.environment["AGENT_CLI_CREDENTIAL_STORE"] == "file"
         assert spec.environment["HOME"] == home
         assert String.starts_with?(spec.environment["CURSOR_CONFIG_DIR"], request.run_dir)
         spec
@@ -335,6 +337,10 @@ defmodule Cuckoding.SharedAgentProfileTest do
     assert {:ok, _cursor} = AgentRuntime.disconnect_account(cursor, command_runner: runner)
 
     assert_receive {:disconnect, "/usr/bin/true", ["logout"], cursor_options}
+
+    assert {"AGENT_CLI_CREDENTIAL_STORE", "file"} =
+             List.keyfind(cursor_options[:env], "AGENT_CLI_CREDENTIAL_STORE", 0)
+
     assert {"HOME", _home} = List.keyfind(cursor_options[:env], "HOME", 0)
 
     assert {"CURSOR_CONFIG_DIR", _config} =
