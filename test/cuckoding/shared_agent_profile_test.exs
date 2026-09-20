@@ -25,6 +25,13 @@ defmodule Cuckoding.SharedAgentProfileTest do
     File.write!(executable, """
     #!/bin/sh
     if [ "$1" = "--version" ]; then echo 'codex-cli 0.146.0'; exit; fi
+    if [ "$3" = "app-server" ]; then
+      read _initialize
+      read _initialized
+      read _list
+      printf '%s\\n' '{"id":2,"result":{"data":[{"id":"gpt-6-astra","displayName":"Astra"}],"nextCursor":null}}'
+      exit
+    fi
     printf '%s\\n' "$CODEX_HOME" >> '#{probe_log}'
     if [ -f '#{revoked}' ]; then exit 1; fi
     echo 'Logged in using ChatGPT'
@@ -35,6 +42,11 @@ defmodule Cuckoding.SharedAgentProfileTest do
     {:ok, setup} = AgentRuntime.account_setup(account)
     assert setup.command =~ setup.home
     assert {:ok, %{status: "authenticated"}} = AgentRuntime.check_account(account)
+
+    assert [%{"id" => "gpt-6-astra"}] =
+             Adapters.get_provider_account(account.id).capabilities_json["model_catalog"][
+               "models"
+             ]
 
     roles = Enum.map(~w(spec_writer reviewer implementer), &%{role_key: &1})
     first = skeleton(root, account, executable, "first")

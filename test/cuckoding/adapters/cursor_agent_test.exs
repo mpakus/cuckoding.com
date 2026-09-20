@@ -98,6 +98,31 @@ defmodule Cuckoding.Adapters.CursorAgentTest do
     refute inspect(verified) =~ "private@example.test"
   end
 
+  test "discovers only valid models with the account-owned profile", %{
+    executable: executable,
+    cursor_home: cursor_home
+  } do
+    runner = fn ^executable, ["models"], options ->
+      environment = Map.new(options[:env])
+      assert environment["AGENT_CLI_CREDENTIAL_STORE"] == "file"
+      assert environment["HOME"] == Path.join(cursor_home, "home")
+
+      {"\e[2mAvailable models\e[0m\n\n\e[36mgpt-5\e[0m - GPT-5 (default)\n--unsafe - Unsafe\nclaude-sonnet-4 - Sonnet\n\nTip: use --model <id>\n",
+       0}
+    end
+
+    assert {:ok,
+            [
+              %{"id" => "gpt-5", "label" => "GPT-5"},
+              %{"id" => "claude-sonnet-4", "label" => "Sonnet"}
+            ]} =
+             CursorAgent.available_models(
+               path: executable,
+               cursor_home: cursor_home,
+               command_runner: runner
+             )
+  end
+
   test "renders owner-only isolated config and a scoped launch", %{
     request: request,
     executable: executable,

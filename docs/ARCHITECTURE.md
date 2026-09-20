@@ -122,7 +122,10 @@ the independent Agents LiveView. See ADR-025 for shared-history consent.
 ADR-026 separates named-agent model settings from provider authorization using
 an immutable nullable root-account FK. Profile resolution, probes, grouped setup
 and status use the root identity; role instructions and requested models remain
-distinct. Existing root IDs/profile paths are preserved by the additive migration.
+distinct. A successful root authorization check refreshes a bounded, normalized
+provider model catalog in `capabilities_json`; linked agents read that catalog for
+their selectors without duplicating credentials or provider output. Existing root
+IDs/profile paths are preserved by the additive migration.
 `Cuckoding.AgentFloor`
 rebuilds both session cards and the bounded recent-operation projection from
 SQLite. The home dashboard refreshes that projection after committed PubSub

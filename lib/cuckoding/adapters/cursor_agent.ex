@@ -8,6 +8,7 @@ defmodule Cuckoding.Adapters.CursorAgent do
   alias Cuckoding.Security.Redactor
 
   @supported_version "2026.09.15-d2fe57e"
+  @model_list_limit 200
   @unsafe_project_paths [
     ".cursor/cli.json",
     ".cursor/mcp.json",
@@ -68,6 +69,19 @@ defmodule Cuckoding.Adapters.CursorAgent do
        instruction_files: ["AGENTS.md", ".cursor/rules"],
        skill_directories: []
      }}
+  end
+
+  def available_models(options) do
+    runner = Keyword.get(options, :command_runner, &System.cmd/3)
+
+    with {:ok, path} <- executable(options),
+         {:ok, environment} <- scoped_environment(options),
+         {output, 0} <- runner.(path, ["models"], command_options(environment)) do
+      {:ok, parse_models(output)}
+    else
+      {:error, %Types.Error{} = error} -> {:error, error}
+      _other -> error(:model_discovery_failed, :provider, true)
+    end
   end
 
   @impl true
@@ -365,6 +379,41 @@ defmodule Cuckoding.Adapters.CursorAgent do
 
   defp command_options(environment),
     do: [stderr_to_stdout: true, env: Enum.to_list(environment)]
+
+  defp parse_models(output) do
+    output
+    |> String.replace(~r/\e\[[0-9;]*m/, "")
+    |> String.split("\n", trim: true)
+    |> Enum.reduce([], fn line, models ->
+      line = String.trim(line)
+
+      line =
+        Regex.replace(
+          ~r/\s+\((?:current|default)(?:,\s*(?:current|default))*\)\z/,
+          line,
+          ""
+        )
+
+      case String.split(line, " - ", parts: 2) do
+        [id, label] -> maybe_model(models, id, label)
+        [id] -> maybe_model(models, id, id)
+      end
+    end)
+    |> Enum.reverse()
+    |> Enum.uniq_by(& &1["id"])
+    |> Enum.take(@model_list_limit)
+  end
+
+  defp maybe_model(models, id, label) do
+    id = String.trim(id)
+    label = String.trim(label)
+
+    if byte_size(id) <= 128 and label != "" and byte_size(label) <= 120 and
+         String.printable?(label) and
+         Regex.match?(~r/\A[a-zA-Z0-9][a-zA-Z0-9_.:\/-]*\z/, id),
+       do: [%{"id" => id, "label" => label} | models],
+       else: models
+  end
 
   defp probe_status(true, true), do: "healthy"
   defp probe_status(true, false), do: "run_scoped_auth_unverified"

@@ -109,6 +109,29 @@ defmodule Cuckoding.Adapters.CodexTest do
     assert keyring.authenticated?
   end
 
+  test "discovers and bounds account models through app-server", %{
+    executable: executable,
+    request: request
+  } do
+    File.write!(executable, """
+    #!/bin/sh
+    read _initialize
+    read _initialized
+    read _list
+    printf '%s\n' '{"id":2,"result":{"data":[null,{"id":"gpt-5.6-sol","displayName":"Sol"},{"id":"--unsafe","displayName":"Unsafe"},{"id":"gpt-6-astra","displayName":"Astra"}],"nextCursor":null}}'
+    """)
+
+    assert {:ok,
+            [
+              %{"id" => "gpt-5.6-sol", "label" => "Sol"},
+              %{"id" => "gpt-6-astra", "label" => "Astra"}
+            ]} =
+             Codex.available_models(
+               path: executable,
+               codex_home: Path.join(request.run_dir, "codex-account")
+             )
+  end
+
   test "renders a run-scoped home and least-privilege launch", %{
     request: request,
     executable: executable

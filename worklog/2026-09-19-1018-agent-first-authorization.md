@@ -223,3 +223,54 @@ Verification:
 - Live browser verification after a server restart showed the Cursor command
   beginning with `AGENT_CLI_CREDENTIAL_STORE='file'`; the personal HOME and
   Keychain are absent from the command.
+
+## 2026-09-20 provider model discovery
+
+Acceptance for this continuation: after a successful shared-agent authorization
+check, fetch the provider-account model catalog, persist only validated bounded
+picker data, and use it for every linked agent's model dropdown. Authentication
+must remain valid when discovery temporarily fails, and editing an agent must not
+erase the last catalog.
+
+XERJ remained unavailable at `localhost:9200`. Official Codex app-server
+documentation (`model/list`, lines 1122-1155 of the fetched page) defines the
+authenticated picker-visible model response and hidden-model behavior. The pinned
+Cursor CLI `2026.09.15-d2fe57e`, `2062.index.js` module
+`./src/commands/models.ts`, confirms the account-scoped `models` output format.
+No provider source was copied. Cuckoding uses its existing direct-process and
+shared-profile boundaries, discards raw output/errors, and stores only model IDs,
+display labels, discovery status, and count.
+
+Delivered:
+
+- Codex uses the official stdio app-server handshake and `model/list`; Cursor
+  invokes `models` with the same app-owned file-credential environment used by
+  login, probe, launch, and logout.
+- Authorization checks persist a bounded normalized catalog on the root account
+  in the same audited status transaction. Linked agents read that root catalog.
+  Discovery failure is visible but does not downgrade authenticated status.
+- The Agents LiveView offers provider-reported models after refresh, retains
+  Runtime default and Custom model ID fallbacks, reports catalog state, and
+  preserves catalogs across agent edits.
+
+Focused verification:
+
+- `rtk env -u CR_PAT mix test test/cuckoding/adapters/codex_test.exs test/cuckoding/adapters/cursor_agent_test.exs test/cuckoding/shared_agent_profile_test.exs test/cuckoding_web/agent_settings_live_test.exs`
+  — 20 tests, zero failures. Covers protocol/output normalization, unsafe model
+  rejection, shared-root persistence, linked reuse, edit preservation, and UI.
+- `rtk env -u CR_PAT mix run --no-start -e '...'` called the installed Codex
+  0.146.0 app-server with the app-owned profile and returned four normalized
+  picker-visible models: GPT-5.6 Sol, Terra, Luna, and GPT-5.5. No credential
+  file or raw provider error was read or persisted.
+- `rtk env -u CR_PAT mix quality` — final exit 0: formatter, warnings-as-errors
+  compile, 267 tests and 10 properties with zero failures, Credo over 203 files
+  with no issues, Sobelow clean, and Hex audit with no advisories. The two logged
+  fixture crashes are expected supervisor-restart coverage.
+- `rtk env -u CR_PAT mix assets.build` and `rtk git diff --check` — passed.
+- Live browser verification at `/settings/agents` rendered the refreshed copy,
+  accessible model selector, per-root catalog status, and **Check sign-in and
+  refresh models** controls. The real saved Codex and Cursor profiles still
+  reported sign-in required, so the UI correctly did not claim a fetched catalog.
+- Changed-line security review found no credential/token value, raw provider
+  output persistence, personal-home fallback, shell interpolation, or hidden-model
+  request. Catalog values are bounded and validated before durable storage.

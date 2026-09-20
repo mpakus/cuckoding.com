@@ -249,13 +249,18 @@ defmodule Cuckoding.ProjectOnboarding do
   end
 
   defp persist_connection(connection) do
+    existing = Adapters.get_provider_account(connection["provider_account_id"])
+
+    capabilities =
+      (existing && Map.drop(existing.capabilities_json, ["settings"])) || %{}
+
     attrs = %{
       id: connection["provider_account_id"],
       authorization_account_id: connection["authorization_account_id"],
       adapter_key: connection["adapter_key"],
       label: connection["label"],
       auth_mode: auth_mode(connection["adapter_key"]),
-      capabilities_json: %{"settings" => connection["settings"]}
+      capabilities_json: Map.put(capabilities, "settings", connection["settings"])
     }
 
     case Adapters.save_provider_account(attrs) do

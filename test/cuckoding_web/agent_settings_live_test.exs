@@ -24,8 +24,17 @@ defmodule CuckodingWeb.AgentSettingsLiveTest do
     assert has_element?(view, "#agent-#{account.id}", "Sign in once")
     assert has_element?(view, "#agent-command-#{account.id} input[readonly][data-copy-source]")
     assert has_element?(view, "#agent-command-#{account.id} button[data-copy-button]", "Copy")
-    Cuckoding.Adapters.record_provider_status(account.id, "authenticated")
+
+    Cuckoding.Adapters.record_provider_status(account.id, "authenticated", nil, %{
+      "status" => "available",
+      "models" => [
+        %{"id" => "gpt-6-astra", "label" => "Astra"},
+        %{"id" => "gpt-5.6-sol", "label" => "Sol"}
+      ]
+    })
+
     assert has_element?(view, "#agent-#{account.id}", "Connected")
+    assert has_element?(view, "#agent-#{account.id}", "Available models: 2")
     assert has_element?(view, "#agent-#{account.id} details:not([open])")
     assert has_element?(view, "#agent-impact-#{account.id}", "1 saved agent uses")
     assert has_element?(view, "#agent-impact-#{account.id}", "not assigned")
@@ -38,8 +47,11 @@ defmodule CuckodingWeb.AgentSettingsLiveTest do
 
     view |> element("#agent-#{account.id} button", "Edit agent") |> render_click()
     assert has_element?(view, "#agent-form[data-confirm]")
+    assert has_element?(view, "select[name='agent[model_choice]'] option[value='gpt-5.6-sol']")
     view |> form("#agent-form", agent: %{label: "Renamed Codex"}) |> render_submit()
-    assert Cuckoding.Adapters.get_provider_account(account.id).label == "Renamed Codex"
+    renamed = Cuckoding.Adapters.get_provider_account(account.id)
+    assert renamed.label == "Renamed Codex"
+    assert get_in(renamed.capabilities_json, ["model_catalog", "models"]) |> length() == 2
     assert length(Cuckoding.Adapters.list_provider_accounts()) == 1
     {:ok, reopened, _html} = live(conn, ~p"/settings/agents")
     assert has_element?(reopened, "#agent-#{account.id}", "Connected")

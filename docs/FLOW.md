@@ -10,8 +10,9 @@ Project setup, board setup, board task intake, and delivery execution are separa
    initialized with a first local commit; an existing branch is not changed.
    Registration redirects to project settings, where machine-wide saved agents
    can be attached and project role defaults are versioned separately. A saved
-   agent holds only validated runtime settings and authorization status; supported
-   credentials stay in the provider's credential store. Neither action creates a
+   agent holds only validated runtime settings, authorization status, and a bounded
+   provider-reported model catalog refreshed after successful sign-in checks;
+   supported credentials stay in the provider's credential store. Neither action creates a
    board, task, run, feature branch, worktree, or provider process.
 2. **Board setup** creates a named board with the default versioned workflow,
    copied project role assignments, and a chosen concurrency limit. Workflow

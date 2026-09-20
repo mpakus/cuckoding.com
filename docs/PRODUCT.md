@@ -32,7 +32,7 @@ It is not a chat client and it is not an autonomous merge bot. Its product value
 ## MVP capabilities
 
 - Local project registry with separate add/edit setup; creating a project does not create a board, task, run, branch, or worktree.
-- A machine-wide saved-agent catalog plus project role defaults. The built-in roles are Specifications, Coding, and Review; users may attach the same saved agent to several projects, add roles, and edit role names/instructions. Output contracts belong to workflow/adapter configuration. The catalog stores connection metadata and authorization status, never credential values.
+- A machine-wide saved-agent catalog plus project role defaults. The built-in roles are Specifications, Coding, and Review; users may attach the same saved agent to several projects, add roles, and edit role names/instructions. Successful Codex and Cursor authorization checks refresh a bounded provider model catalog for the shared sign-in. Output contracts belong to workflow/adapter configuration. The catalog stores connection metadata, authorization status, and validated model labels/IDs, never credential values or raw provider output.
 - Multiple boards and concurrent task flows per project.
 - Read-only board planning runs that turn a bounded prompt into source-cited task proposals; only human-selected proposals become Draft tasks.
 - Configurable stage templates and role-to-runtime assignment.

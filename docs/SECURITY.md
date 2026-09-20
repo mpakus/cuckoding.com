@@ -102,6 +102,11 @@ disconnect. Disconnect runs the provider's logout with only the app-owned profil
 environment, records value-free request and completion events, and changes the durable observed
 status to authorization-required. It does not delete profile directories, touch a
 personal CLI home, interrupt existing processes, or rewrite immutable run snapshots.
+After an authenticated scoped probe, model discovery executes with the same
+app-owned provider profile. Only validated model IDs and bounded display labels
+are persisted; raw JSONL, terminal output, provider errors, credentials, and
+hidden models are discarded. Discovery failure is recorded as non-secret status
+and does not downgrade a successfully verified authorization.
 
 - Random port on `127.0.0.1`; never bind `0.0.0.0`. LiveView accepts only the
   `127.0.0.1` and `localhost` browser origins used to reach that loopback

@@ -136,9 +136,13 @@ defmodule Cuckoding.AgentRuntime do
   end
 
   def check_account(%ProviderAccount{} = account) do
-    with {:ok, root} <- Adapters.authorization_account(account),
+    with %ProviderAccount{} = current <- Adapters.get_provider_account(account.id),
+         {:ok, root} <- Adapters.authorization_account(current),
          {:ok, _checked} <- check_authorization(root) do
       {:ok, Adapters.get_provider_account(account.id)}
+    else
+      nil -> {:error, :provider_account_not_found}
+      error -> error
     end
   end
 
@@ -192,7 +196,13 @@ defmodule Cuckoding.AgentRuntime do
              run_scoped_authenticated?: true
            ) do
       status = if(probe.authenticated?, do: "authenticated", else: "authentication_required")
-      Adapters.record_provider_status(account.id, status, account.capabilities_json)
+
+      catalog =
+        model_catalog(probe.authenticated?, fn ->
+          Codex.available_models(path: setup.executable, codex_home: setup.home)
+        end)
+
+      Adapters.record_provider_status(account.id, status, account.capabilities_json, catalog)
     end
   end
 
@@ -205,11 +215,27 @@ defmodule Cuckoding.AgentRuntime do
              run_scoped_authenticated?: true
            ) do
       status = if(probe.authenticated?, do: "authenticated", else: "authentication_required")
-      Adapters.record_provider_status(account.id, status, account.capabilities_json)
+
+      catalog =
+        model_catalog(probe.authenticated?, fn ->
+          CursorAgent.available_models(path: setup.executable, cursor_home: setup.home)
+        end)
+
+      Adapters.record_provider_status(account.id, status, account.capabilities_json, catalog)
     end
   end
 
   defp check_authorization(%ProviderAccount{} = account), do: {:ok, account}
+
+  defp model_catalog(false, _discover),
+    do: %{"status" => "authorization_required", "models" => []}
+
+  defp model_catalog(true, discover) do
+    case discover.() do
+      {:ok, models} -> %{"status" => "available", "models" => models}
+      {:error, _reason} -> %{"status" => "unavailable", "models" => []}
+    end
+  end
 
   def group_setups(setups) do
     setups

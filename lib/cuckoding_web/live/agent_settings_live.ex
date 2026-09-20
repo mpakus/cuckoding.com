@@ -79,7 +79,7 @@ defmodule CuckodingWeb.AgentSettingsLive do
             "label" => account.label,
             "adapter_key" => account.adapter_key,
             "authorization_account_id" => account.authorization_account_id || "",
-            "model_choice" => model_choice(account)
+            "model_choice" => model_choice(account, socket.assigns.accounts)
           })
 
         {:noreply, assign(socket, form: form, error: nil)}
@@ -121,11 +121,7 @@ defmodule CuckodingWeb.AgentSettingsLive do
 
   @impl true
   def handle_async(:authorization, {:ok, {:ok, account}}, socket) do
-    message =
-      if account.status == "authenticated",
-        do:
-          "#{account.label} is connected. Use it in any project; runs check access automatically.",
-        else: "#{account.label} needs sign-in. Run its command, then check again."
+    message = authorization_message(account)
 
     {:noreply, socket |> refresh() |> assign(checking: nil, notice: message)}
   end
@@ -169,7 +165,10 @@ defmodule CuckodingWeb.AgentSettingsLive do
 
   @impl true
   def render(assigns) do
-    assigns = assign(assigns, :runtime_options, RuntimeConfiguration.options())
+    assigns =
+      assigns
+      |> assign(:runtime_options, RuntimeConfiguration.options())
+      |> assign(:model_options, model_options(assigns.form, assigns.accounts))
 
     ~H"""
     <Layouts.app flash={@flash} active="agent_settings">
@@ -248,7 +247,7 @@ defmodule CuckodingWeb.AgentSettingsLive do
               >
                 <option value="" selected={@form["model_choice"] == ""}>Runtime default</option>
                 <option
-                  :for={{label, value} <- RuntimeConfiguration.models(@form["adapter_key"])}
+                  :for={{label, value} <- @model_options}
                   value={value}
                   selected={@form["model_choice"] == value}
                 >
@@ -271,7 +270,7 @@ defmodule CuckodingWeb.AgentSettingsLive do
               />
             </label>
             <p id="model-help" class="text-sm text-slate-600 sm:col-span-2">
-              Choose a model available to your provider account. Runtime default leaves the choice to the CLI. Assign this agent to Reviewer or other roles in project settings.
+              Check sign-in to refresh models available to this provider account. Runtime default leaves the choice to the CLI; Custom model ID remains available for runtimes without discovery.
             </p>
             <label
               :if={
@@ -353,6 +352,12 @@ defmodule CuckodingWeb.AgentSettingsLive do
               <p :if={account.probed_at} class="text-sm text-slate-600">
                 Last checked: {Calendar.strftime(account.probed_at, "%Y-%m-%d %H:%M UTC")}
               </p>
+              <p
+                :if={is_nil(account.authorization_account_id)}
+                class="text-sm text-slate-600"
+              >
+                {model_catalog_label(account)}
+              </p>
             </div>
             <button
               type="button"
@@ -427,7 +432,9 @@ defmodule CuckodingWeb.AgentSettingsLive do
               phx-value-id={account.id}
               disabled={@checking != nil}
               class="min-h-11 rounded bg-slate-950 px-4 text-white disabled:opacity-60"
-            >{if @checking == account.id, do: "Checking sign-in…", else: "Check sign-in"}</button>
+            >{if @checking == account.id,
+              do: "Checking sign-in and models…",
+              else: "Check sign-in and refresh models"}</button>
             <button
               :if={account.status == "authenticated"}
               type="button"
@@ -493,13 +500,93 @@ defmodule CuckodingWeb.AgentSettingsLive do
       "authorization_account_id" => "auto"
     }
 
-  defp model_choice(account) do
+  defp model_choice(account, accounts) do
     model = get_in(account.capabilities_json, ["settings", "model"]) || ""
 
     if model == "" or
-         Enum.any?(RuntimeConfiguration.models(account.adapter_key), &(elem(&1, 1) == model)),
+         Enum.any?(model_options_for_account(account, accounts), &(elem(&1, 1) == model)),
        do: model,
        else: "custom"
+  end
+
+  defp model_options(form, accounts) do
+    account =
+      case form["provider_account_id"] do
+        id when is_binary(id) and id != "" -> Enum.find(accounts, &(&1.id == id))
+        _other -> selected_authorization(form, accounts)
+      end
+
+    case account do
+      nil -> RuntimeConfiguration.models(form["adapter_key"])
+      account -> model_options_for_account(account, accounts)
+    end
+  end
+
+  defp selected_authorization(form, accounts) do
+    selected = form["authorization_account_id"]
+
+    if is_binary(selected) and selected not in ["", "auto", "new"] do
+      Enum.find(accounts, &(&1.id == selected))
+    else
+      accounts
+      |> Enum.filter(fn account ->
+        account.authorization_account_id == nil and account.adapter_key == form["adapter_key"] and
+          get_in(account.capabilities_json, ["settings", "executable_path"]) ==
+            form["executable_path"]
+      end)
+      |> Enum.sort_by(&{&1.status != "authenticated", &1.inserted_at, &1.id})
+      |> List.first()
+    end
+  end
+
+  defp model_options_for_account(account, accounts) do
+    root =
+      if account.authorization_account_id,
+        do: Enum.find(accounts, &(&1.id == account.authorization_account_id)),
+        else: account
+
+    case root && get_in(root.capabilities_json, ["model_catalog", "models"]) do
+      models when is_list(models) and models != [] ->
+        Enum.flat_map(models, fn
+          %{"id" => id, "label" => label} when is_binary(id) and is_binary(label) ->
+            [{label, id}]
+
+          _other ->
+            []
+        end)
+
+      _other ->
+        RuntimeConfiguration.models(account.adapter_key)
+    end
+  end
+
+  defp authorization_message(%{status: "authenticated"} = account) do
+    case get_in(account.capabilities_json, ["model_catalog"]) do
+      %{"status" => "available", "models" => models} ->
+        "#{account.label} is connected. Refreshed #{length(models)} available models for this shared sign-in."
+
+      %{"status" => "unavailable"} ->
+        "#{account.label} is connected, but its model list could not be refreshed. Runtime default and Custom model ID remain available."
+
+      _other ->
+        "#{account.label} is connected. Use it in any project; runs check access automatically."
+    end
+  end
+
+  defp authorization_message(account),
+    do: "#{account.label} needs sign-in. Run its command, then check again."
+
+  defp model_catalog_label(account) do
+    case get_in(account.capabilities_json, ["model_catalog"]) do
+      %{"status" => "available", "models" => models} ->
+        "Available models: #{length(models)} · refreshes with sign-in check"
+
+      %{"status" => "unavailable"} ->
+        "Model list unavailable · check sign-in again to retry"
+
+      _other ->
+        "Available models load after sign-in"
+    end
   end
 
   defp saved_message(%{authorization_account_id: id, label: label}) when is_binary(id),

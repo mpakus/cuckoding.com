@@ -13,8 +13,11 @@ acceptance from configuration tests alone.
    For Codex and Cursor, reuse a compatible provider sign-in by default. The first
    agent owns the sign-in; additional agents can choose different models without
    logging in again. **Use a separate sign-in** creates an independent account.
-   **Model** offers Runtime default, suggested Astra for Codex, or Custom model ID;
-   suggestions do not prove account access. Save first, then sign in if needed.
+   Save first, sign in if needed, then choose **Check sign-in and refresh models**.
+   A successful check fetches the models available to that shared provider account
+   and uses them in every linked agent's dropdown. Runtime default and a validated
+   Custom model ID remain available when discovery is unsupported or temporarily
+   unavailable.
 3. Add a project through **Project → Repository → Review**. In project settings,
    select existing agents and assign their roles; do not re-enter credentials.
    Use Projects to return to the project after adding an agent.
@@ -58,6 +61,10 @@ Cuckoding. Only the provider runtime handles token values. See
   exported configuration contain no credential values. Provider-native storage
   remains responsible for secrets. Cursor's native file store is confined to
   the private app-owned profile; Cuckoding never reads or copies its token file.
+- Provider model discovery runs only after the scoped authorization probe. The
+  database stores bounded model IDs and display labels plus discovery status,
+  never raw CLI output or provider errors. Codex uses the official app-server
+  `model/list` method; Cursor uses its account-scoped `models` command.
 - `provider_accounts.authorization_account_id` points only to a compatible root
   account (same runtime/executable/helper). New automatic selection prefers a
   connected root, then the oldest compatible root. Existing accounts remain
@@ -115,6 +122,10 @@ Running/completed runs are never rewritten.
 - `/settings/agents` provides add/edit, copyable sign-in commands and async checks;
   status updates arrive after durable provider audit events. Project settings
   retain existing add/edit controls for compatibility and can attach accounts.
+- Codex and Cursor authorization checks also refresh a bounded provider model
+  catalog. The root sign-in owns the catalog; linked agents immediately reuse it,
+  and editing an agent preserves it. Discovery failure does not discard a valid
+  sign-in and is shown separately from authentication status.
 - Linked agents show shared live status and a link to the original sign-in card,
   not a second login command. Model/name edits do not clear authorization status.
 - Codex login, probe and launch now resolve the same account-owned home, with

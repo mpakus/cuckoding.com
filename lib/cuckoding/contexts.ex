@@ -748,15 +748,21 @@ defmodule Cuckoding.Adapters do
       else: Repo.update(changeset)
   end
 
-  def record_provider_status(id, status, expected_settings \\ nil)
+  def record_provider_status(id, status, expected_settings \\ nil, model_catalog \\ nil)
       when is_binary(id) and is_binary(status) do
     EventStore.transaction(fn ->
-      with {:ok, account} <- update_provider_status(id, status, expected_settings),
+      with {:ok, account} <-
+             update_provider_status(id, status, expected_settings, model_catalog),
            {:ok, _event} <-
              EventStore.append_in_transaction("provider:" <> id, %{
                event_type: "provider.authorization_checked",
                public_summary: "Shared agent authorization checked",
-               payload: %{"provider_account_id" => id, "status" => status}
+               payload: %{
+                 "provider_account_id" => id,
+                 "status" => status,
+                 "model_catalog_status" => model_catalog && model_catalog["status"],
+                 "model_count" => model_catalog && length(model_catalog["models"] || [])
+               }
              }) do
         account
       else
@@ -768,7 +774,10 @@ defmodule Cuckoding.Adapters do
   def record_provider_disconnected(id, expected_settings) when is_binary(id) do
     EventStore.transaction(fn ->
       with {:ok, account} <-
-             update_provider_status(id, "authentication_required", expected_settings),
+             update_provider_status(id, "authentication_required", expected_settings, %{
+               "status" => "authorization_required",
+               "models" => []
+             }),
            {:ok, _event} <-
              EventStore.append_in_transaction("provider:" <> id, %{
                event_type: "provider.authorization_disconnected",
@@ -790,17 +799,23 @@ defmodule Cuckoding.Adapters do
     })
   end
 
-  defp update_provider_status(id, status, expected_settings) do
+  defp update_provider_status(id, status, expected_settings, model_catalog) do
     case Repo.get(ProviderAccount, id) do
       %ProviderAccount{capabilities_json: current}
       when expected_settings != nil and current != expected_settings ->
         {:error, :provider_configuration_changed}
 
       %ProviderAccount{} = account ->
+        capabilities =
+          if is_map(model_catalog),
+            do: Map.put(account.capabilities_json, "model_catalog", model_catalog),
+            else: account.capabilities_json
+
         account
         |> ProviderAccount.update_changeset(%{
           status: status,
-          probed_at: Cuckoding.Clock.wall_now()
+          probed_at: Cuckoding.Clock.wall_now(),
+          capabilities_json: capabilities
         })
         |> Repo.update()
 

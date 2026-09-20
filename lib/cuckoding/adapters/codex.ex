@@ -9,6 +9,8 @@ defmodule Cuckoding.Adapters.Codex do
 
   @supported_version "0.146.0"
   @tool_items ~w(command_execution file_change mcp_tool_call web_search)
+  @model_list_timeout 15_000
+  @model_list_limit 200
 
   @impl true
   def probe(options) do
@@ -48,10 +50,22 @@ defmodule Cuckoding.Adapters.Codex do
        usage?: true,
        mcp?: false,
        permission_modes: ["read-only", "workspace-write"],
-       model_discovery?: false,
+       model_discovery?: true,
        instruction_files: ["AGENTS.md"],
        skill_directories: []
      }}
+  end
+
+  def available_models(options) do
+    with {:ok, path} <- executable(options),
+         home when is_binary(home) <- Keyword.get(options, :codex_home),
+         {:ok, rows} <- app_server_models(path, home, options) do
+      {:ok, normalize_models(rows)}
+    else
+      nil -> error(:run_scoped_config_required, :authentication, false)
+      {:error, %Types.Error{} = error} -> {:error, error}
+      _other -> error(:model_discovery_failed, :provider, true)
+    end
   end
 
   @impl true
@@ -370,6 +384,135 @@ defmodule Cuckoding.Adapters.Codex do
       _other -> ["login", "status"]
     end
   end
+
+  defp app_server_models(path, home, options) do
+    case Keyword.get(options, :model_catalog_runner) do
+      runner when is_function(runner, 2) ->
+        runner.(path, home)
+
+      _other ->
+        open_model_server(path, home)
+    end
+  end
+
+  defp open_model_server(path, home) do
+    port =
+      Port.open({:spawn_executable, path}, [
+        :binary,
+        :exit_status,
+        :use_stdio,
+        :stderr_to_stdout,
+        args: ["-c", ~s(cli_auth_credentials_store="keyring"), "app-server"],
+        env: [{~c"CODEX_HOME", to_charlist(home)}]
+      ])
+
+    requests = [
+      %{
+        "method" => "initialize",
+        "id" => 1,
+        "params" => %{
+          "clientInfo" => %{
+            "name" => "cuckoding",
+            "title" => "Cuckoding",
+            "version" => "0.1.0"
+          }
+        }
+      },
+      %{"method" => "initialized", "params" => %{}},
+      %{
+        "method" => "model/list",
+        "id" => 2,
+        "params" => %{"limit" => @model_list_limit, "includeHidden" => false}
+      }
+    ]
+
+    true = Port.command(port, Enum.map_join(requests, "\n", &Jason.encode!/1) <> "\n")
+    read_model_response(port, "", System.monotonic_time(:millisecond) + @model_list_timeout)
+  rescue
+    _error -> error(:model_discovery_failed, :provider, true)
+  end
+
+  defp read_model_response(port, buffer, deadline) do
+    timeout = max(deadline - System.monotonic_time(:millisecond), 0)
+
+    receive do
+      {^port, {:data, data}} when byte_size(buffer) + byte_size(data) <= 1_000_000 ->
+        buffer = buffer <> data
+
+        case model_response(buffer) do
+          {:ok, rows} ->
+            close_port(port)
+            {:ok, rows}
+
+          {:error, :model_discovery_failed} ->
+            close_port(port)
+            error(:model_discovery_failed, :provider, true)
+
+          :pending ->
+            read_model_response(port, buffer, deadline)
+        end
+
+      {^port, {:data, _data}} ->
+        close_port(port)
+        error(:model_discovery_failed, :provider, false)
+
+      {^port, {:exit_status, _status}} ->
+        error(:model_discovery_failed, :provider, true)
+    after
+      timeout ->
+        close_port(port)
+        error(:model_discovery_failed, :provider, true)
+    end
+  end
+
+  defp model_response(buffer) do
+    buffer
+    |> String.split("\n", trim: true)
+    |> Enum.find_value(:pending, fn line ->
+      case Jason.decode(line) do
+        {:ok, %{"id" => 2, "result" => %{"data" => rows}}} when is_list(rows) ->
+          {:ok, rows}
+
+        {:ok, %{"id" => 2, "error" => _error}} ->
+          {:error, :model_discovery_failed}
+
+        _other ->
+          nil
+      end
+    end)
+  end
+
+  defp close_port(port) do
+    if Port.info(port), do: Port.close(port)
+  rescue
+    ArgumentError -> :ok
+  end
+
+  defp normalize_models(rows) do
+    rows
+    |> Enum.take(@model_list_limit)
+    |> Enum.reduce([], fn
+      row, models when is_map(row) ->
+        id = row["id"] || row["model"]
+        label = row["displayName"] || id
+        label = if is_binary(label), do: String.trim(label), else: ""
+
+        if valid_model_id?(id) and label != "" and byte_size(label) <= 120 and
+             String.printable?(label),
+           do: [%{"id" => id, "label" => label} | models],
+           else: models
+
+      _row, models ->
+        models
+    end)
+    |> Enum.reverse()
+    |> Enum.uniq_by(& &1["id"])
+  end
+
+  defp valid_model_id?(id) when is_binary(id) and byte_size(id) <= 128,
+    do: Regex.match?(~r/\A[a-zA-Z0-9][a-zA-Z0-9_.:\/-]*\z/, id)
+
+  defp valid_model_id?(_id), do: false
 
   defp valid_model(nil), do: :ok
 
