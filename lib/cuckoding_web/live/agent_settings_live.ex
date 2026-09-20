@@ -12,7 +12,14 @@ defmodule CuckodingWeb.AgentSettingsLive do
 
     {:ok,
      socket
-     |> assign(page_title: "Agents", form: empty_form(), checking: nil, error: nil, notice: nil)
+     |> assign(
+       page_title: "Agents",
+       form: empty_form(),
+       checking: nil,
+       disconnecting: nil,
+       error: nil,
+       notice: nil
+     )
      |> refresh()}
   end
 
@@ -97,6 +104,21 @@ defmodule CuckodingWeb.AgentSettingsLive do
 
   def handle_event("check", _params, socket), do: {:noreply, socket}
 
+  def handle_event("disconnect", %{"id" => id}, %{assigns: %{disconnecting: nil}} = socket) do
+    case Adapters.get_provider_account(id) do
+      %{authorization_account_id: nil} = account ->
+        {:noreply,
+         socket
+         |> assign(disconnecting: id, error: nil, notice: "Disconnecting #{account.label}…")
+         |> start_async(:disconnect, fn -> AgentRuntime.disconnect_account(account) end)}
+
+      _other ->
+        {:noreply, assign(socket, error: "That shared sign-in is no longer available.")}
+    end
+  end
+
+  def handle_event("disconnect", _params, socket), do: {:noreply, socket}
+
   @impl true
   def handle_async(:authorization, {:ok, {:ok, account}}, socket) do
     message =
@@ -115,6 +137,27 @@ defmodule CuckodingWeb.AgentSettingsLive do
        notice: nil,
        error:
          "Could not check sign-in. Verify the executable and supported CLI version, then try again."
+     )}
+  end
+
+  def handle_async(:disconnect, {:ok, {:ok, account}}, socket) do
+    {:noreply,
+     socket
+     |> refresh()
+     |> assign(
+       disconnecting: nil,
+       notice:
+         "#{account.label} was disconnected. New runs using its shared sign-in now require authorization."
+     )}
+  end
+
+  def handle_async(:disconnect, _result, socket) do
+    {:noreply,
+     assign(socket,
+       disconnecting: nil,
+       notice: nil,
+       error:
+         "Could not disconnect this provider sign-in. No saved agent settings were changed. Try the provider CLI logout command directly."
      )}
   end
 
@@ -142,7 +185,7 @@ defmodule CuckodingWeb.AgentSettingsLive do
           >
             Agents can share one provider sign-in while using different models and project roles.
             Shared sign-in also shares provider history. Choose a separate sign-in when histories must stay separate.
-            Your personal CLI profile is not used. Sign-in is kept between restarts; the provider may require reconnection after expiry or revocation.
+            Your personal CLI profile is not used. Cuckoding sets no expiry: sign-in is kept between restarts until you disconnect it or the provider expires or revokes it.
           </p>
         </header>
         <p id="agent-status" role="status" aria-live="polite" class="min-h-6 text-emerald-900">
@@ -323,6 +366,29 @@ defmodule CuckodingWeb.AgentSettingsLive do
             Uses the existing provider sign-in. No second login is needed while it remains valid.
             <a href={"#agent-#{account.authorization_account_id}"} class="underline">Manage shared sign-in</a>
           </p>
+          <section
+            :if={is_nil(account.authorization_account_id)}
+            id={"agent-impact-#{account.id}"}
+            class="space-y-2 rounded-lg bg-slate-50 p-4 text-sm"
+          >
+            <h3 class="font-semibold">Shared sign-in impact</h3>
+            <p>
+              {length(@impacts[account.id].agents)} saved {if length(@impacts[account.id].agents) == 1,
+                do: "agent uses",
+                else: "agents use"} this provider sign-in.
+            </p>
+            <p :if={@impacts[account.id].projects == []} class="text-slate-600">
+              It is not assigned to a current project role.
+            </p>
+            <ul :if={@impacts[account.id].projects != []} class="list-disc space-y-1 pl-5">
+              <li :for={project <- @impacts[account.id].projects}>
+                <.link navigate={~p"/projects/#{project.id}/edit"} class="underline">
+                  {project.name}
+                </.link>
+                — {Enum.join(project.roles, ", ")}
+              </li>
+            </ul>
+          </section>
           <div
             :for={setup <- List.wrap(@setups[account.id])}
             :if={is_nil(account.authorization_account_id)}
@@ -362,6 +428,15 @@ defmodule CuckodingWeb.AgentSettingsLive do
               disabled={@checking != nil}
               class="min-h-11 rounded bg-slate-950 px-4 text-white disabled:opacity-60"
             >{if @checking == account.id, do: "Checking sign-in…", else: "Check sign-in"}</button>
+            <button
+              :if={account.status == "authenticated"}
+              type="button"
+              phx-click="disconnect"
+              phx-value-id={account.id}
+              disabled={@disconnecting != nil}
+              data-confirm="Disconnect this provider sign-in from Cuckoding? New runs for all listed agents, projects, and roles will stop until you sign in again. Running processes and historical snapshots are unchanged."
+              class="min-h-11 rounded border border-red-400 px-4 text-red-950 disabled:opacity-60"
+            >{if @disconnecting == account.id, do: "Disconnecting…", else: "Disconnect shared sign-in"}</button>
           </div>
           <p
             :if={account.adapter_key in ["codex", "cursor_agent"] and @setups[account.id] == nil}
@@ -393,7 +468,17 @@ defmodule CuckodingWeb.AgentSettingsLive do
         end
       end)
 
-    assign(socket, accounts: accounts, setups: setups)
+    by_authorization =
+      accounts
+      |> Enum.uniq_by(&Adapters.authorization_id/1)
+      |> Map.new(fn account ->
+        {Adapters.authorization_id(account), Adapters.provider_account_impact(account)}
+      end)
+
+    impacts =
+      Map.new(accounts, &{&1.id, by_authorization[Adapters.authorization_id(&1)]})
+
+    assign(socket, accounts: accounts, setups: setups, impacts: impacts)
   end
 
   defp empty_form,

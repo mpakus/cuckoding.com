@@ -71,8 +71,11 @@ Cuckoding. Only the provider runtime handles token values. See
   Cursor shares its app-owned HOME but keeps task configuration run-owned.
 - Editing and status checks record a value-free audit event before broadcasting
   status. Future launches fail clearly after revocation; they do not silently
-  switch to another account or restart/kill existing work. Per-project impact
-  lists and confirmed revoke/delete controls remain required before release.
+  switch to another account or restart/kill existing work. Root account cards
+  list every current project/board role using that sign-in. **Disconnect shared
+  sign-in** requires confirmation, records the request before invoking the
+  provider's scoped logout, records `provider.authorization_disconnected`, and blocks future launches for all
+  linked agents without rewriting running work or historical snapshots.
 
 ## Existing boards and runs
 
@@ -127,12 +130,17 @@ Running/completed runs are never rewritten.
 - Deterministic regression tests cover profile reuse across two project-shaped
   runs, distinct accounts, invalid/symlink paths, revoked probes, changed shared
   MCP files, separate task settings and historical snapshot preservation.
-- Real CLI status checks on 2026-09-20 returned sign-in required for both existing
+- Root account cards show the affected saved-agent count and current project,
+  board and role assignments before a confirmed shared-sign-in disconnect.
+  Linked cards continue to point to the one root instead of offering duplicate
+  login or logout controls. Cuckoding never silently logs out an idle account.
+- Real CLI status checks on 2026-09-20 at 18:05 UTC returned sign-in required for both existing
   app-owned accounts. No credentials were read/copied and no paid task launched.
   Sign in once per saved profile, then verify authenticated two-project use,
   token refresh/restart and concurrent provider behavior before closing task 1018.
-- Per-project impact lists and revoke/delete controls remain follow-ups. This
-  tranche does not log out personal profiles or delete any credential storage.
+- The confirmed disconnect control is implemented and regression-tested. It is
+  a provider-scoped logout, not destructive profile-directory deletion, and it
+  never touches personal profiles. Real post-login revocation evidence remains open.
 
 Official Codex documentation describes cached login reuse and file/keyring
 storage; Cuckoding now avoids the former cross-home assumption:

@@ -142,6 +142,46 @@ defmodule Cuckoding.AgentRuntime do
     end
   end
 
+  def disconnect_account(%ProviderAccount{} = account, options \\ []) do
+    runner = Keyword.get(options, :command_runner, &System.cmd/3)
+
+    with {:ok, root} <- Adapters.authorization_account(account),
+         {:ok, setup} <- account_setup(root),
+         {:ok, _event} <- Adapters.record_provider_disconnect_requested(root.id),
+         :ok <- disconnect_authorization(root.adapter_key, setup, runner),
+         do: Adapters.record_provider_disconnected(root.id, root.capabilities_json)
+  rescue
+    _error -> {:error, :provider_disconnect_failed}
+  end
+
+  defp disconnect_authorization("codex", setup, runner) do
+    run_disconnect(
+      runner,
+      setup.executable,
+      ["-c", ~s(cli_auth_credentials_store="keyring"), "logout"],
+      %{"CODEX_HOME" => setup.home}
+    )
+  end
+
+  defp disconnect_authorization("cursor_agent", setup, runner) do
+    with {:ok, environment} <- CursorAgent.account_environment(setup.home) do
+      run_disconnect(runner, setup.executable, ["logout"], environment)
+    end
+  end
+
+  defp disconnect_authorization(_runtime, _setup, _runner),
+    do: {:error, :provider_disconnect_unsupported}
+
+  defp run_disconnect(runner, executable, args, environment) do
+    case runner.(executable, args,
+           env: Enum.sort(environment),
+           stderr_to_stdout: true
+         ) do
+      {_output, 0} -> :ok
+      {_output, _status} -> {:error, :provider_disconnect_failed}
+    end
+  end
+
   defp check_authorization(%ProviderAccount{adapter_key: "codex"} = account) do
     with {:ok, setup} <- account_setup(account),
          {:ok, probe} <-

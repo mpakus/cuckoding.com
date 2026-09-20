@@ -97,6 +97,11 @@ explicit; existing profiles are never silently merged. There is no app-imposed
 authorization expiry or token copying; provider-native refresh and revocation
 remain authoritative. Model IDs are bounded validated argv values, never shell
 fragments. Models do not determine credential identity or permission grants.
+The Agents page exposes current project/board/role impact before a confirmed
+disconnect. Disconnect runs the provider's logout with only the app-owned profile
+environment, records value-free request and completion events, and changes the durable observed
+status to authorization-required. It does not delete profile directories, touch a
+personal CLI home, interrupt existing processes, or rewrite immutable run snapshots.
 
 - Random port on `127.0.0.1`; never bind `0.0.0.0`. LiveView accepts only the
   `127.0.0.1` and `localhost` browser origins used to reach that loopback

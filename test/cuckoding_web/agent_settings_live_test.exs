@@ -27,6 +27,15 @@ defmodule CuckodingWeb.AgentSettingsLiveTest do
     Cuckoding.Adapters.record_provider_status(account.id, "authenticated")
     assert has_element?(view, "#agent-#{account.id}", "Connected")
     assert has_element?(view, "#agent-#{account.id} details:not([open])")
+    assert has_element?(view, "#agent-impact-#{account.id}", "1 saved agent uses")
+    assert has_element?(view, "#agent-impact-#{account.id}", "not assigned")
+
+    assert has_element?(
+             view,
+             "#agent-#{account.id} button[data-confirm]",
+             "Disconnect shared sign-in"
+           )
+
     view |> element("#agent-#{account.id} button", "Edit agent") |> render_click()
     assert has_element?(view, "#agent-form[data-confirm]")
     view |> form("#agent-form", agent: %{label: "Renamed Codex"}) |> render_submit()
@@ -53,6 +62,7 @@ defmodule CuckodingWeb.AgentSettingsLiveTest do
     assert second.authorization_account_id == account.id
     assert second.capabilities_json["settings"]["model"] == "other-model"
     assert has_element?(reopened, "#agent-#{second.id}", "Connected")
+    assert has_element?(reopened, "#agent-impact-#{account.id}", "2 saved agents use")
 
     assert has_element?(
              reopened,

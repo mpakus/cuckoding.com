@@ -41,11 +41,12 @@ before an agent session exists. Kanban columns are lifecycle states, not stages.
    refresh or concurrent authenticated Codex/Cursor execution. Do not close
    task 1018 until one login completes isolated runs in two projects, survives
    restart/refresh, and fails safely after provider revocation.
-2. **Medium — shared-account lifecycle is incomplete.** The global Agents page,
-   durable save/status events, LiveView refresh, compatible-root validation,
-   and explicit legacy board/queued-run bindings are implemented. Per-project
-   impact lists and confirmed revoke/delete controls remain absent. Existing
-   running/completed snapshots are intentionally immutable.
+2. **Resolved implementation gap — shared-account impact and disconnect.** The
+   global Agents page lists every current project/board/role affected by a root
+   sign-in and requires confirmation before provider-scoped logout. The durable
+   disconnect event propagates authorization-required status to linked agents;
+   running/completed snapshots remain immutable. Real authenticated revocation
+   acceptance is still part of the high task-1018 gate above.
 3. **Medium — workflow customization is narrower than the original design.**
    Custom roles can be saved, but the default delivery launcher resolves the
    three built-in roles. The board UI has no workflow picker, assignment editor,

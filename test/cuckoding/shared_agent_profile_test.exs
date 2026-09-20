@@ -4,6 +4,10 @@ defmodule Cuckoding.SharedAgentProfileTest do
   alias Cuckoding.Adapters
   alias Cuckoding.Adapters.{Codex, CursorAgent, SharedProfile, Types}
   alias Cuckoding.AgentRuntime
+  alias Cuckoding.Execution.RunEvent
+  alias Cuckoding.Projects
+  alias Cuckoding.Workflows
+  alias Cuckoding.Workflows.WorkflowVersion
 
   setup do
     root = Path.join(System.tmp_dir!(), "shared-agent-test-#{System.unique_integer([:positive])}")
@@ -242,6 +246,99 @@ defmodule Cuckoding.SharedAgentProfileTest do
 
     assert {:error, :provider_account_mismatch} = AgentRuntime.account_setup(linked)
     assert Adapters.get_provider_account(linked.id).status == "unknown"
+  end
+
+  test "reports project impact and explicitly disconnects one shared authorization", %{root: root} do
+    {:ok, authorization} = account("codex", "/usr/bin/true")
+    {:ok, authorization} = Adapters.record_provider_status(authorization.id, "authenticated")
+    {:ok, reviewer} = account("codex", "/usr/bin/true")
+
+    {:ok, project} =
+      Projects.register(%{
+        name: "Impact project",
+        repo_path: Path.join(root, "repo"),
+        default_branch: "main",
+        workspace_root: Path.join(root, "workspaces"),
+        port_range_start: 42_000,
+        port_range_end: 42_099
+      })
+
+    workflow =
+      Repo.insert!(%WorkflowVersion{
+        id: Ecto.UUID.generate(),
+        project_id: project.id,
+        name: "Impact workflow",
+        version: 1,
+        definition_json: %{},
+        published_at: DateTime.utc_now()
+      })
+
+    {:ok, board} =
+      Workflows.create_board(%{
+        project_id: project.id,
+        workflow_version_id: workflow.id,
+        name: "Product",
+        concurrency_limit: 1
+      })
+
+    {:ok, _role} =
+      Workflows.assign_role(%{
+        board_id: board.id,
+        role_key: "reviewer",
+        role_kind: "agent",
+        adapter_key: "codex",
+        model_ref: "gpt-6-astra",
+        settings_json: %{"provider_account_id" => reviewer.id}
+      })
+
+    assert %{
+             agents: [%{id: first_id}, %{id: second_id}],
+             projects: [%{id: project_id, roles: ["Product: reviewer"]}]
+           } = Adapters.provider_account_impact(authorization)
+
+    assert MapSet.new([first_id, second_id]) == MapSet.new([authorization.id, reviewer.id])
+    assert project_id == project.id
+
+    owner = self()
+
+    runner = fn executable, args, options ->
+      send(owner, {:disconnect, executable, args, options})
+      {"signed out", 0}
+    end
+
+    assert {:ok, %{status: "authentication_required"}} =
+             AgentRuntime.disconnect_account(reviewer, command_runner: runner)
+
+    assert_receive {:disconnect, "/usr/bin/true",
+                    ["-c", ~s(cli_auth_credentials_store="keyring"), "logout"], options}
+
+    assert {"CODEX_HOME", _home} = List.keyfind(options[:env], "CODEX_HOME", 0)
+    assert Adapters.get_provider_account(reviewer.id).status == "authentication_required"
+
+    assert Repo.exists?(
+             from(event in RunEvent,
+               where:
+                 event.run_id == ^("provider:" <> authorization.id) and
+                   event.event_type == "provider.authorization_disconnected"
+             )
+           )
+
+    assert Repo.exists?(
+             from(event in RunEvent,
+               where:
+                 event.run_id == ^("provider:" <> authorization.id) and
+                   event.event_type == "provider.authorization_disconnect_requested"
+             )
+           )
+
+    {:ok, cursor} = account("cursor_agent", "/usr/bin/true", "new")
+    assert {:ok, _cursor} = AgentRuntime.disconnect_account(cursor, command_runner: runner)
+
+    assert_receive {:disconnect, "/usr/bin/true", ["logout"], cursor_options}
+    assert {"HOME", _home} = List.keyfind(cursor_options[:env], "HOME", 0)
+
+    assert {"CURSOR_CONFIG_DIR", _config} =
+             List.keyfind(cursor_options[:env], "CURSOR_CONFIG_DIR", 0)
   end
 
   defp account(runtime, executable, authorization \\ "auto") do

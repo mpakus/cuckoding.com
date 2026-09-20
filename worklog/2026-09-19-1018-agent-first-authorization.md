@@ -115,3 +115,66 @@ in progress until that evidence exists. No clean-machine native packaging or
 release certification claimed. Detailed project impact lists and revoke/delete
 controls are follow-ups. Personal CLI homes and unrelated `icon.png` are untouched.
 Local merge to main is requested; no remote push is part of this continuation.
+
+## 2026-09-20 lifecycle continuation
+
+Continued on `feature/1018-real-provider-acceptance` after task 1020 merged to
+local `main`. Acceptance for this tranche: show the full current project/role
+impact of one shared provider identity, require explicit confirmation before
+disconnecting it, preserve running/history state, and record a value-free event.
+The provider session otherwise has no Cuckoding TTL and persists until provider
+expiry/revocation or an explicit disconnect.
+
+XERJ remained unreachable at `http://localhost:9200`; direct source inspection
+reused the existing provider-account, app-owned profile, adapter probe, EventStore,
+and LiveView patterns. Installed `codex logout --help` and `cursor-agent logout
+--help` confirmed native scoped logout commands. No dependency or migration was
+added.
+
+### Delivered
+
+- Root cards aggregate linked saved agents and current project, board, and role
+  assignments. Linked cards still point to the root and never duplicate login or
+  logout controls.
+- A confirmed asynchronous **Disconnect shared sign-in** action runs only the
+  provider CLI with the app-owned profile environment. It records the request
+  before the external action and `provider.authorization_disconnected` after success, changes the root status to
+  authorization-required, and therefore blocks new linked launches. Existing
+  processes and immutable snapshots are untouched; profile directories and
+  personal CLI homes are not deleted.
+- UI copy states the truthful retention contract: Cuckoding has no authorization
+  expiry timer and cannot promise years because the provider controls expiry.
+
+### Real-provider evidence
+
+At 2026-09-20 18:05 UTC, the installed pinned Codex and Cursor probes both
+returned `authentication_required` for the existing app-owned profiles. The
+check selected only non-secret account fields, did not inspect token files, and
+launched no paid provider task. Status checks durably recorded their normal
+value-free audit events. Authenticated two-project, refresh/restart, concurrent,
+and real post-revocation checks remain open, so task 1018 stays in progress.
+
+### Verification in progress
+
+- `rtk env -u CR_PAT mix test test/cuckoding/shared_agent_profile_test.exs test/cuckoding_web/agent_settings_live_test.exs`
+  — 6 tests, zero failures. Covers impact aggregation, scoped logout argv/env,
+  propagated status, audit event, confirmation copy, and linked-agent counts.
+
+### Final verification for this tranche
+
+- `rtk env -u CR_PAT mix quality` — exit 0 on final run: formatter,
+  warnings-as-errors compilation, 265 tests and 10 properties with zero failures,
+  Credo over 203 files/3,279 functions with no issues, Sobelow clean, and Hex
+  audit with no advisories. A prior full rerun hit the existing concurrent SQLite
+  property's transient `database is locked`; the same property and seed passed
+  alone, changed-area tests passed, and the final complete gate passed.
+- `rtk env -u CR_PAT mix assets.build` — exit 0; Tailwind and esbuild completed.
+- `rtk git diff --check` — passed.
+- Live browser check at `/settings/agents` rendered the no-TTL explanation,
+  one impact section per root account, copyable commands, sign-in status, model
+  selection, and no duplicate login cards. Both current real profiles still say
+  sign-in required, so the disconnect control correctly remains hidden until a
+  profile is connected.
+- Scoped changed-line security review found no credential value, token content,
+  private key, password assignment, provider output persistence, personal-home
+  fallback, or unconfirmed destructive action. Provider command output is discarded.

@@ -17,6 +17,11 @@ model snapshots, and a prior-schema database copy migrated without changing
 existing account data. LiveView tests cover model selection and shared sign-in
 controls in both Agents and project settings. Native refresh and years-long
 retention cannot be established by fixture tests.
+Task 1018 lifecycle coverage also verifies that root impact is aggregated across
+linked named agents and current project/board roles, that only a confirmed root
+control is rendered, and that scoped provider logout records value-free request/completion events
+while propagating authorization-required status. The fake command runner asserts
+the app-owned environment and provider logout argv without reading credentials.
 
 | Component | Unit / property | Persistence | Integration | Adversarial | Recovery |
 | --- | --- | --- | --- | --- | --- |
@@ -43,7 +48,7 @@ acceptance: sign in once, attach the account to two projects and start both runs
 without another login or copied credentials. Histories may be shared by the
 approved ADR-025 contract; permission config must remain independent. Verify
 restart, refresh and concurrent use, then revoke and confirm a fresh launch
-fails clearly. The 2026-09-20 real CLI status checks reported sign-in required;
+fails clearly. The 2026-09-20 18:05 UTC real CLI status checks reported sign-in required;
 authenticated two-project acceptance is still pending. Account-page status alone
 is not a pass. Old boards/runs have explicit, audited saved-account linking.
 Cursor adapter tests assert run-owned home/config/Claude paths, scoped-auth probing, owner-only generated policy, empty MCP configuration, project-override rejection, launch/resume/cancel behavior, fixture event normalization, redaction, and usage. The retained real-runtime fixture proves its event contract and earlier lifecycle behavior; the current change does not claim a new authenticated real-provider smoke. OpenCode remains a stable-stub test with fail-closed operational callbacks.

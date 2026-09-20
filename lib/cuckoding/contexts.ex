@@ -531,7 +531,9 @@ defmodule Cuckoding.Adapters do
   alias Cuckoding.Execution.EventStore
   alias Cuckoding.Execution.StageAttempt
   alias Cuckoding.Identifier
+  alias Cuckoding.Projects.Project
   alias Cuckoding.Repo
+  alias Cuckoding.Workflows.{Board, RoleAssignment}
 
   def observe_provider(attrs) do
     ProviderAccount.create_changeset(
@@ -575,6 +577,54 @@ defmodule Cuckoding.Adapters do
     if compatible_authorization?(account, root),
       do: {:ok, root},
       else: {:error, :provider_account_mismatch}
+  end
+
+  def provider_account_impact(%ProviderAccount{} = account) do
+    authorization_id = authorization_id(account)
+
+    agents =
+      Repo.all(
+        from(saved in ProviderAccount,
+          where:
+            saved.id == ^authorization_id or
+              saved.authorization_account_id == ^authorization_id,
+          order_by: [asc: saved.label, asc: saved.id]
+        )
+      )
+
+    account_ids = MapSet.new(agents, & &1.id)
+
+    projects =
+      Repo.all(
+        from(role in RoleAssignment,
+          join: board in Board,
+          on: board.id == role.board_id,
+          join: project in Project,
+          on: project.id == board.project_id,
+          where: role.role_kind == "agent",
+          select: {project.id, project.name, board.name, role.role_key, role.settings_json}
+        )
+      )
+      |> Enum.filter(fn {_project_id, _project_name, _board_name, _role_key, settings} ->
+        MapSet.member?(account_ids, settings["provider_account_id"])
+      end)
+      |> Enum.group_by(&elem(&1, 0))
+      |> Enum.map(fn {project_id, rows} ->
+        {_id, project_name, _board_name, _role_key, _settings} = hd(rows)
+
+        roles =
+          rows
+          |> Enum.map(fn {_id, _name, board_name, role_key, _settings} ->
+            "#{board_name}: #{role_key}"
+          end)
+          |> Enum.uniq()
+          |> Enum.sort()
+
+        %{id: project_id, name: project_name, roles: roles}
+      end)
+      |> Enum.sort_by(&{&1.name, &1.id})
+
+    %{agents: agents, projects: projects}
   end
 
   defp compatible_authorization?(account, %ProviderAccount{authorization_account_id: nil} = root),
@@ -713,6 +763,31 @@ defmodule Cuckoding.Adapters do
         {:error, reason} -> Repo.rollback(reason)
       end
     end)
+  end
+
+  def record_provider_disconnected(id, expected_settings) when is_binary(id) do
+    EventStore.transaction(fn ->
+      with {:ok, account} <-
+             update_provider_status(id, "authentication_required", expected_settings),
+           {:ok, _event} <-
+             EventStore.append_in_transaction("provider:" <> id, %{
+               event_type: "provider.authorization_disconnected",
+               public_summary: "Shared agent sign-in disconnected",
+               payload: %{"provider_account_id" => id}
+             }) do
+        account
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
+
+  def record_provider_disconnect_requested(id) when is_binary(id) do
+    EventStore.append("provider:" <> id, %{
+      event_type: "provider.authorization_disconnect_requested",
+      public_summary: "Shared agent sign-in disconnect requested",
+      payload: %{"provider_account_id" => id}
+    })
   end
 
   defp update_provider_status(id, status, expected_settings) do
