@@ -5,6 +5,7 @@ defmodule Cuckoding.WalkingSkeleton do
 
   alias Cuckoding.Adapters
   alias Cuckoding.Adapters.FakeAdapter
+  alias Cuckoding.Adapters.OutputParser
   alias Cuckoding.Adapters.Types
   alias Cuckoding.Execution
   alias Cuckoding.Execution.Environment
@@ -25,6 +26,8 @@ defmodule Cuckoding.WalkingSkeleton do
   alias Cuckoding.Workflows.Definition
   alias Cuckoding.Workflows.GateEvaluator
   alias Cuckoding.Workflows.Task
+
+  @max_review_attempts 3
 
   @doc "Creates one project, default board, ready task, run, and confined host worktree."
   def create(attrs) when is_map(attrs) do
@@ -80,7 +83,7 @@ defmodule Cuckoding.WalkingSkeleton do
     end
   end
 
-  @doc "Runs specification, development, and QA, then stops at human approval."
+  @doc "Runs the bounded specification, development, and review loop, then waits for a human."
   def run(
         %{run: %Run{} = run, environment: %Environment{}} = skeleton,
         options \\ []
@@ -88,8 +91,9 @@ defmodule Cuckoding.WalkingSkeleton do
     adapter = Keyword.get(options, :adapter, FakeAdapter)
     {development_adapter, _development_options} = stage_runtime("implementer", adapter, options)
 
-    with {:ok, spec} <- run_stage(skeleton, "specification", "spec_writer", adapter, options),
-         environment = spec.environment,
+    with {:ok, workflow} <-
+           run_review_cycle(skeleton, "specification", adapter, options, []),
+         environment = workflow.environment,
          {:ok, spec_artifact} <-
            write_artifact(
              environment,
@@ -97,29 +101,23 @@ defmodule Cuckoding.WalkingSkeleton do
              "specification.md",
              specification(skeleton.task)
            ),
-         {:ok, development} <-
-           run_stage(
-             %{skeleton | environment: environment},
-             "development",
-             "implementer",
-             adapter,
-             options
-           ),
-         {:ok, environment} <-
-           candidate(development, environment, development_adapter, skeleton.task, options),
-         {:ok, qa} <-
-           run_stage(%{skeleton | environment: environment}, "qa", "reviewer", adapter, options),
          {:ok, qa_artifact} <-
-           write_artifact(environment, "qa_report", "qa.md", qa_report(environment)),
+           write_artifact(
+             environment,
+             "qa_report",
+             "qa.md",
+             qa_report(environment, workflow.review)
+           ),
          {:ok, knowledge} <- write_knowledge_candidate(environment, skeleton.task),
          {:ok, evidence} <-
            write_evidence(
              environment,
              run,
              development_adapter,
-             [spec, development, qa],
+             workflow.stages,
              [spec_artifact, qa_artifact],
-             knowledge
+             knowledge,
+             workflow.review["findings"]
            ),
          {:ok, approval_attempt} <- human_approval_attempt(run),
          {:ok, approval} <-
@@ -145,6 +143,138 @@ defmodule Cuckoding.WalkingSkeleton do
       error -> error
     end
   end
+
+  defp run_review_cycle(skeleton, start_stage, adapter, options, stages) do
+    with {:ok, {skeleton, stages}} <-
+           maybe_run_specification(skeleton, start_stage, adapter, options, stages),
+         {:ok, {skeleton, stages}} <- run_development(skeleton, adapter, options, stages),
+         {:ok, review_stage} <- run_stage(skeleton, "qa", "reviewer", adapter, options),
+         review = review_stage.output,
+         {:ok, _findings} <- persist_review_findings(review_stage, review["findings"]),
+         {:ok, target} <- review_target(review["findings"]) do
+      stages = stages ++ [review_stage]
+
+      case target do
+        :pass ->
+          {:ok,
+           %{
+             environment: review_stage.environment,
+             stages: stages,
+             review: review
+           }}
+
+        target when review_stage.attempt.attempt < @max_review_attempts ->
+          run_review_cycle(
+            %{skeleton | environment: review_stage.environment},
+            target,
+            adapter,
+            Keyword.put(options, :review_findings, blocking_findings(review["findings"])),
+            stages
+          )
+
+        _target ->
+          {:error, :review_attempt_budget_exceeded}
+      end
+    end
+  end
+
+  defp maybe_run_specification(skeleton, "development", _adapter, _options, stages),
+    do: {:ok, {skeleton, stages}}
+
+  defp maybe_run_specification(skeleton, "specification", adapter, options, stages) do
+    with {:ok, stage} <-
+           run_stage(skeleton, "specification", "spec_writer", adapter, options) do
+      {:ok, {%{skeleton | environment: stage.environment}, stages ++ [stage]}}
+    end
+  end
+
+  defp run_development(skeleton, adapter, options, stages) do
+    {development_adapter, _development_options} = stage_runtime("implementer", adapter, options)
+
+    with {:ok, stage} <- run_stage(skeleton, "development", "implementer", adapter, options),
+         {:ok, environment} <-
+           candidate(stage, stage.environment, development_adapter, skeleton.task, options) do
+      {:ok, {%{skeleton | environment: environment}, stages ++ [stage]}}
+    end
+  end
+
+  defp review_output(%{result: %{adapter: "fake"}} = stage, options) do
+    output =
+      case Keyword.get(options, :fake_review_output) do
+        callback when is_function(callback, 1) -> callback.(stage.attempt.attempt)
+        output when is_map(output) -> output
+        _missing -> %{"summary" => "Review passed", "findings" => []}
+      end
+
+    validate_review_output(output)
+  end
+
+  defp review_output(stage, _options) do
+    with {:ok, output} <- OutputParser.extract(stage.session.adapter, stage.result),
+         do: validate_review_output(output)
+  end
+
+  defp validate_review_output(%{"summary" => summary, "findings" => findings} = output)
+       when is_binary(summary) and is_list(findings) and length(findings) <= 20 do
+    with true <- Map.keys(output) |> Enum.sort() == ["findings", "summary"],
+         true <- summary != "" and String.length(summary) <= 10_000,
+         true <- Enum.all?(findings, &valid_review_finding?/1) do
+      {:ok, %{"summary" => String.trim(summary), "findings" => findings}}
+    else
+      false -> {:error, :invalid_review_output}
+    end
+  end
+
+  defp validate_review_output(_output), do: {:error, :invalid_review_output}
+
+  defp valid_review_finding?(finding) when is_map(finding) do
+    Map.keys(finding) |> Enum.sort() ==
+      ["category", "evidence", "severity", "summary", "transition"] and
+      finding["transition"] in ~w(fix_code fix_intent) and
+      finding["severity"] in ~w(info warning error blocker) and
+      bounded_text?(finding["category"], 100) and bounded_text?(finding["summary"], 2_000) and
+      is_map(finding["evidence"]) and byte_size(Jason.encode!(finding["evidence"])) <= 16_384
+  end
+
+  defp valid_review_finding?(_finding), do: false
+
+  defp bounded_text?(value, maximum),
+    do: is_binary(value) and String.trim(value) != "" and String.length(value) <= maximum
+
+  defp persist_review_findings(stage, findings) do
+    Enum.reduce_while(findings, {:ok, []}, fn finding, {:ok, stored} ->
+      case Workflows.record_finding(%{
+             run_id: stage.attempt.run_id,
+             stage_attempt_id: stage.attempt.id,
+             severity: finding["severity"],
+             category: finding["category"],
+             summary: String.trim(finding["summary"]),
+             evidence_json: Map.put(finding["evidence"], "transition", finding["transition"])
+           }) do
+        {:ok, record} -> {:cont, {:ok, [record | stored]}}
+        error -> {:halt, error}
+      end
+    end)
+  end
+
+  defp review_target(findings) do
+    case blocking_findings(findings) do
+      [] ->
+        {:ok, :pass}
+
+      blocking ->
+        with {:ok, routed} <- Definition.route_findings(Definition.default(), "qa", blocking) do
+          routed_review_target(routed)
+        end
+    end
+  end
+
+  defp routed_review_target(%{"specification" => _findings}), do: {:ok, "specification"}
+  defp routed_review_target(%{"development" => _findings}), do: {:ok, "development"}
+  defp routed_review_target(_routed), do: {:error, :invalid_review_route}
+
+  defp blocking_findings(findings),
+    do: Enum.filter(findings, &(&1["severity"] in ~w(error blocker)))
 
   @doc "Returns pending release approvals for the minimal LiveView."
   def pending_approvals do
@@ -178,6 +308,114 @@ defmodule Cuckoding.WalkingSkeleton do
     else
       nil -> {:error, :approval_not_found}
       error -> error
+    end
+  end
+
+  @doc "Completes a reviewed run without invoking a VCS handoff."
+  def complete_locally(approval_id, actor)
+      when is_binary(approval_id) and is_binary(actor) and actor != "" do
+    with %Approval{decision: "pending", kind: "release_handoff"} = approval <-
+           Repo.get(Approval, approval_id),
+         %Run{state: "waiting"} = run <- Repo.get(Run, approval.run_id),
+         %Task{state: "waiting", active_run_id: active_run_id} = task <-
+           Repo.get(Task, run.task_id),
+         true <- active_run_id == run.id,
+         %StageAttempt{state: "waiting", stage_key: "human_approval"} = attempt <-
+           Repo.get(StageAttempt, approval.stage_attempt_id),
+         %Environment{} = environment <- Repo.get_by(Environment, run_id: run.id),
+         {:ok, _evidence} <- validated_evidence(environment),
+         {:ok, result} <- persist_local_completion(approval, attempt, run, task, actor) do
+      {:ok, result}
+    else
+      nil -> {:error, :approval_not_found}
+      false -> {:error, :local_completion_not_available}
+      %Approval{} -> {:error, :local_completion_not_available}
+      %Run{} -> {:error, :local_completion_not_available}
+      %Task{} -> {:error, :local_completion_not_available}
+      %StageAttempt{} -> {:error, :local_completion_not_available}
+      error -> error
+    end
+  end
+
+  defp persist_local_completion(approval, attempt, run, task, actor) do
+    now = Cuckoding.Clock.wall_now()
+
+    event = %{
+      event_type: "run.completed_locally",
+      public_summary: "Reviewed run completed locally without release",
+      payload: %{
+        "approval_id" => approval.id,
+        "actor" => actor,
+        "branch" => run.branch,
+        "release_handoff" => "skipped"
+      }
+    }
+
+    projection = fn repo, _sequence ->
+      with {:ok, records} <- local_completion_records(repo, approval, attempt, run, task),
+           do: apply_local_completion(repo, records, actor, now)
+    end
+
+    case EventStore.append(run.id, event, projection) do
+      {:ok, {_event, result}} -> {:ok, result}
+      {:error, {:projection_failed, reason}} -> {:error, reason}
+      error -> error
+    end
+  end
+
+  defp local_completion_records(repo, approval, attempt, run, task) do
+    records = %{
+      approval: repo.get(Approval, approval.id),
+      attempt: repo.get(StageAttempt, attempt.id),
+      run: repo.get(Run, run.id),
+      task: repo.get(Task, task.id)
+    }
+
+    if local_completion_available?(records, run.id),
+      do: {:ok, records},
+      else: {:error, :local_completion_not_available}
+  end
+
+  defp local_completion_available?(records, run_id) do
+    match?(%Approval{decision: "pending"}, records.approval) and
+      match?(%StageAttempt{state: "waiting"}, records.attempt) and
+      match?(%Run{state: "waiting"}, records.run) and
+      match?(%Task{state: "waiting", active_run_id: ^run_id}, records.task)
+  end
+
+  defp apply_local_completion(repo, records, actor, now) do
+    with {:ok, rejected} <-
+           repo.update(
+             Approval.decision_changeset(records.approval, %{
+               decision: "rejected",
+               actor: actor,
+               reason: "Completed locally without release",
+               decided_at: now
+             })
+           ),
+         {:ok, cancelled} <-
+           repo.update(
+             StageAttempt.transition_changeset(records.attempt, %{
+               state: "cancelled",
+               finished_at: now
+             })
+           ),
+         {:ok, completed_run} <-
+           repo.update(Run.transition_changeset(records.run, %{state: "done"})),
+         {:ok, completed_task} <-
+           repo.update(
+             Task.transition_changeset(records.task, %{
+               state: "done",
+               active_run_id: nil
+             })
+           ) do
+      {:ok,
+       %{
+         approval: rejected,
+         attempt: cancelled,
+         run: completed_run,
+         task: completed_task
+       }}
     end
   end
 
@@ -347,6 +585,7 @@ defmodule Cuckoding.WalkingSkeleton do
              options
            ),
          {:ok, result} <- await_session(session),
+         {:ok, output} <- stage_output(stage_key, attempt, session, result, options),
          {:ok, _stored} <- Adapters.record_session_observation(stored, %{session | state: "done"}),
          elapsed = max(System.monotonic_time(:millisecond) - started, 0),
          {:ok, _timing} <-
@@ -368,11 +607,17 @@ defmodule Cuckoding.WalkingSkeleton do
          session: session,
          request: request,
          result: result,
+         output: output,
          command: completed,
          environment: environment
        }}
     end
   end
+
+  defp stage_output("qa", attempt, session, result, options),
+    do: review_output(%{attempt: attempt, session: session, result: result}, options)
+
+  defp stage_output(_stage_key, _attempt, _session, _result, _options), do: {:ok, nil}
 
   defp fail_stage_attempt(attempt, reason) do
     case Execution.transition_stage_attempt(
@@ -518,12 +763,7 @@ defmodule Cuckoding.WalkingSkeleton do
         "resource_limits" => %{"wall_ms" => 300_000}
       },
       plugins: [],
-      required_output_schema: %{
-        "type" => "object",
-        "properties" => %{"summary" => %{"type" => "string"}},
-        "required" => ["summary"],
-        "additionalProperties" => false
-      },
+      required_output_schema: output_schema(stage_key),
       correlation_id: Cuckoding.Identifier.generate(),
       idempotency_key: "walking:#{attempt.id}:adapter"
     }
@@ -561,10 +801,63 @@ defmodule Cuckoding.WalkingSkeleton do
       |> Map.get(:settings, %{})
       |> Map.get("instructions")
 
-    case instructions do
-      text when is_binary(text) and text != "" -> text <> "\n\n" <> objective(stage_key, task)
-      _missing -> objective(stage_key, task)
+    base =
+      case instructions do
+        text when is_binary(text) and text != "" -> text <> "\n\n" <> objective(stage_key, task)
+        _missing -> objective(stage_key, task)
+      end
+
+    case Keyword.get(options, :review_findings, []) do
+      [] ->
+        base
+
+      findings ->
+        summaries =
+          Enum.map_join(findings, "\n", fn finding ->
+            "- [#{finding["category"]}] #{finding["summary"]}"
+          end)
+
+        base <> "\n\nAddress these validated Review findings:\n" <> summaries
     end
+  end
+
+  defp output_schema("qa") do
+    %{
+      "type" => "object",
+      "properties" => %{
+        "summary" => %{"type" => "string", "minLength" => 1, "maxLength" => 10_000},
+        "findings" => %{
+          "type" => "array",
+          "maxItems" => 20,
+          "items" => %{
+            "type" => "object",
+            "properties" => %{
+              "transition" => %{"type" => "string", "enum" => ~w(fix_code fix_intent)},
+              "severity" => %{
+                "type" => "string",
+                "enum" => ~w(info warning error blocker)
+              },
+              "category" => %{"type" => "string", "minLength" => 1, "maxLength" => 100},
+              "summary" => %{"type" => "string", "minLength" => 1, "maxLength" => 2_000},
+              "evidence" => %{"type" => "object"}
+            },
+            "required" => ~w(transition severity category summary evidence),
+            "additionalProperties" => false
+          }
+        }
+      },
+      "required" => ["summary", "findings"],
+      "additionalProperties" => false
+    }
+  end
+
+  defp output_schema(_stage_key) do
+    %{
+      "type" => "object",
+      "properties" => %{"summary" => %{"type" => "string"}},
+      "required" => ["summary"],
+      "additionalProperties" => false
+    }
   end
 
   defp store_session(attempt, session, options) do
@@ -623,7 +916,7 @@ defmodule Cuckoding.WalkingSkeleton do
     end
   end
 
-  defp write_evidence(environment, run, adapter, stages, artifacts, knowledge) do
+  defp write_evidence(environment, run, adapter, stages, artifacts, knowledge, findings) do
     bundle =
       %{
         "schema_version" => 1,
@@ -650,7 +943,7 @@ defmodule Cuckoding.WalkingSkeleton do
             "failed" => 0
           }
         ],
-        "findings" => [],
+        "findings" => findings,
         "knowledge_citations" => [knowledge]
       }
 
@@ -821,14 +1114,14 @@ defmodule Cuckoding.WalkingSkeleton do
   end
 
   defp objective("qa", task) do
-    "Inspect and test only; do not change files or commit. Review the candidate for: #{task.title}"
+    "Inspect and test only; do not change files or commit. Review the candidate for: #{task.title}. Route every finding to fix_intent or fix_code. Return no findings when the candidate passes."
   end
 
   defp specification(task) do
     "# Specification\n\n## Objective\n\n#{task.title}\n\n## Acceptance\n\n- The candidate branch contains the requested change.\n- QA records a passing result.\n"
   end
 
-  defp qa_report(environment) do
-    "# QA\n\n- Candidate: #{environment.head_sha}\n- Result: pass in deterministic fake-adapter CI lane.\n"
+  defp qa_report(environment, review) do
+    "# QA\n\n- Candidate: #{environment.head_sha}\n- Result: passed Review.\n- Summary: #{review["summary"]}\n"
   end
 end

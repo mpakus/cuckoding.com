@@ -22,6 +22,7 @@ defmodule CuckodingWeb.StatusLive do
      |> assign(
        page_title: "Projects and operations",
        confirming_approval: nil,
+       confirming_completion: nil,
        release_notice: nil,
        refresh_pending: false,
        activity: activity,
@@ -78,6 +79,41 @@ defmodule CuckodingWeb.StatusLive do
 
   def handle_event("cancel-release", _params, socket),
     do: {:noreply, assign(socket, :confirming_approval, nil)}
+
+  def handle_event("prepare-local-completion", %{"id" => approval_id}, socket) do
+    if Enum.any?(socket.assigns.pending_approvals, &(&1.approval.id == approval_id)),
+      do: {:noreply, assign(socket, :confirming_completion, approval_id)},
+      else: {:noreply, put_flash(socket, :error, "That completion choice is no longer pending.")}
+  end
+
+  def handle_event("cancel-local-completion", _params, socket),
+    do: {:noreply, assign(socket, :confirming_completion, nil)}
+
+  def handle_event("complete-locally", %{"id" => approval_id}, socket) do
+    if socket.assigns.confirming_completion == approval_id do
+      case Cuckoding.WalkingSkeleton.complete_locally(approval_id, "local-user") do
+        {:ok, _completion} ->
+          {:noreply,
+           socket
+           |> put_flash(:info, "Run completed locally. No branch was pushed.")
+           |> assign(
+             pending_approvals: Cuckoding.WalkingSkeleton.pending_approvals(),
+             confirming_completion: nil,
+             release_notice: "Run completed locally. No branch was pushed."
+           )}
+
+        {:error, _reason} ->
+          {:noreply,
+           put_flash(
+             socket,
+             :error,
+             "Local completion could not be recorded. Open the run and verify its Review evidence before retrying."
+           )}
+      end
+    else
+      {:noreply, put_flash(socket, :error, "Confirm local completion before closing the run.")}
+    end
+  end
 
   def handle_event("approve-release", %{"id" => approval_id}, socket) do
     if socket.assigns.confirming_approval == approval_id do
@@ -429,15 +465,31 @@ defmodule CuckodingWeb.StatusLive do
             >
               Evidence validation failed: {item.review["error"]}
             </p>
-            <button
-              :if={item.review["outcome"] == "passed" and @confirming_approval != item.approval.id}
-              type="button"
-              phx-click="prepare-release"
-              phx-value-id={item.approval.id}
-              class="min-h-10 rounded-md bg-slate-950 px-4 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
+            <div
+              :if={
+                item.review["outcome"] == "passed" and
+                  @confirming_approval != item.approval.id and
+                  @confirming_completion != item.approval.id
+              }
+              class="flex flex-wrap gap-3"
             >
-              {release_action(item.approval)}
-            </button>
+              <button
+                type="button"
+                phx-click="prepare-release"
+                phx-value-id={item.approval.id}
+                class="min-h-10 rounded-md bg-slate-950 px-4 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
+              >
+                {release_action(item.approval)}
+              </button>
+              <button
+                type="button"
+                phx-click="prepare-local-completion"
+                phx-value-id={item.approval.id}
+                class="min-h-10 rounded-md border border-slate-400 bg-white px-4 font-medium text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2"
+              >
+                Complete locally
+              </button>
+            </div>
             <div
               :if={@confirming_approval == item.approval.id}
               class="space-y-3 rounded-md border border-amber-300 bg-amber-50 p-4"
@@ -461,6 +513,32 @@ defmodule CuckodingWeb.StatusLive do
                   class="min-h-10 rounded-md border border-slate-400 bg-white px-4 font-medium text-slate-950"
                 >
                   Cancel
+                </button>
+              </div>
+            </div>
+            <div
+              :if={@confirming_completion == item.approval.id}
+              class="space-y-3 rounded-md border border-amber-300 bg-amber-50 p-4"
+              role="alert"
+            >
+              <p class="text-sm text-amber-950">
+                Complete this reviewed task without pushing the feature branch or creating a pull request? The branch, worktree, and evidence stay on this machine.
+              </p>
+              <div class="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  phx-click="complete-locally"
+                  phx-value-id={item.approval.id}
+                  class="min-h-10 rounded-md bg-slate-950 px-4 font-medium text-white"
+                >
+                  Confirm local completion
+                </button>
+                <button
+                  type="button"
+                  phx-click="cancel-local-completion"
+                  class="min-h-10 rounded-md border border-slate-400 bg-white px-4 font-medium text-slate-950"
+                >
+                  Keep reviewing
                 </button>
               </div>
             </div>

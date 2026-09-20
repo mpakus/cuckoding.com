@@ -272,7 +272,32 @@ defmodule Cuckoding.Workflows do
     end
   end
 
-  def record_finding(attrs), do: insert(Finding, attrs)
+  def record_finding(attrs) do
+    changeset =
+      Finding.create_changeset(
+        %Finding{},
+        Map.put_new(attrs, :id, Identifier.generate())
+      )
+
+    with {:ok, finding} <- Ecto.Changeset.apply_action(changeset, :insert),
+         {:ok, {_event, stored}} <-
+           Cuckoding.Execution.EventStore.append(
+             finding.run_id,
+             %{
+               event_type: "finding.created",
+               public_summary: "Review finding recorded",
+               payload: %{
+                 "finding_id" => finding.id,
+                 "stage_attempt_id" => finding.stage_attempt_id,
+                 "severity" => finding.severity,
+                 "category" => finding.category
+               }
+             },
+             fn repo, _sequence -> repo.insert(changeset) end
+           ) do
+      {:ok, stored}
+    end
+  end
 
   def add_dependency(task_id, depends_on_task_id, kind \\ "blocks") do
     Repo.transaction(fn ->

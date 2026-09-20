@@ -2,8 +2,8 @@
 
 ## Current-flow audit — 2026-09-20
 
-Source baseline: `72fac12` (`feat(agents): reuse provider sign-in and select models`).
-Tasks 1015, 1018, and 1019 reconcile the product-flow documentation with the
+Source baseline before task 1020: `cb81c48` (`fix(ui): make messages safe and actionable`).
+Tasks 1015, 1018, 1019, and 1020 reconcile the product-flow documentation with the
 implemented agent-first catalog, explicit legacy bindings, shared provider
 authorization, and independent model selection. This remains a source audit,
 not authenticated provider, beta, or signed-release acceptance. The original
@@ -22,6 +22,8 @@ planning-pack audit is retained below as history.
 | Review planning | `/runs/:id`: authenticate/start analysis, inspect proposals, import selected Draft cards | `lib/cuckoding_web/live/run_live.ex`, `lib/cuckoding/board_task_intake.ex` |
 | Execute task | `/boards/:board_id/tasks/:id`: mark Ready, Prepare run; run page verifies authentication and starts workflow | `lib/cuckoding_web/live/task_live.ex`, `lib/cuckoding/guided_run.ex` |
 | Monitor execution | `/runs/:id`, `/agents`, `/agents/:id`; durable state with LiveView refresh | `lib/cuckoding_web/live/run_live.ex`, `lib/cuckoding_web/live/agent_floor_live.ex` |
+| Resolve Review | Blocking findings durably return to Specifications or Coding; a passing run links to the dashboard choice | `lib/cuckoding/walking_skeleton.ex`, `lib/cuckoding/workflows/definition.ex` |
+| Complete | Dashboard Attention: confirm local completion without push, or separately review and approve release | `lib/cuckoding_web/live/status_live.ex`, `lib/cuckoding/walking_skeleton.ex` |
 
 Planning and execution require a clean committed base. Registration does not.
 A planning prompt can read committed `docs/` files with read-only inspection
@@ -44,20 +46,13 @@ before an agent session exists. Kanban columns are lifecycle states, not stages.
    and explicit legacy board/queued-run bindings are implemented. Per-project
    impact lists and confirmed revoke/delete controls remain absent. Existing
    running/completed snapshots are intentionally immutable.
-3. **High — the launcher does not execute the accepted workflow branches.**
-   `lib/cuckoding/workflows/definition.ex` defines Review returns, but
-   `lib/cuckoding/walking_skeleton.ex` runs a fixed three-stage sequence and
-   waits for human release approval. GuidedRun does not connect the finding
-   evaluator to rerun scheduling. Local completion without release is also
-   absent from this launch path. Domain evaluator tests are not evidence that
-   the user can complete those paths from a board.
-4. **Medium — workflow customization is narrower than the original design.**
+3. **Medium — workflow customization is narrower than the original design.**
    Custom roles can be saved, but the default delivery launcher resolves the
    three built-in roles. The board UI has no workflow picker, assignment editor,
    or budget editor. OpenCode and Custom Agent remain setup-only; Cursor retains
    run-owned task configuration. A saved connection does not imply execution
    support.
-5. **Release gate — local implementation is not beta acceptance.** Automated
+4. **Release gate — local implementation is not beta acceptance.** Automated
    quality gates and simulated recovery are implementation evidence, not the
    multi-day dogfood, 3–5 stakeholder-led interviews, real-provider concurrency,
    or clean-Mac signed release-candidate acceptance required by tasks 1003,

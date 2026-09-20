@@ -5,6 +5,7 @@ defmodule Cuckoding.WalkingSkeletonTest do
   import Phoenix.LiveViewTest
 
   alias Cuckoding.Execution.Command
+  alias Cuckoding.Execution.GitService
   alias Cuckoding.Execution.LocalBareRemote
   alias Cuckoding.Execution.RunEvent
   alias Cuckoding.Execution.StageAttempt
@@ -53,6 +54,11 @@ defmodule Cuckoding.WalkingSkeletonTest do
       send(
         Keyword.fetch!(options, :caller),
         {:role_stage, tag, request.stage_key, request.objective}
+      )
+
+      send(
+        Keyword.fetch!(options, :caller),
+        {:role_schema, tag, request.stage_key, request.required_output_schema}
       )
 
       with {:ok, session} <- FakeAdapter.start(request, options),
@@ -234,6 +240,11 @@ defmodule Cuckoding.WalkingSkeletonTest do
     assert_receive {:role_stage, :review_agent, "qa", review}
     assert review =~ "Review independently."
 
+    assert_receive {:role_schema, :review_agent, "qa", schema}
+    assert schema["required"] == ["summary", "findings"]
+    assert schema["additionalProperties"] == false
+    assert schema["properties"]["findings"]["maxItems"] == 20
+
     sessions =
       Repo.all(
         from(session in Cuckoding.Execution.AgentSession,
@@ -252,6 +263,153 @@ defmodule Cuckoding.WalkingSkeletonTest do
              {"implementer", "fake", "implementation-1", nil},
              {"reviewer", "review_agent", "review-1", "gpt-6-astra"}
            ]
+  end
+
+  test "review findings rerun the earliest affected stage within the fixed budget", fixture do
+    assert {:ok, created} = WalkingSkeleton.create(fixture.attrs)
+    changes = :atomics.new(1, [])
+
+    implementation = fn environment ->
+      revision = :atomics.add_get(changes, 1, 1)
+
+      File.write!(
+        Path.join(environment.worktree_path, "REVIEW_LOOP.txt"),
+        "revision #{revision}\n"
+      )
+
+      GitService.commit_candidate(
+        environment,
+        ["REVIEW_LOOP.txt"],
+        "fix: address review attempt #{revision}"
+      )
+    end
+
+    review = fn
+      1 ->
+        review_output("Clarify intent", "fix_intent", "requirements")
+
+      2 ->
+        review_output("Fix implementation", "fix_code", "correctness")
+
+      3 ->
+        %{"summary" => "Review passed", "findings" => []}
+    end
+
+    assert {:ok, pending} =
+             WalkingSkeleton.run(created,
+               simulate_sleep_gap: false,
+               fake_implementation: implementation,
+               fake_review_output: review
+             )
+
+    attempts =
+      Repo.all(
+        from(attempt in StageAttempt,
+          where: attempt.run_id == ^created.run.id,
+          order_by: [asc: attempt.inserted_at, asc: attempt.id],
+          select: {attempt.stage_key, attempt.attempt, attempt.state}
+        )
+      )
+
+    assert Enum.filter(attempts, &(elem(&1, 0) == "specification")) == [
+             {"specification", 1, "succeeded"},
+             {"specification", 2, "succeeded"}
+           ]
+
+    assert Enum.filter(attempts, &(elem(&1, 0) == "development")) == [
+             {"development", 1, "succeeded"},
+             {"development", 2, "succeeded"},
+             {"development", 3, "succeeded"}
+           ]
+
+    assert Enum.filter(attempts, &(elem(&1, 0) == "qa")) == [
+             {"qa", 1, "succeeded"},
+             {"qa", 2, "succeeded"},
+             {"qa", 3, "succeeded"}
+           ]
+
+    findings =
+      Repo.all(
+        from(finding in Cuckoding.Workflows.Finding,
+          where: finding.run_id == ^created.run.id,
+          order_by: finding.inserted_at
+        )
+      )
+
+    assert Enum.map(findings, & &1.evidence_json["transition"]) == ["fix_intent", "fix_code"]
+    assert pending.run.state == "waiting"
+    assert Repo.aggregate(Cuckoding.Workflows.Approval, :count) == 1
+
+    event_types =
+      Repo.all(
+        from(event in RunEvent,
+          where: event.run_id == ^created.run.id,
+          select: event.event_type
+        )
+      )
+
+    assert Enum.count(event_types, &(&1 == "finding.created")) == 2
+  end
+
+  test "review attempt budget stops an endless correction loop", fixture do
+    assert {:ok, created} = WalkingSkeleton.create(fixture.attrs)
+    changes = :atomics.new(1, [])
+
+    implementation = fn environment ->
+      revision = :atomics.add_get(changes, 1, 1)
+      File.write!(Path.join(environment.worktree_path, "REVIEW_BUDGET.txt"), "#{revision}\n")
+
+      GitService.commit_candidate(
+        environment,
+        ["REVIEW_BUDGET.txt"],
+        "fix: review budget attempt #{revision}"
+      )
+    end
+
+    assert {:error, :review_attempt_budget_exceeded} =
+             WalkingSkeleton.run(created,
+               simulate_sleep_gap: false,
+               fake_implementation: implementation,
+               fake_review_output: fn _attempt ->
+                 review_output("Still failing", "fix_code", "correctness")
+               end
+             )
+
+    assert Repo.aggregate(
+             from(attempt in StageAttempt,
+               where: attempt.run_id == ^created.run.id and attempt.stage_key == "qa"
+             ),
+             :count
+           ) == 3
+
+    refute Repo.exists?(
+             from(approval in Cuckoding.Workflows.Approval,
+               where: approval.run_id == ^created.run.id
+             )
+           )
+  end
+
+  test "review rejects untrusted output outside the closed route schema", fixture do
+    assert {:ok, created} = WalkingSkeleton.create(fixture.attrs)
+
+    invalid =
+      review_output("Unsupported route", "fix_code", "correctness")
+      |> put_in(["findings", Access.at(0), "transition"], "release")
+
+    assert {:error, :invalid_review_output} =
+             WalkingSkeleton.run(created,
+               simulate_sleep_gap: false,
+               fake_review_output: invalid
+             )
+
+    assert %StageAttempt{state: "failed"} =
+             Repo.get_by!(StageAttempt, run_id: created.run.id, stage_key: "qa", attempt: 1)
+
+    refute Repo.exists?(
+             from(approval in Cuckoding.Workflows.Approval,
+               where: approval.run_id == ^created.run.id
+             )
+           )
   end
 
   test "guided onboarding validates the repository before creating a queued run", fixture do
@@ -360,6 +518,74 @@ defmodule Cuckoding.WalkingSkeletonTest do
     view |> element("#{selector} button", "Approve and release") |> render_click()
     assert render(view) =~ "Approved release handoff completed."
     refute has_element?(view, selector)
+  end
+
+  test "LiveView explicitly completes a reviewed run without release", %{conn: conn} = fixture do
+    assert {:ok, created} = WalkingSkeleton.create(fixture.attrs)
+    assert {:ok, pending} = WalkingSkeleton.run(created, simulate_sleep_gap: false)
+
+    assert {:ok, run_view, _html} = live(conn, ~p"/runs/#{created.run.id}")
+    assert has_element?(run_view, "#completion-choice-heading", "Review passed")
+    assert has_element?(run_view, "a", "Open completion choices")
+
+    assert {:ok, view, _html} = live(conn, ~p"/")
+
+    selector = "#approval-#{pending.approval.id}"
+    assert has_element?(view, "#{selector} button", "Complete locally")
+
+    view |> element("#{selector} button", "Complete locally") |> render_click()
+    assert has_element?(view, "#{selector} [role=alert]", "without pushing")
+    assert has_element?(view, "#{selector} button", "Confirm local completion")
+
+    view |> element("#{selector} button", "Confirm local completion") |> render_click()
+    assert render(view) =~ "Run completed locally. No branch was pushed."
+    refute has_element?(view, selector)
+
+    assert Repo.get!(Cuckoding.Execution.Run, created.run.id).state == "done"
+    assert Repo.get!(Cuckoding.Workflows.Task, created.task.id).state == "done"
+    assert Repo.get!(Cuckoding.Workflows.Approval, pending.approval.id).decision == "rejected"
+  end
+
+  test "local completion keeps evidence and never invokes release handoff", fixture do
+    assert {:ok, created} = WalkingSkeleton.create(fixture.attrs)
+    assert {:ok, pending} = WalkingSkeleton.run(created, simulate_sleep_gap: false)
+
+    assert {:ok, completed} =
+             WalkingSkeleton.complete_locally(pending.approval.id, "tester")
+
+    assert completed.run.state == "done"
+    assert completed.task.state == "done"
+    assert completed.approval.decision == "rejected"
+    assert completed.attempt.state == "cancelled"
+    assert File.dir?(pending.environment.worktree_path)
+    assert File.exists?(Path.join([pending.environment.run_dir, "artifacts", "evidence.json"]))
+
+    {_output, status} =
+      System.cmd(@git, ["show-ref", "--verify", "refs/heads/#{created.run.branch}"],
+        cd: fixture.bare,
+        stderr_to_stdout: true
+      )
+
+    assert status != 0
+
+    event_types =
+      Repo.all(
+        from(event in RunEvent,
+          where: event.run_id == ^created.run.id,
+          select: event.event_type
+        )
+      )
+
+    assert "run.completed_locally" in event_types
+    refute "release.handoff_completed" in event_types
+
+    refute Repo.exists?(
+             from(attempt in StageAttempt,
+               where:
+                 attempt.run_id == ^created.run.id and
+                   attempt.stage_key == "release_handoff"
+             )
+           )
   end
 
   test "approved handoff refuses a protected branch", fixture do
@@ -573,6 +799,21 @@ defmodule Cuckoding.WalkingSkeletonTest do
   defp configure_identity!(repo) do
     git!(repo, ["config", "user.name", "Cuckoding Test"])
     git!(repo, ["config", "user.email", "cuckoding@example.invalid"])
+  end
+
+  defp review_output(summary, transition, category) do
+    %{
+      "summary" => summary,
+      "findings" => [
+        %{
+          "transition" => transition,
+          "severity" => "error",
+          "category" => category,
+          "summary" => summary,
+          "evidence" => %{"check" => category}
+        }
+      ]
+    }
   end
 
   defp git!(directory, args) do

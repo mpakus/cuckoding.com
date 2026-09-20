@@ -107,9 +107,12 @@ provider process starts from a board or task form.
 `Cuckoding.GuidedRun` launches that queued default workflow after authorization
 verification. It resolves the Specifications, Coding, and Review adapters
 separately from the immutable run snapshot, while `WalkingSkeleton` remains the
-bounded sequential executor and release-evidence path. The workflow definition's
-Review-return evaluator is not connected to this launcher's scheduling; the
-current path waits for release approval, without a local-complete alternative.
+bounded executor and release-evidence path. Review uses a closed structured
+output schema; host validation persists each finding with an event, resolves its
+`fix_intent` or `fix_code` transition through `Definition`, and reruns from the
+earliest affected stage. Three Review attempts are allowed. A passing run waits
+for the human to complete locally in one event/projection transaction or approve
+the existing host-side release handoff.
 `AgentRuntime` deduplicates authentication checks by account and executable/helper
 settings. `SharedProfile` resolves only private app-owned account directories;
 login, probe and launch use the same identity. `AgentBindings` stores explicit

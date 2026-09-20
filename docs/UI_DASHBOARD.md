@@ -151,11 +151,12 @@ board creation accepts name, description, and concurrency; workflow selection,
 budget editing, and board-assignment editing are not exposed there. Kanban
 columns represent task lifecycle states, not Specifications/Coding/Review stages.
 
-The intended flow is Specifications → Coding → Review → Complete, with Review
-returns and optional release. The current launcher instead runs the three agent
-stages sequentially and waits for human release approval. Return-loop execution
-and local completion without release are not wired into that launcher; see
-[FLOW.md](FLOW.md). No release is triggered by project creation.
+The shipped default flow is Specifications → Coding → Review. Blocking Review
+findings return to Specifications or Coding and rerun downstream stages within
+the fixed attempt budget. Passing Review adds an Attention card with separate,
+confirmed **Complete locally** and **Review release** actions. Local completion
+does not push and preserves the branch, worktree, and evidence. No release is
+triggered by project creation.
 
 Cards show title, priority, dependencies, current role, runtime/model badge, attempt count, elapsed time, budget consumption, blocking reason, and a knowledge indicator (number of items injected in the current stage). Drag-and-drop is allowed only for transitions the state machine permits, with equivalent keyboard and menu actions.
 

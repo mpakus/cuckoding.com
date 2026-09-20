@@ -2,9 +2,9 @@
 
 ## Implemented loop
 
-`Cuckoding.WalkingSkeleton` creates one project, immutable policy and default-workflow snapshot, one board, five role assignments, one task, one run, and one owned worktree. It then runs specification, development, and QA through one adapter, creates owner-only evidence and project-scoped knowledge-candidate files, and stops in the durable `waiting` state for human approval. Specification and QA use read-only provider grants. Development may leave a patch for the host Git service to validate and commit when the provider sandbox correctly denies access to the worktree's Git metadata.
+`Cuckoding.WalkingSkeleton` creates one project, immutable policy and default-workflow snapshot, one board, five role assignments, one task, one run, and one owned worktree. It runs Specifications, Coding, and Review through the configured role adapters. Review must return a closed structured result. The host validates and persists findings, routes blockers to Specifications or Coding, and reruns downstream stages for at most three Review attempts. A passing result creates owner-only evidence and a project-scoped knowledge candidate, then stops in the durable `waiting` state for human choice. Specifications and Review use read-only provider grants. Coding may leave a patch for the host Git service to validate and commit when the provider sandbox correctly denies access to the worktree's Git metadata.
 
-The status LiveView lists pending approvals and shows the candidate base/head, changed files, tests, typed artifacts, and project-knowledge citations. Release is a two-step keyboard-accessible action: **Review release**, then **Approve and release**. Approval is persisted before the system release stage calls the configured `VcsHost`. `LocalBareRemote` accepts only an absolute existing local bare `origin`; `GitHubVcsHost` fetches an opaque credential through `SecretStore`, pushes the candidate, and creates a draft pull request. Both require a clean recorded candidate revision, an approval for the same run, a non-protected branch, and a non-force exact branch refspec. If the handoff fails after approval, the attempt is durably failed and the approved release remains visible as **Retry release**; startup recovery can resume a waiting handoff without creating another approval decision. Merge remains outside the MVP workflow.
+The status LiveView lists pending choices and shows the candidate base/head, changed files, tests, typed artifacts, and project-knowledge citations. **Complete locally** requires visible confirmation and atomically marks the release decision rejected, the waiting human attempt cancelled, and the run/task done; no `VcsHost` is invoked, and the branch, worktree, and evidence remain. Release is a separate two-step keyboard-accessible action: **Review release**, then **Approve and release**. Approval is persisted before the system release stage calls the configured `VcsHost`. `LocalBareRemote` accepts only an absolute existing local bare `origin`; `GitHubVcsHost` fetches an opaque credential through `SecretStore`, pushes the candidate, and creates a draft pull request. Both require a clean recorded candidate revision, an approval for the same run, a non-protected branch, and a non-force exact branch refspec. If the handoff fails after approval, the attempt is durably failed and the approved release remains visible as **Retry release**; startup recovery can resume a waiting handoff without creating another approval decision. Merge remains outside the MVP workflow.
 
 The simulated sleep gap occurs while the specification attempt is active. The adapter checkpoint is persisted, the run hibernates, the worktree and policy marker are revalidated, and resume reuses the same attempt ID. The temporary preview-port lease used by the existing lifecycle is released before the stage continues.
 
@@ -18,7 +18,7 @@ Each run writes owner-only files under its run directory:
 - `artifacts/release.json` after the approved push
 - `knowledge/candidates/walking-skeleton.md`, labeled project-only and unreviewed
 
-Every file creation, stage transition, checkpoint, approval, candidate revision, and release handoff also has an ordered durable run event. The branch remains available in the local bare remote after the run reaches `done`.
+Every file creation, finding, stage transition, checkpoint, completion choice, candidate revision, and release handoff has an ordered durable run event. Released branches remain available in the local bare remote. Locally completed branches remain only in the owned local worktree unless the user later exports them outside this workflow.
 
 ## Fake and replacement ledger
 
@@ -49,7 +49,7 @@ attrs = %{
 pending.approval.id
 ```
 
-Open `http://127.0.0.1:4000`, review the pending item, confirm the release, and verify the new `feature/walking-*` reference in the bare remote. The focused automated demo performs this same path with real Git repositories and LiveView clicks.
+Open `http://127.0.0.1:4000`, review the pending item, then either confirm local completion and verify no remote branch was created, or confirm release and verify the new `feature/walking-*` reference in the bare remote. Focused automated tests cover both paths with real temporary Git repositories and LiveView clicks.
 
 For an opt-in real provider run, set `adapter_key` during `create/1`, pass the matching adapter module to `run/2`, disable the fake-only sleep simulation, and supply only verified run-scoped authentication options. Global provider credentials must not be copied into the run directory.
 

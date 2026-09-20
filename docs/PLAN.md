@@ -108,14 +108,14 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 - [x] Crash, power-loss, and sleep recovery drills.
 - [x] Task 1008: safe public-message boundary and actionable empty states across
   Phoenix UI surfaces; raw internal errors are excluded from browser alerts.
-- [ ] Complete the accepted project-first product flow (setup and task surfaces are implemented; workflow integration remains):
+- [x] Complete the accepted project-first product flow:
   - [x] Global dashboard lists projects, health, resources, active work, and attention.
   - [x] Add-project wizard separates identity, repository/branch, and review; project settings versions multiple agents and role assignments.
   - [x] Project settings creates boards independently from project registration.
   - [x] Board task creation and run preparation use the default Specifications → Coding → Review workflow and copied board role assignments.
   - [x] Board prompts create planning runs; validated, user-selected proposals become Draft tasks.
   - [x] Saved machine-local agent metadata can be attached across projects without rewriting old board/run snapshots.
-  - [ ] Connect Review findings to actual Specifications/Coding reruns and support local completion without release; the current launcher runs sequential stages then waits for release approval.
+  - [x] Task 1020: host-validated Review findings rerun Specifications/Coding within a fixed budget; passing runs can complete locally without release or continue to approved handoff.
 - [ ] Task 1018: complete real-provider acceptance of [agent-first authorization](AGENT_AUTHORIZATION_FLOW.md). Global management, shared profiles, automatic checks, grouped roles and explicit legacy bindings are implemented and regression-tested.
 - [x] Task 1019: reuse a compatible provider sign-in across named agents by default; select each agent's model independently and preserve it in planning/workflow requests. Additive migration and regression checks preserve existing accounts. Provider-controlled expiry and real authenticated concurrency remain task 1018 gates.
 - [ ] Verify one saved login across isolated runs in two projects for each supported runtime, including refresh/restart/revocation and concurrency; current configuration tests are not proof of credential reuse.
@@ -123,8 +123,7 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 - [ ] Dogfood and controlled beta.
 - [ ] MVP release readiness.
 
-Remaining gate order: connect Review findings to Specifications/Coding reruns
-and local completion; finish real-provider and shared-account lifecycle evidence;
+Remaining gate order: finish real-provider and shared-account lifecycle evidence;
 run controlled beta; then execute task 1004 against one frozen signed release
 candidate. Automated tests never substitute for those external acceptance gates.
 

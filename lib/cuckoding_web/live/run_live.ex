@@ -235,6 +235,23 @@ defmodule CuckodingWeb.RunLive do
           >Findings</a>
         </nav>
 
+        <section
+          :if={@detail.run.state == "waiting" and @detail.run.wait_reason == "approval"}
+          aria-labelledby="completion-choice-heading"
+          class="space-y-3 rounded-lg border border-emerald-300 bg-emerald-50 p-5"
+        >
+          <h2 id="completion-choice-heading" class="text-xl font-semibold text-emerald-950">
+            Review passed
+          </h2>
+          <p class="text-sm text-emerald-950">
+            Choose whether to complete locally or approve the host-side release handoff.
+          </p>
+          <.link
+            navigate={~p"/"}
+            class="inline-flex min-h-11 items-center rounded-md bg-slate-950 px-4 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
+          >Open completion choices</.link>
+        </section>
+
         <p role="status" aria-live="polite" class="text-sm text-emerald-900">{@notice}</p>
         <p :if={@error} id="run-error" role="alert" class="text-sm font-medium text-red-800">
           {@error}

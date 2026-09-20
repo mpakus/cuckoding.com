@@ -61,20 +61,22 @@ flowchart TD
     Q --> G2{"Review gate"}
     G2 -->|fix implementation| D
     G2 -->|improve specification| S
-    G2 -->|pass| X["Complete"]
-    X -. optional .-> H["Human release approval"]
-    H -->|approve| R["Release handoff (system)"]
-    H -->|changes| D
+    G2 -->|pass| H{"Human completion choice"}
+    H -->|complete locally| X["Complete: branch stays local"]
+    H -->|approve release| R["Release handoff (system)"]
     R --> Z["Released: branch pushed, draft PR"]
 ```
 
-The domain supports versioned workflow templates; the current creation UI uses
-`Definition.default()`, whose Review pass routes to human approval and release,
-not an optional local Complete stage. `GuidedRun` currently invokes the bounded
-`WalkingSkeleton.run/2` sequence: Specifications → Coding → Review → waiting for
-release approval. That path does not invoke `Definition.route_findings/3` to
-schedule Review return loops. Wiring the validated definition into execution,
-including local completion without release, remains an implementation gap.
+The current creation UI uses `Definition.default()`. `GuidedRun` invokes the
+bounded `WalkingSkeleton.run/2` executor. Review provider output is parsed from
+the run-owned artifact and revalidated by the host against a closed schema.
+Error and blocker findings are persisted with their evidence, routed through
+`Definition.route_findings/3`, and restart the loop from Specifications or
+Coding; mixed findings restart at Specifications. The third failing Review
+exhausts the fixed MVP attempt budget and blocks the run. Passing Review creates
+one human choice: the existing approved release, or an atomic local completion
+that marks the run/task done, rejects only the release handoff, and preserves the
+local branch, worktree, and evidence.
 Multiple boards and their runs execute independently,
 subject to project and machine resource budgets. Kanban columns show task
 lifecycle states; workflow stages appear in the run timeline.
@@ -99,7 +101,7 @@ lifecycle states; workflow stages appear in the run timeline.
 | `paused` | Soft stop; runtime may remain allocated | Resume, hibernate, stop |
 | `hibernated` | Compute released; durable state preserved | Resume, stop, archive |
 | `blocked` | Cannot continue automatically | Retry, edit policy, reassign, stop |
-| `done` | Release handoff completed or task closed | Extract knowledge, archive, reopen as new run |
+| `done` | Reviewed task completed locally or release handoff completed | Extract knowledge, archive, reopen as new run |
 | `failed` | Retry policy exhausted | Retry as new attempt, diagnose, stop |
 | `cancelled` | Explicitly ended | Archive or restart as new run |
 | `archived` | Removed from active boards; history kept | Restore, delete (confirmed) |
@@ -193,7 +195,7 @@ The evaluator checks attempt, active-time, wall-time, token, and cost budgets; r
 
 - A retry always creates a new stage attempt.
 - Automatic retry is allowed only for classified transient failures (network, rate limit, provider 5xx, process killed by sleep/wake).
-- Review findings route to the responsible stage with structured evidence.
+- Review findings route to the responsible stage with structured evidence; the fixed MVP ceiling is three Review attempts.
 - Changing requirements invalidates downstream stage results and creates a new specification revision.
 - Every retry increments cost and duration budgets; budget exhaustion moves the task to `waiting` for approval.
 - Idempotency keys prevent a retry request from launching duplicate workers.
@@ -207,7 +209,7 @@ The evaluator checks attempt, active-time, wall-time, token, and cost budgets; r
 4. Before QA, record a clean status or explicitly list uncommitted files.
 5. QA runs on the same immutable candidate revision when possible.
 6. The host validates the typed evidence bundle, verifies artifact and knowledge-citation digests, and shows the candidate base/head, changed files, tests, artifacts, and citations for human approval.
-7. The release handoff stage revalidates that evidence, refuses protected branches or missing approval, and then pushes the branch. The GitHub implementation fetches the credential only inside the host service and creates a draft PR whose body carries the test evidence, artifacts, and knowledge citations.
+7. After passing Review, the human may complete locally; this changes durable state without calling a VCS host and leaves the branch/worktree/evidence intact. Otherwise the release handoff stage revalidates that evidence, refuses protected branches or missing approval, and then pushes the branch. The GitHub implementation fetches the credential only inside the host service and creates a draft PR whose body carries the test evidence, artifacts, and knowledge citations.
 8. Merge remains outside the autonomous workflow for MVP.
 
 Before resume, the host Git service compares the current default branch, checked-out worktree branch, recorded head SHA, and ownership marker with the durable environment. Any mismatch remains blocked until the user explicitly chooses rebase, continue unchanged, or restart; task 0301 does not perform any of those destructive or history-changing actions.

@@ -6,6 +6,7 @@
 - Tests that touch time use injected continuous-monotonic, uptime, and wall sources. Sleep gaps are continuous-minus-uptime divergence; wall time supplies UTC timestamps and must not trigger a gap by itself.
 - Failure evidence is preserved: run/event IDs, redacted logs, process inspection, database snapshot metadata, artifact hashes. No raw secrets or unrelated source data.
 - Normal CI never depends on paid providers; real-provider smoke tests are opt-in, budget-capped, and redact captured data before fixture review.
+- The deterministic workflow lane covers closed Review output validation, Specifications/Coding return routes, mixed-stage ordering, the three-Review budget, durable finding events, and both confirmed completion choices. Local-completion tests assert that evidence/worktree remain and no remote ref or release attempt exists.
 
 ## Test matrix by component
 

@@ -92,9 +92,11 @@ creation, task creation, and task start are separate participant actions. Do not
 substitute the legacy internal walking-skeleton constructor for those UI steps;
 those project/board/task surfaces are now implemented. Enrollment still requires
 the entry gates, a fresh signed build, and demonstrated current provider behavior;
-local fixture tests do not establish those outcomes. The current launcher is
-sequential and waits for release approval; the required QA-return observation
-below cannot be marked passed until return-loop scheduling is integrated.
+local fixture tests do not establish those outcomes. The launcher now persists
+and routes host-validated Review findings with a three-Review ceiling. Beta must
+still observe a real provider return to Specifications or Coding. After Review
+passes, exercise **Complete locally** and verify no push, or separately approve
+release; record which path was chosen.
 
 The project page shows a saved Codex agent's complete sign-in command
 in a read-only field with an adjacent copy button. The command selects Keychain

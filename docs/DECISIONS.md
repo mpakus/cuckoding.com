@@ -9,6 +9,16 @@ This file records accepted product-level decisions. Add a dated ADR section when
 - **Boundary:** A nullable, indexed self-reference in `provider_accounts` preserves old profile paths. Only root references with the same runtime/executable/helper are allowed. References are immutable once saved; changing provider identity means adding an agent, not redirecting historical runs. Runtime checks and status resolve the root; tasks keep distinct instructions and model IDs.
 - **Retention:** No application-imposed sign-out timer or token copying. Provider-native credential storage/refresh remains authoritative; revoked or non-refreshable sessions require reconnect. Years-long validity is not promised. Shared sign-in also shares provider history under ADR-025.
 
+## ADR-027 — Bounded review returns and local completion
+
+- **Date:** 2026-09-20
+- **Status:** Accepted and implemented in task 1020.
+- **Context:** The published default workflow routes Review findings back to Specifications or Coding, but the launcher currently runs each stage once and always requests release approval. Product flow also promises completion without publishing the branch.
+- **Decision:** Review returns a closed, host-validated finding list. Error and blocker findings carry `fix_intent` or `fix_code`; the launcher persists them, chooses the earliest required stage, and reruns that stage plus its downstream stages. Three Review attempts is the fixed MVP budget. A passing Review waits for a human choice: release through the existing host-side handoff, or complete locally. Local completion rejects only the release handoff, cancels the waiting human stage, records the durable state transitions, and marks the run/task done without invoking a VCS host.
+- **Alternatives:** Add a second workflow service (rejected because durable attempts and transitions already exist); let the reviewer execute arbitrary stage names (rejected because output is untrusted); treat local completion as release approval (rejected because it would blur the no-push boundary).
+- **Consequences:** Timeline attempts and findings explain every return. Mixed findings restart from Specifications because Coding depends on accepted intent. Branch, worktree, and evidence remain available after local completion. Budget exhaustion blocks the run for human inspection.
+- **Verification:** Structured-output validation, route/budget regression tests, no-handoff local-completion test, accessible LiveView control, transition/property/scheduler regression, and full quality gates.
+
 ## ADR-001 — Local-first desktop architecture (superseded by ADR-011)
 
 - **Status:** Superseded
@@ -181,6 +191,7 @@ global catalog; [CONFIGURATION.md](CONFIGURATION.md) defines snapshot behavior.
 The accepted Review-return/local-complete flow remains a target: the current
 launcher runs sequential stages then waits for release approval. The domain
 definition's return transitions are not yet connected to rerun scheduling.
+Task 1020 and ADR-027 later close this recorded gap.
 
 ## ADR-024 — Global agent catalog with credential-only authorization reuse
 
