@@ -115,7 +115,7 @@ defmodule CuckodingWeb.KnowledgeReviewLive do
             Candidates
           </h2>
           <p :if={@candidates == []} class="rounded-md border border-slate-300 p-5 text-slate-700">
-            No knowledge candidates have been extracted.
+            No candidates yet. Complete a run and extract its knowledge, then return here to review it.
           </p>
           <ol :if={@candidates != []} class="space-y-4">
             <li :for={candidate <- @candidates}>
@@ -422,8 +422,6 @@ defmodule CuckodingWeb.KnowledgeReviewLive do
     |> Enum.max_by(& &1.version, fn -> nil end)
   end
 
-  defp humanize(reason) when is_atom(reason),
-    do: reason |> Atom.to_string() |> String.replace("_", " ")
-
-  defp humanize(_reason), do: "The knowledge command failed."
+  defp humanize(_reason),
+    do: "The knowledge change could not be completed. Reload the review state and try again."
 end

@@ -10,6 +10,7 @@ defmodule CuckodingWeb.ProjectEditLive do
   alias Cuckoding.Projects
   alias Cuckoding.ProjectWorkflow
   alias Cuckoding.Workflows
+  alias CuckodingWeb.PublicError
 
   @default_role_keys MapSet.new(~w(spec_writer implementer reviewer))
 
@@ -940,18 +941,23 @@ defmodule CuckodingWeb.ProjectEditLive do
     do: "The built-in workflow roles must remain configured."
 
   defp error_message(%Ecto.Changeset{} = changeset),
-    do: "Configuration could not be saved: #{inspect(changeset.errors)}"
+    do: PublicError.changeset("Project settings could not be saved", changeset)
 
-  defp error_message(reason), do: "Configuration could not be saved: #{inspect(reason)}"
+  defp error_message(_reason),
+    do:
+      PublicError.unexpected(
+        "Project settings could not be saved",
+        "Reload the project, review the agent and role assignments, and try again."
+      )
 
   defp authorization_error(%Cuckoding.Adapters.Types.Error{code: :executable_not_found}),
     do: "The saved runtime executable no longer exists. Update the agent path and try again."
 
-  defp authorization_error(%Cuckoding.Adapters.Types.Error{code: code}),
-    do: "Authorization could not be checked (#{code}). Verify the executable and try again."
+  defp authorization_error(%Cuckoding.Adapters.Types.Error{}),
+    do: "Authorization could not be checked. Verify the executable and try again."
 
-  defp authorization_error(reason),
-    do: "Authorization could not be checked: #{inspect(reason)}"
+  defp authorization_error(_reason),
+    do: "Authorization could not be checked. Verify the agent settings and try again."
 
   defp board_error(:roles_not_configured),
     do: "Save an agent assignment for every built-in role before creating a board."
@@ -961,9 +967,14 @@ defmodule CuckodingWeb.ProjectEditLive do
       "Save your agents and roles before creating a board. This keeps the board from using older settings."
 
   defp board_error(%Ecto.Changeset{} = changeset),
-    do: "Board could not be created: #{inspect(changeset.errors)}"
+    do: PublicError.changeset("Board could not be created", changeset)
 
-  defp board_error(reason), do: "Board could not be created: #{inspect(reason)}"
+  defp board_error(_reason),
+    do:
+      PublicError.unexpected(
+        "Board could not be created",
+        "Review the board details and current role assignments, then try again."
+      )
 
   defp default_role?(key), do: MapSet.member?(@default_role_keys, key)
 

@@ -60,7 +60,7 @@ defmodule CuckodingWeb.KnowledgeGrowthLive do
             Items by kind and status
           </h2>
           <p :if={@growth.item_counts == []} class="text-sm text-slate-700">
-            No knowledge items have been indexed.
+            No knowledge items yet. Complete a run, extract candidates, and accept reviewed project knowledge to build this inventory.
           </p>
           <div :if={@growth.item_counts != []} class="overflow-x-auto">
             <table class="min-w-full border-collapse text-left text-sm">
@@ -86,7 +86,9 @@ defmodule CuckodingWeb.KnowledgeGrowthLive do
         <section aria-labelledby="timeline-heading" class="space-y-4">
           <h2 id="timeline-heading" class="text-xl font-semibold text-slate-950">Items over time</h2>
           <p class="text-sm text-slate-700">Showing the latest 180 daily kind/status groups.</p>
-          <p :if={@growth.timeline == []} class="text-sm text-slate-700">No timeline data yet.</p>
+          <p :if={@growth.timeline == []} class="text-sm text-slate-700">
+            No timeline data yet. Accepted knowledge appears here by date.
+          </p>
           <div :if={@growth.timeline != []} class="overflow-x-auto">
             <table class="min-w-full border-collapse text-left text-sm">
               <caption class="sr-only">Daily knowledge item growth by kind and status</caption>
@@ -115,7 +117,7 @@ defmodule CuckodingWeb.KnowledgeGrowthLive do
             Review queue coverage
           </h2>
           <p :if={@growth.review_counts == []} class="text-sm text-slate-700">
-            No candidates have been extracted.
+            No candidates yet. Complete a run and extract its knowledge to populate the review queue.
           </p>
           <ul :if={@growth.review_counts != []} class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <li :for={row <- @growth.review_counts} class="rounded-md border border-slate-300 p-4">
@@ -131,7 +133,7 @@ defmodule CuckodingWeb.KnowledgeGrowthLive do
           </h2>
           <p class="text-sm text-slate-700">Showing the latest 100 project jobs.</p>
           <p :if={@growth.consolidations == []} class="text-sm text-slate-700">
-            No consolidation jobs have run.
+            No consolidation history yet. Run project consolidation after reviewing knowledge candidates.
           </p>
           <div :if={@growth.consolidations != []} class="overflow-x-auto">
             <table class="min-w-full border-collapse text-left text-sm">

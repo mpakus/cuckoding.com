@@ -69,10 +69,10 @@ Cuckoding. Only the provider runtime handles token values. See
 - Shared profiles are now explicitly approved. Codex uses the same account
   home for login, probes and execution, with saved execution config ignored.
   Cursor shares its app-owned HOME but keeps task configuration run-owned.
-- Editing a shared agent asks for confirmation of its cross-project impact.
-  Record a value-free audit event before broadcasting status.
-  Future launches must fail clearly after revocation; do not silently switch
-  to another account or restart/kill existing work.
+- Editing and status checks record a value-free audit event before broadcasting
+  status. Future launches fail clearly after revocation; they do not silently
+  switch to another account or restart/kill existing work. Per-project impact
+  lists and confirmed revoke/delete controls remain required before release.
 
 ## Existing boards and runs
 

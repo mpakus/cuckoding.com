@@ -290,6 +290,19 @@ and outcome nodes, followed immediately by a semantic table alternative.
 Both pages refresh their complete durable snapshot in one LiveView assignment
 every ten seconds rather than applying per-row updates.
 
+## Public message boundary
+
+Browser messages never interpolate raw tuples, atoms, changesets, exceptions,
+provider output, or third-party plugin errors. Expected failures use reviewed
+screen-specific copy that says what happened and the next safe action.
+`CuckodingWeb.PublicError` formats only application-owned validation field names
+and messages; it caps the displayed errors and never includes submitted values.
+Unexpected failures collapse to fixed recovery copy. Run-scoped failures point
+to the durable timeline, findings, logs, or release evidence rather than
+displaying internal terms. Every dynamic success uses a polite live status
+region and every dynamic failure uses an alert. Empty states explain what will
+populate the view or name the next available action.
+
 ## Real-time update model
 
 1. Workers persist normalized events.

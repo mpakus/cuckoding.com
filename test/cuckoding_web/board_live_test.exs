@@ -208,7 +208,12 @@ defmodule CuckodingWeb.BoardLiveTest do
 
     render_hook(view, "transition-task", %{"id" => alpha.id, "to" => "done"})
 
-    assert has_element?(view, "#board-error[role=alert]", "Move rejected: invalid transition")
+    assert has_element?(
+             view,
+             "#board-error[role=alert]",
+             "Move rejected: this task cannot move from its current state"
+           )
+
     assert has_element?(view, "#column-ready #task-#{alpha.id}")
   end
 

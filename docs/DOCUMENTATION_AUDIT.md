@@ -1,12 +1,13 @@
 # Documentation Audit
 
-## Current-flow audit — 2026-09-19
+## Current-flow audit — 2026-09-20
 
-Source baseline: `57bac64` (`feat(agents): reuse authorization across projects`).
-Task 1015 reconciles the product-flow documentation with implementation. This
-is a source/documentation audit, not a new browser test, authenticated provider
-run, or release acceptance. The original planning-pack audit is retained below
-as history, not as a description of today's implementation.
+Source baseline: `72fac12` (`feat(agents): reuse provider sign-in and select models`).
+Tasks 1015, 1018, and 1019 reconcile the product-flow documentation with the
+implemented agent-first catalog, explicit legacy bindings, shared provider
+authorization, and independent model selection. This remains a source audit,
+not authenticated provider, beta, or signed-release acceptance. The original
+planning-pack audit is retained below as history.
 
 ### Implemented journey
 
@@ -14,7 +15,8 @@ as history, not as a description of today's implementation.
 | --- | --- | --- |
 | Monitor projects | `/` | `lib/cuckoding_web/live/status_live.ex` |
 | Register project | `/projects/new`: Project → Repository → Review; confirm Git initialization/first commit only when needed | `lib/cuckoding_web/live/project_setup_live.ex`, `lib/cuckoding/project_onboarding.ex` |
-| Configure agents | `/projects/:id/edit`: save/attach global agents, assign project roles, save revision | `lib/cuckoding_web/live/project_edit_live.ex`, `lib/cuckoding/agent_runtime.ex` |
+| Save agents | `/settings/agents`: save a runtime/model, authorize a root profile, reuse compatible sign-in status | `lib/cuckoding_web/live/agent_settings_live.ex`, `lib/cuckoding/agent_runtime.ex` |
+| Configure project roles | `/projects/:id/edit`: attach saved agents, assign roles, save revision | `lib/cuckoding_web/live/project_edit_live.ex`, `lib/cuckoding/project_onboarding.ex` |
 | Create board | Project settings: default workflow, name/description/concurrency, copied roles | `lib/cuckoding/project_workflow.ex` |
 | Add work | `/boards/:id`: add Draft task or create a queued planning run | `lib/cuckoding_web/live/board_live.ex`, `lib/cuckoding/board_task_intake.ex` |
 | Review planning | `/runs/:id`: authenticate/start analysis, inspect proposals, import selected Draft cards | `lib/cuckoding_web/live/run_live.ex`, `lib/cuckoding/board_task_intake.ex` |
@@ -29,44 +31,38 @@ before an agent session exists. Kanban columns are lifecycle states, not stages.
 
 ### Findings and remaining gates
 
-1. **High — reusable Codex authorization is not demonstrated end to end.**
-   `AgentRuntime.account_setup/1` signs into an account-owned home, while
-   `AgentRuntime.resolve/2` probes a separate run-owned home. The existing
-   fixture/mocked tests assert keyring configuration, not that both homes
-   resolve the same authenticated credential. The official
-   [credential-storage documentation](https://learn.chatgpt.com/docs/auth)
-   establishes the storage mode, not this cross-home guarantee. Do not mark
-   “authorize once for all projects” verified until two isolated runs in two
-   projects succeed after one login, then fail safely after revocation.
-2. **Medium — old boards do not adopt saved-agent references.** Project saves
-   leave board roles unchanged; preparing another run from a legacy board uses
-   its old copies. The supported current path is a new board after saving the
-   desired assignments. No existing tasks/history should be deleted to do this.
-3. **Medium — shared-account lifecycle is incomplete.** There is no dedicated
-   global catalog page or global delete/revoke control. Authorization checks
-   update the status row, not an append-only authorization event, and other
-   open settings pages do not receive catalog broadcasts. Authentication mode
-   is resolved live even though runtime settings are snapshotted. Audit events,
-   clear impact/confirmation for shared edits, and revocation behavior need an
-   implementation follow-up; this docs task does not add them.
-4. **High — the launcher does not execute the accepted workflow branches.**
+1. **High — reusable provider authorization is implemented but not accepted
+   against real providers.** Login, probe, grouped setup, and launch now resolve
+   the same immutable root profile, and named agents may select independent
+   models. Fixture tests cover restart-shaped reuse, revocation propagation,
+   two accounts, paths, and MCP/config separation. They do not prove native
+   refresh or concurrent authenticated Codex/Cursor execution. Do not close
+   task 1018 until one login completes isolated runs in two projects, survives
+   restart/refresh, and fails safely after provider revocation.
+2. **Medium — shared-account lifecycle is incomplete.** The global Agents page,
+   durable save/status events, LiveView refresh, compatible-root validation,
+   and explicit legacy board/queued-run bindings are implemented. Per-project
+   impact lists and confirmed revoke/delete controls remain absent. Existing
+   running/completed snapshots are intentionally immutable.
+3. **High — the launcher does not execute the accepted workflow branches.**
    `lib/cuckoding/workflows/definition.ex` defines Review returns, but
    `lib/cuckoding/walking_skeleton.ex` runs a fixed three-stage sequence and
    waits for human release approval. GuidedRun does not connect the finding
    evaluator to rerun scheduling. Local completion without release is also
    absent from this launch path. Domain evaluator tests are not evidence that
    the user can complete those paths from a board.
-5. **Medium — workflow customization is narrower than the original design.**
+4. **Medium — workflow customization is narrower than the original design.**
    Custom roles can be saved, but the default delivery launcher resolves the
    three built-in roles. The board UI has no workflow picker, assignment editor,
    or budget editor. OpenCode and Custom Agent remain setup-only; Cursor retains
-   run-owned login. A saved connection does not imply execution support.
-6. **Release gate — local implementation is not beta acceptance.** Task 1014
-   recorded 241 tests and 10 properties passing, but that is prior automated
-   evidence, not a fresh test result here. Authenticated cross-project reuse,
-   the full current provider workflow, and a fresh signed enrollment build
-   remain separately required. Historical failed runs with missing validation
-   details cannot retroactively acquire those details.
+   run-owned task configuration. A saved connection does not imply execution
+   support.
+5. **Release gate — local implementation is not beta acceptance.** Automated
+   quality gates and simulated recovery are implementation evidence, not the
+   multi-day dogfood, 3–5 stakeholder-led interviews, real-provider concurrency,
+   or clean-Mac signed release-candidate acceptance required by tasks 1003,
+   1018, and 1004. Historical failed runs cannot retroactively acquire missing
+   evidence.
 
 ### Documentation corrections
 

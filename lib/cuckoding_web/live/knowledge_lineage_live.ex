@@ -58,7 +58,7 @@ defmodule CuckodingWeb.KnowledgeLineageLive do
           </div>
 
           <p :if={@lineage.rows == []} class="rounded-md border border-slate-300 p-5 text-slate-700">
-            No reviewed lineages yet.
+            No reviewed lineages yet. Accept a project knowledge candidate to create its first evidence trail.
           </p>
 
           <ol :if={@lineage.rows != []} class="space-y-4" aria-label="Knowledge lineage graph">
@@ -150,7 +150,7 @@ defmodule CuckodingWeb.KnowledgeLineageLive do
           <h2 id="usage-heading" class="text-xl font-semibold text-slate-950">Usage summary</h2>
           <p class="text-sm text-slate-700">Latest 200 used items, aggregated in SQLite.</p>
           <p :if={@lineage.usages == []} class="text-sm text-slate-700">
-            No usage has been recorded.
+            No usage yet. Future runs record when reviewed knowledge is injected, retrieved, or cited.
           </p>
           <div :if={@lineage.usages != []} class="overflow-x-auto">
             <table class="min-w-full border-collapse text-left text-sm">
@@ -216,7 +216,9 @@ defmodule CuckodingWeb.KnowledgeLineageLive do
 
         <section aria-labelledby="skills-heading" class="space-y-4">
           <h2 id="skills-heading" class="text-xl font-semibold text-slate-950">Published skills</h2>
-          <p :if={@lineage.skills == []} class="text-sm text-slate-700">No skills published.</p>
+          <p :if={@lineage.skills == []} class="text-sm text-slate-700">
+            No skills published. Review an eligible knowledge item before packaging it as a skill.
+          </p>
           <div :if={@lineage.skills != []} class="overflow-x-auto">
             <table class="min-w-full border-collapse text-left text-sm">
               <caption class="sr-only">Published knowledge skill packages</caption>

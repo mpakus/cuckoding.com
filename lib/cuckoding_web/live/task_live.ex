@@ -6,6 +6,7 @@ defmodule CuckodingWeb.TaskLive do
   alias Cuckoding.Execution
   alias Cuckoding.ProjectWorkflow
   alias Cuckoding.Workflows
+  alias CuckodingWeb.PublicError
 
   @impl true
   def mount(%{"board_id" => board_id, "id" => task_id}, _session, socket) do
@@ -58,8 +59,13 @@ defmodule CuckodingWeb.TaskLive do
         {:noreply,
          assign(socket, error: "Task details can be edited only in Draft or Ready.", notice: nil)}
 
-      {:error, reason} ->
-        {:noreply, assign(socket, error: "Save failed: #{inspect(reason)}", notice: nil)}
+      {:error, _reason} ->
+        {:noreply,
+         assign(
+           socket,
+           error: "Task could not be saved. Reload its current details and try again.",
+           notice: nil
+         )}
     end
   end
 
@@ -72,13 +78,23 @@ defmodule CuckodingWeb.TaskLive do
         {:noreply,
          reload(socket, "Task is Ready. Choose Prepare run, then start it on the run page.")}
 
-      {:ok, %{result: %{"reason" => reason}}} ->
+      {:ok, %{result: %{"reason" => _reason}}} ->
         {:noreply,
-         assign(socket, error: "Task could not be marked Ready: #{label(reason)}.", notice: nil)}
+         assign(
+           socket,
+           error:
+             "Task could not be marked Ready. Reload its current state and review any unmet requirements.",
+           notice: nil
+         )}
 
-      {:error, reason} ->
+      {:error, _reason} ->
         {:noreply,
-         assign(socket, error: "Task could not be marked Ready: #{label(reason)}.", notice: nil)}
+         assign(
+           socket,
+           error:
+             "Task could not be marked Ready. Reload its current state and review any unmet requirements.",
+           notice: nil
+         )}
     end
   end
 
@@ -242,7 +258,9 @@ defmodule CuckodingWeb.TaskLive do
 
         <section aria-labelledby="run-history-heading" class="space-y-3">
           <h2 id="run-history-heading" class="text-xl font-semibold text-slate-950">Run history</h2>
-          <p :if={@runs == []} class="text-sm text-slate-700">No runs prepared yet.</p>
+          <p :if={@runs == []} class="text-sm text-slate-700">
+            No runs prepared yet. Save the task, mark it Ready, then choose Prepare run.
+          </p>
           <ul
             :if={@runs != []}
             class="divide-y divide-slate-200 rounded-lg border border-slate-300 bg-white"
@@ -319,14 +337,10 @@ defmodule CuckodingWeb.TaskLive do
 
   defp prepare_error(:run_already_prepared), do: "A queued run is already prepared for this task."
   defp prepare_error(:task_not_ready), do: "Only a Ready task can prepare a run."
-  defp prepare_error(reason), do: "Run preparation failed: #{label(reason)}."
 
-  defp label(reason) when is_atom(reason), do: reason |> Atom.to_string() |> label()
-  defp label(reason), do: reason |> to_string() |> String.replace("_", " ")
+  defp prepare_error(_reason),
+    do:
+      "Run preparation failed. Review the task, repository, and board role settings, then try again."
 
-  defp changeset_error(changeset) do
-    changeset.errors
-    |> Enum.map_join(", ", fn {field, {message, _options}} -> "#{field} #{message}" end)
-    |> then(&"Task could not be saved: #{&1}.")
-  end
+  defp changeset_error(changeset), do: PublicError.changeset("Task could not be saved", changeset)
 end

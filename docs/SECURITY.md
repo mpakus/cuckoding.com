@@ -80,6 +80,11 @@ a host process, these controls are not described as OS isolation.
 - Never persist complete environment maps, authorization headers, or CLI arguments containing secrets.
 - Redact before disk, UI broadcast, analytics export, and knowledge extraction.
 - The shared recursive redactor replaces configured canary values in strings and removes authorization, cookie, password, secret, token, complete environment, and argv fields before those boundaries.
+- The browser UI has a separate public-message boundary: expected errors map to
+  reviewed copy, application-owned validation messages exclude submitted values,
+  and unknown failures use fixed recovery text. Raw tuples, changesets,
+  exceptions, provider/plugin payloads, paths, and internal error atoms are not
+  interpolated into alerts.
 - Rotate or revoke credentials after any suspected exposure and record an incident.
 
 ## Local service hardening

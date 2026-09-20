@@ -5,6 +5,7 @@ defmodule CuckodingWeb.ProjectSetupLive do
 
   alias Cuckoding.FolderPicker
   alias Cuckoding.ProjectOnboarding
+  alias CuckodingWeb.PublicError
 
   @steps ["Project", "Repository", "Review"]
 
@@ -379,10 +380,15 @@ defmodule CuckodingWeb.ProjectSetupLive do
       "Git could not prepare this folder. Review its files and Git configuration, then try again."
 
   defp error_message(%Ecto.Changeset{} = changeset) do
-    "Project could not be added: #{inspect(changeset.errors)}"
+    PublicError.changeset("Project could not be added", changeset)
   end
 
-  defp error_message(reason), do: "Project could not be added: #{inspect(reason)}"
+  defp error_message(_reason),
+    do:
+      PublicError.unexpected(
+        "Project could not be added",
+        "Review the selected folder and branch, then try again."
+      )
 
   defp repository_action_label("initialize"),
     do: "Initialize Git and create an initial local commit"

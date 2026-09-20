@@ -92,8 +92,13 @@ defmodule CuckodingWeb.StatusLive do
              release_notice: "Approved release handoff completed."
            )}
 
-        {:error, reason} ->
-          {:noreply, put_flash(socket, :error, "Release failed: #{inspect(reason)}")}
+        {:error, _reason} ->
+          {:noreply,
+           put_flash(
+             socket,
+             :error,
+             "Release handoff could not be completed. Open the run timeline, review its release evidence, and retry."
+           )}
       end
     else
       {:noreply, put_flash(socket, :error, "Confirm the release before approving it.")}

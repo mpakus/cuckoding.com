@@ -149,7 +149,7 @@ defmodule CuckodingWeb.PluginSettingsLive do
         </section>
 
         <p :if={@plugins == []} class="rounded-md border border-slate-300 p-5 text-slate-700">
-          No valid plugin manifests were discovered.
+          No valid plugins found. Add a reviewed plugin manifest to a configured plugin directory, then reload this page.
         </p>
 
         <ol :if={@plugins != []} class="space-y-5">
@@ -361,7 +361,14 @@ defmodule CuckodingWeb.PluginSettingsLive do
   defp yes_no(true), do: "Allowed"
   defp yes_no(false), do: "Not allowed"
 
-  defp error_message({:disabled_by_parent_scope, scope}), do: "Disabled by #{scope} scope."
+  defp error_message({:disabled_by_parent_scope, "global"}), do: "Disabled globally."
+
+  defp error_message({:disabled_by_parent_scope, "project"}),
+    do: "Disabled for this project."
+
+  defp error_message({:disabled_by_parent_scope, _scope}),
+    do: "Disabled by a broader plugin setting."
+
   defp error_message(:permission_expansion), do: "The requested scope would expand permissions."
 
   defp error_message(:network_approval_mismatch),
@@ -372,5 +379,7 @@ defmodule CuckodingWeb.PluginSettingsLive do
   defp error_message(:permission_confirmation_required),
     do: "Review and confirm the permission change."
 
-  defp error_message(reason), do: "Plugin change failed: #{inspect(reason)}"
+  defp error_message(_reason),
+    do:
+      "Plugin settings could not be changed. Review the plugin health and requested permissions, then try again."
 end

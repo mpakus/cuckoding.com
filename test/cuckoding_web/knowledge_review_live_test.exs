@@ -121,7 +121,7 @@ defmodule CuckodingWeb.KnowledgeReviewLiveTest do
     assert has_element?(
              view,
              "section[aria-labelledby=candidates-heading]",
-             "No knowledge candidates"
+             "No candidates yet"
            )
 
     assert has_element?(view, "table caption", "Global knowledge publication versions") == false

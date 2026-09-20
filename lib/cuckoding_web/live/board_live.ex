@@ -4,6 +4,7 @@ defmodule CuckodingWeb.BoardLive do
   alias Cuckoding.Projects
   alias Cuckoding.ProjectWorkflow
   alias Cuckoding.Workflows
+  alias CuckodingWeb.PublicError
 
   @states ~w(draft ready running waiting paused hibernated blocked done failed cancelled archived)
 
@@ -514,8 +515,9 @@ defmodule CuckodingWeb.BoardLive do
   defp count_tasks(tasks, state), do: Enum.count(tasks, &(&1.state == state))
   defp state_label(state), do: state |> String.replace("_", " ") |> String.capitalize()
   defp role_label(role), do: role.settings_json["role_name"] || state_label(role.role_key)
-  defp reason_label(reason) when is_atom(reason), do: reason |> Atom.to_string() |> reason_label()
-  defp reason_label(reason), do: reason |> to_string() |> String.replace("_", " ")
+  defp reason_label("invalid_transition"), do: "this task cannot move from its current state"
+  defp reason_label(:invalid_transition), do: "this task cannot move from its current state"
+  defp reason_label(_reason), do: "the task changed or this move is no longer available"
 
   defp task_error(:task_title_required), do: "Enter a task title of 200 characters or fewer."
 
@@ -525,9 +527,10 @@ defmodule CuckodingWeb.BoardLive do
   defp task_error(:invalid_number), do: "Priority must be between -100 and 100."
 
   defp task_error(%Ecto.Changeset{} = changeset),
-    do: "Task could not be created: #{inspect(changeset.errors)}"
+    do: PublicError.changeset("Task could not be created", changeset)
 
-  defp task_error(reason), do: "Task could not be created: #{inspect(reason)}"
+  defp task_error(_reason),
+    do: PublicError.unexpected("Task could not be created", "Review the fields and try again.")
 
   defp intake_error(:intake_prompt_required),
     do: "Enter a planning prompt of 10,000 characters or fewer."
@@ -543,9 +546,11 @@ defmodule CuckodingWeb.BoardLive do
     do:
       "This role uses a runtime that cannot run tasks yet. Save a Codex, Claude Code, or Cursor Agent assignment in Project settings, then create a new board to use it."
 
-  defp intake_error({:intake_transition_rejected, reason}),
-    do: "The planning task could not become Ready: #{reason_label(reason)}."
+  defp intake_error({:intake_transition_rejected, _reason}),
+    do:
+      "The planning task could not become Ready. Reload the board, review its current state, and try again."
 
-  defp intake_error(reason),
-    do: "The planning run could not be created: #{reason_label(reason)}."
+  defp intake_error(_reason),
+    do:
+      "The planning run could not be created. Review the project and agent settings, then try again."
 end

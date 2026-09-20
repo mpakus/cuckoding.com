@@ -8,9 +8,11 @@ defmodule CuckodingWeb.KnowledgeRetrievalController do
          {:ok, result} <- Knowledge.retrieve(token, query, limit: params["limit"] || 5) do
       json(conn, result)
     else
-      {:error, reason}
-      when reason in [:knowledge_capability_invalid, :knowledge_capability_expired] ->
-        conn |> put_status(:unauthorized) |> json(%{error: Atom.to_string(reason)})
+      {:error, :knowledge_capability_invalid} ->
+        conn |> put_status(:unauthorized) |> json(%{error: "knowledge_capability_invalid"})
+
+      {:error, :knowledge_capability_expired} ->
+        conn |> put_status(:unauthorized) |> json(%{error: "knowledge_capability_expired"})
 
       {:error, :authorization_required} ->
         conn |> put_status(:unauthorized) |> json(%{error: "authorization_required"})
@@ -31,6 +33,10 @@ defmodule CuckodingWeb.KnowledgeRetrievalController do
     end
   end
 
-  defp error_name(reason) when is_atom(reason), do: Atom.to_string(reason)
+  defp error_name(:knowledge_capability_scope_refused),
+    do: "knowledge_capability_scope_refused"
+
+  defp error_name(:invalid_retrieval_query), do: "invalid_retrieval_query"
+  defp error_name(:invalid_retrieval_capability), do: "invalid_retrieval_capability"
   defp error_name(_reason), do: "knowledge_retrieval_failed"
 end

@@ -142,8 +142,13 @@ defmodule CuckodingWeb.RunLive do
       {:error, :proposal_selection_required} ->
         {:noreply, assign(socket, error: "Select at least one proposal to import.")}
 
-      {:error, reason} ->
-        {:noreply, assign(socket, error: "Proposals could not be imported: #{inspect(reason)}")}
+      {:error, _reason} ->
+        {:noreply,
+         assign(
+           socket,
+           error:
+             "Proposals could not be imported. Review the run timeline and findings, then try again."
+         )}
     end
   end
 
@@ -455,14 +460,14 @@ defmodule CuckodingWeb.RunLive do
             :if={!@detail.environment || !@detail.environment.preview_url}
             class="text-sm text-slate-700"
           >
-            No preview is active.
+            No preview is active. Start or resume the run after the project defines a preview command.
           </p>
         </section>
 
         <section aria-labelledby="artifacts-heading" class="space-y-3">
           <h2 id="artifacts-heading" class="text-xl font-semibold text-slate-950">Artifacts</h2>
           <p :if={@detail.artifacts == []} class="text-sm text-slate-700">
-            No durable artifacts recorded.
+            No artifacts yet. Stage output and redacted process logs appear here after work starts.
           </p>
           <ul class="divide-y divide-slate-200 rounded-lg border border-slate-300 bg-white">
             <li :for={artifact <- @detail.artifacts} class="flex justify-between gap-4 px-4 py-3">
@@ -561,7 +566,9 @@ defmodule CuckodingWeb.RunLive do
         >
           <h2 id="knowledge-heading" class="text-xl font-semibold text-slate-950">Knowledge</h2>
           <p class="mt-2 text-sm text-slate-700">
-            Project knowledge usage will appear here after Phase 7 publication and citation records are available.
+            This run view does not embed knowledge records yet.
+            <.link navigate={~p"/knowledge"} class="underline">Open Knowledge</.link>
+            to review candidates, usage, and lineage.
           </p>
         </section>
 
@@ -571,7 +578,7 @@ defmodule CuckodingWeb.RunLive do
             :if={plugin_entries(@detail.run.plugin_snapshot_json) == []}
             class="text-sm text-slate-700"
           >
-            No plugins were captured in this run snapshot.
+            No plugins were enabled when this run was prepared. Later plugin changes do not rewrite this snapshot.
           </p>
           <ul class="list-disc pl-5">
             <li :for={plugin <- plugin_entries(@detail.run.plugin_snapshot_json)}>

@@ -86,6 +86,10 @@ append-only security audit rows.
 
 ## Quality gates
 
+- Public-message tests scan every LiveView for internal `inspect/1` rendering,
+  verify bounded application-owned changeset copy, and exercise representative
+  alert/status regions through LiveView tests. The inventory excludes closed
+  machine API error codes and non-error state labels.
 - Elixir formatting and compilation with warnings treated as errors.
 - Unit, integration, and migration tests.
 - Static analysis and dependency audit.

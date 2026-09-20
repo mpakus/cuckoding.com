@@ -106,6 +106,8 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 
 - [x] Capability and secret hardening, adversarial prompt and plugin tests.
 - [x] Crash, power-loss, and sleep recovery drills.
+- [x] Task 1008: safe public-message boundary and actionable empty states across
+  Phoenix UI surfaces; raw internal errors are excluded from browser alerts.
 - [ ] Complete the accepted project-first product flow (setup and task surfaces are implemented; workflow integration remains):
   - [x] Global dashboard lists projects, health, resources, active work, and attention.
   - [x] Add-project wizard separates identity, repository/branch, and review; project settings versions multiple agents and role assignments.
@@ -120,6 +122,11 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 - [ ] Complete shared-account revocation UX and per-project impact lists. Save/status audit events and snapshot-preserving bindings are implemented.
 - [ ] Dogfood and controlled beta.
 - [ ] MVP release readiness.
+
+Remaining gate order: connect Review findings to Specifications/Coding reruns
+and local completion; finish real-provider and shared-account lifecycle evidence;
+run controlled beta; then execute task 1004 against one frozen signed release
+candidate. Automated tests never substitute for those external acceptance gates.
 
 ## Definition of done for MVP
 

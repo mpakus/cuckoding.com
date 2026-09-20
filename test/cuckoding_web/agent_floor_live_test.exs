@@ -85,7 +85,7 @@ defmodule CuckodingWeb.AgentFloorLiveTest do
     assert has_element?(run, "section[aria-labelledby=artifacts-heading]", "evidence.txt")
     assert has_element?(run, "[role=region][tabindex='0'][aria-label='Recent activity table']")
     assert has_element?(run, "section[aria-labelledby=findings-heading]", "Fixture finding")
-    assert has_element?(run, "section[aria-labelledby=knowledge-heading]", "Phase 7")
+    assert has_element?(run, "section[aria-labelledby=knowledge-heading]", "Open Knowledge")
 
     assert render(run) =~ "Estimated shell-output tokens avoided"
     assert render(run) =~ "(estimated)"
