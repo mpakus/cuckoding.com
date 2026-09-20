@@ -10,3 +10,11 @@
 [data-phx-teleported-src] {
   display: contents;
 }
+
+/* Long project names and paths must not push controls outside narrow screens. */
+main { overflow-wrap: anywhere; }
+main table { overflow-wrap: normal; }
+main :is(input, select, textarea) { min-width: 0; max-width: 100%; }
+summary { cursor: pointer; }
+summary:focus-visible { outline: 2px solid; outline-offset: 4px; }
+[id] { scroll-margin-top: 1.5rem; }

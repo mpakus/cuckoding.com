@@ -18,8 +18,14 @@ defmodule CuckodingWeb.ActivityComponents do
         </p>
       </div>
       <p :if={@events == []} class="text-sm text-slate-700">No activity has been recorded.</p>
-      <div :if={@events != []} class="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-        <table class="min-w-full divide-y divide-slate-200 text-left text-sm">
+      <div
+        :if={@events != []}
+        tabindex="0"
+        role="region"
+        aria-label="Recent activity table"
+        class="overflow-x-auto rounded-lg border border-slate-200 bg-white focus-visible:outline-2"
+      >
+        <table class="min-w-[40rem] w-full divide-y divide-slate-200 text-left text-sm">
           <caption class="sr-only">
             Durable public activity ordered by committed event sequence
           </caption>

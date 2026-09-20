@@ -15,6 +15,7 @@ defmodule CuckodingWeb.BoardLive do
 
       board ->
         project = Projects.get_project(board.project_id)
+        if connected?(socket), do: Cuckoding.ActivityStream.subscribe(:all)
 
         {:ok,
          assign(socket,
@@ -22,6 +23,8 @@ defmodule CuckodingWeb.BoardLive do
            board: board,
            project: project,
            states: @states,
+           show_all_states: false,
+           refresh_pending: false,
            filters: %{"q" => "", "state" => "all"},
            task_form: %{"title" => "", "description" => "", "priority" => "0"},
            intake_form: %{"prompt" => "", "role_key" => "spec_writer"},
@@ -45,6 +48,19 @@ defmodule CuckodingWeb.BoardLive do
   end
 
   @impl true
+  def handle_info({:activity_event, _stream_id, _sequence}, socket) do
+    unless socket.assigns.refresh_pending, do: Process.send_after(self(), :refresh_board, 250)
+    {:noreply, assign(socket, refresh_pending: true)}
+  end
+
+  def handle_info(:refresh_board, socket) do
+    {:noreply, socket |> assign(refresh_pending: false) |> load_tasks()}
+  end
+
+  @impl true
+  def handle_event("toggle-states", _params, socket),
+    do: {:noreply, assign(socket, show_all_states: !socket.assigns.show_all_states)}
+
   def handle_event("filter", %{"filters" => filters}, socket) do
     query = %{
       q: filters |> Map.get("q", "") |> String.trim(),
@@ -113,7 +129,7 @@ defmodule CuckodingWeb.BoardLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} active="projects">
       <section aria-labelledby="board-heading" class="space-y-8">
         <header class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div class="space-y-2">
@@ -141,11 +157,15 @@ defmodule CuckodingWeb.BoardLive do
           </nav>
         </header>
 
-        <section
+        <details
+          id="new-task-panel"
+          open={@error != nil}
           aria-labelledby="new-task-heading"
           class="rounded-xl border border-slate-200 bg-white p-5"
         >
-          <h2 id="new-task-heading" class="text-xl font-semibold text-slate-950">Add a task</h2>
+          <summary id="new-task-heading" class="min-h-6 font-semibold text-slate-950">
+            Add a task
+          </summary>
           <p class="mt-1 text-sm text-slate-700">
             New tasks start in Draft so you can refine them before marking them Ready.
           </p>
@@ -182,21 +202,25 @@ defmodule CuckodingWeb.BoardLive do
               >{@task_form["description"]}</textarea>
             </label>
             <div class="sm:col-span-4">
-              <button class="min-h-11 rounded-md bg-slate-950 px-5 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2">
+              <button
+                phx-disable-with="Creating task…"
+                class="min-h-11 rounded-md bg-slate-950 px-5 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
+              >
                 Create draft task
               </button>
             </div>
           </form>
-        </section>
+        </details>
 
-        <section
+        <details
           id="agent-task-intake"
+          open={@intake_error != nil}
           aria-labelledby="agent-task-intake-heading"
           class="rounded-xl border border-slate-200 bg-white p-5"
         >
-          <h2 id="agent-task-intake-heading" class="text-xl font-semibold text-slate-950">
+          <summary id="agent-task-intake-heading" class="min-h-6 font-semibold text-slate-950">
             Ask an agent to plan tasks
-          </h2>
+          </summary>
           <p class="mt-1 max-w-3xl text-sm text-slate-700">
             The selected role reads the project in an isolated, network-denied planning run. You review every proposal before it becomes a Draft task.
           </p>
@@ -253,7 +277,7 @@ defmodule CuckodingWeb.BoardLive do
               </span>
             </div>
             <p :if={@agent_roles == []} class="text-sm font-medium text-amber-900">
-              Assign an agent role in Project settings before planning tasks.
+              This board has no assigned agent roles. Save roles in Project settings, then create a new board to use them.
             </p>
             <p
               :if={@intake_error}
@@ -264,7 +288,7 @@ defmodule CuckodingWeb.BoardLive do
               {@intake_error}
             </p>
           </form>
-        </section>
+        </details>
 
         <form
           id="task-filters"
@@ -296,6 +320,25 @@ defmodule CuckodingWeb.BoardLive do
           </label>
         </form>
 
+        <div class="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-700">
+          <p>Cards update live. Ready means you can start a task—not that an agent has started.</p>
+          <button
+            :if={@filters["state"] == "all"}
+            id="toggle-board-states"
+            type="button"
+            phx-click="toggle-states"
+            aria-pressed={to_string(@show_all_states)}
+            class="min-h-11 rounded-md border border-slate-400 bg-white px-3 focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            {if @show_all_states, do: "Hide unused states", else: "Show all states"}
+          </button>
+          <.link
+            :if={@filters["q"] != "" or @filters["state"] != "all"}
+            patch={~p"/boards/#{@board.id}"}
+            class="inline-flex min-h-11 items-center rounded px-3 underline"
+          >Clear filters</.link>
+        </div>
+
         <p id="board-status" role="status" aria-live="polite" class="text-sm text-emerald-900">
           {@notice || ""}
         </p>
@@ -310,7 +353,7 @@ defmodule CuckodingWeb.BoardLive do
           aria-label="Task board"
         >
           <section
-            :for={state <- @states}
+            :for={state <- visible_states(@tasks, @filters, @show_all_states)}
             id={"column-#{state}"}
             data-drop-state={state}
             aria-labelledby={"column-#{state}-heading"}
@@ -322,6 +365,9 @@ defmodule CuckodingWeb.BoardLive do
             </h2>
             <p :if={state == "ready"} class="mt-2 text-sm text-slate-700">
               Ready tasks do not start automatically. Set up a run, then verify authentication and start it.
+            </p>
+            <p :if={count_tasks(@tasks, state) == 0} class="mt-3 text-sm text-slate-600">
+              No {String.downcase(state_label(state))} tasks.
             </p>
             <div data-task-list class="mt-3 space-y-3">
               <article
@@ -345,7 +391,6 @@ defmodule CuckodingWeb.BoardLive do
                     </.link>
                   </h3>
                   <p class="mt-1 text-sm text-slate-700">Priority {task.priority}</p>
-                  <p class="text-sm text-slate-700">Knowledge: 0 linked</p>
                   <p :if={task.wait_reason} class="text-sm font-medium text-amber-900">
                     Waiting: {task.wait_reason}
                   </p>
@@ -359,6 +404,12 @@ defmodule CuckodingWeb.BoardLive do
                 >
                   Set up and start
                 </.link>
+
+                <.link
+                  :if={task.active_run_id}
+                  navigate={~p"/runs/#{task.active_run_id}"}
+                  class="inline-flex min-h-11 items-center rounded px-3 text-sm font-medium underline"
+                >View run</.link>
 
                 <form
                   :if={Workflows.allowed_task_transitions(task) != []}
@@ -374,6 +425,7 @@ defmodule CuckodingWeb.BoardLive do
                     <select
                       id={"task-#{task.id}-target"}
                       name="to"
+                      required
                       class="min-h-10 flex-1 rounded-md border border-slate-400 bg-white px-2 focus-visible:outline-2 focus-visible:outline-offset-2"
                     >
                       <option value="" selected disabled>Choose a state</option>
@@ -395,7 +447,10 @@ defmodule CuckodingWeb.BoardLive do
         </div>
 
         <p :if={@tasks == []} class="rounded-md border border-slate-300 p-5 text-slate-700">
-          No tasks match these filters.
+          {if @filters["q"] != "" or @filters["state"] != "all",
+            do: "No tasks match these filters. Clear filters to see the board.",
+            else:
+              "No tasks yet. Open Add a task to write one, or Ask an agent to plan tasks from your project files."}
         </p>
       </section>
     </Layouts.app>
@@ -443,6 +498,18 @@ defmodule CuckodingWeb.BoardLive do
 
   defp normalize_state(state) when state in ["all" | @states], do: state
   defp normalize_state(_state), do: "all"
+  defp visible_states(_tasks, %{"state" => state}, _all?) when state != "all", do: [state]
+  defp visible_states(_tasks, _filters, true), do: @states
+
+  defp visible_states(tasks, _filters, false) do
+    occupied = MapSet.new(tasks, & &1.state)
+
+    Enum.filter(
+      @states,
+      &(&1 in ~w(draft ready running waiting done) or MapSet.member?(occupied, &1))
+    )
+  end
+
   defp tasks_in(tasks, state), do: Enum.filter(tasks, &(&1.state == state))
   defp count_tasks(tasks, state), do: Enum.count(tasks, &(&1.state == state))
   defp state_label(state), do: state |> String.replace("_", " ") |> String.capitalize()
@@ -467,6 +534,14 @@ defmodule CuckodingWeb.BoardLive do
 
   defp intake_error(:intake_role_required), do: "Choose an assigned agent role."
   defp intake_error(:policy_not_trusted), do: "Review and trust the project policy first."
+
+  defp intake_error(:dirty_repository),
+    do:
+      "Your project has uncommitted changes. Commit or stash the files you want to keep, then create the planning run again. Nothing has been discarded."
+
+  defp intake_error(:runtime_setup_only),
+    do:
+      "This role uses a runtime that cannot run tasks yet. Save a Codex, Claude Code, or Cursor Agent assignment in Project settings, then create a new board to use it."
 
   defp intake_error({:intake_transition_rejected, reason}),
     do: "The planning task could not become Ready: #{reason_label(reason)}."

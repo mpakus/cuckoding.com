@@ -31,6 +31,11 @@ The home dashboard never asks for project, runtime, task, and release details in
 one form. Empty state explains the project → board → task sequence and offers
 one **Add project** action.
 
+The shared header links to **Projects**, **Agent activity**, and **Knowledge**.
+Dashboard shortcuts jump to projects, recent runs, and approvals. Creation age
+is labeled **Created**, not elapsed execution time. Long paths wrap on narrow
+screens; activity tables scroll horizontally without squeezing their headings.
+
 ### Project setup wizard
 
 Adding a project is a keyboard-operable wizard:
@@ -42,6 +47,9 @@ Adding a project is a keyboard-operable wizard:
    must be clean before run preparation.
 3. **Review** — show repository, branch, pending Git action, runner limitations,
    and the non-executing registration boundary before confirmation.
+
+Step changes announce progress. Back retains edits within the open wizard;
+these edits are not a persisted draft and are lost if the page is closed.
 
 Completing this wizard registers only the project and its initial trusted
 configuration, then redirects to the project settings page. That page adds,
@@ -63,6 +71,12 @@ connection to the form; **Save agent** or **Save agents and roles** persists it.
 Each agent can be saved independently; the complete configuration requires an
 assignment for every role. Removing a project connection does not delete its
 global account or log it out.
+
+Section shortcuts lead to connections, roles, and boards. Saved agents are a
+native disclosure, initially open when no project connections exist. The page
+distinguishes saved settings from local edits. Board creation refuses unsaved
+configuration, so its snapshot cannot silently use older role assignments.
+Save controls show pending feedback; removing a connection asks for confirmation.
 
 Codex offers a saved-account sign-in command and **Check authorization**;
 Claude Code uses a reviewed helper; Cursor requires run-owned login. OpenCode
@@ -132,9 +146,27 @@ and local completion without release are not wired into that launcher; see
 
 Cards show title, priority, dependencies, current role, runtime/model badge, attempt count, elapsed time, budget consumption, blocking reason, and a knowledge indicator (number of items injected in the current stage). Drag-and-drop is allowed only for transitions the state machine permits, with equivalent keyboard and menu actions.
 
-The board currently renders durable task lifecycle states as semantic sections and shows title, priority, waiting reason, and an honest `Knowledge: 0 linked` placeholder; the card is not yet wired to Phase 7 usage records. Filters live in the URL so reload and browser history preserve them. Each permitted move has a labeled native select and submit button; drag-and-drop exposes the same server-authorized targets, applies only an optimistic DOM move, and then reconciles from the durable command result. Accepted moves are announced through a polite status region and rejected moves through an alert with the reason. Task title, description, and priority are editable only while the task is Draft or Ready, with each edit recorded as a public event before its projection changes.
+The board currently shows title, priority, waiting reason, and links to task setup
+or the current run. It does not yet show per-card knowledge usage. Draft, Ready,
+Running, Waiting, and Done are visible by default, plus any occupied uncommon
+state; **Show all states** exposes all lifecycle columns. A state filter shows
+that column only. Committed activity hints trigger a coalesced reload from the
+database; the LiveView does not own workflow state.
 
-At `/boards/:id`, add a Draft task directly or use **Ask an agent to plan tasks**.
+Filters live in the URL so reload and browser history preserve them; **Clear
+filters** restores the board. Each permitted move has a labeled native select
+and submit button. Drag-and-drop exposes the same server-authorized targets
+when their columns are visible and reconciles from the durable command result.
+Accepted moves use a polite status region and rejected moves an alert. Task
+title, description, and priority are editable only in Draft or Ready, with an
+event recorded before projection changes. Task detail gives state-specific next
+steps, requires local edits to be saved before marking Ready or preparing a run,
+and keeps the description readable after editing is locked. Unsaved indicators
+are warnings, not auto-save or a browser-navigation guard.
+
+At `/boards/:id`, expand **Add a task** or **Ask an agent to plan tasks**.
+These native keyboard-operable disclosures keep the task board in reach;
+planning validation errors reopen their form.
 Choose an assigned role and enter a prompt such as “Read docs/ and propose tasks
 from docs/TASKS.md.” **Create planning run** shows submit feedback and navigates
 to a queued run; it does not silently start the provider or import cards. On
@@ -148,6 +180,12 @@ and start**; authentication and launch are separate run actions. Move selectors
 start with **Choose a state**, not a destructive destination.
 
 ### Run detail
+
+Quick links lead to setup (when queued), timeline, live logs, and findings.
+Proposals open for waiting reviews and collapse into **Planning results** after
+completion. Remaining proposals may still be reviewed and imported. Agent
+activity pages distinguish recorded sessions from saved connections and link
+back to project settings for connection management.
 
 - Stage timeline with attempts, sleep gaps, and handoffs.
 - Live public activity stream with tool category and target, redacted command summary, duration.

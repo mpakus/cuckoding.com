@@ -24,7 +24,8 @@ defmodule CuckodingWeb.AgentFloorComponents do
           class="min-w-0 rounded-lg border border-slate-300 bg-slate-50 p-4"
         >
           <h2 id={"agent-lane-#{slug(group)}-heading"} class="font-semibold text-slate-950">
-            {group} <span class="font-normal text-slate-600">({length(cards)})</span>
+            {if @group_by == "role", do: state_label(group), else: group}
+            <span class="font-normal text-slate-600">({length(cards)})</span>
           </h2>
           <div class="mt-3 space-y-3">
             <article
@@ -34,7 +35,7 @@ defmodule CuckodingWeb.AgentFloorComponents do
             >
               <div class="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <h3 class="font-medium text-slate-950">{card.attempt.role_key}</h3>
+                  <h3 class="font-medium text-slate-950">{state_label(card.attempt.role_key)}</h3>
                   <p class="text-sm text-slate-700">{card.project.name} · {card.task.title}</p>
                 </div>
                 <span class={status_classes(card.attention?)}>
@@ -58,7 +59,7 @@ defmodule CuckodingWeb.AgentFloorComponents do
               </dl>
 
               <p :if={card.handoff_from} class="text-sm text-slate-700">
-                <span aria-hidden="true">→</span> Handoff from {card.handoff_from}
+                <span aria-hidden="true">→</span> Handoff from {state_label(card.handoff_from)}
               </p>
               <p class="text-sm text-slate-700">
                 {activity_label(card.activity)}
@@ -93,7 +94,12 @@ defmodule CuckodingWeb.AgentFloorComponents do
         <summary class="min-h-10 cursor-pointer font-semibold text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2">
           Agent table view
         </summary>
-        <div class="mt-3 overflow-x-auto">
+        <div
+          tabindex="0"
+          role="region"
+          aria-label="Agent session table"
+          class="mt-3 overflow-x-auto focus-visible:outline-2"
+        >
           <table class="min-w-full divide-y divide-slate-200 text-left text-sm">
             <caption class="sr-only">All displayed agent sessions</caption>
             <thead>
@@ -107,7 +113,7 @@ defmodule CuckodingWeb.AgentFloorComponents do
             </thead>
             <tbody class="divide-y divide-slate-200">
               <tr :for={card <- @cards}>
-                <td class="px-3 py-2">{card.attempt.role_key}</td>
+                <td class="px-3 py-2">{state_label(card.attempt.role_key)}</td>
                 <td class="px-3 py-2">{card.project.name}</td>
                 <td class="px-3 py-2">{card.session.adapter_key}/{model(card.session)}</td>
                 <td class="px-3 py-2">{state_label(card.attempt.state)}</td>

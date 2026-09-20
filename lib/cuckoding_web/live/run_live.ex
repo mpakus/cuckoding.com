@@ -170,7 +170,7 @@ defmodule CuckodingWeb.RunLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} active="projects">
       <article aria-labelledby="run-heading" class="space-y-8">
         <.link
           navigate={back_path(@detail)}
@@ -188,6 +188,26 @@ defmodule CuckodingWeb.RunLive do
           </h1>
           <p class="text-slate-700">{@detail.project.name} · <code>{@detail.run.branch}</code></p>
         </header>
+
+        <nav aria-label="Run sections" class="flex flex-wrap gap-3">
+          <a
+            :if={@detail.run.state == "queued"}
+            href="#runtime-setup"
+            class="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-3 underline"
+          >Set up and start</a>
+          <a
+            href="#timeline-heading"
+            class="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-3 underline"
+          >Timeline</a>
+          <a
+            href="#run-logs"
+            class="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-3 underline"
+          >Live logs</a>
+          <a
+            href="#findings-heading"
+            class="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-3 underline"
+          >Findings</a>
+        </nav>
 
         <p role="status" aria-live="polite" class="text-sm text-emerald-900">{@notice}</p>
         <p :if={@error} id="run-error" role="alert" class="text-sm font-medium text-red-800">
@@ -286,24 +306,32 @@ defmodule CuckodingWeb.RunLive do
           <button
             type="button"
             phx-click="start-guided-run"
+            phx-disable-with="Checking authentication and starting…"
             class="min-h-10 rounded-md bg-slate-950 px-4 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
           >
             {start_button_label(@detail)}
           </button>
         </section>
 
-        <section
+        <details
           :if={intake?(@detail) and @task_proposals != []}
           id="task-proposal-review"
+          open={@detail.run.state == "waiting"}
           aria-labelledby="task-proposal-review-heading"
           class="space-y-4 rounded-lg border border-slate-300 bg-white p-5"
         >
+          <summary id="task-proposal-review-heading" class="min-h-6 font-semibold text-slate-950">
+            {if @detail.run.state == "done", do: "Planning results", else: "Review proposed tasks"} ({length(
+              @task_proposals
+            )})
+          </summary>
           <div>
-            <h2 id="task-proposal-review-heading" class="text-xl font-semibold text-slate-950">
-              Review proposed tasks
-            </h2>
             <p class="mt-1 text-sm text-slate-700">
-              Agent output is untrusted. Select only the proposals you want added to the board.
+              {if @detail.run.state == "done",
+                do:
+                  "Planning is complete. Imported tasks are on your board. You can still review and import any remaining proposals below.",
+                else:
+                  "Agent output is untrusted. Select only the proposals you want added to the board."}
             </p>
           </div>
           <form id="task-proposal-form" phx-submit="import-task-proposals" class="space-y-3">
@@ -336,12 +364,13 @@ defmodule CuckodingWeb.RunLive do
             </label>
             <button
               :if={Enum.any?(@task_proposals, &is_nil(&1.imported_task_id))}
+              phx-disable-with="Importing tasks…"
               class="min-h-10 rounded-md bg-slate-950 px-4 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
             >
               Import selected Draft tasks
             </button>
           </form>
-        </section>
+        </details>
 
         <nav aria-label="Run controls" class="flex flex-wrap gap-3">
           <.link

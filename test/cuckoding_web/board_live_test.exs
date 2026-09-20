@@ -78,7 +78,17 @@ defmodule CuckodingWeb.BoardLiveTest do
     assert has_element?(view, "form[aria-label='Filter tasks'] input[type=search]")
     assert has_element?(view, "#column-draft[aria-labelledby='column-draft-heading']")
     assert has_element?(view, "#column-draft-heading", "Draft")
-    assert has_element?(view, "#task-#{alpha.id}[draggable=true]", "Knowledge: 0 linked")
+    assert has_element?(view, "#task-#{alpha.id}[draggable=true]", "Alpha task")
+    refute has_element?(view, "#task-#{alpha.id}", "Knowledge: 0 linked")
+
+    assert has_element?(
+             view,
+             "nav[aria-label='Main navigation'] a[aria-current=page]",
+             "Projects"
+           )
+
+    assert has_element?(view, "details#new-task-panel:not([open]) summary", "Add a task")
+    assert has_element?(view, "details#agent-task-intake:not([open]) summary", "Ask an agent")
     assert has_element?(view, "#task-#{alpha.id} label", "Move task")
     assert has_element?(view, "#task-#{alpha.id} select[name=to] option[value=ready]")
     assert has_element?(view, "#board-status[role=status][aria-live=polite]")
@@ -91,11 +101,81 @@ defmodule CuckodingWeb.BoardLiveTest do
 
     assert_patch(view, path)
     assert has_element?(view, "#column-ready", "Beta task")
+    refute has_element?(view, "#toggle-board-states")
     refute has_element?(view, "#task-#{alpha.id}")
 
     {:ok, restored, _html} = live(conn, path)
     assert has_element?(restored, "input[name='filters[q]'][value='Beta']")
     assert has_element?(restored, "select[name='filters[state]'] option[value=ready][selected]")
+  end
+
+  test "shows occupied states and updates other browser sessions from durable events", %{
+    conn: conn,
+    board: board,
+    alpha: alpha
+  } do
+    {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}")
+    refute has_element?(view, "#column-archived")
+    view |> element("#toggle-board-states") |> render_click()
+    assert has_element?(view, "#column-archived")
+    view |> element("#toggle-board-states") |> render_click()
+    refute has_element?(view, "#column-archived")
+
+    assert {:ok, _} = Workflows.transition_task(alpha.id, "archived", "ux:archive:#{alpha.id}")
+    assert :sys.get_state(view.pid).socket.assigns.refresh_pending
+    send(view.pid, :refresh_board)
+    assert has_element?(view, "#column-archived #task-#{alpha.id}")
+
+    {:ok, restored, _html} = live(conn, ~p"/boards/#{board.id}?q=missing")
+    assert has_element?(restored, "a", "Clear filters")
+    assert render(restored) =~ "No tasks match these filters"
+    restored |> element("a", "Clear filters") |> render_click()
+    assert_patch(restored, ~p"/boards/#{board.id}")
+    assert has_element?(restored, "#task-#{alpha.id}")
+  end
+
+  test "task guidance follows state and keeps completed task details readable", %{
+    conn: conn,
+    board: board,
+    alpha: task
+  } do
+    {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}/tasks/#{task.id}")
+
+    assert has_element?(
+             view,
+             "section[aria-labelledby=task-run-heading]",
+             "save the task, then mark it Ready"
+           )
+
+    assert has_element?(view, "#task-edit button[phx-disable-with='Saving task…']")
+    view |> form("#task-edit", task: %{title: "Unsaved outcome"}) |> render_change()
+    view |> element("#mark-task-ready") |> render_click()
+    assert has_element?(view, "#task-error", "Save your task changes")
+    assert Workflows.get_task(task.id).state == "draft"
+    render_click(view, "prepare-run")
+    assert has_element?(view, "#task-error", "Save your task changes")
+    assert Cuckoding.Execution.list_runs(task.id) == []
+    view |> form("#task-edit", task: %{title: "Saved outcome"}) |> render_submit()
+    refute has_element?(view, "#task-edit [role=status]")
+    view |> element("#mark-task-ready") |> render_click()
+    assert Workflows.get_task(task.id).state == "ready"
+    task |> Ecto.Changeset.change(state: "done") |> Repo.update!()
+    {:ok, finished, _html} = live(conn, ~p"/boards/#{board.id}/tasks/#{task.id}")
+
+    assert has_element?(
+             finished,
+             "section[aria-labelledby=task-description-heading]",
+             "First task"
+           )
+
+    refute has_element?(finished, "#task-edit")
+    refute has_element?(finished, "#prepare-task-run")
+
+    assert has_element?(
+             finished,
+             "section[aria-labelledby=task-run-heading]",
+             "Review the run history"
+           )
   end
 
   test "keyboard transition reconciles from the durable command result and explains rejection", %{

@@ -103,7 +103,7 @@ defmodule CuckodingWeb.StatusLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} active="projects">
       <section aria-labelledby="dashboard-heading" class="space-y-10">
         <header class="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div class="space-y-3">
@@ -125,6 +125,21 @@ defmodule CuckodingWeb.StatusLive do
           </.link>
         </header>
 
+        <nav aria-label="Dashboard sections" class="flex flex-wrap gap-3">
+          <a
+            href="#projects-heading"
+            class="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-4 underline"
+          >Projects ({length(@project_cards)})</a>
+          <a
+            href="#operations-heading"
+            class="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-4 underline"
+          >Recent runs</a>
+          <a
+            href="#approvals-heading"
+            class="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-4 underline"
+          >Approvals ({length(@pending_approvals)})</a>
+        </nav>
+
         <section aria-labelledby="overview-heading" class="space-y-3">
           <h2 id="overview-heading" class="text-xl font-semibold text-slate-950">
             Application and resources
@@ -142,14 +157,14 @@ defmodule CuckodingWeb.StatusLive do
               <dd id="active-agent-count" class="mt-1 text-lg font-semibold text-slate-950">
                 {@resource_summary.active_agents}
               </dd>
-              <dd class="text-sm text-slate-600">durable sessions</dd>
+              <dd class="text-sm text-slate-600">working or waiting for input</dd>
             </div>
             <div class="rounded-lg border border-slate-200 bg-white p-4">
               <dt class="text-sm font-medium text-slate-600">Measured memory</dt>
               <dd class="mt-1 text-lg font-semibold text-slate-950">
                 {format_bytes(@resource_summary.memory_bytes)}
               </dd>
-              <dd class="text-sm text-slate-600">latest owned samples</dd>
+              <dd class="text-sm text-slate-600">latest readings from active agents</dd>
             </div>
             <div class="rounded-lg border border-slate-200 bg-white p-4">
               <dt class="text-sm font-medium text-slate-600">Owned processes · ports</dt>
@@ -168,7 +183,7 @@ defmodule CuckodingWeb.StatusLive do
                 Operations
               </h2>
               <p class="mt-1 text-sm text-slate-700">
-                Recent durable runs, including queued work before its first agent session.
+                Follow current and recent runs. Queued runs still need authentication and an explicit start.
               </p>
             </div>
             <.link
@@ -184,7 +199,7 @@ defmodule CuckodingWeb.StatusLive do
             id="operations-empty"
             class="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-700"
           >
-            No task runs have been prepared yet.
+            No runs yet. Open a project board, add a task, and mark it Ready to prepare its first run.
           </p>
           <ul :if={@operations != []} id="operation-list" class="grid gap-3 lg:grid-cols-2">
             <li
@@ -213,8 +228,8 @@ defmodule CuckodingWeb.StatusLive do
                   <dd class="font-medium text-slate-950">{operation_runtime(operation)}</dd>
                 </div>
                 <div>
-                  <dt class="text-slate-600">Elapsed</dt>
-                  <dd class="font-medium text-slate-950">{elapsed(operation.run.inserted_at)}</dd>
+                  <dt class="text-slate-600">Created</dt>
+                  <dd class="font-medium text-slate-950">{elapsed(operation.run.inserted_at)} ago</dd>
                 </div>
                 <div>
                   <dt class="text-slate-600">Measured memory</dt>
@@ -309,7 +324,7 @@ defmodule CuckodingWeb.StatusLive do
                   navigate={~p"/boards/#{board.id}"}
                   class="inline-flex min-h-10 items-center rounded-md border border-slate-300 px-3 text-sm font-medium text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2"
                 >
-                  {board.name}
+                  Open {board.name}
                 </.link>
                 <.link
                   :if={card.boards == []}

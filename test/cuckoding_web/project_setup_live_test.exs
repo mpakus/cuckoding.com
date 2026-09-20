@@ -106,6 +106,28 @@ defmodule CuckodingWeb.ProjectSetupLiveTest do
     assert Projects.list_projects() == []
   end
 
+  test "Back preserves edited wizard fields without registering anything", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/projects/new")
+    assert has_element?(view, "a", "Cancel setup")
+
+    view
+    |> form("#project-step-1", project: %{name: "Draft project", description: "Keep this"})
+    |> render_submit()
+
+    assert has_element?(view, "#wizard-step-status", "Step 2 of 3")
+    view |> form("#project-step-2", project: %{default_branch: "develop"}) |> render_change()
+    view |> element("button", "Back") |> render_click()
+    assert has_element?(view, "input[name='project[name]'][value='Draft project']")
+    assert has_element?(view, "textarea[name='project[description]']", "Keep this")
+
+    view
+    |> form("#project-step-1", project: %{name: "Draft project", description: "Keep this"})
+    |> render_submit()
+
+    assert has_element?(view, "input[name='project[default_branch]'][value=develop]")
+    assert Projects.list_projects() == []
+  end
+
   defp execution_counts do
     %{
       boards: Repo.aggregate(Board, :count),

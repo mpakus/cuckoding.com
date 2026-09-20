@@ -50,6 +50,8 @@ defmodule CuckodingWeb.ProjectEditLiveTest do
     assert has_element?(view, "#project-role-spec_writer")
     assert has_element?(view, "#project-role-implementer")
     assert has_element?(view, "#project-role-reviewer")
+    assert has_element?(view, "nav[aria-label='Project sections'] a[href='#boards-heading']")
+    assert has_element?(view, "#project-save-state", "Project settings are saved")
 
     render_click(view, "add_connection")
     render_click(view, "add_connection")
@@ -79,6 +81,16 @@ defmodule CuckodingWeb.ProjectEditLiveTest do
     }
 
     render_change(view, "sync", %{"config" => config})
+    assert has_element?(view, "#project-save-state", "Unsaved changes")
+    view |> form("#create-board-form", board: %{name: "Premature board"}) |> render_submit()
+    assert Workflows.list_boards(project.id) == []
+
+    assert has_element?(
+             view,
+             "#project-edit-error",
+             "Save your agents and roles before creating a board"
+           )
+
     assert has_element?(view, "input[name='config[agent_connections][0][api_key_helper]']")
     refute has_element?(view, "input[name='config[agent_connections][1][api_key_helper]']")
 
@@ -88,6 +100,7 @@ defmodule CuckodingWeb.ProjectEditLiveTest do
 
     assert has_element?(view, "#project-edit-status", "saved as revision 2")
     assert has_element?(view, "span", "Configuration revision 2")
+    assert has_element?(view, "#project-save-state", "Project settings are saved")
 
     latest = Projects.latest_config_version(project.id)
     assert latest.revision == 2
@@ -210,7 +223,7 @@ defmodule CuckodingWeb.ProjectEditLiveTest do
     {:ok, view, _html} = live(conn, ~p"/projects/#{project.id}/edit")
     render_click(view, "check-agent-authorization", %{"id" => account.id})
 
-    assert has_element?(view, "#project-edit-status", "authorized and ready for every project")
+    assert has_element?(view, "#project-edit-status", "Each run checks its own access")
     assert has_element?(view, "#saved-agent-#{account.id}", "Authorized")
     assert Adapters.get_provider_account(account.id).status == "authenticated"
   end

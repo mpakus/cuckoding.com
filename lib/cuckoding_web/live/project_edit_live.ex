@@ -24,6 +24,7 @@ defmodule CuckodingWeb.ProjectEditLive do
          project: project,
          revision: config.revision,
          config: edit_config(config.config_json),
+         saved_config: edit_config(config.config_json),
          runtime_options: RuntimeConfiguration.options(),
          boards: Workflows.list_boards(project.id),
          board_form: %{"name" => "Product", "description" => "", "concurrency_limit" => "1"},
@@ -96,7 +97,8 @@ defmodule CuckodingWeb.ProjectEditLive do
          {:ok, updated} <- AgentRuntime.check_account(account) do
       notice =
         if updated.status == "authenticated",
-          do: "#{updated.label} is authorized and ready for every project.",
+          do:
+            "#{updated.label} authorization checked. Each run checks its own access before starting.",
           else: "#{updated.label} is not authorized yet. Run the command below, then check again."
 
       {:noreply, socket |> refresh_saved_agents() |> assign(notice: notice, error: nil)}
@@ -179,6 +181,7 @@ defmodule CuckodingWeb.ProjectEditLive do
        socket
        |> assign(
          revision: version.revision,
+         saved_config: edit_config(version.config_json),
          config: updated,
          notice: "#{saved["label"]} saved as configuration revision #{version.revision}.",
          error: nil
@@ -216,6 +219,7 @@ defmodule CuckodingWeb.ProjectEditLive do
          socket
          |> assign(
            revision: version.revision,
+           saved_config: edit_config(version.config_json),
            config: edit_config(version.config_json),
            notice: "Agent and role configuration saved as revision #{version.revision}.",
            error: nil
@@ -228,7 +232,12 @@ defmodule CuckodingWeb.ProjectEditLive do
   end
 
   def handle_event("create-board", %{"board" => attrs}, socket) do
-    case ProjectWorkflow.create_board(socket.assigns.project.id, attrs) do
+    result =
+      if socket.assigns.config != socket.assigns.saved_config,
+        do: {:error, :unsaved_configuration},
+        else: ProjectWorkflow.create_board(socket.assigns.project.id, attrs)
+
+    case result do
       {:ok, board} ->
         {:noreply,
          socket
@@ -248,7 +257,7 @@ defmodule CuckodingWeb.ProjectEditLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} active="projects">
       <section aria-labelledby="project-edit-heading" class="mx-auto max-w-5xl space-y-8">
         <header class="space-y-3">
           <p class="text-sm font-semibold uppercase tracking-wide text-slate-600">Project settings</p>
@@ -274,6 +283,31 @@ defmodule CuckodingWeb.ProjectEditLive do
           </p>
         </header>
 
+        <nav aria-label="Project sections" class="grid gap-3 sm:grid-cols-3">
+          <a
+            href="#agents-heading"
+            class="rounded-lg border border-slate-300 bg-white p-4 underline underline-offset-4"
+          >1. Connect agents</a>
+          <a
+            href="#roles-heading"
+            class="rounded-lg border border-slate-300 bg-white p-4 underline underline-offset-4"
+          >2. Assign roles</a>
+          <a
+            href="#boards-heading"
+            class="rounded-lg border border-slate-300 bg-white p-4 underline underline-offset-4"
+          >3. Open or create a board ({length(@boards)})</a>
+        </nav>
+        <p
+          id="project-save-state"
+          role="status"
+          class="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-700"
+        >
+          {if @config != @saved_config,
+            do:
+              "Unsaved changes. Save agents and roles before leaving this page or creating a board.",
+            else: "Project settings are saved. New boards will use these agents and roles."}
+        </p>
+
         <p
           id="project-edit-status"
           role="status"
@@ -291,15 +325,17 @@ defmodule CuckodingWeb.ProjectEditLive do
           {@error}
         </p>
 
-        <section
+        <details
           :if={@saved_agents != []}
+          id="saved-agents-panel"
+          open={@config["agent_connections"] == []}
           aria-labelledby="saved-agents-heading"
           class="space-y-4"
         >
+          <summary id="saved-agents-heading" class="min-h-6 font-semibold text-slate-950">
+            Saved agents ({length(@saved_agents)}) · reuse or check sign-in
+          </summary>
           <div>
-            <h2 id="saved-agents-heading" class="text-xl font-semibold text-slate-950">
-              Saved agents
-            </h2>
             <p class="mt-1 text-sm leading-6 text-slate-700">
               Reuse these machine-wide connections in any project. Credentials stay in the
               provider or macOS Keychain; Cuckoding stores only connection settings and status.
@@ -364,6 +400,7 @@ defmodule CuckodingWeb.ProjectEditLive do
                 <button
                   type="button"
                   phx-click="check-agent-authorization"
+                  phx-disable-with="Checking authorization…"
                   phx-value-id={account.id}
                   class="min-h-10 rounded-md bg-slate-950 px-4 text-sm font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
                 >
@@ -386,7 +423,7 @@ defmodule CuckodingWeb.ProjectEditLive do
               </p>
             </article>
           </div>
-        </section>
+        </details>
 
         <form id="project-config-form" phx-change="sync" phx-submit="save" class="space-y-8">
           <section aria-labelledby="agents-heading" class="space-y-4">
@@ -394,7 +431,7 @@ defmodule CuckodingWeb.ProjectEditLive do
               <div>
                 <h2 id="agents-heading" class="text-xl font-semibold text-slate-950">Agents</h2>
                 <p class="mt-1 text-sm text-slate-700">
-                  Paths are machine-local. Cuckoding does not copy runtime credentials.
+                  Save each connection here, then assign it to roles below. To sign in, expand Saved agents above. Cuckoding does not copy credentials.
                 </p>
               </div>
               <button
@@ -424,6 +461,11 @@ defmodule CuckodingWeb.ProjectEditLive do
                 <legend class="px-2 font-semibold text-slate-950">
                   {connection["label"] |> blank_to("New agent")}
                 </legend>
+                <p class="text-sm text-slate-600">
+                  {if connection["persisted"],
+                    do: "Saved connection · edits need Update agent or Save agents and roles.",
+                    else: "Not saved yet · enter the settings, then choose Save agent."}
+                </p>
                 <input
                   type="hidden"
                   name={"config[agent_connections][#{index}][key]"}
@@ -468,6 +510,7 @@ defmodule CuckodingWeb.ProjectEditLive do
                 </p>
                 <label class="grid gap-2 text-sm font-medium text-slate-800">
                   Runtime executable
+                  <span class="text-sm font-normal text-slate-600">Full path to the agent's command-line program, not its desktop app.</span>
                   <input
                     name={"config[agent_connections][#{index}][executable_path]"}
                     value={connection["executable_path"]}
@@ -496,6 +539,7 @@ defmodule CuckodingWeb.ProjectEditLive do
                 <button
                   type="button"
                   phx-click="remove_connection"
+                  data-confirm="Remove this connection from the project form and clear its role assignments? Save agents and roles to apply. The saved agent and existing runs are kept."
                   phx-value-index={index}
                   aria-label={"Remove #{connection["label"] |> blank_to("new agent")}"}
                   class="min-h-10 rounded-md border border-red-300 px-3 text-sm font-medium text-red-900 focus-visible:outline-2 focus-visible:outline-offset-2"
@@ -505,6 +549,7 @@ defmodule CuckodingWeb.ProjectEditLive do
                 <button
                   type="button"
                   phx-click="save-agent"
+                  phx-disable-with="Saving agent…"
                   phx-value-index={index}
                   class="min-h-10 rounded-md bg-slate-950 px-4 text-sm font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
                 >
@@ -519,7 +564,7 @@ defmodule CuckodingWeb.ProjectEditLive do
               <div>
                 <h2 id="roles-heading" class="text-xl font-semibold text-slate-950">Roles</h2>
                 <p class="mt-1 text-sm text-slate-700">
-                  Built-in workflow roles remain available; custom roles can be added or removed.
+                  A role is a job: Specifications plans, Coding implements, and Review checks the result. One agent can fill several roles. Save assignments below before creating a board.
                 </p>
               </div>
               <button
@@ -607,7 +652,10 @@ defmodule CuckodingWeb.ProjectEditLive do
             >
               Dashboard
             </.link>
-            <button class="min-h-11 rounded-md bg-slate-950 px-5 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2">
+            <button
+              phx-disable-with="Saving agents and roles…"
+              class="min-h-11 rounded-md bg-slate-950 px-5 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
+            >
               Save agents and roles
             </button>
           </div>
@@ -621,6 +669,9 @@ defmodule CuckodingWeb.ProjectEditLive do
               their snapshots when project defaults change.
             </p>
           </div>
+          <p :if={@boards == []} class="text-sm text-slate-700">
+            No boards yet. Save your agents and role assignments above, then create your first board here.
+          </p>
 
           <ul :if={@boards != []} class="grid gap-3 sm:grid-cols-2">
             <li
@@ -663,6 +714,7 @@ defmodule CuckodingWeb.ProjectEditLive do
             </label>
             <label class="grid gap-2 text-sm font-medium text-slate-800">
               Concurrent runs
+              <span class="text-sm font-normal text-slate-600">Maximum tasks allowed to run together. Tasks still need an explicit start.</span>
               <input
                 type="number"
                 name="board[concurrency_limit]"
@@ -682,7 +734,10 @@ defmodule CuckodingWeb.ProjectEditLive do
               >{@board_form["description"]}</textarea>
             </label>
             <div class="sm:col-span-2">
-              <button class="min-h-11 rounded-md bg-slate-950 px-5 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2">
+              <button
+                phx-disable-with="Creating board…"
+                class="min-h-11 rounded-md bg-slate-950 px-5 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
+              >
                 Create board
               </button>
             </div>
@@ -827,6 +882,10 @@ defmodule CuckodingWeb.ProjectEditLive do
 
   defp board_error(:roles_not_configured),
     do: "Save an agent assignment for every built-in role before creating a board."
+
+  defp board_error(:unsaved_configuration),
+    do:
+      "Save your agents and roles before creating a board. This keeps the board from using older settings."
 
   defp board_error(%Ecto.Changeset{} = changeset),
     do: "Board could not be created: #{inspect(changeset.errors)}"

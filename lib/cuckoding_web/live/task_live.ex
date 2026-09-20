@@ -16,6 +16,7 @@ defmodule CuckodingWeb.TaskLive do
          page_title: task.title,
          board: board,
          task: task,
+         unsaved_changes: false,
          runs: Execution.list_runs(task.id),
          notice: nil,
          error: nil
@@ -26,12 +27,25 @@ defmodule CuckodingWeb.TaskLive do
   end
 
   @impl true
+  def handle_event("edit", _params, socket),
+    do: {:noreply, assign(socket, unsaved_changes: true)}
+
+  def handle_event(action, _params, %{assigns: %{unsaved_changes: true}} = socket)
+      when action in ["mark-ready", "prepare-run"] do
+    {:noreply,
+     assign(socket,
+       error: "Save your task changes before marking it Ready or preparing a run.",
+       notice: nil
+     )}
+  end
+
   def handle_event("save", %{"task" => attrs}, socket) do
     case Workflows.update_task(socket.assigns.task.id, attrs) do
       {:ok, task} ->
         {:noreply,
          assign(socket,
            task: task,
+           unsaved_changes: false,
            page_title: task.title,
            notice: "Task details saved.",
            error: nil
@@ -84,7 +98,7 @@ defmodule CuckodingWeb.TaskLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} active="projects">
       <article aria-labelledby="task-heading" class="max-w-3xl space-y-8">
         <.link
           navigate={~p"/boards/#{@board.id}"}
@@ -100,7 +114,9 @@ defmodule CuckodingWeb.TaskLive do
           <h1 id="task-heading" class="text-3xl font-semibold tracking-tight text-slate-950">
             {@task.title}
           </h1>
-          <p class="text-slate-700">Priority {@task.priority} · Knowledge: 0 linked</p>
+          <p class="text-slate-700">
+            Priority {@task.priority} · Higher numbers are considered first
+          </p>
         </header>
 
         <p id="task-status" role="status" aria-live="polite" class="text-sm text-emerald-900">
@@ -115,10 +131,9 @@ defmodule CuckodingWeb.TaskLive do
           class="space-y-4 rounded-xl border border-slate-200 bg-white p-5"
         >
           <div>
-            <h2 id="task-run-heading" class="text-xl font-semibold text-slate-950">Run this task</h2>
+            <h2 id="task-run-heading" class="text-xl font-semibold text-slate-950">Next step</h2>
             <p class="mt-1 text-sm leading-6 text-slate-700">
-              Ready does not start automatically. Choose Prepare run to create its branch and
-              worktree, then check authentication and start the workflow on the run page.
+              {next_step(@task, @runs)}
             </p>
           </div>
           <button
@@ -126,6 +141,7 @@ defmodule CuckodingWeb.TaskLive do
             id="mark-task-ready"
             type="button"
             phx-click="mark-ready"
+            phx-disable-with="Marking Ready…"
             class="min-h-11 rounded-md border border-slate-400 bg-white px-5 font-medium text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2"
           >
             Mark Ready
@@ -150,17 +166,33 @@ defmodule CuckodingWeb.TaskLive do
           >
             Open prepared run and start
           </.link>
+          <.link
+            :if={@task.active_run_id && !queued_run?(@runs)}
+            navigate={~p"/runs/#{@task.active_run_id}"}
+            class="inline-flex min-h-11 items-center rounded-md bg-slate-950 px-4 text-sm font-medium text-white"
+          >Open current run</.link>
         </section>
 
         <.host_runner_notice />
 
-        <form :if={editable?(@task)} id="task-edit" phx-submit="save" class="space-y-5">
+        <form
+          :if={editable?(@task)}
+          id="task-edit"
+          phx-change="edit"
+          phx-submit="save"
+          class="space-y-5"
+        >
+          <p :if={@unsaved_changes} role="status" class="text-sm text-slate-700">
+            Unsaved changes. Save this task before leaving or starting work.
+          </p>
           <label class="grid gap-1 font-medium text-slate-800">
             Title
             <input
               type="text"
               name="task[title]"
               value={@task.title}
+              required
+              maxlength="200"
               aria-invalid={if(@error, do: "true", else: "false")}
               aria-describedby={if(@error, do: "task-error")}
               class="min-h-10 rounded-md border border-slate-400 px-3 focus-visible:outline-2 focus-visible:outline-offset-2"
@@ -171,6 +203,7 @@ defmodule CuckodingWeb.TaskLive do
             Description <textarea
               name="task[description]"
               rows="6"
+              maxlength="10000"
               class="rounded-md border border-slate-400 px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2"
             >{@task.description}</textarea>
           </label>
@@ -181,12 +214,16 @@ defmodule CuckodingWeb.TaskLive do
               type="number"
               name="task[priority]"
               value={@task.priority}
+              min="-100"
+              max="100"
+              required
               class="min-h-10 rounded-md border border-slate-400 px-3 focus-visible:outline-2 focus-visible:outline-offset-2"
             />
           </label>
 
           <button
             type="submit"
+            phx-disable-with="Saving task…"
             class="min-h-10 rounded-md bg-slate-950 px-4 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
           >
             Save task
@@ -196,6 +233,12 @@ defmodule CuckodingWeb.TaskLive do
         <p :if={!editable?(@task)} class="rounded-md border border-slate-300 p-4 text-slate-700">
           Task details can be edited only in Draft or Ready.
         </p>
+        <section :if={!editable?(@task)} aria-labelledby="task-description-heading" class="space-y-3">
+          <h2 id="task-description-heading" class="text-xl font-semibold">Task details</h2>
+          <p class="whitespace-pre-wrap text-slate-700">
+            {@task.description || "No details were added to this task."}
+          </p>
+        </section>
 
         <section aria-labelledby="run-history-heading" class="space-y-3">
           <h2 id="run-history-heading" class="text-xl font-semibold text-slate-950">Run history</h2>
@@ -229,6 +272,26 @@ defmodule CuckodingWeb.TaskLive do
   end
 
   defp editable?(task), do: task.state in ["draft", "ready"]
+
+  defp next_step(%{state: "draft"}, _runs),
+    do:
+      "Write the outcome and acceptance details below, save the task, then mark it Ready. Nothing starts yet."
+
+  defp next_step(%{state: "ready"}, runs) do
+    if queued_run?(runs),
+      do: "Your run is prepared. Open it to check agent authentication and start the workflow.",
+      else:
+        "Ready does not start automatically. Prepare run creates a separate Git worktree; you check authentication and start on the next page."
+  end
+
+  defp next_step(%{state: state}, _runs)
+       when state in ["done", "archived", "cancelled", "failed"],
+       do:
+         "Review the run history below for results and errors. Return to the board for available task actions."
+
+  defp next_step(_task, _runs),
+    do: "Open the current run for live progress, required approvals, and available controls."
+
   defp queued_run?(runs), do: Enum.any?(runs, &(&1.state == "queued"))
   defp state_label(state), do: state |> String.replace("_", " ") |> String.capitalize()
 

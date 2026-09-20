@@ -48,6 +48,8 @@ defmodule CuckodingWeb.AgentFloorLiveTest do
     assert html =~ "Agent Floor"
     assert has_element?(floor, "form[aria-label='Group Agent Floor'] select[name=group]")
     assert has_element?(floor, "details summary", "Agent table view")
+    assert has_element?(floor, "[role=region][tabindex='0'][aria-label='Agent session table']")
+    assert has_element?(floor, "h3", "Agent-001")
     assert has_element?(floor, "#agent-card-#{first_session.id} nav[aria-label]")
     refute render(floor) =~ ~r/tabindex="[1-9]/
 
@@ -66,10 +68,12 @@ defmodule CuckodingWeb.AgentFloorLiveTest do
              |> render_click()
 
     {:ok, agent, _html} = live(conn, agent_path)
-    assert has_element?(agent, "h1", "agent-001 inspector")
+    assert has_element?(agent, "h1", "Agent-001 session")
+    assert has_element?(agent, "a", "Manage project agents")
     assert has_element?(agent, "#host-runner-notice", "not a sandbox")
     assert has_element?(agent, "section[aria-labelledby=identity-heading]")
     assert has_element?(agent, "table caption", "Processes attributed")
+    assert has_element?(agent, "[role=region][tabindex='0'][aria-label='Owned processes table']")
     assert has_element?(agent, "section[aria-labelledby=resources-heading]")
 
     run_path = ~p"/runs/#{fixture.run.id}"
@@ -79,6 +83,7 @@ defmodule CuckodingWeb.AgentFloorLiveTest do
     assert has_element?(run, "section[aria-labelledby=timeline-heading]")
     assert has_element?(run, "section[aria-labelledby=preview-heading]", "No preview is active")
     assert has_element?(run, "section[aria-labelledby=artifacts-heading]", "evidence.txt")
+    assert has_element?(run, "[role=region][tabindex='0'][aria-label='Recent activity table']")
     assert has_element?(run, "section[aria-labelledby=findings-heading]", "Fixture finding")
     assert has_element?(run, "section[aria-labelledby=knowledge-heading]", "Phase 7")
 

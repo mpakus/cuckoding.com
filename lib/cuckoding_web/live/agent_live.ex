@@ -53,7 +53,7 @@ defmodule CuckodingWeb.AgentLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} active="agents">
       <article aria-labelledby="agent-heading" class="space-y-8">
         <.link
           navigate={~p"/runs/#{@detail.run.id}"}
@@ -65,11 +65,15 @@ defmodule CuckodingWeb.AgentLive do
             {state_label(@detail.attempt.state)} agent
           </p>
           <h1 id="agent-heading" class="text-3xl font-semibold tracking-tight text-slate-950">
-            {@detail.attempt.role_key} inspector
+            {state_label(@detail.attempt.role_key)} session
           </h1>
           <p class="text-slate-700">
             {@detail.project.name} · {@detail.session.adapter_key}/{model(@detail.session)}
           </p>
+          <.link
+            navigate={~p"/projects/#{@detail.project.id}/edit#agents-heading"}
+            class="inline-flex min-h-11 items-center rounded px-3 underline"
+          >Manage project agents</.link>
         </header>
 
         <p role="status" aria-live="polite" class="text-sm text-emerald-900">{@notice}</p>
@@ -113,26 +117,31 @@ defmodule CuckodingWeb.AgentLive do
         <section aria-labelledby="processes-heading" class="space-y-3">
           <h2 id="processes-heading" class="text-xl font-semibold text-slate-950">Owned processes</h2>
           <p :if={@detail.processes == []} class="text-sm text-slate-700">No process records.</p>
-          <table
+          <div
             :if={@detail.processes != []}
-            class="min-w-full divide-y divide-slate-200 rounded-lg border border-slate-300 bg-white text-left text-sm"
+            tabindex="0"
+            role="region"
+            aria-label="Owned processes table"
+            class="overflow-x-auto focus-visible:outline-2"
           >
-            <caption class="sr-only">Processes attributed to this agent session</caption>
-            <thead>
-              <tr>
-                <th class="px-3 py-2">PID</th><th class="px-3 py-2">Group</th><th class="px-3 py-2">
-                  Role
-                </th><th class="px-3 py-2">State</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr :for={process <- @detail.processes}>
-                <td class="px-3 py-2">{process.pid}</td><td class="px-3 py-2">{process.pgid}</td><td class="px-3 py-2">
-                  {process.role}
-                </td><td class="px-3 py-2">{state_label(process.state)}</td>
-              </tr>
-            </tbody>
-          </table>
+            <table class="min-w-full divide-y divide-slate-200 rounded-lg border border-slate-300 bg-white text-left text-sm">
+              <caption class="sr-only">Processes attributed to this agent session</caption>
+              <thead>
+                <tr>
+                  <th class="px-3 py-2">PID</th><th class="px-3 py-2">Group</th><th class="px-3 py-2">
+                    Role
+                  </th><th class="px-3 py-2">State</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr :for={process <- @detail.processes}>
+                  <td class="px-3 py-2">{process.pid}</td><td class="px-3 py-2">{process.pgid}</td><td class="px-3 py-2">
+                    {process.role}
+                  </td><td class="px-3 py-2">{state_label(process.state)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </section>
 
         <.usage_summary records={@detail.usage} />

@@ -28,6 +28,11 @@ defmodule CuckodingWeb.ProjectSetupLive do
   end
 
   @impl true
+  def handle_event("sync", %{"project" => params}, socket) do
+    project = socket.assigns.project |> Map.merge(params) |> Map.put("confirmed", "false")
+    {:noreply, assign(socket, project: project)}
+  end
+
   def handle_event("next", %{"project" => params}, socket) do
     project = Map.merge(socket.assigns.project, params)
 
@@ -103,7 +108,7 @@ defmodule CuckodingWeb.ProjectSetupLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} active="projects">
       <section aria-labelledby="project-setup-heading" class="mx-auto max-w-4xl space-y-8">
         <header class="space-y-3">
           <p class="text-sm font-semibold uppercase tracking-wide text-slate-600">Project setup</p>
@@ -112,7 +117,7 @@ defmodule CuckodingWeb.ProjectSetupLive do
           </h1>
           <p class="max-w-2xl text-base leading-7 text-slate-700">
             Choose a project folder and review the registration.
-            Setup does not create a board, task, branch, worktree, or running process.
+            Next, you will connect agents, assign roles, and create a board. No agents start during setup.
           </p>
         </header>
 
@@ -133,6 +138,9 @@ defmodule CuckodingWeb.ProjectSetupLive do
             </li>
           </ol>
         </nav>
+        <p id="wizard-step-status" role="status" class="text-sm text-slate-600">
+          Step {@step} of 3 · {Enum.at(@steps, @step - 1)}
+        </p>
 
         <p
           :if={@error}
@@ -143,7 +151,13 @@ defmodule CuckodingWeb.ProjectSetupLive do
           {@error}
         </p>
 
-        <form :if={@step == 1} id="project-step-1" phx-submit="next" class="space-y-6">
+        <form
+          :if={@step == 1}
+          id="project-step-1"
+          phx-change="sync"
+          phx-submit="next"
+          class="space-y-6"
+        >
           <fieldset class="space-y-5 rounded-xl border border-slate-200 bg-white p-6">
             <legend class="px-2 text-lg font-semibold text-slate-950">Project identity</legend>
             <label class="grid gap-2 font-medium text-slate-800">
@@ -168,7 +182,13 @@ defmodule CuckodingWeb.ProjectSetupLive do
           <.wizard_actions step={@step} />
         </form>
 
-        <form :if={@step == 2} id="project-step-2" phx-submit="next" class="space-y-6">
+        <form
+          :if={@step == 2}
+          id="project-step-2"
+          phx-change="sync"
+          phx-submit="next"
+          class="space-y-6"
+        >
           <fieldset class="space-y-5 rounded-xl border border-slate-200 bg-white p-6">
             <legend class="px-2 text-lg font-semibold text-slate-950">Repository</legend>
             <p class="text-sm leading-6 text-slate-700">
@@ -192,6 +212,7 @@ defmodule CuckodingWeb.ProjectSetupLive do
                   id="choose-project-folder"
                   type="button"
                   phx-click="choose_folder"
+                  phx-disable-with="Opening folder chooser…"
                   class="min-h-11 rounded-md border border-slate-400 bg-white px-5 font-medium text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2"
                 >
                   Choose folder…
@@ -200,6 +221,7 @@ defmodule CuckodingWeb.ProjectSetupLive do
             </div>
             <label class="grid gap-2 font-medium text-slate-800">
               Git branch
+              <span class="text-sm font-normal text-slate-600">New runs start from this branch. Your existing branch is not changed.</span>
               <input
                 name="project[default_branch]"
                 value={@project["default_branch"]}
@@ -278,7 +300,10 @@ defmodule CuckodingWeb.ProjectSetupLive do
             >
               Back
             </button>
-            <button class="min-h-11 rounded-md bg-slate-950 px-5 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2">
+            <button
+              phx-disable-with="Adding project…"
+              class="min-h-11 rounded-md bg-slate-950 px-5 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
+            >
               Add project
             </button>
           </div>
@@ -301,8 +326,15 @@ defmodule CuckodingWeb.ProjectSetupLive do
       >
         Back
       </button>
-      <span :if={@step == 1}></span>
-      <button class="min-h-11 rounded-md bg-slate-950 px-5 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2">
+      <.link
+        :if={@step == 1}
+        navigate={~p"/"}
+        class="inline-flex min-h-11 items-center rounded px-3 underline focus-visible:outline-2 focus-visible:outline-offset-2"
+      >Cancel setup</.link>
+      <button
+        phx-disable-with="Checking…"
+        class="min-h-11 rounded-md bg-slate-950 px-5 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
+      >
         Continue
       </button>
     </div>

@@ -55,7 +55,7 @@ defmodule CuckodingWeb.AgentFloorLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} active="agents">
       <section aria-labelledby="agent-floor-heading" class="space-y-8">
         <header class="space-y-2">
           <p class="text-sm font-semibold uppercase tracking-wide text-slate-600">Live operations</p>
@@ -63,8 +63,9 @@ defmodule CuckodingWeb.AgentFloorLive do
             Agent Floor
           </h1>
           <p class="max-w-3xl text-slate-700">
-            Durable agent sessions, their handoffs, attention state, resource use, and safe inspection controls.
+            See what agents are doing during task runs. Saved connections and role assignments are managed in each project's settings.
           </p>
+          <.link navigate={~p"/"} class="inline-flex min-h-11 items-center rounded px-3 underline">Open projects to manage agents</.link>
         </header>
 
         <form
@@ -88,7 +89,7 @@ defmodule CuckodingWeb.AgentFloorLive do
 
         <p role="status" aria-live="polite" class="text-sm text-emerald-900">{@notice}</p>
         <p :if={@cards == []} class="rounded-md border border-slate-300 p-5 text-slate-700">
-          No agent sessions have been recorded.
+          No agent sessions yet. Open a project board, choose a Ready task, prepare its run, then check authentication and start it. Saved agents appear here only after a session is recorded.
         </p>
         <.agent_floor :if={@cards != []} groups={@lane_groups} cards={@cards} group_by={@group_by} />
       </section>
