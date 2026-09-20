@@ -5,6 +5,7 @@ defmodule Cuckoding.GuidedRun do
   alias Cuckoding.AgentRuntime
   alias Cuckoding.Execution
   alias Cuckoding.Identifier
+  alias Cuckoding.OrchestrationFailure
   alias Cuckoding.Repo
   alias Cuckoding.WalkingSkeleton
 
@@ -78,7 +79,7 @@ defmodule Cuckoding.GuidedRun do
     implementation = Map.fetch!(role_adapters, "implementer")
 
     work = fn ->
-      result =
+      OrchestrationFailure.guard(run.id, :workflow, fn ->
         WalkingSkeleton.run(skeleton,
           adapter: implementation.adapter,
           adapter_options: implementation.options,
@@ -86,15 +87,17 @@ defmodule Cuckoding.GuidedRun do
           role_adapters: role_adapters,
           simulate_sleep_gap: false
         )
-
-      if match?({:error, _reason}, result), do: block(run.id)
-      result
+      end)
     end
 
     if Keyword.get(options, :async, true) do
       case Task.Supervisor.start_child(Cuckoding.GuidedRunSupervisor, work) do
-        {:ok, _pid} -> {:ok, :started}
-        {:error, reason} -> block(run.id, {:worker_start_failed, reason})
+        {:ok, _pid} ->
+          {:ok, :started}
+
+        {:error, reason} ->
+          :ok = OrchestrationFailure.fail(run.id, :workflow, {:worker_start_failed, reason})
+          {:error, {:worker_start_failed, reason}}
       end
     else
       work.()
@@ -136,14 +139,5 @@ defmodule Cuckoding.GuidedRun do
       |> Keyword.fetch!(:database)
       |> Path.dirname()
       |> Path.join("workspaces")
-  end
-
-  defp block(run_id, reason \\ :workflow_failed) do
-    case Execution.transition_run(run_id, "blocked", "guided:#{run_id}:blocked",
-           wait_reason: "workflow failed; inspect the run evidence"
-         ) do
-      {:ok, _command} -> {:error, reason}
-      {:error, transition_reason} -> {:error, {:block_failed, reason, transition_reason}}
-    end
   end
 end

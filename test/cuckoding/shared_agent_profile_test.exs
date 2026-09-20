@@ -182,6 +182,27 @@ defmodule Cuckoding.SharedAgentProfileTest do
     assert {:error, :shared_profile_configuration_changed} = AgentRuntime.account_setup(account)
   end
 
+  test "failed authorization checks persist a safe provider error", %{root: root} do
+    executable = Path.join(root, "unsupported-codex")
+    File.write!(executable, "#!/bin/sh\necho 'codex-cli 0.1.0'\n")
+    File.chmod!(executable, 0o700)
+    {:ok, account} = account("codex", executable)
+
+    assert {:error, %Types.Error{code: :unsupported_version}} =
+             AgentRuntime.check_account(account)
+
+    assert Adapters.get_provider_account(account.id).status == "unknown"
+
+    event =
+      Cuckoding.Repo.get_by!(RunEvent,
+        run_id: "provider:" <> account.id,
+        event_type: "provider.authorization_check_failed"
+      )
+
+    assert event.payload["code"] == "unsupported_version"
+    refute inspect(event) =~ executable
+  end
+
   test "rejects profile symlinks and runtime identity changes", %{root: root} do
     {:ok, account} = account("codex", "/usr/bin/true")
     {:ok, home} = SharedProfile.prepare(account.id, "codex")
@@ -357,6 +378,21 @@ defmodule Cuckoding.SharedAgentProfileTest do
 
     assert {"CURSOR_CONFIG_DIR", _config} =
              List.keyfind(cursor_options[:env], "CURSOR_CONFIG_DIR", 0)
+
+    {:ok, failed} = account("codex", "/usr/bin/true", "new")
+    failing_runner = fn _executable, _args, _options -> {"private provider output", 1} end
+
+    assert {:error, :provider_disconnect_failed} =
+             AgentRuntime.disconnect_account(failed, command_runner: failing_runner)
+
+    failure =
+      Cuckoding.Repo.get_by!(RunEvent,
+        run_id: "provider:" <> failed.id,
+        event_type: "provider.disconnect_failed"
+      )
+
+    assert failure.payload["code"] == "provider_disconnect_failed"
+    refute inspect(failure) =~ "private provider output"
   end
 
   defp account(runtime, executable, authorization \\ "auto") do

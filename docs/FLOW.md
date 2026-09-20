@@ -12,7 +12,9 @@ Project setup, board setup, board task intake, and delivery execution are separa
    can be attached and project role defaults are versioned separately. A saved
    agent holds only validated runtime settings, authorization status, and a bounded
    provider-reported model catalog refreshed after successful sign-in checks;
-   supported credentials stay in the provider's credential store. Neither action creates a
+   supported credentials stay in the provider's credential store. Failed sign-in checks and
+   disconnects append redacted provider events and remain visible in the saved agent's error
+   history after reload. Neither action creates a
    board, task, run, feature branch, worktree, or provider process.
 2. **Board setup** creates a named board with the default versioned workflow,
    copied project role assignments, and a chosen concurrency limit. Workflow
@@ -34,8 +36,9 @@ Project setup, board setup, board task intake, and delivery execution are separa
 4. **Board task intake** accepts a bounded prompt and one snapshotted agent
    role. It creates a hidden planning task and normal queued run, verifies that
    role's saved authorization or isolated runtime setup, and launches a single read-only,
-   network-denied stage. The agent may use read-only inspection commands inside
-   the runtime sandbox so it can open project files. The run waits at `task proposal review`; validated
+   network-denied stage. The agent may use read-only inspection commands under
+   the runtime's permission mode so it can open project files; the host runner is
+   not a sandbox. The run waits at `task proposal review`; validated
    proposals remain separate rows until a human selects them. Import creates
    normal Draft tasks and links each proposal to the created task so retries do
    not duplicate cards. The board shows LiveView submit feedback immediately,
@@ -78,6 +81,12 @@ exhausts the fixed MVP attempt budget and blocks the run. Passing Review creates
 one human choice: the existing approved release, or an atomic local completion
 that marks the run/task done, rejects only the release handoff, and preserves the
 local branch, worktree, and evidence.
+Every planning or delivery worker runs behind the same durable failure boundary.
+Returned errors and unexpected worker exceptions append a safe failure code and
+public recovery message, fail the current agent session and running stage when
+present, and block the run. Raw exception text is not persisted. The run alert,
+timeline, and filtered process-log viewer therefore survive browser reloads and
+show where to inspect the failure.
 Multiple boards and their runs execute independently,
 subject to project and machine resource budgets. Kanban columns show task
 lifecycle states; workflow stages appear in the run timeline.

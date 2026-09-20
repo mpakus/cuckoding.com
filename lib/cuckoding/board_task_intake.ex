@@ -8,12 +8,12 @@ defmodule Cuckoding.BoardTaskIntake do
   alias Cuckoding.Adapters.Types
   alias Cuckoding.AgentRuntime
   alias Cuckoding.Execution
-  alias Cuckoding.Execution.AgentSession
   alias Cuckoding.Execution.EventStore
   alias Cuckoding.Execution.LocalProcessRunner
   alias Cuckoding.Execution.Run
   alias Cuckoding.Execution.StageAttempt
   alias Cuckoding.Identifier
+  alias Cuckoding.OrchestrationFailure
   alias Cuckoding.ProjectWorkflow
   alias Cuckoding.Repo
   alias Cuckoding.WalkingSkeleton
@@ -80,25 +80,25 @@ defmodule Cuckoding.BoardTaskIntake do
 
   defp launch(skeleton, runtime, options) do
     work = fn ->
-      result = run(skeleton, runtime, options)
-
-      case result do
-        {:error, reason} ->
-          _recorded = record_failure(skeleton.run.id, reason)
-          fail_active_attempt(skeleton.run.id)
-          block(skeleton.run.id, reason)
-
-        _success ->
-          :ok
-      end
-
-      result
+      OrchestrationFailure.guard(skeleton.run.id, :task_intake, fn ->
+        run(skeleton, runtime, options)
+      end)
     end
 
     if Keyword.get(options, :async, true) do
       case Elixir.Task.Supervisor.start_child(Cuckoding.GuidedRunSupervisor, work) do
-        {:ok, _pid} -> {:ok, :started}
-        {:error, reason} -> block(skeleton.run.id, {:worker_start_failed, reason})
+        {:ok, _pid} ->
+          {:ok, :started}
+
+        {:error, reason} ->
+          :ok =
+            OrchestrationFailure.fail(
+              skeleton.run.id,
+              :task_intake,
+              {:worker_start_failed, reason}
+            )
+
+          {:error, {:worker_start_failed, reason}}
       end
     else
       work.()
@@ -523,70 +523,6 @@ defmodule Cuckoding.BoardTaskIntake do
     end
   end
 
-  defp fail_active_attempt(run_id) do
-    case Repo.one(
-           from(attempt in StageAttempt,
-             where: attempt.run_id == ^run_id and attempt.state == "running",
-             order_by: [desc: attempt.inserted_at],
-             limit: 1
-           )
-         ) do
-      %StageAttempt{} = attempt ->
-        Execution.transition_stage_attempt(
-          attempt.id,
-          "failed",
-          "intake:#{attempt.id}:failed"
-        )
-
-      nil ->
-        :ok
-    end
-  end
-
-  defp record_failure(run_id, reason) do
-    summary = public_failure(reason)
-
-    attrs = %{
-      event_type: "task_intake.failed",
-      public_summary: summary,
-      payload: %{"code" => failure_code(reason)}
-    }
-
-    case latest_session(run_id) do
-      %AgentSession{} = session ->
-        changeset =
-          AgentSession.observation_changeset(session, %{
-            effective_grant_json: session.effective_grant_json,
-            state: "failed"
-          })
-
-        attrs = %{
-          attrs
-          | payload:
-              attrs.payload
-              |> Map.put("agent_session_id", session.id)
-              |> Map.put("stage_attempt_id", session.stage_attempt_id)
-        }
-
-        EventStore.append(run_id, attrs, fn repo, _sequence -> repo.update(changeset) end)
-
-      nil ->
-        EventStore.append(run_id, attrs)
-    end
-  end
-
-  defp latest_session(run_id) do
-    Repo.one(
-      from(session in AgentSession,
-        join: attempt in StageAttempt,
-        on: attempt.id == session.stage_attempt_id,
-        where: attempt.run_id == ^run_id,
-        order_by: [desc: session.inserted_at, desc: session.id],
-        limit: 1
-      )
-    )
-  end
-
   defp adapter_failure(%{output: output}, status) when is_binary(output) do
     if String.contains?(output, "invalid_json_schema"),
       do: :invalid_output_schema,
@@ -594,44 +530,4 @@ defmodule Cuckoding.BoardTaskIntake do
   end
 
   defp adapter_failure(_result, status), do: {:adapter_exit, status}
-
-  defp public_failure(:invalid_output_schema),
-    do:
-      "The agent runtime rejected Cuckoding's task output schema. Update Cuckoding and create a new planning run."
-
-  defp public_failure(:invalid_task_proposals),
-    do:
-      "The agent returned task proposals that failed validation. Review the cited files and create a new planning run."
-
-  defp public_failure({:adapter_exit, status}) when is_integer(status),
-    do:
-      "The planning agent exited with status #{status}. Inspect the redacted process artifact and create a new planning run."
-
-  defp public_failure(%Types.Error{category: :malformed_output}),
-    do:
-      "Cuckoding could not read the agent's structured task response. Inspect the redacted process artifact and create a new planning run."
-
-  defp public_failure(_reason),
-    do: "Task planning failed. Inspect recent activity and create a new planning run."
-
-  defp failure_code(:invalid_output_schema), do: "invalid_output_schema"
-  defp failure_code(:invalid_task_proposals), do: "invalid_task_proposals"
-  defp failure_code({:adapter_exit, _status}), do: "adapter_exit"
-  defp failure_code(%Types.Error{code: code}), do: to_string(code)
-  defp failure_code(_reason), do: "task_intake_failed"
-
-  defp block(run_id, reason) do
-    case Repo.get!(Run, run_id).state do
-      "running" ->
-        case Execution.transition_run(run_id, "blocked", "intake:#{run_id}:blocked",
-               wait_reason: public_failure(reason)
-             ) do
-          {:ok, _command} -> {:error, reason}
-          {:error, transition_reason} -> {:error, {:block_failed, reason, transition_reason}}
-        end
-
-      _state ->
-        {:error, reason}
-    end
-  end
 end

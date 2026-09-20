@@ -25,6 +25,16 @@ defmodule CuckodingWeb.AgentSettingsLiveTest do
     assert has_element?(view, "#agent-command-#{account.id} input[readonly][data-copy-source]")
     assert has_element?(view, "#agent-command-#{account.id} button[data-copy-button]", "Copy")
 
+    Cuckoding.Adapters.record_provider_failure(
+      account.id,
+      :authorization_check,
+      :unsupported_version,
+      account.capabilities_json
+    )
+
+    assert has_element?(view, "#agent-#{account.id} details", "Recent agent errors (1)")
+    assert has_element?(view, "#agent-#{account.id}", "code unsupported_version")
+
     Cuckoding.Adapters.record_provider_status(account.id, "authenticated", nil, %{
       "status" => "available",
       "models" => [

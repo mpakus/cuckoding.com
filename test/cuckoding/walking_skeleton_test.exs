@@ -10,6 +10,7 @@ defmodule Cuckoding.WalkingSkeletonTest do
   alias Cuckoding.Execution.RunEvent
   alias Cuckoding.Execution.StageAttempt
   alias Cuckoding.FakeSecretStore
+  alias Cuckoding.OrchestrationFailure
   alias Cuckoding.Repo
   alias Cuckoding.Security.SecretAccessAudit
   alias Cuckoding.Security.SecretStore
@@ -410,6 +411,59 @@ defmodule Cuckoding.WalkingSkeletonTest do
                where: approval.run_id == ^created.run.id
              )
            )
+  end
+
+  test "unexpected orchestration failures are durable, redacted, and visible",
+       %{
+         conn: conn
+       } = fixture do
+    assert {:ok, created} = WalkingSkeleton.create(fixture.attrs)
+
+    assert {:ok, attempt} =
+             Cuckoding.Execution.create_stage_attempt(%{
+               run_id: created.run.id,
+               stage_key: "specification",
+               attempt: 1,
+               role_key: "spec_writer",
+               role_kind: "agent"
+             })
+
+    assert {:ok, _command} =
+             Cuckoding.Execution.transition_stage_attempt(
+               attempt.id,
+               "running",
+               "test:#{attempt.id}:running"
+             )
+
+    assert {:ok, session} =
+             Cuckoding.Execution.create_agent_session(%{
+               stage_attempt_id: attempt.id,
+               adapter_key: "fake",
+               effective_grant_json: %{}
+             })
+
+    assert {:error, :unexpected_failure} =
+             OrchestrationFailure.guard(created.run.id, :workflow, fn ->
+               raise "SECRET-CANARY should never be persisted"
+             end)
+
+    run = Repo.get!(Cuckoding.Execution.Run, created.run.id)
+    assert run.state == "blocked"
+    assert Repo.get!(StageAttempt, attempt.id).state == "failed"
+    assert Repo.get!(Cuckoding.Execution.AgentSession, session.id).state == "failed"
+
+    failure =
+      Repo.get_by!(RunEvent, run_id: created.run.id, event_type: "workflow.failed")
+
+    assert failure.payload["code"] == "unexpected_failure"
+    assert failure.payload["stage_attempt_id"] == attempt.id
+    assert failure.payload["agent_session_id"] == session.id
+    refute inspect(failure) =~ "SECRET-CANARY"
+
+    assert {:ok, view, _html} = live(conn, ~p"/runs/#{created.run.id}")
+    assert has_element?(view, "#run-failure[role=alert]", "Workflow stopped")
+    assert has_element?(view, "#run-failure", "safe failure code")
+    assert has_element?(view, "#run-failure a", "Return to task")
   end
 
   test "guided onboarding validates the repository before creating a queued run", fixture do

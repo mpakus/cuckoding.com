@@ -272,19 +272,21 @@ defmodule CuckodingWeb.RunLive do
         </section>
 
         <section
-          :if={intake_failure?(@detail)}
+          :if={run_failure?(@detail)}
           id="run-failure"
           role="alert"
           aria-labelledby="run-failure-heading"
           class="space-y-2 rounded-lg border border-red-300 bg-red-50 p-5 text-red-950"
         >
-          <h2 id="run-failure-heading" class="text-xl font-semibold">Planning failed</h2>
-          <p>{intake_failure(@detail)}</p>
+          <h2 id="run-failure-heading" class="text-xl font-semibold">
+            {failure_heading(@detail)}
+          </h2>
+          <p>{run_failure(@detail)}</p>
           <.link
-            navigate={~p"/boards/#{@detail.board.id}"}
+            navigate={failure_return_path(@detail)}
             class="inline-flex min-h-10 items-center rounded underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
           >
-            Return to board and create a new planning run
+            {failure_return_label(@detail)}
           </.link>
         </section>
 
@@ -701,15 +703,12 @@ defmodule CuckodingWeb.RunLive do
   defp intake?(%{task: %{kind: "board_intake"}}), do: true
   defp intake?(_detail), do: false
 
-  defp intake_failure?(%{task: %{kind: "board_intake"}, run: %{state: state}}),
-    do: state in ["blocked", "failed"]
+  defp run_failure?(%{run: %{state: state}}), do: state in ["blocked", "failed"]
 
-  defp intake_failure?(_detail), do: false
-
-  defp intake_failure(detail) do
+  defp run_failure(detail) do
     detail.activity
     |> Enum.reverse()
-    |> Enum.find(&(&1.event_type == "task_intake.failed"))
+    |> Enum.find(&(&1.event_type in ["task_intake.failed", "workflow.failed"]))
     |> case do
       %{metadata: %{"code" => "task_intake_failed"}} ->
         "This older run did not record a specific validation error. The agent response was not " <>
@@ -719,9 +718,24 @@ defmodule CuckodingWeb.RunLive do
         summary
 
       nil ->
-        detail.run.wait_reason || "Task planning failed. Inspect recent activity below."
+        detail.run.wait_reason ||
+          "This run stopped without a specific failure event. Inspect the timeline and available process logs."
     end
   end
+
+  defp failure_heading(%{task: %{kind: "board_intake"}}), do: "Planning failed"
+  defp failure_heading(_detail), do: "Workflow stopped"
+
+  defp failure_return_path(%{task: %{kind: "board_intake"}, board: board}),
+    do: ~p"/boards/#{board.id}"
+
+  defp failure_return_path(detail),
+    do: ~p"/boards/#{detail.board.id}/tasks/#{detail.task.id}"
+
+  defp failure_return_label(%{task: %{kind: "board_intake"}}),
+    do: "Return to board and create a new planning run"
+
+  defp failure_return_label(_detail), do: "Return to task and review the next action"
 
   defp planning_status(%{run: %{state: "queued"}}),
     do: "Planning run created. Verify agent authentication below, then start analysis."

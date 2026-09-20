@@ -528,6 +528,7 @@ defmodule Cuckoding.Adapters do
   import Ecto.Query
 
   alias Cuckoding.Adapters.ProviderAccount
+  alias Cuckoding.Adapters.Types
   alias Cuckoding.Execution.EventStore
   alias Cuckoding.Execution.StageAttempt
   alias Cuckoding.Identifier
@@ -771,6 +772,26 @@ defmodule Cuckoding.Adapters do
     end)
   end
 
+  def record_provider_failure(id, operation, reason, expected_settings \\ nil)
+      when is_binary(id) and operation in [:authorization_check, :disconnect] do
+    EventStore.transaction(fn ->
+      with {:ok, account} <- update_provider_status(id, "unknown", expected_settings, nil),
+           {:ok, _event} <-
+             EventStore.append_in_transaction("provider:" <> id, %{
+               event_type: "provider.#{operation}_failed",
+               public_summary: provider_failure_summary(operation),
+               payload: %{
+                 "provider_account_id" => id,
+                 "code" => provider_failure_code(reason)
+               }
+             }) do
+        account
+      else
+        {:error, failure} -> Repo.rollback(failure)
+      end
+    end)
+  end
+
   def record_provider_disconnected(id, expected_settings) when is_binary(id) do
     EventStore.transaction(fn ->
       with {:ok, account} <-
@@ -798,6 +819,18 @@ defmodule Cuckoding.Adapters do
       payload: %{"provider_account_id" => id}
     })
   end
+
+  defp provider_failure_summary(:authorization_check),
+    do:
+      "Agent sign-in check failed. Verify the configured executable and provider CLI, then try again."
+
+  defp provider_failure_summary(:disconnect),
+    do:
+      "Agent disconnect failed. Use the provider CLI logout command directly, then check sign-in again."
+
+  defp provider_failure_code(%Types.Error{code: code}), do: to_string(code)
+  defp provider_failure_code(reason) when is_atom(reason), do: Atom.to_string(reason)
+  defp provider_failure_code(_reason), do: "provider_operation_failed"
 
   defp update_provider_status(id, status, expected_settings, model_catalog) do
     case Repo.get(ProviderAccount, id) do

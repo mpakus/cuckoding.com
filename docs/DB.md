@@ -2,7 +2,7 @@
 
 ## Storage approach
 
-Use SQLite through Ecto for the single-user local product. Configure WAL mode, foreign keys, a busy timeout, synchronous mode appropriate for desktop durability, and short transactions. Keep the schema portable enough that a future hosted control plane can move to PostgreSQL without changing domain semantics. Knowledge content lives in Markdown files; SQLite holds their index, provenance, and usage.
+Use SQLite through Ecto for the single-user local product. Configure WAL mode, foreign keys, a busy timeout, synchronous mode appropriate for desktop durability, and short transactions. Event transactions retry only a bounded `BEGIN IMMEDIATE` lock failure, before their callback has started; callback failures are never replayed. Keep the schema portable enough that a future hosted control plane can move to PostgreSQL without changing domain semantics. Knowledge content lives in Markdown files; SQLite holds their index, provenance, and usage.
 
 ## Identity and conventions
 

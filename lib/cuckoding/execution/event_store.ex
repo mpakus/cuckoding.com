@@ -12,6 +12,7 @@ defmodule Cuckoding.Execution.EventStore do
   alias Cuckoding.Security.Redactor
 
   @collector_key {__MODULE__, :events_after_commit}
+  @begin_retries 2
 
   def append(run_id, attrs, projection \\ fn _repo, _sequence -> {:ok, nil} end)
       when is_binary(run_id) and is_map(attrs) and is_function(projection, 2) do
@@ -72,6 +73,10 @@ defmodule Cuckoding.Execution.EventStore do
   end
 
   defp collect_after_commit(callback) do
+    retry_locked_begin(fn -> collect_once(callback) end, @begin_retries)
+  end
+
+  defp collect_once(callback) do
     previous = Process.get(@collector_key)
     Process.put(@collector_key, [])
 
@@ -86,6 +91,20 @@ defmodule Cuckoding.Execution.EventStore do
         do: Process.delete(@collector_key),
         else: Process.put(@collector_key, previous)
     end
+  end
+
+  defp retry_locked_begin(callback, retries) do
+    callback.()
+  rescue
+    error in Exqlite.Error ->
+      if retries > 0 and error.message == "database is locked" and
+           error.statement == "BEGIN IMMEDIATE TRANSACTION" do
+        Logger.warning("event transaction begin was busy; retrying")
+        Process.sleep(10)
+        retry_locked_begin(callback, retries - 1)
+      else
+        reraise error, __STACKTRACE__
+      end
   end
 
   defp collect(event) do

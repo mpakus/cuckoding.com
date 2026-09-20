@@ -1,6 +1,7 @@
 defmodule CuckodingWeb.AgentSettingsLive do
   use CuckodingWeb, :live_view
 
+  alias Cuckoding.ActivityStream
   alias Cuckoding.Adapters
   alias Cuckoding.Adapters.RuntimeConfiguration
   alias Cuckoding.AgentRuntime
@@ -371,6 +372,27 @@ defmodule CuckodingWeb.AgentSettingsLive do
             Uses the existing provider sign-in. No second login is needed while it remains valid.
             <a href={"#agent-#{account.authorization_account_id}"} class="underline">Manage shared sign-in</a>
           </p>
+          <details
+            :if={
+              is_nil(account.authorization_account_id) and
+                List.wrap(@failures[account.id]) != []
+            }
+            class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-950"
+          >
+            <summary class="min-h-6 cursor-pointer font-semibold">
+              Recent agent errors ({length(@failures[account.id])})
+            </summary>
+            <p class="mt-2">Durable, redacted failures for this shared sign-in, newest first.</p>
+            <ol class="mt-3 space-y-2">
+              <li :for={event <- @failures[account.id]}>
+                <span class="font-medium">{event.public_summary}</span>
+                <span class="block text-red-900">
+                  {Calendar.strftime(event.occurred_at, "%Y-%m-%d %H:%M:%S UTC")} · code
+                  <code>{event.metadata["code"]}</code>
+                </span>
+              </li>
+            </ol>
+          </details>
           <section
             :if={is_nil(account.authorization_account_id)}
             id={"agent-impact-#{account.id}"}
@@ -485,7 +507,20 @@ defmodule CuckodingWeb.AgentSettingsLive do
     impacts =
       Map.new(accounts, &{&1.id, by_authorization[Adapters.authorization_id(&1)]})
 
-    assign(socket, accounts: accounts, setups: setups, impacts: impacts)
+    failures =
+      accounts
+      |> Enum.filter(&is_nil(&1.authorization_account_id))
+      |> Map.new(fn account ->
+        events =
+          "provider:#{account.id}"
+          |> ActivityStream.list(0)
+          |> Enum.filter(&String.ends_with?(&1.event_type, "_failed"))
+          |> Enum.reverse()
+
+        {account.id, events}
+      end)
+
+    assign(socket, accounts: accounts, setups: setups, impacts: impacts, failures: failures)
   end
 
   defp empty_form,

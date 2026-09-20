@@ -57,6 +57,7 @@ See `CHANGES.md`. In short: no Docker in the MVP, agents and commands run on the
 - Git worktrees and a `LocalProcessRunner` for concurrent feature work on the host.
 - Launch adapters for Claude Code, Codex, and Cursor Agent, with a stable adapter contract for OpenCode.
 - Saved agents at **Agents** (`/settings/agents`): authorize Codex/Cursor once and reuse the sign-in across named agents and projects, each with its own model and role assignments. Separate sign-ins are optional; shared profiles also share provider history. Runs retain separate permissions/worktrees. See [authorization flow and acceptance limits](docs/AGENT_AUTHORIZATION_FLOW.md).
+- Durable failures: agent sign-in/disconnect errors remain in the Agents page, while planning and delivery failures remain on the run page with a safe error code, timeline, and redacted live/full process logs.
 - A plugin system for connectors: knowledge backends (XERJ, others), shell-output filters (RTK), instruction skills (Ponytail, any `SKILL.md`), MCP servers, and future container runners (Docker, OrbStack, Colima, Apple Containers).
 - OpenTelemetry-compatible events and local metric rollups.
 

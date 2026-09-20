@@ -137,9 +137,22 @@ defmodule Cuckoding.AgentRuntime do
 
   def check_account(%ProviderAccount{} = account) do
     with %ProviderAccount{} = current <- Adapters.get_provider_account(account.id),
-         {:ok, root} <- Adapters.authorization_account(current),
-         {:ok, _checked} <- check_authorization(root) do
-      {:ok, Adapters.get_provider_account(account.id)}
+         {:ok, root} <- Adapters.authorization_account(current) do
+      case check_authorization(root) do
+        {:ok, _checked} ->
+          {:ok, Adapters.get_provider_account(account.id)}
+
+        {:error, reason} = error ->
+          _recorded =
+            Adapters.record_provider_failure(
+              root.id,
+              :authorization_check,
+              reason,
+              root.capabilities_json
+            )
+
+          error
+      end
     else
       nil -> {:error, :provider_account_not_found}
       error -> error
@@ -149,13 +162,44 @@ defmodule Cuckoding.AgentRuntime do
   def disconnect_account(%ProviderAccount{} = account, options \\ []) do
     runner = Keyword.get(options, :command_runner, &System.cmd/3)
 
-    with {:ok, root} <- Adapters.authorization_account(account),
-         {:ok, setup} <- account_setup(root),
-         {:ok, _event} <- Adapters.record_provider_disconnect_requested(root.id),
-         :ok <- disconnect_authorization(root.adapter_key, setup, runner),
-         do: Adapters.record_provider_disconnected(root.id, root.capabilities_json)
+    with {:ok, root} <- Adapters.authorization_account(account) do
+      disconnect_root(root, runner)
+    end
+  end
+
+  defp disconnect_root(root, runner) do
+    result =
+      with {:ok, setup} <- account_setup(root),
+           {:ok, _event} <- Adapters.record_provider_disconnect_requested(root.id),
+           :ok <- disconnect_authorization(root.adapter_key, setup, runner),
+           do: Adapters.record_provider_disconnected(root.id, root.capabilities_json)
+
+    case result do
+      {:error, reason} = error ->
+        _recorded =
+          Adapters.record_provider_failure(
+            root.id,
+            :disconnect,
+            reason,
+            root.capabilities_json
+          )
+
+        error
+
+      success ->
+        success
+    end
   rescue
-    _error -> {:error, :provider_disconnect_failed}
+    _error ->
+      _recorded =
+        Adapters.record_provider_failure(
+          root.id,
+          :disconnect,
+          :provider_disconnect_failed,
+          root.capabilities_json
+        )
+
+      {:error, :provider_disconnect_failed}
   end
 
   defp disconnect_authorization("codex", setup, runner) do

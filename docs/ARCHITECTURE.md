@@ -41,7 +41,10 @@ flowchart TD
 ### SQLite persistence
 
 - Stores configuration snapshots, workflow projections, append-only events, artifacts, approvals, usage, rollups, plugin state, knowledge index, provenance, and usage records.
-- Uses WAL mode, foreign keys, a busy timeout, and short transactions.
+- Uses WAL mode, foreign keys, a busy timeout, and short transactions. The event
+  boundary retries only a bounded SQLite `BEGIN IMMEDIATE` lock failure, before
+  application callbacks run, so transient writer contention cannot duplicate
+  orchestration effects.
 - Is authoritative for business state; in-memory processes cache or execute work only.
 
 ### Agent Floor read model
@@ -140,6 +143,15 @@ evidence paths are canonicalized against the owned worktree before proposals
 are inserted. The planning task remains hidden from the delivery Kanban. The
 Codex parser accepts only its fixed stdin prelude before the JSONL stream;
 unknown non-JSON output still fails closed.
+
+`Cuckoding.OrchestrationFailure` guards both delivery and task-intake workers.
+An expected error or unexpected worker exception first appends a redacted,
+typed failure event, marks the current agent session and running stage failed
+when present, and then blocks the run. The run page derives its alert from that
+durable event, so a browser reconnect does not lose the cause. Provider
+authorization-check and disconnect failures use the provider event stream and
+remain visible on the Agents page; raw exceptions and provider output never
+enter either event payload.
 The run waits while `task_proposals` are reviewed, and one idempotent import command
 creates only the selected Draft tasks and links each proposal to its result.
 Its LiveViews expose transient submit state, but render progress from the
@@ -314,12 +326,12 @@ uses offline execution, and accepts only its reviewed read-tool allowlist.
 | Browser tab closed or reloaded | LiveView reconnects and reads current projections; no state changes by inference |
 | Phoenix restart | Reconcile leases, processes, ports, worktrees, pending commands |
 | Shell quit | Graceful shutdown: hibernate or stop runs per policy, then terminate |
-| Agent process exit | Close session, preserve logs, apply retry policy or block |
+| Agent process exit | Close the session, preserve the redacted log, append a typed failure event, then apply retry policy or block |
 | Malformed or unknown provider event | Reject the event; never promote it to workflow state or a command |
 | System sleep | Assertion missing or ignored; gap recorded on wake; heartbeats reconciled; sessions resumed or continued |
 | Network loss | Provider calls fail; classified transient; retry within budget |
 | Plugin unavailable | Feature degraded and labeled; core continues |
-| Provider auth failure | Block only the affected adapter/session |
+| Provider auth failure | Record a redacted provider-stream failure, mark its observed status unknown, and block only the affected adapter/session |
 | Power loss | WAL recovery; reconcile on next start; hibernated state resumes |
 
 ## Architectural constraints
