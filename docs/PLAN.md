@@ -115,6 +115,7 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
   - [x] Saved machine-local agent metadata can be attached across projects without rewriting old board/run snapshots.
   - [ ] Connect Review findings to actual Specifications/Coding reruns and support local completion without release; the current launcher runs sequential stages then waits for release approval.
 - [ ] Task 1018: complete real-provider acceptance of [agent-first authorization](AGENT_AUTHORIZATION_FLOW.md). Global management, shared profiles, automatic checks, grouped roles and explicit legacy bindings are implemented and regression-tested.
+- [x] Task 1019: reuse a compatible provider sign-in across named agents by default; select each agent's model independently and preserve it in planning/workflow requests. Additive migration and regression checks preserve existing accounts. Provider-controlled expiry and real authenticated concurrency remain task 1018 gates.
 - [ ] Verify one saved login across isolated runs in two projects for each supported runtime, including refresh/restart/revocation and concurrency; current configuration tests are not proof of credential reuse.
 - [ ] Complete shared-account revocation UX and per-project impact lists. Save/status audit events and snapshot-preserving bindings are implemented.
 - [ ] Dogfood and controlled beta.

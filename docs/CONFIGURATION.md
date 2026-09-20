@@ -5,6 +5,9 @@
 Task 1018 adds independent **Agents** management at `/settings/agents`:
 authorize once, then select the same connection across projects. See the
 [accepted shared-profile flow and verification boundaries](AGENT_AUTHORIZATION_FLOW.md).
+Task 1019 separates each named agent/model from its reusable provider sign-in.
+New Codex/Cursor agents default to a compatible existing root; separate sign-in
+is explicit. Choose Astra or a custom model ID, or keep the runtime default.
 
 The three-step project wizard creates identity, repository/branch, and a first
 trusted configuration revision with unassigned default roles. Project settings
@@ -12,7 +15,7 @@ at `/projects/:id/edit` attach saved agents and assign roles after registration.
 
 | Layer | Stored information | Effect of later edits |
 | --- | --- | --- |
-| Machine-local `provider_accounts` | Saved label, adapter, validated non-secret settings, authentication mode/status | Catalog metadata changes; existing project copies are not synchronized |
+| Machine-local `provider_accounts` | Saved label, adapter, model/settings, immutable authorization-account reference, observed status | Catalog metadata changes; existing project copies are not synchronized |
 | Project configuration revision | Connections with stable account IDs, copied settings, role names/instructions/assignments | New saves append revisions; newly created boards use the latest revision |
 | Board | Default workflow version and copied role assignments/settings | Existing boards are not rewritten by project saves |
 | Run | Board workflow/roles plus trusted project policy and fixed repository revision | Historical snapshots remain unchanged |
@@ -28,8 +31,14 @@ account's current authentication mode by ID. It is not fully frozen by the role
 snapshot. A cached successful check is not a launch guarantee. Codex uses one
 account-owned `CODEX_HOME` for login, probes and launch. Cursor uses a shared
 app-owned HOME with separate run-owned config directories. Provider history may
-be shared across projects using that account; create separate saved agents to
-separate their profiles. Cuckoding never reads or copies credential files.
+be shared across projects and agents using that authorization; explicitly choose
+a separate sign-in to separate profiles. Authorization references do not change
+after save; model edits do not force another login. Cuckoding never reads or
+copies credential files, imposes a sign-out timer, or guarantees provider expiry.
+
+Model settings are copied through project/board/run snapshots into requested
+stage models. Later edits do not change existing board/run models. Actual model
+is recorded only when reported by the runtime, not inferred from the selection.
 
 Legacy snapshots keep their old setup until explicitly connected. In project
 settings, **Connect saved agents** links a board's existing connection keys to

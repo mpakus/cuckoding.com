@@ -264,6 +264,7 @@ defmodule Cuckoding.ProjectWorkflow do
            role_key: role_key,
            role_kind: kind,
            adapter_key: adapter_key,
+           model_ref: settings["model"],
            settings_json: settings
          }) do
       {:ok, _role} -> :ok

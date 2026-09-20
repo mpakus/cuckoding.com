@@ -18,6 +18,7 @@ defmodule Cuckoding.AgentRuntime do
          options: options,
          version: version,
          settings: role.settings_json,
+         requested_model: role.model_ref,
          role_key: role.role_key
        }}
     end
@@ -43,15 +44,18 @@ defmodule Cuckoding.AgentRuntime do
   defp cached_runtime(skeleton, role_key, checked) do
     with {:ok, assignment} <- role(skeleton, role_key),
          settings = assignment.settings_json,
+         {:ok, identity} <- authorization_identity(assignment),
          key =
-           {assignment.adapter_key, settings["provider_account_id"], settings["executable_path"],
+           {assignment.adapter_key, identity, settings["executable_path"],
             settings["api_key_helper"]},
          {:ok, runtime} <-
            if(Map.has_key?(checked, key),
              do: {:ok, checked[key]},
              else: resolve(skeleton, role_key)
            ) do
-      {:ok, %{runtime | role_key: role_key, settings: settings}, key}
+      {:ok,
+       %{runtime | role_key: role_key, settings: settings, requested_model: assignment.model_ref},
+       key}
     end
   end
 
@@ -65,7 +69,14 @@ defmodule Cuckoding.AgentRuntime do
     end
   end
 
-  def account_setup(%ProviderAccount{adapter_key: "codex"} = account) do
+  def account_setup(%ProviderAccount{} = account) do
+    with {:ok, root} <- Adapters.authorization_account(account),
+         {:ok, setup} <- authorization_setup(root) do
+      {:ok, Map.put(setup, :authorization_id, root.id)}
+    end
+  end
+
+  defp authorization_setup(%ProviderAccount{adapter_key: "codex"} = account) do
     executable = get_in(account.capabilities_json, ["settings", "executable_path"])
 
     with true <- is_binary(executable) and executable != "",
@@ -92,7 +103,7 @@ defmodule Cuckoding.AgentRuntime do
     end
   end
 
-  def account_setup(%ProviderAccount{adapter_key: "cursor_agent"} = account) do
+  defp authorization_setup(%ProviderAccount{adapter_key: "cursor_agent"} = account) do
     executable = get_in(account.capabilities_json, ["settings", "executable_path"])
 
     with true <- is_binary(executable) and executable != "",
@@ -114,7 +125,7 @@ defmodule Cuckoding.AgentRuntime do
     end
   end
 
-  def account_setup(%ProviderAccount{} = account) do
+  defp authorization_setup(%ProviderAccount{} = account) do
     {:ok,
      %{
        runtime: runtime_name(account.adapter_key),
@@ -124,7 +135,14 @@ defmodule Cuckoding.AgentRuntime do
      }}
   end
 
-  def check_account(%ProviderAccount{adapter_key: "codex"} = account) do
+  def check_account(%ProviderAccount{} = account) do
+    with {:ok, root} <- Adapters.authorization_account(account),
+         {:ok, _checked} <- check_authorization(root) do
+      {:ok, Adapters.get_provider_account(account.id)}
+    end
+  end
+
+  defp check_authorization(%ProviderAccount{adapter_key: "codex"} = account) do
     with {:ok, setup} <- account_setup(account),
          {:ok, probe} <-
            Codex.probe(
@@ -138,7 +156,7 @@ defmodule Cuckoding.AgentRuntime do
     end
   end
 
-  def check_account(%ProviderAccount{adapter_key: "cursor_agent"} = account) do
+  defp check_authorization(%ProviderAccount{adapter_key: "cursor_agent"} = account) do
     with {:ok, setup} <- account_setup(account),
          {:ok, probe} <-
            CursorAgent.probe(
@@ -151,12 +169,13 @@ defmodule Cuckoding.AgentRuntime do
     end
   end
 
-  def check_account(%ProviderAccount{} = account), do: {:ok, account}
+  defp check_authorization(%ProviderAccount{} = account), do: {:ok, account}
 
   def group_setups(setups) do
     setups
     |> Enum.group_by(fn setup ->
-      {setup[:account_id] || setup.role_key, setup.runtime, setup[:executable]}
+      {setup[:authorization_id] || setup[:account_id] || setup.role_key, setup.runtime,
+       setup[:executable]}
     end)
     |> Enum.map(fn {_key, group} ->
       group = Enum.sort_by(group, & &1.role_key)
@@ -185,6 +204,7 @@ defmodule Cuckoding.AgentRuntime do
          %{
            role_key: role["role_key"],
            adapter_key: role["adapter_key"],
+           model_ref: role["model_ref"] || settings["model"],
            settings_json: settings
          }}
     end
@@ -352,8 +372,10 @@ defmodule Cuckoding.AgentRuntime do
   defp shared_options(role) do
     case provider_account(role) do
       %ProviderAccount{adapter_key: runtime} = account when runtime == role.adapter_key ->
-        with {:ok, home} <- SharedProfile.prepare(account.id, runtime) do
-          {:ok, [shared_profile_id: account.id] ++ profile_options(runtime, home)}
+        with {:ok, root} <- Adapters.authorization_account(account),
+             :ok <- Cuckoding.AgentBindings.compatible(runtime, role.settings_json, root.id),
+             {:ok, home} <- SharedProfile.prepare(root.id, runtime) do
+          {:ok, [shared_profile_id: root.id] ++ profile_options(runtime, home)}
         end
 
       nil ->
@@ -372,6 +394,21 @@ defmodule Cuckoding.AgentRuntime do
   defp provider_account(role) do
     role.settings_json["provider_account_id"]
     |> Adapters.get_provider_account()
+  end
+
+  defp authorization_identity(role) do
+    case provider_account(role) do
+      nil ->
+        if role.settings_json["provider_account_id"],
+          do: {:error, :provider_account_not_found},
+          else: {:ok, nil}
+
+      account ->
+        with {:ok, root} <- Adapters.authorization_account(account),
+             :ok <-
+               Cuckoding.AgentBindings.compatible(role.adapter_key, role.settings_json, root.id),
+             do: {:ok, root.id}
+    end
   end
 
   defp runtime_name("claude_code"), do: "Claude Code"

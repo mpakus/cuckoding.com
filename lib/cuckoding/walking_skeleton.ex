@@ -538,10 +538,14 @@ defmodule Cuckoding.WalkingSkeleton do
 
   defp stage_runtime(role_key, default_adapter, options) do
     case options |> Keyword.get(:role_adapters, %{}) |> Map.get(role_key) do
-      %{adapter: adapter, options: adapter_options, version: version} ->
+      %{adapter: adapter, options: adapter_options, version: version} = runtime ->
         {adapter,
          options
          |> Keyword.put(:adapter_options, adapter_options)
+         |> Keyword.put(
+           :requested_model,
+           Map.get(runtime, :requested_model, Keyword.get(options, :requested_model))
+         )
          |> Keyword.put(:runtime_version, version)}
 
       _missing ->

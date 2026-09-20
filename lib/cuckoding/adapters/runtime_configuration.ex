@@ -15,6 +15,10 @@ defmodule Cuckoding.Adapters.RuntimeConfiguration do
 
   def options, do: @options
 
+  # Suggestions are not an entitlement check; the selected runtime validates access.
+  def models("codex"), do: [{"Astra", "gpt-6-astra"}]
+  def models(_runtime), do: []
+
   def default_executable("codex"), do: System.find_executable("codex") || ""
   def default_executable("claude_code"), do: System.find_executable("claude") || ""
 
@@ -37,10 +41,12 @@ defmodule Cuckoding.Adapters.RuntimeConfiguration do
   def validate(attrs) when is_map(attrs) do
     with {:ok, runtime} <- runtime(attrs["runtime"]),
          {:ok, executable} <- executable(attrs["executable_path"]),
-         {:ok, helper} <- helper(runtime, attrs["api_key_helper"]) do
+         {:ok, helper} <- helper(runtime, attrs["api_key_helper"]),
+         {:ok, model} <- model(attrs["model"]) do
       settings =
         %{"executable_path" => executable}
         |> maybe_put("api_key_helper", helper)
+        |> maybe_put("model", model)
 
       {:ok, %{runtime: runtime, settings: settings}}
     end
@@ -48,6 +54,16 @@ defmodule Cuckoding.Adapters.RuntimeConfiguration do
 
   defp runtime(runtime) when runtime in @runtimes, do: {:ok, runtime}
   defp runtime(_runtime), do: {:error, :unsupported_runtime}
+
+  defp model(value) when value in [nil, ""], do: {:ok, nil}
+
+  defp model(value) when is_binary(value) do
+    if byte_size(value) <= 128 and Regex.match?(~r/\A[a-zA-Z0-9][a-zA-Z0-9_.:\/-]*\z/, value),
+      do: {:ok, value},
+      else: {:error, :invalid_model}
+  end
+
+  defp model(_value), do: {:error, :invalid_model}
 
   defp executable(path) when is_binary(path) do
     expanded = Path.expand(path)

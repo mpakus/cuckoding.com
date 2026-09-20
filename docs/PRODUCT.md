@@ -36,7 +36,7 @@ It is not a chat client and it is not an autonomous merge bot. Its product value
 - Multiple boards and concurrent task flows per project.
 - Read-only board planning runs that turn a bounded prompt into source-cited task proposals; only human-selected proposals become Draft tasks.
 - Configurable stage templates and role-to-runtime assignment.
-- Claude Code, Codex, and Cursor Agent as supported launch adapters. Cursor requires a fresh login in each run-owned home and refuses project Cursor MCP, sandbox, CLI, or plugin overrides. Project setup may also save OpenCode and Custom Agent connections, but task execution remains blocked until a reviewed adapter passes the conformance suite.
+- Claude Code, Codex, and Cursor Agent as supported launch adapters. Saved Codex/Cursor agents can share an app-owned provider sign-in while selecting different models; per-run configuration stays separate. Cursor refuses project MCP, sandbox, CLI, or plugin overrides. Project setup may also save OpenCode and Custom Agent connections, but task execution remains blocked until a reviewed adapter passes the conformance suite.
 - Git worktree per run, host process runner with process-group supervision, path and command policy, per-run port allocation and preview URL.
 - Durable state machine, retries, approvals, pause, hibernate, resume, crash recovery, and sleep/wake reconciliation.
 - Power assertions while runs are active; unattended mode for long runs.

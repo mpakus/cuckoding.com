@@ -9,6 +9,14 @@
 
 ## Test matrix by component
 
+Task 1019 additionally verifies authorization-reference compatibility and
+immutability, shared revocation status, model-only edits preserving login,
+per-model stage requests despite authentication-probe deduplication, planning
+model snapshots, and a prior-schema database copy migrated without changing
+existing account data. LiveView tests cover model selection and shared sign-in
+controls in both Agents and project settings. Native refresh and years-long
+retention cannot be established by fixture tests.
+
 | Component | Unit / property | Persistence | Integration | Adversarial | Recovery |
 | --- | --- | --- | --- | --- | --- |
 | Domain state machines | Transition guards, workflow validation, DAG validation, budget math, retry classification (property-based) | Event/projection atomicity, constraints, idempotent commands | — | Forged completion payloads | Interrupted command replay |

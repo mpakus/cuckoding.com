@@ -723,6 +723,7 @@ defmodule Cuckoding.Adapters.ProviderAccount do
   import Ecto.Changeset
   @primary_key {:id, :binary_id, autogenerate: false}
   schema "provider_accounts" do
+    field :authorization_account_id, :binary_id
     field :adapter_key, :string
     field :label, :string
     field :auth_mode, :string
@@ -736,6 +737,7 @@ defmodule Cuckoding.Adapters.ProviderAccount do
     record
     |> cast(attrs, [
       :id,
+      :authorization_account_id,
       :adapter_key,
       :label,
       :auth_mode,
@@ -744,6 +746,7 @@ defmodule Cuckoding.Adapters.ProviderAccount do
       :probed_at
     ])
     |> validate_required([:id, :adapter_key, :label, :auth_mode, :capabilities_json])
+    |> foreign_key_constraint(:authorization_account_id)
     |> unique_constraint([:adapter_key, :label])
   end
 

@@ -51,6 +51,7 @@ defmodule CuckodingWeb.ProjectEditLive do
       "provider_account_id" => "",
       "executable_path" => RuntimeConfiguration.default_executable("codex"),
       "api_key_helper" => "",
+      "model" => "",
       "persisted" => false
     }
 
@@ -74,6 +75,7 @@ defmodule CuckodingWeb.ProjectEditLive do
         "provider_account_id" => account.id,
         "executable_path" => settings["executable_path"] || "",
         "api_key_helper" => settings["api_key_helper"] || "",
+        "model" => settings["model"] || "",
         "persisted" => false
       }
 
@@ -382,6 +384,9 @@ defmodule CuckodingWeb.ProjectEditLive do
                   <p class="mt-1 text-sm text-slate-600">
                     {runtime_label(account.adapter_key)} · {authorization_status(account.status)}
                   </p>
+                  <p class="text-sm text-slate-600">
+                    Model: {account.capabilities_json["settings"]["model"] || "Runtime default"}
+                  </p>
                 </div>
                 <button
                   type="button"
@@ -396,6 +401,7 @@ defmodule CuckodingWeb.ProjectEditLive do
 
               <div
                 :for={setup <- List.wrap(@agent_setups[account.id])}
+                :if={is_nil(account.authorization_account_id)}
                 id={"saved-agent-command-#{account.id}"}
                 phx-hook="CopyCommand"
                 class="space-y-2"
@@ -435,6 +441,16 @@ defmodule CuckodingWeb.ProjectEditLive do
                   Check authorization
                 </button>
               </div>
+
+              <p :if={account.authorization_account_id} class="text-sm text-slate-700">
+                Uses an existing provider sign-in.
+                <.link
+                  navigate={"/settings/agents#agent-#{account.authorization_account_id}"}
+                  class="underline"
+                >
+                  Manage shared sign-in
+                </.link>
+              </p>
 
               <p
                 :if={account.adapter_key == "claude_code"}
@@ -548,6 +564,25 @@ defmodule CuckodingWeb.ProjectEditLive do
                     placeholder="/absolute/path/to/agent"
                     class="min-h-11 rounded-md border border-slate-400 px-3 font-mono text-sm focus-visible:outline-2 focus-visible:outline-offset-2"
                   />
+                </label>
+                <label class="grid gap-2 text-sm font-medium text-slate-800">
+                  Model ID
+                  <span class="text-sm font-normal text-slate-600">Leave blank for the runtime default. New agents reuse a compatible saved sign-in; manage separate accounts in Agents.</span>
+                  <input
+                    name={"config[agent_connections][#{index}][model]"}
+                    value={connection["model"]}
+                    list={"agent-models-#{index}"}
+                    maxlength="128"
+                    class="min-h-11 min-w-0 rounded border border-slate-400 px-3 font-mono text-sm"
+                  />
+                  <datalist id={"agent-models-#{index}"}>
+                    <option
+                      :for={{label, value} <- RuntimeConfiguration.models(connection["adapter_key"])}
+                      value={value}
+                    >
+                      {label}
+                    </option>
+                  </datalist>
                 </label>
                 <label
                   :if={connection["adapter_key"] == "claude_code"}
@@ -798,6 +833,7 @@ defmodule CuckodingWeb.ProjectEditLive do
             "provider_account_id" => connection["provider_account_id"] || "",
             "executable_path" => settings["executable_path"] || "",
             "api_key_helper" => settings["api_key_helper"] || "",
+            "model" => settings["model"] || "",
             "persisted" => true
           }
         end),

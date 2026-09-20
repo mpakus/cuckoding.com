@@ -517,32 +517,127 @@ defmodule Cuckoding.Adapters do
   end
 
   def list_provider_accounts do
-    Repo.all(from(account in ProviderAccount, order_by: [asc: account.label, asc: account.id]))
+    accounts =
+      Repo.all(from(account in ProviderAccount, order_by: [asc: account.label, asc: account.id]))
+
+    by_id = Map.new(accounts, &{&1.id, &1})
+    Enum.map(accounts, &with_authorization_status(&1, by_id))
   end
 
   def get_provider_account(id) when is_binary(id) do
     case Ecto.UUID.cast(id) do
-      {:ok, id} -> Repo.get(ProviderAccount, id)
-      :error -> nil
+      {:ok, id} ->
+        case Repo.get(ProviderAccount, id) do
+          nil -> nil
+          account -> with_authorization_status(account)
+        end
+
+      :error ->
+        nil
     end
   end
 
   def get_provider_account(_id), do: nil
 
+  def authorization_id(account), do: account.authorization_account_id || account.id
+
+  def authorization_account(%ProviderAccount{authorization_account_id: nil} = account),
+    do: {:ok, account}
+
+  def authorization_account(%ProviderAccount{} = account) do
+    root = Repo.get(ProviderAccount, account.authorization_account_id)
+
+    if compatible_authorization?(account, root),
+      do: {:ok, root},
+      else: {:error, :provider_account_mismatch}
+  end
+
+  defp compatible_authorization?(account, %ProviderAccount{authorization_account_id: nil} = root),
+    do: account.adapter_key == root.adapter_key and auth_settings(account) == auth_settings(root)
+
+  defp compatible_authorization?(_account, _root), do: false
+
+  defp auth_settings(account),
+    do: Map.take(account.capabilities_json["settings"] || %{}, ~w(executable_path api_key_helper))
+
+  defp with_authorization_status(account, by_id \\ nil)
+  defp with_authorization_status(%{authorization_account_id: nil} = account, _by_id), do: account
+
+  defp with_authorization_status(account, by_id) do
+    root =
+      if by_id,
+        do: by_id[account.authorization_account_id],
+        else: Repo.get(ProviderAccount, account.authorization_account_id)
+
+    if compatible_authorization?(account, root),
+      do: %{account | status: root.status, probed_at: root.probed_at},
+      else: %{account | status: "unknown", probed_at: nil}
+  end
+
   def save_provider_account(attrs) when is_map(attrs) do
     EventStore.transaction(fn ->
-      with {:ok, account} <- persist_provider_account(attrs),
+      with {:ok, attrs} <- authorization_attrs(attrs),
+           {:ok, account} <- persist_provider_account(attrs),
            {:ok, _event} <-
              EventStore.append_in_transaction("provider:" <> account.id, %{
                event_type: "provider.saved",
                public_summary: "Shared agent settings saved",
-               payload: %{"provider_account_id" => account.id}
+               payload: %{
+                 "provider_account_id" => account.id,
+                 "authorization_account_id" => authorization_id(account)
+               }
              }) do
-        account
+        with_authorization_status(account)
       else
         {:error, reason} -> Repo.rollback(reason)
       end
     end)
+  end
+
+  defp authorization_attrs(%{id: id} = attrs) when is_binary(id) do
+    case get_provider_account(id) do
+      nil ->
+        {:error, :provider_account_not_found}
+
+      account ->
+        requested = Map.get(attrs, :authorization_account_id)
+
+        if requested in [nil, "", account.authorization_account_id, authorization_id(account)],
+          do: {:ok, Map.delete(attrs, :authorization_account_id)},
+          else: {:error, :authorization_identity_immutable}
+    end
+  end
+
+  defp authorization_attrs(%{authorization_account_id: "new"} = attrs),
+    do: {:ok, Map.put(attrs, :authorization_account_id, nil)}
+
+  defp authorization_attrs(attrs) do
+    candidate = struct(ProviderAccount, Map.take(attrs, [:adapter_key, :capabilities_json]))
+    selected = Map.get(attrs, :authorization_account_id)
+
+    root =
+      if selected in [nil, "", "auto"] do
+        list_provider_accounts()
+        |> Enum.filter(&compatible_authorization?(candidate, &1))
+        |> Enum.sort_by(&{&1.status != "authenticated", &1.inserted_at, &1.id})
+        |> List.first()
+      else
+        get_provider_account(selected)
+      end
+
+    cond do
+      candidate.adapter_key not in ["codex", "cursor_agent"] and selected in [nil, "", "auto"] ->
+        {:ok, Map.put(attrs, :authorization_account_id, nil)}
+
+      root && compatible_authorization?(candidate, root) ->
+        {:ok, Map.put(attrs, :authorization_account_id, root.id)}
+
+      is_nil(root) and selected in [nil, "", "auto"] ->
+        {:ok, Map.put(attrs, :authorization_account_id, nil)}
+
+      true ->
+        {:error, :provider_account_mismatch}
+    end
   end
 
   defp persist_provider_account(attrs) do
@@ -569,7 +664,7 @@ defmodule Cuckoding.Adapters do
     changeset = ProviderAccount.update_changeset(account, attrs)
 
     changeset =
-      if Ecto.Changeset.changed?(changeset, :capabilities_json),
+      if auth_settings(account) != auth_settings(Ecto.Changeset.apply_changes(changeset)),
         do: Ecto.Changeset.change(changeset, status: "unknown", probed_at: nil),
         else: changeset
 

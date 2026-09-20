@@ -74,7 +74,7 @@ a host process, these controls are not described as OS isolation.
 - Provider authentication belongs to the runtime (Claude Code, Codex, Cursor, OpenCode logins); `provider_accounts` stores only non-secret connection metadata and observed status. Cuckoding probes status and never copies credential directories or token files.
 - Claude Code bare-mode authentication may use only a host-approved absolute executable helper referenced from run-scoped settings. Helper presence is not treated as successful authentication; an isolated probe must confirm it. Global OAuth state never causes Cuckoding to expose the real home directory or copy credential files into a run.
 - Saved Codex accounts use the same app-owned `CODEX_HOME` for login, probes and launch with `cli_auth_credentials_store="keyring"`. Launch ignores saved execution config and execpolicy rules and supplies permission overrides and task instructions separately. Per-run generated files remain evidence, not shared mutable configuration. Cuckoding never copies `auth.json`, exposes the personal CLI home, or passes API keys in commands. Legacy snapshots retain their old setup until explicitly bound to a saved account.
-- Saved Cursor agents share one app-owned HOME per account; `CURSOR_CONFIG_DIR` and `CLAUDE_CONFIG_DIR` remain run-specific at launch. Fixed shared sandbox and empty MCP files must match their approved contents; changed files and profile symlinks fail closed. Project Cursor CLI/sandbox/MCP/plugin overrides and shared-profile plugin directories remain forbidden. An MCP tool deny alone is not process isolation. The stakeholder approved cross-project profile/history sharing on 2026-09-20 (ADR-025); separate saved agents are needed for separate provider histories. Actual concurrent refresh/global-write/MCP acceptance remains a release gate. OpenCode remains a stub.
+- Saved Cursor agents share one app-owned HOME per authorization; `CURSOR_CONFIG_DIR` and `CLAUDE_CONFIG_DIR` remain run-specific at launch. Fixed shared sandbox and empty MCP files must match their approved contents; changed files and profile symlinks fail closed. Project Cursor CLI/sandbox/MCP/plugin overrides and shared-profile plugin directories remain forbidden. An MCP tool deny alone is not process isolation. The stakeholder approved cross-project profile/history sharing on 2026-09-20 (ADR-025); choose a separate sign-in explicitly for separate provider histories (ADR-026). Actual concurrent refresh/global-write/MCP acceptance remains a release gate. OpenCode remains a stub.
 - GitHub credentials are fetched from `SecretStore` only inside the host-side VCS service after approval. They are supplied to the constrained Git process through ephemeral environment configuration and to the fixed `https://api.github.com` endpoint through an authorization header; they are never added to an agent grant, command payload, event, artifact, remote URL, or pull-request body.
 - The Phase 4 local VCS host accepts only an absolute existing bare `origin`, the exact approved run and recorded clean candidate SHA, disables terminal prompting, constructs a non-force `refs/heads/<branch>:refs/heads/<branch>` refspec, and records the result. It never receives provider credentials or performs merge.
 - Never persist complete environment maps, authorization headers, or CLI arguments containing secrets.
@@ -83,6 +83,14 @@ a host process, these controls are not described as OS isolation.
 - Rotate or revoke credentials after any suspected exposure and record an incident.
 
 ## Local service hardening
+
+ADR-026 permits several named agents/models to reuse one root authorization.
+References are immutable and validated against runtime/executable/helper; broken
+or incompatible references fail closed. Separate-account creation remains
+explicit; existing profiles are never silently merged. There is no app-imposed
+authorization expiry or token copying; provider-native refresh and revocation
+remain authoritative. Model IDs are bounded validated argv values, never shell
+fragments. Models do not determine credential identity or permission grants.
 
 - Random port on `127.0.0.1`; never bind `0.0.0.0`. LiveView accepts only the
   `127.0.0.1` and `localhost` browser origins used to reach that loopback

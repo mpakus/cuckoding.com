@@ -67,16 +67,60 @@ defmodule Cuckoding.SharedAgentProfileTest do
     assert [%{role_keys: ["implementer", "reviewer", "spec_writer"]}] =
              AgentRuntime.group_setups(setups)
 
-    {:ok, other} = account("codex", executable)
+    {:ok, other} = account("codex", executable, "new")
     {:ok, separate} = AgentRuntime.account_setup(other)
     refute separate.home == setup.home
 
-    assert length(AgentRuntime.group_setups([hd(setups), %{hd(setups) | account_id: other.id}])) ==
+    assert length(
+             AgentRuntime.group_setups([
+               hd(setups),
+               %{hd(setups) | account_id: other.id, authorization_id: other.id}
+             ])
+           ) ==
              2
+
+    {:ok, second_agent} = account("codex", executable)
+    assert second_agent.authorization_account_id == account.id
+    assert second_agent.status == "authenticated"
+    {:ok, reused} = AgentRuntime.account_setup(second_agent)
+    assert reused.command == setup.command
+
+    linked_run = skeleton(root, second_agent, executable, "linked-agent")
+    [spec_role, review_role, coding_role] = linked_run.run.workflow_snapshot_json["roles"]
+    spec_role = put_in(spec_role["model_ref"], "gpt-6-astra")
+    coding_role = put_in(coding_role["model_ref"], "custom-coding-model")
+    review_role = put_in(review_role["settings"]["provider_account_id"], account.id)
+
+    linked_run =
+      put_in(linked_run.run.workflow_snapshot_json["roles"], [spec_role, review_role, coding_role])
+
+    probes_before = length(String.split(File.read!(probe_log), "\n", trim: true))
+    assert {:ok, linked} = AgentRuntime.resolve_roles(linked_run, roles)
+    assert length(String.split(File.read!(probe_log), "\n", trim: true)) == probes_before + 1
+    assert linked["spec_writer"].requested_model == "gpt-6-astra"
+    assert linked["implementer"].requested_model == "custom-coding-model"
+    assert linked["implementer"].options[:shared_profile_id] == account.id
+
+    model_request = %{
+      request(linked_run)
+      | requested_model: linked["implementer"].requested_model
+    }
+
+    assert {:ok, _} = Codex.render_config(model_request, linked["implementer"].options)
+    assert {:ok, model_spec} = Codex.launch_spec(model_request, linked["implementer"].options)
+
+    assert ["--model", "custom-coding-model"] in Enum.chunk_every(
+             model_spec.command.args,
+             2,
+             1,
+             :discard
+           )
 
     File.write!(revoked, "revoked")
     assert {:error, :provider_auth_required} = AgentRuntime.resolve(first, "implementer")
     assert {:ok, %{status: "authentication_required"}} = AgentRuntime.check_account(account)
+    assert Adapters.get_provider_account(second_agent.id).status == "authentication_required"
+    assert {:error, :provider_auth_required} = AgentRuntime.resolve(linked_run, "implementer")
   end
 
   test "Cursor shares only its app-owned home while parallel runs retain their permissions", %{
@@ -139,8 +183,70 @@ defmodule Cuckoding.SharedAgentProfileTest do
     assert Adapters.get_provider_account(account.id).status == "unknown"
   end
 
-  defp account(runtime, executable) do
+  test "authorization references are compatible, immutable and model edits keep sign-in" do
+    {:ok, root} = account("codex", "/usr/bin/true")
+    {:ok, root} = Adapters.record_provider_status(root.id, "authenticated")
+    {:ok, linked} = account("codex", "/usr/bin/true")
+    assert {:ok, %{id: root_id}} = Adapters.authorization_account(linked)
+    assert root_id == root.id
+
+    assert {:ok, updated} =
+             Cuckoding.ProjectOnboarding.save_agent(%{
+               "provider_account_id" => root.id,
+               "label" => root.label,
+               "adapter_key" => "codex",
+               "executable_path" => "/usr/bin/true",
+               "model" => "gpt-6-astra"
+             })
+
+    assert updated.status == "authenticated"
+    assert updated.probed_at == root.probed_at
+
+    assert {:error, :provider_account_mismatch} =
+             Adapters.save_provider_account(%{
+               adapter_key: "cursor_agent",
+               label: "Mismatch",
+               auth_mode: "shared_profile",
+               authorization_account_id: root.id,
+               capabilities_json: %{"settings" => %{"executable_path" => "/usr/bin/true"}}
+             })
+
+    assert {:error, :provider_account_mismatch} =
+             Adapters.save_provider_account(%{
+               adapter_key: "codex",
+               label: "Missing",
+               auth_mode: "shared_profile",
+               authorization_account_id: Ecto.UUID.generate(),
+               capabilities_json: root.capabilities_json
+             })
+
+    assert {:error, :authorization_identity_immutable} =
+             Adapters.save_provider_account(%{
+               id: linked.id,
+               authorization_account_id: "new"
+             })
+
+    assert {:error, :invalid_model} =
+             Cuckoding.ProjectOnboarding.save_agent(%{
+               "label" => "Bad model",
+               "adapter_key" => "codex",
+               "executable_path" => "/usr/bin/true",
+               "model" => "--unsafe\nflag"
+             })
+
+    assert {:ok, _} =
+             Adapters.save_provider_account(%{
+               id: root.id,
+               capabilities_json: %{"settings" => %{"executable_path" => "/usr/bin/false"}}
+             })
+
+    assert {:error, :provider_account_mismatch} = AgentRuntime.account_setup(linked)
+    assert Adapters.get_provider_account(linked.id).status == "unknown"
+  end
+
+  defp account(runtime, executable, authorization \\ "auto") do
     Adapters.save_provider_account(%{
+      authorization_account_id: authorization,
       adapter_key: runtime,
       label: Ecto.UUID.generate(),
       auth_mode: "shared_profile",

@@ -45,7 +45,7 @@ erDiagram
 | `boards` | `project_id`, `name`, `description`, `workflow_version_id`, `status`, `concurrency_limit`, `unattended_until` | Multiple independent processes per project |
 | `workflow_versions` | `project_id?`, `name`, `version`, `definition_json`, `published_at` | Immutable once used by a run |
 | `role_assignments` | `board_id`, `role_key`, `adapter_key`, `model_ref`, `settings_json` | Board snapshot of project role defaults; run snapshot is separate |
-| `provider_accounts` | `adapter_key`, `label`, `auth_mode`, `status`, `capabilities_json`, `probed_at` | Reusable machine-local agent connection/profile; contains validated non-secret settings and observed auth status, never credential values |
+| `provider_accounts` | `adapter_key`, `label`, `authorization_account_id?`, `auth_mode`, `status`, `capabilities_json`, `probed_at` | Named agent with an optional indexed root-account FK; model in validated settings; authorization status resolved from the root; never credential values |
 | `secret_access_audits` | `secret_ref`, `purpose`, `run_id?`, `occurred_at` | Opaque reference-use audit; never stores the value |
 | `security_audit_events` | `event_type`, `method`, `path`, `status`, `occurred_at` | Append-only shell/browser rejection audit; never stores credentials or query strings |
 | `plugins` | `key`, `kind`, `version`, `source`, `manifest_path`, `manifest_hash`, `manifest_json`, `detected_binaries_json`, `health`, `detected_at`, `last_error` | Validated bundled/user registry state |
@@ -153,6 +153,13 @@ persists only a SHA-256 query hash, never query text.
 - Approval decisions are atomically single-use and append an audit event in the same transaction. A protected-path approval authorizes only its run, stage attempt, and path-set digest; a changed set cannot reuse it.
 
 ## Retention
+
+Migration `20260920170000` adds a nullable self-reference with restricted deletion
+and no backfill: old accounts retain their IDs, profile paths, status and data.
+Application commands allow only compatible root references, immutable after
+creation. Linked agents read root authorization status; model edits preserve it.
+Provider-native storage retains and refreshes credentials; no application timer
+deletes them. Provider expiry/revocation remains authoritative.
 
 - Workflow events, approvals, knowledge provenance and usage, and aggregate usage are retained by default.
 - High-frequency resource samples are downsampled after 7 days and removable after 30 days, subject to user settings.

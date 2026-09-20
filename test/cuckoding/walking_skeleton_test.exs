@@ -202,6 +202,7 @@ defmodule Cuckoding.WalkingSkeletonTest do
         adapter: RoleAdapter,
         options: [caller: self(), tag: :spec_agent],
         version: "spec-1",
+        requested_model: "spec-model",
         settings: %{"instructions" => "Write a bounded specification."}
       },
       "implementer" => %{
@@ -214,6 +215,7 @@ defmodule Cuckoding.WalkingSkeletonTest do
         adapter: RoleAdapter,
         options: [caller: self(), tag: :review_agent],
         version: "review-1",
+        requested_model: "gpt-6-astra",
         settings: %{"instructions" => "Review independently."}
       }
     }
@@ -239,14 +241,16 @@ defmodule Cuckoding.WalkingSkeletonTest do
           on: attempt.id == session.stage_attempt_id,
           where: attempt.run_id == ^created.run.id,
           order_by: attempt.inserted_at,
-          select: {attempt.role_key, session.adapter_key, session.runtime_version}
+          select:
+            {attempt.role_key, session.adapter_key, session.runtime_version,
+             session.requested_model}
         )
       )
 
     assert sessions == [
-             {"spec_writer", "spec_agent", "spec-1"},
-             {"implementer", "fake", "implementation-1"},
-             {"reviewer", "review_agent", "review-1"}
+             {"spec_writer", "spec_agent", "spec-1", "spec-model"},
+             {"implementer", "fake", "implementation-1", nil},
+             {"reviewer", "review_agent", "review-1", "gpt-6-astra"}
            ]
   end
 

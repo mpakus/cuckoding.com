@@ -9,9 +9,12 @@ acceptance from configuration tests alone.
 
 1. Open **Agents** from the main navigation. This is the machine-wide catalog,
    separate from **Agent activity**, which shows running and historical sessions.
-2. **Add agent**: name, runtime, executable and provider-specific settings. Save
-   once, authorize once, and show the observed connection status and check time.
-   The same runtime may have several deliberately separate named accounts.
+2. **Add agent**: name, runtime, model, executable and provider-specific settings.
+   For Codex and Cursor, reuse a compatible provider sign-in by default. The first
+   agent owns the sign-in; additional agents can choose different models without
+   logging in again. **Use a separate sign-in** creates an independent account.
+   **Model** offers Runtime default, suggested Astra for Codex, or Custom model ID;
+   suggestions do not prove account access. Save first, then sign in if needed.
 3. Add a project through **Project → Repository → Review**. In project settings,
    select existing agents and assign their roles; do not re-enter credentials.
    Use Projects to return to the project after adding an agent.
@@ -32,6 +35,11 @@ does not promise that revoked, expired, or administratively restricted access
 never needs renewed authorization. Unsupported runtimes must say so before
 they can be assigned for execution.
 
+No Cuckoding timer clears authorization on restart or after a run. Provider-native
+storage and refresh determine its lifetime; years-long validity cannot be set by
+Cuckoding. Only the provider runtime handles token values. See
+[official Codex authentication documentation](https://learn.chatgpt.com/docs/auth).
+
 ## Ownership and security
 
 - Reuse `provider_accounts`; do not create a second catalog. It owns stable
@@ -42,13 +50,22 @@ they can be assigned for execution.
   rotation or revocation does not rewrite execution history.
 - Decision confirmed on 2026-09-20: use one app-owned runtime profile per saved
   agent across projects. Provider history and session metadata may be shared.
-  Separate named agents get separate profiles. Never use the user's personal
+  ADR-026 allows multiple named agents to reference the same provider profile;
+  only an explicit separate sign-in gets a separate profile. Never use the user's personal
   CLI home. Generated task instructions, permission settings, and worktrees
   remain run-owned; shared state is not reviewed project knowledge.
 - Database rows, events, logs, prompts, artifacts, clipboard commands, and
   exported configuration contain no credential values. Provider-native storage
   remains responsible for secrets; choosing Keychain alone is not evidence
   that two distinct runtime homes resolve the same login.
+- `provider_accounts.authorization_account_id` points only to a compatible root
+  account (same runtime/executable/helper). New automatic selection prefers a
+  connected root, then the oldest compatible root. Existing accounts remain
+  independent unless newly created with a shared reference. References cannot be
+  redirected later, preventing silent identity changes to historical runs.
+- Each agent's model remains independent. Project settings copy the model,
+  boards record `model_ref`, and runs preserve it in snapshots. Both planning and
+  workflow stage requests forward that model; reported actual model stays separate.
 - Shared profiles are now explicitly approved. Codex uses the same account
   home for login, probes and execution, with saved execution config ignored.
   Cursor shares its app-owned HOME but keeps task configuration run-owned.
@@ -94,6 +111,8 @@ Running/completed runs are never rewritten.
 - `/settings/agents` provides add/edit, copyable sign-in commands and async checks;
   status updates arrive after durable provider audit events. Project settings
   retain existing add/edit controls for compatibility and can attach accounts.
+- Linked agents show shared live status and a link to the original sign-in card,
+  not a second login command. Model/name edits do not clear authorization status.
 - Codex login, probe and launch now resolve the same account-owned home, with
   Keychain selection passed at launch as well as login. Per-run instructions and
   permission overrides do not overwrite shared configuration.

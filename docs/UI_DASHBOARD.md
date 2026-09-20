@@ -12,6 +12,16 @@ The dashboard must answer immediately:
 
 The UI shows normalized public activity, not private chain-of-thought.
 
+### Saved agents and provider sign-in
+
+In **Agents**, choose the runtime and a model (runtime default, a suggested model,
+or a custom model ID). New Codex/Cursor agents reuse a compatible saved provider
+sign-in by default. A separate sign-in is an explicit choice, not a consequence
+of giving an agent another name, model or role. Shared agents link to the original
+sign-in controls instead of duplicating login commands. Model suggestions do not
+guarantee account entitlement. Roles remain project/board assignments; model
+changes affect future configuration snapshots, not existing runs.
+
 ## Information architecture
 
 ### Home dashboard (default screen)

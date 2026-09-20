@@ -181,12 +181,24 @@ defmodule CuckodingWeb.ProjectEditLiveTest do
                label: "Shared Codex",
                auth_mode: "os_keyring",
                capabilities_json: %{
-                 "settings" => %{"executable_path" => "/usr/bin/true"}
+                 "settings" => %{"executable_path" => "/usr/bin/true", "model" => "gpt-6-astra"}
                }
              })
 
+    assert {:ok, second} =
+             Adapters.save_provider_account(%{
+               adapter_key: "codex",
+               label: "Second Codex",
+               auth_mode: "os_keyring",
+               capabilities_json: account.capabilities_json
+             })
+
+    assert second.authorization_account_id == account.id
+
     {:ok, view, _html} = live(conn, ~p"/projects/#{project.id}/edit")
 
+    assert has_element?(view, "#saved-agent-#{second.id}", "Manage shared sign-in")
+    refute has_element?(view, "#saved-agent-command-#{second.id}")
     assert has_element?(view, "#saved-agent-#{account.id}", "Use in this project")
     render_click(view, "use-saved-agent", %{"id" => account.id})
 
@@ -196,6 +208,7 @@ defmodule CuckodingWeb.ProjectEditLiveTest do
            )
 
     assert has_element?(view, "#agent-connection-0 input[value='Shared Codex']")
+    assert has_element?(view, "#agent-connection-0 input[value='gpt-6-astra']")
     assert has_element?(view, "#saved-agent-#{account.id} button[disabled]", "Attached")
   end
 

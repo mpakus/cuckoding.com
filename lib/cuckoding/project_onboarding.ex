@@ -174,7 +174,8 @@ defmodule Cuckoding.ProjectOnboarding do
            RuntimeConfiguration.validate(%{
              "runtime" => connection["adapter_key"],
              "executable_path" => connection["executable_path"],
-             "api_key_helper" => connection["api_key_helper"]
+             "api_key_helper" => connection["api_key_helper"],
+             "model" => connection["model"]
            }) do
       {:ok,
        %{
@@ -182,6 +183,7 @@ defmodule Cuckoding.ProjectOnboarding do
          "label" => label,
          "adapter_key" => runtime.runtime,
          "provider_account_id" => provider_account_id,
+         "authorization_account_id" => connection["authorization_account_id"],
          "settings" => runtime.settings
        }}
     end
@@ -249,6 +251,7 @@ defmodule Cuckoding.ProjectOnboarding do
   defp persist_connection(connection) do
     attrs = %{
       id: connection["provider_account_id"],
+      authorization_account_id: connection["authorization_account_id"],
       adapter_key: connection["adapter_key"],
       label: connection["label"],
       auth_mode: auth_mode(connection["adapter_key"]),

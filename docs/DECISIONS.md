@@ -2,6 +2,13 @@
 
 This file records accepted product-level decisions. Add a dated ADR section when changing one. Do not edit old decision outcomes to make history look consistent.
 
+## ADR-026 — Named agents share provider authorization independently of models
+
+- **Status:** Accepted, 2026-09-20; extends ADR-025.
+- **Decision:** A saved agent may reference a compatible root provider account for authorization. New agents reuse an existing compatible root by default, preferring an observed connected account; a separate account remains an explicit choice. Existing roots are preserved, not automatically merged. Models belong to each agent's settings and execution snapshots, not to authorization.
+- **Boundary:** A nullable, indexed self-reference in `provider_accounts` preserves old profile paths. Only root references with the same runtime/executable/helper are allowed. References are immutable once saved; changing provider identity means adding an agent, not redirecting historical runs. Runtime checks and status resolve the root; tasks keep distinct instructions and model IDs.
+- **Retention:** No application-imposed sign-out timer or token copying. Provider-native credential storage/refresh remains authoritative; revoked or non-refreshable sessions require reconnect. Years-long validity is not promised. Shared sign-in also shares provider history under ADR-025.
+
 ## ADR-001 — Local-first desktop architecture (superseded by ADR-011)
 
 - **Status:** Superseded

@@ -51,6 +51,13 @@ defmodule Cuckoding.BoardTaskIntakeTest do
   end
 
   test "read-only planning output is persisted and imported idempotently", %{created: created} do
+    role =
+      Repo.get_by!(Cuckoding.Workflows.RoleAssignment,
+        board_id: created.board.id,
+        role_key: "spec_writer"
+      )
+
+    role |> Ecto.Changeset.change(model_ref: "planning-model") |> Repo.update!()
     assert {:ok, intake} = create_intake(created.board.id)
 
     assert intake.task.kind == "board_intake"
@@ -90,6 +97,7 @@ defmodule Cuckoding.BoardTaskIntakeTest do
       )
 
     assert session.effective_grant_json["requested"]["tools"] == ["read", "shell"]
+    assert session.requested_model == "planning-model"
     assert session.effective_grant_json["requested"]["deny_tools"] == ["write", "network"]
     assert session.effective_grant_json["requested"]["approval_mode"] == "plan"
     assert session.effective_grant_json["requested"]["network"] == "deny"

@@ -23,17 +23,25 @@ defmodule CuckodingWeb.AgentSettingsLive do
     form =
       if form["adapter_key"] != socket.assigns.form["adapter_key"],
         do:
-          Map.put(
-            form,
-            "executable_path",
-            RuntimeConfiguration.default_executable(form["adapter_key"])
-          ),
+          Map.merge(form, %{
+            "executable_path" => RuntimeConfiguration.default_executable(form["adapter_key"]),
+            "model" => "",
+            "model_choice" => "",
+            "authorization_account_id" => "auto"
+          }),
         else: form
 
     {:noreply, assign(socket, form: form)}
   end
 
   def handle_event("save", %{"agent" => params}, socket) do
+    params = Map.merge(socket.assigns.form, params)
+
+    params =
+      if params["model_choice"] == "custom",
+        do: params,
+        else: Map.put(params, "model", params["model_choice"])
+
     params = Map.put(params, "provider_account_id", socket.assigns.form["provider_account_id"])
 
     case ProjectOnboarding.save_agent(params) do
@@ -44,7 +52,7 @@ defmodule CuckodingWeb.AgentSettingsLive do
          |> assign(
            form: empty_form(),
            error: nil,
-           notice: "#{account.label} saved. Sign in below once, then use it in any project."
+           notice: saved_message(account)
          )}
 
       {:error, reason} ->
@@ -62,7 +70,9 @@ defmodule CuckodingWeb.AgentSettingsLive do
           Map.merge(account.capabilities_json["settings"] || %{}, %{
             "provider_account_id" => id,
             "label" => account.label,
-            "adapter_key" => account.adapter_key
+            "adapter_key" => account.adapter_key,
+            "authorization_account_id" => account.authorization_account_id || "",
+            "model_choice" => model_choice(account)
           })
 
         {:noreply, assign(socket, form: form, error: nil)}
@@ -130,8 +140,9 @@ defmodule CuckodingWeb.AgentSettingsLive do
             id="profile-sharing"
             class="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"
           >
-            Each agent has its own Cuckoding profile. Its sign-in and provider history are shared across projects using that agent.
-            Your personal CLI profile is not used. Add separate named agents when histories must stay separate.
+            Agents can share one provider sign-in while using different models and project roles.
+            Shared sign-in also shares provider history. Choose a separate sign-in when histories must stay separate.
+            Your personal CLI profile is not used. Sign-in is kept between restarts; the provider may require reconnection after expiry or revocation.
           </p>
         </header>
         <p id="agent-status" role="status" aria-live="polite" class="min-h-6 text-emerald-900">
@@ -185,6 +196,72 @@ defmodule CuckodingWeb.AgentSettingsLive do
                 </option>
               </select>
             </label>
+            <label class="grid gap-2">
+              Model
+              <select
+                name="agent[model_choice]"
+                aria-describedby="model-help"
+                class="min-h-11 min-w-0 rounded border border-slate-400 bg-white px-3"
+              >
+                <option value="" selected={@form["model_choice"] == ""}>Runtime default</option>
+                <option
+                  :for={{label, value} <- RuntimeConfiguration.models(@form["adapter_key"])}
+                  value={value}
+                  selected={@form["model_choice"] == value}
+                >
+                  {label}
+                </option>
+                <option value="custom" selected={@form["model_choice"] == "custom"}>
+                  Custom model ID
+                </option>
+              </select>
+            </label>
+            <label :if={@form["model_choice"] == "custom"} class="grid gap-2">
+              Model ID
+              <input
+                name="agent[model]"
+                value={@form["model"]}
+                required
+                maxlength="128"
+                aria-describedby="model-help"
+                class="min-h-11 min-w-0 rounded border border-slate-400 px-3 font-mono text-sm"
+              />
+            </label>
+            <p id="model-help" class="text-sm text-slate-600 sm:col-span-2">
+              Choose a model available to your provider account. Runtime default leaves the choice to the CLI. Assign this agent to Reviewer or other roles in project settings.
+            </p>
+            <label
+              :if={
+                @form["provider_account_id"] == "" and
+                  @form["adapter_key"] in ["codex", "cursor_agent"]
+              }
+              class="grid gap-2 sm:col-span-2"
+            >
+              Provider sign-in
+              <select
+                name="agent[authorization_account_id]"
+                aria-describedby="profile-sharing"
+                class="min-h-11 min-w-0 rounded border border-slate-400 bg-white px-3"
+              >
+                <option value="auto" selected={@form["authorization_account_id"] == "auto"}>
+                  Reuse compatible sign-in (or create the first one)
+                </option>
+                <option
+                  :for={account <- @accounts}
+                  :if={
+                    account.adapter_key == @form["adapter_key"] and
+                      account.authorization_account_id == nil
+                  }
+                  value={account.id}
+                  selected={@form["authorization_account_id"] == account.id}
+                >
+                  Use sign-in from {account.label} · {status_label(account.status)}
+                </option>
+                <option value="new" selected={@form["authorization_account_id"] == "new"}>
+                  Use a separate sign-in
+                </option>
+              </select>
+            </label>
             <label class="grid gap-2 sm:col-span-2">
               Runtime executable
               <input
@@ -227,6 +304,9 @@ defmodule CuckodingWeb.AgentSettingsLive do
             <div>
               <h2 class="text-xl font-semibold">{account.label}</h2>
               <p>{runtime_label(account.adapter_key)} · {status_label(account.status)}</p>
+              <p class="text-sm text-slate-600">
+                Model: {get_in(account.capabilities_json, ["settings", "model"]) || "Runtime default"}
+              </p>
               <p :if={account.probed_at} class="text-sm text-slate-600">
                 Last checked: {Calendar.strftime(account.probed_at, "%Y-%m-%d %H:%M UTC")}
               </p>
@@ -239,7 +319,15 @@ defmodule CuckodingWeb.AgentSettingsLive do
               class="min-h-11 rounded border border-slate-400 px-4"
             >Edit agent</button>
           </div>
-          <div :for={setup <- List.wrap(@setups[account.id])} class="space-y-3">
+          <p :if={account.authorization_account_id}>
+            Uses the existing provider sign-in. No second login is needed while it remains valid.
+            <a href={"#agent-#{account.authorization_account_id}"} class="underline">Manage shared sign-in</a>
+          </p>
+          <div
+            :for={setup <- List.wrap(@setups[account.id])}
+            :if={is_nil(account.authorization_account_id)}
+            class="space-y-3"
+          >
             <details open={account.status != "authenticated"}>
               <summary class="min-h-11 cursor-pointer font-medium">
                 {if account.status == "authenticated", do: "Reconnect agent", else: "Sign in once"}
@@ -314,8 +402,26 @@ defmodule CuckodingWeb.AgentSettingsLive do
       "label" => "",
       "adapter_key" => "codex",
       "executable_path" => RuntimeConfiguration.default_executable("codex"),
-      "api_key_helper" => ""
+      "api_key_helper" => "",
+      "model" => "",
+      "model_choice" => "",
+      "authorization_account_id" => "auto"
     }
+
+  defp model_choice(account) do
+    model = get_in(account.capabilities_json, ["settings", "model"]) || ""
+
+    if model == "" or
+         Enum.any?(RuntimeConfiguration.models(account.adapter_key), &(elem(&1, 1) == model)),
+       do: model,
+       else: "custom"
+  end
+
+  defp saved_message(%{authorization_account_id: id, label: label}) when is_binary(id),
+    do: "#{label} saved with the existing provider sign-in. No separate login is needed."
+
+  defp saved_message(account),
+    do: "#{account.label} saved. Sign in below once, then reuse it for other agents and projects."
 
   defp runtime_label(key),
     do:
@@ -332,9 +438,17 @@ defmodule CuckodingWeb.AgentSettingsLive do
 
   defp error_message(:provider_account_mismatch),
     do:
-      "Add a new agent to use another runtime. Existing shared identities cannot change runtime."
+      "Choose a sign-in with the same runtime and executable path, or choose a separate sign-in. An existing agent cannot change runtime."
 
   defp error_message(:agent_label_required), do: "Enter a name for this agent."
+
+  defp error_message(:invalid_model),
+    do:
+      "Enter a model ID of up to 128 letters, digits, dots, slashes, colons, underscores or hyphens."
+
+  defp error_message(:authorization_identity_immutable),
+    do:
+      "Add a new agent to choose another sign-in. Existing agent sign-ins stay linked to preserve run history."
 
   defp error_message(_reason),
     do:

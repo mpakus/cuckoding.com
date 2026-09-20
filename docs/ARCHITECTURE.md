@@ -116,6 +116,10 @@ login, probe and launch use the same identity. `AgentBindings` stores explicit
 queued-run authentication overrides as events without rewriting snapshots.
 Provider settings/status writes commit an audit event before broadcasting to
 the independent Agents LiveView. See ADR-025 for shared-history consent.
+ADR-026 separates named-agent model settings from provider authorization using
+an immutable nullable root-account FK. Profile resolution, probes, grouped setup
+and status use the root identity; role instructions and requested models remain
+distinct. Existing root IDs/profile paths are preserved by the additive migration.
 `Cuckoding.AgentFloor`
 rebuilds both session cards and the bounded recent-operation projection from
 SQLite. The home dashboard refreshes that projection after committed PubSub
