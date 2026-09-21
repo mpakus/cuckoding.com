@@ -204,11 +204,6 @@ defmodule CuckodingWeb.AgentSettingsLive do
           phx-change="change"
           phx-submit="save"
           class="space-y-4 rounded-xl border border-slate-300 bg-white p-5"
-          data-confirm={
-            if @form["provider_account_id"] != "",
-              do:
-                "Update this shared agent for all projects using it? Existing run snapshots and running processes will not change."
-          }
         >
           <h2 class="text-xl font-semibold">
             {if @form["provider_account_id"] == "", do: "Add agent", else: "Edit shared agent"}
@@ -328,7 +323,15 @@ defmodule CuckodingWeb.AgentSettingsLive do
             Setup only: this runtime cannot execute tasks yet.
           </p>
           <div class="flex flex-wrap gap-3">
-            <button phx-disable-with="Saving…" class="min-h-11 rounded bg-slate-950 px-4 text-white">Save agent</button>
+            <button
+              phx-disable-with="Saving…"
+              data-confirm={
+                if @form["provider_account_id"] != "",
+                  do:
+                    "Update this shared agent for all projects using it? Existing run snapshots and running processes will not change."
+              }
+              class="min-h-11 rounded bg-slate-950 px-4 text-white"
+            >Save agent</button>
             <button
               :if={@form["provider_account_id"] != ""}
               type="button"
@@ -346,7 +349,14 @@ defmodule CuckodingWeb.AgentSettingsLive do
           <div class="flex flex-wrap justify-between gap-3">
             <div>
               <h2 class="text-xl font-semibold">{account.label}</h2>
-              <p>{runtime_label(account.adapter_key)} · {status_label(account.status)}</p>
+              <p>{runtime_label(account.adapter_key)}</p>
+              <p class={
+                if account.status == "authenticated",
+                  do: "font-semibold text-emerald-800",
+                  else: "font-semibold text-amber-800"
+              }>
+                {status_label(account.status)}
+              </p>
               <p class="text-sm text-slate-600">
                 Model: {get_in(account.capabilities_json, ["settings", "model"]) || "Runtime default"}
               </p>
@@ -423,7 +433,7 @@ defmodule CuckodingWeb.AgentSettingsLive do
           >
             <details open={account.status != "authenticated"}>
               <summary class="min-h-11 cursor-pointer font-medium">
-                {if account.status == "authenticated", do: "Reconnect agent", else: "Sign in once"}
+                {if account.status == "authenticated", do: "Re-authorize agent", else: "Sign in once"}
               </summary>
               <p class="mb-3 text-sm">
                 Run this command in Terminal. Return here when sign-in completes.

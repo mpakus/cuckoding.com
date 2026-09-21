@@ -143,11 +143,7 @@ defmodule Cuckoding.ProjectWorkflowTest do
 
     refute has_element?(run_view, "#runtime-setup input[data-copy-source]")
 
-    assert has_element?(
-             run_view,
-             "#runtime-setup a[href='/settings/agents']",
-             "Manage shared agent"
-           )
+    assert has_element?(run_view, "#runtime-setup a", "re-authorize agent")
 
     assert has_element?(run_view, "#runtime-setup p", "Roles: Implementer, Reviewer, Spec writer")
 
@@ -281,7 +277,26 @@ defmodule Cuckoding.ProjectWorkflowTest do
 
     assert Repo.get!(Cuckoding.Execution.Run, run.id).workflow_snapshot_json == snapshot
     assert Workflows.get_task(task.id).title == "Keep this task"
+
+    assert {:ok, incompatible} =
+             Cuckoding.Adapters.save_provider_account(%{
+               label: "Other Codex",
+               adapter_key: "codex",
+               auth_mode: "shared_profile",
+               capabilities_json: %{
+                 "settings" => %{"executable_path" => "/usr/bin/false", "api_key_helper" => ""}
+               }
+             })
+
+    Cuckoding.Adapters.record_provider_status(account_id, "authenticated")
     {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+
+    assert has_element?(view, "#connect-agent-implementer select[name='binding[account_id]']")
+    assert has_element?(view, "#connect-agent-implementer option[value='#{account_id}']")
+    refute has_element?(view, "#connect-agent-implementer option[value='#{incompatible.id}']")
+    refute has_element?(view, "#connect-agent-implementer[data-confirm]")
+    assert has_element?(view, "#connect-agent-implementer button[data-confirm]")
+    refute has_element?(view, "#runtime-setup input[data-copy-source]")
 
     view
     |> form("#connect-agent-implementer", binding: %{account_id: account_id})
@@ -290,7 +305,8 @@ defmodule Cuckoding.ProjectWorkflowTest do
     assert Cuckoding.AgentBindings.for_run(run.id)["implementer"] == account_id
     assert Repo.get!(Cuckoding.Execution.Run, run.id).workflow_snapshot_json == snapshot
     refute has_element?(view, "#connect-agent-implementer")
-    assert has_element?(view, "#runtime-setup a", "Manage shared agent")
+    assert has_element?(view, "#runtime-setup p", "Connected · sign-in checked again at start")
+    assert has_element?(view, "#runtime-setup a", "Re-authorize agent")
 
     assert {:error, :provider_account_mismatch} =
              Cuckoding.AgentBindings.connect_run(run.id, "reviewer", Ecto.UUID.generate())

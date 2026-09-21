@@ -29,7 +29,7 @@ acceptance from configuration tests alone.
    the default screen. Authentication checks do not skip policy, budget,
    concurrency, Git, or release-approval gates.
 6. Only if a connection needs attention, name that agent, explain the reason,
-   and offer **Reconnect agent**. Repair the saved connection once, then retry
+   and offer **Re-authorize agent**. Repair the saved connection once, then retry
    the run without creating a replacement project, board, or task.
 
 "Authorize once" means authorization survives subsequent projects, boards,
@@ -95,6 +95,13 @@ used by future runs. Existing tasks and history stay on the board. Already
 prepared runs retain their snapshot; offer an explicit validated binding for
 queued work or a safe replacement-run action, without deleting the old run.
 Running/completed runs are never rewritten.
+
+On a queued legacy run, **Choose saved agent** lists only accounts with matching
+runtime and executable/helper settings. Choosing an option does not submit or
+show a confirmation; **Connect saved agent** confirms the audited binding.
+Connected accounts show a green, text-labeled status and a **Re-authorize agent**
+link. Run-local sign-in commands are not shown; an authenticated account's
+one-time command stays collapsed under **Re-authorize agent** in Agents.
 
 ## Implementation order and acceptance
 

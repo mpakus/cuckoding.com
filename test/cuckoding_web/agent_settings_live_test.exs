@@ -56,7 +56,8 @@ defmodule CuckodingWeb.AgentSettingsLiveTest do
            )
 
     view |> element("#agent-#{account.id} button", "Edit agent") |> render_click()
-    assert has_element?(view, "#agent-form[data-confirm]")
+    refute has_element?(view, "#agent-form[data-confirm]")
+    assert has_element?(view, "#agent-form button[data-confirm]", "Save agent")
     assert has_element?(view, "select[name='agent[model_choice]'] option[value='gpt-5.6-sol']")
     view |> form("#agent-form", agent: %{label: "Renamed Codex"}) |> render_submit()
     renamed = Cuckoding.Adapters.get_provider_account(account.id)

@@ -65,6 +65,8 @@ defmodule Cuckoding.AgentRuntime do
       {:ok,
        setup
        |> Map.put(:role_key, role_key)
+       |> Map.put(:adapter_key, role.adapter_key)
+       |> Map.put(:settings, role.settings_json)
        |> Map.put(:account_id, role.settings_json["provider_account_id"])}
     end
   end

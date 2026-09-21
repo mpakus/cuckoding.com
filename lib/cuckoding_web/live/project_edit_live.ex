@@ -382,8 +382,13 @@ defmodule CuckodingWeb.ProjectEditLive do
               <div class="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h3 class="font-semibold text-slate-950">{account.label}</h3>
-                  <p class="mt-1 text-sm text-slate-600">
-                    {runtime_label(account.adapter_key)} · {authorization_status(account.status)}
+                  <p class="mt-1 text-sm text-slate-600">{runtime_label(account.adapter_key)}</p>
+                  <p class={
+                    if account.status == "authenticated",
+                      do: "text-sm font-semibold text-emerald-800",
+                      else: "text-sm font-semibold text-amber-800"
+                  }>
+                    {authorization_status(account.status)}
                   </p>
                   <p class="text-sm text-slate-600">
                     Model: {account.capabilities_json["settings"]["model"] || "Runtime default"}
@@ -402,7 +407,7 @@ defmodule CuckodingWeb.ProjectEditLive do
 
               <div
                 :for={setup <- List.wrap(@agent_setups[account.id])}
-                :if={is_nil(account.authorization_account_id)}
+                :if={is_nil(account.authorization_account_id) && account.status != "authenticated"}
                 id={"saved-agent-command-#{account.id}"}
                 phx-hook="CopyCommand"
                 class="space-y-2"
@@ -442,6 +447,12 @@ defmodule CuckodingWeb.ProjectEditLive do
                   Check authorization
                 </button>
               </div>
+
+              <.link
+                :if={is_nil(account.authorization_account_id) && account.status == "authenticated"}
+                navigate={"/settings/agents#agent-#{account.id}"}
+                class="inline-flex min-h-10 items-center text-sm underline"
+              >Re-authorize agent</.link>
 
               <p :if={account.authorization_account_id} class="text-sm text-slate-700">
                 Uses an existing provider sign-in.

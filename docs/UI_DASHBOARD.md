@@ -96,6 +96,11 @@ Claude Code uses a reviewed helper. OpenCode
 and Custom Agent are setup-only. Complete commands use read-only fields with
 adjacent copy buttons. Account status is the last observation, not proof that
 a new run can authenticate; every start probes its selected account. See [testing](TESTING.md).
+For connected accounts, the sign-in command is hidden behind **Re-authorize
+agent**; green status always includes the word **Connected**. A queued run
+offers compatible saved agents without prompting when the dropdown opens.
+Confirmation appears only when **Connect saved agent** is submitted, and
+legacy run-local sign-in commands are omitted.
 
 Save assignments before creating a board. Existing boards retain their copied
 settings, including legacy connections without saved-account IDs. There is no

@@ -3,6 +3,7 @@ defmodule Cuckoding.AgentBindings do
   import Ecto.Query
 
   alias Cuckoding.Adapters
+  alias Cuckoding.Adapters.ProviderAccount
   alias Cuckoding.Execution.EventStore
   alias Cuckoding.Execution.Run
   alias Cuckoding.Execution.RunEvent
@@ -42,8 +43,8 @@ defmodule Cuckoding.AgentBindings do
     end)
   end
 
-  def compatible(adapter, settings, account_id) do
-    case Adapters.get_provider_account(account_id) do
+  def compatible(adapter, settings, %ProviderAccount{} = account) do
+    case account do
       %{adapter_key: ^adapter, capabilities_json: %{"settings" => saved}} ->
         if Map.take(saved, ["executable_path", "api_key_helper"]) ==
              Map.take(settings, ["executable_path", "api_key_helper"]),
@@ -54,4 +55,9 @@ defmodule Cuckoding.AgentBindings do
         {:error, :provider_account_mismatch}
     end
   end
+
+  def compatible(adapter, settings, account_id) when is_binary(account_id),
+    do: compatible(adapter, settings, Adapters.get_provider_account(account_id))
+
+  def compatible(_adapter, _settings, _account), do: {:error, :provider_account_mismatch}
 end

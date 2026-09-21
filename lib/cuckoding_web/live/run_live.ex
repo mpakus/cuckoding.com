@@ -6,6 +6,8 @@ defmodule CuckodingWeb.RunLive do
   import CuckodingWeb.PolicyComponents
   import CuckodingWeb.UsageComponents
 
+  alias Cuckoding.Adapters
+  alias Cuckoding.AgentBindings
   alias Cuckoding.AgentFloor
   alias Cuckoding.RunLog
 
@@ -32,6 +34,7 @@ defmodule CuckodingWeb.RunLive do
            page_title: "Run #{detail.run.sequence}",
            detail: detail,
            runtime_setups: setups,
+           saved_agents: Adapters.list_provider_accounts(),
            task_proposals: task_proposals(detail),
            refresh_pending: false,
            notice: "",
@@ -54,11 +57,11 @@ defmodule CuckodingWeb.RunLive do
 
   def handle_info(:refresh_run, socket) do
     if connected?(socket), do: Process.send_after(self(), :refresh_run, @refresh_ms)
-    {:noreply, refresh(socket, "Run data updated.")}
+    {:noreply, refresh(socket, socket.assigns.notice)}
   end
 
   def handle_info(:refresh_run_activity, socket) do
-    {:noreply, refresh(socket, "Run activity updated.")}
+    {:noreply, refresh(socket, socket.assigns.notice)}
   end
 
   def handle_info(:refresh_log, socket) do
@@ -91,8 +94,7 @@ defmodule CuckodingWeb.RunLive do
         {:noreply,
          assign(socket,
            error:
-             "Run-scoped authentication is still missing. Copy and run the complete sign-in " <>
-               "command below, finish sign-in, then check authentication again."
+             "Connect a saved agent for each role, then retry. Sign in or re-authorize from Agents if needed."
          )}
 
       {:error, :provider_auth_required} ->
@@ -159,6 +161,7 @@ defmodule CuckodingWeb.RunLive do
     |> assign(
       detail: detail,
       runtime_setups: runtime_setups(detail.run),
+      saved_agents: Adapters.list_provider_accounts(),
       task_proposals: task_proposals(detail),
       refresh_pending: false,
       notice: notice
@@ -306,24 +309,37 @@ defmodule CuckodingWeb.RunLive do
           </p>
           <article
             :for={setup <- @runtime_setups}
-            class="space-y-2 rounded-md border border-amber-200 bg-white/70 p-4 text-sm text-amber-950"
+            class={[
+              "space-y-2 rounded-md border p-4 text-sm",
+              if(setup[:status] == "authenticated",
+                do: "border-emerald-300 bg-emerald-50 text-emerald-950",
+                else: "border-amber-200 bg-white/70 text-amber-950"
+              )
+            ]}
           >
             <h3 class="font-semibold">
               {setup[:connection] || setup.runtime}
             </h3>
             <p :if={setup[:connection]}>{setup.runtime}</p>
             <p>Roles: {Enum.map_join(setup[:role_keys] || [setup.role_key], ", ", &role_label/1)}</p>
+            <p :if={setup[:status] == "authenticated"} class="font-semibold text-emerald-800">
+              Connected · sign-in checked again at start
+            </p>
+            <p :if={setup[:account_id] && setup[:status] != "authenticated"} class="font-semibold">
+              Sign-in needs checking before this run starts.
+            </p>
             <.link
               :if={setup[:account_id]}
-              navigate={~p"/settings/agents"}
+              navigate={"/settings/agents#agent-#{setup[:authorization_id] || setup.account_id}"}
               class="inline-flex min-h-11 items-center underline underline-offset-4"
-            >Manage shared agent</.link>
+            >{if setup[:status] == "authenticated",
+              do: "Re-authorize agent",
+              else: "Check or re-authorize agent"}</.link>
             <form
-              :if={!setup[:account_id]}
+              :if={!setup[:account_id] && compatible_agents(setup, @saved_agents) != []}
               id={"connect-agent-#{setup.role_key}"}
               phx-submit="connect-agent"
               class="space-y-3"
-              data-confirm="Use this saved agent's shared sign-in and history for this role? The original run snapshot stays unchanged."
             >
               <input type="hidden" name="binding[role_key]" value={setup.role_key} />
               <label class="grid gap-2">
@@ -335,50 +351,26 @@ defmodule CuckodingWeb.RunLive do
                 >
                   <option value="">Choose saved agent</option>
                   <option
-                    :for={account <- Cuckoding.Adapters.list_provider_accounts()}
+                    :for={account <- compatible_agents(setup, @saved_agents)}
                     value={account.id}
                   >
-                    {account.label}
+                    {account.label} · {if account.status == "authenticated",
+                      do: "Connected",
+                      else: "Sign-in required"}
                   </option>
                 </select>
               </label>
-              <button class="min-h-11 rounded border border-slate-400 bg-white px-4">Connect saved agent</button>
+              <button
+                data-confirm="Use this saved agent's shared sign-in and history for this role? The original run snapshot stays unchanged."
+                class="min-h-11 rounded border border-slate-400 bg-white px-4"
+              >Connect saved agent</button>
               <.link navigate={~p"/settings/agents"} class="ml-3 underline">Add or sign in to an agent</.link>
             </form>
-            <div :if={setup[:command] && !setup[:account_id]} class="space-y-2">
-              <p>Copy and run this complete sign-in command in Terminal:</p>
-              <div
-                id={"runtime-command-#{setup.role_key}"}
-                phx-hook="CopyCommand"
-                class="flex flex-col gap-2 sm:flex-row"
-              >
-                <label for={"runtime-command-input-#{setup.role_key}"} class="sr-only">
-                  Sign-in command for {role_label(setup.role_key)}
-                </label>
-                <input
-                  id={"runtime-command-input-#{setup.role_key}"}
-                  data-copy-source
-                  type="text"
-                  readonly
-                  value={setup.command}
-                  class="min-h-10 min-w-0 flex-1 rounded-md border border-amber-300 bg-white px-3 font-mono text-sm text-slate-950"
-                />
-                <button
-                  type="button"
-                  data-copy-button
-                  aria-label={"Copy sign-in command for #{role_label(setup.role_key)}"}
-                  class="min-h-10 shrink-0 rounded-md border border-slate-400 bg-white px-4 font-medium text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2"
-                >
-                  Copy
-                </button>
-                <span
-                  data-copy-status
-                  role="status"
-                  aria-live="polite"
-                  class="sr-only"
-                ></span>
-              </div>
-            </div>
+            <p :if={!setup[:account_id] && compatible_agents(setup, @saved_agents) == []}>
+              No compatible saved agent is available.
+              <.link navigate={~p"/settings/agents"} class="underline">Add or check an agent</.link>
+              with this runtime and executable.
+            </p>
             <div :if={setup[:helper]} class="space-y-2">
               <p>Claude Code will use the reviewed run-scoped API key helper:</p>
               <p class="overflow-x-auto rounded bg-white p-2"><code>{setup.helper}</code></p>
@@ -657,6 +649,12 @@ defmodule CuckodingWeb.RunLive do
   end
 
   defp runtime_setups(_run), do: []
+
+  defp compatible_agents(setup, agents) do
+    Enum.filter(agents, fn agent ->
+      AgentBindings.compatible(setup[:adapter_key], setup[:settings] || %{}, agent) == :ok
+    end)
+  end
 
   defp role_label(role_key), do: role_key |> String.replace("_", " ") |> String.capitalize()
 

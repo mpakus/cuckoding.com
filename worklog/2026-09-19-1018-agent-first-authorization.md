@@ -396,3 +396,45 @@ Focused verification:
   the exact signal command and server stream. `rtk curl -fsS
   http://127.0.0.1:4000/health` reported application, database, PubSub, and
   web endpoint `ok`. The packaged menubar shell was not touched.
+
+## 2026-09-21 saved-agent selector and status UX
+
+- Claimed task 1018 on `fix/1018-agent-selector-status` from clean `main`.
+  Acceptance: choosing a saved agent must not open a confirmation before the
+  user submits; only runtime-compatible agents should be selectable; a
+  connected agent should show a green, textual status and no obsolete
+  run-local sign-in command, with a clear re-authorization path. Preserve the
+  audited queued-run binding and immutable run snapshot.
+- Reproduced the reported native confirmation by clicking **Choose saved
+  agent** on queued run `01a0bcd7-0e7d-7df7-8263-a71361f5de57`. No binding
+  was submitted or changed. The root cause is `data-confirm` on the wrapping
+  form: Phoenix HTML dispatches click handling through ancestors. The same
+  pattern exists on the Agents edit form. Current run cards list incompatible
+  agents and show run-owned login commands even when reusable agents exist.
+- Ponytail 4.10.0 (MIT) full, LiveView, workflow, security-review,
+  quality-gates, better-ui, better-writing, and better-accessibility guide a
+  native-control, minimal-diff fix. The authorization and deletion boundaries
+  remain unchanged.
+- Moved confirmation from both forms to their submit buttons, filtered queued
+  run choices through the same compatibility check used by the binding service,
+  and removed legacy run-local sign-in commands. Connected agents now have a
+  green text status; re-authorization remains available on the shared Agents
+  page, with its command collapsed until requested. Project settings hides the
+  same unnecessary command after authorization. No credentials or run
+  snapshots were changed.
+- `rtk env -u CR_PAT mix test test/cuckoding/project_workflow_test.exs
+  test/cuckoding_web/agent_settings_live_test.exs
+  test/cuckoding_web/project_edit_live_test.exs` — 9 tests, zero failures.
+  `rtk env -u CR_PAT mix test test/cuckoding/project_workflow_test.exs` — 4
+  tests, zero failures after adding the incompatible-account regression.
+  `rtk env -u CR_PAT mix format` — passed. First quality attempt stopped at a
+  formatting difference; second passed all 271 tests and 10 properties but
+  found an alias-order lint issue, both corrected. Final
+  `rtk env -u CR_PAT mix quality` — exit 0: warnings-as-errors compilation,
+  271 tests and 10 properties with zero failures, Credo clean, Sobelow clean,
+  and Hex audit with no advisories. Plugin crash-fixture logs are expected.
+- In the actual in-app browser, the exact queued run's native dropdown opened
+  without a confirmation and accepted a saved-agent selection. No Connect
+  submission was made against the user's run. Agents showed both existing
+  saved accounts as Connected with collapsed Re-authorize controls. Updated
+  authorization-flow and dashboard docs to match. No migration was needed.
