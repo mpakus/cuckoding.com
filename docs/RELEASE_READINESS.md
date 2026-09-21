@@ -107,10 +107,13 @@ contamination as a critical stop and preserve sanitized evidence under the
 ## Definition-of-done evidence audit
 
 The ten items in [PLAN.md](PLAN.md) are product acceptance criteria, not a
-count of passing unit tests. At source revision `6a4cd90`, `rtk env -u CR_PAT
-mix quality` passed (10 properties, 285 tests, zero failures; strict Credo,
-Sobelow, and dependency audit clean). That verifies the current source gate,
-not any unobserved provider, participant, or installed-build behavior.
+count of passing unit tests. On 2026-09-21, the unsigned developer app rebuilt
+from `3246b3b` passed the sterile verifier, including startup, crash, safe-mode,
+and rollback drills. The subsequent test-only event-sequence timeout correction
+passed `rtk env -u CR_PAT mix quality` (10 properties, 285 tests, zero failures;
+strict Credo, Sobelow, and dependency audit clean). These verify local source
+and developer-build gates, not any unobserved provider, participant, signed
+artifact, or installed-build behavior.
 
 | MVP criterion | Evidence in hand | Still required to close it |
 | --- | --- | --- |
@@ -134,7 +137,7 @@ fixtures without matching artifact and observation IDs.
 
 ## Decision and required evidence
 
-The previous signed ZIP is from an older source revision. A current-source
+The previous signed ZIP is from an older source revision. The `3246b3b`
 unsigned developer app passed a sterile verifier, and simulated recovery
 passed, but neither is signed enrollment or clean-Mac acceptance. The release
 workflow now places `mix quality` before loading signing material; this ordering

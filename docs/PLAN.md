@@ -108,8 +108,9 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 - [x] Crash, power-loss, and sleep recovery drills.
 - [x] Current-source unsigned developer `.app` builds and passes the sterile
   release verifier, including startup/authentication, crash cleanup, safe mode,
-  and update/rollback checks. This is not a signed beta enrollment build or
-  clean-Mac release acceptance.
+  and update/rollback checks. Rebuilt from `3246b3b` on 2026-09-21; the
+  subsequent test-only gate correction does not change app source. This is not
+  a signed beta enrollment build or clean-Mac release acceptance.
 - [x] Release artifact staging preserves the prior signed distribution if
   notarization, updater signing, or metadata generation fails; a completed
   candidate is promoted with the previous distribution retained for rollback.
@@ -138,6 +139,10 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
   a value-free preflight for all required release secrets and update variables
   after source quality, before certificate import. Missing Apple credentials
   still block an actual signed candidate.
+- [x] Task 1004: re-run the unsigned developer build and full source gate.
+  The concurrent event-sequence property's wait now covers the existing bounded
+  SQLite retry window; a controlled 11-second lock still completed and the
+  full gate passed. This is not signed-release or real-provider evidence.
 - [ ] Produce and verify a fresh signed/notarized enrollment build at the
   accepted beta revision. The local identity/notary profile and updater key
   exist, but the retained signed ZIP predates current main; the CI Apple

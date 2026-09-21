@@ -46,6 +46,8 @@ Re-run the MVP definition of done, freeze supported versions, validate installer
   action refs against their upstream commits; actual job execution remains open.
 - [x] Verify the macOS runner architecture and report missing release
   configuration names before certificate import; no secrets are provisioned.
+- [x] Rebuild the current-source unsigned app and re-run local source quality;
+  correct the event-sequence test wait to cover the bounded SQLite retry window.
 - [ ] Approve and verify the output/artifact retention policy and participant
   disclosure; no automatic age purge exists for full redacted artifacts yet.
 - [ ] Verify effective retention and consent/default behavior in a signed

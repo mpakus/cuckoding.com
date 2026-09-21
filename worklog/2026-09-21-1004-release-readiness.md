@@ -272,3 +272,57 @@ Focused check: `rtk proxy ruby -ryaml -ropen3 -e 'w = YAML.load_file(".github/wo
 `rtk git diff --check` passed. No `mix quality` rerun is claimed for this
 workflow/docs-only change; the prior source gate and the actual GitHub release
 job remain distinct evidence. No RTK proxy exception was needed.
+
+## 2026-09-21 — Current-revision developer build and event-sequence gate
+
+Continued task 1004 on `fix/1004-event-sequence-gate` from clean `main` at
+`3246b3b`. Acceptance for this tranche: rebuild and verify the current-source
+unsigned developer app, run the full quality gate, and resolve any gate failure
+without changing event durability or weakening the concurrent-writer property.
+Update `docs/` and `docs/PLAN.md` with only the observed scope; signed and
+clean-Mac acceptance remain open.
+
+Ponytail 4.10.0 (MIT, full mode), quality-gates, menubar-shell, and
+security-review apply. XERJ search against `cuckoding-project-v7` could not
+connect to its loopback node; the source and test were inspected directly.
+`rtk ./bin/dev.build` passed from `3246b3b`: production Phoenix release,
+release metadata checks, 10 Rust tests, app bundling, and the sterile verifier
+including startup/authentication, crash cleanup, safe mode, and update/rollback
+drills. Free disk space remained above 13 GiB. This is an unsigned developer
+build on the same Mac, not a notarized beta artifact or clean-machine install.
+
+`rtk env -u CR_PAT mix quality` failed with one of 10 properties and 285 tests:
+`EventStorePropertyTest`'s eight-writer case timed out in `Task.await_many/2`
+at 10,000 ms after `BEGIN IMMEDIATE` lock retries; format, compile, Credo,
+Sobelow, and Hex audit passed. `rtk env -u CR_PAT mix test --seed 603399`
+reproduced the same timeout. The focused property with that seed passed;
+`--trace` passed it serially. A separate 10-round, eight-writer exercise
+completed 80 appends in 41–156 ms per round. `EventStore` permits three
+5,000 ms SQLite busy waits before its bounded begin retry is exhausted, so
+the property's 10,000 ms task wait can expire before the supported retry path
+returns. The next check will align that assertion window with the configured
+retry ceiling and re-run the full gate; if writes still fail, investigate the
+lock holder rather than masking the failure.
+
+Changed only the property's await window from 10 to 20 seconds, covering
+three configured five-second SQLite busy waits plus scheduling headroom. The
+assertion still requires every writer to return `{:ok, ...}` and verifies the
+exact gapless sequence afterward; production transaction/retry logic is
+unchanged. A controlled test-database probe held `BEGIN IMMEDIATE` for
+11 seconds and then released it: the event append succeeded after 11,050 ms,
+demonstrating that the old assertion deadline could fail a valid bounded
+retry. The probe printed no application secrets and changed no user database.
+
+The bounded-contention probe command was:
+
+```sh
+rtk env MIX_ENV=test mix run -e 'Ecto.Adapters.SQL.Sandbox.mode(Cuckoding.Repo, :manual); {:ok, lock} = Exqlite.Sqlite3.open("cuckoding_test.db"); :ok = Exqlite.Sqlite3.execute(lock, "BEGIN IMMEDIATE"); started = System.monotonic_time(:millisecond); task = Task.async(fn -> Ecto.Adapters.SQL.Sandbox.unboxed_run(Cuckoding.Repo, fn -> Cuckoding.Execution.EventStore.append(Ecto.UUID.generate(), %{event_type: "test.contention", public_summary: "Contention check", payload: %{}}) end) end); Process.sleep(11_000); :ok = Exqlite.Sqlite3.execute(lock, "COMMIT"); :ok = Exqlite.Sqlite3.close(lock); result = Task.await(task, 20_000); IO.inspect({System.monotonic_time(:millisecond) - started, match?({:ok, _}, result)}, label: "bounded contention")'
+```
+
+Verification: `rtk env -u CR_PAT mix test --seed 603399` passed (10 properties,
+285 tests, zero failures); `rtk env -u CR_PAT mix quality` passed on seed
+367943 (10 properties, 285 tests, zero failures, strict Credo clean, Sobelow
+scan complete, no retired/advisory dependencies). `rtk git diff --check`
+passed. The former failure did not reproduce after the assertion change; a
+signed/notarized build and controlled beta were not run. No RTK proxy
+exception was needed.

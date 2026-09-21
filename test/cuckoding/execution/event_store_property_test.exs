@@ -26,7 +26,8 @@ defmodule Cuckoding.Execution.EventStorePropertyTest do
           end)
         end
 
-      assert Enum.all?(Task.await_many(tasks, 10_000), &match?({:ok, _result}, &1))
+      # Three 5-second SQLite busy waits must fit before declaring a writer stuck.
+      assert Enum.all?(Task.await_many(tasks, 20_000), &match?({:ok, _result}, &1))
 
       Sandbox.unboxed_run(Repo, fn ->
         sequences =
