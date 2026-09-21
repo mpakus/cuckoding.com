@@ -274,3 +274,20 @@ Focused verification:
 - Changed-line security review found no credential/token value, raw provider
   output persistence, personal-home fallback, shell interpolation, or hidden-model
   request. Catalog values are bounded and validated before durable storage.
+
+## 2026-09-21 live sign-in and server restart
+
+- Restarted the development Phoenix server on `127.0.0.1:4000`; an HTTP request
+  to `/` returned 200. `rtk curl -fsS http://127.0.0.1:4000/health`
+  reported database, PubSub, and web endpoint all `ok`. The separate packaged
+  menubar app was left running.
+- Read only non-secret saved-account metadata and ran each installed CLI's
+  status command with its app-owned profile environment. Codex CLI 0.146.0
+  reported `Logged in using ChatGPT`; Cursor CLI 2026.09.15-d2fe57e reported
+  `isAuthenticated: true`. No credential file or token value was read, no
+  provider task was launched, and no account state was changed.
+- This clears the immediate sign-in prerequisite, not task 1018 acceptance:
+  two-project execution, refresh/revocation, concurrent use, and full scoped
+  security checks remain open. No paid run or release claim is inferred.
+- Documentation-only change: `rtk git diff --check` passed; no product tests
+  were rerun or claimed for the new status evidence.

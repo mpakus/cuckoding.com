@@ -51,9 +51,12 @@ acceptance: sign in once, attach the account to two projects and start both runs
 without another login or copied credentials. Histories may be shared by the
 approved ADR-025 contract; permission config must remain independent. Verify
 restart, refresh and concurrent use, then revoke and confirm a fresh launch
-fails clearly. The 2026-09-20 18:05 UTC real CLI status checks reported sign-in required;
-authenticated two-project acceptance is still pending. Account-page status alone
-is not a pass. Old boards/runs have explicit, audited saved-account linking.
+fails clearly. The 2026-09-20 18:05 UTC real CLI status checks reported sign-in
+required; on 2026-09-21 both saved app-owned CLI profiles reported authenticated
+after a development-server restart. This is a live sign-in check, not a provider
+run or proof of two-project reuse. Authenticated two-project acceptance is still
+pending. Account-page status alone is not a pass. Old boards/runs have explicit,
+audited saved-account linking.
 Cursor adapter tests assert run-owned home/config/Claude paths, scoped-auth probing, owner-only generated policy, empty MCP configuration, project-override rejection, launch/resume/cancel behavior, fixture event normalization, redaction, and usage. The retained real-runtime fixture proves its event contract and earlier lifecycle behavior; the current change does not claim a new authenticated real-provider smoke. OpenCode remains a stable-stub test with fail-closed operational callbacks.
 The Phase 4 walking-skeleton test uses the fake adapter but real SQLite state, Git repositories, worktree, candidate commit, hibernate/resume lifecycle, evidence files, LiveView confirmation, and local bare push. It asserts a single specification attempt across the sleep simulation, rejects release before approval, rejects candidate path traversal and symlinks, and replays the release command without another push event. A real-provider demo remains opt-in and must use a separately authenticated run-scoped home.
 

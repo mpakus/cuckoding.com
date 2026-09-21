@@ -153,9 +153,11 @@ Running/completed runs are never rewritten.
   both existing app-owned accounts. A later Cursor login exposed that an
   isolated `HOME` cannot resolve the macOS default keychain; the browser step
   succeeded but credential persistence failed. Cursor now uses its native
-  account-owned file store instead. Sign in again, then verify authenticated
-  two-project use, token refresh/restart and concurrent provider behavior before
-  closing task 1018.
+  account-owned file store instead. On 2026-09-21, after a development-server
+  restart, the installed Codex CLI reported a ChatGPT login and the installed
+  Cursor CLI reported authenticated under their saved app-owned profiles.
+  Verify authenticated two-project use, token refresh/restart and concurrent
+  provider behavior before closing task 1018.
 - The confirmed disconnect control is implemented and regression-tested. It is
   a provider-scoped logout, not destructive profile-directory deletion, and it
   never touches personal profiles. Real post-login revocation evidence remains open.
