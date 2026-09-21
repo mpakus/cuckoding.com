@@ -179,6 +179,14 @@ profile. Later runs reuse it until the provider revokes or expires it.
   execution. The same isolated status with the corrected file-store mode reports
   sign-in required. Verify fresh sign-in, authenticated two-project use, token
   refresh/restart and concurrent provider behavior before closing task 1018.
+- On 2026-09-21 at 19:52 UTC, read-only isolated-profile preflight found a
+  private Codex file-store credential by metadata only. The installed Codex CLI
+  reported ChatGPT sign-in with `CODEX_HOME` set to that app-owned profile,
+  file-store mode selected, and a scrubbed explicit environment. The installed
+  Cursor CLI reported authenticated with its app-owned `HOME`, config paths,
+  native file store, and a scrubbed explicit environment. No credential value,
+  provider task, or personal CLI profile was read. These checks establish
+  current CLI status, not authenticated cross-project execution or refresh.
 - The confirmed disconnect control is implemented and regression-tested. It is
   a provider-scoped logout, not destructive profile-directory deletion, and it
   never touches personal profiles. Real post-login revocation evidence remains open.

@@ -23,6 +23,8 @@ Begin external testing only when all of the following are true:
 - the tester understands that the host runner executes local processes and is
   not a sandbox;
 - the selected repository and provider account are authorized for the test;
+- any provider key previously exposed in host process arguments has been
+  revoked or rotated and that action is confirmed by the stakeholder;
 - no production credential is exposed to an agent process.
 
 Stop immediately if the repository has conflicting user changes, a requested
@@ -78,13 +80,22 @@ The isolation rule adapts Agetor's practice of using dedicated development
 data and temporary repositories. Cuckoding additionally requires recorded
 capabilities, per-project knowledge boundaries, redaction, and human approval.
 
-### Project-first enrollment
+### Agent-first, project-first enrollment
+
+In **Agents**, save and authorize each Codex or Cursor provider sign-in once,
+then choose **Check sign-in and refresh models**. A second compatible named
+agent can reuse that sign-in and select a different model; use a separate
+sign-in only when separate provider history is intended. The complete command
+and copy button live on the root agent's card, not on every run. Codex and
+Cursor use private app-owned provider file stores, while task instructions and
+permissions stay run-owned. Do not copy token files or use a personal CLI home.
 
 On the dashboard, use **Add project**. Complete the three steps for project
 identity, the existing repository and actual base branch, and review. After
-registration, save or attach agents on the project page. Claude Code additionally
-requires the already reviewed absolute API key helper path. A dirty working tree
-may be registered, but use a dedicated authorized clone for beta execution.
+registration, attach the saved agents and assign roles on the project page.
+Claude Code additionally requires the already reviewed absolute API key helper
+path. A dirty working tree may be registered, but use a dedicated authorized
+clone for beta execution.
 
 Confirmation registers only the project and its trusted configuration version.
 It does not create a board, task, run, branch, worktree, port, or process. Board
@@ -98,22 +109,21 @@ still observe a real provider return to Specifications or Coding. After Review
 passes, exercise **Complete locally** and verify no push, or separately approve
 release; record which path was chosen.
 
-The project page shows a saved Codex agent's complete sign-in command
-in a read-only field with an adjacent copy button. The command selects Keychain
-credential storage and an owner-only application-data home. Run it in Terminal,
-complete sign-in, then choose **Check authorization**. This checks the account
-home, not a newly isolated run home. Cross-home reuse must pass the real-provider
-check in [TESTING.md](TESTING.md) before it is called one-time authorization.
-Run directories remain isolated and contain no copied token file. After
-**Prepare run** creates a queued run, choose **Check authentication and start workflow**.
-Cuckoding checks the pinned runtime version and run authentication before changing
-the durable run from queued to running. Claude Code performs the same start
-gate through the reviewed helper. A failed probe leaves the run queued.
+After **Prepare run** creates a queued run, choose **Check authentication and
+start workflow**. Cuckoding checks each distinct saved sign-in in its app-owned
+profile before changing the durable run from queued to running. A failed probe
+leaves the run queued and links to the affected agent's **Re-authorize agent**
+action. Claude Code performs the same start gate through the reviewed helper.
+The separate run HOME, worktree, and generated configuration remain isolated;
+no credential file is copied into them. Successful account status alone is not
+two-project execution acceptance; complete the real-provider check in
+[TESTING.md](TESTING.md) before recording that result.
 
 Save each attachment and assign all project roles before creating the board.
-Existing boards retain their copied connections; create a new board to test
-newly saved account references. Do not delete old task/run history. Cursor still
-requires run-owned login; OpenCode and Custom Agent cannot execute tasks.
+Existing boards retain their copied connections. Their explicit **Connect saved
+agents** action updates future-run assignments only; it does not rewrite tasks
+or historical run snapshots. Do not delete old task/run history. OpenCode and
+Custom Agent remain setup-only and cannot execute tasks.
 
 To test planning, open the board, choose an assigned role, and ask it to read
 committed `docs/` and propose tasks from the actual task file path. **Create
@@ -121,6 +131,11 @@ planning run** must show immediate submission feedback and open the queued run.
 Authenticate/start analysis there, observe durable progress or an actionable
 error, review source-cited proposals, and import only selected proposals as Draft
 cards. Mark an imported card Ready and prepare/start its delivery run separately.
+If a delivery run blocks or fails, inspect its evidence on the run page, then
+use **Retry with a new run** on the task. Record the new run ID and verify the
+old worktree, logs, and artifacts remain available. Retry prepares a fresh
+worktree but does not start the provider automatically or copy uncommitted
+changes from the old worktree.
 
 For the controlled beta, use an authorized disposable clone whose `origin` is
 a local bare repository when exercising release handoff. GitHub handoff exists

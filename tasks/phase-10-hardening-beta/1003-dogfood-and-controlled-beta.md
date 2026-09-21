@@ -28,6 +28,10 @@ Use Cuckoding on several real repositories and workflow types for multi-day runs
 
 ## Checklist
 
+- [x] Beta enrollment instructions match the current agent-first shared-profile
+  flow and distinguish isolated CLI sign-in preflight from completed runs.
+- [ ] Confirm rotation of the provider key previously exposed in host argv
+  before launching further paid provider work.
 - [ ] Long runs across sleep included.
 - [ ] Knowledge review quality assessed.
 - [ ] Interview developers running two or more agents and review positioning, naming, licensing, and pricing hypotheses.

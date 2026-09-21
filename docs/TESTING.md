@@ -55,11 +55,27 @@ fails clearly. The 2026-09-20 18:05 UTC real CLI status checks reported sign-in
 required; on 2026-09-21 both saved app-owned CLI profiles reported authenticated
 after a development-server restart, but Codex's result depended on the personal
 shell's Keychain availability and was not a valid isolated-run check. A subsequent
-isolated file-store status correctly reports sign-in required. Authenticated
-two-project acceptance is still pending. Account-page status alone is not a pass. Old boards/runs have explicit,
+isolated file-store status correctly reported sign-in required at that time.
+On 2026-09-21 at 19:52 UTC, both saved Codex and Cursor CLIs reported signed
+in from their app-owned file profiles under scrubbed, isolated environments.
+No provider task was launched by those status checks. Authenticated two-project
+acceptance is still pending; account-page or CLI status alone is not a pass. Old boards/runs have explicit,
 audited saved-account linking.
-Cursor adapter tests assert run-owned home/config/Claude paths, scoped-auth probing, owner-only generated policy, empty MCP configuration, project-override rejection, launch/resume/cancel behavior, fixture event normalization, redaction, and usage. The retained real-runtime fixture proves its event contract and earlier lifecycle behavior; the current change does not claim a new authenticated real-provider smoke. OpenCode remains a stable-stub test with fail-closed operational callbacks.
-The Phase 4 walking-skeleton test uses the fake adapter but real SQLite state, Git repositories, worktree, candidate commit, hibernate/resume lifecycle, evidence files, LiveView confirmation, and local bare push. It asserts a single specification attempt across the sleep simulation, rejects release before approval, rejects candidate path traversal and symlinks, and replays the release command without another push event. A real-provider demo remains opt-in and must use a separately authenticated run-scoped home.
+Cursor adapter tests assert shared app-owned HOME for saved agents, run-owned
+task configuration, scoped-auth probing, owner-only generated policy, empty
+MCP configuration, project-override rejection, launch/resume/cancel behavior,
+fixture event normalization, redaction, and usage. The retained real-runtime
+fixture proves its event contract and earlier lifecycle behavior; the current
+change does not claim a new authenticated real-provider smoke. OpenCode remains
+a stable-stub test with fail-closed operational callbacks.
+The Phase 4 walking-skeleton test uses the fake adapter but real SQLite state,
+Git repositories, worktree, candidate commit, hibernate/resume lifecycle,
+evidence files, LiveView confirmation, and local bare push. It asserts a single
+specification attempt across the sleep simulation, rejects release before
+approval, rejects candidate path traversal and symlinks, and replays the
+release command without another push event. A real-provider demo remains opt-in
+and must authenticate from its selected app-owned profile under a separate
+run-owned HOME and policy configuration.
 
 ## Fixtures
 

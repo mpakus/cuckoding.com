@@ -114,10 +114,16 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
   - [x] Project settings creates boards independently from project registration.
   - [x] Board task creation and run preparation use the default Specifications → Coding → Review workflow and copied board role assignments.
   - [x] Board prompts create planning runs; validated, user-selected proposals become Draft tasks.
+  - [x] Task 1024: blocked or failed delivery tasks can prepare a distinct retry
+    run without deleting the prior run, worktree, logs, or artifacts; failed
+    preparation leaves the task Ready for recovery.
   - [x] Saved machine-local agent metadata can be attached across projects without rewriting old board/run snapshots.
   - [x] Task 1020: host-validated Review findings rerun Specifications/Coding within a fixed budget; passing runs can complete locally without release or continue to approved handoff.
-- [ ] Task 1018: complete real-provider acceptance of [agent-first authorization](AGENT_AUTHORIZATION_FLOW.md). Global management, shared profiles, automatic checks, grouped roles and explicit legacy bindings are implemented and regression-tested. Both Cursor and Codex keyring access fail with an isolated run `HOME`; their native app-owned file stores are now selected consistently for sign-in, check, model discovery, launch and logout. Codex requires a new sign-in to that store. Authenticated cross-project runs remain required evidence.
-- [x] Task 1018 runner hardening: a real Cursor smoke exposed same-group worker processes left after CLI exit; exit-time cleanup now has a failing-before/fixed-after regression and audited signal events. The smoke reused one Cursor sign-in in two disposable repositories, but did not exercise the full board workflow. Detached-group ownership and Codex sign-in remain open gates.
+- [ ] Task 1018: complete real-provider acceptance of [agent-first authorization](AGENT_AUTHORIZATION_FLOW.md). Global management, shared profiles, automatic checks, grouped roles and explicit legacy bindings are implemented and regression-tested. Both Cursor and Codex keyring access fail with an isolated run `HOME`; their native app-owned file stores are now selected consistently for sign-in, check, model discovery, launch and logout. Authenticated cross-project runs remain required evidence.
+- [x] Task 1018 preflight: on 2026-09-21 both installed CLIs reported
+  authenticated under isolated, app-owned file profiles. This is CLI status
+  evidence only; it does not close the real-provider execution gate above.
+- [x] Task 1018 runner hardening: a real Cursor smoke exposed same-group worker processes left after CLI exit; exit-time cleanup now has a failing-before/fixed-after regression and audited signal events. The smoke reused one Cursor sign-in in two disposable repositories, but did not exercise the full board workflow. Detached-group ownership and Codex workflow execution remain open gates.
 - [x] Task 1019: reuse a compatible provider sign-in across named agents by default; select each agent's model independently and preserve it in planning/workflow requests. Additive migration and regression checks preserve existing accounts. Provider-controlled expiry and real authenticated concurrency remain task 1018 gates.
 - [ ] Verify one saved login across isolated runs in two projects for each supported runtime, including refresh/restart/revocation and concurrency; current configuration tests are not proof of credential reuse.
 - [x] Complete shared-account revocation UX and per-project impact lists. The
@@ -126,9 +132,11 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 - [ ] Dogfood and controlled beta.
 - [ ] MVP release readiness.
 
-Remaining gate order: finish real-provider and shared-account lifecycle evidence;
-run controlled beta; then execute task 1004 against one frozen signed release
-candidate. Automated tests never substitute for those external acceptance gates.
+Remaining gate order: confirm rotation of the previously exposed provider key;
+finish real-provider and shared-account lifecycle evidence; run controlled beta;
+then execute task 1004 against one frozen signed release candidate. Isolated
+CLI sign-in status and automated tests never substitute for those execution,
+participant, or release acceptance gates.
 
 ## Definition of done for MVP
 

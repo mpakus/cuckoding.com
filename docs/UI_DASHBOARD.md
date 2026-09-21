@@ -103,9 +103,10 @@ Confirmation appears only when **Connect saved agent** is submitted, and
 legacy run-local sign-in commands are omitted.
 
 Save assignments before creating a board. Existing boards retain their copied
-settings, including legacy connections without saved-account IDs. There is no
-board-assignment migration/editor in this UI; create a new board to adopt the
-latest project assignments without changing historical work.
+settings, including legacy connections without saved-account IDs. The explicit
+**Connect saved agents** action binds matching saved accounts for future runs
+on an existing board without changing its tasks or historical run snapshots.
+It is not a general board-assignment or workflow editor.
 
 ### Agent Floor
 

@@ -4,7 +4,7 @@
 
 **Status:** prepared; external beta not started
 
-**Last updated:** 2026-09-18
+**Last updated:** 2026-09-21
 
 **Owner:** sole stakeholder
 
@@ -20,7 +20,9 @@ Blank rows mean `not observed`; they are not passing evidence.
 | Deterministic and physical recovery matrix | pass | Task 1002, 27/27 observations; this is prerequisite evidence and does not count as a beta run |
 | Signed and notarized build identified | pending fresh build | Developer ID identity, `Cuckoding` notary profile, password-protected updater key, Keychain password, and GitHub Releases URLs are configured. The retained artifact is from source `32fb8fb`; build and verify the accepted beta revision before enrollment. |
 | Claude Code adapter conformance | pass for current fixture contract | 2026-09-18 focused adapter suite; real beta use still requires separately verified run-scoped authentication |
-| Codex adapter conformance | pass for current fixture contract | 2026-09-18 focused adapter suite; real beta use must use the run-scoped home |
+| Codex adapter conformance | pass for current fixture contract | Saved sign-in uses its private app-owned file profile; an isolated run HOME must still launch a real task without copied credentials |
+| Saved Codex and Cursor sign-in preflight | pass for CLI status only | 2026-09-21 19:52 UTC: each installed CLI reported authenticated with only its app-owned profile and a scrubbed environment. No token content was read and no provider task was launched; two-project execution, refresh and concurrency remain unobserved |
+| Previously exposed provider key rotated | pending stakeholder confirmation | An earlier host process exposed a provider key in its arguments; no new paid provider run was launched during this preflight |
 | Outbound product telemetry off | pending | verify on the enrolled build |
 | Host-runner and provider-policy disclosure | pending | sole stakeholder confirms before each participant session |
 | Dedicated sanitized repositories and data roots | pending | record only anonymized codes and starting SHAs |
@@ -47,6 +49,7 @@ revealing a private repository name or URL.
 | Events, artifacts, and approvals remain board-scoped | not observed | — | — |
 | Project knowledge cannot be retrieved by another project | not observed | — | — |
 | Agent environment excludes host/provider credentials | not observed | — | — |
+| Shared sign-in executes tasks in two projects without another login | not observed | Isolated CLI status is preflight only | — |
 | Release occurs only after recorded human approval | not observed | — | — |
 
 ## Knowledge review
