@@ -4,9 +4,12 @@ Cuckoding is a local-first macOS control plane for orchestrating coding agents a
 
 Implementation has reached controlled-beta preparation. The repository includes
 the loopback-only Phoenix LiveView control plane, durable SQLite workflows,
-host runner, supported Codex and Claude Code adapters, plugin and knowledge
-boundaries, and the verified native macOS shell. Remaining beta evidence is
+host runner, implemented Claude Code, Codex, and Cursor Agent launch adapters,
+plugin and knowledge boundaries, and the verified native macOS shell. Real-provider
+acceptance and remaining beta evidence are
 tracked in `docs/BETA_REPORT.md` and the ordered tasks under `tasks/`.
+The current [release-readiness decision](docs/RELEASE_READINESS.md) is no-go
+until a fresh signed candidate and the outstanding provider/beta gates pass.
 
 The current product path is project settings → board → Draft task → Ready →
 prepared run. From a board, a user can also ask one assigned agent to inspect
@@ -77,6 +80,7 @@ See `CHANGES.md`. In short: no Docker in the MVP, agents and commands run on the
 | `docs/MVP_BOUNDARY_AND_POSITIONING.md` | Launch contract, competitive scan, data defaults, and commercial hypotheses |
 | `docs/BETA_RUNBOOK.md` | Safe dogfood protocol, interview guide, knowledge rubric, and beta exit gates |
 | `docs/BETA_REPORT.md` | Anonymized run, interview, knowledge, finding, and decision ledger |
+| `docs/RELEASE_READINESS.md` | Current support, privacy, recovery, and MVP release decision |
 | `docs/REFERENCE_CODING.md` | XERJ-backed retrieve-before-code workflow and RTK command convention |
 | `docs/TRUSTED_HOST_THREAT_MODEL.md` | Trusted-host boundaries, risks, approvals, tabletop, and residual-risk disclosure |
 | `docs/reference-corpus.yml` | Pinned peer repositories, licenses, revisions, and XERJ prefixes |

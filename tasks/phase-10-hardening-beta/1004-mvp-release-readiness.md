@@ -33,6 +33,12 @@ Re-run the MVP definition of done, freeze supported versions, validate installer
   unfinished stage; focused eight-day regression passes.
 - [x] Synthetic missed-minute catch-up is bounded, restart-safe, and prevents
   raw pruning until minute and stage aggregates exist.
+- [x] Source-grounded MVP boundary, README, and beta-ledger disclosures agree
+  on implemented adapters, credential locations, and actual retention behavior.
+- [x] Publish a current-source support/onboarding/privacy/recovery guide and
+  explicit no-go decision without calling it signed-release acceptance.
+- [ ] Approve and verify the output/artifact retention policy and participant
+  disclosure; no automatic age purge exists for full redacted artifacts yet.
 - [ ] Verify effective retention and consent/default behavior in a signed
   enrollment build.
 

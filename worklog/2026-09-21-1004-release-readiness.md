@@ -87,3 +87,52 @@ retired/advisory packages). Expected plugin-supervisor crash fixtures and
 transient SQLite lock retries appeared in the suite output; no test failed.
 `rtk git diff --check` passed. No migration, signed build, paid provider
 invocation, or deletion of the user's existing app data was performed.
+
+## 2026-09-21 — Reconcile MVP disclosures with current source
+
+Continued task 1004 on `fix/1004-current-boundary-docs` from clean `main`.
+Acceptance for this documentation tranche: the launch-adapter list, local
+retention defaults, provider credential locations, public working name, and
+repository license must match current source and artifacts; README,
+`docs/PLAN.md`, and the beta ledger must make the same distinctions. This does
+not close participant, signed-build, or real-provider acceptance.
+
+Ponytail 4.10.0 (MIT, full mode), menubar-shell, security-review, and
+quality-gates apply. The source check found Claude Code, Codex, and Cursor
+Agent in the runnable adapter list; automatic age pruning in resource metrics
+only; a bounded process-output preview plus the full redacted artifact; and an
+Apache-2.0 `LICENSE` already in the repository. The boundary document still
+claimed only two launch adapters, 30-day output/payload deletion, Keychain-only
+secrets, an internal-only name, and no license file. Correct the disclosures
+without claiming that implementation, signing, beta consent, or legal review
+has been accepted.
+
+Documentation now distinguishes implemented launch adapters from accepted
+provider workflows; corrects the false 30-day output/payload purge; describes
+provider-owned file credentials separately from app-managed Keychain secrets;
+and reconciles the public working name and existing Apache-2.0 license. The
+new `docs/RELEASE_READINESS.md` is a current-source operator guide and explicit
+no-go report for support, onboarding, host limits, privacy/data, recovery, and
+troubleshooting. It links to the detailed runbook rather than inventing a
+release artifact or support SLA. `docs/PLAN.md`, README, beta ledger, and task
+1004 reflect the same status.
+
+Verification: `rtk gh secret list --repo mpakus/cuckoding.com --json name
+--jq '.[].name'` showed only `APPLE_SIGNING_IDENTITY` and the two Tauri updater
+secrets; the Apple certificate/password and notary key/ID/issuer remain absent.
+`rtk env -u CR_PAT ruby -e ...` inspected names only and found every local
+release variable required by `docs/DISTRIBUTION.md` unset; it printed no
+values. `rtk env -u CR_PAT mix test
+test/cuckoding/telemetry/resource_metrics_test.exs` passed (7 tests, 0
+failures). A read-only Ruby link check found all 13 relative links in the new
+readiness guide resolve. `rtk git diff --check` passed. Source searches found
+the metric-only automatic age pruning and no automatic outbound product
+telemetry client. No behavioral code, migration, signed build, provider call,
+or user data was changed; compiler/full-suite gates were not rerun for this
+documentation-only tranche. No RTK proxy exception was needed.
+
+Residual gates: approve artifact retention/participant disclosure; confirm
+rotation of the prior exposed provider key; run authenticated workflows and
+controlled beta; configure signing/notary inputs; freeze one candidate and
+verify its install/update/rollback/uninstall, checksums, SBOM, provenance, and
+release notes on a clean supported Mac. Task 1004 and Phase 10 remain open.

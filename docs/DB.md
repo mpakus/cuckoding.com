@@ -170,7 +170,9 @@ deletes them. Provider expiry/revocation remains authoritative.
   after restart. Raw rows are not deleted until both their minute and
   finished-stage aggregates exist. This is tested with synthetic time; the
   signed-build retention/consent check remains open.
-- Raw command output follows configurable size and age limits; redaction happens before persistence.
+- Command and agent output is redacted before persistence. The UI preview is
+  size-bounded, but the full redacted artifact has no automatic age purge yet;
+  do not describe the preview limit as artifact retention.
 - Deleting a project is a confirmed, recoverable archive action first. Permanent deletion enumerates database rows, worktrees, run folders, processes, artifacts, and knowledge files before removal.
 
 ## Migration policy

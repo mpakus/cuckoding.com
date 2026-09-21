@@ -1,5 +1,23 @@
 # Documentation Audit
 
+## Release-disclosure addendum — 2026-09-21
+
+Task 1004 compared the MVP boundary against the runnable adapter list,
+resource-pruning code, process-output artifacts, provider credential stores,
+README, and repository `LICENSE`. Claude Code, Codex, and Cursor Agent have
+implemented launch adapters, but real-provider workflow acceptance remains
+open; OpenCode and Custom Agent remain setup-only. The previous 30-day
+output/payload deletion and Keychain-only credential claims were inaccurate:
+only resource metrics have automatic age pruning, full redacted process
+artifacts have no age purge, and saved Codex/Cursor credentials live in
+app-owned provider file profiles. `Cuckoding` is already the public working
+name and Apache-2.0 `LICENSE` exists; final name and commercial-boundary
+review remain open. [MVP_BOUNDARY_AND_POSITIONING.md](MVP_BOUNDARY_AND_POSITIONING.md),
+[DB.md](DB.md), [BETA_REPORT.md](BETA_REPORT.md), and [PLAN.md](PLAN.md) now
+separate those source facts from beta and signed-build acceptance. The
+[release-readiness guide](RELEASE_READINESS.md) records the current no-go
+decision and operator-facing limits.
+
 ## Current-flow audit — 2026-09-20
 
 Source baseline before task 1020: `cb81c48` (`fix(ui): make messages safe and actionable`).

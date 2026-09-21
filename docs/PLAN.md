@@ -121,6 +121,13 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
   after a simulated outage; raw samples wait for both minute and stage
   aggregates before pruning. Signed-build retention/consent still needs
   verification.
+- [x] Task 1004: reconcile the current launch-adapter, credential-store,
+  public-name/license, and output-retention disclosures with shipped source.
+  Artifact retention policy and signed-build consent verification remain open.
+- [x] Task 1004: publish a source-grounded operator guide and explicit no-go
+  report covering support, onboarding, limits, privacy/data, backup, recovery,
+  and troubleshooting. Release notes/artifacts and clean-Mac acceptance remain
+  open in [RELEASE_READINESS.md](RELEASE_READINESS.md).
 - [ ] Produce and verify a fresh signed/notarized enrollment build at the
   accepted beta revision. The local identity/notary profile and updater key
   exist, but the retained signed ZIP predates current main; the CI Apple

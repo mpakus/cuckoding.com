@@ -88,8 +88,9 @@ Project settings can save machine-wide agents, attach them to projects, and assi
 the built-in Specifications, Coding, and Review roles or user-added roles.
 Every save appends an immutable configuration revision. The runtime selector
 shows Codex, Claude Code, Cursor Agent, OpenCode, and Custom Agent; the Claude
-API-key helper is rendered and validated only for Claude Code. Cursor uses a
-fresh login in run-owned runtime directories. OpenCode and Custom Agent record
+API-key helper is rendered and validated only for Claude Code. Saved Cursor
+agents reuse an app-owned provider file profile; each run retains its own task
+configuration and worktree. OpenCode and Custom Agent record
 only reviewed machine-local settings, carry an explicit setup-only warning, and
 cannot start task runs until their adapter contract and conformance evidence are
 complete. Each agent card saves or updates independently; role saves remain a

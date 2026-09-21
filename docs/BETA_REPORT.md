@@ -12,6 +12,8 @@ This is the anonymized evidence ledger for `docs/BETA_RUNBOOK.md`. It does not
 contain participant names, contact details, calendar information, repository
 names, private URLs, source code, prompts, secrets, or unredacted diagnostics.
 Blank rows mean `not observed`; they are not passing evidence.
+The current operator guide and no-go decision are in
+[`RELEASE_READINESS.md`](RELEASE_READINESS.md).
 
 ## Pre-beta gate
 
@@ -26,6 +28,7 @@ Blank rows mean `not observed`; they are not passing evidence.
 | Previously exposed provider key rotated | pending stakeholder confirmation | An earlier host process exposed a provider key in its arguments; no new paid provider run was launched during this preflight |
 | Outbound product telemetry off | source preflight only; enrolled build pending | Local resource collection writes to SQLite; diagnostics require an explicit UI/menu action, and update network access follows the explicit Check for Updates menu action. Source inspection is not a network observation on the signed enrollment build. Provider and approved release-handoff traffic are separate disclosures. |
 | Resource retention default | code-level safety verified; enrolled build pending | Automatic pruning waits for both minute and finished-stage aggregates. Synthetic eight-day and 121-minute backlog regressions pass; each maintenance tick processes at most 120 missing session-minutes and resumes from durable rows. Effective retention and participant-facing consent/defaults on the signed enrollment build remain unobserved. |
+| Agent/output artifact retention | policy and enrolled build pending | The UI preview is bounded, but full redacted artifacts and persisted provider diagnostic fragments have no automatic age purge. Define participant-facing retention and verified cleanup before enrollment; do not promise a 30-day deletion. |
 | Host-runner and provider-policy disclosure | pending | sole stakeholder confirms before each participant session |
 | Dedicated sanitized repositories and data roots | pending | record only anonymized codes and starting SHAs |
 

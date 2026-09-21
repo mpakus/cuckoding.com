@@ -2,18 +2,24 @@
 
 **Decision date:** 2026-09-17; approved by the sole stakeholder  
 **Review date:** 2026-10-01, after the first user interviews  
-**Scope:** task 0001
+**Scope:** task 0001; implementation-status corrections for task 1004 on 2026-09-21
 
 ## Launch contract
 
 The MVP is a single-user, local-first macOS application for Apple Silicon. A menubar shell starts a Phoenix release bound to loopback and opens its LiveView UI in the default browser. Agent and project commands run as supervised host processes in per-run Git worktrees. This is a trusted-host model, not a sandbox.
 
-The two supported launch adapters are:
+The implemented launch adapters are:
 
 1. **Claude Code**
 2. **Codex**
+3. **Cursor Agent**
 
-Cursor Agent and OpenCode keep stable adapter contracts and test doubles, but they are not launch-supported until their conformance suites pass. The first distribution supports one local user and one Mac. It must keep multiple boards and runs isolated and durable across application restart and sleep/wake.
+Their fixture conformance does not establish real-provider beta acceptance;
+authenticated default workflows and shared-profile recovery remain open gates
+in [PLAN.md](PLAN.md). OpenCode and Custom Agent can be saved during setup but
+cannot launch tasks. The first distribution supports one local user and one
+Mac. It must keep multiple boards and runs isolated and durable across
+application restart and sleep/wake.
 
 The MVP includes durable workflows, approvals, worktrees, process supervision, evidence and review artifacts, resource and cost attribution, project-scoped knowledge, plugin contracts, and a host-side branch/PR handoff. It does not include container or VM isolation, hosted execution, team synchronization, autonomous merge/deploy, mobile or Windows clients, or x86 macOS packaging.
 
@@ -44,25 +50,38 @@ Reference-code evidence is pinned in `docs/reference-corpus.yml`:
 
 | Data class | Default location | Default retention | Export or telemetry default |
 | --- | --- | --- | --- |
-| Projects, workflows, runs, events, approvals, policy snapshots, artifact metadata | Local SQLite | Until the user archives or deletes the owning project; audit facts remain append-only until that action | Never exported automatically |
+| Projects, workflows, runs, events, approvals, policy snapshots, artifact metadata | Local SQLite | No automatic age purge; archive does not delete audit history | Never exported automatically |
 | Knowledge content | Project Markdown files; SQLite stores index and provenance | Until revoked or deleted by the user | Project-scoped; global publication requires approval |
-| Redacted command and agent output | Local database/artifact store | 30 days after run completion, configurable | Never exported automatically |
-| High-frequency CPU/memory samples | Local SQLite | Full resolution for 7 days; rollups for 30 days; then removable | Never exported automatically |
-| Provider payload fragments needed for diagnosis | Redacted local JSON only | 30 days, configurable | Never exported automatically |
-| Secrets | macOS Keychain; SQLite stores opaque references | Until revoked by the user or provider | Never telemetry |
-| Product analytics and crash reports | None unless enabled | Defined before opt-in collection ships | **Off by default** |
+| Redacted command and agent output | Owner-only local artifacts with a bounded UI preview; related events in SQLite | No automatic age purge implemented; full redacted artifacts remain until explicit, verified cleanup | Never exported automatically; full-log download is explicit |
+| High-frequency CPU/memory samples | Local SQLite | Raw samples eligible after 7 days only when required minute and finished-stage rollups exist; rollups eligible after 30 days | Never exported automatically |
+| Provider payload fragments needed for diagnosis | Redacted local JSON where persisted | No automatic age purge implemented | Never exported automatically |
+| Secrets | App-managed opaque references in SQLite and values in macOS Keychain; provider-owned Codex/Cursor credentials in owner-only app-owned native file profiles | Provider expiry or explicit revocation controls provider credentials; Cuckoding does not promise a fixed lifetime | Never included in diagnostics or product telemetry |
+| Product analytics and crash reports | No automatic outbound collection implemented | Not applicable until an opt-in collector exists | Diagnostics export and update check require explicit actions |
 
-Local operational events and metrics are on because the product cannot recover or explain a run without them. Outbound telemetry is off. Cuckoding does not upload repository source; provider runtimes remain subject to their own user-selected policies.
+Local operational events and metrics are on because the product cannot recover
+or explain a run without them. Cuckoding has no automatic outbound product
+telemetry client. Provider runtimes, explicit update checks, and approved VCS
+handoff have separate network behavior; Cuckoding does not upload repository
+source through product telemetry. Output/artifact retention and participant
+disclosure need a reviewed release policy before beta enrollment.
 
 ## Product hypotheses
 
 ### Name
 
-`Cuckoding` remains an internal codename only. A public name is deferred to **2026-10-01**, after 3–5 interviews plus trademark and domain screening. Working candidates are `Runstead`, `Branchyard`, and `Agent Harbor`; none is approved or represented as available.
+`Cuckoding` is the current public working name in the repository and on
+`cuckoding.com`; it is no longer internal-only. Final name approval remains
+pending the planned **2026-10-01** review after 3–5 interviews plus trademark
+and domain screening. `Runstead`, `Branchyard`, and `Agent Harbor` remain
+unapproved alternatives, not availability claims.
 
 ### License
 
-Use **Apache License 2.0** for the local core and plugin contracts, subject to owner/legal approval by **2026-09-24**. It is OSI-approved, includes an express patent grant, and permits a useful open core. Paid modules can remain proprietary. Do not add a repository `LICENSE` until the decision is approved.
+The repository already contains an Apache License 2.0 `LICENSE` and presents
+the local core and plugin contracts under it. The earlier instruction not to
+add that file is superseded by the repository state. Owner/legal review of the
+open-core and paid-module boundary remains a release decision; do not present
+that review as completed merely because the file exists.
 
 ### Pricing
 
