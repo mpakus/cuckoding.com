@@ -114,7 +114,12 @@ defmodule Cuckoding.Telemetry.ResourceMetricsTest do
     assert {:ok, :missing} =
              ResourceRollups.minute(domain.session.id, DateTime.add(@now, 60, :second))
 
-    assert {:ok, 2} = ResourceRollups.prune_raw(DateTime.add(@now, 4, :second))
+    assert {:ok, %{raw_samples: 2}} =
+             ResourceRollups.prune(
+               DateTime.add(@now, 4, :second),
+               DateTime.add(@now, -30, :day)
+             )
+
     assert Repo.aggregate(ResourceSample, :count) == 1
   end
 
@@ -146,7 +151,9 @@ defmodule Cuckoding.Telemetry.ResourceMetricsTest do
     insert_sample(domain, 1, 1_000, 100, 1, [])
     later = DateTime.add(@now, 8, :day)
 
-    assert {:ok, %{deleted: %{raw_samples: 0}}} = ResourceRollups.maintain(now: later)
+    assert {:ok, %{minute_rollups: 1, deleted: %{raw_samples: 0}}} =
+             ResourceRollups.maintain(now: later)
+
     assert Repo.aggregate(ResourceSample, :count) == 1
 
     domain.attempt
@@ -157,13 +164,57 @@ defmodule Cuckoding.Telemetry.ResourceMetricsTest do
     })
     |> Repo.update!()
 
-    assert {:ok, %{stage_rollups: 1, deleted: %{raw_samples: 1}}} =
+    assert {:ok, %{minute_rollups: 0, stage_rollups: 1, deleted: %{raw_samples: 1}}} =
              ResourceRollups.maintain(now: later)
 
     assert Repo.aggregate(ResourceSample, :count) == 0
 
     assert %MetricRollup{sample_count: 1} =
              Repo.one!(from(rollup in MetricRollup, where: rollup.window == "stage"))
+  end
+
+  test "missed minutes catch up in bounded, restart-safe batches" do
+    domain = domain_fixture()
+
+    for minute <- 0..120 do
+      insert_sample(domain, minute * 60 + 1, minute + 1, 100, 1, [])
+    end
+
+    later = DateTime.add(@now, 122 * 60, :second)
+
+    assert {:ok, %{minute_rollups: 120}} = ResourceRollups.maintain(now: later)
+    assert Repo.aggregate(MetricRollup, :count) == 120
+
+    assert {:ok, %{minute_rollups: 1}} = ResourceRollups.maintain(now: later)
+    assert Repo.aggregate(MetricRollup, :count) == 121
+
+    assert {:ok, %{minute_rollups: 0}} = ResourceRollups.maintain(now: later)
+    assert Repo.aggregate(MetricRollup, :count) == 121
+  end
+
+  test "retention does not discard a completed stage's missing minute" do
+    domain = domain_fixture()
+    insert_sample(domain, 1, 1_000, 100, 1, [])
+    later = DateTime.add(@now, 8, :day)
+
+    domain.attempt
+    |> StageAttempt.transition_changeset(%{
+      state: "succeeded",
+      started_at: @now,
+      finished_at: DateTime.add(@now, 30, :second)
+    })
+    |> Repo.update!()
+
+    assert {:ok, %MetricRollup{}} = ResourceRollups.stage(domain.attempt.id, now: later)
+
+    assert {:ok, %{raw_samples: 0}} =
+             ResourceRollups.prune(DateTime.add(later, -7, :day), DateTime.add(later, -30, :day))
+
+    assert Repo.aggregate(ResourceSample, :count) == 1
+    assert {:ok, %MetricRollup{}} = ResourceRollups.minute(domain.session.id, @now, now: later)
+
+    assert {:ok, %{raw_samples: 1}} =
+             ResourceRollups.prune(DateTime.add(later, -7, :day), DateTime.add(later, -30, :day))
   end
 
   defp insert_sample(domain, seconds, cpu, memory, count, ports) do

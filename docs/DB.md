@@ -165,8 +165,11 @@ deletes them. Provider expiry/revocation remains authoritative.
 - High-frequency resource samples are eligible for pruning after 7 days only
   after their finished stage has a durable aggregate; a still-active stage
   retains its measured rows even past that age. Aggregate rollups are
-  removable after 30 days. Minute-level catch-up after a long app outage is
-  not yet proven and remains a release-readiness check.
+  removable after 30 days. Maintenance catches up at most 120 missing
+  completed session-minutes per tick, using durable rollup rows to resume
+  after restart. Raw rows are not deleted until both their minute and
+  finished-stage aggregates exist. This is tested with synthetic time; the
+  signed-build retention/consent check remains open.
 - Raw command output follows configurable size and age limits; redaction happens before persistence.
 - Deleting a project is a confirmed, recoverable archive action first. Permanent deletion enumerates database rows, worktrees, run folders, processes, artifacts, and knowledge files before removal.
 

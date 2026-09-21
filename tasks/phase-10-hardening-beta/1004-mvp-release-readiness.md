@@ -31,8 +31,10 @@ Re-run the MVP definition of done, freeze supported versions, validate installer
 - [ ] Diagnostics/telemetry consent and retention defaults confirmed.
 - [x] Automatic raw-metric pruning preserves measurements needed by an
   unfinished stage; focused eight-day regression passes.
-- [ ] Verify minute-rollup catch-up after app downtime and the effective
-  consent/default behavior in a signed enrollment build.
+- [x] Synthetic missed-minute catch-up is bounded, restart-safe, and prevents
+  raw pruning until minute and stage aggregates exist.
+- [ ] Verify effective retention and consent/default behavior in a signed
+  enrollment build.
 
 ## Acceptance criteria
 

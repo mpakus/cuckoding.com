@@ -137,20 +137,33 @@ defmodule Cuckoding.Telemetry.ResourceRollups do
   @replace_fields ~w(sample_count cpu_nanos average_memory_bytes maximum_memory_bytes maximum_process_count open_ports_json active_ms wall_ms limits_enforced computed_at)a
   @raw_retention_seconds 7 * 24 * 60 * 60
   @rollup_retention_seconds 30 * 24 * 60 * 60
+  @minute_catchup_limit 120
 
   def maintain(options \\ []) do
     now = Keyword.get(options, :now, Cuckoding.Clock.wall_now())
-    bucket_start = now |> minute_start() |> DateTime.add(-60, :second)
-    bucket_end = DateTime.add(bucket_start, 60, :second)
+    completed_before = minute_start(now)
 
+    # ponytail: missing-bucket lookup scans retained samples;
+    # add a durable cursor if beta data exceeds the maintenance window.
     minute_results =
       from(sample in ResourceSample,
-        where: sample.sampled_at >= ^bucket_start and sample.sampled_at < ^bucket_end,
-        distinct: true,
-        select: sample.agent_session_id
+        left_join: rollup in MetricRollup,
+        on:
+          rollup.scope_type == "agent_session" and
+            rollup.scope_id == sample.agent_session_id and rollup.window == "minute" and
+            rollup.bucket_start ==
+              fragment("strftime('%Y-%m-%dT%H:%M:00.000000Z', ?)", sample.sampled_at),
+        where: sample.sampled_at < ^completed_before and is_nil(rollup.id),
+        group_by: [
+          sample.agent_session_id,
+          fragment("strftime('%Y-%m-%dT%H:%M:00.000000Z', ?)", sample.sampled_at)
+        ],
+        select: {sample.agent_session_id, min(sample.sampled_at)},
+        order_by: [asc: min(sample.sampled_at)],
+        limit: @minute_catchup_limit
       )
       |> Repo.all()
-      |> Enum.map(&minute(&1, bucket_start, now: now))
+      |> Enum.map(fn {session_id, sampled_at} -> minute(session_id, sampled_at, now: now) end)
 
     stage_results =
       from(attempt in StageAttempt,
@@ -230,34 +243,33 @@ defmodule Cuckoding.Telemetry.ResourceRollups do
     rollup("stage_attempt", attempt.id, "stage", bucket_start, samples, timing, options)
   end
 
-  def prune_raw(before) when is_struct(before, DateTime) do
-    {count, _rows} =
-      Repo.delete_all(from(sample in ResourceSample, where: sample.sampled_at < ^before))
-
-    {:ok, count}
-  end
-
   def prune(raw_before, rollup_before)
       when is_struct(raw_before, DateTime) and is_struct(rollup_before, DateTime) do
-    aggregated_sessions =
-      from(session in AgentSession,
+    aggregated_samples =
+      from(sample in ResourceSample,
+        join: session in AgentSession,
+        on: session.id == sample.agent_session_id,
         join: attempt in StageAttempt,
         on: attempt.id == session.stage_attempt_id,
-        join: rollup in MetricRollup,
+        join: stage_rollup in MetricRollup,
         on:
-          rollup.scope_type == "stage_attempt" and rollup.scope_id == attempt.id and
-            rollup.window == "stage",
-        where: not is_nil(attempt.finished_at),
-        select: session.id
+          stage_rollup.scope_type == "stage_attempt" and
+            stage_rollup.scope_id == attempt.id and stage_rollup.window == "stage",
+        join: minute_rollup in MetricRollup,
+        on:
+          minute_rollup.scope_type == "agent_session" and
+            minute_rollup.scope_id == session.id and minute_rollup.window == "minute" and
+            minute_rollup.bucket_start ==
+              fragment("strftime('%Y-%m-%dT%H:%M:00.000000Z', ?)", sample.sampled_at),
+        where: sample.sampled_at < ^raw_before and not is_nil(attempt.finished_at),
+        select: sample.id
       )
 
     Repo.transaction(fn ->
       {raw_count, _rows} =
         Repo.delete_all(
           from(sample in ResourceSample,
-            where:
-              sample.sampled_at < ^raw_before and
-                sample.agent_session_id in subquery(aggregated_sessions)
+            where: sample.id in subquery(aggregated_samples)
           )
         )
 

@@ -116,8 +116,11 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
   This script regression is not a fresh signed/notarized build.
 - [x] Automatic resource-sample pruning now retains old measurements until a
   finished stage aggregate is durable, including after a simulated eight-day
-  interruption. Minute-level catch-up and enrolled-build retention consent
-  still need task-1004 verification.
+  interruption.
+- [x] Task 1004: completed-minute rollups catch up in bounded, durable batches
+  after a simulated outage; raw samples wait for both minute and stage
+  aggregates before pruning. Signed-build retention/consent still needs
+  verification.
 - [ ] Produce and verify a fresh signed/notarized enrollment build at the
   accepted beta revision. The local identity/notary profile and updater key
   exist, but the retained signed ZIP predates current main; the CI Apple
