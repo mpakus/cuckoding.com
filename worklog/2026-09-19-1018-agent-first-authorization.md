@@ -438,3 +438,9 @@ Focused verification:
   submission was made against the user's run. Agents showed both existing
   saved accounts as Connected with collapsed Re-authorize controls. Updated
   authorization-flow and dashboard docs to match. No migration was needed.
+- Follow-up regression on the same task: a connected root account in project
+  settings has no sign-in command, shows textual Authorized status, and links
+  to Re-authorize agent. `rtk env -u CR_PAT mix test
+  test/cuckoding_web/project_edit_live_test.exs` — 4 tests, zero failures.
+  `rtk env -u CR_PAT mix quality` — exit 0 again: 271 tests and 10
+  properties pass, Credo/Sobelow clean, no retired or advisory packages.

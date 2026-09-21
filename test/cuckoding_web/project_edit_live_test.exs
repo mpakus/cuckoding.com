@@ -194,11 +194,15 @@ defmodule CuckodingWeb.ProjectEditLiveTest do
              })
 
     assert second.authorization_account_id == account.id
+    Adapters.record_provider_status(account.id, "authenticated")
 
     {:ok, view, _html} = live(conn, ~p"/projects/#{project.id}/edit")
 
     assert has_element?(view, "#saved-agent-#{second.id}", "Manage shared sign-in")
     refute has_element?(view, "#saved-agent-command-#{second.id}")
+    refute has_element?(view, "#saved-agent-command-#{account.id}")
+    assert has_element?(view, "#saved-agent-#{account.id}", "Authorized")
+    assert has_element?(view, "#saved-agent-#{account.id} a", "Re-authorize agent")
     assert has_element?(view, "#saved-agent-#{account.id}", "Use in this project")
     render_click(view, "use-saved-agent", %{"id" => account.id})
 
