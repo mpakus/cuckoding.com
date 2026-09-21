@@ -386,3 +386,13 @@ Focused verification:
   the fail-closed pass. `rtk git diff --check` — passed. No live provider run was
   repeated while the previously exposed host argv key rotation remains
   unverified.
+- Committed the runner/docs/test slice as `3460d7b`, fetched `origin/main`,
+  fast-forwarded local `main`, and `rtk git push origin main` advanced the
+  remote from `5f3ed9f` to `3460d7b`. The worktree was clean afterward.
+  Verified the old loopback development listener's PID, start time, and repo
+  CWD, sent only that PID TERM via `rtk proxy /bin/kill -TERM 12360`, confirmed
+  port 4000 was free, then restarted with
+  `rtk proxy env -u CR_PAT PHX_SERVER=true mix phx.server`. Proxy preserved
+  the exact signal command and server stream. `rtk curl -fsS
+  http://127.0.0.1:4000/health` reported application, database, PubSub, and
+  web endpoint `ok`. The packaged menubar shell was not touched.
