@@ -110,6 +110,10 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
   release verifier, including startup/authentication, crash cleanup, safe mode,
   and update/rollback checks. This is not a signed beta enrollment build or
   clean-Mac release acceptance.
+- [ ] Produce and verify a fresh signed/notarized enrollment build at the
+  accepted beta revision. The local identity/notary profile and updater key
+  exist, but the retained signed ZIP predates current main; the CI Apple
+  certificate and notary secrets are not configured.
 - [x] Task 1008: safe public-message boundary and actionable empty states across
   Phoenix UI surfaces; raw internal errors are excluded from browser alerts.
 - [x] Complete the accepted project-first product flow:
