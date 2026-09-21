@@ -35,6 +35,9 @@ rtk ./bin/dev.build
 The resulting application is
 `desktop/src-tauri/target/release/bundle/macos/Cuckoding.app`. This developer
 artifact is for local testing; it is not Developer ID signed or notarized.
+When replacing an older developer bundle that has existing data, follow the
+backup-first migration procedure in `docs/DEVELOPMENT.md`; signed updates use
+the application's guarded updater instead.
 
 ## What changed in v2
 

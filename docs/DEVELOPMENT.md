@@ -45,6 +45,33 @@ verified application is written to
 not Developer ID sign, notarize, or create distributable update artifacts; use
 `desktop/release.sh` only for an authorized release.
 
+### Updating existing developer data
+
+Signed updates create a durable database, knowledge, and configuration snapshot
+before migration. Directly replacing an unsigned developer bundle does not
+fabricate that updater state, so startup fails closed when its existing schema
+is older than the embedded release.
+
+For a local developer-data upgrade, quit Cuckoding and use this sequence:
+
+1. Confirm no process has the application database open, `PRAGMA
+   integrity_check` returns `ok`, and no run is active.
+2. Create a uniquely named, mode-`0600` SQLite online backup beneath
+   `~/Library/Application Support/com.cuckoding.desktop/manual-backups/` and
+   verify the backup independently. Snapshot any project `.cuckoding/knowledge`
+   and `.cuckoding/project.yml` files when present.
+3. Run only the checked-in forward migrations from the exact developer bundle
+   being tested. Do not create or edit `pending-update.json`; that marker belongs
+   to the signed updater and its durable update attempt.
+4. Recheck database integrity, foreign keys, applied migration versions, and
+   important row counts before reopening the application. Retain the backup
+   until the rebuilt application has started and the data has been inspected.
+
+The evidence from the first exercised developer-data upgrade is recorded in
+`worklog/2026-09-20-1022-developer-data-migration.md`. This maintenance path is
+for local source builds only; release installation must use the updater flow in
+`docs/DISTRIBUTION.md`.
+
 ## Project-first onboarding
 
 The dashboard's **Add project** action opens a three-step wizard: project

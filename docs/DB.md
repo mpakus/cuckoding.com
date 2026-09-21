@@ -176,6 +176,10 @@ deletes them. Provider expiry/revocation remains authoritative.
 - An existing database may run a pending migration only while a private,
   hash-bound pending-update marker exists. An unknown applied migration means
   the database is newer than the binary and startup refuses to downgrade it.
+- A directly replaced unsigned developer bundle may be migrated only through
+  the documented stopped-application maintenance procedure with an independently
+  verified private SQLite backup. It never creates a fake updater marker, and
+  this exception does not apply to release installation.
 - Snapshot restore validates the manifest and every file hash, rejects symlink
   sources and targets, preserves the failed database for diagnosis, and does
   not delete knowledge files created after the snapshot.

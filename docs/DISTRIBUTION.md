@@ -95,7 +95,14 @@ macOS GUI applications do not inherit an interactive shell's dotfile `PATH`. Sea
 
 ## Data locations and backup
 
-Application data in `~/Library/Application Support/Cuckoding/`: SQLite, artifacts, logs, plugins, global knowledge, and the default workspace root. Before updates and migrations, make a versioned database backup and a knowledge snapshot and record active run identifiers. Offer export of configuration, audit, and knowledge artifacts.
+The native shell's application data is under
+`~/Library/Application Support/com.cuckoding.desktop/`: SQLite, artifacts,
+logs, plugins, global knowledge, and the default workspace root. Before updates
+and migrations, make a versioned database backup and a knowledge snapshot and
+record active run identifiers. Offer export of configuration, audit, and
+knowledge artifacts. Direct replacement of an unsigned developer bundle uses
+the separately documented backup-first maintenance path in `DEVELOPMENT.md`;
+it must not forge signed-updater state.
 
 ## Updates
 
