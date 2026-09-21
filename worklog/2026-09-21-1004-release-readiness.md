@@ -480,3 +480,80 @@ archive, checksum, and account checks so exact output/semantics were retained.
 No Mix, Rust, provider, or release-job check was rerun for this documentation
 and local-file-staging tranche; the signed ZIP's earlier verifier result is
 recorded above and was not mislabeled as a new app launch.
+
+## 2026-09-21 — Current-source isolated signed app
+
+Continued task 1004 on `feature/1004-current-build` from clean `main` at
+`17d367a`. Acceptance for this tranche: build the latest source in a separate
+checkout, verify the bundled release, sign and notarize the app, then verify
+a newly archived, quarantined extraction without replacing the older signed
+distribution or touching the live application database. Ponytail 4.10.0
+(MIT, full mode), quality-gates, menubar-shell, and security-review apply.
+
+The managed worktree at
+`/Users/mpak/.codex/worktrees/phase10-current-build/cuckoding.com` kept all
+build outputs separate. `rtk proxy sh desktop/build.sh` passed: production
+Phoenix release, release-metadata/promote tests, Rust format, 10 shell tests,
+Clippy, Tauri bundle, and the sterile release verifier. `rtk proxy` preserved
+the exact native build/test and verifier output. The verifier passed startup,
+one-time browser handoff, auth rejection/audit, diagnostics, shutdown/crash
+cleanup, safe mode, and update/rollback checks. It used temporary test data.
+
+The installed Developer ID identity was discovered by name only; no private
+key was read. `rtk proxy env CUCKODING_SIGNING_IDENTITY=... sh desktop/sign.sh
+<app>` signed and strictly verified 26 Mach-O files. `rtk proxy ditto -c -k
+--keepParent <app> <notary.zip>` created a submission archive, then `rtk proxy
+env CUCKODING_NOTARY_PROFILE=Cuckoding sh desktop/notarize.sh <app>
+<notary.zip> <evidence>` returned Accepted with zero issues for submission
+`4d7775e9-32da-4815-b4d9-e624a7fb27d6`. Stapler validation and
+Gatekeeper acceptance passed. `rtk proxy env -u GEM_HOME -u GEM_PATH
+PATH=/usr/bin:/bin:/usr/sbin:/sbin /usr/bin/ruby desktop/verify.rb` passed
+again after signing.
+
+`rtk proxy ditto` archived the stapled app as
+`Cuckoding-17d367a-stapled.zip` under the ignored local candidate. `rtk proxy
+shasum -a 256` returned
+`bcfa5afccc7740a4dbb9ba9178a8032ae58889172b97d3467612967c1d983a07`;
+`rtk proxy unzip -tq` found no archive errors. The ZIP was extracted to a
+separate ignored directory, given a quarantine attribute, and passed `rtk
+proxy xcrun stapler validate`, `rtk proxy /usr/bin/codesign --verify --deep
+--strict --verbose=2`, and `rtk proxy /usr/sbin/spctl --assess --type execute
+--verbose=4` (`source=Notarized Developer ID`). The **extracted embedded
+release** passed `rtk proxy env -u GEM_HOME -u GEM_PATH
+PATH=/usr/bin:/bin:/usr/sbin:/sbin CUCKODING_RELEASE_PATH=<extracted
+app>/Contents/Resources/release/bin/cuckoding /usr/bin/ruby
+desktop/verify.rb` with every check PASS, exit 0.
+
+No provider work, shell launch against the current user's app data, release
+publication, updater signing, QA account login, or deletion occurred. The
+prior `desktop/dist/` and staged QA ZIP remain untouched. This evidence
+updates `docs/PLAN.md`, `docs/DISTRIBUTION.md`, and
+`docs/RELEASE_READINESS.md`; the signed-updater, complete release metadata,
+clean-Mac, consent/retention, real-provider and beta gates remain open.
+
+Final read-only checks: `rtk proxy /usr/bin/plutil -extract status raw -o -
+<candidate>/evidence/notarization-submission.json` returned `Accepted`;
+`rtk proxy env -u GEM_HOME -u GEM_PATH
+PATH=/usr/bin:/bin:/usr/sbin:/sbin /usr/bin/ruby -rjson -e 'puts
+Array(JSON.parse(File.read(ARGV.fetch(0)))["issues"]).length'
+<candidate>/evidence/notarization-log.json` returned `0`; `rtk git diff
+--check` passed. An initial direct system-Ruby JSON check inherited an
+incompatible RVM `json` gem and exited 1; clearing `GEM_HOME`/`GEM_PATH` as
+the release script does produced the valid zero-issue result above. No
+notarization was repeated for that diagnostic command.
+
+The current public binary ZIP was also copied with `rtk proxy cp -p` to
+`/Users/Shared/Cuckoding-0.1.0-17d367a-stapled.zip` after a read-only
+nonexistence check. `rtk proxy shasum -a 256` returned the same
+`bcfa5afccc7740a4dbb9ba9178a8032ae58889172b97d3467612967c1d983a07`;
+`rtk proxy unzip -tq` found no errors; `rtk proxy stat -f '%Sp %Su %Sg'`
+showed `-rw-r--r-- mpak staff`, readable to the existing QA account. The older
+staged ZIP and `desktop/dist/` were not replaced. No login or app launch under
+the QA account occurred, so separate-account acceptance is still unverified.
+Final documentation checks: `rtk git diff --check` passed; a read-only
+`rtk proxy env -u GEM_HOME -u GEM_PATH PATH=/usr/bin:/bin:/usr/sbin:/sbin
+/usr/bin/ruby -e ... docs/PLAN.md docs/DISTRIBUTION.md
+docs/RELEASE_READINESS.md` relative-link check returned `relative links
+present`. This tranche did not rerun the full Mix quality suite because it
+changed only task/docs/worklog text; the production compile, shell tests,
+Clippy, and three sterile verifier passes are tied to the exact built commit.

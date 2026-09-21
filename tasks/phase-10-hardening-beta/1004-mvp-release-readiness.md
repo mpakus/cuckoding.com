@@ -53,6 +53,11 @@ Re-run the MVP definition of done, freeze supported versions, validate installer
   enrollment remain open.
 - [x] Create a separate post-staple ZIP and verify its quarantined extracted app
   on the same Mac; record the ZIP digest without replacing the older distribution.
+- [x] Repeat the isolated build, local Developer ID signing/notarization, and
+  quarantined post-staple ZIP verification for current `17d367a`; preserve the
+  older distribution and do not count this as updater or clean-Mac acceptance.
+- [x] Stage the checksum-matched current ZIP for the existing QA account; its
+  actual launch, account-data check, and clean-Mac test remain open.
 - [ ] Approve and verify the output/artifact retention policy and participant
   disclosure; no automatic age purge exists for full redacted artifacts yet.
 - [ ] Verify effective retention and consent/default behavior in a signed

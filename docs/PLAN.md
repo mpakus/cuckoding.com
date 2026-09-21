@@ -155,11 +155,19 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
   account. Its menubar/browser launch remains unobserved: the current user's
   signed shell would use live app data, and switching to `qa` needs an
   administrator or an interactive QA login.
+- [x] Task 1004: build current `17d367a` source in an isolated checkout, pass
+  the sterile bundled-release verifier, sign all 26 Mach-O files, notarize and
+  staple the app, then verify a quarantined extraction of its post-staple ZIP.
+  This is current-source same-Mac app evidence, not a complete signed updater,
+  clean-Mac install, or enrollment release.
+- [x] Task 1004: stage that checksum-matched current ZIP for the existing `qa`
+  macOS account without replacing the older staged copy. Its menubar/browser
+  launch and data checks remain unobserved.
 - [ ] Produce and verify a fresh signed/notarized enrollment build at the
-  accepted beta revision. A current local `.app` passed signing/notarization,
-  and a separate post-staple ZIP passed same-Mac checks, but the retained
-  distribution ZIP predates current main; the signed updater, complete release
-  metadata, clean-Mac test, and CI Apple certificate/notary secrets remain open.
+  accepted beta revision. The current local `.app` and post-staple ZIP passed
+  same-Mac checks, but `desktop/dist/` still predates current main; the signed
+  updater, complete release metadata, clean-Mac test, and CI Apple
+  certificate/notary secrets remain open.
 - [x] Task 1008: safe public-message boundary and actionable empty states across
   Phoenix UI surfaces; raw internal errors are excluded from browser alerts.
 - [x] Complete the accepted project-first product flow:

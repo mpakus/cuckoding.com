@@ -116,6 +116,9 @@ and developer-build gates. The local app was then Developer ID signed,
 notarized, stapled, Gatekeeper-accepted, and its embedded release passed the
 same sterile verifier. A newly archived, quarantined extracted copy also
 passed ticket, strict-signature, Gatekeeper, and sterile checks on this Mac.
+Current `17d367a` source has since passed the same isolated build, signing,
+notarization, post-staple extraction, and sterile checks; see
+[DISTRIBUTION.md](DISTRIBUTION.md) for its distinct digest and submission ID.
 None of this verifies provider, participant, complete release-package, or
 clean-Mac install behavior.
 
@@ -141,7 +144,7 @@ fixtures without matching artifact and observation IDs.
 
 ## Decision and required evidence
 
-The previous signed ZIP is from an older source revision. The `3246b3b`
+The retained `desktop/dist/` ZIP is from an older source revision. The `3246b3b`
 developer app passed local Developer ID signing and Apple notarization
 (submission `02d108c6-87f9-4b31-b515-28444fa98938`, zero issues), stapling,
 Gatekeeper, and a post-signing sterile check of its embedded release. A fresh
@@ -150,10 +153,13 @@ ticket, strict-signature, Gatekeeper, and embedded-release checks on this Mac;
 its SHA-256 is recorded in [DISTRIBUTION.md](DISTRIBUTION.md). This is not a
 complete signed release package: no current updater bundle/signature, release
 metadata, installed clean-Mac test, or beta enrollment is attached.
-The checksum-matched ZIP is staged in `/Users/Shared` for the existing `qa`
-macOS account, but a real menubar/browser launch from that account is not yet
-observed. Running the signed shell as the current user would use the live
+Both the older ZIP and the checksum-matched current `17d367a` ZIP are staged
+in `/Users/Shared` for the existing `qa` macOS account, but a real
+menubar/browser launch from that account is not yet observed. Running the
+signed shell as the current user would use the live
 account-derived app data directory; no disposable override is established.
+The current post-staple ZIP has not been published and still lacks a signed
+updater and complete release metadata.
 The release workflow places `mix quality` before loading signing material; this ordering
 has not yet been exercised for the frozen candidate. Two non-resolving pinned
 release actions were repaired and all five refs now resolve upstream; the
