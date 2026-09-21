@@ -14,6 +14,7 @@ defmodule Cuckoding.ActivityStream do
   alias Cuckoding.Projects.Project
   alias Cuckoding.Repo
   alias Cuckoding.Security.Redactor
+  alias Cuckoding.Telemetry.Accounting
   alias Cuckoding.Workflows.Board
   alias Cuckoding.Workflows.Task
 
@@ -45,11 +46,12 @@ defmodule Cuckoding.ActivityStream do
     end
   end
 
-  @doc "Copies public provider messages from the redacted process log into the task's run history."
+  @doc "Copies public messages and reported usage from the redacted process log."
   def record_provider_messages(%AgentSession{} = session, adapter, result) do
     case OutputParser.activity_events(adapter, result) do
       {:ok, events} ->
-        record_messages(session, events)
+        with :ok <- record_messages(session, events),
+             do: record_provider_usage(session, adapter, result)
 
       {:error, %Types.Error{code: code}} ->
         attempt = Repo.get!(StageAttempt, session.stage_attempt_id)
@@ -65,6 +67,81 @@ defmodule Cuckoding.ActivityStream do
         error -> {:halt, error}
       end
     end)
+  end
+
+  defp record_provider_usage(session, adapter, result) do
+    case OutputParser.usage_events(adapter, result) do
+      {:ok, events} ->
+        Enum.reduce_while(events, :ok, &record_usage_event(&1, &2, session, adapter))
+
+      {:error, %Types.Error{code: code}} ->
+        record_usage_warning(session, code)
+    end
+  end
+
+  defp record_usage_event({event_key, raw_usage}, :ok, session, adapter) do
+    case record_usage(session, adapter, event_key, raw_usage) do
+      :ok -> {:cont, :ok}
+      _error -> {:halt, record_usage_warning(session, :invalid_usage)}
+    end
+  end
+
+  defp record_usage(session, adapter, event_key, raw_usage) do
+    module =
+      case adapter do
+        "codex" -> Cuckoding.Adapters.Codex
+        "claude_code" -> Cuckoding.Adapters.ClaudeCode
+        "cursor_agent" -> Cuckoding.Adapters.CursorAgent
+      end
+
+    runtime_session = %Types.Session{
+      adapter: adapter,
+      session_id: session.id,
+      requested_model: session.requested_model,
+      actual_model: session.actual_model,
+      effective_grant: session.effective_grant_json,
+      state: session.state
+    }
+
+    with {:ok, usage} <- module.collect_usage(runtime_session, usage: raw_usage),
+         true <- reported_usage?(usage),
+         {:ok, _record} <- Accounting.record_usage(session.id, event_key, usage) do
+      :ok
+    else
+      _other -> {:error, :invalid_usage}
+    end
+  end
+
+  defp reported_usage?(usage) do
+    Enum.any?(
+      [
+        usage.input_tokens,
+        usage.output_tokens,
+        usage.reasoning_tokens,
+        usage.cache_read_tokens,
+        usage.cache_write_tokens,
+        usage.cost_micros
+      ],
+      &is_integer/1
+    )
+  end
+
+  defp record_usage_warning(session, code) do
+    attempt = Repo.get!(StageAttempt, session.stage_attempt_id)
+
+    case EventStore.append(attempt.run_id, %{
+           event_type: "agent.usage_unavailable",
+           public_summary:
+             "Provider usage could not be recorded. Open the redacted process log for the provider output.",
+           payload: %{
+             "code" => if(is_atom(code), do: Atom.to_string(code), else: "invalid_usage"),
+             "stage_attempt_id" => attempt.id,
+             "agent_session_id" => session.id
+           }
+         }) do
+      {:ok, _event} -> :ok
+      error -> error
+    end
   end
 
   defp record_message_warning(attempt, session, code) do

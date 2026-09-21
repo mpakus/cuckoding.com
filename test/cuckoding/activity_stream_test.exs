@@ -5,11 +5,13 @@ defmodule Cuckoding.ActivityStreamTest do
 
   alias Cuckoding.ActivityStream
   alias Cuckoding.Adapters.Types
+  alias Cuckoding.AgentFloor
   alias Cuckoding.Execution
   alias Cuckoding.Execution.EventStore
   alias Cuckoding.Execution.RunEvent
   alias Cuckoding.Projects
   alias Cuckoding.Repo
+  alias Cuckoding.Telemetry.UsageRecord
   alias Cuckoding.Workflows
 
   @now ~U[2026-09-17 22:00:00.000000Z]
@@ -90,6 +92,61 @@ defmodule Cuckoding.ActivityStreamTest do
 
     refute_receive {:activity_event, _, _}, 50
     assert ActivityStream.list(domain.run.id, 0) == []
+  end
+
+  test "provider completion records replay-safe reported usage for the run", %{conn: conn} do
+    domain = domain_fixture()
+    path = Path.join(System.tmp_dir!(), "usage-#{domain.session.id}.jsonl")
+    on_exit(fn -> File.rm(path) end)
+
+    File.write!(
+      path,
+      Jason.encode!(%{
+        "type" => "turn.completed",
+        "usage" => %{
+          "input_tokens" => 60,
+          "output_tokens" => 20,
+          "reasoning_output_tokens" => 3,
+          "cached_input_tokens" => 30
+        }
+      }) <> "\n"
+    )
+
+    result = %{artifact_path: path}
+    assert :ok = ActivityStream.record_provider_messages(domain.session, "codex", result)
+    assert :ok = ActivityStream.record_provider_messages(domain.session, "codex", result)
+
+    assert [%UsageRecord{} = usage] = AgentFloor.get_run(domain.run.id).usage
+    assert usage.input_tokens == 60
+    assert usage.output_tokens == 20
+    assert usage.reasoning_tokens == 3
+    assert usage.cache_read_tokens == 30
+    assert usage.source == "provider_reported"
+    assert usage.cost_source == "unavailable"
+    assert Repo.aggregate(UsageRecord, :count, :id) == 1
+
+    assert {:ok, view, _html} = live(conn, ~p"/runs/#{domain.run.id}")
+    assert has_element?(view, "#usage-#{usage.id}", "60 in")
+    assert has_element?(view, "#usage-#{usage.id}", "Cost unavailable")
+  end
+
+  test "invalid provider usage leaves a safe warning and no reported total" do
+    domain = domain_fixture()
+    path = Path.join(System.tmp_dir!(), "bad-usage-#{domain.session.id}.jsonl")
+    on_exit(fn -> File.rm(path) end)
+    File.write!(path, Jason.encode!(%{"type" => "turn.completed", "usage" => %{}}) <> "\n")
+
+    assert :ok =
+             ActivityStream.record_provider_messages(domain.session, "codex", %{
+               artifact_path: path
+             })
+
+    assert AgentFloor.get_run(domain.run.id).usage == []
+
+    assert Enum.any?(ActivityStream.list(domain.run.id, 0), fn event ->
+             event.event_type == "agent.usage_unavailable" and
+               event.metadata["code"] == "invalid_usage"
+           end)
   end
 
   test "LiveView renders sleep gaps and reconciling state in the activity table", %{conn: conn} do

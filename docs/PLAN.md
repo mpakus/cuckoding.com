@@ -171,6 +171,10 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
   - [x] Task 1024: blocked or failed delivery tasks can prepare a distinct retry
     run without deleting the prior run, worktree, logs, or artifacts; failed
     preparation leaves the task Ready for recovery.
+  - [x] Task 1025: completed delivery and planning processes ingest bounded,
+    provider-reported usage into idempotent session records. Missing or malformed
+    telemetry remains unavailable; historical runs require an explicit safe
+    replay and real-provider accounting acceptance remains open.
   - [x] Saved machine-local agent metadata can be attached across projects without rewriting old board/run snapshots.
   - [x] Task 1020: host-validated Review findings rerun Specifications/Coding within a fixed budget; passing runs can complete locally without release or continue to approved handoff.
 - [ ] Task 1018: complete real-provider acceptance of [agent-first authorization](AGENT_AUTHORIZATION_FLOW.md). Global management, shared profiles, automatic checks, grouped roles and explicit legacy bindings are implemented and regression-tested. Both Cursor and Codex keyring access fail with an isolated run `HOME`; their native app-owned file stores are now selected consistently for sign-in, check, model discovery, launch and logout. Authenticated cross-project runs remain required evidence.

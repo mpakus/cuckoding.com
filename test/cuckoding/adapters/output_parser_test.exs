@@ -100,6 +100,49 @@ defmodule Cuckoding.Adapters.OutputParserTest do
     refute inspect(events) =~ "private"
   end
 
+  test "reads only terminal usage from the redacted JSONL and retains reported cost", %{
+    root: root
+  } do
+    codex =
+      write_jsonl(root, "codex-usage.jsonl", [
+        %{"type" => "item.completed", "item" => %{"type" => "reasoning", "text" => "private"}},
+        %{"type" => "turn.completed", "usage" => %{"input_tokens" => 12}}
+      ])
+
+    claude =
+      write_jsonl(root, "claude-usage.jsonl", [
+        %{
+          "type" => "result",
+          "subtype" => "success",
+          "request_id" => "request-test",
+          "usage" => %{"input_tokens" => 8},
+          "total_cost_usd" => 0.02
+        }
+      ])
+
+    cursor =
+      write_jsonl(root, "cursor-usage.jsonl", [
+        %{"type" => "result", "subtype" => "success", "usage" => %{"inputTokens" => 7}}
+      ])
+
+    assert {:ok, [{_, %{"input_tokens" => 12}}]} =
+             OutputParser.usage_events("codex", %{artifact_path: codex})
+
+    assert {:ok, [{_, %{"input_tokens" => 8, "total_cost_usd" => 0.02}}]} =
+             OutputParser.usage_events("claude_code", %{artifact_path: claude})
+
+    assert {:ok, [{_, %{"inputTokens" => 7}}]} =
+             OutputParser.usage_events("cursor_agent", %{artifact_path: cursor})
+
+    refute inspect(OutputParser.usage_events("codex", %{artifact_path: codex})) =~ "private"
+
+    malformed =
+      write_jsonl(root, "bad-usage.jsonl", [%{"type" => "turn.completed", "usage" => "bad"}])
+
+    assert {:error, %Types.Error{code: :malformed_usage}} =
+             OutputParser.usage_events("codex", %{artifact_path: malformed})
+  end
+
   test "rejects malformed or non-regular output", %{root: root} do
     malformed = Path.join(root, "malformed.jsonl")
     File.write!(malformed, "not-json\n")

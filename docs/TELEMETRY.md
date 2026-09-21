@@ -18,7 +18,9 @@ Queue time, stage active and wall duration, attempts, retries, waits by reason, 
 
 Input, output, reasoning when explicitly reported, cache-read, and cache-write tokens; request count, rate-limit time, provider-reported cost, currency; estimated cost using a versioned price catalog only when provider cost is absent; confidence/source: `provider_reported`, `catalog_estimate`, `unavailable`.
 
-The implemented accounting path hashes the provider event key for idempotent agent-session attribution and keeps usage provenance separate from cost provenance. Provider-reported monetary cost always wins. When it is absent, only an explicitly declared `api` billing mode may use the immutable catalog effective at the usage timestamp; `subscription` and `unknown` remain unavailable. Missing model rates make the entire estimate unavailable rather than partially pricing it. The status dashboard renders provider values without a prefix, catalog estimates with `≈`, and unavailable cost as text.
+Delivery and planning runs scan their bounded, redacted provider JSONL after each process exits and before the stage advances. Terminal Codex, Claude Code, and Cursor Agent usage is normalized through the adapter and stored once per session/event; a failed process can still report usage. Missing usage remains unavailable. Malformed usage leaves a safe `agent.usage_unavailable` event, not an invented total or raw provider payload. Historical logs are not automatically replayed by this change.
+
+The accounting path hashes the provider event key for idempotent agent-session attribution and keeps usage provenance separate from cost provenance. Provider-reported monetary cost always wins. When it is absent, only an explicitly declared `api` billing mode may use the immutable catalog effective at the usage timestamp; `subscription` and `unknown` remain unavailable. Missing model rates make the entire estimate unavailable rather than partially pricing it. The status dashboard renders provider values without a prefix, catalog estimates with `≈`, and unavailable cost as text.
 
 ### Host resources
 

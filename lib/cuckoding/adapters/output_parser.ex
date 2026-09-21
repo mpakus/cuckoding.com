@@ -14,7 +14,7 @@ defmodule Cuckoding.Adapters.OutputParser do
   def activity_events(adapter, %{artifact_path: path})
       when adapter in ~w(codex claude_code cursor_agent) and is_binary(path) do
     case File.lstat(path) do
-      {:ok, %{type: :regular}} -> read_activity(path, adapter)
+      {:ok, %{type: :regular}} -> read_events(path, adapter, :activity)
       _other -> error(:activity_log_missing)
     end
   rescue
@@ -24,38 +24,63 @@ defmodule Cuckoding.Adapters.OutputParser do
 
   def activity_events(_adapter, _result), do: {:ok, []}
 
-  defp read_activity(path, adapter) do
+  @doc "Reads normalized provider usage from the complete redacted process log."
+  def usage_events("fake", _result), do: {:ok, []}
+
+  def usage_events(adapter, %{artifact_path: path})
+      when adapter in ~w(codex claude_code cursor_agent) and is_binary(path) do
+    case File.lstat(path) do
+      {:ok, %{type: :regular}} -> read_events(path, adapter, :usage)
+      _other -> error(:activity_log_missing)
+    end
+  rescue
+    File.Error -> error(:activity_log_missing)
+    _error -> error(:malformed_activity_log)
+  end
+
+  def usage_events(_adapter, _result), do: {:ok, []}
+
+  defp read_events(path, adapter, kind) do
     path
     |> File.stream!()
     |> Stream.with_index(1)
-    |> Enum.reduce_while({:ok, [], 0}, &activity_line(&1, &2, adapter))
+    |> Enum.reduce_while({:ok, [], 0}, &event_line(&1, &2, adapter, kind))
     |> case do
       {:ok, events, _count} -> {:ok, Enum.reverse(events)}
       error -> error
     end
   end
 
-  defp activity_line({line, sequence}, {:ok, events, count} = state, adapter) do
+  defp event_line({line, sequence}, {:ok, events, count} = state, adapter, kind) do
+    limit = if kind == :activity, do: @maximum_messages, else: @maximum_rows
+
     cond do
-      sequence > @maximum_activity_rows or count >= @maximum_messages or
-          byte_size(line) > @maximum_bytes ->
+      capture_limit?(line, sequence, count, limit) ->
         {:halt, error(:activity_capture_limit)}
 
-      String.trim(line) == "" or
-          (adapter == "codex" and sequence == 1 and
-             String.trim(line) == "Reading additional input from stdin...") ->
+      skip_line?(line, adapter, sequence) ->
         {:cont, state}
 
       true ->
-        decode_activity_line(line, sequence, adapter, events, count)
+        decode_event_line(line, sequence, adapter, kind, events, count)
     end
   end
 
-  defp decode_activity_line(line, sequence, adapter, events, count) do
+  defp capture_limit?(line, sequence, count, limit),
+    do: sequence > @maximum_activity_rows or count >= limit or byte_size(line) > @maximum_bytes
+
+  defp skip_line?(line, adapter, sequence),
+    do:
+      String.trim(line) == "" or
+        (adapter == "codex" and sequence == 1 and
+           String.trim(line) == "Reading additional input from stdin...")
+
+  defp decode_event_line(line, sequence, adapter, kind, events, count) do
     case Jason.decode(line) do
       {:ok, row} when is_map(row) ->
-        case decode_activity(adapter, row, sequence) do
+        case select_event(adapter, row, sequence, kind) do
           nil -> {:cont, {:ok, events, count}}
+          {:error, _reason} = error -> {:halt, error}
           event -> {:cont, {:ok, [event | events], count + 1}}
         end
 
@@ -64,7 +89,7 @@ defmodule Cuckoding.Adapters.OutputParser do
     end
   end
 
-  defp decode_activity(adapter, row, sequence) do
+  defp select_event(adapter, row, sequence, kind) do
     module =
       case adapter do
         "codex" -> Cuckoding.Adapters.Codex
@@ -73,21 +98,41 @@ defmodule Cuckoding.Adapters.OutputParser do
       end
 
     case module.decode_event(row, sequence: sequence) do
-      {:ok, %Types.Event{type: "activity.summary", public_summary: summary} = event}
-      when is_binary(summary) and summary != "" ->
-        summary = event.public_summary
-
-        summary =
-          if String.length(summary) > 10_000,
-            do: String.slice(summary, 0, 10_000) <> "… [see full process log]",
-            else: summary
-
-        %{event | event_id: "#{event.event_id}:#{sequence}", public_summary: summary}
-
-      _other ->
-        nil
+      {:ok, event} -> select_decoded_event(event, sequence, kind)
+      _other -> nil
     end
   end
+
+  defp select_decoded_event(
+         %Types.Event{type: "activity.summary", public_summary: summary} = event,
+         sequence,
+         :activity
+       )
+       when is_binary(summary) and summary != "" do
+    summary =
+      if String.length(summary) > 10_000,
+        do: String.slice(summary, 0, 10_000) <> "… [see full process log]",
+        else: summary
+
+    %{event | event_id: "#{event.event_id}:#{sequence}", public_summary: summary}
+  end
+
+  defp select_decoded_event(%Types.Event{type: type} = event, sequence, :usage)
+       when type in ["session.completed", "session.failed"] do
+    case Map.fetch(event.metadata, "usage") do
+      {:ok, usage} when is_map(usage) ->
+        usage = Map.put_new(usage, "total_cost_usd", event.metadata["total_cost_usd"])
+        {"#{event.event_id}:#{sequence}", usage}
+
+      :error ->
+        nil
+
+      _other ->
+        error(:malformed_usage)
+    end
+  end
+
+  defp select_decoded_event(_event, _sequence, _kind), do: nil
 
   def extract("fake", %{structured_output: output}) when is_map(output), do: {:ok, output}
 
