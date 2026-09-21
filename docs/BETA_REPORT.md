@@ -24,7 +24,8 @@ Blank rows mean `not observed`; they are not passing evidence.
 | Codex adapter conformance | pass for current fixture contract | Saved sign-in uses its private app-owned file profile; an isolated run HOME must still launch a real task without copied credentials |
 | Saved Codex and Cursor sign-in preflight | pass for CLI status only | 2026-09-21 19:52 UTC: each installed CLI reported authenticated with only its app-owned profile and a scrubbed environment. No token content was read and no provider task was launched; two-project execution, refresh and concurrency remain unobserved |
 | Previously exposed provider key rotated | pending stakeholder confirmation | An earlier host process exposed a provider key in its arguments; no new paid provider run was launched during this preflight |
-| Outbound product telemetry off | pending | verify on the enrolled build |
+| Outbound product telemetry off | source preflight only; enrolled build pending | Local resource collection writes to SQLite; diagnostics require an explicit UI/menu action, and update network access follows the explicit Check for Updates menu action. Source inspection is not a network observation on the signed enrollment build. Provider and approved release-handoff traffic are separate disclosures. |
+| Resource retention default | stage safety verified; full gate pending | Automatic pruning now keeps raw measurements beyond seven days until the finished stage aggregate exists; the focused simulated eight-day regression passed. Minute-level catch-up after long app downtime and participant-facing consent/default review remain open. |
 | Host-runner and provider-policy disclosure | pending | sole stakeholder confirms before each participant session |
 | Dedicated sanitized repositories and data roots | pending | record only anonymized codes and starting SHAs |
 

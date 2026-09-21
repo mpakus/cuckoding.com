@@ -87,6 +87,16 @@ defmodule Cuckoding.Telemetry.ResourceMetricsTest do
     assert minute.wall_ms == nil
     refute minute.limits_enforced
 
+    assert {:error, :stage_not_finished} = ResourceRollups.stage(domain.attempt.id, now: @now)
+
+    domain.attempt
+    |> StageAttempt.transition_changeset(%{
+      state: "succeeded",
+      started_at: @now,
+      finished_at: DateTime.add(@now, 30, :second)
+    })
+    |> Repo.update!()
+
     assert {:ok, stage} = ResourceRollups.stage(domain.attempt.id, now: @now)
     assert stage.scope_type == "stage_attempt"
     assert stage.sample_count == 3
@@ -129,6 +139,31 @@ defmodule Cuckoding.Telemetry.ResourceMetricsTest do
             }} = ResourceRollups.maintain(now: DateTime.add(@now, 61, :second))
 
     assert Repo.aggregate(MetricRollup, :count) == 2
+  end
+
+  test "retention waits for a durable stage aggregate after a long interruption" do
+    domain = domain_fixture()
+    insert_sample(domain, 1, 1_000, 100, 1, [])
+    later = DateTime.add(@now, 8, :day)
+
+    assert {:ok, %{deleted: %{raw_samples: 0}}} = ResourceRollups.maintain(now: later)
+    assert Repo.aggregate(ResourceSample, :count) == 1
+
+    domain.attempt
+    |> StageAttempt.transition_changeset(%{
+      state: "succeeded",
+      started_at: @now,
+      finished_at: DateTime.add(@now, 60, :second)
+    })
+    |> Repo.update!()
+
+    assert {:ok, %{stage_rollups: 1, deleted: %{raw_samples: 1}}} =
+             ResourceRollups.maintain(now: later)
+
+    assert Repo.aggregate(ResourceSample, :count) == 0
+
+    assert %MetricRollup{sample_count: 1} =
+             Repo.one!(from(rollup in MetricRollup, where: rollup.window == "stage"))
   end
 
   defp insert_sample(domain, seconds, cpu, memory, count, ports) do

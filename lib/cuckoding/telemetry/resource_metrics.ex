@@ -202,6 +202,7 @@ defmodule Cuckoding.Telemetry.ResourceRollups do
 
   def stage(stage_attempt_id, options \\ []) do
     case Repo.get(StageAttempt, stage_attempt_id) do
+      %StageAttempt{finished_at: nil} -> {:error, :stage_not_finished}
       %StageAttempt{} = attempt -> stage_rollup(attempt, options)
       nil -> {:error, :stage_attempt_not_found}
     end
@@ -238,9 +239,27 @@ defmodule Cuckoding.Telemetry.ResourceRollups do
 
   def prune(raw_before, rollup_before)
       when is_struct(raw_before, DateTime) and is_struct(rollup_before, DateTime) do
+    aggregated_sessions =
+      from(session in AgentSession,
+        join: attempt in StageAttempt,
+        on: attempt.id == session.stage_attempt_id,
+        join: rollup in MetricRollup,
+        on:
+          rollup.scope_type == "stage_attempt" and rollup.scope_id == attempt.id and
+            rollup.window == "stage",
+        where: not is_nil(attempt.finished_at),
+        select: session.id
+      )
+
     Repo.transaction(fn ->
       {raw_count, _rows} =
-        Repo.delete_all(from(sample in ResourceSample, where: sample.sampled_at < ^raw_before))
+        Repo.delete_all(
+          from(sample in ResourceSample,
+            where:
+              sample.sampled_at < ^raw_before and
+                sample.agent_session_id in subquery(aggregated_sessions)
+          )
+        )
 
       {rollup_count, _rows} =
         Repo.delete_all(from(rollup in MetricRollup, where: rollup.computed_at < ^rollup_before))
