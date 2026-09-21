@@ -6,6 +6,7 @@ defmodule Cuckoding.ProjectWorkflowTest do
 
   alias Cuckoding.Execution
   alias Cuckoding.Execution.Environment
+  alias Cuckoding.Execution.EventStore
   alias Cuckoding.Execution.RunEvent
   alias Cuckoding.ProjectOnboarding
   alias Cuckoding.ProjectWorkflow
@@ -154,6 +155,65 @@ defmodule Cuckoding.ProjectWorkflowTest do
     assert has_element?(dashboard, "#operation-#{run.id}", "Queued")
     assert has_element?(dashboard, "#operation-#{run.id}", "Waiting for launch")
     assert has_element?(dashboard, "#project-#{project.id}", "Tasks")
+  end
+
+  test "task page shows durable agent messages and refreshes after new activity", %{
+    project: project,
+    conn: conn
+  } do
+    {:ok, board} =
+      ProjectWorkflow.create_board(project.id, %{"name" => "Evidence", "concurrency_limit" => "1"})
+
+    {:ok, task} = ProjectWorkflow.create_task(board.id, %{"title" => "Track agent work"})
+    {:ok, _} = Workflows.transition_task(task.id, "ready", "evidence-ready:#{task.id}")
+    {:ok, %{run: run}} = ProjectWorkflow.prepare_task(task.id)
+
+    {:ok, attempt} =
+      Execution.create_stage_attempt(%{
+        run_id: run.id,
+        stage_key: "specification",
+        attempt: 1,
+        role_key: "spec_writer",
+        role_kind: "agent"
+      })
+
+    {:ok, _} =
+      EventStore.append(run.id, %{
+        event_type: "activity.summary",
+        public_summary: "# Source specification\n\nCheck the legal API.",
+        payload: %{"stage_attempt_id" => attempt.id}
+      })
+
+    {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}/tasks/#{task.id}")
+    assert has_element?(view, "#task-specification", "Check the legal API")
+    assert has_element?(view, "#task-messages", "Source specification")
+
+    {:ok, development} =
+      Execution.create_stage_attempt(%{
+        run_id: run.id,
+        stage_key: "development",
+        attempt: 1,
+        role_key: "implementer",
+        role_kind: "agent"
+      })
+
+    {:ok, _} =
+      EventStore.append(run.id, %{
+        event_type: "activity.summary",
+        public_summary: "Implementation is starting.",
+        payload: %{"stage_attempt_id" => development.id}
+      })
+
+    {:ok, _} =
+      EventStore.append(run.id, %{
+        event_type: "stage_attempt.transitioned",
+        public_summary: "Development started",
+        payload: %{"stage_attempt_id" => development.id}
+      })
+
+    Process.sleep(300)
+    assert has_element?(view, "#task-messages", "Implementation is starting")
+    assert has_element?(view, "#task-messages", "Development started")
   end
 
   test "setup-only roles fail before a run or worktree is created", %{project: project} do

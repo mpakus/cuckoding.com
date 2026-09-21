@@ -24,6 +24,15 @@ trusted policy before returning an RTK invocation. Streaming requests return
 passthrough. Analytics persist separately from provider usage and every numeric
 claim is labeled `estimated`.
 
+At agent launch, Specifications, Coding, Review, and planning prompts include
+the installed RTK executable path and an instruction to prefix repository shell
+commands with it; when RTK is unavailable in an approved system path, they say
+so and permit ordinary commands. This is guidance, not enforcement: provider-
+native shell tools do not pass through Cuckoding's command wrapper, and an agent
+can ignore an instruction. Older runs are not rewritten. The command-policy
+wrapper applies only to commands executed by Cuckoding itself; do not present
+prompting or the plugin as proof that every agent command used RTK.
+
 ## Safety rules
 
 - Never let compaction hide a test failure or change command semantics.

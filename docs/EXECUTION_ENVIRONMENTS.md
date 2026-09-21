@@ -51,6 +51,12 @@ On normal command exit, the runner also checks the recorded root process group a
 
 The child environment starts empty: Cuckoding removes every inherited key, supplies a fixed system `PATH`, a per-run `HOME`, locale/timezone defaults, explicit `CUCKODING_*` values, and only policy-allowlisted additions. Credential-shaped names are refused. macOS may add its own platform bookkeeping variables after launch; ambient application values are not copied.
 
+The reviewed Cursor selector `AGENT_CLI_CREDENTIAL_STORE=file` is the one
+exception to the credential-shaped-name rule. It names the app-owned file store
+but contains no credential. Any other value for that key, and all other
+credential-shaped environment keys, remain refused. Provider authorization is
+read from the saved account profile, not injected into the process environment.
+
 Stdout and stderr are combined into one ordered stream. Redaction runs before a mode-`0600` artifact write. The in-memory/UI preview stops at the configured byte limit and emits a durable truncation event that points callers to the complete redacted artifact; truncation is never silent.
 
 ## Path and command policy

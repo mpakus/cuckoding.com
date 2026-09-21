@@ -160,7 +160,14 @@ defmodule Cuckoding.OrchestrationFailure do
       "The workflow failed. Inspect its timeline, findings, and redacted process logs before retrying."
 
   defp failure_code(_kind, {:adapter_exit, _status}), do: "adapter_exit"
-  defp failure_code(_kind, %Types.Error{code: code}), do: to_string(code)
+
+  defp failure_code(_kind, %Types.Error{code: {code, _detail}}) when is_atom(code),
+    do: Atom.to_string(code)
+
+  defp failure_code(_kind, %Types.Error{code: code}) when is_atom(code),
+    do: Atom.to_string(code)
+
+  defp failure_code(_kind, %Types.Error{}), do: "adapter_error"
   defp failure_code(_kind, reason) when is_atom(reason), do: Atom.to_string(reason)
   defp failure_code(:task_intake, _reason), do: "task_intake_failed"
   defp failure_code(:workflow, _reason), do: "workflow_failed"

@@ -60,6 +60,46 @@ defmodule Cuckoding.Adapters.OutputParserTest do
              OutputParser.extract("codex", %{artifact_path: valid})
   end
 
+  test "keeps public agent messages and excludes tool output and hidden reasoning", %{root: root} do
+    path =
+      write_jsonl(root, "messages.jsonl", [
+        %{
+          "type" => "item.completed",
+          "item" => %{
+            "id" => "one",
+            "type" => "agent_message",
+            "text" => Jason.encode!(%{"summary" => "First update"})
+          }
+        },
+        %{
+          "type" => "item.completed",
+          "item" => %{
+            "id" => "tool",
+            "type" => "command_execution",
+            "command" => "echo private",
+            "aggregated_output" => "private"
+          }
+        },
+        %{
+          "type" => "item.completed",
+          "item" => %{"id" => "hidden", "type" => "reasoning", "text" => "private thought"}
+        },
+        %{
+          "type" => "item.completed",
+          "item" => %{
+            "id" => "two",
+            "type" => "agent_message",
+            "text" => Jason.encode!(%{"summary" => "# Final specification"})
+          }
+        }
+      ])
+
+    assert {:ok, events} = OutputParser.activity_events("codex", %{artifact_path: path})
+    assert Enum.map(events, & &1.public_summary) == ["First update", "# Final specification"]
+    assert Enum.all?(events, &(&1.trust == :untrusted))
+    refute inspect(events) =~ "private"
+  end
+
   test "rejects malformed or non-regular output", %{root: root} do
     malformed = Path.join(root, "malformed.jsonl")
     File.write!(malformed, "not-json\n")

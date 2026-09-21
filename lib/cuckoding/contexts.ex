@@ -841,7 +841,13 @@ defmodule Cuckoding.Adapters do
     do:
       "Agent disconnect failed. Use the provider CLI logout command directly, then check sign-in again."
 
-  defp provider_failure_code(%Types.Error{code: code}), do: to_string(code)
+  defp provider_failure_code(%Types.Error{code: {code, _detail}}) when is_atom(code),
+    do: Atom.to_string(code)
+
+  defp provider_failure_code(%Types.Error{code: code}) when is_atom(code),
+    do: Atom.to_string(code)
+
+  defp provider_failure_code(%Types.Error{}), do: "provider_operation_failed"
   defp provider_failure_code(reason) when is_atom(reason), do: Atom.to_string(reason)
   defp provider_failure_code(_reason), do: "provider_operation_failed"
 

@@ -116,7 +116,7 @@ defmodule Cuckoding.BoardTaskIntake do
            |> Keyword.put(:environment, skeleton.environment),
          {:ok, session} <- runtime.adapter.start(request, adapter_options),
          {:ok, stored} <- store_session(attempt, session, runtime.version),
-         {:ok, result} <- await_session(session, options),
+         {:ok, result} <- await_session(stored, session, options),
          {:ok, output} <- OutputParser.extract(session.adapter, result),
          {:ok, proposals} <- validate_output(output, skeleton.environment.worktree_path),
          {:ok, persisted} <- persist_proposals(skeleton, proposals),
@@ -182,7 +182,7 @@ defmodule Cuckoding.BoardTaskIntake do
       run_id: skeleton.run.id,
       stage_key: "board_task_intake",
       attempt_id: attempt.id,
-      objective: objective(skeleton.task.description),
+      objective: objective(skeleton.task.description) <> AgentRuntime.shell_instruction(),
       worktree_path: skeleton.environment.worktree_path,
       run_dir: skeleton.environment.run_dir,
       requested_model: role_model(skeleton.run, skeleton.task.intake_role_key),
@@ -468,15 +468,21 @@ defmodule Cuckoding.BoardTaskIntake do
          do: Adapters.record_session_observation(stored, session)
   end
 
-  defp await_session(%Types.Session{process: %{runner: runner, handle: handle}}, _options) do
+  defp await_session(
+         stored,
+         %Types.Session{process: %{runner: runner, handle: handle}} = session,
+         _options
+       ) do
     case runner.result(handle) do
-      {:ok, %{exit_status: 0} = result} -> {:ok, result}
-      {:ok, %{exit_status: status} = result} -> {:error, adapter_failure(result, status)}
-      {:error, reason} -> {:error, reason}
+      {:ok, %{exit_status: status} = result} ->
+        record_and_check_result(stored, session.adapter, result, status)
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
-  defp await_session(%Types.Session{adapter: "fake"}, options) do
+  defp await_session(_stored, %Types.Session{adapter: "fake"}, options) do
     output =
       Keyword.get(options, :fake_output, %{
         "tasks" => [
@@ -490,6 +496,13 @@ defmodule Cuckoding.BoardTaskIntake do
       })
 
     {:ok, %{structured_output: output}}
+  end
+
+  defp record_and_check_result(stored, adapter, result, status) do
+    case Cuckoding.ActivityStream.record_provider_messages(stored, adapter, result) do
+      :ok -> if status == 0, do: {:ok, result}, else: {:error, adapter_failure(result, status)}
+      error -> error
+    end
   end
 
   defp role_model(run, role_key) do

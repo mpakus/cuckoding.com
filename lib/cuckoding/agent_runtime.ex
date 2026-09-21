@@ -524,6 +524,20 @@ defmodule Cuckoding.AgentRuntime do
   defp profile_options("codex", home), do: [codex_home: home, credentials_store: "file"]
   defp profile_options("cursor_agent", _home), do: []
 
+  @doc false
+  def shell_instruction(path \\ System.find_executable("rtk")) do
+    if is_binary(path) and Path.type(path) == :absolute and Path.basename(path) == "rtk" and
+         File.regular?(path) and
+         Enum.any?(
+           ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"],
+           &String.starts_with?(path, &1 <> "/")
+         ) do
+      "\n\nFor repository shell commands, use #{path} before the command. Use #{path} proxy only when exact unfiltered output is required or RTK changes command semantics."
+    else
+      "\n\nRTK is unavailable in an approved system path; use ordinary repository commands."
+    end
+  end
+
   defp provider_account(role) do
     role.settings_json["provider_account_id"]
     |> Adapters.get_provider_account()

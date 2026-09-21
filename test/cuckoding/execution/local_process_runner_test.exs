@@ -246,6 +246,20 @@ defmodule Cuckoding.Execution.LocalProcessRunnerTest do
   test "rejects sensitive and undeclared environment keys", fixture do
     command = %{executable: "/usr/bin/env", args: []}
 
+    assert {:ok, %{output: output}} =
+             LocalProcessRunner.exec(fixture.environment, command,
+               env: %{"AGENT_CLI_CREDENTIAL_STORE" => "file"},
+               environment_allowlist: ["AGENT_CLI_CREDENTIAL_STORE"]
+             )
+
+    assert output =~ "AGENT_CLI_CREDENTIAL_STORE=file"
+
+    assert {:error, {:sensitive_environment_key, "AGENT_CLI_CREDENTIAL_STORE"}} =
+             LocalProcessRunner.start(fixture.environment, command,
+               env: %{"AGENT_CLI_CREDENTIAL_STORE" => "keychain"},
+               environment_allowlist: ["AGENT_CLI_CREDENTIAL_STORE"]
+             )
+
     assert {:error, {:sensitive_environment_key, "API_TOKEN"}} =
              LocalProcessRunner.start(fixture.environment, command, env: %{"API_TOKEN" => "nope"})
 

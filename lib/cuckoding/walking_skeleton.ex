@@ -94,13 +94,11 @@ defmodule Cuckoding.WalkingSkeleton do
     with {:ok, workflow} <-
            run_review_cycle(skeleton, "specification", adapter, options, []),
          environment = workflow.environment,
-         {:ok, spec_artifact} <-
-           write_artifact(
-             environment,
-             "specification",
-             "specification.md",
-             specification(skeleton.task)
-           ),
+         spec_artifact =
+           workflow.stages
+           |> Enum.reverse()
+           |> Enum.find(&(&1.request.stage_key == "specification"))
+           |> Map.fetch!(:output),
          {:ok, qa_artifact} <-
            write_artifact(
              environment,
@@ -584,8 +582,8 @@ defmodule Cuckoding.WalkingSkeleton do
              adapter,
              options
            ),
-         {:ok, result} <- await_session(session),
-         {:ok, output} <- stage_output(stage_key, attempt, session, result, options),
+         {:ok, result} <- await_session(stored, session),
+         {:ok, output} <- stage_output(stage_key, skeleton, attempt, session, result, options),
          {:ok, _stored} <- Adapters.record_session_observation(stored, %{session | state: "done"}),
          elapsed = max(System.monotonic_time(:millisecond) - started, 0),
          {:ok, _timing} <-
@@ -614,10 +612,51 @@ defmodule Cuckoding.WalkingSkeleton do
     end
   end
 
-  defp stage_output("qa", attempt, session, result, options),
+  defp stage_output("qa", _skeleton, attempt, session, result, options),
     do: review_output(%{attempt: attempt, session: session, result: result}, options)
 
-  defp stage_output(_stage_key, _attempt, _session, _result, _options), do: {:ok, nil}
+  defp stage_output("specification", skeleton, attempt, session, result, _options) do
+    name =
+      if(attempt.attempt == 1,
+        do: "specification.md",
+        else: "specification-#{attempt.attempt}.md"
+      )
+
+    with {:ok, text} <- specification_output(session.adapter, result, skeleton.task) do
+      write_artifact(skeleton.environment, "specification", name, text, attempt.id)
+    end
+  end
+
+  defp stage_output(_stage_key, _skeleton, _attempt, _session, _result, _options),
+    do: {:ok, nil}
+
+  defp specification_output(_adapter, %{adapter: "fake"}, task),
+    do: {:ok, specification(task)}
+
+  defp specification_output(adapter, result, _task) do
+    text =
+      case OutputParser.extract(adapter, result) do
+        {:ok, %{"summary" => text}} when is_binary(text) -> text
+        _other -> final_public_message(adapter, result)
+      end
+
+    if is_binary(text) and String.trim(text) != "" and byte_size(text) <= 100_000,
+      do: {:ok, Cuckoding.Security.Redactor.redact(String.trim(text)) <> "\n"},
+      else: {:error, :invalid_specification_output}
+  end
+
+  defp final_public_message(adapter, result) do
+    case OutputParser.activity_events(adapter, result) do
+      {:ok, events} ->
+        case List.last(events) do
+          %{public_summary: summary} -> summary
+          _none -> nil
+        end
+
+      _error ->
+        nil
+    end
+  end
 
   defp fail_stage_attempt(attempt, reason) do
     case Execution.transition_stage_attempt(
@@ -750,7 +789,9 @@ defmodule Cuckoding.WalkingSkeleton do
       run_id: skeleton.run.id,
       stage_key: stage_key,
       attempt_id: attempt.id,
-      objective: role_objective(attempt.role_key, stage_key, skeleton.task, options),
+      objective:
+        role_objective(attempt.role_key, stage_key, skeleton.task, options) <>
+          Cuckoding.AgentRuntime.shell_instruction(),
       worktree_path: skeleton.environment.worktree_path,
       run_dir: skeleton.environment.run_dir,
       requested_model: Keyword.get(options, :requested_model),
@@ -872,17 +913,26 @@ defmodule Cuckoding.WalkingSkeleton do
          do: Adapters.record_session_observation(stored, session)
   end
 
-  defp await_session(%Types.Session{process: %{runner: runner, handle: handle}}) do
+  defp await_session(stored, %Types.Session{process: %{runner: runner, handle: handle}} = session) do
     case runner.result(handle) do
-      {:ok, %{exit_status: 0} = result} -> {:ok, result}
-      {:ok, %{exit_status: status}} -> {:error, {:adapter_exit, status}}
-      {:error, reason} -> {:error, reason}
+      {:ok, %{exit_status: status} = result} ->
+        record_and_check_result(stored, session.adapter, result, status)
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
-  defp await_session(%Types.Session{}), do: {:ok, %{adapter: "fake", exit_status: 0}}
+  defp await_session(_stored, %Types.Session{}), do: {:ok, %{adapter: "fake", exit_status: 0}}
 
-  defp write_artifact(environment, type, name, contents) do
+  defp record_and_check_result(stored, adapter, result, status) do
+    case Cuckoding.ActivityStream.record_provider_messages(stored, adapter, result) do
+      :ok -> if status == 0, do: {:ok, result}, else: {:error, {:adapter_exit, status}}
+      error -> error
+    end
+  end
+
+  defp write_artifact(environment, type, name, contents, attempt_id \\ nil) do
     path = Path.join([environment.run_dir, "artifacts", name])
 
     with :ok <- owner_file(path, contents),
@@ -891,7 +941,12 @@ defmodule Cuckoding.WalkingSkeleton do
            EventStore.append(environment.run_id, %{
              event_type: "artifact.created",
              public_summary: "Walking-skeleton evidence artifact created",
-             payload: %{"type" => type, "path" => name, "sha256" => sha}
+             payload: %{
+               "type" => type,
+               "path" => name,
+               "sha256" => sha,
+               "stage_attempt_id" => attempt_id
+             }
            }) do
       {:ok, %{"type" => type, "path" => name, "sha256" => sha}}
     end

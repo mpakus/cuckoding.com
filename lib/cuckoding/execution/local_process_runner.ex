@@ -407,6 +407,7 @@ defmodule Cuckoding.Execution.LocalProcessWorker do
     Enum.find_value(environment, :ok, fn {key, value} ->
       cond do
         not is_binary(key) or not is_binary(value) -> {:error, :invalid_environment}
+        key == "AGENT_CLI_CREDENTIAL_STORE" and value == "file" -> false
         Regex.match?(@sensitive, key) -> {:error, {:sensitive_environment_key, key}}
         key in allowed or String.starts_with?(key, "CUCKODING_") -> false
         true -> {:error, {:environment_key_not_allowed, key}}

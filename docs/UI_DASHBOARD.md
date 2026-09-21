@@ -182,6 +182,12 @@ event recorded before projection changes. Task detail gives state-specific next
 steps, requires local edits to be saved before marking Ready or preparing a run,
 and keeps the description readable after editing is locked. Unsaved indicators
 are warnings, not auto-save or a browser-navigation guard.
+Task detail also shows the latest redacted Specifications message and a bounded,
+expandable timeline of stage transitions, artifacts, failures, and public agent
+messages across its runs. Agent messages appear
+after the provider process yields its log; durable events then refresh the
+LiveView without a browser reload. The complete filtered log stays on the run
+page. Agent text is labeled untrusted and is never treated as a user command.
 
 At `/boards/:id`, expand **Add a task** or **Ask an agent to plan tasks**.
 These native keyboard-operable disclosures keep the task board in reach;

@@ -1,24 +1,42 @@
 defmodule CuckodingWeb.TaskLive do
   use CuckodingWeb, :live_view
 
+  import Ecto.Query
   import CuckodingWeb.PolicyComponents
 
   alias Cuckoding.Execution
+  alias Cuckoding.Execution.Run
+  alias Cuckoding.Execution.RunEvent
   alias Cuckoding.ProjectWorkflow
+  alias Cuckoding.Repo
+  alias Cuckoding.Security.Redactor
   alias Cuckoding.Workflows
   alias CuckodingWeb.PublicError
+
+  @message_page 100
+  @maximum_visible_messages 5_000
 
   @impl true
   def mount(%{"board_id" => board_id, "id" => task_id}, _session, socket) do
     with %{id: ^board_id} = board <- Workflows.get_board(board_id),
          %{board_id: ^board_id} = task <- Workflows.get_task(task_id) do
+      if connected?(socket), do: Phoenix.PubSub.subscribe(Cuckoding.PubSub, "activity")
+      runs = Execution.list_runs(task.id)
+      {messages, more_messages?} = task_messages(task.id, @message_page)
+
       {:ok,
        assign(socket,
          page_title: task.title,
          board: board,
          task: task,
          unsaved_changes: false,
-         runs: Execution.list_runs(task.id),
+         runs: runs,
+         messages: messages,
+         more_messages?: more_messages?,
+         message_limit: @message_page,
+         maximum_visible_messages: @maximum_visible_messages,
+         specification: latest_specification(task.id),
+         activity_refresh_pending: false,
          notice: nil,
          error: nil
        )}
@@ -28,8 +46,38 @@ defmodule CuckodingWeb.TaskLive do
   end
 
   @impl true
+  def handle_info({:activity_event, run_id, _sequence}, socket) do
+    if !socket.assigns.activity_refresh_pending and
+         Enum.any?(socket.assigns.runs, &(&1.id == run_id)) do
+      Process.send_after(self(), :refresh_task_activity, 250)
+      {:noreply, assign(socket, activity_refresh_pending: true)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info(:refresh_task_activity, socket) do
+    {:noreply,
+     socket
+     |> reload(nil)
+     |> assign(activity_refresh_pending: false)}
+  end
+
+  @impl true
   def handle_event("edit", _params, socket),
     do: {:noreply, assign(socket, unsaved_changes: true)}
+
+  def handle_event("show-older-messages", _params, socket) do
+    limit = min(socket.assigns.message_limit + @message_page, @maximum_visible_messages)
+    {messages, more?} = task_messages(socket.assigns.task.id, limit)
+
+    {:noreply,
+     assign(socket,
+       message_limit: limit,
+       messages: messages,
+       more_messages?: more? and limit < @maximum_visible_messages
+     )}
+  end
 
   def handle_event(action, _params, %{assigns: %{unsaved_changes: true}} = socket)
       when action in ["mark-ready", "prepare-run"] do
@@ -256,6 +304,61 @@ defmodule CuckodingWeb.TaskLive do
           </p>
         </section>
 
+        <section
+          aria-labelledby="task-specification-heading"
+          class="space-y-3 rounded-xl border border-slate-200 bg-white p-5"
+        >
+          <h2 id="task-specification-heading" class="text-xl font-semibold text-slate-950">
+            Latest specification message
+          </h2>
+          <p :if={!@specification} class="text-sm text-slate-700">
+            No agent specification has been recorded yet. It will appear here after Specifications finishes.
+          </p>
+          <div :if={@specification} class="space-y-3">
+            <p class="text-sm text-slate-600">
+              From run {@specification.run_sequence} · Untrusted agent output
+            </p>
+            <pre
+              id="task-specification"
+              class="whitespace-pre-wrap break-words font-sans text-sm leading-6 text-slate-900"
+            >{@specification.text}</pre>
+            <.link
+              navigate={~p"/runs/#{@specification.run_id}"}
+              class="underline underline-offset-4"
+            >
+              Open run evidence and logs
+            </.link>
+          </div>
+        </section>
+
+        <section aria-labelledby="task-messages-heading" class="space-y-3">
+          <h2 id="task-messages-heading" class="text-xl font-semibold text-slate-950">
+            Task timeline and agent messages
+          </h2>
+          <p :if={@messages == []} class="text-sm text-slate-700">
+            No run activity yet. Stage progress and public agent messages will appear here after work starts.
+          </p>
+          <ol :if={@messages != []} id="task-messages" class="space-y-3">
+            <li :for={message <- @messages} class="rounded-lg border border-slate-200 bg-white p-4">
+              <p class="text-sm font-medium text-slate-700">
+                {role_label(message.role)} · Run {message.run_sequence}
+              </p>
+              <p class="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-900">
+                {message.text}
+              </p>
+            </li>
+          </ol>
+          <button
+            :if={@more_messages?}
+            type="button"
+            phx-click="show-older-messages"
+            class="min-h-10 rounded-md border border-slate-400 px-4 font-medium text-slate-950"
+          >Show older messages</button>
+          <p :if={@message_limit >= @maximum_visible_messages} class="text-sm text-slate-700">
+            Showing the latest 5,000 entries. Open a run above for its complete redacted process log.
+          </p>
+        </section>
+
         <section aria-labelledby="run-history-heading" class="space-y-3">
           <h2 id="run-history-heading" class="text-xl font-semibold text-slate-950">Run history</h2>
           <p :if={@runs == []} class="text-sm text-slate-700">
@@ -315,15 +418,87 @@ defmodule CuckodingWeb.TaskLive do
 
   defp reload(socket, notice) do
     task = Workflows.get_task(socket.assigns.task.id)
+    {messages, more?} = task_messages(task.id, socket.assigns.message_limit)
 
     assign(socket,
       task: task,
       page_title: task.title,
       runs: Execution.list_runs(task.id),
+      messages: messages,
+      more_messages?: more? and socket.assigns.message_limit < @maximum_visible_messages,
+      specification: latest_specification(task.id),
       notice: notice,
       error: nil
     )
   end
+
+  defp task_messages(task_id, limit) do
+    rows =
+      Repo.all(
+        from(event in RunEvent,
+          join: run in Run,
+          on: run.id == event.run_id,
+          where:
+            run.task_id == ^task_id and
+              event.event_type in [
+                "activity.summary",
+                "agent.messages_unavailable",
+                "artifact.created",
+                "process.started",
+                "process.exited",
+                "run.transitioned",
+                "stage_attempt.transitioned",
+                "workflow.failed"
+              ],
+          order_by: [desc: event.occurred_at, desc: event.sequence],
+          limit: ^(limit + 1),
+          select: {event, run.sequence}
+        )
+      )
+
+    messages =
+      rows
+      |> Enum.take(limit)
+      |> Enum.reverse()
+      |> Enum.map(fn {event, sequence} ->
+        %{
+          text: Redactor.redact(event.public_summary),
+          role: get_in(event.payload, ["correlation", "role"]),
+          run_sequence: sequence
+        }
+      end)
+
+    {messages, length(rows) > limit}
+  end
+
+  defp latest_specification(task_id) do
+    Repo.one(
+      from(event in RunEvent,
+        join: run in Run,
+        on: run.id == event.run_id,
+        where:
+          run.task_id == ^task_id and event.event_type == "activity.summary" and
+            fragment("json_extract(?, '$.correlation.role')", event.payload) == "spec_writer",
+        order_by: [desc: event.occurred_at, desc: event.sequence],
+        limit: 1,
+        select: {event, run.sequence}
+      )
+    )
+    |> case do
+      {event, sequence} ->
+        %{
+          text: Redactor.redact(event.public_summary),
+          run_id: event.run_id,
+          run_sequence: sequence
+        }
+
+      nil ->
+        nil
+    end
+  end
+
+  defp role_label(nil), do: "Run"
+  defp role_label(role), do: role |> String.replace("_", " ") |> String.capitalize()
 
   defp prepare_error(:runtime_setup_only),
     do:

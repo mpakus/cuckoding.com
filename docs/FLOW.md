@@ -176,6 +176,17 @@ run-specific. OpenCode and Custom Agent remain saveable
 project connections but fail closed at run preparation until their reviewed
 launch adapters pass conformance.
 
+The task page shows redacted public agent messages linked to their run, stage,
+and role. Completed process logs are indexed into durable run events before the
+stage advances, including a failed agent process. A successful Specifications
+stage also writes its actual structured summary—or the last public agent
+message when the provider ignores its output schema—as a versioned
+specification artifact immediately, so later stage failure cannot discard it. The task page
+shows the latest specification message and links to full run evidence. Provider
+tool output and hidden reasoning are not promoted to task messages; the full
+redacted log remains available on the run page. Historical evidence can be
+indexed without rerunning a blocked task.
+
 ## Pause, hibernate, and resume
 
 ### Pause

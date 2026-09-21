@@ -3,6 +3,7 @@ defmodule Cuckoding.ActivityStream do
 
   import Ecto.Query
 
+  alias Cuckoding.Adapters.OutputParser
   alias Cuckoding.Adapters.Types
   alias Cuckoding.Execution.AgentSession
   alias Cuckoding.Execution.Commands
@@ -41,6 +42,45 @@ defmodule Cuckoding.ActivityStream do
     else
       nil -> {:error, :activity_owner_not_found}
       {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @doc "Copies public provider messages from the redacted process log into the task's run history."
+  def record_provider_messages(%AgentSession{} = session, adapter, result) do
+    case OutputParser.activity_events(adapter, result) do
+      {:ok, events} ->
+        record_messages(session, events)
+
+      {:error, %Types.Error{code: code}} ->
+        attempt = Repo.get!(StageAttempt, session.stage_attempt_id)
+
+        record_message_warning(attempt, session, code)
+    end
+  end
+
+  defp record_messages(session, events) do
+    Enum.reduce_while(events, :ok, fn event, :ok ->
+      case record(session, event) do
+        {:ok, _recorded} -> {:cont, :ok}
+        error -> {:halt, error}
+      end
+    end)
+  end
+
+  defp record_message_warning(attempt, session, code) do
+    case EventStore.append(attempt.run_id, %{
+           event_type: "agent.messages_unavailable",
+           public_summary:
+             "Some agent messages could not be indexed. Open the redacted process log for the full output.",
+           payload: %{
+             "code" =>
+               if(is_atom(code), do: Atom.to_string(code), else: "activity_capture_failed"),
+             "stage_attempt_id" => attempt.id,
+             "agent_session_id" => session.id
+           }
+         }) do
+      {:ok, _event} -> :ok
+      error -> error
     end
   end
 

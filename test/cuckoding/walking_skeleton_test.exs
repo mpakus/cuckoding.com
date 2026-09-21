@@ -4,6 +4,8 @@ defmodule Cuckoding.WalkingSkeletonTest do
   import Ecto.Query
   import Phoenix.LiveViewTest
 
+  alias Cuckoding.Adapters.Types
+  alias Cuckoding.AgentRuntime
   alias Cuckoding.Execution.Command
   alias Cuckoding.Execution.GitService
   alias Cuckoding.Execution.LocalBareRemote
@@ -44,6 +46,45 @@ defmodule Cuckoding.WalkingSkeletonTest do
       with {:ok, session} <- FakeAdapter.start(request, options),
            do: {:ok, %{session | adapter: "patch"}}
     end
+  end
+
+  defmodule SpecificationRunner do
+    def result(path), do: {:ok, %{artifact_path: path, exit_status: 0}}
+  end
+
+  defmodule SpecificationAdapter do
+    alias Cuckoding.Adapters.FakeAdapter
+    alias Cuckoding.WalkingSkeletonTest.SpecificationRunner
+
+    def start(%{stage_key: "specification"} = request, options) do
+      path = Path.join([request.run_dir, "artifacts", "spec-agent.jsonl"])
+      File.mkdir_p!(Path.dirname(path))
+
+      text =
+        if Keyword.get(options, :plain_spec, false),
+          do: "# Agent-written specification\n\nProve the source.",
+          else:
+            Jason.encode!(%{"summary" => "# Agent-written specification\n\nProve the source."})
+
+      File.write!(
+        path,
+        Jason.encode!(%{
+          "type" => "item.completed",
+          "item" => %{
+            "id" => "final-spec",
+            "type" => "agent_message",
+            "text" => text
+          }
+        }) <> "\n"
+      )
+
+      with {:ok, session} <- FakeAdapter.start(request, options) do
+        {:ok,
+         %{session | adapter: "codex", process: %{runner: SpecificationRunner, handle: path}}}
+      end
+    end
+
+    def start(_request, _options), do: {:error, :stop_after_specification}
   end
 
   defmodule RoleAdapter do
@@ -101,6 +142,21 @@ defmodule Cuckoding.WalkingSkeletonTest do
        port_range_end: port
      },
      bare: bare}
+  end
+
+  test "installed RTK is named in the agent command instruction", fixture do
+    binary = Path.join(Path.dirname(fixture.attrs.repo_path), "rtk")
+    File.write!(binary, "#!/bin/sh\nexit 0\n")
+    File.chmod!(binary, 0o700)
+
+    assert AgentRuntime.shell_instruction(binary) =~ "RTK is unavailable"
+
+    if installed = System.find_executable("rtk") do
+      assert AgentRuntime.shell_instruction(installed) =~ "use #{installed} before the command"
+    end
+
+    assert AgentRuntime.shell_instruction(nil) =~ "RTK is unavailable"
+    assert AgentRuntime.shell_instruction("/usr/bin/true") =~ "RTK is unavailable"
   end
 
   @tag recovery_drill: true
@@ -237,6 +293,7 @@ defmodule Cuckoding.WalkingSkeletonTest do
 
     assert_receive {:role_stage, :spec_agent, "specification", specification}
     assert specification =~ "Write a bounded specification."
+    assert specification =~ "repository shell commands"
 
     assert_receive {:role_stage, :review_agent, "qa", review}
     assert review =~ "Review independently."
@@ -464,6 +521,58 @@ defmodule Cuckoding.WalkingSkeletonTest do
     assert has_element?(view, "#run-failure[role=alert]", "Workflow stopped")
     assert has_element?(view, "#run-failure", "safe failure code")
     assert has_element?(view, "#run-failure a", "Return to task")
+  end
+
+  test "tuple-valued adapter failure keeps its safe code without exposing details", fixture do
+    assert {:ok, created} = WalkingSkeleton.create(fixture.attrs)
+
+    assert {:error, %Types.Error{}} =
+             OrchestrationFailure.guard(created.run.id, :workflow, fn ->
+               {:error,
+                Types.Error.new({:sensitive_environment_key, "SECRET-CANARY"}, :provider, false)}
+             end)
+
+    failure = Repo.get_by!(RunEvent, run_id: created.run.id, event_type: "workflow.failed")
+    assert failure.payload["code"] == "sensitive_environment_key"
+    refute inspect(failure) =~ "SECRET-CANARY"
+  end
+
+  test "agent-written specification and public message remain on the task when Development fails",
+       fixture do
+    assert {:ok, created} = WalkingSkeleton.create(fixture.attrs)
+
+    assert {:error, :stop_after_specification} =
+             WalkingSkeleton.run(created,
+               adapter: SpecificationAdapter,
+               simulate_sleep_gap: false
+             )
+
+    path = Path.join([created.environment.run_dir, "artifacts", "specification.md"])
+    assert File.read!(path) == "# Agent-written specification\n\nProve the source.\n"
+
+    assert %RunEvent{public_summary: "# Agent-written specification\n\nProve the source."} =
+             Repo.get_by!(RunEvent, run_id: created.run.id, event_type: "activity.summary")
+
+    artifact = Repo.get_by!(RunEvent, run_id: created.run.id, event_type: "artifact.created")
+    assert artifact.payload["type"] == "specification"
+
+    assert artifact.payload["stage_attempt_id"] ==
+             Repo.get_by!(StageAttempt, run_id: created.run.id, stage_key: "specification").id
+  end
+
+  test "plain final agent message is preserved when the provider ignores its output schema",
+       fixture do
+    assert {:ok, created} = WalkingSkeleton.create(fixture.attrs)
+
+    assert {:error, :stop_after_specification} =
+             WalkingSkeleton.run(created,
+               adapter: SpecificationAdapter,
+               plain_spec: true,
+               simulate_sleep_gap: false
+             )
+
+    path = Path.join([created.environment.run_dir, "artifacts", "specification.md"])
+    assert File.read!(path) == "# Agent-written specification\n\nProve the source.\n"
   end
 
   test "guided onboarding validates the repository before creating a queued run", fixture do
