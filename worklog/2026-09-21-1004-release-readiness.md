@@ -617,3 +617,46 @@ block, not a passing release. Signed updater, current-source QA-account launch,
 clean-Mac install/update/rollback, provider/beta, and retention/consent gates
 remain open. This documentation-only follow-up used `rtk git diff --check`;
 the Mix suite was not rerun after doc edits.
+
+## 2026-09-21 — Stakeholder handoff for CI release credentials
+
+Continued task 1004 on `feature/1004-release-credential-handoff` from clean
+`main` at `f893a35`. Acceptance for this documentation-only tranche: identify
+the five missing CI secret sources and their exact names without exposing or
+transferring a credential; distinguish the local Apple-ID Keychain profile
+from the hosted App Store Connect Team API-key path; keep the signed release
+and stakeholder trust decision open. Ponytail 4.10.0 (MIT, full mode),
+menubar-shell, security-review, and quality-gates apply.
+
+The terminal GitHub Actions run `35663188771` passed the full source gate and
+stopped at the value-free preflight before certificate import. A fresh
+`rtk gh secret list -R mpakus/cuckoding.com` still showed only
+`APPLE_SIGNING_IDENTITY` and the two Tauri updater secrets. Inspected
+`.github/workflows/release-macos.yml` and `desktop/notarize.sh` without
+reading secret values. The local `Cuckoding` `notarytool` profile authenticates
+with an Apple ID app-specific password; the hosted workflow instead requires
+a Developer ID Application identity exported with its private key as a
+password-protected `.p12`, and an App Store Connect **Team** API `.p8` key,
+key ID, and issuer UUID. The Team ID is not the issuer UUID. Apple Keychain,
+App Store Connect, and GitHub Actions primary instructions were checked for
+the documented handoff. No export, upload, GitHub secret mutation, or signing
+request was performed.
+
+`docs/DISTRIBUTION.md` now gives the stakeholder a safe five-secret checklist
+and links to the official source instructions; `docs/RELEASE_READINESS.md`
+and `docs/PLAN.md` point to it while retaining the explicit no-go status.
+Provisioning credentials on GitHub is a stakeholder trust decision. A local
+release path with the existing Keychain profile remains an option if that
+transfer is not approved, but it still needs the updater key, complete
+artifacts, and all acceptance drills. This documentation does not grant
+approval or mark task 1004 complete.
+
+Verification: `rtk git diff --check` and a read-only relative-link check on
+the touched Markdown passed. No Mix, Rust, or packaging gate was rerun for
+documentation-only changes; the earlier CI source result remains tied to
+`112473e`, not this docs commit. `rtk proxy` preserved exact `cat` and
+`notarytool --help` output for instruction and native CLI inspection. No
+credential value was read or printed. Remaining external gates include the
+five CI secrets (or a stakeholder-approved local-only distribution path),
+provider-key rotation confirmation, real-provider/beta observations, signed
+updater, and clean-Mac acceptance.

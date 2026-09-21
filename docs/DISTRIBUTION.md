@@ -59,6 +59,43 @@ require `CUCKODING_UPDATE_ENDPOINT` (the HTTPS `latest.json` URL),
 inherited build environment and exposes them only to the signer process; an
 inline CI secret is copied to a private temporary file and removed on exit.
 
+### CI credential handoff
+
+The local `Cuckoding` `notarytool` Keychain profile uses this Mac's Apple ID
+app-specific password. GitHub's hosted runner cannot use that profile: the
+current workflow requires an export of the **Developer ID Application identity
+and its private key**, plus a separate **App Store Connect Team API key**.
+Moving those credentials into GitHub Actions is a stakeholder security decision;
+do not send them in chat, commit them, or print them in logs. If that transfer
+is not approved, use the local release path with the existing Keychain profile
+and an authorized updater private key instead; do not bypass signing checks.
+
+1. In Keychain Access → **My Certificates**, select the Developer ID Application
+   identity used by the successful local signing drill, confirm it includes a
+   private key, and export a password-protected `.p12` outside this repository.
+   A downloaded `.cer` alone is not a signing identity. Set the repository
+   Actions secret `APPLE_CERTIFICATE` to the `.p12` bytes encoded as base64 and
+   `APPLE_CERTIFICATE_PASSWORD` to its export password. Verify the existing
+   `APPLE_SIGNING_IDENTITY` names that same identity. See [Apple's Keychain
+   export guide](https://support.apple.com/guide/keychain-access/kyca35961/mac)
+   and [GitHub's binary-secret guidance](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets#storing-base64-binary-blobs-as-secrets).
+2. In App Store Connect → **Users and Access** → **Integrations** → **Team
+   Keys**, create a key permitted to use notarization and securely retain its
+   one-time-downloaded `.p8`. Set `APPLE_NOTARY_KEY` to the `.p8` contents,
+   `APPLE_NOTARY_KEY_ID` to that key's ID, and `APPLE_NOTARY_ISSUER` to its
+   App Store Connect issuer UUID. The Apple Developer **Team ID is not the
+   issuer ID**. This workflow supplies `--issuer`, so it requires a Team key;
+   Apple says Individual keys cannot use `notarytool`. See [Apple's Team-key
+   instructions](https://developer.apple.com/help/app-store-connect/get-started/app-store-connect-api)
+   and [API-key rules](https://developer.apple.com/documentation/AppStoreConnectAPI/creating-api-keys-for-app-store-connect-api).
+3. Add the five values under this repository's **Settings → Secrets and
+   variables → Actions → Repository secrets**. Review who can edit or run the
+   release workflow. Then rerun `release-macos` manually on `main`; manual runs
+   do not publish a GitHub Release. Check its signed/notarized artifact and
+   evidence before creating a `v*` tag. Retain a secure backup of the exported
+   identity and key before removing temporary export files. See [GitHub's
+   repository-secret instructions](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets#creating-secrets-for-a-repository).
+
 The pinned `.github/workflows/release-macos.yml` workflow expects these GitHub
 Actions secrets: `APPLE_CERTIFICATE` (base64 PKCS#12),
 `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_NOTARY_KEY`

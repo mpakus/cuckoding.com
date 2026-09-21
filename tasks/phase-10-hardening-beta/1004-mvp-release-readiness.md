@@ -48,6 +48,8 @@ Re-run the MVP definition of done, freeze supported versions, validate installer
   action refs against their upstream commits; actual job execution remains open.
 - [x] Verify the macOS runner architecture and report missing release
   configuration names before certificate import; no secrets are provisioned.
+- [x] Document how the stakeholder can provision the five missing CI secrets
+  without committing or disclosing values; actual provisioning is pending.
 - [x] Rebuild the current-source unsigned app and re-run local source quality;
   correct the event-sequence test wait to cover the bounded SQLite retry window.
 - [x] Sign and notarize the current local app with existing Keychain credentials;

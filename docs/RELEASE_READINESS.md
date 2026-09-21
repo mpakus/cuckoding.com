@@ -173,7 +173,9 @@ five absent secrets: `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`,
 Certificate import, notarization, updater signing, and artifact upload were
 skipped. The three public update variables and existing updater secrets are
 configured, but no credential value was inspected. Local release variables
-were absent at this review. GitHub's
+were absent at this review. The [CI credential handoff](DISTRIBUTION.md#ci-credential-handoff)
+explains the stakeholder decision and exact secret sources; the local
+`notarytool` profile does not satisfy the hosted workflow. GitHub's
 `macos-15` runner label is Apple Silicon and matches the script's host check.
 The prior provider key exposure also awaits stakeholder confirmation of rotation before more paid
 provider work. Controlled-beta runs, interviews, and real-provider lifecycle
