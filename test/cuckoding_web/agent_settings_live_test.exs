@@ -35,6 +35,10 @@ defmodule CuckodingWeb.AgentSettingsLiveTest do
     assert has_element?(view, "#agent-#{account.id} details", "Recent agent errors (1)")
     assert has_element?(view, "#agent-#{account.id}", "code unsupported_version")
 
+    {:ok, home} = Cuckoding.Adapters.SharedProfile.prepare(account.id, "codex")
+    File.write!(Path.join(home, "auth.json"), "{}")
+    File.chmod!(Path.join(home, "auth.json"), 0o600)
+
     Cuckoding.Adapters.record_provider_status(account.id, "authenticated", nil, %{
       "status" => "available",
       "models" => [

@@ -444,3 +444,50 @@ Focused verification:
   test/cuckoding_web/project_edit_live_test.exs` — 4 tests, zero failures.
   `rtk env -u CR_PAT mix quality` — exit 0 again: 271 tests and 10
   properties pass, Credo/Sobelow clean, no retired or advisory packages.
+
+## 2026-09-21 queued-run authentication recovery
+
+- Claimed task 1018 again on `fix/1018-auth-start-recovery` from clean `main`.
+  Acceptance: a saved Codex profile without its private file-store credential
+  must never appear connected; a failed start check must update the durable
+  account observation, name the affected agent, and point to its one-time
+  sign-in action without changing the queued run or worktree. A valid saved
+  profile must still start without prompting again.
+- Reproduced run `01a0bcd7-0e7d-7df7-8263-a71361f5de57`: the browser showed
+  both agents Connected and a generic sign-in error. The saved Cursor check
+  passed; the saved Codex check returned Sign-in required. A metadata-only
+  `rtk proxy /usr/bin/stat` of the exact app-owned Codex `auth.json` path
+  returned ENOENT; no credential contents were read or printed. Proxy kept the
+  exact stat output. The older green observation predated the switch from
+  keyring to the isolated file store, as recorded above. XERJ's loopback node
+  was unreachable; direct project source and the previously pinned reference
+  corpus were inspected. No peer code was copied.
+- The saved Codex readiness check now requires the provider's login result and
+  metadata for a regular owner-only credential file in the selected app-owned
+  profile. Account projections mask a stale green observation when that file
+  is absent. At run start, each distinct saved connection records its fresh
+  authenticated/sign-in-required observation and audit event before the run
+  transitions; the failure leaves the task and worktree intact. The run page
+  names the affected agent and links directly to its Agents sign-in card.
+  No credential contents are read, copied, logged, or exposed.
+- Reference coding: XERJ was unavailable on loopback; direct Cuckoding source
+  was searched. Pinned Hydra `d8ad561...`,
+  `electron/agents/AgentManager.ts:300-332`, MIT license, was inspected for
+  shared-profile ownership; no peer code was adapted because the existing
+  Cuckoding profile and status paths were sufficient.
+- Focused check: `rtk env -u CR_PAT mix test
+  test/cuckoding/project_workflow_test.exs` — 5 tests, zero failures. The new
+  queued-run regression covers a CLI that falsely reports logged-in without
+  a file, the named recovery link, durable status/event, queued state and
+  retained worktree. Codex and shared-profile tests cover private-file and
+  unsafe/missing-file behavior. `rtk git diff --check` — clean.
+- Full check: `rtk env -u CR_PAT mix quality` — exit 0; 10 properties and 273
+  tests pass, Credo clean, Sobelow clean, Hex audit no advisories. Expected
+  fixture crash logs appeared only in the supervisor crash-recovery test.
+  `rtk proxy curl -fsS http://127.0.0.1:4000/health` — application, database,
+  PubSub and web endpoint all OK; proxy preserved the exact JSON response.
+- Browser check on the reported run: after code reload, Cursor remained
+  Connected; Codex displayed Sign-in required and its named direct link opened
+  the matching Agents card with a copyable one-time sign-in command. The user
+  must finish that provider-owned device sign-in and recheck the account;
+  live provider refresh/execution acceptance remains open in task 1018.

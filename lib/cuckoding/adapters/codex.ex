@@ -21,8 +21,14 @@ defmodule Cuckoding.Adapters.Codex do
          {:ok, version} <- parse_version(version_output),
          :ok <- supported?(version),
          {:ok, logged_in?} <- auth_status(path, runner, options) do
-      scoped? = is_binary(Keyword.get(options, :codex_home))
+      home = Keyword.get(options, :codex_home)
+      scoped? = is_binary(home)
       verified? = Keyword.get(options, :run_scoped_authenticated?, false)
+
+      file_ready? =
+        Keyword.get(options, :credentials_store) != "file" or SharedProfile.credential_file?(home)
+
+      logged_in? = logged_in? and file_ready?
       authenticated? = logged_in? and scoped? and verified?
 
       {:ok,

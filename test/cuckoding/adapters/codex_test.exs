@@ -58,7 +58,10 @@ defmodule Cuckoding.Adapters.CodexTest do
     {:ok, request: request, executable: executable}
   end
 
-  test "probe reports only verified run-scoped authentication", %{executable: executable} do
+  test "probe reports only verified run-scoped authentication", %{
+    executable: executable,
+    request: request
+  } do
     command_runner = fn _path, args, options ->
       case args do
         ["--version"] ->
@@ -97,10 +100,27 @@ defmodule Cuckoding.Adapters.CodexTest do
     assert verified.authenticated?
     refute inspect(verified) =~ "ChatGPT"
 
+    home = Path.join(request.run_dir, "account-home")
+    File.mkdir_p!(home)
+
+    assert {:ok, missing_file} =
+             Codex.probe(
+               path: executable,
+               codex_home: home,
+               credentials_store: "file",
+               run_scoped_authenticated?: true,
+               command_runner: command_runner
+             )
+
+    refute missing_file.authenticated?
+    File.write!(Path.join(home, "auth.json"), "{}")
+    File.chmod!(Path.join(home, "auth.json"), 0o600)
+    assert Cuckoding.Adapters.SharedProfile.credential_file?(home)
+
     assert {:ok, file_store} =
              Codex.probe(
                path: executable,
-               codex_home: "/global/codex/home",
+               codex_home: home,
                credentials_store: "file",
                run_scoped_authenticated?: true,
                command_runner: command_runner

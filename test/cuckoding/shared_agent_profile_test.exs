@@ -43,6 +43,7 @@ defmodule Cuckoding.SharedAgentProfileTest do
     {:ok, setup} = AgentRuntime.account_setup(account)
     assert setup.command =~ setup.home
     assert setup.command =~ ~s('cli_auth_credentials_store="file"')
+    file_credentials!(account)
     assert {:ok, %{status: "authenticated"}} = AgentRuntime.check_account(account)
 
     assert [%{"id" => "gpt-6-astra"}] =
@@ -136,7 +137,7 @@ defmodule Cuckoding.SharedAgentProfileTest do
 
     File.write!(revoked, "revoked")
     assert {:error, :provider_auth_required} = AgentRuntime.resolve(first, "implementer")
-    assert {:ok, %{status: "authentication_required"}} = AgentRuntime.check_account(account)
+    assert Adapters.get_provider_account(account.id).status == "authentication_required"
     assert Adapters.get_provider_account(second_agent.id).status == "authentication_required"
     assert {:error, :provider_auth_required} = AgentRuntime.resolve(linked_run, "implementer")
   end
@@ -230,19 +231,36 @@ defmodule Cuckoding.SharedAgentProfileTest do
     target = Path.join(root, "target")
     File.write!(target, "sentinel")
     File.ln_s!(target, Path.join(home, "auth.json"))
+    refute SharedProfile.credential_file?(account.id, "codex")
     assert {:error, :profile_path_unsafe} = AgentRuntime.account_setup(account)
     assert File.read!(target) == "sentinel"
 
     File.rm!(Path.join(home, "auth.json"))
     File.write!(Path.join(home, "auth.json"), "sentinel")
     File.chmod!(Path.join(home, "auth.json"), 0o644)
+    refute SharedProfile.credential_file?(account.id, "codex")
     assert {:error, :profile_path_unsafe} = AgentRuntime.account_setup(account)
     File.chmod!(Path.join(home, "auth.json"), 0o600)
     assert {:ok, _setup} = AgentRuntime.account_setup(account)
   end
 
+  test "missing file-store credentials cannot retain a stale connected status" do
+    {:ok, root} = account("codex", "/usr/bin/true")
+    {:ok, _checked} = Adapters.record_provider_status(root.id, "authenticated")
+    {:ok, linked} = account("codex", "/usr/bin/true")
+
+    assert Adapters.get_provider_account(root.id).status == "authentication_required"
+    assert Adapters.get_provider_account(linked.id).status == "authentication_required"
+    assert {:ok, %{status: "authentication_required"}} = AgentRuntime.account_setup(linked)
+
+    file_credentials!(root)
+    assert Adapters.get_provider_account(root.id).status == "authenticated"
+    assert Adapters.get_provider_account(linked.id).status == "authenticated"
+  end
+
   test "authorization references are compatible, immutable and model edits keep sign-in" do
     {:ok, root} = account("codex", "/usr/bin/true")
+    file_credentials!(root)
     {:ok, root} = Adapters.record_provider_status(root.id, "authenticated")
     {:ok, linked} = account("codex", "/usr/bin/true")
     assert {:ok, %{id: root_id}} = Adapters.authorization_account(linked)
@@ -304,6 +322,7 @@ defmodule Cuckoding.SharedAgentProfileTest do
 
   test "reports project impact and explicitly disconnects one shared authorization", %{root: root} do
     {:ok, authorization} = account("codex", "/usr/bin/true")
+    file_credentials!(authorization)
     {:ok, authorization} = Adapters.record_provider_status(authorization.id, "authenticated")
     {:ok, reviewer} = account("codex", "/usr/bin/true")
 
@@ -422,6 +441,13 @@ defmodule Cuckoding.SharedAgentProfileTest do
       auth_mode: "shared_profile",
       capabilities_json: %{"settings" => %{"executable_path" => executable}}
     })
+  end
+
+  defp file_credentials!(account) do
+    {:ok, home} = SharedProfile.prepare(account.id, "codex")
+    path = Path.join(home, "auth.json")
+    File.write!(path, "{}")
+    File.chmod!(path, 0o600)
   end
 
   defp skeleton(root, account, executable, name) do

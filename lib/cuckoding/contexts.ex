@@ -528,6 +528,7 @@ defmodule Cuckoding.Adapters do
   import Ecto.Query
 
   alias Cuckoding.Adapters.ProviderAccount
+  alias Cuckoding.Adapters.SharedProfile
   alias Cuckoding.Adapters.Types
   alias Cuckoding.Execution.EventStore
   alias Cuckoding.Execution.StageAttempt
@@ -576,7 +577,7 @@ defmodule Cuckoding.Adapters do
     root = Repo.get(ProviderAccount, account.authorization_account_id)
 
     if compatible_authorization?(account, root),
-      do: {:ok, root},
+      do: {:ok, with_profile_status(root)},
       else: {:error, :provider_account_mismatch}
   end
 
@@ -637,7 +638,9 @@ defmodule Cuckoding.Adapters do
     do: Map.take(account.capabilities_json["settings"] || %{}, ~w(executable_path api_key_helper))
 
   defp with_authorization_status(account, by_id \\ nil)
-  defp with_authorization_status(%{authorization_account_id: nil} = account, _by_id), do: account
+
+  defp with_authorization_status(%{authorization_account_id: nil} = account, _by_id),
+    do: with_profile_status(account)
 
   defp with_authorization_status(account, by_id) do
     root =
@@ -646,9 +649,19 @@ defmodule Cuckoding.Adapters do
         else: Repo.get(ProviderAccount, account.authorization_account_id)
 
     if compatible_authorization?(account, root),
-      do: %{account | status: root.status, probed_at: root.probed_at},
+      do: %{account | status: with_profile_status(root).status, probed_at: root.probed_at},
       else: %{account | status: "unknown", probed_at: nil}
   end
+
+  defp with_profile_status(
+         %ProviderAccount{adapter_key: "codex", status: "authenticated"} = account
+       ) do
+    if SharedProfile.credential_file?(account.id, "codex"),
+      do: account,
+      else: %{account | status: "authentication_required"}
+  end
+
+  defp with_profile_status(account), do: account
 
   def save_provider_account(attrs) when is_map(attrs) do
     EventStore.transaction(fn ->

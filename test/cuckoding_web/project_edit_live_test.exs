@@ -194,6 +194,9 @@ defmodule CuckodingWeb.ProjectEditLiveTest do
              })
 
     assert second.authorization_account_id == account.id
+    {:ok, home} = Cuckoding.Adapters.SharedProfile.prepare(account.id, "codex")
+    File.write!(Path.join(home, "auth.json"), "{}")
+    File.chmod!(Path.join(home, "auth.json"), 0o600)
     Adapters.record_provider_status(account.id, "authenticated")
 
     {:ok, view, _html} = live(conn, ~p"/projects/#{project.id}/edit")
@@ -236,6 +239,10 @@ defmodule CuckodingWeb.ProjectEditLiveTest do
                auth_mode: "os_keyring",
                capabilities_json: %{"settings" => %{"executable_path" => executable}}
              })
+
+    {:ok, home} = Cuckoding.Adapters.SharedProfile.prepare(account.id, "codex")
+    File.write!(Path.join(home, "auth.json"), "{}")
+    File.chmod!(Path.join(home, "auth.json"), 0o600)
 
     {:ok, view, _html} = live(conn, ~p"/projects/#{project.id}/edit")
     render_click(view, "check-agent-authorization", %{"id" => account.id})

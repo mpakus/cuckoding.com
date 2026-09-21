@@ -2,15 +2,7 @@ defmodule Cuckoding.Adapters.SharedProfile do
   @moduledoc "App-owned account directories. Never resolves a personal CLI profile."
 
   def prepare(id, runtime) when runtime in ["codex", "cursor_agent"] do
-    root =
-      Application.get_env(:cuckoding, :provider_account_root) ||
-        Path.join([
-          System.user_home!(),
-          "Library",
-          "Application Support",
-          "Cuckoding",
-          "provider-accounts"
-        ])
+    root = provider_root()
 
     with {:ok, ^id} <- Ecto.UUID.cast(id),
          :ok <- directory(root),
@@ -27,6 +19,37 @@ defmodule Cuckoding.Adapters.SharedProfile do
 
   defp name("codex"), do: "codex-home"
   defp name("cursor_agent"), do: "cursor"
+
+  def credential_file?(id, "codex") when is_binary(id) do
+    case Ecto.UUID.cast(id) do
+      {:ok, ^id} ->
+        home = Path.join([provider_root(), id, "codex-home"])
+        ancestors(Path.expand(home)) == :ok and credential_file?(home)
+
+      :error ->
+        false
+    end
+  end
+
+  def credential_file?(home) when is_binary(home) do
+    case File.lstat(Path.join(home, "auth.json")) do
+      {:ok, %{type: :regular, mode: mode}} -> Bitwise.band(mode, 0o077) == 0
+      _other -> false
+    end
+  end
+
+  def credential_file?(_home), do: false
+
+  defp provider_root do
+    Application.get_env(:cuckoding, :provider_account_root) ||
+      Path.join([
+        System.user_home!(),
+        "Library",
+        "Application Support",
+        "Cuckoding",
+        "provider-accounts"
+      ])
+  end
 
   defp credential_file(path, "codex") do
     case File.lstat(Path.join(path, "auth.json")) do

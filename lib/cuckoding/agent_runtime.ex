@@ -327,7 +327,7 @@ defmodule Cuckoding.AgentRuntime do
 
     case role.adapter_key do
       "codex" ->
-        with {:ok, shared} <- shared_options(role) do
+        with {:ok, shared, account} <- shared_options(role) do
           home =
             Keyword.get(
               shared,
@@ -335,7 +335,11 @@ defmodule Cuckoding.AgentRuntime do
               Path.join([skeleton.environment.run_dir, "agent", "codex", "home"])
             )
 
-          probe(Codex, [path: path, codex_home: home, run_scoped_authenticated?: true] ++ shared)
+          probe(
+            Codex,
+            [path: path, codex_home: home, run_scoped_authenticated?: true] ++ shared,
+            account
+          )
         end
 
       "claude_code" ->
@@ -348,10 +352,11 @@ defmodule Cuckoding.AgentRuntime do
       "cursor_agent" ->
         root = Path.join([skeleton.environment.run_dir, "agent", "cursor"])
 
-        with {:ok, shared} <- shared_options(role) do
+        with {:ok, shared, account} <- shared_options(role) do
           probe(
             CursorAgent,
-            [path: path, cursor_home: root, run_scoped_authenticated?: true] ++ shared
+            [path: path, cursor_home: root, run_scoped_authenticated?: true] ++ shared,
+            account
           )
         end
 
@@ -363,18 +368,34 @@ defmodule Cuckoding.AgentRuntime do
     end
   end
 
-  defp probe(module, options) do
+  defp probe(module, options, account \\ nil) do
     case module.probe(options) do
       {:ok, %{authenticated?: true, version: version}} ->
-        {:ok, module, options, version}
+        with :ok <- record_probe_status(account, "authenticated"),
+             do: {:ok, module, options, version}
 
       {:ok, _probe} ->
-        if Keyword.has_key?(options, :shared_profile_id),
-          do: {:error, :provider_auth_required},
-          else: {:error, :run_scoped_auth_required}
+        case record_probe_status(account, "authentication_required") do
+          :ok when is_nil(account) -> {:error, :run_scoped_auth_required}
+          :ok -> {:error, :provider_auth_required}
+          error -> error
+        end
 
       error ->
         error
+    end
+  end
+
+  defp record_probe_status(nil, _status), do: :ok
+
+  defp record_probe_status(account, status) do
+    catalog =
+      if status == "authentication_required",
+        do: %{"status" => "authorization_required", "models" => []}
+
+    case Adapters.record_provider_status(account.id, status, account.capabilities_json, catalog) do
+      {:ok, _account} -> :ok
+      error -> error
     end
   end
 
@@ -487,13 +508,13 @@ defmodule Cuckoding.AgentRuntime do
         with {:ok, root} <- Adapters.authorization_account(account),
              :ok <- Cuckoding.AgentBindings.compatible(runtime, role.settings_json, root.id),
              {:ok, home} <- SharedProfile.prepare(root.id, runtime) do
-          {:ok, [shared_profile_id: root.id] ++ profile_options(runtime, home)}
+          {:ok, [shared_profile_id: root.id] ++ profile_options(runtime, home), root}
         end
 
       nil ->
         if role.settings_json["provider_account_id"],
           do: {:error, :provider_account_not_found},
-          else: {:ok, []}
+          else: {:ok, [], nil}
 
       _other ->
         {:error, :provider_account_mismatch}

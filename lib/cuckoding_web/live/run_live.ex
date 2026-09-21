@@ -98,11 +98,11 @@ defmodule CuckodingWeb.RunLive do
          )}
 
       {:error, :provider_auth_required} ->
+        socket = refresh(socket, "")
+
         {:noreply,
          assign(socket,
-           error:
-             "A saved agent needs sign-in. Open Agents, reconnect it and retry. " <>
-               "Your task and worktree are unchanged."
+           error: auth_required_error(socket.assigns.runtime_setups)
          )}
 
       {:error, reason} ->
@@ -259,6 +259,13 @@ defmodule CuckodingWeb.RunLive do
         <p :if={@error} id="run-error" role="alert" class="text-sm font-medium text-red-800">
           {@error}
         </p>
+        <div :if={@error && auth_required_setups(@runtime_setups) != []} class="flex flex-wrap gap-3">
+          <.link
+            :for={setup <- auth_required_setups(@runtime_setups)}
+            navigate={"/settings/agents#agent-#{setup[:authorization_id] || setup.account_id}"}
+            class="inline-flex min-h-11 items-center rounded border border-red-300 bg-red-50 px-3 font-medium text-red-900 underline"
+          >Sign in to {setup[:connection] || setup.runtime}</.link>
+        </div>
 
         <section
           :if={intake?(@detail)}
@@ -325,16 +332,23 @@ defmodule CuckodingWeb.RunLive do
             <p :if={setup[:status] == "authenticated"} class="font-semibold text-emerald-800">
               Connected · sign-in checked again at start
             </p>
-            <p :if={setup[:account_id] && setup[:status] != "authenticated"} class="font-semibold">
-              Sign-in needs checking before this run starts.
+            <p :if={setup[:status] == "authentication_required"} class="font-semibold text-red-800">
+              Sign-in required for this saved agent.
+            </p>
+            <p
+              :if={
+                setup[:account_id] &&
+                  setup[:status] not in ["authenticated", "authentication_required"]
+              }
+              class="font-semibold"
+            >
+              Sign-in has not been checked yet.
             </p>
             <.link
               :if={setup[:account_id]}
               navigate={"/settings/agents#agent-#{setup[:authorization_id] || setup.account_id}"}
               class="inline-flex min-h-11 items-center underline underline-offset-4"
-            >{if setup[:status] == "authenticated",
-              do: "Re-authorize agent",
-              else: "Check or re-authorize agent"}</.link>
+            >{agent_action_label(setup)}</.link>
             <form
               :if={!setup[:account_id] && compatible_agents(setup, @saved_agents) != []}
               id={"connect-agent-#{setup.role_key}"}
@@ -654,6 +668,31 @@ defmodule CuckodingWeb.RunLive do
     Enum.filter(agents, fn agent ->
       AgentBindings.compatible(setup[:adapter_key], setup[:settings] || %{}, agent) == :ok
     end)
+  end
+
+  defp auth_required_setups(setups),
+    do: Enum.filter(setups, &(&1[:account_id] && &1[:status] == "authentication_required"))
+
+  defp auth_required_error(setups) do
+    case auth_required_setups(setups) do
+      [] ->
+        "A saved agent needs sign-in. Open Agents, check it, then retry. Your task and worktree are unchanged."
+
+      missing ->
+        names = Enum.map_join(missing, ", ", &(&1[:connection] || &1.runtime))
+
+        "Sign in to #{names} in Agents, then start this run again. Your task and worktree are unchanged."
+    end
+  end
+
+  defp agent_action_label(setup) do
+    name = setup[:connection] || setup.runtime
+
+    case setup[:status] do
+      "authenticated" -> "Re-authorize agent"
+      "authentication_required" -> "Sign in to #{name}"
+      _other -> "Check sign-in for #{name}"
+    end
   end
 
   defp role_label(role_key), do: role_key |> String.replace("_", " ") |> String.capitalize()

@@ -103,6 +103,15 @@ Connected accounts show a green, text-labeled status and a **Re-authorize agent*
 link. Run-local sign-in commands are not shown; an authenticated account's
 one-time command stays collapsed under **Re-authorize agent** in Agents.
 
+For Codex, a prior "Connected" observation cannot override a missing private
+`CODEX_HOME/auth.json` in the app-owned file store. The CLI must report signed
+in **and** that regular owner-only file must exist. Run start rechecks each
+distinct saved sign-in and records its latest status before execution. If one
+needs sign-in, the run stays queued, names that agent, and links to its Agents
+card; the task and worktree remain unchanged. A user who signed in before the
+keyring-to-file-store change must complete one new sign-in for this app-owned
+profile. Later runs reuse it until the provider revokes or expires it.
+
 ## Implementation order and acceptance
 
 1. Prove the credential boundary for the installed, pinned runtime versions.

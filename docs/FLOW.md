@@ -47,6 +47,13 @@ Project setup, board setup, board task intake, and delivery execution are separa
    marks its agent session failed, and shows the recovery action beside its
    progress state; browser state is never authoritative.
 
+Start-time saved-agent probes update the durable authorization observation
+before the queued run transitions. A rejected sign-in names the affected
+connection and links to its one-time Agents sign-in action; it does not create
+an agent session or alter the task/worktree. Codex file-store probes additionally
+require a private credential file in the selected app-owned profile, so an old
+keyring-era "Connected" observation cannot appear ready for a file-store run.
+
 This boundary keeps onboarding reversible and lets one project own several
 boards without fabricating a first task.
 

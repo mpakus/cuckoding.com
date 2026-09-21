@@ -143,7 +143,7 @@ defmodule Cuckoding.ProjectWorkflowTest do
 
     refute has_element?(run_view, "#runtime-setup input[data-copy-source]")
 
-    assert has_element?(run_view, "#runtime-setup a", "re-authorize agent")
+    assert has_element?(run_view, "#runtime-setup a", "Check sign-in for Local Codex")
 
     assert has_element?(run_view, "#runtime-setup p", "Roles: Implementer, Reviewer, Spec writer")
 
@@ -288,6 +288,9 @@ defmodule Cuckoding.ProjectWorkflowTest do
                }
              })
 
+    {:ok, home} = Cuckoding.Adapters.SharedProfile.prepare(account_id, "codex")
+    File.write!(Path.join(home, "auth.json"), "{}")
+    File.chmod!(Path.join(home, "auth.json"), 0o600)
     Cuckoding.Adapters.record_provider_status(account_id, "authenticated")
     {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
 
@@ -315,6 +318,80 @@ defmodule Cuckoding.ProjectWorkflowTest do
 
     assert {:error, :run_not_queued_or_role_missing} =
              Cuckoding.AgentBindings.connect_run(run.id, "reviewer", account_id)
+  end
+
+  test "queued run identifies a saved agent whose file-store sign-in is missing", %{
+    project: project,
+    conn: conn
+  } do
+    executable = Path.join(Path.dirname(project.repo_path), "codex-status-fixture")
+
+    File.write!(
+      executable,
+      "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo 'codex-cli 0.146.0'; else echo 'Logged in using ChatGPT'; fi\n"
+    )
+
+    File.chmod!(executable, 0o700)
+
+    revision = Cuckoding.Projects.latest_config_version(project.id).revision
+
+    assert {:ok, _config} =
+             ProjectOnboarding.update_configuration(project.id, revision, %{
+               "agent_connections" => [
+                 %{
+                   "key" => "saved-codex",
+                   "label" => "Saved Codex",
+                   "adapter_key" => "codex",
+                   "executable_path" => executable,
+                   "api_key_helper" => ""
+                 }
+               ],
+               "default_roles" =>
+                 Enum.map(ProjectOnboarding.default_roles(), fn role ->
+                   Map.put(role, "agent_connection_key", "saved-codex")
+                 end)
+             })
+
+    {:ok, board} =
+      ProjectWorkflow.create_board(project.id, %{
+        "name" => "Authorization",
+        "concurrency_limit" => "1"
+      })
+
+    account_id = hd(Workflows.list_agent_roles(board.id)).settings_json["provider_account_id"]
+    {:ok, task} = ProjectWorkflow.create_task(board.id, %{"title" => "Check saved sign-in"})
+    {:ok, _} = Workflows.transition_task(task.id, "ready", "auth-ready:#{task.id}")
+    {:ok, %{run: run, environment: environment}} = ProjectWorkflow.prepare_task(task.id)
+
+    Cuckoding.Adapters.record_provider_status(account_id, "authenticated")
+    {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+    assert has_element?(view, "#runtime-setup", "Sign-in required for this saved agent")
+
+    view |> element("button", "Check authentication and start workflow") |> render_click()
+
+    assert has_element?(view, "#run-error", "Sign in to Saved Codex")
+
+    assert has_element?(
+             view,
+             "a[href='/settings/agents#agent-#{account_id}']",
+             "Sign in to Saved Codex"
+           )
+
+    assert Repo.get!(Cuckoding.Adapters.ProviderAccount, account_id).status ==
+             "authentication_required"
+
+    event =
+      Repo.one!(
+        from event in RunEvent,
+          where: event.run_id == ^("provider:" <> account_id),
+          order_by: [desc: event.sequence],
+          limit: 1
+      )
+
+    assert event.payload["status"] == "authentication_required"
+
+    assert Repo.get!(Cuckoding.Execution.Run, run.id).state == "queued"
+    assert File.dir?(environment.worktree_path)
   end
 
   defp git!(repo_path, args) do
