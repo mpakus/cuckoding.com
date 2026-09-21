@@ -326,3 +326,70 @@ scan complete, no retired/advisory dependencies). `rtk git diff --check`
 passed. The former failure did not reproduce after the assertion change; a
 signed/notarized build and controlled beta were not run. No RTK proxy
 exception was needed.
+
+## 2026-09-21 — Current-source local signing drill
+
+Continued task 1004 on `feature/1004-current-local-signing` from clean `main`
+at `fca8770`. Acceptance for this tranche: verify the current app bundle's
+Developer ID signature and hardened runtime using the existing signing
+script; retain the older `desktop/dist/` untouched; if the saved notary
+profile works, notarize and staple only this local app candidate and record
+the response ID, issue count, and Gatekeeper result. Update `docs/` and
+`docs/PLAN.md` without claiming a signed updater, published release, clean-Mac
+install, or controlled beta.
+
+Ponytail 4.10.0 (MIT, full mode), quality-gates, menubar-shell, and
+security-review apply. `rtk git status --short --branch` was clean on main;
+`rtk proxy security find-identity -v -p codesigning` found one valid Developer
+ID Application identity for team G4HV2FL5N2. The local app is the developer
+build produced from `3246b3b` (only a test-only commit followed), and
+`rtk proxy /usr/bin/codesign --display --verbose=4` showed it was ad hoc
+signed with no TeamIdentifier. `rtk proxy xcrun notarytool history
+--keychain-profile Cuckoding --output-format json` succeeded, confirming the
+saved profile is accessible without printing credentials. The older signed
+`desktop/dist/` is present and excluded from this drill. Free space is about
+12 GiB; the candidate and evidence will stay in ignored build directories.
+
+The executed build-boundary commands were:
+
+```sh
+rtk proxy env 'CUCKODING_SIGNING_IDENTITY=Developer ID Application: Renat Ibragimov (G4HV2FL5N2)' sh desktop/sign.sh
+rtk proxy ditto -c -k --keepParent /Users/mpak/www/elixir/cuckoding.com/desktop/src-tauri/target/release/bundle/macos/Cuckoding.app /Users/mpak/www/elixir/cuckoding.com/desktop/src-tauri/target/release/Cuckoding-local-notary.KaGOlp/Cuckoding-notary.zip
+rtk proxy env CUCKODING_NOTARY_PROFILE=Cuckoding sh desktop/notarize.sh /Users/mpak/www/elixir/cuckoding.com/desktop/src-tauri/target/release/bundle/macos/Cuckoding.app /Users/mpak/www/elixir/cuckoding.com/desktop/src-tauri/target/release/Cuckoding-local-notary.KaGOlp/Cuckoding-notary.zip /Users/mpak/www/elixir/cuckoding.com/desktop/src-tauri/target/release/Cuckoding-local-notary.KaGOlp/evidence
+rtk proxy env -u GEM_HOME -u GEM_PATH PATH=/usr/bin:/bin:/usr/sbin:/sbin CUCKODING_RELEASE_PATH=/Users/mpak/www/elixir/cuckoding.com/desktop/src-tauri/target/release/bundle/macos/Cuckoding.app/Contents/Resources/release/bin/cuckoding /usr/bin/ruby desktop/verify.rb
+```
+
+Signing passed: all 26 Mach-O files
+received valid hardened-runtime Developer ID signatures with matching team
+and secure timestamps; BEAM's JIT entitlement was verified. The app now has
+identifier `com.cuckoding.desktop`, TeamIdentifier `G4HV2FL5N2`, a stapled
+ticket, and no ad-hoc shell signature.
+
+The local candidate directory is ignored
+`desktop/src-tauri/target/release/Cuckoding-local-notary.KaGOlp/`.
+`ditto` created only the submission archive. Notarization passed: Apple accepted submission
+`02d108c6-87f9-4b31-b515-28444fa98938` with zero issues, the ticket was
+stapled and validated, and `spctl` reported `source=Notarized Developer ID`.
+The notarization response and log remain in that ignored candidate directory;
+no credential value was printed. The first ad-hoc JSON inspection accidentally
+used system Ruby with ambient RVM gems and failed to parse the newer `json`
+gem; the release scripts already clear `GEM_HOME`/`GEM_PATH`. Repeating the
+read-only evidence summary with `rtk proxy env -u GEM_HOME -u GEM_PATH
+PATH=/usr/bin:/bin:/usr/sbin:/sbin /usr/bin/ruby -rjson -e ...` succeeded and
+reported `Accepted`, `issues=0`. This diagnostic environment failure did not
+affect signing or notarization.
+
+The signed embedded release passed every sterile startup, auth, crash,
+safe-mode, and update/rollback check against the signed embedded release.
+`desktop/dist/` retained its 2026-09-18 content; no updater signature or
+complete post-staple release archive was produced, and no clean-account or
+clean-Mac install occurred. The local app evidence narrows the signing risk
+but cannot close task 1004's full release gate.
+
+`rtk git diff --check` passed for the documentation and worklog update. RTK
+proxy was used for codesign, `ditto`, `notarytool`, `spctl`, and the sterile
+Ruby subprocess so their unfiltered output and binary behavior were preserved;
+all repository commands remained RTK-prefixed. The notarization upload was
+the normal Apple release-validation side effect authorized by the MVP goal;
+there was no GitHub release, push of an artifact, credential export, or data
+cleanup.

@@ -48,6 +48,9 @@ Re-run the MVP definition of done, freeze supported versions, validate installer
   configuration names before certificate import; no secrets are provisioned.
 - [x] Rebuild the current-source unsigned app and re-run local source quality;
   correct the event-sequence test wait to cover the bounded SQLite retry window.
+- [x] Sign and notarize the current local app with existing Keychain credentials;
+  verify the embedded release after signing. Full release artifacts and clean-Mac
+  enrollment remain open.
 - [ ] Approve and verify the output/artifact retention policy and participant
   disclosure; no automatic age purge exists for full redacted artifacts yet.
 - [ ] Verify effective retention and consent/default behavior in a signed

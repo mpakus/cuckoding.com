@@ -18,7 +18,7 @@ signed artifact after task 1003 has completed.
 | Execution | Supervised host processes in distinct Git worktrees; **not a sandbox** | Real-provider runs, detached-process review, and multi-board isolation |
 | Agents | Claude Code, Codex, Cursor Agent launch adapters implemented; Codex/Cursor saved profiles use app-owned provider credentials | Default workflow, restart/refresh, revocation, and cross-project/concurrent execution with real provider accounts |
 | Setup-only agents | OpenCode and Custom Agent may be saved, but cannot launch tasks | Reviewed adapters and conformance before promising execution |
-| Updates | Signed updater with backup/rollback checks in source and prior-host evidence | Current frozen artifact, update, rollback, and uninstall on a clean Mac |
+| Updates | Signed updater with backup/rollback checks in source and prior-host evidence | Current frozen updater artifact, update, rollback, and uninstall on a clean Mac |
 
 Provider CLIs, Git, and optional plugin binaries are discovered on the user's
 Mac, not promised inside the bundle. The host runner cannot hard-enforce
@@ -109,11 +109,13 @@ contamination as a critical stop and preserve sanitized evidence under the
 The ten items in [PLAN.md](PLAN.md) are product acceptance criteria, not a
 count of passing unit tests. On 2026-09-21, the unsigned developer app rebuilt
 from `3246b3b` passed the sterile verifier, including startup, crash, safe-mode,
-and rollback drills. The subsequent test-only event-sequence timeout correction
+and rollback drills. A subsequent test-only event-sequence timeout correction
 passed `rtk env -u CR_PAT mix quality` (10 properties, 285 tests, zero failures;
 strict Credo, Sobelow, and dependency audit clean). These verify local source
-and developer-build gates, not any unobserved provider, participant, signed
-artifact, or installed-build behavior.
+and developer-build gates. The local app was then Developer ID signed,
+notarized, stapled, Gatekeeper-accepted, and its embedded release passed the
+same sterile verifier. None of this verifies provider, participant, complete
+release-package, or clean-Mac install behavior.
 
 | MVP criterion | Evidence in hand | Still required to close it |
 | --- | --- | --- |
@@ -126,7 +128,7 @@ artifact, or installed-build behavior.
 | Human approval performs release handoff | The [walking skeleton](../worklog/2026-09-17-0405-walking-skeleton.md) pushed an approved branch to a local bare remote | D01 approved handoff on an authorized target, including a draft PR; verify no push before approval |
 | Knowledge is reviewed and later used | Knowledge extraction/publication/lineage tests and views exist | Score K01–K03 and show one approved item used by a later real run with project, version, run, and stage provenance |
 | Four reference plugins enable, contribute, and degrade safely | [Task 0803](../worklog/2026-09-18-0803-reference-plugins.md) records fixture conformance | Exercise RTK, XERJ, Ponytail, and read-only MCP in the enrolled app with labeled contributions and removal without core failure |
-| Clean Mac installs, runs, updates, and uninstalls | A prior-revision signed ZIP passed on a separate account; the current-source unsigned app passed its sterile verifier | One current signed/notarized candidate on a clean supported Mac, including sample task, update, rollback, and uninstall with data checks |
+| Clean Mac installs, runs, updates, and uninstalls | A prior-revision signed ZIP passed on a separate account; the current local app is Developer ID signed, notarized, stapled, Gatekeeper-accepted, and sterile-verified | One complete current signed/notarized release and updater candidate on a clean supported Mac, including sample task, update, rollback, and uninstall with data checks |
 
 None of these ten criteria has matching current-release acceptance evidence
 yet. The checked recovery item in the prior plan overstated task 1002's scope;
@@ -138,9 +140,12 @@ fixtures without matching artifact and observation IDs.
 ## Decision and required evidence
 
 The previous signed ZIP is from an older source revision. The `3246b3b`
-unsigned developer app passed a sterile verifier, and simulated recovery
-passed, but neither is signed enrollment or clean-Mac acceptance. The release
-workflow now places `mix quality` before loading signing material; this ordering
+developer app passed local Developer ID signing and Apple notarization
+(submission `02d108c6-87f9-4b31-b515-28444fa98938`, zero issues), stapling,
+Gatekeeper, and a post-signing sterile check of its embedded release. This is
+not a complete signed release package: no current updater bundle/signature,
+release metadata, installed clean-Mac test, or beta enrollment is attached.
+The release workflow places `mix quality` before loading signing material; this ordering
 has not yet been exercised for the frozen candidate. Two non-resolving pinned
 release actions were repaired and all five refs now resolve upstream; the
 job still has no frozen-candidate run. The release

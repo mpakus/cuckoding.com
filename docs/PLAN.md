@@ -143,10 +143,15 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
   The concurrent event-sequence property's wait now covers the existing bounded
   SQLite retry window; a controlled 11-second lock still completed and the
   full gate passed. This is not signed-release or real-provider evidence.
+- [x] Task 1004: sign the current local app's 26 Mach-O files with Developer ID,
+  notarize it with the saved `Cuckoding` profile, staple the accepted ticket,
+  pass Gatekeeper, and re-run the embedded release's sterile verifier. This
+  local app drill is not a signed updater/release package or clean-Mac acceptance.
 - [ ] Produce and verify a fresh signed/notarized enrollment build at the
-  accepted beta revision. The local identity/notary profile and updater key
-  exist, but the retained signed ZIP predates current main; the CI Apple
-  certificate and notary secrets are not configured.
+  accepted beta revision. A current local `.app` passed signing/notarization,
+  but the retained distribution ZIP predates current main; the signed updater,
+  complete release metadata, clean-Mac test, and CI Apple certificate/notary
+  secrets remain open.
 - [x] Task 1008: safe public-message boundary and actionable empty states across
   Phoenix UI surfaces; raw internal errors are excluded from browser alerts.
 - [x] Complete the accepted project-first product flow:

@@ -114,6 +114,16 @@ freshly extracted ZIP; and all 22 sterile runtime checks passed under the
 separate `qa` macOS account. This verifies a clean account on the supported
 host, not a second physical Mac.
 
+A later local drill signed the developer app built from `3246b3b` with the
+current Developer ID, verified all 26 Mach-O files, and notarized it using the
+saved Keychain profile. Apple accepted submission
+`02d108c6-87f9-4b31-b515-28444fa98938` with zero issues; the ticket was
+stapled, Gatekeeper accepted the app, and the embedded release passed the
+sterile verifier after signing. This did not run `desktop/release.sh` or
+replace `desktop/dist/`: the updater archive/signature, complete release
+metadata, GitHub Actions job, and clean-Mac install still need current-revision
+acceptance.
+
 ## Tool discovery
 
 macOS GUI applications do not inherit an interactive shell's dotfile `PATH`. Search configured paths and known safe locations (Homebrew, `~/.local/bin`, npm global, cargo), allow the user to select an executable, and store verified paths. Display version and health for Git, each agent runtime, and each plugin binary.
