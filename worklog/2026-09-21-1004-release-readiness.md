@@ -557,3 +557,38 @@ docs/RELEASE_READINESS.md` relative-link check returned `relative links
 present`. This tranche did not rerun the full Mix quality suite because it
 changed only task/docs/worklog text; the production compile, shell tests,
 Clippy, and three sterile verifier passes are tied to the exact built commit.
+
+## 2026-09-21 — Execute the release CI source gate
+
+Continued task 1004 on `feature/1004-release-ci-evidence` from clean `main`
+at `131e171`. Acceptance for this tranche: execute the official manual macOS
+release workflow, diagnose any failure before signing, remove environment-
+dependent test assumptions, and report only evidence the run actually proves.
+Ponytail 4.10.0 (MIT, full mode), agent-adapter, menubar-shell,
+security-review, and quality-gates apply. XERJ's loopback listener on port
+9200 was absent; the existing adapter and test source were inspected directly.
+
+`rtk gh workflow run release-macos.yml --ref main -R mpakus/cuckoding.com`
+created [run 35662057281](https://github.com/mpakus/cuckoding.com/actions/runs/35662057281).
+Checkout, pinned OTP/Elixir setup, and pinned-tool installation passed. The
+`mix quality` step ran before certificate import but failed two Claude Code
+adapter tests: both called `launch_spec/2` or `start/2` without `path`, so the
+adapter correctly returned `:not_installed` on a clean runner without the
+Claude CLI. Source compilation, format, Credo, Sobelow and dependency audit
+were not the failure. Signing, notary preparation, packaging, and upload were
+skipped. GitHub currently lists only `APPLE_SIGNING_IDENTITY` and two Tauri
+signing secrets; certificate/password and notary key/ID/issuer are still
+missing. No secret value was fetched or printed.
+
+The tests now pass their existing executable fixture explicitly for the
+launch, no-helper error, start, and resume paths, and assert the fixture is
+selected. Production adapter behavior is unchanged. `rtk env -u CR_PAT mix
+test test/cuckoding/adapters/claude_code_test.exs` passed (4 tests, zero
+failures). `rtk env -u CR_PAT mix quality` passed after the final assertion
+(10 properties, 288 tests, zero failures; strict Credo no issues; Sobelow
+scan complete; no retired/advisory packages). Fixture crash and transient
+SQLite-busy logs were expected tests, not gate failures. A new CI run is still
+required; this local pass does not close the frozen-candidate release gate.
+`rtk proxy` was used for exact native `lsof`, `who`, `stat`, and `sed` output
+where RTK filtering would change inspection semantics; no product command
+configuration was changed.

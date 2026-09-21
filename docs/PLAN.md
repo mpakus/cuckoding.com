@@ -130,8 +130,10 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
   and troubleshooting. Release notes/artifacts and clean-Mac acceptance remain
   open in [RELEASE_READINESS.md](RELEASE_READINESS.md).
 - [x] Task 1004: the official macOS release workflow now runs `mix quality`
-  before signing/notary secrets are imported. Its current-source CI execution
-  and signed-artifact acceptance remain open.
+  before signing/notary secrets are imported. Its first manual CI run on
+  `131e171` reached that gate and failed two Claude adapter tests that assumed
+  the CLI was installed on the runner; the tests now use their explicit fixture
+  executable. A passing CI rerun and signed-artifact acceptance remain open.
 - [x] Task 1004: replace two non-resolving release-action SHAs with verified
   upstream v1.24.1 setup-beam and v7.0.0 certificate-import commits. A frozen
   candidate still needs an actual release-job run.

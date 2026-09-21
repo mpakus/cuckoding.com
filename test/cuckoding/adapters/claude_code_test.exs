@@ -112,7 +112,8 @@ defmodule Cuckoding.Adapters.ClaudeCodeTest do
     skill = Path.join([request.run_dir, "agent", "claude-plugin", "skills", "review", "SKILL.md"])
     assert File.read!(skill) == "Review the diff."
 
-    assert {:ok, spec} = ClaudeCode.launch_spec(request, api_key_helper: helper)
+    assert {:ok, spec} = ClaudeCode.launch_spec(request, path: helper, api_key_helper: helper)
+    assert spec.command.executable == helper
     assert "--bare" in spec.command.args
     assert "--strict-mcp-config" in spec.command.args
     assert "dontAsk" in spec.command.args
@@ -123,14 +124,20 @@ defmodule Cuckoding.Adapters.ClaudeCodeTest do
     assert spec.environment["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] == "1"
 
     assert {:error, %Types.Error{code: :run_scoped_auth_required}} =
-             ClaudeCode.launch_spec(request)
+             ClaudeCode.launch_spec(request, path: helper)
   end
 
   test "starts, cancels, resumes, and recovers through the host runner", %{
     request: request,
     helper: helper
   } do
-    options = [api_key_helper: helper, runner: FakeRunner, environment: %{id: "environment"}]
+    options = [
+      path: helper,
+      api_key_helper: helper,
+      runner: FakeRunner,
+      environment: %{id: "environment"}
+    ]
+
     assert {:ok, session} = ClaudeCode.start(request, options)
     assert session.requested_model == "claude-sonnet-4-6"
     assert is_nil(session.actual_model)

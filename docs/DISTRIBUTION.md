@@ -77,7 +77,10 @@ A failed source gate stops packaging and publication. The next step checks all
 required secret and update-variable names for nonempty values and reports only
 missing names; it does not print values or attempt signing. A missing item
 stops the job before certificate import. This ordering is source-verified; it
-still needs an actual run at the frozen release revision. GitHub Actions'
+was exercised by the first manual CI run on `131e171`: pinned-tool installation
+passed, then two Claude adapter tests failed because they assumed an installed
+CLI. That test fixture was corrected, but a passing CI rerun and frozen release
+candidate are still required. GitHub Actions'
 [`macos-15` image](https://github.com/actions/runner-images#available-images)
 is Apple Silicon, matching the release script's host check.
 All five workflow action refs (four build-job, one publish-job) were checked
