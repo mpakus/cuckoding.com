@@ -137,6 +137,8 @@ fixtures without matching artifact and observation IDs.
 The previous signed ZIP is from an older source revision. A current-source
 unsigned developer app passed a sterile verifier, and simulated recovery
 passed, but neither is signed enrollment or clean-Mac acceptance. The release
+workflow now places `mix quality` before loading signing material; this ordering
+has not yet been exercised for the frozen candidate. The release
 CI still lacks the Apple certificate/password and notary key/ID/issuer secrets;
 local release variables were absent at this review. The prior provider key
 exposure also awaits stakeholder confirmation of rotation before more paid

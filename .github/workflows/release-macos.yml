@@ -33,6 +33,11 @@ jobs:
           rtk rustup toolchain install 1.90.0 --profile minimal
           rtk cargo +1.90.0 install tauri-cli --version 2.11.4 --locked
 
+      - name: Verify source quality before loading signing material
+        run: |
+          rtk mix deps.get
+          rtk mix quality
+
       - uses: apple-actions/import-codesign-certs@7abe6dfe88f6bf6b1fa06e6a5704a2605d897418 # v7
         with:
           p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}

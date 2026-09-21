@@ -128,6 +128,9 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
   report covering support, onboarding, limits, privacy/data, backup, recovery,
   and troubleshooting. Release notes/artifacts and clean-Mac acceptance remain
   open in [RELEASE_READINESS.md](RELEASE_READINESS.md).
+- [x] Task 1004: the official macOS release workflow now runs `mix quality`
+  before signing/notary secrets are imported. Its current-source CI execution
+  and signed-artifact acceptance remain open.
 - [ ] Produce and verify a fresh signed/notarized enrollment build at the
   accepted beta revision. The local identity/notary profile and updater key
   exist, but the retained signed ZIP predates current main; the CI Apple

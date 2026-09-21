@@ -70,6 +70,11 @@ generation all succeed. It additionally requires the
 `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` secrets,
 plus `CUCKODING_UPDATE_ENDPOINT`, `CUCKODING_UPDATE_BASE_URL`, and
 `CUCKODING_UPDATER_PUBLIC_KEY` repository variables.
+Before importing the certificate or exposing any notary/updater signing secret,
+the release job fetches pinned Mix dependencies and runs `mix quality` (format,
+warnings-as-errors compile, tests, strict Credo, Sobelow, dependency audit).
+A failed source gate stops packaging and publication. This workflow ordering is
+source-verified; it still needs an actual run at the frozen release revision.
 
 The production update host is GitHub Releases. Both update URL variables use
 GitHub's `latest/download` redirect: the endpoint ends in `latest.json`, while

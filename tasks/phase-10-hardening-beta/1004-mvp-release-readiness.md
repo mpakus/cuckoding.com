@@ -40,6 +40,8 @@ Re-run the MVP definition of done, freeze supported versions, validate installer
   on implemented adapters, credential locations, and actual retention behavior.
 - [x] Publish a current-source support/onboarding/privacy/recovery guide and
   explicit no-go decision without calling it signed-release acceptance.
+- [x] Require the official release job to pass `mix quality` before it imports
+  signing/notary secrets; actual frozen-candidate CI run remains unobserved.
 - [ ] Approve and verify the output/artifact retention policy and participant
   disclosure; no automatic age purge exists for full redacted artifacts yet.
 - [ ] Verify effective retention and consent/default behavior in a signed

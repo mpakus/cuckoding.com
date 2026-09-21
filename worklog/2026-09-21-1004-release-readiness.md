@@ -176,3 +176,34 @@ was performed.
 `docs/RELEASE_READINESS.md` resolve. `rtk git diff --check` passed. The change
 touches only the DoD matrix, its beta/task references, one corrected plan
 checkbox, and this worklog; no RTK proxy exception was needed.
+
+## 2026-09-21 — Gate the official release job on source quality
+
+Continued task 1004 on `fix/1004-release-quality-gate` from clean `main` at
+`f20935f`. Acceptance for this tranche: the official macOS release job runs
+the repository's pinned full Elixir quality alias before any Apple signing or
+notary material is imported, and a failure prevents packaging/publication.
+Keep local source quality distinct from signed-artifact and clean-Mac evidence;
+update `docs/`, `docs/PLAN.md`, and the release ledger accordingly.
+
+Ponytail 4.10.0 (MIT, full mode), quality-gates, menubar-shell, and
+security-review apply. Source trace: `.github/workflows/release-macos.yml`
+sets up OTP/Elixir and RTK, then imports signing material before calling
+`desktop/release.sh`; `desktop/build.sh` runs Rust format/test/clippy and the
+sterile shell verifier, but no `mix quality` gate. The release workflow is the
+only path that publishes tags, so a single pre-secret step there is the
+smallest release-boundary fix. It does not broaden secret access or claim a
+completed signed candidate.
+
+Added a single `rtk mix deps.get` / `rtk mix quality` step after pinned build
+tools and before certificate import. GitHub Actions' default fail-fast step
+ordering means a failing quality command cannot reach signing or the dependent
+publish job. A read-only `rtk ruby -ryaml -e ...` check parsed the workflow and
+asserted the quality step precedes certificate import, notary-key preparation,
+and packaging; it passed. `rtk git diff --check` passed. The current app source
+had already passed `rtk env -u CR_PAT mix quality` at `f20935f` (10 properties,
+285 tests, zero failures); this workflow-only change was not exercised on a
+GitHub macOS runner. An actual tag/manual release job remains blocked by
+missing Apple signing/notary secrets and cannot be marked accepted. No secret
+value was read or printed, no provider or signing service was called, and no
+user data or release artifact was changed. No RTK proxy exception was needed.
