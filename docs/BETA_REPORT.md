@@ -18,6 +18,7 @@ Blank rows mean `not observed`; they are not passing evidence.
 | Gate | Status | Evidence or action |
 | --- | --- | --- |
 | Deterministic and physical recovery matrix | pass | Task 1002, 27/27 observations; this is prerequisite evidence and does not count as a beta run |
+| Current-source developer bundle | pass, unsigned only | 2026-09-21: `bin/dev.build` produced a macOS `.app` and its sterile verifier passed startup, token/session, crash, safe-mode, and update/rollback checks after the pre-READY fixture was made deterministic. This does not satisfy signed enrollment or clean-Mac acceptance |
 | Signed and notarized build identified | pending fresh build | Developer ID identity, `Cuckoding` notary profile, password-protected updater key, Keychain password, and GitHub Releases URLs are configured. The retained artifact is from source `32fb8fb`; build and verify the accepted beta revision before enrollment. |
 | Claude Code adapter conformance | pass for current fixture contract | 2026-09-18 focused adapter suite; real beta use still requires separately verified run-scoped authentication |
 | Codex adapter conformance | pass for current fixture contract | Saved sign-in uses its private app-owned file profile; an isolated run HOME must still launch a real task without copied credentials |

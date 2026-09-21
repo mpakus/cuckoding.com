@@ -103,7 +103,7 @@ def spawn_pre_ready_failure
   reader, writer = IO.pipe
   port = free_port
   env = release_env(directory, token_path, port)
-  env["CUCKODING_DATABASE_PATH"] = "/dev/null/cuckoding.sqlite3"
+  env.delete("CUCKODING_DATABASE_PATH")
   started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
   pid = Process.spawn(
     env,

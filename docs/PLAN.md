@@ -106,6 +106,10 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 
 - [x] Capability and secret hardening, adversarial prompt and plugin tests.
 - [x] Crash, power-loss, and sleep recovery drills.
+- [x] Current-source unsigned developer `.app` builds and passes the sterile
+  release verifier, including startup/authentication, crash cleanup, safe mode,
+  and update/rollback checks. This is not a signed beta enrollment build or
+  clean-Mac release acceptance.
 - [x] Task 1008: safe public-message boundary and actionable empty states across
   Phoenix UI surfaces; raw internal errors are excluded from browser alerts.
 - [x] Complete the accepted project-first product flow:
