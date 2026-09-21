@@ -444,3 +444,39 @@ signature, Gatekeeper, checksum, and verifier behavior/output. No credentials
 were read or printed, no release artifact was published, and the remaining
 signed-updater, clean-Mac, real-provider, beta, and retention-consent gates
 are unchanged.
+
+## 2026-09-21 — Separate-account smoke handoff
+
+Continued task 1004 on `feature/1004-qa-account-handoff` from clean `main` at
+`763d0ed`. Acceptance for this tranche: determine whether the signed menubar
+app can be launched without touching the current user's live data; if not,
+make the verified post-staple ZIP available to the existing QA macOS account
+and document a safe, checksum-bound test handoff. Do not claim a clean-account
+or clean-Mac result before that account actually runs the app.
+
+Ponytail 4.10.0 (MIT, full mode), menubar-shell, security-review, and
+quality-gates apply. `desktop/src-tauri/src/main.rs:107` uses
+`app.path().app_data_dir()` and immediately creates/opens the account's app
+data, database, and log. No reviewed disposable-data override is present.
+Starting the signed shell as the current user would therefore risk migrating
+or modifying the existing application database and was deliberately skipped.
+The existing `qa` account is UID 502; `rtk proxy sudo -n -u qa id` required
+an administrator password, and `rtk proxy launchctl asuser 502 /usr/bin/id`
+returned `Operation not permitted`. No privilege or account state was changed.
+
+The signed ZIP contains a public distribution binary, not a credential
+bundle. `rtk proxy cp -p` staged it at
+`/Users/Shared/Cuckoding-0.1.0-3246b3b-stapled.zip`, readable by the QA
+account. `rtk proxy shasum -a 256` returned the same
+`171529c3d4ee18970b04f0f6fc66fe9ccea2a8158ba4c270b645af220eadcd3c`
+as the local candidate; `rtk proxy unzip -tq` found no errors. This copies no
+user data, never launches the app, and leaves `desktop/dist/` untouched.
+The sole stakeholder must log into the QA account (or explicitly authorize
+privileged execution) for the real menubar/browser smoke. Do not send an
+administrator password to Codex. `rtk proxy` was used for native identity,
+archive, checksum, and account checks so exact output/semantics were retained.
+`rtk git diff --check` and the `rtk ruby -e ...` relative-link check over
+`docs/PLAN.md`, `docs/RELEASE_READINESS.md`, and `docs/DISTRIBUTION.md` passed.
+No Mix, Rust, provider, or release-job check was rerun for this documentation
+and local-file-staging tranche; the signed ZIP's earlier verifier result is
+recorded above and was not mislabeled as a new app launch.

@@ -150,6 +150,10 @@ ticket, strict-signature, Gatekeeper, and embedded-release checks on this Mac;
 its SHA-256 is recorded in [DISTRIBUTION.md](DISTRIBUTION.md). This is not a
 complete signed release package: no current updater bundle/signature, release
 metadata, installed clean-Mac test, or beta enrollment is attached.
+The checksum-matched ZIP is staged in `/Users/Shared` for the existing `qa`
+macOS account, but a real menubar/browser launch from that account is not yet
+observed. Running the signed shell as the current user would use the live
+account-derived app data directory; no disposable override is established.
 The release workflow places `mix quality` before loading signing material; this ordering
 has not yet been exercised for the frozen candidate. Two non-resolving pinned
 release actions were repaired and all five refs now resolve upstream; the

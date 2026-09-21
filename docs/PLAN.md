@@ -151,6 +151,10 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
   apply a quarantine attribute to the extracted copy, and recheck its ticket,
   strict signature, Gatekeeper acceptance, and embedded-release sterile suite.
   The ZIP has a recorded SHA-256; this is not a clean-Mac install or updater.
+- [x] Task 1004: stage the checksum-matched ZIP for the separate QA macOS
+  account. Its menubar/browser launch remains unobserved: the current user's
+  signed shell would use live app data, and switching to `qa` needs an
+  administrator or an interactive QA login.
 - [ ] Produce and verify a fresh signed/notarized enrollment build at the
   accepted beta revision. A current local `.app` passed signing/notarization,
   and a separate post-staple ZIP passed same-Mac checks, but the retained

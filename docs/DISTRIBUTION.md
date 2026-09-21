@@ -137,6 +137,18 @@ or the complete `desktop/release.sh` output. The older `desktop/dist/` and its
 updater metadata were not replaced; do not publish this standalone ZIP as an
 accepted enrollment release.
 
+For a separate-account smoke, that exact ZIP is staged at
+`/Users/Shared/Cuckoding-0.1.0-3246b3b-stapled.zip`; its SHA-256 matches the
+digest above, and ZIP integrity passes. Sign into the existing `qa` macOS
+account, extract this copy into that account's own folder, launch it from
+Finder, check the menubar-to-browser handoff and clean quit, then inspect the
+QA account's application data. Do not sign agents in or register a real
+project for this shell-only check. Cuckoding's shell uses the account-derived
+`app_data_dir()` with no reviewed test override, so launching it as the
+current user could touch the live application database. The QA login has not
+yet been performed; this local handoff is neither a downloaded-file test nor
+a clean physical Mac or updater acceptance result.
+
 ## Tool discovery
 
 macOS GUI applications do not inherit an interactive shell's dotfile `PATH`. Search configured paths and known safe locations (Homebrew, `~/.local/bin`, npm global, cargo), allow the user to select an executable, and store verified paths. Display version and health for Git, each agent runtime, and each plugin binary.
