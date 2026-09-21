@@ -334,3 +334,55 @@ Focused verification:
   PubSub and web endpoint `ok`. Docs were corrected to retract the prior
   keyring-based acceptance inference. Fresh authenticated execution remains
   the next gate.
+
+## 2026-09-21 provider process-group exit continuation
+
+- Claimed task 1018 on `fix/1018-process-group-exit` from clean `main`. Acceptance
+  for this tranche: when a provider CLI exits, its same-group child processes
+  must be stopped before durable completion; a normal-exit regression must
+  fail without the fix. Preserve start-identity checks, signal audit events,
+  and report cleanup failures rather than silently claiming success.
+- Real Cursor smoke used one saved app-owned authorization in two disposable
+  Git projects. Both read-only runs returned the expected project-specific
+  README word and left repositories clean. The separate Codex file-store
+  profile still requires a fresh sign-in; this is not full board acceptance.
+- Post-smoke inspection found two orphaned Cursor worker servers in the exact
+  disposable project directories. After verifying their PID, start time,
+  parent, process group, and working directory without printing process argv,
+  sent TERM to only those two PIDs and confirmed they exited. An unrelated
+  host process had earlier exposed a provider key in its argv; the value was
+  not retained or repeated, and rotation remains unverified.
+- XERJ was unreachable at localhost:9200. Direct reference inspection of
+  Apache-2.0 vibe-kanban at pinned commit
+  `735654971bd396aa97b65166955678e4c34f8bf8`,
+  `crates/local-deployment/src/container.rs:805` and
+  `crates/utils/src/process.rs:5-21`, shows exit-time cleanup of orphaned
+  same-group children using the PGID captured at spawn. No source copied;
+  Cuckoding must retain its stricter durable event and identity boundaries.
+- The focused normal-exit regression failed against the previous runner at
+  `local_process_runner_test.exs:139`: the background child still existed after
+  `LocalProcessRunner.result/1`. After the fix, the same test passes. A live
+  leader is refused by the new exit-only cleanup path, and an exit-time cleanup
+  error is now a failed process plus a `process.cleanup_failed` audit event and
+  caller error, not a successful result.
+- `rtk test mix test test/cuckoding/execution/local_process_runner_test.exs`
+  — 9 tests, zero failures. `rtk env -u CR_PAT mix format` — passed.
+  `rtk env -u CR_PAT mix quality` — exit 0: warnings-as-errors compile,
+  271 tests plus 10 properties, zero failures, Credo over 204 files/3,332
+  functions with no issues, Sobelow clean, and Hex audit with no advisories.
+  Two plugin supervisor crash-fixture logs were expected test coverage.
+- The implementation closes the observed same-group worker leak. It does not
+  establish cleanup of a provider child that detached into a separate process
+  group before leader exit, nor complete a full authenticated Cuckoding board
+  workflow. These remain Phase 10 gates.
+- A second pass made process-group inspection fail closed and checks the
+  recorded leader identity before each signal. The first full rerun found one
+  Credo nesting warning; it was removed without changing behavior. Final
+  `rtk env -u CR_PAT mix quality` — exit 0: 271 tests plus 10 properties,
+  zero failures, Credo over 204 files/3,335 functions with no issues,
+  Sobelow clean, and Hex audit with no advisories.
+- `rtk test mix test test/cuckoding/execution/local_process_runner_test.exs
+  test/cuckoding/execution/lifecycle_test.exs` — 12 tests, zero failures after
+  the fail-closed pass. `rtk git diff --check` — passed. No live provider run was
+  repeated while the previously exposed host argv key rotation remains
+  unverified.

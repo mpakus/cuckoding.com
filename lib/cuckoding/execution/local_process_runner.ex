@@ -230,7 +230,7 @@ defmodule Cuckoding.Execution.LocalProcessWorker do
   def handle_call(:process, _from, state), do: {:reply, {:ok, state.process}, state}
 
   def handle_call(:await, _from, %{result: result} = state) when not is_nil(result),
-    do: {:stop, :normal, {:ok, result}, state}
+    do: {:stop, :normal, response(result), state}
 
   def handle_call(:await, from, state), do: {:noreply, %{state | waiter: from}}
 
@@ -239,7 +239,7 @@ defmodule Cuckoding.Execution.LocalProcessWorker do
     {:noreply, begin_termination(state, false)}
   end
 
-  def handle_call(:stop, _from, state), do: {:stop, :normal, {:ok, state.result}, state}
+  def handle_call(:stop, _from, state), do: {:stop, :normal, response(state.result), state}
 
   @impl true
   def handle_info({port, {:data, data}}, %{port: port} = state) do
@@ -252,9 +252,39 @@ defmodule Cuckoding.Execution.LocalProcessWorker do
     if state.timer, do: Process.cancel_timer(state.timer)
     File.close(state.file)
 
+    event = fn signal, pgids ->
+      record_event(
+        state.environment.run_id,
+        state.process.id,
+        "process.signal",
+        "Sent #{signal} to owned process groups",
+        %{"signal" => signal, "pgids" => pgids}
+      )
+    end
+
+    cleanup =
+      ProcessTerminator.terminate_after_exit(state.process,
+        grace_ms: state.grace_ms,
+        before_signal: event
+      )
+
+    if match?({:error, _reason}, cleanup) do
+      {:error, reason} = cleanup
+
+      record_event(
+        state.environment.run_id,
+        state.process.id,
+        "process.cleanup_failed",
+        "Process exited but its group could not be confirmed clear",
+        %{"reason" => inspect(reason)}
+      )
+    end
+
+    finished_status = if match?({:ok, _steps}, cleanup), do: status, else: -1
+
     result = %{
       process: state.process,
-      exit_status: status,
+      exit_status: finished_status,
       output: state.preview,
       output_bytes: state.output_bytes,
       truncated?: state.truncated?,
@@ -263,21 +293,29 @@ defmodule Cuckoding.Execution.LocalProcessWorker do
       timed_out?: state.timed_out?
     }
 
-    {:ok, finished} = Execution.finish_process(state.process, status, Cuckoding.Clock.wall_now())
+    {:ok, finished} =
+      Execution.finish_process(state.process, finished_status, Cuckoding.Clock.wall_now())
 
     record_event(
       state.environment.run_id,
       finished.id,
       "process.exited",
-      "Process group exited",
+      if(finished_status == status, do: "Process group exited", else: "Process cleanup failed"),
       %{"exit_status" => status, "timed_out" => state.timed_out?}
     )
 
     waiter = state.waiter
-    state = %{state | process: finished, result: %{result | process: finished}, waiter: nil}
+
+    response =
+      case cleanup do
+        {:ok, _steps} -> %{result | process: finished}
+        {:error, reason} -> {:error, {:process_cleanup_failed, reason}}
+      end
+
+    state = %{state | process: finished, result: response, waiter: nil}
 
     if waiter do
-      GenServer.reply(waiter, {:ok, state.result})
+      GenServer.reply(waiter, response(state.result))
       {:stop, :normal, state}
     else
       {:noreply, state}
@@ -289,6 +327,9 @@ defmodule Cuckoding.Execution.LocalProcessWorker do
 
   def handle_info(:timeout, state), do: {:noreply, state}
   def handle_info({:EXIT, _port, :normal}, state), do: {:noreply, state}
+
+  defp response({:error, _reason} = error), do: error
+  defp response(result), do: {:ok, result}
 
   defp begin_termination(state, timed_out?) do
     if timed_out? do
@@ -467,12 +508,14 @@ defmodule Cuckoding.Execution.ProcessTerminator do
       pgids = LocalHostInspector.owned_process_groups(process.pid, process.pgid)
       grace_ms = Keyword.get(options, :grace_ms, 2_000)
       before_signal = Keyword.get(options, :before_signal, fn _signal, _pgids -> :ok end)
-      signal_ladder(pgids, grace_ms, before_signal, [])
+      signal_ladder(process, pgids, grace_ms, before_signal, [])
     else
       :gone ->
-        if LocalHostInspector.groups_empty?([process.pgid]),
-          do: {:ok, []},
-          else: {:error, :process_identity_unavailable}
+        case LocalHostInspector.groups_empty([process.pgid]) do
+          {:ok, true} -> {:ok, []}
+          {:ok, false} -> {:error, :process_identity_unavailable}
+          {:error, reason} -> {:error, reason}
+        end
 
       false ->
         {:error, :process_identity_mismatch}
@@ -482,28 +525,64 @@ defmodule Cuckoding.Execution.ProcessTerminator do
     end
   end
 
-  defp signal_ladder(pgids, _grace_ms, _before_signal, steps)
-       when length(steps) == length(@signals) do
-    if LocalHostInspector.groups_empty?(pgids),
-      do: {:ok, Enum.reverse(steps)},
-      else: {:error, :termination_failed}
+  def terminate_after_exit(process, options \\ []) do
+    case LocalHostInspector.process_identity(process.pid, []) do
+      :gone ->
+        signal_ladder(
+          process,
+          [process.pgid],
+          Keyword.get(options, :grace_ms, 2_000),
+          Keyword.get(options, :before_signal, fn _signal, _pgids -> :ok end),
+          []
+        )
+
+      {:ok, _identity} ->
+        {:error, :process_identity_unavailable}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
-  defp signal_ladder(pgids, grace_ms, before_signal, steps) do
-    if LocalHostInspector.groups_empty?(pgids) do
-      {:ok, Enum.reverse(steps)}
-    else
-      signal = Enum.at(@signals, length(steps))
-      :ok = before_signal.(signal, pgids)
+  defp signal_ladder(process, pgids, _grace_ms, _before_signal, steps)
+       when length(steps) == length(@signals) do
+    with :ok <- verify_root(process),
+         {:ok, empty?} <- LocalHostInspector.groups_empty(pgids) do
+      if empty?, do: {:ok, Enum.reverse(steps)}, else: {:error, :termination_failed}
+    end
+  end
 
-      case signal_groups(pgids, signal) do
-        :ok ->
-          Process.sleep(grace_ms)
-          signal_ladder(pgids, grace_ms, before_signal, [signal | steps])
-
-        {:error, reason} ->
-          {:error, reason}
+  defp signal_ladder(process, pgids, grace_ms, before_signal, steps) do
+    with :ok <- verify_root(process),
+         {:ok, empty?} <- LocalHostInspector.groups_empty(pgids) do
+      if empty? do
+        {:ok, Enum.reverse(steps)}
+      else
+        signal_step(process, pgids, grace_ms, before_signal, steps)
       end
+    end
+  end
+
+  defp signal_step(process, pgids, grace_ms, before_signal, steps) do
+    signal = Enum.at(@signals, length(steps))
+    :ok = before_signal.(signal, pgids)
+
+    case signal_groups(pgids, signal) do
+      :ok ->
+        Process.sleep(grace_ms)
+        signal_ladder(process, pgids, grace_ms, before_signal, [signal | steps])
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp verify_root(process) do
+    case LocalHostInspector.process_identity(process.pid, []) do
+      {:ok, identity} when identity == process.start_identity -> :ok
+      :gone -> :ok
+      {:ok, _identity} -> {:error, :process_identity_mismatch}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -636,9 +715,23 @@ defmodule Cuckoding.Execution.LocalHostInspector do
     |> Kernel.++([root_pgid])
   end
 
-  def groups_empty?(pgids) do
-    process_rows() |> Enum.all?(&(&1.pgid not in pgids))
+  def groups_empty(pgids) do
+    case System.cmd("/bin/ps", ["-axo", "pid=,ppid=,pgid=,rss="], stderr_to_stdout: true) do
+      {output, 0} ->
+        empty? =
+          output
+          |> String.split("\n", trim: true)
+          |> Enum.flat_map(&parse_row/1)
+          |> Enum.all?(&(&1.pgid not in pgids))
+
+        {:ok, empty?}
+
+      {_output, _status} ->
+        {:error, :process_inspection_failed}
+    end
   end
+
+  def groups_empty?(pgids), do: groups_empty(pgids) == {:ok, true}
 
   defp listener_owner(output) do
     roots =

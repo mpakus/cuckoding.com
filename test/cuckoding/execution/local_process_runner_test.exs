@@ -110,6 +110,38 @@ defmodule Cuckoding.Execution.LocalProcessRunnerTest do
     assert Enum.any?(events, &(&1.event_type == "process.signal"))
   end
 
+  test "cleans up same-group children when the command exits normally", fixture do
+    child_pid_path = Path.join(fixture.environment.worktree_path, "child.pid")
+
+    assert {:ok, handle} =
+             LocalProcessRunner.start(
+               fixture.environment,
+               %{
+                 executable: "/bin/sh",
+                 args: ["-c", "sleep 60 >/dev/null 2>&1 & echo $! > child.pid; exit 0"]
+               },
+               timeout: :infinity,
+               termination_grace_ms: 25
+             )
+
+    assert :ok = wait_for_file(child_pid_path)
+    child_pid = child_pid_path |> File.read!() |> String.trim() |> String.to_integer()
+    assert {:ok, identity} = LocalHostInspector.process_identity(child_pid, [])
+
+    on_exit(fn ->
+      if LocalHostInspector.process_identity(child_pid, []) == {:ok, identity} do
+        System.cmd("/bin/kill", ["-TERM", Integer.to_string(child_pid)])
+      end
+    end)
+
+    assert {:ok, result} = LocalProcessRunner.result(handle)
+    assert result.exit_status == 0
+    assert :gone = LocalHostInspector.process_identity(child_pid, [])
+    assert LocalHostInspector.groups_empty?([handle.process.pgid])
+    assert {:ok, events} = LocalProcessRunner.stream_events(result.process, [])
+    assert Enum.any?(events, &(&1.event_type == "process.signal"))
+  end
+
   test "samples CPU, RSS, process count, and listening ports for the owned group", fixture do
     port_path = Path.join(fixture.environment.worktree_path, "listener.port")
 
@@ -189,6 +221,9 @@ defmodule Cuckoding.Execution.LocalProcessRunnerTest do
 
     assert {:error, :process_identity_mismatch} =
              ProcessTerminator.terminate(tampered, grace_ms: 1)
+
+    assert {:error, :process_identity_unavailable} =
+             ProcessTerminator.terminate_after_exit(handle.process, grace_ms: 1)
 
     assert {:ok, %{status: :matching}} = LocalProcessRunner.inspect(handle.process)
     assert {:ok, _result} = LocalProcessRunner.stop(handle)
