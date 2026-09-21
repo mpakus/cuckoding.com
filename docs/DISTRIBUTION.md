@@ -124,6 +124,19 @@ replace `desktop/dist/`: the updater archive/signature, complete release
 metadata, GitHub Actions job, and clean-Mac install still need current-revision
 acceptance.
 
+The same local app was subsequently archived **after** stapling as
+`Cuckoding-0.1.0-macos-arm64-stapled.zip` in the ignored local candidate
+directory. Its SHA-256 is
+`171529c3d4ee18970b04f0f6fc66fe9ccea2a8158ba4c270b645af220eadcd3c`.
+The ZIP passed `unzip -tq`; a separately extracted copy with a quarantine
+attribute passed `stapler validate`, strict deep `codesign --verify`, and
+Gatekeeper with `source=Notarized Developer ID`. Its embedded release passed
+the sterile startup, authentication, crash, safe-mode, and update/rollback
+checks. This is a **same-Mac archive smoke**, not an installed clean-Mac test
+or the complete `desktop/release.sh` output. The older `desktop/dist/` and its
+updater metadata were not replaced; do not publish this standalone ZIP as an
+accepted enrollment release.
+
 ## Tool discovery
 
 macOS GUI applications do not inherit an interactive shell's dotfile `PATH`. Search configured paths and known safe locations (Homebrew, `~/.local/bin`, npm global, cargo), allow the user to select an executable, and store verified paths. Display version and health for Git, each agent runtime, and each plugin binary.

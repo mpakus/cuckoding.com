@@ -51,6 +51,8 @@ Re-run the MVP definition of done, freeze supported versions, validate installer
 - [x] Sign and notarize the current local app with existing Keychain credentials;
   verify the embedded release after signing. Full release artifacts and clean-Mac
   enrollment remain open.
+- [x] Create a separate post-staple ZIP and verify its quarantined extracted app
+  on the same Mac; record the ZIP digest without replacing the older distribution.
 - [ ] Approve and verify the output/artifact retention policy and participant
   disclosure; no automatic age purge exists for full redacted artifacts yet.
 - [ ] Verify effective retention and consent/default behavior in a signed

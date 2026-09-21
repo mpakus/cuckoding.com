@@ -114,8 +114,10 @@ passed `rtk env -u CR_PAT mix quality` (10 properties, 285 tests, zero failures;
 strict Credo, Sobelow, and dependency audit clean). These verify local source
 and developer-build gates. The local app was then Developer ID signed,
 notarized, stapled, Gatekeeper-accepted, and its embedded release passed the
-same sterile verifier. None of this verifies provider, participant, complete
-release-package, or clean-Mac install behavior.
+same sterile verifier. A newly archived, quarantined extracted copy also
+passed ticket, strict-signature, Gatekeeper, and sterile checks on this Mac.
+None of this verifies provider, participant, complete release-package, or
+clean-Mac install behavior.
 
 | MVP criterion | Evidence in hand | Still required to close it |
 | --- | --- | --- |
@@ -128,7 +130,7 @@ release-package, or clean-Mac install behavior.
 | Human approval performs release handoff | The [walking skeleton](../worklog/2026-09-17-0405-walking-skeleton.md) pushed an approved branch to a local bare remote | D01 approved handoff on an authorized target, including a draft PR; verify no push before approval |
 | Knowledge is reviewed and later used | Knowledge extraction/publication/lineage tests and views exist | Score K01–K03 and show one approved item used by a later real run with project, version, run, and stage provenance |
 | Four reference plugins enable, contribute, and degrade safely | [Task 0803](../worklog/2026-09-18-0803-reference-plugins.md) records fixture conformance | Exercise RTK, XERJ, Ponytail, and read-only MCP in the enrolled app with labeled contributions and removal without core failure |
-| Clean Mac installs, runs, updates, and uninstalls | A prior-revision signed ZIP passed on a separate account; the current local app is Developer ID signed, notarized, stapled, Gatekeeper-accepted, and sterile-verified | One complete current signed/notarized release and updater candidate on a clean supported Mac, including sample task, update, rollback, and uninstall with data checks |
+| Clean Mac installs, runs, updates, and uninstalls | A prior-revision signed ZIP passed on a separate account; the current local app and its fresh post-staple ZIP pass same-Mac signature, Gatekeeper, and sterile checks | One complete current signed/notarized release and updater candidate on a clean supported Mac, including sample task, update, rollback, and uninstall with data checks |
 
 None of these ten criteria has matching current-release acceptance evidence
 yet. The checked recovery item in the prior plan overstated task 1002's scope;
@@ -142,9 +144,12 @@ fixtures without matching artifact and observation IDs.
 The previous signed ZIP is from an older source revision. The `3246b3b`
 developer app passed local Developer ID signing and Apple notarization
 (submission `02d108c6-87f9-4b31-b515-28444fa98938`, zero issues), stapling,
-Gatekeeper, and a post-signing sterile check of its embedded release. This is
-not a complete signed release package: no current updater bundle/signature,
-release metadata, installed clean-Mac test, or beta enrollment is attached.
+Gatekeeper, and a post-signing sterile check of its embedded release. A fresh
+post-staple ZIP was extracted, marked with a quarantine attribute, and passed
+ticket, strict-signature, Gatekeeper, and embedded-release checks on this Mac;
+its SHA-256 is recorded in [DISTRIBUTION.md](DISTRIBUTION.md). This is not a
+complete signed release package: no current updater bundle/signature, release
+metadata, installed clean-Mac test, or beta enrollment is attached.
 The release workflow places `mix quality` before loading signing material; this ordering
 has not yet been exercised for the frozen candidate. Two non-resolving pinned
 release actions were repaired and all five refs now resolve upstream; the

@@ -393,3 +393,54 @@ all repository commands remained RTK-prefixed. The notarization upload was
 the normal Apple release-validation side effect authorized by the MVP goal;
 there was no GitHub release, push of an artifact, credential export, or data
 cleanup.
+
+## 2026-09-21 — Fresh archive from the stapled app
+
+Continued task 1004 on `feature/1004-stapled-zip-smoke` from clean `main` at
+`62569f3`. Acceptance for this tranche: package the already-stapled local app
+into a new ignored ZIP, extract that exact archive to a separate directory,
+verify the extracted app's ticket, Gatekeeper assessment, code signature, and
+embedded-release sterile checks, and record a checksum. Keep the older
+`desktop/dist/` untouched. This same-Mac smoke must not be described as a
+clean-Mac install, signed updater, complete release package, or beta enrollment.
+
+Ponytail 4.10.0 (MIT, full mode), quality-gates, menubar-shell, and
+security-review apply. The prior goal turn verified the already-implemented
+task retry in the live UI and passed its 9 focused tests; this tranche returns
+to the open release-readiness objective. `rtk git status --short --branch`
+showed a clean main branch before the branch was created. `rtk proxy` will be
+used for exact macOS archive, signature, Gatekeeper, and verifier behavior and
+recorded below.
+
+`rtk proxy ditto -c -k --keepParent` archived the stapled app into
+`desktop/src-tauri/target/release/Cuckoding-local-notary.KaGOlp/Cuckoding-0.1.0-macos-arm64-stapled.zip`
+and `rtk proxy ditto -x -k` extracted it to the separately created
+`extracted.PswQPy/` directory. `rtk proxy unzip -tq` found no compressed-data
+errors. `rtk proxy shasum -a 256` returned
+`171529c3d4ee18970b04f0f6fc66fe9ccea2a8158ba4c270b645af220eadcd3c`.
+Only the extracted copy was given `com.apple.quarantine`; `rtk proxy xattr -p`
+confirmed the attribute. This manually applied attribute is not proof of a
+browser download or clean-machine launch.
+
+For that extracted app, `rtk proxy xcrun stapler validate` passed; `rtk proxy
+/usr/bin/codesign --verify --deep --strict --verbose=4` found it valid on disk
+and satisfying its designated requirement; `rtk proxy /usr/sbin/spctl --assess
+--type execute --verbose=4` accepted it as `Notarized Developer ID`. The
+exact embedded release passed `rtk proxy env -u GEM_HOME -u GEM_PATH
+PATH=/usr/bin:/bin:/usr/sbin:/sbin CUCKODING_RELEASE_PATH=<extracted
+app>/Contents/Resources/release/bin/cuckoding /usr/bin/ruby
+desktop/verify.rb`: all emitted startup, authentication, diagnostics, crash,
+safe-mode, and update/rollback checks were `PASS` with exit 0. The verifier
+uses temporary test data; it did not launch a user project or modify the live
+application database.
+
+`desktop/dist/` still contains the September 18 distribution files; the new
+ZIP is only an ignored local candidate. `rtk git diff --check` passed after
+the documentation update, and `rtk ruby -e ... docs/PLAN.md
+docs/RELEASE_READINESS.md docs/DISTRIBUTION.md` confirmed all relative links
+in the changed docs resolve. This docs-only tranche did not rerun Mix quality;
+the extracted release verifier is the proportionate artifact check. `rtk proxy` preserved exact native archive, xattr,
+signature, Gatekeeper, checksum, and verifier behavior/output. No credentials
+were read or printed, no release artifact was published, and the remaining
+signed-updater, clean-Mac, real-provider, beta, and retention-consent gates
+are unchanged.

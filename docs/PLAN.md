@@ -147,11 +147,15 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
   notarize it with the saved `Cuckoding` profile, staple the accepted ticket,
   pass Gatekeeper, and re-run the embedded release's sterile verifier. This
   local app drill is not a signed updater/release package or clean-Mac acceptance.
+- [x] Task 1004: archive that stapled app, extract the ZIP on the same Mac,
+  apply a quarantine attribute to the extracted copy, and recheck its ticket,
+  strict signature, Gatekeeper acceptance, and embedded-release sterile suite.
+  The ZIP has a recorded SHA-256; this is not a clean-Mac install or updater.
 - [ ] Produce and verify a fresh signed/notarized enrollment build at the
   accepted beta revision. A current local `.app` passed signing/notarization,
-  but the retained distribution ZIP predates current main; the signed updater,
-  complete release metadata, clean-Mac test, and CI Apple certificate/notary
-  secrets remain open.
+  and a separate post-staple ZIP passed same-Mac checks, but the retained
+  distribution ZIP predates current main; the signed updater, complete release
+  metadata, clean-Mac test, and CI Apple certificate/notary secrets remain open.
 - [x] Task 1008: safe public-message boundary and actionable empty states across
   Phoenix UI surfaces; raw internal errors are excluded from browser alerts.
 - [x] Complete the accepted project-first product flow:
