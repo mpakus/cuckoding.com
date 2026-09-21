@@ -38,6 +38,33 @@ jobs:
           rtk mix deps.get
           rtk mix quality
 
+      - name: Check release configuration
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_NOTARY_KEY: ${{ secrets.APPLE_NOTARY_KEY }}
+          APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          APPLE_NOTARY_ISSUER: ${{ secrets.APPLE_NOTARY_ISSUER }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          CUCKODING_UPDATE_ENDPOINT: ${{ vars.CUCKODING_UPDATE_ENDPOINT }}
+          CUCKODING_UPDATE_BASE_URL: ${{ vars.CUCKODING_UPDATE_BASE_URL }}
+          CUCKODING_UPDATER_PUBLIC_KEY: ${{ vars.CUCKODING_UPDATER_PUBLIC_KEY }}
+        run: |
+          missing=0
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY \
+            APPLE_NOTARY_KEY APPLE_NOTARY_KEY_ID APPLE_NOTARY_ISSUER \
+            TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD \
+            CUCKODING_UPDATE_ENDPOINT CUCKODING_UPDATE_BASE_URL CUCKODING_UPDATER_PUBLIC_KEY; do
+            if [ -z "${!name}" ]; then
+              rtk proxy printf '::error title=Missing release configuration::%s is not configured\n' "$name"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
       - uses: apple-actions/import-codesign-certs@5142e029c445c10ffc7149d172e540235a065466 # v7.0.0
         with:
           p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}

@@ -238,3 +238,37 @@ import. `rtk git diff --check` passed. This verifies references and ordering,
 not action execution or notarization. Missing Apple secrets and the absence of
 a frozen candidate still prevent a release-job acceptance claim. No RTK proxy
 exception was needed.
+
+## 2026-09-21 — Release configuration preflight
+
+Continued task 1004 on `fix/1004-release-config-preflight` from clean `main`
+at `5653872`. Acceptance for this tranche: the official release job reports
+each missing required Apple/updater secret or public update variable by name,
+without printing values, before certificate import or release packaging; a
+missing item fails the job. Preserve the source-quality-before-secret ordering,
+update `docs/` and `docs/PLAN.md`, and distinguish structural/local checks from
+an unrun signed-release job.
+
+Ponytail 4.10.0 (MIT, full mode), quality-gates, menubar-shell, and
+security-review apply. GitHub's current runner-image table identifies
+`macos-15` on GitHub Actions as Apple Silicon, matching `desktop/release.sh`;
+no runner-label change is needed. Read-only repository metadata shows no
+`release-macos` run and only the signing identity plus the two updater-key
+secrets configured. The certificate and notary credentials remain external
+release blockers; the preflight improves the failure path but cannot supply
+them.
+
+Added one Bash step after `mix quality` and before certificate import. Its
+environment maps the existing eight required secrets and three public update
+variables, tests each for nonempty content without printing any value, reports
+all missing names using GitHub error annotations, and exits nonzero if any
+are absent. No credential values were inspected or changed. The only new
+capability is an early validation read of the same values the subsequent
+signing steps already require; secret-bearing subprocesses and logs remain
+unchanged.
+
+Focused check: `rtk proxy ruby -ryaml -ropen3 -e 'w = YAML.load_file(".github/workflows/release-macos.yml"); steps = w.fetch("jobs").fetch("release").fetch("steps"); names = steps.map { |s| s["name"] || s["uses"] }; quality = names.index("Verify source quality before loading signing material"); check = names.index("Check release configuration"); signing = names.index { |n| n.start_with?("apple-actions/import-codesign-certs@") }; raise "ordering" unless quality < check && check < signing; step = steps.fetch(check); required = %w[APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_NOTARY_KEY APPLE_NOTARY_KEY_ID APPLE_NOTARY_ISSUER TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD CUCKODING_UPDATE_ENDPOINT CUCKODING_UPDATE_BASE_URL CUCKODING_UPDATER_PUBLIC_KEY]; raise "env mismatch" unless step.fetch("env").keys.sort == required.sort; env = required.to_h { |name| [name, "dummy"] }.merge("PATH" => ENV.fetch("PATH"), "HOME" => ENV.fetch("HOME")); out, err, status = Open3.capture3(env, "bash", "-c", step.fetch("run"), unsetenv_others: true); raise "configured preflight failed: #{out} #{err}" unless status.success? && out.empty? && err.empty?; env.delete("APPLE_CERTIFICATE"); env.delete("APPLE_NOTARY_KEY"); out, err, status = Open3.capture3(env, "bash", "-c", step.fetch("run"), unsetenv_others: true); raise "missing-name preflight failed" unless status.exitstatus == 1 && out.include?("APPLE_CERTIFICATE") && out.include?("APPLE_NOTARY_KEY") && !out.include?("dummy") && err.empty?; puts "release preflight structure and missing-name behavior passed"'` passed. It exercises a fully configured dummy environment and two missing names without any real secret.
+
+`rtk git diff --check` passed. No `mix quality` rerun is claimed for this
+workflow/docs-only change; the prior source gate and the actual GitHub release
+job remain distinct evidence. No RTK proxy exception was needed.

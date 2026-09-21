@@ -134,6 +134,10 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 - [x] Task 1004: replace two non-resolving release-action SHAs with verified
   upstream v1.24.1 setup-beam and v7.0.0 certificate-import commits. A frozen
   candidate still needs an actual release-job run.
+- [x] Task 1004: verify GitHub Actions `macos-15` targets Apple Silicon and add
+  a value-free preflight for all required release secrets and update variables
+  after source quality, before certificate import. Missing Apple credentials
+  still block an actual signed candidate.
 - [ ] Produce and verify a fresh signed/notarized enrollment build at the
   accepted beta revision. The local identity/notary profile and updater key
   exist, but the retained signed ZIP predates current main; the CI Apple

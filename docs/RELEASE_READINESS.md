@@ -142,8 +142,10 @@ has not yet been exercised for the frozen candidate. Two non-resolving pinned
 release actions were repaired and all five refs now resolve upstream; the
 job still has no frozen-candidate run. The release
 CI still lacks the Apple certificate/password and notary key/ID/issuer secrets;
-local release variables were absent at this review. The prior provider key
-exposure also awaits stakeholder confirmation of rotation before more paid
+the release job now reports missing names before certificate import, but has
+not executed. Local release variables were absent at this review. GitHub's
+`macos-15` runner label is Apple Silicon and matches the script's host check.
+The prior provider key exposure also awaits stakeholder confirmation of rotation before more paid
 provider work. Controlled-beta runs, interviews, and real-provider lifecycle
 evidence remain missing. These are independent no-go gates, not warnings that
 can be cleared by this documentation review.

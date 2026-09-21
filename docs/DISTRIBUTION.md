@@ -73,8 +73,13 @@ plus `CUCKODING_UPDATE_ENDPOINT`, `CUCKODING_UPDATE_BASE_URL`, and
 Before importing the certificate or exposing any notary/updater signing secret,
 the release job fetches pinned Mix dependencies and runs `mix quality` (format,
 warnings-as-errors compile, tests, strict Credo, Sobelow, dependency audit).
-A failed source gate stops packaging and publication. This workflow ordering is
-source-verified; it still needs an actual run at the frozen release revision.
+A failed source gate stops packaging and publication. The next step checks all
+required secret and update-variable names for nonempty values and reports only
+missing names; it does not print values or attempt signing. A missing item
+stops the job before certificate import. This ordering is source-verified; it
+still needs an actual run at the frozen release revision. GitHub Actions'
+[`macos-15` image](https://github.com/actions/runner-images#available-images)
+is Apple Silicon, matching the release script's host check.
 All five workflow action refs (four build-job, one publish-job) were checked
 against upstream commit APIs on 2026-09-21. Two earlier non-resolving refs for `erlef/setup-beam` and
 `apple-actions/import-codesign-certs` were replaced with verified pinned
