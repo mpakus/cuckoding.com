@@ -75,6 +75,11 @@ the release job fetches pinned Mix dependencies and runs `mix quality` (format,
 warnings-as-errors compile, tests, strict Credo, Sobelow, dependency audit).
 A failed source gate stops packaging and publication. This workflow ordering is
 source-verified; it still needs an actual run at the frozen release revision.
+All five workflow action refs (four build-job, one publish-job) were checked
+against upstream commit APIs on 2026-09-21. Two earlier non-resolving refs for `erlef/setup-beam` and
+`apple-actions/import-codesign-certs` were replaced with verified pinned
+commits matching v1.24.1 and v7.0.0 respectively. Pin validity is not a
+substitute for an executed macOS job.
 
 The production update host is GitHub Releases. Both update URL variables use
 GitHub's `latest/download` redirect: the endpoint ends in `latest.json`, while

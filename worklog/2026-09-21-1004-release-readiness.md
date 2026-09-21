@@ -207,3 +207,34 @@ GitHub macOS runner. An actual tag/manual release job remains blocked by
 missing Apple signing/notary secrets and cannot be marked accepted. No secret
 value was read or printed, no provider or signing service was called, and no
 user data or release artifact was changed. No RTK proxy exception was needed.
+
+## 2026-09-21 — Repair non-resolving release action pins
+
+Continued task 1004 on `fix/1004-release-action-pins` from clean `main` at
+`298b60e`. Acceptance for this tranche: every action pinned in the official
+release workflow resolves to an upstream commit; replacement pins keep the
+same intended major action and required input contract; no secret values,
+release artifact, or provider action is touched. Update the release evidence
+and plan without claiming that the workflow has completed.
+
+Ponytail 4.10.0 (MIT, full mode), quality-gates, menubar-shell, and
+security-review apply. Read-only GitHub API checks found that checkout,
+upload-artifact, and download-artifact SHAs resolve, but the pinned
+`erlef/setup-beam` and `apple-actions/import-codesign-certs` SHAs return 422
+"No commit found". The tagged upstream replacements are `setup-beam@v1.24.1`
+at `54075bcc5e249e4758d363f27d099f55d843f124` and
+`import-codesign-certs@v7.0.0` at
+`5142e029c445c10ffc7149d172e540235a065466`. Their pinned `action.yml`
+files confirm strict OTP/Elixir version inputs, Hex/Rebar defaults, and the
+existing PKCS#12 base64/password input names. Two pin substitutions are the
+smallest root-cause correction.
+
+Replaced those two refs without changing action inputs. Read-only
+`rtk gh api repos/<owner>/<repo>/commits/<sha> --jq .sha` probes returned the
+exact requested SHA for all five workflow actions (four build, one publish).
+`rtk ruby -ryaml -e ...` parsed the workflow, found four 40-character pinned
+build-job refs, and confirmed the quality step still precedes certificate
+import. `rtk git diff --check` passed. This verifies references and ordering,
+not action execution or notarization. Missing Apple secrets and the absence of
+a frozen candidate still prevent a release-job acceptance claim. No RTK proxy
+exception was needed.

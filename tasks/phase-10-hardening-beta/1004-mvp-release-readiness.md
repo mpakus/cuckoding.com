@@ -42,6 +42,8 @@ Re-run the MVP definition of done, freeze supported versions, validate installer
   explicit no-go decision without calling it signed-release acceptance.
 - [x] Require the official release job to pass `mix quality` before it imports
   signing/notary secrets; actual frozen-candidate CI run remains unobserved.
+- [x] Repair non-resolving pinned release action SHAs and verify all workflow
+  action refs against their upstream commits; actual job execution remains open.
 - [ ] Approve and verify the output/artifact retention policy and participant
   disclosure; no automatic age purge exists for full redacted artifacts yet.
 - [ ] Verify effective retention and consent/default behavior in a signed
