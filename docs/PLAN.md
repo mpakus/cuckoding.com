@@ -130,13 +130,16 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
   and troubleshooting. Release notes/artifacts and clean-Mac acceptance remain
   open in [RELEASE_READINESS.md](RELEASE_READINESS.md).
 - [x] Task 1004: the official macOS release workflow now runs `mix quality`
-  before signing/notary secrets are imported. Its first manual CI run on
-  `131e171` reached that gate and failed two Claude adapter tests that assumed
-  the CLI was installed on the runner; the tests now use their explicit fixture
-  executable. A passing CI rerun and signed-artifact acceptance remain open.
+  before signing/notary secrets are imported. The first manual CI run exposed
+  two tests that assumed an installed Claude CLI; after fixing those fixtures,
+  [run 35663188771](https://github.com/mpakus/cuckoding.com/actions/runs/35663188771)
+  on `112473e` passed 288 tests/10 properties, lint, security scan, and audit.
+  The value-free preflight then stopped before certificate import because five
+  Apple certificate/notary secrets are absent. Signed-artifact acceptance is open.
 - [x] Task 1004: replace two non-resolving release-action SHAs with verified
-  upstream v1.24.1 setup-beam and v7.0.0 certificate-import commits. A frozen
-  candidate still needs an actual release-job run.
+  upstream v1.24.1 setup-beam and v7.0.0 certificate-import commits. Both
+  pinned setup actions executed in the manual job; certificate import remains
+  untested because the preflight correctly stopped first.
 - [x] Task 1004: verify GitHub Actions `macos-15` targets Apple Silicon and add
   a value-free preflight for all required release secrets and update variables
   after source quality, before certificate import. Missing Apple credentials

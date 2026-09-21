@@ -41,9 +41,9 @@ Re-run the MVP definition of done, freeze supported versions, validate installer
 - [x] Publish a current-source support/onboarding/privacy/recovery guide and
   explicit no-go decision without calling it signed-release acceptance.
 - [x] Require the official release job to pass `mix quality` before it imports
-  signing/notary secrets; the first manual CI run reached this gate and failed
-  an installed-CLI test assumption before secret import. A passing rerun and
-  frozen-candidate release remain open.
+  signing/notary secrets; the first manual CI run exposed an installed-CLI test
+  assumption, and the corrected rerun passed all 288 tests/10 properties before
+  value-free preflight refused five absent Apple secrets. Signed release open.
 - [x] Repair non-resolving pinned release action SHAs and verify all workflow
   action refs against their upstream commits; actual job execution remains open.
 - [x] Verify the macOS runner architecture and report missing release

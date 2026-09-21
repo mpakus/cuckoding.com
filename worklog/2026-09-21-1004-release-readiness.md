@@ -592,3 +592,28 @@ required; this local pass does not close the frozen-candidate release gate.
 `rtk proxy` was used for exact native `lsof`, `who`, `stat`, and `sed` output
 where RTK filtering would change inspection semantics; no product command
 configuration was changed.
+
+## 2026-09-21 — Rerun release CI after fixture correction
+
+The preceding fixture/doc change was committed as `112473e` and
+fast-forwarded/pushed to `main`. `rtk gh workflow run release-macos.yml --ref
+main -R mpakus/cuckoding.com` created
+[run 35663188771](https://github.com/mpakus/cuckoding.com/actions/runs/35663188771)
+at that exact head SHA. The macOS-15 job passed checkout, pinned beam/tool
+installation, and `rtk mix deps.get` plus `rtk mix quality`: 10 properties,
+288 tests, zero failures; strict Credo found no issues, Sobelow completed,
+and Hex found no retired/advisory packages. The five missing names reported
+by its value-free preflight were `APPLE_CERTIFICATE`,
+`APPLE_CERTIFICATE_PASSWORD`, `APPLE_NOTARY_KEY`, `APPLE_NOTARY_KEY_ID`, and
+`APPLE_NOTARY_ISSUER`. It exited 1 before certificate import; no signing,
+notarization, updater packaging, artifact upload, or publish occurred.
+`rtk gh secret list -R mpakus/cuckoding.com` showed only the existing signing
+identity and two Tauri updater secrets; `rtk gh variable list -R
+mpakus/cuckoding.com --json name --jq '.[].name'` showed all three public
+update variables. These were name-only inspections; no credential values were
+read or printed. The job also reported a non-blocking Node 20 deprecation
+notice for pinned checkout v4. Its actual outcome is a release-configuration
+block, not a passing release. Signed updater, current-source QA-account launch,
+clean-Mac install/update/rollback, provider/beta, and retention/consent gates
+remain open. This documentation-only follow-up used `rtk git diff --check`;
+the Mix suite was not rerun after doc edits.

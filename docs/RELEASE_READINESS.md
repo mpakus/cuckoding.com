@@ -164,11 +164,16 @@ The release workflow places `mix quality` before loading signing material.
 Its first [manual CI run](https://github.com/mpakus/cuckoding.com/actions/runs/35662057281)
 on `131e171` installed the pinned tools and reached source quality, but failed
 two Claude adapter tests because their fixtures relied on a locally installed
-Claude CLI. The tests now pass an explicit fixture executable; a CI rerun is
-required. Signing and release steps were skipped, as intended. The release
-CI still lacks the Apple certificate/password and notary key/ID/issuer secrets;
-the value-free preflight has not run yet. Local release variables were absent
-at this review. GitHub's
+Claude CLI. After the explicit-fixture fix, the second
+[manual run](https://github.com/mpakus/cuckoding.com/actions/runs/35663188771)
+on `112473e` passed `mix quality` (288 tests, 10 properties, strict Credo,
+Sobelow, and dependency audit). Its value-free preflight then reported exactly
+five absent secrets: `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`,
+`APPLE_NOTARY_KEY`, `APPLE_NOTARY_KEY_ID`, and `APPLE_NOTARY_ISSUER`.
+Certificate import, notarization, updater signing, and artifact upload were
+skipped. The three public update variables and existing updater secrets are
+configured, but no credential value was inspected. Local release variables
+were absent at this review. GitHub's
 `macos-15` runner label is Apple Silicon and matches the script's host check.
 The prior provider key exposure also awaits stakeholder confirmation of rotation before more paid
 provider work. Controlled-beta runs, interviews, and real-provider lifecycle
