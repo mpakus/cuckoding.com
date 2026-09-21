@@ -660,3 +660,40 @@ credential value was read or printed. Remaining external gates include the
 five CI secrets (or a stakeholder-approved local-only distribution path),
 provider-key rotation confirmation, real-provider/beta observations, signed
 updater, and clean-Mac acceptance.
+
+## 2026-09-21 — Disclose diagnostics retention before export
+
+Continued task 1004 on `fix/1004-diagnostics-disclosure` from clean `main` at
+`920d3d7`. Acceptance for this small privacy tranche: Settings states before
+export that a diagnostics ZIP remains local until the owner deletes it and is
+not uploaded by Cuckoding; the existing export security boundary and explicit
+action remain unchanged; focused and full source checks pass. Ponytail 4.10.0
+(MIT, full mode), Elixir/Phoenix LiveView, better-writing,
+better-accessibility, menubar-shell, security-review, and quality-gates apply.
+
+Source trace: `Diagnostics.export/1` creates an owner-only ZIP beneath the
+application data directory; the LiveView action is explicit; the native shell
+only reveals the returned local path. No automatic diagnostics upload or
+age-based purge was found. The pre-export UI already listed the bundle's
+contents and exclusions but did not say what happened to the generated file
+after creation. Added one plain-language paragraph there and two focused
+LiveView assertions. The disclosure describes current behavior; it is not a
+new retention policy, an upload control, or participant consent. Updated
+`docs/RELEASE_READINESS.md`, `docs/PLAN.md`, and task 1004 without closing
+their approval or signed-build gates.
+
+Verification: `rtk env -u CR_PAT mix format` passed. `rtk env -u CR_PAT mix
+test test/cuckoding_web/plugin_settings_live_test.exs
+test/cuckoding/diagnostics_test.exs` passed (6 tests, zero failures). `rtk env
+-u CR_PAT mix quality` passed (10 properties, 288 tests, zero failures;
+warnings-as-errors compile, strict Credo no issues, Sobelow complete, Hex
+audit no retired/advisory packages). The two plugin-supervisor crash logs in
+the suite were intentional fixtures. A read-only browser check of the running
+`/settings/plugins` page showed the sentence before the **Create diagnostics
+bundle** button; no bundle was created in the user's app. `rtk proxy` was
+used for complete instruction/source reads where filtering would hide needed
+context. `rtk git diff --check` passed and a read-only Ruby check found all
+relative links in the touched docs resolve. No migration, provider call,
+signing operation, user-data deletion,
+or GitHub secret mutation occurred. A signed enrollment build and stakeholder
+retention/consent approval remain required.

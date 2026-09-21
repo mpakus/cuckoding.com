@@ -135,6 +135,9 @@ defmodule CuckodingWeb.PluginSettingsLive do
             <p class="max-w-3xl text-sm text-slate-700">
               It excludes source files, worktree contents, prompts, provider output, credentials, raw logs, command output, arguments, environment variables, and private paths.
             </p>
+            <p class="max-w-3xl text-sm text-slate-700">
+              This bundle stays on this Mac until you delete it. Cuckoding does not upload it.
+            </p>
           </div>
           <button
             type="button"

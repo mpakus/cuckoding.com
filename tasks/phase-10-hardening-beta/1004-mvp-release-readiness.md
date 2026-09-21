@@ -50,6 +50,8 @@ Re-run the MVP definition of done, freeze supported versions, validate installer
   configuration names before certificate import; no secrets are provisioned.
 - [x] Document how the stakeholder can provision the five missing CI secrets
   without committing or disclosing values; actual provisioning is pending.
+- [x] Show the current diagnostics-bundle retention and no-upload behavior in
+  Settings before export; policy approval and signed-build checks remain open.
 - [x] Rebuild the current-source unsigned app and re-run local source quality;
   correct the event-sequence test wait to cover the bounded SQLite retry window.
 - [x] Sign and notarize the current local app with existing Keychain credentials;

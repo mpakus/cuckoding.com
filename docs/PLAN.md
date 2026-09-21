@@ -148,6 +148,9 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
   Developer ID `.p12` export, Team API key versus local `notarytool` profile,
   and the distinction between issuer ID and Team ID. Provisioning the five
   missing secrets and accepting a signed CI artifact remain open.
+- [x] Task 1004: disclose in Settings that an explicitly created diagnostics
+  bundle stays local until the owner deletes it and is not uploaded by the app.
+  Stakeholder artifact-retention approval and signed-build consent checks remain open.
 - [x] Task 1004: re-run the unsigned developer build and full source gate.
   The concurrent event-sequence property's wait now covers the existing bounded
   SQLite retry window; a controlled 11-second lock still completed and the

@@ -91,6 +91,8 @@ defmodule CuckodingWeb.PluginSettingsLiveTest do
     assert has_element?(view, "#diagnostics-heading", "Diagnostics")
     assert has_element?(view, "#diagnostics-heading + p", "Review a private support bundle")
     assert render(view) =~ "excludes source files"
+    assert render(view) =~ "This bundle stays on this Mac until you delete it"
+    assert render(view) =~ "Cuckoding does not upload it"
 
     view |> element("button", "Create diagnostics bundle") |> render_click()
 

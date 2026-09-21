@@ -71,7 +71,9 @@ project does not rewrite existing boards or historical runs. See
   read or export their values. Provider expiry and revocation still apply.
 - Diagnostics export is explicit, owner-only, size-bounded, and excludes
   source, prompts, raw logs, provider output, credentials, argv, and private
-  paths. Its contents are described in [DISTRIBUTION.md](DISTRIBUTION.md).
+  paths. Settings now says before export that the local bundle stays until the
+  owner deletes it and is not uploaded by Cuckoding. Its contents are described
+  in [DISTRIBUTION.md](DISTRIBUTION.md).
 
 Before beta enrollment, approve a participant-facing artifact-retention and
 cleanup policy, verify it on the signed build, and record host-runner/provider
