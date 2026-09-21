@@ -136,3 +136,43 @@ rotation of the prior exposed provider key; run authenticated workflows and
 controlled beta; configure signing/notary inputs; freeze one candidate and
 verify its install/update/rollback/uninstall, checksums, SBOM, provenance, and
 release notes on a clean supported Mac. Task 1004 and Phase 10 remain open.
+
+## 2026-09-21 — Definition-of-done evidence audit
+
+Continued task 1004 on `fix/1004-dod-evidence-audit` from clean `main` at
+`6a4cd90`. Acceptance for this tranche: inspect each explicit MVP
+definition-of-done item against current tests, worklogs, beta evidence, and
+artifact state; record exactly what is proved and what is not; correct any
+checkbox whose evidence is narrower than its wording; keep the overall task
+and release no-go until a single frozen candidate has matching acceptance.
+
+Ponytail 4.10.0 (MIT, full mode), quality-gates, menubar-shell, and
+security-review apply. Task 1002's 27/27 observations are real recovery-drill
+evidence, including physical sleep, but the stage worker in that drill is a
+fixture. It does not prove a complete current-source delivery task on the
+signed enrollment build across hibernate, quit/relaunch, and real sleep. The
+marked-complete DoD item in `docs/PLAN.md` is therefore too broad and must be
+reopened. The focused DoD matrix in `docs/RELEASE_READINESS.md` will retain the
+drill result as prerequisite evidence without converting it into product
+acceptance.
+
+Audited each of the ten criteria against the task-0405 real Codex/local-bare
+demo, task-1002 recovery drills, task-1020 deterministic Review routing,
+Agent Floor/accounting/plugin worklogs, task-1003 blank beta ledger, and the
+current artifact status. The matrix names the specific missing observation
+for each criterion. It reopens only the previously checked integrated recovery
+criterion; no historical drill result was changed or discarded. Task 1004's
+"every item re-run" gate remains unchecked because the matrix is an audit,
+not completion of the missing observations.
+
+`rtk env -u CR_PAT mix quality` passed on source revision `6a4cd90` (10
+properties, 285 tests, zero failures; strict Credo no issues, Sobelow scan
+complete, no retired/advisory dependencies). The two plugin-supervisor crash
+logs were intentional fixtures. This checks source health, not beta or release
+behavior. No provider task, signing operation, migration, or user-data change
+was performed.
+
+`rtk ruby -e ...` verified all 22 relative links in
+`docs/RELEASE_READINESS.md` resolve. `rtk git diff --check` passed. The change
+touches only the DoD matrix, its beta/task references, one corrected plan
+checkbox, and this worklog; no RTK proxy exception was needed.

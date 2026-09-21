@@ -172,7 +172,7 @@ and execution through OpenCode/Custom Agent are not shipped capabilities.
 
 - [ ] Two supported agent runtimes complete the default workflow on the host runner.
 - [ ] Two boards run concurrently without worktree, port, process, or event crossover.
-- [x] A running task survives hibernate, app quit, relaunch, and a real sleep/wake cycle with a single execution of each stage.
+- [ ] A running task survives hibernate, app quit, relaunch, and a real sleep/wake cycle with a single execution of each stage. Task 1002 passed 27/27 named recovery drills, including physical sleep, but those stage workers were fixtures; the integrated current-build task observation remains open.
 - [ ] The Agent Floor attributes every action to a role, runtime, model, and run.
 - [ ] Provider-reported and estimated costs are visually distinguishable; active and wall time are both shown.
 - [ ] A failed QA gate returns structured findings to development.

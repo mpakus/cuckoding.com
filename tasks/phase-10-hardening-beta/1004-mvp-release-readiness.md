@@ -28,6 +28,9 @@ Re-run the MVP definition of done, freeze supported versions, validate installer
 ## Checklist
 
 - [ ] Every item in `docs/PLAN.md` definition of done re-run.
+- [x] Audit all ten definition-of-done criteria against source, drill, beta,
+  and release-artifact evidence; reopen any checkbox whose proof is narrower
+  than its product-level wording.
 - [ ] Diagnostics/telemetry consent and retention defaults confirmed.
 - [x] Automatic raw-metric pruning preserves measurements needed by an
   unfinished stage; focused eight-day regression passes.

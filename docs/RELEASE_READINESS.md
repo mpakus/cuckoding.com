@@ -104,6 +104,34 @@ credential exposure, unauthorized host action, data loss, or cross-project
 contamination as a critical stop and preserve sanitized evidence under the
 [beta finding process](BETA_RUNBOOK.md).
 
+## Definition-of-done evidence audit
+
+The ten items in [PLAN.md](PLAN.md) are product acceptance criteria, not a
+count of passing unit tests. At source revision `6a4cd90`, `rtk env -u CR_PAT
+mix quality` passed (10 properties, 285 tests, zero failures; strict Credo,
+Sobelow, and dependency audit clean). That verifies the current source gate,
+not any unobserved provider, participant, or installed-build behavior.
+
+| MVP criterion | Evidence in hand | Still required to close it |
+| --- | --- | --- |
+| Two runtimes complete the default workflow | [Walking-skeleton record](../worklog/2026-09-17-0405-walking-skeleton.md) has an older real Codex demo; adapter fixtures cover current contracts | Two supported providers complete the current default workflow with isolated, reusable authentication on the frozen build |
+| Two boards execute without crossover | Scheduler and workflow tests cover admission and scoped records; beta isolation rows remain `not observed` | Concurrent D03 board runs; inspect worktrees, ports, process groups, events, artifacts, approvals, and knowledge |
+| A task survives hibernate, quit/relaunch, and real sleep once per stage | [Task 1002](../worklog/2026-09-18-1002-recovery-drills.md) passed 27/27 named drills, including physical sleep, with fixture stage workers | Integrated delivery task on the current build across the full sequence; D04 and D05 record run/stage IDs and duplicate-execution check |
+| Agent Floor attributes every action | [Agent Floor tests](../worklog/2026-09-17-0604-agent-floor.md) cover a ten-session fixture and durable read model | Inspect attribution for real concurrent provider work on the candidate; unresolved or unowned actions fail this gate |
+| Cost provenance and active/wall time are clear | [Accounting tests](../worklog/2026-09-17-0603-usage-cost.md) cover labels, formulas, and unavailable cost | Inspect provider-reported versus estimated/unavailable values and both clocks on real D01–D03 runs |
+| Failed QA routes structured findings | [Task 1020](../worklog/2026-09-20-1020-review-reroute-local-completion.md) covers deterministic reroutes and attempt budget | D02 real-provider Review rejection returns to the responsible stage with finding and attempt history |
+| Human approval performs release handoff | The [walking skeleton](../worklog/2026-09-17-0405-walking-skeleton.md) pushed an approved branch to a local bare remote | D01 approved handoff on an authorized target, including a draft PR; verify no push before approval |
+| Knowledge is reviewed and later used | Knowledge extraction/publication/lineage tests and views exist | Score K01–K03 and show one approved item used by a later real run with project, version, run, and stage provenance |
+| Four reference plugins enable, contribute, and degrade safely | [Task 0803](../worklog/2026-09-18-0803-reference-plugins.md) records fixture conformance | Exercise RTK, XERJ, Ponytail, and read-only MCP in the enrolled app with labeled contributions and removal without core failure |
+| Clean Mac installs, runs, updates, and uninstalls | A prior-revision signed ZIP passed on a separate account; the current-source unsigned app passed its sterile verifier | One current signed/notarized candidate on a clean supported Mac, including sample task, update, rollback, and uninstall with data checks |
+
+None of these ten criteria has matching current-release acceptance evidence
+yet. The checked recovery item in the prior plan overstated task 1002's scope;
+it is reopened while retaining the 27/27 prerequisite result. The beta IDs
+above refer to the blank, not-observed rows in [BETA_REPORT.md](BETA_REPORT.md),
+not completed runs. Do not copy a pass between revisions, providers, or
+fixtures without matching artifact and observation IDs.
+
 ## Decision and required evidence
 
 The previous signed ZIP is from an older source revision. A current-source
