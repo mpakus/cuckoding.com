@@ -28,6 +28,7 @@ use tauri_plugin_updater::UpdaterExt;
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const UPDATE_ENDPOINT: Option<&str> = option_env!("CUCKODING_UPDATE_ENDPOINT");
 const UPDATE_PUBLIC_KEY: Option<&str> = option_env!("CUCKODING_UPDATER_PUBLIC_KEY");
+const TRAY_ICON: &[u8] = include_bytes!("../icons/tray-icon.rgba");
 static UPDATE_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 static UPDATE_APPROVAL: Mutex<Option<String>> = Mutex::new(None);
 
@@ -302,7 +303,7 @@ fn build_tray(
             &quit,
         ],
     )?;
-    let icon = Image::new_owned([0, 0, 0, 255].repeat(16 * 16), 16, 16);
+    let icon = tray_icon();
 
     let menu_runtime = runtime.clone();
     let quit_status = status.clone();
@@ -375,6 +376,10 @@ fn build_tray(
     });
 
     Ok(())
+}
+
+fn tray_icon() -> Image<'static> {
+    Image::new(TRAY_ICON, 64, 64)
 }
 
 fn login_item_state() -> LoginItemState {
@@ -961,6 +966,19 @@ fn random_token() -> Result<String, getrandom::Error> {
 mod tests {
     use super::*;
     use std::io::Cursor;
+
+    #[test]
+    fn tray_icon_is_a_small_template_image() {
+        let icon = tray_icon();
+
+        assert_eq!((icon.width(), icon.height()), (64, 64));
+        assert!(icon.rgba().chunks_exact(4).any(|pixel| pixel[3] == 0));
+        assert!(icon.rgba().chunks_exact(4).any(|pixel| pixel[3] > 0));
+        assert!(icon
+            .rgba()
+            .chunks_exact(4)
+            .all(|pixel| pixel[..3] == [0, 0, 0]));
+    }
 
     #[test]
     fn ready_requires_exact_prefix_port_and_version() {

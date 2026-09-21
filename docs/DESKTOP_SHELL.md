@@ -25,6 +25,11 @@ release, runs the pinned Rust checks, creates the local unsigned `.app`, and
 executes the sterile-environment protocol verifier. Signing, notarization, and
 distribution policy are in `docs/DISTRIBUTION.md`.
 
+The status item embeds a 64 x 64 monochrome template derived from the tracked
+root `icon.png`. macOS supplies the foreground color for light and dark menu
+bars; the shell reads the raw RGBA bytes directly, so no runtime image decoder
+or additional dependency is required.
+
 ## Shell contract
 
 1. Resolve the bundled release path and application data directory.
