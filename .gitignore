@@ -68,5 +68,6 @@ npm-debug.log
 /spikes/0003-menubar-release/shell/src-tauri/target/
 /desktop/release/
 /desktop/dist/
+/desktop/dist-backup.*/
 /desktop/src-tauri/gen/
 /desktop/src-tauri/target/

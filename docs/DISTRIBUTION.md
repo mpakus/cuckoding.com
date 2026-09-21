@@ -30,6 +30,15 @@ notary service, staples and validates the ticket, asks Gatekeeper to assess the
 app, then emits the final ZIP, signed `.app.tar.gz` updater bundle,
 `latest.json`, CycloneDX SBOM, provenance, checksums, and the complete
 notarization response and log under ignored `desktop/dist/`.
+The release is assembled in an ignored candidate directory; `desktop/dist/`
+is replaced only after notarization, updater signing, and metadata generation
+all succeed. If candidate preparation fails, it remains in
+`desktop/src-tauri/target/release/` for inspection and the previous `dist/`
+stays unchanged. A successful
+replacement keeps the prior distribution in a private
+`desktop/dist-backup.*` directory outside Cargo's build outputs. Do not delete that
+backup until the new artifacts have been installed and checked. Promotion
+rejects incomplete candidates and symlink destinations.
 
 For a developer workstation, set `CUCKODING_NOTARY_PROFILE` to a profile
 created with `xcrun notarytool store-credentials`; do not put the credential in
@@ -44,7 +53,8 @@ mode `0600`, and keep its password in the release secret store. Release builds
 require `CUCKODING_UPDATE_ENDPOINT` (the HTTPS `latest.json` URL),
 `CUCKODING_UPDATE_BASE_URL` (the HTTPS artifact directory),
 `CUCKODING_UPDATER_PUBLIC_KEY`, and either `TAURI_SIGNING_PRIVATE_KEY` or
-`TAURI_SIGNING_PRIVATE_KEY_PATH`. Only the public key is embedded in the app.
+`TAURI_SIGNING_PRIVATE_KEY_PATH`, plus a nonempty
+`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Only the public key is embedded in the app.
 `desktop/release.sh` immediately removes the private key and password from the
 inherited build environment and exposes them only to the signer process; an
 inline CI secret is copied to a private temporary file and removed on exit.

@@ -14,6 +14,7 @@ rtk proxy env MIX_ENV=prod mix release --overwrite
 cd "$desktop_dir"
 rtk proxy env -u GEM_HOME -u GEM_PATH PATH=/usr/bin:/bin:/usr/sbin:/sbin \
   /usr/bin/ruby release_metadata_test.rb
+rtk proxy sh "$desktop_dir/promote_release_test.sh"
 rtk proxy mkdir -p release
 rtk proxy rsync -a --delete "$root_dir/_build/prod/rel/cuckoding/" release/
 rtk proxy chmod -R u+w release

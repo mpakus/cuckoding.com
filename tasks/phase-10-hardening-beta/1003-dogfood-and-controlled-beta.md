@@ -32,6 +32,8 @@ Use Cuckoding on several real repositories and workflow types for multi-day runs
   flow and distinguish isolated CLI sign-in preflight from completed runs.
 - [x] Current-source unsigned developer bundle passes its complete sterile
   verifier; a fresh signed/notarized enrollment build remains required.
+- [x] Release candidate staging and promotion preserve the previous signed
+  distribution through candidate failure and keep a recoverable prior copy.
 - [ ] Preserve the older signed artifact and produce a new signed/notarized
   enrollment build from the accepted beta revision.
 - [ ] Confirm rotation of the provider key previously exposed in host argv
