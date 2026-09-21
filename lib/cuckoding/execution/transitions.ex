@@ -68,6 +68,55 @@ defmodule Cuckoding.Execution.Transitions do
     end)
   end
 
+  @doc "Marks a queued run whose worktree preparation failed, leaving its task Ready."
+  def fail_run_preparation(run_id, reason) when is_binary(run_id) do
+    Commands.execute_once(
+      %{
+        idempotency_key: "prepare:#{run_id}:failed",
+        kind: "run.preparation_failed",
+        target_type: "run",
+        target_id: run_id,
+        payload: %{"code" => preparation_code(reason)}
+      },
+      fn _command ->
+        case Repo.get(Run, run_id) do
+          %Run{state: "queued"} = run -> fail_queued_run(run, reason)
+          _other -> {:ok, rejected("run", run_id, nil, "failed", :invalid_transition)}
+        end
+      end
+    )
+  end
+
+  defp fail_queued_run(run, reason) do
+    case Repo.get(Task, run.task_id) do
+      %Task{state: "ready", active_run_id: nil} ->
+        persist_preparation_failure(run, reason)
+
+      _other ->
+        {:ok, rejected("run", run.id, run.state, "failed", :task_not_ready)}
+    end
+  end
+
+  defp persist_preparation_failure(run, reason) do
+    case EventStore.append_in_transaction(
+           run.id,
+           %{
+             event_type: "run.preparation_failed",
+             public_summary: "Run preparation failed; the task remains Ready",
+             payload: %{"code" => preparation_code(reason)}
+           },
+           fn repo, _sequence ->
+             repo.update(Run.transition_changeset(run, %{state: "failed"}))
+           end
+         ) do
+      {:ok, {event, _run}} -> {:ok, %{"outcome" => "failed", "event_id" => event.id}}
+      error -> error
+    end
+  end
+
+  defp preparation_code(reason) when is_atom(reason), do: Atom.to_string(reason)
+  defp preparation_code(_reason), do: "preparation_failed"
+
   def transition_stage_attempt(stage_attempt_id, to, idempotency_key) do
     command =
       command_attrs(

@@ -7,6 +7,8 @@ defmodule Cuckoding.ProjectWorkflowTest do
   alias Cuckoding.Execution
   alias Cuckoding.Execution.Environment
   alias Cuckoding.Execution.EventStore
+  alias Cuckoding.Execution.ProcessRecord
+  alias Cuckoding.Execution.Run
   alias Cuckoding.Execution.RunEvent
   alias Cuckoding.ProjectOnboarding
   alias Cuckoding.ProjectWorkflow
@@ -214,6 +216,124 @@ defmodule Cuckoding.ProjectWorkflowTest do
     Process.sleep(300)
     assert has_element?(view, "#task-messages", "Implementation is starting")
     assert has_element?(view, "#task-messages", "Development started")
+  end
+
+  test "blocked and failed delivery tasks can prepare distinct retries without losing old runs",
+       %{
+         project: project,
+         conn: conn
+       } do
+    {:ok, board} =
+      ProjectWorkflow.create_board(project.id, %{
+        "name" => "Retry board",
+        "concurrency_limit" => "1"
+      })
+
+    {:ok, task} = ProjectWorkflow.create_task(board.id, %{"title" => "Retry this work"})
+    assert_transition(Workflows.transition_task(task.id, "ready", "retry-test:ready"))
+    {:ok, %{run: first, environment: first_environment}} = ProjectWorkflow.prepare_task(task.id)
+    assert_transition(Execution.transition_run(first.id, "running", "retry-test:first-running"))
+    assert_transition(Execution.transition_run(first.id, "blocked", "retry-test:first-blocked"))
+
+    {:ok, run_view, _html} = live(conn, ~p"/runs/#{first.id}")
+    assert has_element?(run_view, "#run-failure a", "Open task to retry with a new run")
+
+    {:ok, task_view, _html} = live(conn, ~p"/boards/#{board.id}/tasks/#{task.id}")
+    assert has_element?(task_view, "#retry-task", "Retry with a new run")
+    render_click(element(task_view, "#retry-task"))
+    assert_redirect(task_view)
+
+    [second, preserved] = Execution.list_runs(task.id)
+    assert preserved.id == first.id
+    assert preserved.state == "failed"
+    assert second.state == "queued"
+    assert second.branch != first.branch
+    assert File.dir?(first_environment.worktree_path)
+    assert {:error, :task_not_retryable} = ProjectWorkflow.retry_task(task.id)
+    assert length(Execution.list_runs(task.id)) == 2
+
+    assert_transition(Execution.transition_run(second.id, "running", "retry-test:second-running"))
+    assert_transition(Execution.transition_run(second.id, "failed", "retry-test:second-failed"))
+    assert {:ok, %{run: third}} = ProjectWorkflow.retry_task(task.id)
+    assert third.sequence == 3
+    assert third.branch != second.branch
+    assert Repo.get!(Run, second.id).state == "failed"
+
+    assert {:ok, %{result: %{"outcome" => "failed"}}} =
+             Execution.fail_run_preparation(third.id, :branch_exists)
+
+    assert {:ok, %{result: %{"outcome" => "failed"}}} =
+             Execution.fail_run_preparation(third.id, :branch_exists)
+
+    assert Repo.get!(Run, third.id).state == "failed"
+
+    {:ok, history_view, _html} = live(conn, ~p"/boards/#{board.id}/tasks/#{task.id}")
+    assert has_element?(history_view, "#task-messages", "Run preparation failed")
+
+    assert Repo.aggregate(
+             from(event in RunEvent,
+               where: event.run_id == ^third.id and event.event_type == "run.preparation_failed"
+             ),
+             :count
+           ) == 1
+
+    assert Workflows.get_task(task.id).state == "ready"
+    assert {:ok, %{run: fourth}} = ProjectWorkflow.prepare_task(task.id)
+    assert fourth.sequence == 4
+  end
+
+  test "retry refuses a blocked run with a recorded live process", %{project: project} do
+    {:ok, board} =
+      ProjectWorkflow.create_board(project.id, %{
+        "name" => "Guarded retry",
+        "concurrency_limit" => "1"
+      })
+
+    {:ok, task} = ProjectWorkflow.create_task(board.id, %{"title" => "Guarded work"})
+    assert_transition(Workflows.transition_task(task.id, "ready", "guarded:ready"))
+    {:ok, %{run: run, environment: environment}} = ProjectWorkflow.prepare_task(task.id)
+    assert_transition(Execution.transition_run(run.id, "running", "guarded:running"))
+    assert_transition(Execution.transition_run(run.id, "blocked", "guarded:blocked"))
+
+    assert {:ok, %ProcessRecord{}} =
+             Execution.record_process(%{
+               environment_id: environment.id,
+               pid: 99_999,
+               pgid: 99_999,
+               start_identity: "retry-test",
+               role: "agent"
+             })
+
+    assert {:error, :previous_process_running} = ProjectWorkflow.retry_task(task.id)
+    assert Repo.get!(Run, run.id).state == "blocked"
+    assert length(Execution.list_runs(task.id)) == 1
+  end
+
+  test "failed retry preparation leaves the task Ready with the old run intact", %{
+    project: project,
+    conn: conn
+  } do
+    {:ok, board} =
+      ProjectWorkflow.create_board(project.id, %{
+        "name" => "Retry preparation",
+        "concurrency_limit" => "1"
+      })
+
+    {:ok, task} = ProjectWorkflow.create_task(board.id, %{"title" => "Needs clean base"})
+    assert_transition(Workflows.transition_task(task.id, "ready", "retry-dirty:ready"))
+    {:ok, %{run: run}} = ProjectWorkflow.prepare_task(task.id)
+    assert_transition(Execution.transition_run(run.id, "running", "retry-dirty:running"))
+    assert_transition(Execution.transition_run(run.id, "blocked", "retry-dirty:blocked"))
+    File.write!(Path.join(project.repo_path, "UNCOMMITTED"), "keep this\n")
+
+    {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}/tasks/#{task.id}")
+    render_click(element(view, "#retry-task"))
+    assert has_element?(view, "#task-error", "Commit or stash changes")
+    assert has_element?(view, "#prepare-task-run", "Prepare run")
+
+    assert Workflows.get_task(task.id).state == "ready"
+    assert Repo.get!(Run, run.id).state == "failed"
+    assert length(Execution.list_runs(task.id)) == 1
   end
 
   test "setup-only roles fail before a run or worktree is created", %{project: project} do
@@ -453,6 +573,8 @@ defmodule Cuckoding.ProjectWorkflowTest do
     assert Repo.get!(Cuckoding.Execution.Run, run.id).state == "queued"
     assert File.dir?(environment.worktree_path)
   end
+
+  defp assert_transition({:ok, %{result: %{"outcome" => "transitioned"}}}), do: :ok
 
   defp git!(repo_path, args) do
     assert {_output, 0} =

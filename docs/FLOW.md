@@ -33,6 +33,11 @@ Project setup, board setup, board task intake, and delivery execution are separa
    agent session. Once output exists, Artifacts follows the selected log's last
    5,000 lines in LiveView and offers a full filtered download; viewer pause does
    not pause execution. See [UI_DASHBOARD.md](UI_DASHBOARD.md) for safety limits.
+   A blocked or failed delivery task offers **Retry with a new run**. It closes
+   the stopped blocked run as failed, returns the task to Ready, and prepares a
+   new queued run with a distinct branch/worktree. The user still checks agents
+   and starts the new run explicitly. Prior runs, worktrees, and evidence are
+   retained; uncommitted changes from the old worktree are not copied.
 4. **Board task intake** accepts a bounded prompt and one snapshotted agent
    role. It creates a hidden planning task and normal queued run, verifies that
    role's saved authorization or isolated runtime setup, and launches a single read-only,
@@ -144,6 +149,10 @@ Human review of a passed run is the `human_approval` stage inside the workflow; 
 
 Standalone task commands handle pre-run and post-run lifecycle changes. Once a run starts, its transition command updates the run and owning task together. A transition into `waiting` requires a non-blank reason. Every accepted change appends one public event in the same immediate transaction; rejected commands persist an explicit result without an event. Reusing an idempotency key returns its original result without repeating either write.
 
+A failed worktree preparation is a special queued-run failure: its run records
+`run.preparation_failed` and becomes `failed`, while its task remains `ready`.
+It does not leave an unusable queued run that blocks another preparation.
+
 ## Roles
 
 | Role | Kind | Responsibilities | Required outputs |
@@ -221,7 +230,12 @@ The evaluator checks attempt, active-time, wall-time, token, and cost budgets; r
 
 ## Retry semantics
 
-- A retry always creates a new stage attempt.
+- Manual retry of a blocked or failed delivery task prepares a new run. It
+  refuses to proceed while the previous run has a recorded running process;
+  duplicate requests cannot create a second queued run. If new preparation
+  fails, the task remains Ready with an actionable error; any queued run already
+  created for that attempt is marked failed.
+- A stage retry within the same run always creates a new stage attempt.
 - Automatic retry is allowed only for classified transient failures (network, rate limit, provider 5xx, process killed by sleep/wake).
 - Review findings route to the responsible stage with structured evidence; the fixed MVP ceiling is three Review attempts.
 - Changing requirements invalidates downstream stage results and creates a new specification revision.

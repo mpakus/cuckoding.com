@@ -203,6 +203,11 @@ review. Ready does not mean automatically scheduled: each Ready card has
 not launch an agent. A task with a queued run instead offers **Open prepared run
 and start**; authentication and launch are separate run actions. Move selectors
 start with **Choose a state**, not a destructive destination.
+Blocked and failed delivery tasks expose **Retry with a new run** on task detail;
+the failed run links back to this action. Retry preserves the previous run and
+opens the newly prepared run. It never silently restarts an agent or overwrites
+the prior worktree. If the project repository is dirty, the task remains Ready
+and the page explains how to prepare the run after fixing the issue.
 
 ### Run detail
 

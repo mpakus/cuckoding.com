@@ -5,9 +5,11 @@ defmodule Cuckoding.ProjectWorkflow do
 
   alias Cuckoding.Clock
   alias Cuckoding.Execution
+  alias Cuckoding.Execution.Environment
   alias Cuckoding.Execution.EventStore
   alias Cuckoding.Execution.GitService
   alias Cuckoding.Execution.LocalProcessRunner
+  alias Cuckoding.Execution.ProcessRecord
   alias Cuckoding.Execution.Run
   alias Cuckoding.Identifier
   alias Cuckoding.Projects
@@ -165,6 +167,70 @@ defmodule Cuckoding.ProjectWorkflow do
     end
   end
 
+  @doc "Closes a stopped run and prepares a fresh, reviewable run for its task."
+  def retry_task(task_id) when is_binary(task_id) do
+    with %Task{kind: "delivery"} = task <- Workflows.get_task(task_id),
+         {:ok, previous_run} <- retryable_run(task),
+         :ok <- no_running_processes(previous_run.id),
+         :ok <- close_blocked_run(previous_run),
+         {:ok, %{result: %{"outcome" => "transitioned"}}} <-
+           Workflows.transition_task(task.id, "ready", "retry:#{previous_run.id}:ready") do
+      case prepare_task(task.id) do
+        {:ok, prepared} -> {:ok, prepared}
+        {:error, reason} -> {:error, {:retry_preparation_failed, reason}}
+      end
+    else
+      %Task{} -> {:error, :task_not_retryable}
+      nil -> {:error, :task_not_found}
+      {:ok, %{result: %{"outcome" => "rejected"}}} -> {:error, :task_not_retryable}
+      error -> error
+    end
+  end
+
+  defp retryable_run(%Task{id: task_id, state: "blocked", active_run_id: run_id})
+       when is_binary(run_id) do
+    case Repo.get(Run, run_id) do
+      %Run{task_id: ^task_id, state: "blocked"} = run -> {:ok, run}
+      _other -> {:error, :task_not_retryable}
+    end
+  end
+
+  defp retryable_run(%Task{id: task_id, state: "failed", active_run_id: nil}) do
+    case Repo.one(
+           from(run in Run,
+             where: run.task_id == ^task_id,
+             order_by: [desc: run.sequence],
+             limit: 1
+           )
+         ) do
+      %Run{state: "failed"} = run -> {:ok, run}
+      _other -> {:error, :task_not_retryable}
+    end
+  end
+
+  defp retryable_run(_task), do: {:error, :task_not_retryable}
+
+  defp no_running_processes(run_id) do
+    if Repo.exists?(
+         from(process in ProcessRecord,
+           join: environment in Environment,
+           on: process.environment_id == environment.id,
+           where: environment.run_id == ^run_id and process.state == "running"
+         )
+       ),
+       do: {:error, :previous_process_running},
+       else: :ok
+  end
+
+  defp close_blocked_run(%Run{state: "failed"}), do: :ok
+
+  defp close_blocked_run(%Run{state: "blocked"} = run) do
+    case Execution.transition_run(run.id, "failed", "retry:#{run.id}:failed") do
+      {:ok, %{result: %{"outcome" => "transitioned"}}} -> :ok
+      _other -> {:error, :task_not_retryable}
+    end
+  end
+
   defp prepare_environment(project, run) do
     with {:ok, environment} <- GitService.prepare(project, run),
          {:ok, environment} <- LocalProcessRunner.prepare(environment, []) do
@@ -177,12 +243,7 @@ defmodule Cuckoding.ProjectWorkflow do
   end
 
   defp fail_preparation(run, reason) do
-    Execution.transition_run(
-      run.id,
-      "failed",
-      "prepare:#{run.id}:failed",
-      wait_reason: "run preparation failed: #{inspect(reason)}"
-    )
+    Execution.fail_run_preparation(run.id, reason)
   end
 
   defp run_prepared(project, board, task, run) do
@@ -395,7 +456,7 @@ defmodule Cuckoding.ProjectWorkflow do
       sequence: sequence,
       policy_snapshot_id: policy.id,
       plugin_snapshot_json: %{},
-      branch: "feature/task-#{String.slice(task.id, 0, 8)}-#{String.slice(run_id, 0, 8)}",
+      branch: "feature/task-#{String.slice(task.id, 0, 8)}-#{String.slice(run_id, -12, 12)}",
       base_sha: base_sha
     }
   end

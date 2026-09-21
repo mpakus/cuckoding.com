@@ -772,6 +772,9 @@ defmodule CuckodingWeb.RunLive do
   defp failure_return_label(%{task: %{kind: "board_intake"}}),
     do: "Return to board and create a new planning run"
 
+  defp failure_return_label(%{task: %{state: state}}) when state in ["blocked", "failed"],
+    do: "Open task to retry with a new run"
+
   defp failure_return_label(_detail), do: "Return to task and review the next action"
 
   defp planning_status(%{run: %{state: "queued"}}),

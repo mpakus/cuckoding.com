@@ -159,6 +159,39 @@ defmodule CuckodingWeb.TaskLive do
     end
   end
 
+  def handle_event("retry-task", _params, socket) do
+    case ProjectWorkflow.retry_task(socket.assigns.task.id) do
+      {:ok, %{run: run}} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "A new run is ready. Check agent sign-in, then start it.")
+         |> push_navigate(to: ~p"/runs/#{run.id}")}
+
+      {:error, {:retry_preparation_failed, reason}} ->
+        {:noreply,
+         socket
+         |> reload(nil)
+         |> assign(
+           error:
+             "The task is Ready, but a new run could not be prepared: #{prepare_error(reason)} Fix the issue, then choose Prepare run."
+         )}
+
+      {:error, :previous_process_running} ->
+        {:noreply,
+         assign(socket,
+           error:
+             "The previous run still has a recorded running process. Stop or reconcile it before retrying; its worktree and evidence are unchanged.",
+           notice: nil
+         )}
+
+      {:error, _reason} ->
+        {:noreply,
+         socket
+         |> reload(nil)
+         |> assign(error: "This task can no longer be retried. Review its latest run and state.")}
+    end
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -235,6 +268,14 @@ defmodule CuckodingWeb.TaskLive do
             navigate={~p"/runs/#{@task.active_run_id}"}
             class="inline-flex min-h-11 items-center rounded-md bg-slate-950 px-4 text-sm font-medium text-white"
           >Open current run</.link>
+          <button
+            :if={retryable?(@task, @runs)}
+            id="retry-task"
+            type="button"
+            phx-click="retry-task"
+            phx-disable-with="Preparing retry…"
+            class="min-h-11 rounded-md bg-slate-950 px-5 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
+          >Retry with a new run</button>
         </section>
 
         <.host_runner_notice />
@@ -406,14 +447,24 @@ defmodule CuckodingWeb.TaskLive do
   end
 
   defp next_step(%{state: state}, _runs)
-       when state in ["done", "archived", "cancelled", "failed"],
+       when state in ["done", "archived", "cancelled"],
        do:
          "Review the run history below for results and errors. Return to the board for available task actions."
+
+  defp next_step(%{state: state}, _runs) when state in ["blocked", "failed"],
+    do:
+      "Review the failure in the previous run. Retry prepares a fresh branch and worktree from the current base; the previous run, worktree, and evidence remain available. You start the new run after checking its agents."
 
   defp next_step(_task, _runs),
     do: "Open the current run for live progress, required approvals, and available controls."
 
   defp queued_run?(runs), do: Enum.any?(runs, &(&1.state == "queued"))
+
+  defp retryable?(%{kind: "delivery", state: state}, [latest | _])
+       when state in ["blocked", "failed"],
+       do: latest.state in ["blocked", "failed"]
+
+  defp retryable?(_task, _runs), do: false
   defp state_label(state), do: state |> String.replace("_", " ") |> String.capitalize()
 
   defp reload(socket, notice) do
@@ -446,6 +497,7 @@ defmodule CuckodingWeb.TaskLive do
                 "artifact.created",
                 "process.started",
                 "process.exited",
+                "run.preparation_failed",
                 "run.transitioned",
                 "stage_attempt.transitioned",
                 "workflow.failed"

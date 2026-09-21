@@ -397,6 +397,8 @@ defmodule Cuckoding.Execution do
   def transition_run(run_id, to, idempotency_key, attrs \\ %{}),
     do: Transitions.transition_run(run_id, to, idempotency_key, attrs)
 
+  def fail_run_preparation(run_id, reason), do: Transitions.fail_run_preparation(run_id, reason)
+
   def transition_stage_attempt(stage_attempt_id, to, idempotency_key),
     do: Transitions.transition_stage_attempt(stage_attempt_id, to, idempotency_key)
 

@@ -520,7 +520,7 @@ defmodule Cuckoding.WalkingSkeletonTest do
     assert {:ok, view, _html} = live(conn, ~p"/runs/#{created.run.id}")
     assert has_element?(view, "#run-failure[role=alert]", "Workflow stopped")
     assert has_element?(view, "#run-failure", "safe failure code")
-    assert has_element?(view, "#run-failure a", "Return to task")
+    assert has_element?(view, "#run-failure a", "Open task to retry with a new run")
   end
 
   test "tuple-valued adapter failure keeps its safe code without exposing details", fixture do
