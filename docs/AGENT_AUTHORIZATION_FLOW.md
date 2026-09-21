@@ -59,8 +59,8 @@ Cuckoding. Only the provider runtime handles token values. See
   remain run-owned; shared state is not reviewed project knowledge.
 - Database rows, events, logs, prompts, artifacts, clipboard commands, and
   exported configuration contain no credential values. Provider-native storage
-  remains responsible for secrets. Cursor's native file store is confined to
-  the private app-owned profile; Cuckoding never reads or copies its token file.
+  remains responsible for secrets. Codex and Cursor native file stores are confined
+  to private app-owned profiles; Cuckoding never reads or copies their token files.
 - Provider model discovery runs only after the scoped authorization probe. The
   database stores bounded model IDs and display labels plus discovery status,
   never raw CLI output or provider errors. Codex uses the official app-server
@@ -128,9 +128,11 @@ Running/completed runs are never rewritten.
   sign-in and is shown separately from authentication status.
 - Linked agents show shared live status and a link to the original sign-in card,
   not a second login command. Model/name edits do not clear authorization status.
-- Codex login, probe and launch now resolve the same account-owned home, with
-  Keychain selection passed at launch as well as login. Per-run instructions and
-  permission overrides do not overwrite shared configuration.
+- Codex login, probe, model discovery, launch and logout now select the file store
+  in the same account-owned home. An existing Keychain login does not transfer;
+  sign in again through Agents. The provider's `auth.json` must be a regular
+  owner-only file. Per-run instructions and permission overrides do not overwrite
+  shared configuration.
 - Cursor uses `AGENT_CLI_CREDENTIAL_STORE=file` for login, probes, launch and
   logout. The pinned CLI stores refreshable credentials at owner-only
   `<account-home>/.cursor/auth.json`; Cuckoding does not read, copy, log or place
@@ -156,8 +158,11 @@ Running/completed runs are never rewritten.
   account-owned file store instead. On 2026-09-21, after a development-server
   restart, the installed Codex CLI reported a ChatGPT login and the installed
   Cursor CLI reported authenticated under their saved app-owned profiles.
-  Verify authenticated two-project use, token refresh/restart and concurrent
-  provider behavior before closing task 1018.
+  A real Codex invocation with the run-owned `HOME` then failed to find the
+  default Keychain; the Codex status check was a false positive for isolated
+  execution. The same isolated status with the corrected file-store mode reports
+  sign-in required. Verify fresh sign-in, authenticated two-project use, token
+  refresh/restart and concurrent provider behavior before closing task 1018.
 - The confirmed disconnect control is implemented and regression-tested. It is
   a provider-scoped logout, not destructive profile-directory deletion, and it
   never touches personal profiles. Real post-login revocation evidence remains open.
@@ -167,5 +172,6 @@ Running/completed runs are never rewritten.
   runtime, model, provider-sign-in, edit, copy, and authorization-check control.
 
 Official Codex documentation describes cached login reuse and file/keyring
-storage; Cuckoding now avoids the former cross-home assumption:
+storage; Cuckoding uses the documented file store because keyring discovery
+fails under the isolated run home:
 [Authentication](https://learn.chatgpt.com/docs/auth).

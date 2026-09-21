@@ -16,7 +16,8 @@ defmodule Cuckoding.Adapters.SharedProfile do
          :ok <- directory(root),
          :ok <- directory(Path.join(root, id)),
          path = Path.join([root, id, name(runtime)]),
-         :ok <- directory(path) do
+         :ok <- directory(path),
+         :ok <- credential_file(path, runtime) do
       {:ok, path}
     else
       :error -> {:error, :invalid_provider_account}
@@ -26,6 +27,16 @@ defmodule Cuckoding.Adapters.SharedProfile do
 
   defp name("codex"), do: "codex-home"
   defp name("cursor_agent"), do: "cursor"
+
+  defp credential_file(path, "codex") do
+    case File.lstat(Path.join(path, "auth.json")) do
+      {:error, :enoent} -> :ok
+      {:ok, %{type: :regular, mode: mode}} when Bitwise.band(mode, 0o077) == 0 -> :ok
+      _other -> {:error, :profile_path_unsafe}
+    end
+  end
+
+  defp credential_file(_path, _runtime), do: :ok
 
   # Check every component before creating anything below it. Existing ancestors
   # are not chmod'd: only the app-owned profile directories get private modes.

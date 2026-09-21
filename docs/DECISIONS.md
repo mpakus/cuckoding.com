@@ -220,6 +220,15 @@ These are explicit follow-ups, not completed guarantees of this decision.
 - **Consequences:** Never use a personal CLI home or copy tokens. Codex uses the same account home with saved execution config ignored and run-specific permission overrides/instructions. Cursor shares HOME and selects its native owner-only file credential store because an isolated HOME cannot resolve the macOS default keychain; task config directories remain run-owned and shared sandbox/MCP files are fixed and checked. Separate account IDs get separate profiles. Boards and queued runs have explicit audited binding actions; historical snapshots remain immutable. Provider-scoped disconnect is explicit, confirmed, and audited.
 - **Verification:** Deterministic tests cover two-project paths, distinct-account grouping, revocation, per-run settings and legacy binding preservation. Actual token refresh, concurrent authenticated provider sessions and global-write/MCP acceptance remain release gates, not inferred from passing mock checks.
 
+**2026-09-21 Codex credential-store correction:** A real isolated launch failed
+because macOS could not find the default Keychain with the run-owned `HOME`,
+although a status check from the personal shell had succeeded. Codex now uses
+its documented file store in the private app-owned `CODEX_HOME`, matching the
+approved shared-profile boundary. This does not migrate or read the old keyring
+credential; the user must sign in once again. The provider-owned token file is
+regular and owner-only or launch fails closed. Real two-project and adversarial
+provider acceptance remains open.
+
 ## ADR template
 
 ### ADR-NNN — Title

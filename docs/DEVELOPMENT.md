@@ -107,10 +107,12 @@ the dashboard onboarding flow. `Cuckoding.BoardTaskIntake` handles planning and
 proposal import separately. The run page must authenticate and start a queued
 run; preparing it does not launch a provider.
 
-Saved Codex accounts select keyring storage, but account login and execution
-use distinct homes; cross-home reuse still needs the real check described in
+Saved Codex accounts select the provider's file store in one private app-owned
+`CODEX_HOME` for login and execution; existing keyring sign-ins need to be
+repeated there. Real cross-project reuse still needs the check described in
 [TESTING.md](TESTING.md). Legacy board snapshots without saved-account IDs keep
-per-run login. Claude Code uses a reviewed helper, and Cursor stays run-scoped.
+per-run login. Claude Code uses a reviewed helper, and saved Cursor accounts
+use a private app-owned file store too.
 See [CONFIGURATION.md](CONFIGURATION.md) before expecting a project edit to
 affect an existing board. The wizard never infers GitHub credentials.
 

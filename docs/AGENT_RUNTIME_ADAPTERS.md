@@ -74,16 +74,19 @@ The implemented adapter pins `0.146.0` and launches `codex exec --json --strict-
 
 The effective grant records the active Codex sandbox, non-interactive approval policy, worktree-only write boundary, network denial, and disabled web search. Codex `0.146.0` cannot express Cuckoding's per-tool allow/deny vocabulary, and the adapter does not add extra writable paths or expose MCP plugins, so those requested fields are recorded under `unenforced` or unavailable. The host command-policy and process-resource boundaries remain independently authoritative. Codex's own sandbox intentionally keeps Git administrative paths read-only; host-side Git services remain responsible for commits and later push/PR operations.
 
-Saved Codex accounts select `cli_auth_credentials_store = "keyring"`, the
-[official operating-system credential-store setting](https://learn.chatgpt.com/docs/auth).
-Login commands use an owner-only home below
-`~/Library/Application Support/Cuckoding/provider-accounts/`; execution uses a
-separate `<run_dir>/agent/codex/home`. The launch probe must succeed in that run
-home. Existing tests prove configuration selection, not credential lookup
-across different homes: one-login reuse remains a real-provider verification
-gate. Cuckoding does not copy `auth.json`, pass an API key, expose the real home,
-or share run state to bypass a failed probe. Legacy snapshots without an account
-reference retain provider-owned file login in their run home.
+Saved Codex accounts select `cli_auth_credentials_store = "file"`, the
+[official app-home credential-store setting](https://learn.chatgpt.com/docs/auth).
+Login, status, model discovery, launch and logout use one private home below
+`~/Library/Application Support/Cuckoding/provider-accounts/`. The provider
+stores refreshable credentials in `CODEX_HOME/auth.json`; Cuckoding rejects
+symlinked or group-readable files without reading their contents. Run-specific
+instructions, output schema and permission overrides remain separate. The
+previous keyring selection passed a personal-shell status check but failed in
+the isolated run `HOME`; it cannot be reused without a new sign-in. Authenticated
+cross-project execution remains a real-provider gate. Cuckoding does not copy
+`auth.json`, pass an API key, expose the real home, or bypass a failed probe.
+Legacy snapshots without an account reference retain provider-owned file login
+in their run home.
 
 JSONL normalization accepts public `thread.*`, `turn.*`, `item.*`, and `error`
 shapes, rejects reasoning items, recursively redacts public summaries and

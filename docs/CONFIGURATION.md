@@ -29,7 +29,8 @@ the default delivery launcher uses Specifications, Coding, and Review.
 Runtime authentication is a live dependency: `AgentRuntime` looks up the saved
 account's current authentication mode by ID. It is not fully frozen by the role
 snapshot. A cached successful check is not a launch guarantee. Codex uses one
-account-owned `CODEX_HOME` for login, probes and launch. Cursor uses a shared
+account-owned `CODEX_HOME` and its private native file credential store for login,
+probes and launch; a prior keyring sign-in needs a fresh file-store sign-in. Cursor uses a shared
 app-owned HOME and its native owner-only file credential store, with separate
 run-owned config directories. Provider history may be shared across projects and
 agents using that authorization; explicitly choose a separate sign-in to separate

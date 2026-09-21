@@ -269,7 +269,7 @@ defmodule Cuckoding.ProjectOnboarding do
     end
   end
 
-  defp auth_mode("codex"), do: "os_keyring"
+  defp auth_mode("codex"), do: "shared_profile"
   defp auth_mode("claude_code"), do: "api_key_helper"
   defp auth_mode("cursor_agent"), do: "shared_profile"
   defp auth_mode(_adapter), do: "unsupported"

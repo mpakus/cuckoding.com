@@ -324,7 +324,7 @@ defmodule Cuckoding.Adapters.Codex do
         "--ignore-user-config",
         "--ignore-rules",
         "-c",
-        ~s(cli_auth_credentials_store="keyring"),
+        ~s(cli_auth_credentials_store="file"),
         "-c",
         "sandbox_workspace_write.writable_roots=[]",
         "-c",
@@ -380,7 +380,7 @@ defmodule Cuckoding.Adapters.Codex do
 
   defp auth_status_args(options) do
     case Keyword.get(options, :credentials_store) do
-      "keyring" -> ["-c", ~s(cli_auth_credentials_store="keyring"), "login", "status"]
+      "file" -> ["-c", ~s(cli_auth_credentials_store="file"), "login", "status"]
       _other -> ["login", "status"]
     end
   end
@@ -402,7 +402,7 @@ defmodule Cuckoding.Adapters.Codex do
         :exit_status,
         :use_stdio,
         :stderr_to_stdout,
-        args: ["-c", ~s(cli_auth_credentials_store="keyring"), "app-server"],
+        args: ["-c", ~s(cli_auth_credentials_store="file"), "app-server"],
         env: [{~c"CODEX_HOME", to_charlist(home)}]
       ])
 
@@ -581,15 +581,15 @@ defmodule Cuckoding.Adapters.Codex do
   defp credentials_store(options) do
     case Keyword.get(options, :credentials_store) do
       nil -> {:ok, nil}
-      "keyring" -> {:ok, "keyring"}
+      "file" -> {:ok, "file"}
       _other -> error(:unsupported_credentials_store, :authentication, false)
     end
   end
 
   defp config(mode, credentials_store) do
     credentials =
-      if credentials_store == "keyring",
-        do: ~s(cli_auth_credentials_store = "keyring"\n),
+      if credentials_store == "file",
+        do: ~s(cli_auth_credentials_store = "file"\n),
         else: ""
 
     credentials <>

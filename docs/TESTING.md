@@ -41,7 +41,7 @@ horizontal overflow. The viewport override is reset after the check.
 | Telemetry | Cost formula, rollups, active vs wall | Samples and rollups | — | Missing samples not interpolated | — |
 
 Claude Code fixture conformance is pinned to `test/fixtures/agent/claude-code-2.1.142.stream.jsonl`. A real smoke is allowed only when the run-scoped authentication probe succeeds; global OAuth alone is not sufficient because bare mode intentionally ignores it.
-Codex fixture conformance is pinned to `test/fixtures/agent/codex-0.146.0.jsonl`. Strict config is validated against the installed CLI with an isolated unauthenticated `CODEX_HOME`; a real provider smoke is allowed only after that scoped home authenticates, never by copying the user's global `auth.json` or passing a provider key to the child process.
+Codex fixture conformance is pinned to `test/fixtures/agent/codex-0.146.0.jsonl`. Strict config is validated against the installed CLI with an isolated unauthenticated `CODEX_HOME`; a real provider smoke is allowed only after that scoped home's file store authenticates, never by copying the user's global `auth.json` or passing a provider key to the child process. A real 2026-09-21 smoke with the earlier keyring mode failed under an isolated `HOME` despite a successful personal-shell status check. Regression checks now require file-store selection at sign-in, probe, model discovery, launch and logout, and reject symlinked or group-readable credential files. A fresh sign-in and a real isolated provider run remain required.
 
 Saved-agent tests cover persistence, cross-project attachment, immutable copies,
 matching login/probe/launch profiles, separate per-run config, role deduplication,
@@ -53,9 +53,10 @@ approved ADR-025 contract; permission config must remain independent. Verify
 restart, refresh and concurrent use, then revoke and confirm a fresh launch
 fails clearly. The 2026-09-20 18:05 UTC real CLI status checks reported sign-in
 required; on 2026-09-21 both saved app-owned CLI profiles reported authenticated
-after a development-server restart. This is a live sign-in check, not a provider
-run or proof of two-project reuse. Authenticated two-project acceptance is still
-pending. Account-page status alone is not a pass. Old boards/runs have explicit,
+after a development-server restart, but Codex's result depended on the personal
+shell's Keychain availability and was not a valid isolated-run check. A subsequent
+isolated file-store status correctly reports sign-in required. Authenticated
+two-project acceptance is still pending. Account-page status alone is not a pass. Old boards/runs have explicit,
 audited saved-account linking.
 Cursor adapter tests assert run-owned home/config/Claude paths, scoped-auth probing, owner-only generated policy, empty MCP configuration, project-override rejection, launch/resume/cancel behavior, fixture event normalization, redaction, and usage. The retained real-runtime fixture proves its event contract and earlier lifecycle behavior; the current change does not claim a new authenticated real-provider smoke. OpenCode remains a stable-stub test with fail-closed operational callbacks.
 The Phase 4 walking-skeleton test uses the fake adapter but real SQLite state, Git repositories, worktree, candidate commit, hibernate/resume lifecycle, evidence files, LiveView confirmation, and local bare push. It asserts a single specification attempt across the sleep simulation, rejects release before approval, rejects candidate path traversal and symlinks, and replays the release command without another push event. A real-provider demo remains opt-in and must use a separately authenticated run-scoped home.

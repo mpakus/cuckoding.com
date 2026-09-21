@@ -90,7 +90,7 @@ defmodule Cuckoding.AgentRuntime do
          command:
            login_command(%{"CODEX_HOME" => home}, executable, [
              "-c",
-             ~s(cli_auth_credentials_store="keyring"),
+             ~s(cli_auth_credentials_store="file"),
              "login",
              "--device-auth"
            ]),
@@ -206,7 +206,7 @@ defmodule Cuckoding.AgentRuntime do
     run_disconnect(
       runner,
       setup.executable,
-      ["-c", ~s(cli_auth_credentials_store="keyring"), "logout"],
+      ["-c", ~s(cli_auth_credentials_store="file"), "logout"],
       %{"CODEX_HOME" => setup.home}
     )
   end
@@ -236,7 +236,7 @@ defmodule Cuckoding.AgentRuntime do
            Codex.probe(
              path: setup.executable,
              codex_home: setup.home,
-             credentials_store: "keyring",
+             credentials_store: "file",
              run_scoped_authenticated?: true
            ) do
       status = if(probe.authenticated?, do: "authenticated", else: "authentication_required")
@@ -498,7 +498,7 @@ defmodule Cuckoding.AgentRuntime do
     end
   end
 
-  defp profile_options("codex", home), do: [codex_home: home, credentials_store: "keyring"]
+  defp profile_options("codex", home), do: [codex_home: home, credentials_store: "file"]
   defp profile_options("cursor_agent", _home), do: []
 
   defp provider_account(role) do

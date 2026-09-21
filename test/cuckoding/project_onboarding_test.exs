@@ -214,7 +214,7 @@ defmodule Cuckoding.ProjectOnboardingTest do
     assert [%{"label" => "Primary Codex", "provider_account_id" => account_id}] =
              created.config_json["agent_connections"]
 
-    assert %ProviderAccount{label: "Primary Codex", auth_mode: "os_keyring"} =
+    assert %ProviderAccount{label: "Primary Codex", auth_mode: "shared_profile"} =
              Adapters.get_provider_account(account_id)
 
     assert Enum.all?(

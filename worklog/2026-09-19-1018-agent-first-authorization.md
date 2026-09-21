@@ -291,3 +291,46 @@ Focused verification:
   security checks remain open. No paid run or release claim is inferred.
 - Documentation-only change: `rtk git diff --check` passed; no product tests
   were rerun or claimed for the new status evidence.
+
+## 2026-09-21 isolated Codex authorization correction
+
+- Restated acceptance: a saved Codex login must work from the scrubbed run
+  environment without personal-home access, remain shared across project runs,
+  and never put credential values in Cuckoding data or logs. Task 1018 remains
+  in progress until real two-project, refresh/restart/revocation, concurrency,
+  path/MCP and UI evidence exists.
+- Clean `main` at `9195af6` before `fix/1018-codex-isolated-auth`. The two
+  disposable Git fixtures at `/tmp/cuckoding-auth-a.nMknDR` and
+  `/tmp/cuckoding-auth-b.TZVwxg` contained only a README. An installed Codex
+  0.146.0 invocation against fixture A with the app-owned `CODEX_HOME` and
+  isolated `HOME` failed before model work: `failed to load CLI auth from
+  keyring: Platform secure storage failure: A default keychain could not be
+  found.` The previous personal-shell `login status` was therefore not valid
+  execution evidence. No token or credential file was read.
+- The [official Codex authentication guide](https://learn.chatgpt.com/docs/auth)
+  specifies `cli_auth_credentials_store="file"` in `CODEX_HOME/auth.json` and
+  says keyring fails when unavailable. XERJ's local endpoint was unreachable,
+  so direct source inspection identified every login/probe/model/launch/logout
+  caller. The change selects file mode at all five boundaries, keeps the
+  app-owned 0700 profile, and refuses symlinked or group-readable `auth.json`
+  without reading its content. The previous keyring credential is untouched;
+  the user must sign in again through Agents. Real provider acceptance is still
+  open, including the same-user host-process residual risk of file storage.
+- `rtk proxy /usr/bin/env -i HOME=/tmp/cuckoding-auth-a.nMknDR ... codex -c
+  'cli_auth_credentials_store="file"' login status` returned `Not logged in`,
+  confirming file mode works under isolated `HOME` but needs a fresh sign-in.
+  `rtk proxy` was used for exact file/instruction reads, the installed CLI and
+  long-running server commands where filtered output or wrapper semantics
+  would obscure the result. No credential content was printed.
+- `rtk test mix test test/cuckoding/adapters/codex_test.exs
+  test/cuckoding/shared_agent_profile_test.exs
+  test/cuckoding/project_workflow_test.exs
+  test/cuckoding/project_onboarding_test.exs` — 24 tests, zero failures.
+  `rtk proxy /usr/bin/env -u CR_PAT mix format` and `mix quality` — passed;
+  quality ran 270 tests plus 10 properties, warnings-as-errors compile, Credo,
+  Sobelow and Hex audit. The two supervisor fixture crashes were expected.
+- Restarted only the development Phoenix listener on `127.0.0.1:4000`; the
+  packaged shell was not touched. `/health` returned application, database,
+  PubSub and web endpoint `ok`. Docs were corrected to retract the prior
+  keyring-based acceptance inference. Fresh authenticated execution remains
+  the next gate.

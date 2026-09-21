@@ -25,6 +25,7 @@ defmodule Cuckoding.SharedAgentProfileTest do
     File.write!(executable, """
     #!/bin/sh
     if [ "$1" = "--version" ]; then echo 'codex-cli 0.146.0'; exit; fi
+    if [ "$2" != 'cli_auth_credentials_store="file"' ]; then exit 1; fi
     if [ "$3" = "app-server" ]; then
       read _initialize
       read _initialized
@@ -41,6 +42,7 @@ defmodule Cuckoding.SharedAgentProfileTest do
     {:ok, account} = account("codex", executable)
     {:ok, setup} = AgentRuntime.account_setup(account)
     assert setup.command =~ setup.home
+    assert setup.command =~ ~s('cli_auth_credentials_store="file"')
     assert {:ok, %{status: "authenticated"}} = AgentRuntime.check_account(account)
 
     assert [%{"id" => "gpt-6-astra"}] =
@@ -66,7 +68,7 @@ defmodule Cuckoding.SharedAgentProfileTest do
         assert spec.environment["CODEX_HOME"] == setup.home
         assert "--ignore-user-config" in spec.command.args
         assert "--ignore-rules" in spec.command.args
-        assert ~s(cli_auth_credentials_store="keyring") in spec.command.args
+        assert ~s(cli_auth_credentials_store="file") in spec.command.args
         assert Enum.any?(spec.command.args, &String.starts_with?(&1, "developer_instructions="))
         spec
       end
@@ -222,6 +224,23 @@ defmodule Cuckoding.SharedAgentProfileTest do
     assert Adapters.get_provider_account(account.id).status == "unknown"
   end
 
+  test "rejects unsafe Codex credential files", %{root: root} do
+    {:ok, account} = account("codex", "/usr/bin/true")
+    {:ok, home} = SharedProfile.prepare(account.id, "codex")
+    target = Path.join(root, "target")
+    File.write!(target, "sentinel")
+    File.ln_s!(target, Path.join(home, "auth.json"))
+    assert {:error, :profile_path_unsafe} = AgentRuntime.account_setup(account)
+    assert File.read!(target) == "sentinel"
+
+    File.rm!(Path.join(home, "auth.json"))
+    File.write!(Path.join(home, "auth.json"), "sentinel")
+    File.chmod!(Path.join(home, "auth.json"), 0o644)
+    assert {:error, :profile_path_unsafe} = AgentRuntime.account_setup(account)
+    File.chmod!(Path.join(home, "auth.json"), 0o600)
+    assert {:ok, _setup} = AgentRuntime.account_setup(account)
+  end
+
   test "authorization references are compatible, immutable and model edits keep sign-in" do
     {:ok, root} = account("codex", "/usr/bin/true")
     {:ok, root} = Adapters.record_provider_status(root.id, "authenticated")
@@ -345,7 +364,7 @@ defmodule Cuckoding.SharedAgentProfileTest do
              AgentRuntime.disconnect_account(reviewer, command_runner: runner)
 
     assert_receive {:disconnect, "/usr/bin/true",
-                    ["-c", ~s(cli_auth_credentials_store="keyring"), "logout"], options}
+                    ["-c", ~s(cli_auth_credentials_store="file"), "logout"], options}
 
     assert {"CODEX_HOME", _home} = List.keyfind(options[:env], "CODEX_HOME", 0)
     assert Adapters.get_provider_account(reviewer.id).status == "authentication_required"

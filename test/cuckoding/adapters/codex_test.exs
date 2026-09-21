@@ -67,7 +67,7 @@ defmodule Cuckoding.Adapters.CodexTest do
         ["login", "status"] ->
           {"Logged in using ChatGPT\n#{inspect(options[:env])}", 0}
 
-        ["-c", ~s(cli_auth_credentials_store="keyring"), "login", "status"] ->
+        ["-c", ~s(cli_auth_credentials_store="file"), "login", "status"] ->
           {"Logged in using ChatGPT\n#{inspect(options[:env])}", 0}
       end
     end
@@ -97,16 +97,16 @@ defmodule Cuckoding.Adapters.CodexTest do
     assert verified.authenticated?
     refute inspect(verified) =~ "ChatGPT"
 
-    assert {:ok, keyring} =
+    assert {:ok, file_store} =
              Codex.probe(
                path: executable,
                codex_home: "/global/codex/home",
-               credentials_store: "keyring",
+               credentials_store: "file",
                run_scoped_authenticated?: true,
                command_runner: command_runner
              )
 
-    assert keyring.authenticated?
+    assert file_store.authenticated?
   end
 
   test "discovers and bounds account models through app-server", %{
@@ -152,10 +152,10 @@ defmodule Cuckoding.Adapters.CodexTest do
     assert File.read!(Path.join(root, "home/AGENTS.md")) =~ "project:adapter"
     assert Bitwise.band(File.stat!(Path.join(root, "home/config.toml")).mode, 0o777) == 0o600
 
-    assert {:ok, _grant} = Codex.render_config(request, credentials_store: "keyring")
+    assert {:ok, _grant} = Codex.render_config(request, credentials_store: "file")
 
     assert File.read!(Path.join(root, "home/config.toml")) =~
-             ~s(cli_auth_credentials_store = "keyring")
+             ~s(cli_auth_credentials_store = "file")
 
     assert {:ok, spec} =
              Codex.launch_spec(request,

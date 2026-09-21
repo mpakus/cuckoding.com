@@ -118,7 +118,7 @@ defmodule Cuckoding.ProjectWorkflowTest do
     setup = Enum.find(setups, &(&1.role_key == "implementer"))
 
     assert setup.command ==
-             "CODEX_HOME='#{setup.home}' '/usr/bin/true' -c 'cli_auth_credentials_store=\"keyring\"' login --device-auth"
+             "CODEX_HOME='#{setup.home}' '/usr/bin/true' -c 'cli_auth_credentials_store=\"file\"' login --device-auth"
 
     assert {:error, :run_already_prepared} = ProjectWorkflow.prepare_task(task.id)
 
