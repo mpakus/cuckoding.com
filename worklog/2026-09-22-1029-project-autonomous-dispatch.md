@@ -62,3 +62,23 @@ Remaining acceptance, not claimed passing: real authorized Codex/Cursor/Claude
 concurrency on a signed clean macOS build; sleep/wake and long-run provider
 refresh; direct observation of production process/port pressure. Local tests
 exercise the durable dispatch boundary, not external provider uptime.
+
+Post-merge local test handoff:
+
+- Fast-forwarded `feature/1029-project-autonomous-dispatch` to `main` and pushed
+  `7be2317` to `origin/main` after the complete quality gate.
+- Before touching the local development database, confirmed zero running runs
+  and processes. Created an online SQLite backup at
+  `tmp/cuckoding_dev_before_20260922_1029.db`; `PRAGMA integrity_check` returned
+  `ok`, with 2 projects and 8 runs.
+- Stopped only the loopback development server, then ran `rtk mix ecto.migrate`:
+  migration `20260922120000` created `project_autopilots`. Post-migration
+  `PRAGMA integrity_check` returned `ok`, foreign-key check was empty, and the
+  original 2 projects/8 runs remained.
+- Restarted with `PHX_SERVER=1` as required by `config/runtime.exs`; the first
+  `rtk proxy mix phx.server` attempt lacked that environment value and did not
+  bind a port, so it was stopped. The running command is
+  `rtk proxy env PHX_SERVER=1 mix phx.server`. HTTP GET to `/` and the existing
+  project's settings page both returned 200 on `127.0.0.1:4000`. No project
+  was started automatically by this migration; control rows remain absent until
+  the user presses Start.
