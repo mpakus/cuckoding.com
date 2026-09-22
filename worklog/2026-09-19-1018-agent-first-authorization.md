@@ -491,3 +491,48 @@ Focused verification:
   the matching Agents card with a copyable one-time sign-in command. The user
   must finish that provider-owned device sign-in and recheck the account;
   live provider refresh/execution acceptance remains open in task 1018.
+
+## 2026-09-21 process-table inspection fail-closed preflight
+
+Claimed task 1018 on `fix/1018-process-inspection-fail-closed` from clean
+`main` at `2139c98`. Acceptance for this tranche: a failed or malformed
+host process-table snapshot cannot be treated as an empty process group,
+cannot authorize a signal or a matching ownership report, and is
+covered by a focused regression. Keep the existing PID/start-identity and
+signal-audit boundary; do not claim detached descendants are now owned or
+that real-provider lifecycle acceptance is complete. Ponytail 4.10.0 (MIT,
+full mode), local-runner, security-review, and quality-gates apply.
+
+Initial trace: `LocalHostInspector.process_rows/0` returned `[]` when
+`/bin/ps` failed, while `owned_process_groups/2` and `inspect_process/1`
+treated the result as a valid snapshot. `groups_empty/1` also discarded
+unparseable lines. The actual host snapshot parsed 1,137 process rows with
+zero malformed rows. The existing exit-time root-group cleanup is separate;
+this tranche only makes inspection failure explicit, not process isolation.
+
+`LocalHostInspector.process_rows/1` now returns a tagged result and rejects
+nonzero `ps` status, an empty table, and any malformed row. Live inspection,
+pre-signal descendant-group discovery, and group-empty checks use the same
+result; the terminator propagates an inspection error without issuing a
+signal. No new worker, dependency, migration, or mutable ownership state was
+added. A focused parser regression exercises failed, empty, malformed, and
+valid snapshots. The existing process-group tests still exercise real `/bin/ps`
+and signal behavior. This does not detect a child that deliberately detached
+and became reparented before its leader exited.
+
+`rtk env -u CR_PAT mix format` passed. `rtk env -u CR_PAT mix test
+test/cuckoding/execution/local_process_runner_test.exs
+test/cuckoding/execution/lifecycle_test.exs` passed (13 tests, zero failures).
+The expanded runner, lifecycle, Git confinement, and power selection passed
+with 24 tests, zero failures. Full source quality and documentation checks
+follow below.
+
+`rtk env -u CR_PAT mix quality` passed: warnings-as-errors compilation,
+10 properties and 289 tests with zero failures, strict Credo no issues,
+Sobelow scan complete, and Hex audit no retired/advisory packages. The two
+plugin-supervisor crash logs were intentional fixtures. `rtk proxy git diff
+--check` passed; a read-only Ruby check found relative links in
+`docs/PLAN.md` and `docs/EXECUTION_ENVIRONMENTS.md` resolve. No migration,
+paid provider call, live task mutation, process signal to an unverified PID,
+or user-data deletion occurred. The pending key-rotation confirmation and
+real two-project provider workflow remain task-1018 acceptance gates.

@@ -18,6 +18,8 @@ worklog: worklog/2026-09-19-1018-agent-first-authorization.md
 - [x] Keep Cursor authorization in its app-owned profile when macOS Keychain discovery fails under an isolated HOME.
 - [x] Correct Codex's false-positive personal-shell sign-in check: use its private app-owned file store consistently under isolated execution.
 - [x] Clean same-group provider children on normal CLI exit; surface and audit cleanup failures instead of reporting success.
+- [x] Reject failed or malformed process-table snapshots before signaling an
+  owned group or reporting matching live ownership.
 - [ ] Verify refresh/revocation/restart, concurrent use, two-account separation, secret/path/MCP boundaries, and accessible UI; update documentation with exact evidence.
 
 Contract: [Agent authorization flow](../../docs/AGENT_AUTHORIZATION_FLOW.md).

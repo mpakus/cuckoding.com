@@ -505,8 +505,8 @@ defmodule Cuckoding.Execution.ProcessTerminator do
 
   def terminate(process, options \\ []) do
     with {:ok, identity} <- LocalHostInspector.process_identity(process.pid, []),
-         true <- identity == process.start_identity do
-      pgids = LocalHostInspector.owned_process_groups(process.pid, process.pgid)
+         true <- identity == process.start_identity,
+         {:ok, pgids} <- LocalHostInspector.owned_process_groups(process.pid, process.pgid) do
       grace_ms = Keyword.get(options, :grace_ms, 2_000)
       before_signal = Keyword.get(options, :before_signal, fn _signal, _pgids -> :ok end)
       signal_ladder(process, pgids, grace_ms, before_signal, [])
@@ -646,17 +646,18 @@ defmodule Cuckoding.Execution.LocalHostInspector do
   def inspect_process(process) do
     case process_identity(process.pid, []) do
       {:ok, identity} when identity == process.start_identity ->
-        rows = process_rows()
-        pgids = owned_process_groups(process.pid, process.pgid)
-        members = Enum.filter(rows, &(&1.pgid in pgids))
+        with {:ok, rows} <- process_rows() do
+          pgids = owned_process_groups(rows, process.pid, process.pgid)
+          members = Enum.filter(rows, &(&1.pgid in pgids))
 
-        {:ok,
-         %{
-           status: :matching,
-           process_count: length(members),
-           memory_bytes: Enum.sum(Enum.map(members, & &1.rss_kb)) * 1_024,
-           pgids: pgids
-         }}
+          {:ok,
+           %{
+             status: :matching,
+             process_count: length(members),
+             memory_bytes: Enum.sum(Enum.map(members, & &1.rss_kb)) * 1_024,
+             pgids: pgids
+           }}
+        end
 
       {:ok, _identity} ->
         {:error, :process_identity_mismatch}
@@ -702,9 +703,8 @@ defmodule Cuckoding.Execution.LocalHostInspector do
   end
 
   def owned_process_groups(root_pid, root_pgid) do
-    rows = process_rows()
-
-    owned_process_groups(rows, root_pid, root_pgid)
+    with {:ok, rows} <- process_rows(),
+         do: {:ok, owned_process_groups(rows, root_pid, root_pgid)}
   end
 
   defp owned_process_groups(rows, root_pid, root_pgid) do
@@ -717,19 +717,8 @@ defmodule Cuckoding.Execution.LocalHostInspector do
   end
 
   def groups_empty(pgids) do
-    case System.cmd("/bin/ps", ["-axo", "pid=,ppid=,pgid=,rss="], stderr_to_stdout: true) do
-      {output, 0} ->
-        empty? =
-          output
-          |> String.split("\n", trim: true)
-          |> Enum.flat_map(&parse_row/1)
-          |> Enum.all?(&(&1.pgid not in pgids))
-
-        {:ok, empty?}
-
-      {_output, _status} ->
-        {:error, :process_inspection_failed}
-    end
+    with {:ok, rows} <- process_rows(),
+         do: {:ok, Enum.all?(rows, &(&1.pgid not in pgids))}
   end
 
   def groups_empty?(pgids), do: groups_empty(pgids) == {:ok, true}
@@ -781,12 +770,21 @@ defmodule Cuckoding.Execution.LocalHostInspector do
       else: descendants(rows, Enum.map(children, & &1.pid), found ++ children)
   end
 
-  defp process_rows do
-    case System.cmd("/bin/ps", ["-axo", "pid=,ppid=,pgid=,rss="], stderr_to_stdout: true) do
-      {output, 0} -> Enum.flat_map(String.split(output, "\n", trim: true), &parse_row/1)
-      _error -> []
-    end
+  @doc false
+  def process_rows(
+        result \\ System.cmd("/bin/ps", ["-axo", "pid=,ppid=,pgid=,rss="], stderr_to_stdout: true)
+      )
+
+  def process_rows({output, 0}) when is_binary(output) do
+    lines = String.split(output, "\n", trim: true)
+    rows = Enum.flat_map(lines, &parse_row/1)
+
+    if lines != [] and length(rows) == length(lines),
+      do: {:ok, rows},
+      else: {:error, :process_inspection_failed}
   end
+
+  def process_rows(_result), do: {:error, :process_inspection_failed}
 
   defp resource_rows do
     case System.cmd("/bin/ps", ["-axo", "pid=,ppid=,pgid=,rss=,time="], stderr_to_stdout: true) do

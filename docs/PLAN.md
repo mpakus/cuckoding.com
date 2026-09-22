@@ -207,6 +207,9 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
   authenticated under isolated, app-owned file profiles. This is CLI status
   evidence only; it does not close the real-provider execution gate above.
 - [x] Task 1018 runner hardening: a real Cursor smoke exposed same-group worker processes left after CLI exit; exit-time cleanup now has a failing-before/fixed-after regression and audited signal events. The smoke reused one Cursor sign-in in two disposable repositories, but did not exercise the full board workflow. Detached-group ownership and Codex workflow execution remain open gates.
+- [x] Task 1018 process inspection now fails closed when the host `ps` table
+  is unavailable or malformed before signaling or reporting a live group.
+  This does not resolve detached descendants or replace real-provider tests.
 - [x] Task 1019: reuse a compatible provider sign-in across named agents by default; select each agent's model independently and preserve it in planning/workflow requests. Additive migration and regression checks preserve existing accounts. Provider-controlled expiry and real authenticated concurrency remain task 1018 gates.
 - [ ] Verify one saved login across isolated runs in two projects for each supported runtime, including refresh/restart/revocation and concurrency; current configuration tests are not proof of credential reuse.
 - [x] Complete shared-account revocation UX and per-project impact lists. The

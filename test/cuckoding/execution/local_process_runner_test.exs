@@ -229,6 +229,17 @@ defmodule Cuckoding.Execution.LocalProcessRunnerTest do
     assert {:ok, _result} = LocalProcessRunner.stop(handle)
   end
 
+  test "rejects failed or malformed process-table snapshots" do
+    assert {:error, :process_inspection_failed} = LocalHostInspector.process_rows({"", 1})
+    assert {:error, :process_inspection_failed} = LocalHostInspector.process_rows({"", 0})
+
+    assert {:error, :process_inspection_failed} =
+             LocalHostInspector.process_rows({"123 1 123 4\nmalformed\n", 0})
+
+    assert {:ok, [%{pid: 123, pgid: 123}]} =
+             LocalHostInspector.process_rows({"123 1 123 4\n", 0})
+  end
+
   test "destroy stops every running process owned by the environment", fixture do
     assert {:ok, handle} =
              LocalProcessRunner.start(

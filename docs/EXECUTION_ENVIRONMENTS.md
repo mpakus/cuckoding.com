@@ -49,6 +49,10 @@ The workspace root defaults to `~/Library/Application Support/Cuckoding/workspac
 
 On normal command exit, the runner also checks the recorded root process group and applies the same audited signal ladder to children that remain there before recording successful completion. It rechecks the recorded leader identity between signals and treats process-inspection failure as an error, not an empty group. If ownership or cleanup cannot be confirmed, the process is recorded as failed and the caller receives a cleanup error. This does not prove cleanup of a descendant that deliberately moved into a separate group before the parent exited; full detached-group ownership remains a beta acceptance gate.
 
+The pre-signal and live-inspection paths also reject a failed, empty, or
+malformed `ps` snapshot; they cannot infer that no child groups remain from
+an unavailable process table.
+
 The child environment starts empty: Cuckoding removes every inherited key, supplies a fixed system `PATH`, a per-run `HOME`, locale/timezone defaults, explicit `CUCKODING_*` values, and only policy-allowlisted additions. Credential-shaped names are refused. macOS may add its own platform bookkeeping variables after launch; ambient application values are not copied.
 
 The reviewed Cursor selector `AGENT_CLI_CREDENTIAL_STORE=file` is the one
