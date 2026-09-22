@@ -943,3 +943,61 @@ its `release` job; a read-only relative-link scan over the changed `docs/`
 files passed. The hosted branch run is the behavioral gate for the action
 pin. The signed updater, QA-account launch, clean-Mac test, provider runs,
 and controlled beta remain open.
+
+## 2026-09-21 — Sign and stage current app code
+
+Continued task 1004 on `feature/1004-current-signed-candidate` from clean
+`main` at `d7a6222`. Acceptance for this tranche: build that exact app code,
+sign and notarize it with the existing local identity/profile, verify a
+quarantined post-staple ZIP on this Mac, stage a checksum-matched copy for the
+existing QA account without replacing prior candidates, and update the release
+ledger and `docs/PLAN.md` without claiming clean-Mac or beta acceptance.
+Ponytail 4.10.0 (MIT, full mode), menubar-shell, security-review, and
+quality-gates apply. No implementation source or user application data changed.
+
+`rtk env -u CR_PAT ./bin/dev.build` exited 0 at `d7a6222`: production Phoenix
+compile/release, release metadata checks (6 Ruby runs/15 assertions), 10 Rust
+tests, Clippy/Tauri bundle, and `desktop/verify.rb` sterile startup, auth,
+crash-before/after-READY, safe-mode, update, and rollback checks passed. The
+source's earlier `rtk env -u CR_PAT mix quality` passed 290 tests and 10
+properties; that source gate is distinct from this signed-app drill. Before
+signing the bundle was ad hoc. `rtk proxy security find-identity -v -p
+codesigning` showed one valid local Developer ID identity. `rtk proxy env
+CUCKODING_SIGNING_IDENTITY='Developer ID Application: Renat Ibragimov
+(G4HV2FL5N2)' sh desktop/sign.sh
+desktop/src-tauri/target/release/bundle/macos/Cuckoding.app` exited 0, signing
+and verifying 26 Mach-O files with hardened runtime. No private credential
+value was printed or copied into source.
+
+A unique ignored candidate directory
+`desktop/src-tauri/target/release/Cuckoding-local-notary-d7a6222.ONaa7d/`
+holds the pre-staple `submission.zip`, the app, and evidence. `rtk proxy env
+CUCKODING_NOTARY_PROFILE=Cuckoding sh desktop/notarize.sh
+desktop/src-tauri/target/release/bundle/macos/Cuckoding.app
+desktop/src-tauri/target/release/Cuckoding-local-notary-d7a6222.ONaa7d/submission.zip
+desktop/src-tauri/target/release/Cuckoding-local-notary-d7a6222.ONaa7d/evidence`
+exited 0. Apple accepted submission
+`ed83bd11-eea6-47a8-a530-5c9dfdb2ef77` with zero issues; the ticket was
+stapled and Gatekeeper accepted the app. A ZIP created with `rtk proxy ditto
+-c -k --keepParent` **after** stapling is retained as
+`Cuckoding-d7a6222-stapled.zip`. `rtk proxy shasum -a 256` returned
+`02cf32e4b2d0f39ea3a769f3f86f8bb8f06706a0d985ccad58c64eadb489f329`;
+`rtk proxy unzip -tq` found no archive errors. On a separately extracted copy
+marked with `com.apple.quarantine`, `rtk proxy xcrun stapler validate`,
+`rtk proxy /usr/bin/codesign --verify --deep --strict --verbose=2`, and
+`rtk proxy /usr/sbin/spctl --assess --type execute --verbose=4` all exited 0;
+Gatekeeper reported `source=Notarized Developer ID`. The extracted app's
+embedded release passed `desktop/verify.rb` under system Ruby with `GEM_HOME`
+and `GEM_PATH` unset, system `PATH`, and `CUCKODING_RELEASE_PATH` set to that
+extracted app's `Contents/Resources/release/bin/cuckoding`; the verifier used
+temporary data directories, not the live account data directory.
+
+Only after confirming the destination was absent, `rtk proxy cp -n -p`
+staged `/Users/Shared/Cuckoding-0.1.0-d7a6222-stapled.zip`. The staged and
+candidate SHA-256 hashes match, `rtk proxy unzip -tq` passes, and the staged
+mode is `-rw-r--r--`. Earlier QA ZIPs and `desktop/dist/` were untouched.
+`rtk proxy who` listed only `mpak`; no QA-account launch is claimed. RTK proxy
+was used for exact native signing, archiving, Gatekeeper, and system-Ruby
+output; product-configured commands remain unwrapped. The signed updater,
+complete release metadata, CI Apple secrets, real-provider acceptance,
+QA-account launch, clean-Mac installation, and controlled beta remain open.

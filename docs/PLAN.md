@@ -197,9 +197,12 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
   quarantined post-staple ZIP checks, and embedded-release sterile drill for
   `6ebbd6c` after the runner fix. Stage a checksum-matched copy for `qa`
   without replacing earlier candidates. This remains same-Mac app evidence.
+- [x] Task 1004: repeat those same-Mac checks for current app code `d7a6222`
+  and stage its distinct checksum-matched ZIP for `qa`. Neither the QA account
+  nor a clean Mac has launched it; updater and release-package gates remain open.
 - [ ] Produce and verify a fresh signed/notarized enrollment build at the
-  accepted beta revision. The `6ebbd6c` signed app and ZIP passed same-Mac
-  checks, but `desktop/dist/` predates current main; the signed updater,
+  accepted beta revision. The `d7a6222` signed app and ZIP passed same-Mac
+  checks, but `desktop/dist/` predates current app code; the signed updater,
   complete release metadata, clean-Mac test, and CI Apple certificate/notary
   secrets remain open.
 - [x] Task 1008: safe public-message boundary and actionable empty states across

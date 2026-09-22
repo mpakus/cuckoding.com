@@ -76,6 +76,10 @@ Re-run the MVP definition of done, freeze supported versions, validate installer
 - [x] Repeat those same-Mac app and QA-ZIP staging checks for `6ebbd6c`
   after the process-inspection fix; retain previous revision artifacts.
   Signed updater, QA-account launch, and clean-Mac acceptance remain open.
+- [x] Build, sign, notarize, and verify the current `d7a6222` app and a
+  quarantined post-staple ZIP; stage a checksum-matched QA-account copy without
+  replacing older candidates. Updater, QA-account launch, and clean-Mac
+  acceptance remain open.
 - [ ] Approve and verify the output/artifact retention policy and participant
   disclosure; no automatic age purge exists for full redacted artifacts yet.
 - [ ] Verify effective retention and consent/default behavior in a signed

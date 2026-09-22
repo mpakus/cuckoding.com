@@ -128,6 +128,8 @@ Gatekeeper, and the embedded-release sterile verifier; see
 After the process-inspection fix, current `6ebbd6c` passed the same build,
 signing, notarization, quarantined ZIP, Gatekeeper, and embedded-release
 checks; its revision-specific digest and submission ID are also recorded there.
+Current app code `d7a6222` subsequently passed the same local checks and has
+a distinct staged ZIP; neither copy has been launched by the QA account.
 None of this verifies provider, participant, complete release-package, or
 clean-Mac install behavior.
 
@@ -142,7 +144,7 @@ clean-Mac install behavior.
 | Human approval performs release handoff | The [walking skeleton](../worklog/2026-09-17-0405-walking-skeleton.md) pushed an approved branch to a local bare remote | D01 approved handoff on an authorized target, including a draft PR; verify no push before approval |
 | Knowledge is reviewed and later used | Knowledge extraction/publication/lineage tests and views exist | Score K01–K03 and show one approved item used by a later real run with project, version, run, and stage provenance |
 | Four reference plugins enable, contribute, and degrade safely | [Task 0803](../worklog/2026-09-18-0803-reference-plugins.md) records fixture conformance | Exercise RTK, XERJ, Ponytail, and read-only MCP in the enrolled app with labeled contributions and removal without core failure |
-| Clean Mac installs, runs, updates, and uninstalls | Signed ZIPs are staged for the QA account but none has been launched there; the current `6ebbd6c` app and post-staple ZIP passed same-Mac signature, Gatekeeper, and sterile checks | One complete signed/notarized release and updater candidate on a clean supported Mac, including sample task, update, rollback, and uninstall with data checks |
+| Clean Mac installs, runs, updates, and uninstalls | Signed ZIPs are staged for the QA account but none has been launched there; the current-app-code `d7a6222` app and post-staple ZIP passed same-Mac signature, Gatekeeper, and sterile checks | One complete signed/notarized release and updater candidate on a clean supported Mac, including sample task, update, rollback, and uninstall with data checks |
 
 None of these ten criteria has matching current-release acceptance evidence
 yet. The checked recovery item in the prior plan overstated task 1002's scope;
@@ -162,12 +164,12 @@ ticket, strict-signature, Gatekeeper, and embedded-release checks on this Mac;
 its SHA-256 is recorded in [DISTRIBUTION.md](DISTRIBUTION.md). This is not a
 complete signed release package: no current updater bundle/signature, release
 metadata, installed clean-Mac test, or beta enrollment is attached.
-The `3246b3b`, `17d367a`, `a3ef7b1`, and checksum-matched `6ebbd6c` ZIPs are staged
+The `3246b3b`, `17d367a`, `a3ef7b1`, `6ebbd6c`, and checksum-matched `d7a6222` ZIPs are staged
 in `/Users/Shared` for the existing `qa` macOS account, but a real
 menubar/browser launch from that account is not yet observed. Running the
 signed shell as the current user would use the live
 account-derived app data directory; no disposable override is established.
-The current `6ebbd6c` post-staple ZIP has not been published and still lacks a signed
+The current-app-code `d7a6222` post-staple ZIP has not been published and still lacks a signed
 updater and complete release metadata. A first local Tauri bundle attempt
 for the prior `a3ef7b1` returned `Operation not permitted`; a
 controlled bundle rerun and then the complete `bin/dev.build` both passed.
