@@ -39,6 +39,12 @@ Project setup, board setup, board task intake, and delivery execution are separa
    the stopped blocked run as failed, returns the task to Ready, and prepares a
    new queued run with a distinct branch/worktree. The user can start the new run explicitly; project automatic mode also picks up queued delivery runs when capacity allows. Prior runs, worktrees, and evidence are
    retained; uncommitted changes from the old worktree are not copied.
+   Ready cards on the board show a read-only scheduler snapshot while the
+   project runs: next eligible start or the current dependency, board/project/
+   machine limit, port, or memory deferral. A paused project or board and an
+   already prepared run have separate explanations. These messages are live
+   observations, not durable task states or a promise that preparation will
+   succeed; the next dispatcher pass rechecks all conditions.
 4. **Board task intake** accepts a bounded prompt and one snapshotted agent
    role. It creates a hidden planning task and normal queued run, verifies that
    role's saved authorization or isolated runtime setup, and launches a single read-only,

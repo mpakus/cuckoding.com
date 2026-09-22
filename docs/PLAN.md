@@ -236,6 +236,9 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
     behavior and record its gaps, decisions, and next implementation slices in
     [AUTONOMOUS_PROJECT_FLOW.md](AUTONOMOUS_PROJECT_FLOW.md). This is a plan,
     not an implemented board-level Start or autonomous dispatcher.
+  - [x] Task 1030: Ready cards show the current scheduler admission reason
+    during automatic project operation; paused and prepared-run states are
+    explained without claiming that Ready never starts automatically.
   - [x] Saved machine-local agent metadata can be attached across projects without rewriting old board/run snapshots.
   - [x] Task 1020: host-validated Review findings rerun Specifications/Coding within a fixed budget; passing runs can complete locally without release or continue to approved handoff.
 - [ ] Task 1018: complete real-provider acceptance of [agent-first authorization](AGENT_AUTHORIZATION_FLOW.md). Global management, shared profiles, automatic checks, grouped roles and explicit legacy bindings are implemented and regression-tested. Both Cursor and Codex keyring access fail with an isolated run `HOME`; their native app-owned file stores are now selected consistently for sign-in, check, model discovery, launch and logout. Authenticated cross-project runs remain required evidence.

@@ -731,6 +731,18 @@ defmodule Cuckoding.ProjectWorkflowTest do
     assert control.max_active_runs == 2
     assert control.critical_blocker_limit == 3
 
+    assert {:ok, admission} =
+             ProjectAutopilot.admission_plan(
+               project.id,
+               resource_probe: %{
+                 memory_available_bytes: fn -> {:ok, 8_000_000_000} end,
+                 available_ports: fn _project -> {:ok, 8} end
+               }
+             )
+
+    assert length(admission.candidates) == 1
+    assert Enum.any?(admission.deferred, &(&1.reason == :board_concurrency_limit))
+
     parent = self()
 
     assert :ok =

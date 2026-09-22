@@ -6,6 +6,7 @@ defmodule CuckodingWeb.BoardLiveTest do
 
   alias Cuckoding.Execution.RunEvent
   alias Cuckoding.Projects
+  alias Cuckoding.Projects.ProjectAutopilot, as: AutopilotProjection
   alias Cuckoding.Repo
   alias Cuckoding.Workflows
   alias Cuckoding.Workflows.Definition
@@ -194,7 +195,14 @@ defmodule CuckodingWeb.BoardLiveTest do
     assert has_element?(view, "#board-status", "Moved Alpha task to Ready")
     assert has_element?(view, "#column-ready #task-#{alpha.id}")
     assert Repo.get!(Cuckoding.Workflows.Task, alpha.id).state == "ready"
-    assert has_element?(view, "#column-ready", "Ready tasks do not start automatically")
+
+    assert has_element?(
+             view,
+             "#column-ready",
+             "Start the project to run eligible tasks automatically"
+           )
+
+    assert has_element?(view, "#task-#{alpha.id}", "Project is not running automatically")
     assert has_element?(view, "#start-task-#{alpha.id}", "Set up and start")
     task_path = ~p"/boards/#{board.id}/tasks/#{alpha.id}"
 
@@ -217,6 +225,33 @@ defmodule CuckodingWeb.BoardLiveTest do
            )
 
     assert has_element?(view, "#column-ready #task-#{alpha.id}")
+  end
+
+  test "running project explains an unmet prerequisite on its Ready card", %{
+    conn: conn,
+    board: board,
+    alpha: alpha,
+    beta: beta
+  } do
+    assert {:ok, _dependency} = Workflows.add_dependency(beta.id, alpha.id)
+
+    %AutopilotProjection{project_id: board.project_id}
+    |> AutopilotProjection.changeset(%{
+      state: "running",
+      max_active_runs: 2,
+      critical_blocker_limit: 1
+    })
+    |> Repo.insert!()
+
+    {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}")
+
+    assert has_element?(view, "#board-project-operation", "Running")
+    assert has_element?(view, "#task-#{beta.id}", "Waiting for a prerequisite task to finish")
+    assert has_element?(view, "#start-task-#{beta.id}", "Open task")
+
+    assert {:ok, _board} = Workflows.set_board_status(board.id, "paused")
+    send(view.pid, :refresh_board)
+    assert has_element?(view, "#task-#{beta.id}", "Board is paused")
   end
 
   test "creates a bounded draft task from the board", %{conn: conn, board: board} do

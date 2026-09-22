@@ -97,6 +97,23 @@ defmodule Cuckoding.ProjectAutopilot do
     |> Map.new()
   end
 
+  @doc "Read-only admission snapshot for a running project's Ready tasks."
+  def admission_plan(project_id, options \\ []) do
+    control = settings(project_id)
+
+    if control.state == "running" do
+      options
+      |> Keyword.take([:resource_probe, :global_limit])
+      |> Keyword.merge(
+        project_ids: [project_id],
+        project_limits: %{project_id => control.max_active_runs}
+      )
+      |> Scheduler.plan()
+    else
+      {:error, :project_not_running}
+    end
+  end
+
   @doc "One bounded admission pass; callable with a fake starter/probe in tests."
   def dispatch_once(options \\ []) do
     controls = list_running()

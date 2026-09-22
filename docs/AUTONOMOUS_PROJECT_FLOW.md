@@ -78,7 +78,8 @@ yet deliver the requested hands-off project flow.
    the existing scheduler to atomically claim eligible Ready tasks, prepare
    branches/worktrees, verify distinct saved sign-ins, and start their runs.
    Duplicate UI clicks, wake/restart, and competing ticks must not double-run a
-   task. The remaining UI gap is per-task deferred reasons. Signed-build
+   task. Task 1030 now shows the scheduler's current per-task deferral on Ready
+   board cards; it does not persist a second queue. Signed-build
    restart/sleep and cross-process admission races remain acceptance gates.
 4. **Work.** Each task keeps its current Specifications → Coding → Review
    dependency order and review loops; separate tasks may run concurrently.

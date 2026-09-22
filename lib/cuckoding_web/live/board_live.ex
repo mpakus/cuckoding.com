@@ -33,6 +33,7 @@ defmodule CuckodingWeb.BoardLive do
            intake_form: %{"prompt" => "", "role_key" => "spec_writer"},
            agent_roles: Enum.filter(Workflows.list_agent_roles(board.id), & &1.adapter_key),
            tasks: [],
+           admission_by_task: %{},
            intake_error: nil,
            notice: nil,
            error: nil
@@ -61,6 +62,7 @@ defmodule CuckodingWeb.BoardLive do
      socket
      |> assign(
        refresh_pending: false,
+       board: Workflows.get_board(socket.assigns.board.id),
        project_operation: ProjectAutopilot.settings(socket.assigns.project.id)
      )
      |> load_tasks()}
@@ -349,7 +351,9 @@ defmodule CuckodingWeb.BoardLive do
         </form>
 
         <div class="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-700">
-          <p>Cards update live. Ready means you can start a task—not that an agent has started.</p>
+          <p>
+            Cards update live. Ready tasks start automatically while this project is running, subject to capacity and dependencies; you can also open a task to start it yourself.
+          </p>
           <button
             :if={@filters["state"] == "all"}
             id="toggle-board-states"
@@ -392,7 +396,7 @@ defmodule CuckodingWeb.BoardLive do
               <span class="font-normal text-slate-600">({count_tasks(@tasks, state)})</span>
             </h2>
             <p :if={state == "ready"} class="mt-2 text-sm text-slate-700">
-              Ready tasks do not start automatically. Set up a run, then verify authentication and start it.
+              Start the project to run eligible tasks automatically, or open a task to start it yourself.
             </p>
             <p :if={count_tasks(@tasks, state) == 0} class="mt-3 text-sm text-slate-600">
               No {String.downcase(state_label(state))} tasks.
@@ -422,6 +426,9 @@ defmodule CuckodingWeb.BoardLive do
                   <p :if={task.wait_reason} class="text-sm font-medium text-amber-900">
                     Waiting: {task.wait_reason}
                   </p>
+                  <p :if={task.state == "ready"} class="mt-2 text-sm text-slate-700">
+                    {ready_status(task, @board, @project_operation, @admission_by_task)}
+                  </p>
                 </div>
 
                 <.link
@@ -430,7 +437,7 @@ defmodule CuckodingWeb.BoardLive do
                   navigate={~p"/boards/#{@board.id}/tasks/#{task.id}"}
                   class="inline-flex min-h-11 items-center rounded-md bg-slate-950 px-4 text-sm font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
                 >
-                  Set up and start
+                  {if @project_operation.state == "running", do: "Open task", else: "Set up and start"}
                 </.link>
 
                 <.link
@@ -521,7 +528,24 @@ defmodule CuckodingWeb.BoardLive do
           (state == "all" or task.state == state)
       end)
 
-    assign(socket, :tasks, filtered)
+    admission_by_task =
+      if socket.assigns.project_operation.state == "running" and
+           socket.assigns.board.status == "active" and
+           Enum.any?(tasks, &(&1.state == "ready")) do
+        case ProjectAutopilot.admission_plan(socket.assigns.project.id) do
+          {:ok, plan} ->
+            selected = Map.new(plan.candidates, &{&1.task_id, :next})
+            deferred = Map.new(plan.deferred, &{&1.task_id, &1.reason})
+            Map.merge(selected, deferred)
+
+          {:error, _reason} ->
+            %{}
+        end
+      else
+        %{}
+      end
+
+    assign(socket, tasks: filtered, admission_by_task: admission_by_task)
   end
 
   defp normalize_state(state) when state in ["all" | @states], do: state
@@ -547,6 +571,30 @@ defmodule CuckodingWeb.BoardLive do
   defp project_operation_label("attention"), do: "Needs attention"
   defp project_operation_label("done"), do: "Done"
   defp project_operation_label(_state), do: "Paused"
+
+  defp ready_status(%{active_run_id: run_id}, _board, _operation, _admission)
+       when not is_nil(run_id), do: "Run prepared; open it to see progress."
+
+  defp ready_status(_task, %{status: status}, _operation, _admission)
+       when status != "active", do: "Board is paused. Resume it to allow automatic starts."
+
+  defp ready_status(_task, _board, %{state: state}, _admission)
+       when state != "running",
+       do: "Project is not running automatically. Start it in Project settings."
+
+  defp ready_status(task, _board, _operation, admission) do
+    case Map.get(admission, task.id) do
+      :next -> "Eligible for the next automatic start."
+      :dependency -> "Waiting for a prerequisite task to finish."
+      :global_session_limit -> "Waiting for the machine-wide agent limit."
+      :board_concurrency_limit -> "Waiting for this board's running task to finish."
+      :project_concurrency_limit -> "Waiting for a running task in this project to finish."
+      :no_port_headroom -> "Waiting for a free project preview port."
+      :memory_headroom -> "Waiting for enough available memory."
+      _other -> "Admission is not available yet. Check project status or open the task."
+    end
+  end
+
   defp reason_label("invalid_transition"), do: "this task cannot move from its current state"
   defp reason_label(:invalid_transition), do: "this task cannot move from its current state"
   defp reason_label(_reason), do: "the task changed or this move is no longer available"
