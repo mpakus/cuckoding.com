@@ -53,6 +53,7 @@ defmodule CuckodingWeb.ProjectEditLive do
       "executable_path" => RuntimeConfiguration.default_executable("codex"),
       "api_key_helper" => "",
       "model" => "",
+      "reasoning_effort" => "",
       "persisted" => false
     }
 
@@ -77,6 +78,7 @@ defmodule CuckodingWeb.ProjectEditLive do
         "executable_path" => settings["executable_path"] || "",
         "api_key_helper" => settings["api_key_helper"] || "",
         "model" => settings["model"] || "",
+        "reasoning_effort" => settings["reasoning_effort"] || "",
         "persisted" => false
       }
 
@@ -532,6 +534,11 @@ defmodule CuckodingWeb.ProjectEditLive do
                   name={"config[agent_connections][#{index}][provider_account_id]"}
                   value={connection["provider_account_id"]}
                 />
+                <input
+                  type="hidden"
+                  name={"config[agent_connections][#{index}][reasoning_effort]"}
+                  value={connection["reasoning_effort"] || ""}
+                />
                 <label class="grid gap-2 text-sm font-medium text-slate-800">
                   Connection name
                   <input
@@ -846,6 +853,7 @@ defmodule CuckodingWeb.ProjectEditLive do
             "executable_path" => settings["executable_path"] || "",
             "api_key_helper" => settings["api_key_helper"] || "",
             "model" => settings["model"] || "",
+            "reasoning_effort" => Map.get(settings, "reasoning_effort", ""),
             "persisted" => true
           }
         end),
@@ -871,14 +879,20 @@ defmodule CuckodingWeb.ProjectEditLive do
 
       connection =
         if connection["adapter_key"] != previous["adapter_key"] do
-          Map.put(
-            connection,
+          connection
+          |> Map.put(
             "executable_path",
             RuntimeConfiguration.default_executable(connection["adapter_key"])
           )
+          |> Map.put("reasoning_effort", "")
         else
           connection
         end
+
+      connection =
+        if connection["model"] != previous["model"],
+          do: Map.put(connection, "reasoning_effort", ""),
+          else: connection
 
       if connection["adapter_key"] == "claude_code",
         do: connection,

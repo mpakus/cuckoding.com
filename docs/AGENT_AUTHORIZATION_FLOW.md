@@ -9,15 +9,20 @@ acceptance from configuration tests alone.
 
 1. Open **Agents** from the main navigation. This is the machine-wide catalog,
    separate from **Agent activity**, which shows running and historical sessions.
-2. **Add agent**: name, runtime, model, executable and provider-specific settings.
-   For Codex and Cursor, reuse a compatible provider sign-in by default. The first
-   agent owns the sign-in; additional agents can choose different models without
-   logging in again. **Use a separate sign-in** creates an independent account.
-   Save first, sign in if needed, then choose **Check sign-in and refresh models**.
-   A successful check fetches the models available to that shared provider account
-   and uses them in every linked agent's dropdown. Runtime default and a validated
-   Custom model ID remain available when discovery is unsupported or temporarily
-   unavailable.
+2. **Add agent** follows three steps: **Name and runtime**; **Authorization**;
+   **Model**. The executable is suggested from the installed CLI when possible,
+   and an absolute-path field remains available when it is not found. The second
+   step saves the agent, reuses a compatible Codex/Cursor sign-in by default,
+   and shows a copyable sign-in command only when needed. **Use a separate
+   sign-in** creates an independent account. After sign-in, **Check sign-in and
+   fetch models** verifies the app-owned provider profile and refreshes its
+   catalog; a connected shared account can continue without a second login.
+   The final step selects a discovered model or runtime default. A validated
+   Custom model ID remains available when discovery is unsupported or unavailable.
+   For Codex, a discovered model also exposes only its reported reasoning levels;
+   **Model default** leaves the effort to Codex. Other runtimes do not present an
+   unverified reasoning override. Closing setup after step two leaves the saved
+   agent in the catalog for later completion.
 3. Add a project through **Project → Repository → Review**. In project settings,
    select existing agents and assign their roles; do not re-enter credentials.
    Use Projects to return to the project after adding an agent.
@@ -62,7 +67,8 @@ Cuckoding. Only the provider runtime handles token values. See
   remains responsible for secrets. Codex and Cursor native file stores are confined
   to private app-owned profiles; Cuckoding never reads or copies their token files.
 - Provider model discovery runs only after the scoped authorization probe. The
-  database stores bounded model IDs and display labels plus discovery status,
+  database stores bounded model IDs, display labels, validated Codex reasoning
+  levels, and discovery status,
   never raw CLI output or provider errors. Codex uses the official app-server
   `model/list` method; Cursor uses its account-scoped `models` command.
 - `provider_accounts.authorization_account_id` points only to a compatible root
@@ -70,9 +76,11 @@ Cuckoding. Only the provider runtime handles token values. See
   connected root, then the oldest compatible root. Existing accounts remain
   independent unless newly created with a shared reference. References cannot be
   redirected later, preventing silent identity changes to historical runs.
-- Each agent's model remains independent. Project settings copy the model,
-  boards record `model_ref`, and runs preserve it in snapshots. Both planning and
-  workflow stage requests forward that model; reported actual model stays separate.
+- Each agent's model and Codex reasoning level remain independent. Project
+  settings copy both; boards and runs preserve them in snapshots. Planning and
+  workflow requests forward the selected model and per-role reasoning level;
+  reported actual model stays separate. Changing the model in project settings
+  clears a copied reasoning level so an unsupported combination is not retained.
 - Shared profiles are now explicitly approved. Codex uses the same account
   home for login, probes and execution, with saved execution config ignored.
   Cursor shares its app-owned HOME and native credential file but keeps task
@@ -135,7 +143,7 @@ profile. Later runs reuse it until the provider revokes or expires it.
 
 ## Implemented and remaining verification
 
-- `/settings/agents` provides add/edit, copyable sign-in commands and async checks;
+- `/settings/agents` provides a three-step add wizard, full edit form, copyable sign-in commands and async checks;
   status updates arrive after durable provider audit events. Project settings
   retain existing add/edit controls for compatibility and can attach accounts.
 - Codex and Cursor authorization checks also refresh a bounded provider model

@@ -228,6 +228,10 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
   - [x] Task 1026: new unexpected worker failures record a bounded, non-secret
     application source location and show it on the run page. This does not
     diagnose the older blocked Development run or replace real-provider retest.
+  - [x] Task 1027: saved-agent creation uses Name/runtime → executable and
+    authorization → provider models and Codex-supported reasoning levels.
+    CLI paths are suggested with a manual fallback; fixture checks do not close
+    the real-provider acceptance gate.
   - [x] Saved machine-local agent metadata can be attached across projects without rewriting old board/run snapshots.
   - [x] Task 1020: host-validated Review findings rerun Specifications/Coding within a fixed budget; passing runs can complete locally without release or continue to approved handoff.
 - [ ] Task 1018: complete real-provider acceptance of [agent-first authorization](AGENT_AUTHORIZATION_FLOW.md). Global management, shared profiles, automatic checks, grouped roles and explicit legacy bindings are implemented and regression-tested. Both Cursor and Codex keyring access fail with an isolated run `HOME`; their native app-owned file stores are now selected consistently for sign-in, check, model discovery, launch and logout. Authenticated cross-project runs remain required evidence.

@@ -53,9 +53,19 @@ defmodule Cuckoding.AgentRuntime do
              do: {:ok, checked[key]},
              else: resolve(skeleton, role_key)
            ) do
+      options =
+        if assignment.adapter_key == "codex",
+          do: Keyword.put(runtime.options, :reasoning_effort, settings["reasoning_effort"]),
+          else: runtime.options
+
       {:ok,
-       %{runtime | role_key: role_key, settings: settings, requested_model: assignment.model_ref},
-       key}
+       %{
+         runtime
+         | role_key: role_key,
+           settings: settings,
+           requested_model: assignment.model_ref,
+           options: options
+       }, key}
     end
   end
 
@@ -337,7 +347,12 @@ defmodule Cuckoding.AgentRuntime do
 
           probe(
             Codex,
-            [path: path, codex_home: home, run_scoped_authenticated?: true] ++ shared,
+            [
+              path: path,
+              codex_home: home,
+              run_scoped_authenticated?: true,
+              reasoning_effort: role.settings_json["reasoning_effort"]
+            ] ++ shared,
             account
           )
         end

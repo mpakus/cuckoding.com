@@ -12,6 +12,9 @@ Project setup, board setup, board task intake, and delivery execution are separa
    can be attached and project role defaults are versioned separately. A saved
    agent holds only validated runtime settings, authorization status, and a bounded
    provider-reported model catalog refreshed after successful sign-in checks;
+   its add wizard steps through name/runtime, discovered executable and
+   authorization, then model and Codex-supported reasoning level. A manual
+   executable path and runtime/model defaults remain available;
    supported credentials stay in the provider's credential store. Failed sign-in checks and
    disconnects append redacted provider events and remain visible in the saved agent's error
    history after reload. Neither action creates a

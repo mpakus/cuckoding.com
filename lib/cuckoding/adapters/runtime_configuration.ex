@@ -15,17 +15,13 @@ defmodule Cuckoding.Adapters.RuntimeConfiguration do
 
   def options, do: @options
 
-  # Suggestions are not an entitlement check; the selected runtime validates access.
-  def models("codex"), do: [{"Astra", "gpt-6-astra"}]
+  # Do not present guessed models as provider availability.
   def models(_runtime), do: []
 
-  def default_executable("codex"), do: System.find_executable("codex") || ""
-  def default_executable("claude_code"), do: System.find_executable("claude") || ""
-
-  def default_executable("cursor_agent"),
-    do: System.find_executable("cursor-agent") || System.find_executable("agent") || ""
-
-  def default_executable("opencode"), do: System.find_executable("opencode") || ""
+  def default_executable("codex"), do: discover_executable(["codex"])
+  def default_executable("claude_code"), do: discover_executable(["claude"])
+  def default_executable("cursor_agent"), do: discover_executable(["cursor-agent", "agent"])
+  def default_executable("opencode"), do: discover_executable(["opencode"])
   def default_executable("custom_agent"), do: ""
   def default_executable(_runtime), do: ""
 
@@ -42,11 +38,13 @@ defmodule Cuckoding.Adapters.RuntimeConfiguration do
     with {:ok, runtime} <- runtime(attrs["runtime"]),
          {:ok, executable} <- executable(attrs["executable_path"]),
          {:ok, helper} <- helper(runtime, attrs["api_key_helper"]),
-         {:ok, model} <- model(attrs["model"]) do
+         {:ok, model} <- model(attrs["model"]),
+         {:ok, reasoning_effort} <- reasoning_effort(runtime, attrs["reasoning_effort"]) do
       settings =
         %{"executable_path" => executable}
         |> maybe_put("api_key_helper", helper)
         |> maybe_put("model", model)
+        |> maybe_put("reasoning_effort", reasoning_effort)
 
       {:ok, %{runtime: runtime, settings: settings}}
     end
@@ -64,6 +62,30 @@ defmodule Cuckoding.Adapters.RuntimeConfiguration do
   end
 
   defp model(_value), do: {:error, :invalid_model}
+
+  defp reasoning_effort(_runtime, value) when value in [nil, ""], do: {:ok, nil}
+
+  defp reasoning_effort("codex", value)
+       when value in ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"],
+       do: {:ok, value}
+
+  defp reasoning_effort(_runtime, _value), do: {:error, :invalid_reasoning_effort}
+
+  defp discover_executable(names) do
+    roots =
+      [
+        System.user_home() && Path.join(System.user_home(), ".local/bin"),
+        "/opt/homebrew/bin",
+        "/usr/local/bin",
+        "/usr/bin"
+      ]
+      |> Enum.reject(&is_nil/1)
+
+    Enum.find_value(names, &System.find_executable/1) ||
+      Enum.find_value(for(root <- roots, name <- names, do: Path.join(root, name)), "", fn path ->
+        if match?({:ok, _}, executable(path)), do: path
+      end)
+  end
 
   defp executable(path) when is_binary(path) do
     expanded = Path.expand(path)

@@ -55,7 +55,8 @@ defmodule Cuckoding.ProjectWorkflowTest do
                    "adapter_key" => "codex",
                    "executable_path" => "/usr/bin/true",
                    "api_key_helper" => "",
-                   "model" => "gpt-6-astra"
+                   "model" => "gpt-6-astra",
+                   "reasoning_effort" => "high"
                  }
                ],
                "default_roles" =>
@@ -116,6 +117,7 @@ defmodule Cuckoding.ProjectWorkflowTest do
     assert implementer["adapter_key"] == "codex"
     assert implementer["model_ref"] == "gpt-6-astra"
     assert implementer["settings"]["model"] == "gpt-6-astra"
+    assert implementer["settings"]["reasoning_effort"] == "high"
     assert implementer["settings"]["connection_label"] == "Local Codex"
     assert is_binary(implementer["settings"]["provider_account_id"])
 

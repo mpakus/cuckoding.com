@@ -107,7 +107,9 @@ defmodule Cuckoding.SharedAgentProfileTest do
     linked_run = skeleton(root, second_agent, executable, "linked-agent")
     [spec_role, review_role, coding_role] = linked_run.run.workflow_snapshot_json["roles"]
     spec_role = put_in(spec_role["model_ref"], "gpt-6-astra")
+    spec_role = put_in(spec_role["settings"]["reasoning_effort"], "high")
     coding_role = put_in(coding_role["model_ref"], "custom-coding-model")
+    coding_role = put_in(coding_role["settings"]["reasoning_effort"], "low")
     review_role = put_in(review_role["settings"]["provider_account_id"], account.id)
 
     linked_run =
@@ -119,6 +121,8 @@ defmodule Cuckoding.SharedAgentProfileTest do
     assert linked["spec_writer"].requested_model == "gpt-6-astra"
     assert linked["implementer"].requested_model == "custom-coding-model"
     assert linked["implementer"].options[:shared_profile_id] == account.id
+    assert linked["spec_writer"].options[:reasoning_effort] == "high"
+    assert linked["implementer"].options[:reasoning_effort] == "low"
 
     model_request = %{
       request(linked_run)

@@ -16,6 +16,7 @@ defmodule CuckodingWeb.AgentSettingsLive do
      |> assign(
        page_title: "Agents",
        form: empty_form(),
+       step: 1,
        checking: nil,
        disconnecting: nil,
        error: nil,
@@ -35,11 +36,83 @@ defmodule CuckodingWeb.AgentSettingsLive do
             "executable_path" => RuntimeConfiguration.default_executable(form["adapter_key"]),
             "model" => "",
             "model_choice" => "",
+            "reasoning_effort" => "",
             "authorization_account_id" => "auto"
           }),
         else: form
 
+    form =
+      if form["model_choice"] != socket.assigns.form["model_choice"],
+        do: Map.put(form, "reasoning_effort", ""),
+        else: form
+
     {:noreply, assign(socket, form: form)}
+  end
+
+  def handle_event("next", %{"agent" => params}, %{assigns: %{step: 1}} = socket) do
+    form = Map.merge(socket.assigns.form, params)
+
+    if String.trim(form["label"] || "") == "" do
+      {:noreply, assign(socket, error: "Enter a name for this agent.")}
+    else
+      {:noreply, assign(socket, form: form, step: 2, error: nil)}
+    end
+  end
+
+  def handle_event("prepare", %{"agent" => params}, %{assigns: %{step: 2}} = socket) do
+    form = Map.merge(socket.assigns.form, params)
+
+    case ProjectOnboarding.save_agent(Map.merge(form, %{"model" => "", "reasoning_effort" => ""})) do
+      {:ok, account} ->
+        step =
+          if account.status == "authenticated" or
+               account.adapter_key not in ["codex", "cursor_agent"], do: 3, else: 2
+
+        {:noreply,
+         socket
+         |> refresh()
+         |> assign(
+           form: Map.put(form, "provider_account_id", account.id),
+           step: step,
+           error: nil,
+           notice:
+             if(step == 3,
+               do: "Agent saved. Choose its model.",
+               else: "Agent saved. Sign in below, then check the connection."
+             )
+         )}
+
+      {:error, reason} ->
+        {:noreply, assign(socket, form: form, error: error_message(reason))}
+    end
+  end
+
+  def handle_event(
+        "back",
+        _params,
+        %{assigns: %{step: 2, form: %{"provider_account_id" => id}}} = socket
+      )
+      when is_binary(id) and id != "",
+      do:
+        {:noreply,
+         assign(socket, error: "This agent is already saved. Close setup or finish sign-in.")}
+
+  def handle_event("back", _params, socket) do
+    step = if socket.assigns.step == 3, do: 2, else: 1
+    {:noreply, assign(socket, step: step, error: nil)}
+  end
+
+  def handle_event("continue", _params, %{assigns: %{step: 2}} = socket) do
+    case Adapters.get_provider_account(socket.assigns.form["provider_account_id"]) do
+      %{status: "authenticated"} ->
+        {:noreply, assign(socket, step: 3, error: nil)}
+
+      %{adapter_key: runtime} when runtime not in ["codex", "cursor_agent"] ->
+        {:noreply, assign(socket, step: 3, error: nil)}
+
+      _other ->
+        {:noreply, assign(socket, error: "Check sign-in before choosing a model.")}
+    end
   end
 
   def handle_event("save", %{"agent" => params}, socket) do
@@ -52,13 +125,18 @@ defmodule CuckodingWeb.AgentSettingsLive do
 
     params = Map.put(params, "provider_account_id", socket.assigns.form["provider_account_id"])
 
-    case ProjectOnboarding.save_agent(params) do
+    result =
+      with {:ok, params} <- locked_setup_params(params, socket.assigns.step),
+           do: ProjectOnboarding.save_agent(params)
+
+    case result do
       {:ok, account} ->
         {:noreply,
          socket
          |> refresh()
          |> assign(
            form: empty_form(),
+           step: 1,
            error: nil,
            notice: saved_message(account)
          )}
@@ -83,12 +161,18 @@ defmodule CuckodingWeb.AgentSettingsLive do
             "model_choice" => model_choice(account, socket.assigns.accounts)
           })
 
-        {:noreply, assign(socket, form: form, error: nil)}
+        {:noreply, assign(socket, form: form, step: :edit, error: nil)}
     end
   end
 
-  def handle_event("cancel", _params, socket),
-    do: {:noreply, assign(socket, form: empty_form(), error: nil)}
+  def handle_event("cancel", _params, socket) do
+    notice =
+      if socket.assigns.step in [2, 3] and socket.assigns.form["provider_account_id"] != "",
+        do: "Agent remains saved. You can finish sign-in from its card below.",
+        else: nil
+
+    {:noreply, assign(socket, form: empty_form(), step: 1, error: nil, notice: notice)}
+  end
 
   def handle_event("check", %{"id" => id}, %{assigns: %{checking: nil}} = socket) do
     case Adapters.get_provider_account(id) do
@@ -124,7 +208,13 @@ defmodule CuckodingWeb.AgentSettingsLive do
   def handle_async(:authorization, {:ok, {:ok, account}}, socket) do
     message = authorization_message(account)
 
-    {:noreply, socket |> refresh() |> assign(checking: nil, notice: message)}
+    step =
+      if socket.assigns.step == 2 and socket.assigns.form["provider_account_id"] == account.id and
+           account.status == "authenticated",
+         do: 3,
+         else: socket.assigns.step
+
+    {:noreply, socket |> refresh() |> assign(checking: nil, notice: message, step: step)}
   end
 
   def handle_async(:authorization, _result, socket) do
@@ -170,6 +260,11 @@ defmodule CuckodingWeb.AgentSettingsLive do
       assigns
       |> assign(:runtime_options, RuntimeConfiguration.options())
       |> assign(:model_options, model_options(assigns.form, assigns.accounts))
+      |> assign(:reasoning_options, reasoning_options(assigns.form, assigns.accounts))
+      |> assign(
+        :wizard_account,
+        Enum.find(assigns.accounts, &(&1.id == assigns.form["provider_account_id"]))
+      )
 
     ~H"""
     <Layouts.app flash={@flash} active="agent_settings">
@@ -202,13 +297,29 @@ defmodule CuckodingWeb.AgentSettingsLive do
         <form
           id="agent-form"
           phx-change="change"
-          phx-submit="save"
+          phx-submit={if @step == 1, do: "next", else: if(@step == 2, do: "prepare", else: "save")}
           class="space-y-4 rounded-xl border border-slate-300 bg-white p-5"
         >
           <h2 class="text-xl font-semibold">
-            {if @form["provider_account_id"] == "", do: "Add agent", else: "Edit shared agent"}
+            {if @step == :edit, do: "Edit shared agent", else: "Add agent"}
           </h2>
-          <div class="grid gap-4 sm:grid-cols-2">
+          <p :if={@step != :edit} role="status" aria-live="polite" class="sr-only">
+            Step {@step} of 3: {Enum.at(["Name and runtime", "Authorization", "Model"], @step - 1)}
+          </p>
+          <ol :if={@step != :edit} class="grid gap-2 sm:grid-cols-3" aria-label="Agent setup progress">
+            <li
+              :for={{label, number} <- [{"Name and runtime", 1}, {"Authorization", 2}, {"Model", 3}]}
+              aria-current={if @step == number, do: "step"}
+              class={
+                if @step == number,
+                  do: "rounded border border-slate-950 bg-slate-950 p-3 text-white",
+                  else: "rounded border border-slate-300 p-3"
+              }
+            >
+              {number}. {label}
+            </li>
+          </ol>
+          <div :if={@step in [1, :edit]} class="grid gap-4 sm:grid-cols-2">
             <label class="grid gap-2">
               Agent name
               <input
@@ -234,6 +345,125 @@ defmodule CuckodingWeb.AgentSettingsLive do
                 </option>
               </select>
             </label>
+          </div>
+          <div :if={@step in [2, :edit]} class="grid gap-4">
+            <p :if={@step == 2} class="text-sm text-slate-600">
+              We found the command-line executable when possible. Check the path, or enter it if the runtime was not found.
+            </p>
+            <label class="grid gap-2">
+              Runtime executable
+              <input
+                name="agent[executable_path]"
+                value={@form["executable_path"]}
+                required
+                readonly={@step == 2 and @wizard_account != nil}
+                autocomplete="off"
+                autocapitalize="none"
+                spellcheck="false"
+                placeholder="/absolute/path/to/agent"
+                class="min-h-11 min-w-0 rounded border border-slate-400 px-3 font-mono text-sm"
+              />
+            </label>
+            <label :if={@form["adapter_key"] == "claude_code"} class="grid gap-2">
+              Claude API-key helper
+              <input
+                name="agent[api_key_helper]"
+                value={@form["api_key_helper"]}
+                required
+                readonly={@step == 2 and @wizard_account != nil}
+                placeholder="/absolute/path/to/helper"
+                class="min-h-11 min-w-0 rounded border border-slate-400 px-3 font-mono text-sm"
+              />
+            </label>
+            <label
+              :if={
+                @form["provider_account_id"] == "" and
+                  @form["adapter_key"] in ["codex", "cursor_agent"]
+              }
+              class="grid gap-2"
+            >
+              Provider sign-in
+              <select
+                name="agent[authorization_account_id]"
+                aria-describedby="profile-sharing"
+                class="min-h-11 min-w-0 rounded border border-slate-400 bg-white px-3"
+              >
+                <option value="auto" selected={@form["authorization_account_id"] == "auto"}>
+                  Reuse compatible sign-in (or create the first one)
+                </option>
+                <option
+                  :for={account <- @accounts}
+                  :if={
+                    account.adapter_key == @form["adapter_key"] and
+                      is_nil(account.authorization_account_id)
+                  }
+                  value={account.id}
+                  selected={@form["authorization_account_id"] == account.id}
+                >
+                  Use sign-in from {account.label} · {status_label(account.status)}
+                </option>
+                <option value="new" selected={@form["authorization_account_id"] == "new"}>
+                  Use a separate sign-in
+                </option>
+              </select>
+            </label>
+          </div>
+          <div
+            :if={@step == 2 and @wizard_account != nil}
+            class="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4"
+          >
+            <p class="font-medium">{status_label(@wizard_account.status)}</p>
+            <p :if={@wizard_account.authorization_account_id} class="text-sm">
+              This agent uses an existing provider sign-in. No second login is needed while it remains valid.
+            </p>
+            <div
+              :if={@setups[@wizard_account.id] && is_nil(@wizard_account.authorization_account_id)}
+              id={"wizard-agent-command-#{@wizard_account.id}"}
+              phx-hook="CopyCommand"
+              class="space-y-2"
+            >
+              <p class="text-sm">Run this sign-in command in Terminal, then check the connection.</p>
+              <label class="grid gap-2 text-sm">
+                Sign-in command
+                <span class="flex gap-2">
+                  <input
+                    data-copy-source
+                    readonly
+                    value={@setups[@wizard_account.id].command}
+                    class="min-h-11 min-w-0 flex-1 rounded border border-slate-400 bg-white px-3 font-mono text-xs"
+                  />
+                  <button
+                    type="button"
+                    data-copy-button
+                    class="min-h-11 rounded border border-slate-400 bg-white px-4"
+                  >Copy</button>
+                </span>
+              </label>
+              <p data-copy-status role="status" aria-live="polite" class="min-h-5 text-sm"></p>
+            </div>
+            <button
+              :if={@wizard_account.adapter_key in ["codex", "cursor_agent"]}
+              type="button"
+              phx-click="check"
+              phx-value-id={@wizard_account.id}
+              disabled={@checking != nil}
+              class="min-h-11 rounded bg-slate-950 px-4 text-white disabled:opacity-60"
+            >
+              {if @checking == @wizard_account.id,
+                do: "Checking sign-in and models…",
+                else: "Check sign-in and fetch models"}
+            </button>
+            <button
+              :if={
+                @wizard_account.status == "authenticated" or
+                  @wizard_account.adapter_key not in ["codex", "cursor_agent"]
+              }
+              type="button"
+              phx-click="continue"
+              class="min-h-11 rounded border border-slate-400 bg-white px-4"
+            >Continue to model</button>
+          </div>
+          <div :if={@step in [3, :edit]} class="grid gap-4 sm:grid-cols-2">
             <label class="grid gap-2">
               Model
               <select
@@ -266,83 +496,73 @@ defmodule CuckodingWeb.AgentSettingsLive do
               />
             </label>
             <p id="model-help" class="text-sm text-slate-600 sm:col-span-2">
-              Check sign-in to refresh models available to this provider account. Runtime default leaves the choice to the CLI; Custom model ID remains available for runtimes without discovery.
+              Models come from the verified provider account when available. Runtime default leaves the choice to the CLI; Custom model ID is available if discovery is unsupported.
             </p>
-            <label
-              :if={
-                @form["provider_account_id"] == "" and
-                  @form["adapter_key"] in ["codex", "cursor_agent"]
-              }
-              class="grid gap-2 sm:col-span-2"
-            >
-              Provider sign-in
+            <label :if={@form["adapter_key"] == "codex"} class="grid gap-2">
+              Reasoning level
               <select
-                name="agent[authorization_account_id]"
-                aria-describedby="profile-sharing"
+                name="agent[reasoning_effort]"
                 class="min-h-11 min-w-0 rounded border border-slate-400 bg-white px-3"
               >
-                <option value="auto" selected={@form["authorization_account_id"] == "auto"}>
-                  Reuse compatible sign-in (or create the first one)
+                <option value="" selected={@form["reasoning_effort"] in [nil, ""]}>
+                  Model default
                 </option>
                 <option
-                  :for={account <- @accounts}
-                  :if={
-                    account.adapter_key == @form["adapter_key"] and
-                      account.authorization_account_id == nil
-                  }
-                  value={account.id}
-                  selected={@form["authorization_account_id"] == account.id}
+                  :for={effort <- @reasoning_options}
+                  value={effort}
+                  selected={@form["reasoning_effort"] == effort}
                 >
-                  Use sign-in from {account.label} · {status_label(account.status)}
-                </option>
-                <option value="new" selected={@form["authorization_account_id"] == "new"}>
-                  Use a separate sign-in
+                  {String.capitalize(effort)}
                 </option>
               </select>
             </label>
-            <label class="grid gap-2 sm:col-span-2">
-              Runtime executable
-              <input
-                name="agent[executable_path]"
-                value={@form["executable_path"]}
-                required
-                class="min-h-11 min-w-0 rounded border border-slate-400 px-3 font-mono text-sm"
-              />
-            </label>
-            <label :if={@form["adapter_key"] == "claude_code"} class="grid gap-2 sm:col-span-2">
-              Claude API-key helper
-              <input
-                name="agent[api_key_helper]"
-                value={@form["api_key_helper"]}
-                required
-                class="min-h-11 min-w-0 rounded border border-slate-400 px-3"
-              />
-            </label>
+            <p
+              :if={@form["adapter_key"] == "codex" and @reasoning_options == []}
+              class="text-sm text-slate-600 sm:col-span-2"
+            >
+              Select a discovered model to see its supported reasoning levels. Model default remains available.
+            </p>
+            <p :if={@form["adapter_key"] != "codex"} class="text-sm text-slate-600 sm:col-span-2">
+              This runtime does not expose a verified reasoning-level control here; it uses its own default.
+            </p>
           </div>
           <p :if={@form["adapter_key"] in ["opencode", "custom_agent"]} class="text-sm text-amber-950">
             Setup only: this runtime cannot execute tasks yet.
           </p>
           <div class="flex flex-wrap gap-3">
             <button
+              :if={@step != 2 or @wizard_account == nil}
               phx-disable-with="Saving…"
               data-confirm={
-                if @form["provider_account_id"] != "",
+                if @step == :edit,
                   do:
                     "Update this shared agent for all projects using it? Existing run snapshots and running processes will not change."
               }
               class="min-h-11 rounded bg-slate-950 px-4 text-white"
-            >Save agent</button>
+            >{case @step do
+              1 -> "Continue to authorization"
+              2 -> "Save and continue"
+              3 -> "Finish agent setup"
+              :edit -> "Save agent"
+            end}</button>
             <button
-              :if={@form["provider_account_id"] != ""}
+              :if={@step in [2, 3] and (@wizard_account == nil or @step == 3)}
+              type="button"
+              phx-click="back"
+              class="min-h-11 rounded border border-slate-400 px-4"
+            >Back</button>
+            <button
+              :if={@step != 1}
               type="button"
               phx-click="cancel"
               class="min-h-11 rounded border border-slate-400 px-4"
-            >Cancel edit</button>
+            >{if @step == :edit, do: "Cancel edit", else: "Close setup"}</button>
           </div>
         </form>
         <p :if={@accounts == []}>No saved agents yet. Add your first agent above.</p>
         <article
           :for={account <- @accounts}
+          :if={@step != 2 or is_nil(@wizard_account) or account.id != @wizard_account.id}
           id={"agent-#{account.id}"}
           class="space-y-4 rounded-xl border border-slate-300 bg-white p-5"
         >
@@ -542,8 +762,31 @@ defmodule CuckodingWeb.AgentSettingsLive do
       "api_key_helper" => "",
       "model" => "",
       "model_choice" => "",
+      "reasoning_effort" => "",
       "authorization_account_id" => "auto"
     }
+
+  defp locked_setup_params(params, 3) do
+    case Adapters.get_provider_account(params["provider_account_id"]) do
+      nil ->
+        {:error, :provider_account_not_found}
+
+      account ->
+        settings = account.capabilities_json["settings"] || %{}
+
+        {:ok,
+         Map.merge(params, %{
+           "label" => account.label,
+           "adapter_key" => account.adapter_key,
+           "authorization_account_id" => account.authorization_account_id || "",
+           "executable_path" => settings["executable_path"],
+           "api_key_helper" => settings["api_key_helper"]
+         })}
+    end
+  end
+
+  defp locked_setup_params(params, :edit), do: {:ok, params}
+  defp locked_setup_params(_params, _step), do: {:error, :invalid_setup_step}
 
   defp model_choice(account, accounts) do
     model = get_in(account.capabilities_json, ["settings", "model"]) || ""
@@ -555,15 +798,16 @@ defmodule CuckodingWeb.AgentSettingsLive do
   end
 
   defp model_options(form, accounts) do
-    account =
-      case form["provider_account_id"] do
-        id when is_binary(id) and id != "" -> Enum.find(accounts, &(&1.id == id))
-        _other -> selected_authorization(form, accounts)
-      end
-
-    case account do
+    case form_account(form, accounts) do
       nil -> RuntimeConfiguration.models(form["adapter_key"])
       account -> model_options_for_account(account, accounts)
+    end
+  end
+
+  defp form_account(form, accounts) do
+    case form["provider_account_id"] do
+      id when is_binary(id) and id != "" -> Enum.find(accounts, &(&1.id == id))
+      _other -> selected_authorization(form, accounts)
     end
   end
 
@@ -585,10 +829,7 @@ defmodule CuckodingWeb.AgentSettingsLive do
   end
 
   defp model_options_for_account(account, accounts) do
-    root =
-      if account.authorization_account_id,
-        do: Enum.find(accounts, &(&1.id == account.authorization_account_id)),
-        else: account
+    root = authorization_root(account, accounts)
 
     case root && get_in(root.capabilities_json, ["model_catalog", "models"]) do
       models when is_list(models) and models != [] ->
@@ -604,6 +845,29 @@ defmodule CuckodingWeb.AgentSettingsLive do
         RuntimeConfiguration.models(account.adapter_key)
     end
   end
+
+  defp reasoning_options(%{"adapter_key" => "codex"} = form, accounts) do
+    models =
+      case form |> form_account(accounts) |> authorization_root(accounts) do
+        nil -> []
+        root -> get_in(root.capabilities_json, ["model_catalog", "models"]) || []
+      end
+
+    selected =
+      if form["model_choice"] in [nil, ""],
+        do: Enum.find(models, &(&1["is_default"] == true)),
+        else: Enum.find(models, &(&1["id"] == form["model_choice"]))
+
+    (selected && selected["reasoning_efforts"]) || []
+  end
+
+  defp reasoning_options(_form, _accounts), do: []
+
+  defp authorization_root(nil, _accounts), do: nil
+  defp authorization_root(%{authorization_account_id: nil} = account, _accounts), do: account
+
+  defp authorization_root(account, accounts),
+    do: Enum.find(accounts, &(&1.id == account.authorization_account_id))
 
   defp authorization_message(%{status: "authenticated"} = account) do
     case get_in(account.capabilities_json, ["model_catalog"]) do
@@ -662,6 +926,12 @@ defmodule CuckodingWeb.AgentSettingsLive do
   defp error_message(:invalid_model),
     do:
       "Enter a model ID of up to 128 letters, digits, dots, slashes, colons, underscores or hyphens."
+
+  defp error_message(:invalid_reasoning_effort),
+    do: "Choose a reasoning level supported by the selected Codex model, or use Model default."
+
+  defp error_message(:provider_account_not_found),
+    do: "This saved agent no longer exists. Start setup again."
 
   defp error_message(:authorization_identity_immutable),
     do:

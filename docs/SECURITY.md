@@ -104,7 +104,8 @@ environment, records value-free request and completion events, and changes the d
 status to authorization-required. It does not delete profile directories, touch a
 personal CLI home, interrupt existing processes, or rewrite immutable run snapshots.
 After an authenticated scoped probe, model discovery executes with the same
-app-owned provider profile. Only validated model IDs and bounded display labels
+app-owned provider profile. Only validated model IDs, bounded display labels,
+and allowlisted provider-reported Codex reasoning levels
 are persisted; raw JSONL, terminal output, provider errors, credentials, and
 hidden models are discarded. Discovery failure is recorded as non-secret status
 and does not downgrade a successfully verified authorization.

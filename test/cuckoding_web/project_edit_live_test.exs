@@ -181,7 +181,11 @@ defmodule CuckodingWeb.ProjectEditLiveTest do
                label: "Shared Codex",
                auth_mode: "os_keyring",
                capabilities_json: %{
-                 "settings" => %{"executable_path" => "/usr/bin/true", "model" => "gpt-6-astra"}
+                 "settings" => %{
+                   "executable_path" => "/usr/bin/true",
+                   "model" => "gpt-6-astra",
+                   "reasoning_effort" => "high"
+                 }
                }
              })
 
@@ -216,6 +220,12 @@ defmodule CuckodingWeb.ProjectEditLiveTest do
 
     assert has_element?(view, "#agent-connection-0 input[value='Shared Codex']")
     assert has_element?(view, "#agent-connection-0 input[value='gpt-6-astra']")
+
+    assert has_element?(
+             view,
+             "#agent-connection-0 input[name$='[reasoning_effort]'][value='high']"
+           )
+
     assert has_element?(view, "#saved-agent-#{account.id} button[disabled]", "Attached")
   end
 

@@ -138,13 +138,23 @@ defmodule Cuckoding.Adapters.CodexTest do
     read _initialize
     read _initialized
     read _list
-    printf '%s\n' '{"id":2,"result":{"data":[null,{"id":"gpt-5.6-sol","displayName":"Sol"},{"id":"--unsafe","displayName":"Unsafe"},{"id":"gpt-6-astra","displayName":"Astra"}],"nextCursor":null}}'
+    printf '%s\n' '{"id":2,"result":{"data":[null,{"id":"gpt-5.6-sol","displayName":"Sol","isDefault":true,"supportedReasoningEfforts":[{"reasoningEffort":"low"},{"reasoningEffort":"high"},{"reasoningEffort":"unsafe"}]},{"id":"--unsafe","displayName":"Unsafe"},{"id":"hidden-model","displayName":"Hidden","hidden":true},{"id":"gpt-6-astra","displayName":"Astra"}],"nextCursor":null}}'
     """)
 
     assert {:ok,
             [
-              %{"id" => "gpt-5.6-sol", "label" => "Sol"},
-              %{"id" => "gpt-6-astra", "label" => "Astra"}
+              %{
+                "id" => "gpt-5.6-sol",
+                "label" => "Sol",
+                "reasoning_efforts" => ["low", "high"],
+                "is_default" => true
+              },
+              %{
+                "id" => "gpt-6-astra",
+                "label" => "Astra",
+                "reasoning_efforts" => [],
+                "is_default" => false
+              }
             ]} =
              Codex.available_models(
                path: executable,
@@ -191,6 +201,22 @@ defmodule Cuckoding.Adapters.CodexTest do
     assert spec.environment["CODEX_HOME"] == Path.join(root, "home")
     assert spec.timeout == 60_000
     refute "--dangerously-bypass-approvals-and-sandbox" in spec.command.args
+
+    assert {:ok, reasoned} =
+             Codex.launch_spec(request,
+               path: executable,
+               run_scoped_authenticated?: true,
+               reasoning_effort: "high"
+             )
+
+    assert ~s(model_reasoning_effort="high") in reasoned.command.args
+
+    assert {:error, %Types.Error{code: :invalid_reasoning_effort}} =
+             Codex.launch_spec(request,
+               path: executable,
+               run_scoped_authenticated?: true,
+               reasoning_effort: "high;rm"
+             )
 
     assert {:error, %Types.Error{code: :run_scoped_auth_required}} =
              Codex.launch_spec(request, path: executable)

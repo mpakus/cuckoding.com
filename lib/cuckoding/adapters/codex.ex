@@ -234,6 +234,7 @@ defmodule Cuckoding.Adapters.Codex do
     with {:ok, path} <- executable(options),
          true <- Keyword.get(options, :run_scoped_authenticated?, false),
          :ok <- valid_model(request.requested_model),
+         :ok <- valid_reasoning_effort(Keyword.get(options, :reasoning_effort)),
          :ok <- valid_resume_session(options),
          :ok <- config_ready(request),
          {:ok, home} <- execution_home(request, options),
@@ -303,6 +304,12 @@ defmodule Cuckoding.Adapters.Codex do
         schema_path
       ]
       |> maybe_arg("--model", request.requested_model)
+
+    common =
+      case Keyword.get(options, :reasoning_effort) do
+        nil -> common
+        effort -> common ++ ["-c", ~s(model_reasoning_effort="#{effort}")]
+      end
 
     common = common ++ shared_config(request, options)
 
@@ -503,10 +510,35 @@ defmodule Cuckoding.Adapters.Codex do
         label = row["displayName"] || id
         label = if is_binary(label), do: String.trim(label), else: ""
 
-        if valid_model_id?(id) and label != "" and byte_size(label) <= 120 and
-             String.printable?(label),
-           do: [%{"id" => id, "label" => label} | models],
-           else: models
+        if row["hidden"] != true and valid_model_id?(id) and label != "" and
+             byte_size(label) <= 120 and
+             String.printable?(label) do
+          efforts =
+            row
+            |> Map.get("supportedReasoningEfforts")
+            |> List.wrap()
+            |> Enum.flat_map(fn
+              %{"reasoningEffort" => effort}
+              when effort in ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"] ->
+                [effort]
+
+              _other ->
+                []
+            end)
+            |> Enum.uniq()
+
+          [
+            %{
+              "id" => id,
+              "label" => label,
+              "reasoning_efforts" => efforts,
+              "is_default" => row["isDefault"] == true
+            }
+            | models
+          ]
+        else
+          models
+        end
 
       _row, models ->
         models
@@ -529,6 +561,14 @@ defmodule Cuckoding.Adapters.Codex do
   end
 
   defp valid_model(_model), do: {:error, :invalid_model}
+
+  defp valid_reasoning_effort(nil), do: :ok
+
+  defp valid_reasoning_effort(value)
+       when value in ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"],
+       do: :ok
+
+  defp valid_reasoning_effort(_value), do: {:error, :invalid_reasoning_effort}
 
   defp valid_resume_session(options) do
     case Keyword.get(options, :resume_session) do

@@ -7,7 +7,10 @@ authorize once, then select the same connection across projects. See the
 [accepted shared-profile flow and verification boundaries](AGENT_AUTHORIZATION_FLOW.md).
 Task 1019 separates each named agent/model from its reusable provider sign-in.
 New Codex/Cursor agents default to a compatible existing root; separate sign-in
-is explicit. Choose Astra or a custom model ID, or keep the runtime default.
+is explicit. The three-step Agents wizard suggests the installed executable,
+verifies sign-in, then shows provider-reported models or runtime default and a
+validated custom model ID. Codex reasoning levels appear only when the selected
+model reports support for them.
 
 The three-step project wizard creates identity, repository/branch, and a first
 trusted configuration revision with unassigned default roles. Project settings
@@ -38,8 +41,9 @@ profiles. Authorization references do not change after save; model edits do not
 force another login. Cuckoding never reads or copies credential values, imposes a
 sign-out timer, or guarantees provider expiry.
 
-Model settings are copied through project/board/run snapshots into requested
-stage models. Later edits do not change existing board/run models. Actual model
+Model and Codex reasoning settings are copied through project/board/run
+snapshots into stage launches. Later edits do not change existing board/run
+settings. Actual model
 is recorded only when reported by the runtime, not inferred from the selection.
 
 Legacy snapshots keep their old setup until explicitly connected. In project

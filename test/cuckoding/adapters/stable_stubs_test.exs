@@ -43,6 +43,23 @@ defmodule Cuckoding.Adapters.StableStubsTest do
     assert detected.status == "runtime_isolation_unverified"
   end
 
+  test "Codex reasoning is validated and other runtimes cannot silently accept it" do
+    attrs = %{
+      "runtime" => "codex",
+      "executable_path" => "/usr/bin/true",
+      "reasoning_effort" => "high"
+    }
+
+    assert {:ok, %{settings: %{"reasoning_effort" => "high"}}} =
+             RuntimeConfiguration.validate(attrs)
+
+    assert {:error, :invalid_reasoning_effort} =
+             RuntimeConfiguration.validate(%{attrs | "reasoning_effort" => "high;rm"})
+
+    assert {:error, :invalid_reasoning_effort} =
+             RuntimeConfiguration.validate(%{attrs | "runtime" => "cursor_agent"})
+  end
+
   test "OpenCode stable stub rejects operational callbacks with visible details" do
     assert {:error,
             %Types.Error{

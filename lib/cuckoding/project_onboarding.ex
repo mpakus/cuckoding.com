@@ -175,7 +175,8 @@ defmodule Cuckoding.ProjectOnboarding do
              "runtime" => connection["adapter_key"],
              "executable_path" => connection["executable_path"],
              "api_key_helper" => connection["api_key_helper"],
-             "model" => connection["model"]
+             "model" => connection["model"],
+             "reasoning_effort" => connection["reasoning_effort"]
            }) do
       {:ok,
        %{

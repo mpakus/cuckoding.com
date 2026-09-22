@@ -2,6 +2,66 @@ defmodule CuckodingWeb.AgentSettingsLiveTest do
   use CuckodingWeb.ConnCase, async: false
   import Phoenix.LiveViewTest
 
+  test "wizard verifies sign-in and fetches model reasoning levels", %{conn: conn} do
+    root =
+      Path.join(System.tmp_dir!(), "cuckoding-agent-wizard-#{System.unique_integer([:positive])}")
+
+    File.mkdir_p!(root)
+    on_exit(fn -> File.rm_rf!(root) end)
+    executable = Path.join(root, "codex")
+
+    File.write!(executable, """
+    #!/bin/sh
+    if [ "$1" = "--version" ]; then
+      echo 'codex-cli 0.146.0'
+    elif [ "$3" = "login" ]; then
+      echo 'Logged in using ChatGPT'
+    elif [ "$3" = "app-server" ]; then
+      read _initialize
+      read _initialized
+      read _list
+      printf '%s\\n' '{"id":2,"result":{"data":[{"id":"gpt-6-astra","displayName":"Astra","isDefault":true,"supportedReasoningEfforts":[{"reasoningEffort":"low"},{"reasoningEffort":"high"}]}]}}'
+    fi
+    """)
+
+    File.chmod!(executable, 0o700)
+    {:ok, view, _html} = live(conn, ~p"/settings/agents")
+
+    view
+    |> form("#agent-form", agent: %{label: "Wizard Codex", adapter_key: "codex"})
+    |> render_submit()
+
+    view |> form("#agent-form", agent: %{executable_path: executable}) |> render_submit()
+
+    [account] = Cuckoding.Adapters.list_provider_accounts()
+    {:ok, home} = Cuckoding.Adapters.SharedProfile.prepare(account.id, "codex")
+    File.write!(Path.join(home, "auth.json"), "{}")
+    File.chmod!(Path.join(home, "auth.json"), 0o600)
+
+    view |> element("#agent-form button", "Check sign-in and fetch models") |> render_click()
+    render_async(view, 5_000)
+
+    assert has_element?(view, "li[aria-current=step]", "3. Model")
+    assert has_element?(view, "select[name='agent[model_choice]'] option[value='gpt-6-astra']")
+    assert has_element?(view, "select[name='agent[reasoning_effort]'] option[value='high']")
+  end
+
+  test "setup-only runtime can return from authorization to model", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/settings/agents")
+
+    view
+    |> form("#agent-form", agent: %{label: "Local OpenCode", adapter_key: "opencode"})
+    |> render_submit()
+
+    view |> form("#agent-form", agent: %{executable_path: "/usr/bin/true"}) |> render_submit()
+
+    assert has_element?(view, "li[aria-current=step]", "3. Model")
+    view |> element("#agent-form button", "Back") |> render_click()
+    assert has_element?(view, "#agent-form button", "Continue to model")
+    view |> element("#agent-form button", "Continue to model") |> render_click()
+    assert has_element?(view, "li[aria-current=step]", "3. Model")
+  end
+
   test "manages a shared agent independently of projects with live status", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/settings/agents")
     assert has_element?(view, "nav a[aria-current=page]", "Agents")
@@ -12,18 +72,21 @@ defmodule CuckodingWeb.AgentSettingsLiveTest do
     |> form("#agent-form",
       agent: %{
         label: "Shared Codex",
-        adapter_key: "codex",
-        executable_path: "/usr/bin/true",
-        model_choice: "gpt-6-astra"
+        adapter_key: "codex"
       }
     )
     |> render_submit()
 
+    assert has_element?(view, "li[aria-current=step]", "2. Authorization")
+
+    view
+    |> form("#agent-form", agent: %{executable_path: "/usr/bin/true"})
+    |> render_submit()
+
     [account] = Cuckoding.Adapters.list_provider_accounts()
-    assert account.capabilities_json["settings"]["model"] == "gpt-6-astra"
-    assert has_element?(view, "#agent-#{account.id}", "Sign in once")
-    assert has_element?(view, "#agent-command-#{account.id} input[readonly][data-copy-source]")
-    assert has_element?(view, "#agent-command-#{account.id} button[data-copy-button]", "Copy")
+    assert account.capabilities_json["settings"]["model"] == nil
+    assert has_element?(view, "#wizard-agent-command-#{account.id} button[data-copy-button]")
+    refute has_element?(view, "#agent-#{account.id}")
 
     Cuckoding.Adapters.record_provider_failure(
       account.id,
@@ -32,9 +95,6 @@ defmodule CuckodingWeb.AgentSettingsLiveTest do
       account.capabilities_json
     )
 
-    assert has_element?(view, "#agent-#{account.id} details", "Recent agent errors (1)")
-    assert has_element?(view, "#agent-#{account.id}", "code unsupported_version")
-
     {:ok, home} = Cuckoding.Adapters.SharedProfile.prepare(account.id, "codex")
     File.write!(Path.join(home, "auth.json"), "{}")
     File.chmod!(Path.join(home, "auth.json"), 0o600)
@@ -42,12 +102,36 @@ defmodule CuckodingWeb.AgentSettingsLiveTest do
     Cuckoding.Adapters.record_provider_status(account.id, "authenticated", nil, %{
       "status" => "available",
       "models" => [
-        %{"id" => "gpt-6-astra", "label" => "Astra"},
-        %{"id" => "gpt-5.6-sol", "label" => "Sol"}
+        %{
+          "id" => "gpt-6-astra",
+          "label" => "Astra",
+          "reasoning_efforts" => ["low", "high"],
+          "is_default" => true
+        },
+        %{"id" => "gpt-5.6-sol", "label" => "Sol", "reasoning_efforts" => ["low"]}
       ]
     })
 
+    assert has_element?(view, "#agent-form button", "Continue to model")
+    view |> element("#agent-form button", "Continue to model") |> render_click()
+    assert has_element?(view, "li[aria-current=step]", "3. Model")
+    assert has_element?(view, "select[name='agent[reasoning_effort]'] option[value='high']")
+
+    view
+    |> form("#agent-form", agent: %{model_choice: "gpt-6-astra", reasoning_effort: "high"})
+    |> render_submit()
+
+    assert Cuckoding.Adapters.get_provider_account(account.id).capabilities_json["settings"] == %{
+             "executable_path" => "/usr/bin/true",
+             "model" => "gpt-6-astra",
+             "reasoning_effort" => "high"
+           }
+
     assert has_element?(view, "#agent-#{account.id}", "Connected")
+    assert has_element?(view, "#agent-command-#{account.id} input[readonly][data-copy-source]")
+    assert has_element?(view, "#agent-command-#{account.id} button[data-copy-button]", "Copy")
+    assert has_element?(view, "#agent-#{account.id} details", "Recent agent errors (1)")
+    assert has_element?(view, "#agent-#{account.id}", "code unsupported_version")
     assert has_element?(view, "#agent-#{account.id}", "Available models: 2")
     assert has_element?(view, "#agent-#{account.id} details:not([open])")
     assert has_element?(view, "#agent-impact-#{account.id}", "1 saved agent uses")
@@ -71,13 +155,20 @@ defmodule CuckodingWeb.AgentSettingsLiveTest do
     {:ok, reopened, _html} = live(conn, ~p"/settings/agents")
     assert has_element?(reopened, "#agent-#{account.id}", "Connected")
 
+    reopened
+    |> form("#agent-form", agent: %{label: "Codex Coder", adapter_key: "codex"})
+    |> render_submit()
+
+    reopened
+    |> form("#agent-form", agent: %{executable_path: "/usr/bin/true"})
+    |> render_submit()
+
+    assert has_element?(reopened, "li[aria-current=step]", "3. Model")
     reopened |> form("#agent-form", agent: %{model_choice: "custom"}) |> render_change()
 
     reopened
     |> form("#agent-form",
       agent: %{
-        label: "Codex Coder",
-        executable_path: "/usr/bin/true",
         model_choice: "custom",
         model: "other-model"
       }
