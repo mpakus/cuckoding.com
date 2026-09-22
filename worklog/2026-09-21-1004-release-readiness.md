@@ -902,3 +902,20 @@ read-only system-Ruby scan found every relative Markdown link in the changed
 `docs/` files resolves. No local product test, provider run, or migration was
 performed after this CI observation. The hosted source gate is current;
 release signing and beta acceptance remain no-go.
+
+## 2026-09-21 — Pin Node 24-native release checkout
+
+Continued task 1004 on `fix/1004-checkout-node24-pin` from clean `main` at
+`1a2dc72`. Acceptance: remove the hosted release workflow's Node 20
+compatibility warning by pinning one official Node 24-native checkout commit,
+without changing the quality-before-secrets ordering, permissions, or release
+policy; verify the action actually executes in hosted CI. Ponytail 4.10.0
+(MIT, full mode), quality-gates, menubar-shell, and security-review apply.
+
+[Official checkout v5.1.0](https://github.com/actions/checkout/releases/tag/v5.1.0)
+is the narrow v5 line that supports Node 24. Upstream `action.yml:116` declares
+`using: node24`; `rtk proxy git ls-remote` resolved its tag to full commit
+`fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09`. The v5.1.0 release changes
+fork-PR checkout defaults, but this workflow runs only on manual dispatch or
+tags and uses no PR event. The release job's token remains `contents: read`;
+signing material remains behind the source-quality and value-free preflight.
