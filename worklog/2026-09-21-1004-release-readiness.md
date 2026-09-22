@@ -845,3 +845,25 @@ system-Ruby check found every relative Markdown link in the four changed
 changed in this tranche; the exact `6ebbd6c` app passed `bin/dev.build` and
 both pre- and post-archive sterile checks. Hosted CI and real-provider gates
 were not rerun for these documentation edits.
+
+## 2026-09-21 — Correct the QA-account evidence ledger
+
+Continued task 1004 on `fix/1004-qa-evidence-accuracy` from clean `main` at
+`2dcfab1`. Acceptance: the release matrix must not claim a separate-account
+test absent from the task worklog, while retaining the proven same-Mac checks
+and the open clean-Mac gate. Ponytail 4.10.0 (MIT, full mode), quality-gates,
+and security-review apply; this is evidence wording only.
+
+The release matrix said a prior ZIP passed on a separate account, but this
+worklog's QA handoff and later ZIP staging entries explicitly say no QA login
+or app launch occurred. The matrix now says the ZIPs are staged, not launched.
+No ZIP, credential, application data, or release state was changed.
+
+`rtk proxy git diff --check` passed. A scoped search of the four release
+documents found no remaining separate-account pass claim. `rtk proxy who`
+listed only `mpak`; `rtk gh secret list -R mpakus/cuckoding.com --json name
+--jq '.[].name'` still listed only the existing signing identity and two
+updater-key secrets, not the five Apple certificate/notary entries required
+by hosted CI. Those checks inspect names/session presence only, not values.
+The correction needs no product tests or migration; separate-account, CI,
+clean-Mac, provider, and beta acceptance remain open.

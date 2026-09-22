@@ -142,7 +142,7 @@ clean-Mac install behavior.
 | Human approval performs release handoff | The [walking skeleton](../worklog/2026-09-17-0405-walking-skeleton.md) pushed an approved branch to a local bare remote | D01 approved handoff on an authorized target, including a draft PR; verify no push before approval |
 | Knowledge is reviewed and later used | Knowledge extraction/publication/lineage tests and views exist | Score K01–K03 and show one approved item used by a later real run with project, version, run, and stage provenance |
 | Four reference plugins enable, contribute, and degrade safely | [Task 0803](../worklog/2026-09-18-0803-reference-plugins.md) records fixture conformance | Exercise RTK, XERJ, Ponytail, and read-only MCP in the enrolled app with labeled contributions and removal without core failure |
-| Clean Mac installs, runs, updates, and uninstalls | A prior-revision signed ZIP passed on a separate account; the current `6ebbd6c` app and post-staple ZIP passed same-Mac signature, Gatekeeper, and sterile checks | One complete signed/notarized release and updater candidate on a clean supported Mac, including sample task, update, rollback, and uninstall with data checks |
+| Clean Mac installs, runs, updates, and uninstalls | Signed ZIPs are staged for the QA account but none has been launched there; the current `6ebbd6c` app and post-staple ZIP passed same-Mac signature, Gatekeeper, and sterile checks | One complete signed/notarized release and updater candidate on a clean supported Mac, including sample task, update, rollback, and uninstall with data checks |
 
 None of these ten criteria has matching current-release acceptance evidence
 yet. The checked recovery item in the prior plan overstated task 1002's scope;
