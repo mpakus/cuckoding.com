@@ -105,6 +105,7 @@ defmodule Cuckoding.ProjectWorkflowTest do
 
     assert {:ok, %{run: run, environment: environment}} = ProjectWorkflow.prepare_task(task.id)
     assert run.state == "queued"
+    assert Workflows.get_task(task.id).active_run_id == nil
     assert File.dir?(environment.worktree_path)
     run_id = run.id
     assert %Environment{run_id: ^run_id} = Repo.get_by!(Environment, run_id: run_id)
@@ -142,6 +143,10 @@ defmodule Cuckoding.ProjectWorkflowTest do
                where: event.run_id == ^("task:" <> task.id) and event.event_type == "run.prepared"
              )
            )
+
+    {:ok, board_view, _html} = live(conn, ~p"/boards/#{board.id}")
+    assert has_element?(board_view, "#task-#{task.id}", "Run prepared; open it to see progress")
+    assert has_element?(board_view, "#task-#{task.id} a[href='/runs/#{run.id}']", "View run")
 
     {:ok, task_view, _html} = live(conn, ~p"/boards/#{board.id}/tasks/#{task.id}")
     assert has_element?(task_view, "#run-history-heading", "Run history")

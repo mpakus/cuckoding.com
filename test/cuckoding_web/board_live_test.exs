@@ -254,6 +254,20 @@ defmodule CuckodingWeb.BoardLiveTest do
     assert has_element?(view, "#task-#{beta.id}", "Board is paused")
   end
 
+  test "running project renders an eligible Ready task", %{conn: conn, board: board, beta: beta} do
+    %AutopilotProjection{project_id: board.project_id}
+    |> AutopilotProjection.changeset(%{
+      state: "running",
+      max_active_runs: 2,
+      critical_blocker_limit: 1
+    })
+    |> Repo.insert!()
+
+    {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}")
+
+    assert has_element?(view, "#task-#{beta.id}", "Eligible for the next automatic start")
+  end
+
   test "creates a bounded draft task from the board", %{conn: conn, board: board} do
     {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}")
 

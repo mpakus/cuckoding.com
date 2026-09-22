@@ -401,6 +401,16 @@ defmodule Cuckoding.Execution do
     )
   end
 
+  def queued_runs_by_task(task_ids) when is_list(task_ids) do
+    Repo.all(
+      from(run in Run,
+        where: run.task_id in ^task_ids and run.state == "queued",
+        order_by: [desc: run.sequence, desc: run.id]
+      )
+    )
+    |> Map.new(&{&1.task_id, &1})
+  end
+
   def create_stage_attempt(attrs), do: insert(StageAttempt, attrs)
 
   def transition_run(run_id, to, idempotency_key, attrs \\ %{}),

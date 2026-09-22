@@ -11,3 +11,4 @@ worklog: worklog/2026-09-22-1030-ready-task-admission-feedback.md
 - [x] Explain paused project/board and queued-run states without claiming that Ready never starts automatically.
 - [x] Refresh feedback from durable state, keep manual task access, and cover the board copy and scheduler projection with focused tests.
 - [x] Update flow documentation and run proportionate quality gates.
+- [x] Fix eligible-task rendering and derive prepared-run feedback from queued runs.

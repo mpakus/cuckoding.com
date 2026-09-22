@@ -1,6 +1,7 @@
 defmodule CuckodingWeb.BoardLive do
   use CuckodingWeb, :live_view
 
+  alias Cuckoding.Execution
   alias Cuckoding.ProjectAutopilot
   alias Cuckoding.Projects
   alias Cuckoding.ProjectWorkflow
@@ -34,6 +35,7 @@ defmodule CuckodingWeb.BoardLive do
            agent_roles: Enum.filter(Workflows.list_agent_roles(board.id), & &1.adapter_key),
            tasks: [],
            admission_by_task: %{},
+           queued_runs_by_task: %{},
            intake_error: nil,
            notice: nil,
            error: nil
@@ -427,7 +429,13 @@ defmodule CuckodingWeb.BoardLive do
                     Waiting: {task.wait_reason}
                   </p>
                   <p :if={task.state == "ready"} class="mt-2 text-sm text-slate-700">
-                    {ready_status(task, @board, @project_operation, @admission_by_task)}
+                    {ready_status(
+                      task,
+                      @board,
+                      @project_operation,
+                      @admission_by_task,
+                      @queued_runs_by_task
+                    )}
                   </p>
                 </div>
 
@@ -441,8 +449,8 @@ defmodule CuckodingWeb.BoardLive do
                 </.link>
 
                 <.link
-                  :if={task.active_run_id}
-                  navigate={~p"/runs/#{task.active_run_id}"}
+                  :if={run_id(task, @queued_runs_by_task)}
+                  navigate={~p"/runs/#{run_id(task, @queued_runs_by_task)}"}
                   class="inline-flex min-h-11 items-center rounded px-3 text-sm font-medium underline"
                 >View run</.link>
 
@@ -528,13 +536,15 @@ defmodule CuckodingWeb.BoardLive do
           (state == "all" or task.state == state)
       end)
 
+    queued_runs_by_task = Execution.queued_runs_by_task(Enum.map(tasks, & &1.id))
+
     admission_by_task =
       if socket.assigns.project_operation.state == "running" and
            socket.assigns.board.status == "active" and
            Enum.any?(tasks, &(&1.state == "ready")) do
         case ProjectAutopilot.admission_plan(socket.assigns.project.id) do
           {:ok, plan} ->
-            selected = Map.new(plan.candidates, &{&1.task_id, :next})
+            selected = Map.new(plan.candidates, &{&1.task.id, :next})
             deferred = Map.new(plan.deferred, &{&1.task_id, &1.reason})
             Map.merge(selected, deferred)
 
@@ -545,7 +555,11 @@ defmodule CuckodingWeb.BoardLive do
         %{}
       end
 
-    assign(socket, tasks: filtered, admission_by_task: admission_by_task)
+    assign(socket,
+      tasks: filtered,
+      admission_by_task: admission_by_task,
+      queued_runs_by_task: queued_runs_by_task
+    )
   end
 
   defp normalize_state(state) when state in ["all" | @states], do: state
@@ -572,17 +586,18 @@ defmodule CuckodingWeb.BoardLive do
   defp project_operation_label("done"), do: "Done"
   defp project_operation_label(_state), do: "Paused"
 
-  defp ready_status(%{active_run_id: run_id}, _board, _operation, _admission)
-       when not is_nil(run_id), do: "Run prepared; open it to see progress."
+  defp ready_status(task, _board, _operation, _admission, queued_runs)
+       when is_map_key(queued_runs, task.id),
+       do: "Run prepared; open it to see progress."
 
-  defp ready_status(_task, %{status: status}, _operation, _admission)
+  defp ready_status(_task, %{status: status}, _operation, _admission, _queued_runs)
        when status != "active", do: "Board is paused. Resume it to allow automatic starts."
 
-  defp ready_status(_task, _board, %{state: state}, _admission)
+  defp ready_status(_task, _board, %{state: state}, _admission, _queued_runs)
        when state != "running",
        do: "Project is not running automatically. Start it in Project settings."
 
-  defp ready_status(task, _board, _operation, admission) do
+  defp ready_status(task, _board, _operation, admission, _queued_runs) do
     case Map.get(admission, task.id) do
       :next -> "Eligible for the next automatic start."
       :dependency -> "Waiting for a prerequisite task to finish."
@@ -594,6 +609,9 @@ defmodule CuckodingWeb.BoardLive do
       _other -> "Admission is not available yet. Check project status or open the task."
     end
   end
+
+  defp run_id(%{active_run_id: run_id}, _queued_runs) when not is_nil(run_id), do: run_id
+  defp run_id(task, queued_runs), do: get_in(queued_runs, [task.id, Access.key(:id)])
 
   defp reason_label("invalid_transition"), do: "this task cannot move from its current state"
   defp reason_label(:invalid_transition), do: "this task cannot move from its current state"

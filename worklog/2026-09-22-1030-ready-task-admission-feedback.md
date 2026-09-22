@@ -18,3 +18,15 @@ Verification:
 - `rtk git diff --check` — passed.
 
 `rtk proxy` was used for exact, unfiltered source and Git metadata reads where RTK's summarized output would hide lines; no repository mutation was run through that exception. Signed-build and real-provider gates are unchanged.
+
+Review follow-up: `review-agent` reproduced two defects in commit `4f1bdfe`: selected scheduler candidates expose `task.id` rather than `task_id`, and a prepared queued run does not populate `tasks.active_run_id`. Reopened task 1030 to fix both paths and add the missing regression coverage.
+
+Follow-up implementation: selected candidates now use their nested durable task ID. The board loads queued runs for all displayed board tasks in one query, uses that projection for the prepared status and run link, and still prefers an active run once execution owns the task.
+
+Follow-up verification:
+
+- `rtk mix test test/cuckoding_web/board_live_test.exs test/cuckoding/project_workflow_test.exs` — 22 tests, 0 failures. New cases cover an eligible scheduler candidate plus queued-run status and navigation.
+- `rtk mix quality` — 300 tests, 10 properties, 0 failures; Credo found no issues; Sobelow and Hex audit passed. The logged plugin-worker crashes are intentional test fixtures.
+- `rtk git diff --check` — passed.
+
+Ponytail upstream 4.10.0, MIT license, stayed in full mode. The fix reuses the existing execution context and adds no dependency or durable scheduling state.
