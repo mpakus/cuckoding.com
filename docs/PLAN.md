@@ -180,8 +180,12 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
   of its post-staple ZIP on the same Mac. Stage a checksum-matched copy for
   the existing `qa` account without replacing older candidates. This is not
   an updater, QA-account launch, or clean-Mac acceptance.
+- [x] Task 1004: repeat the build, Developer ID signing, Apple notarization,
+  quarantined post-staple ZIP checks, and embedded-release sterile drill for
+  `6ebbd6c` after the runner fix. Stage a checksum-matched copy for `qa`
+  without replacing earlier candidates. This remains same-Mac app evidence.
 - [ ] Produce and verify a fresh signed/notarized enrollment build at the
-  accepted beta revision. The `a3ef7b1` signed app and ZIP passed same-Mac
+  accepted beta revision. The `6ebbd6c` signed app and ZIP passed same-Mac
   checks, but `desktop/dist/` predates current main; the signed updater,
   complete release metadata, clean-Mac test, and CI Apple certificate/notary
   secrets remain open.

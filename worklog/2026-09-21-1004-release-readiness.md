@@ -784,3 +784,64 @@ passed; a read-only Ruby relative-link check passed for `docs/PLAN.md`,
 Hex audit no retired/advisory packages). The two plugin-supervisor crash
 logs were intentional test fixtures. These source checks do not substitute
 for the still-missing hosted CI, provider, participant, or clean-Mac gates.
+
+## 2026-09-21 — Refresh signed-app evidence after runner fix
+
+Continued task 1004 on `feature/1004-latest-signed-preflight` from clean
+`main` at `6ebbd6c`. Acceptance for this tranche: rebuild the exact new
+app source (including the process-inspection fix), verify its production
+release, sign and notarize without replacing earlier ZIP candidates, test
+a quarantined post-staple extraction, and correct `docs/PLAN.md` and the
+release ledger to tie claims to the right revision. Do not count this as a
+signed updater, QA-account launch, clean-Mac test, beta, or MVP acceptance.
+Ponytail 4.10.0 (MIT, full mode), menubar-shell, security-review, and
+quality-gates apply. Existing build/sign/notary/sterile scripts are reused;
+no new release tooling or credential path is planned.
+
+`rtk env -u CR_PAT ./bin/dev.build` exited 0 for `6ebbd6c`: production
+release and metadata checks (6 Ruby runs, 15 assertions), Rust format,
+10 shell tests, Clippy, Tauri app bundle, and the sterile release verifier
+passed. Before signing, `rtk proxy codesign -dv --verbose=2` identified the
+app as ad-hoc without a Team ID. The existing Keychain Developer ID identity
+was passed by name to `rtk proxy env CUCKODING_SIGNING_IDENTITY=... sh
+desktop/sign.sh <app>`; the script signed and verified all 26 Mach-O files.
+No private key value was read or stored in the repository.
+
+The signed app was archived with `rtk proxy ditto -c -k --keepParent` and
+submitted through `rtk proxy env CUCKODING_NOTARY_PROFILE=Cuckoding sh
+desktop/notarize.sh <app> <submission.zip> <evidence>`. Apple accepted
+submission `bf94f6da-a3c4-4bf0-a512-4408599973bc`; the saved log reports
+`Accepted` and zero issues. Stapling and Gatekeeper passed. The embedded
+release's `desktop/verify.rb` drill passed after signing. A distinct ZIP made
+after stapling is retained at
+`desktop/src-tauri/target/release/Cuckoding-local-notary-6ebbd6c.waSlcF/Cuckoding-6ebbd6c-stapled.zip`;
+`rtk proxy shasum -a 256` returned
+`c5f17966f69123c490fb7e048d0476ae5937ed2177d7b936ee653e3787783d1e`,
+and `rtk proxy unzip -tq` found no archive errors.
+
+`rtk proxy ditto -x -k` extracted that ZIP into a separate directory and
+`rtk proxy xattr -w com.apple.quarantine` marked the exact extracted app.
+On that copy, `rtk proxy xcrun stapler validate`, `rtk proxy /usr/bin/codesign
+--verify --deep --strict --verbose=2`, and `rtk proxy /usr/sbin/spctl --assess
+--type execute --verbose=4` all exited 0; Gatekeeper reported `source=Notarized
+Developer ID`. The extracted app's embedded release passed the full sterile
+`desktop/verify.rb` startup, token/session, diagnostics, crash, safe-mode,
+and update/rollback drill. Its verifier used temporary data directories,
+not the current user's live application data.
+
+Only after confirming the destination was absent, `rtk proxy cp -p` staged
+`/Users/Shared/Cuckoding-0.1.0-6ebbd6c-stapled.zip`. Its SHA-256 matches
+the candidate, `rtk proxy unzip -tq` passes, and its readable file mode is
+`-rw-r--r--`. Earlier staged ZIPs and `desktop/dist/` were not replaced.
+`rtk proxy` was used for exact native signing, archive, Gatekeeper, and
+system-Ruby behavior; it is not a runtime command-policy exception. This is
+current app-code same-Mac evidence, not a signed updater, real QA-account
+launch, clean-Mac install, participant consent, or beta acceptance.
+
+Documentation checks: `rtk proxy git diff --check` exited 0; a read-only
+system-Ruby check found every relative Markdown link in the four changed
+`docs/` files resolves. `rtk proxy who` still listed only the current
+`mpak` login, so no QA-account launch is claimed. No implementation source
+changed in this tranche; the exact `6ebbd6c` app passed `bin/dev.build` and
+both pre- and post-archive sterile checks. Hosted CI and real-provider gates
+were not rerun for these documentation edits.

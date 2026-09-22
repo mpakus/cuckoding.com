@@ -216,9 +216,25 @@ permitted`, but a direct rerun and the complete build passed; the isolated
 failure's cause is unconfirmed. This is not a signed updater, complete
 release package, separate-account launch, or clean-Mac acceptance.
 
-For a separate-account smoke, use the **latest `a3ef7b1` ZIP** staged above.
-The older `17d367a` and `3246b3b` ZIPs remain staged only as historical
-evidence. Sign into the existing `qa` macOS account, extract the `a3ef7b1`
+After the process-inspection fix, `6ebbd6c` source passed `bin/dev.build`,
+including production compilation, Rust checks, and the sterile bundled-release
+verifier. The local Developer ID signed all 26 Mach-O files; Apple accepted
+notarization submission `bf94f6da-a3c4-4bf0-a512-4408599973bc` with zero
+issues. The stapled app and a separately extracted, quarantined copy of its
+post-staple ZIP passed ticket validation, strict signature verification,
+Gatekeeper (`Notarized Developer ID`), and the sterile embedded-release drill.
+The ZIP SHA-256 is
+`c5f17966f69123c490fb7e048d0476ae5937ed2177d7b936ee653e3787783d1e`.
+The ignored candidate and notarization evidence remain under
+`desktop/src-tauri/target/release/Cuckoding-local-notary-6ebbd6c.waSlcF/`;
+the checksum-matched, readable QA copy is
+`/Users/Shared/Cuckoding-0.1.0-6ebbd6c-stapled.zip`. Older candidates and
+`desktop/dist/` were not replaced. This remains a same-Mac app check, not an
+updater, complete release package, separate-account launch, or clean-Mac test.
+
+For a separate-account smoke, use the **latest `6ebbd6c` ZIP** staged above.
+The older `a3ef7b1`, `17d367a`, and `3246b3b` ZIPs remain staged only as
+historical evidence. Sign into the existing `qa` macOS account, extract the `6ebbd6c`
 copy into that account's own folder, launch it from Finder, check the
 menubar-to-browser handoff and clean quit, then inspect the
 QA account's application data. Do not sign agents in or register a real
