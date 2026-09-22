@@ -46,6 +46,9 @@ Re-run the MVP definition of done, freeze supported versions, validate installer
   value-free preflight refused five absent Apple secrets. Signed release open.
 - [x] Rerun the hosted source gate on `e96882b`: 289 tests/10 properties
   passed; the same five Apple secrets remain absent and signing was skipped.
+- [x] Rerun the hosted, non-publishing source gate on then-current `734128f`: 290
+  tests/10 properties passed; the five missing Apple secrets still stop the
+  job before signing or artifact upload.
 - [x] Repair non-resolving pinned release action SHAs and verify all workflow
   action refs against their upstream commits; actual job execution remains open.
 - [x] Pin the release checkout action to official Node 24-native v5.1.0 and

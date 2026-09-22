@@ -120,6 +120,11 @@ on `112473e` passed `mix quality` (288 tests, 10 properties) and stopped at
 the preflight because `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`,
 `APPLE_NOTARY_KEY`, `APPLE_NOTARY_KEY_ID`, and `APPLE_NOTARY_ISSUER` were
 missing. This verifies the fail-closed ordering, not signing or release.
+The later [then-current-main manual run](https://github.com/mpakus/cuckoding.com/actions/runs/35684138654)
+on `734128f` passed pinned tool setup and `mix quality` (290 tests, 10
+properties, zero failures), then stopped at the same five missing secret
+names. Certificate import, packaging, artifact upload, and tag-only
+publication were skipped; no signed CI artifact exists from that run.
 GitHub Actions'
 [`macos-15` image](https://github.com/actions/runner-images#available-images)
 is Apple Silicon, matching the release script's host check.

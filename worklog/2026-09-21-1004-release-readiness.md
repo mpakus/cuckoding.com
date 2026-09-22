@@ -1001,3 +1001,40 @@ was used for exact native signing, archiving, Gatekeeper, and system-Ruby
 output; product-configured commands remain unwrapped. The signed updater,
 complete release metadata, CI Apple secrets, real-provider acceptance,
 QA-account launch, clean-Mac installation, and controlled beta remain open.
+
+## 2026-09-21 — Current-main hosted source gate
+
+Continued task 1004 on `feature/1004-current-main-ci-proof` from clean
+`main` at `734128f87312be5ab10e4883de9022cdc4c48dd3`. Acceptance for this
+tranche: run the official manual, non-publishing release workflow on that
+exact revision; distinguish source quality from signing, packaging, and
+publication; and update `docs/PLAN.md` and the beta ledger with the result.
+Ponytail 4.10.0 (MIT, full mode), menubar-shell, security-review, and
+quality-gates apply. No source implementation, credential, user data, or
+release artifact is changed by the documentation update.
+
+`rtk gh workflow run release-macos.yml -R mpakus/cuckoding.com --ref main`
+created [run 35684138654](https://github.com/mpakus/cuckoding.com/actions/runs/35684138654).
+`rtk gh run view 35684138654 -R mpakus/cuckoding.com --json
+status,conclusion,headSha,displayTitle,url,jobs` verified the exact head SHA.
+`rtk gh run watch 35684138654 -R mpakus/cuckoding.com --interval 30
+--exit-status` followed that one live run to terminal status (overall exit 1).
+The pinned checkout, OTP/Elixir setup, and build-tool installation passed.
+**Verify source quality before loading signing material** passed; the scoped
+job log showed `10 properties, 290 tests, 0 failures` and no retired or
+security-advisory packages. **Check release configuration** then failed on
+exactly `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_NOTARY_KEY`,
+`APPLE_NOTARY_KEY_ID`, and `APPLE_NOTARY_ISSUER`. Certificate import, notary
+key preparation, build/sign/notarize, artifact upload, and the tag-only
+publish job were skipped. The workflow's overall failure is a configuration
+gate, not a source-quality failure. Only job step conclusions and missing
+names were inspected; no secret values or job environment were retrieved.
+This does not close signed updater, QA-account, clean-Mac, provider, or beta
+acceptance.
+
+Documentation checks: `rtk git diff --check` passed, and a read-only system-Ruby
+scan found every relative Markdown link in the four changed `docs/` files
+resolves. No implementation source changed, so the hosted quality run is the
+relevant behavioral gate; local product tests were not rerun for this
+evidence-only edit. RTK proxy was used only for exact unfiltered job-log,
+source, and document inspection.

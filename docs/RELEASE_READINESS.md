@@ -183,7 +183,7 @@ Claude CLI. After the explicit-fixture fix, the second
 [manual run](https://github.com/mpakus/cuckoding.com/actions/runs/35663188771)
 on `112473e` passed `mix quality` (288 tests, 10 properties, strict Credo,
 Sobelow, and dependency audit). A fresh
-[current-main run](https://github.com/mpakus/cuckoding.com/actions/runs/35680103836)
+[earlier main run](https://github.com/mpakus/cuckoding.com/actions/runs/35680103836)
 on `e96882b` passed `mix quality` (289 tests, 10 properties, zero failures)
 before its value-free preflight again reported exactly five absent secrets:
 `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`,
@@ -192,6 +192,9 @@ The release checkout pin was subsequently updated to official Node 24-native
 v5.1.0. Its [branch CI run](https://github.com/mpakus/cuckoding.com/actions/runs/35681124404)
 executed checkout and passed the same source gate (289 tests, 10 properties);
 the configuration step still refused those five absent secrets.
+The [then-current-main manual run](https://github.com/mpakus/cuckoding.com/actions/runs/35684138654)
+on `734128f` passed pinned tool setup and `mix quality` (290 tests, 10
+properties, zero failures), then stopped at the same value-free preflight.
 Certificate import, notarization, updater signing, and artifact upload were
 skipped. The three public update variables and existing updater secrets are
 configured, but no credential value was inspected. Local release variables

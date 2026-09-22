@@ -145,6 +145,11 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
   passed `mix quality` (289 tests, 10 properties, zero failures) before the
   value-free preflight again found the same five missing Apple secrets.
   Signing, notarization, updater packaging, and artifact upload were skipped.
+- [x] Task 1004: rerun that non-publishing release workflow on then-current `main`
+  `734128f`. [Run 35684138654](https://github.com/mpakus/cuckoding.com/actions/runs/35684138654)
+  passed pinned setup and `mix quality` (290 tests, 10 properties, zero
+  failures); the same five absent Apple secrets stopped configuration before
+  signing, packaging, or upload.
 - [x] Task 1004: replace two non-resolving release-action SHAs with verified
   upstream v1.24.1 setup-beam and v7.0.0 certificate-import commits. Both
   pinned setup actions executed in the manual job; certificate import remains
