@@ -180,8 +180,11 @@ two Claude adapter tests because their fixtures relied on a locally installed
 Claude CLI. After the explicit-fixture fix, the second
 [manual run](https://github.com/mpakus/cuckoding.com/actions/runs/35663188771)
 on `112473e` passed `mix quality` (288 tests, 10 properties, strict Credo,
-Sobelow, and dependency audit). Its value-free preflight then reported exactly
-five absent secrets: `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`,
+Sobelow, and dependency audit). A fresh
+[current-main run](https://github.com/mpakus/cuckoding.com/actions/runs/35680103836)
+on `e96882b` passed `mix quality` (289 tests, 10 properties, zero failures)
+before its value-free preflight again reported exactly five absent secrets:
+`APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`,
 `APPLE_NOTARY_KEY`, `APPLE_NOTARY_KEY_ID`, and `APPLE_NOTARY_ISSUER`.
 Certificate import, notarization, updater signing, and artifact upload were
 skipped. The three public update variables and existing updater secrets are

@@ -867,3 +867,38 @@ updater-key secrets, not the five Apple certificate/notary entries required
 by hosted CI. Those checks inspect names/session presence only, not values.
 The correction needs no product tests or migration; separate-account, CI,
 clean-Mac, provider, and beta acceptance remain open.
+
+## 2026-09-21 — Current-main hosted release source gate
+
+Continued task 1004 on `feature/1004-current-ci-quality-evidence` from clean
+`main` at `e96882b`. Acceptance for this tranche: run the official hosted
+release workflow against that exact current source, record the source-quality
+and value-free configuration-step outcomes, and update `docs/PLAN.md` and the
+release ledger without claiming signing or enrollment acceptance. Ponytail
+4.10.0 (MIT, full mode), quality-gates, menubar-shell, and security-review
+apply. The existing workflow is reused; no release automation is changed.
+
+`rtk gh workflow run release-macos.yml -R mpakus/cuckoding.com --ref main`
+created [run 35680103836](https://github.com/mpakus/cuckoding.com/actions/runs/35680103836)
+at source SHA `e96882b7de15fbaebf70bfe6eb1c8bf7569eacc7`.
+`rtk gh run watch 35680103836 -R mpakus/cuckoding.com --interval 30
+--exit-status` observed the same live run through completion (overall exit 1).
+The pinned-tool install and **Verify source quality before loading signing
+material** steps passed. The scoped quality log showed `10 properties,
+289 tests, 0 failures` and `No retired or security advisory packages found`;
+the step as a whole exited successfully. The value-free configuration step
+then failed on exactly `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`,
+`APPLE_NOTARY_KEY`, `APPLE_NOTARY_KEY_ID`, and `APPLE_NOTARY_ISSUER`.
+Certificate import, notarization-key preparation, build/sign/notarize,
+and artifact upload were skipped. The run also annotated that pinned checkout
+v4 targets Node.js 20 and was forced onto Node.js 24; no checkout failure
+occurred, so that compatibility warning is tracked rather than labeled a
+release pass or a diagnosed defect. No secret value or job environment was
+retrieved; only step conclusions, scoped quality lines, and missing names
+were inspected.
+
+Documentation-only checks: `rtk proxy git diff --check` passed, and a
+read-only system-Ruby scan found every relative Markdown link in the changed
+`docs/` files resolves. No local product test, provider run, or migration was
+performed after this CI observation. The hosted source gate is current;
+release signing and beta acceptance remain no-go.

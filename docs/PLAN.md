@@ -136,6 +136,11 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
   on `112473e` passed 288 tests/10 properties, lint, security scan, and audit.
   The value-free preflight then stopped before certificate import because five
   Apple certificate/notary secrets are absent. Signed-artifact acceptance is open.
+- [x] Task 1004: rerun the official hosted release source gate on `e96882b`.
+  [Run 35680103836](https://github.com/mpakus/cuckoding.com/actions/runs/35680103836)
+  passed `mix quality` (289 tests, 10 properties, zero failures) before the
+  value-free preflight again found the same five missing Apple secrets.
+  Signing, notarization, updater packaging, and artifact upload were skipped.
 - [x] Task 1004: replace two non-resolving release-action SHAs with verified
   upstream v1.24.1 setup-beam and v7.0.0 certificate-import commits. Both
   pinned setup actions executed in the manual job; certificate import remains

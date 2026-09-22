@@ -44,6 +44,8 @@ Re-run the MVP definition of done, freeze supported versions, validate installer
   signing/notary secrets; the first manual CI run exposed an installed-CLI test
   assumption, and the corrected rerun passed all 288 tests/10 properties before
   value-free preflight refused five absent Apple secrets. Signed release open.
+- [x] Rerun the hosted source gate on `e96882b`: 289 tests/10 properties
+  passed; the same five Apple secrets remain absent and signing was skipped.
 - [x] Repair non-resolving pinned release action SHAs and verify all workflow
   action refs against their upstream commits; actual job execution remains open.
 - [x] Verify the macOS runner architecture and report missing release
