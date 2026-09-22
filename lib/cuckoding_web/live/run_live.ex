@@ -292,6 +292,10 @@ defmodule CuckodingWeb.RunLive do
             {failure_heading(@detail)}
           </h2>
           <p>{run_failure(@detail)}</p>
+          <p :if={failure_site(@detail)} class="text-sm">
+            Diagnostic location: <code>{failure_site(@detail)}</code>. This identifies where the
+            unexpected error occurred, not its cause.
+          </p>
           <.link
             navigate={failure_return_path(@detail)}
             class="inline-flex min-h-10 items-center rounded underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
@@ -743,9 +747,8 @@ defmodule CuckodingWeb.RunLive do
   defp run_failure?(%{run: %{state: state}}), do: state in ["blocked", "failed"]
 
   defp run_failure(detail) do
-    detail.activity
-    |> Enum.reverse()
-    |> Enum.find(&(&1.event_type in ["task_intake.failed", "workflow.failed"]))
+    detail
+    |> failure_event()
     |> case do
       %{metadata: %{"code" => "task_intake_failed"}} ->
         "This older run did not record a specific validation error. The agent response was not " <>
@@ -758,6 +761,19 @@ defmodule CuckodingWeb.RunLive do
         detail.run.wait_reason ||
           "This run stopped without a specific failure event. Inspect the timeline and available process logs."
     end
+  end
+
+  defp failure_site(detail) do
+    case failure_event(detail) do
+      %{metadata: %{"diagnostic_site" => site}} when is_binary(site) -> site
+      _event -> nil
+    end
+  end
+
+  defp failure_event(detail) do
+    detail.activity
+    |> Enum.reverse()
+    |> Enum.find(&(&1.event_type in ["task_intake.failed", "workflow.failed"]))
   end
 
   defp failure_heading(%{task: %{kind: "board_intake"}}), do: "Planning failed"

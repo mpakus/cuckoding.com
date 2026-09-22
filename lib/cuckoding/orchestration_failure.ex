@@ -24,11 +24,11 @@ defmodule Cuckoding.OrchestrationFailure do
     end
   rescue
     _error ->
-      fail(run_id, kind, :unexpected_failure)
+      fail(run_id, kind, {:unexpected_failure, safe_site(__STACKTRACE__)})
       {:error, :unexpected_failure}
   catch
     _kind, _reason ->
-      fail(run_id, kind, :unexpected_failure)
+      fail(run_id, kind, {:unexpected_failure, safe_site(__STACKTRACE__)})
       {:error, :unexpected_failure}
   end
 
@@ -48,6 +48,7 @@ defmodule Cuckoding.OrchestrationFailure do
       %{"code" => failure_code(kind, reason)}
       |> maybe_put("stage_attempt_id", attempt && attempt.id)
       |> maybe_put("agent_session_id", session && session.id)
+      |> maybe_put("diagnostic_site", failure_site(reason))
 
     projection = fn repo, _sequence ->
       if session,
@@ -128,7 +129,7 @@ defmodule Cuckoding.OrchestrationFailure do
     do:
       "Cuckoding could not read the agent's structured task response. Inspect the redacted process log and create a new planning run."
 
-  defp public_failure(:task_intake, :unexpected_failure),
+  defp public_failure(:task_intake, {:unexpected_failure, _site}),
     do:
       "Task planning stopped unexpectedly. Inspect recent activity and the redacted process log, then create a new planning run."
 
@@ -151,7 +152,7 @@ defmodule Cuckoding.OrchestrationFailure do
     do:
       "Cuckoding could not read the agent's structured response. Inspect the redacted process log before retrying."
 
-  defp public_failure(:workflow, :unexpected_failure),
+  defp public_failure(:workflow, {:unexpected_failure, _site}),
     do:
       "The workflow stopped unexpectedly. Its safe failure code, timeline, and available process logs were preserved for inspection."
 
@@ -160,6 +161,7 @@ defmodule Cuckoding.OrchestrationFailure do
       "The workflow failed. Inspect its timeline, findings, and redacted process logs before retrying."
 
   defp failure_code(_kind, {:adapter_exit, _status}), do: "adapter_exit"
+  defp failure_code(_kind, {:unexpected_failure, _site}), do: "unexpected_failure"
 
   defp failure_code(_kind, %Types.Error{code: {code, _detail}}) when is_atom(code),
     do: Atom.to_string(code)
@@ -174,6 +176,25 @@ defmodule Cuckoding.OrchestrationFailure do
 
   defp event_type(:task_intake), do: "task_intake.failed"
   defp event_type(:workflow), do: "workflow.failed"
+
+  defp failure_site({:unexpected_failure, site}), do: site
+  defp failure_site(_reason), do: nil
+
+  defp safe_site(stacktrace), do: Enum.find_value(stacktrace, &site/1)
+
+  defp site({module, function, arity, location})
+       when is_atom(module) and is_atom(function) and
+              is_integer(arity) and is_list(location) do
+    name = Atom.to_string(module)
+    line = Keyword.get(location, :line)
+    source = "#{String.replace_prefix(name, "Elixir.", "")}.#{function}/#{arity}:#{line}"
+
+    if String.starts_with?(name, "Elixir.Cuckoding.") and module != __MODULE__ and
+         is_integer(line) and line > 0 and byte_size(source) <= 200,
+       do: source
+  end
+
+  defp site(_frame), do: nil
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)

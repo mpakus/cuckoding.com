@@ -96,9 +96,11 @@ local branch, worktree, and evidence.
 Every planning or delivery worker runs behind the same durable failure boundary.
 Returned errors and unexpected worker exceptions append a safe failure code and
 public recovery message, fail the current agent session and running stage when
-present, and block the run. Raw exception text is not persisted. The run alert,
-timeline, and filtered process-log viewer therefore survive browser reloads and
-show where to inspect the failure.
+present, and block the run. New unexpected-failure events also include a bounded
+application module/function/line when available; this is a diagnostic location,
+not a root cause. Raw exception text, arguments, and file paths are not
+persisted. Historical events do not acquire a location retroactively. The run
+alert, timeline, and filtered process-log viewer survive browser reloads.
 Multiple boards and their runs execute independently,
 subject to project and machine resource budgets. Kanban columns show task
 lifecycle states; workflow stages appear in the run timeline.

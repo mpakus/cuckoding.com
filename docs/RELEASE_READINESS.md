@@ -95,7 +95,7 @@ database to make an error disappear.
 | --- | --- |
 | Saved agent needs sign-in | Open **Agents**, re-authorize the named account, then retry the queued run's check. Do not copy provider token files into a run. |
 | Run preparation says repository is dirty | Commit or stash in the registered repository, then prepare again; inspect the old worktree separately. |
-| Task or run is blocked/failed | Open its timeline, safe failure code, and redacted logs. Retry from the task only after checking the previous process is stopped. |
+| Task or run is blocked/failed | Open its timeline, safe failure code, diagnostic location when recorded, and redacted logs. A location is not a cause; older events may not have one. Retry from the task only after checking the previous process is stopped. |
 | Application cannot start after an update | Use safe mode and the retained backup/failed database evidence; do not downgrade onto an unknown schema. |
 | Evidence is needed for support | Export the bounded diagnostics bundle explicitly, review it locally, and share it only through an approved channel. |
 

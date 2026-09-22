@@ -150,8 +150,10 @@ typed failure event, marks the current agent session and running stage failed
 when present, and then blocks the run. The run page derives its alert from that
 durable event, so a browser reconnect does not lose the cause. Provider
 authorization-check and disconnect failures use the provider event stream and
-remain visible on the Agents page; raw exceptions and provider output never
-enter either event payload.
+remain visible on the Agents page. Unexpected exceptions record only the first
+bounded Cuckoding module/function/line from the stack, when one exists; this
+locates the failure but does not reveal its cause. Raw exception messages,
+arguments, paths, and provider output never enter either event payload.
 The run waits while `task_proposals` are reviewed, and one idempotent import command
 creates only the selected Draft tasks and links each proposal to its result.
 Its LiveViews expose transient submit state, but render progress from the

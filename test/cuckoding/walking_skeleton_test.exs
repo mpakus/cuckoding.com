@@ -513,6 +513,15 @@ defmodule Cuckoding.WalkingSkeletonTest do
       Repo.get_by!(RunEvent, run_id: created.run.id, event_type: "workflow.failed")
 
     assert failure.payload["code"] == "unexpected_failure"
+
+    assert String.starts_with?(
+             failure.payload["diagnostic_site"],
+             "Cuckoding.WalkingSkeletonTest."
+           )
+
+    assert byte_size(failure.payload["diagnostic_site"]) <= 200
+    refute failure.payload["diagnostic_site"] =~ "test/cuckoding"
+
     assert failure.payload["stage_attempt_id"] == attempt.id
     assert failure.payload["agent_session_id"] == session.id
     refute inspect(failure) =~ "SECRET-CANARY"
@@ -520,6 +529,7 @@ defmodule Cuckoding.WalkingSkeletonTest do
     assert {:ok, view, _html} = live(conn, ~p"/runs/#{created.run.id}")
     assert has_element?(view, "#run-failure[role=alert]", "Workflow stopped")
     assert has_element?(view, "#run-failure", "safe failure code")
+    assert has_element?(view, "#run-failure", "Diagnostic location")
     assert has_element?(view, "#run-failure a", "Open task to retry with a new run")
   end
 
@@ -534,7 +544,11 @@ defmodule Cuckoding.WalkingSkeletonTest do
 
     failure = Repo.get_by!(RunEvent, run_id: created.run.id, event_type: "workflow.failed")
     assert failure.payload["code"] == "sensitive_environment_key"
+    refute Map.has_key?(failure.payload, "diagnostic_site")
     refute inspect(failure) =~ "SECRET-CANARY"
+
+    assert {:ok, view, _html} = live(fixture.conn, ~p"/runs/#{created.run.id}")
+    refute has_element?(view, "#run-failure", "Diagnostic location")
   end
 
   test "agent-written specification and public message remain on the task when Development fails",
