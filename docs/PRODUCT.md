@@ -16,11 +16,11 @@ It is not a chat client and it is not an autonomous merge bot. Its product value
 ## Core jobs to be done
 
 1. Open the application and immediately see registered projects, application health, current resource use, attention items, and who is working on what.
-2. Add a project through a short guided setup for its name, native-selected folder, and Git base branch, then manage reusable agent connections and default role assignments on the project page. The folder may be empty, an unborn Git repository, or an existing project.
+2. Add a project through a short guided setup for its name, native-selected folder, and Git base branch. The folder may be empty, an unborn Git repository, or an existing project.
 3. Create several independent boards for a project, such as product features, maintenance, and security remediation.
-4. Choose or customize a workflow and map its roles to the project's connected agents.
+4. Assign saved agents to project roles and apply those roles to boards before starting delivery runs.
 5. Add tasks manually or ask one assigned agent to inspect project documentation and propose tasks; review the proposals before importing them as Draft cards.
-6. Let approved tasks progress through gates for as long as they need, including across laptop sleep.
+6. Start the project to admit independent Ready tasks concurrently through Specifications, Coding, and Review, within board, project, and machine limits. Human completion and release decisions remain explicit.
 7. Watch on the global dashboard and Agent Floor which role and runtime is doing what, without exposing private reasoning.
 8. Open each run's worktree and local preview URL.
 9. Pause, hibernate, retry, or stop work without losing durable state.
@@ -34,6 +34,7 @@ It is not a chat client and it is not an autonomous merge bot. Its product value
 - Local project registry with separate add/edit setup; creating a project does not create a board, task, run, branch, or worktree.
 - A machine-wide saved-agent catalog plus project role defaults. A three-step add flow collects name/runtime, discovers an installed executable and verifies reusable authorization, then offers provider-discovered models and supported Codex reasoning levels. The built-in roles are Specifications, Coding, and Review; users may attach the same saved agent to several projects, add roles, and edit role names/instructions. Successful Codex and Cursor authorization checks refresh a bounded provider model catalog for the shared sign-in. Output contracts belong to workflow/adapter configuration. The catalog stores connection metadata, authorization status, and validated model labels/IDs, never credential values or raw provider output.
 - Multiple boards and concurrent task flows per project.
+- Durable project Start/Pause/Needs attention/Done control with a per-project run limit and open blocker-finding threshold. Pause stops new starts, not already-running work. Boards can be created before agents are assigned; updated project roles can be applied to future board runs without rewriting old run snapshots.
 - Read-only board planning runs that turn a bounded prompt into source-cited task proposals; only human-selected proposals become Draft tasks.
 - Configurable stage templates and role-to-runtime assignment.
 - Claude Code, Codex, and Cursor Agent as supported launch adapters. Saved Codex/Cursor agents can share an app-owned provider sign-in while selecting different models; per-run configuration stays separate. Cursor refuses project MCP, sandbox, CLI, or plugin overrides. Project setup may also save OpenCode and Custom Agent connections, but task execution remains blocked until a reviewed adapter passes the conformance suite.

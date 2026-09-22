@@ -148,6 +148,18 @@ defmodule Cuckoding.Execution.SchedulerTest do
              &(&1.task_id == fixture.task_b.id and &1.reason == :project_concurrency_limit)
            )
 
+    assert {:ok, cannot_raise_policy} =
+             Scheduler.plan(
+               global_limit: 4,
+               resource_probe: probe(8, 4),
+               project_limits: %{fixture.project.id => 8}
+             )
+
+    assert Enum.any?(
+             cannot_raise_policy.deferred,
+             &(&1.task_id == fixture.task_b.id and &1.reason == :project_concurrency_limit)
+           )
+
     assert Enum.any?(
              limited.deferred,
              &(&1.task_id == second_a.id and &1.reason == :board_concurrency_limit)

@@ -94,7 +94,7 @@ defmodule Cuckoding.Execution.Scheduler do
 
     with true <- is_integer(global_limit) and global_limit > 0,
          {:ok, memory_bytes} <- probe_memory(probe),
-         candidates <- ready_candidates(),
+         candidates <- ready_candidates(Keyword.get(options, :project_ids)),
          policies <- latest_policies(candidates),
          {:ok, ports} <- probe_ports(probe, candidates),
          active_runs <- active_runs(),
@@ -133,19 +133,25 @@ defmodule Cuckoding.Execution.Scheduler do
     end
   end
 
-  defp ready_candidates do
-    candidates =
-      Repo.all(
-        from(task in Task,
-          join: board in Board,
-          on: board.id == task.board_id,
-          join: project in Project,
-          on: project.id == board.project_id,
-          where:
-            task.state == "ready" and is_nil(task.active_run_id) and board.status == "active",
-          select: %{task: task, board: board, project: project}
-        )
+  defp ready_candidates(project_ids) do
+    query =
+      from(task in Task,
+        join: board in Board,
+        on: board.id == task.board_id,
+        join: project in Project,
+        on: project.id == board.project_id,
+        where:
+          task.kind == "delivery" and task.state == "ready" and
+            is_nil(task.active_run_id) and board.status == "active",
+        select: %{task: task, board: board, project: project}
       )
+
+    query =
+      if is_list(project_ids),
+        do: where(query, [task, board, project], project.id in ^project_ids),
+        else: query
+
+    candidates = Repo.all(query)
 
     blocked = blocking_task_ids(Enum.map(candidates, & &1.task.id))
     Enum.map(candidates, &Map.put(&1, :dependency_blocked?, MapSet.member?(blocked, &1.task.id)))
@@ -178,7 +184,9 @@ defmodule Cuckoding.Execution.Scheduler do
         on: task.id == run.task_id,
         join: board in Board,
         on: board.id == task.board_id,
-        where: run.state in ^@admitted_run_states,
+        where:
+          run.state in ^@admitted_run_states and
+            (run.state != "waiting" or run.wait_reason != "approval"),
         select: %{run: run, board_id: board.id, project_id: board.project_id}
       )
     )
@@ -246,10 +254,17 @@ defmodule Cuckoding.Execution.Scheduler do
     default_project_limit =
       Keyword.get(options, :default_project_limit, configured_global_limit())
 
+    project_limits = Keyword.get(options, :project_limits, %{})
+
+    policy_limit = project_limit(policy, default_project_limit)
+
     candidate
     |> Map.put(:policy, policy)
     |> Map.put(:memory_bytes, memory_mb(policy, default_memory_mb) * 1_048_576)
-    |> Map.put(:project_limit, project_limit(policy, default_project_limit))
+    |> Map.put(
+      :project_limit,
+      min(Map.get(project_limits, candidate.project.id, policy_limit), policy_limit)
+    )
   end
 
   defp last_scheduled_by_board do

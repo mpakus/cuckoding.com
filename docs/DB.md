@@ -42,6 +42,7 @@ erDiagram
 | --- | --- | --- |
 | `projects` | `id`, `name`, `description`, `repo_path`, `default_branch`, `workspace_root`, `port_range_start`, `port_range_end`, `status` | Local repository registration |
 | `project_config_versions` | `project_id`, `revision`, `source_hash`, `config_json`, `trusted_at` | Immutable policy/config snapshots |
+| `project_autopilots` | `project_id`, `state`, `max_active_runs`, `critical_blocker_limit`, `last_issue` | Durable per-project automatic admission control; facts also append to the `project:<id>` event stream |
 | `boards` | `project_id`, `name`, `description`, `workflow_version_id`, `status`, `concurrency_limit`, `unattended_until` | Multiple independent processes per project |
 | `workflow_versions` | `project_id?`, `name`, `version`, `definition_json`, `published_at` | Immutable once used by a run |
 | `role_assignments` | `board_id`, `role_key`, `adapter_key`, `model_ref`, `settings_json` | Board snapshot of project role defaults; run snapshot is separate |
@@ -61,8 +62,9 @@ with the built-in role definitions unassigned and no agent connections. Project
 settings append immutable revisions containing stable `provider_account_id`
 references, validated machine-local agent settings, and default role mappings.
 Updating a saved agent updates its global catalog row but never rewrites those
-immutable revisions. A board copies the selected mappings
-into `role_assignments`; a run copies them into its workflow snapshot. This
+immutable revisions. A board copies the selected mappings, including initially
+unassigned roles, into `role_assignments`; current project mappings may later be
+applied explicitly to the board for future runs. A run copies roles into its workflow snapshot. This
 deliberate snapshot chain means later project, role, or agent-profile edits never
 rewrite an active or historical run. Project creation and settings saves must
 not insert board, task, run, environment, or process rows.

@@ -73,6 +73,8 @@ Safe cleanup delegates the exact registered path to Git only after the ownership
 
 `Cuckoding.Execution.Scheduler` is a stateless admission planner over SQLite projections. It uses durable run history as the fairness cursor, checks dependencies and layered capacity, and returns candidates to a replaceable host dispatcher rather than launching processes itself. The same boundary exposes stable unattended approval notifications to a notifier and fail-closed board control to a runtime-aware pause/hibernate controller. This keeps process handles and lease tokens in supervised runtime services while the database remains authoritative.
 
+`Cuckoding.ProjectAutopilot` owns a durable per-project admission projection and events. Its supervised periodic worker reads running controls, invokes `Scheduler.plan/1`, and delegates each selected task to the existing `ProjectWorkflow.prepare_task/1` and `GuidedRun.start/1` boundaries. SQLite transaction guards prevent a second active run for the same task. The worker has no authoritative in-memory queue; a restart re-reads project controls and queued runs. It does not bypass provider authorization, human completion, or release gates.
+
 ### Agent adapter layer
 
 Each runtime adapter converts a common stage request into a provider-specific host process and converts output into normalized events, artifacts, usage, checkpoints, and completion status. Agents run on the host; their own permission systems (allowed tools, working directory, approval modes) are configured by the adapter from the stage capability grant, and the granted set is recorded. Capability discovery is explicit.

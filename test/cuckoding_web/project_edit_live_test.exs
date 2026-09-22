@@ -132,6 +132,33 @@ defmodule CuckodingWeb.ProjectEditLiveTest do
              "codex"
   end
 
+  test "creates a board before agents and explains why automatic work cannot start yet", %{
+    conn: conn,
+    project: project
+  } do
+    {:ok, view, _html} = live(conn, ~p"/projects/#{project.id}/edit")
+    assert has_element?(view, "#project-operation-status", "Paused")
+    assert has_element?(view, "#start-project-form")
+
+    view
+    |> form("#start-project-form",
+      autopilot: %{max_active_runs: "2", critical_blocker_limit: "1"}
+    )
+    |> render_submit()
+
+    assert has_element?(view, "#project-edit-error", "No Ready tasks")
+
+    view
+    |> form("#create-board-form", board: %{name: "Board first", concurrency_limit: "1"})
+    |> render_submit()
+
+    assert [board] = Workflows.list_boards(project.id)
+    assert_redirect(view, ~p"/boards/#{board.id}")
+
+    assert Repo.get_by!(RoleAssignment, board_id: board.id, role_key: "spec_writer").adapter_key ==
+             nil
+  end
+
   test "saves and updates an agent before roles are assigned", %{conn: conn, project: project} do
     {:ok, view, _html} = live(conn, ~p"/projects/#{project.id}/edit")
 

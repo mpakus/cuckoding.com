@@ -14,6 +14,7 @@ config :cuckoding, CuckodingWeb.Endpoint,
 config :logger, level: :warning
 config :cuckoding, :power_manager, enabled: false
 config :cuckoding, :resource_sampler, enabled: false
+config :cuckoding, :project_autopilot, enabled: false
 config :cuckoding, :plugin_registry, enabled: false
 config :cuckoding, :provider_account_root, Path.expand("../tmp/test-provider-accounts", __DIR__)
 config :phoenix, :plug_init_mode, :runtime

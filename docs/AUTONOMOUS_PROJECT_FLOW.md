@@ -1,8 +1,35 @@
-# Autonomous project flow — gap analysis and next implementation goal
+# Autonomous project flow — implementation and remaining gates
 
-Status: **target, not shipped**. Audited against `main` at `4546f85` on
-2026-09-22. This document does not change execution policy or enable autonomous
-work. The existing per-task journey remains described in [FLOW.md](FLOW.md).
+Status: **project-level automatic admission implemented for testing** on
+2026-09-22. The baseline audit below describes `main` at `4546f85` before
+task 1029. Current operation is described in [FLOW.md](FLOW.md); the remaining
+gates below are not claims of full unattended completion.
+
+## Implemented in task 1029
+
+- Boards can be created before assigning agents. After saving project roles,
+  **Apply project roles** updates an existing board for future runs; historical
+  run snapshots are unchanged.
+- Project settings provide **Start project**, **Pause new starts**, a project
+  concurrency limit, blocker threshold, durable state and progress. The global
+  dashboard shows each project's operation state and attention reason.
+- A supervised worker periodically reads durable running controls and admits
+  Ready delivery tasks through `Scheduler.plan/1`, `ProjectWorkflow.prepare_task/1`,
+  and `GuidedRun.start/1`. Queued runs can resume admission after restart.
+  Admission respects board, project and global running limits; duplicate active
+  run creation is checked in the SQLite transaction.
+- Distinct blocked delivery tasks with open `blocker` findings on their active
+  runs count toward the project threshold. Preparation/start failures and unmet
+  prerequisite deadlocks move the project to **Needs attention**. A project is
+  **Done** only when every delivery task is done.
+- Start does not auto-import agent proposals, approve policy changes, complete
+  a passing review, push, create a PR, or merge. Pause only stops new starts;
+  active runs continue. OpenCode and Custom Agent remain setup-only.
+
+Still to verify on a signed clean macOS build: long-running real-provider
+concurrency, restart/sleep recovery, and shared-authorization refresh. The
+human completion decision and whether non-review failures count toward the
+critical threshold remain product decisions.
 
 ## User story
 
@@ -19,7 +46,7 @@ project stops admitting work when every task is complete, I pause it, a safety
 gate needs my decision, or the configured critical-blocker threshold is met.
 I can see the reason, current owner, and evidence on the board and dashboard.
 
-## What works today
+## Baseline before task 1029
 
 | Journey step | Current behavior | Gap |
 | --- | --- | --- |
@@ -32,10 +59,10 @@ I can see the reason, current owner, and evidence on the board and dashboard.
 | Stop on done or critical blockers | A passing Review waits for a human local-completion or release decision (`walking_skeleton.ex:120-131`). Failed runs block individually; a board has an unattended power window. | No project-wide completion controller, configurable critical-blocker threshold, or automatic stop-admission rule exists. Unattended mode does not waive approvals. |
 
 Existing Phase 5 scheduler tests verify the *planner* and two-board admission,
-not autonomous UI-to-provider dispatch. Therefore the current app does **not**
+not autonomous UI-to-provider dispatch. Therefore that baseline did **not**
 yet deliver the requested hands-off project flow.
 
-## Target behavior for the next goal
+## Target behavior and remaining hardening
 
 1. **Prepare.** In Agents, save/authorize connections and select models. Register
    a project and create a board without requiring final role assignments.
@@ -51,8 +78,8 @@ yet deliver the requested hands-off project flow.
    the existing scheduler to atomically claim eligible Ready tasks, prepare
    branches/worktrees, verify distinct saved sign-ins, and start their runs.
    Duplicate UI clicks, wake/restart, and competing ticks must not double-run a
-   task. Deferred tasks show why they are waiting. Board/project/global limits
-   must be enforced at the claim boundary, not only in a stale plan.
+   task. The remaining UI gap is per-task deferred reasons. Signed-build
+   restart/sleep and cross-process admission races remain acceptance gates.
 4. **Work.** Each task keeps its current Specifications → Coding → Review
    dependency order and review loops; separate tasks may run concurrently.
    Newly free capacity starts the next eligible task. Keep public specs,
@@ -62,8 +89,8 @@ yet deliver the requested hands-off project flow.
    Project Start grants no new filesystem, network, plugin, or secret access;
    every stage still receives its reviewed runtime permission grant. The host
    runner is not a sandbox.
-5. **Stop or resume.** **Pause project** stops new admissions and checkpoints
-   active work; **Resume** revalidates it. A proposed critical-blocker rule is
+5. **Stop or resume.** **Pause project** currently stops new admissions but
+   does not checkpoint active work; **Resume** revalidates it. A proposed broader critical-blocker rule is
    to count distinct project tasks with an unresolved, host-validated
    `critical` finding or critical execution failure, not raw finding rows or
    retries. At threshold `N`, stop new admissions, request safe checkpoints for

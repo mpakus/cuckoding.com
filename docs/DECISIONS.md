@@ -229,6 +229,16 @@ credential; the user must sign in once again. The provider-owned token file is
 regular and owner-only or launch fails closed. Real two-project and adversarial
 provider acceptance remains open.
 
+## ADR-028 — Project execution is durable; workers are disposable
+
+- **Date:** 2026-09-22
+- **Status:** Accepted for implementation of task 1029; local auto-completion remains a separate stakeholder decision
+- **Context:** The board admission planner exists, but no production owner repeatedly dispatches Ready tasks. Per-task preparation/start cannot provide the requested one-click project operation.
+- **Decision:** Store one project execution projection with Start/Pause/Attention/Done, concurrency and blocker threshold in SQLite. A supervised periodic worker reads it and the existing scheduler; it is not authoritative. Preparation and launch continue through `ProjectWorkflow` and `GuidedRun`. A blocked task with a host-validated `blocker` finding counts once toward the threshold. The initial default is two project runs and one critical blocker. A passing Review still waits for the existing human local-completion or approved release choice; no automatic push, merge, publication, or capability expansion follows from Start.
+- **Alternatives:** Browser-owned timer (lost on navigation), GenServer-only state (lost on restart), a second workflow engine (duplicates established gates), and automatic completion without an approved policy (rejected for this slice).
+- **Consequences:** Project Start persists before any provider work, can resume after restart, and stops new admission on attention. Existing runs and worktrees remain intact. Host-runner confinement remains advisory. The UI must not call a project Done while Review approval or Draft/blocked tasks remain.
+- **Verification:** Durable command/event tests, scheduler fairness and race tests, LiveView keyboard/reconnect tests, crash/restart recovery, and real-provider concurrency acceptance remain distinct gates.
+
 ## ADR template
 
 ### ADR-NNN — Title

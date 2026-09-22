@@ -303,7 +303,7 @@ defmodule CuckodingWeb.StatusLive do
           >
             <h3 class="text-lg font-semibold text-slate-950">Add your first project</h3>
             <p class="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-700">
-              First register the repository and agents. Then create a board and add tasks.
+              Register a project, create a board and tasks, then assign agents and start.
               Nothing runs during project setup.
             </p>
             <.link
@@ -327,10 +327,18 @@ defmodule CuckodingWeb.StatusLive do
                     {Path.basename(card.project.repo_path)} · {card.project.default_branch}
                   </p>
                 </div>
-                <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                  {card.project.status}
-                </span>
+                <div class="flex flex-wrap gap-2">
+                  <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                    {card.project.status}
+                  </span>
+                  <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                    {project_operation_label(card.autopilot.state)}
+                  </span>
+                </div>
               </div>
+              <p :if={card.autopilot.last_issue} class="mt-3 text-sm text-amber-900">
+                {Cuckoding.ProjectAutopilot.issue_message(card.autopilot.last_issue)}
+              </p>
               <dl class="mt-5 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
                 <div>
                   <dt class="text-slate-600">Boards</dt><dd class="font-semibold">
@@ -358,7 +366,9 @@ defmodule CuckodingWeb.StatusLive do
                   navigate={~p"/projects/#{card.project.id}/edit"}
                   class="inline-flex min-h-10 items-center rounded-md border border-slate-300 px-3 text-sm font-medium text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2"
                 >
-                  Edit project
+                  {if card.autopilot.state == "running",
+                    do: "Monitor project",
+                    else: "Set up or start project"}
                 </.link>
                 <.link
                   :for={board <- card.boards}
@@ -586,6 +596,7 @@ defmodule CuckodingWeb.StatusLive do
 
       %{
         project: project,
+        autopilot: Cuckoding.ProjectAutopilot.settings(project.id),
         boards: boards,
         task_count:
           boards
@@ -628,6 +639,11 @@ defmodule CuckodingWeb.StatusLive do
 
   defp active_session?(card),
     do: card.session.state in @active_session_states and card.run.state in @active_run_states
+
+  defp project_operation_label("running"), do: "Running"
+  defp project_operation_label("attention"), do: "Needs attention"
+  defp project_operation_label("done"), do: "Done"
+  defp project_operation_label(_state), do: "Paused"
 
   defp format_bytes(0), do: "No active samples"
   defp format_bytes(bytes) when bytes < 1_048_576, do: "#{div(bytes, 1_024)} KiB"

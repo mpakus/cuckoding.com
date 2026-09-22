@@ -47,6 +47,86 @@ defmodule Cuckoding.ProjectWorkflow do
     end)
   end
 
+  @doc "Apply current project role defaults to future runs on an existing board."
+  def apply_project_roles(board_id, expected_revision) do
+    EventStore.transaction(fn ->
+      with board when not is_nil(board) <- Workflows.get_board(board_id),
+           %{revision: ^expected_revision} = config <-
+             Projects.latest_config_version(board.project_id),
+           :ok <- apply_board_roles(board.id, config.config_json),
+           {:ok, _event} <-
+             EventStore.append_in_transaction("board:" <> board.id, %{
+               event_type: "board.roles_applied",
+               public_summary: "Board roles updated for future runs",
+               payload: %{"board_id" => board.id, "config_revision" => config.revision}
+             }) do
+        board
+      else
+        nil -> Repo.rollback(:board_not_found)
+        {:error, reason} -> Repo.rollback(reason)
+        _other -> Repo.rollback(:stale_configuration)
+      end
+    end)
+  end
+
+  defp apply_board_roles(board_id, config) do
+    connections = Map.new(config["agent_connections"] || [], &{&1["key"], &1})
+    roles = config["default_roles"] || []
+
+    with :ok <- required_roles_present(roles),
+         true <- Enum.all?(roles, &Map.has_key?(connections, &1["agent_connection_key"])),
+         :ok <- compatible_roles(roles, connections) do
+      apply_role_updates(board_id, roles, connections)
+    else
+      false -> {:error, :roles_not_configured}
+      error -> error
+    end
+  end
+
+  defp apply_role_updates(board_id, roles, connections) do
+    Enum.reduce_while(roles, :ok, fn role, :ok ->
+      connection = connections[role["agent_connection_key"]]
+      settings = role_settings(role, connection)
+      result = apply_board_role(board_id, role["key"], connection["adapter_key"], settings)
+      if result == :ok, do: {:cont, :ok}, else: {:halt, result}
+    end)
+  end
+
+  defp apply_board_role(board_id, role_key, adapter_key, settings) do
+    case Repo.get_by(RoleAssignment, board_id: board_id, role_key: role_key) do
+      nil ->
+        assign_role(board_id, role_key, "agent", adapter_key, settings)
+
+      existing ->
+        existing
+        |> Ecto.Changeset.change(
+          adapter_key: adapter_key,
+          model_ref: settings["model"],
+          settings_json: settings
+        )
+        |> Repo.update()
+        |> case do
+          {:ok, _role} -> :ok
+          error -> error
+        end
+    end
+  end
+
+  defp compatible_roles(roles, connections) do
+    Enum.reduce_while(roles, :ok, fn role, :ok ->
+      connection = connections[role["agent_connection_key"]]
+
+      case Cuckoding.AgentBindings.compatible(
+             connection["adapter_key"],
+             role_settings(role, connection),
+             connection["provider_account_id"]
+           ) do
+        :ok -> {:cont, :ok}
+        error -> {:halt, error}
+      end
+    end)
+  end
+
   defp connect_board_roles(board_id, config) do
     connections = Map.new(config["agent_connections"] || [], &{&1["key"], &1})
 
@@ -298,22 +378,30 @@ defmodule Cuckoding.ProjectWorkflow do
   defp assign_project_role(role, :ok, board_id, connections) do
     case connections[role["agent_connection_key"]] do
       nil ->
-        {:halt, {:error, :roles_not_configured}}
-
-      connection ->
-        settings =
-          Map.merge(connection["settings"] || %{}, %{
-            "connection_key" => connection["key"],
-            "connection_label" => connection["label"],
-            "provider_account_id" => connection["provider_account_id"],
+        reduce_assignment(
+          assign_role(board_id, role["key"], "agent", nil, %{
             "role_name" => role["name"],
             "instructions" => role["instructions"]
           })
+        )
+
+      connection ->
+        settings = role_settings(role, connection)
 
         reduce_assignment(
           assign_role(board_id, role["key"], "agent", connection["adapter_key"], settings)
         )
     end
+  end
+
+  defp role_settings(role, connection) do
+    Map.merge(connection["settings"] || %{}, %{
+      "connection_key" => connection["key"],
+      "connection_label" => connection["label"],
+      "provider_account_id" => connection["provider_account_id"],
+      "role_name" => role["name"],
+      "instructions" => role["instructions"]
+    })
   end
 
   defp reduce_assignment(:ok), do: {:cont, :ok}
@@ -410,6 +498,9 @@ defmodule Cuckoding.ProjectWorkflow do
       length(roles) != length(@agent_roles) ->
         {:error, :roles_not_configured}
 
+      Enum.any?(roles, &is_nil(&1.adapter_key)) ->
+        {:error, :roles_not_configured}
+
       Enum.any?(roles, &(&1.adapter_key not in @runnable_adapters)) ->
         {:error, :runtime_setup_only}
 
@@ -417,6 +508,8 @@ defmodule Cuckoding.ProjectWorkflow do
         :ok
     end
   end
+
+  def validate_delivery_roles(board_id), do: runnable_roles(board_id, %Task{})
 
   defp board_fields(attrs) do
     with {:ok, name} <- bounded_text(attrs["name"], :board_name_required, 120),

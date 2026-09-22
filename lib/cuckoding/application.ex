@@ -36,6 +36,8 @@ defmodule Cuckoding.Application do
         Cuckoding.Execution.StartupReconciler,
         {Cuckoding.Power.Manager, []},
         {Task.Supervisor, name: Cuckoding.GuidedRunSupervisor},
+        {Cuckoding.ProjectAutopilot.Worker,
+         Application.get_env(:cuckoding, :project_autopilot, [])},
         {Registry, keys: :unique, name: Cuckoding.RunRegistry},
         Cuckoding.Execution.RunSupervisors,
         {DynamicSupervisor, strategy: :one_for_one, name: Cuckoding.Execution.ProcessWorkers},

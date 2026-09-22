@@ -20,10 +20,9 @@ Project setup, board setup, board task intake, and delivery execution are separa
    history after reload. Neither action creates a
    board, task, run, feature branch, worktree, or provider process.
 2. **Board setup** creates a named board with the default versioned workflow,
-   copied project role assignments, and a chosen concurrency limit. Workflow
+   copied project role assignments (which may still be unassigned), and a chosen concurrency limit. Saved project roles can be explicitly applied to an existing board for future runs. Workflow
    selection and board-level role/budget editors remain design targets.
-3. **Task execution** has two explicit actions. Moving a task to Ready does not
-   start it automatically. The Ready card's **Set up and start** link opens task
+3. **Task execution** can be started manually or by **Start project**. Moving a task to Ready does not start it while the project is paused. Once the project is running, a supervised dispatcher admits eligible Ready delivery tasks using the existing scheduler, prepares a separate run/worktree for each, and starts the Specifications → Coding → Review flow. The Ready card's **Set up and start** link opens task
    detail; an already prepared task links directly to its queued run.
    **Prepare run** accepts only a
    Ready task on an active board, rejects setup-only runtimes, snapshots the
@@ -38,8 +37,7 @@ Project setup, board setup, board task intake, and delivery execution are separa
    not pause execution. See [UI_DASHBOARD.md](UI_DASHBOARD.md) for safety limits.
    A blocked or failed delivery task offers **Retry with a new run**. It closes
    the stopped blocked run as failed, returns the task to Ready, and prepares a
-   new queued run with a distinct branch/worktree. The user still checks agents
-   and starts the new run explicitly. Prior runs, worktrees, and evidence are
+   new queued run with a distinct branch/worktree. The user can start the new run explicitly; project automatic mode also picks up queued delivery runs when capacity allows. Prior runs, worktrees, and evidence are
    retained; uncommitted changes from the old worktree are not copied.
 4. **Board task intake** accepts a bounded prompt and one snapshotted agent
    role. It creates a hidden planning task and normal queued run, verifies that
@@ -64,6 +62,20 @@ keyring-era "Connected" observation cannot appear ready for a file-store run.
 
 This boundary keeps onboarding reversible and lets one project own several
 boards without fabricating a first task.
+
+Project operation state and limits live in `project_autopilots`, not the LiveView
+or worker. Start validates an active project, at least one Ready or queued delivery
+run, runnable board roles, and a readable committed base for Ready work.
+Start/Pause/attention/done append project events. The supervised worker re-reads
+running projects after restart and periodically admits work; it stops new
+admissions at the configured count of distinct blocked delivery tasks with open
+`blocker` review findings on their active runs. Preparation and start failures
+pause admission with a visible reason; other failed tasks remain blocked for
+review. Board/project/global limits apply to new work, and queued starts check
+running capacity. Pause stops new admissions, not active processes. Draft task
+proposals still need human selection; a passing Review still waits for a human
+local-completion or release decision. No autonomous push, PR, merge, or policy
+approval is granted by Start.
 
 ## Intended default feature flow
 
@@ -272,3 +284,5 @@ Before resume, the host Git service compares the current default branch, checked
 - Unattended mode keeps a board's queue moving and the machine awake up to approval gates.
 
 `Cuckoding.Execution.Scheduler` implements the Phase 5 admission plan from durable rows. It excludes unmet dependencies, orders each board by priority and age, rotates boards by their oldest last-scheduled time, and then applies board, trusted-policy project, and global agent-session limits. Admission fails closed when the replaceable host probe cannot establish available memory or loopback-port capacity. The scheduler returns stable unattended approval notification keys and delegates all process-starting and notification side effects through behaviours; it does not make the planner process authoritative. Board pause or hibernate first durably pauses new admission, then delegates each active run to the ownership-aware run controller. Resume reopens admission but leaves each run's resume as an explicit lifecycle action.
+
+`ProjectAutopilot.Worker` is the production caller for project-wide automatic admission. It selects only durable running projects, uses the scheduler for Ready delivery tasks, and starts already queued delivery runs within available running slots. Its periodic tick is disposable; project state and run claims survive a worker restart. Human-triggered manual Start remains available when project automatic mode is paused.

@@ -11,6 +11,7 @@ defmodule Cuckoding.ProjectWorkflowTest do
   alias Cuckoding.Execution.ProcessRecord
   alias Cuckoding.Execution.Run
   alias Cuckoding.Execution.RunEvent
+  alias Cuckoding.ProjectAutopilot
   alias Cuckoding.ProjectOnboarding
   alias Cuckoding.ProjectWorkflow
   alias Cuckoding.Repo
@@ -663,6 +664,204 @@ defmodule Cuckoding.ProjectWorkflowTest do
 
     assert Repo.get!(Cuckoding.Execution.Run, run.id).state == "queued"
     assert File.dir?(environment.worktree_path)
+  end
+
+  test "a board can precede agent assignment and later accept project roles", %{project: project} do
+    path = Path.join(Path.dirname(project.repo_path), "unassigned")
+    File.mkdir_p!(path)
+
+    assert {:ok, %{project: new_project}} =
+             ProjectOnboarding.create(%{
+               "name" => "Unassigned project",
+               "repo_path" => path,
+               "default_branch" => "main"
+             })
+
+    assert {:ok, board} =
+             ProjectWorkflow.create_board(new_project.id, %{
+               "name" => "First board",
+               "concurrency_limit" => "1"
+             })
+
+    assert {:error, :roles_not_configured} = ProjectWorkflow.validate_delivery_roles(board.id)
+
+    assert {:ok, version} =
+             ProjectOnboarding.update_configuration(new_project.id, 1, %{
+               "agent_connections" => [
+                 %{
+                   "key" => "codex-local",
+                   "label" => "Board-first Codex",
+                   "adapter_key" => "codex",
+                   "executable_path" => "/usr/bin/true",
+                   "api_key_helper" => ""
+                 }
+               ],
+               "default_roles" =>
+                 Enum.map(ProjectOnboarding.default_roles(), fn role ->
+                   Map.put(role, "agent_connection_key", "codex-local")
+                 end)
+             })
+
+    assert {:ok, _board} = ProjectWorkflow.apply_project_roles(board.id, version.revision)
+    assert :ok = ProjectWorkflow.validate_delivery_roles(board.id)
+  end
+
+  test "project start persists limits and dispatches only admitted Ready work", %{
+    project: project
+  } do
+    assert {:ok, board} =
+             ProjectWorkflow.create_board(project.id, %{
+               "name" => "Automatic work",
+               "concurrency_limit" => "1"
+             })
+
+    for title <- ["First", "Second"] do
+      assert {:ok, task} = ProjectWorkflow.create_task(board.id, %{"title" => title})
+      assert_transition(Workflows.transition_task(task.id, "ready", "auto:#{task.id}:ready"))
+    end
+
+    assert {:ok, control} =
+             ProjectAutopilot.start(
+               project.id,
+               %{"max_active_runs" => "2", "critical_blocker_limit" => "3"},
+               wake: false
+             )
+
+    assert control.state == "running"
+    assert control.max_active_runs == 2
+    assert control.critical_blocker_limit == 3
+
+    parent = self()
+
+    assert :ok =
+             ProjectAutopilot.dispatch_once(
+               resource_probe: %{
+                 memory_available_bytes: fn -> {:ok, 8_000_000_000} end,
+                 available_ports: fn _project -> {:ok, 8} end
+               },
+               starter: fn run_id ->
+                 send(parent, {:start_run, run_id})
+                 {:ok, :started}
+               end
+             )
+
+    assert_receive {:start_run, _run_id}
+    refute_receive {:start_run, _run_id}, 100
+    assert length(Execution.list_runs(hd(Workflows.list_tasks(board.id)).id)) <= 1
+    assert ProjectAutopilot.get(project.id).state == "running"
+    assert {:ok, paused} = ProjectAutopilot.pause(project.id)
+    assert paused.state == "paused"
+
+    [run] =
+      Repo.all(
+        from(run in Run,
+          where:
+            run.state == "queued" and
+              run.task_id in ^Enum.map(Workflows.list_tasks(board.id), & &1.id)
+        )
+      )
+
+    assert_transition(Execution.transition_run(run.id, "running", "auto:#{run.id}:running"))
+
+    for task <- Workflows.list_tasks(board.id), task.id != run.task_id do
+      assert_transition(Workflows.transition_task(task.id, "draft", "auto:#{task.id}:draft"))
+    end
+
+    assert {:ok, resumed} =
+             ProjectAutopilot.start(
+               project.id,
+               %{"max_active_runs" => "2", "critical_blocker_limit" => "3"},
+               wake: false
+             )
+
+    assert resumed.state == "running"
+
+    assert :ok =
+             Supervisor.terminate_child(Cuckoding.Supervisor, Cuckoding.ProjectAutopilot.Worker)
+
+    assert {:ok, _worker} =
+             Supervisor.restart_child(Cuckoding.Supervisor, Cuckoding.ProjectAutopilot.Worker)
+
+    assert ProjectAutopilot.get(project.id).state == "running"
+  end
+
+  test "one blocked task counts once and stops admission at its threshold", %{project: project} do
+    assert {:ok, board} =
+             ProjectWorkflow.create_board(project.id, %{
+               "name" => "Blocker threshold",
+               "concurrency_limit" => "2"
+             })
+
+    assert {:ok, blocked_task} = ProjectWorkflow.create_task(board.id, %{"title" => "Blocked"})
+    assert {:ok, next_task} = ProjectWorkflow.create_task(board.id, %{"title" => "Next"})
+
+    for task <- [blocked_task, next_task] do
+      assert_transition(Workflows.transition_task(task.id, "ready", "blocker:#{task.id}:ready"))
+    end
+
+    assert {:ok, %{run: run}} = ProjectWorkflow.prepare_task(blocked_task.id)
+
+    assert {:ok, attempt} =
+             Execution.create_stage_attempt(%{
+               run_id: run.id,
+               stage_key: "review",
+               attempt: 1,
+               role_key: "reviewer",
+               role_kind: "agent"
+             })
+
+    for summary <- ["First finding", "Second finding"] do
+      assert {:ok, _finding} =
+               Workflows.record_finding(%{
+                 run_id: run.id,
+                 stage_attempt_id: attempt.id,
+                 severity: "blocker",
+                 category: "correctness",
+                 summary: summary,
+                 evidence_json: %{}
+               })
+    end
+
+    blocked_task
+    |> Ecto.Changeset.change(state: "blocked", active_run_id: run.id)
+    |> Repo.update!()
+
+    assert ProjectAutopilot.critical_blocker_count(project.id) == 1
+
+    assert {:ok, _control} =
+             ProjectAutopilot.start(
+               project.id,
+               %{"max_active_runs" => "2", "critical_blocker_limit" => "1"},
+               wake: false
+             )
+
+    assert :ok = ProjectAutopilot.dispatch_once()
+    assert ProjectAutopilot.get(project.id).state == "attention"
+    assert ProjectAutopilot.get(project.id).last_issue == "critical_blockers"
+    assert Execution.list_runs(next_task.id) == []
+  end
+
+  test "archiving a running project stops automatic admission", %{project: project} do
+    assert {:ok, board} =
+             ProjectWorkflow.create_board(project.id, %{
+               "name" => "Archive gate",
+               "concurrency_limit" => "1"
+             })
+
+    assert {:ok, task} = ProjectWorkflow.create_task(board.id, %{"title" => "Not started"})
+    assert_transition(Workflows.transition_task(task.id, "ready", "archive:#{task.id}:ready"))
+
+    assert {:ok, _control} =
+             ProjectAutopilot.start(
+               project.id,
+               %{"max_active_runs" => "1", "critical_blocker_limit" => "1"},
+               wake: false
+             )
+
+    project |> Ecto.Changeset.change(status: "archived") |> Repo.update!()
+    assert :ok = ProjectAutopilot.dispatch_once()
+    assert ProjectAutopilot.get(project.id).last_issue == "project_archived"
+    assert Execution.list_runs(task.id) == []
   end
 
   defp assert_transition({:ok, %{result: %{"outcome" => "transitioned"}}}), do: :ok

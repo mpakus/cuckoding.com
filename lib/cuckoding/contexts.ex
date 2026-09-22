@@ -375,9 +375,18 @@ defmodule Cuckoding.Execution do
   def create_run(attrs) do
     Repo.transaction(fn ->
       with {:ok, attrs} <- snapshot_run(attrs),
+           false <-
+             Repo.exists?(
+               from(run in Run,
+                 where:
+                   run.task_id == ^attrs[:task_id] and
+                     run.state in ["queued", "running", "waiting"]
+               )
+             ),
            {:ok, run} <- insert(Run, attrs) do
         run
       else
+        true -> Repo.rollback(:run_already_active)
         {:error, reason} -> Repo.rollback(reason)
       end
     end)

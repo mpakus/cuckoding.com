@@ -6,6 +6,7 @@ defmodule CuckodingWeb.ProjectEditLive do
   alias Cuckoding.Adapters
   alias Cuckoding.Adapters.RuntimeConfiguration
   alias Cuckoding.AgentRuntime
+  alias Cuckoding.ProjectAutopilot
   alias Cuckoding.ProjectOnboarding
   alias Cuckoding.Projects
   alias Cuckoding.ProjectWorkflow
@@ -18,6 +19,13 @@ defmodule CuckodingWeb.ProjectEditLive do
   def mount(%{"id" => project_id}, _session, socket) do
     with project when not is_nil(project) <- Projects.get_project(project_id),
          config when not is_nil(config) <- Projects.latest_config_version(project_id) do
+      if connected?(socket) do
+        Cuckoding.ActivityStream.subscribe(:all)
+        Process.send_after(self(), :refresh_project, 5_000)
+      end
+
+      autopilot = ProjectAutopilot.settings(project.id)
+
       {:ok,
        socket
        |> assign(
@@ -29,6 +37,13 @@ defmodule CuckodingWeb.ProjectEditLive do
          runtime_options: RuntimeConfiguration.options(),
          boards: Workflows.list_boards(project.id),
          board_form: %{"name" => "Product", "description" => "", "concurrency_limit" => "1"},
+         autopilot: autopilot,
+         autopilot_counts: ProjectAutopilot.task_counts(project.id),
+         critical_blockers: ProjectAutopilot.critical_blocker_count(project.id),
+         autopilot_form: %{
+           "max_active_runs" => to_string(autopilot.max_active_runs),
+           "critical_blocker_limit" => to_string(autopilot.critical_blocker_limit)
+         },
          notice: nil,
          error: nil
        )
@@ -36,6 +51,15 @@ defmodule CuckodingWeb.ProjectEditLive do
     else
       nil -> raise Phoenix.Router.NoRouteError, conn: socket, router: CuckodingWeb.Router
     end
+  end
+
+  @impl true
+  def handle_info({:activity_event, _stream_id, _sequence}, socket),
+    do: {:noreply, refresh_autopilot(socket)}
+
+  def handle_info(:refresh_project, socket) do
+    if connected?(socket), do: Process.send_after(self(), :refresh_project, 5_000)
+    {:noreply, refresh_autopilot(socket)}
   end
 
   @impl true
@@ -262,12 +286,12 @@ defmodule CuckodingWeb.ProjectEditLive do
   def handle_event("connect-board-agents", %{"id" => id}, socket) do
     if Enum.any?(socket.assigns.boards, &(&1.id == id)) and
          socket.assigns.config == socket.assigns.saved_config do
-      case ProjectWorkflow.connect_saved_agents(id, socket.assigns.revision) do
+      case ProjectWorkflow.apply_project_roles(id, socket.assigns.revision) do
         {:ok, _board} ->
           {:noreply,
            assign(socket,
              notice:
-               "Board connected to saved agents for future runs. Existing tasks and run snapshots are unchanged.",
+               "Board roles updated for future runs. Existing tasks and run snapshots are unchanged.",
              error: nil
            )}
 
@@ -275,11 +299,43 @@ defmodule CuckodingWeb.ProjectEditLive do
           {:noreply,
            assign(socket,
              error:
-               "The board's runtime settings do not match these saved agents. Keep its existing assignments; connect a compatible saved agent on each queued run instead."
+               "Board roles could not be updated. Assign a saved agent to every required project role, save, and retry."
            )}
       end
     else
       {:noreply, assign(socket, error: "Save project settings before connecting this board.")}
+    end
+  end
+
+  def handle_event("start-project", %{"autopilot" => attrs}, socket) do
+    case ProjectAutopilot.start(socket.assigns.project.id, attrs) do
+      {:ok, _control} ->
+        {:noreply,
+         socket
+         |> assign(
+           autopilot_form: attrs,
+           notice: "Project started. Ready tasks will launch as capacity allows.",
+           error: nil
+         )
+         |> refresh_autopilot()}
+
+      {:error, reason} ->
+        {:noreply,
+         assign(socket, autopilot_form: attrs, notice: nil, error: autopilot_error(reason))}
+    end
+  end
+
+  def handle_event("pause-project", _params, socket) do
+    case ProjectAutopilot.pause(socket.assigns.project.id) do
+      {:ok, _control} ->
+        {:noreply,
+         socket
+         |> assign(notice: "New task starts paused. Already running tasks continue.", error: nil)
+         |> refresh_autopilot()}
+
+      {:error, _reason} ->
+        {:noreply,
+         assign(socket, notice: nil, error: "Project could not be paused. Reload and try again.")}
     end
   end
 
@@ -307,8 +363,8 @@ defmodule CuckodingWeb.ProjectEditLive do
             </span>
           </div>
           <p class="max-w-3xl text-base leading-7 text-slate-700">
-            Choose saved agents, then assign one connection to every project role.
-            New boards copy these defaults; existing boards and runs keep their snapshots.
+            Create a board and tasks, then assign saved agents to project roles.
+            Apply updated roles to an existing board before starting new runs.
           </p>
         </header>
         <.link
@@ -752,7 +808,7 @@ defmodule CuckodingWeb.ProjectEditLive do
             </p>
           </div>
           <p :if={@boards == []} class="text-sm text-slate-700">
-            No boards yet. Save your agents and role assignments above, then create your first board here.
+            No boards yet. Create one now; agents and roles can be assigned later.
           </p>
 
           <ul :if={@boards != []} class="grid gap-3 sm:grid-cols-2">
@@ -780,10 +836,10 @@ defmodule CuckodingWeb.ProjectEditLive do
                 type="button"
                 phx-click="connect-board-agents"
                 phx-value-id={board.id}
-                data-confirm="Connect this board's existing roles to matching saved agents shown above? Future runs share their profiles. Tasks and existing run snapshots stay unchanged."
+                data-confirm="Apply the current project roles to this board? Future runs use them; existing run snapshots stay unchanged."
                 class="mt-3 min-h-11 rounded-md border border-slate-400 px-4 text-sm"
               >
-                Connect saved agents
+                Apply project roles
               </button>
             </li>
           </ul>
@@ -805,7 +861,7 @@ defmodule CuckodingWeb.ProjectEditLive do
             </label>
             <label class="grid gap-2 text-sm font-medium text-slate-800">
               Concurrent runs
-              <span class="text-sm font-normal text-slate-600">Maximum tasks allowed to run together. Tasks still need an explicit start.</span>
+              <span class="text-sm font-normal text-slate-600">Maximum tasks allowed to run together on this board.</span>
               <input
                 type="number"
                 name="board[concurrency_limit]"
@@ -833,6 +889,79 @@ defmodule CuckodingWeb.ProjectEditLive do
               </button>
             </div>
           </form>
+        </section>
+        <section
+          id="project-operation"
+          aria-labelledby="project-operation-heading"
+          class="space-y-5 border-t border-slate-200 pt-8"
+        >
+          <div>
+            <h2 id="project-operation-heading" class="text-2xl font-semibold text-slate-950">
+              Project operation
+            </h2>
+            <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-700">
+              Start eligible Ready tasks automatically, up to the limits below. Draft proposals still need review; passing code still needs your local-completion decision. Pause stops new starts, not running work.
+            </p>
+          </div>
+          <div
+            id="project-operation-status"
+            role="status"
+            aria-live="polite"
+            class="rounded-xl border border-slate-200 bg-white p-5"
+          >
+            <p class="font-semibold text-slate-950">{autopilot_state(@autopilot.state)}</p>
+            <p class="mt-1 text-sm text-slate-700">{progress_summary(@autopilot_counts)}</p>
+            <p class="mt-1 text-sm text-slate-700">
+              Critical blockers: {@critical_blockers} / {@autopilot.critical_blocker_limit}
+            </p>
+            <p :if={@autopilot.last_issue} class="mt-2 text-sm text-amber-900">
+              {ProjectAutopilot.issue_message(@autopilot.last_issue)}
+            </p>
+          </div>
+          <form
+            :if={@autopilot.state != "running"}
+            id="start-project-form"
+            phx-submit="start-project"
+            class="grid gap-4 rounded-xl border border-slate-200 bg-white p-5 sm:grid-cols-2"
+          >
+            <label class="grid gap-2 text-sm font-medium text-slate-800">
+              Concurrent project runs
+              <span class="text-sm font-normal text-slate-600">The board, trusted policy, and machine may set lower limits.</span>
+              <input
+                name="autopilot[max_active_runs]"
+                type="number"
+                min="1"
+                max="32"
+                required
+                value={@autopilot_form["max_active_runs"]}
+                class="min-h-11 rounded-md border border-slate-400 px-3"
+              />
+            </label>
+            <label class="grid gap-2 text-sm font-medium text-slate-800">
+              Stop at this many critical blockers
+              <input
+                name="autopilot[critical_blocker_limit]"
+                type="number"
+                min="1"
+                max="100"
+                required
+                value={@autopilot_form["critical_blocker_limit"]}
+                class="min-h-11 rounded-md border border-slate-400 px-3"
+              />
+            </label>
+            <div class="sm:col-span-2">
+              <button
+                phx-disable-with="Starting project…"
+                class="min-h-11 rounded-md bg-slate-950 px-5 font-medium text-white"
+              >Start project</button>
+            </div>
+          </form>
+          <button
+            :if={@autopilot.state == "running"}
+            type="button"
+            phx-click="pause-project"
+            class="min-h-11 rounded-md border border-slate-400 bg-white px-5 font-medium text-slate-950"
+          >Pause new starts</button>
         </section>
       </section>
     </Layouts.app>
@@ -985,7 +1114,7 @@ defmodule CuckodingWeb.ProjectEditLive do
     do: "Authorization could not be checked. Verify the agent settings and try again."
 
   defp board_error(:roles_not_configured),
-    do: "Save an agent assignment for every built-in role before creating a board."
+    do: "Save your project settings, then try creating the board again."
 
   defp board_error(:unsaved_configuration),
     do:
@@ -1002,6 +1131,42 @@ defmodule CuckodingWeb.ProjectEditLive do
       )
 
   defp default_role?(key), do: MapSet.member?(@default_role_keys, key)
+
+  defp refresh_autopilot(socket) do
+    project_id = socket.assigns.project.id
+
+    assign(socket,
+      autopilot: ProjectAutopilot.settings(project_id),
+      autopilot_counts: ProjectAutopilot.task_counts(project_id),
+      critical_blockers: ProjectAutopilot.critical_blocker_count(project_id)
+    )
+  end
+
+  defp autopilot_state("running"), do: "Running automatically"
+  defp autopilot_state("attention"), do: "Needs attention"
+  defp autopilot_state("done"), do: "All tasks complete"
+  defp autopilot_state(_state), do: "Paused"
+
+  defp progress_summary(counts) do
+    total = Enum.sum(Map.values(counts))
+
+    "#{Map.get(counts, "done", 0)} of #{total} tasks done · #{Map.get(counts, "running", 0)} running · #{Map.get(counts, "ready", 0)} ready"
+  end
+
+  defp autopilot_error(:no_ready_tasks),
+    do:
+      "No Ready tasks can start. Create tasks on a board, review any proposals, and move at least one task to Ready."
+
+  defp autopilot_error(:roles_not_configured),
+    do:
+      "Assign saved agents to every required project role, save, and apply the roles to each board with Ready tasks."
+
+  defp autopilot_error(%Ecto.Changeset{} = changeset),
+    do: PublicError.changeset("Project could not start", changeset)
+
+  defp autopilot_error(_reason),
+    do:
+      "Project could not start. Check the repository, agent sign-in, and Ready tasks, then retry."
 
   defp refresh_saved_agents(socket) do
     accounts = Adapters.list_provider_accounts()

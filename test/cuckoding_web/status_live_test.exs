@@ -42,7 +42,7 @@ defmodule CuckodingWeb.StatusLiveTest do
     assert has_element?(
              view,
              "#project-#{project.id} a[href='/projects/#{project.id}/edit']",
-             "Edit project"
+             "Set up or start project"
            )
 
     assert has_element?(view, "#project-#{project.id} a", "Create board")

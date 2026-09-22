@@ -1,6 +1,7 @@
 defmodule CuckodingWeb.BoardLive do
   use CuckodingWeb, :live_view
 
+  alias Cuckoding.ProjectAutopilot
   alias Cuckoding.Projects
   alias Cuckoding.ProjectWorkflow
   alias Cuckoding.Workflows
@@ -23,13 +24,14 @@ defmodule CuckodingWeb.BoardLive do
            page_title: board.name,
            board: board,
            project: project,
+           project_operation: ProjectAutopilot.settings(project.id),
            states: @states,
            show_all_states: false,
            refresh_pending: false,
            filters: %{"q" => "", "state" => "all"},
            task_form: %{"title" => "", "description" => "", "priority" => "0"},
            intake_form: %{"prompt" => "", "role_key" => "spec_writer"},
-           agent_roles: Workflows.list_agent_roles(board.id),
+           agent_roles: Enum.filter(Workflows.list_agent_roles(board.id), & &1.adapter_key),
            tasks: [],
            intake_error: nil,
            notice: nil,
@@ -55,7 +57,13 @@ defmodule CuckodingWeb.BoardLive do
   end
 
   def handle_info(:refresh_board, socket) do
-    {:noreply, socket |> assign(refresh_pending: false) |> load_tasks()}
+    {:noreply,
+     socket
+     |> assign(
+       refresh_pending: false,
+       project_operation: ProjectAutopilot.settings(socket.assigns.project.id)
+     )
+     |> load_tasks()}
   end
 
   @impl true
@@ -157,6 +165,25 @@ defmodule CuckodingWeb.BoardLive do
             </.link>
           </nav>
         </header>
+
+        <div
+          id="board-project-operation"
+          role="status"
+          aria-live="polite"
+          class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700"
+        >
+          <p>
+            Project automatic work:
+            <strong>{project_operation_label(@project_operation.state)}</strong>
+          </p>
+          <.link
+            href={~p"/projects/#{@project.id}/edit#project-operation"}
+            class="font-medium text-slate-950 underline underline-offset-4"
+          >Start or monitor project</.link>
+          <p :if={@project_operation.last_issue} class="w-full text-amber-900">
+            {ProjectAutopilot.issue_message(@project_operation.last_issue)}
+          </p>
+        </div>
 
         <details
           id="new-task-panel"
@@ -278,7 +305,7 @@ defmodule CuckodingWeb.BoardLive do
               </span>
             </div>
             <p :if={@agent_roles == []} class="text-sm font-medium text-amber-900">
-              This board has no assigned agent roles. Save roles in Project settings, then create a new board to use them.
+              This board has no assigned agent roles. Save roles in Project settings, then apply them to this board.
             </p>
             <p
               :if={@intake_error}
@@ -515,6 +542,11 @@ defmodule CuckodingWeb.BoardLive do
   defp count_tasks(tasks, state), do: Enum.count(tasks, &(&1.state == state))
   defp state_label(state), do: state |> String.replace("_", " ") |> String.capitalize()
   defp role_label(role), do: role.settings_json["role_name"] || state_label(role.role_key)
+
+  defp project_operation_label("running"), do: "Running"
+  defp project_operation_label("attention"), do: "Needs attention"
+  defp project_operation_label("done"), do: "Done"
+  defp project_operation_label(_state), do: "Paused"
   defp reason_label("invalid_transition"), do: "this task cannot move from its current state"
   defp reason_label(:invalid_transition), do: "this task cannot move from its current state"
   defp reason_label(_reason), do: "the task changed or this move is no longer available"
@@ -544,7 +576,7 @@ defmodule CuckodingWeb.BoardLive do
 
   defp intake_error(:runtime_setup_only),
     do:
-      "This role uses a runtime that cannot run tasks yet. Save a Codex, Claude Code, or Cursor Agent assignment in Project settings, then create a new board to use it."
+      "This role uses a runtime that cannot run tasks yet. Assign a supported agent in Project settings, then apply project roles to this board."
 
   defp intake_error({:intake_transition_rejected, _reason}),
     do:

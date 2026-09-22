@@ -75,6 +75,8 @@ defmodule CuckodingWeb.BoardLiveTest do
 
     assert has_element?(view, "main#main-content")
     assert has_element?(view, "h1", "Product")
+    assert has_element?(view, "#board-project-operation", "Paused")
+    assert has_element?(view, "#board-project-operation a", "Start or monitor project")
     assert has_element?(view, "form[aria-label='Filter tasks'] input[type=search]")
     assert has_element?(view, "#column-draft[aria-labelledby='column-draft-heading']")
     assert has_element?(view, "#column-draft-heading", "Draft")

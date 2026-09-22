@@ -31,13 +31,17 @@ defmodule Cuckoding.SharedAuthorizationMigrationTest do
     start_supervised!({MigrationRepo, database: copy, pool_size: 1})
 
     assert Ecto.Migrator.run(MigrationRepo, migrations, :up, all: true, log: false) == [
-             20_260_920_170_000
+             20_260_920_170_000,
+             20_260_922_120_000
            ]
 
     [after_row] = Ecto.Adapters.SQL.query!(MigrationRepo, "SELECT * FROM provider_accounts").rows
     assert Enum.drop(after_row, -1) == hd(before)
     assert List.last(after_row) == nil
     assert Ecto.Adapters.SQL.query!(MigrationRepo, "PRAGMA foreign_key_check").rows == []
+
+    assert Ecto.Adapters.SQL.query!(MigrationRepo, "PRAGMA table_info(project_autopilots)").rows !=
+             []
 
     assert {:error, _} =
              Ecto.Adapters.SQL.query(
