@@ -106,10 +106,10 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 
 - [x] Capability and secret hardening, adversarial prompt and plugin tests.
 - [x] Crash, power-loss, and sleep recovery drills.
-- [x] Current-source unsigned developer `.app` builds and passes the sterile
+- [x] The `3246b3b` unsigned developer `.app` built and passed the sterile
   release verifier, including startup/authentication, crash cleanup, safe mode,
-  and update/rollback checks. Rebuilt from `3246b3b` on 2026-09-21; the
-  subsequent test-only gate correction does not change app source. This is not
+  and update/rollback checks on 2026-09-21. The subsequent test-only gate
+  correction did not change app source. This is not
   a signed beta enrollment build or clean-Mac release acceptance.
 - [x] Release artifact staging preserves the prior signed distribution if
   notarization, updater signing, or metadata generation fails; a completed
@@ -155,8 +155,8 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
   The concurrent event-sequence property's wait now covers the existing bounded
   SQLite retry window; a controlled 11-second lock still completed and the
   full gate passed. This is not signed-release or real-provider evidence.
-- [x] Task 1004: sign the current local app's 26 Mach-O files with Developer ID,
-  notarize it with the saved `Cuckoding` profile, staple the accepted ticket,
+- [x] Task 1004: sign the then-current `3246b3b` app's 26 Mach-O files with
+  Developer ID, notarize it with the saved `Cuckoding` profile, staple the accepted ticket,
   pass Gatekeeper, and re-run the embedded release's sterile verifier. This
   local app drill is not a signed updater/release package or clean-Mac acceptance.
 - [x] Task 1004: archive that stapled app, extract the ZIP on the same Mac,
@@ -167,19 +167,24 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
   account. Its menubar/browser launch remains unobserved: the current user's
   signed shell would use live app data, and switching to `qa` needs an
   administrator or an interactive QA login.
-- [x] Task 1004: build current `17d367a` source in an isolated checkout, pass
+- [x] Task 1004: build then-current `17d367a` source in an isolated checkout, pass
   the sterile bundled-release verifier, sign all 26 Mach-O files, notarize and
   staple the app, then verify a quarantined extraction of its post-staple ZIP.
-  This is current-source same-Mac app evidence, not a complete signed updater,
+  This is revision-specific same-Mac app evidence, not a complete signed updater,
   clean-Mac install, or enrollment release.
-- [x] Task 1004: stage that checksum-matched current ZIP for the existing `qa`
+- [x] Task 1004: stage that checksum-matched `17d367a` ZIP for the existing `qa`
   macOS account without replacing the older staged copy. Its menubar/browser
   launch and data checks remain unobserved.
+- [x] Task 1004: rebuild `a3ef7b1` with `bin/dev.build`, pass its sterile
+  verifier, sign and notarize the app, then verify a quarantined extraction
+  of its post-staple ZIP on the same Mac. Stage a checksum-matched copy for
+  the existing `qa` account without replacing older candidates. This is not
+  an updater, QA-account launch, or clean-Mac acceptance.
 - [ ] Produce and verify a fresh signed/notarized enrollment build at the
-  accepted beta revision. The current local `.app` and post-staple ZIP passed
-  same-Mac checks, but `desktop/dist/` still predates current main; the signed
-  updater, complete release metadata, clean-Mac test, and CI Apple
-  certificate/notary secrets remain open.
+  accepted beta revision. The `a3ef7b1` signed app and ZIP passed same-Mac
+  checks, but `desktop/dist/` predates current main; the signed updater,
+  complete release metadata, clean-Mac test, and CI Apple certificate/notary
+  secrets remain open.
 - [x] Task 1008: safe public-message boundary and actionable empty states across
   Phoenix UI surfaces; raw internal errors are excluded from browser alerts.
 - [x] Complete the accepted project-first product flow:

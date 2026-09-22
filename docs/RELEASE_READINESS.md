@@ -118,8 +118,12 @@ and developer-build gates. The local app was then Developer ID signed,
 notarized, stapled, Gatekeeper-accepted, and its embedded release passed the
 same sterile verifier. A newly archived, quarantined extracted copy also
 passed ticket, strict-signature, Gatekeeper, and sterile checks on this Mac.
-Current `17d367a` source has since passed the same isolated build, signing,
+Then-current `17d367a` source has since passed the same isolated build, signing,
 notarization, post-staple extraction, and sterile checks; see
+[DISTRIBUTION.md](DISTRIBUTION.md) for its distinct digest and submission ID.
+On 2026-09-21, newer `a3ef7b1` source passed `bin/dev.build`, Developer ID
+signing, Apple notarization, post-staple ZIP extraction under quarantine,
+Gatekeeper, and the embedded-release sterile verifier; see
 [DISTRIBUTION.md](DISTRIBUTION.md) for its distinct digest and submission ID.
 None of this verifies provider, participant, complete release-package, or
 clean-Mac install behavior.
@@ -135,7 +139,7 @@ clean-Mac install behavior.
 | Human approval performs release handoff | The [walking skeleton](../worklog/2026-09-17-0405-walking-skeleton.md) pushed an approved branch to a local bare remote | D01 approved handoff on an authorized target, including a draft PR; verify no push before approval |
 | Knowledge is reviewed and later used | Knowledge extraction/publication/lineage tests and views exist | Score K01–K03 and show one approved item used by a later real run with project, version, run, and stage provenance |
 | Four reference plugins enable, contribute, and degrade safely | [Task 0803](../worklog/2026-09-18-0803-reference-plugins.md) records fixture conformance | Exercise RTK, XERJ, Ponytail, and read-only MCP in the enrolled app with labeled contributions and removal without core failure |
-| Clean Mac installs, runs, updates, and uninstalls | A prior-revision signed ZIP passed on a separate account; the current local app and its fresh post-staple ZIP pass same-Mac signature, Gatekeeper, and sterile checks | One complete current signed/notarized release and updater candidate on a clean supported Mac, including sample task, update, rollback, and uninstall with data checks |
+| Clean Mac installs, runs, updates, and uninstalls | A prior-revision signed ZIP passed on a separate account; the current `a3ef7b1` app and post-staple ZIP passed same-Mac signature, Gatekeeper, and sterile checks | One complete signed/notarized release and updater candidate on a clean supported Mac, including sample task, update, rollback, and uninstall with data checks |
 
 None of these ten criteria has matching current-release acceptance evidence
 yet. The checked recovery item in the prior plan overstated task 1002's scope;
@@ -155,13 +159,17 @@ ticket, strict-signature, Gatekeeper, and embedded-release checks on this Mac;
 its SHA-256 is recorded in [DISTRIBUTION.md](DISTRIBUTION.md). This is not a
 complete signed release package: no current updater bundle/signature, release
 metadata, installed clean-Mac test, or beta enrollment is attached.
-Both the older ZIP and the checksum-matched current `17d367a` ZIP are staged
+The `3246b3b`, `17d367a`, and checksum-matched `a3ef7b1` ZIPs are staged
 in `/Users/Shared` for the existing `qa` macOS account, but a real
 menubar/browser launch from that account is not yet observed. Running the
 signed shell as the current user would use the live
 account-derived app data directory; no disposable override is established.
-The current post-staple ZIP has not been published and still lacks a signed
-updater and complete release metadata.
+The `a3ef7b1` post-staple ZIP has not been published and still lacks a signed
+updater and complete release metadata. A first local Tauri bundle attempt
+for `a3ef7b1` returned `Operation not permitted`; a
+controlled bundle rerun and then the complete `bin/dev.build` both passed.
+The cause of the isolated failure is unconfirmed, so packaging reliability
+remains an acceptance concern until the frozen release job succeeds.
 The release workflow places `mix quality` before loading signing material.
 Its first [manual CI run](https://github.com/mpakus/cuckoding.com/actions/runs/35662057281)
 on `131e171` installed the pinned tools and reached source quality, but failed

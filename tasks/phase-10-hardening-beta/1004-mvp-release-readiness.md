@@ -54,16 +54,21 @@ Re-run the MVP definition of done, freeze supported versions, validate installer
   Settings before export; policy approval and signed-build checks remain open.
 - [x] Rebuild the current-source unsigned app and re-run local source quality;
   correct the event-sequence test wait to cover the bounded SQLite retry window.
-- [x] Sign and notarize the current local app with existing Keychain credentials;
-  verify the embedded release after signing. Full release artifacts and clean-Mac
-  enrollment remain open.
+- [x] Sign and notarize the then-current `3246b3b` app with existing Keychain
+  credentials; verify the embedded release after signing. Full release
+  artifacts and clean-Mac enrollment remain open.
 - [x] Create a separate post-staple ZIP and verify its quarantined extracted app
   on the same Mac; record the ZIP digest without replacing the older distribution.
 - [x] Repeat the isolated build, local Developer ID signing/notarization, and
-  quarantined post-staple ZIP verification for current `17d367a`; preserve the
-  older distribution and do not count this as updater or clean-Mac acceptance.
-- [x] Stage the checksum-matched current ZIP for the existing QA account; its
+  quarantined post-staple ZIP verification for then-current `17d367a`;
+  preserve the older distribution and do not count this as updater or
+  clean-Mac acceptance.
+- [x] Stage the checksum-matched `17d367a` ZIP for the existing QA account; its
   actual launch, account-data check, and clean-Mac test remain open.
+- [x] Rebuild `a3ef7b1`, pass its sterile verifier, sign and notarize its app,
+  verify a quarantined post-staple ZIP on the same Mac, and stage a
+  checksum-matched QA-account copy without replacing older candidates.
+  Updater, QA-account launch, and clean-Mac acceptance remain open.
 - [ ] Approve and verify the output/artifact retention policy and participant
   disclosure; no automatic age purge exists for full redacted artifacts yet.
 - [ ] Verify effective retention and consent/default behavior in a signed

@@ -180,9 +180,9 @@ or the complete `desktop/release.sh` output. The older `desktop/dist/` and its
 updater metadata were not replaced; do not publish this standalone ZIP as an
 accepted enrollment release.
 
-On 2026-09-21 a separate isolated checkout of current `17d367a` built a fresh
-unsigned app and passed the sterile release verifier. The local Developer ID
-signed all 26 Mach-O files; Apple accepted notarization submission
+On 2026-09-21 a separate isolated checkout of then-current `17d367a` built
+a fresh unsigned app and passed the sterile release verifier. The local
+Developer ID signed all 26 Mach-O files; Apple accepted notarization submission
 `4d7775e9-32da-4815-b4d9-e624a7fb27d6` with no issues, and stapling and
 Gatekeeper assessment passed. A ZIP made **after** stapling has SHA-256
 `bcfa5afccc7740a4dbb9ba9178a8032ae58889172b97d3467612967c1d983a07`.
@@ -194,15 +194,33 @@ the checksum-matched copy at
 `/Users/Shared/Cuckoding-0.1.0-17d367a-stapled.zip` is readable by the
 existing `qa` account. `desktop/dist/` and the staged older QA ZIP were not
 replaced. This is
-same-Mac current-source app evidence, not an updater signature, complete
+same-Mac revision-specific app evidence, not an updater signature, complete
 release package, separate-account launch, or clean-Mac acceptance.
 
-For the separate-account smoke, use the **current `17d367a` ZIP** staged above.
-The older `3246b3b` ZIP remains at
-`/Users/Shared/Cuckoding-0.1.0-3246b3b-stapled.zip` only as retained evidence.
-Sign into the existing `qa` macOS account, extract the current copy into that
-account's own folder, launch it from
-Finder, check the menubar-to-browser handoff and clean quit, then inspect the
+Newer `a3ef7b1` source passed the complete `bin/dev.build` developer build on
+2026-09-21, including the embedded release's sterile verifier. The local
+Developer ID signed all 26 Mach-O files; Apple accepted notarization
+submission `9bcbd65e-79f4-43a2-b324-3f49be5c5b1e` with zero issues.
+The ticket was stapled, Gatekeeper accepted the app, and its embedded release
+passed the sterile verifier after signing. A ZIP made **after** stapling has
+SHA-256
+`242857407ea002472a1f767203d498a85c595d2e7a7fdaa58566704e7f1bd1f5`.
+A quarantined, separately extracted copy passed ticket, strict-signature,
+Gatekeeper, and embedded-release sterile checks on the same Mac. The ignored
+candidate and evidence remain under
+`desktop/src-tauri/target/release/Cuckoding-local-notary-a3ef7b1.aJWS9F/`;
+the checksum-matched copy at
+`/Users/Shared/Cuckoding-0.1.0-a3ef7b1-stapled.zip` is readable by the
+existing `qa` account. A first Tauri bundle attempt returned `Operation not
+permitted`, but a direct rerun and the complete build passed; the isolated
+failure's cause is unconfirmed. This is not a signed updater, complete
+release package, separate-account launch, or clean-Mac acceptance.
+
+For a separate-account smoke, use the **latest `a3ef7b1` ZIP** staged above.
+The older `17d367a` and `3246b3b` ZIPs remain staged only as historical
+evidence. Sign into the existing `qa` macOS account, extract the `a3ef7b1`
+copy into that account's own folder, launch it from Finder, check the
+menubar-to-browser handoff and clean quit, then inspect the
 QA account's application data. Do not sign agents in or register a real
 project for this shell-only check. Cuckoding's shell uses the account-derived
 `app_data_dir()` with no reviewed test override, so launching it as the

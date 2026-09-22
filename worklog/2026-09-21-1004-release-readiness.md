@@ -697,3 +697,90 @@ relative links in the touched docs resolve. No migration, provider call,
 signing operation, user-data deletion,
 or GitHub secret mutation occurred. A signed enrollment build and stakeholder
 retention/consent approval remain required.
+
+## 2026-09-21 — Revalidate the latest unsigned developer bundle
+
+Continued task 1004 on `feature/1004-current-source-preflight` from clean
+`main` at `a3ef7b1`. Acceptance for this preflight: build that exact source
+through the documented developer entry point, run its bundled-release
+verifier, identify the resulting signature class, and correct `docs/PLAN.md`
+and release documentation that called the older `17d367a` signed ZIP current.
+This is not signing, enrollment, or clean-Mac acceptance. Ponytail 4.10.0
+(MIT, full mode), menubar-shell, security-review, and quality-gates apply.
+
+The first `rtk env -u CR_PAT ./bin/dev.build` assembled Phoenix and passed
+release metadata, Rust tests, and Clippy, but Tauri bundling returned
+`Operation not permitted (os error 1)` without a path. The partially created
+bundle was ignored build output, not the retained signed candidate. A
+controlled direct `cargo-tauri build --bundles app` rerun with the pinned
+Rust toolchain, `RUST_BACKTRACE=1`, and `RUST_LOG=debug` succeeded. The
+standalone `rtk proxy env -u GEM_HOME -u GEM_PATH
+PATH=/usr/bin:/bin:/usr/sbin:/sbin /usr/bin/ruby verify.rb` then passed all
+sterile startup, authentication, crash, safe-mode, and rollback checks.
+
+To test the actual entry point again, `rtk env -u CR_PAT ./bin/dev.build`
+was rerun unmodified and exited 0: production release, metadata/promotion
+checks (6 Ruby runs, 15 assertions), Rust format, 10 shell tests, Clippy,
+Tauri bundle, and the complete sterile verifier all passed. `rtk proxy
+codesign -dv --verbose=2 desktop/src-tauri/target/release/bundle/macos/Cuckoding.app`
+reported `Signature=adhoc` and no Team ID. The first bundle error was not
+reproduced; its root cause is unconfirmed and remains a packaging-reliability
+observation for the frozen release job. No build-script change was justified
+by the available evidence.
+
+The docs now label the signed/notarized `17d367a` ZIP as revision-specific
+prior evidence and the `a3ef7b1` app as unsigned current-source evidence.
+During that unsigned preflight, no provider task, app launch against the
+user's data, Apple signing or notarization, CI secret mutation, publication,
+or deletion of retained artifacts occurred. `rtk proxy` preserved exact
+native Ruby, Cargo, and codesign output; those commands are not product
+command configuration.
+Documentation checks: `rtk proxy git diff --check` passed, and a read-only
+Ruby check confirmed all relative Markdown links in the four touched `docs/`
+files resolve. No Mix quality rerun was needed after the documentation-only
+edits; the developer build's production compile, Rust checks, and sterile
+verifier are tied to the unmodified `a3ef7b1` source.
+
+### Developer ID and same-Mac archive follow-up
+
+The existing Keychain held one valid Developer ID Application identity.
+`rtk proxy env CUCKODING_SIGNING_IDENTITY=<identity> sh desktop/sign.sh
+<a3ef7b1 app>` signed and strictly verified all 26 Mach-O files, the outer
+bundle, hardened runtime, timestamp, matching Team ID, and BEAM JIT
+entitlement. The identity was selected by displayed name; no private key
+was exported or read. A `rtk proxy ditto -c -k --keepParent` archive of the
+signed app was submitted with `rtk proxy env CUCKODING_NOTARY_PROFILE=Cuckoding
+sh desktop/notarize.sh <app> <submission.zip> <evidence>`.
+Apple accepted submission `9bcbd65e-79f4-43a2-b324-3f49be5c5b1e` with
+zero issues; stapling, ticket validation, and Gatekeeper passed. The
+embedded release passed `rtk proxy env -u GEM_HOME -u GEM_PATH
+PATH=/usr/bin:/bin:/usr/sbin:/sbin CUCKODING_RELEASE_PATH=<signed app release>
+/usr/bin/ruby desktop/verify.rb` after signing.
+
+The app was archived **after** stapling as
+`desktop/src-tauri/target/release/Cuckoding-local-notary-a3ef7b1.aJWS9F/Cuckoding-a3ef7b1-stapled.zip`.
+`rtk proxy shasum -a 256` returned
+`242857407ea002472a1f767203d498a85c595d2e7a7fdaa58566704e7f1bd1f5`;
+`rtk proxy unzip -tq` found no errors. A separate extraction with an explicit
+quarantine attribute passed `rtk proxy xcrun stapler validate`, `rtk proxy
+/usr/bin/codesign --verify --deep --strict --verbose=2`, and `rtk proxy
+/usr/sbin/spctl --assess --type execute --verbose=4` (`source=Notarized
+Developer ID`). Its embedded release passed every sterile verifier check
+again. The ZIP was copied only after checking the target did not exist to
+`/Users/Shared/Cuckoding-0.1.0-a3ef7b1-stapled.zip`; the copied SHA-256
+matched, and mode `-rw-r--r-- mpak staff` permits the existing `qa` account
+to read it. Both older staged ZIPs and `desktop/dist/` remain untouched.
+
+This is current-app-source same-Mac evidence, not a complete signed updater,
+QA-account launch, clean physical Mac test, participant consent, or beta
+enrollment. No shell was launched against the current user's app data; the
+sterile verifier used temporary directories. The saved `notarytool` profile
+performed the submission without credential values entering source or logs.
+Final checks after documentation updates: `rtk proxy git diff --check`
+passed; a read-only Ruby relative-link check passed for `docs/PLAN.md`,
+`docs/RELEASE_READINESS.md`, `docs/DISTRIBUTION.md`, and
+`docs/BETA_REPORT.md`; `rtk env -u CR_PAT mix quality` passed (10 properties,
+288 tests, zero failures; strict Credo no issues, Sobelow scan complete,
+Hex audit no retired/advisory packages). The two plugin-supervisor crash
+logs were intentional test fixtures. These source checks do not substitute
+for the still-missing hosted CI, provider, participant, or clean-Mac gates.
