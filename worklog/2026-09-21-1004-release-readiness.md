@@ -919,3 +919,27 @@ is the narrow v5 line that supports Node 24. Upstream `action.yml:116` declares
 fork-PR checkout defaults, but this workflow runs only on manual dispatch or
 tags and uses no PR event. The release job's token remains `contents: read`;
 signing material remains behind the source-quality and value-free preflight.
+
+`actionlint` was not installed locally. `rtk proxy git diff --check` passed;
+the system-Ruby YAML parser loaded the release job, and a scoped source check
+confirmed the quality step still precedes configuration and certificate import.
+`rtk gh workflow run release-macos.yml -R mpakus/cuckoding.com --ref
+fix/1004-checkout-node24-pin` dispatched
+[branch run 35681124404](https://github.com/mpakus/cuckoding.com/actions/runs/35681124404)
+at `53888e22972921a1080bba9961d8532f173ba7d3`. The pinned v5.1.0
+checkout step and the pinned-tool install passed. The source-quality step
+passed (10 properties, 289 tests, zero failures; no retired/advisory
+packages); no Node 20 warning appeared in the job output. The same five
+missing Apple certificate/notary secret names stopped the value-free
+preflight. Certificate import, signing/notarization, release build, and
+artifact upload were skipped. The overall workflow conclusion is failure
+because required release configuration is absent, not because checkout or
+source quality failed. No credential values were read, and no release
+artifact was published.
+
+Final structural checks after the documentation update: `rtk proxy git diff
+--check` passed; system Ruby parsed the release workflow YAML and confirmed
+its `release` job; a read-only relative-link scan over the changed `docs/`
+files passed. The hosted branch run is the behavioral gate for the action
+pin. The signed updater, QA-account launch, clean-Mac test, provider runs,
+and controlled beta remain open.

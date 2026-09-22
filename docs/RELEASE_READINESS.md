@@ -186,6 +186,10 @@ on `e96882b` passed `mix quality` (289 tests, 10 properties, zero failures)
 before its value-free preflight again reported exactly five absent secrets:
 `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`,
 `APPLE_NOTARY_KEY`, `APPLE_NOTARY_KEY_ID`, and `APPLE_NOTARY_ISSUER`.
+The release checkout pin was subsequently updated to official Node 24-native
+v5.1.0. Its [branch CI run](https://github.com/mpakus/cuckoding.com/actions/runs/35681124404)
+executed checkout and passed the same source gate (289 tests, 10 properties);
+the configuration step still refused those five absent secrets.
 Certificate import, notarization, updater signing, and artifact upload were
 skipped. The three public update variables and existing updater secrets are
 configured, but no credential value was inspected. Local release variables

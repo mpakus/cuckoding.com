@@ -48,6 +48,8 @@ Re-run the MVP definition of done, freeze supported versions, validate installer
   passed; the same five Apple secrets remain absent and signing was skipped.
 - [x] Repair non-resolving pinned release action SHAs and verify all workflow
   action refs against their upstream commits; actual job execution remains open.
+- [x] Pin the release checkout action to official Node 24-native v5.1.0 and
+  verify its hosted branch job; source quality passed, signing remains blocked.
 - [x] Verify the macOS runner architecture and report missing release
   configuration names before certificate import; no secrets are provisioned.
 - [x] Document how the stakeholder can provision the five missing CI secrets

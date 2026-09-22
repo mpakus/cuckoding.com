@@ -145,6 +145,10 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
   upstream v1.24.1 setup-beam and v7.0.0 certificate-import commits. Both
   pinned setup actions executed in the manual job; certificate import remains
   untested because the preflight correctly stopped first.
+- [x] Task 1004: update the release workflow's checkout pin to official
+  Node 24-native v5.1.0. [Branch run 35681124404](https://github.com/mpakus/cuckoding.com/actions/runs/35681124404)
+  executed that checkout and passed `mix quality` (289 tests, 10 properties);
+  it still stopped before signing on the same five missing Apple secrets.
 - [x] Task 1004: verify GitHub Actions `macos-15` targets Apple Silicon and add
   a value-free preflight for all required release secrets and update variables
   after source quality, before certificate import. Missing Apple credentials
