@@ -34,6 +34,9 @@ Use Cuckoding on several real repositories and workflow types for multi-day runs
   verifier; a fresh signed/notarized enrollment build remains required.
 - [x] Release candidate staging and promotion preserve the previous signed
   distribution through candidate failure and keep a recoverable prior copy.
+- [x] Deterministic two-board execution reaches Development concurrently and
+  preserves distinct branches, worktrees, artifacts, ownership markers, and
+  event correlation. This is a source regression, not D03 beta acceptance.
 - [ ] Preserve the older signed artifact and produce a new signed/notarized
   enrollment build from the accepted beta revision.
 - [ ] Confirm rotation of the provider key previously exposed in host argv

@@ -7,12 +7,14 @@ defmodule Cuckoding.ProjectWorkflowTest do
   alias Cuckoding.Execution
   alias Cuckoding.Execution.Environment
   alias Cuckoding.Execution.EventStore
+  alias Cuckoding.Execution.GitService
   alias Cuckoding.Execution.ProcessRecord
   alias Cuckoding.Execution.Run
   alias Cuckoding.Execution.RunEvent
   alias Cuckoding.ProjectOnboarding
   alias Cuckoding.ProjectWorkflow
   alias Cuckoding.Repo
+  alias Cuckoding.WalkingSkeleton
   alias Cuckoding.Workflows
   alias Cuckoding.Workflows.RoleAssignment
 
@@ -157,6 +159,93 @@ defmodule Cuckoding.ProjectWorkflowTest do
     assert has_element?(dashboard, "#operation-#{run.id}", "Queued")
     assert has_element?(dashboard, "#operation-#{run.id}", "Waiting for launch")
     assert has_element?(dashboard, "#project-#{project.id}", "Tasks")
+  end
+
+  test "two boards execute concurrently without crossing worktrees or evidence", %{
+    project: project
+  } do
+    prepared =
+      for {board_name, title} <- [
+            {"Product", "Product change"},
+            {"Maintenance", "Maintenance fix"}
+          ] do
+        {:ok, board} =
+          ProjectWorkflow.create_board(project.id, %{
+            "name" => board_name,
+            "concurrency_limit" => "1"
+          })
+
+        {:ok, task} = ProjectWorkflow.create_task(board.id, %{"title" => title})
+
+        assert_transition(
+          Workflows.transition_task(task.id, "ready", "two-board:#{task.id}:ready")
+        )
+
+        {:ok, %{run: run, environment: environment}} = ProjectWorkflow.prepare_task(task.id)
+
+        assert_transition(
+          Execution.transition_run(run.id, "running", "two-board:#{run.id}:running")
+        )
+
+        {:ok, skeleton} = WalkingSkeleton.load(run.id)
+        %{board: board, task: task, run: run, environment: environment, skeleton: skeleton}
+      end
+
+    assert length(Enum.uniq_by(prepared, & &1.environment.worktree_path)) == 2
+    assert length(Enum.uniq_by(prepared, & &1.run.branch)) == 2
+    parent = self()
+
+    implementation = fn environment ->
+      send(parent, {:candidate_ready, self(), environment.run_id})
+
+      receive do
+        :continue -> :ok
+      after
+        10_000 -> raise "concurrent board barrier timed out"
+      end
+
+      File.write!(Path.join(environment.worktree_path, "WALKING_SKELETON.md"), environment.run_id)
+      GitService.commit_candidate(environment, ["WALKING_SKELETON.md"], "test: own candidate")
+    end
+
+    workers =
+      Enum.map(prepared, fn %{skeleton: skeleton} ->
+        Task.async(fn ->
+          WalkingSkeleton.run(skeleton,
+            simulate_sleep_gap: false,
+            fake_implementation: implementation
+          )
+        end)
+      end)
+
+    assert_receive {:candidate_ready, first_pid, first_run_id}, 20_000
+    assert_receive {:candidate_ready, second_pid, second_run_id}, 20_000
+    assert first_run_id != second_run_id
+    send(first_pid, :continue)
+    send(second_pid, :continue)
+    assert Enum.all?(workers, &match?({:ok, _}, Task.await(&1, 30_000)))
+
+    for %{board: board, task: task, run: run, environment: environment} <- prepared do
+      assert Repo.get!(Run, run.id).state == "waiting"
+      assert Workflows.get_task(task.id).state == "waiting"
+      assert File.read!(Path.join(environment.worktree_path, "WALKING_SKELETON.md")) == run.id
+
+      assert File.read!(Path.join([environment.run_dir, "artifacts", "specification.md"])) =~
+               task.title
+
+      marker = environment.run_dir |> Path.join("run.json") |> File.read!() |> Jason.decode!()
+
+      assert Map.take(marker, ~w(board_id task_id run_id)) == %{
+               "board_id" => board.id,
+               "task_id" => task.id,
+               "run_id" => run.id
+             }
+
+      events = Repo.all(from(event in RunEvent, where: event.run_id == ^run.id))
+      assert events != []
+      assert Enum.all?(events, &(get_in(&1.payload, ["correlation", "board_id"]) == board.id))
+      assert Enum.all?(events, &(get_in(&1.payload, ["correlation", "task_id"]) == task.id))
+    end
   end
 
   test "task page shows durable agent messages and refreshes after new activity", %{

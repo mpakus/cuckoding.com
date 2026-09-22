@@ -106,6 +106,10 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 
 - [x] Capability and secret hardening, adversarial prompt and plugin tests.
 - [x] Crash, power-loss, and sleep recovery drills.
+- [x] Task 1003 source prerequisite: two disposable boards reached Development
+  concurrently with distinct branches, worktrees, artifacts, ownership markers,
+  and board/task-correlated events. Real-provider process/port isolation and
+  enrolled-app D03 observation remain open.
 - [x] The `3246b3b` unsigned developer `.app` built and passed the sterile
   release verifier, including startup/authentication, crash cleanup, safe mode,
   and update/rollback checks on 2026-09-21. The subsequent test-only gate
@@ -247,7 +251,7 @@ surfaces from real-provider and release evidence. Custom workflow/board editors
 and execution through OpenCode/Custom Agent are not shipped capabilities.
 
 - [ ] Two supported agent runtimes complete the default workflow on the host runner.
-- [ ] Two boards run concurrently without worktree, port, process, or event crossover.
+- [ ] Two boards run concurrently without worktree, port, process, or event crossover. The deterministic source test covers worktrees and events; it does not exercise provider process groups, ports, or the enrolled app.
 - [ ] A running task survives hibernate, app quit, relaunch, and a real sleep/wake cycle with a single execution of each stage. Task 1002 passed 27/27 named recovery drills, including physical sleep, but those stage workers were fixtures; the integrated current-build task observation remains open.
 - [ ] The Agent Floor attributes every action to a role, runtime, model, and run.
 - [ ] Provider-reported and estimated costs are visually distinguishable; active and wall time are both shown.
