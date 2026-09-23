@@ -46,12 +46,13 @@ snapshots into stage launches. Later edits do not change existing board/run
 settings. Actual model
 is recorded only when reported by the runtime, not inferred from the selection.
 
-Legacy snapshots keep their old setup until explicitly connected. In project
-settings, **Connect saved agents** links a board's existing connection keys to
-compatible saved accounts for future runs. A queued run offers a per-role saved
-agent selector. The selected runtime/executable/helper must match its snapshot;
-the binding is a separate append-only event, not a snapshot rewrite. Tasks and
-history stay intact. Running/completed runs cannot be rebound.
+Legacy snapshots keep their old setup until the board is explicitly updated. In
+project settings, **Assign agents to board** applies current role assignments to
+future runs and adds append-only bindings to compatible queued runs. The selected
+runtime/executable/helper must match each queued role snapshot; if any missing
+role is incompatible, that run is left entirely unbound. Tasks and history stay
+intact, snapshots are not rewritten, and running/completed runs cannot be
+rebound.
 
 ## Configuration layout
 

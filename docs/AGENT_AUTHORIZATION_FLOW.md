@@ -97,19 +97,18 @@ Cuckoding. Only the provider runtime handles token values. See
 
 Do not match old connections to accounts by display name alone, silently mutate
 historical snapshots, or require users to abandon boards containing their tasks.
-Provide an explicit **Connect saved agents** upgrade for a board. Preview its
-roles and the chosen account IDs, then persist an audited assignment revision
-used by future runs. Existing tasks and history stay on the board. Already
-prepared runs retain their snapshot; offer an explicit validated binding for
-queued work or a safe replacement-run action, without deleting the old run.
-Running/completed runs are never rewritten.
+Provide an explicit **Assign agents to board** upgrade. It validates current
+project roles and compatible account IDs, updates the board assignment used by
+future runs, and appends bindings for compatible queued work in the same
+transaction. Existing tasks stay on the board and queued workflow snapshots are
+not rewritten. If any role in a queued run is incompatible, that run receives no
+new bindings and points back to board assignment or safe replacement-run
+recovery. Running/completed runs are never rebound.
 
-On a queued legacy run, **Choose saved agent** lists only accounts with matching
-runtime and executable/helper settings. Choosing an option does not submit or
-show a confirmation; **Connect saved agent** confirms the audited binding.
 Connected accounts show a green, text-labeled status and a **Re-authorize agent**
-link. Run-local sign-in commands are not shown; an authenticated account's
-one-time command stays collapsed under **Re-authorize agent** in Agents.
+link. Run-local sign-in commands and per-role agent pickers are not shown; an
+authenticated account's one-time command stays collapsed under **Re-authorize
+agent** in Agents.
 
 For Codex, a prior "Connected" observation cannot override a missing private
 `CODEX_HOME/auth.json` in the app-owned file store. The CLI must report signed
@@ -165,9 +164,10 @@ profile. Later runs reuse it until the provider revokes or expires it.
   and unsafe paths fail closed.
 - Claude Code has a reusable reviewed helper; OpenCode and Custom Agent remain
   setup-only and cannot be advertised as working reusable launch adapters.
-- Saved-agent cards group assigned roles; legacy unbound roles have an explicit
-  selector. A board upgrade matches stable connection keys and compatible
-  executable/helper settings, never names. A queued binding is a separate event.
+- Saved-agent cards group assigned roles. A board upgrade matches stable
+  connection keys and compatible executable/helper settings, never names. Each
+  queued binding is a separate event; a run is never partly rebound when one of
+  its missing roles is incompatible.
 - Deterministic regression tests cover profile reuse across two project-shaped
   runs, distinct accounts, invalid/symlink paths, revoked probes, changed shared
   MCP files, separate task settings and historical snapshot preservation.

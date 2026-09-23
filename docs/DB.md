@@ -64,7 +64,9 @@ references, validated machine-local agent settings, and default role mappings.
 Updating a saved agent updates its global catalog row but never rewrites those
 immutable revisions. A board copies the selected mappings, including initially
 unassigned roles, into `role_assignments`; current project mappings may later be
-applied explicitly to the board for future runs. A run copies roles into its workflow snapshot. This
+applied explicitly to the board for future runs. Compatible queued runs receive
+append-only `run.agent_connected` events in that same explicit operation; their
+workflow snapshots are not rewritten. A run copies roles into its workflow snapshot. This
 deliberate snapshot chain means later project, role, or agent-profile edits never
 rewrite an active or historical run. Project creation and settings saves must
 not insert board, task, run, environment, or process rows.

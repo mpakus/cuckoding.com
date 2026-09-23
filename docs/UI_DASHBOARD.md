@@ -97,16 +97,15 @@ and Custom Agent are setup-only. Complete commands use read-only fields with
 adjacent copy buttons. Account status is the last observation, not proof that
 a new run can authenticate; every start probes its selected account. See [testing](TESTING.md).
 For connected accounts, the sign-in command is hidden behind **Re-authorize
-agent**; green status always includes the word **Connected**. A queued run
-offers compatible saved agents without prompting when the dropdown opens.
-Confirmation appears only when **Connect saved agent** is submitted, and
-legacy run-local sign-in commands are omitted.
+agent**; green status always includes the word **Connected**. A legacy queued
+run with no saved-agent ID points to **Assign agents to board** instead of
+offering per-role selectors. Run-local sign-in commands are omitted.
 
 Save assignments before creating a board. Existing boards retain their copied
 settings, including legacy connections without saved-account IDs. The explicit
-**Connect saved agents** action binds matching saved accounts for future runs
-on an existing board without changing its tasks or historical run snapshots.
-It is not a general board-assignment or workflow editor.
+**Assign agents to board** action applies current project roles to future runs
+and adds audited bindings to compatible queued runs without changing tasks or
+workflow snapshots. It is not a general workflow editor.
 
 ### Agent Floor
 

@@ -291,7 +291,7 @@ defmodule CuckodingWeb.ProjectEditLive do
           {:noreply,
            assign(socket,
              notice:
-               "Board roles updated for future runs. Existing tasks and run snapshots are unchanged.",
+               "Agents assigned to the board. Future runs use them, and compatible queued runs are connected without rewriting their snapshots.",
              error: nil
            )}
 
@@ -364,7 +364,7 @@ defmodule CuckodingWeb.ProjectEditLive do
           </div>
           <p class="max-w-3xl text-base leading-7 text-slate-700">
             Create a board and tasks, then assign saved agents to project roles.
-            Apply updated roles to an existing board before starting new runs.
+            Assign updated agents to an existing board before starting new runs.
           </p>
         </header>
         <.link
@@ -836,10 +836,10 @@ defmodule CuckodingWeb.ProjectEditLive do
                 type="button"
                 phx-click="connect-board-agents"
                 phx-value-id={board.id}
-                data-confirm="Apply the current project roles to this board? Future runs use them; existing run snapshots stay unchanged."
+                data-confirm="Assign the current project agents to this board? Future runs use them, and compatible queued runs receive audited bindings without changing their snapshots."
                 class="mt-3 min-h-11 rounded-md border border-slate-400 px-4 text-sm"
               >
-                Apply project roles
+                Assign agents to board
               </button>
             </li>
           </ul>

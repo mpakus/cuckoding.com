@@ -3,6 +3,7 @@ defmodule Cuckoding.ProjectWorkflow do
 
   import Ecto.Query
 
+  alias Cuckoding.AgentBindings
   alias Cuckoding.Clock
   alias Cuckoding.Execution
   alias Cuckoding.Execution.Environment
@@ -22,30 +23,7 @@ defmodule Cuckoding.ProjectWorkflow do
 
   @agent_roles ~w(spec_writer implementer reviewer)
   @runnable_adapters ~w(codex claude_code cursor_agent fake)
-
-  def connect_saved_agents(board_id, expected_revision) do
-    EventStore.transaction(fn ->
-      with board when not is_nil(board) <- Workflows.get_board(board_id),
-           %{revision: ^expected_revision} = config <-
-             Projects.latest_config_version(board.project_id),
-           :ok <- connect_board_roles(board.id, config.config_json),
-           {:ok, _event} <-
-             EventStore.append_in_transaction("board:" <> board.id, %{
-               event_type: "board.agents_connected",
-               public_summary: "Board roles linked to saved agents",
-               payload: %{
-                 "board_id" => board.id,
-                 "project_id" => board.project_id,
-                 "config_revision" => config.revision
-               }
-             }) do
-        board
-      else
-        {:error, reason} -> Repo.rollback(reason)
-        _other -> Repo.rollback(:stale_configuration)
-      end
-    end)
-  end
+  @saved_agent_adapters ~w(codex claude_code cursor_agent)
 
   @doc "Apply current project role defaults to future runs on an existing board."
   def apply_project_roles(board_id, expected_revision) do
@@ -54,11 +32,16 @@ defmodule Cuckoding.ProjectWorkflow do
            %{revision: ^expected_revision} = config <-
              Projects.latest_config_version(board.project_id),
            :ok <- apply_board_roles(board.id, config.config_json),
+           {:ok, queued_runs_connected} <- connect_queued_runs(board.id),
            {:ok, _event} <-
              EventStore.append_in_transaction("board:" <> board.id, %{
                event_type: "board.roles_applied",
                public_summary: "Board roles updated for future runs",
-               payload: %{"board_id" => board.id, "config_revision" => config.revision}
+               payload: %{
+                 "board_id" => board.id,
+                 "config_revision" => config.revision,
+                 "queued_runs_connected" => queued_runs_connected
+               }
              }) do
         board
       else
@@ -81,6 +64,78 @@ defmodule Cuckoding.ProjectWorkflow do
       false -> {:error, :roles_not_configured}
       error -> error
     end
+  end
+
+  defp connect_queued_runs(board_id) do
+    assignments = Map.new(Workflows.list_agent_roles(board_id), &{&1.role_key, &1})
+
+    Repo.all(
+      from(run in Run,
+        join: task in Task,
+        on: task.id == run.task_id,
+        where: task.board_id == ^board_id and run.state == "queued"
+      )
+    )
+    |> Enum.reduce_while({:ok, 0}, &connect_queued_run(&1, &2, assignments))
+  end
+
+  defp connect_queued_run(run, {:ok, count}, assignments) do
+    case queued_run_bindings(run, assignments) do
+      {:ok, []} -> {:cont, {:ok, count}}
+      {:ok, bindings} -> connect_queued_run(run.id, bindings, count)
+      :incompatible -> {:cont, {:ok, count}}
+    end
+  end
+
+  defp connect_queued_run(run_id, bindings, count) do
+    case connect_queued_roles(run_id, bindings) do
+      :ok -> {:cont, {:ok, count + 1}}
+      {:error, reason} -> {:halt, {:error, reason}}
+    end
+  end
+
+  defp queued_run_bindings(run, assignments) do
+    existing = AgentBindings.for_run(run.id)
+
+    run.workflow_snapshot_json
+    |> Map.get("roles", [])
+    |> Enum.filter(&(&1["role_kind"] == "agent"))
+    |> Enum.reduce_while({:ok, []}, fn role, {:ok, bindings} ->
+      case queued_role_binding(role, existing, assignments) do
+        :already_connected -> {:cont, {:ok, bindings}}
+        {:ok, binding} -> {:cont, {:ok, [binding | bindings]}}
+        :incompatible -> {:halt, :incompatible}
+      end
+    end)
+  end
+
+  defp queued_role_binding(role, existing, assignments) do
+    role_key = role["role_key"]
+    snapshot_account_id = get_in(role, ["settings", "provider_account_id"])
+
+    if is_binary(snapshot_account_id) or is_binary(existing[role_key]) do
+      :already_connected
+    else
+      compatible_queued_role(role, assignments[role_key])
+    end
+  end
+
+  defp compatible_queued_role(role, assignment) do
+    account_id = assignment && assignment.settings_json["provider_account_id"]
+
+    case AgentBindings.compatible(role["adapter_key"], role["settings"] || %{}, account_id) do
+      :ok -> {:ok, {role["role_key"], account_id}}
+      {:error, _reason} -> :incompatible
+    end
+  end
+
+  defp connect_queued_roles(run_id, bindings) do
+    Enum.reduce_while(bindings, :ok, fn {role_key, account_id}, :ok ->
+      case AgentBindings.connect_run(run_id, role_key, account_id) do
+        {:ok, :connected} -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
   end
 
   defp apply_role_updates(board_id, roles, connections) do
@@ -122,27 +177,6 @@ defmodule Cuckoding.ProjectWorkflow do
              connection["provider_account_id"]
            ) do
         :ok -> {:cont, :ok}
-        error -> {:halt, error}
-      end
-    end)
-  end
-
-  defp connect_board_roles(board_id, config) do
-    connections = Map.new(config["agent_connections"] || [], &{&1["key"], &1})
-
-    Enum.reduce_while(Workflows.list_agent_roles(board_id), :ok, fn role, :ok ->
-      connection = connections[role.settings_json["connection_key"]] || %{}
-      id = connection["provider_account_id"]
-
-      with :ok <- Cuckoding.AgentBindings.compatible(role.adapter_key, role.settings_json, id),
-           {:ok, _role} <-
-             role
-             |> Ecto.Changeset.change(
-               settings_json: Map.put(role.settings_json, "provider_account_id", id)
-             )
-             |> Repo.update() do
-        {:cont, :ok}
-      else
         error -> {:halt, error}
       end
     end)
@@ -480,9 +514,14 @@ defmodule Cuckoding.ProjectWorkflow do
            role_key: role_key,
            role_kind: "agent"
          ) do
-      %RoleAssignment{adapter_key: adapter} when adapter in @runnable_adapters -> :ok
-      %RoleAssignment{} -> {:error, :runtime_setup_only}
-      nil -> {:error, :roles_not_configured}
+      %RoleAssignment{adapter_key: adapter} = role when adapter in @runnable_adapters ->
+        if saved_agent_invalid?(role), do: {:error, :roles_not_configured}, else: :ok
+
+      %RoleAssignment{} ->
+        {:error, :runtime_setup_only}
+
+      nil ->
+        {:error, :roles_not_configured}
     end
   end
 
@@ -504,12 +543,20 @@ defmodule Cuckoding.ProjectWorkflow do
       Enum.any?(roles, &(&1.adapter_key not in @runnable_adapters)) ->
         {:error, :runtime_setup_only}
 
+      Enum.any?(roles, &saved_agent_invalid?/1) ->
+        {:error, :roles_not_configured}
+
       true ->
         :ok
     end
   end
 
   def validate_delivery_roles(board_id), do: runnable_roles(board_id, %Task{})
+
+  defp saved_agent_invalid?(%RoleAssignment{adapter_key: adapter, settings_json: settings}) do
+    adapter in @saved_agent_adapters and
+      AgentBindings.compatible(adapter, settings, settings["provider_account_id"]) != :ok
+  end
 
   defp board_fields(attrs) do
     with {:ok, name} <- bounded_text(attrs["name"], :board_name_required, 120),

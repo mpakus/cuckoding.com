@@ -8,8 +8,8 @@ gates below are not claims of full unattended completion.
 ## Implemented in task 1029
 
 - Boards can be created before assigning agents. After saving project roles,
-  **Apply project roles** updates an existing board for future runs; historical
-  run snapshots are unchanged.
+  **Assign agents to board** updates an existing board for future runs and adds
+  audited bindings to compatible queued work; run snapshots are unchanged.
 - Project settings provide **Start project**, **Pause new starts**, a project
   concurrency limit, blocker threshold, durable state and progress. The global
   dashboard shows each project's operation state and attention reason.

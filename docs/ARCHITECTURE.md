@@ -96,7 +96,10 @@ project can attach the same account without re-entering its runtime settings.
 Catalog status and authentication mode are live dependencies, not immutable
 run facts. Account-home authentication does not prove that a separate run home
 can reuse the credential; the real-provider gate remains open. Existing boards
-do not inherit later saved-account IDs. See [configuration boundaries](CONFIGURATION.md).
+do not inherit later saved-account IDs until the user explicitly assigns current
+project agents to that board. That command updates future role snapshots and
+adds compatible queued-run bindings as append-only events; it never rewrites a
+run snapshot. See [configuration boundaries](CONFIGURATION.md).
 It creates no board, task, run,
 branch, worktree, port, lease, or provider process. Board setup later publishes
 a workflow and snapshots role assignments; task start alone prepares the

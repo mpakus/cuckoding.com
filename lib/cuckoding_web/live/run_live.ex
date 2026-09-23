@@ -6,8 +6,6 @@ defmodule CuckodingWeb.RunLive do
   import CuckodingWeb.PolicyComponents
   import CuckodingWeb.UsageComponents
 
-  alias Cuckoding.Adapters
-  alias Cuckoding.AgentBindings
   alias Cuckoding.AgentFloor
   alias Cuckoding.RunLog
 
@@ -34,7 +32,6 @@ defmodule CuckodingWeb.RunLive do
            page_title: "Run #{detail.run.sequence}",
            detail: detail,
            runtime_setups: setups,
-           saved_agents: Adapters.list_provider_accounts(),
            task_proposals: task_proposals(detail),
            refresh_pending: false,
            notice: "",
@@ -94,7 +91,7 @@ defmodule CuckodingWeb.RunLive do
         {:noreply,
          assign(socket,
            error:
-             "Connect a saved agent for each role, then retry. Sign in or re-authorize from Agents if needed."
+             "Assign saved agents to this board in Project settings, apply the roles, then retry."
          )}
 
       {:error, :provider_auth_required} ->
@@ -107,27 +104,6 @@ defmodule CuckodingWeb.RunLive do
 
       {:error, reason} ->
         {:noreply, assign(socket, error: start_error(reason))}
-    end
-  end
-
-  def handle_event("connect-agent", %{"binding" => params}, socket) do
-    case Cuckoding.AgentBindings.connect_run(
-           socket.assigns.detail.run.id,
-           params["role_key"],
-           params["account_id"]
-         ) do
-      {:ok, :connected} ->
-        {:noreply,
-         socket
-         |> refresh("Saved agent connected. This run will reuse its sign-in.")
-         |> assign(error: nil)}
-
-      {:error, _reason} ->
-        {:noreply,
-         assign(socket,
-           error:
-             "Choose a saved agent with the same runtime and executable. Only queued runs can be connected."
-         )}
     end
   end
 
@@ -161,7 +137,6 @@ defmodule CuckodingWeb.RunLive do
     |> assign(
       detail: detail,
       runtime_setups: runtime_setups(detail.run),
-      saved_agents: Adapters.list_provider_accounts(),
       task_proposals: task_proposals(detail),
       refresh_pending: false,
       notice: notice
@@ -318,6 +293,19 @@ defmodule CuckodingWeb.RunLive do
           <p class="text-sm">
             Start when ready. Saved agents reuse their sign-in; access is checked automatically before work begins.
           </p>
+          <div
+            :if={Enum.any?(@runtime_setups, &is_nil(&1[:account_id]))}
+            id="board-agent-assignment"
+            class="space-y-2 rounded-md border border-amber-300 bg-white p-4 text-sm text-amber-950"
+          >
+            <p>
+              This queued run predates the board's saved-agent assignment. Assign agents once on the board; compatible queued runs are connected with audited events without rewriting their snapshots.
+            </p>
+            <.link
+              navigate={~p"/projects/#{@detail.project.id}/edit#boards-heading"}
+              class="inline-flex min-h-10 items-center font-medium underline underline-offset-4"
+            >Assign agents to this board</.link>
+          </div>
           <article
             :for={setup <- @runtime_setups}
             class={[
@@ -353,42 +341,7 @@ defmodule CuckodingWeb.RunLive do
               navigate={"/settings/agents#agent-#{setup[:authorization_id] || setup.account_id}"}
               class="inline-flex min-h-11 items-center underline underline-offset-4"
             >{agent_action_label(setup)}</.link>
-            <form
-              :if={!setup[:account_id] && compatible_agents(setup, @saved_agents) != []}
-              id={"connect-agent-#{setup.role_key}"}
-              phx-submit="connect-agent"
-              class="space-y-3"
-            >
-              <input type="hidden" name="binding[role_key]" value={setup.role_key} />
-              <label class="grid gap-2">
-                Connect a saved agent to {role_label(setup.role_key)}
-                <select
-                  name="binding[account_id]"
-                  required
-                  class="min-h-11 min-w-0 rounded border border-slate-400 bg-white px-3"
-                >
-                  <option value="">Choose saved agent</option>
-                  <option
-                    :for={account <- compatible_agents(setup, @saved_agents)}
-                    value={account.id}
-                  >
-                    {account.label} · {if account.status == "authenticated",
-                      do: "Connected",
-                      else: "Sign-in required"}
-                  </option>
-                </select>
-              </label>
-              <button
-                data-confirm="Use this saved agent's shared sign-in and history for this role? The original run snapshot stays unchanged."
-                class="min-h-11 rounded border border-slate-400 bg-white px-4"
-              >Connect saved agent</button>
-              <.link navigate={~p"/settings/agents"} class="ml-3 underline">Add or sign in to an agent</.link>
-            </form>
-            <p :if={!setup[:account_id] && compatible_agents(setup, @saved_agents) == []}>
-              No compatible saved agent is available.
-              <.link navigate={~p"/settings/agents"} class="underline">Add or check an agent</.link>
-              with this runtime and executable.
-            </p>
+            <p :if={!setup[:account_id]} class="font-semibold">Waiting for board assignment.</p>
             <div :if={setup[:helper]} class="space-y-2">
               <p>Claude Code will use the reviewed run-scoped API key helper:</p>
               <p class="overflow-x-auto rounded bg-white p-2"><code>{setup.helper}</code></p>
@@ -667,12 +620,6 @@ defmodule CuckodingWeb.RunLive do
   end
 
   defp runtime_setups(_run), do: []
-
-  defp compatible_agents(setup, agents) do
-    Enum.filter(agents, fn agent ->
-      AgentBindings.compatible(setup[:adapter_key], setup[:settings] || %{}, agent) == :ok
-    end)
-  end
 
   defp auth_required_setups(setups),
     do: Enum.filter(setups, &(&1[:account_id] && &1[:status] == "authentication_required"))

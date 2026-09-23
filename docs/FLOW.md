@@ -20,7 +20,7 @@ Project setup, board setup, board task intake, and delivery execution are separa
    history after reload. Neither action creates a
    board, task, run, feature branch, worktree, or provider process.
 2. **Board setup** creates a named board with the default versioned workflow,
-   copied project role assignments (which may still be unassigned), and a chosen concurrency limit. Saved project roles can be explicitly applied to an existing board for future runs. Workflow
+   copied project role assignments (which may still be unassigned), and a chosen concurrency limit. **Assign agents to board** explicitly applies current project roles to an existing board for future runs and appends compatible bindings to queued runs without rewriting their snapshots. Workflow
    selection and board-level role/budget editors remain design targets.
 3. **Task execution** can be started manually or by **Start project**. Moving a task to Ready does not start it while the project is paused. Once the project is running, a supervised dispatcher admits eligible Ready delivery tasks using the existing scheduler, prepares a separate run/worktree for each, and starts the Specifications → Coding → Review flow. The Ready card's **Set up and start** link opens task
    detail; an already prepared task links directly to its queued run.

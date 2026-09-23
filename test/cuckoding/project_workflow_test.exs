@@ -523,15 +523,28 @@ defmodule Cuckoding.ProjectWorkflowTest do
     end
   end
 
-  test "explicit legacy connections preserve tasks and immutable run snapshots", %{
+  test "applying board agents connects queued legacy runs without rewriting snapshots", %{
     project: project,
     conn: conn
   } do
     {:ok, board} =
       ProjectWorkflow.create_board(project.id, %{"name" => "Legacy", "concurrency_limit" => "1"})
 
+    {:ok, task} = ProjectWorkflow.create_task(board.id, %{"title" => "Keep this task"})
+    {:ok, _transition} = Workflows.transition_task(task.id, "ready", "legacy-ready")
+    {:ok, %{run: run}} = ProjectWorkflow.prepare_task(task.id)
+
     roles = Workflows.list_agent_roles(board.id)
     account_id = hd(roles).settings_json["provider_account_id"]
+
+    legacy_snapshot =
+      Map.update!(run.workflow_snapshot_json, "roles", fn snapshot_roles ->
+        Enum.map(snapshot_roles, fn role ->
+          update_in(role, ["settings"], &Map.delete(&1, "provider_account_id"))
+        end)
+      end)
+
+    run |> Ecto.Changeset.change(workflow_snapshot_json: legacy_snapshot) |> Repo.update!()
 
     for role <- roles do
       role
@@ -541,60 +554,95 @@ defmodule Cuckoding.ProjectWorkflowTest do
       |> Repo.update!()
     end
 
-    {:ok, task} = ProjectWorkflow.create_task(board.id, %{"title" => "Keep this task"})
-    {:ok, _transition} = Workflows.transition_task(task.id, "ready", "legacy-ready")
-    {:ok, %{run: run}} = ProjectWorkflow.prepare_task(task.id)
-    snapshot = run.workflow_snapshot_json
-    assert {:ok, _board} = ProjectWorkflow.connect_saved_agents(board.id, 2)
+    assert {:error, :roles_not_configured} = ProjectWorkflow.validate_delivery_roles(board.id)
+
+    {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
+    assert has_element?(view, "#board-agent-assignment", "Assign agents once on the board")
+    assert has_element?(view, "#board-agent-assignment a", "Assign agents to this board")
+    refute has_element?(view, "form[id^=connect-agent]")
+
+    assert {:ok, _board} = ProjectWorkflow.apply_project_roles(board.id, 2)
 
     assert Enum.all?(
              Workflows.list_agent_roles(board.id),
              &(&1.settings_json["provider_account_id"] == account_id)
            )
 
-    assert Repo.get!(Cuckoding.Execution.Run, run.id).workflow_snapshot_json == snapshot
+    assert :ok = ProjectWorkflow.validate_delivery_roles(board.id)
+
+    assert Cuckoding.AgentBindings.for_run(run.id) ==
+             Map.new(roles, &{&1.role_key, account_id})
+
+    assert Repo.get!(Cuckoding.Execution.Run, run.id).workflow_snapshot_json == legacy_snapshot
     assert Workflows.get_task(task.id).title == "Keep this task"
 
-    assert {:ok, incompatible} =
-             Cuckoding.Adapters.save_provider_account(%{
-               label: "Other Codex",
-               adapter_key: "codex",
-               auth_mode: "shared_profile",
-               capabilities_json: %{
-                 "settings" => %{"executable_path" => "/usr/bin/false", "api_key_helper" => ""}
-               }
-             })
+    board_event =
+      Repo.one!(
+        from event in RunEvent,
+          where:
+            event.run_id == ^("board:" <> board.id) and
+              event.event_type == "board.roles_applied",
+          order_by: [desc: event.sequence],
+          limit: 1
+      )
 
-    {:ok, home} = Cuckoding.Adapters.SharedProfile.prepare(account_id, "codex")
-    File.write!(Path.join(home, "auth.json"), "{}")
-    File.chmod!(Path.join(home, "auth.json"), 0o600)
-    Cuckoding.Adapters.record_provider_status(account_id, "authenticated")
-    {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
-
-    assert has_element?(view, "#connect-agent-implementer select[name='binding[account_id]']")
-    assert has_element?(view, "#connect-agent-implementer option[value='#{account_id}']")
-    refute has_element?(view, "#connect-agent-implementer option[value='#{incompatible.id}']")
-    refute has_element?(view, "#connect-agent-implementer[data-confirm]")
-    assert has_element?(view, "#connect-agent-implementer button[data-confirm]")
-    refute has_element?(view, "#runtime-setup input[data-copy-source]")
-
-    view
-    |> form("#connect-agent-implementer", binding: %{account_id: account_id})
-    |> render_submit()
-
-    assert Cuckoding.AgentBindings.for_run(run.id)["implementer"] == account_id
-    assert Repo.get!(Cuckoding.Execution.Run, run.id).workflow_snapshot_json == snapshot
-    refute has_element?(view, "#connect-agent-implementer")
-    assert has_element?(view, "#runtime-setup p", "Connected · sign-in checked again at start")
-    assert has_element?(view, "#runtime-setup a", "Re-authorize agent")
+    assert board_event.payload["queued_runs_connected"] == 1
 
     assert {:error, :provider_account_mismatch} =
              Cuckoding.AgentBindings.connect_run(run.id, "reviewer", Ecto.UUID.generate())
 
-    run |> Ecto.Changeset.change(state: "running") |> Repo.update!()
+    run
+    |> Repo.reload()
+    |> Ecto.Changeset.change(state: "running")
+    |> Repo.update!()
 
     assert {:error, :run_not_queued_or_role_missing} =
              Cuckoding.AgentBindings.connect_run(run.id, "reviewer", account_id)
+  end
+
+  test "applying board agents leaves an incompatible queued run entirely unbound", %{
+    project: project
+  } do
+    {:ok, board} =
+      ProjectWorkflow.create_board(project.id, %{
+        "name" => "Changed runtime",
+        "concurrency_limit" => "1"
+      })
+
+    {:ok, task} = ProjectWorkflow.create_task(board.id, %{"title" => "Keep identity explicit"})
+    {:ok, _transition} = Workflows.transition_task(task.id, "ready", "mismatch-ready")
+    {:ok, %{run: run}} = ProjectWorkflow.prepare_task(task.id)
+
+    incompatible_snapshot =
+      Map.update!(run.workflow_snapshot_json, "roles", fn snapshot_roles ->
+        Enum.map(snapshot_roles, fn role ->
+          settings = Map.delete(role["settings"], "provider_account_id")
+
+          if role["role_key"] == "implementer" do
+            put_in(role, ["settings"], Map.put(settings, "executable_path", "/usr/bin/false"))
+          else
+            put_in(role, ["settings"], settings)
+          end
+        end)
+      end)
+
+    run
+    |> Ecto.Changeset.change(workflow_snapshot_json: incompatible_snapshot)
+    |> Repo.update!()
+
+    for role <- Workflows.list_agent_roles(board.id) do
+      role
+      |> Ecto.Changeset.change(
+        settings_json: Map.delete(role.settings_json, "provider_account_id")
+      )
+      |> Repo.update!()
+    end
+
+    assert {:ok, _board} = ProjectWorkflow.apply_project_roles(board.id, 2)
+    assert Cuckoding.AgentBindings.for_run(run.id) == %{}
+
+    assert Repo.get!(Cuckoding.Execution.Run, run.id).workflow_snapshot_json ==
+             incompatible_snapshot
   end
 
   test "queued run identifies a saved agent whose file-store sign-in is missing", %{
