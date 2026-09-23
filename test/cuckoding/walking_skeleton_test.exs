@@ -26,9 +26,15 @@ defmodule Cuckoding.WalkingSkeletonTest do
   end
 
   defmodule CapturingAdapter do
+    alias Cuckoding.Adapters.FakeAdapter
+
     def start(request, options) do
-      send(Keyword.fetch!(options, :caller), {:stage_request, request})
-      {:error, :captured}
+      if request.stage_key == Keyword.get(options, :capture_stage, "specification") do
+        send(Keyword.fetch!(options, :caller), {:stage_request, request})
+        {:error, :captured}
+      else
+        FakeAdapter.start(request, options)
+      end
     end
   end
 
@@ -953,6 +959,30 @@ defmodule Cuckoding.WalkingSkeletonTest do
     assert_receive {:stage_request, request}
     assert request.required_output_schema["additionalProperties"] == false
     assert request.grant["approval_mode"] == "plan"
+  end
+
+  test "development agent uses its snapshotted stage wall budget", fixture do
+    assert {:ok, created} = WalkingSkeleton.create(fixture.attrs)
+
+    snapshot =
+      update_in(created.run.workflow_snapshot_json, ["definition", "stages"], fn stages ->
+        Enum.map(stages, fn
+          %{"key" => "development"} = stage -> put_in(stage["budgets"]["wall_ms"], 720_000)
+          stage -> stage
+        end)
+      end)
+
+    run = created.run |> Ecto.Changeset.change(workflow_snapshot_json: snapshot) |> Repo.update!()
+
+    assert {:error, :captured} =
+             WalkingSkeleton.run(%{created | run: run},
+               adapter: CapturingAdapter,
+               adapter_options: [caller: self(), capture_stage: "development"],
+               simulate_sleep_gap: false
+             )
+
+    assert_receive {:stage_request, %{stage_key: "development"} = request}
+    assert request.grant["resource_limits"]["wall_ms"] == 720_000
   end
 
   test "host commits a real adapter patch without granting Git metadata", fixture do
