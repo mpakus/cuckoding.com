@@ -782,6 +782,10 @@ defmodule Cuckoding.WalkingSkeleton do
   end
 
   defp request(skeleton, attempt, stage_key, options) do
+    stage =
+      skeleton.run.workflow_snapshot_json["definition"]["stages"]
+      |> Enum.find(&(&1["key"] == stage_key))
+
     %Types.StageRequest{
       project_id: skeleton.project.id,
       board_id: skeleton.board.id,
@@ -801,7 +805,7 @@ defmodule Cuckoding.WalkingSkeleton do
         "approval_mode" => if(stage_key in ["specification", "qa"], do: "plan", else: "default"),
         "paths" => [skeleton.environment.worktree_path],
         "network" => "deny",
-        "resource_limits" => %{"wall_ms" => 300_000}
+        "resource_limits" => %{"wall_ms" => get_in(stage, ["budgets", "wall_ms"])}
       },
       plugins: [],
       required_output_schema: output_schema(stage_key),
