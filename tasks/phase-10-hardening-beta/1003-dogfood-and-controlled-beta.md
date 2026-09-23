@@ -39,8 +39,9 @@ Use Cuckoding on several real repositories and workflow types for multi-day runs
   event correlation. This is a source regression, not D03 beta acceptance.
 - [ ] Preserve the older signed artifact and produce a new signed/notarized
   enrollment build from the accepted beta revision.
-- [ ] Confirm rotation of the provider key previously exposed in host argv
-  before launching further paid provider work.
+- [x] Confirm rotation of the provider key previously exposed in host argv
+  before launching further paid provider work (stakeholder attestation on
+  2026-09-23; secret value was not inspected).
 - [ ] Long runs across sleep included.
 - [ ] Knowledge review quality assessed.
 - [ ] Interview developers running two or more agents and review positioning, naming, licensing, and pricing hypotheses.
