@@ -1,5 +1,26 @@
 # Documentation Audit
 
+## Local dogfood addendum — 2026-09-23
+
+The current source has board-level saved-agent assignment and project-level
+automatic admission of Ready delivery tasks; the 2026-09-20 journey below is a
+dated baseline, not the current operating path. Project settings can apply
+saved roles to an existing board, and Start project admits eligible Ready tasks
+up to the configured limits. Draft tasks, blocked runs, human review decisions,
+release approval, and policy changes are not silently advanced. See
+[AUTONOMOUS_PROJECT_FLOW.md](AUTONOMOUS_PROJECT_FLOW.md) for the implemented
+boundary and remaining decisions.
+
+In local dogfood, one Coding run was blocked by an application-supplied
+five-minute timeout instead of its snapshotted one-hour stage budget. Two other
+runs reached Review, but the Codex request was rejected before model work
+because the nested `findings[].evidence` schema was not closed. Both root
+causes now have source fixes and focused regressions. Historical runs and
+partially written worktrees remain unchanged; a new authorized run is still
+needed for end-to-end acceptance. The target project's own Phase 0 source
+validation gate also remains open, so automatic admission must not be
+interpreted as permission to start its Phase 1 work.
+
 ## Release-disclosure addendum — 2026-09-21
 
 Task 1004 compared the MVP boundary against the runnable adapter list,

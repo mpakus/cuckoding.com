@@ -308,6 +308,9 @@ defmodule Cuckoding.WalkingSkeletonTest do
     assert schema["required"] == ["summary", "findings"]
     assert schema["additionalProperties"] == false
     assert schema["properties"]["findings"]["maxItems"] == 20
+    evidence = schema["properties"]["findings"]["items"]["properties"]["evidence"]
+    assert evidence["required"] == ["detail"]
+    assert evidence["additionalProperties"] == false
 
     sessions =
       Repo.all(

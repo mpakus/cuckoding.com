@@ -884,7 +884,12 @@ defmodule Cuckoding.WalkingSkeleton do
               },
               "category" => %{"type" => "string", "minLength" => 1, "maxLength" => 100},
               "summary" => %{"type" => "string", "minLength" => 1, "maxLength" => 2_000},
-              "evidence" => %{"type" => "object"}
+              "evidence" => %{
+                "type" => "object",
+                "properties" => %{"detail" => %{"type" => "string"}},
+                "required" => ["detail"],
+                "additionalProperties" => false
+              }
             },
             "required" => ~w(transition severity category summary evidence),
             "additionalProperties" => false

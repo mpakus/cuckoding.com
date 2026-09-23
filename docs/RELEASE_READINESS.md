@@ -1,6 +1,7 @@
 # MVP Release Readiness
 
-**Review date:** 2026-09-21  
+**Review date:** 2026-09-23
+
 **Decision:** No-go for controlled-beta enrollment or public MVP release.
 
 This is the current-source operator guide and decision record for task 1004,
@@ -40,14 +41,18 @@ the run's effective grant before starting. See
    only after confirmation. Existing uncommitted work may be registered, but
    run preparation needs a clean committed base.
 4. In project settings, attach agents and assign Specifications, Coding, and
-   Review roles. Create a board, then a Draft task. Mark it Ready, **Prepare
-   run**, check agent sign-in, and explicitly start the workflow. A board
-   planning prompt instead creates proposals for human review; it does not
-   silently import tasks or start delivery work.
+   Review roles. Create a board, or explicitly apply saved agents to an
+   existing board. Add Draft tasks and mark only eligible work Ready. For a
+   manual run, use **Prepare run**, check sign-in, and start the workflow. For
+   automatic admission, review the project limits and use **Start project**;
+   it admits Ready delivery tasks up to those limits, not Draft tasks or
+   proposals. A board planning prompt still requires human review and import.
 5. Monitor the dashboard, task, and run pages. A blocked or failed delivery
    task can use **Retry with a new run**; the old worktree and evidence remain,
    and uncommitted old-worktree changes are not copied. Release push/PR and
-   global knowledge publication require separate human approval.
+   global knowledge publication require separate human approval. A passing
+   Review still needs a human local-completion or release decision; Start
+   project does not make the whole board hands-off.
 
 Board role assignments and run snapshots are immutable copies: editing a
 project does not rewrite existing boards or historical runs. See
