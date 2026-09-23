@@ -8,7 +8,7 @@
 - Human/agent owner: codex
 - Branch: feature/1033-project-state-agent-chart (to be fast-forwarded to main)
 - Start revision: 5d2d532
-- End revision: dashboard feature commit fast-forwarded to main
+- End revision: 6d2bd1f (dashboard feature commit fast-forwarded to main)
 
 ## Intended outcome
 

@@ -8,7 +8,7 @@
 - Human/agent owner: codex
 - Branch: feature/1033-project-state-agent-chart (to be fast-forwarded to main)
 - Start revision: 5d2d532
-- End revision: dashboard feature commit fast-forwarded to main
+- End revision: 6d2bd1f (dashboard feature commit fast-forwarded to main)
 
 ## Intended outcome
 
@@ -35,6 +35,15 @@ Expose project task-state counts and a real-time agent-activity trend on the hom
 | `rtk mix assets.build` | pass | Tailwind and esbuild completed. |
 | `rtk git diff --check` | pass | No whitespace errors. |
 | Browser at default and 375px width | pass | Project state counts matched current durable task states; chart and accessible empty state rendered; document width matched the 375px viewport. No active agents existed to inspect a non-empty chart in the live app. |
+
+## Integration
+
+| Command | Result |
+| --- | --- |
+| `rtk git switch -c feature/1033-project-state-agent-chart` | Created the dashboard feature branch from `main`. |
+| `rtk git commit -m 'feat(dashboard): show project task states and live agent activity'` | Created `6d2bd1f`. |
+| `rtk git switch main` and `rtk git merge --ff-only feature/1033-project-state-agent-chart` | Fast-forwarded local `main` to `6d2bd1f`. |
+| `rtk git fetch origin main` and `rtk git push origin main` | Published `6d2bd1f` to `origin/main`; local and remote were aligned afterward. |
 
 ## Limits and handoff
 
