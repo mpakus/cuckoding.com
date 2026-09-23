@@ -26,23 +26,49 @@ changes affect future configuration snapshots, not existing runs.
 
 ### Home dashboard (default screen)
 
-The `/` route is the project-first entry point. It contains:
+The `/` route is the project-first entry point. Its order is Projects, Recent
+activity, Operations, then Application and resources, followed by attention and
+usage evidence. It contains:
 
 | Area | Content |
 | --- | --- |
-| Projects | Every registered project with repository identity, base branch, status, board count, active task count, and attention count |
+| Projects | Every registered project with repository identity, base branch, board and delivery-task counts, active agents, attention, and task counts by state (including Blocked and Completed) |
 | Primary action | **Add project** opens the setup wizard; existing project actions remain on each project, not in a global bootstrap form |
-| Application status | Control-plane health, version, degraded dependencies, sleep-prevention state, and last reconciliation |
-| Resource snapshot | Active agents, measured memory, owned process count, allocated ports, and source/age labels; zero or unavailable is stated in text |
-| Active work | Compact project/board/task/role cards with elapsed time and safe inspect controls |
+| Application status | Control-plane health, version, and dependency status |
+| Resource snapshot | Active agents, measured memory, owned process count, and measured open ports; missing samples are unavailable, not zero |
+| Active work | Current agent project/task, role, runtime, model, state, stage/session age, and safe inspect links |
 | Attention | Approvals, blocked tasks, failed runtimes, policy changes, budgets, and degraded plugins |
+
+Recent activity groups the latest 20 committed public events into agent/process,
+workflow, and system categories. Native meter bars and a count table show the
+same bounded data; category buttons filter a collapsible event log. An active
+agent list links to run evidence. PubSub hints refresh the activity log after
+commit, and a five-second durable reload updates operations, health, and
+measured resources. The chart is a mix of recent events, not an event rate or
+historical total; an old last event is labeled stale.
+
+The separate live agent chart shows 12 UTC minute buckets for currently active
+agent sessions with at least one measured owned-process sample. It re-queries
+durable samples every five seconds, uses gaps for unmeasured minutes, and has a
+minute-by-minute table alternative. It is not a count of every active agent in
+past minutes; when no current session has samples, it says so rather than
+inventing a trend. Project state counts come from delivery task projections
+across each project's boards. Common states are always visible; uncommon
+paused, hibernated, cancelled, and archived states appear when occupied.
+
+Operations is a table of the latest 50 runs, including queued runs without an
+agent session. State, project, and task/board/project search filters are local
+to the loaded rows. Every row keeps Inspect run and Task links; filtering
+never changes workflow state. Application shows health and each dependency;
+Resources shows active agent count and latest measured memory, process, and
+port totals. Missing samples are labeled unavailable rather than zero.
 
 The home dashboard never asks for project, runtime, task, and release details in
 one form. Empty state explains the project → board → task sequence and offers
 one **Add project** action.
 
 The shared header links to **Projects**, **Agents**, **Agent activity**, and **Knowledge**.
-Dashboard shortcuts jump to projects, recent runs, and approvals. Creation age
+Dashboard shortcuts jump to projects, activity, operations, and approvals. Creation age
 is labeled **Created**, not elapsed execution time. Long paths wrap on narrow
 screens; activity tables scroll horizontally without squeezing their headings.
 

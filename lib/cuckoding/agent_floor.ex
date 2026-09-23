@@ -21,6 +21,7 @@ defmodule Cuckoding.AgentFloor do
   @maximum_cards 100
   @maximum_operations 50
   @maximum_detail_rows 200
+  @activity_minutes 12
 
   def list_sessions(limit \\ @maximum_cards)
       when is_integer(limit) and limit in 1..@maximum_cards do
@@ -75,6 +76,38 @@ defmodule Cuckoding.AgentFloor do
   end
 
   def group_sessions(cards, _group_by), do: group_sessions(cards, "role")
+
+  @doc "Distinct currently selected agent sessions with a measured process sample per UTC minute."
+  def sampled_activity(session_ids, now \\ Cuckoding.Clock.wall_now())
+      when is_list(session_ids) and is_struct(now, DateTime) do
+    minute = DateTime.from_unix!(div(DateTime.to_unix(now), 60) * 60)
+    first = DateTime.add(minute, -(@activity_minutes - 1) * 60, :second)
+
+    counts =
+      if session_ids == [] do
+        %{}
+      else
+        Repo.all(
+          from(sample in ResourceSample,
+            where:
+              sample.agent_session_id in ^session_ids and sample.sampled_at >= ^first and
+                sample.sampled_at <= ^now,
+            group_by: fragment("strftime('%Y-%m-%dT%H:%M:00.000000Z', ?)", sample.sampled_at),
+            select: {
+              fragment("strftime('%Y-%m-%dT%H:%M:00.000000Z', ?)", sample.sampled_at),
+              count(sample.agent_session_id, :distinct)
+            }
+          )
+        )
+        |> Map.new()
+      end
+
+    for offset <- (@activity_minutes - 1)..0//-1 do
+      bucket = DateTime.add(minute, -offset * 60, :second)
+      key = Calendar.strftime(bucket, "%Y-%m-%dT%H:%M:00.000000Z")
+      %{minute: Calendar.strftime(bucket, "%H:%M"), count: counts[key]}
+    end
+  end
 
   def list_operations(limit \\ 12)
       when is_integer(limit) and limit in 1..@maximum_operations do

@@ -5,19 +5,29 @@ defmodule CuckodingWeb.ActivityComponents do
 
   attr :events, :list, required: true
   attr :status, :map, required: true
+  attr :heading, :string, default: "Recent activity"
+  attr :heading_id, :string, default: "activity-heading"
+  attr :heading_level, :string, default: "h2", values: ["h2", "h3"]
+  attr :empty_message, :string, default: "No activity has been recorded."
 
   def activity_stream(assigns) do
     ~H"""
-    <section aria-labelledby="activity-heading" class="space-y-3">
+    <section aria-labelledby={@heading_id} class="space-y-3">
       <div class="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="activity-heading" class="text-xl font-semibold text-slate-950">Recent activity</h2>
+        <.dynamic_tag
+          tag_name={@heading_level}
+          id={@heading_id}
+          class="text-lg font-semibold text-slate-950"
+        >
+          {@heading}
+        </.dynamic_tag>
         <p :if={@events != []} class="text-sm text-slate-700" aria-live="polite">
           <span :if={@status.reconciling?}>Reconciling after sleep</span>
           <span :if={!@status.reconciling? && @status.stale?}>Activity is stale</span>
           <span :if={!@status.reconciling? && !@status.stale?}>Activity is current</span>
         </p>
       </div>
-      <p :if={@events == []} class="text-sm text-slate-700">No activity has been recorded.</p>
+      <p :if={@events == []} class="text-sm text-slate-700">{@empty_message}</p>
       <div
         :if={@events != []}
         tabindex="0"

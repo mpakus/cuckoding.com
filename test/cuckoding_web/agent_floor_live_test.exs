@@ -18,6 +18,31 @@ defmodule CuckodingWeb.AgentFloorLiveTest do
 
   @now ~U[2026-09-18 00:30:00.000000Z]
 
+  test "sampled activity groups distinct sessions by UTC minute and leaves gaps unmeasured" do
+    fixture = domain_fixture(1, rich?: true)
+    session = hd(fixture.sessions)
+    first = Repo.get_by!(ResourceSample, agent_session_id: session.id)
+
+    %ResourceSample{}
+    |> ResourceSample.create_changeset(%{
+      id: Identifier.generate(),
+      agent_session_id: session.id,
+      process_id: first.process_id,
+      cpu_nanos: 5_000,
+      memory_bytes: 2_048,
+      process_count: 1,
+      open_ports_json: [],
+      sampled_at: DateTime.add(@now, 20, :second),
+      limits_enforced: false
+    })
+    |> Repo.insert!()
+
+    buckets = AgentFloor.sampled_activity([session.id], DateTime.add(@now, 30, :second))
+    assert length(buckets) == 12
+    assert List.last(buckets) == %{minute: "00:30", count: 1}
+    assert Enum.all?(Enum.drop(buckets, -1), &is_nil(&1.count))
+  end
+
   test "projection and table remain bounded and complete at 100 cards" do
     fixture = domain_fixture(105)
     cards = AgentFloor.list_sessions()

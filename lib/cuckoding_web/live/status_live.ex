@@ -25,6 +25,8 @@ defmodule CuckodingWeb.StatusLive do
        confirming_completion: nil,
        release_notice: nil,
        refresh_pending: false,
+       activity_filter: "all",
+       operation_filter: %{"state" => "all", "project" => "all", "query" => ""},
        activity: activity,
        activity_status:
          Cuckoding.ActivityStream.status(activity, Cuckoding.Clock.wall_now(), 60_000)
@@ -68,6 +70,26 @@ defmodule CuckodingWeb.StatusLive do
 
   def handle_info(:refresh_dashboard_activity, socket) do
     {:noreply, socket |> assign(refresh_pending: false) |> load_dashboard()}
+  end
+
+  @impl true
+  def handle_event("filter-activity", %{"category" => category}, socket)
+      when category in ~w(all agent workflow system) do
+    {:noreply, assign(socket, :activity_filter, category)}
+  end
+
+  def handle_event("filter-operations", %{"filter" => filter}, socket) do
+    filter = %{
+      "state" => filter_value(filter["state"], ~w(all active attention done)),
+      "project" =>
+        filter_value(
+          filter["project"],
+          Enum.map(socket.assigns.project_cards, & &1.project.id) ++ ["all"]
+        ),
+      "query" => filter |> Map.get("query", "") |> String.trim() |> String.slice(0, 100)
+    }
+
+    {:noreply, assign(socket, :operation_filter, filter)}
   end
 
   @impl true
@@ -172,130 +194,24 @@ defmodule CuckodingWeb.StatusLive do
             class="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-4 underline"
           >Projects ({length(@project_cards)})</a>
           <a
+            href="#activity-heading"
+            class="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-4 underline"
+          >Live activity</a>
+          <a
             href="#operations-heading"
             class="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-4 underline"
-          >Recent runs</a>
+          >Operations</a>
           <a
             href="#approvals-heading"
             class="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-4 underline"
           >Approvals ({length(@pending_approvals)})</a>
         </nav>
 
-        <section aria-labelledby="overview-heading" class="space-y-3">
-          <h2 id="overview-heading" class="text-xl font-semibold text-slate-950">
-            Application and resources
-          </h2>
-          <dl class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div class="rounded-lg border border-slate-200 bg-white p-4">
-              <dt class="text-sm font-medium text-slate-600">Application</dt>
-              <dd class="mt-1 text-lg font-semibold text-slate-950">
-                {status_label(@health.status)}
-              </dd>
-              <dd class="text-sm text-slate-600">Version {@health.application.version}</dd>
-            </div>
-            <div class="rounded-lg border border-slate-200 bg-white p-4">
-              <dt class="text-sm font-medium text-slate-600">Active agents</dt>
-              <dd id="active-agent-count" class="mt-1 text-lg font-semibold text-slate-950">
-                {@resource_summary.active_agents}
-              </dd>
-              <dd class="text-sm text-slate-600">working or waiting for input</dd>
-            </div>
-            <div class="rounded-lg border border-slate-200 bg-white p-4">
-              <dt class="text-sm font-medium text-slate-600">Measured memory</dt>
-              <dd class="mt-1 text-lg font-semibold text-slate-950">
-                {format_bytes(@resource_summary.memory_bytes)}
-              </dd>
-              <dd class="text-sm text-slate-600">latest readings from active agents</dd>
-            </div>
-            <div class="rounded-lg border border-slate-200 bg-white p-4">
-              <dt class="text-sm font-medium text-slate-600">Owned processes · ports</dt>
-              <dd class="mt-1 text-lg font-semibold text-slate-950">
-                {@resource_summary.processes} · {@resource_summary.ports}
-              </dd>
-              <dd class="text-sm text-slate-600">host runner, advisory limits</dd>
-            </div>
-          </dl>
-        </section>
-
-        <section aria-labelledby="operations-heading" class="space-y-4">
-          <div class="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <h2 id="operations-heading" class="text-xl font-semibold text-slate-950">
-                Operations
-              </h2>
-              <p class="mt-1 text-sm text-slate-700">
-                Follow current and recent runs. Queued runs still need authentication and an explicit start.
-              </p>
-            </div>
-            <.link
-              navigate={~p"/agents"}
-              class="inline-flex min-h-10 items-center rounded-md border border-slate-400 bg-white px-4 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
-            >
-              Open Agent Floor
-            </.link>
-          </div>
-
-          <p
-            :if={@operations == []}
-            id="operations-empty"
-            class="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-700"
-          >
-            No runs yet. Open a project board, add a task, and mark it Ready to prepare its first run.
-          </p>
-          <ul :if={@operations != []} id="operation-list" class="grid gap-3 lg:grid-cols-2">
-            <li
-              :for={operation <- @operations}
-              id={"operation-#{operation.run.id}"}
-              class="rounded-xl border border-slate-200 bg-white p-5"
-            >
-              <div class="flex items-start justify-between gap-4">
-                <div>
-                  <p class="text-sm font-medium text-slate-600">
-                    {operation.project.name} · {operation.board.name}
-                  </p>
-                  <h3 class="mt-1 font-semibold text-slate-950">{operation.task.title}</h3>
-                </div>
-                <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-800">
-                  {state_label(operation.run.state)}
-                </span>
-              </div>
-              <dl class="mt-4 grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <dt class="text-slate-600">Current role</dt>
-                  <dd class="font-medium text-slate-950">{operation_role(operation)}</dd>
-                </div>
-                <div>
-                  <dt class="text-slate-600">Runtime</dt>
-                  <dd class="font-medium text-slate-950">{operation_runtime(operation)}</dd>
-                </div>
-                <div>
-                  <dt class="text-slate-600">Created</dt>
-                  <dd class="font-medium text-slate-950">{elapsed(operation.run.inserted_at)} ago</dd>
-                </div>
-                <div>
-                  <dt class="text-slate-600">Measured memory</dt>
-                  <dd class="font-medium text-slate-950">{operation_memory(operation)}</dd>
-                </div>
-              </dl>
-              <p :if={operation.run.wait_reason} class="mt-3 text-sm font-medium text-amber-950">
-                Attention: {operation.run.wait_reason}
-              </p>
-              <.link
-                navigate={~p"/runs/#{operation.run.id}"}
-                class="mt-4 inline-flex min-h-10 items-center rounded-md bg-slate-950 px-4 text-sm font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
-              >
-                Inspect run
-              </.link>
-            </li>
-          </ul>
-        </section>
-
         <section aria-labelledby="projects-heading" class="space-y-4">
           <div class="flex items-center justify-between gap-4">
             <h2 id="projects-heading" class="text-xl font-semibold text-slate-950">Projects</h2>
             <span class="text-sm text-slate-600">{length(@project_cards)} registered</span>
           </div>
-
           <div
             :if={@project_cards == []}
             id="projects-empty"
@@ -303,17 +219,13 @@ defmodule CuckodingWeb.StatusLive do
           >
             <h3 class="text-lg font-semibold text-slate-950">Add your first project</h3>
             <p class="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-700">
-              Register a project, create a board and tasks, then assign agents and start.
-              Nothing runs during project setup.
+              Register a project, create a board and tasks, then assign agents and start. Nothing runs during project setup.
             </p>
             <.link
               navigate={~p"/projects/new"}
               class="mt-5 inline-flex min-h-11 items-center rounded-md bg-slate-950 px-5 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
-            >
-              Add project
-            </.link>
+            >Add project</.link>
           </div>
-
           <ul :if={@project_cards != []} class="grid gap-4 lg:grid-cols-2">
             <li
               :for={card <- @project_cards}
@@ -328,12 +240,10 @@ defmodule CuckodingWeb.StatusLive do
                   </p>
                 </div>
                 <div class="flex flex-wrap gap-2">
-                  <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                    {card.project.status}
-                  </span>
-                  <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                    {project_operation_label(card.autopilot.state)}
-                  </span>
+                  <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">{card.project.status}</span>
+                  <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">{project_operation_label(
+                    card.autopilot.state
+                  )}</span>
                 </div>
               </div>
               <p :if={card.autopilot.last_issue} class="mt-3 text-sm text-amber-900">
@@ -356,11 +266,33 @@ defmodule CuckodingWeb.StatusLive do
                   </dd>
                 </div>
                 <div>
-                  <dt class="text-slate-600">Attention</dt><dd class="font-semibold">
+                  <dt class="text-slate-600">Run attention</dt><dd class="font-semibold">
                     {card.attention}
                   </dd>
                 </div>
               </dl>
+              <div class="mt-5">
+                <h4 class="text-sm font-semibold text-slate-950">Task states</h4>
+                <dl class="mt-2 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+                  <div
+                    :for={
+                      state <-
+                        ~w(blocked done running waiting ready draft failed paused hibernated cancelled archived)
+                    }
+                    :if={
+                      state in ~w(blocked done running waiting ready draft failed) or
+                        Map.get(card.task_states, state, 0) > 0
+                    }
+                    id={"project-state-#{card.project.id}-#{state}"}
+                    class="rounded-md bg-slate-50 px-3 py-2"
+                  >
+                    <dt class="text-slate-600">{project_state_label(state)}</dt>
+                    <dd class="font-semibold text-slate-950">
+                      {Map.get(card.task_states, state, 0)}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
               <div class="mt-5 flex flex-wrap gap-2">
                 <.link
                   navigate={~p"/projects/#{card.project.id}/edit"}
@@ -374,19 +306,395 @@ defmodule CuckodingWeb.StatusLive do
                   :for={board <- card.boards}
                   navigate={~p"/boards/#{board.id}"}
                   class="inline-flex min-h-10 items-center rounded-md border border-slate-300 px-3 text-sm font-medium text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2"
-                >
-                  Open {board.name}
-                </.link>
+                >Open {board.name}</.link>
                 <.link
                   :if={card.boards == []}
                   navigate={~p"/projects/#{card.project.id}/edit#boards-heading"}
                   class="inline-flex min-h-10 items-center rounded-md border border-slate-300 px-3 text-sm font-medium text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2"
-                >
-                  Create board
-                </.link>
+                >Create board</.link>
               </div>
             </li>
           </ul>
+        </section>
+
+        <section aria-labelledby="activity-heading" class="space-y-4">
+          <div class="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 id="activity-heading" class="text-xl font-semibold text-slate-950">
+                Recent activity
+              </h2>
+              <p class="mt-1 text-sm text-slate-700">
+                Live from committed events and active agent sessions. Activity mix covers the latest {length(
+                  @activity
+                )} events.
+              </p>
+            </div>
+            <.link
+              navigate={~p"/agents"}
+              class="inline-flex min-h-10 items-center rounded-md border border-slate-400 bg-white px-4 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
+            >Open Agent Floor</.link>
+          </div>
+          <div id="agent-activity-chart" class="rounded-xl border border-slate-200 bg-white p-5">
+            <div class="flex flex-wrap items-baseline justify-between gap-2">
+              <h3 class="font-semibold text-slate-950">Live agent activity</h3>
+              <p class="text-sm text-slate-600">Last 12 UTC minutes · refreshes every 5 seconds</p>
+            </div>
+            <p class="mt-1 text-sm text-slate-700">
+              Distinct current agent sessions with a measured owned-process sample in each minute. Gaps mean no sample, not zero agents.
+            </p>
+            <p
+              :if={Enum.all?(@sampled_activity, &is_nil(&1.count))}
+              class="mt-4 text-sm text-slate-600"
+            >
+              No samples from currently active agents yet.
+            </p>
+            <svg viewBox="0 0 576 140" class="mt-4 h-44 w-full text-slate-800" aria-hidden="true">
+              <line x1="0" y1="112" x2="576" y2="112" stroke="currentColor" class="text-slate-300" />
+              <g :for={{bucket, index} <- Enum.with_index(@sampled_activity)}>
+                <rect
+                  :if={is_integer(bucket.count)}
+                  x={index * 48 + 10}
+                  y={112 - sample_bar_height(bucket.count, @sampled_activity)}
+                  width="28"
+                  height={sample_bar_height(bucket.count, @sampled_activity)}
+                  fill="currentColor"
+                />
+                <text
+                  :if={rem(index, 3) == 0 or index == 11}
+                  x={index * 48 + 24}
+                  y="132"
+                  text-anchor="middle"
+                  font-size="11"
+                  fill="currentColor"
+                >
+                  {bucket.minute}
+                </text>
+              </g>
+            </svg>
+            <details class="mt-2 text-sm">
+              <summary class="min-h-10 cursor-pointer font-medium text-slate-900">
+                View minute-by-minute data
+              </summary>
+              <table class="mt-2 w-full text-left">
+                <caption class="sr-only">Measured current-agent activity by UTC minute</caption><thead>
+                  <tr>
+                    <th scope="col" class="py-2">UTC minute</th><th scope="col" class="py-2">
+                      Sessions sampled
+                    </th>
+                  </tr>
+                </thead><tbody>
+                  <tr :for={bucket <- @sampled_activity}>
+                    <th scope="row" class="py-1 font-normal">{bucket.minute}</th><td class="py-1">
+                      {if is_nil(bucket.count), do: "No sample", else: bucket.count}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </details>
+          </div>
+          <div class="grid gap-4 xl:grid-cols-2">
+            <div class="rounded-xl border border-slate-200 bg-white p-5">
+              <h3 class="font-semibold text-slate-950">Activity mix</h3>
+              <p class="mt-1 text-sm text-slate-600">Select a category to filter the event log.</p>
+              <div class="mt-4 space-y-3">
+                <button
+                  :for={
+                    {category, label} <- [
+                      {"agent", "Agent & process"},
+                      {"workflow", "Workflow"},
+                      {"system", "System"}
+                    ]
+                  }
+                  type="button"
+                  phx-click="filter-activity"
+                  phx-value-category={category}
+                  aria-pressed={to_string(@activity_filter == category)}
+                  class="block w-full rounded-lg px-2 py-2 text-left hover:bg-slate-50 aria-pressed:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2"
+                >
+                  <span class="flex justify-between gap-3 text-sm font-medium"><span>{label}</span><span>{activity_count(
+                    @activity,
+                    category
+                  )}</span></span>
+                  <meter
+                    class="mt-2 block h-3 w-full"
+                    min="0"
+                    max={max(length(@activity), 1)}
+                    value={activity_count(@activity, category)}
+                    aria-hidden="true"
+                  />
+                </button>
+              </div>
+              <button
+                type="button"
+                phx-click="filter-activity"
+                phx-value-category="all"
+                aria-pressed={to_string(@activity_filter == "all")}
+                class="mt-3 min-h-10 rounded-md border border-slate-300 px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
+              >All events ({length(@activity)})</button>
+              <table class="sr-only">
+                <caption>Activity mix for the latest {length(@activity)} events</caption><tbody>
+                  <tr :for={
+                    {category, label} <- [
+                      {"agent", "Agent & process"},
+                      {"workflow", "Workflow"},
+                      {"system", "System"}
+                    ]
+                  }>
+                    <th scope="row">{label}</th><td>{activity_count(@activity, category)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-white p-5">
+              <div class="flex items-center justify-between gap-3">
+                <h3 class="font-semibold text-slate-950">Agents right now</h3><span class="text-sm text-slate-600">{@resource_summary.active_agents} active</span>
+              </div>
+              <p :if={@active_sessions == []} class="mt-4 text-sm text-slate-700">
+                No agents are running or waiting for input.
+              </p>
+              <ul :if={@active_sessions != []} class="mt-4 divide-y divide-slate-200">
+                <li
+                  :for={card <- @active_sessions}
+                  class="flex flex-wrap items-center justify-between gap-3 py-3 text-sm"
+                >
+                  <div>
+                    <p class="font-medium text-slate-950">{card.project.name} · {card.task.title}</p><p class="text-slate-600">
+                      {state_label(card.attempt.role_key)} · {state_label(card.session.adapter_key)} · {card.session.actual_model ||
+                        card.session.requested_model || "Model not reported"}
+                    </p>
+                    <p class="text-slate-600">
+                      {state_label(card.session.state)} · {if card.attempt.started_at,
+                        do: "Stage started",
+                        else: "Session created"} {elapsed(
+                        card.attempt.started_at || card.session.inserted_at
+                      )} ago
+                    </p>
+                  </div>
+                  <.link
+                    navigate={~p"/runs/#{card.run.id}"}
+                    class="inline-flex min-h-10 items-center rounded-md border border-slate-300 px-3 font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
+                  >Inspect</.link>
+                </li>
+              </ul>
+            </div>
+          </div>
+          <details class="rounded-xl border border-slate-200 bg-white p-5">
+            <summary class="cursor-pointer font-semibold text-slate-950">
+              Event log ({length(visible_activity(@activity, @activity_filter))})
+            </summary>
+            <div class="mt-4">
+              <.activity_stream
+                events={visible_activity(@activity, @activity_filter)}
+                status={@activity_status}
+                heading="Committed events"
+                heading_id="activity-log-heading"
+                heading_level="h3"
+                empty_message="No events match this category in the latest activity."
+              />
+            </div>
+          </details>
+        </section>
+
+        <section aria-labelledby="operations-heading" class="space-y-4">
+          <div class="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 id="operations-heading" class="text-xl font-semibold text-slate-950">
+                Operations
+              </h2>
+              <p class="mt-1 text-sm text-slate-700">
+                Follow current and recent runs. Queued runs still need authentication and an explicit start.
+              </p>
+            </div>
+            <.link
+              navigate={~p"/agents"}
+              class="inline-flex min-h-10 items-center rounded-md border border-slate-400 bg-white px-4 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
+            >
+              Open Agent Floor
+            </.link>
+          </div>
+
+          <form
+            id="operation-filters"
+            phx-change="filter-operations"
+            class="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-3"
+          >
+            <div>
+              <label for="operation-state" class="block text-sm font-medium text-slate-700">State</label><select
+                id="operation-state"
+                name="filter[state]"
+                class="mt-1 min-h-10 w-full rounded-md border border-slate-300 px-3"
+              ><option value="all" selected={@operation_filter["state"] == "all"}>All states</option><option
+                value="active"
+                selected={@operation_filter["state"] == "active"}
+              >
+                Active & queued
+              </option><option value="attention" selected={@operation_filter["state"] == "attention"}>
+                Needs attention
+              </option><option value="done" selected={@operation_filter["state"] == "done"}>
+                Done
+              </option></select>
+            </div>
+            <div>
+              <label for="operation-project" class="block text-sm font-medium text-slate-700">Project</label><select
+                id="operation-project"
+                name="filter[project]"
+                class="mt-1 min-h-10 w-full rounded-md border border-slate-300 px-3"
+              ><option value="all" selected={@operation_filter["project"] == "all"}>
+                All projects
+              </option><option
+                :for={card <- @project_cards}
+                value={card.project.id}
+                selected={@operation_filter["project"] == card.project.id}
+              >
+                {card.project.name}
+              </option></select>
+            </div>
+            <div>
+              <label for="operation-query" class="block text-sm font-medium text-slate-700">Find run</label><input
+                id="operation-query"
+                name="filter[query]"
+                value={@operation_filter["query"]}
+                type="search"
+                placeholder="Task, board, or project"
+                class="mt-1 min-h-10 w-full rounded-md border border-slate-300 px-3"
+              />
+            </div>
+          </form>
+          <p role="status" class="text-sm text-slate-600">
+            Showing {length(visible_operations(@operations, @operation_filter))} of {length(
+              @operations
+            )} recent runs.
+          </p>
+          <p
+            :if={@operations == []}
+            id="operations-empty"
+            class="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-700"
+          >
+            No runs yet. Open a project board, add a task, and mark it Ready to prepare its first run.
+          </p>
+          <p
+            :if={@operations != [] and visible_operations(@operations, @operation_filter) == []}
+            id="operations-filter-empty"
+            class="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-700"
+          >
+            No recent runs match these filters.
+          </p>
+          <div
+            :if={visible_operations(@operations, @operation_filter) != []}
+            id="operation-list"
+            role="region"
+            aria-label="Operations table"
+            tabindex="0"
+            class="overflow-x-auto rounded-xl border border-slate-200 bg-white focus-visible:outline-2"
+          >
+            <table class="min-w-[60rem] w-full divide-y divide-slate-200 text-left text-sm">
+              <caption class="sr-only">
+                Latest 50 runs, filtered by state, project, and search
+              </caption><thead class="bg-slate-50 text-slate-700">
+                <tr>
+                  <th scope="col" class="px-4 py-3">Task / project</th><th
+                    scope="col"
+                    class="px-4 py-3"
+                  >
+                    State
+                  </th><th scope="col" class="px-4 py-3">Actions</th><th scope="col" class="px-4 py-3">
+                    Role / runtime
+                  </th><th
+                    scope="col"
+                    class="px-4 py-3"
+                  >
+                    Created
+                  </th><th scope="col" class="px-4 py-3">Measured memory</th>
+                </tr>
+              </thead><tbody class="divide-y divide-slate-200">
+                <tr
+                  :for={operation <- visible_operations(@operations, @operation_filter)}
+                  id={"operation-#{operation.run.id}"}
+                >
+                  <th scope="row" class="px-4 py-3 font-medium text-slate-950">
+                    <span class="block">{operation.task.title}</span><span class="block font-normal text-slate-600">{operation.project.name} · {operation.board.name}</span>
+                  </th><td class="px-4 py-3">
+                    <span class="font-medium">{state_label(operation.run.state)}</span><span
+                      :if={operation.run.wait_reason}
+                      class="block text-amber-950"
+                    >{operation.run.wait_reason}</span>
+                  </td><td class="px-4 py-3">
+                    <div class="flex gap-2">
+                      <.link
+                        navigate={~p"/runs/#{operation.run.id}"}
+                        class="inline-flex min-h-10 items-center rounded-md bg-slate-950 px-3 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
+                      >Inspect run</.link><.link
+                        navigate={~p"/boards/#{operation.board.id}/tasks/#{operation.task.id}"}
+                        class="inline-flex min-h-10 items-center rounded-md border border-slate-300 px-3 font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
+                      >Task</.link>
+                    </div>
+                  </td><td class="px-4 py-3">
+                    {operation_role(operation)}<span class="block text-slate-600">{operation_runtime(
+                      operation
+                    )}</span>
+                  </td><td class="whitespace-nowrap px-4 py-3">
+                    {elapsed(operation.run.inserted_at)} ago
+                  </td><td class="px-4 py-3">{operation_memory(operation)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section aria-labelledby="overview-heading" class="space-y-4">
+          <div>
+            <h2 id="overview-heading" class="text-xl font-semibold text-slate-950">
+              Application and resources
+            </h2><p class="mt-1 text-sm text-slate-700">
+              Current control-plane health and measured agent load. Host limits are advisory, not enforced.
+            </p>
+          </div>
+          <div class="grid gap-4 lg:grid-cols-2">
+            <div class="rounded-xl border border-slate-200 bg-white p-5">
+              <h3 class="font-semibold text-slate-950">Application</h3>
+              <p class="mt-3 text-2xl font-semibold text-slate-950">{status_label(@health.status)}</p>
+              <p class="text-sm text-slate-600">Version {@health.application.version}</p>
+              <dl class="mt-5 divide-y divide-slate-200 text-sm">
+                <div
+                  :for={{name, status} <- Enum.sort(@health.dependencies)}
+                  class="flex justify-between gap-4 py-2"
+                >
+                  <dt>{dependency_label(name)}</dt><dd class="font-medium">{status_label(status)}</dd>
+                </div>
+              </dl>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-white p-5">
+              <h3 class="font-semibold text-slate-950">Resources</h3>
+              <dl class="mt-4 grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <dt class="text-slate-600">Active agents</dt><dd
+                    id="active-agent-count"
+                    class="text-2xl font-semibold text-slate-950"
+                  >
+                    {@resource_summary.active_agents}
+                  </dd>
+                </div>
+                <div>
+                  <dt class="text-slate-600">Measured memory</dt><dd class="text-2xl font-semibold text-slate-950">
+                    {format_bytes(@resource_summary.memory_bytes)}
+                  </dd>
+                </div>
+                <div>
+                  <dt class="text-slate-600">Owned processes</dt><dd class="text-2xl font-semibold text-slate-950">
+                    {@resource_summary.processes}
+                  </dd>
+                </div>
+                <div>
+                  <dt class="text-slate-600">Open ports</dt><dd class="text-2xl font-semibold text-slate-950">
+                    {@resource_summary.ports}
+                  </dd>
+                </div>
+              </dl>
+              <p class="mt-4 text-sm text-slate-600">
+                Latest measurements from active agent sessions; no sample means unavailable, not zero usage.
+              </p>
+            </div>
+          </div>
         </section>
 
         <nav aria-label="Workspace views" class="flex flex-wrap gap-3">
@@ -555,7 +863,6 @@ defmodule CuckodingWeb.StatusLive do
           </article>
         </section>
 
-        <.activity_stream events={@activity} status={@activity_status} />
         <.usage_summary records={@usage_records} />
 
         <details class="rounded-lg border border-slate-200 bg-white p-5">
@@ -593,15 +900,14 @@ defmodule CuckodingWeb.StatusLive do
     Enum.map(Cuckoding.Projects.list_projects(), fn project ->
       cards = Map.get(agents_by_project, project.id, [])
       boards = Cuckoding.Workflows.list_boards(project.id)
+      tasks = Enum.flat_map(boards, &Cuckoding.Workflows.list_tasks(&1.id))
 
       %{
         project: project,
         autopilot: Cuckoding.ProjectAutopilot.settings(project.id),
         boards: boards,
-        task_count:
-          boards
-          |> Enum.flat_map(&Cuckoding.Workflows.list_tasks(&1.id))
-          |> length(),
+        task_count: length(tasks),
+        task_states: Enum.frequencies_by(tasks, & &1.state),
         active_agents: Enum.count(cards, &active_session?/1),
         attention:
           cards
@@ -626,11 +932,21 @@ defmodule CuckodingWeb.StatusLive do
 
   defp load_dashboard(socket) do
     agent_cards = Cuckoding.AgentFloor.list_sessions()
+    active_sessions = Enum.filter(agent_cards, &active_session?/1)
 
     assign(socket,
       health: Cuckoding.Health.snapshot(),
+      activity_status:
+        Cuckoding.ActivityStream.status(
+          socket.assigns.activity,
+          Cuckoding.Clock.wall_now(),
+          60_000
+        ),
       project_cards: project_cards(agent_cards),
-      operations: Cuckoding.AgentFloor.list_operations(),
+      operations: Cuckoding.AgentFloor.list_operations(50),
+      active_sessions: active_sessions,
+      sampled_activity:
+        Cuckoding.AgentFloor.sampled_activity(Enum.map(active_sessions, & &1.session.id)),
       resource_summary: resource_summary(agent_cards),
       pending_approvals: Cuckoding.WalkingSkeleton.pending_approvals(),
       usage_records: Cuckoding.Telemetry.Accounting.recent_usage()
@@ -640,10 +956,66 @@ defmodule CuckodingWeb.StatusLive do
   defp active_session?(card),
     do: card.session.state in @active_session_states and card.run.state in @active_run_states
 
+  defp filter_value(value, allowed), do: if(value in allowed, do: value, else: "all")
+
+  defp activity_category(event) do
+    cond do
+      event.correlation["agent_session_id"] ||
+          String.starts_with?(event.event_type, ["agent.", "process.", "provider."]) ->
+        "agent"
+
+      String.starts_with?(event.event_type, [
+        "run.",
+        "stage.",
+        "stage_attempt.",
+        "task.",
+        "board."
+      ]) ->
+        "workflow"
+
+      true ->
+        "system"
+    end
+  end
+
+  defp activity_count(events, category),
+    do: Enum.count(events, &(activity_category(&1) == category))
+
+  defp sample_bar_height(count, buckets) do
+    maximum = Enum.reduce(buckets, 0, fn bucket, current -> max(bucket.count || 0, current) end)
+    if maximum == 0, do: 0, else: max(div(count * 100, maximum), 4)
+  end
+
+  defp visible_activity(events, "all"), do: events
+
+  defp visible_activity(events, category),
+    do: Enum.filter(events, &(activity_category(&1) == category))
+
+  defp visible_operations(operations, filter) do
+    Enum.filter(operations, fn operation ->
+      state_matches?(operation.run.state, filter["state"]) and
+        (filter["project"] == "all" or operation.project.id == filter["project"]) and
+        (filter["query"] == "" or
+           String.contains?(
+             String.downcase(
+               "#{operation.task.title} #{operation.board.name} #{operation.project.name}"
+             ),
+             String.downcase(filter["query"])
+           ))
+    end)
+  end
+
+  defp state_matches?(_state, "all"), do: true
+  defp state_matches?(state, "active"), do: state in ~w(queued running paused hibernated)
+  defp state_matches?(state, "attention"), do: state in ~w(waiting blocked failed)
+  defp state_matches?(state, "done"), do: state in ~w(done released)
+
   defp project_operation_label("running"), do: "Running"
   defp project_operation_label("attention"), do: "Needs attention"
   defp project_operation_label("done"), do: "Done"
   defp project_operation_label(_state), do: "Paused"
+  defp project_state_label("done"), do: "Completed"
+  defp project_state_label(state), do: state_label(state)
 
   defp format_bytes(0), do: "No active samples"
   defp format_bytes(bytes) when bytes < 1_048_576, do: "#{div(bytes, 1_024)} KiB"
