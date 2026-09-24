@@ -42,12 +42,10 @@ const paintScroll = () => {
   const viewportCenter = window.innerHeight / 2;
   parallaxLayers.forEach((layer) => {
     const speed = Number(layer.dataset.parallax);
-    const rotation = Number(layer.dataset.rotate || 0);
     const rect = layer.parentElement.getBoundingClientRect();
     const distance = rect.top + rect.height / 2 - viewportCenter;
-    const offset = Math.max(-96, Math.min(96, distance * -speed));
-    const turn = rotation + offset * 0.035;
-    layer.style.transform = `translate3d(0, ${offset}px, 0) rotate(${turn}deg)`;
+    const offset = Math.max(-24, Math.min(24, distance * -speed));
+    layer.style.transform = `translate3d(0, ${offset}px, 0)`;
   });
 };
 
@@ -60,7 +58,10 @@ const requestPaint = () => {
 window.addEventListener("scroll", requestPaint, { passive: true });
 window.addEventListener("resize", requestPaint);
 reduceMotion.addEventListener("change", () => {
-  if (reduceMotion.matches) parallaxLayers.forEach((layer) => layer.removeAttribute("style"));
+  if (reduceMotion.matches) {
+    parallaxLayers.forEach((layer) => layer.removeAttribute("style"));
+    showReveals();
+  }
   requestPaint();
 });
 requestPaint();
