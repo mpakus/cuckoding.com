@@ -279,6 +279,10 @@ complete local-application acceptance remain open:
   the review-comment list; rerun implementation/review within finite budgets.
   Older boards/run snapshots retain their versioned routing. New boards publish
   a revised default version; no history is rewritten.
+- [x] Add another-model proposal review before import, with validated revisions,
+  comments, preserved IDs/history, a saved Markdown report and retry handling.
+  Focused domain/LiveView checks pass; current native/provider acceptance is
+  tracked separately by task 1038.
 - [ ] Connect user-added roles to executable versioned workflows and let users
   configure additional permissions through reviewed policy and runtime grants.
   Existing editable role metadata is only partial implementation.

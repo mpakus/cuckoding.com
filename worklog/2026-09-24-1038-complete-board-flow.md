@@ -66,3 +66,37 @@ Credo, Sobelow and dependency audit. Documentation now distinguishes new
 defaults from legacy immutable snapshots and retains the unimplemented goal
 items. This verified slice is integrated into local main before continuing the
 proposal-review work; task 1038 remains in progress.
+
+## Proposal review before task import
+
+The delivery-handoff slice was fast-forward merged to local main at `00ce3db`.
+The next slice reuses planning runs and stage attempts for a distinct configured
+model/runtime to review unimported proposals. It validates a closed bounded
+response, unchanged proposal IDs and confined source files; updates descriptions
+and specs; retains comments and before/after revisions in an append-only event;
+and saves a private Markdown report with its hash. The run page offers the
+eligible roles, shows report/comments, and disables import during review.
+Imported batches cannot be rewritten by model review. Invalid responses leave
+originals unchanged and allow retry.
+
+Retry coverage found a shared failure-command key reused across attempts,
+which could leave the next failure marked Running. The key now identifies the
+attempt, retaining command idempotency without conflating separate failures.
+
+- `rtk env -u CR_PAT mix test test/cuckoding/board_task_intake_test.exs`:
+  8 tests, 0 failures (same-model rejection, review revisions/report/grants,
+  successive failures/retry, import exclusion and rendered report/model picker).
+- Initial `rtk env -u CR_PAT mix quality`: formatter rejected a conditional
+  interpolation layout; simplified the expression and formatted it.
+- Next quality run: 10 properties, 319 tests, 0 failures; strict Credo rejected
+  one deeply nested update callback. Extracted that update into a small helper.
+- RTK proxy exceptions continue to be exact source reads and patch-support
+  inspections. No process argv, environments or raw provider logs were read.
+- This is source and deterministic fixture evidence, not a native build or
+  real-provider acceptance claim. All full-flow acceptance gates remain open.
+
+Final proposal-review verification: `rtk env -u CR_PAT mix quality` passed
+formatter, compilation with warnings as errors, 10 properties and 319 tests,
+strict Credo, Sobelow and dependency audit. Cleanup reruns initially found two
+remaining nested expressions and an invalid zero-argument capture; the final
+transaction callback is a normal function and all checks above passed.

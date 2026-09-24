@@ -61,6 +61,19 @@ Project setup, board setup, board task intake, and delivery execution are separa
    committed PubSub hints. A failed planning run records a sanitized cause,
    marks its agent session failed, and shows the recovery action beside its
    progress state; browser state is never authoritative.
+5. **Independent proposal review** is available before any proposal is imported.
+   The run page lists other snapshotted agent roles with a different configured
+   model/runtime. Review launches a read-only, network-denied
+   `task_proposal_review` attempt on the same planning run. Its closed output
+   must return the same proposal IDs exactly once, valid repository file
+   citations, revised descriptions/specs, per-task comments and an overall
+   summary. Cuckoding saves a private Markdown report plus an append-only
+   before/after event, then returns to human selection. Import and concurrent
+   review are blocked while it runs. Invalid output preserves the originals
+   and supports retry from Blocked; every failed attempt records its own state
+   transition. Once any proposal is imported, model review cannot revise that
+   planning batch. Changing project roles does not rewrite a prepared run;
+   apply roles to the board and create a new planning run to use new models.
 
 Start-time saved-agent probes update the durable authorization observation
 before the queued run transitions. A rejected sign-in names the affected

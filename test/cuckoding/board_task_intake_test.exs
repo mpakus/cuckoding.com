@@ -9,8 +9,10 @@ defmodule Cuckoding.BoardTaskIntakeTest do
   alias Cuckoding.Execution.EventStore
   alias Cuckoding.Execution.Run
   alias Cuckoding.Execution.RunEvent
+  alias Cuckoding.Execution.StageAttempt
   alias Cuckoding.ProjectWorkflow
   alias Cuckoding.Repo
+  alias Cuckoding.TaskProposalReview
   alias Cuckoding.WalkingSkeleton
   alias Cuckoding.Workflows
   alias Cuckoding.Workflows.Task
@@ -194,6 +196,144 @@ defmodule Cuckoding.BoardTaskIntakeTest do
     assert intake.run.state == "queued"
   end
 
+  test "another model revises proposals, preserves history and renders a report before import", %{
+    conn: conn,
+    created: created
+  } do
+    set_review_model(created.board.id)
+    assert {:ok, intake} = create_intake(created.board.id)
+    assert {:ok, [proposal]} = BoardTaskIntake.start(intake.run.id, async: false)
+    assert {:ok, view, _html} = live(conn, ~p"/runs/#{intake.run.id}")
+
+    assert has_element?(
+             view,
+             "#proposal-model-review-form option[value=reviewer]",
+             "review-model"
+           )
+
+    refute has_element?(view, "#proposal-model-review-form option[value=spec_writer]")
+
+    output = review_output(proposal)
+
+    assert {:ok, [reviewed]} =
+             BoardTaskIntake.review(intake.run.id, "reviewer", async: false, fake_output: output)
+
+    assert reviewed.id == proposal.id
+    assert reviewed.description == output["tasks"] |> hd() |> Map.fetch!("description")
+    assert reviewed.source_json["review_comments"] == ["Added measurable acceptance criteria."]
+    assert Repo.get!(Run, intake.run.id).state == "waiting"
+    report = TaskProposalReview.latest_report(intake.run.id)
+    assert [%{"before" => before, "after" => after_revision}] = report["revisions"]
+    assert before["description"] == proposal.description
+    assert after_revision["description"] == reviewed.description
+    path = Path.join([intake.environment.run_dir, "artifacts", report["report"]["path"]])
+    contents = File.read!(path)
+    assert contents =~ output["summary"]
+    assert contents =~ reviewed.description
+    assert Bitwise.band(File.stat!(path).mode, 0o777) == 0o600
+
+    assert report["report"]["sha256"] ==
+             Base.encode16(:crypto.hash(:sha256, contents), case: :lower)
+
+    session =
+      Repo.one!(
+        from session in AgentSession,
+          join: attempt in StageAttempt,
+          on: attempt.id == session.stage_attempt_id,
+          where: attempt.run_id == ^intake.run.id and attempt.stage_key == "task_proposal_review"
+      )
+
+    assert session.requested_model == "review-model"
+    assert session.effective_grant_json["requested"]["deny_tools"] == ["write", "network"]
+    eventually(fn -> has_element?(view, "#proposal-review-report", output["summary"]) end)
+    assert has_element?(view, "#task-proposal-form", "Added measurable acceptance criteria.")
+
+    assert {:ok, [_again]} =
+             BoardTaskIntake.review(intake.run.id, "reviewer", async: false, fake_output: output)
+
+    assert Repo.aggregate(
+             from(a in StageAttempt,
+               where: a.run_id == ^intake.run.id and a.stage_key == "task_proposal_review"
+             ),
+             :count
+           ) == 2
+
+    assert TaskProposalReview.latest_report(intake.run.id)["review_id"] != report["review_id"]
+
+    assert {:ok, [task]} = BoardTaskIntake.import(intake.run.id, [reviewed.id])
+    assert task.description == reviewed.description
+
+    assert {:error, :proposals_not_reviewable} =
+             BoardTaskIntake.review(intake.run.id, "reviewer", async: false, fake_output: output)
+  end
+
+  test "rejects same-model review and preserves proposals across failed reviews and retry", %{
+    created: created
+  } do
+    assert {:ok, same_model} = create_intake(created.board.id)
+    assert {:ok, [_proposal]} = BoardTaskIntake.start(same_model.run.id, async: false)
+
+    assert {:error, :different_review_model_required} =
+             BoardTaskIntake.review(same_model.run.id, "reviewer", async: false)
+
+    assert Repo.get!(Run, same_model.run.id).state == "waiting"
+
+    set_review_model(created.board.id)
+    assert {:ok, intake} = create_intake(created.board.id)
+    assert {:ok, [proposal]} = BoardTaskIntake.start(intake.run.id, async: false)
+    valid = review_output(proposal)
+    [task] = valid["tasks"]
+
+    for invalid <- [
+          %{valid | "tasks" => [Map.put(task, "id", "another-proposal")]},
+          %{valid | "tasks" => [task, task]},
+          %{
+            valid
+            | "tasks" => [
+                Map.put(task, "sources", [%{"path" => "docs/outside-link", "line" => 1}])
+              ]
+          },
+          Map.put(valid, "command", "approve")
+        ] do
+      assert {:error, :invalid_task_proposal_review} =
+               BoardTaskIntake.review(intake.run.id, "reviewer",
+                 async: false,
+                 fake_output: invalid
+               )
+
+      assert Repo.get!(Run, intake.run.id).state == "blocked"
+      assert Workflows.list_task_proposals(intake.task.id) == [proposal]
+      assert TaskProposalReview.latest_report(intake.run.id) == nil
+    end
+
+    assert {:ok, [reviewed]} =
+             BoardTaskIntake.review(intake.run.id, "reviewer", async: false, fake_output: valid)
+
+    assert reviewed.id == proposal.id
+    assert Repo.get!(Run, intake.run.id).state == "waiting"
+  end
+
+  test "active proposal review prevents another reviewer and task import", %{
+    conn: conn,
+    created: created
+  } do
+    set_review_model(created.board.id)
+    assert {:ok, intake} = create_intake(created.board.id)
+    assert {:ok, [proposal]} = BoardTaskIntake.start(intake.run.id, async: false)
+    assert {:ok, _review} = TaskProposalReview.begin_review(intake, "reviewer")
+
+    assert {:error, :proposals_not_reviewable} =
+             TaskProposalReview.begin_review(intake, "reviewer")
+
+    assert {:error, :proposal_selection_required} =
+             BoardTaskIntake.import(intake.run.id, [proposal.id])
+
+    assert {:ok, view, _html} = live(conn, ~p"/runs/#{intake.run.id}")
+    assert has_element?(view, "#task-proposal-form input[disabled]")
+    assert has_element?(view, "#task-proposal-form button[disabled]")
+    refute has_element?(view, "#proposal-model-review-form")
+  end
+
   test "explains a legacy planning failure without a recorded cause", %{
     conn: conn,
     created: created
@@ -324,6 +464,32 @@ defmodule Cuckoding.BoardTaskIntakeTest do
       "role_key" => "spec_writer",
       "prompt" => "Analyze docs/PLAN.md and docs/tasks.md, then propose board tasks."
     })
+  end
+
+  defp set_review_model(board_id) do
+    Repo.update_all(
+      from(role in Cuckoding.Workflows.RoleAssignment,
+        where: role.board_id == ^board_id and role.role_key == "reviewer"
+      ),
+      set: [model_ref: "review-model"]
+    )
+  end
+
+  defp review_output(proposal) do
+    %{
+      "summary" => "Clarified the specification and its acceptance checks.",
+      "tasks" => [
+        %{
+          "id" => proposal.id,
+          "title" => proposal.title,
+          "description" =>
+            "Implement the documented dashboard.\nAcceptance: show persisted task state.\nTest: verify refresh preserves task state.",
+          "priority" => 5,
+          "sources" => [%{"path" => "docs/PLAN.md", "line" => 3}],
+          "comments" => ["Added measurable acceptance criteria."]
+        }
+      ]
+    }
   end
 
   defp git!(directory, args) do

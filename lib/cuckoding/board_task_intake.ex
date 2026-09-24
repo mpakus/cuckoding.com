@@ -16,12 +16,35 @@ defmodule Cuckoding.BoardTaskIntake do
   alias Cuckoding.OrchestrationFailure
   alias Cuckoding.ProjectWorkflow
   alias Cuckoding.Repo
+  alias Cuckoding.TaskProposalReview
   alias Cuckoding.WalkingSkeleton
   alias Cuckoding.Workflows
   alias Cuckoding.Workflows.Task
   alias Cuckoding.Workflows.TaskProposal
 
   @maximum_proposals 20
+
+  def review(run_id, role_key, options \\ []) when is_binary(run_id) and is_binary(role_key) do
+    with {:ok, skeleton} <- WalkingSkeleton.load(run_id),
+         %Task{kind: "board_intake"} <- skeleton.task,
+         true <-
+           Enum.any?(
+             TaskProposalReview.available_roles(skeleton.run, skeleton.task.intake_role_key),
+             &(&1["role_key"] == role_key)
+           ),
+         {:ok, runtime} <- AgentRuntime.resolve(skeleton, role_key),
+         {:ok, review} <- TaskProposalReview.begin_review(skeleton, role_key) do
+      launch(
+        %{skeleton | run: Repo.get!(Run, run_id)},
+        runtime,
+        Keyword.put(options, :review, review)
+      )
+    else
+      false -> {:error, :different_review_model_required}
+      %Task{} -> {:error, :not_task_intake}
+      error -> error
+    end
+  end
 
   def start(run_id, options \\ []) when is_binary(run_id) do
     command_key = "intake:#{run_id}:running:#{Identifier.generate()}"
@@ -107,9 +130,12 @@ defmodule Cuckoding.BoardTaskIntake do
 
   defp run(skeleton, runtime, options) do
     started = System.monotonic_time(:millisecond)
+    review = Keyword.get(options, :review)
+    role_key = if review, do: review.role_key, else: skeleton.task.intake_role_key
+    stage_key = if review, do: "task_proposal_review", else: "board_task_intake"
 
-    with {:ok, attempt} <- stage_attempt(skeleton.run, skeleton.task.intake_role_key),
-         request = request(skeleton, attempt),
+    with {:ok, attempt} <- stage_attempt(skeleton.run, role_key, stage_key),
+         request = request(skeleton, attempt, review),
          adapter_options =
            runtime.options
            |> Keyword.put(:runner, LocalProcessRunner)
@@ -118,8 +144,7 @@ defmodule Cuckoding.BoardTaskIntake do
          {:ok, stored} <- store_session(attempt, session, runtime.version),
          {:ok, result} <- await_session(stored, session, options),
          {:ok, output} <- OutputParser.extract(session.adapter, result),
-         {:ok, proposals} <- validate_output(output, skeleton.environment.worktree_path),
-         {:ok, persisted} <- persist_proposals(skeleton, proposals),
+         {:ok, persisted} <- persist_output(skeleton, attempt, output, review),
          {:ok, _stored} <- Adapters.record_session_observation(stored, %{session | state: "done"}),
          elapsed = max(System.monotonic_time(:millisecond) - started, 0),
          {:ok, _timing} <-
@@ -140,7 +165,7 @@ defmodule Cuckoding.BoardTaskIntake do
            Execution.transition_run(
              skeleton.run.id,
              "waiting",
-             "intake:#{skeleton.run.id}:review",
+             "intake:#{attempt.id}:review",
              wait_reason: "task proposal review"
            ),
          true <- waiting.result["outcome"] == "transitioned" do
@@ -151,12 +176,27 @@ defmodule Cuckoding.BoardTaskIntake do
     end
   end
 
-  defp stage_attempt(run, role_key) do
+  defp persist_output(skeleton, _attempt, output, nil) do
+    with {:ok, proposals} <- validate_output(output, skeleton.environment.worktree_path),
+         do: persist_proposals(skeleton, proposals)
+  end
+
+  defp persist_output(skeleton, attempt, output, review),
+    do: TaskProposalReview.persist(skeleton, attempt, output, review)
+
+  defp stage_attempt(run, role_key, stage_key) do
+    number =
+      Repo.one(
+        from attempt in StageAttempt,
+          where: attempt.run_id == ^run.id and attempt.stage_key == ^stage_key,
+          select: max(attempt.attempt)
+      ) || 0
+
     with {:ok, attempt} <-
            Execution.create_stage_attempt(%{
              run_id: run.id,
-             stage_key: "board_task_intake",
-             attempt: 1,
+             stage_key: stage_key,
+             attempt: number + 1,
              role_key: role_key,
              role_kind: "agent"
            }),
@@ -174,18 +214,22 @@ defmodule Cuckoding.BoardTaskIntake do
     end
   end
 
-  defp request(skeleton, attempt) do
+  defp request(skeleton, attempt, review) do
     %Types.StageRequest{
       project_id: skeleton.project.id,
       board_id: skeleton.board.id,
       task_id: skeleton.task.id,
       run_id: skeleton.run.id,
-      stage_key: "board_task_intake",
+      stage_key: attempt.stage_key,
       attempt_id: attempt.id,
-      objective: objective(skeleton.task.description) <> AgentRuntime.shell_instruction(),
+      objective:
+        if(review,
+          do: TaskProposalReview.objective(review),
+          else: objective(skeleton.task.description)
+        ) <> AgentRuntime.shell_instruction(),
       worktree_path: skeleton.environment.worktree_path,
       run_dir: skeleton.environment.run_dir,
-      requested_model: role_model(skeleton.run, skeleton.task.intake_role_key),
+      requested_model: role_model(skeleton.run, attempt.role_key),
       grant: %{
         "tools" => ["read", "shell"],
         "deny_tools" => ["write", "network"],
@@ -195,7 +239,8 @@ defmodule Cuckoding.BoardTaskIntake do
         "resource_limits" => %{"wall_ms" => 300_000}
       },
       plugins: [],
-      required_output_schema: output_schema(),
+      required_output_schema:
+        if(review, do: TaskProposalReview.output_schema(), else: output_schema()),
       correlation_id: Identifier.generate(),
       idempotency_key: "intake:#{attempt.id}:adapter"
     }
@@ -252,8 +297,9 @@ defmodule Cuckoding.BoardTaskIntake do
     }
   end
 
-  defp validate_output(%{"tasks" => tasks}, root)
-       when is_list(tasks) and tasks != [] and length(tasks) <= @maximum_proposals do
+  @doc false
+  def validate_output(%{"tasks" => tasks}, root)
+      when is_list(tasks) and tasks != [] and length(tasks) <= @maximum_proposals do
     tasks
     |> Enum.with_index()
     |> Enum.reduce_while({:ok, []}, fn {task, position}, {:ok, valid} ->
@@ -268,7 +314,7 @@ defmodule Cuckoding.BoardTaskIntake do
     end
   end
 
-  defp validate_output(_output, _root), do: {:error, :invalid_task_proposals}
+  def validate_output(_output, _root), do: {:error, :invalid_task_proposals}
 
   defp validate_proposal(proposal, position, root) when is_map(proposal) do
     with {:ok, title} <- bounded_text(proposal["title"], 200),
@@ -396,6 +442,9 @@ defmodule Cuckoding.BoardTaskIntake do
 
   defp import_proposals(board_id, intake, ids, run_id) do
     EventStore.transaction(fn ->
+      unless Repo.get!(Run, run_id).state in ["waiting", "done"],
+        do: Repo.rollback(:run_not_waiting)
+
       proposals =
         Repo.all(
           from(proposal in TaskProposal,

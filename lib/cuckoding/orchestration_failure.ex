@@ -39,7 +39,7 @@ defmodule Cuckoding.OrchestrationFailure do
 
     _recorded = record(run_id, kind, reason, summary, attempt, session)
     _attempt = fail_attempt(attempt, kind)
-    _run = block_run(run_id, kind, summary)
+    _run = block_run(run_id, kind, summary, attempt)
     :ok
   end
 
@@ -101,12 +101,12 @@ defmodule Cuckoding.OrchestrationFailure do
 
   defp fail_attempt(_attempt, _kind), do: :ok
 
-  defp block_run(run_id, kind, summary) do
+  defp block_run(run_id, kind, summary, attempt) do
+    key = "#{kind}:#{if attempt, do: attempt.id, else: run_id}:blocked"
+
     case Repo.get(Run, run_id) do
       %Run{state: "running"} ->
-        Execution.transition_run(run_id, "blocked", "#{kind}:#{run_id}:blocked",
-          wait_reason: summary
-        )
+        Execution.transition_run(run_id, "blocked", key, wait_reason: summary)
 
       _run ->
         :ok
@@ -120,6 +120,18 @@ defmodule Cuckoding.OrchestrationFailure do
   defp public_failure(:task_intake, :invalid_task_proposals),
     do:
       "The agent returned task proposals that failed validation. Review the cited files and create a new planning run."
+
+  defp public_failure(:task_intake, :invalid_task_proposal_review),
+    do:
+      "The model's proposal review failed validation. Your original proposals are unchanged. Review the cited files and retry the proposal review."
+
+  defp public_failure(:task_intake, :proposal_review_report_failed),
+    do:
+      "The review report could not be saved. Your original proposals are unchanged. Check the run's artifact directory before retrying."
+
+  defp public_failure(:task_intake, :proposals_changed),
+    do:
+      "The proposals changed while review was running. Its revisions were not applied. Refresh this run before retrying."
 
   defp public_failure(:task_intake, {:adapter_exit, status}) when is_integer(status),
     do:

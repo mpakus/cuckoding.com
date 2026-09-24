@@ -8,6 +8,7 @@ defmodule CuckodingWeb.RunLive do
 
   alias Cuckoding.AgentFloor
   alias Cuckoding.RunLog
+  alias Cuckoding.TaskProposalReview
 
   @refresh_ms 5_000
 
@@ -33,6 +34,8 @@ defmodule CuckodingWeb.RunLive do
            detail: detail,
            runtime_setups: setups,
            task_proposals: task_proposals(detail),
+           proposal_review_roles: proposal_review_roles(detail),
+           proposal_review_report: TaskProposalReview.latest_report(detail.run.id),
            refresh_pending: false,
            notice: "",
            error: nil
@@ -130,6 +133,31 @@ defmodule CuckodingWeb.RunLive do
     end
   end
 
+  def handle_event("review-task-proposals", %{"review" => %{"role_key" => role}}, socket) do
+    case Cuckoding.BoardTaskIntake.review(socket.assigns.detail.run.id, role) do
+      {:ok, :started} ->
+        {:noreply,
+         socket
+         |> refresh("Another model is reviewing the proposals. The report will appear below.")
+         |> assign(error: nil)}
+
+      {:error, :different_review_model_required} ->
+        {:noreply, assign(socket, error: "Choose a role with a different model for this review.")}
+
+      {:error, :proposals_not_reviewable} ->
+        {:noreply,
+         assign(socket,
+           error: "Wait for analysis to finish. Review proposals before importing any tasks."
+         )}
+
+      {:error, :provider_auth_required} ->
+        {:noreply, assign(socket, error: auth_required_error([]))}
+
+      {:error, reason} ->
+        {:noreply, assign(socket, error: start_error(reason))}
+    end
+  end
+
   defp refresh(socket, notice) do
     detail = AgentFloor.get_run(socket.assigns.detail.run.id)
 
@@ -138,6 +166,8 @@ defmodule CuckodingWeb.RunLive do
       detail: detail,
       runtime_setups: runtime_setups(detail.run),
       task_proposals: task_proposals(detail),
+      proposal_review_roles: proposal_review_roles(detail),
+      proposal_review_report: TaskProposalReview.latest_report(detail.run.id),
       refresh_pending: false,
       notice: notice
     )
@@ -366,7 +396,7 @@ defmodule CuckodingWeb.RunLive do
         <details
           :if={intake?(@detail) and @task_proposals != []}
           id="task-proposal-review"
-          open={@detail.run.state == "waiting"}
+          open={@detail.run.state in ["waiting", "running", "blocked"]}
           aria-labelledby="task-proposal-review-heading"
           class="space-y-4 rounded-lg border border-slate-300 bg-white p-5"
         >
@@ -384,6 +414,59 @@ defmodule CuckodingWeb.RunLive do
                   "Agent output is untrusted. Select only the proposals you want added to the board."}
             </p>
           </div>
+          <div :if={reviewable_proposals?(@detail, @task_proposals)} class="space-y-3">
+            <form
+              :if={@proposal_review_roles != []}
+              id="proposal-model-review-form"
+              phx-submit="review-task-proposals"
+              class="space-y-3"
+            >
+              <label for="proposal-review-role" class="block font-medium">Review with another model</label>
+              <p id="proposal-review-help" class="text-sm text-slate-700">
+                This model checks the proposed tasks and project files, improves descriptions and specs,
+                and saves comments and a report. Review the results before importing tasks.
+              </p>
+              <select
+                id="proposal-review-role"
+                name="review[role_key]"
+                aria-describedby="proposal-review-help"
+                class="min-h-11 w-full rounded-md border border-slate-400 bg-white px-3"
+              >
+                <option :for={role <- @proposal_review_roles} value={role["role_key"]}>
+                  {review_role_label(role, @detail.run)}
+                </option>
+              </select>
+              <button
+                phx-disable-with="Starting review…"
+                class="min-h-11 rounded-md border border-slate-400 px-4 font-medium focus-visible:outline-2 focus-visible:outline-offset-2"
+              >Review proposals</button>
+            </form>
+            <p
+              :if={@proposal_review_roles == []}
+              id="proposal-review-model-needed"
+              class="text-sm text-slate-700"
+            >
+              To get an independent review, assign a different model to another role in <.link
+                navigate={~p"/projects/#{@detail.project.id}/edit"}
+                class="underline"
+              >Project settings</.link>,
+              apply the roles to the board, and create a new planning run. This run keeps its original role settings.
+            </p>
+          </div>
+          <section
+            :if={@proposal_review_report}
+            id="proposal-review-report"
+            aria-labelledby="proposal-review-report-heading"
+            class="space-y-2 rounded-md border border-violet-200 bg-violet-50 p-4"
+          >
+            <h3 id="proposal-review-report-heading" class="font-semibold">Review report</h3>
+            <p class="whitespace-pre-wrap break-words text-sm">
+              {@proposal_review_report["summary"]}
+            </p>
+            <p class="break-all text-sm text-slate-700">
+              Saved artifact: {@proposal_review_report["report"]["path"]}
+            </p>
+          </section>
           <form id="task-proposal-form" phx-submit="import-task-proposals" class="space-y-3">
             <label
               :for={proposal <- @task_proposals}
@@ -394,12 +477,19 @@ defmodule CuckodingWeb.RunLive do
                 name="proposal_ids[]"
                 value={proposal.id}
                 checked={is_nil(proposal.imported_task_id)}
-                disabled={not is_nil(proposal.imported_task_id)}
+                disabled={
+                  not is_nil(proposal.imported_task_id) or
+                    @detail.run.state not in ["waiting", "done"]
+                }
                 class="mt-1 size-5"
               />
               <span class="min-w-0 space-y-2">
                 <span class="block font-semibold text-slate-950">{proposal.title}</span>
-                <span class="block text-sm text-slate-700">{proposal.description}</span>
+                <span class="block whitespace-pre-wrap break-words text-sm text-slate-700">{proposal.description}</span>
+                <span
+                  :for={comment <- proposal.source_json["review_comments"] || []}
+                  class="block break-words text-sm text-violet-900"
+                >Review comment: {comment}</span>
                 <span class="block text-sm text-slate-600">Priority {proposal.priority}</span>
                 <span class="block text-sm text-slate-600">
                   Sources: {proposal_sources(proposal)}
@@ -415,6 +505,7 @@ defmodule CuckodingWeb.RunLive do
             <button
               :if={Enum.any?(@task_proposals, &is_nil(&1.imported_task_id))}
               phx-disable-with="Importing tasks…"
+              disabled={@detail.run.state not in ["waiting", "done"]}
               class="min-h-10 rounded-md bg-slate-950 px-4 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
             >
               Import selected Draft tasks
@@ -699,6 +790,29 @@ defmodule CuckodingWeb.RunLive do
   end
 
   defp task_proposals(_detail), do: []
+
+  defp proposal_review_roles(%{task: %{kind: "board_intake"} = task, run: run}),
+    do: TaskProposalReview.available_roles(run, task.intake_role_key)
+
+  defp proposal_review_roles(_detail), do: []
+
+  defp reviewable_proposals?(detail, proposals),
+    do:
+      detail.run.state in ["waiting", "blocked"] and proposals != [] and
+        Enum.all?(proposals, &is_nil(&1.imported_task_id))
+
+  defp review_role_label(role, run) do
+    Enum.join(
+      [
+        role_label(role["role_key"], run),
+        get_in(role, ["settings", "connection_label"]),
+        role["model_ref"] || "Runtime default"
+      ]
+      |> Enum.reject(&is_nil/1),
+      " · "
+    )
+  end
+
   defp intake?(%{task: %{kind: "board_intake"}}), do: true
   defp intake?(_detail), do: false
 
@@ -754,8 +868,14 @@ defmodule CuckodingWeb.RunLive do
   defp planning_status(%{run: %{state: "queued"}}),
     do: "Planning run created. Verify agent authentication below, then start analysis."
 
-  defp planning_status(%{run: %{state: "running"}}),
-    do: "The agent is analyzing the project. This page updates automatically."
+  defp planning_status(%{run: %{state: "running"}} = detail) do
+    if Enum.any?(
+         detail.attempts,
+         &(&1.stage_key == "task_proposal_review" and &1.state == "running")
+       ),
+       do: "Another model is reviewing the proposed tasks. This page updates automatically.",
+       else: "The agent is analyzing the project. This page updates automatically."
+  end
 
   defp planning_status(%{run: %{state: "waiting"}}),
     do: "Analysis finished. Review the proposed tasks below."
