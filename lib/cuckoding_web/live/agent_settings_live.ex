@@ -59,6 +59,34 @@ defmodule CuckodingWeb.AgentSettingsLive do
     end
   end
 
+  def handle_event("detect_runtime", _params, socket) do
+    form = socket.assigns.form
+
+    if socket.assigns.step == :edit or
+         (socket.assigns.step == 2 and form["provider_account_id"] == "") do
+      case RuntimeConfiguration.default_executable(form["adapter_key"]) do
+        "" ->
+          {:noreply,
+           assign(socket,
+             notice:
+               "No executable found in standard locations. Install the command-line tool, or enter its path manually. Your current path was kept.",
+             error: nil
+           )}
+
+        path ->
+          {:noreply,
+           assign(socket,
+             form: Map.put(form, "executable_path", path),
+             notice:
+               "Found an installed executable. You can change the path before saving. Sign-in checks compatibility separately.",
+             error: nil
+           )}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
   def handle_event("prepare", %{"agent" => params}, %{assigns: %{step: 2}} = socket) do
     form = Map.merge(socket.assigns.form, params)
 
@@ -217,6 +245,16 @@ defmodule CuckodingWeb.AgentSettingsLive do
     {:noreply, socket |> refresh() |> assign(checking: nil, notice: message, step: step)}
   end
 
+  def handle_async(:authorization, {:ok, {:error, %{code: :unsupported_version}}}, socket) do
+    {:noreply,
+     assign(socket,
+       checking: nil,
+       notice: nil,
+       error:
+         "This executable's version is not supported. Close setup and use Edit agent to choose a supported CLI, then check sign-in again."
+     )}
+  end
+
   def handle_async(:authorization, _result, socket) do
     {:noreply,
      assign(socket,
@@ -347,14 +385,22 @@ defmodule CuckodingWeb.AgentSettingsLive do
             </label>
           </div>
           <div :if={@step in [2, :edit]} class="grid gap-4">
-            <p :if={@step == 2} class="text-sm text-slate-600">
-              We found the command-line executable when possible. Check the path, or enter it if the runtime was not found.
+            <p id="runtime-path-help" class="text-sm text-slate-600">
+              We check standard install locations automatically. You can edit the path or search again after installing a runtime.
+            </p>
+            <p :if={@form["adapter_key"] == "codex"} class="text-sm text-slate-600">
+              Codex Desktop (including ChatGPT.app) is also checked. Sign in separately for Cuckoding.
+              Supported CLI version: {Cuckoding.Adapters.Codex.supported_version()}.
+            </p>
+            <p :if={@form["executable_path"] == ""} class="text-sm text-amber-900">
+              No executable was found. Install the command-line tool and choose Find automatically, or enter its path below.
             </p>
             <label class="grid gap-2">
               Runtime executable
               <input
                 name="agent[executable_path]"
                 value={@form["executable_path"]}
+                aria-describedby="runtime-path-help"
                 required
                 readonly={@step == 2 and @wizard_account != nil}
                 autocomplete="off"
@@ -364,6 +410,15 @@ defmodule CuckodingWeb.AgentSettingsLive do
                 class="min-h-11 min-w-0 rounded border border-slate-400 px-3 font-mono text-sm"
               />
             </label>
+            <button
+              :if={@step == :edit or @wizard_account == nil}
+              id="detect-runtime"
+              type="button"
+              phx-click="detect_runtime"
+              class="min-h-11 justify-self-start rounded border border-slate-400 px-4"
+            >
+              Find automatically
+            </button>
             <label :if={@form["adapter_key"] == "claude_code"} class="grid gap-2">
               Claude API-key helper
               <input

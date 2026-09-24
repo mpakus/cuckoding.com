@@ -148,6 +148,8 @@ fn start_runtime(app: &mut tauri::App) -> Result<Runtime, Box<dyn std::error::Er
     let mut command = release_command(&release, &data_dir, port, &token_path, safe_mode);
     command
         .arg("start")
+        // Host-only discovery hint; HOME and agent child environments stay isolated.
+        .env("CUCKODING_RUNTIME_HOME", app.path().home_dir()?)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::from(stderr));

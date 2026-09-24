@@ -77,6 +77,45 @@ release command without another push event. A real-provider demo remains opt-in
 and must authenticate from its selected app-owned profile under a separate
 run-owned HOME and policy configuration.
 
+## Recent interface and discovery checks
+
+For the Pages surface, use its existing dependency-free checks:
+
+```sh
+rtk ruby github.page/verify.rb
+rtk node test/github_page_art_mode_test.cjs
+rtk node test/github_page_motion_test.cjs
+rtk node --check github.page/script.js
+```
+
+These cover local assets/anchors, both image budgets, Irony/no-JS defaults,
+saved Classic, invalid/denied storage, source/alt/caption switching and changing
+reduced-motion preferences. Render both modes at desktop, 390 px and 320 px;
+check keyboard selection, focus, live status, artwork cropping/loading, reload
+and overflow. Static checks and a local preview do not prove Pages deployment.
+
+For executable discovery, the focused regression command is:
+
+```sh
+rtk mix test test/cuckoding/adapters/runtime_configuration_test.exs test/cuckoding_web/agent_settings_live_test.exs test/cuckoding/execution/local_process_runner_test.exs
+```
+
+It covers known-location precedence, desktop fallback, missing/invalid paths,
+manual override/rescan, saved-path locking and exclusion of the discovery-home
+hint from child environments. Native shell edits also require the Rust gates.
+Render the form with an app-owned HOME and restricted PATH to reproduce native
+launch conditions. A discovered file is not proof of adapter compatibility,
+provider sign-in or authenticated execution; those retain their separate gates.
+
+Documentation-only follow-ups validate changed local links, referenced source
+paths, consistency with implementation and `rtk git diff --check`. Do not claim
+a fresh compiler/full-suite/native-package pass when only documents changed.
+Record the source revision and working-tree state for each result, and keep
+local source, native bundle, running build, remote deployment and real-provider
+evidence separate. The pending role contract in [PLAN.md](PLAN.md#role-contract-alignment--2026-09-24)
+requires new behavioral coverage when implemented; this documentation audit
+does not make the legacy role names or direct Coding return conformant.
+
 ## Fixtures
 
 - Recorded provider output per supported runtime version, redacted, with a compatibility manifest.

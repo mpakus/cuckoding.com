@@ -10,9 +10,12 @@ acceptance from configuration tests alone.
 1. Open **Agents** from the main navigation. This is the machine-wide catalog,
    separate from **Agent activity**, which shows running and historical sessions.
 2. **Add agent** follows three steps: **Name and runtime**; **Authorization**;
-   **Model**. The executable is suggested from the installed CLI when possible,
-   and an absolute-path field remains available when it is not found. The second
-   step saves the agent, reuses a compatible Codex/Cursor sign-in by default,
+   **Model**. The executable is suggested when found; **Find automatically**
+   repeats the [known-location search](#executable-discovery). The absolute-path
+   field stays editable before saving and in **Edit agent**. A failed search
+   keeps the typed path; after saving, the wizard cannot silently rescan or
+   replace the saved path. The second step saves the agent, reuses a compatible
+   Codex/Cursor sign-in by default,
    and shows a copyable sign-in command only when needed. **Use a separate
    sign-in** creates an independent account. After sign-in, **Check sign-in and
    fetch models** verifies the app-owned provider profile and refreshes its
@@ -49,6 +52,8 @@ Cuckoding. Only the provider runtime handles token values. See
 [official Codex authentication documentation](https://learn.chatgpt.com/docs/auth).
 
 ## Ownership and security
+
+The path lookup described below does not change these ownership boundaries.
 
 - Reuse `provider_accounts`; do not create a second catalog. It owns stable
   identity, non-secret runtime settings, and observed connection status.
@@ -92,6 +97,40 @@ Cuckoding. Only the provider runtime handles token values. See
   sign-in** requires confirmation, records the request before invoking the
   provider's scoped logout, records `provider.authorization_disconnected`, and blocks future launches for all
   linked agents without rewriting running work or historical snapshots.
+
+## Executable discovery
+
+`RuntimeConfiguration.default_executable/2` supplies suggestions to Agents and
+project settings. It checks the first existing absolute regular executable
+file in this order, without executing candidates:
+
+1. Directories in the host process PATH.
+2. Under the discovery home: `.local/bin`, `.volta/bin`, `.npm-global/bin`,
+   `.bun/bin`, `.asdf/shims`, `.opencode/bin`.
+3. `/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin`.
+4. For Codex only, `Codex.app/Contents/Resources/codex` and
+   `ChatGPT.app/Contents/Resources/codex`, first under `/Applications`, then
+   under `~/Applications`.
+
+Names are `codex`, `claude`, `cursor-agent` then `agent` in each directory, and
+`opencode` for their respective runtimes. Custom Agent has no guessed name.
+Normal symlinks to executable files work; directories, non-executable files,
+broken links and relative paths do not qualify. This is a bounded search of
+known locations, not a recursive disk scan or guarantee that every installer
+layout is covered. Unusual locations require the manual absolute-path field.
+
+The native shell keeps Phoenix HOME app-owned and PATH restricted, and passes
+the actual home as `CUCKODING_RUNTIME_HOME` for discovery only. Without that
+hint the helper uses `System.user_home()`. The hint is excluded from agent child
+environments. Discovery does not source shell startup files, change PATH, read
+credential files or import Codex Desktop/ChatGPT sign-in, settings or chats.
+
+**Found**, **compatible** and **signed in** are separate results. Codex's current
+adapter requires CLI `0.146.0`; finding a newer desktop bundle does not expand
+that support. Use **Edit agent** to choose a supported executable after a version
+failure. Cuckoding still requires its own app-owned provider sign-in. Source and
+preview verification for task 1037 does not prove an older installed native app
+contains this discovery code; see [RELEASE_READINESS.md](RELEASE_READINESS.md).
 
 ## Existing boards and runs
 

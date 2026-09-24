@@ -29,6 +29,14 @@ defmodule Cuckoding.Execution.LocalProcessRunnerTest do
        fixture do
     System.put_env("CUCKODING_AMBIENT_CANARY", "must-not-leak")
     on_exit(fn -> System.delete_env("CUCKODING_AMBIENT_CANARY") end)
+    previous_home = System.get_env("CUCKODING_RUNTIME_HOME")
+    System.put_env("CUCKODING_RUNTIME_HOME", "/host-only-discovery-home")
+
+    on_exit(fn ->
+      if previous_home,
+        do: System.put_env("CUCKODING_RUNTIME_HOME", previous_home),
+        else: System.delete_env("CUCKODING_RUNTIME_HOME")
+    end)
 
     assert {:ok, env_result} =
              LocalProcessRunner.exec(
@@ -41,6 +49,8 @@ defmodule Cuckoding.Execution.LocalProcessRunnerTest do
     assert env_result.exit_status == 0, inspect(env_result)
     assert env_result.output =~ "CUCKODING_TEST=allowed"
     refute env_result.output =~ "must-not-leak"
+    refute env_result.output =~ "CUCKODING_RUNTIME_HOME"
+    refute env_result.output =~ "/host-only-discovery-home"
 
     secret = "runner-secret-canary"
     payload = String.duplicate("x", 100) <> secret

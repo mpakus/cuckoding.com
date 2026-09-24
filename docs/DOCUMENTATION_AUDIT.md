@@ -1,5 +1,47 @@
 # Documentation Audit
 
+## Design, setup and role-contract audit — 2026-09-24
+
+Compared recent user requests with source and task 1032–1037 worklogs. At this
+inspection, main and the local origin/main tracking ref are `25c00d3`; the active
+branch is `feature/1037-agent-path-discovery` with uncommitted discovery changes.
+This is a focused documentation follow-up, not a new full-repository, provider,
+native-release or deployment acceptance run. Older observations below retain
+their dates and do not describe current process state.
+
+| Request / description | Source-grounded result | Remaining boundary |
+| --- | --- | --- |
+| Operational dashboard | Per-project task states, latest 20 public events, latest 50 operations and 12 UTC minute buckets for sampled current agent sessions | Bounded observations, not historical totals or fabricated trends |
+| Reference-inspired application design | Pearl/violet LiveView surfaces, rounded panels, original portal/robot and crystal WebPs, accessible navigation | Reference-image copy and habit features were not product requirements; original art is not a product screenshot |
+| Matching GitHub Pages design | Separate native static site with original crew, workflow and knowledge art | Does not change the native application; local/main evidence does not prove deployed Pages |
+| Classic and sarcastic Irony modes | All three site illustrations and related text switch; Irony is the HTML/no-JS, preload, social and storage-fallback default; saved Classic survives reload | Site-only preference; no operational behavior or release claims change |
+| Automatic agent path discovery | Shared known-location metadata lookup, Codex Desktop bundle fallback, explicit rescan and manual path; host-only home hint with child-environment regression | Working tree only, not rebuilt into the installed app; found, supported and signed-in are separate checks |
+| Stop copies and run one app | Task 1034 records one unsigned native shell/release after cleanup and data-preserving migration | A later stop/relaunch request did not establish new completion evidence; no runtime inventory or restart performed in this audit |
+| Default roles and extensibility | Accepted Speculator → Implementor → Reviewer contract now documented, including prompt/Markdown specs and return comments through Cuckoding | Source still names Specifications/Coding/Review, allows direct Coding returns, and has no arbitrary-stage or role-permission editor |
+
+The canonical design and mode contract is in [UI_DASHBOARD.md](UI_DASHBOARD.md);
+discovery/search order is in [AGENT_AUTHORIZATION_FLOW.md](AGENT_AUTHORIZATION_FLOW.md#executable-discovery).
+[PRODUCT.md](PRODUCT.md#default-roles-and-extensibility) and [FLOW.md](FLOW.md#intended-default-feature-flow)
+define the newly accepted role behavior; [PLAN.md](PLAN.md#role-contract-alignment--2026-09-24)
+keeps its implementation and permission tests unchecked. Role names do not alter
+stable IDs, historical snapshots, trusted grants or human release approval.
+
+Evidence: [1032 dashboard](../worklog/2026-09-23-1032-home-operations-dashboard.md),
+[1033 charts](../worklog/2026-09-23-1033-project-state-and-agent-chart.md),
+[1034 application](../worklog/2026-09-24-1034-pearl-workspace.md),
+[1035 Pages](../worklog/2026-09-24-1035-pearl-pages.md),
+[1036 modes](../worklog/2026-09-24-1036-pages-irony-mode.md), and
+[1037 discovery and documentation](../worklog/2026-09-24-1037-agent-path-discovery.md).
+The updated contributor rules require safe process metadata inspection without
+raw argv/environment dumps and distinguish source, main, remote, deployment,
+packaged and running-build evidence. [RELEASE_READINESS.md](RELEASE_READINESS.md)
+retains the no-go decision; no real-provider or clean-Mac gate is closed here.
+
+Also corrected stale rotation blockers in PLAN and RELEASE_READINESS: the
+specific earlier provider-key rotation was already stakeholder-confirmed on
+2026-09-23 in [BETA_REPORT.md](BETA_REPORT.md) and commit `5d2d532`. This is the
+existing attestation, not fresh secret inspection or blanket credential safety.
+
 ## Local dogfood addendum — 2026-09-23
 
 The current source has board-level saved-agent assignment and project-level

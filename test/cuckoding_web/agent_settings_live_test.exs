@@ -2,6 +2,91 @@ defmodule CuckodingWeb.AgentSettingsLiveTest do
   use CuckodingWeb.ConnCase, async: false
   import Phoenix.LiveViewTest
 
+  test "finds an installed runtime, keeps manual edits and locks saved setup", %{conn: conn} do
+    root =
+      Path.join(System.tmp_dir!(), "cuckoding-agent-detect-#{System.unique_integer([:positive])}")
+
+    executable = Path.join(root, ".local/bin/codex")
+    File.mkdir_p!(Path.dirname(executable))
+    File.write!(executable, "#!/bin/sh\nexit 0\n")
+    File.chmod!(executable, 0o700)
+    previous = Map.take(System.get_env(), ["PATH", "CUCKODING_RUNTIME_HOME"])
+    System.put_env(%{"PATH" => "/usr/bin:/bin", "CUCKODING_RUNTIME_HOME" => root})
+
+    on_exit(fn ->
+      System.delete_env("CUCKODING_RUNTIME_HOME")
+      System.put_env(previous)
+      File.rm_rf!(root)
+    end)
+
+    {:ok, view, _html} = live(conn, ~p"/settings/agents")
+    view |> form("#agent-form", agent: %{label: "Detected Codex"}) |> render_submit()
+
+    assert has_element?(
+             view,
+             "input[name='agent[executable_path]'][value='#{executable}']:not([readonly])"
+           )
+
+    assert render(view) =~ "Codex Desktop"
+
+    view |> form("#agent-form", agent: %{executable_path: "/usr/bin/true"}) |> render_change()
+    view |> form("#agent-form", agent: %{authorization_account_id: "new"}) |> render_change()
+    assert has_element?(view, "input[name='agent[executable_path]'][value='/usr/bin/true']")
+    view |> element("#detect-runtime") |> render_click()
+    assert has_element?(view, "input[name='agent[executable_path]'][value='#{executable}']")
+    assert has_element?(view, "#agent-status", "Found an installed executable")
+
+    view |> form("#agent-form", agent: %{executable_path: "/usr/bin/true"}) |> render_submit()
+    [account] = Cuckoding.Adapters.list_provider_accounts()
+    assert account.capabilities_json["settings"]["executable_path"] == "/usr/bin/true"
+    refute has_element?(view, "#detect-runtime")
+    render_click(view, "detect_runtime")
+
+    assert has_element?(
+             view,
+             "input[name='agent[executable_path]'][value='/usr/bin/true'][readonly]"
+           )
+  end
+
+  test "failed discovery keeps a manually entered path", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/settings/agents")
+
+    view
+    |> form("#agent-form", agent: %{adapter_key: "custom_agent", label: "My tool"})
+    |> render_change()
+
+    view |> form("#agent-form") |> render_submit()
+    view |> form("#agent-form", agent: %{executable_path: "/usr/bin/true"}) |> render_change()
+    view |> element("#detect-runtime") |> render_click()
+    assert has_element?(view, "#agent-status", "No executable found")
+    assert has_element?(view, "input[name='agent[executable_path]'][value='/usr/bin/true']")
+  end
+
+  test "found executables still receive a clear unsupported-version error", %{conn: conn} do
+    root =
+      Path.join(
+        System.tmp_dir!(),
+        "cuckoding-agent-version-#{System.unique_integer([:positive])}"
+      )
+
+    File.mkdir_p!(root)
+    on_exit(fn -> File.rm_rf!(root) end)
+    executable = Path.join(root, "codex")
+    File.write!(executable, "#!/bin/sh\necho 'codex-cli 0.155.0-alpha.16.3'\n")
+    File.chmod!(executable, 0o700)
+    {:ok, view, _html} = live(conn, ~p"/settings/agents")
+    view |> form("#agent-form", agent: %{label: "Newer Codex"}) |> render_submit()
+
+    assert render(view) =~
+             "Supported CLI version: #{Cuckoding.Adapters.Codex.supported_version()}"
+
+    view |> form("#agent-form", agent: %{executable_path: executable}) |> render_submit()
+    view |> element("#agent-form button", "Check sign-in and fetch models") |> render_click()
+    render_async(view, 5_000)
+    assert has_element?(view, "#agent-error", "version is not supported")
+    refute has_element?(view, "li[aria-current=step]", "3. Model")
+  end
+
   test "wizard verifies sign-in and fetches model reasoning levels", %{conn: conn} do
     root =
       Path.join(System.tmp_dir!(), "cuckoding-agent-wizard-#{System.unique_integer([:positive])}")

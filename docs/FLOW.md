@@ -13,9 +13,12 @@ Project setup, board setup, board task intake, and delivery execution are separa
    agent holds only validated runtime settings, authorization status, and a bounded
    provider-reported model catalog refreshed after successful sign-in checks;
    its add wizard steps through name/runtime, discovered executable and
-   authorization, then model and Codex-supported reasoning level. A manual
-   executable path and runtime/model defaults remain available;
-   supported credentials stay in the provider's credential store. Failed sign-in checks and
+   authorization, then model and Codex-supported reasoning level. **Find
+   automatically** checks known executable locations without running candidates;
+   finding a file does not establish version support or sign-in. A manual
+   executable path and runtime/model defaults remain available; see
+   [executable discovery](AGENT_AUTHORIZATION_FLOW.md#executable-discovery).
+   Supported credentials stay in the provider's credential store. Failed sign-in checks and
    disconnects append redacted provider events and remain visible in the saved agent's error
    history after reload. Neither action creates a
    board, task, run, feature branch, worktree, or provider process.
@@ -85,19 +88,22 @@ approval is granted by Start.
 
 ## Intended default feature flow
 
-The accepted product flow is below. It is a target, not a claim that the current
-launcher follows every branch:
+The accepted product flow uses **Speculator, Implementor and Reviewer**, as
+clarified on 2026-09-24. Speculator creates specs and task descriptions from a
+prompt or project `.md` plan files. Reviewer reports its result and comments to
+Cuckoding; every revision returns through Speculator, which updates the task
+and specs before Implementor changes code/tests again. This is the target; the
+current launcher's different names and direct Coding return are described below.
 
 ```mermaid
 flowchart TD
-    I["Inbox"] --> S["Specifications"]
+    I["Prompt or project .md plans"] --> S["Speculator: specs and task description"]
     S --> G1{"Specification gate"}
-    G1 -->|pass| D["Coding"]
+    G1 -->|pass| D["Implementor: code and tests"]
     G1 -->|revise| S
-    D --> Q["Review"]
-    Q --> G2{"Review gate"}
-    G2 -->|fix implementation| D
-    G2 -->|improve specification| S
+    D --> Q["Reviewer: result and comments"]
+    Q --> G2{"Cuckoding validates review result"}
+    G2 -->|needs revision: comment list| S
     G2 -->|pass| H{"Human completion choice"}
     H -->|complete locally| X["Complete: branch stays local"]
     H -->|approve release| R["Release handoff (system)"]
@@ -180,11 +186,20 @@ It does not leave an unusable queued run that blocks another preparation.
 
 | Role | Kind | Responsibilities | Required outputs |
 | --- | --- | --- | --- |
-| Specifications | agent | Clarify intent, inspect code and knowledge, define scope and acceptance criteria | Versioned specification and testable acceptance criteria |
-| Coding | agent | Change only approved scope, add tests, report decisions | Commits, implementation summary, test evidence |
-| Review | agent | Independently test and review correctness, security, and scope | Structured findings, gate result, reproducible commands |
+| Speculator | agent | Produce specs and task descriptions from prompts or project `.md` plans; revise them against Reviewer comments | Versioned specification, task description and testable acceptance criteria |
+| Implementor | agent | Implement code and tests against the task description and specs | Commits, implementation summary, test evidence |
+| Reviewer | agent | Independently review correctness, security and scope; report done or return to Speculator through Cuckoding | Structured result, review-comment list, evidence and reproducible commands |
 | Human approver | human | Verify diff and evidence bundle | Approval decision |
 | Release handoff | system | Push the branch and create the draft PR with the host-side VCS service | Evidence bundle, ready branch, PR link |
+
+These are the accepted role display names; the source still uses
+Specifications/Coding/Review and the stable keys
+`spec_writer`/`implementer`/`reviewer`. Human approver and Release handoff are
+control gates, not additional default agent roles. Users may add roles and
+permissions, but execution requires a versioned workflow mapping and an
+explicit trusted grant supported by the runtime; text instructions never expand
+permissions. Current project forms save custom names/instructions/assignments,
+not a role-permission editor or arbitrary-stage launcher.
 
 The same runtime may fill multiple agent roles, but the default policy prevents the exact same agent session from both implementing and independently approving its work. System roles never run an LLM and never receive a capability grant; they run application code under the user's Git credentials after approval.
 

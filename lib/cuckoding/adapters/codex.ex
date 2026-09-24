@@ -12,6 +12,8 @@ defmodule Cuckoding.Adapters.Codex do
   @model_list_timeout 15_000
   @model_list_limit 200
 
+  def supported_version, do: @supported_version
+
   @impl true
   def probe(options) do
     runner = Keyword.get(options, :command_runner, &System.cmd/3)

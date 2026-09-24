@@ -1,6 +1,6 @@
 # MVP Release Readiness
 
-**Review date:** 2026-09-23
+**Review date:** 2026-09-24 (documentation/source delta review; no new release acceptance)
 
 **Decision:** No-go for controlled-beta enrollment or public MVP release.
 
@@ -9,6 +9,28 @@ not acceptance of an installed release candidate. The evidence ledger is
 [BETA_REPORT.md](BETA_REPORT.md); the exact build and update procedure is
 [DISTRIBUTION.md](DISTRIBUTION.md). Revisit this decision against one frozen,
 signed artifact after task 1003 has completed.
+
+## Recent source and packaging status
+
+At this review, local `main` and the local `origin/main` tracking ref both point
+to `25c00d3`. Tasks 1034–1036 provide the pearl application design and the
+separate Pages design with Classic/Irony artwork; Irony is the Pages default.
+Task 1034 records an unsigned native rebuild and local launch. Its historical
+PID/port is not evidence of what is running now. No live Pages deployment or
+current all-instance restart was verified by this documentation review.
+
+Task 1037 executable discovery is implemented and tested in the working tree on
+`feature/1037-agent-path-discovery`; it is not yet in main or a rebuilt native
+bundle. It checks CLI locations and Codex Desktop bundles with manual override.
+Discovery does not reuse desktop credentials or extend the Codex `0.146.0`
+compatibility pin. Real-provider lifecycle and clean-Mac acceptance remain open.
+
+The accepted default roles are now Speculator, Implementor and Reviewer, with
+Reviewer revisions returning through Cuckoding to Speculator. Current source
+still uses Specifications/Coding/Review and can return directly to Coding.
+Executable custom workflows and role-permission editing also remain open; see
+[role alignment](PLAN.md#role-contract-alignment--2026-09-24). This requirement
+update does not change the no-go decision or close any beta criterion.
 
 ## Support matrix and limits
 
@@ -99,6 +121,7 @@ database to make an error disappear.
 | Symptom | First safe action |
 | --- | --- |
 | Saved agent needs sign-in | Open **Agents**, re-authorize the named account, then retry the queued run's check. Do not copy provider token files into a run. |
+| Agent executable is unknown or rejected | In a build containing task 1037, use **Find automatically** or enter an absolute executable path. A found file must still pass the adapter version check and app-owned sign-in; see [discovery limits](AGENT_AUTHORIZATION_FLOW.md#executable-discovery). |
 | Run preparation says repository is dirty | Commit or stash in the registered repository, then prepare again; inspect the old worktree separately. |
 | Task or run is blocked/failed | Open its timeline, safe failure code, diagnostic location when recorded, and redacted logs. A location is not a cause; older events may not have one. Retry from the task only after checking the previous process is stopped. |
 | Application cannot start after an update | Use safe mode and the retained backup/failed database evidence; do not downgrade onto an unknown schema. |
@@ -130,10 +153,10 @@ On 2026-09-21, newer `a3ef7b1` source passed `bin/dev.build`, Developer ID
 signing, Apple notarization, post-staple ZIP extraction under quarantine,
 Gatekeeper, and the embedded-release sterile verifier; see
 [DISTRIBUTION.md](DISTRIBUTION.md) for its distinct digest and submission ID.
-After the process-inspection fix, current `6ebbd6c` passed the same build,
+After the process-inspection fix, then-current `6ebbd6c` passed the same build,
 signing, notarization, quarantined ZIP, Gatekeeper, and embedded-release
 checks; its revision-specific digest and submission ID are also recorded there.
-Current app code `d7a6222` subsequently passed the same local checks and has
+Then-current app code `d7a6222` subsequently passed the same local checks and has
 a distinct staged ZIP; neither copy has been launched by the QA account.
 None of this verifies provider, participant, complete release-package, or
 clean-Mac install behavior.
@@ -149,7 +172,7 @@ clean-Mac install behavior.
 | Human approval performs release handoff | The [walking skeleton](../worklog/2026-09-17-0405-walking-skeleton.md) pushed an approved branch to a local bare remote | D01 approved handoff on an authorized target, including a draft PR; verify no push before approval |
 | Knowledge is reviewed and later used | Knowledge extraction/publication/lineage tests and views exist | Score K01–K03 and show one approved item used by a later real run with project, version, run, and stage provenance |
 | Four reference plugins enable, contribute, and degrade safely | [Task 0803](../worklog/2026-09-18-0803-reference-plugins.md) records fixture conformance | Exercise RTK, XERJ, Ponytail, and read-only MCP in the enrolled app with labeled contributions and removal without core failure |
-| Clean Mac installs, runs, updates, and uninstalls | Signed ZIPs are staged for the QA account but none has been launched there; the current-app-code `d7a6222` app and post-staple ZIP passed same-Mac signature, Gatekeeper, and sterile checks | One complete signed/notarized release and updater candidate on a clean supported Mac, including sample task, update, rollback, and uninstall with data checks |
+| Clean Mac installs, runs, updates, and uninstalls | Signed ZIPs were staged for the QA account without observed launch there; the historical `d7a6222` app and post-staple ZIP passed same-Mac signature, Gatekeeper, and sterile checks | One complete signed/notarized release and updater candidate on a clean supported Mac, including sample task, update, rollback, and uninstall with data checks |
 
 None of these ten criteria has matching current-release acceptance evidence
 yet. The checked recovery item in the prior plan overstated task 1002's scope;
@@ -174,7 +197,7 @@ in `/Users/Shared` for the existing `qa` macOS account, but a real
 menubar/browser launch from that account is not yet observed. Running the
 signed shell as the current user would use the live
 account-derived app data directory; no disposable override is established.
-The current-app-code `d7a6222` post-staple ZIP has not been published and still lacks a signed
+The historical `d7a6222` post-staple ZIP has not been published and still lacks a signed
 updater and complete release metadata. A first local Tauri bundle attempt
 for the prior `a3ef7b1` returned `Operation not permitted`; a
 controlled bundle rerun and then the complete `bin/dev.build` both passed.
@@ -203,12 +226,14 @@ properties, zero failures), then stopped at the same value-free preflight.
 Certificate import, notarization, updater signing, and artifact upload were
 skipped. The three public update variables and existing updater secrets are
 configured, but no credential value was inspected. Local release variables
-were absent at this review. The [CI credential handoff](DISTRIBUTION.md#ci-credential-handoff)
+were absent at that earlier review. The [CI credential handoff](DISTRIBUTION.md#ci-credential-handoff)
 explains the stakeholder decision and exact secret sources; the local
 `notarytool` profile does not satisfy the hosted workflow. GitHub's
 `macos-15` runner label is Apple Silicon and matches the script's host check.
-The prior provider key exposure also awaits stakeholder confirmation of rotation before more paid
-provider work. Controlled-beta runs, interviews, and real-provider lifecycle
+The previously reported provider-key rotation was stakeholder-confirmed on
+2026-09-23 without inspecting the secret; see [BETA_REPORT.md](BETA_REPORT.md).
+That attestation does not establish provider execution or waive project gates.
+Controlled-beta runs, interviews, and real-provider lifecycle
 evidence remain missing. These are independent no-go gates, not warnings that
 can be cleared by this documentation review.
 

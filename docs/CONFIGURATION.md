@@ -12,6 +12,13 @@ verifies sign-in, then shows provider-reported models or runtime default and a
 validated custom model ID. Codex reasoning levels appear only when the selected
 model reports support for them.
 
+Executable discovery is a machine-local suggestion, not configuration or
+authorization approval. **Find automatically** rescans known CLI and Codex
+Desktop locations; users can enter a different absolute path. No candidate is
+executed during discovery. A saved path still faces the adapter's version and
+sign-in checks. Search order, manual override and the host-only home hint are
+defined in [AGENT_AUTHORIZATION_FLOW.md](AGENT_AUTHORIZATION_FLOW.md#executable-discovery).
+
 The three-step project wizard creates identity, repository/branch, and a first
 trusted configuration revision with unassigned default roles. Project settings
 at `/projects/:id/edit` attach saved agents and assign roles after registration.
@@ -27,7 +34,13 @@ at `/projects/:id/edit` attach saved agents and assign roles after registration.
 or full configuration to persist attachment. Saving the full configuration
 requires every role to be assigned. Removing a connection from a project does
 not delete or revoke the machine-wide account. Custom roles can be saved, but
-the default delivery launcher uses Specifications, Coding, and Review.
+the current default delivery launcher uses Specifications, Coding, and Review.
+The accepted names are Speculator, Implementor and Reviewer; the role contract
+and implementation gaps are in [PRODUCT.md](PRODUCT.md#default-roles-and-extensibility).
+Additional roles and permissions are required product capabilities. Current role
+forms store names, instructions and agent assignments only; adding a role does
+not add a stage or grant permissions. Workflow mapping and trusted, reviewed
+policy must govern execution and access without rewriting historical snapshots.
 
 Runtime authentication is a live dependency: `AgentRuntime` looks up the saved
 account's current authentication mode by ID. It is not fully frozen by the role

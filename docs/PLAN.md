@@ -257,11 +257,31 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
 - [ ] Dogfood and controlled beta.
 - [ ] MVP release readiness.
 
-Remaining gate order: confirm rotation of the previously exposed provider key;
-finish real-provider and shared-account lifecycle evidence; run controlled beta;
+The previously reported provider-key rotation was stakeholder-confirmed on
+2026-09-23 without secret inspection; see [BETA_REPORT.md](BETA_REPORT.md).
+Remaining gate order: finish real-provider and shared-account lifecycle evidence; run controlled beta;
 then execute task 1004 against one frozen signed release candidate. Isolated
 CLI sign-in status and automated tests never substitute for those execution,
 participant, or release acceptance gates.
+
+## Role contract alignment — 2026-09-24
+
+The user clarified the intended defaults in [PRODUCT.md](PRODUCT.md#default-roles-and-extensibility).
+These are pending implementation, not completed by the documentation update:
+
+- [ ] Present Speculator, Implementor and Reviewer as the three default agent
+  roles while preserving stable identifiers and historical snapshots.
+- [ ] Verify Speculator creates specs and task descriptions from prompts and
+  committed project `.md` plan files, and Implementor uses both to produce code
+  and tests. Keep task-proposal import and trust boundaries explicit.
+- [ ] Route every Reviewer revision result through Cuckoding to Speculator with
+  the review-comment list; rerun implementation/review within finite budgets.
+  Current direct-to-Coding routing does not satisfy this contract.
+- [ ] Connect user-added roles to executable versioned workflows and let users
+  configure additional permissions through reviewed policy and runtime grants.
+  Existing editable role metadata is only partial implementation.
+- [ ] Cover role defaults, Markdown intake, comment propagation, return routing,
+  permission enforcement and snapshot preservation before claiming completion.
 
 ## Definition of done for MVP
 

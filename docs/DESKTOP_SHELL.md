@@ -64,6 +64,12 @@ or additional dependency is required.
 
 ## Security notes
 
+- The launch environment is cleared, with a fixed system PATH and app-owned
+  HOME. The shell supplies `CUCKODING_RUNTIME_HOME` as a host-only hint for
+  known-location executable discovery. This does not load shell startup files,
+  reuse personal provider profiles, expand an agent grant or reach agent child
+  environments. See [executable discovery](AGENT_AUTHORIZATION_FLOW.md#executable-discovery)
+  and the [safe local restart procedure](DEVELOPMENT.md#testing-one-local-instance).
 - The bootstrap credential is exchanged once for a shell session; browser sessions are separate, short-lived, and cookie-based.
 - `/open` tokens are single-use and expire in 60 seconds; a stolen link cannot be replayed.
 - Strict host/origin checks on all shell and browser endpoints; CSRF on state-changing routes.

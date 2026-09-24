@@ -12,18 +12,60 @@ defmodule Cuckoding.Adapters.RuntimeConfiguration do
     {"Custom Agent", "custom_agent"}
   ]
   @runtimes Enum.map(@options, &elem(&1, 1))
+  @executables %{
+    "codex" => ["codex"],
+    "claude_code" => ["claude"],
+    "cursor_agent" => ["cursor-agent", "agent"],
+    "opencode" => ["opencode"]
+  }
 
   def options, do: @options
 
   # Do not present guessed models as provider availability.
   def models(_runtime), do: []
 
-  def default_executable("codex"), do: discover_executable(["codex"])
-  def default_executable("claude_code"), do: discover_executable(["claude"])
-  def default_executable("cursor_agent"), do: discover_executable(["cursor-agent", "agent"])
-  def default_executable("opencode"), do: discover_executable(["opencode"])
-  def default_executable("custom_agent"), do: ""
-  def default_executable(_runtime), do: ""
+  def default_executable(runtime, options \\ []) do
+    names = Map.get(@executables, runtime, [])
+
+    home =
+      Keyword.get_lazy(options, :home, fn ->
+        System.get_env("CUCKODING_RUNTIME_HOME") || System.user_home()
+      end)
+
+    path = Keyword.get_lazy(options, :path, fn -> System.get_env("PATH", "") end)
+
+    roots =
+      String.split(path, ":", trim: true) ++
+        Enum.map(
+          ~w(.local/bin .volta/bin .npm-global/bin .bun/bin .asdf/shims .opencode/bin),
+          fn dir ->
+            if home, do: Path.join(home, dir)
+          end
+        ) ++
+        Keyword.get(options, :system_dirs, ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"])
+
+    cli_paths =
+      for root <- Enum.reject(roots, &is_nil/1), name <- names, do: Path.join(root, name)
+
+    app_dirs =
+      Keyword.get(options, :application_dirs, [
+        "/Applications",
+        home && Path.join(home, "Applications")
+      ])
+
+    desktop_paths =
+      for dir <- Enum.reject(app_dirs, &is_nil/1),
+          app <- ["Codex.app", "ChatGPT.app"],
+          runtime == "codex",
+          do: Path.join([dir, app, "Contents", "Resources", "codex"])
+
+    Enum.find_value(Enum.uniq(cli_paths ++ desktop_paths), "", fn path ->
+      case executable(path) do
+        {:ok, expanded} -> expanded
+        _other -> nil
+      end
+    end)
+  end
 
   def warning("cursor_agent"), do: CursorAgent.warning()
   def warning("opencode"), do: OpenCode.warning()
@@ -70,22 +112,6 @@ defmodule Cuckoding.Adapters.RuntimeConfiguration do
        do: {:ok, value}
 
   defp reasoning_effort(_runtime, _value), do: {:error, :invalid_reasoning_effort}
-
-  defp discover_executable(names) do
-    roots =
-      [
-        System.user_home() && Path.join(System.user_home(), ".local/bin"),
-        "/opt/homebrew/bin",
-        "/usr/local/bin",
-        "/usr/bin"
-      ]
-      |> Enum.reject(&is_nil/1)
-
-    Enum.find_value(names, &System.find_executable/1) ||
-      Enum.find_value(for(root <- roots, name <- names, do: Path.join(root, name)), "", fn path ->
-        if match?({:ok, _}, executable(path)), do: path
-      end)
-  end
 
   defp executable(path) when is_binary(path) do
     expanded = Path.expand(path)

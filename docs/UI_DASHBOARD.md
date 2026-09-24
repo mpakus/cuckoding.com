@@ -42,12 +42,57 @@ skip link retain native keyboard paths.
 
 Artwork files: `priv/static/assets/images/workspace-portal.webp` and
 `priv/static/assets/images/knowledge-crystal.webp`. Generation prompts and
-verification evidence are recorded in the task 1034 worklog.
+verification evidence are recorded in the [task 1034 worklog](../worklog/2026-09-24-1034-pearl-workspace.md).
+
+### Public GitHub Pages site and illustration modes
+
+`github.page/` is a separate static HTML/CSS/JavaScript surface. Its matching
+pearl style does not change the LiveView application or add an app theme switch.
+The site uses pearl `#f0f0f6`, paper `#fafafe`, ink `#252432`, secondary text
+`#626176`, violet `#6744dc`, dark links/focus `#5232ba`, rounded panels and system
+fonts. The hero, workflow and knowledge panels use locally served original WebP
+art with intrinsic dimensions; later illustrations load lazily.
+
+| Mode | Assets under `github.page/assets/` | Intended scene |
+| --- | --- | --- |
+| Classic | `pearl-crew.webp`, `pearl-path.webp`, `pearl-knowledge.webp` | Robots collaborate, follow a deliberate path and maintain a knowledge archive |
+| Irony (default) | `irony-crew.webp`, `irony-path.webp`, `irony-knowledge.webp` | Robot managers relax while humans serve coffee, carry their manager and power the archive |
+
+Irony is office satire about humans doing the work for their automated bosses.
+It changes artwork and art captions, not product capabilities or release claims.
+The native **Illustration mode** radio group has labeled 44 px targets, visible
+keyboard focus and a polite status region. It switches all three images and
+their alt text plus six captions/labels. Decorative hero art keeps empty alt
+text; informative scenes have mode-specific descriptions. The original Classic
+assets remain unchanged.
+
+The browser preference key is `cuckoding-illustration-mode`. Only a saved
+`classic` value overrides Irony; missing, invalid or inaccessible storage uses
+Irony. Storage failure still allows switching within the page. Without
+JavaScript, Irony remains visible and the unavailable switch stays hidden.
+Static markup, hero preload and social preview all start with Irony.
+
+Concept/satirical art and the illustrative workspace board are labeled as such;
+they are not screenshots or measured activity. Native scroll reveals and
+decorative parallax respect reduced motion, including a preference change while
+the page is open. Each three-image set stays below 400,000 bytes. Prompts,
+hashes and rendered checks are in the [1035 design](../worklog/2026-09-24-1035-pearl-pages.md)
+and [1036 mode](../worklog/2026-09-24-1036-pages-irony-mode.md) worklogs. Source
+checks are in [TESTING.md](TESTING.md); main integration alone does not establish
+a successful Pages deployment.
 
 ### Saved agents and provider sign-in
 
-In **Agents**, choose the runtime and a model (runtime default, a suggested model,
-or a custom model ID). New Codex/Cursor agents reuse a compatible saved provider
+In **Agents**, the wizard follows **Name and runtime → Authorization → Model**.
+Authorization suggests an installed executable and offers **Find automatically**
+plus an editable absolute path. A failed search preserves manual input; saving
+locks that step until **Edit agent**. Discovery can find Codex Desktop's bundled
+CLI but does not reuse its sign-in or establish supported-version compatibility.
+The final step selects runtime default, a provider-reported model or a validated
+custom model ID. See [AGENT_AUTHORIZATION_FLOW.md](AGENT_AUTHORIZATION_FLOW.md)
+for search locations and compatibility limits.
+
+New Codex/Cursor agents reuse a compatible saved provider
 sign-in by default. A separate sign-in is an explicit choice, not a consequence
 of giving an agent another name, model or role. Shared agents link to the original
 sign-in controls instead of duplicating login commands. Model suggestions do not

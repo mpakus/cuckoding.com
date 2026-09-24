@@ -45,6 +45,36 @@ verified application is written to
 not Developer ID sign, notarize, or create distributable update artifacts; use
 `desktop/release.sh` only for an authorized release.
 
+### Testing one local instance
+
+The native bundle, a Phoenix development/test preview, and the static
+`github.page/` preview are separate processes and may show different revisions.
+Editing source or merging main does not update an already built or running app.
+For a requested stop-all-and-run-one check:
+
+1. Identify owned Cuckoding shells, their release children and task-owned
+   previews by executable name, PID/start identity, working directory and
+   loopback listener. Never dump full process arguments or environments; they
+   can contain credentials belonging to unrelated applications. Historical
+   worklog ports/PIDs are not a current process inventory.
+2. Use the Cuckoding menu's **Quit** path (or its supported graceful signal
+   path), which hibernates work before shutdown. If hibernation fails, inspect
+   the failure instead of killing active runs. Stop only verified task-owned
+   previews and confirm their listeners/descendants have exited. Do not stop
+   Codex Desktop, Cursor or unrelated BEAM processes.
+3. When testing new application source, build with `rtk ./bin/dev.build`, follow
+   the data-upgrade procedure below if needed, then open the resulting
+   `desktop/src-tauri/target/release/bundle/macos/Cuckoding.app` once.
+4. Verify exactly one intended Cuckoding shell/control-plane pair, its actual
+   loopback listener and healthy `/health` response. Open the authenticated
+   dashboard through the menubar action; do not bypass the handshake. Record
+   build identity, database scope, health and UI checks separately.
+
+For isolated UI checks, use a separate disposable database/provider directory
+and disable execution workers. Do not print raw preview/debug logs: redact
+before inspection, including session/CSRF/bootstrap values. No preview or old
+unsigned build substitutes for clean-Mac signed-release acceptance.
+
 ### Updating existing developer data
 
 Signed updates create a durable database, knowledge, and configuration snapshot
@@ -158,6 +188,8 @@ LiveViews render durable context results; they do not own workflow state.
 - `/` is the project-first operations dashboard.
 - `/projects/new` is the non-executing project registration wizard.
 - `/projects/:id/edit` manages saved agents, project role assignments, and boards.
+- `/settings/agents` is the machine-wide saved-agent catalog with executable
+  discovery, explicit manual override, app-owned sign-in and model selection.
 - `/boards/:id` creates Draft tasks and planning runs and shows the Kanban.
 - `/boards/:board_id/tasks/:id` edits eligible tasks and prepares their runs.
 - `/runs/:id` authenticates/starts queued work and shows progress, failures, proposals, and evidence.
