@@ -454,6 +454,7 @@ defmodule CuckodingWeb.RunLive do
         <details
           :if={intake?(@detail) and @task_proposals != []}
           id="task-proposal-review"
+          phx-mounted={JS.ignore_attributes("open")}
           open={@detail.run.state in ["waiting", "running", "blocked"]}
           aria-labelledby="task-proposal-review-heading"
           class="space-y-4 rounded-lg border border-slate-300 bg-white p-5"

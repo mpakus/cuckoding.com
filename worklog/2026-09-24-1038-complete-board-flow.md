@@ -400,3 +400,69 @@ confirmation; open Cuckoding from its menu-bar action; connect an app-owned
 provider account; exercise the fully clicked native journey, keyboard controls
 and live parallel motion. The implementation and fixture checks above are
 complete, but task 1038 and the full-flow goal stay open for that evidence.
+
+## Continued browser acceptance and disclosure fix
+
+The next continuation revalidated the healthy native app, clean local main and
+zero native provider accounts; it made no implementation progress because the
+test tab remained unreachable. On the following continuation the stale tab had
+cleared, allowing meaningful browser work to resume. The isolated 4114 fixture
+server was restarted with only its explicit execution supervisors and automatic
+dispatcher; it never used native application data or real provider credentials.
+
+Browser interaction exposed a separate root cause: periodic LiveView patches
+removed the native `open` attribute while the user was entering a planning
+prompt. Inspected every workspace disclosure and the installed MIT-licensed
+Phoenix LiveView implementation at
+`deps/phoenix_live_view/lib/phoenix_live_view/js.ex:1052-1105`. The fix uses the
+existing `JS.ignore_attributes("open")` on mount, with the shared standard
+`Phoenix.LiveView.JS` alias. Server defaults still set initial expansion; new
+board validation alerts explicitly reopen their form with `JS.set_attribute`.
+Contents keep receiving live updates. No hook, custom state store or dependency
+was introduced. XERJ remained unavailable; no peer source was copied.
+
+Runnable browser regression: open **Ask an agent to plan tasks**, select
+Speculator, type a prompt, allow several five-second updates, then assert the
+details element remains open, textarea value unchanged and textarea focused.
+The original page closed the panel and made its controls unavailable; the fixed
+page passed all three assertions and submitted successfully. This checks actual
+browser behavior rather than reproducing LiveView internals in a mock test.
+
+Using the normal browser controls after the fix:
+
+- Created **Browser acceptance** with concurrency two from the saved project
+  roles; selected Speculator and a prompt referencing `docs/PLAN.md`.
+- Started analysis, chose the independent Reviewer model, saw revised task
+  text, explicit comments and a hashed report, and imported its Draft card.
+- Used the keyboard Move control to mark the card Ready, selected automatic
+  local completion at Project Start, and observed live Speculator/Implementor/
+  Reviewer state/model changes and Done without reloading the board.
+- Created two independent delayed fixture tasks. Both appeared Running with
+  current roles/models. Pausing A left B running. Dashboard Pause all suspended
+  both; Resume workspace resumed B while A stayed individually paused. Resume
+  run resumed A. Both eventually completed and the board displayed Done (3),
+  with no stale approval wait labels.
+- Rendered custom-role controls expose planning-only/after-Speculator/
+  after-Implementor slots and read-only/worktree-write permissions. Saving a
+  new grant still requires its existing confirmation.
+
+Verification: the first focused run exposed a missing JS alias (20 of 30 tests
+failed); adding the shared alias fixed it. The rerun passed all 30 focused
+LiveView tests. `rtk env -u CR_PAT mix quality` then passed formatter, compiler,
+10 properties/333 tests, Credo and Sobelow. Hex audit exited successfully but
+reported a cache-file warning; a separate `rtk env -u CR_PAT mix hex.audit`
+rerun passed without that warning. The subsequent explicit error-reopen
+attributes were checked with the focused board tests and formatter; results
+follow below. Native confirmation automation, visibly observed motion and
+real-provider/native-user-data acceptance remain open.
+
+Final disclosure checks:
+
+- `rtk env -u CR_PAT mix test test/cuckoding_web/board_live_test.exs`:
+  9 tests, 0 failures after the explicit error-reopen attributes.
+- `rtk mix credo --strict`, `rtk mix format --check-formatted` and
+  `rtk git diff --check`: passed.
+- Read-only fixture event inspection confirmed `process.paused` and
+  `process.resumed`, alongside run-control events, for both concurrent tasks.
+  The browser showed all three acceptance cards Done. The inspected new-role
+  form was left unsaved; no extra capability grant was persisted.

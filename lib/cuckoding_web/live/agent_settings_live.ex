@@ -662,6 +662,7 @@ defmodule CuckodingWeb.AgentSettingsLive do
               is_nil(account.authorization_account_id) and
                 List.wrap(@failures[account.id]) != []
             }
+            phx-mounted={JS.ignore_attributes("open")}
             class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-950"
           >
             <summary class="min-h-6 cursor-pointer font-semibold">
@@ -706,7 +707,10 @@ defmodule CuckodingWeb.AgentSettingsLive do
             :if={is_nil(account.authorization_account_id)}
             class="space-y-3"
           >
-            <details open={account.status != "authenticated"}>
+            <details
+              phx-mounted={JS.ignore_attributes("open")}
+              open={account.status != "authenticated"}
+            >
               <summary class="min-h-11 cursor-pointer font-medium">
                 {if account.status == "authenticated", do: "Re-authorize agent", else: "Sign in once"}
               </summary>

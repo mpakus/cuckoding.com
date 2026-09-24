@@ -78,6 +78,7 @@ Before changing implementation code, read:
 - The Pages illustration switch defaults to Irony and respects saved Classic. Keep no-JavaScript markup, preload/social image, captions and alt text consistent with the selected/default artwork; retain keyboard, storage-denied and reduced-motion behavior.
 - Every long-running action must show state, elapsed time, owner role, runtime, model when known, and a safe control: pause, resume, retry, stop, or inspect.
 - Every state change must have an accessible non-drag alternative. Kanban drag-and-drop is an enhancement, not the only control.
+- Preserve entered text, keyboard focus and expanded disclosures across live updates. New validation errors must remain visible.
 - Never use color as the only status signal.
 - Destructive and trust-boundary actions require confirmation and an audit event.
 

@@ -30,9 +30,12 @@ Speculator/Implementor/Reviewer cycles → local completion, with a passing
 candidate test. This is not real-provider acceptance.
 
 Browser checks covered registration, executable discovery/manual override,
-reusable sign-in/model selection, and desktop/mobile board rendering. Native
-folder-picker automation and a stuck browser confirmation prevented the full
-clicked journey. The latter requires the user to dismiss the test-tab dialog.
+reusable sign-in/model selection, and desktop/mobile board rendering. After the
+stalled test tab cleared, the clicked fixture flow reached Done and exercised
+two concurrent tasks plus individual/workspace pause and resume. Live updates
+were found collapsing native disclosures; preserving browser-owned open state
+fixed that failure. Native folder-picker and confirmation automation, visible
+motion and real-provider acceptance remain separate open checks.
 The rebuilt native app has no saved provider sign-in; its authenticated UI and
 real-provider full-flow check still need user participation. Preserve these
 open acceptance boxes until that evidence exists. See the worklog for source,

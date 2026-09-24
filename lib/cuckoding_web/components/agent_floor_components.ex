@@ -97,7 +97,10 @@ defmodule CuckodingWeb.AgentFloorComponents do
         </section>
       </div>
 
-      <details class="rounded-lg border border-slate-300 bg-white p-4">
+      <details
+        phx-mounted={JS.ignore_attributes("open")}
+        class="rounded-lg border border-slate-300 bg-white p-4"
+      >
         <summary class="min-h-10 cursor-pointer font-semibold text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2">
           Agent table view
         </summary>

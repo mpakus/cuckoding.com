@@ -145,7 +145,10 @@ defmodule CuckodingWeb.KnowledgeReviewLive do
                   {candidate.content}
                 </div>
 
-                <details class="rounded-md border border-slate-200 p-3">
+                <details
+                  phx-mounted={JS.ignore_attributes("open")}
+                  class="rounded-md border border-slate-200 p-3"
+                >
                   <summary class="cursor-pointer font-medium text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2">
                     Evidence and redaction
                   </summary>

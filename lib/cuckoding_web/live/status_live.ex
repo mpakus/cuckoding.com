@@ -447,7 +447,7 @@ defmodule CuckodingWeb.StatusLive do
                 </text>
               </g>
             </svg>
-            <details class="mt-2 text-sm">
+            <details phx-mounted={JS.ignore_attributes("open")} class="mt-2 text-sm">
               <summary class="min-h-10 cursor-pointer font-medium text-slate-900">
                 View minute-by-minute data
               </summary>
@@ -556,7 +556,10 @@ defmodule CuckodingWeb.StatusLive do
               </ul>
             </div>
           </div>
-          <details class="rounded-xl border border-slate-200 bg-white p-5">
+          <details
+            phx-mounted={JS.ignore_attributes("open")}
+            class="rounded-xl border border-slate-200 bg-white p-5"
+          >
             <summary class="cursor-pointer font-semibold text-slate-950">
               Event log ({length(visible_activity(@activity, @activity_filter))})
             </summary>
@@ -943,7 +946,10 @@ defmodule CuckodingWeb.StatusLive do
 
         <.usage_summary records={@usage_records} />
 
-        <details class="rounded-lg border border-slate-200 bg-white p-5">
+        <details
+          phx-mounted={JS.ignore_attributes("open")}
+          class="rounded-lg border border-slate-200 bg-white p-5"
+        >
           <summary class="cursor-pointer font-semibold text-slate-950">Diagnostics</summary>
           <div class="mt-4 space-y-4">
             <dl class="divide-y divide-slate-200 rounded-lg border border-slate-200">

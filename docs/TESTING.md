@@ -155,11 +155,28 @@ local completion. The generated candidate's focused test passed. This exercised
 the Codex JSONL/host-process path with a fixture CLI, not an external provider.
 
 Desktop and 390-pixel board rendering were inspected; the narrow page had no
-horizontal overflow. A stuck native confirmation in the in-app browser blocked
-further clicks, so role-save confirmation, keyboard control, live movement and
-the complete clicked journey remain unverified. Native folder-picker automation
-was unavailable; the isolated exercise substituted a deterministic fixture
-picker. Neither limitation was bypassed in the native app.
+horizontal overflow. After the initially stuck browser confirmation cleared,
+the clicked fixture journey created a board, selected Speculator, generated
+proposals from a Markdown plan, selected another review model, displayed its
+report/comments, imported a Draft task, moved it to Ready with the keyboard,
+and used Project Start with explicit automatic local completion. The card
+updated through the correction loop to Done without reloading the board.
+Two additional tasks ran concurrently; individual pause/resume and dashboard
+pause/resume verified that workspace resume preserves an individual pause.
+
+The browser exercise caught live updates collapsing native disclosures.
+Disclosure `open` state now belongs to the browser after mount via LiveView's
+`JS.ignore_attributes`. A runnable browser regression opens the planning panel,
+selects a role, types a prompt, lets multiple five-second updates arrive, then
+asserts the panel stays open, the prompt is unchanged and focus remains in its
+textarea before submitting. The pre-fix page lost the open state; the fixed
+page passed and continued through planning. The server still supplies initial
+open defaults and updates disclosure content normally.
+
+Native confirmation controls and visible motion remain separate acceptance
+items. Native folder-picker automation was unavailable; the isolated exercise
+substituted a deterministic fixture picker. Neither limitation was bypassed in
+the native app, and fixture-provider results do not prove real-provider behavior.
 
 The rebuilt unsigned native app passed the desktop verifier and started with a
 healthy database after a verified backup and forward migration. Its database

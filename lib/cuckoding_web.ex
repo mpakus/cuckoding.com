@@ -54,6 +54,7 @@ defmodule CuckodingWeb do
     quote do
       import Phoenix.HTML
       alias CuckodingWeb.Layouts
+      alias Phoenix.LiveView.JS
       unquote(verified_routes())
     end
   end

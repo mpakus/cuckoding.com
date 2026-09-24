@@ -306,7 +306,12 @@ page. Agent text is labeled untrusted and is never treated as a user command.
 
 At `/boards/:id`, expand **Add a task** or **Ask an agent to plan tasks**.
 These native keyboard-operable disclosures keep the task board in reach;
-planning validation errors reopen their form.
+their initial open defaults come from the server, then browser-owned open state
+survives LiveView patches using `JS.ignore_attributes("open")`. Live data inside
+them continues to update; periodic refreshes must not collapse a form or steal
+focus while the user is typing. Other workspace disclosures follow the same rule.
+New validation alerts explicitly reopen the relevant board form with
+`JS.set_attribute`, retaining visible error feedback.
 Choose an assigned role and enter a prompt such as “Read docs/ and propose tasks
 from docs/TASKS.md.” **Create planning run** shows submit feedback and navigates
 to a queued run; it does not silently start the provider or import cards. On

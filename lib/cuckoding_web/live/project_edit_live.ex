@@ -420,6 +420,7 @@ defmodule CuckodingWeb.ProjectEditLive do
         <details
           :if={@saved_agents != []}
           id="saved-agents-panel"
+          phx-mounted={JS.ignore_attributes("open")}
           open={@config["agent_connections"] == []}
           aria-labelledby="saved-agents-heading"
           class="space-y-4"

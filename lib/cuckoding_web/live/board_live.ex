@@ -203,6 +203,7 @@ defmodule CuckodingWeb.BoardLive do
 
         <details
           id="new-task-panel"
+          phx-mounted={JS.ignore_attributes("open")}
           open={@error != nil}
           aria-labelledby="new-task-heading"
           class="rounded-xl border border-slate-200 bg-white p-5"
@@ -258,6 +259,7 @@ defmodule CuckodingWeb.BoardLive do
 
         <details
           id="agent-task-intake"
+          phx-mounted={JS.ignore_attributes("open")}
           open={@intake_error != nil}
           aria-labelledby="agent-task-intake-heading"
           class="rounded-xl border border-slate-200 bg-white p-5"
@@ -326,6 +328,7 @@ defmodule CuckodingWeb.BoardLive do
             <p
               :if={@intake_error}
               id="task-intake-error"
+              phx-mounted={JS.set_attribute({"open", ""}, to: "#agent-task-intake")}
               role="alert"
               class="text-sm font-medium text-red-800"
             >
@@ -388,7 +391,13 @@ defmodule CuckodingWeb.BoardLive do
         <p id="board-status" role="status" aria-live="polite" class="text-sm text-emerald-900">
           {@notice || ""}
         </p>
-        <p :if={@error} id="board-error" role="alert" class="text-sm font-medium text-red-800">
+        <p
+          :if={@error}
+          id="board-error"
+          phx-mounted={JS.set_attribute({"open", ""}, to: "#new-task-panel")}
+          role="alert"
+          class="text-sm font-medium text-red-800"
+        >
           {@error}
         </p>
 
