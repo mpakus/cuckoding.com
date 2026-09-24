@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: blocked
 owner: codex
 started_at: 2026-09-24
 worklog: worklog/2026-09-24-1038-complete-board-flow.md
@@ -40,3 +40,9 @@ The rebuilt native app has no saved provider sign-in; its authenticated UI and
 real-provider full-flow check still need user participation. Preserve these
 open acceptance boxes until that evidence exists. See the worklog for source,
 bundle, data-preservation and running-instance evidence separately.
+
+User-dependent handoff: open the rebuilt Cuckoding menu-bar app and connect an
+app-owned provider account. The same missing native authorization has persisted
+across three goal continuations; independent fixture, UI, merge and packaging
+work is finished. Resume native acceptance after sign-in, without treating the
+fixture evidence as completion of the full goal.

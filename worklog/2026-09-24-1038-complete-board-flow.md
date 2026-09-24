@@ -466,3 +466,43 @@ Final disclosure checks:
   `process.resumed`, alongside run-control events, for both concurrent tasks.
   The browser showed all three acceptance cards Done. The inspected new-role
   form was left unsaved; no extra capability grant was persisted.
+
+## Current main build and user-dependent handoff
+
+Committed the disclosure fix as `9edaf1f` and fast-forward merged local main.
+Changed Markdown link targets and `rtk git diff --check` passed. The temporary
+browser tab was closed and its isolated preview stopped after confirming every
+fixture run was terminal. The previous native shell and child exited cleanly
+after identity checks and confirmation that native data had no active runs.
+
+`rtk env -u CR_PAT ./bin/dev.build` passed from clean `9edaf1f`: production
+assets/compiler/release, 6 metadata tests/15 assertions, release promotion,
+10 native tests, Rust formatting/Clippy, app packaging and all desktop verifier
+checks including authentication, shutdown, crash recovery and update rollback.
+No database migration was needed. This remains an unsigned local developer
+build, with no remote push or release publication.
+
+The UI tool launched the exact bundle but again timed out binding its tray-only
+interface. Metadata verified one shell PID 55050 and its child PID 55133,
+started at 02:49:41/42 local time. At 07:50:11 UTC, the sole native endpoint on
+`127.0.0.1:58049` returned HTTP 200 with healthy database, PubSub and endpoint.
+Bundled BoardLive/StatusLive bytecode matches the current production release.
+Native integrity and foreign-key checks passed; counts remain one project,
+one board and zero tasks, runs or provider accounts. The private backup remains.
+
+The final listener check found an older Pages preview on 4115. Its executable,
+start time, repository cwd and the earlier 1035/1036 worklogs established
+ownership; it was stopped with SIGTERM. Ports 4114 and 4115 are now closed.
+An initial assertion failed on that listener before cleanup; native health
+itself passed. Process inspection used only metadata, never argv or environment.
+
+The original browser-dialog blocker cleared and keyboard/concurrent-flow
+acceptance advanced as recorded above. Native provider authorization is still
+absent across at least three goal continuations. All independent changes are
+merged and built; the task/goal are blocked pending the user opening Cuckoding
+from its menu-bar action and connecting an app-owned provider. Native folder
+selection, confirmation controls, visibly observed motion and real-provider
+execution remain acceptance gaps. No credential or native handshake was read
+or bypassed. Proxy exceptions in this continuation were source reads, bounded
+metadata/SQLite verification and identity-checked process shutdown, requiring
+unfiltered command semantics.
