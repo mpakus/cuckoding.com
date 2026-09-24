@@ -231,6 +231,7 @@ defmodule Cuckoding.ActivityStream do
       public_summary: event.public_summary,
       payload:
         event.metadata
+        |> Cuckoding.Plugins.RTK.annotate()
         |> Map.put("provider_event_key", provider_event_key)
         |> Map.put("provider_sequence", event.sequence)
         |> Map.put("trust", Atom.to_string(event.trust))

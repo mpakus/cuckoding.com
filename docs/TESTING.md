@@ -249,3 +249,14 @@ append-only security audit rows.
 ## Determinism
 
 Freeze clock, identifiers, price catalog, workflow version, plugin versions, and provider fixtures where applicable.
+
+## RTK compatibility and confinement
+
+`rtk env -u CR_PAT MIX_ENV=test mix run scripts/rtk_runtime_smoke.exs` checks the
+installed 0.49.0 binary in private temporary run storage under restricted PATH.
+It requires permission-sensitive rewrite exits, quoting/compound preservation,
+no double wrapping, exact-output/nonzero-exit behavior and no persisted canary.
+The plugin/adapter/command-policy suites test frozen scope grants, stage resume,
+missing/changed/non-executable binaries, symlink rejection, all managed role
+categories, unchanged provider commands and single execution. Hook compatibility
+is a separate gate: fixture conformance does not enable a native hook.

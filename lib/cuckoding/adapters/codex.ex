@@ -60,6 +60,7 @@ defmodule Cuckoding.Adapters.Codex do
        permission_modes: ["read-only", "workspace-write"],
        model_discovery?: true,
        instruction_files: ["AGENTS.md"],
+       shell_rewrite: Cuckoding.Plugins.RTK.capability("codex"),
        skill_directories: []
      }}
   end
@@ -78,13 +79,14 @@ defmodule Cuckoding.Adapters.Codex do
 
   @impl true
   def render_config(%Types.StageRequest{} = request, options) do
+    request = Cuckoding.Plugins.RTK.prepare_request(request)
     root = Path.join(request.run_dir, "agent")
     codex_dir = Path.join(root, "codex")
     home = Path.join(codex_dir, "home")
 
     with {:ok, mode} <- sandbox_mode(request.grant),
          {:ok, credentials_store} <- credentials_store(options),
-         :ok <- plugins_disabled(request.plugins),
+         :ok <- plugins_disabled(Cuckoding.Plugins.RTK.other_plugins(request.plugins)),
          :ok <- prepare_directory(root, request.run_dir),
          :ok <- prepare_directory(codex_dir, root),
          :ok <- prepare_directory(home, codex_dir),
@@ -233,6 +235,8 @@ defmodule Cuckoding.Adapters.Codex do
   end
 
   def launch_spec(%Types.StageRequest{} = request, options \\ []) do
+    request = Cuckoding.Plugins.RTK.prepare_request(request)
+
     with {:ok, path} <- executable(options),
          true <- Keyword.get(options, :run_scoped_authenticated?, false),
          :ok <- valid_model(request.requested_model),

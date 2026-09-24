@@ -53,12 +53,14 @@ defmodule Cuckoding.Adapters.ClaudeCode do
        permission_modes: ["dontAsk", "plan"],
        model_discovery?: false,
        instruction_files: ["instructions.md"],
+       shell_rewrite: Cuckoding.Plugins.RTK.capability("claude_code"),
        skill_directories: ["claude-plugin/skills"]
      }}
   end
 
   @impl true
   def render_config(%Types.StageRequest{} = request, options) do
+    request = Cuckoding.Plugins.RTK.prepare_request(request)
     root = Path.join(request.run_dir, "agent")
     claude_dir = Path.join(root, "claude")
     plugin_dir = Path.join(root, "claude-plugin")
@@ -220,6 +222,8 @@ defmodule Cuckoding.Adapters.ClaudeCode do
   def knowledge_citations(_provider_event, _options), do: []
 
   def launch_spec(%Types.StageRequest{} = request, options \\ []) do
+    request = Cuckoding.Plugins.RTK.prepare_request(request)
+
     with {:ok, path} <- executable(options),
          true <- valid_helper?(Keyword.get(options, :api_key_helper)) do
       claude_dir = Path.join([request.run_dir, "agent", "claude"])

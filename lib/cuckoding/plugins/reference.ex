@@ -17,11 +17,12 @@ defmodule Cuckoding.Plugins.Reference.RTK do
       {:ok,
        %Result{
          data: %{
-           "executable" => "rtk",
-           "args" => [command.executable | command.args],
+           "executable" => command.executable,
+           "args" => command.args,
            "underlying_executable" => command.executable,
            "underlying_args" => command.args,
-           "contribution" => "RTK output reduction",
+           "mode" => "captured_output",
+           "contribution" => "Optional RTK filtering after execution",
            "source" => "configured"
          }
        }}
@@ -34,11 +35,25 @@ defmodule Cuckoding.Plugins.Reference.RTK do
   def wrap(_request, _context), do: {:error, :command_key_required}
 
   @impl true
+  def filter(
+        %{"environment" => environment, "completed" => completed, "binary" => binary},
+        context
+      ) do
+    if environment.run_id == context.run_id do
+      case Cuckoding.Plugins.RTK.filter_output(environment, completed, binary) do
+        {:ok, output} -> {:ok, %Result{data: %{"output" => output, "source" => "host_observed"}}}
+        :passthrough -> {:ok, %Result{data: %{"mode" => "passthrough"}}}
+      end
+    else
+      {:error, :environment_run_mismatch}
+    end
+  end
+
   def filter(%{"streaming" => true}, _context) do
     {:ok, %Result{data: %{"mode" => "passthrough", "reason" => "streaming output required"}}}
   end
 
-  def filter(_request, _context), do: {:ok, %Result{data: %{"mode" => "wrapped"}}}
+  def filter(_request, _context), do: {:ok, %Result{data: %{"mode" => "passthrough"}}}
 
   @impl true
   def analytics(request, context) do

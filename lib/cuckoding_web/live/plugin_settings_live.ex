@@ -176,6 +176,20 @@ defmodule CuckodingWeb.PluginSettingsLive do
                 </span>
               </header>
 
+              <div
+                :if={plugin.key == "rtk"}
+                id="rtk-agent-status"
+                class="space-y-1 text-sm text-slate-700"
+              >
+                <p class="font-semibold">
+                  Use RTK for all agents: {elem(Cuckoding.Plugins.RTK.settings_status(plugin), 0)}
+                </p>
+                <p>{elem(Cuckoding.Plugins.RTK.settings_status(plugin), 1)}</p>
+                <p>
+                  Enable the global scope below to apply RTK to new managed runs. Narrower scope restrictions are preserved. Existing runs keep their recorded configuration.
+                </p>
+              </div>
+
               <dl class="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
                 <div>
                   <dt class="font-medium text-slate-700">Network</dt>

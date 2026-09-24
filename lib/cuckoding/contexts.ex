@@ -504,7 +504,16 @@ defmodule Cuckoding.Execution do
           end)
       }
 
-      {:ok, Map.put(attrs, :workflow_snapshot_json, snapshot)}
+      {:ok,
+       attrs
+       |> Map.put(:workflow_snapshot_json, snapshot)
+       |> Map.put(
+         :plugin_snapshot_json,
+         Map.merge(
+           attrs[:plugin_snapshot_json] || %{},
+           Cuckoding.Plugins.RTK.snapshot(board, roles)
+         )
+       )}
     else
       nil -> {:error, :snapshot_source_not_found}
       {:error, reason} -> {:error, reason}

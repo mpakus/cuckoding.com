@@ -11,12 +11,15 @@ defmodule Cuckoding.Adapters.CursorAgent do
   @model_list_limit 200
   @unsafe_project_paths [
     ".cursor/cli.json",
+    ".cursor/hooks.json",
     ".cursor/mcp.json",
     ".cursor/sandbox.json",
     ".cursor/plugins"
   ]
   @unsafe_profile_paths [
     "home/.cursor/plugins",
+    "home/.cursor/hooks.json",
+    "config/hooks.json",
     "home/.claude/plugins",
     "config/plugins",
     "claude/plugins"
@@ -67,6 +70,7 @@ defmodule Cuckoding.Adapters.CursorAgent do
        permission_modes: ["plan", "workspace-write"],
        model_discovery?: true,
        instruction_files: ["AGENTS.md", ".cursor/rules"],
+       shell_rewrite: Cuckoding.Plugins.RTK.capability("cursor_agent"),
        skill_directories: []
      }}
   end
@@ -86,13 +90,14 @@ defmodule Cuckoding.Adapters.CursorAgent do
 
   @impl true
   def render_config(%Types.StageRequest{} = request, options) do
+    request = Cuckoding.Plugins.RTK.prepare_request(request)
     root = Path.join([request.run_dir, "agent", "cursor"])
     home = Path.join(root, "home")
     cursor_home = Path.join(home, ".cursor")
     config = Path.join(root, "config")
     claude = Path.join(root, "claude")
 
-    with :ok <- plugins_disabled(request.plugins),
+    with :ok <- plugins_disabled(Cuckoding.Plugins.RTK.other_plugins(request.plugins)),
          :ok <- project_overrides_absent(request.worktree_path),
          :ok <- prepare_directory(root, Path.join(request.run_dir, "agent")),
          :ok <- prepare_directory(home, root),
@@ -243,6 +248,8 @@ defmodule Cuckoding.Adapters.CursorAgent do
   end
 
   def launch_spec(%Types.StageRequest{} = request, options \\ []) do
+    request = Cuckoding.Plugins.RTK.prepare_request(request)
+
     with {:ok, path} <- executable(options),
          true <- Keyword.get(options, :run_scoped_authenticated?, false),
          :ok <- valid_model(request.requested_model),
@@ -633,8 +640,20 @@ defmodule Cuckoding.Adapters.CursorAgent do
   defp metadata(event, "session.started"),
     do: Map.take(event, ["session_id", "model", "permissionMode"])
 
-  defp metadata(event, type) when type in ["tool.requested", "tool.completed"],
-    do: Map.take(event, ["call_id", "session_id"])
+  defp metadata(event, type) when type in ["tool.requested", "tool.completed"] do
+    metadata = Map.take(event, ["call_id", "session_id"])
+
+    case get_in(event, ["tool_call", "shellToolCall", "args", "command"]) do
+      command when is_binary(command) ->
+        Map.merge(
+          metadata,
+          Map.take(Cuckoding.Plugins.RTK.annotate(%{"command" => command}), ["rtk"])
+        )
+
+      _other ->
+        metadata
+    end
+  end
 
   defp metadata(event, type) when type in ["session.completed", "session.failed"],
     do: Map.take(event, ["session_id", "request_id", "duration_ms", "usage", "is_error"])

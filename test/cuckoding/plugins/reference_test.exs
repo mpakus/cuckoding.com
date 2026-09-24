@@ -47,7 +47,8 @@ defmodule Cuckoding.Plugins.ReferenceTest do
                contexts.rtk
              )
 
-    assert wrapped.data["executable"] == "rtk"
+    assert wrapped.data["executable"] == "/usr/bin/true"
+    assert wrapped.data["mode"] == "captured_output"
     assert wrapped.data["underlying_executable"] == "/usr/bin/true"
 
     assert {:ok, analytics} =
@@ -122,7 +123,12 @@ defmodule Cuckoding.Plugins.ReferenceTest do
     fixture: fixture,
     contexts: contexts
   } do
-    Registry.discover(detection_options(find_executable: fn _name -> nil end))
+    Registry.discover(
+      detection_options(
+        find_executable: fn _name -> nil end,
+        rtk_discovery: fn -> %{health: "missing", binaries: %{}, last_error: "Missing RTK"} end
+      )
+    )
 
     for key <- ~w(rtk xerj mcp-filesystem-readonly) do
       assert Repo.get_by!(Plugin, key: key).health == "missing"
@@ -133,6 +139,87 @@ defmodule Cuckoding.Plugins.ReferenceTest do
 
     assert {:error, :invalid_plugin_capability} =
              Contracts.call("shell_filter", RTK, :filter, %{}, contexts.rtk)
+  end
+
+  test "new runs freeze global and narrower role policy while existing runs retain their snapshot",
+       %{fixture: fixture} do
+    task = Repo.get!(Cuckoding.Workflows.Task, fixture.run.task_id)
+    board = Repo.get!(Cuckoding.Workflows.Board, task.board_id)
+    plugin = Repo.get_by!(Plugin, key: "rtk")
+
+    {:ok, role} =
+      Workflows.assign_role(%{
+        board_id: board.id,
+        role_key: "reviewer",
+        role_kind: "agent",
+        adapter_key: "codex",
+        settings_json: %{}
+      })
+
+    {:ok, _disabled} =
+      Registry.disable(plugin.id, "role", role.id, "test-user", "Keep exact review output")
+
+    snapshot = Cuckoding.Plugins.RTK.snapshot(board, [role])
+    assert snapshot["rtk"]["default"]["enabled"]
+    refute snapshot["rtk"]["roles"]["reviewer"]["enabled"]
+
+    {:ok, new_task} =
+      Workflows.create_task(%{board_id: board.id, title: "Frozen RTK", position: 1})
+
+    {:ok, run} =
+      Execution.create_run(%{
+        task_id: new_task.id,
+        sequence: 1,
+        policy_snapshot_id: fixture.run.policy_snapshot_id,
+        branch: "feature/frozen-rtk",
+        base_sha: fixture.run.base_sha
+      })
+
+    assert run.plugin_snapshot_json == snapshot
+
+    {:ok, _disabled} =
+      Registry.disable(plugin.id, "global", nil, "test-user", "Disable future runs")
+
+    assert Repo.get!(Run, run.id).plugin_snapshot_json == snapshot
+    assert Repo.get!(Run, fixture.run.id).plugin_snapshot_json == fixture.run.plugin_snapshot_json
+    refute Cuckoding.Plugins.RTK.snapshot(board, [role])["rtk"]["default"]["enabled"]
+  end
+
+  test "stage restrictions cannot expand frozen grants and remain recorded on resume", %{
+    fixture: fixture
+  } do
+    alias Cuckoding.Plugins.RTK, as: Policy
+    plugin = Repo.get_by!(Plugin, key: "rtk")
+    task = Repo.get!(Cuckoding.Workflows.Task, fixture.run.task_id)
+    board = Repo.get!(Cuckoding.Workflows.Board, task.board_id)
+    run = %{fixture.run | plugin_snapshot_json: Policy.snapshot(board, [])}
+
+    {:ok, _} =
+      Registry.disable(plugin.id, "stage", fixture.attempt.id, "test-user", "Exact stage output")
+
+    request = %{
+      plugins: [],
+      objective: "Inspect",
+      run_id: run.id,
+      attempt_id: fixture.attempt.id,
+      correlation_id: "stage-rtk",
+      run_dir: "/unused"
+    }
+
+    frozen = Policy.configure(request, run, "implementer")
+    refute Policy.request_policy(frozen)["enabled"]
+    assert :ok = Policy.record_request(frozen, Cuckoding.Adapters.Codex)
+
+    {:ok, _} =
+      Registry.enable(plugin.id, "stage", fixture.attempt.id, %{
+        "permissions" => plugin.manifest_json["permissions"],
+        "approval_kind" => "standard",
+        "actor" => "test-user",
+        "reason" => "Future configuration"
+      })
+
+    assert Policy.request_policy(Policy.configure(request, run, "implementer")) ==
+             Policy.request_policy(frozen)
   end
 
   defp enable_reference_plugins(fixture) do
@@ -168,6 +255,13 @@ defmodule Cuckoding.Plugins.ReferenceTest do
 
   defp detection_options(overrides \\ []) do
     defaults = [
+      rtk_discovery: fn ->
+        %{
+          health: "available",
+          binaries: %{"rtk" => %{"path" => "/opt/fake/rtk", "version" => "0.49.0"}},
+          last_error: nil
+        }
+      end,
       bundled_dir: Application.app_dir(:cuckoding, "priv/plugins"),
       user_dir: Path.join(System.tmp_dir!(), "missing-reference-plugin-dir"),
       find_executable: fn

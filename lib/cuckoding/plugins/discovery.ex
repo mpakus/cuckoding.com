@@ -12,7 +12,7 @@ defmodule Cuckoding.Plugins.Discovery do
     |> Enum.flat_map(fn {source, directory} -> manifest_paths(source, directory) end)
     |> Enum.reduce(%{manifests: [], errors: [], keys: MapSet.new()}, fn {source, path}, result ->
       case Manifest.load(path, source) do
-        {:ok, manifest} -> add_manifest(result, manifest, finder, runner)
+        {:ok, manifest} -> add_manifest(result, manifest, finder, runner, options)
         {:error, reason} -> add_error(result, path, reason)
       end
     end)
@@ -60,13 +60,16 @@ defmodule Cuckoding.Plugins.Discovery do
     end
   end
 
-  defp add_manifest(result, manifest, finder, runner) do
+  defp add_manifest(result, manifest, finder, runner, options) do
     key = manifest.data["key"]
 
     if MapSet.member?(result.keys, key) do
       add_error(result, manifest.path, {:duplicate_plugin_key, key})
     else
-      detection = detect(manifest, finder, runner)
+      detection =
+        if manifest.data["key"] == "rtk" and manifest.source == "bundled",
+          do: Keyword.get(options, :rtk_discovery, &Cuckoding.Plugins.RTK.discover/0).(),
+          else: detect(manifest, finder, runner)
 
       result
       |> Map.update!(:keys, &MapSet.put(&1, key))

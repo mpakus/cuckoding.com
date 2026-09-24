@@ -142,6 +142,7 @@ defmodule Cuckoding.BoardTaskIntake do
     with :ok <- RunControl.await_running(skeleton.run.id),
          {:ok, attempt} <- stage_attempt(skeleton.run, role_key, stage_key),
          request = request(skeleton, attempt, review),
+         :ok <- Cuckoding.Plugins.RTK.record_request(request, runtime.adapter),
          adapter_options =
            runtime.options
            |> Keyword.put(:runner, LocalProcessRunner)
@@ -236,7 +237,7 @@ defmodule Cuckoding.BoardTaskIntake do
         if(review,
           do: TaskProposalReview.objective(review),
           else: objective(skeleton.task.description)
-        ) <> AgentRuntime.shell_instruction(),
+        ),
       worktree_path: skeleton.environment.worktree_path,
       run_dir: skeleton.environment.run_dir,
       requested_model: role_model(skeleton.run, attempt.role_key),
@@ -254,6 +255,7 @@ defmodule Cuckoding.BoardTaskIntake do
       correlation_id: Identifier.generate(),
       idempotency_key: "intake:#{attempt.id}:adapter"
     }
+    |> Cuckoding.Plugins.RTK.configure(skeleton.run, attempt.role_key)
   end
 
   defp objective(prompt) do

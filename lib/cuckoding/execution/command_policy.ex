@@ -113,13 +113,16 @@ defmodule Cuckoding.Execution.CommandPolicy do
 
   defp invoke(operation, run, environment, command_key, options) do
     runner = Keyword.get(options, :runner, LocalProcessRunner)
-    runner_options = Keyword.delete(options, :runner)
+    runner_options = Keyword.drop(options, [:runner, :raw_output, :role_key])
 
-    if environment.run_id == run.id do
-      with {:ok, command} <- resolve(run, command_key),
-           do: apply(runner, operation, [environment, command, runner_options])
+    with true <- environment.run_id == run.id,
+         {:ok, command} <- resolve(run, command_key) do
+      Cuckoding.Plugins.RTK.filter_command(run, environment, command, operation, options, fn ->
+        apply(runner, operation, [environment, command, runner_options])
+      end)
     else
-      {:error, :environment_run_mismatch}
+      false -> {:error, :environment_run_mismatch}
+      error -> error
     end
   end
 

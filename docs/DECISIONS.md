@@ -239,6 +239,15 @@ provider acceptance remains open.
 - **Consequences:** Project Start persists before any provider work, can resume after restart, and stops new admission on attention. Existing runs and worktrees remain intact. Host-runner confinement remains advisory. The UI must not call a project Done while Review approval or Draft/blocked tasks remain.
 - **Verification:** Durable command/event tests, scheduler fairness and race tests, LiveView keyboard/reconnect tests, crash/restart recovery, and real-provider concurrency acceptance remain distinct gates.
 
+## ADR-029 — RTK uses frozen policy and a verified shell boundary
+
+- **Date:** 2026-09-24
+- **Status:** Accepted for task 1044 by the stakeholder
+- **Context:** Prompt guidance alone does not intercept agent commands; native PATH misses Homebrew RTK. Hook rewriting can accidentally grant permissions or load untrusted repository configuration.
+- **Decision:** Reuse audited RTK activations and run plugin snapshots. Discover a supported executable in approved host locations once for plugins and agents. All roles receive common instructions; automatic hooks require pinned-runtime rewriting, native permission/trust and configuration-isolation evidence. Unsupported combinations visibly use instructions only. Apply application filtering after underlying command validation; never filter provider protocols, authentication or machine-readable Git checks. Never retry an already executed command to recover filtering.
+- **Consequences:** Optimization is optional and fails open before execution. Run-owned state and disabled raw recall prevent duplicate unredacted logs. Existing event storage records observations without equating an RTK prefix with measured reduction. No personal runtime settings or automatic upgrades are permitted.
+- **Verification:** Discovery, snapshot, adapter, hook isolation, permission, secret-canary, confinement and single-execution regressions; installed runtime smokes, native build and a managed run recorded separately.
+
 ## ADR template
 
 ### ADR-NNN — Title

@@ -67,6 +67,44 @@ defmodule CuckodingWeb.PluginSettingsLiveTest do
     assert has_element?(degraded, "#plugin-#{plugin.id} button[disabled]", "Enable scope")
   end
 
+  test "RTK uses the audited global scope and displays fallback and missing executable", %{
+    conn: conn
+  } do
+    root = Application.fetch_env!(:cuckoding, :diagnostics_output_root)
+    File.mkdir_p!(root)
+    binary = Path.join(root, "rtk")
+    File.write!(binary, "#!/bin/sh\necho 'rtk 0.49.0'\n")
+    File.chmod!(binary, 0o700)
+
+    Registry.discover(
+      user_dir: nil,
+      find_executable: fn _ -> nil end,
+      rtk_discovery: fn -> Cuckoding.Plugins.RTK.discover(directories: [root]) end
+    )
+
+    plugin = Repo.get_by!(Plugin, key: "rtk")
+    {:ok, view, _} = live(conn, ~p"/settings/plugins")
+    assert has_element?(view, "#rtk-agent-status", "Use RTK for all agents: Disabled")
+
+    view
+    |> form("#plugin-#{plugin.id} form[phx-submit=enable]", %{
+      "plugin_id" => plugin.id,
+      "scope_type" => "global",
+      "scope_id" => "",
+      "network" => "none",
+      "reason" => "Use RTK for managed agents",
+      "confirmed" => "true"
+    })
+    |> render_submit()
+
+    assert has_element?(view, "#rtk-agent-status", "Instructions only")
+    assert Repo.get_by!(Activation, plugin_id: plugin.id, scope_type: "global").enabled
+    File.rm!(binary)
+    {:ok, unavailable, _} = live(conn, ~p"/settings/plugins")
+    assert has_element?(unavailable, "#rtk-agent-status", "Unavailable")
+    assert has_element?(unavailable, "#rtk-agent-status", "Commands continue without filtering")
+  end
+
   test "server rejects a bypassed confirmation", %{conn: conn} do
     discover()
     plugin = Repo.get_by!(Plugin, key: "valid-shell")

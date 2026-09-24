@@ -48,7 +48,7 @@ defmodule Cuckoding.Adapters.Types do
       :instruction_files,
       :skill_directories
     ]
-    defstruct @enforce_keys
+    defstruct @enforce_keys ++ [shell_rewrite: %{"mode" => "unavailable"}]
     @type t :: %__MODULE__{}
   end
 

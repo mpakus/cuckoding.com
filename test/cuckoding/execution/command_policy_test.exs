@@ -217,6 +217,45 @@ defmodule Cuckoding.Execution.CommandPolicyTest do
     assert paths == [".github/workflows/ci.yml"]
   end
 
+  test "RTK filters captured output after one real invocation of the authorized executable", %{
+    domain: domain,
+    root: root
+  } do
+    binary = Path.join(root, "rtk")
+
+    File.write!(
+      binary,
+      "#!/bin/sh\ncase \"$1\" in --version) echo 'rtk 0.49.0';; pipe) printf 'filtered: '; /bin/cat;; esac\n"
+    )
+
+    File.chmod!(binary, 0o700)
+    detection = Cuckoding.Plugins.RTK.discover(directories: [root])
+
+    policy = %{
+      "enabled" => true,
+      "permissions" => %{"host_process" => true},
+      "binary" => detection.binaries["rtk"]
+    }
+
+    run = %{domain.run | plugin_snapshot_json: %{"rtk" => %{"default" => policy}}}
+    assert {:ok, result} = CommandPolicy.execute(run, domain.environment, "test")
+    assert result.exit_status == 0
+    assert result.output == "filtered: safe"
+    assert File.read!(result.artifact_path) == "safe"
+    assert result.process.role == "declared_command:test"
+
+    assert Repo.aggregate(
+             from(e in RunEvent,
+               where: e.run_id == ^run.id and e.event_type == "process.started"
+             ),
+             :count
+           ) == 1
+
+    assert Repo.one!(
+             from(e in RunEvent, where: e.run_id == ^run.id and e.event_type == "rtk.command")
+           ).payload["mode"] == "Automatic"
+  end
+
   defp domain_fixture(root, run_dir, base_sha, loaded) do
     suffix = System.unique_integer([:positive])
 

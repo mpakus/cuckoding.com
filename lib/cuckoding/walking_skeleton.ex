@@ -628,6 +628,7 @@ defmodule Cuckoding.WalkingSkeleton do
     request = request(skeleton, attempt, stage_key, options)
 
     with {:ok, request} <- Knowledge.prepare_injection(request, options),
+         :ok <- Cuckoding.Plugins.RTK.record_request(request, adapter),
          {:ok, session} <-
            RunControl.launch(skeleton.run.id, fn ->
              adapter.start(request, adapter_options(skeleton.environment, options))
@@ -902,8 +903,7 @@ defmodule Cuckoding.WalkingSkeleton do
           stage_key,
           skeleton.task,
           Keyword.put(options, :role_settings, settings)
-        ) <>
-          Cuckoding.AgentRuntime.shell_instruction(),
+        ),
       worktree_path: skeleton.environment.worktree_path,
       run_dir: skeleton.environment.run_dir,
       requested_model: Keyword.get(options, :requested_model),
@@ -920,6 +920,7 @@ defmodule Cuckoding.WalkingSkeleton do
       correlation_id: Cuckoding.Identifier.generate(),
       idempotency_key: "walking:#{attempt.id}:adapter"
     }
+    |> Cuckoding.Plugins.RTK.configure(skeleton.run, attempt.role_key)
   end
 
   defp adapter_options(environment, options) do

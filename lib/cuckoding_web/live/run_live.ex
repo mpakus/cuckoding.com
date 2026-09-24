@@ -712,6 +712,15 @@ defmodule CuckodingWeb.RunLive do
 
         <section aria-labelledby="plugins-heading" class="space-y-3">
           <h2 id="plugins-heading" class="text-xl font-semibold text-slate-950">Plugins</h2>
+          <div id="run-rtk-status" class="space-y-2 text-sm text-slate-700">
+            <p class="font-semibold">RTK for agents</p>
+            <p :for={role <- @detail.run.workflow_snapshot_json["roles"] || []}>
+              {role["role_key"]}: {rtk_status(@detail.run, role)}
+            </p>
+            <p>
+              Coverage and output reduction remain unknown unless separately observed. Native editing tools remain available.
+            </p>
+          </div>
           <p
             :if={plugin_entries(@detail.run.plugin_snapshot_json) == []}
             class="text-sm text-slate-700"
@@ -739,6 +748,16 @@ defmodule CuckodingWeb.RunLive do
 
   defp activity_status(events),
     do: Cuckoding.ActivityStream.status(events, Cuckoding.Clock.wall_now(), 60_000)
+
+  defp rtk_status(run, role) do
+    {mode, reason} =
+      Cuckoding.Plugins.RTK.status(
+        Cuckoding.Plugins.RTK.policy(run, role["role_key"]),
+        role["adapter_key"]
+      )
+
+    "#{mode} — #{reason}"
+  end
 
   defp plugin_entries(snapshot) when is_map(snapshot) do
     snapshot

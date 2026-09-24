@@ -133,3 +133,16 @@ Committed configuration references named secrets and tool paths; it never contai
 ## Versioning
 
 Each config file declares a schema version. Migrations must be deterministic and previewable. Runs keep the original parsed snapshot, so later config edits never rewrite history.
+
+## RTK for every managed role
+
+Use the existing RTK plugin's global activation in `/settings/plugins` for
+**Use RTK for all agents**. Its confirmation and audit event are the authority;
+there is no second preference to drift out of sync. New runs freeze this policy
+and narrower project, board and role overrides. Stage overrides only narrow
+that grant and their first resolved event is reused on resume. Old runs remain
+unchanged. Missing RTK visibly degrades filtering while work continues. See
+[the pinned compatibility matrix](plugins/RTK.md); the current agent modes are
+instructions only, with automatic captured-output filtering for eligible
+application commands. Native hooks and runtime upgrades are never enabled
+implicitly.

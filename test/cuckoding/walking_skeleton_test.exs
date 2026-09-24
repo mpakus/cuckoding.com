@@ -5,7 +5,6 @@ defmodule Cuckoding.WalkingSkeletonTest do
   import Phoenix.LiveViewTest
 
   alias Cuckoding.Adapters.Types
-  alias Cuckoding.AgentRuntime
   alias Cuckoding.Execution.Command
   alias Cuckoding.Execution.GitService
   alias Cuckoding.Execution.LocalBareRemote
@@ -201,22 +200,6 @@ defmodule Cuckoding.WalkingSkeletonTest do
      bare: bare}
   end
 
-  test "installed RTK is named in the agent command instruction", fixture do
-    binary = Path.join(Path.dirname(fixture.attrs.repo_path), "rtk")
-    File.write!(binary, "#!/bin/sh\nexit 0\n")
-    File.chmod!(binary, 0o700)
-
-    assert AgentRuntime.shell_instruction(binary) =~ "RTK is unavailable"
-
-    if installed = System.find_executable("rtk") do
-      assert AgentRuntime.shell_instruction(installed) =~ "use #{installed} before the command"
-    end
-
-    assert AgentRuntime.shell_instruction(nil) =~ "RTK is unavailable"
-    assert AgentRuntime.shell_instruction("/usr/bin/true") =~ "RTK is unavailable"
-  end
-
-  @tag recovery_drill: true
   test "fake CI lane resumes one attempt and pushes only after approval", fixture do
     assert {:ok, created} = WalkingSkeleton.create(fixture.attrs)
     assert {:ok, pending} = WalkingSkeleton.run(created)
@@ -585,7 +568,7 @@ defmodule Cuckoding.WalkingSkeletonTest do
 
     assert_receive {:role_stage, :spec_agent, "specification", specification}
     assert specification =~ "Write a bounded specification."
-    assert specification =~ "repository shell commands"
+    assert specification =~ "RTK: Disabled"
 
     assert_receive {:role_stage, :review_agent, "qa", review}
     assert review =~ "Review independently."

@@ -112,8 +112,9 @@ defmodule CuckodingWeb.AgentFloorLiveTest do
     assert has_element?(run, "section[aria-labelledby=findings-heading]", "Fixture finding")
     assert has_element?(run, "section[aria-labelledby=knowledge-heading]", "Open Knowledge")
 
-    assert render(run) =~ "Estimated shell-output tokens avoided"
-    assert render(run) =~ "(estimated)"
+    assert has_element?(run, "#run-rtk-status", "RTK for agents")
+    assert has_element?(run, "#run-rtk-status", "Coverage and output reduction remain unknown")
+    refute render(run) =~ "Estimated shell-output tokens avoided"
 
     assert has_element?(run, "section[aria-labelledby=resources-heading] table")
     assert has_element?(run, "section[aria-labelledby=usage-heading]", "$0.000123 USD")

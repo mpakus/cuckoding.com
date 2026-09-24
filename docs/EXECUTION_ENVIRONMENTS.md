@@ -47,6 +47,23 @@ planning while tracked edits and other untracked files still block preparation.
 The hint and personal HOME never reach agent children. Invalid ignore
 configuration fails closed; no files are automatically stashed or removed.
 
+## Optional RTK filtering
+
+The audited global RTK plugin activation applies to all roles in new runs,
+with frozen project/board/role policy and narrower stage restrictions. Discovery
+checks approved installation locations even under the native app's restricted
+PATH. Each role receives the same run-owned RTK launcher and instructions.
+Current pinned agent adapters use **Instructions only**: automatic hooks remain
+disabled until their native permission, trust and isolation checks pass.
+No personal runtime configuration is changed.
+
+After policy validation, synchronous declared commands retain their exact
+executable, argv, working directory and exit status. Successful bounded redacted
+output may pass through the existing RTK shell-filter adapter; failures,
+streaming output, authentication, provider protocols and internal Git checks
+remain unfiltered. A filtering failure never repeats execution. See
+[RTK policy, compatibility and storage](plugins/RTK.md).
+
 ## Process supervision
 
 - Every launched process gets its own process group. Because a runtime may create additional descendant groups, inspect and own the full process forest; signaling only the initial group is insufficient.
