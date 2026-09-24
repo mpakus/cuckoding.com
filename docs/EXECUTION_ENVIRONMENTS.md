@@ -36,6 +36,17 @@ The workspace root defaults to `~/Library/Application Support/Cuckoding/workspac
 
 `Cuckoding.Execution.GitService` requires the registered repository to be clean, resolves the repository and workspace directories before comparing paths, and creates a new non-protected branch from the recorded default-branch SHA. Each run directory starts with an atomic `run.json` ownership marker and its environment records the same base and head SHA. Existing branches, existing run directories, traversal identifiers, and symlink components below the resolved workspace root are refused rather than cleaned automatically.
 
+The native app's HOME remains app-owned. Host-side GitService commands use the
+shell's `CUCKODING_RUNTIME_HOME` hint for a read-only Git configuration lookup of
+the effective `core.excludesFile` path, including repository overrides and tilde
+expansion. Only that setting is passed to subsequent Git commands; personal
+hooks, credential helpers and other global settings are not imported. Without
+an explicit setting, Git's XDG/default `~/.config/git/ignore` location is used.
+This keeps globally ignored files such as `.DS_Store` from falsely blocking
+planning while tracked edits and other untracked files still block preparation.
+The hint and personal HOME never reach agent children. Invalid ignore
+configuration fails closed; no files are automatically stashed or removed.
+
 ## Process supervision
 
 - Every launched process gets its own process group. Because a runtime may create additional descendant groups, inspect and own the full process forest; signaling only the initial group is insufficient.

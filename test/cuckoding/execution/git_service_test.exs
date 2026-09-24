@@ -126,6 +126,56 @@ defmodule Cuckoding.Execution.GitServiceTest do
     assert {:error, :protected_branch} = GitService.prepare(fixture.project, protected_run)
   end
 
+  test "native Git honors host ignores without importing host hooks or hiding real changes",
+       fixture do
+    home = host_home(fixture)
+    marker = Path.join(home, "hook-ran")
+    hook = Path.join(home, "fsmonitor")
+    File.write!(hook, "#!/bin/sh\ntouch '#{marker}'\n")
+    File.chmod!(hook, 0o700)
+    File.write!(Path.join(home, "global.ignore"), "native-only.cache\nREADME.md\n")
+
+    File.write!(Path.join(home, ".gitconfig"), """
+    [core]
+      excludesFile = ~/global.ignore
+      fsmonitor = #{hook}
+    """)
+
+    File.write!(Path.join(fixture.repo, "native-only.cache"), "ignored\n")
+    assert {:ok, base_sha} = GitService.capture_base(fixture.project)
+    run = run_fixture(fixture, "feature/native-ignore", base_sha)
+    assert {:ok, environment} = GitService.prepare(fixture.project, run)
+    File.write!(Path.join(environment.worktree_path, "native-only.cache"), "ignored\n")
+    assert {:ok, %{clean?: true}} = GitService.inspect(environment)
+    refute File.exists?(marker)
+
+    File.write!(Path.join(fixture.repo, "README.md"), "tracked change\n")
+    assert {:error, :dirty_repository} = GitService.capture_base(fixture.project)
+
+    File.write!(Path.join(environment.worktree_path, "new-task.md"), "untracked change\n")
+    assert {:ok, %{clean?: false}} = GitService.inspect(environment)
+  end
+
+  test "native Git uses the default ignore path and respects repository overrides", fixture do
+    home = host_home(fixture)
+    File.mkdir_p!(Path.join(home, ".config/git"))
+    File.write!(Path.join(home, ".config/git/ignore"), "native-only.cache\n")
+    File.write!(Path.join(fixture.repo, "native-only.cache"), "ignored\n")
+    assert {:ok, _sha} = GitService.capture_base(fixture.project)
+
+    local_ignore = Path.join(home, "local.ignore")
+    File.write!(local_ignore, "")
+    git!(fixture.repo, ["config", "core.excludesFile", local_ignore])
+    assert {:error, :dirty_repository} = GitService.capture_base(fixture.project)
+
+    File.write!(local_ignore, "native-only.cache\n")
+    assert {:ok, _sha} = GitService.capture_base(fixture.project)
+
+    File.write!(Path.join(home, ".gitconfig"), "[invalid\n")
+
+    assert {:error, :not_a_git_repository} = GitService.capture_base(fixture.project)
+  end
+
   test "rejects traversal identifiers and symlink escapes", fixture do
     {:ok, base_sha} = GitService.capture_base(fixture.project)
     traversal_run = run_fixture(fixture, "feature/traversal", base_sha)
@@ -254,6 +304,24 @@ defmodule Cuckoding.Execution.GitServiceTest do
   defp configure_identity!(repo) do
     git!(repo, ["config", "user.name", "Cuckoding Test"])
     git!(repo, ["config", "user.email", "cuckoding@example.invalid"])
+  end
+
+  defp host_home(fixture) do
+    home = Path.join(fixture.root, "host-home")
+    File.mkdir_p!(home)
+    keys = ["CUCKODING_RUNTIME_HOME", "XDG_CONFIG_HOME"]
+    previous = Enum.map(keys, &{&1, System.get_env(&1)})
+    System.put_env("CUCKODING_RUNTIME_HOME", home)
+    System.put_env("XDG_CONFIG_HOME", "")
+
+    on_exit(fn ->
+      Enum.each(previous, fn
+        {key, nil} -> System.delete_env(key)
+        {key, value} -> System.put_env(key, value)
+      end)
+    end)
+
+    home
   end
 
   defp git!(directory, args) do

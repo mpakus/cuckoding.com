@@ -716,9 +716,41 @@ defmodule Cuckoding.Execution.GitService do
   end
 
   defp git(repo, args) do
-    case System.cmd(@git, ["-C", repo | args], stderr_to_stdout: true) do
-      {output, 0} -> {:ok, output}
-      {output, status} -> {:error, {:git_failed, status, String.trim(output)}}
+    with {:ok, ignore_args} <- host_ignore_args(repo) do
+      case System.cmd(@git, ["-C", repo] ++ ignore_args ++ args, stderr_to_stdout: true) do
+        {output, 0} -> {:ok, output}
+        {output, status} -> {:error, {:git_failed, status, String.trim(output)}}
+      end
+    end
+  end
+
+  defp host_ignore_args(repo) do
+    host_ignore_args(repo, System.get_env("CUCKODING_RUNTIME_HOME"))
+  end
+
+  defp host_ignore_args(_repo, nil), do: {:ok, []}
+
+  defp host_ignore_args(repo, home) do
+    # Read only the effective ignore path; never import host hooks or credentials.
+    case System.cmd(
+           @git,
+           ["-C", repo, "config", "--null", "--path", "--get", "core.excludesFile"],
+           env: [{"HOME", home}],
+           stderr_to_stdout: true
+         ) do
+      {path, 0} ->
+        {:ok, ["-c", "core.excludesFile=" <> String.trim_trailing(path, "\0")]}
+
+      {_output, 1} ->
+        config_home = System.get_env("XDG_CONFIG_HOME")
+
+        config_home =
+          if config_home in [nil, ""], do: Path.join(home, ".config"), else: config_home
+
+        {:ok, ["-c", "core.excludesFile=" <> Path.join(config_home, "git/ignore")]}
+
+      {_output, status} ->
+        {:error, {:git_ignore_config_failed, status}}
     end
   end
 end

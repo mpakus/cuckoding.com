@@ -71,7 +71,8 @@ are committed, so ordinary release builds do not need these artwork tools.
 
 - The launch environment is cleared, with a fixed system PATH and app-owned
   HOME. The shell supplies `CUCKODING_RUNTIME_HOME` as a host-only hint for
-  known-location executable discovery. This does not load shell startup files,
+  known-location executable discovery and host-side Git ignore-file lookup
+  (see [repository checks](EXECUTION_ENVIRONMENTS.md#workspace-layout)). This does not load shell startup files,
   reuse personal provider profiles, expand an agent grant or reach agent child
   environments. See [executable discovery](AGENT_AUTHORIZATION_FLOW.md#executable-discovery)
   and the [safe local restart procedure](DEVELOPMENT.md#testing-one-local-instance).

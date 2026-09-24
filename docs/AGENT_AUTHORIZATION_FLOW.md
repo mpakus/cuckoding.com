@@ -120,7 +120,8 @@ known locations, not a recursive disk scan or guarantee that every installer
 layout is covered. Unusual locations require the manual absolute-path field.
 
 The native shell keeps Phoenix HOME app-owned and PATH restricted, and passes
-the actual home as `CUCKODING_RUNTIME_HOME` for discovery only. Without that
+the actual home as `CUCKODING_RUNTIME_HOME` for host-side executable discovery
+and [Git ignore-file lookup](EXECUTION_ENVIRONMENTS.md#workspace-layout). Without that
 hint the helper uses `System.user_home()`. The hint is excluded from agent child
 environments. Discovery does not source shell startup files, change PATH, read
 credential files or import Codex Desktop/ChatGPT sign-in, settings or chats.
