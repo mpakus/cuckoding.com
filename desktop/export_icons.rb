@@ -37,7 +37,7 @@ Dir.mktmpdir("cuckoding-icons-") do |tmp|
   mark.attributes["fill"] = "#000000"
   mark.attributes.delete("filter")
   tray_svg = File.join(tmp, "tray.svg")
-  File.write(tray_svg, %(<svg xmlns="http://www.w3.org/2000/svg" viewBox="70 55 340 370">#{mark}</svg>))
+  File.write(tray_svg, %(<svg xmlns="http://www.w3.org/2000/svg" viewBox="70 70 390 380">#{mark}</svg>))
   tray_png = File.join(tmp, "tray.png")
   run("rsvg-convert", "-w", "64", "-h", "64", "-o", tray_png, tray_svg)
   run("magick", tray_png, "-channel", "RGB", "-evaluate", "set", "0", "+channel",

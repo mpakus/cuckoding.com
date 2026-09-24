@@ -53,8 +53,8 @@ The site uses pearl `#f0f0f6`, paper `#fafafe`, ink `#252432`, secondary text
 fonts. The hero, workflow and knowledge panels use locally served original WebP
 art with intrinsic dimensions; later illustrations load lazily.
 
-The shared brand mark is a C-shaped sperm cell: an oval head and tapered curved
-tail, violet on a pearl tile. `desktop/icon.svg` is the editable source;
+The shared brand mark is a recognizable rounded capital C with an attached,
+tapered sperm tail, violet on a pearl tile. `desktop/icon.svg` is the editable source;
 `desktop/export_icons.rb` exports the website/app SVG copies, browser ICOs,
 macOS PNG/ICNS and monochrome tray mask. Header/footer/sidebar marks accompany
 the readable product name and use empty alt text to avoid duplicate naming.
