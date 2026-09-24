@@ -131,3 +131,35 @@ database or user data was migrated during these source checks.
   local choice from remote approval, including the root contributor contract.
 - App rebuild, browser acceptance, additional roles/permissions and effective
   per-task/global controls are still open; this does not complete task 1038.
+
+## Process control foundation
+
+Automatic local completion was fast-forward merged at `8da14c3`.
+Runner inspection found that `pause` only verified ownership and that `stop`
+replaced the workflow's waiting caller. Pause now suspends verified owned groups
+with STOP, resume uses CONT and the original remaining timer, stale timer
+messages cannot kill a resumed process, and stop replies to every waiter.
+Signals, pause/resume observations and measured pause duration are durable
+events; stage active time excludes measured pauses while wall time retains them.
+Unregistered process workers cannot be claimed as safely resumed. Worktrees and
+artifacts are retained; process cleanup still verifies recorded ownership.
+
+`Lifecycle.pause` now obtains and persists a valid checkpoint before signaling.
+Its recovery drill checks that the pause checkpoint precedes STOP and the
+hibernate checkpoint precedes termination. A failed checkpoint leaves the
+preview responsive, and a paused process can still be stopped without leaving
+descendants or stranding its workflow caller.
+
+- `rtk env -u CR_PAT mix test test/cuckoding/execution/local_process_runner_test.exs test/cuckoding/execution/lifecycle_test.exs test/cuckoding/execution/preview_test.exs test/cuckoding/power/manager_test.exs`:
+  23 tests, 0 failures after adapting the drill's checkpoint ordering assertion
+  to distinguish pause signals from termination signals.
+- `rtk mix credo --strict`: passed.
+- One formatting-only gate required a second formatter pass on a multiline test
+  call; `rtk mix format --check-formatted` then passed.
+- End-to-end task/global controls still require orchestration admission,
+  cancellation/pause coordination and UI wiring. Runner capability alone does
+  not satisfy those acceptance items.
+
+Final runner verification: `rtk env -u CR_PAT mix quality` passed formatter,
+warnings-as-errors compilation, 10 properties and 324 tests, strict Credo,
+Sobelow and dependency audit. `rtk git diff --check` passed.

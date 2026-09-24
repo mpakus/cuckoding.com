@@ -150,7 +150,7 @@ defmodule Cuckoding.BoardTaskIntake do
          {:ok, _timing} <-
            Execution.record_stage_time(
              attempt.id,
-             elapsed,
+             max(elapsed - Map.get(result, :paused_ms, 0), 0),
              elapsed,
              "intake:#{attempt.id}:timing"
            ),

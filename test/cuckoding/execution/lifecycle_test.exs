@@ -53,6 +53,16 @@ defmodule Cuckoding.Execution.LifecycleTest do
     assert {:ok, service} = Preview.start(lifecycle.run, allocation, termination_grace_ms: 25)
     assert :ok = await_health(service)
 
+    assert {:error, :checkpoint_failed} =
+             Lifecycle.pause(
+               lifecycle.run,
+               allocation.environment,
+               "failed-pause-#{lifecycle.run.id}",
+               checkpoint: fn _attempt -> {:error, :checkpoint_failed} end
+             )
+
+    assert :ok = await_health(service)
+
     assert {:ok, paused} =
              Lifecycle.pause(
                lifecycle.run,
@@ -96,9 +106,17 @@ defmodule Cuckoding.Execution.LifecycleTest do
     checkpoint_sequences =
       for event <- events, event.event_type == "stage.checkpointed", do: event.sequence
 
-    signal_sequences =
-      for event <- events, event.event_type == "process.signal", do: event.sequence
+    pause_sequences =
+      for event <- events,
+          event.event_type == "process.signal" and event.payload["signal"] == "STOP",
+          do: event.sequence
 
+    signal_sequences =
+      for event <- events,
+          event.event_type == "process.signal" and event.payload["signal"] in ~w(INT TERM KILL),
+          do: event.sequence
+
+    assert Enum.min(checkpoint_sequences) < Enum.min(pause_sequences)
     assert Enum.max(checkpoint_sequences) < Enum.min(signal_sequences)
 
     # Reloading only durable identifiers models the next application process.

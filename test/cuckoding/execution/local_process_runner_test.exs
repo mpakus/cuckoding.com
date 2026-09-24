@@ -120,6 +120,69 @@ defmodule Cuckoding.Execution.LocalProcessRunnerTest do
     assert Enum.any?(events, &(&1.event_type == "process.signal"))
   end
 
+  test "pause suspends owned work and its deadline, then resume keeps the same process",
+       fixture do
+    heartbeat = Path.join(fixture.environment.worktree_path, "heartbeat")
+
+    assert {:ok, handle} =
+             LocalProcessRunner.start(
+               fixture.environment,
+               %{
+                 executable: "/bin/sh",
+                 args: ["-c", "while true; do printf x >> heartbeat; sleep 0.02; done"]
+               },
+               timeout: 1_000,
+               termination_grace_ms: 25
+             )
+
+    on_exit(fn -> if Process.alive?(handle.worker), do: LocalProcessRunner.stop(handle) end)
+    assert :ok = wait_for_file(heartbeat)
+
+    assert {:error, :process_identity_mismatch} =
+             ProcessTerminator.signal(%{handle.process | start_identity: "wrong-owner"}, "STOP")
+
+    assert {:ok, _environment} = LocalProcessRunner.pause(fixture.environment)
+    stopped = File.stat!(heartbeat).size
+    Process.sleep(1_100)
+    assert Process.alive?(handle.worker)
+    assert File.stat!(heartbeat).size == stopped
+    assert {:ok, _environment} = LocalProcessRunner.resume(fixture.environment)
+    Process.sleep(100)
+    assert File.stat!(heartbeat).size > stopped
+    assert {:ok, result} = LocalProcessRunner.stop(handle)
+    assert result.process.pid == handle.process.pid
+    assert result.process.start_identity == handle.process.start_identity
+    assert result.paused_ms >= 1_100
+    refute result.timed_out?
+    assert {:ok, events} = LocalProcessRunner.stream_events(result.process)
+    assert Enum.any?(events, &(&1.event_type == "process.paused"))
+    assert Enum.any?(events, &(&1.event_type == "process.resumed"))
+    assert LocalHostInspector.groups_empty?([handle.process.pgid])
+  end
+
+  test "stopping a paused process replies to the workflow and the stop caller", fixture do
+    marker = Path.join(fixture.environment.worktree_path, "waiting")
+
+    assert {:ok, handle} =
+             LocalProcessRunner.start(
+               fixture.environment,
+               %{executable: "/bin/sh", args: ["-c", "touch waiting; sleep 60"]},
+               timeout: :infinity,
+               termination_grace_ms: 25
+             )
+
+    on_exit(fn -> if Process.alive?(handle.worker), do: LocalProcessRunner.stop(handle) end)
+    assert :ok = wait_for_file(marker)
+    waiter = Task.async(fn -> LocalProcessRunner.result(handle) end)
+    Process.sleep(20)
+    assert {:ok, _environment} = LocalProcessRunner.pause(fixture.environment)
+    assert {:ok, stopped} = LocalProcessRunner.stop(handle)
+    assert {:ok, awaited} = Task.await(waiter, 2_000)
+    assert stopped.process.id == awaited.process.id
+    assert stopped.exit_status == awaited.exit_status
+    assert LocalHostInspector.groups_empty?([handle.process.pgid])
+  end
+
   test "cleans up same-group children when the command exits normally", fixture do
     child_pid_path = Path.join(fixture.environment.worktree_path, "child.pid")
 

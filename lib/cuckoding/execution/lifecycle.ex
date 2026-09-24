@@ -22,8 +22,8 @@ defmodule Cuckoding.Execution.Lifecycle do
 
     with {:ok, persisted_run, persisted_environment, attempt} <- context(run, environment),
          :ok <- require_state(persisted_run, ~w(running waiting)),
-         {:ok, ^persisted_environment} <- runner.pause(persisted_environment, options),
          {:ok, _checkpointed} <- checkpoint(attempt, options),
+         {:ok, ^persisted_environment} <- runner.pause(persisted_environment, options),
          {:ok, command} <-
            Execution.transition_run(persisted_run.id, "paused", idempotency_key) do
       {:ok,

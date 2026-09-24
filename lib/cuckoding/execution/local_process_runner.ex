@@ -45,14 +45,18 @@ defmodule Cuckoding.Execution.LocalProcessRunner do
 
   @impl true
   def pause(%Environment{} = environment, _options \\ []) do
-    with :ok <- verify_owned_processes(environment), do: {:ok, environment}
+    with :ok <- control_processes(environment, :pause), do: {:ok, environment}
   end
 
   @impl true
   def hibernate(%Environment{} = environment, options \\ []), do: destroy(environment, options)
 
   @impl true
-  def resume(%Environment{} = environment, options \\ []), do: prepare(environment, options)
+  def resume(%Environment{} = environment, options \\ []) do
+    with {:ok, ^environment} <- prepare(environment, options),
+         :ok <- control_processes(environment, :resume),
+         do: {:ok, environment}
+  end
 
   @impl true
   def inspect(%ProcessRecord{} = process, _options \\ []) do
@@ -125,19 +129,27 @@ defmodule Cuckoding.Execution.LocalProcessRunner do
     end
   end
 
-  defp verify_owned_processes(environment) do
+  defp control_processes(environment, action) do
     Repo.all(
       from(process in ProcessRecord,
         where: process.environment_id == ^environment.id and process.state == "running"
       )
     )
     |> Enum.reduce_while(:ok, fn process, :ok ->
-      case Cuckoding.Execution.LocalHostInspector.inspect_process(process) do
-        {:ok, %{status: :matching}} -> {:cont, :ok}
-        {:ok, %{status: status}} -> {:halt, {:error, {:process_ownership_unverified, status}}}
-        {:error, reason} -> {:halt, {:error, {:process_ownership_unverified, reason}}}
+      case control_process(process, action) do
+        :ok -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, reason}}
       end
     end)
+  end
+
+  defp control_process(process, action) do
+    case Registry.lookup(Cuckoding.RunRegistry, {:process, process.id}) do
+      [{worker, _value}] -> LocalProcessWorker.control(worker, action)
+      [] -> {:error, :process_worker_unavailable}
+    end
+  catch
+    :exit, _reason -> {:error, :process_worker_unavailable}
   end
 
   defp directory?(path) do
@@ -170,6 +182,9 @@ defmodule Cuckoding.Execution.LocalProcessWorker do
   def await(worker), do: GenServer.call(worker, :await, :infinity)
   def stop(worker), do: GenServer.call(worker, :stop, :infinity)
 
+  def control(worker, action) when action in [:pause, :resume],
+    do: GenServer.call(worker, action, :infinity)
+
   @impl true
   def init({environment, command, options}) do
     Process.flag(:trap_exit, true)
@@ -200,8 +215,7 @@ defmodule Cuckoding.Execution.LocalProcessWorker do
 
       timeout = Keyword.get(options, :timeout, 60_000)
 
-      timer =
-        if timeout == :infinity, do: nil, else: Process.send_after(self(), :timeout, timeout)
+      {timer, timer_token} = arm_timer(timeout)
 
       {:ok,
        %{
@@ -215,8 +229,12 @@ defmodule Cuckoding.Execution.LocalProcessWorker do
          output_limit: Keyword.get(options, :output_limit, 1_048_576),
          truncated?: false,
          secrets: Keyword.get(options, :redact, []),
-         waiter: nil,
+         waiters: [],
          timer: timer,
+         timer_token: timer_token,
+         remaining_timeout: timeout,
+         paused_at: nil,
+         paused_ms: 0,
          timed_out?: false,
          result: nil,
          grace_ms: Keyword.get(options, :termination_grace_ms, 2_000)
@@ -232,14 +250,73 @@ defmodule Cuckoding.Execution.LocalProcessWorker do
   def handle_call(:await, _from, %{result: result} = state) when not is_nil(result),
     do: {:stop, :normal, response(result), state}
 
-  def handle_call(:await, from, state), do: {:noreply, %{state | waiter: from}}
+  def handle_call(:await, from, state), do: {:noreply, %{state | waiters: [from | state.waiters]}}
 
   def handle_call(:stop, from, %{result: nil} = state) do
-    state = %{state | waiter: from}
+    state = %{state | waiters: [from | state.waiters]}
     {:noreply, begin_termination(state, false)}
   end
 
   def handle_call(:stop, _from, state), do: {:stop, :normal, response(state.result), state}
+
+  def handle_call(:pause, _from, %{result: nil, paused_at: nil} = state) do
+    case signal(state, "STOP") do
+      :ok ->
+        remaining = if state.timer, do: Process.cancel_timer(state.timer) || 0, else: :infinity
+
+        record_event(
+          state.environment.run_id,
+          state.process.id,
+          "process.paused",
+          "Owned process groups suspended",
+          %{}
+        )
+
+        {:reply, :ok,
+         %{
+           state
+           | timer: nil,
+             timer_token: nil,
+             remaining_timeout: remaining,
+             paused_at: System.monotonic_time(:millisecond)
+         }}
+
+      error ->
+        {:reply, error, state}
+    end
+  end
+
+  def handle_call(:resume, _from, %{result: nil, paused_at: started} = state)
+      when is_integer(started) do
+    case signal(state, "CONT") do
+      :ok ->
+        paused_ms = max(System.monotonic_time(:millisecond) - started, 0)
+        {timer, token} = arm_timer(state.remaining_timeout)
+
+        record_event(
+          state.environment.run_id,
+          state.process.id,
+          "process.resumed",
+          "Owned process groups resumed",
+          %{"paused_ms" => paused_ms}
+        )
+
+        {:reply, :ok,
+         %{
+           state
+           | timer: timer,
+             timer_token: token,
+             paused_at: nil,
+             paused_ms: state.paused_ms + paused_ms
+         }}
+
+      error ->
+        {:reply, error, state}
+    end
+  end
+
+  def handle_call(action, _from, state) when action in [:pause, :resume],
+    do: {:reply, :ok, state}
 
   @impl true
   def handle_info({port, {:data, data}}, %{port: port} = state) do
@@ -290,6 +367,7 @@ defmodule Cuckoding.Execution.LocalProcessWorker do
       truncated?: state.truncated?,
       artifact_path: state.artifact,
       artifact_sha256: sha256(state.artifact),
+      paused_ms: state.paused_ms + current_pause_ms(state),
       timed_out?: state.timed_out?
     }
 
@@ -304,7 +382,7 @@ defmodule Cuckoding.Execution.LocalProcessWorker do
       %{"exit_status" => status, "timed_out" => state.timed_out?}
     )
 
-    waiter = state.waiter
+    waiters = state.waiters
 
     response =
       case cleanup do
@@ -312,20 +390,20 @@ defmodule Cuckoding.Execution.LocalProcessWorker do
         {:error, reason} -> {:error, {:process_cleanup_failed, reason}}
       end
 
-    state = %{state | process: finished, result: response, waiter: nil}
+    state = %{state | process: finished, result: response, waiters: []}
 
-    if waiter do
-      GenServer.reply(waiter, response(state.result))
+    if waiters != [] do
+      Enum.each(waiters, &GenServer.reply(&1, response(state.result)))
       {:stop, :normal, state}
     else
       {:noreply, state}
     end
   end
 
-  def handle_info(:timeout, %{result: nil} = state),
+  def handle_info({:timeout, token}, %{result: nil, timer_token: token, paused_at: nil} = state),
     do: {:noreply, begin_termination(state, true)}
 
-  def handle_info(:timeout, state), do: {:noreply, state}
+  def handle_info({:timeout, _token}, state), do: {:noreply, state}
   def handle_info({:EXIT, _port, :normal}, state), do: {:noreply, state}
 
   defp response({:error, _reason} = error), do: error
@@ -360,9 +438,33 @@ defmodule Cuckoding.Execution.LocalProcessWorker do
         %{state | timed_out?: timed_out? or state.timed_out?}
 
       {:error, reason} ->
-        if state.waiter, do: GenServer.reply(state.waiter, {:error, reason})
-        %{state | waiter: nil}
+        Enum.each(state.waiters, &GenServer.reply(&1, {:error, reason}))
+        %{state | waiters: []}
     end
+  end
+
+  defp arm_timer(:infinity), do: {nil, nil}
+
+  defp arm_timer(timeout) do
+    token = make_ref()
+    {Process.send_after(self(), {:timeout, token}, timeout), token}
+  end
+
+  defp current_pause_ms(%{paused_at: nil}), do: 0
+  defp current_pause_ms(state), do: max(System.monotonic_time(:millisecond) - state.paused_at, 0)
+
+  defp signal(state, signal) do
+    Cuckoding.Execution.ProcessTerminator.signal(state.process, signal,
+      before_signal: fn signal, pgids ->
+        record_event(
+          state.environment.run_id,
+          state.process.id,
+          "process.signal",
+          "Sent #{signal} to owned process groups",
+          %{"signal" => signal, "pgids" => pgids}
+        )
+      end
+    )
   end
 
   defp capture_preview(state, data) do
@@ -542,6 +644,21 @@ defmodule Cuckoding.Execution.ProcessTerminator do
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  def signal(process, signal, options \\ []) when signal in ["STOP", "CONT"] do
+    with {:ok, identity} <- LocalHostInspector.process_identity(process.pid, []),
+         true <- identity == process.start_identity,
+         {:ok, pgids} <- LocalHostInspector.owned_process_groups(process.pid, process.pgid),
+         :ok <- verify_root(process),
+         :ok <-
+           Keyword.get(options, :before_signal, fn _signal, _groups -> :ok end).(signal, pgids) do
+      signal_groups(pgids, signal)
+    else
+      false -> {:error, :process_identity_mismatch}
+      :gone -> {:error, :process_identity_unavailable}
+      error -> error
     end
   end
 

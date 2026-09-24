@@ -13,7 +13,7 @@ Container isolation is a `RunnerBridge` plugin family added later (Docker, OrbSt
 | `prepare` | Validate policy snapshot; create worktree under the workspace root; allocate ports; write generated agent configuration files inside the run folder |
 | `start` | Launch the agent process in a new process group with a scrubbed environment; record PID, start identity, and ports |
 | `exec` | Run a declared project command (bootstrap, test, lint, dev server) in the worktree, in its own process group, with timeout and output limits |
-| `pause` | Ask the adapter for a checkpoint; keep processes alive |
+| `pause` | Persist the active checkpoint, verify PID/start identity, suspend owned process groups with `SIGSTOP`, and keep them alive |
 | `hibernate` | Checkpoint, stop processes with the termination ladder, release ports and leases, keep the worktree |
 | `resume` | Revalidate worktree and policy hashes, reallocate ports, restart services, resume or continue the session |
 | `inspect` | Process tree, resource samples, port state, worktree status |
@@ -42,6 +42,15 @@ The workspace root defaults to `~/Library/Application Support/Cuckoding/workspac
 - Record PID plus start timestamp; verify both before signalling to avoid PID reuse.
 - Startup and wake reconciliation use a read-only inspector. A numeric PID alone is never sufficient to continue, adopt, or signal a process; the observed start identity must match the durable record.
 - Termination ladder: adapter graceful stop → signal owned descendant groups before the root group with `SIGINT` → `SIGTERM` → `SIGKILL`, each with a bounded wait and an event. Completion requires every observed PID and PGID to be gone.
+- Explicit pause suspends the process execution timer; `SIGCONT` resumes the
+  same verified process and its remaining timer. Old timeout messages cannot
+  terminate a resumed process. Pause/resume signals and measured pause duration
+  are recorded. Stage wall time includes the pause; active time subtracts the
+  process's measured paused duration. Stop replies to every waiting caller,
+  including both the workflow worker and the control request. A missing process
+  worker fails pause/resume closed instead of pretending an orphan can resume.
+  These are runner capabilities; task/global UI coordination is tracked in task
+  1038 and is not established by runner-only tests.
 - Bound stdout/stderr, apply redaction before persistence, and stream a public summary to the UI.
 - Environment is built from an allowlist: `PATH` (resolved tool paths), `HOME`, locale, `PORT`/`CUCKODING_*`, and only the variables the policy declares. Never inherit the shell's full environment.
 
