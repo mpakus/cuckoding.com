@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: complete
 owner: codex
 started_at: 2026-09-24
 worklog: worklog/2026-09-24-1041-project-task-modals.md
@@ -17,5 +17,5 @@ worklog: worklog/2026-09-24-1041-project-task-modals.md
   distinguish source verification from the running native bundle.
 - [x] Follow-up: place the exact linked motto above the sidebar's
   Local-first. Human-guided. footer, using the existing author website.
-- [ ] Requested delivery: merge local main, rebuild and gracefully restart the
+- [x] Requested delivery: merge local main, rebuild and gracefully restart the
   native app; verify preserved data, one instance and loopback health.

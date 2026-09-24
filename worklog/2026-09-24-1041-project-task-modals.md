@@ -145,3 +145,57 @@ before another field and truncated it; placing `comm` last confirmed the paths.
 Read-only SQLite checks: integrity `ok`, no foreign-key violations, one project,
 one board, one task, no runs/processes, two saved provider accounts, and exactly
 the checked-in migration set. No migration or provider access is required.
+
+### Completed integration and running build
+
+`rtk git diff --cached --check` passed. Committed the implementation and all
+verification/docs as `89dc3fe` (`feat(ui): open task forms in LiveView modals and
+add sidebar credit`). `rtk git switch main` and
+`rtk git merge --ff-only feature/1041-project-task-modals` succeeded; the working
+tree was clean before building. No remote push was requested or performed.
+
+An identity-checked `rtk proxy python3` script sent SIGTERM only to shell 46977
+using the supported shutdown path at `desktop/src-tauri/src/main.rs:846-875`.
+Both shell 46977 and child 47061 exited; port 64301 closed and no process held
+the native database. No unrelated runtime was signalled.
+
+A mode-0700 private backup directory was created at
+`~/Library/Application Support/com.cuckoding.desktop/manual-backups/20260924T165223Z-1041-project-task-modals/`.
+The SQLite backup and manifest are mode 0600. Independent integrity, foreign-key,
+row-count and SHA-256 checks passed; backup database SHA-256:
+`b2dee7f637c09f14dee1a7d6c6eb1b55393119eeb61026ee9bff1024312c6fd3`.
+No migration or provider-profile operation was performed.
+
+`rtk env -u CR_PAT ./bin/dev.build` passed from clean source `89dc3fe`:
+production assets/compiler/release, 6 release-metadata tests/15 assertions,
+release promotion, Rust formatter, 10 shell tests, warnings-denied Clippy,
+Tauri application packaging and every sterile desktop-verifier check. These
+include bootstrap/session token replay, authorization, private diagnostics,
+graceful shutdown/no descendants, crashes before/after READY, safe mode and
+update snapshot/migration/rollback. This is an unsigned local developer build,
+not a signed clean-Mac release or Pages deployment.
+
+Bundled BoardLive, Layouts and ModalComponents bytecode was hash-compared with
+the production release and matched. Launched once using
+`rtk proxy open /Users/mpak/www/elixir/cuckoding.com/desktop/src-tauri/target/release/bundle/macos/Cuckoding.app`.
+At 2026-09-24 16:54:53 UTC, read-only verification confirmed exactly one shell
+(PID 22591, started 11:53:48 local) and its release child (PID 22680, 11:53:49).
+Its only listener is `127.0.0.1:51789`; `/health` returned HTTP 200 with database,
+PubSub and endpoint all `ok`. These process IDs and port are observations only.
+
+Native integrity and foreign keys passed. All rows in projects, boards, tasks,
+runs, processes, provider_accounts, project_config_versions, role_assignments
+and schema_migrations are byte-for-value identical to the backup query results.
+Counts remain one project/board/task, zero runs/processes and two saved agents.
+The first verification script also named a documented but absent `task_comments`
+table and failed at that query; corrected the harness to the actual tables and
+reran successfully. No product or database mutation was needed.
+
+RTK proxy exceptions here are complete source reads, exact metadata-only
+inspection, private SQLite backup/verification, identity-checked shutdown and
+native application launch semantics. No credentials, argv or environment were
+read or printed. Native authenticated UI interaction was not repeated; open
+Cuckoding from the menu bar for a fresh browser handoff to the new port. The
+earlier isolated browser checks and current bundled-bytecode checks remain
+separate evidence. The final documentation-only commit records these results;
+the running implementation revision is `89dc3fe`.
