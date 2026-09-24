@@ -105,3 +105,13 @@ sources. Selected Classic, reloaded, and verified the saved selection and all
 three original images, then restored Irony for the preview. No browser errors
 or warnings. Existing desktop/mobile layout checks remain valid; this follow-up
 changes only the default data and preference fallback.
+
+Local main integration completed:
+- `rtk git commit -m 'feat(pages): add illustration modes with irony as default'`
+  created `561355d`.
+- `rtk git switch main` succeeded.
+- `rtk git merge --ff-only feature/1036-pages-irony-mode` fast-forwarded
+  `55a9415` to `561355d` without conflicts.
+- `rtk git status --short --branch` confirmed a clean main checkout, ahead of
+  origin/main by the feature commit. This integration record is committed next.
+- No remote push or GitHub Pages deployment; local preview remains on port 4115.
