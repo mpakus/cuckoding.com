@@ -126,6 +126,25 @@ defmodule Cuckoding.AgentFloor do
         )
       )
 
+    operation_details(rows)
+  end
+
+  def progress_for_tasks(tasks) do
+    ids = tasks |> Enum.map(& &1.active_run_id) |> Enum.reject(&is_nil/1)
+
+    Repo.all(from run in Run, where: run.id in ^ids, select: %{run: run})
+    |> operation_details()
+    |> Map.new(&{&1.run.task_id, &1})
+  end
+
+  def role_label(run, role_key) do
+    role = Enum.find(run.workflow_snapshot_json["roles"] || [], &(&1["role_key"] == role_key))
+
+    (role && get_in(role, ["settings", "role_name"])) ||
+      role_key |> String.replace("_", " ") |> String.capitalize()
+  end
+
+  defp operation_details(rows) do
     run_ids = Enum.map(rows, & &1.run.id)
     attempts = latest_attempts(run_ids)
     sessions = latest_sessions(attempts)

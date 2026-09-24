@@ -1,6 +1,7 @@
 defmodule CuckodingWeb.BoardLive do
   use CuckodingWeb, :live_view
 
+  alias Cuckoding.AgentFloor
   alias Cuckoding.Execution
   alias Cuckoding.ProjectAutopilot
   alias Cuckoding.Projects
@@ -18,7 +19,11 @@ defmodule CuckodingWeb.BoardLive do
 
       board ->
         project = Projects.get_project(board.project_id)
-        if connected?(socket), do: Cuckoding.ActivityStream.subscribe(:all)
+
+        if connected?(socket) do
+          Cuckoding.ActivityStream.subscribe(:all)
+          Process.send_after(self(), :board_tick, 5_000)
+        end
 
         {:ok,
          assign(socket,
@@ -29,6 +34,8 @@ defmodule CuckodingWeb.BoardLive do
            states: @states,
            show_all_states: false,
            refresh_pending: false,
+           now: Cuckoding.Clock.wall_now(),
+           progress_by_task: %{},
            filters: %{"q" => "", "state" => "all"},
            task_form: %{"title" => "", "description" => "", "priority" => "0"},
            intake_form: %{"prompt" => "", "role_key" => "spec_writer"},
@@ -68,6 +75,11 @@ defmodule CuckodingWeb.BoardLive do
        project_operation: ProjectAutopilot.settings(socket.assigns.project.id)
      )
      |> load_tasks()}
+  end
+
+  def handle_info(:board_tick, socket) do
+    if connected?(socket), do: Process.send_after(self(), :board_tick, 5_000)
+    {:noreply, assign(socket, now: Cuckoding.Clock.wall_now())}
   end
 
   @impl true
@@ -408,6 +420,7 @@ defmodule CuckodingWeb.BoardLive do
                 :for={task <- tasks_in(@tasks, state)}
                 id={"task-#{task.id}"}
                 data-task-id={task.id}
+                data-task-state={task.state}
                 data-allowed-targets={Enum.join(Workflows.allowed_task_transitions(task), ",")}
                 draggable={
                   if(Workflows.allowed_task_transitions(task) != [], do: "true", else: "false")
@@ -437,6 +450,19 @@ defmodule CuckodingWeb.BoardLive do
                       @queued_runs_by_task
                     )}
                   </p>
+                </div>
+
+                <div
+                  :if={@progress_by_task[task.id]}
+                  id={"task-progress-#{task.id}"}
+                  class="space-y-1 rounded-lg bg-violet-50 px-3 py-2 text-sm text-slate-700"
+                >
+                  <p class="font-medium text-slate-950">
+                    {progress_stage(@progress_by_task[task.id])} · {state_label(task.state)}
+                  </p>
+                  <p>{progress_role(@progress_by_task[task.id])}</p>
+                  <p>{progress_model(@progress_by_task[task.id])}</p>
+                  <p>{progress_elapsed(@progress_by_task[task.id], @now)}</p>
                 </div>
 
                 <.link
@@ -557,6 +583,8 @@ defmodule CuckodingWeb.BoardLive do
 
     assign(socket,
       tasks: filtered,
+      progress_by_task: AgentFloor.progress_for_tasks(filtered),
+      now: Cuckoding.Clock.wall_now(),
       admission_by_task: admission_by_task,
       queued_runs_by_task: queued_runs_by_task
     )
@@ -612,6 +640,44 @@ defmodule CuckodingWeb.BoardLive do
 
   defp run_id(%{active_run_id: run_id}, _queued_runs) when not is_nil(run_id), do: run_id
   defp run_id(task, queued_runs), do: get_in(queued_runs, [task.id, Access.key(:id)])
+
+  defp progress_stage(%{attempt: nil}), do: "Preparing"
+
+  defp progress_stage(%{attempt: attempt, run: run}) do
+    stage =
+      Enum.find(
+        run.workflow_snapshot_json["definition"]["stages"],
+        &(&1["key"] == attempt.stage_key)
+      )
+
+    (stage && stage["name"]) || state_label(attempt.stage_key)
+  end
+
+  defp progress_role(%{attempt: nil}), do: "Waiting for an agent"
+
+  defp progress_role(%{run: run, attempt: attempt}),
+    do: AgentFloor.role_label(run, attempt.role_key)
+
+  defp progress_model(%{session: nil}), do: "Runtime not started"
+
+  defp progress_model(%{session: session}) do
+    model =
+      cond do
+        session.actual_model -> session.actual_model
+        session.requested_model -> "requested #{session.requested_model}"
+        true -> "model not reported"
+      end
+
+    "#{state_label(session.adapter_key)} · #{model}"
+  end
+
+  defp progress_elapsed(%{attempt: %{started_at: started} = attempt}, now)
+       when not is_nil(started) do
+    seconds = max(DateTime.diff(attempt.finished_at || now, started, :second), 0)
+    "Stage elapsed: #{div(seconds, 60)}m #{rem(seconds, 60)}s (includes pauses)"
+  end
+
+  defp progress_elapsed(_progress, _now), do: "Stage not started"
 
   defp reason_label("invalid_transition"), do: "this task cannot move from its current state"
   defp reason_label(:invalid_transition), do: "this task cannot move from its current state"

@@ -243,3 +243,34 @@ Verification/fixes:
   contributor/product documents; all local link targets exist.
 - Native/browser/provider acceptance, dynamic board visibility and the current
   one-app launch are still outstanding. Task 1038 and the full goal remain active.
+
+## Live board progress
+
+Custom roles were fast-forward merged to local main at `190c84c`. The next
+slice reuses AgentFloor's durable latest-attempt/session projection for each
+active board task, exposing current stage, saved role name, runtime, observed
+or explicitly requested model, and elapsed wall time including pauses. Dashboard
+and agent inspectors now use the same snapshotted role names. No new state store,
+runtime or query per card; existing projection queries are reused in batches.
+
+Applied the animate skill for spatial consistency on occasional automatic
+state moves: native WAAPI, transform only, 200 ms, prescribed strong ease-in-out.
+Keyboard-focused cards, reduced motion and background tabs stay instant. Other
+updates do not animate, interrupted animations cancel before retargeting, and
+preference changes cancel immediately. No dependency or perpetual indicator.
+
+- `rtk env -u CR_PAT mix test test/cuckoding_web/board_live_test.exs test/cuckoding_web/status_live_test.exs test/cuckoding_web/agent_floor_live_test.exs`:
+  25 tests, 0 failures, including parallel-card state/model/role rendering and
+  independent pause updates. A missing alias warning on the first 24-test run
+  was fixed before this rerun.
+- `rtk node test/task_board_motion_test.cjs`: native hook regression passed.
+- Full quality and rendered/current-bundle checks follow; task remains active.
+
+Board verification follow-up: `rtk env -u CR_PAT mix quality` passed formatter,
+warnings-as-errors compilation, 10 properties and 333 tests, then stopped on one
+test alias-order finding. Reordered the aliases; `rtk mix credo --strict`,
+`rtk env MIX_ENV=test mix sobelow --config`, `rtk env -u CR_PAT mix hex.audit`,
+`rtk mix format --check-formatted`, `rtk node test/task_board_motion_test.cjs`
+and `rtk git diff --check` then passed. This was a metadata-only test fix, so
+the already passing full test suite was not repeated. Current process inspection
+used only executable, PID, parent PID and start identity; no argv/environment.

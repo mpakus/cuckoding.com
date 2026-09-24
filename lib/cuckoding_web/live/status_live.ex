@@ -4,6 +4,8 @@ defmodule CuckodingWeb.StatusLive do
   import CuckodingWeb.ActivityComponents
   import CuckodingWeb.UsageComponents
 
+  alias Cuckoding.AgentFloor
+
   @active_session_states ~w(starting running waiting)
   @active_run_states ~w(running waiting)
   @refresh_ms 5_000
@@ -533,7 +535,9 @@ defmodule CuckodingWeb.StatusLive do
                 >
                   <div>
                     <p class="font-medium text-slate-950">{card.project.name} · {card.task.title}</p><p class="text-slate-600">
-                      {state_label(card.attempt.role_key)} · {state_label(card.session.adapter_key)} · {card.session.actual_model ||
+                      {AgentFloor.role_label(card.run, card.attempt.role_key)} · {state_label(
+                        card.session.adapter_key
+                      )} · {card.session.actual_model ||
                         card.session.requested_model || "Model not reported"}
                     </p>
                     <p class="text-slate-600">
@@ -1096,7 +1100,9 @@ defmodule CuckodingWeb.StatusLive do
   defp format_bytes(bytes) when bytes < 1_048_576, do: "#{div(bytes, 1_024)} KiB"
   defp format_bytes(bytes), do: "#{Float.round(bytes / 1_048_576, 1)} MiB"
 
-  defp operation_role(%{attempt: %{role_key: role_key}}), do: state_label(role_key)
+  defp operation_role(%{run: run, attempt: %{role_key: role_key}}),
+    do: AgentFloor.role_label(run, role_key)
+
   defp operation_role(_operation), do: "Waiting for launch"
   defp operation_runtime(%{session: %{adapter_key: adapter}}), do: state_label(adapter)
   defp operation_runtime(_operation), do: "Not started"

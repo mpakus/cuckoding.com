@@ -4,6 +4,7 @@ defmodule CuckodingWeb.BoardLiveTest do
   import Ecto.Query
   import Phoenix.LiveViewTest
 
+  alias Cuckoding.Execution
   alias Cuckoding.Execution.RunEvent
   alias Cuckoding.Projects
   alias Cuckoding.Projects.ProjectAutopilot, as: AutopilotProjection
@@ -65,6 +66,92 @@ defmodule CuckodingWeb.BoardLiveTest do
              Workflows.transition_task(beta.id, "ready", "board:#{beta.id}:ready")
 
     {:ok, board: board, alpha: alpha, beta: Repo.reload(beta)}
+  end
+
+  test "parallel cards show current stages, snapshotted roles, models and elapsed time", %{
+    conn: conn,
+    board: board,
+    alpha: alpha,
+    beta: beta
+  } do
+    {:ok, policy} =
+      Projects.add_config_version(%{
+        project_id: board.project_id,
+        revision: 1,
+        source_hash: "board-progress",
+        config_json: %{},
+        trusted_at: @now
+      })
+
+    for {key, name} <- [{"spec_writer", "Speculator"}, {"implementer", "Implementor"}] do
+      {:ok, _} =
+        Workflows.assign_role(%{
+          board_id: board.id,
+          role_key: key,
+          role_kind: "agent",
+          adapter_key: "codex",
+          settings_json: %{"role_name" => name}
+        })
+    end
+
+    {:ok, _} = Workflows.transition_task(alpha.id, "ready", "progress-alpha-ready")
+
+    runs =
+      for {task, stage, role} <- [
+            {alpha, "specification", "spec_writer"},
+            {beta, "development", "implementer"}
+          ] do
+        {:ok, run} =
+          Execution.create_run(%{
+            task_id: task.id,
+            sequence: 1,
+            policy_snapshot_id: policy.id,
+            branch: "feature/#{task.id}",
+            base_sha: String.duplicate("a", 40)
+          })
+
+        {:ok, _} = Execution.transition_run(run.id, "running", "progress:#{run.id}")
+
+        {:ok, attempt} =
+          Execution.create_stage_attempt(%{
+            run_id: run.id,
+            stage_key: stage,
+            attempt: 1,
+            role_key: role,
+            role_kind: "agent"
+          })
+
+        {:ok, _} =
+          Execution.transition_stage_attempt(attempt.id, "running", "progress:#{attempt.id}")
+
+        {:ok, session} =
+          Execution.create_agent_session(%{
+            stage_attempt_id: attempt.id,
+            adapter_key: "codex",
+            requested_model: "selected-model",
+            effective_grant_json: %{}
+          })
+
+        if task.id == beta.id do
+          session |> Ecto.Changeset.change(actual_model: "observed-model") |> Repo.update!()
+        end
+
+        run
+      end
+
+    {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}")
+    assert has_element?(view, "#task-progress-#{alpha.id}", "Speculator")
+    assert has_element?(view, "#task-progress-#{alpha.id}", "requested selected-model")
+    assert has_element?(view, "#task-progress-#{beta.id}", "Implementor")
+    assert has_element?(view, "#task-progress-#{beta.id}", "observed-model")
+    assert has_element?(view, "#task-progress-#{beta.id}", "Stage elapsed:")
+    assert has_element?(view, "#column-running #task-#{beta.id}[data-task-state=running]")
+    {:ok, _} = Execution.transition_run(hd(runs).id, "paused", "progress:pause")
+    send(view.pid, :refresh_board)
+    assert has_element?(view, "#column-paused #task-#{alpha.id}[data-task-state=paused]")
+    assert has_element?(view, "#column-running #task-#{beta.id}")
+    send(view.pid, :board_tick)
+    assert has_element?(view, "#task-progress-#{alpha.id}", "includes pauses")
   end
 
   test "board exposes semantic columns, persistent filters, and non-color status cues", %{

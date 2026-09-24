@@ -6,6 +6,13 @@ const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute
 
 const TaskBoard = {
   mounted() {
+    this.motion = window.matchMedia("(prefers-reduced-motion: reduce)")
+    this.animations = new Map()
+    this.cancelMotion = () => {
+      this.animations.forEach(animation => animation.cancel())
+      this.animations.clear()
+    }
+    this.motion.addEventListener("change", this.cancelMotion)
     this.el.addEventListener("dragstart", event => {
       const card = event.target.closest("[data-task-id]")
       if (!card || card.dataset.allowedTargets === "") return event.preventDefault()
@@ -40,6 +47,42 @@ const TaskBoard = {
       this.pushEvent("transition-task", {id: taskId, to: column.dataset.dropState})
       this.draggedTaskId = null
     })
+  },
+
+  beforeUpdate() {
+    this.positions = new Map()
+    // Keep keyboard interactions and changes while reading a focused card instant.
+    if (!this.motion.matches && !this.el.contains(document.activeElement)) {
+      this.el.querySelectorAll("[data-task-id]").forEach(card => {
+        this.positions.set(card.id, {rect: card.getBoundingClientRect(), state: card.dataset.taskState})
+      })
+    }
+    this.cancelMotion()
+  },
+
+  updated() {
+    if (this.motion.matches || document.visibilityState !== "visible") return
+    this.el.querySelectorAll("[data-task-id]").forEach(card => {
+      const before = this.positions?.get(card.id)
+      if (!before || before.state === card.dataset.taskState || typeof card.animate !== "function") return
+      const after = card.getBoundingClientRect()
+      const x = before.rect.left - after.left
+      const y = before.rect.top - after.top
+      if (Math.abs(x) < 1 && Math.abs(y) < 1) return
+      const animation = card.animate([
+        {transform: `translate(${x}px, ${y}px)`},
+        {transform: "translate(0, 0)"},
+      ], {duration: 200, easing: "cubic-bezier(0.77, 0, 0.175, 1)"})
+      this.animations.set(card.id, animation)
+      animation.onfinish = () => {
+        if (this.animations.get(card.id) === animation) this.animations.delete(card.id)
+      }
+    })
+  },
+
+  destroyed() {
+    this.cancelMotion()
+    this.motion.removeEventListener("change", this.cancelMotion)
   },
 
   allowed(card, state) {

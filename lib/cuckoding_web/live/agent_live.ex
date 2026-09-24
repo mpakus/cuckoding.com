@@ -65,7 +65,7 @@ defmodule CuckodingWeb.AgentLive do
             {state_label(@detail.attempt.state)} agent
           </p>
           <h1 id="agent-heading" class="text-3xl font-semibold tracking-tight text-slate-950">
-            {state_label(@detail.attempt.role_key)} session
+            {AgentFloor.role_label(@detail.run, @detail.attempt.role_key)} session
           </h1>
           <p class="text-slate-700">
             {@detail.project.name} · {@detail.session.adapter_key}/{model(@detail.session)}

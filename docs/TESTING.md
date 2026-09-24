@@ -79,6 +79,13 @@ run-owned HOME and policy configuration.
 
 ## Recent interface and discovery checks
 
+Board progress checks render two active tasks with independent stage/role/model
+metadata, distinguish requested from observed models, and move one task through
+durable pause while the other stays running. `rtk node test/task_board_motion_test.cjs`
+checks the real TaskBoard hook's state-only motion, reduced-motion cancellation,
+keyboard focus, timer/layout updates and cleanup without a browser dependency.
+Native/browser checks still verify geometry, focus preservation and readability.
+
 Task 1038's custom-role checks cover project save → explicit board application
 → immutable run snapshot → configured extra stages → final Review/local
 completion. They exercise read-only and worktree-write grants, planning-only

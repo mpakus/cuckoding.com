@@ -259,21 +259,33 @@ board creation accepts name, description, and concurrency; workflow selection,
 budget editing, and board-assignment editing are not exposed there. Kanban
 columns represent task lifecycle states, not Specifications/Coding/Review stages.
 
-The shipped default flow is Specifications → Coding → Review. Blocking Review
-findings return to Specifications or Coding and rerun downstream stages within
-the fixed attempt budget. Passing Review adds an Attention card with separate,
-confirmed **Complete locally** and **Review release** actions. Local completion
-does not push and preserves the branch, worktree, and evidence. No release is
-triggered by project creation.
+New default workflows use Speculator → Implementor → Reviewer; both correction
+labels return through Speculator within the bounded loop. Explicit custom roles
+run after Speculator or Implementor with snapshotted grants and reports. Older
+runs retain their definition. A passing Review follows the recorded manual or
+automatic-local completion choice; remote release always requires its separate
+approval. Local completion preserves the branch, worktree and evidence.
 
-Cards show title, priority, dependencies, current role, runtime/model badge, attempt count, elapsed time, budget consumption, blocking reason, and a knowledge indicator (number of items injected in the current stage). Drag-and-drop is allowed only for transitions the state machine permits, with equivalent keyboard and menu actions.
+The fuller card design also calls for dependency lists, attempt/budget details
+and knowledge usage; these remain available through inspectors where supported,
+not invented per-card measurements. Drag-and-drop is allowed only for transitions
+the state machine permits, with equivalent native form actions.
 
-The board currently shows title, priority, waiting reason, and links to task setup
-or the current run. It does not yet show per-card knowledge usage. Draft, Ready,
+The board shows title, priority, waiting reason and links to task setup/current
+run. Active cards also show current stage, snapshotted role name, runtime,
+observed model (or explicitly requested model), and stage elapsed time including
+pauses. Parallel tasks retain independent progress. The elapsed display refreshes
+every five seconds; committed events refresh stage/state from SQLite. It does
+not yet show per-card knowledge usage. Draft, Ready,
 Running, Waiting, and Done are visible by default, plus any occupied uncommon
 state; **Show all states** exposes all lifecycle columns. A state filter shows
 that column only. Committed activity hints trigger a coalesced reload from the
 database; the LiveView does not own workflow state.
+
+Automatic card-state moves use a 200 ms native transform animation to show where
+the card went. Timer/layout-only updates do not animate. Keyboard-focused cards,
+reduced motion and background tabs update immediately; changing motion preference
+cancels an active animation. No animation library or perpetual activity effect.
 
 Filters live in the URL so reload and browser history preserve them; **Clear
 filters** restores the board. Each permitted move has a labeled native select

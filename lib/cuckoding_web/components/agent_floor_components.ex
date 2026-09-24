@@ -3,6 +3,7 @@ defmodule CuckodingWeb.AgentFloorComponents do
 
   use CuckodingWeb, :html
 
+  alias Cuckoding.AgentFloor
   alias Cuckoding.Telemetry.Accounting
 
   attr :groups, :list, required: true
@@ -35,7 +36,9 @@ defmodule CuckodingWeb.AgentFloorComponents do
             >
               <div class="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <h3 class="font-medium text-slate-950">{state_label(card.attempt.role_key)}</h3>
+                  <h3 class="font-medium text-slate-950">
+                    {AgentFloor.role_label(card.run, card.attempt.role_key)}
+                  </h3>
                   <p class="text-sm text-slate-700">{card.project.name} · {card.task.title}</p>
                 </div>
                 <span class={status_classes(card.attention?)}>
@@ -59,7 +62,8 @@ defmodule CuckodingWeb.AgentFloorComponents do
               </dl>
 
               <p :if={card.handoff_from} class="text-sm text-slate-700">
-                <span aria-hidden="true">→</span> Handoff from {state_label(card.handoff_from)}
+                <span aria-hidden="true">→</span>
+                Handoff from {AgentFloor.role_label(card.run, card.handoff_from)}
               </p>
               <p class="text-sm text-slate-700">
                 {activity_label(card.activity)}
@@ -71,7 +75,10 @@ defmodule CuckodingWeb.AgentFloorComponents do
                 {Accounting.cost_label(card.usage)}
               </p>
 
-              <nav aria-label={"Controls for #{card.attempt.role_key}"} class="flex flex-wrap gap-2">
+              <nav
+                aria-label={"Controls for #{AgentFloor.role_label(card.run, card.attempt.role_key)}"}
+                class="flex flex-wrap gap-2"
+              >
                 <.link
                   navigate={~p"/agents/#{card.session.id}"}
                   class="inline-flex min-h-10 items-center rounded-md bg-slate-950 px-3 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
@@ -113,7 +120,7 @@ defmodule CuckodingWeb.AgentFloorComponents do
             </thead>
             <tbody class="divide-y divide-slate-200">
               <tr :for={card <- @cards}>
-                <td class="px-3 py-2">{state_label(card.attempt.role_key)}</td>
+                <td class="px-3 py-2">{AgentFloor.role_label(card.run, card.attempt.role_key)}</td>
                 <td class="px-3 py-2">{card.project.name}</td>
                 <td class="px-3 py-2">{card.session.adapter_key}/{model(card.session)}</td>
                 <td class="px-3 py-2">{state_label(card.attempt.state)}</td>
