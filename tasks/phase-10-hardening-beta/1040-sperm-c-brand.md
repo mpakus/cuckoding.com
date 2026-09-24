@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: complete
 owner: codex
 started_at: 2026-09-24
 worklog: worklog/2026-09-24-1040-sperm-c-brand.md
@@ -11,5 +11,5 @@ worklog: worklog/2026-09-24-1040-sperm-c-brand.md
 - [x] Use matching branding for Pages, the application, browser favicons and
   macOS app/tray icons; preserve accessible names and monochrome tray behavior.
 - [x] Keep editable vector sources and reproducible size/format exports.
-- [ ] Verify small-size rendering, Pages checks, focused web/native checks and
+- [x] Verify small-size rendering, Pages checks, focused web/native checks and
   the packaged app; record current-running versus built evidence separately.
