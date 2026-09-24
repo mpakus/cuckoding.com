@@ -19,15 +19,14 @@ Task 1034 records an unsigned native rebuild and local launch. Its historical
 PID/port is not evidence of what is running now. No live Pages deployment or
 current all-instance restart was verified by this documentation review.
 
-Task 1037 executable discovery is implemented and tested in the working tree on
-`feature/1037-agent-path-discovery`; it is not yet in main or a rebuilt native
-bundle. It checks CLI locations and Codex Desktop bundles with manual override.
+Task 1037 executable discovery was subsequently merged into local main at
+`5fa55bc`; a rebuilt native bundle containing it is still pending. It checks CLI locations and Codex Desktop bundles with manual override.
 Discovery does not reuse desktop credentials or extend the Codex `0.146.0`
 compatibility pin. Real-provider lifecycle and clean-Mac acceptance remain open.
 
 The accepted default roles are now Speculator, Implementor and Reviewer, with
-Reviewer revisions returning through Cuckoding to Speculator. Current source
-still uses Specifications/Coding/Review and can return directly to Coding.
+Reviewer revisions returning through Cuckoding to Speculator. Task 1038 implements these names and routes for new defaults, passes the latest
+specification between roles, and preserves legacy workflow snapshots.
 Executable custom workflows and role-permission editing also remain open; see
 [role alignment](PLAN.md#role-contract-alignment--2026-09-24). This requirement
 update does not change the no-go decision or close any beta criterion.

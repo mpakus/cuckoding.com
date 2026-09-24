@@ -1,0 +1,22 @@
+---
+status: in_progress
+owner: codex
+started_at: 2026-09-24
+worklog: worklog/2026-09-24-1038-complete-board-flow.md
+---
+
+# 1038 — Complete the project-to-board agent flow
+
+Preserve the user's full active goal; source-only or fixture-only success does
+not establish a ready-to-use local application.
+
+- [ ] Create a project, add/reuse agents with independent models, assign roles and create a board.
+- [ ] Select a Speculator/analysis agent to generate tasks/specs from a prompt or project Markdown files.
+- [ ] Select another model to review proposed tasks, retain comments, improve descriptions/specs and produce a report before import.
+- [ ] Execute Speculator → Implementor → Reviewer with validated comments returning through Cuckoding to Speculator; preserve historical snapshots and finite budgets.
+- [ ] Advance eligible cards through the flow and to local completion under the user's explicit run policy; remote handoff remains separately approved.
+- [ ] Support user-added roles and reviewed permissions without permitting instruction-based escalation.
+- [ ] Run independent tasks concurrently and show actual owner, model, stage, elapsed time and state with accessible animation on dashboard/board.
+- [ ] Pause/resume or stop one task and pause/stop all Cuckoding work with durable state and owned-process control.
+- [ ] Pass focused/full relevant tests, security/transition/recovery gates and rendered keyboard/mobile checks.
+- [ ] Merge all goal changes into main, build and launch one current app, and verify the complete local journey with explicit evidence and remaining limitations.

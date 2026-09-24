@@ -66,11 +66,19 @@ defmodule Cuckoding.WalkingSkeletonTest do
       path = Path.join([request.run_dir, "artifacts", "spec-agent.jsonl"])
       File.mkdir_p!(Path.dirname(path))
 
+      content =
+        case Keyword.get(options, :spec_text) do
+          callback when is_function(callback, 1) -> callback.(request)
+          _default -> "# Agent-written specification\n\nProve the source."
+        end
+
+      if caller = Keyword.get(options, :caller),
+        do: send(caller, {:spec_request, request})
+
       text =
         if Keyword.get(options, :plain_spec, false),
-          do: "# Agent-written specification\n\nProve the source.",
-          else:
-            Jason.encode!(%{"summary" => "# Agent-written specification\n\nProve the source."})
+          do: content,
+          else: Jason.encode!(%{"summary" => content})
 
       File.write!(
         path,
@@ -98,6 +106,10 @@ defmodule Cuckoding.WalkingSkeletonTest do
 
     def start(request, options) do
       tag = Keyword.fetch!(options, :tag)
+
+      if Keyword.get(options, :write_patch, false) and request.stage_key == "development" do
+        File.write!(Path.join(request.worktree_path, "HANDOFF.txt"), request.attempt_id)
+      end
 
       send(
         Keyword.fetch!(options, :caller),
@@ -332,7 +344,7 @@ defmodule Cuckoding.WalkingSkeletonTest do
            ]
   end
 
-  test "review findings rerun the earliest affected stage within the fixed budget", fixture do
+  test "all review corrections return through Speculator within the fixed budget", fixture do
     assert {:ok, created} = WalkingSkeleton.create(fixture.attrs)
     changes = :atomics.new(1, [])
 
@@ -380,7 +392,8 @@ defmodule Cuckoding.WalkingSkeletonTest do
 
     assert Enum.filter(attempts, &(elem(&1, 0) == "specification")) == [
              {"specification", 1, "succeeded"},
-             {"specification", 2, "succeeded"}
+             {"specification", 2, "succeeded"},
+             {"specification", 3, "succeeded"}
            ]
 
     assert Enum.filter(attempts, &(elem(&1, 0) == "development")) == [
@@ -416,6 +429,73 @@ defmodule Cuckoding.WalkingSkeletonTest do
       )
 
     assert Enum.count(event_types, &(&1 == "finding.created")) == 2
+  end
+
+  test "task descriptions and the latest durable spec reach implementation and review", fixture do
+    description = "Keep all existing records; implement the export described in docs/PLAN.md."
+
+    {:ok, created} =
+      WalkingSkeleton.create(Map.put(fixture.attrs, :task_description, description))
+
+    roles = %{
+      "spec_writer" => %{
+        adapter: SpecificationAdapter,
+        version: "fixture",
+        options: [
+          caller: self(),
+          spec_text: fn request ->
+            if request.objective =~ "Correct the export",
+              do: "# Revised spec\nExport every record and verify row counts.",
+              else: "# Initial spec\nAdd the export."
+          end
+        ]
+      },
+      "implementer" => %{
+        adapter: RoleAdapter,
+        version: "fixture",
+        options: [caller: self(), tag: :implementation_handoff, write_patch: true]
+      },
+      "reviewer" => %{
+        adapter: RoleAdapter,
+        version: "fixture",
+        options: [caller: self(), tag: :review_handoff]
+      }
+    }
+
+    assert {:ok, pending} =
+             WalkingSkeleton.run(created,
+               role_adapters: roles,
+               simulate_sleep_gap: false,
+               fake_review_output: fn
+                 1 -> review_output("Correct the export", "fix_code", "correctness")
+                 2 -> %{"summary" => "All records are exported", "findings" => []}
+               end
+             )
+
+    assert_receive {:spec_request, first_spec}
+    assert first_spec.objective =~ description
+    assert "write" in first_spec.grant["deny_tools"]
+    assert_receive {:spec_request, revised_spec}
+    assert revised_spec.objective =~ "# Initial spec"
+    assert revised_spec.objective =~ "Correct the export"
+    assert revised_spec.objective =~ "Evidence:"
+
+    for expected <- ["# Initial spec", "# Revised spec"] do
+      assert_receive {:role_stage, :implementation_handoff, "development", implementation}
+      assert implementation =~ description
+      assert implementation =~ expected
+      assert_receive {:role_stage, :review_handoff, "qa", review}
+      assert review =~ description
+      assert review =~ expected
+    end
+
+    assert File.read!(Path.join(pending.environment.run_dir, "artifacts/specification.md")) =~
+             "# Initial spec"
+
+    assert File.read!(Path.join(pending.environment.run_dir, "artifacts/specification-2.md")) =~
+             "# Revised spec"
+
+    assert pending.run.state == "waiting"
   end
 
   test "review attempt budget stops an endless correction loop", fixture do

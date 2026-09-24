@@ -1,5 +1,19 @@
 # Documentation Audit
 
+## Active full-flow implementation — task 1038
+
+Task 1037 is integrated into local main at `5fa55bc`. Task 1038 now adds canonical
+new role defaults, both correction routes through Speculator, immutable default
+workflow version upgrades for new boards, and task-description/latest-spec
+handoff. The audit found that earlier delivery prompts omitted descriptions and
+did not pass the saved spec to Implementor/Reviewer; focused regressions now
+cover that path and revision comments. Full quality passed 10 properties and
+316 tests. Existing boards retain their snapshots. Second-model proposal review,
+custom role execution/permissions, automatic local completion, effective global
+and task controls, final UI acceptance and a current native app remain open in
+[task 1038](../tasks/phase-10-hardening-beta/1038-complete-board-flow.md).
+The dated audit below describes the state before these implementation changes.
+
 ## Design, setup and role-contract audit — 2026-09-24
 
 Compared recent user requests with source and task 1032–1037 worklogs. At this

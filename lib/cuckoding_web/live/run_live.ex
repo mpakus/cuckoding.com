@@ -320,7 +320,13 @@ defmodule CuckodingWeb.RunLive do
               {setup[:connection] || setup.runtime}
             </h3>
             <p :if={setup[:connection]}>{setup.runtime}</p>
-            <p>Roles: {Enum.map_join(setup[:role_keys] || [setup.role_key], ", ", &role_label/1)}</p>
+            <p>
+              Roles: {Enum.map_join(
+                setup[:role_keys] || [setup.role_key],
+                ", ",
+                &role_label(&1, @detail.run)
+              )}
+            </p>
             <p :if={setup[:status] == "authenticated"} class="font-semibold text-emerald-800">
               Connected · sign-in checked again at start
             </p>
@@ -646,7 +652,12 @@ defmodule CuckodingWeb.RunLive do
     end
   end
 
-  defp role_label(role_key), do: role_key |> String.replace("_", " ") |> String.capitalize()
+  defp role_label(role_key, run) do
+    role = Enum.find(run.workflow_snapshot_json["roles"], &(&1["role_key"] == role_key))
+
+    get_in(role || %{}, ["settings", "role_name"]) ||
+      role_key |> String.replace("_", " ") |> String.capitalize()
+  end
 
   defp start_error(%Cuckoding.Adapters.Types.Error{code: :not_installed}),
     do: "The configured runtime executable is unavailable."

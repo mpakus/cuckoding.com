@@ -702,7 +702,7 @@ defmodule CuckodingWeb.ProjectEditLive do
               <div>
                 <h2 id="roles-heading" class="text-xl font-semibold text-slate-950">Roles</h2>
                 <p class="mt-1 text-sm text-slate-700">
-                  A role is a job: Specifications plans, Coding implements, and Review checks the result. One agent can fill several roles. Save assignments below before creating a board.
+                  A role is a job: Speculator writes specs, Implementor writes code and tests, and Reviewer checks the result. One agent can fill several roles. Save assignments below before creating a board.
                 </p>
               </div>
               <button

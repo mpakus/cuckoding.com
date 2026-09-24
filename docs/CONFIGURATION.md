@@ -34,8 +34,8 @@ at `/projects/:id/edit` attach saved agents and assign roles after registration.
 or full configuration to persist attachment. Saving the full configuration
 requires every role to be assigned. Removing a connection from a project does
 not delete or revoke the machine-wide account. Custom roles can be saved, but
-the current default delivery launcher uses Specifications, Coding, and Review.
-The accepted names are Speculator, Implementor and Reviewer; the role contract
+the default delivery launcher uses the three stable built-in role keys.
+New defaults are named Speculator, Implementor and Reviewer; the role contract
 and implementation gaps are in [PRODUCT.md](PRODUCT.md#default-roles-and-extensibility).
 Additional roles and permissions are required product capabilities. Current role
 forms store names, instructions and agent assignments only; adding a role does

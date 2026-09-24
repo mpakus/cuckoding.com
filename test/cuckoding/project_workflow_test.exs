@@ -158,7 +158,7 @@ defmodule Cuckoding.ProjectWorkflowTest do
 
     assert has_element?(run_view, "#runtime-setup a", "Check sign-in for Local Codex")
 
-    assert has_element?(run_view, "#runtime-setup p", "Roles: Implementer, Reviewer, Spec writer")
+    assert has_element?(run_view, "#runtime-setup p", "Roles: Implementor, Reviewer, Speculator")
 
     assert has_element?(task_view, "p", "waiting for authentication")
 
@@ -167,6 +167,59 @@ defmodule Cuckoding.ProjectWorkflowTest do
     assert has_element?(dashboard, "#operation-#{run.id}", "Queued")
     assert has_element?(dashboard, "#operation-#{run.id}", "Waiting for launch")
     assert has_element?(dashboard, "#project-#{project.id}", "Tasks")
+  end
+
+  test "new boards get the revised default without rewriting an older workflow", %{
+    project: project
+  } do
+    legacy = Cuckoding.Workflows.Definition.default()
+
+    stages =
+      Enum.map(legacy["stages"], fn
+        %{"key" => "qa"} = stage -> put_in(stage, ["transitions", "fix_code"], "development")
+        stage -> stage
+      end)
+
+    assert {:ok, previous} =
+             Workflows.publish_workflow(%{
+               project_id: project.id,
+               name: "default",
+               version: 7,
+               definition_json: %{legacy | "stages" => stages},
+               published_at: Cuckoding.Clock.wall_now()
+             })
+
+    assert {:ok, old_board} =
+             Workflows.create_board(%{
+               project_id: project.id,
+               name: "Earlier board",
+               workflow_version_id: previous.id
+             })
+
+    assert {:ok, current_board} =
+             ProjectWorkflow.create_board(project.id, %{
+               "name" => "Current board",
+               "concurrency_limit" => "1"
+             })
+
+    current = Repo.get!(Cuckoding.Workflows.WorkflowVersion, current_board.workflow_version_id)
+    assert current.version == 8
+
+    assert {:ok, %{"stage_key" => "specification"}} =
+             Cuckoding.Workflows.Definition.evaluate(current.definition_json, "qa", "fix_code")
+
+    assert Repo.get!(Cuckoding.Workflows.WorkflowVersion, previous.id).definition_json ==
+             previous.definition_json
+
+    assert Workflows.get_board(old_board.id).workflow_version_id == previous.id
+
+    assert {:ok, next_board} =
+             ProjectWorkflow.create_board(project.id, %{
+               "name" => "Next board",
+               "concurrency_limit" => "1"
+             })
+
+    assert next_board.workflow_version_id == current.id
   end
 
   test "two boards execute concurrently without crossing worktrees or evidence", %{

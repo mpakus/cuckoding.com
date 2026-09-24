@@ -11,7 +11,7 @@ Speculator writes specs and task descriptions from prompts or project `.md`
 plans; Implementor writes code and tests; Reviewer reports done or returns a
 comment list through Cuckoding to Speculator. Users can extend roles and
 permissions through explicit trusted configuration. Keep these product terms
-distinct from the legacy source names/keys and current routing until implemented;
+distinct from legacy saved names and immutable workflow snapshots;
 see `docs/PRODUCT.md` and `docs/FLOW.md`. Role text never grants access or bypasses
 human completion/release approval.
 

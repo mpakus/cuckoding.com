@@ -267,16 +267,18 @@ participant, or release acceptance gates.
 ## Role contract alignment — 2026-09-24
 
 The user clarified the intended defaults in [PRODUCT.md](PRODUCT.md#default-roles-and-extensibility).
-These are pending implementation, not completed by the documentation update:
+Task 1038 implements the checked source changes; unchecked items and the
+complete local-application acceptance remain open:
 
-- [ ] Present Speculator, Implementor and Reviewer as the three default agent
+- [x] Present Speculator, Implementor and Reviewer as the three default agent
   roles while preserving stable identifiers and historical snapshots.
 - [ ] Verify Speculator creates specs and task descriptions from prompts and
   committed project `.md` plan files, and Implementor uses both to produce code
   and tests. Keep task-proposal import and trust boundaries explicit.
-- [ ] Route every Reviewer revision result through Cuckoding to Speculator with
+- [x] Route every Reviewer revision result in new default workflows through Cuckoding to Speculator with
   the review-comment list; rerun implementation/review within finite budgets.
-  Current direct-to-Coding routing does not satisfy this contract.
+  Older boards/run snapshots retain their versioned routing. New boards publish
+  a revised default version; no history is rewritten.
 - [ ] Connect user-added roles to executable versioned workflows and let users
   configure additional permissions through reviewed policy and runtime grants.
   Existing editable role metadata is only partial implementation.

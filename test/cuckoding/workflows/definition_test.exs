@@ -10,7 +10,7 @@ defmodule Cuckoding.Workflows.DefinitionTest do
     assert {:ok, %{"stage_key" => "development"}} =
              Definition.evaluate(workflow, "specification", "pass")
 
-    assert {:ok, %{"stage_key" => "development"}} =
+    assert {:ok, %{"stage_key" => "specification"}} =
              Definition.evaluate(workflow, "qa", "fix_code")
 
     assert {:ok, %{"status" => "done"}} =
@@ -66,12 +66,13 @@ defmodule Cuckoding.Workflows.DefinitionTest do
 
     assert {:ok, routed} = Definition.route_findings(Definition.default(), "qa", findings)
 
-    assert Enum.map(routed["development"], & &1["summary"]) == [
+    assert Enum.map(routed["specification"], & &1["summary"]) == [
              "Implementation bug",
+             "Ambiguous intent",
              "Second bug"
            ]
 
-    assert Enum.map(routed["specification"], & &1["summary"]) == ["Ambiguous intent"]
+    refute Map.has_key?(routed, "development")
   end
 
   test "invalid structure fails closed" do

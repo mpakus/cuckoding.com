@@ -374,6 +374,8 @@ defmodule Cuckoding.ProjectWorkflow do
   end
 
   defp default_workflow(project_id) do
+    {:ok, definition} = Definition.validate(Definition.default())
+
     case Repo.one(
            from(workflow in WorkflowVersion,
              where: workflow.project_id == ^project_id and workflow.name == "default",
@@ -381,15 +383,15 @@ defmodule Cuckoding.ProjectWorkflow do
              limit: 1
            )
          ) do
-      %WorkflowVersion{} = workflow ->
+      %WorkflowVersion{definition_json: ^definition} = workflow ->
         {:ok, workflow}
 
-      nil ->
+      previous ->
         Workflows.publish_workflow(%{
           project_id: project_id,
           name: "default",
-          version: 1,
-          definition_json: Definition.default(),
+          version: if(previous, do: previous.version + 1, else: 1),
+          definition_json: definition,
           published_at: Clock.wall_now()
         })
     end

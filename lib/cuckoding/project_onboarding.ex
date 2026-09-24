@@ -12,18 +12,20 @@ defmodule Cuckoding.ProjectOnboarding do
   @default_roles [
     %{
       "key" => "spec_writer",
-      "name" => "Specifications",
-      "instructions" => "Clarify intent and produce testable acceptance criteria."
+      "name" => "Speculator",
+      "instructions" =>
+        "Create specs and task descriptions from the prompt or project Markdown plans. Revise them against Reviewer comments and define testable acceptance criteria."
     },
     %{
       "key" => "implementer",
-      "name" => "Coding",
-      "instructions" => "Implement the approved specification and provide test evidence."
+      "name" => "Implementor",
+      "instructions" => "Implement code and tests from the task description and specification."
     },
     %{
       "key" => "reviewer",
-      "name" => "Review",
-      "instructions" => "Review independently and route findings to specifications or coding."
+      "name" => "Reviewer",
+      "instructions" =>
+        "Review independently against the task description and specification. Report completion or return actionable comments through Cuckoding to Speculator."
     }
   ]
   @default_role_keys MapSet.new(Enum.map(@default_roles, & &1["key"]))

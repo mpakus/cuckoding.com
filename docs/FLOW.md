@@ -25,7 +25,7 @@ Project setup, board setup, board task intake, and delivery execution are separa
 2. **Board setup** creates a named board with the default versioned workflow,
    copied project role assignments (which may still be unassigned), and a chosen concurrency limit. **Assign agents to board** explicitly applies current project roles to an existing board for future runs and appends compatible bindings to queued runs without rewriting their snapshots. Workflow
    selection and board-level role/budget editors remain design targets.
-3. **Task execution** can be started manually or by **Start project**. Moving a task to Ready does not start it while the project is paused. Once the project is running, a supervised dispatcher admits eligible Ready delivery tasks using the existing scheduler, prepares a separate run/worktree for each, and starts the Specifications → Coding → Review flow. The Ready card's **Set up and start** link opens task
+3. **Task execution** can be started manually or by **Start project**. Moving a task to Ready does not start it while the project is paused. Once the project is running, a supervised dispatcher admits eligible Ready delivery tasks using the existing scheduler, prepares a separate run/worktree for each, and starts the Speculator → Implementor → Reviewer flow for new defaults. The Ready card's **Set up and start** link opens task
    detail; an already prepared task links directly to its queued run.
    **Prepare run** accepts only a
    Ready task on an active board, rejects setup-only runtimes, snapshots the
@@ -93,7 +93,8 @@ clarified on 2026-09-24. Speculator creates specs and task descriptions from a
 prompt or project `.md` plan files. Reviewer reports its result and comments to
 Cuckoding; every revision returns through Speculator, which updates the task
 and specs before Implementor changes code/tests again. This is the target; the
-current launcher's different names and direct Coding return are described below.
+new default implements this routing. Legacy snapshots retain their original
+definition, including any direct Coding return.
 
 ```mermaid
 flowchart TD
@@ -113,9 +114,11 @@ flowchart TD
 The current creation UI uses `Definition.default()`. `GuidedRun` invokes the
 bounded `WalkingSkeleton.run/2` executor. Review provider output is parsed from
 the run-owned artifact and revalidated by the host against a closed schema.
-Error and blocker findings are persisted with their evidence, routed through
-`Definition.route_findings/3`, and restart the loop from Specifications or
-Coding; mixed findings restart at Specifications. The third failing Review
+Error and blocker findings are persisted with their evidence and routed through
+`Definition.route_findings/3` using the run's immutable definition. New default
+definitions send both `fix_intent` and `fix_code` to Speculator. Older snapshots
+may still route code findings to Implementor; they are never interpreted using
+today's default. The third failing Review
 exhausts the fixed MVP attempt budget and blocks the run. Passing Review creates
 one human choice: the existing approved release, or an atomic local completion
 that marks the run/task done, rejects only the release handoff, and preserves the
@@ -192,9 +195,9 @@ It does not leave an unusable queued run that blocks another preparation.
 | Human approver | human | Verify diff and evidence bundle | Approval decision |
 | Release handoff | system | Push the branch and create the draft PR with the host-side VCS service | Evidence bundle, ready branch, PR link |
 
-These are the accepted role display names; the source still uses
-Specifications/Coding/Review and the stable keys
-`spec_writer`/`implementer`/`reviewer`. Human approver and Release handoff are
+These are the default names for new projects. The stable keys remain
+`spec_writer`/`implementer`/`reviewer`, while existing saved names are preserved.
+Human approver and Release handoff are
 control gates, not additional default agent roles. Users may add roles and
 permissions, but execution requires a versioned workflow mapping and an
 explicit trusted grant supported by the runtime; text instructions never expand
@@ -213,9 +216,13 @@ Authentication mode is also resolved from the current saved account at launch;
 it is not pinned in the role copy. Existing boards do not acquire account IDs
 from later project saves. See [configuration boundaries](CONFIGURATION.md).
 
-The default board launcher resolves Specifications, Coding, and Review
+The default board launcher resolves Speculator, Implementor, and Reviewer
 independently from that snapshot. Each stage receives its assigned connection,
-runtime version, and role instructions; a single implementation runtime is not
+runtime version, role instructions and task description. Implementor and Reviewer
+receive the latest validated specification text, and a returning Speculator gets
+the prior specification plus the review comments/evidence. Specifications are
+persisted separately for each attempt; read-only roles explicitly deny writes.
+A single implementation runtime is not
 silently reused for the other roles. Identical account/runtime settings share one
 authentication check, while role instructions stay distinct. Saved Codex and
 Cursor accounts use shared app-owned profiles; execution configuration stays

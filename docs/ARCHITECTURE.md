@@ -113,12 +113,17 @@ creates a queued run, and delegates owned worktree setup to `GitService`; no
 provider process starts from a board or task form.
 
 `Cuckoding.GuidedRun` launches that queued default workflow after authorization
-verification. It resolves the Specifications, Coding, and Review adapters
+verification. It resolves the Speculator, Implementor, and Reviewer adapters
 separately from the immutable run snapshot, while `WalkingSkeleton` remains the
 bounded executor and release-evidence path. Review uses a closed structured
 output schema; host validation persists each finding with an event, resolves its
-`fix_intent` or `fix_code` transition through `Definition`, and reruns from the
-earliest affected stage. Three Review attempts are allowed. A passing run waits
+`fix_intent` or `fix_code` transition through the run's snapshotted `Definition`.
+New defaults return both to Speculator; legacy definitions retain their routing.
+Task descriptions reach every stage and the latest generated spec reaches
+implementation/review; a returning Speculator also receives the previous spec
+and review comments/evidence. Per-attempt spec artifacts remain durable. New
+boards publish the current default as a new version when necessary, without
+rewriting earlier boards or runs. Three Review attempts are allowed. A passing run waits
 for the human to complete locally in one event/projection transaction or approve
 the existing host-side release handoff.
 `AgentRuntime` deduplicates authentication checks by account and executable/helper

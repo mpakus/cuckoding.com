@@ -115,7 +115,7 @@ configuration version, then redirects to project settings. It does not create a
 board, task, queued run, feature branch, worktree, port, or provider process.
 
 Project settings can save machine-wide agents, attach them to projects, and assign them to
-the built-in Specifications, Coding, and Review roles or user-added roles.
+the built-in Speculator, Implementor, and Reviewer roles or user-added roles.
 Every save appends an immutable configuration revision. The runtime selector
 shows Codex, Claude Code, Cursor Agent, OpenCode, and Custom Agent; the Claude
 API-key helper is rendered and validated only for Claude Code. Saved Cursor

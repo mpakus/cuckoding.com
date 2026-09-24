@@ -52,11 +52,17 @@ configuration and approval within supported runtime capabilities; role names,
 instructions and project plan files cannot grant themselves access. Historical
 board/run snapshots retain their original roles and permissions.
 
-**Implementation gap:** source still names the built-ins Specifications, Coding
-and Review, with stable keys `spec_writer`, `implementer` and `reviewer`.
-Its reviewer may route implementation findings directly to Coding; it does not
-yet send every revision through Speculator. Project settings already save custom
-role names, instructions and assignments, but adding a role does not insert an
+**Implemented in task 1038:** new project defaults use these three names with
+stable keys `spec_writer`, `implementer` and `reviewer`. New default workflows
+return both intent and code corrections to Speculator. Every stage receives
+the task description; Implementor and Reviewer also receive the latest generated
+specification. A returning Speculator receives its prior spec and the validated
+review comments/evidence. Per-attempt specifications remain durable artifacts.
+Existing boards/runs keep their original names and versioned routing; creating
+a new board uses the latest default without rewriting the old definition.
+
+**Implementation gap:** project settings already save custom role names,
+instructions and assignments, but adding a role does not insert an
 executable workflow stage, and there is no dedicated role-permission editor.
 Read-only planning can inspect committed Markdown named in a prompt and propose
 tasks for human import; that is not full acceptance of the Speculator contract.
@@ -69,7 +75,7 @@ These describe current source and its limits; the role-contract changes above
 remain pending where explicitly identified.
 
 - Local project registry with separate add/edit setup; creating a project does not create a board, task, run, branch, or worktree.
-- A machine-wide saved-agent catalog plus project role defaults. A three-step add flow collects name/runtime, discovers an installed executable and verifies reusable authorization, then offers provider-discovered models and supported Codex reasoning levels. The built-in roles are Specifications, Coding, and Review; users may attach the same saved agent to several projects, add roles, and edit role names/instructions. Successful Codex and Cursor authorization checks refresh a bounded provider model catalog for the shared sign-in. Output contracts belong to workflow/adapter configuration. The catalog stores connection metadata, authorization status, and validated model labels/IDs, never credential values or raw provider output.
+- A machine-wide saved-agent catalog plus project role defaults. A three-step add flow collects name/runtime, discovers an installed executable and verifies reusable authorization, then offers provider-discovered models and supported Codex reasoning levels. New built-in roles are Speculator, Implementor, and Reviewer; users may attach the same saved agent to several projects, add roles, and edit role names/instructions. Successful Codex and Cursor authorization checks refresh a bounded provider model catalog for the shared sign-in. Output contracts belong to workflow/adapter configuration. The catalog stores connection metadata, authorization status, and validated model labels/IDs, never credential values or raw provider output.
 - Multiple boards and concurrent task flows per project.
 - Durable project Start/Pause/Needs attention/Done control with a per-project run limit and open blocker-finding threshold. Pause stops new starts, not already-running work. Boards can be created before agents are assigned; assigning current project roles to a board updates future runs and adds audited saved-agent bindings to compatible queued runs without rewriting their snapshots.
 - Read-only board planning runs that turn a bounded prompt into source-cited task proposals; only human-selected proposals become Draft tasks.
@@ -125,7 +131,7 @@ profiles, provider-history sharing and remaining acceptance checks.
 5. Inside project settings, the user creates a board from the default versioned workflow. The board copies the latest saved role assignments and concurrency limit. Later project edits do not silently rewrite the board; **Assign agents to board** explicitly updates future runs and connects compatible queued work through append-only binding events.
 6. The user adds a Draft task directly or asks one assigned role to analyze project files. A planning request creates a hidden run, verifies the saved agent authorization or performs the runtime's isolated setup, grants read-only/network-denied access, and pauses with source-cited proposals. The user selects which proposals become Draft cards; provider output never creates tasks without that review.
 7. The user refines a Draft task and marks it Ready. If project automatic work is running, the dispatcher admits eligible Ready tasks within its limits; otherwise the user can choose **Prepare run** manually. The board shows current admission delays, such as an unmet dependency or capacity limit. Preparation snapshots the board's workflow, role assignments, and saved-agent references plus trusted project policy, then creates the feature branch and owned worktree. Before launch, the run page verifies authorization. Cuckoding never copies credentials into snapshots; provider-owned storage depends on the runtime and legacy versus saved-account setup.
-8. The current launcher moves through Specifications → Coding → Review. Error or blocker findings return to Specifications for intent problems or Coding for implementation problems, then repeat downstream stages within a three-Review budget. This direct Coding return is a remaining difference from the accepted Speculator loop above. A passing Review waits for a human choice: complete locally without a push, or approve the host-side release handoff. See [FLOW.md](FLOW.md).
+8. New default workflows move through Speculator → Implementor → Reviewer. Error or blocker findings return to Speculator with their comments/evidence, then repeat downstream stages within a three-Review budget. Legacy run snapshots retain their previous routing. A passing Review currently waits for a human choice: complete locally without a push, or approve the host-side release handoff. Automatic local completion and the rest of the full-flow goal remain task 1038 work. See [FLOW.md](FLOW.md).
 9. Each stage produces typed artifacts and must pass its exit gate; relevant project knowledge is injected and its use recorded.
 10. The global dashboard lists recent operations from the durable run projection, including queued runs before an agent session exists, and refreshes role, runtime, elapsed-time, resource, and attention data after committed events. Agent Floor provides the session-level view; the laptop can sleep and wake without corrupting the run.
 11. On completion or archive, the user runs consolidation, reviews candidates, and publishes project or global knowledge and skills.

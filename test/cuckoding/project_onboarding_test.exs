@@ -59,9 +59,9 @@ defmodule Cuckoding.ProjectOnboardingTest do
     assert config.config_json["runner"] == "local_process"
 
     assert Enum.map(config.config_json["default_roles"], & &1["name"]) == [
-             "Specifications",
-             "Coding",
-             "Review"
+             "Speculator",
+             "Implementor",
+             "Reviewer"
            ]
 
     assert config.config_json["agent_connections"] == []

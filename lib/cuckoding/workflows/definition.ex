@@ -31,7 +31,7 @@ defmodule Cuckoding.Workflows.Definition do
           "role" => "reviewer",
           "transitions" => %{
             "pass" => "human_approval",
-            "fix_code" => "development",
+            "fix_code" => "specification",
             "fix_intent" => "specification"
           }
         },

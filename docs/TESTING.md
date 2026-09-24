@@ -113,8 +113,10 @@ a fresh compiler/full-suite/native-package pass when only documents changed.
 Record the source revision and working-tree state for each result, and keep
 local source, native bundle, running build, remote deployment and real-provider
 evidence separate. The pending role contract in [PLAN.md](PLAN.md#role-contract-alignment--2026-09-24)
-requires new behavioral coverage when implemented; this documentation audit
-does not make the legacy role names or direct Coding return conformant.
+retains its remaining acceptance items. Task 1038's source regressions verify
+task-description/latest-spec handoff across separate adapters, return comments,
+revised spec artifacts, both new correction routes and preservation of older
+workflow versions. They do not establish live-provider or native-app acceptance.
 
 ## Fixtures
 
