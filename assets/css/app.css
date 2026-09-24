@@ -80,8 +80,7 @@ summary:focus-visible { outline: 2px solid; outline-offset: 4px; }
     box-shadow: 0 12px 36px #39315b08, 0 2px 5px #39315b05;
   }
   .workspace-brand { display: flex; align-items: center; gap: 0.7rem; padding: 0.25rem 0.4rem; font-size: 1.05rem; font-weight: 650; letter-spacing: -0.04em; border-radius: 0.75rem; }
-  .brand-mark { display: grid; place-content: center; position: relative; flex-shrink: 0; width: 2.5rem; height: 2.5rem; background: #ede7ff; color: var(--color-accent); border: 1px solid #fff; border-radius: 0.9rem; font-size: 2rem; line-height: 1; box-shadow: 0 3px 8px #6845d91a; }
-  .brand-mark span { position: absolute; right: 0.3rem; top: 0.15rem; font-size: 1.4rem; }
+  .brand-mark { display: block; flex-shrink: 0; width: 2.5rem; height: 2.5rem; }
   .brand-caption { display: block; margin-top: 0.2rem; font-size: 0.65rem; font-weight: 500; letter-spacing: 0.02em; color: var(--color-slate-600); }
   .nav-caption, .eyebrow { font-size: 0.6875rem; font-weight: 650; letter-spacing: 0.11em; text-transform: uppercase; color: var(--color-slate-600); }
   .nav-caption { margin: 2.4rem 0.75rem 0.75rem; }

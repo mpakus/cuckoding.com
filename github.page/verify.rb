@@ -28,6 +28,12 @@ assert(images.all? { |tag| tag.match?(/\balt="[^"]*"/) }, "every image needs alt
 assert(images.all? { |tag| tag.match?(/\bwidth="\d+"/) && tag.match?(/\bheight="\d+"/) }, "every image needs intrinsic dimensions")
 assert(html.include?('href="#main"') && html.match?(/<main\b[^>]*\bid="main"/), "skip link must target main")
 assert(html.include?('rel="preload" href="assets/irony-crew.webp"'), "hero artwork must be preloaded")
+brand = File.read(File.join(root, "../desktop/icon.svg"))
+assert(File.read(File.join(root, "assets/brand-icon.svg")) == brand &&
+       File.read(File.join(root, "../priv/static/assets/images/brand-icon.svg")) == brand,
+       "website and app brand vectors must match the editable master")
+assert(File.binread(File.join(root, "favicon.ico")) ==
+       File.binread(File.join(root, "../priv/static/favicon.ico")), "browser icons must match")
 %w[pearl irony].each do |mode|
   artwork = %w[crew path knowledge].map { |scene| "#{mode}-#{scene}" }
   artwork.each do |name|
@@ -38,7 +44,8 @@ assert(html.include?('rel="preload" href="assets/irony-crew.webp"'), "hero artwo
   assert(artwork.sum { |name| File.size(File.join(root, "assets/#{name}.webp")) } < 400_000, "#{mode} illustrations exceed the 400 KB budget")
 end
 assert(html.include?('<legend class="sr-only">Illustration mode</legend>'), "illustration radios need a group label")
-assert(images.all? { |tag| tag.include?('data-classic-alt=') }, "every alternate image needs its corresponding text alternative")
+illustrations = images.select { |tag| tag.include?('data-classic-src=') }
+assert(illustrations.length == 3 && illustrations.all? { |tag| tag.include?('data-classic-alt=') }, "three alternate illustrations need corresponding text alternatives")
 assert(html.scan(/type="radio" name="illustration-mode"/).length == 2, "expected two native illustration choices")
 assert(html.scan(/>Satirical artwork/).length == 3, "all irony scenes must identify their satire")
 assert(html.include?('content="https://cuckoding.com/assets/irony-crew.webp"'), "social preview must use current artwork")

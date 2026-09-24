@@ -13,7 +13,13 @@ defmodule CuckodingWeb.Layouts do
     <div class="workspace-shell">
       <header class="workspace-sidebar">
         <.link navigate={~p"/"} class="workspace-brand">
-          <span class="brand-mark" aria-hidden="true">c<span>·</span></span>
+          <img
+            class="brand-mark"
+            src={~p"/assets/images/brand-icon.svg"}
+            width="40"
+            height="40"
+            alt=""
+          />
           <span>Cuckoding<span class="brand-caption">Your local workspace</span></span>
         </.link>
         <p class="nav-caption">Workspace</p>

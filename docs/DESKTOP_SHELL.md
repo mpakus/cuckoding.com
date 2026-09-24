@@ -25,10 +25,15 @@ release, runs the pinned Rust checks, creates the local unsigned `.app`, and
 executes the sterile-environment protocol verifier. Signing, notarization, and
 distribution policy are in `docs/DISTRIBUTION.md`.
 
-The status item embeds a 64 x 64 monochrome template derived from the tracked
-root `icon.png`. macOS supplies the foreground color for light and dark menu
-bars; the shell reads the raw RGBA bytes directly, so no runtime image decoder
-or additional dependency is required.
+The icon source is `desktop/icon.svg`: a violet C-shaped sperm-cell silhouette
+on a pearl tile. App PNG/ICNS, browser icons and web/sidebar marks use that source.
+The status item embeds its tile-free 64 x 64 monochrome silhouette. macOS supplies
+the foreground color for light and dark menu bars; the shell reads raw RGBA
+bytes directly, so no runtime image decoder or additional dependency is required.
+After changing the vector, run
+`rtk env -u GEM_HOME -u GEM_PATH /usr/bin/ruby desktop/export_icons.rb`.
+The exporter uses `rsvg-convert`, ImageMagick and macOS `iconutil`; all outputs
+are committed, so ordinary release builds do not need these artwork tools.
 
 ## Shell contract
 
