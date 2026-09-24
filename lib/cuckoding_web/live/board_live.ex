@@ -1,6 +1,8 @@
 defmodule CuckodingWeb.BoardLive do
   use CuckodingWeb, :live_view
 
+  import CuckodingWeb.ModalComponents
+
   alias Cuckoding.AgentFloor
   alias Cuckoding.Execution
   alias Cuckoding.ProjectAutopilot
@@ -37,6 +39,8 @@ defmodule CuckodingWeb.BoardLive do
            now: Cuckoding.Clock.wall_now(),
            progress_by_task: %{},
            filters: %{"q" => "", "state" => "all"},
+           task_modal: nil,
+           task_error: nil,
            task_form: %{"title" => "", "description" => "", "priority" => "0"},
            intake_form: %{"prompt" => "", "role_key" => "spec_writer"},
            agent_roles: Enum.filter(Workflows.list_agent_roles(board.id), & &1.adapter_key),
@@ -83,6 +87,19 @@ defmodule CuckodingWeb.BoardLive do
   end
 
   @impl true
+  def handle_event("open-task-modal", %{"form" => form}, socket)
+      when form in ["task", "intake"],
+      do: {:noreply, assign(socket, task_modal: form)}
+
+  def handle_event("close-task-modal", _params, socket),
+    do: {:noreply, assign(socket, task_modal: nil)}
+
+  def handle_event("change-task", %{"task" => attrs}, socket),
+    do: {:noreply, assign(socket, task_form: Map.merge(socket.assigns.task_form, attrs))}
+
+  def handle_event("change-intake", %{"intake" => attrs}, socket),
+    do: {:noreply, assign(socket, intake_form: Map.merge(socket.assigns.intake_form, attrs))}
+
   def handle_event("toggle-states", _params, socket),
     do: {:noreply, assign(socket, show_all_states: !socket.assigns.show_all_states)}
 
@@ -115,6 +132,8 @@ defmodule CuckodingWeb.BoardLive do
          socket
          |> assign(
            task_form: %{"title" => "", "description" => "", "priority" => "0"},
+           task_modal: nil,
+           task_error: nil,
            notice: "Created #{task.title} in Draft.",
            error: nil
          )
@@ -124,8 +143,9 @@ defmodule CuckodingWeb.BoardLive do
         {:noreply,
          assign(socket,
            task_form: Map.merge(socket.assigns.task_form, attrs),
+           task_modal: "task",
            notice: nil,
-           error: task_error(reason)
+           task_error: task_error(reason)
          )}
     end
   end
@@ -146,6 +166,7 @@ defmodule CuckodingWeb.BoardLive do
         {:noreply,
          assign(socket,
            intake_form: Map.merge(socket.assigns.intake_form, attrs),
+           task_modal: "intake",
            intake_error: intake_error(reason)
          )}
     end
@@ -201,141 +222,52 @@ defmodule CuckodingWeb.BoardLive do
           </p>
         </div>
 
-        <details
-          id="new-task-panel"
-          phx-mounted={JS.ignore_attributes("open")}
-          open={@error != nil}
-          aria-labelledby="new-task-heading"
-          class="rounded-xl border border-slate-200 bg-white p-5"
-        >
-          <summary id="new-task-heading" class="min-h-6 font-semibold text-slate-950">
+        <div class="flex flex-wrap gap-3" aria-label="Add tasks">
+          <button
+            id="add-task-button"
+            type="button"
+            phx-click="open-task-modal"
+            phx-value-form="task"
+            aria-haspopup="dialog"
+            class="min-h-11 rounded-md bg-slate-950 px-5 text-sm font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
             Add a task
-          </summary>
-          <p class="mt-1 text-sm text-slate-700">
-            New tasks start in Draft so you can refine them before marking them Ready.
-          </p>
-          <form id="create-task-form" phx-submit="create-task" class="mt-4 grid gap-4 sm:grid-cols-4">
-            <label class="grid gap-2 text-sm font-medium text-slate-800 sm:col-span-3">
-              Title
-              <input
-                name="task[title]"
-                value={@task_form["title"]}
-                required
-                maxlength="200"
-                placeholder="Describe a concrete outcome"
-                class="min-h-11 rounded-md border border-slate-400 px-3 focus-visible:outline-2 focus-visible:outline-offset-2"
-              />
-            </label>
-            <label class="grid gap-2 text-sm font-medium text-slate-800">
-              Priority
-              <input
-                type="number"
-                name="task[priority]"
-                value={@task_form["priority"]}
-                min="-100"
-                max="100"
-                required
-                class="min-h-11 rounded-md border border-slate-400 px-3 focus-visible:outline-2 focus-visible:outline-offset-2"
-              />
-            </label>
-            <label class="grid gap-2 text-sm font-medium text-slate-800 sm:col-span-4">
-              Details <textarea
-                name="task[description]"
-                rows="4"
-                maxlength="10000"
-                class="rounded-md border border-slate-400 px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2"
-              >{@task_form["description"]}</textarea>
-            </label>
-            <div class="sm:col-span-4">
-              <button
-                phx-disable-with="Creating task…"
-                class="min-h-11 rounded-md bg-slate-950 px-5 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
-              >
-                Create draft task
-              </button>
-            </div>
-          </form>
-        </details>
-
-        <details
-          id="agent-task-intake"
-          phx-mounted={JS.ignore_attributes("open")}
-          open={@intake_error != nil}
-          aria-labelledby="agent-task-intake-heading"
-          class="rounded-xl border border-slate-200 bg-white p-5"
-        >
-          <summary id="agent-task-intake-heading" class="min-h-6 font-semibold text-slate-950">
+          </button>
+          <button
+            id="plan-tasks-button"
+            type="button"
+            phx-click="open-task-modal"
+            phx-value-form="intake"
+            aria-haspopup="dialog"
+            class="min-h-11 rounded-md border border-slate-400 bg-white px-5 text-sm font-medium text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
             Ask an agent to plan tasks
-          </summary>
-          <p class="mt-1 max-w-3xl text-sm text-slate-700">
-            The selected role reads the project in an isolated, network-denied planning run. You review every proposal before it becomes a Draft task.
-          </p>
-          <form id="task-intake-form" phx-submit="create-task-intake" class="mt-4 grid gap-4">
-            <label class="grid gap-2 text-sm font-medium text-slate-800">
-              Agent role
-              <select
-                name="intake[role_key]"
-                required
-                class="min-h-11 rounded-md border border-slate-400 bg-white px-3 focus-visible:outline-2 focus-visible:outline-offset-2"
-              >
-                <option
-                  :for={role <- @agent_roles}
-                  value={role.role_key}
-                  selected={@intake_form["role_key"] == role.role_key}
-                >
-                  {role_label(role)}
-                </option>
-              </select>
-            </label>
-            <label class="grid gap-2 text-sm font-medium text-slate-800">
-              Planning prompt <textarea
-                name="intake[prompt]"
-                rows="5"
-                required
-                maxlength="10000"
-                placeholder="Analyze docs/, including PLAN.md and tasks.md, then propose implementation tasks with source evidence."
-                class="rounded-md border border-slate-400 px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2"
-              >{@intake_form["prompt"]}</textarea>
-            </label>
-            <div>
-              <button
-                type="submit"
-                disabled={@agent_roles == []}
-                aria-describedby={
-                  if(@intake_error,
-                    do: "task-intake-submit-status task-intake-error",
-                    else: "task-intake-submit-status"
-                  )
-                }
-                phx-disable-with="Creating planning run…"
-                class="min-h-11 rounded-md bg-slate-950 px-5 font-medium text-white disabled:cursor-not-allowed disabled:opacity-50 phx-submit-loading:cursor-wait focus-visible:outline-2 focus-visible:outline-offset-2"
-              >
-                Create planning run
-              </button>
-              <span
-                id="task-intake-submit-status"
-                role="status"
-                aria-live="polite"
-                aria-atomic="true"
-                class="ml-3 hidden text-sm text-slate-700 phx-submit-loading:inline"
-              >
-                Creating the planning run and isolated worktree…
-              </span>
-            </div>
-            <p :if={@agent_roles == []} class="text-sm font-medium text-amber-900">
-              This board has no assigned agent roles. Save roles in Project settings, then apply them to this board.
-            </p>
-            <p
-              :if={@intake_error}
-              id="task-intake-error"
-              phx-mounted={JS.set_attribute({"open", ""}, to: "#agent-task-intake")}
-              role="alert"
-              class="text-sm font-medium text-red-800"
-            >
-              {@intake_error}
-            </p>
-          </form>
-        </details>
+          </button>
+        </div>
+
+        <.modal
+          :if={@task_modal == "task"}
+          id="new-task-modal"
+          title="Add a task"
+          on_cancel="close-task-modal"
+          return_focus="add-task-button"
+        >
+          <.task_creation_form task_form={@task_form} task_error={@task_error} />
+        </.modal>
+
+        <.modal
+          :if={@task_modal == "intake"}
+          id="agent-task-intake"
+          title="Ask an agent to plan tasks"
+          on_cancel="close-task-modal"
+          return_focus="plan-tasks-button"
+        >
+          <.task_intake_form
+            intake_form={@intake_form}
+            intake_error={@intake_error}
+            agent_roles={@agent_roles}
+          />
+        </.modal>
 
         <form
           id="task-filters"
@@ -394,7 +326,6 @@ defmodule CuckodingWeb.BoardLive do
         <p
           :if={@error}
           id="board-error"
-          phx-mounted={JS.set_attribute({"open", ""}, to: "#new-task-panel")}
           role="alert"
           class="text-sm font-medium text-red-800"
         >
@@ -532,6 +463,160 @@ defmodule CuckodingWeb.BoardLive do
         </p>
       </section>
     </Layouts.app>
+    """
+  end
+
+  attr :task_form, :map, required: true
+  attr :task_error, :string, default: nil
+
+  defp task_creation_form(assigns) do
+    ~H"""
+    <p class="mt-1 text-sm text-slate-700">
+      New tasks start in Draft so you can refine them before marking them Ready.
+    </p>
+    <form
+      id="create-task-form"
+      phx-change="change-task"
+      phx-submit="create-task"
+      class="mt-4 grid gap-4 sm:grid-cols-4"
+    >
+      <label class="grid gap-2 text-sm font-medium text-slate-800 sm:col-span-3">
+        Title
+        <input
+          name="task[title]"
+          autofocus
+          value={@task_form["title"]}
+          required
+          maxlength="200"
+          placeholder="Describe a concrete outcome"
+          class="min-h-11 rounded-md border border-slate-400 px-3 focus-visible:outline-2 focus-visible:outline-offset-2"
+        />
+      </label>
+      <label class="grid gap-2 text-sm font-medium text-slate-800">
+        Priority
+        <input
+          type="number"
+          name="task[priority]"
+          value={@task_form["priority"]}
+          min="-100"
+          max="100"
+          required
+          class="min-h-11 rounded-md border border-slate-400 px-3 focus-visible:outline-2 focus-visible:outline-offset-2"
+        />
+      </label>
+      <label class="grid gap-2 text-sm font-medium text-slate-800 sm:col-span-4">
+        Details <textarea
+          name="task[description]"
+          rows="4"
+          maxlength="10000"
+          class="rounded-md border border-slate-400 px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2"
+        >{@task_form["description"]}</textarea>
+      </label>
+      <div class="sm:col-span-4">
+        <button
+          type="submit"
+          aria-describedby={if @task_error, do: "create-task-error"}
+          phx-disable-with="Creating task…"
+          class="min-h-11 rounded-md bg-slate-950 px-5 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
+        >
+          Create draft task
+        </button>
+      </div>
+      <p
+        :if={@task_error}
+        id="create-task-error"
+        tabindex="-1"
+        phx-mounted={JS.focus()}
+        role="alert"
+        class="text-sm font-medium text-red-800 sm:col-span-4"
+      >
+        {@task_error}
+      </p>
+    </form>
+    """
+  end
+
+  attr :intake_form, :map, required: true
+  attr :intake_error, :string, default: nil
+  attr :agent_roles, :list, required: true
+
+  defp task_intake_form(assigns) do
+    ~H"""
+    <p class="mt-1 max-w-3xl text-sm text-slate-700">
+      The selected role reads the project in an isolated, network-denied planning run. You review every proposal before it becomes a Draft task.
+    </p>
+    <form
+      id="task-intake-form"
+      phx-change="change-intake"
+      phx-submit="create-task-intake"
+      class="mt-4 grid gap-4"
+    >
+      <label class="grid gap-2 text-sm font-medium text-slate-800">
+        Agent role
+        <select
+          name="intake[role_key]"
+          required
+          class="min-h-11 rounded-md border border-slate-400 bg-white px-3 focus-visible:outline-2 focus-visible:outline-offset-2"
+        >
+          <option
+            :for={role <- @agent_roles}
+            value={role.role_key}
+            selected={@intake_form["role_key"] == role.role_key}
+          >
+            {role_label(role)}
+          </option>
+        </select>
+      </label>
+      <label class="grid gap-2 text-sm font-medium text-slate-800">
+        Planning prompt <textarea
+          name="intake[prompt]"
+          autofocus
+          rows="5"
+          required
+          maxlength="10000"
+          placeholder="Analyze docs/, including PLAN.md and tasks.md, then propose implementation tasks with source evidence."
+          class="rounded-md border border-slate-400 px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2"
+        >{@intake_form["prompt"]}</textarea>
+      </label>
+      <div>
+        <button
+          type="submit"
+          disabled={@agent_roles == []}
+          aria-describedby={
+            if(@intake_error,
+              do: "task-intake-submit-status task-intake-error",
+              else: "task-intake-submit-status"
+            )
+          }
+          phx-disable-with="Creating planning run…"
+          class="min-h-11 rounded-md bg-slate-950 px-5 font-medium text-white disabled:cursor-not-allowed disabled:opacity-50 phx-submit-loading:cursor-wait focus-visible:outline-2 focus-visible:outline-offset-2"
+        >
+          Create planning run
+        </button>
+        <span
+          id="task-intake-submit-status"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          class="ml-3 hidden text-sm text-slate-700 phx-submit-loading:inline"
+        >
+          Creating the planning run and isolated worktree…
+        </span>
+      </div>
+      <p :if={@agent_roles == []} class="text-sm font-medium text-amber-900">
+        This board has no assigned agent roles. Save roles in Project settings, then apply them to this board.
+      </p>
+      <p
+        :if={@intake_error}
+        id="task-intake-error"
+        tabindex="-1"
+        phx-mounted={JS.focus()}
+        role="alert"
+        class="text-sm font-medium text-red-800"
+      >
+        {@intake_error}
+      </p>
+    </form>
     """
   end
 

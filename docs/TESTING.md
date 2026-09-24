@@ -173,6 +173,16 @@ textarea before submitting. The pre-fix page lost the open state; the fixed
 page passed and continued through planning. The server still supplies initial
 open defaults and updates disclosure content normally.
 
+Task 1041 replaces the two board disclosures with button-triggered LiveView
+modals. Focused checks are `rtk env -u CR_PAT mix test
+test/cuckoding_web/board_live_test.exs test/cuckoding/board_task_intake_test.exs`.
+They cover hidden forms, opening/closing, retained input across refresh and
+reopening, local validation, missing-role feedback, Draft creation/audit and
+planning navigation/import. Browser verification must also exercise native
+dialog focus containment, Escape/Cancel and focus return, typing through
+five-second updates, plus narrow-screen scrolling. Other disclosures retain
+the regression contract above.
+
 Native confirmation controls and visible motion remain separate acceptance
 items. Native folder-picker automation was unavailable; the isolated exercise
 substituted a deterministic fixture picker. Neither limitation was bypassed in

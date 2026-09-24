@@ -177,8 +177,10 @@ defmodule CuckodingWeb.BoardLiveTest do
              "Projects"
            )
 
-    assert has_element?(view, "details#new-task-panel:not([open]) summary", "Add a task")
-    assert has_element?(view, "details#agent-task-intake:not([open]) summary", "Ask an agent")
+    assert has_element?(view, "button#add-task-button[aria-haspopup=dialog]", "Add a task")
+    assert has_element?(view, "button#plan-tasks-button[aria-haspopup=dialog]", "Ask an agent")
+    refute has_element?(view, "#create-task-form")
+    refute has_element?(view, "#task-intake-form")
     assert has_element?(view, "#task-#{alpha.id} label", "Move task")
     assert has_element?(view, "#task-#{alpha.id} select[name=to] option[value=ready]")
     assert has_element?(view, "#board-status[role=status][aria-live=polite]")
@@ -357,6 +359,7 @@ defmodule CuckodingWeb.BoardLiveTest do
 
   test "creates a bounded draft task from the board", %{conn: conn, board: board} do
     {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}")
+    view |> element("#add-task-button") |> render_click()
 
     view
     |> form("#create-task-form",
@@ -369,12 +372,76 @@ defmodule CuckodingWeb.BoardLiveTest do
     assert task.priority == 7
     assert has_element?(view, "#board-status", "Created New outcome in Draft")
     assert has_element?(view, "#column-draft #task-#{task.id}")
+    refute has_element?(view, "#new-task-modal")
+
+    view |> element("#add-task-button") |> render_click()
+    assert has_element?(view, "#create-task-form input[name='task[title]'][value='']")
 
     assert Repo.exists?(
              from(event in RunEvent,
                where: event.run_id == ^("task:" <> task.id) and event.event_type == "task.created"
              )
            )
+  end
+
+  test "task modal retains drafts and validation across refresh and dismissal", %{
+    conn: conn,
+    board: board
+  } do
+    {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}")
+    view |> element("#add-task-button") |> render_click()
+
+    assert has_element?(view, "dialog#new-task-modal[aria-labelledby=new-task-modal-heading]")
+    assert has_element?(view, "#new-task-modal input[name='task[title]'][autofocus]")
+    refute has_element?(view, "#agent-task-intake")
+
+    view
+    |> form("#create-task-form", task: %{title: "Keep this draft", description: "Keep details"})
+    |> render_change()
+
+    send(view.pid, :board_tick)
+    send(view.pid, :refresh_board)
+    assert has_element?(view, "#new-task-modal input[value='Keep this draft']")
+    view |> element("#new-task-modal button", "Cancel") |> render_click()
+    refute has_element?(view, "dialog")
+    view |> element("#add-task-button") |> render_click()
+    assert has_element?(view, "#new-task-modal input[value='Keep this draft']")
+    assert has_element?(view, "#new-task-modal textarea", "Keep details")
+
+    view |> form("#create-task-form", task: %{title: " "}) |> render_submit()
+
+    assert has_element?(
+             view,
+             "#new-task-modal #create-task-error[role=alert]",
+             "Enter a task title"
+           )
+
+    refute has_element?(view, "#board-error")
+    assert length(Workflows.list_tasks(board.id)) == 2
+  end
+
+  test "planning modal retains its prompt and explains missing roles", %{conn: conn, board: board} do
+    {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}")
+    view |> element("#plan-tasks-button") |> render_click()
+
+    assert has_element?(
+             view,
+             "dialog#agent-task-intake[aria-labelledby=agent-task-intake-heading]"
+           )
+
+    assert has_element?(view, "#task-intake-form button[type=submit][disabled]")
+    assert has_element?(view, "#agent-task-intake", "no assigned agent roles")
+    refute has_element?(view, "#create-task-form")
+
+    view |> form("#task-intake-form", intake: %{prompt: "Read docs/PLAN.md"}) |> render_change()
+    send(view.pid, :board_tick)
+    send(view.pid, :refresh_board)
+    assert has_element?(view, "#agent-task-intake textarea", "Read docs/PLAN.md")
+    render_hook(view, "close-task-modal")
+    refute has_element?(view, "dialog")
+    view |> element("#plan-tasks-button") |> render_click()
+    assert has_element?(view, "#agent-task-intake textarea", "Read docs/PLAN.md")
+    assert length(Workflows.list_tasks(board.id)) == 2
   end
 
   test "task detail edits draft tasks with labels and durable audit evidence", %{

@@ -4,6 +4,22 @@ import {LiveSocket} from "phoenix_live_view"
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 
+const Modal = {
+  mounted() {
+    this.cancel = event => {
+      event.preventDefault()
+      this.pushEvent(this.el.dataset.cancel, {})
+    }
+    this.el.addEventListener("cancel", this.cancel)
+    this.el.showModal()
+  },
+  destroyed() {
+    this.el.removeEventListener("cancel", this.cancel)
+    this.el.close()
+    document.getElementById(this.el.dataset.returnFocus)?.focus()
+  },
+}
+
 const TaskBoard = {
   mounted() {
     this.motion = window.matchMedia("(prefers-reduced-motion: reduce)")
@@ -135,7 +151,7 @@ const LogTail = {
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {CopyCommand, TaskBoard, LogTail},
+  hooks: {CopyCommand, TaskBoard, LogTail, Modal},
 })
 
 liveSocket.connect()

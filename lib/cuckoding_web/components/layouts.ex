@@ -64,6 +64,16 @@ defmodule CuckodingWeb.Layouts do
             <span aria-hidden="true">↗</span></.link>
           </div>
         </aside>
+        <p class="workspace-footnote text-center">
+          <.link
+            href="https://aomega.co"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="rounded underline underline-offset-4"
+          >
+            Made in Austin☆Texas with Irony and Sarcasm.
+          </.link>
+        </p>
         <p class="workspace-footnote"><span aria-hidden="true">◇</span> Local-first. Human-guided.</p>
       </header>
       <div class="workspace-content">

@@ -40,6 +40,11 @@ Only short hover color/shadow transitions run under `prefers-reduced-motion:
 no-preference`. Navigation, forms, table alternatives, confirmations, and the
 skip link retain native keyboard paths.
 
+The desktop sidebar places **Made in Austin☆Texas with Irony and Sarcasm.**
+above **Local-first. Human-guided.**, linking to `https://aomega.co` in a new
+tab. Both credits follow the existing compact sidebar footer styling and are
+hidden with that footer in the narrow navigation layout.
+
 Artwork files: `priv/static/assets/images/workspace-portal.webp` and
 `priv/static/assets/images/knowledge-crystal.webp`. Generation prompts and
 verification evidence are recorded in the [task 1034 worklog](../worklog/2026-09-24-1034-pearl-workspace.md).
@@ -323,14 +328,22 @@ after the provider process yields its log; durable events then refresh the
 LiveView without a browser reload. The complete filtered log stays on the run
 page. Agent text is labeled untrusted and is never treated as a user command.
 
-At `/boards/:id`, expand **Add a task** or **Ask an agent to plan tasks**.
-These native keyboard-operable disclosures keep the task board in reach;
-their initial open defaults come from the server, then browser-owned open state
-survives LiveView patches using `JS.ignore_attributes("open")`. Live data inside
-them continues to update; periodic refreshes must not collapse a form or steal
-focus while the user is typing. Other workspace disclosures follow the same rule.
-New validation alerts explicitly reopen the relevant board form with
-`JS.set_attribute`, retaining visible error feedback.
+At `/boards/:id`, **Add a task** and **Ask an agent to plan tasks** are buttons.
+Each opens its form in the shared `ModalComponents.modal/1` LiveView function
+component. BoardLive's form components keep change/submit handling on the server;
+all application UI must use LiveView and reusable HEEx components, with small
+hooks only for browser capabilities. No separate client form framework is used.
+The native `<dialog>` puts focus in the title field or planning prompt and makes
+the background inert. **Cancel** and Escape close it and restore focus to its
+button. Draft values remain when reopened within the same LiveView session;
+closing does not save or start anything. They are not durable saved tasks.
+`JS.ignore_attributes("open")` preserves the native modal across live patches;
+periodic updates must retain text and focus. New validation errors receive focus
+and scroll into view inside the open form. Successful task creation closes and
+resets its form and announces
+the new Draft card; successful planning creation navigates to the run.
+Other workspace disclosures continue to preserve their browser-owned `open`
+attribute during updates.
 Choose an assigned role and enter a prompt such as “Read docs/ and propose tasks
 from docs/TASKS.md.” **Create planning run** shows submit feedback and navigates
 to a queued run; it does not silently start the provider or import cards. On

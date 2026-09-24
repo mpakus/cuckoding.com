@@ -376,6 +376,8 @@ defmodule Cuckoding.BoardTaskIntakeTest do
     created: created
   } do
     {:ok, board_view, _html} = live(conn, ~p"/boards/#{created.board.id}")
+    refute has_element?(board_view, "#task-intake-form")
+    board_view |> element("#plan-tasks-button") |> render_click()
     assert has_element?(board_view, "#agent-task-intake", "Ask an agent to plan tasks")
     assert has_element?(board_view, "#task-intake-form option[value=spec_writer]")
 

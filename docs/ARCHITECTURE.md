@@ -38,6 +38,14 @@ flowchart TD
 - Persists events before broadcasting UI updates through PubSub.
 - Rebuilds current projections from durable state after restart.
 
+Application screens, forms and modal popups are LiveView with reusable HEEx
+function components (stateful LiveComponents only when independent component
+state is needed). `ModalComponents.modal/1` wraps native `<dialog>`; a small
+LiveView hook opens it and coordinates keyboard dismissal/focus return.
+BoardLive owns transient form input and modal selection, while task/planning
+commands remain in the durable domain contexts. Browser hooks do not own
+workflow state. The public `github.page/` site remains a separate static site.
+
 ### SQLite persistence
 
 - Stores configuration snapshots, workflow projections, append-only events, artifacts, approvals, usage, rollups, plugin state, knowledge index, provenance, and usage records.
