@@ -81,6 +81,18 @@ and [1036 mode](../worklog/2026-09-24-1036-pages-irony-mode.md) worklogs. Source
 checks are in [TESTING.md](TESTING.md); main integration alone does not establish
 a successful Pages deployment.
 
+The public copy follows [PRODUCT.md](PRODUCT.md): project setup, reusable agents,
+prompt/Markdown planning, another model's proposal review, the default
+Speculator → Implementor → Reviewer correction loop, and completion. Feature
+panels explain parallel work, individual/workspace controls, supported custom
+roles and permissions, evidence, labeled metrics and optional connectors.
+Keep manual completion as the default and automatic local completion as an
+explicit start-time choice; remote handoff still needs separate approval.
+“Available now” describes implemented source, with simulated-agent checks and
+pending native/real-provider testing stated separately from public release.
+The product specification and release evidence remain linked from the status
+panel. See the [1039 copy worklog](../worklog/2026-09-24-1039-pages-product-copy.md).
+
 ### Saved agents and provider sign-in
 
 In **Agents**, the wizard follows **Name and runtime → Authorization → Model**.
