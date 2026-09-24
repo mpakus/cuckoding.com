@@ -330,6 +330,8 @@ defmodule Cuckoding.WalkingSkeletonTest do
 
     assert completed.run.state == "done"
     assert completed.task.state == "done"
+    assert is_nil(completed.run.wait_reason)
+    assert is_nil(completed.task.wait_reason)
     assert completed.approval.decision == "rejected"
     assert completed.approval.actor == "local_user"
 

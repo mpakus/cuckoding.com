@@ -20,3 +20,20 @@ not establish a ready-to-use local application.
 - [ ] Pause/resume or stop one task and pause/stop all Cuckoding work with durable state and owned-process control.
 - [ ] Pass focused/full relevant tests, security/transition/recovery gates and rendered keyboard/mobile checks.
 - [ ] Merge all goal changes into main, build and launch one current app, and verify the complete local journey with explicit evidence and remaining limitations.
+
+## Evidence and remaining acceptance
+
+All listed capabilities now have source implementations and focused regression
+coverage. The combined suite has 10 properties and 333 tests. An isolated CLI
+fixture exercised planning → independent model review/report → import → two
+Speculator/Implementor/Reviewer cycles → local completion, with a passing
+candidate test. This is not real-provider acceptance.
+
+Browser checks covered registration, executable discovery/manual override,
+reusable sign-in/model selection, and desktop/mobile board rendering. Native
+folder-picker automation and a stuck browser confirmation prevented the full
+clicked journey. The latter requires the user to dismiss the test-tab dialog.
+The rebuilt native app has no saved provider sign-in; its authenticated UI and
+real-provider full-flow check still need user participation. Preserve these
+open acceptance boxes until that evidence exists. See the worklog for source,
+bundle, data-preservation and running-instance evidence separately.

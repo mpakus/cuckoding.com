@@ -274,3 +274,104 @@ test alias-order finding. Reordered the aliases; `rtk mix credo --strict`,
 and `rtk git diff --check` then passed. This was a metadata-only test fix, so
 the already passing full test suite was not repeated. Current process inspection
 used only executable, PID, parent PID and start identity; no argv/environment.
+
+## Current native bundle and preserved developer data
+
+Live progress was fast-forward merged to local main at `9be15e7`.
+`rtk env -u CR_PAT ./bin/dev.build` passed: deployed assets, production compilation,
+release assembly, release metadata (6 tests/15 assertions), Rust formatter,
+10 shell tests, warnings-denied Clippy, Tauri bundling, and the sterile desktop
+verifier. The verifier covers bootstrap cleanup, browser-token replay,
+unauthorized LiveView, private diagnostics, graceful shutdown/no descendants,
+crashes before/after readiness, safe mode and update snapshot/rollback. This is
+an unsigned local build, not signed clean-Mac release acceptance.
+
+Before replacing the running build, metadata identified exactly the owned shell
+PID 97382 and release child 97418. After verified graceful SIGTERM to the shell,
+both exited. No unrelated provider or development-tool processes were stopped.
+The native database contained one project, one board, no tasks, runs, processes,
+or provider accounts; integrity was `ok` and no run was active.
+
+A private, independently verified SQLite backup was retained under the native
+application data directory at
+`manual-backups/20260924T065423Z-1038-complete-board-flow/`. Its database SHA-256
+is `bbc16bf4155fb9abc802fa665aca7c02e620822d94dcfbf53fd51ab6638105be`.
+Directory/file modes are 0700/0600; no project knowledge/config files existed
+to snapshot. Embedded migrations were byte-compared to checked-in migrations.
+The bundle's `bin/cuckoding eval` applied only migration `20260924120000`.
+The verification wrapper then failed because it destructured Ecto.Migrator's
+return tuple incorrectly; that command did not exit successfully. Independent
+post-migration SQLite checks proved exactly one new migration, no removed
+migrations, identical original columns and rows across all 43 preexisting
+non-migration tables, existing projects defaulting to manual completion,
+integrity `ok`, and zero foreign-key violations. The transient bootstrap file
+was removed; the backup and private migration log remain available.
+
+`rtk proxy open desktop/src-tauri/target/release/bundle/macos/Cuckoding.app`
+launched the rebuilt app. At 2026-09-24 06:57 UTC, metadata showed one shell
+(PID 1601) and one child (PID 1662), started at 01:56:45 local time, with only
+`127.0.0.1:55015` listening for this app. `/health` returned HTTP 200 with
+healthy database, PubSub and endpoint. These PIDs/port are observations, not
+permanent configuration. Source build identity is `9be15e7`.
+
+RTK proxy exceptions: exact source reads, metadata-only process filtering,
+private backup/migration verification scripts and application launch semantics.
+Native UI automation could not bind this tray-only app; requested the user open
+the authenticated dashboard through its menu. No token was extracted or
+handshake bypassed. There is no saved provider account in the native database,
+so real-provider acceptance still requires an app-owned sign-in.
+
+## Rendered and executable fixture journey
+
+An isolated development server on 4114 used only `tmp/1038-ui/ui.db`, a disposable
+Git repository/workspaces and a separate fixture authorization directory. The
+native database was not populated with acceptance data. Browser automation
+registered the project, discovered `~/.local/bin/codex`, applied a manual path
+override to `tmp/1038-fixture-codex`, and saved Speculator/Implementor/Reviewer
+agents with three different fixture model IDs and one reusable sign-in.
+The simulated executable uses the actual Codex adapter's JSONL, version and
+model-list protocols but never contacts a provider or reads real credentials.
+
+The native folder picker was not accessible to the UI tool. The disposable
+server was restarted with the existing injectable folder picker pointing only
+at its fixture repository. An initial restart guard correctly refused to signal
+`erl_child_setup` instead of its BEAM parent; the accidental second start failed
+on the occupied port and exited. The correct owned preview was then stopped
+and replaced. A confirmation for removing an unsaved empty connection stalled
+the in-app browser: its documented dialog control timed out, and a fresh tab
+could render but subsequent clicks had no effect. Requested the user dismiss
+that test confirmation. Role assignments were subsequently seeded through the
+domain service, not claimed as a passed browser confirmation.
+
+`rtk env -u CR_PAT MIX_ENV=dev mix run --no-start tmp/1038-journey.exs`
+passed the application-service journey with the executable fixture: Markdown
+planning, another-model review, per-task comments and hashed report, import,
+Speculator → Implementor → Reviewer → Speculator → Implementor → Reviewer,
+and explicit automatic local completion. The generated candidate's
+`python3 test_greeting.py` passed. Initial harness iterations needed runtime
+supervisors despite preview safe mode, a JSON decoder accepting the appended
+knowledge context, and an error-severity finding to require revision (warnings
+are deliberately nonblocking). These were fixture fixes, not product failures.
+
+Desktop rendering and a full-page 390-pixel mobile board screenshot were
+inspected; document width equalled viewport width. Mobile inspection exposed a
+product bug: completed cards retained the old approval wait reason. The local
+completion transaction bypasses the ordinary transition helper, so both its
+run and task updates now explicitly clear `wait_reason`. The existing
+local-completion regression checks both fields. No historical event is changed.
+
+- `rtk env -u CR_PAT mix test test/cuckoding/walking_skeleton_test.exs`:
+  30 tests, 0 failures.
+- `rtk env -u CR_PAT mix quality`: formatter, warnings-as-errors compilation,
+  10 properties and 333 tests, strict Credo, Sobelow and dependency audit passed.
+- Native sign-in remains absent (rechecked), with no active native run. The
+  complete clicked flow, confirmation/keyboard controls, live motion and real
+  provider behavior remain open; source/fixture evidence does not close them.
+
+After clearing stale wait state, the executable-fixture journey passed again
+with assertions that both completed rows have no wait reason. Browser rendering
+showed the new Done run, all six succeeded role attempts, revised specification
+artifacts and no horizontal overflow at 390 pixels. The responsive viewport was
+reset and the recovery tab closed. The original stalled confirmation tab could
+not be closed by the automation. Changed Markdown link targets and
+`rtk git diff --check` passed.

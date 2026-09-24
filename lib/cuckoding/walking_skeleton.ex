@@ -453,11 +453,12 @@ defmodule Cuckoding.WalkingSkeleton do
              })
            ),
          {:ok, completed_run} <-
-           repo.update(Run.transition_changeset(records.run, %{state: "done"})),
+           repo.update(Run.transition_changeset(records.run, %{state: "done", wait_reason: nil})),
          {:ok, completed_task} <-
            repo.update(
              Task.transition_changeset(records.task, %{
                state: "done",
+               wait_reason: nil,
                active_run_id: nil
              })
            ) do

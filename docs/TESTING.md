@@ -90,8 +90,9 @@ Task 1038's custom-role checks cover project save → explicit board application
 → immutable run snapshot → configured extra stages → final Review/local
 completion. They exercise read-only and worktree-write grants, planning-only
 exclusion, correction-loop repetition, report handoff/integrity, unexpected
-read-only writes, reserved role keys, and invalid permission input. Full
-`rtk env -u CR_PAT mix quality` passes 10 properties and 332 tests for this slice.
+read-only writes, reserved role keys, and invalid permission input. The combined
+role/control/board suite includes 10 properties and 333 tests; exact command
+results and subsequent fixes are in task 1038's worklog.
 These are fixture/domain/LiveView checks; they do not establish provider
 enforcement or native/browser acceptance. Requested, enforced and unenforced
 runtime permissions must still be inspected in the actual run.
@@ -143,6 +144,29 @@ owned shell processes behind a fixture adapter to prove progress stops without
 duplicating attempts. Its LiveView controls test covers confirmation attributes
 and durable effects; rendered keyboard/mobile/native and real-provider checks
 remain separate.
+
+The 2026-09-24 local acceptance exercise registered an isolated project through
+the browser, discovered the installed Codex path, overrode it with a clearly
+labeled simulated executable, and saved three reusable agents with distinct
+models sharing one fixture authorization. Application-service checks then ran
+Markdown planning, different-model proposal review with comments/report, import,
+the complete Speculator → Implementor → Reviewer correction loop, and automatic
+local completion. The generated candidate's focused test passed. This exercised
+the Codex JSONL/host-process path with a fixture CLI, not an external provider.
+
+Desktop and 390-pixel board rendering were inspected; the narrow page had no
+horizontal overflow. A stuck native confirmation in the in-app browser blocked
+further clicks, so role-save confirmation, keyboard control, live movement and
+the complete clicked journey remain unverified. Native folder-picker automation
+was unavailable; the isolated exercise substituted a deterministic fixture
+picker. Neither limitation was bypassed in the native app.
+
+The rebuilt unsigned native app passed the desktop verifier and started with a
+healthy database after a verified backup and forward migration. Its database
+has no saved provider authorization. Opening the authenticated native dashboard,
+connecting a real provider, and verifying the full journey there remain release
+evidence gaps. See [task 1038's worklog](../worklog/2026-09-24-1038-complete-board-flow.md)
+for build identities, migration checks and limitations.
 
 ## Fixtures
 
