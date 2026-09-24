@@ -9,13 +9,13 @@
     <meta property="og:description" content="A local-first macOS workspace for coding agents, durable workflows, and human decisions. Open source, preparing for controlled beta.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://cuckoding.com/">
-    <meta property="og:image" content="https://cuckoding.com/assets/pearl-crew.webp">
+    <meta property="og:image" content="https://cuckoding.com/assets/irony-crew.webp">
     <meta name="twitter:card" content="summary_large_image">
     <link rel="canonical" href="https://cuckoding.com/">
     <link rel="icon" href="assets/icon.webp" type="image/webp">
-    <link rel="preload" href="assets/pearl-crew.webp" as="image" type="image/webp">
-    <link rel="stylesheet" href="styles.css?v=20260924">
-    <script src="script.js?v=20260924" defer></script>
+    <link rel="preload" href="assets/irony-crew.webp" as="image" type="image/webp">
+    <link rel="stylesheet" href="styles.css?v=20260924-irony-default">
+    <script src="script.js?v=20260924-irony-default" defer></script>
     <title>Cuckoding — many agents, one clear direction</title>
   </head>
   <body>
@@ -31,6 +31,15 @@
       </nav>
     </header>
     <main id="main" tabindex="-1">
+      <div class="art-mode-bar shell" data-art-controls hidden>
+        <p>Choose your version of the future.</p>
+        <fieldset class="art-mode-switch">
+          <legend class="sr-only">Illustration mode</legend>
+          <label><input type="radio" name="illustration-mode" value="classic"> Classic</label>
+          <label><input type="radio" name="illustration-mode" value="irony" checked> Irony mode</label>
+        </fieldset>
+        <span class="sr-only" role="status" data-art-status></span>
+      </div>
       <section class="hero shell" id="top" aria-labelledby="hero-title">
         <div class="hero-copy">
           <p class="eyebrow"><span class="tiny-star" aria-hidden="true">✧</span> Your local agent workspace</p>
@@ -44,14 +53,14 @@
         </div>
         <figure class="hero-visual">
           <div class="hero-art" aria-hidden="true" data-parallax="0.025">
-            <img src="assets/pearl-crew.webp" width="1536" height="1024" alt="" fetchpriority="high">
+            <img src="assets/irony-crew.webp" data-classic-src="assets/pearl-crew.webp" data-classic-alt="" width="1536" height="1024" alt="" fetchpriority="high">
           </div>
-          <div class="art-label"><span aria-hidden="true">✧</span> A little space for bigger ideas</div>
+          <div class="art-label"><span aria-hidden="true">✧</span> <span data-classic-copy="A little space for bigger ideas">Human-powered artificial intelligence</span></div>
           <div class="crew-note">
             <span class="crew-emblem" aria-hidden="true">✦</span>
-            <div><span class="micro-label">Human direction. Agent momentum.</span><strong>One crew. Clear responsibilities.</strong></div>
+            <div><span class="micro-label" data-classic-copy="Human direction. Agent momentum.">Robot vision. Human overtime.</span><strong data-classic-copy="One crew. Clear responsibilities.">Your new manager runs on batteries.</strong></div>
           </div>
-          <figcaption>Original concept artwork · a vision of coordinated work</figcaption>
+          <figcaption data-classic-copy="Original concept artwork · a vision of coordinated work">Satirical artwork · humans serve. Robots supervise.</figcaption>
         </figure>
       </section>
       <div class="principles shell" aria-label="Product principles">
@@ -69,8 +78,8 @@
         <div class="flow-grid">
           <div class="flow-aside">
             <figure class="art-panel" data-reveal>
-              <div class="art-window"><img src="assets/pearl-path.webp" width="1200" height="800" alt="Two ivory robots follow a walkway through silver gateways toward a misty city." loading="lazy" data-parallax="0.025"></div>
-              <figcaption>Concept artwork · a deliberate path from intent to evidence</figcaption>
+              <div class="art-window"><img src="assets/irony-path.webp" data-classic-src="assets/pearl-path.webp" data-classic-alt="Two ivory robots follow a walkway through silver gateways toward a misty city." width="1200" height="800" alt="Weary humans carry a reclining robot manager through silver gateways while another rolls out its carpet." loading="lazy" data-parallax="0.025"></div>
+              <figcaption data-classic-copy="Concept artwork · a deliberate path from intent to evidence">Satirical artwork · humans do the heavy lifting.</figcaption>
             </figure>
             <div class="role-note">
               <h3>A role for every part of the work.</h3>
@@ -121,8 +130,8 @@
           </ul>
         </div>
         <figure class="art-panel knowledge-art" data-reveal>
-          <div class="art-window"><img src="assets/pearl-knowledge.webp" width="1200" height="800" alt="A robot studies glass pages orbiting a violet crystal above an ivory archive pedestal." loading="lazy" data-parallax="0.02"></div>
-          <figcaption>Concept artwork · useful knowledge, carefully kept</figcaption>
+          <div class="art-window"><img src="assets/irony-knowledge.webp" data-classic-src="assets/pearl-knowledge.webp" data-classic-alt="A robot studies glass pages orbiting a violet crystal above an ivory archive pedestal." width="1200" height="800" alt="Humans pedal to power a knowledge crystal and haul its documents while a crowned robot librarian relaxes." loading="lazy" data-parallax="0.02"></div>
+          <figcaption data-classic-copy="Concept artwork · useful knowledge, carefully kept">Satirical artwork · trained on human overtime.</figcaption>
         </figure>
       </section>
       <section class="status-section section shell" id="status" aria-labelledby="status-title">

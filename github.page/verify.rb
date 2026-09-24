@@ -27,15 +27,21 @@ images = html.scan(/<img\b[^>]*>/m)
 assert(images.all? { |tag| tag.match?(/\balt="[^"]*"/) }, "every image needs alt text")
 assert(images.all? { |tag| tag.match?(/\bwidth="\d+"/) && tag.match?(/\bheight="\d+"/) }, "every image needs intrinsic dimensions")
 assert(html.include?('href="#main"') && html.match?(/<main\b[^>]*\bid="main"/), "skip link must target main")
-assert(html.include?('rel="preload" href="assets/pearl-crew.webp"'), "hero artwork must be preloaded")
-artwork = %w[pearl-crew pearl-path pearl-knowledge]
-artwork.each do |name|
-  assert(html.include?("src=\"assets/#{name}.webp\""), "missing #{name} illustration")
-  bytes = File.binread(File.join(root, "assets/#{name}.webp"))
-  assert(bytes[0, 4] == "RIFF" && bytes[8, 4] == "WEBP", "invalid WebP: #{name}")
+assert(html.include?('rel="preload" href="assets/irony-crew.webp"'), "hero artwork must be preloaded")
+%w[pearl irony].each do |mode|
+  artwork = %w[crew path knowledge].map { |scene| "#{mode}-#{scene}" }
+  artwork.each do |name|
+    assert(html.include?("src=\"assets/#{name}.webp\""), "missing #{name} illustration")
+    bytes = File.binread(File.join(root, "assets/#{name}.webp"))
+    assert(bytes[0, 4] == "RIFF" && bytes[8, 4] == "WEBP", "invalid WebP: #{name}")
+  end
+  assert(artwork.sum { |name| File.size(File.join(root, "assets/#{name}.webp")) } < 400_000, "#{mode} illustrations exceed the 400 KB budget")
 end
-assert(artwork.sum { |name| File.size(File.join(root, "assets/#{name}.webp")) } < 400_000, "illustrations exceed the 400 KB budget")
-assert(html.include?('content="https://cuckoding.com/assets/pearl-crew.webp"'), "social preview must use current artwork")
+assert(html.include?('<legend class="sr-only">Illustration mode</legend>'), "illustration radios need a group label")
+assert(images.all? { |tag| tag.include?('data-classic-alt=') }, "every alternate image needs its corresponding text alternative")
+assert(html.scan(/type="radio" name="illustration-mode"/).length == 2, "expected two native illustration choices")
+assert(html.scan(/>Satirical artwork/).length == 3, "all irony scenes must identify their satire")
+assert(html.include?('content="https://cuckoding.com/assets/irony-crew.webp"'), "social preview must use current artwork")
 assert(html.scan(/concept artwork/i).length >= 3 && html.include?("Illustrative view · sample content"), "artwork and sample UI must be labeled")
 assert(
   html.include?("Project → Repository → Review") &&

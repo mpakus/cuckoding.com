@@ -25,7 +25,7 @@ for (const initiallyReduced of [false, true]) {
     document: {
       documentElement: root,
       querySelectorAll: selector => selector === '[data-reveal]' ? [reveal] : layers,
-      querySelector: () => progress
+      querySelector: selector => selector === '.scroll-progress span' ? progress : null
     },
     requestAnimationFrame: fn => fn(),
     IntersectionObserver: class {

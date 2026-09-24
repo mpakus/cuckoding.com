@@ -65,3 +65,46 @@ reduceMotion.addEventListener("change", () => {
   requestPaint();
 });
 requestPaint();
+
+const artControls = document.querySelector("[data-art-controls]");
+
+if (artControls) {
+  const preferenceKey = "cuckoding-illustration-mode";
+  const choices = [...artControls.querySelectorAll('input[name="illustration-mode"]')];
+  const artwork = [...document.querySelectorAll("[data-classic-src]")].map((image) => ({
+    image, src: image.getAttribute("src"), alt: image.getAttribute("alt"),
+  }));
+  const captions = [...document.querySelectorAll("[data-classic-copy]")].map((element) => ({
+    element, text: element.textContent,
+  }));
+  const status = artControls.querySelector("[data-art-status]");
+
+  const setArtMode = (mode) => {
+    const irony = mode === "irony";
+    choices.forEach((choice) => { choice.checked = choice.value === mode; });
+    artwork.forEach(({ image, src, alt }) => {
+      image.setAttribute("src", irony ? src : image.dataset.classicSrc);
+      image.setAttribute("alt", irony ? alt : image.dataset.classicAlt);
+    });
+    captions.forEach(({ element, text }) => {
+      element.textContent = irony ? text : element.dataset.classicCopy;
+    });
+    status.textContent = irony
+      ? "Irony mode. Humans serve. Robots supervise."
+      : "Classic mode. Humans lead. Robots assist.";
+  };
+
+  let savedMode = "irony";
+  try {
+    if (window.localStorage.getItem(preferenceKey) === "classic") savedMode = "classic";
+  } catch { /* Private browsing may deny storage; the switch still works. */ }
+  setArtMode(savedMode);
+  artControls.hidden = false;
+
+  artControls.addEventListener("change", (event) => {
+    const { name, value } = event.target;
+    if (name !== "illustration-mode" || !["classic", "irony"].includes(value)) return;
+    setArtMode(value);
+    try { window.localStorage.setItem(preferenceKey, value); } catch { /* Keep the in-page choice. */ }
+  });
+}
