@@ -1,5 +1,5 @@
 ---
-status: complete
+status: in_progress
 owner: codex
 started_at: 2026-09-24
 worklog: worklog/2026-09-24-1040-sperm-c-brand.md
@@ -15,3 +15,5 @@ worklog: worklog/2026-09-24-1040-sperm-c-brand.md
   the packaged app; record current-running versus built evidence separately.
 - [x] Refine the mark to a recognizable letter C with an attached sperm tail,
   regenerate all exports and verify the revised app build.
+- [ ] Make the C more circular and direct its tapered sperm tail to the left;
+  regenerate and verify every consumer.

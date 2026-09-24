@@ -25,8 +25,8 @@ release, runs the pinned Rust checks, creates the local unsigned `.app`, and
 executes the sterile-environment protocol verifier. Signing, notarization, and
 distribution policy are in `docs/DISTRIBUTION.md`.
 
-The icon source is `desktop/icon.svg`: a rounded violet capital C with an attached
-flowing sperm tail on a pearl tile. App PNG/ICNS, browser icons and web/sidebar marks use that source.
+The icon source is `desktop/icon.svg`: a circular violet capital C with a sperm
+tail flowing left on a pearl tile. App PNG/ICNS, browser icons and web/sidebar marks use that source.
 The status item embeds its tile-free 64 x 64 monochrome silhouette. macOS supplies
 the foreground color for light and dark menu bars; the shell reads raw RGBA
 bytes directly, so no runtime image decoder or additional dependency is required.
