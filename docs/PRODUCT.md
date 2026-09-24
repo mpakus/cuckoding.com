@@ -62,11 +62,21 @@ review comments/evidence. Per-attempt specifications remain durable artifacts.
 Existing boards/runs keep their original names and versioned routing; creating
 a new board uses the latest default without rewriting the old definition.
 
-**Implementation gap:** project settings already save custom role names,
-instructions and assignments, but adding a role does not insert an
-executable workflow stage, and there is no dedicated role-permission editor.
-Read-only planning can inspect committed Markdown named in a prompt and propose
-tasks for human import; that is not full acceptance of the Speculator contract.
+Custom roles can remain planning-only or run after Speculator or Implementor,
+in displayed order. Delivery permissions offer read-only inspection/checks or
+worktree writes/checks; the built-in Speculator and Reviewer remain read-only.
+Saving a changed schedule or grant requires confirmation and records an audit
+event. New boards copy it; explicitly applying project roles updates an existing
+board's future flow. Prepared and historical runs keep their snapshots.
+Additional-role reports pass to downstream roles and the final Reviewer, are
+hashed evidence artifacts, and repeat within the bounded correction loop.
+The final Reviewer still controls pass/correction through Cuckoding.
+
+This is a supported extension of the default flow, not an arbitrary graph,
+external-path or network-permission editor. Runtime-specific enforced and
+unenforced permissions remain visible. Read-only planning can inspect committed
+Markdown named in a prompt and propose tasks for human import; rendered native
+and real-provider acceptance of the full flow remains open.
 See [FLOW.md](FLOW.md#intended-default-feature-flow) and the unchecked work in
 [PLAN.md](PLAN.md#role-contract-alignment--2026-09-24).
 
@@ -81,7 +91,7 @@ remain pending where explicitly identified.
 - Durable project Start/Pause/Needs attention/Done control with a per-project run limit and open blocker-finding threshold. Pause stops new starts, not already-running work. Boards can be created before agents are assigned; assigning current project roles to a board updates future runs and adds audited saved-agent bindings to compatible queued runs without rewriting their snapshots.
 - Run-level Pause/Resume/Stop and dashboard-wide Pause all/Resume workspace/Stop all. Workspace controls gate new launches durably, suspend verified running process groups, and retain branches/worktrees/evidence on stop. Individual pauses survive a global resume. A stopped task can prepare a new run; missing live workers fail resume closed. These controls have source/fixture checks; native/provider acceptance remains open.
 - Read-only board planning runs that turn a bounded prompt into source-cited task proposals. Before import, another snapshotted role with a different configured model/runtime can review them, revise descriptions/specs and save per-task comments and a Markdown report. Proposal IDs and before/after history are preserved; only human-selected proposals become Draft tasks.
-- Validated workflow definitions and role-to-runtime assignment; the creation UI selects the default workflow. Custom stage/permission editing and execution of added roles remain gaps against the contract above.
+- Validated workflow definitions and role-to-runtime assignment; the creation UI selects the default workflow extended by explicitly scheduled custom roles and their saved worktree permissions. Arbitrary workflow graph editing remains outside this UI.
 - Claude Code, Codex, and Cursor Agent as supported launch adapters. Saved Codex/Cursor agents can share an app-owned provider sign-in while selecting different models; per-run configuration stays separate. Cursor refuses project MCP, sandbox, CLI, or plugin overrides. Project setup may also save OpenCode and Custom Agent connections, but task execution remains blocked until a reviewed adapter passes the conformance suite.
 - Git worktree per run, host process runner with process-group supervision, path and command policy, per-run port allocation and preview URL.
 - Durable state machine, retries, approvals, pause, hibernate, resume, crash recovery, and sleep/wake reconciliation.

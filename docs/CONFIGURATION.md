@@ -26,21 +26,28 @@ at `/projects/:id/edit` attach saved agents and assign roles after registration.
 | Layer | Stored information | Effect of later edits |
 | --- | --- | --- |
 | Machine-local `provider_accounts` | Saved label, adapter, model/settings, immutable authorization-account reference, observed status | Catalog metadata changes; existing project copies are not synchronized |
-| Project configuration revision | Connections with stable account IDs, copied settings, role names/instructions/assignments | New saves append revisions; newly created boards use the latest revision |
+| Project configuration revision | Connections with stable account IDs, copied settings, role names/instructions/assignments, delivery slots and permissions | New saves append revisions; newly created boards use the latest revision |
 | Board | Default workflow version and copied role assignments/settings | Existing boards are not rewritten by project saves |
 | Run | Board workflow/roles plus trusted project policy and fixed repository revision | Historical snapshots remain unchanged |
 
 **Use in this project** stages a saved connection in the form; save the agent
 or full configuration to persist attachment. Saving the full configuration
 requires every role to be assigned. Removing a connection from a project does
-not delete or revoke the machine-wide account. Custom roles can be saved, but
-the default delivery launcher uses the three stable built-in role keys.
-New defaults are named Speculator, Implementor and Reviewer; the role contract
-and implementation gaps are in [PRODUCT.md](PRODUCT.md#default-roles-and-extensibility).
-Additional roles and permissions are required product capabilities. Current role
-forms store names, instructions and agent assignments only; adding a role does
-not add a stage or grant permissions. Workflow mapping and trusted, reviewed
-policy must govern execution and access without rewriting historical snapshots.
+not delete or revoke the machine-wide account. The three stable built-in keys
+display Speculator, Implementor and Reviewer. Custom roles store `delivery_phase`
+(`planning_only`, `after_specification`, `after_development`) and `permissions`
+(`read_only`, `workspace_write`). Previously saved custom roles default to
+planning-only/read-only, so upgrading does not silently execute them. Built-in
+Speculator/Reviewer stay read-only and Implementor retains worktree writes;
+human approval/release role keys are reserved.
+
+Changed schedules/grants require confirmation on save and append a
+`project.roles_configured` audit event. New boards receive corresponding
+versioned stages; **Assign agents to board** explicitly applies schedules and
+permissions to future runs too. Prepared runs retain both definition and grants.
+The launcher resolves only scheduled delivery roles; planning-only roles can be
+selected for planning/review but do not add a delivery stage. Planning always
+uses its read-only grant. See [PRODUCT.md](PRODUCT.md#default-roles-and-extensibility).
 
 Runtime authentication is a live dependency: `AgentRuntime` looks up the saved
 account's current authentication mode by ID. It is not fully frozen by the role

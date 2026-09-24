@@ -164,6 +164,22 @@ defmodule Cuckoding.ProjectOnboardingTest do
 
     assert Projects.latest_config_version(project.id).id == config.id
 
+    for invalid <- [
+          Map.put(hd(roles), "permissions", "workspace_write"),
+          Map.put(hd(roles), "permissions", %{"network" => "allow"}),
+          Map.put(hd(roles), "delivery_phase", "after_development"),
+          Map.put(hd(roles), "key", "release")
+        ] do
+      assert {:error, :invalid_role_permissions} =
+               ProjectOnboarding.update_configuration(
+                 project.id,
+                 2,
+                 Map.put(attrs, "default_roles", [invalid | tl(roles)])
+               )
+    end
+
+    assert Projects.latest_config_version(project.id).id == config.id
+
     assert {:error, :stale_configuration} =
              ProjectOnboarding.update_configuration(project.id, 1, attrs)
 

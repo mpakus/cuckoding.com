@@ -170,8 +170,12 @@ defmodule Cuckoding.Execution.GitService do
          :ok <- valid_commit_message?(message),
          {:ok, paths} <- candidate_paths(environment, relative_paths),
          {:ok, _output} <- git(environment.worktree_path, ["add", "--" | paths]),
-         {:ok, _output} <- git(environment.worktree_path, ["commit", "-m", message]),
-         do: record_candidate(environment)
+         {:ok, _output} <- git(environment.worktree_path, ["commit", "-m", message]) do
+      record_candidate(environment)
+    else
+      {:ok, %{clean?: true}} -> {:error, :candidate_revision_unchanged}
+      error -> error
+    end
   end
 
   @doc "Accepts a clean agent-created commit as the immutable candidate revision."

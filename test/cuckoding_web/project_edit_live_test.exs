@@ -61,6 +61,16 @@ defmodule CuckodingWeb.ProjectEditLiveTest do
     assert has_element?(view, "#agent-connection-1")
     assert has_element?(view, "#project-role-custom-1")
 
+    assert has_element?(
+             view,
+             "#project-role-custom-1 select[name$='[delivery_phase]'] option[value='after_development']"
+           )
+
+    assert has_element?(
+             view,
+             "#project-role-custom-1 select[name$='[permissions]'] option[value='workspace_write']"
+           )
+
     config = %{
       "agent_connections" => %{
         "0" => %{
@@ -81,6 +91,13 @@ defmodule CuckodingWeb.ProjectEditLiveTest do
     }
 
     render_change(view, "sync", %{"config" => config})
+
+    assert has_element?(
+             view,
+             "#project-config-form button[data-confirm]",
+             "Save agents and roles"
+           )
+
     assert has_element?(view, "#project-save-state", "Unsaved changes")
     view |> form("#create-board-form", board: %{name: "Premature board"}) |> render_submit()
     assert Workflows.list_boards(project.id) == []
@@ -106,6 +123,8 @@ defmodule CuckodingWeb.ProjectEditLiveTest do
     assert latest.revision == 2
     assert length(latest.config_json["agent_connections"]) == 2
     assert length(latest.config_json["default_roles"]) == 4
+    assert List.last(latest.config_json["default_roles"])["delivery_phase"] == "after_development"
+    assert List.last(latest.config_json["default_roles"])["permissions"] == "workspace_write"
 
     original = Repo.get_by!(ProjectConfigVersion, project_id: project.id, revision: 1)
     assert original.config_json["agent_connections"] == []
@@ -306,6 +325,8 @@ defmodule CuckodingWeb.ProjectEditLiveTest do
     |> Map.put("3", %{
       "key" => "custom-1",
       "name" => "Security",
+      "delivery_phase" => "after_development",
+      "permissions" => "workspace_write",
       "instructions" => "Review trust boundaries and produce actionable findings.",
       "agent_connection_key" => "agent-1"
     })

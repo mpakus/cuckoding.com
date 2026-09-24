@@ -20,8 +20,11 @@ The runner control foundation was merged at `35fde75` with 324 tests and 10
 properties passing. Task/global controls now add durable admission, stage launch
 coordination, pause/resume/stop UI and retained-worktree retries; 57 focused
 workflow/planning/control regressions and full quality (10 properties, 329 tests)
-pass. Custom role execution/permissions,
-final rendered UI acceptance and a current native app remain open in
+pass. Custom roles now have explicit delivery slots, confirmed worktree grants,
+downstream reports and immutable run configuration; full quality passes 10
+properties and 332 tests. The Git candidate service also rejects clean/no-change
+commit attempts instead of returning an inspection map as an environment.
+Final rendered UI/provider acceptance and a current native app remain open in
 [task 1038](../tasks/phase-10-hardening-beta/1038-complete-board-flow.md).
 The dated audit below describes the state before these implementation changes.
 

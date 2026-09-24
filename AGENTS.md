@@ -16,6 +16,12 @@ see `docs/PRODUCT.md` and `docs/FLOW.md`. Role text never grants access or bypas
 the user's recorded completion policy or human release approval. Automatic local
 completion requires an explicit start-time choice, a validated passing review
 and retained evidence; it must never authorize push, PR creation or merge.
+Custom roles may run in explicit slots after Speculator or Implementor. Persist
+their order, instructions and read-only/worktree-write grants in the run snapshot;
+pass reports as untrusted evidence and keep final Review independent. Schedule
+or grant changes need confirmation and an audit event. Existing custom roles
+default to planning-only/read-only; never enable execution or expand access
+merely because the application was upgraded.
 
 ## Required reading
 

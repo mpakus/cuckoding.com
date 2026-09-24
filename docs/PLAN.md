@@ -286,9 +286,10 @@ complete local-application acceptance remain open:
 - [x] Offer explicit automatic local completion at run/project start, retain the
   per-run decision and evidence, and preserve separate remote-release approval.
   Prior project controls migrate to manual mode without changing existing data.
-- [ ] Connect user-added roles to executable versioned workflows and let users
-  configure additional permissions through reviewed policy and runtime grants.
-  Existing editable role metadata is only partial implementation.
+- [x] Connect user-added roles to versioned delivery slots after Speculator or
+  Implementor, with confirmed read-only/worktree-write grants, downstream reports
+  and preserved run snapshots. This is source/fixture evidence; arbitrary graph,
+  external-path and network permission editing are not offered.
 - [ ] Cover role defaults, Markdown intake, comment propagation, return routing,
   permission enforcement and snapshot preservation before claiming completion.
 

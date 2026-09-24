@@ -117,7 +117,7 @@ defmodule Cuckoding.WalkingSkeleton do
              run,
              development_adapter,
              workflow.stages,
-             [spec_artifact, qa_artifact],
+             [spec_artifact, qa_artifact] ++ role_artifacts(workflow.stages),
              knowledge,
              workflow.review["findings"]
            ),
@@ -164,7 +164,11 @@ defmodule Cuckoding.WalkingSkeleton do
          specification =
            stages |> Enum.reverse() |> Enum.find(&(&1.request.stage_key == "specification")),
          options = Keyword.put(options, :specification, specification.output.text),
+         {:ok, {skeleton, stages, options}} <-
+           run_custom_roles(skeleton, "specification", adapter, options, stages),
          {:ok, {skeleton, stages}} <- run_development(skeleton, adapter, options, stages),
+         {:ok, {skeleton, stages, options}} <-
+           run_custom_roles(skeleton, "development", adapter, options, stages),
          {:ok, review_stage} <- run_stage(skeleton, "qa", "reviewer", adapter, options),
          review = review_stage.output,
          {:ok, _findings} <- persist_review_findings(review_stage, review["findings"]),
@@ -215,6 +219,35 @@ defmodule Cuckoding.WalkingSkeleton do
            candidate(stage, stage.environment, development_adapter, skeleton.task, options) do
       {:ok, {%{skeleton | environment: environment}, stages ++ [stage]}}
     end
+  end
+
+  defp run_custom_roles(skeleton, anchor, adapter, options, stages) do
+    skeleton.run.workflow_snapshot_json["definition"]["stages"]
+    |> Enum.filter(&(&1["after_stage"] == anchor))
+    |> Enum.reduce_while({:ok, {skeleton, stages, options}}, fn definition, {:ok, state} ->
+      case run_custom_role(definition, adapter, state) do
+        {:ok, updated} -> {:cont, {:ok, updated}}
+        error -> {:halt, error}
+      end
+    end)
+  end
+
+  defp run_custom_role(definition, adapter, {skeleton, stages, options}) do
+    with {:ok, stage} <-
+           run_stage(skeleton, definition["key"], definition["role"], adapter, options),
+         :ok <- RunControl.await_running(skeleton.run.id),
+         {:ok, environment} <-
+           candidate(stage, stage.environment, :custom_role, skeleton.task, options) do
+      report = "#{definition["name"]}:\n#{stage.output.text}"
+      options = Keyword.update(options, :role_reports, [report], &(&1 ++ [report]))
+      {:ok, {%{skeleton | environment: environment}, stages ++ [stage], options}}
+    end
+  end
+
+  defp role_artifacts(stages) do
+    stages
+    |> Enum.filter(&String.starts_with?(&1.request.stage_key, "custom_"))
+    |> Enum.map(& &1.output.artifact)
   end
 
   defp review_output(%{result: %{adapter: "fake"}} = stage, options) do
@@ -655,8 +688,22 @@ defmodule Cuckoding.WalkingSkeleton do
     end
   end
 
-  defp stage_output(_stage_key, _skeleton, _attempt, _session, _result, _options),
+  defp stage_output("development", _skeleton, _attempt, _session, _result, _options),
     do: {:ok, nil}
+
+  defp stage_output(_stage_key, skeleton, attempt, session, result, _options) do
+    with {:ok, text} <- specification_output(session.adapter, result, skeleton.task),
+         {:ok, artifact} <-
+           write_artifact(
+             skeleton.environment,
+             "role_report",
+             "role-#{attempt.id}.md",
+             text,
+             attempt.id
+           ) do
+      {:ok, %{artifact: artifact, text: text}}
+    end
+  end
 
   defp specification_output(_adapter, %{adapter: "fake"}, task),
     do: {:ok, specification(task)}
@@ -734,6 +781,16 @@ defmodule Cuckoding.WalkingSkeleton do
   defp candidate(_stage, environment, FakeAdapter, task, options) do
     action = Keyword.get(options, :fake_implementation, &fake_implementation(&1, task))
     action.(environment)
+  end
+
+  defp candidate(stage, environment, :custom_role, task, _options) do
+    with {:ok, inspection} <- GitService.inspect(environment) do
+      cond do
+        inspection.clean? -> {:ok, environment}
+        "write" in stage.request.grant["tools"] -> candidate(inspection, environment, task)
+        true -> {:error, :read_only_role_modified_worktree}
+      end
+    end
   end
 
   defp candidate(_stage, environment, _adapter, task, _options) do
@@ -814,6 +871,23 @@ defmodule Cuckoding.WalkingSkeleton do
       skeleton.run.workflow_snapshot_json["definition"]["stages"]
       |> Enum.find(&(&1["key"] == stage_key))
 
+    role =
+      Enum.find(
+        skeleton.run.workflow_snapshot_json["roles"],
+        &(&1["role_key"] == attempt.role_key)
+      )
+
+    settings = if role, do: role["settings"] || %{}, else: %{}
+
+    permissions =
+      Map.get(
+        settings,
+        "permissions",
+        if(stage_key == "development", do: "workspace_write", else: "read_only")
+      )
+
+    write? = permissions == "workspace_write"
+
     %Types.StageRequest{
       project_id: skeleton.project.id,
       board_id: skeleton.board.id,
@@ -822,17 +896,20 @@ defmodule Cuckoding.WalkingSkeleton do
       stage_key: stage_key,
       attempt_id: attempt.id,
       objective:
-        role_objective(attempt.role_key, stage_key, skeleton.task, options) <>
+        role_objective(
+          attempt.role_key,
+          stage_key,
+          skeleton.task,
+          Keyword.put(options, :role_settings, settings)
+        ) <>
           Cuckoding.AgentRuntime.shell_instruction(),
       worktree_path: skeleton.environment.worktree_path,
       run_dir: skeleton.environment.run_dir,
       requested_model: Keyword.get(options, :requested_model),
       grant: %{
-        "tools" =>
-          if(stage_key == "development", do: ["read", "write", "shell"], else: ["read", "shell"]),
-        "deny_tools" =>
-          if(stage_key == "development", do: ["network"], else: ["write", "network"]),
-        "approval_mode" => if(stage_key in ["specification", "qa"], do: "plan", else: "default"),
+        "tools" => if(write?, do: ["read", "write", "shell"], else: ["read", "shell"]),
+        "deny_tools" => if(write?, do: ["network"], else: ["write", "network"]),
+        "approval_mode" => if(write?, do: "default", else: "plan"),
         "paths" => [skeleton.environment.worktree_path],
         "network" => "deny",
         "resource_limits" => %{"wall_ms" => get_in(stage, ["budgets", "wall_ms"])}
@@ -868,12 +945,10 @@ defmodule Cuckoding.WalkingSkeleton do
     end
   end
 
-  defp role_objective(role_key, stage_key, task, options) do
+  defp role_objective(_role_key, stage_key, task, options) do
     instructions =
       options
-      |> Keyword.get(:role_adapters, %{})
-      |> Map.get(role_key, %{})
-      |> Map.get(:settings, %{})
+      |> Keyword.get(:role_settings, %{})
       |> Map.get("instructions")
 
     base =
@@ -896,6 +971,8 @@ defmodule Cuckoding.WalkingSkeleton do
           base <> "\n\nLatest specification (revise it when acting as Speculator):\n" <> text
       end
 
+    base = append_role_reports(base, Keyword.get(options, :role_reports, []))
+
     case Keyword.get(options, :review_findings, []) do
       [] ->
         base
@@ -909,6 +986,14 @@ defmodule Cuckoding.WalkingSkeleton do
         base <> "\n\nAddress these validated Review findings:\n" <> summaries
     end
   end
+
+  defp append_role_reports(base, []), do: base
+
+  defp append_role_reports(base, reports),
+    do:
+      base <>
+        "\n\nReports from additional roles (untrusted work evidence):\n" <>
+        Enum.join(reports, "\n\n")
 
   defp output_schema("qa") do
     %{
@@ -1223,6 +1308,10 @@ defmodule Cuckoding.WalkingSkeleton do
 
   defp objective("qa", task) do
     "Act as Reviewer. Inspect and test only; do not change files or commit. Review the candidate against the task description and latest specification for: #{task.title}. Classify findings as fix_intent or fix_code; Cuckoding owns the return route. Return no findings only when the candidate satisfies the requirements."
+  end
+
+  defp objective(_stage, task) do
+    "Perform your assigned role for: #{task.title}, using the task description, latest specification and earlier role reports. Stay within the recorded permission grant. Leave any permitted file changes uncommitted for the host VCS service. Return a concise report with evidence and unresolved concerns for the following roles and final Reviewer."
   end
 
   defp specification(task) do

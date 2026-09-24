@@ -32,6 +32,9 @@ defmodule Cuckoding.ProjectWorkflow do
            %{revision: ^expected_revision} = config <-
              Projects.latest_config_version(board.project_id),
            :ok <- apply_board_roles(board.id, config.config_json),
+           {:ok, workflow} <- default_workflow(board.project_id, config.config_json),
+           {:ok, board} <-
+             board |> Ecto.Changeset.change(workflow_version_id: workflow.id) |> Repo.update(),
            {:ok, queued_runs_connected} <- connect_queued_runs(board.id),
            {:ok, _event} <-
              EventStore.append_in_transaction("board:" <> board.id, %{
@@ -40,6 +43,7 @@ defmodule Cuckoding.ProjectWorkflow do
                payload: %{
                  "board_id" => board.id,
                  "config_revision" => config.revision,
+                 "workflow_version_id" => workflow.id,
                  "queued_runs_connected" => queued_runs_connected
                }
              }) do
@@ -187,7 +191,7 @@ defmodule Cuckoding.ProjectWorkflow do
       with project when not is_nil(project) <- Projects.get_project(project_id),
            config when not is_nil(config) <- Projects.latest_config_version(project_id),
            {:ok, fields} <- board_fields(attrs),
-           {:ok, workflow} <- default_workflow(project_id),
+           {:ok, workflow} <- default_workflow(project_id, config.config_json),
            {:ok, board} <-
              Workflows.create_board(
                Map.merge(fields, %{
@@ -374,8 +378,8 @@ defmodule Cuckoding.ProjectWorkflow do
     })
   end
 
-  defp default_workflow(project_id) do
-    {:ok, definition} = Definition.validate(Definition.default())
+  defp default_workflow(project_id, config) do
+    {:ok, definition} = Definition.validate(Definition.for_roles(config["default_roles"] || []))
 
     case Repo.one(
            from(workflow in WorkflowVersion,
@@ -437,7 +441,11 @@ defmodule Cuckoding.ProjectWorkflow do
       "connection_label" => connection["label"],
       "provider_account_id" => connection["provider_account_id"],
       "role_name" => role["name"],
-      "instructions" => role["instructions"]
+      "instructions" => role["instructions"],
+      "permissions" =>
+        role["permissions"] ||
+          if(role["key"] == "implementer", do: "workspace_write", else: "read_only"),
+      "delivery_phase" => role["delivery_phase"] || "planning_only"
     })
   end
 
@@ -529,15 +537,19 @@ defmodule Cuckoding.ProjectWorkflow do
   end
 
   defp runnable_roles(board_id, %Task{}) do
+    board = Workflows.get_board(board_id)
+    definition = Repo.get!(WorkflowVersion, board.workflow_version_id).definition_json
+    keys = Definition.agent_role_keys(definition)
+
     roles =
       Repo.all(
         from(role in RoleAssignment,
-          where: role.board_id == ^board_id and role.role_key in ^@agent_roles
+          where: role.board_id == ^board_id and role.role_key in ^keys
         )
       )
 
     cond do
-      length(roles) != length(@agent_roles) ->
+      length(roles) != length(keys) ->
         {:error, :roles_not_configured}
 
       Enum.any?(roles, &is_nil(&1.adapter_key)) ->

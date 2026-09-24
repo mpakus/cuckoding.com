@@ -79,6 +79,16 @@ run-owned HOME and policy configuration.
 
 ## Recent interface and discovery checks
 
+Task 1038's custom-role checks cover project save → explicit board application
+→ immutable run snapshot → configured extra stages → final Review/local
+completion. They exercise read-only and worktree-write grants, planning-only
+exclusion, correction-loop repetition, report handoff/integrity, unexpected
+read-only writes, reserved role keys, and invalid permission input. Full
+`rtk env -u CR_PAT mix quality` passes 10 properties and 332 tests for this slice.
+These are fixture/domain/LiveView checks; they do not establish provider
+enforcement or native/browser acceptance. Requested, enforced and unenforced
+runtime permissions must still be inspected in the actual run.
+
 For the Pages surface, use its existing dependency-free checks:
 
 ```sh

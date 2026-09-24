@@ -197,3 +197,49 @@ explicitly reported; durable paused/cancelled state alone is not signal evidence
   metadata filter and source reads are the continuing RTK proxy exceptions.
 - Native/browser/provider acceptance and executable custom roles/permissions
   remain open. These source checks do not finish the full task or active goal.
+
+## Executable custom roles and permissions
+
+Run/workspace controls were fast-forward merged to local main at `00b3957`.
+Custom roles now select planning-only, after Speculator, or after Implementor,
+with read-only or worktree-write delivery grants. Existing custom metadata
+defaults to planning-only/read-only. Saved role configuration is confirmed and
+audited; new/explicitly updated boards get a versioned stage sequence, while
+prepared and historical runs retain their snapshots. Delivery launch resolves
+every scheduled role; planning-only assignments do not block delivery setup.
+Built-in Speculator/Reviewer remain read-only, and approval/release keys are
+reserved. Neither role instructions nor reports can alter runtime grants.
+
+Additional roles pass reports downstream and to Reviewer, retain hashed report
+artifacts, and repeat within the correction loop. The host commits permitted
+changes; unexpected writes from a read-only support role block the workflow
+and remain uncommitted for inspection. The form does not expose arbitrary
+graphs, external paths or network access; existing adapter enforcement limits
+remain explicit. No new dependencies, migrations or provider integrations.
+
+Source tracing reused the existing Definition, ProjectOnboarding, role snapshot,
+AgentRuntime, WalkingSkeleton, GitService and GateEvaluator boundaries. No peer
+source was copied; the preceding unavailable-XERJ/source-inspection limitation
+still applies. Ponytail full and security/quality gates remain active.
+
+Verification/fixes:
+
+- Initial focused run: 60 tests and 2 properties, one fixture mismatch after
+  instructions were made snapshot-owned. Updated the fixture to persist its
+  declared role instructions in the immutable run snapshot.
+- Additional checks caught a fixture saved-provider mismatch and exposed a
+  real GitService return bug: a clean commit attempt returned an inspection map
+  as a successful environment. All callers were inspected; the shared commit
+  service now returns `candidate_revision_unchanged`, with a focused assertion.
+  Read-only custom stages no longer attempt an unnecessary candidate commit.
+- `rtk env -u CR_PAT mix test test/cuckoding/walking_skeleton_test.exs test/cuckoding/project_workflow_test.exs test/cuckoding/execution/git_service_test.exs`:
+  53 tests passed before the final read-only-write adversarial check was added.
+- A strict Credo complexity finding was resolved by extracting report text
+  assembly from the already existing objective function.
+- Final `rtk env -u CR_PAT mix quality`: formatter, warnings-as-errors compiler,
+  10 properties and 332 tests, strict Credo, Sobelow and dependency audit passed.
+- `rtk git diff --check`: passed. Exact source reads continue to use `rtk proxy`.
+- A bounded `rtk proxy python3` Markdown-link assertion checked all seven changed
+  contributor/product documents; all local link targets exist.
+- Native/browser/provider acceptance, dynamic board visibility and the current
+  one-app launch are still outstanding. Task 1038 and the full goal remain active.

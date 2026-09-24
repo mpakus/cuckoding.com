@@ -77,6 +77,97 @@ defmodule Cuckoding.ProjectWorkflowTest do
     %{project: project}
   end
 
+  test "scheduled roles execute with snapshotted permissions while prior runs retain their flow",
+       %{project: project} do
+    {:ok, board} =
+      ProjectWorkflow.create_board(project.id, %{
+        "name" => "Extensible",
+        "concurrency_limit" => "1"
+      })
+
+    {:ok, old_task} = ProjectWorkflow.create_task(board.id, %{"title" => "Old flow"})
+    {:ok, _} = Workflows.transition_task(old_task.id, "ready", "old-flow-ready")
+    {:ok, %{run: old_run}} = ProjectWorkflow.prepare_task(old_task.id)
+    config = Cuckoding.Projects.latest_config_version(project.id).config_json
+    connection = hd(config["agent_connections"])
+
+    extra = fn key, phase, permissions ->
+      %{
+        "key" => key,
+        "name" => key,
+        "instructions" => "Report evidence for Reviewer.",
+        "agent_connection_key" => connection["key"],
+        "delivery_phase" => phase,
+        "permissions" => permissions
+      }
+    end
+
+    roles =
+      config["default_roles"] ++
+        [
+          extra.("research", "after_specification", "read_only"),
+          extra.("docs", "after_development", "workspace_write"),
+          extra.("planner", "planning_only", "read_only")
+        ]
+
+    {:ok, version} =
+      ProjectOnboarding.update_configuration(project.id, 2, %{
+        "agent_connections" => [Map.merge(connection, connection["settings"])],
+        "default_roles" => roles
+      })
+
+    assert Workflows.get_board(board.id).workflow_version_id == board.workflow_version_id
+    {:ok, updated} = ProjectWorkflow.apply_project_roles(board.id, version.revision)
+    refute updated.workflow_version_id == board.workflow_version_id
+    assert Repo.get!(Run, old_run.id).workflow_snapshot_json == old_run.workflow_snapshot_json
+
+    for role <- Workflows.list_agent_roles(board.id), role.role_key != "planner" do
+      role
+      |> Ecto.Changeset.change(
+        adapter_key: "fake",
+        settings_json: Map.delete(role.settings_json, "provider_account_id")
+      )
+      |> Repo.update!()
+    end
+
+    {:ok, task} = ProjectWorkflow.create_task(board.id, %{"title" => "Use additional roles"})
+    {:ok, _} = Workflows.transition_task(task.id, "ready", "custom-flow-ready")
+    {:ok, %{run: run, environment: environment}} = ProjectWorkflow.prepare_task(task.id)
+
+    assert {:ok, completed} =
+             Cuckoding.GuidedRun.start(run.id, async: false, completion_mode: "local")
+
+    assert completed.run.state == "done"
+
+    sessions =
+      Repo.all(
+        from attempt in Cuckoding.Execution.StageAttempt,
+          join: session in Cuckoding.Execution.AgentSession,
+          on: session.stage_attempt_id == attempt.id,
+          where: attempt.run_id == ^run.id,
+          order_by: attempt.inserted_at,
+          select: {attempt.stage_key, session.effective_grant_json}
+      )
+
+    assert Enum.map(sessions, &elem(&1, 0)) ==
+             ~w(specification custom_research development custom_docs qa)
+
+    grants = Map.new(sessions)
+    assert grants["custom_research"]["requested"]["deny_tools"] == ["write", "network"]
+    assert grants["custom_docs"]["requested"]["tools"] == ["read", "write", "shell"]
+    assert grants["custom_docs"]["requested"]["paths"] == [environment.worktree_path]
+    assert grants["custom_docs"]["requested"]["network"] == "deny"
+
+    evidence =
+      environment.run_dir
+      |> Path.join("artifacts/evidence.json")
+      |> File.read!()
+      |> Jason.decode!()
+
+    assert length(Enum.filter(evidence["artifacts"], &(&1["type"] == "role_report"))) == 2
+    assert {:ok, _} = Cuckoding.Workflows.GateEvaluator.verify(evidence, environment.run_dir)
+  end
+
   test "prepares a ready task from the board snapshot and exposes it to monitoring", %{
     conn: conn,
     project: project

@@ -45,6 +45,44 @@ defmodule Cuckoding.Workflows.Definition do
     }
   end
 
+  @doc "Adds explicitly scheduled roles to the default delivery workflow."
+  def for_roles(roles) do
+    Map.update!(
+      default(),
+      "stages",
+      &Enum.flat_map(&1, fn stage -> extend_stage(stage, roles) end)
+    )
+  end
+
+  defp extend_stage(stage, roles) do
+    extras =
+      for role <- roles, role["delivery_phase"] == "after_#{stage["key"]}" do
+        %{
+          "key" => "custom_#{role["key"]}",
+          "name" => role["name"],
+          "role" => role["key"],
+          "after_stage" => stage["key"]
+        }
+      end
+
+    case extras do
+      [] ->
+        [stage]
+
+      [first | remaining] ->
+        targets = Enum.map(remaining, & &1["key"]) ++ [stage["transitions"]["pass"]]
+        linked = Enum.zip_with(extras, targets, &Map.put(&1, "transitions", %{"pass" => &2}))
+        [put_in(stage, ["transitions", "pass"], first["key"]) | linked]
+    end
+  end
+
+  def agent_role_keys(definition) do
+    definition["stages"]
+    |> Enum.filter(&(Map.get(&1, "role_kind", infer_role_kind(&1["role"])) == "agent"))
+    |> Enum.map(& &1["role"])
+    |> Enum.uniq()
+  end
+
   @doc "Validates a workflow and returns its explicit normalized form."
   def validate(%{"stages" => stages} = definition) when is_list(stages) and stages != [] do
     with {:ok, keys} <- stage_keys(stages),

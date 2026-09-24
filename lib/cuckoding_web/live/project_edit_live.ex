@@ -161,6 +161,8 @@ defmodule CuckodingWeb.ProjectEditLive do
       "key" => next_key(socket.assigns.config["default_roles"], "custom"),
       "name" => "",
       "instructions" => "",
+      "delivery_phase" => "planning_only",
+      "permissions" => "read_only",
       "agent_connection_key" => ""
     }
 
@@ -540,7 +542,12 @@ defmodule CuckodingWeb.ProjectEditLive do
           </div>
         </details>
 
-        <form id="project-config-form" phx-change="sync" phx-submit="save" class="space-y-8">
+        <form
+          id="project-config-form"
+          phx-change="sync"
+          phx-submit="save"
+          class="space-y-8"
+        >
           <section aria-labelledby="agents-heading" class="space-y-4">
             <div class="flex flex-wrap items-end justify-between gap-3">
               <div>
@@ -768,6 +775,52 @@ defmodule CuckodingWeb.ProjectEditLive do
                     class="rounded-md border border-slate-400 px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2"
                   >{role["instructions"]}</textarea>
                 </label>
+                <div :if={not default_role?(role["key"])} class="space-y-4">
+                  <label class="grid gap-2 text-sm font-medium text-slate-800">
+                    When this role runs
+                    <select
+                      name={"config[default_roles][#{index}][delivery_phase]"}
+                      class="min-h-11 rounded-md border border-slate-400 bg-white px-3"
+                    >
+                      <option
+                        :for={
+                          {label, value} <- [
+                            {"Planning only", "planning_only"},
+                            {"After Speculator", "after_specification"},
+                            {"After Implementor", "after_development"}
+                          ]
+                        }
+                        value={value}
+                        selected={(role["delivery_phase"] || "planning_only") == value}
+                      >
+                        {label}
+                      </option>
+                    </select>
+                  </label>
+                  <label class="grid gap-2 text-sm font-medium text-slate-800">
+                    Delivery permissions
+                    <select
+                      name={"config[default_roles][#{index}][permissions]"}
+                      class="min-h-11 rounded-md border border-slate-400 bg-white px-3"
+                    >
+                      <option
+                        value="read_only"
+                        selected={(role["permissions"] || "read_only") == "read_only"}
+                      >
+                        Inspect files and run checks
+                      </option>
+                      <option
+                        value="workspace_write"
+                        selected={role["permissions"] == "workspace_write"}
+                      >
+                        Edit worktree files and run checks
+                      </option>
+                    </select>
+                  </label>
+                  <p class="text-sm text-slate-600">
+                    Roles at the same point run in the order shown. Their reports go to the following roles and Reviewer. Planning stays read-only; network and access outside the worktree are not granted.
+                  </p>
+                </div>
                 <button
                   :if={not default_role?(role["key"])}
                   type="button"
@@ -793,6 +846,7 @@ defmodule CuckodingWeb.ProjectEditLive do
             </.link>
             <button
               phx-disable-with="Saving agents and roles…"
+              data-confirm="Save these agent assignments, role schedules and worktree permissions? New boards use them; applying to an existing board affects its future runs."
               class="min-h-11 rounded-md bg-slate-950 px-5 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
             >
               Save agents and roles
@@ -837,7 +891,7 @@ defmodule CuckodingWeb.ProjectEditLive do
                 type="button"
                 phx-click="connect-board-agents"
                 phx-value-id={board.id}
-                data-confirm="Assign the current project agents to this board? Future runs use them, and compatible queued runs receive audited bindings without changing their snapshots."
+                data-confirm="Apply the current agents, role schedule and permissions to this board's future runs? Existing runs keep their snapshots; compatible queued runs may receive audited sign-in bindings."
                 class="mt-3 min-h-11 rounded-md border border-slate-400 px-4 text-sm"
               >
                 Assign agents to board
@@ -1113,6 +1167,11 @@ defmodule CuckodingWeb.ProjectEditLive do
   defp error_message(:role_name_required), do: "Every role needs a name."
   defp error_message(:role_instructions_required), do: "Every role needs instructions."
   defp error_message(:role_agent_required), do: "Assign an agent to every role."
+
+  defp error_message(:invalid_role_permissions),
+    do:
+      "Choose a supported role schedule and permission level. Built-in review roles stay read-only, and approval and release are reserved for Cuckoding."
+
   defp error_message(:invalid_provider_account), do: "Choose a valid saved agent."
 
   defp error_message(:default_role_missing),

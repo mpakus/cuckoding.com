@@ -1,7 +1,7 @@
 defmodule Cuckoding.Workflows.GateEvaluator do
   @moduledoc "Validates the typed evidence bundle and evaluates release exit gates."
 
-  @artifact_types ~w(specification qa_report evidence_bundle release_receipt)
+  @artifact_types ~w(specification role_report qa_report evidence_bundle release_receipt)
   @statuses ~w(passed failed)
   @severities ~w(info warning error blocker)
 

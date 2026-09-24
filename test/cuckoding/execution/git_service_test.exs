@@ -147,6 +147,10 @@ defmodule Cuckoding.Execution.GitServiceTest do
     {:ok, base_sha} = GitService.capture_base(fixture.project)
     run = run_fixture(fixture, "feature/candidate-paths", base_sha)
     {:ok, environment} = GitService.prepare(fixture.project, run)
+
+    assert {:error, :candidate_revision_unchanged} =
+             GitService.commit_candidate(environment, ["README.md"], "empty candidate")
+
     File.write!(Path.join(environment.worktree_path, "change.txt"), "change\n")
 
     assert {:error, :candidate_path_escape} =

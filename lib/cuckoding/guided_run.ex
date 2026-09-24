@@ -13,8 +13,7 @@ defmodule Cuckoding.GuidedRun do
   alias Cuckoding.Repo
   alias Cuckoding.RunControl
   alias Cuckoding.WalkingSkeleton
-
-  @agent_roles ~w(spec_writer implementer reviewer)
+  alias Cuckoding.Workflows.Definition
 
   def create(attrs) when is_map(attrs) do
     with {:ok, configuration} <- RuntimeConfiguration.validate(attrs) do
@@ -149,9 +148,11 @@ defmodule Cuckoding.GuidedRun do
   end
 
   defp adapters(skeleton) do
+    required = Definition.agent_role_keys(skeleton.run.workflow_snapshot_json["definition"])
+
     AgentRuntime.resolve_roles(skeleton, roles(skeleton))
     |> case do
-      {:ok, configured} when map_size(configured) == length(@agent_roles) -> {:ok, configured}
+      {:ok, configured} when map_size(configured) == length(required) -> {:ok, configured}
       {:ok, _configured} -> {:error, :role_assignment_not_found}
       error -> error
     end
@@ -165,8 +166,10 @@ defmodule Cuckoding.GuidedRun do
   end
 
   defp roles(skeleton) do
+    keys = Definition.agent_role_keys(skeleton.run.workflow_snapshot_json["definition"])
+
     skeleton.run.workflow_snapshot_json["roles"]
-    |> Enum.filter(&(&1["role_key"] in @agent_roles))
+    |> Enum.filter(&(&1["role_key"] in keys))
     |> Enum.map(fn role ->
       %{
         role_key: role["role_key"],

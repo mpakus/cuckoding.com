@@ -222,8 +222,14 @@ Human approver and Release handoff are
 control gates, not additional default agent roles. Users may add roles and
 permissions, but execution requires a versioned workflow mapping and an
 explicit trusted grant supported by the runtime; text instructions never expand
-permissions. Current project forms save custom names/instructions/assignments,
-not a role-permission editor or arbitrary-stage launcher.
+permissions. Project forms offer custom roles a planning-only default or an
+explicit delivery slot after Speculator/Implementor, plus read-only or
+worktree-write permissions. These slots execute serially in the displayed role
+order, before the final Reviewer. Their reports reach following roles and are
+retained as hashed evidence; permitted changes are committed by the host before
+Review. Both slots repeat on a correction cycle. Planning remains read-only
+regardless of delivery permissions. Network and external paths cannot be added
+by this form; enforced/unenforced runtime limits remain explicit.
 
 The same runtime may fill multiple agent roles, but the default policy prevents the exact same agent session from both implementing and independently approving its work. System roles never run an LLM and never receive a capability grant; they run application code under the user's Git credentials after approval.
 
@@ -237,12 +243,17 @@ Authentication mode is also resolved from the current saved account at launch;
 it is not pinned in the role copy. Existing boards do not acquire account IDs
 from later project saves. See [configuration boundaries](CONFIGURATION.md).
 
-The default board launcher resolves Speculator, Implementor, and Reviewer
+The default board launcher resolves every agent role scheduled in the immutable
+workflow, including Speculator, Implementor, Reviewer and enabled additional roles,
 independently from that snapshot. Each stage receives its assigned connection,
 runtime version, role instructions and task description. Implementor and Reviewer
 receive the latest validated specification text, and a returning Speculator gets
 the prior specification plus the review comments/evidence. Specifications are
 persisted separately for each attempt; read-only roles explicitly deny writes.
+Role instructions and grants come from the snapshot, never from a previous
+agent report. User-confirmed schedule/permission saves append a configuration
+revision and audit event. Applying them to a board publishes/reuses a workflow
+version for future runs; it never rewrites a prepared or historical run.
 A single implementation runtime is not
 silently reused for the other roles. Identical account/runtime settings share one
 authentication check, while role instructions stay distinct. Saved Codex and

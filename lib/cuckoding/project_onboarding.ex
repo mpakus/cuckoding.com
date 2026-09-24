@@ -70,7 +70,16 @@ defmodule Cuckoding.ProjectOnboarding do
              current.config_json
              |> Map.put("agent_connections", connections)
              |> Map.put("default_roles", roles),
-           {:ok, version} <- put_config_version(project.id, current, config) do
+           {:ok, version} <- put_config_version(project.id, current, config),
+           {:ok, _event} <-
+             EventStore.append_in_transaction("project:" <> project.id, %{
+               event_type: "project.roles_configured",
+               public_summary: "User saved role assignments, delivery order and permissions",
+               payload: %{
+                 "revision" => version.revision,
+                 "roles" => Enum.map(roles, &Map.take(&1, ~w(key delivery_phase permissions)))
+               }
+             }) do
         version
       else
         nil -> Repo.rollback(:project_not_found)
@@ -292,22 +301,43 @@ defmodule Cuckoding.ProjectOnboarding do
 
   defp validate_role(role, connection_keys) when is_map(role) do
     with {:ok, key} <- valid_key(role["key"], :invalid_role_key),
+         {:ok, execution} <- role_execution(role),
          {:ok, name} <- bounded_text(role["name"], :role_name_required, 120),
          {:ok, instructions} <-
            bounded_text(role["instructions"], :role_instructions_required, 4_000),
          {:ok, connection_key} <-
            assigned_connection(role["agent_connection_key"], connection_keys) do
       {:ok,
-       %{
+       Map.merge(execution, %{
          "key" => key,
          "name" => name,
          "instructions" => instructions,
          "agent_connection_key" => connection_key
-       }}
+       })}
     end
   end
 
   defp validate_role(_role, _connection_keys), do: {:error, :invalid_role}
+
+  defp role_execution(%{"key" => key} = role) when key in ~w(spec_writer implementer reviewer) do
+    permissions = if key == "implementer", do: "workspace_write", else: "read_only"
+
+    if Map.get(role, "permissions", permissions) == permissions and
+         Map.get(role, "delivery_phase", "builtin") == "builtin",
+       do: {:ok, %{"delivery_phase" => "builtin", "permissions" => permissions}},
+       else: {:error, :invalid_role_permissions}
+  end
+
+  defp role_execution(role) do
+    phase = Map.get(role, "delivery_phase", "planning_only")
+    permissions = Map.get(role, "permissions", "read_only")
+
+    if role["key"] not in ~w(approver release) and
+         phase in ~w(planning_only after_specification after_development) and
+         permissions in ~w(read_only workspace_write),
+       do: {:ok, %{"delivery_phase" => phase, "permissions" => permissions}},
+       else: {:error, :invalid_role_permissions}
+  end
 
   defp assigned_connection(key, connection_keys) when is_binary(key) do
     if MapSet.member?(connection_keys, key),
