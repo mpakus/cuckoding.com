@@ -95,9 +95,68 @@ defmodule Cuckoding.Adapters.OutputParserTest do
       ])
 
     assert {:ok, events} = OutputParser.activity_events("codex", %{artifact_path: path})
-    assert Enum.map(events, & &1.public_summary) == ["First update", "# Final specification"]
+
+    assert Enum.map(events, & &1.public_summary) == [
+             "First update",
+             "Agent shell activity reported",
+             "# Final specification"
+           ]
+
+    assert Enum.at(events, 1).metadata["rtk"]["observation"] == "bypass_reported"
     assert Enum.all?(events, &(&1.trust == :untrusted))
     refute inspect(events) =~ "private"
+  end
+
+  test "imports RTK observations from every adapter without duplicating command text", %{
+    root: root
+  } do
+    command = "/run/agent/rtk/bin/rtk proxy printf private-canary"
+
+    rows = [
+      {"codex",
+       %{
+         "type" => "item.completed",
+         "item" => %{
+           "id" => "shell",
+           "type" => "command_execution",
+           "command" => "/bin/zsh -c '#{command}'",
+           "exit_code" => 0,
+           "aggregated_output" => "private-canary"
+         }
+       }},
+      {"claude_code",
+       %{
+         "type" => "assistant",
+         "uuid" => "shell",
+         "message" => %{
+           "content" => [
+             %{
+               "type" => "tool_use",
+               "id" => "shell",
+               "name" => "Bash",
+               "input" => %{"command" => command}
+             }
+           ]
+         }
+       }},
+      {"cursor_agent",
+       %{
+         "type" => "tool_call",
+         "subtype" => "completed",
+         "call_id" => "shell",
+         "tool_call" => %{"shellToolCall" => %{"args" => %{"command" => command}}}
+       }}
+    ]
+
+    for {adapter, row} <- rows do
+      path = write_jsonl(root, "#{adapter}-shell.jsonl", [row])
+      assert {:ok, [event]} = OutputParser.activity_events(adapter, %{artifact_path: path})
+      assert event.metadata["rtk"]["observation"] == "raw_output_exception"
+      assert event.metadata["rtk"]["coverage"] == "unknown"
+      assert event.trust == :untrusted
+      refute inspect(event) =~ "private-canary"
+      refute inspect(event) =~ "/run/agent"
+    end
   end
 
   test "reads only terminal usage from the redacted JSONL and retains reported cost", %{

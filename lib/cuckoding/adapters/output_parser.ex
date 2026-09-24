@@ -132,6 +132,22 @@ defmodule Cuckoding.Adapters.OutputParser do
     end
   end
 
+  defp select_decoded_event(%Types.Event{type: type} = event, sequence, :activity)
+       when type in ["tool.requested", "tool.completed", "tool.denied"] do
+    case Cuckoding.Plugins.RTK.annotate(event.metadata) do
+      %{"rtk" => observation} ->
+        %{
+          event
+          | event_id: "#{event.event_id}:#{sequence}",
+            public_summary: "Agent shell activity reported",
+            metadata: %{"rtk" => observation}
+        }
+
+      _other ->
+        nil
+    end
+  end
+
   defp select_decoded_event(_event, _sequence, _kind), do: nil
 
   def extract("fake", %{structured_output: output}) when is_map(output), do: {:ok, output}

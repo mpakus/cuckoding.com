@@ -130,6 +130,34 @@ defmodule Cuckoding.ActivityStreamTest do
     assert has_element?(view, "#usage-#{usage.id}", "Cost unavailable")
   end
 
+  test "RTK observations survive provider-log import exactly once without command duplication" do
+    domain = domain_fixture()
+    path = Path.join(System.tmp_dir!(), "rtk-#{domain.session.id}.jsonl")
+    on_exit(fn -> File.rm(path) end)
+
+    File.write!(
+      path,
+      Jason.encode!(%{
+        "type" => "item.completed",
+        "item" => %{
+          "id" => "shell",
+          "type" => "command_execution",
+          "command" => "/bin/zsh -c '/run/agent/rtk/bin/rtk proxy printf private-canary'",
+          "exit_code" => 0,
+          "aggregated_output" => "private-canary"
+        }
+      }) <> "\n"
+    )
+
+    result = %{artifact_path: path}
+    assert :ok = ActivityStream.record_provider_messages(domain.session, "codex", result)
+    assert :ok = ActivityStream.record_provider_messages(domain.session, "codex", result)
+    assert [event] = ActivityStream.list(domain.run.id, 0)
+    assert event.metadata["rtk"]["observation"] == "raw_output_exception"
+    assert event.metadata["rtk"]["reduction"] == "unknown"
+    refute inspect(event) =~ "private-canary"
+  end
+
   test "invalid provider usage leaves a safe warning and no reported total" do
     domain = domain_fixture()
     path = Path.join(System.tmp_dir!(), "bad-usage-#{domain.session.id}.jsonl")

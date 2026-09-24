@@ -412,6 +412,8 @@ defmodule Cuckoding.Plugins.RTK do
     command = metadata["command"] || get_in(metadata, ["input", "command"])
 
     if is_binary(command) do
+      command = reported_shell_body(command)
+
       observation =
         cond do
           Regex.match?(~r/^\s*(?:rtk|'[^']*\/rtk'|"[^"]*\/rtk"|[^\s'"]*\/rtk)\s+proxy\b/, command) ->
@@ -435,6 +437,15 @@ defmodule Cuckoding.Plugins.RTK do
       })
     else
       metadata
+    end
+  end
+
+  # Recognize the literal envelope reported by Codex, without parsing or rewriting shell.
+  # Quoted/escaped inner commands remain unknown rather than implying verified execution.
+  defp reported_shell_body(command) do
+    case Regex.run(~r/\A\/(?:usr\/)?bin\/(?:zsh|bash|sh) -l?c '([^']*)'\z/, command) do
+      [_, body] -> body
+      _other -> command
     end
   end
 
