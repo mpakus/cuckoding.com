@@ -77,15 +77,15 @@ Final crystal prompt:
 
 > Use case: stylized-concept. Asset type: decorative square illustration for Cuckoding's small workspace sidebar card. A single elegant amethyst crystal with a precise diamond-like faceted silhouette floating just above a small layered circular pearl ceramic pedestal. Fine luminous violet rim, frosted lavender glass, polished ivory and cool silver. A few tiny distant futuristic spires, soft mist at the base, an almost white cool gray background. Premium restrained 3D concept illustration, fine detail, subtle high-key shadows, pale futuristic calm. Centered object, generous clear space, no dark areas except violet facet details. No text, no lettering, no numbers, no logo, no watermark, no UI.
 
-## Limits and handoff
+## Original UI verification limits
 
-Ready for visual review on `feature/1034-pearl-workspace`; changes are uncommitted.
-The preview remains at `http://127.0.0.1:4114` with isolated sample projects.
-No real workspace data, provider authentication, execution policy, public site,
-or installed application bundle was changed. Native VoiceOver, physical-device
-interaction and a packaged-app smoke test were not run; this is source/UI
-verification, not release acceptance. Migration, runner, plugin conformance and
-sleep tests were not separately required by the presentation-only scope.
+The original UI verification used `feature/1034-pearl-workspace` and isolated
+sample projects at `http://127.0.0.1:4114`. That phase did not change real
+workspace data, provider authentication, execution policy, the public site,
+or an installed application bundle. Native VoiceOver and physical-device
+interaction were not run. Migration, runner, plugin conformance and sleep tests
+were not separately required by the presentation-only scope. The authorized
+native build and integration follow-up below supersedes the preview handoff.
 
 ## Authorized integration and launch follow-up
 
@@ -95,12 +95,50 @@ copy was the isolated preview (PID 86267, port 4114); it received SIGTERM after
 ownership inspection. The idle Cuckoding EPMD helper was stopped after its
 registry reported no nodes.
 
-The native app database is idle and integral, with 1 project, 0 saved agents,
-0 boards, 0 tasks, and 0 runs. One previously shipped additive migration
-(`20260922120000`, project autopilot table) is pending. The documented developer
-upgrade procedure will preserve a verified private backup before applying it
-from the rebuilt bundle. No updater marker will be fabricated.
+Committed the design as `e3a66e1` and fast-forwarded local `main` with
+`rtk git switch main` and `rtk git merge --ff-only feature/1034-pearl-workspace`.
+The older unrelated `agentdesk/reliability-modernization` branch remains
+unchanged; its inclusion was raised as an optional scope question and no answer
+was received. No remote push was performed.
 
-Native build and launch verification are in progress. The older unrelated
-`agentdesk/reliability-modernization` branch is a separate scope question;
-current redesign integration proceeds independently.
+The native app database was idle and integral, with 1 project, 0 saved agents,
+0 boards, 0 tasks, and 0 runs. Before applying the pending additive migration
+`20260922120000` (project autopilot table), Python's SQLite online backup API
+created a private verified copy under
+`~/Library/Application Support/com.cuckoding.desktop/manual-backups/20260924T032027Z-1034-pearl-workspace/`.
+The backup SHA-256 is
+`8beb126d48a6593033cb86100462e7b93310ffe7d1724362fbdd7825907b2c51`;
+its private manifest records all 43 existing table counts. The database copy
+has mode 0600 and the backup directory mode 0700. No project knowledge/config
+files existed to snapshot.
+
+All bundled migration files were byte-compared with source, then the documented
+unsigned developer-data maintenance procedure ran the rebuilt release's
+`Ecto.Migrator.with_repo/3`, requiring exactly `[20260922120000]` as the applied
+version list. It used `RELEASE_DISTRIBUTION=none`, safe mode, an allowlisted
+environment, and a transient private bootstrap file removed afterward. No
+updater marker or signed-release bypass was introduced. Every previous table
+retained its row count (except the expected schema version addition); the new
+table is empty. Integrity is `ok` and foreign-key violations are zero before
+and after migration and launch.
+
+| Exact command/check | Result |
+| --- | --- |
+| `rtk kill -TERM 86267` | Isolated preview stopped; port 4114 closed |
+| `rtk proxy /Users/mpak/www/elixir/cuckoding.com/_build/prod/rel/cuckoding/erts-16.4/bin/epmd -kill` | Empty Cuckoding EPMD registry stopped |
+| `rtk ./bin/dev.build` | Pass: production assets, warnings-as-errors compile, release assembly, release metadata (6 tests, 15 assertions), release promotion and native crypto checks |
+| Native checks inside `bin/dev.build` | Rust formatting, 10 shell tests and Clippy with warnings denied pass; Tauri app bundle built |
+| `desktop/verify.rb` inside `bin/dev.build` | Pass: sterile startup, bootstrap cleanup, host/auth/replay boundaries, authenticated dashboard, private diagnostics, audit, graceful shutdown without descendants, crash handling, safe mode, and update snapshot/rollback schema preservation |
+| `rtk proxy python3 - <<'PY'` maintenance checks | Online backup/hash/count verification, exact bundled migration comparison, expected one-version migration, and post-upgrade data/schema verification pass; no credential values printed |
+| `rtk proxy open /Users/mpak/www/elixir/cuckoding.com/desktop/src-tauri/target/release/bundle/macos/Cuckoding.app` | Native shell launched from the rebuilt bundle |
+| `rtk proxy python3 - <<'PY'` process/HTTP checks | Exactly one shell (PID 97382) with one bundled BEAM child (PID 97418), listening only on `127.0.0.1:59933`; `/health` returns HTTP 200 with database, PubSub and endpoint healthy; unauthenticated `/` redirects to `/unauthorized` |
+| Bundled artwork verification | Both WebP hashes equal the source hashes above |
+| `rtk git diff --check` | Final integration worklog passes whitespace validation |
+
+The inline Python checks and native launcher use `rtk proxy` for exact subprocess,
+SQLite and environment semantics. Source-reading proxy calls preserve exact
+instructions. Native UI automation could inspect Chrome but could not bind to
+the tray-only Cuckoding menu; opening the authenticated browser session remains
+a manual test through **Cuckoding menu bar icon → Cuckoding**. No authentication
+bypass was used. The packaged app remains running for the user's testing;
+VoiceOver and physical interaction remain unverified.
