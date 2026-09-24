@@ -1,0 +1,125 @@
+#!/usr/bin/ruby --disable=gems
+# frozen_string_literal: true
+
+require "json"
+require "net/http"
+require "open3"
+
+module DeveloperRestart
+  module_function
+
+  def capture(*command, empty: false)
+    output, _error, status = Open3.capture3({"LC_ALL" => "C"}, "rtk", "proxy", *command)
+    return output if status.success? || (empty && status.exitstatus == 1 && output.empty?)
+
+    raise "#{File.basename(command.first)} failed; restart stopped"
+  end
+
+  def processes
+    output = capture("/bin/ps", "-ww", "-axo", "pid=,ppid=,lstart=,comm=")
+    raise "Empty process inventory; restart stopped" if output.strip.empty?
+
+    output.lines.map do |line|
+      fields = line.strip.split(/\s+/, 8)
+      raise "Invalid process inventory; restart stopped" unless fields.length == 8
+
+      {pid: Integer(fields[0]), parent: Integer(fields[1]),
+       start: fields[2, 5].join(" "), executable: fields[7]}
+    end
+  end
+
+  def descendants(snapshot, shell)
+    owned = [shell]
+    loop do
+      children = snapshot.select { |item| owned.any? { |parent| parent[:pid] == item[:parent] } }
+      expanded = (owned + children).uniq
+      return owned if expanded == owned
+
+      owned = expanded
+    end
+  end
+
+  def wait_for(message)
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 30
+    loop do
+      result = yield
+      return result if result
+      raise message if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+
+      sleep 0.2
+    end
+  end
+
+  def healthy_port(child)
+    listeners = capture("/usr/sbin/lsof", "-nP", "-a", "-p", child[:pid].to_s,
+                        "-iTCP", "-sTCP:LISTEN", "-Fn", empty: true).lines.grep(/^n/).map(&:strip)
+    return nil if listeners.empty?
+    unless listeners.length == 1 && listeners.first.match?(/\An127\.0\.0\.1:\d+\z/)
+      raise "Unexpected runtime listener; inspect Cuckoding before retrying"
+    end
+
+    port = Integer(listeners.first.split(":").last)
+    http = Net::HTTP.new("127.0.0.1", port, nil)
+    http.open_timeout = http.read_timeout = 1
+    response = http.get("/health")
+    health = JSON.parse(response.body)
+    port if response.code == "200" && health["status"] == "ok" && health.dig("application", "name") == "cuckoding"
+  rescue SystemCallError, IOError, Timeout::Error, JSON::ParserError
+    nil
+  end
+
+  def run(app)
+    shell_path = File.join(app, "Contents/MacOS/cuckoding-shell")
+    unless File.executable?(shell_path) && File.realpath(shell_path) == shell_path
+      raise "Development bundle missing or symlinked. Run rtk ./bin/dev.build first"
+    end
+
+    snapshot = processes
+    shells = snapshot.select { |item| File.basename(item[:executable]) == "cuckoding-shell" }
+    if shells.length > 1 || shells.any? { |item| item[:executable] != shell_path }
+      raise "Another Cuckoding instance is running; quit it before restarting this development bundle"
+    end
+
+    if (shell = shells.first)
+      owned = descendants(snapshot, shell)
+      raise "Shell identity changed; retry restart" unless processes.include?(shell)
+
+      puts "Stopping development app (PID #{shell[:pid]})..."
+      Process.kill("TERM", shell[:pid])
+      wait_for("Graceful shutdown did not finish; inspect Cuckoding. No force kill attempted") do
+        (processes & owned).empty?
+      end
+    end
+
+    unless processes.none? { |item| item[:executable].start_with?(app + "/") || File.basename(item[:executable]) == "cuckoding-shell" }
+      raise "Cuckoding processes remain; restart stopped before launch"
+    end
+
+    capture("/usr/bin/open", app)
+    port = wait_for("Development app did not become healthy; inspect its menu/diagnostics") do
+      running = processes
+      shell = running.select { |item| File.basename(item[:executable]) == "cuckoding-shell" }
+      child = running.select do |item|
+        shell.length == 1 && shell.first[:executable] == shell_path &&
+          item[:parent] == shell.first[:pid] &&
+          item[:executable].start_with?(app + "/Contents/Resources/release/") &&
+          File.basename(item[:executable]) == "beam.smp"
+      end
+      healthy_port(child.first) if child.length == 1
+    end
+    puts "Developer app ready: http://127.0.0.1:#{port} (open the dashboard from the menu bar)"
+  end
+end
+
+if $PROGRAM_NAME == __FILE__
+  begin
+    raise "Usage: rtk ./bin/dev.restart" unless ARGV.empty?
+    raise "The development application requires macOS" unless RUBY_PLATFORM.include?("darwin")
+
+    root = File.realpath("..", __dir__)
+    DeveloperRestart.run(File.join(root, "desktop/src-tauri/target/release/bundle/macos/Cuckoding.app"))
+  rescue StandardError => error
+    warn error.message
+    exit 1
+  end
+end

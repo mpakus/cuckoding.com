@@ -45,6 +45,29 @@ verified application is written to
 not Developer ID sign, notarize, or create distributable update artifacts; use
 `desktop/release.sh` only for an authorized release.
 
+Restart that development bundle with:
+
+```sh
+rtk ./bin/dev.restart
+```
+
+The helper works from any current directory. It sends the supported graceful
+shutdown signal only after checking this checkout's shell path, PID and start
+identity, waits for its descendants to exit, opens the bundle once, and prints
+the new loopback address after health succeeds. Use the menu bar to open an
+authenticated dashboard. A stopped app is simply started. Another Cuckoding
+bundle, an orphaned release, failed shutdown or failed health check stops the
+command with an error; it never force-kills processes or changes application
+data. It restarts the existing build; run `bin/dev.build` for changed source.
+Schema upgrades still require the data-upgrade procedure below.
+
+The focused restart regression uses simulated process/HTTP responses and
+intercepts all signals and application launches:
+
+```sh
+rtk proxy env -u GEM_HOME -u GEM_PATH PATH=/usr/bin:/bin:/usr/sbin:/sbin /usr/bin/ruby desktop/dev_restart_test.rb
+```
+
 ### Testing one local instance
 
 The native bundle, a Phoenix development/test preview, and the static
