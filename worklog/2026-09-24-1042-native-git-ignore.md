@@ -70,3 +70,59 @@ Fresh native inventory still identifies shell 22591 (11:53:48 local), child
 and foreign keys pass: 1 project, 1 board, 2 tasks, 0 runs/processes, 2 saved
 provider accounts. The failed planning attempt's task is retained. No user
 repository or task data is changed by the fix/verification.
+
+## Local main and native delivery
+
+Committed as `ab5fadb` (`fix(git): honor host ignore rules in native repository
+checks`), then `rtk git switch main` and
+`rtk git merge --ff-only fix/1042-native-git-ignore` passed. The source tree was
+clean before `rtk env -u CR_PAT ./bin/dev.build`. No remote push was performed.
+
+`rtk proxy python3 tmp/1042-restart.py` rechecked exact shell PID/start/executable
+identity, sent SIGTERM through the native graceful shutdown handler, and
+verified shell/child exit, old listener closure and no database handles. It
+then made a mode-0600 SQLite backup under the private directory:
+`~/Library/Application Support/com.cuckoding.desktop/manual-backups/20260924T190631Z-1042-native-git-ignore/`.
+Independent integrity/FK checks passed. SHA-256:
+`b43ad8ce33bf5ec3ed37bb107dca868c46b2c3c537c982e7ce93b6be419a8f66`.
+By shutdown, four task records existed (the earlier inventory had two); all
+four are retained. No run/process record existed. No user files were removed.
+
+`rtk env -u CR_PAT ./bin/dev.build` passed: production assets/compile/release,
+6 metadata tests/15 assertions, release promotion checks, Rust formatting,
+10 shell tests, warnings-denied Clippy, Tauri packaging, and all sterile desktop
+verification checks (handshake/replay, authorization, private diagnostics,
+graceful shutdown/descendants, pre/post-readiness crashes, safe mode and update
+snapshot/migration/rollback). This is an unsigned local developer build,
+not clean-Mac signed-release acceptance.
+
+An exact `rtk proxy python3` check hash-matched the bundled GitService bytecode
+against `_build/prod/rel/cuckoding`. An initial comparison against the compiler's
+unstripped bytecode differed; corrected the check to compare release artifacts.
+The bundled `bin/cuckoding eval` then ran
+`Cuckoding.Execution.GitService.validate_repository("/Users/mpak/www/echobeyond.com", "main")`
+successfully under a cleared, native-equivalent environment (app HOME, fixed
+PATH and host-home hint). It used disposable private bootstrap material and an
+unused fixture database path; no application/database started and no provider
+was launched. This verifies the actual shipped module against the user's repo.
+
+Launched once with
+`rtk proxy open /Users/mpak/www/elixir/cuckoding.com/desktop/src-tauri/target/release/bundle/macos/Cuckoding.app`.
+At 2026-09-24 19:09:07 UTC, metadata-only inspection found exactly one shell
+PID 12307 and its child 12377 (both started 14:09:06 local), with one listener
+`127.0.0.1:57579`. `/health` returned HTTP 200: application/database/PubSub/
+endpoint all `ok`. These process IDs/port are observations, not configuration.
+
+Read-only row-by-row comparison against the backup passed for projects, boards,
+tasks, runs, processes, provider_accounts, project_config_versions,
+role_assignments and schema_migrations. Counts: 1 project/board, 4 tasks,
+0 runs/processes, 2 saved agents, 4 config versions, 5 role assignments and
+21 migrations. Integrity is `ok`, no foreign-key failures or pending migrations.
+No native authenticated UI submission or real provider run was performed;
+the user can retry through a fresh menubar browser handoff. Existing focused
+intake coverage and actual packaged repository validation are separate evidence.
+
+RTK proxy exceptions also include the identity-checked shutdown, private backup,
+bundled-module check, exact native launch, metadata/health and read-only SQLite
+comparison. The final docs-only commit records completion; the running
+implementation revision remains `ab5fadb`.
