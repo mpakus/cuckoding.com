@@ -283,6 +283,9 @@ complete local-application acceptance remain open:
   comments, preserved IDs/history, a saved Markdown report and retry handling.
   Focused domain/LiveView checks pass; current native/provider acceptance is
   tracked separately by task 1038.
+- [x] Offer explicit automatic local completion at run/project start, retain the
+  per-run decision and evidence, and preserve separate remote-release approval.
+  Prior project controls migrate to manual mode without changing existing data.
 - [ ] Connect user-added roles to executable versioned workflows and let users
   configure additional permissions through reviewed policy and runtime grants.
   Existing editable role metadata is only partial implementation.

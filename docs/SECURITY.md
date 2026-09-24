@@ -31,7 +31,7 @@ Cuckoding runs powerful agent runtimes on a developer machine against untrusted 
 | Config self-escalation | Trusted config hash; changed execution policy or plugin set requires independent human approval |
 | Destructive Git action | Host-side constrained Git service; protected branches; explicit approval; no force-push |
 | Project-folder initialization | Native folder selection, canonical root validation, a review that names the pending Git mutation, and no initialization or commit before explicit confirmation |
-| Local completion mistaken for publication | Separate confirmation and `run.completed_locally` event; one transaction closes the approval/run/task without invoking any VCS host; branch, worktree, and evidence remain local |
+| Local completion mistaken for publication | Explicit start-time choice recorded in `run.completion_policy`, or a separate manual completion confirmation; `run.completed_locally` atomically closes approval/run/task without invoking any VCS host. Default and migrated projects remain manual; branch, worktree and evidence stay local |
 | Forged completion | Typed artifact schemas, exit-code checks, independent QA, immutable event sequence |
 | Cost/resource denial | Per-stage and global budgets, concurrency limits, pause/hibernate, alerts, unattended-mode caps |
 | Malicious plugin | Manifest permissions, user approval to enable, supervised process, untrusted output, no secret access without declaration |

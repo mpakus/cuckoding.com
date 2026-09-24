@@ -139,6 +139,8 @@ defmodule CuckodingWeb.ProjectEditLiveTest do
     {:ok, view, _html} = live(conn, ~p"/projects/#{project.id}/edit")
     assert has_element?(view, "#project-operation-status", "Paused")
     assert has_element?(view, "#start-project-form")
+    assert has_element?(view, "#start-project-form option[value=manual][selected]")
+    assert has_element?(view, "#start-project-form option[value=local]", "Complete locally")
 
     view
     |> form("#start-project-form",

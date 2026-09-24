@@ -43,8 +43,9 @@ roles. **Implementor** is the canonical display name.
 The revision loop is **Speculator → Implementor → Reviewer → Speculator** until
 review passes or the configured attempt/budget limit requires attention.
 Cuckoding validates and persists the result and performs transitions; provider
-text alone cannot mark a task done. A passing review keeps the existing human
-local-completion or release-approval boundary.
+text alone cannot mark a task done. A passing review follows the user's recorded
+choice: wait for a completion decision, or complete locally automatically.
+Remote release approval remains separate.
 
 Roles are extensible: users can create more roles, assign agents and configure
 additional permissions. Permission changes require explicit trusted policy
@@ -131,7 +132,7 @@ profiles, provider-history sharing and remaining acceptance checks.
 5. Inside project settings, the user creates a board from the default versioned workflow. The board copies the latest saved role assignments and concurrency limit. Later project edits do not silently rewrite the board; **Assign agents to board** explicitly updates future runs and connects compatible queued work through append-only binding events.
 6. The user adds a Draft task directly or asks one assigned role to analyze project files. A planning request creates a hidden run, verifies the saved agent authorization or performs the runtime's isolated setup, grants read-only/network-denied access, and pauses with source-cited proposals. The user selects which proposals become Draft cards; provider output never creates tasks without that review.
 7. The user refines a Draft task and marks it Ready. If project automatic work is running, the dispatcher admits eligible Ready tasks within its limits; otherwise the user can choose **Prepare run** manually. The board shows current admission delays, such as an unmet dependency or capacity limit. Preparation snapshots the board's workflow, role assignments, and saved-agent references plus trusted project policy, then creates the feature branch and owned worktree. Before launch, the run page verifies authorization. Cuckoding never copies credentials into snapshots; provider-owned storage depends on the runtime and legacy versus saved-account setup.
-8. New default workflows move through Speculator → Implementor → Reviewer. Error or blocker findings return to Speculator with their comments/evidence, then repeat downstream stages within a three-Review budget. Legacy run snapshots retain their previous routing. A passing Review currently waits for a human choice: complete locally without a push, or approve the host-side release handoff. Automatic local completion and the rest of the full-flow goal remain task 1038 work. See [FLOW.md](FLOW.md).
+8. New default workflows move through Speculator → Implementor → Reviewer. Error or blocker findings return to Speculator with their comments/evidence, then repeat downstream stages within a three-Review budget. Legacy run snapshots retain their previous routing. At manual run start or Project Start, the user chooses whether a passing Review waits for a completion decision or completes locally automatically. The default is manual; automatic completion retains the branch/worktree/evidence and closes only the local card. Push, PR creation and merge are never authorized by this setting. See [FLOW.md](FLOW.md) and task 1038's remaining full-flow gates.
 9. Each stage produces typed artifacts and must pass its exit gate; relevant project knowledge is injected and its use recorded.
 10. The global dashboard lists recent operations from the durable run projection, including queued runs before an agent session exists, and refreshes role, runtime, elapsed-time, resource, and attention data after committed events. Agent Floor provides the session-level view; the laptop can sleep and wake without corrupting the run.
 11. On completion or archive, the user runs consolidation, reviews candidates, and publishes project or global knowledge and skills.

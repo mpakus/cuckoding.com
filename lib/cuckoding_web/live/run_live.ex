@@ -82,8 +82,8 @@ defmodule CuckodingWeb.RunLive do
     {:noreply, socket |> assign(:log_paused, !socket.assigns.log_paused) |> refresh_log()}
   end
 
-  def handle_event("start-guided-run", _params, socket) do
-    case start_run(socket.assigns.detail) do
+  def handle_event("start-guided-run", params, socket) do
+    case start_run(socket.assigns.detail, Map.get(params, "completion_mode", "manual")) do
       {:ok, :started} ->
         {:noreply,
          socket
@@ -383,14 +383,25 @@ defmodule CuckodingWeb.RunLive do
               <p class="overflow-x-auto rounded bg-white p-2"><code>{setup.helper}</code></p>
             </div>
           </article>
-          <button
-            type="button"
-            phx-click="start-guided-run"
-            phx-disable-with="Checking authentication and starting…"
-            class="min-h-10 rounded-md bg-slate-950 px-4 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
-          >
-            {start_button_label(@detail)}
-          </button>
+          <form id="start-run-form" phx-submit="start-guided-run" class="space-y-3">
+            <label :if={not intake?(@detail)} class="grid gap-2 text-sm font-medium">
+              After a passing review
+              <select
+                name="completion_mode"
+                class="min-h-11 rounded-md border border-slate-400 bg-white px-3"
+              >
+                <option value="manual">Wait for my decision</option>
+                <option value="local">Complete locally automatically</option>
+              </select>
+              <span class="font-normal">Automatic local completion marks this task Done after review. It keeps the branch and evidence; push, pull requests and merging still require approval.</span>
+            </label>
+            <button
+              phx-disable-with="Checking authentication and starting…"
+              class="min-h-10 rounded-md bg-slate-950 px-4 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
+            >
+              {start_button_label(@detail)}
+            </button>
+          </form>
         </section>
 
         <details
@@ -772,10 +783,10 @@ defmodule CuckodingWeb.RunLive do
 
   defp start_error(_reason), do: "The workflow could not start. Inspect runtime setup and retry."
 
-  defp start_run(%{task: %{kind: "board_intake"}, run: run}),
+  defp start_run(%{task: %{kind: "board_intake"}, run: run}, _mode),
     do: Cuckoding.BoardTaskIntake.start(run.id)
 
-  defp start_run(%{run: run}), do: Cuckoding.GuidedRun.start(run.id)
+  defp start_run(%{run: run}, mode), do: Cuckoding.GuidedRun.start(run.id, completion_mode: mode)
 
   defp start_notice(%{task: %{kind: "board_intake"}}),
     do: "Task-planning agent started. Durable proposals will appear here for review."

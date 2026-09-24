@@ -42,7 +42,7 @@ erDiagram
 | --- | --- | --- |
 | `projects` | `id`, `name`, `description`, `repo_path`, `default_branch`, `workspace_root`, `port_range_start`, `port_range_end`, `status` | Local repository registration |
 | `project_config_versions` | `project_id`, `revision`, `source_hash`, `config_json`, `trusted_at` | Immutable policy/config snapshots |
-| `project_autopilots` | `project_id`, `state`, `max_active_runs`, `critical_blocker_limit`, `last_issue` | Durable per-project automatic admission control; facts also append to the `project:<id>` event stream |
+| `project_autopilots` | `project_id`, `state`, `max_active_runs`, `critical_blocker_limit`, `completion_mode`, `last_issue` | Durable per-project automatic admission control; `completion_mode` is `manual` by default or explicitly selected `local`; each started run records its choice in `run.completion_policy` and project changes append to `project:<id>` |
 | `boards` | `project_id`, `name`, `description`, `workflow_version_id`, `status`, `concurrency_limit`, `unattended_until` | Multiple independent processes per project |
 | `workflow_versions` | `project_id?`, `name`, `version`, `definition_json`, `published_at` | Immutable once used by a run |
 | `role_assignments` | `board_id`, `role_key`, `adapter_key`, `model_ref`, `settings_json` | Board snapshot of project role defaults; run snapshot is separate |

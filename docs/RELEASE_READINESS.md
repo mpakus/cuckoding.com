@@ -61,8 +61,8 @@ the run's effective grant before starting. See
    chooser. Review before confirmation; an empty or unborn folder is initialized
    only after confirmation. Existing uncommitted work may be registered, but
    run preparation needs a clean committed base.
-4. In project settings, attach agents and assign Specifications, Coding, and
-   Review roles. Create a board, or explicitly apply saved agents to an
+4. In project settings, attach agents and assign Speculator, Implementor, and
+   Reviewer roles. Create a board, or explicitly apply saved agents to an
    existing board. Add Draft tasks and mark only eligible work Ready. For a
    manual run, use **Prepare run**, check sign-in, and start the workflow. For
    automatic admission, review the project limits and use **Start project**;
@@ -72,8 +72,9 @@ the run's effective grant before starting. See
    task can use **Retry with a new run**; the old worktree and evidence remain,
    and uncommitted old-worktree changes are not copied. Release push/PR and
    global knowledge publication require separate human approval. A passing
-   Review still needs a human local-completion or release decision; Start
-   project does not make the whole board hands-off.
+   Review follows the start-time completion choice: manual by default, or
+   explicitly authorized automatic local completion with evidence retained.
+   Proposal import, blocked tasks and external release still need human action.
 
 Board role assignments and run snapshots are immutable copies: editing a
 project does not rewrite existing boards or historical runs. See

@@ -12,8 +12,12 @@ cover that path and revision comments. Full quality passed 10 properties and
 retain their snapshots. The next source slice adds another-model proposal review
 with validated revisions, comments, a Markdown report and preserved history;
 eight focused intake tests and full quality (10 properties, 319 tests) pass.
-Custom role execution/permissions, automatic local completion, effective global
-and task controls, final UI acceptance and a current native app remain open in
+Proposal review was merged at `ca198ec`. Explicit automatic local completion
+now records the choice at run start, preserves evidence and separate remote
+approval, and defaults existing project controls to manual mode. Full quality
+passes 10 properties and 322 tests, including database-copy migration evidence.
+Custom role execution/permissions, effective global and task controls, final UI
+acceptance and a current native app remain open in
 [task 1038](../tasks/phase-10-hardening-beta/1038-complete-board-flow.md).
 The dated audit below describes the state before these implementation changes.
 

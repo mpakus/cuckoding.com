@@ -100,3 +100,34 @@ formatter, compilation with warnings as errors, 10 properties and 319 tests,
 strict Credo, Sobelow and dependency audit. Cleanup reruns initially found two
 remaining nested expressions and an invalid zero-argument capture; the final
 transaction callback is a normal function and all checks above passed.
+
+## Explicit automatic local completion
+
+Proposal review was fast-forward merged to local main at `ca198ec`.
+The next slice adds an explicit manual/local completion choice at project or
+single-run start. It records `run.completion_policy` atomically with start,
+then reuses the validated, transactional local-completion path after Review.
+Automatic completion rejects the unused release approval, preserves the branch,
+worktree and evidence, and never invokes a VCS host. Existing runs without an
+event remain manual; later project changes cannot alter a started run's choice.
+
+Migration `20260924120000` only adds a constrained `completion_mode` column to
+project controls, defaulting prior records to manual. The migration regression
+upgrades a copy of the prior schema, checks unchanged fields, the new default,
+the invalid-value constraint, foreign keys and SQLite integrity. No application
+database or user data was migrated during these source checks.
+
+- Focused first run: 51 tests, one assertion mismatch because event payloads
+  correctly include correlation metadata. Changed the assertion to match the
+  policy fields. Consolidated migration-copy checks into the existing migration
+  test to avoid duplicate module compilation warnings from separate fixtures.
+- `rtk env -u CR_PAT mix test test/cuckoding/walking_skeleton_test.exs test/cuckoding/project_workflow_test.exs test/cuckoding_web/project_edit_live_test.exs test/cuckoding/shared_authorization_migration_test.exs`:
+  50 tests, 0 failures, including explicit single-run and project admission
+  completion, immutable decisions, no remote branch/release stage, UI selection,
+  and prior-schema copies.
+- `rtk env -u CR_PAT mix quality`: formatter/compiler, 10 properties and
+  322 tests, strict Credo, Sobelow and dependency audit passed.
+- `rtk git diff --check`: passed. Documentation now distinguishes the explicit
+  local choice from remote approval, including the root contributor contract.
+- App rebuild, browser acceptance, additional roles/permissions and effective
+  per-task/global controls are still open; this does not complete task 1038.

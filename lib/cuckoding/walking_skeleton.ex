@@ -83,7 +83,7 @@ defmodule Cuckoding.WalkingSkeleton do
     end
   end
 
-  @doc "Runs the bounded specification, development, and review loop, then waits for a human."
+  @doc "Runs the bounded delivery loop, then applies the recorded local completion policy."
   def run(
         %{run: %Run{} = run, environment: %Environment{}} = skeleton,
         options \\ []
@@ -130,16 +130,28 @@ defmodule Cuckoding.WalkingSkeleton do
              wait_reason: "approval"
            ),
          true <- waiting.result["outcome"] == "transitioned" do
-      {:ok,
-       skeleton
-       |> Map.put(:environment, environment)
-       |> Map.put(:run, Repo.get!(Run, run.id))
-       |> Map.put(:task, Repo.get!(Task, skeleton.task.id))
-       |> Map.put(:approval, approval)
-       |> Map.put(:evidence, evidence)}
+      skeleton
+      |> Map.put(:environment, environment)
+      |> Map.put(:run, Repo.get!(Run, run.id))
+      |> Map.put(:task, Repo.get!(Task, skeleton.task.id))
+      |> Map.put(:approval, approval)
+      |> Map.put(:evidence, evidence)
+      |> finish_review()
     else
       false -> {:error, :transition_rejected}
       error -> error
+    end
+  end
+
+  defp finish_review(skeleton) do
+    case Cuckoding.GuidedRun.completion_policy(skeleton.run.id) do
+      %{"mode" => "local", "actor" => actor} ->
+        with {:ok, completed} <- complete_locally(skeleton.approval.id, actor) do
+          {:ok, Map.merge(skeleton, Map.take(completed, [:run, :task, :approval]))}
+        end
+
+      _manual ->
+        {:ok, skeleton}
     end
   end
 

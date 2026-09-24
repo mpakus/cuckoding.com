@@ -95,9 +95,15 @@ admissions at the configured count of distinct blocked delivery tasks with open
 pause admission with a visible reason; other failed tasks remain blocked for
 review. Board/project/global limits apply to new work, and queued starts check
 running capacity. Pause stops new admissions, not active processes. Draft task
-proposals still need human selection; a passing Review still waits for a human
-local-completion or release decision. No autonomous push, PR, merge, or policy
-approval is granted by Start.
+proposals still need human selection. At Project Start or manual run start,
+**After a passing review** defaults to **Wait for my decision**. The user can
+explicitly choose **Complete locally automatically**. Project admission persists
+that choice in `project_autopilots`; each run copies it into a
+`run.completion_policy` event atomically with its start. Later project edits do
+not change that run's choice. Local automatic completion validates review
+evidence, marks run/task Done, rejects the unused release handoff and retains
+the branch/worktree/artifacts. No autonomous push, PR, merge or execution-policy
+approval is granted by Start. Existing project controls migrate to manual mode.
 
 ## Intended default feature flow
 
@@ -118,7 +124,8 @@ flowchart TD
     D --> Q["Reviewer: result and comments"]
     Q --> G2{"Cuckoding validates review result"}
     G2 -->|needs revision: comment list| S
-    G2 -->|pass| H{"Human completion choice"}
+    G2 -->|pass, recorded local authorization| X["Complete: branch stays local"]
+    G2 -->|pass, manual policy| H{"Human completion choice"}
     H -->|complete locally| X["Complete: branch stays local"]
     H -->|approve release| R["Release handoff (system)"]
     R --> Z["Released: branch pushed, draft PR"]
@@ -132,10 +139,11 @@ Error and blocker findings are persisted with their evidence and routed through
 definitions send both `fix_intent` and `fix_code` to Speculator. Older snapshots
 may still route code findings to Implementor; they are never interpreted using
 today's default. The third failing Review
-exhausts the fixed MVP attempt budget and blocks the run. Passing Review creates
-one human choice: the existing approved release, or an atomic local completion
-that marks the run/task done, rejects only the release handoff, and preserves the
-local branch, worktree, and evidence.
+exhausts the fixed MVP attempt budget and blocks the run. Passing Review follows
+the recorded completion policy. Manual mode offers approved release or atomic
+local completion; explicit local mode takes that local completion path
+automatically. Both retain the local branch, worktree and evidence. Only the
+separately approved release path can invoke a VCS host.
 Every planning or delivery worker runs behind the same durable failure boundary.
 Returned errors and unexpected worker exceptions append a safe failure code and
 public recovery message, fail the current agent session and running stage when
@@ -309,7 +317,7 @@ The evaluator checks attempt, active-time, wall-time, token, and cost budgets; r
 4. Before QA, record a clean status or explicitly list uncommitted files.
 5. QA runs on the same immutable candidate revision when possible.
 6. The host validates the typed evidence bundle, verifies artifact and knowledge-citation digests, and shows the candidate base/head, changed files, tests, artifacts, and citations for human approval.
-7. After passing Review, the human may complete locally; this changes durable state without calling a VCS host and leaves the branch/worktree/evidence intact. Otherwise the release handoff stage revalidates that evidence, refuses protected branches or missing approval, and then pushes the branch. The GitHub implementation fetches the credential only inside the host service and creates a draft PR whose body carries the test evidence, artifacts, and knowledge citations.
+7. After passing Review, local completion follows the recorded automatic choice or a manual human decision; this changes durable state without calling a VCS host and leaves the branch/worktree/evidence intact. Otherwise the separately approved release handoff stage revalidates that evidence, refuses protected branches or missing approval, and then pushes the branch. The GitHub implementation fetches the credential only inside the host service and creates a draft PR whose body carries the test evidence, artifacts, and knowledge citations.
 8. Merge remains outside the autonomous workflow for MVP.
 
 Before resume, the host Git service compares the current default branch, checked-out worktree branch, recorded head SHA, and ownership marker with the durable environment. Any mismatch remains blocked until the user explicitly chooses rebase, continue unchanged, or restart; task 0301 does not perform any of those destructive or history-changing actions.

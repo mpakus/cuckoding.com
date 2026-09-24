@@ -1,5 +1,15 @@
 # Autonomous project flow — implementation and remaining gates
 
+Task 1038 update: new default delivery loops return corrections through
+Speculator and pass descriptions/specs between roles. Before task import,
+another configured model can review proposals and save revisions/comments/report.
+At Project Start or manual run start, **Complete locally automatically** is now
+an explicit option; the recorded per-run decision closes a passing review
+locally with evidence retained. Manual is the default, including migrated
+projects. Push, PR creation and merging require separate approval. The dated
+baseline and earlier decisions below are superseded by these specific source
+changes; current native/provider and full-flow acceptance remain task 1038 work.
+
 Status: **project-level automatic admission implemented for testing** on
 2026-09-22. The baseline audit below describes `main` at `4546f85` before
 task 1029. Current operation is described in [FLOW.md](FLOW.md); the remaining

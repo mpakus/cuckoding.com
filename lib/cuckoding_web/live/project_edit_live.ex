@@ -42,7 +42,8 @@ defmodule CuckodingWeb.ProjectEditLive do
          critical_blockers: ProjectAutopilot.critical_blocker_count(project.id),
          autopilot_form: %{
            "max_active_runs" => to_string(autopilot.max_active_runs),
-           "critical_blocker_limit" => to_string(autopilot.critical_blocker_limit)
+           "critical_blocker_limit" => to_string(autopilot.critical_blocker_limit),
+           "completion_mode" => autopilot.completion_mode
          },
          notice: nil,
          error: nil
@@ -900,7 +901,7 @@ defmodule CuckodingWeb.ProjectEditLive do
               Project operation
             </h2>
             <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-700">
-              Start eligible Ready tasks automatically, up to the limits below. Draft proposals still need review; passing code still needs your local-completion decision. Pause stops new starts, not running work.
+              Start eligible Ready tasks automatically, up to the limits below. Choose what happens after review passes. Draft proposals still need review and import. Pause stops new starts, not running work.
             </p>
           </div>
           <div
@@ -913,6 +914,12 @@ defmodule CuckodingWeb.ProjectEditLive do
             <p class="mt-1 text-sm text-slate-700">{progress_summary(@autopilot_counts)}</p>
             <p class="mt-1 text-sm text-slate-700">
               Critical blockers: {@critical_blockers} / {@autopilot.critical_blocker_limit}
+            </p>
+            <p class="mt-1 text-sm text-slate-700">
+              After review: {if @autopilot.completion_mode == "local",
+                do: "Complete locally",
+                else: "Wait for my decision"}.
+              Push and pull requests require approval.
             </p>
             <p :if={@autopilot.last_issue} class="mt-2 text-sm text-amber-900">
               {ProjectAutopilot.issue_message(@autopilot.last_issue)}
@@ -948,6 +955,23 @@ defmodule CuckodingWeb.ProjectEditLive do
                 value={@autopilot_form["critical_blocker_limit"]}
                 class="min-h-11 rounded-md border border-slate-400 px-3"
               />
+            </label>
+            <label class="grid gap-2 text-sm font-medium text-slate-800 sm:col-span-2">
+              After a passing review
+              <select
+                name="autopilot[completion_mode]"
+                class="min-h-11 rounded-md border border-slate-400 bg-white px-3"
+              >
+                <option value="manual" selected={@autopilot_form["completion_mode"] != "local"}>
+                  Wait for my decision
+                </option>
+                <option value="local" selected={@autopilot_form["completion_mode"] == "local"}>
+                  Complete locally automatically
+                </option>
+              </select>
+              <span class="font-normal text-slate-600">
+                Starting with automatic local completion authorizes Cuckoding to mark reviewed cards Done and retain their branches and evidence. It does not authorize a push, pull request or merge.
+              </span>
             </label>
             <div class="sm:col-span-2">
               <button

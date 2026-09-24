@@ -13,7 +13,9 @@ comment list through Cuckoding to Speculator. Users can extend roles and
 permissions through explicit trusted configuration. Keep these product terms
 distinct from legacy saved names and immutable workflow snapshots;
 see `docs/PRODUCT.md` and `docs/FLOW.md`. Role text never grants access or bypasses
-human completion/release approval.
+the user's recorded completion policy or human release approval. Automatic local
+completion requires an explicit start-time choice, a validated passing review
+and retained evidence; it must never authorize push, PR creation or merge.
 
 ## Required reading
 

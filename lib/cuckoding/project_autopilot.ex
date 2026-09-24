@@ -226,7 +226,12 @@ defmodule Cuckoding.ProjectAutopilot do
              EventStore.append_in_transaction("project:" <> project_id, %{
                event_type: "project.autopilot_#{state}",
                public_summary: "Project automatic work is #{state}",
-               payload: %{"project_id" => project_id, "state" => state, "issue" => issue}
+               payload: %{
+                 "project_id" => project_id,
+                 "state" => state,
+                 "issue" => issue,
+                 "completion_mode" => control.completion_mode
+               }
              }) do
         control
       else
@@ -320,7 +325,12 @@ defmodule Cuckoding.ProjectAutopilot do
   end
 
   defp start_run(run_id, project_id, options) do
-    starter = Keyword.get(options, :starter, &GuidedRun.start/1)
+    mode = get(project_id).completion_mode
+
+    starter =
+      Keyword.get(options, :starter, fn id ->
+        GuidedRun.start(id, completion_mode: mode, completion_actor: "project_autopilot")
+      end)
 
     case starter.(run_id) do
       {:ok, _result} ->

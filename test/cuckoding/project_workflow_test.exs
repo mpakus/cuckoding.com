@@ -745,7 +745,7 @@ defmodule Cuckoding.ProjectWorkflowTest do
     {:ok, view, _html} = live(conn, ~p"/runs/#{run.id}")
     assert has_element?(view, "#runtime-setup", "Sign-in required for this saved agent")
 
-    view |> element("button", "Check authentication and start workflow") |> render_click()
+    view |> form("#start-run-form") |> render_submit()
 
     assert has_element?(view, "#run-error", "Sign in to Saved Codex")
 

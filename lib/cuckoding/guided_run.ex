@@ -1,9 +1,13 @@
 defmodule Cuckoding.GuidedRun do
   @moduledoc "Creates and launches the user-facing default workflow."
 
+  import Ecto.Query
+
   alias Cuckoding.Adapters.RuntimeConfiguration
   alias Cuckoding.AgentRuntime
   alias Cuckoding.Execution
+  alias Cuckoding.Execution.EventStore
+  alias Cuckoding.Execution.RunEvent
   alias Cuckoding.Identifier
   alias Cuckoding.OrchestrationFailure
   alias Cuckoding.Repo
@@ -31,20 +35,58 @@ defmodule Cuckoding.GuidedRun do
   end
 
   def start(run_id, options \\ []) when is_binary(run_id) do
-    command_key = "guided:#{run_id}:running:#{Identifier.generate()}"
+    mode = Keyword.get(options, :completion_mode, "manual")
 
-    with {:ok, skeleton} <- WalkingSkeleton.load(run_id),
+    with true <- mode in ["manual", "local"],
+         {:ok, skeleton} <- WalkingSkeleton.load(run_id),
          "queued" <- skeleton.run.state,
          {:ok, role_adapters} <- adapters(skeleton),
-         {:ok, command} <-
-           Execution.transition_run(run_id, "running", command_key),
-         true <- command.result["outcome"] == "transitioned" do
+         {:ok, _policy} <- start_with_policy(run_id, mode, options) do
       launch(skeleton, role_adapters, options)
     else
       state when is_binary(state) -> {:error, :run_not_queued}
-      false -> {:error, :transition_rejected}
+      false -> {:error, :invalid_completion_mode}
       error -> error
     end
+  end
+
+  def completion_policy(run_id) do
+    Repo.one(
+      from event in RunEvent,
+        where: event.run_id == ^run_id and event.event_type == "run.completion_policy",
+        order_by: [desc: event.sequence],
+        limit: 1,
+        select: event.payload
+    ) || %{"mode" => "manual"}
+  end
+
+  defp start_with_policy(run_id, mode, options) do
+    key = "guided:#{run_id}:running:#{Identifier.generate()}"
+    actor = Keyword.get(options, :completion_actor, "local_user")
+
+    EventStore.transaction(fn ->
+      with {:ok, command} <- Execution.transition_run(run_id, "running", key),
+           true <- command.result["outcome"] == "transitioned",
+           {:ok, event} <-
+             EventStore.append_in_transaction(run_id, %{
+               event_type: "run.completion_policy",
+               public_summary:
+                 if(mode == "local",
+                   do: "User authorized local completion after a passing review",
+                   else: "A passing review will wait for the user's completion decision"
+                 ),
+               payload: %{
+                 "mode" => mode,
+                 "actor" => actor,
+                 "release_handoff" => "requires_approval"
+               }
+             }) do
+        event
+      else
+        false -> Repo.rollback(:transition_rejected)
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
   end
 
   def runtime_setup(run_id) when is_binary(run_id) do

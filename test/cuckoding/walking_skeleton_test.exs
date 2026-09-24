@@ -272,6 +272,90 @@ defmodule Cuckoding.WalkingSkeletonTest do
     assert {:ok, pending} = Cuckoding.GuidedRun.start(created.run.id, async: false)
     assert pending.run.state == "waiting"
     assert Repo.get!(Cuckoding.Execution.Run, created.run.id).state == "waiting"
+    assert Cuckoding.GuidedRun.completion_policy(created.run.id)["mode"] == "manual"
+  end
+
+  test "explicit local completion finishes reviewed work without authorizing release", fixture do
+    assert {:ok, created} =
+             WalkingSkeleton.create(
+               Map.merge(fixture.attrs, %{adapter_key: "fake", start_run: false})
+             )
+
+    assert {:error, :invalid_completion_mode} =
+             Cuckoding.GuidedRun.start(created.run.id, async: false, completion_mode: "release")
+
+    assert Repo.get!(Cuckoding.Execution.Run, created.run.id).state == "queued"
+
+    assert {:ok, completed} =
+             Cuckoding.GuidedRun.start(created.run.id, async: false, completion_mode: "local")
+
+    assert completed.run.state == "done"
+    assert completed.task.state == "done"
+    assert completed.approval.decision == "rejected"
+    assert completed.approval.actor == "local_user"
+
+    assert %{
+             "mode" => "local",
+             "actor" => "local_user",
+             "release_handoff" => "requires_approval"
+           } = Cuckoding.GuidedRun.completion_policy(created.run.id)
+
+    assert File.exists?(Path.join([completed.environment.run_dir, "artifacts", "evidence.json"]))
+
+    refute Repo.exists?(
+             from a in StageAttempt,
+               where: a.run_id == ^created.run.id and a.stage_key == "release_handoff"
+           )
+
+    {_output, status} =
+      System.cmd(@git, ["show-ref", "--verify", "refs/heads/#{created.run.branch}"],
+        cd: fixture.bare,
+        stderr_to_stdout: true
+      )
+
+    assert status != 0
+
+    assert {:error, :run_not_queued} =
+             Cuckoding.GuidedRun.start(created.run.id, completion_mode: "manual")
+
+    assert Cuckoding.GuidedRun.completion_policy(created.run.id)["mode"] == "local"
+  end
+
+  test "project admission applies the saved local-completion choice to each started run",
+       fixture do
+    alias Cuckoding.ProjectAutopilot
+
+    assert {:ok, created} =
+             WalkingSkeleton.create(
+               Map.merge(fixture.attrs, %{adapter_key: "fake", start_run: false})
+             )
+
+    assert {:ok, control} =
+             ProjectAutopilot.start(
+               created.project.id,
+               %{"completion_mode" => "local"},
+               wake: false
+             )
+
+    assert control.completion_mode == "local"
+    assert :ok = ProjectAutopilot.dispatch_once()
+    eventually(fn -> Repo.get!(Cuckoding.Execution.Run, created.run.id).state == "done" end)
+    assert Cuckoding.GuidedRun.completion_policy(created.run.id)["actor"] == "project_autopilot"
+    assert :ok = ProjectAutopilot.dispatch_once()
+    assert ProjectAutopilot.get(created.project.id).state == "done"
+  end
+
+  test "run form can explicitly authorize automatic local completion", %{conn: conn} = fixture do
+    assert {:ok, created} =
+             WalkingSkeleton.create(
+               Map.merge(fixture.attrs, %{adapter_key: "fake", start_run: false})
+             )
+
+    assert {:ok, view, _html} = live(conn, ~p"/runs/#{created.run.id}")
+    assert has_element?(view, "#start-run-form select[name=completion_mode] option[value=manual]")
+    view |> form("#start-run-form", completion_mode: "local") |> render_submit()
+    eventually(fn -> Repo.get!(Cuckoding.Execution.Run, created.run.id).state == "done" end)
+    assert Cuckoding.GuidedRun.completion_policy(created.run.id)["mode"] == "local"
   end
 
   test "workflow resolves the configured adapter and instructions for each agent role", fixture do
@@ -747,7 +831,7 @@ defmodule Cuckoding.WalkingSkeletonTest do
     assert has_element?(view, "#runtime-setup", "Deterministic test adapter")
     assert has_element?(view, "button", "Check authentication and start workflow")
 
-    view |> element("button", "Check authentication and start workflow") |> render_click()
+    view |> form("#start-run-form") |> render_submit()
     assert has_element?(view, "[role=status]", "Workflow started")
 
     eventually(fn ->
