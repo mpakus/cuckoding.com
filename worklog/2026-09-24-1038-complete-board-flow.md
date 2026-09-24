@@ -375,3 +375,28 @@ artifacts and no horizontal overflow at 390 pixels. The responsive viewport was
 reset and the recovery tab closed. The original stalled confirmation tab could
 not be closed by the automation. Changed Markdown link targets and
 `rtk git diff --check` passed.
+
+## Final rebuilt instance and handoff
+
+The completion-state fix and acceptance documentation were committed and
+fast-forward merged to local main at `2e69ed4`. After verifying no native run
+was active, the old shell/child, isolated preview and its proven-owned abandoned
+folder-picker helper were stopped with SIGTERM and their exits verified.
+`rtk env -u CR_PAT ./bin/dev.build` passed again from clean `2e69ed4`, including
+6 metadata tests/15 assertions, 10 native tests, Rust lints and every desktop
+verification check. No migration was needed for this rebuild.
+
+The UI tool launched the exact new bundle but still could not bind its tray-only
+interface. Subsequent metadata independently confirmed one shell PID 29849 and
+its release child PID 29940, started at 02:22:52/53 local time, listening only at
+`127.0.0.1:56617`. At 07:23:37 UTC, `/health` returned HTTP 200 with database,
+PubSub and endpoint healthy. Native SQLite integrity and foreign keys passed;
+counts remain one project, one board, zero tasks/runs/provider accounts. The
+temporary 4114 listener is closed. The private pre-migration backup is retained.
+This is still an unsigned local build; no remote push or release publication.
+
+Remaining user-dependent acceptance: dismiss the stalled temporary browser
+confirmation; open Cuckoding from its menu-bar action; connect an app-owned
+provider account; exercise the fully clicked native journey, keyboard controls
+and live parallel motion. The implementation and fixture checks above are
+complete, but task 1038 and the full-flow goal stay open for that evidence.
