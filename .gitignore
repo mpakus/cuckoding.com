@@ -29,7 +29,11 @@ erl_crash.dump
 cuckoding-*.tar
 
 # Ignore assets that are produced by build tools.
-/priv/static/assets/
+/priv/static/assets/*
+!/priv/static/assets/images/
+/priv/static/assets/images/*
+!/priv/static/assets/images/workspace-portal.webp
+!/priv/static/assets/images/knowledge-crystal.webp
 
 # Ignore digested assets cache.
 /priv/static/cache_manifest.json

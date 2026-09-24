@@ -167,44 +167,59 @@ defmodule CuckodingWeb.StatusLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} active="projects">
-      <section aria-labelledby="dashboard-heading" class="space-y-10">
-        <header class="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-          <div class="space-y-3">
-            <p class="text-sm font-semibold uppercase tracking-wide text-slate-600">
-              Projects and operations
-            </p>
-            <h1 id="dashboard-heading" class="text-3xl font-semibold tracking-tight text-slate-950">
-              Your Cuckoding workspace
-            </h1>
-            <p class="max-w-2xl text-base leading-7 text-slate-700">
-              Open a project, see what every agent is doing, and check the load on your Mac.
-            </p>
-          </div>
-          <.link
-            navigate={~p"/projects/new"}
-            class="inline-flex min-h-11 items-center justify-center rounded-md bg-slate-950 px-5 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
-          >
-            Add project
-          </.link>
-        </header>
+      <section aria-labelledby="dashboard-heading" class="dashboard space-y-8">
+        <div class="dashboard-intro">
+          <header class="workspace-hero">
+            <img
+              class="workspace-hero-art"
+              src={~p"/assets/images/workspace-portal.webp"}
+              width="1536"
+              height="1024"
+              alt=""
+              fetchpriority="high"
+            />
+            <div class="workspace-hero-copy">
+              <p class="eyebrow">
+                Projects and operations
+              </p>
+              <h1 id="dashboard-heading">
+                Your Cuckoding workspace
+              </h1>
+              <p class="hero-description">
+                Open a project, see what every agent is doing, and check the load on your Mac.
+              </p>
+              <.link
+                navigate={~p"/projects/new"}
+                class="hero-action"
+              >
+                Add project <span aria-hidden="true">↗</span>
+              </.link>
+            </div>
+          </header>
+          <section class="workspace-glance" aria-labelledby="glance-heading">
+            <h2 id="glance-heading" class="eyebrow">At a glance</h2>
+            <dl>
+              <div class="glance-primary">
+                <dt>Active agents</dt><dd id="glance-agents">{@resource_summary.active_agents}</dd>
+              </div>
+              <div class="glance-row">
+                <dt>Registered projects</dt><dd id="glance-projects">{length(@project_cards)}</dd>
+              </div>
+              <div class="glance-row">
+                <dt>Pending approvals</dt><dd id="glance-approvals">{length(@pending_approvals)}</dd>
+              </div>
+            </dl>
+            <a href="#overview-heading" class="glance-health"><span aria-hidden="true">◇</span> {status_label(
+              @health.status
+            )} <span aria-hidden="true">↗</span></a>
+          </section>
+        </div>
 
-        <nav aria-label="Dashboard sections" class="flex flex-wrap gap-3">
-          <a
-            href="#projects-heading"
-            class="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-4 underline"
-          >Projects ({length(@project_cards)})</a>
-          <a
-            href="#activity-heading"
-            class="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-4 underline"
-          >Live activity</a>
-          <a
-            href="#operations-heading"
-            class="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-4 underline"
-          >Operations</a>
-          <a
-            href="#approvals-heading"
-            class="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-4 underline"
-          >Approvals ({length(@pending_approvals)})</a>
+        <nav aria-label="Dashboard sections" class="dashboard-sections">
+          <a href="#projects-heading">Projects ({length(@project_cards)})</a>
+          <a href="#activity-heading">Live activity</a>
+          <a href="#operations-heading">Operations</a>
+          <a href="#approvals-heading">Approvals ({length(@pending_approvals)})</a>
         </nav>
 
         <section aria-labelledby="projects-heading" class="space-y-4">
@@ -230,7 +245,7 @@ defmodule CuckodingWeb.StatusLive do
             <li
               :for={card <- @project_cards}
               id={"project-#{card.project.id}"}
-              class="rounded-xl border border-slate-200 bg-white p-5"
+              class="project-card rounded-xl border border-slate-200 bg-white p-5"
             >
               <div class="flex items-start justify-between gap-4">
                 <div>
@@ -284,7 +299,8 @@ defmodule CuckodingWeb.StatusLive do
                         Map.get(card.task_states, state, 0) > 0
                     }
                     id={"project-state-#{card.project.id}-#{state}"}
-                    class="rounded-md bg-slate-50 px-3 py-2"
+                    class="task-state rounded-md bg-slate-50 px-3 py-2"
+                    data-state={state}
                   >
                     <dt class="text-slate-600">{project_state_label(state)}</dt>
                     <dd class="font-semibold text-slate-950">
@@ -348,7 +364,7 @@ defmodule CuckodingWeb.StatusLive do
             >
               No samples from currently active agents yet.
             </p>
-            <svg viewBox="0 0 576 140" class="mt-4 h-44 w-full text-slate-800" aria-hidden="true">
+            <svg viewBox="0 0 576 140" class="activity-chart mt-4 h-44 w-full" aria-hidden="true">
               <line x1="0" y1="112" x2="576" y2="112" stroke="currentColor" class="text-slate-300" />
               <g :for={{bucket, index} <- Enum.with_index(@sampled_activity)}>
                 <rect
@@ -357,6 +373,7 @@ defmodule CuckodingWeb.StatusLive do
                   y={112 - sample_bar_height(bucket.count, @sampled_activity)}
                   width="28"
                   height={sample_bar_height(bucket.count, @sampled_activity)}
+                  rx="5"
                   fill="currentColor"
                 />
                 <text

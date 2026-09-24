@@ -23,6 +23,22 @@ defmodule CuckodingWeb.StatusLiveTest do
 
     assert has_element?(
              view,
+             "nav[aria-label='Main navigation'] a[aria-current='page']",
+             "Projects"
+           )
+
+    assert has_element?(
+             view,
+             ".workspace-hero img[src='/assets/images/workspace-portal.webp'][alt='']"
+           )
+
+    assert has_element?(view, ".workspace-knowledge a[href='/knowledge']", "Review knowledge")
+    assert has_element?(view, "#glance-agents", "0")
+    assert has_element?(view, "#glance-projects", "0")
+    assert has_element?(view, "#glance-approvals", "0")
+
+    assert has_element?(
+             view,
              "#agent-activity-chart",
              "No samples from currently active agents yet"
            )
@@ -151,6 +167,7 @@ defmodule CuckodingWeb.StatusLiveTest do
     {:ok, view, _html} = live(conn, ~p"/")
     assert has_element?(view, "#project-state-#{board.project_id}-blocked", "1")
     assert has_element?(view, "#project-state-#{board.project_id}-done", "0")
+    assert has_element?(view, "#glance-projects", "1")
 
     assert {:ok, _} = Execution.transition_run(done_run.id, "done", "dashboard:done:done")
     send(view.pid, :refresh_dashboard)

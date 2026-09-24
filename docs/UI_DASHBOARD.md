@@ -12,6 +12,38 @@ The dashboard must answer immediately:
 
 The UI shows normalized public activity, not private chain-of-thought.
 
+### Illustrated pearl visual system
+
+The application adapts the supplied pale futuristic reference: cool ivory
+surfaces, mist-blue atmosphere, violet accents, rounded floating panels, fine
+line icons, and softly rendered illustrations. The reference's small, faint
+labels are adapted to readable application text; its sample percentages,
+motivational copy, and habit-tracking features are not product requirements.
+
+| Element | Application treatment |
+| --- | --- |
+| Canvas | Cool pearl `#edeef5`, with a subtle lavender wash |
+| Panels | White to near-white, 20–28 px corners, restrained layered shadows |
+| Accent | Violet `#6845d9`; darker `#5634bd` for links and focus |
+| Text | Ink `#282535`, secondary `#625f76`; system-installed Avenir/Segoe UI sans stack |
+| Navigation | Desktop rail; wrapping labeled navigation at narrow widths; active underline plus color |
+| Illustration | Original pearl robot/portal banner and violet knowledge crystal; decorative empty alt text |
+| Data | Existing durable counts and charts; no invented progress, activity, or measurement |
+
+The home banner has the existing **Add project** action and a compact live
+summary of active agents, registered projects, pending approvals, and health.
+Shared Tailwind tokens and surface styles carry through settings, boards, run
+inspectors, and knowledge screens. Warning/error colors retain their meaning.
+Artwork is locally served WebP (approximately 110 KiB total), with explicit
+dimensions; no remote fonts, new UI library, or animation dependency is needed.
+Only short hover color/shadow transitions run under `prefers-reduced-motion:
+no-preference`. Navigation, forms, table alternatives, confirmations, and the
+skip link retain native keyboard paths.
+
+Artwork files: `priv/static/assets/images/workspace-portal.webp` and
+`priv/static/assets/images/knowledge-crystal.webp`. Generation prompts and
+verification evidence are recorded in the task 1034 worklog.
+
 ### Saved agents and provider sign-in
 
 In **Agents**, choose the runtime and a model (runtime default, a suggested model,
