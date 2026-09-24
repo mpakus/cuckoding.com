@@ -116,6 +116,10 @@ defmodule Cuckoding.ProjectAutopilot do
 
   @doc "One bounded admission pass; callable with a fake starter/probe in tests."
   def dispatch_once(options \\ []) do
+    if Cuckoding.RunControl.admission_open?(), do: dispatch_running_projects(options), else: :ok
+  end
+
+  defp dispatch_running_projects(options) do
     controls = list_running()
 
     eligible =

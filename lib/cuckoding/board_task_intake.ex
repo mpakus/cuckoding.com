@@ -16,6 +16,7 @@ defmodule Cuckoding.BoardTaskIntake do
   alias Cuckoding.OrchestrationFailure
   alias Cuckoding.ProjectWorkflow
   alias Cuckoding.Repo
+  alias Cuckoding.RunControl
   alias Cuckoding.TaskProposalReview
   alias Cuckoding.WalkingSkeleton
   alias Cuckoding.Workflows
@@ -33,7 +34,8 @@ defmodule Cuckoding.BoardTaskIntake do
              &(&1["role_key"] == role_key)
            ),
          {:ok, runtime} <- AgentRuntime.resolve(skeleton, role_key),
-         {:ok, review} <- TaskProposalReview.begin_review(skeleton, role_key) do
+         {:ok, review} <-
+           RunControl.admit(run_id, fn -> TaskProposalReview.begin_review(skeleton, role_key) end) do
       launch(
         %{skeleton | run: Repo.get!(Run, run_id)},
         runtime,
@@ -53,7 +55,10 @@ defmodule Cuckoding.BoardTaskIntake do
          %Task{kind: "board_intake"} <- skeleton.task,
          "queued" <- skeleton.run.state,
          {:ok, runtime} <- AgentRuntime.resolve(skeleton, skeleton.task.intake_role_key),
-         {:ok, command} <- Execution.transition_run(run_id, "running", command_key),
+         {:ok, command} <-
+           RunControl.admit(run_id, fn ->
+             Execution.transition_run(run_id, "running", command_key)
+           end),
          true <- command.result["outcome"] == "transitioned" do
       launch(%{skeleton | run: Repo.get!(Run, run_id)}, runtime, options)
     else
@@ -103,7 +108,7 @@ defmodule Cuckoding.BoardTaskIntake do
 
   defp launch(skeleton, runtime, options) do
     work = fn ->
-      OrchestrationFailure.guard(skeleton.run.id, :task_intake, fn ->
+      RunControl.track(skeleton.run.id, :task_intake, fn ->
         run(skeleton, runtime, options)
       end)
     end
@@ -134,15 +139,20 @@ defmodule Cuckoding.BoardTaskIntake do
     role_key = if review, do: review.role_key, else: skeleton.task.intake_role_key
     stage_key = if review, do: "task_proposal_review", else: "board_task_intake"
 
-    with {:ok, attempt} <- stage_attempt(skeleton.run, role_key, stage_key),
+    with :ok <- RunControl.await_running(skeleton.run.id),
+         {:ok, attempt} <- stage_attempt(skeleton.run, role_key, stage_key),
          request = request(skeleton, attempt, review),
          adapter_options =
            runtime.options
            |> Keyword.put(:runner, LocalProcessRunner)
            |> Keyword.put(:environment, skeleton.environment),
-         {:ok, session} <- runtime.adapter.start(request, adapter_options),
+         {:ok, session} <-
+           RunControl.launch(skeleton.run.id, fn ->
+             runtime.adapter.start(request, adapter_options)
+           end),
          {:ok, stored} <- store_session(attempt, session, runtime.version),
          {:ok, result} <- await_session(stored, session, options),
+         :ok <- RunControl.await_running(skeleton.run.id),
          {:ok, output} <- OutputParser.extract(session.adapter, result),
          {:ok, persisted} <- persist_output(skeleton, attempt, output, review),
          {:ok, _stored} <- Adapters.record_session_observation(stored, %{session | state: "done"}),

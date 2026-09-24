@@ -21,6 +21,7 @@ defmodule Cuckoding.WalkingSkeleton do
   alias Cuckoding.Knowledge
   alias Cuckoding.Projects
   alias Cuckoding.Repo
+  alias Cuckoding.RunControl
   alias Cuckoding.Workflows
   alias Cuckoding.Workflows.Approval
   alias Cuckoding.Workflows.Definition
@@ -91,8 +92,10 @@ defmodule Cuckoding.WalkingSkeleton do
     adapter = Keyword.get(options, :adapter, FakeAdapter)
     {development_adapter, _development_options} = stage_runtime("implementer", adapter, options)
 
-    with {:ok, workflow} <-
+    with :ok <- RunControl.await_running(run.id),
+         {:ok, workflow} <-
            run_review_cycle(skeleton, "specification", adapter, options, []),
+         :ok <- RunControl.await_running(run.id),
          environment = workflow.environment,
          spec_artifact =
            workflow.stages
@@ -207,6 +210,7 @@ defmodule Cuckoding.WalkingSkeleton do
     {development_adapter, _development_options} = stage_runtime("implementer", adapter, options)
 
     with {:ok, stage} <- run_stage(skeleton, "development", "implementer", adapter, options),
+         :ok <- RunControl.await_running(skeleton.run.id),
          {:ok, environment} <-
            candidate(stage, stage.environment, development_adapter, skeleton.task, options) do
       {:ok, {%{skeleton | environment: environment}, stages ++ [stage]}}
@@ -576,7 +580,8 @@ defmodule Cuckoding.WalkingSkeleton do
   defp run_stage(skeleton, stage_key, role_key, adapter, options) do
     {adapter, options} = stage_runtime(role_key, adapter, options)
 
-    with {:ok, attempt} <- stage_attempt(skeleton.run, stage_key, role_key, "agent") do
+    with :ok <- RunControl.await_running(skeleton.run.id),
+         {:ok, attempt} <- stage_attempt(skeleton.run, stage_key, role_key, "agent") do
       case run_stage_attempt(skeleton, attempt, stage_key, adapter, options) do
         {:ok, result} -> {:ok, result}
         {:error, reason} -> fail_stage_attempt(attempt, reason)
@@ -589,7 +594,10 @@ defmodule Cuckoding.WalkingSkeleton do
     request = request(skeleton, attempt, stage_key, options)
 
     with {:ok, request} <- Knowledge.prepare_injection(request, options),
-         {:ok, session} <- adapter.start(request, adapter_options(skeleton.environment, options)),
+         {:ok, session} <-
+           RunControl.launch(skeleton.run.id, fn ->
+             adapter.start(request, adapter_options(skeleton.environment, options))
+           end),
          :ok <- Knowledge.record_injection(request),
          {:ok, stored} <- store_session(attempt, session, options),
          {:ok, environment, session} <-
@@ -600,6 +608,7 @@ defmodule Cuckoding.WalkingSkeleton do
              options
            ),
          {:ok, result} <- await_session(stored, session),
+         :ok <- RunControl.await_running(skeleton.run.id),
          {:ok, output} <- stage_output(stage_key, skeleton, attempt, session, result, options),
          {:ok, _stored} <- Adapters.record_session_observation(stored, %{session | state: "done"}),
          elapsed = max(System.monotonic_time(:millisecond) - started, 0),

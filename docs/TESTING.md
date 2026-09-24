@@ -118,6 +118,15 @@ task-description/latest-spec handoff across separate adapters, return comments,
 revised spec artifacts, both new correction routes and preservation of older
 workflow versions. They do not establish live-provider or native-app acceptance.
 
+Task 1038 also exercises another-model proposal review/report/history, explicit
+local completion with copied-schema migration, process suspension/timer retention,
+simultaneous stop/result callers, run pause/resume/stop, global admission and
+individual-pause preservation. `test/cuckoding/run_control_test.exs` uses real
+owned shell processes behind a fixture adapter to prove progress stops without
+duplicating attempts. Its LiveView controls test covers confirmation attributes
+and durable effects; rendered keyboard/mobile/native and real-provider checks
+remain separate.
+
 ## Fixtures
 
 - Recorded provider output per supported runtime version, redacted, with a compatibility manifest.

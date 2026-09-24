@@ -7,6 +7,7 @@ defmodule CuckodingWeb.RunLive do
   import CuckodingWeb.UsageComponents
 
   alias Cuckoding.AgentFloor
+  alias Cuckoding.RunControl
   alias Cuckoding.RunLog
   alias Cuckoding.TaskProposalReview
 
@@ -80,6 +81,23 @@ defmodule CuckodingWeb.RunLive do
 
   def handle_event("toggle-log", _params, socket) do
     {:noreply, socket |> assign(:log_paused, !socket.assigns.log_paused) |> refresh_log()}
+  end
+
+  def handle_event("control-run", %{"action" => action}, socket)
+      when action in ~w(pause resume stop) do
+    case RunControl.control(socket.assigns.detail.run.id, action) do
+      {:ok, _run} ->
+        notice = %{
+          "pause" => "Run paused. Its owned processes are suspended.",
+          "resume" => "Run resumed.",
+          "stop" => "Run stopped. Its branch, worktree and evidence are retained."
+        }
+
+        {:noreply, socket |> refresh(notice[action]) |> assign(error: nil)}
+
+      {:error, reason} ->
+        {:noreply, socket |> refresh("") |> assign(error: RunControl.error_message(reason))}
+    end
   end
 
   def handle_event("start-guided-run", params, socket) do
@@ -310,6 +328,35 @@ defmodule CuckodingWeb.RunLive do
         </section>
 
         <.host_runner_notice />
+
+        <section
+          id="run-execution-controls"
+          aria-label="Pause, resume or stop this run"
+          class="flex flex-wrap gap-3"
+        >
+          <button
+            :if={@detail.run.state in ["running", "waiting"]}
+            phx-click="control-run"
+            phx-value-action="pause"
+            phx-disable-with="Pausing…"
+            class="min-h-11 rounded-md border border-slate-400 px-4 font-medium"
+          >Pause run</button>
+          <button
+            :if={@detail.run.state == "paused"}
+            phx-click="control-run"
+            phx-value-action="resume"
+            phx-disable-with="Resuming…"
+            class="min-h-11 rounded-md border border-slate-400 px-4 font-medium"
+          >Resume run</button>
+          <button
+            :if={@detail.run.state in ~w(queued running waiting paused hibernated blocked)}
+            phx-click="control-run"
+            phx-value-action="stop"
+            phx-disable-with="Stopping…"
+            data-confirm="Stop this run and its owned processes? Its branch, worktree and evidence will be kept."
+            class="min-h-11 rounded-md border border-red-400 px-4 font-medium text-red-900"
+          >Stop run</button>
+        </section>
 
         <section
           :if={@detail.run.state == "queued"}
@@ -768,6 +815,7 @@ defmodule CuckodingWeb.RunLive do
     do: "The configured runtime version is not supported by this build."
 
   defp start_error(:run_not_queued), do: "This run has already started."
+  defp start_error(:application_paused), do: RunControl.error_message(:application_paused)
 
   defp start_error(:provider_account_mismatch),
     do:
@@ -898,6 +946,10 @@ defmodule CuckodingWeb.RunLive do
     do: "Planning stopped and needs attention. Review the error and recent activity below."
 
   defp planning_status(%{run: %{state: "cancelled"}}), do: "Planning was cancelled."
+
+  defp planning_status(%{run: %{state: "paused"}}),
+    do: "Planning is paused. Resume to continue the same run."
+
   defp planning_status(_detail), do: "Planning status is updating."
   defp back_path(%{task: %{kind: "board_intake"}, board: board}), do: ~p"/boards/#{board.id}"
   defp back_path(detail), do: ~p"/boards/#{detail.board.id}/tasks/#{detail.task.id}"

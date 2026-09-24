@@ -11,6 +11,7 @@ defmodule Cuckoding.GuidedRun do
   alias Cuckoding.Identifier
   alias Cuckoding.OrchestrationFailure
   alias Cuckoding.Repo
+  alias Cuckoding.RunControl
   alias Cuckoding.WalkingSkeleton
 
   @agent_roles ~w(spec_writer implementer reviewer)
@@ -41,7 +42,8 @@ defmodule Cuckoding.GuidedRun do
          {:ok, skeleton} <- WalkingSkeleton.load(run_id),
          "queued" <- skeleton.run.state,
          {:ok, role_adapters} <- adapters(skeleton),
-         {:ok, _policy} <- start_with_policy(run_id, mode, options) do
+         {:ok, _policy} <-
+           RunControl.admit(run_id, fn -> start_with_policy(run_id, mode, options) end) do
       launch(skeleton, role_adapters, options)
     else
       state when is_binary(state) -> {:error, :run_not_queued}
@@ -121,7 +123,7 @@ defmodule Cuckoding.GuidedRun do
     implementation = Map.fetch!(role_adapters, "implementer")
 
     work = fn ->
-      OrchestrationFailure.guard(run.id, :workflow, fn ->
+      RunControl.track(run.id, :workflow, fn ->
         WalkingSkeleton.run(skeleton,
           adapter: implementation.adapter,
           adapter_options: implementation.options,

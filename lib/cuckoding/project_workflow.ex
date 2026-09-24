@@ -309,7 +309,8 @@ defmodule Cuckoding.ProjectWorkflow do
     end
   end
 
-  defp retryable_run(%Task{id: task_id, state: "failed", active_run_id: nil}) do
+  defp retryable_run(%Task{id: task_id, state: state, active_run_id: nil})
+       when state in ["failed", "cancelled"] do
     case Repo.one(
            from(run in Run,
              where: run.task_id == ^task_id,
@@ -317,7 +318,7 @@ defmodule Cuckoding.ProjectWorkflow do
              limit: 1
            )
          ) do
-      %Run{state: "failed"} = run -> {:ok, run}
+      %Run{state: ^state} = run -> {:ok, run}
       _other -> {:error, :task_not_retryable}
     end
   end
@@ -336,7 +337,7 @@ defmodule Cuckoding.ProjectWorkflow do
        else: :ok
   end
 
-  defp close_blocked_run(%Run{state: "failed"}), do: :ok
+  defp close_blocked_run(%Run{state: state}) when state in ["failed", "cancelled"], do: :ok
 
   defp close_blocked_run(%Run{state: "blocked"} = run) do
     case Execution.transition_run(run.id, "failed", "retry:#{run.id}:failed") do

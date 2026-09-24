@@ -266,7 +266,30 @@ indexed without rerunning a blocked task.
 
 ### Pause
 
-Pause requests a safe checkpoint from the adapter and stops scheduling new tools. If the provider supports session suspension, keep the resumable session. Processes may remain alive for fast continuation. If no safe checkpoint is available within the timeout, the UI offers forced hibernation or continued waiting.
+The run page exposes Pause, Resume and confirmed Stop. Pause preserves the
+attempt checkpoint, records the prior state, changes run/task state to Paused,
+and suspends verified owned process groups with `SIGSTOP`. A host mutex orders
+stage launches against controls; durable state and events remain authoritative.
+The delivery and planning workers wait at stage boundaries and after process
+results. Resume uses `SIGCONT` and the same live worker, process and attempt;
+pausing at an approval restores that prior waiting reason. Missing live workers
+or unverifiable ownership fail closed and need inspection/recovery.
+
+Dashboard **Pause all** records a durable workspace admission gate before
+pausing current running/waiting runs. It blocks manual starts, planning/review
+starts and project admission. **Resume workspace** resumes only runs paused by
+that workspace action; previously individual pauses remain paused. **Stop all**
+records a stopped gate, cancels current/queued runs and stops owned process
+groups, including retained processes from earlier interrupted controls. Branches,
+worktrees, artifacts and history stay available. Stop closes pending approvals;
+a stopped task can retry in a new run without changing the old run or copying
+uncommitted changes. Batch failures are shown explicitly, so a workspace mode
+alone is not proof that every process was controlled successfully.
+
+The project-level **Pause new starts** remains admission-only. It is distinct
+from the task and workspace execution controls above. Process stop clears the
+preview URL; any existing port lease expires normally unless its live owner
+releases it. Native/provider and restart acceptance remain separate gates.
 
 ### Hibernate
 
@@ -280,7 +303,12 @@ Pause requests a safe checkpoint from the adapter and stops scheduling new tools
 
 ### Resume
 
-Resume reacquires leases, validates the worktree and policy hashes, reallocates ports, restores declared services, and either resumes the provider session or creates a new session with a bounded continuation package. Drift in the base branch or trusted configuration blocks resume until the user chooses rebase, continue unchanged, or restart. Resume after a sleep gap follows `docs/LONG_RUNNING_AND_POWER.md`.
+For a live paused run, the run-page control resumes the existing worker as
+described above. Hibernate/resume lifecycle primitives revalidate the worktree
+and policy hashes, reacquire a port and invoke the supplied stage-resume callback.
+A paused run whose application worker was lost is not presented as automatically
+resumable; complete native/provider recovery acceptance is still open. Resume
+after a sleep gap follows `docs/LONG_RUNNING_AND_POWER.md`.
 
 The host lifecycle implementation requires an adapter checkpoint for an active stage before pause or hibernate. Hibernate stops only PID/start-identity-verified process groups and releases the in-memory bearer lease before the durable transition. After relaunch, resume reconstructs the run, environment, and active attempt from SQLite, verifies the ownership marker plus recorded base/branch/head and policy hash, acquires a new port lease, and passes the existing attempt and checkpoint to the adapter. It never creates a retry attempt.
 

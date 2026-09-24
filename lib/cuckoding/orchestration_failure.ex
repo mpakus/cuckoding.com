@@ -34,6 +34,12 @@ defmodule Cuckoding.OrchestrationFailure do
 
   def fail(run_id, kind, reason)
       when is_binary(run_id) and kind in [:task_intake, :workflow] do
+    if match?(%Run{state: "cancelled"}, Repo.get(Run, run_id)),
+      do: :ok,
+      else: record_failure(run_id, kind, reason)
+  end
+
+  defp record_failure(run_id, kind, reason) do
     summary = public_failure(kind, reason)
     {attempt, session} = latest_context(run_id)
 

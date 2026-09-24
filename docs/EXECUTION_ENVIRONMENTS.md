@@ -49,8 +49,9 @@ The workspace root defaults to `~/Library/Application Support/Cuckoding/workspac
   process's measured paused duration. Stop replies to every waiting caller,
   including both the workflow worker and the control request. A missing process
   worker fails pause/resume closed instead of pretending an orphan can resume.
-  These are runner capabilities; task/global UI coordination is tracked in task
-  1038 and is not established by runner-only tests.
+  Task/global coordination now has separate `RunControl` regressions covering
+  stage boundaries, durable admission, waiting-state restoration and cancellation;
+  runner tests alone do not establish native/provider acceptance.
 - Bound stdout/stderr, apply redaction before persistence, and stream a public summary to the UI.
 - Environment is built from an allowlist: `PATH` (resolved tool paths), `HOME`, locale, `PORT`/`CUCKODING_*`, and only the variables the policy declares. Never inherit the shell's full environment.
 

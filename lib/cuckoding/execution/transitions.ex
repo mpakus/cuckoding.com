@@ -302,6 +302,7 @@ defmodule Cuckoding.Execution.Transitions do
     }
   end
 
+  defp wait_reason(attrs) when is_list(attrs), do: Keyword.get(attrs, :wait_reason)
   defp wait_reason(attrs), do: attrs[:wait_reason] || attrs["wait_reason"]
 
   defp transition_payload(entity, id, from, to, reason) do

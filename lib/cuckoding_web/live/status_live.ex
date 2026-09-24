@@ -92,6 +92,28 @@ defmodule CuckodingWeb.StatusLive do
     {:noreply, assign(socket, :operation_filter, filter)}
   end
 
+  def handle_event("workspace-control", %{"action" => action}, socket)
+      when action in ~w(pause resume stop) do
+    case Cuckoding.RunControl.control_all(action) do
+      {:ok, %{mode: mode, failures: []}} ->
+        {:noreply,
+         socket |> load_dashboard() |> put_flash(:info, "Workspace execution is #{mode}.")}
+
+      {:ok, %{mode: mode, failures: failures}} ->
+        {:noreply,
+         socket
+         |> load_dashboard()
+         |> put_flash(
+           :error,
+           "Workspace execution is #{mode}, but #{length(failures)} run(s) need attention. Inspect their run controls and retry."
+         )}
+
+      {:error, _reason} ->
+        {:noreply,
+         put_flash(socket, :error, "Workspace control could not be recorded. Reload and retry.")}
+    end
+  end
+
   @impl true
   def handle_event("prepare-release", %{"id" => approval_id}, socket) do
     if Enum.any?(socket.assigns.pending_approvals, &(&1.approval.id == approval_id)),
@@ -221,6 +243,41 @@ defmodule CuckodingWeb.StatusLive do
           <a href="#operations-heading">Operations</a>
           <a href="#approvals-heading">Approvals ({length(@pending_approvals)})</a>
         </nav>
+
+        <section
+          id="workspace-execution-controls"
+          aria-labelledby="workspace-execution-heading"
+          class="space-y-3 rounded-xl border border-slate-200 bg-white p-5"
+        >
+          <h2 id="workspace-execution-heading" class="font-semibold">Workspace execution</h2>
+          <p role="status" aria-live="polite">{String.capitalize(@execution_control["mode"])}</p>
+          <p class="text-sm text-slate-700">
+            Pause holds running work and new starts. Stop cancels current and queued runs while retaining branches, worktrees and evidence.
+          </p>
+          <div class="flex flex-wrap gap-3">
+            <button
+              :if={@execution_control["mode"] == "active"}
+              phx-click="workspace-control"
+              phx-value-action="pause"
+              phx-disable-with="Pausing all…"
+              class="min-h-11 rounded-md border border-slate-400 px-4 font-medium"
+            >Pause all</button>
+            <button
+              :if={@execution_control["mode"] != "active"}
+              phx-click="workspace-control"
+              phx-value-action="resume"
+              phx-disable-with="Resuming…"
+              class="min-h-11 rounded-md border border-slate-400 px-4 font-medium"
+            >Resume workspace</button>
+            <button
+              phx-click="workspace-control"
+              phx-value-action="stop"
+              phx-disable-with="Stopping all…"
+              data-confirm="Stop all current and queued Cuckoding runs? Their branches, worktrees and evidence will be kept. New starts stay disabled until you resume the workspace."
+              class="min-h-11 rounded-md border border-red-400 px-4 font-medium text-red-900"
+            >Stop all</button>
+          </div>
+        </section>
 
         <section aria-labelledby="projects-heading" class="space-y-4">
           <div class="flex items-center justify-between gap-4">
@@ -952,6 +1009,7 @@ defmodule CuckodingWeb.StatusLive do
     active_sessions = Enum.filter(agent_cards, &active_session?/1)
 
     assign(socket,
+      execution_control: Cuckoding.RunControl.application_state(),
       health: Cuckoding.Health.snapshot(),
       activity_status:
         Cuckoding.ActivityStream.status(

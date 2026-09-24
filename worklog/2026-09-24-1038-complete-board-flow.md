@@ -163,3 +163,37 @@ descendants or stranding its workflow caller.
 Final runner verification: `rtk env -u CR_PAT mix quality` passed formatter,
 warnings-as-errors compilation, 10 properties and 324 tests, strict Credo,
 Sobelow and dependency audit. `rtk git diff --check` passed.
+
+## Run and workspace controls
+
+The runner foundation was fast-forward merged at `35fde75`. RunControl now
+records admission and user actions durably, coordinates stage launches with
+pause/resume/stop, preserves attempt checkpoints and stops owned groups while
+retaining worktrees and evidence. Workspace pause closes admission before its
+target snapshot; resume only resumes runs paused by that workspace action.
+Individually paused runs remain paused. Stop can retry cleanup for terminal
+runs with recorded live processes; port leases expire normally. A stopped task
+can prepare a fresh run without rewriting the previous attempt. Intentional
+cancellation no longer produces a false provider-failure event.
+
+Run and dashboard controls expose these operations, including confirmation for
+stop and visible partial-failure feedback. A missing live orchestration worker
+cannot be claimed resumable after a restart. Unconfirmed process control is
+explicitly reported; durable paused/cancelled state alone is not signal evidence.
+
+- Initial focused checks exposed a shared transition helper indexing keyword
+  options with a string when wait_reason was nil. Fixed that shared helper.
+  Nested callback and alias-order Credo findings were simplified and corrected.
+- `rtk env -u CR_PAT mix test test/cuckoding/run_control_test.exs test/cuckoding/board_task_intake_test.exs test/cuckoding/project_workflow_test.exs test/cuckoding/walking_skeleton_test.exs`:
+  57 tests, 0 failures. Fixtures launch real owned shell processes and assert
+  halted output, retained attempt identity, measured pause time, stop replies,
+  fresh retries, global admission and LiveView controls.
+- `rtk env -u CR_PAT mix quality`: formatter, warnings-as-errors compilation,
+  10 properties and 329 tests, strict Credo, Sobelow and dependency audit passed.
+  Expected intentional plugin-crash fixture messages occurred, not test failures.
+- A bounded `rtk proxy python3` inspection filtered `lsof -c sh -a -d cwd -Fpn`
+  to temporary run-controls fixture directories and returned no remaining
+  processes. No argv, environment or raw provider logs were read. This exact
+  metadata filter and source reads are the continuing RTK proxy exceptions.
+- Native/browser/provider acceptance and executable custom roles/permissions
+  remain open. These source checks do not finish the full task or active goal.

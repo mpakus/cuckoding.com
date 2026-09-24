@@ -447,13 +447,13 @@ defmodule CuckodingWeb.TaskLive do
   end
 
   defp next_step(%{state: state}, _runs)
-       when state in ["done", "archived", "cancelled"],
+       when state in ["done", "archived"],
        do:
          "Review the run history below for results and errors. Return to the board for available task actions."
 
-  defp next_step(%{state: state}, _runs) when state in ["blocked", "failed"],
+  defp next_step(%{state: state}, _runs) when state in ["blocked", "failed", "cancelled"],
     do:
-      "Review the failure in the previous run. Retry prepares a fresh branch and worktree from the current base; the previous run, worktree, and evidence remain available. You start the new run after checking its agents."
+      "Review the stopped or failed run. Retry prepares a fresh branch and worktree from the current base; the previous run, worktree, and evidence remain available. You start the new run after checking its agents."
 
   defp next_step(_task, _runs),
     do: "Open the current run for live progress, required approvals, and available controls."
@@ -461,8 +461,8 @@ defmodule CuckodingWeb.TaskLive do
   defp queued_run?(runs), do: Enum.any?(runs, &(&1.state == "queued"))
 
   defp retryable?(%{kind: "delivery", state: state}, [latest | _])
-       when state in ["blocked", "failed"],
-       do: latest.state in ["blocked", "failed"]
+       when state in ["blocked", "failed", "cancelled"],
+       do: latest.state in ["blocked", "failed", "cancelled"]
 
   defp retryable?(_task, _runs), do: false
   defp state_label(state), do: state |> String.replace("_", " ") |> String.capitalize()
