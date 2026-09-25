@@ -87,7 +87,10 @@ captured application output filtering, never the agent hook coverage.
 tool metadata distinguishes reported RTK invocation, explicit raw-output
 exceptions and bypasses. Missing tool detail leaves coverage **unknown**.
 The completed provider-log importer retains these observations without copying
-command text or tool output into another event. Reimport is idempotent.
+command text or tool output into another event. Integer exit status and boolean
+error indicators, when reported by the runtime, are retained for readable shell
+outcomes. Missing outcomes remain unknown; an RTK bypass is not a workflow
+failure. Reimport is idempotent.
 An RTK prefix does not prove filtering or reduction. Existing analytics remain
 separately labeled **Estimated shell-output tokens avoided**, never billed API
 tokens or money saved. No raw command history is imported as trusted policy.

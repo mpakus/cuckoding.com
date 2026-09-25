@@ -186,6 +186,57 @@ defmodule Cuckoding.ActivityStream do
     |> Enum.map(&public_event/1)
   end
 
+  @doc "One page of history, newest first, using exclusive committed sequence cursors."
+  def page(stream_id, options \\ []) do
+    before_sequence = Keyword.get(options, :before)
+    after_sequence = Keyword.get(options, :after)
+    order = if after_sequence, do: :asc, else: :desc
+    query = from(e in RunEvent, where: e.run_id == ^stream_id)
+    query = if before_sequence, do: where(query, [e], e.sequence < ^before_sequence), else: query
+    query = if after_sequence, do: where(query, [e], e.sequence > ^after_sequence), else: query
+    rows = Repo.all(from e in query, order_by: [{^order, e.sequence}], limit: 31)
+    events = rows |> Enum.take(30) |> Enum.map(&public_event/1)
+
+    %{
+      events: if(after_sequence, do: Enum.reverse(events), else: events),
+      more?: length(rows) > 30
+    }
+  end
+
+  @doc "Failure evidence is independent of the visible activity window."
+  def latest_failure(stream_id) do
+    case Repo.one(
+           from(e in RunEvent,
+             where:
+               e.run_id == ^stream_id and
+                 e.event_type in [
+                   "task_intake.failed",
+                   "workflow.failed",
+                   "run.preparation_failed"
+                 ],
+             order_by: [desc: e.sequence],
+             limit: 1
+           )
+         ) do
+      nil -> nil
+      event -> public_event(event)
+    end
+  end
+
+  def shell_summary("tool.requested", _metadata), do: "Agent requested a shell command"
+  def shell_summary("tool.denied", _metadata), do: "Shell command could not complete"
+
+  def shell_summary("tool.completed", %{"exit_code" => 0}),
+    do: "Shell command completed successfully"
+
+  def shell_summary("tool.completed", %{"exit_code" => code}) when is_integer(code),
+    do: "Shell command failed (exit #{code})"
+
+  def shell_summary("tool.completed", %{"is_error" => true}),
+    do: "Shell command reported an error"
+
+  def shell_summary(_type, _metadata), do: "Agent reported a shell command finished"
+
   @doc "Returns the latest public events across streams for the dashboard component."
   def recent(limit \\ 20) when is_integer(limit) and limit > 0 do
     limit = min(limit, @maximum_page)
@@ -267,7 +318,13 @@ defmodule Cuckoding.ActivityStream do
       stream_id: event.run_id,
       sequence: event.sequence,
       event_type: event.event_type,
-      public_summary: Redactor.redact(event.public_summary),
+      public_summary:
+        if(
+          is_map(payload["rtk"]) and
+            event.event_type in ["tool.requested", "tool.completed", "tool.denied"],
+          do: shell_summary(event.event_type, payload),
+          else: Redactor.redact(event.public_summary)
+        ),
       metadata: Map.drop(payload, ["correlation"]),
       correlation: correlation,
       occurred_at: event.occurred_at,

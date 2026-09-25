@@ -98,7 +98,7 @@ defmodule Cuckoding.Adapters.OutputParserTest do
 
     assert Enum.map(events, & &1.public_summary) == [
              "First update",
-             "Agent shell activity reported",
+             "Agent reported a shell command finished",
              "# Final specification"
            ]
 
@@ -156,6 +156,33 @@ defmodule Cuckoding.Adapters.OutputParserTest do
       assert event.trust == :untrusted
       refute inspect(event) =~ "private-canary"
       refute inspect(event) =~ "/run/agent"
+    end
+  end
+
+  test "retains only typed shell outcomes without duplicating secrets", %{root: root} do
+    for {exit, expected} <- [
+          {0, "Shell command completed successfully"},
+          {7, "Shell command failed (exit 7)"},
+          {"secret-canary", "Agent reported a shell command finished"}
+        ] do
+      path =
+        write_jsonl(root, "exit.jsonl", [
+          %{
+            "type" => "item.completed",
+            "item" => %{
+              "id" => "shell",
+              "type" => "command_execution",
+              "command" => "rtk proxy printf secret-canary",
+              "exit_code" => exit,
+              "aggregated_output" => "secret-canary"
+            }
+          }
+        ])
+
+      assert {:ok, [event]} = OutputParser.activity_events("codex", %{artifact_path: path})
+      assert event.public_summary == expected
+      assert event.metadata["exit_code"] == if(is_integer(exit), do: exit, else: nil)
+      refute inspect(event) =~ "secret-canary"
     end
   end
 

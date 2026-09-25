@@ -265,12 +265,15 @@ defmodule Cuckoding.AgentFloor do
 
     session_ids = Enum.map(sessions, & &1.id)
     environment = latest_environment(run.id)
+    activity = ActivityStream.page(run.id)
 
     %{
       attempts: attempts,
       sessions: sessions,
       environment: environment,
-      activity: ActivityStream.list(run.id, 0, limit: @maximum_detail_rows),
+      activity: Enum.reverse(activity.events),
+      activity_has_more?: activity.more?,
+      failure: ActivityStream.latest_failure(run.id),
       findings: findings(run.id),
       usage: usage_records(session_ids),
       resources: resource_samples(session_ids),

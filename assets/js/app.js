@@ -148,10 +148,16 @@ const LogTail = {
   },
 }
 
+const ActivityHistory = {
+  mounted() {
+    this.handleEvent("activity:latest", () => { this.el.scrollTop = 0 })
+  },
+}
+
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {CopyCommand, TaskBoard, LogTail, Modal},
+  hooks: {CopyCommand, TaskBoard, LogTail, Modal, ActivityHistory},
 })
 
 liveSocket.connect()

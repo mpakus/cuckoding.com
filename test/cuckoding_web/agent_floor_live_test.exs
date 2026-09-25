@@ -108,7 +108,8 @@ defmodule CuckodingWeb.AgentFloorLiveTest do
     assert has_element?(run, "section[aria-labelledby=timeline-heading]")
     assert has_element?(run, "section[aria-labelledby=preview-heading]", "No preview is active")
     assert has_element?(run, "section[aria-labelledby=artifacts-heading]", "evidence.txt")
-    assert has_element?(run, "[role=region][tabindex='0'][aria-label='Recent activity table']")
+    assert has_element?(run, "[role=region][tabindex='0'][aria-label='Run activity history']")
+    assert has_element?(run, "section[aria-labelledby=plugins-heading].rounded-lg.bg-white")
     assert has_element?(run, "section[aria-labelledby=findings-heading]", "Fixture finding")
     assert has_element?(run, "section[aria-labelledby=knowledge-heading]", "Open Knowledge")
 
@@ -119,6 +120,122 @@ defmodule CuckodingWeb.AgentFloorLiveTest do
     assert has_element?(run, "section[aria-labelledby=resources-heading] table")
     assert has_element?(run, "section[aria-labelledby=usage-heading]", "$0.000123 USD")
     refute render(run) =~ fixture.run_dir
+  end
+
+  test "run history pages both ways without hiding failure evidence or losing live events", %{
+    conn: conn
+  } do
+    fixture = domain_fixture(1)
+
+    Repo.get!(Cuckoding.Execution.Run, fixture.run.id)
+    |> Ecto.Changeset.change(state: "blocked")
+    |> Repo.update!()
+
+    for index <- 1..300 do
+      assert {:ok, _} =
+               Cuckoding.Execution.EventStore.append(fixture.run.id, %{
+                 event_type: if(index == 201, do: "workflow.failed", else: "activity.summary"),
+                 public_summary: "History #{index}",
+                 payload: if(index == 201, do: %{"code" => "workflow_failed"}, else: %{})
+               })
+    end
+
+    {:ok, view, _} = live(conn, ~p"/runs/#{fixture.run.id}")
+    assert length(Regex.scan(~r/<li id="activity-[^"]+"/, render(view))) == 30
+    assert has_element?(view, "#run-activity-events > li:first-child", "History 300")
+    assert has_element?(view, "#run-activity-events > li:last-child", "History 271")
+    assert has_element?(view, "#run-failure", "did not save a specific cause")
+    assert has_element?(view, "#run-failure", "workflow_failed")
+    assert has_element?(view, "#run-activity-events[phx-viewport-bottom]")
+
+    for _ <- 1..4, do: view |> element("#run-activity-events") |> render_hook("older-activity")
+    before = :sys.get_state(view.pid).socket.assigns.activity_window
+    assert length(before) == 90
+    assert length(Enum.uniq(before)) == 90
+    assert has_element?(view, "#run-activity-events > li:last-child", "History 151")
+    assert has_element?(view, "#run-failure", "workflow_failed")
+
+    {:ok, _} =
+      Cuckoding.Execution.EventStore.append(fixture.run.id, %{
+        event_type: "activity.summary",
+        public_summary: "New live update",
+        payload: %{}
+      })
+
+    send(view.pid, :refresh_run)
+    _ = render(view)
+    assert :sys.get_state(view.pid).socket.assigns.activity_window == before
+    refute has_element?(view, "#run-activity-events", "New live update")
+
+    view |> element("#run-activity-events") |> render_hook("newer-activity")
+    assert has_element?(view, "#run-activity-events > li:first-child", "History 270")
+    view |> element("#latest-activity") |> render_click()
+    assert has_element?(view, "#run-activity-events > li:first-child", "New live update")
+    assert length(:sys.get_state(view.pid).socket.assigns.activity_window) == 30
+
+    {:ok, reconnected, _} = live(conn, ~p"/runs/#{fixture.run.id}")
+    assert has_element?(reconnected, "#run-activity-events > li:first-child", "New live update")
+
+    seen =
+      Enum.reduce(
+        1..10,
+        MapSet.new(:sys.get_state(reconnected.pid).socket.assigns.activity_window),
+        fn _, seen ->
+          render_click(reconnected, "older-activity", %{"before" => "untrusted-cursor"})
+          window = :sys.get_state(reconnected.pid).socket.assigns.activity_window
+          assert length(window) <= 90
+          MapSet.union(seen, MapSet.new(window))
+        end
+      )
+
+    assert MapSet.size(seen) == 301
+    refute has_element?(reconnected, "#older-activity")
+    assert has_element?(reconnected, "#run-activity-events > li:last-child", "History 1")
+    assert has_element?(reconnected, "#run-failure", "workflow_failed")
+  end
+
+  test "shell activity distinguishes errors from RTK observations and opens the newest log", %{
+    conn: conn
+  } do
+    fixture = domain_fixture(1)
+    [older, newer] = Enum.sort([Identifier.generate(), Identifier.generate()])
+
+    for {id, line} <- [{older, 1}, {newer, 2}],
+        do:
+          File.write!(
+            Path.join([fixture.run_dir, "artifacts", "process-#{id}.log"]),
+            log_line(line)
+          )
+
+    for {type, exit} <- [
+          {"tool.requested", nil},
+          {"tool.completed", nil},
+          {"tool.completed", 0},
+          {"tool.completed", 2}
+        ] do
+      {:ok, _} =
+        Cuckoding.Execution.EventStore.append(fixture.run.id, %{
+          event_type: type,
+          public_summary: "Agent shell activity reported",
+          payload: %{"exit_code" => exit, "rtk" => %{"observation" => "bypass_reported"}}
+        })
+    end
+
+    {:ok, _} =
+      Cuckoding.Execution.EventStore.append(fixture.run.id, %{
+        event_type: "tool.completed",
+        public_summary: "Agent shell activity reported",
+        payload: %{"is_error" => true, "rtk" => %{"observation" => "bypass_reported"}}
+      })
+
+    {:ok, view, html} = live(conn, ~p"/runs/#{fixture.run.id}")
+    assert html =~ "error without an exit status"
+    assert html =~ "Shell command failed (exit 2)"
+    assert html =~ "Shell command completed successfully"
+    assert html =~ "No exit status was saved"
+    assert html =~ "not a workflow error"
+    refute html =~ "Agent shell activity reported"
+    assert has_element?(view, "#run-log-output", "public-line-00002")
   end
 
   test "activity hints coalesce behind one floor refresh", %{conn: conn} do

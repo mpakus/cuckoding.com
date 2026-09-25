@@ -6,6 +6,7 @@ defmodule CuckodingWeb.RunLive do
   import CuckodingWeb.PolicyComponents
   import CuckodingWeb.UsageComponents
 
+  alias Cuckoding.ActivityStream
   alias Cuckoding.AgentFloor
   alias Cuckoding.RunControl
   alias Cuckoding.RunLog
@@ -41,6 +42,8 @@ defmodule CuckodingWeb.RunLive do
            notice: "",
            error: nil
          )
+         |> stream_configure(:run_activity, dom_id: &"activity-#{&1.id}")
+         |> latest_activity()
          |> assign(log_process_id: nil, log_tail: nil, log_error: nil, log_paused: false)
          |> refresh_log()}
     end
@@ -71,6 +74,51 @@ defmodule CuckodingWeb.RunLive do
   end
 
   @impl true
+  def handle_event("older-activity", _params, socket) do
+    if socket.assigns.activity_has_older do
+      page =
+        ActivityStream.page(socket.assigns.detail.run.id,
+          before: List.last(socket.assigns.activity_window)
+        )
+
+      window =
+        Enum.take(socket.assigns.activity_window ++ Enum.map(page.events, & &1.sequence), -90)
+
+      {:noreply,
+       socket
+       |> assign(activity_window: window, activity_has_older: page.more?, activity_browsing: true)
+       |> stream(:run_activity, page.events, at: -1, limit: -90)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("newer-activity", %{"_overran" => true}, socket),
+    do: {:noreply, socket |> latest_activity() |> push_event("activity:latest", %{})}
+
+  def handle_event("newer-activity", _params, %{assigns: %{activity_window: []}} = socket),
+    do: {:noreply, socket}
+
+  def handle_event("newer-activity", _params, socket) do
+    page =
+      ActivityStream.page(socket.assigns.detail.run.id,
+        after: List.first(socket.assigns.activity_window)
+      )
+
+    sequences = Enum.map(page.events, & &1.sequence) ++ socket.assigns.activity_window
+
+    {:noreply,
+     socket
+     |> assign(
+       activity_window: Enum.take(sequences, 90),
+       activity_has_older: socket.assigns.activity_has_older or length(sequences) > 90
+     )
+     |> stream(:run_activity, Enum.reverse(page.events), at: 0, limit: 90)}
+  end
+
+  def handle_event("latest-activity", _params, socket),
+    do: {:noreply, socket |> latest_activity() |> push_event("activity:latest", %{})}
+
   def handle_event("select-log", %{"process_id" => id}, socket) do
     if Enum.any?(RunLog.entries(socket.assigns.detail.artifacts), &(&1.id == id)) do
       {:noreply, socket |> assign(log_process_id: id, log_paused: false) |> refresh_log()}
@@ -189,7 +237,49 @@ defmodule CuckodingWeb.RunLive do
       refresh_pending: false,
       notice: notice
     )
+    |> refresh_activity()
     |> refresh_log()
+  end
+
+  defp latest_activity(socket) do
+    page = ActivityStream.page(socket.assigns.detail.run.id)
+
+    socket
+    |> assign(
+      activity_window: Enum.map(page.events, & &1.sequence),
+      activity_has_older: page.more?,
+      activity_browsing: false,
+      activity_latest:
+        case page.events do
+          [event | _] -> event.sequence
+          [] -> 0
+        end
+    )
+    |> stream(:run_activity, page.events, reset: true, limit: 30)
+  end
+
+  defp refresh_activity(socket) do
+    events = Enum.reverse(socket.assigns.detail.activity)
+
+    latest =
+      case events do
+        [event | _] -> event.sequence
+        [] -> 0
+      end
+
+    if socket.assigns.activity_browsing do
+      assign(socket, activity_latest: latest)
+    else
+      new_events = Enum.filter(events, &(&1.sequence > socket.assigns.activity_latest))
+
+      socket
+      |> assign(
+        activity_window: Enum.map(events, & &1.sequence),
+        activity_latest: latest,
+        activity_has_older: socket.assigns.detail.activity_has_more?
+      )
+      |> stream(:run_activity, Enum.reverse(new_events), at: 0, limit: 30)
+    end
   end
 
   defp refresh_log(%{assigns: %{log_paused: true}} = socket), do: socket
@@ -197,9 +287,9 @@ defmodule CuckodingWeb.RunLive do
   defp refresh_log(socket) do
     process_id =
       socket.assigns.log_process_id ||
-        case RunLog.entries(socket.assigns.detail.artifacts) do
-          [log | _] -> log.id
-          [] -> nil
+        case List.last(RunLog.entries(socket.assigns.detail.artifacts)) do
+          nil -> nil
+          log -> log.id
         end
 
     case process_id && RunLog.tail(socket.assigns.detail.run.id, process_id) do
@@ -251,6 +341,10 @@ defmodule CuckodingWeb.RunLive do
             href="#timeline-heading"
             class="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-3 underline"
           >Timeline</a>
+          <a
+            href="#activity-heading"
+            class="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-3 underline"
+          >Recent activity</a>
           <a
             href="#run-logs"
             class="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-3 underline"
@@ -315,10 +409,36 @@ defmodule CuckodingWeb.RunLive do
             {failure_heading(@detail)}
           </h2>
           <p>{run_failure(@detail)}</p>
+          <dl
+            :if={@detail.failure}
+            class="grid gap-3 rounded-md bg-white/60 p-3 text-sm sm:grid-cols-3"
+          >
+            <div>
+              <dt class="font-semibold">Recorded at</dt><dd>
+                {Calendar.strftime(@detail.failure.occurred_at, "%Y-%m-%d %H:%M:%S UTC")}
+              </dd>
+            </div>
+            <div>
+              <dt class="font-semibold">Role</dt><dd>
+                {if @detail.failure.correlation["role"],
+                  do: role_label(@detail.failure.correlation["role"], @detail.run),
+                  else: "Workflow coordination"}
+              </dd>
+            </div>
+            <div>
+              <dt class="font-semibold">Diagnostic code</dt><dd class="break-all">
+                {@detail.failure.metadata["code"] || "Not recorded"}
+              </dd>
+            </div>
+          </dl>
           <p :if={failure_site(@detail)} class="text-sm">
             Diagnostic location: <code>{failure_site(@detail)}</code>. This identifies where the
             unexpected error occurred, not its cause.
           </p>
+          <div class="flex flex-wrap gap-4 text-sm font-medium">
+            <a href="#run-logs" class="inline-flex min-h-10 items-center underline">Read latest process log</a>
+            <a href="#findings-heading" class="inline-flex min-h-10 items-center underline">Review findings</a>
+          </div>
           <.link
             navigate={failure_return_path(@detail)}
             class="inline-flex min-h-10 items-center rounded underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
@@ -710,13 +830,24 @@ defmodule CuckodingWeb.RunLive do
           </p>
         </section>
 
-        <section aria-labelledby="plugins-heading" class="space-y-3">
+        <section
+          aria-labelledby="plugins-heading"
+          class="space-y-4 rounded-lg border border-slate-300 bg-white p-5"
+        >
           <h2 id="plugins-heading" class="text-xl font-semibold text-slate-950">Plugins</h2>
           <div id="run-rtk-status" class="space-y-2 text-sm text-slate-700">
             <p class="font-semibold">RTK for agents</p>
-            <p :for={role <- @detail.run.workflow_snapshot_json["roles"] || []}>
-              {role["role_key"]}: {rtk_status(@detail.run, role)}
-            </p>
+            <dl class="divide-y divide-slate-200">
+              <div
+                :for={role <- @detail.run.workflow_snapshot_json["roles"] || []}
+                class="grid gap-1 py-3 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-4"
+              >
+                <dt class="font-semibold text-slate-950">
+                  {role_label(role["role_key"], @detail.run)}
+                </dt>
+                <dd>{rtk_status(@detail.run, role)}</dd>
+              </div>
+            </dl>
             <p>
               Coverage and output reduction remain unknown unless separately observed. Native editing tools remain available.
             </p>
@@ -740,7 +871,16 @@ defmodule CuckodingWeb.RunLive do
           </ul>
         </section>
 
-        <.activity_stream events={@detail.activity} status={activity_status(@detail.activity)} />
+        <.run_activity
+          events={@streams.run_activity}
+          window={@activity_window}
+          has_older={@activity_has_older}
+          has_newer={@activity_window != [] && hd(@activity_window) < @activity_latest}
+          browsing={@activity_browsing}
+          status={activity_status(@detail.activity)}
+          run_state={@detail.run.state}
+          run={@detail.run}
+        />
       </article>
     </Layouts.app>
     """
@@ -905,6 +1045,12 @@ defmodule CuckodingWeb.RunLive do
         "This older run did not record a specific validation error. The agent response was not " <>
           "accepted; create a new planning run to retry with detailed diagnostics."
 
+      %{metadata: %{"code" => "workflow_failed"}} ->
+        "Cuckoding stopped this workflow, but this run did not save a specific cause. " <>
+          "Shell activity entries report commands; they do not explain why the workflow stopped. " <>
+          "Read the latest process log and review findings before retrying with a new run. " <>
+          "The existing branch, worktree and evidence are retained."
+
       %{public_summary: summary} ->
         summary
 
@@ -921,11 +1067,7 @@ defmodule CuckodingWeb.RunLive do
     end
   end
 
-  defp failure_event(detail) do
-    detail.activity
-    |> Enum.reverse()
-    |> Enum.find(&(&1.event_type in ["task_intake.failed", "workflow.failed"]))
-  end
+  defp failure_event(detail), do: detail.failure
 
   defp failure_heading(%{task: %{kind: "board_intake"}}), do: "Planning failed"
   defp failure_heading(_detail), do: "Workflow stopped"

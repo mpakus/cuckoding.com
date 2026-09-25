@@ -363,7 +363,7 @@ and the page explains how to prepare the run after fixing the issue.
 
 ### Run detail
 
-Quick links lead to setup (when queued), timeline, live logs, and findings.
+Quick links lead to setup (when queued), timeline, live logs, findings, and recent activity.
 Proposals open for waiting reviews and collapse into **Planning results** after
 completion. Remaining proposals may still be reviewed and imported. Agent
 activity pages distinguish recorded sessions from saved connections and link
@@ -387,8 +387,21 @@ Resource history uses native progress elements plus a complete table; periodic
 metric refreshes run every five seconds and committed activity hints are
 coalesced separately.
 
+Recent activity opens with the latest 30 entries, newest first. Native LiveView
+viewport events load history in pages of 30 inside a bounded scrolling panel;
+explicit older/newer buttons provide keyboard alternatives. At most 90 entries
+remain mounted while browsing. Live updates do not replace loaded history;
+**Show latest activity** returns to the newest 30. Failure evidence is queried
+independently of this window, so a long run cannot hide its failure banner.
+Shell entries distinguish requests, known outcomes, and unrecorded outcomes;
+RTK bypasses are filtering observations, not workflow failures. Historical
+generic failures explicitly state that no specific cause was saved and link to
+logs/findings. Plugins use the same bordered panel treatment and readable role
+names as the rest of run detail.
+
 Under **Artifacts**, **Live process logs** follows the selected run-owned log
-every second with at most the latest 5,000 lines. Scroll-up preserves the reading
+every second with at most the latest 5,000 lines. The newest available log is
+selected on entry; refresh preserves the user's selected log. Scroll-up preserves the reading
 position; **Pause live log** stops viewer updates only, not the agent. Selecting
 another log follows its tail. Reconnect reloads from disk; truncation/replacement
 is picked up on refresh. **Download full filtered log** streams a snapshot of

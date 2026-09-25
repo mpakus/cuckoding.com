@@ -136,11 +136,21 @@ defmodule Cuckoding.Adapters.OutputParser do
        when type in ["tool.requested", "tool.completed", "tool.denied"] do
     case Cuckoding.Plugins.RTK.annotate(event.metadata) do
       %{"rtk" => observation} ->
+        metadata =
+          event.metadata
+          |> Enum.filter(fn
+            {"exit_code", value} -> is_integer(value)
+            {"is_error", value} -> is_boolean(value)
+            _other -> false
+          end)
+          |> Map.new()
+          |> Map.put("rtk", observation)
+
         %{
           event
           | event_id: "#{event.event_id}:#{sequence}",
-            public_summary: "Agent shell activity reported",
-            metadata: %{"rtk" => observation}
+            public_summary: Cuckoding.ActivityStream.shell_summary(type, metadata),
+            metadata: metadata
         }
 
       _other ->
