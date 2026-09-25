@@ -203,6 +203,61 @@ defmodule Cuckoding.ActivityStream do
     }
   end
 
+  @doc "Task messages across runs, using exclusive {run sequence, event sequence} cursors."
+  def task_page(task_id, options \\ []) do
+    query =
+      from(event in RunEvent,
+        join: run in Run,
+        on: run.id == event.run_id,
+        where:
+          run.task_id == ^task_id and
+            event.event_type in [
+              "activity.summary",
+              "agent.messages_unavailable",
+              "artifact.created",
+              "process.started",
+              "process.exited",
+              "run.preparation_failed",
+              "run.transitioned",
+              "stage_attempt.transitioned",
+              "workflow.failed"
+            ]
+      )
+
+    query =
+      query
+      |> task_cursor({:before, options[:before]})
+      |> task_cursor({:after, options[:after]})
+
+    order = if options[:after], do: :asc, else: :desc
+
+    rows =
+      Repo.all(
+        from [e, r] in query,
+          order_by: [{^order, r.sequence}, {^order, e.sequence}],
+          limit: 31,
+          select: {e, r.sequence}
+      )
+
+    events =
+      Enum.map(Enum.take(rows, 30), fn {event, run_sequence} ->
+        Map.put(public_event(event), :run_sequence, run_sequence)
+      end)
+
+    %{
+      events: if(options[:after], do: Enum.reverse(events), else: events),
+      more?: length(rows) > 30
+    }
+  end
+
+  defp task_cursor(query, {_direction, nil}), do: query
+
+  defp task_cursor(query, {:before, {run, event}}),
+    do: where(query, [e, r], r.sequence < ^run or (r.sequence == ^run and e.sequence < ^event))
+
+  defp task_cursor(query, {:after, {run, event}}),
+    do: where(query, [e, r], r.sequence > ^run or (r.sequence == ^run and e.sequence > ^event))
+
   @doc "Failure evidence is independent of the visible activity window."
   def latest_failure(stream_id) do
     case Repo.one(

@@ -11,24 +11,32 @@ defmodule CuckodingWeb.ActivityComponents do
   attr :status, :map, required: true
   attr :run_state, :string, required: true
   attr :run, :map, required: true
+  attr :target, :any, required: true
+  attr :heading, :string, required: true
+  attr :heading_id, :string, required: true
+  attr :events_id, :string, required: true
 
-  def run_activity(assigns) do
+  def activity_history(assigns) do
     ~H"""
     <section
-      aria-labelledby="activity-heading"
+      aria-labelledby={@heading_id}
       class="min-w-0 space-y-4 rounded-lg border border-slate-300 bg-white p-5"
     >
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 id="activity-heading" tabindex="-1" class="text-xl font-semibold text-slate-950">
-            Recent activity
+          <h2 id={@heading_id} tabindex="-1" class="text-xl font-semibold text-slate-950">
+            {@heading}
           </h2>
           <p class="mt-1 text-sm text-slate-700">
             Newest first. Scroll for older history, 30 entries at a time.
           </p>
         </div>
         <span class="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-800">
-          {feed_status(@run_state, @status)}
+          {String.replace_prefix(
+            feed_status(@run_state, @status),
+            "Run",
+            if(@run, do: "Run", else: "Task")
+          )}
         </span>
       </div>
       <div class="flex flex-wrap items-center justify-between gap-3">
@@ -36,7 +44,8 @@ defmodule CuckodingWeb.ActivityComponents do
           <%= if @window == [] do %>
             No activity has been recorded yet.
           <% else %>
-            Showing {length(@window)} entries · #{List.last(@window)}–#{hd(@window)}
+            Showing {length(@window)} entries
+            <span :if={@run}> · #{elem(List.last(@window), 1)}–#{elem(hd(@window), 1)}</span>
             <span :if={@browsing}> · Reading history; live updates will not move this view.</span>
           <% end %>
         </p>
@@ -44,7 +53,7 @@ defmodule CuckodingWeb.ActivityComponents do
           :if={@browsing}
           id="latest-activity"
           type="button"
-          phx-click={JS.push("latest-activity") |> JS.focus(to: "#activity-heading")}
+          phx-click={JS.push("latest-activity", target: @target) |> JS.focus(to: "##{@heading_id}")}
           class="min-h-11 rounded-md border border-slate-300 px-3 text-sm font-medium"
         >
           Show latest activity
@@ -53,8 +62,8 @@ defmodule CuckodingWeb.ActivityComponents do
       <div
         tabindex="0"
         role="region"
-        aria-label="Run activity history"
-        id="run-activity-scroll"
+        aria-label={if @run, do: "Run activity history", else: "Task message history"}
+        id={"#{@events_id}-scroll"}
         phx-hook="ActivityHistory"
         class="max-h-[36rem] overflow-y-auto overscroll-contain rounded-lg border border-slate-200 bg-slate-50 p-3 sm:p-4"
       >
@@ -62,12 +71,14 @@ defmodule CuckodingWeb.ActivityComponents do
           :if={@has_newer}
           type="button"
           phx-click="newer-activity"
+          phx-target={@target}
           phx-disable-with="Loading newer activity…"
           class="mb-3 min-h-11 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium"
         >Load newer activity</button>
         <ol
-          id="run-activity-events"
+          id={@events_id}
           phx-update="stream"
+          phx-target={@target}
           phx-viewport-top={@has_newer && JS.push("newer-activity", page_loading: true)}
           phx-viewport-bottom={@has_older && JS.push("older-activity", page_loading: true)}
           class="space-y-3"
@@ -75,18 +86,28 @@ defmodule CuckodingWeb.ActivityComponents do
           <li
             :for={{dom_id, event} <- @events}
             id={dom_id}
-            class="min-w-0 rounded-md border border-slate-200 bg-white p-4"
+            data-sequence={event.sequence}
+            data-run-sequence={Map.get(event, :run_sequence, 0)}
+            class={[
+              "min-w-0 rounded-md border border-slate-200 bg-white",
+              if(@run, do: "p-4", else: "p-3")
+            ]}
           >
             <div class="mb-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-slate-600">
-              <span class="font-medium">#{event.sequence} · {run_context_label(event, @run)}</span>
+              <span class="min-w-0 break-words font-medium">
+                <a
+                  :if={!@run}
+                  href={~p"/runs/#{event.stream_id}"}
+                  class="underline underline-offset-4"
+                >Run {event.run_sequence}</a>
+                <span :if={!@run}> · </span>#{event.sequence} · {run_context_label(event, @run)}
+              </span>
               <time datetime={DateTime.to_iso8601(event.occurred_at)}>{Calendar.strftime(
                 event.occurred_at,
                 "%b %d, %H:%M:%S UTC"
               )}</time>
             </div>
-            <p class="whitespace-pre-wrap break-words font-medium text-slate-950">
-              {event.public_summary}
-            </p>
+            <.message_body text={event.public_summary} compact={!@run} />
             <div :if={event.metadata["rtk"]} class="mt-2 space-y-2 text-sm leading-6 text-slate-700">
               <p>{shell_result(event)}</p>
               <p>{rtk_explanation(event.metadata["rtk"]["observation"])}</p>
@@ -105,14 +126,41 @@ defmodule CuckodingWeb.ActivityComponents do
           id="older-activity"
           type="button"
           phx-click="older-activity"
+          phx-target={@target}
           phx-disable-with="Loading older activity…"
           class="mt-3 min-h-11 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium"
         >Load older activity</button>
         <p :if={!@has_older && @window != []} class="mt-3 text-center text-sm text-slate-600">
-          Beginning of this run's history
+          Beginning of this {if @run, do: "run", else: "task"}'s history
         </p>
       </div>
     </section>
+    """
+  end
+
+  attr :text, :string, required: true
+  attr :compact, :boolean, required: true
+
+  defp message_body(assigns) do
+    ~H"""
+    <details
+      :if={@compact && (String.length(@text) > 320 || length(String.split(@text, "\n")) > 4)}
+      class="text-sm text-slate-900"
+    >
+      <summary class="cursor-pointer space-y-1 leading-6">
+        <span class="block break-words">{String.slice(@text, 0, 180)}…</span>
+        <span class="font-medium underline underline-offset-4">Read full message</span>
+      </summary>
+      <p phx-no-format class="mt-3 whitespace-pre-wrap break-words leading-6">{@text}</p>
+    </details>
+    <p
+      :if={!@compact || (String.length(@text) <= 320 && length(String.split(@text, "\n")) <= 4)}
+      phx-no-format
+      class={[
+        "whitespace-pre-wrap break-words text-slate-950",
+        if(@compact, do: "text-sm leading-6", else: "font-medium")
+      ]}
+    >{@text}</p>
     """
   end
 
@@ -129,9 +177,11 @@ defmodule CuckodingWeb.ActivityComponents do
 
   defp run_context_label(event, run) do
     role =
-      if event.correlation["role"],
-        do: Cuckoding.AgentFloor.role_label(run, event.correlation["role"]),
-        else: "Workflow"
+      case {run, event.correlation["role"]} do
+        {_, nil} -> "Workflow"
+        {nil, role} -> role |> String.replace("_", " ") |> String.capitalize()
+        {run, role} -> Cuckoding.AgentFloor.role_label(run, role)
+      end
 
     Enum.join(
       Enum.reject([role, event.correlation["runtime"], event.correlation["model"]], &is_nil/1),

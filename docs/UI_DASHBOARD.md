@@ -329,9 +329,17 @@ Edits leave previous run events, worktrees, and artifacts unchanged. A new retry
 loads the saved request, and its assigned planning agent revisits the
 specification through the existing workflow. There is no separate agent editing
 session or automatic application of agent-written task changes.
-Task detail also shows the latest redacted Specifications message and a bounded,
-expandable timeline of stage transitions, artifacts, failures, and public agent
-messages across its runs. Agent messages appear
+Task detail also shows the latest redacted Specifications message and **Task
+timeline and agent messages**, using the same `ActivityHistoryComponent`
+LiveView component as run activity. The latest 30 entries appear first in a
+bounded scrolling panel; native viewport events load older/newer pages of 30
+with accessible button alternatives and a 90-entry mounted limit. Task history
+orders by run sequence, then committed event sequence, so equal timestamps and
+repeated sequence numbers across retries cannot skip messages. Reading history
+preserves the loaded view during live updates; **Show latest activity** returns
+to the newest 30. Pagination also preserves unsaved task edits. Compact entries
+link to their source run, and long messages use a native **Read full message**
+disclosure with the complete redacted text. Agent messages appear
 after the provider process yields its log; durable events then refresh the
 LiveView without a browser reload. The complete filtered log stays on the run
 page. Agent text is labeled untrusted and is never treated as a user command.

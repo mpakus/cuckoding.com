@@ -1,12 +1,10 @@
 defmodule CuckodingWeb.RunLive do
   use CuckodingWeb, :live_view
 
-  import CuckodingWeb.ActivityComponents
   import CuckodingWeb.AgentFloorComponents
   import CuckodingWeb.PolicyComponents
   import CuckodingWeb.UsageComponents
 
-  alias Cuckoding.ActivityStream
   alias Cuckoding.AgentFloor
   alias Cuckoding.RunControl
   alias Cuckoding.RunLog
@@ -42,8 +40,6 @@ defmodule CuckodingWeb.RunLive do
            notice: "",
            error: nil
          )
-         |> stream_configure(:run_activity, dom_id: &"activity-#{&1.id}")
-         |> latest_activity()
          |> assign(log_process_id: nil, log_tail: nil, log_error: nil, log_paused: false)
          |> refresh_log()}
     end
@@ -74,51 +70,6 @@ defmodule CuckodingWeb.RunLive do
   end
 
   @impl true
-  def handle_event("older-activity", _params, socket) do
-    if socket.assigns.activity_has_older do
-      page =
-        ActivityStream.page(socket.assigns.detail.run.id,
-          before: List.last(socket.assigns.activity_window)
-        )
-
-      window =
-        Enum.take(socket.assigns.activity_window ++ Enum.map(page.events, & &1.sequence), -90)
-
-      {:noreply,
-       socket
-       |> assign(activity_window: window, activity_has_older: page.more?, activity_browsing: true)
-       |> stream(:run_activity, page.events, at: -1, limit: -90)}
-    else
-      {:noreply, socket}
-    end
-  end
-
-  def handle_event("newer-activity", %{"_overran" => true}, socket),
-    do: {:noreply, socket |> latest_activity() |> push_event("activity:latest", %{})}
-
-  def handle_event("newer-activity", _params, %{assigns: %{activity_window: []}} = socket),
-    do: {:noreply, socket}
-
-  def handle_event("newer-activity", _params, socket) do
-    page =
-      ActivityStream.page(socket.assigns.detail.run.id,
-        after: List.first(socket.assigns.activity_window)
-      )
-
-    sequences = Enum.map(page.events, & &1.sequence) ++ socket.assigns.activity_window
-
-    {:noreply,
-     socket
-     |> assign(
-       activity_window: Enum.take(sequences, 90),
-       activity_has_older: socket.assigns.activity_has_older or length(sequences) > 90
-     )
-     |> stream(:run_activity, Enum.reverse(page.events), at: 0, limit: 90)}
-  end
-
-  def handle_event("latest-activity", _params, socket),
-    do: {:noreply, socket |> latest_activity() |> push_event("activity:latest", %{})}
-
   def handle_event("select-log", %{"process_id" => id}, socket) do
     if Enum.any?(RunLog.entries(socket.assigns.detail.artifacts), &(&1.id == id)) do
       {:noreply, socket |> assign(log_process_id: id, log_paused: false) |> refresh_log()}
@@ -237,49 +188,7 @@ defmodule CuckodingWeb.RunLive do
       refresh_pending: false,
       notice: notice
     )
-    |> refresh_activity()
     |> refresh_log()
-  end
-
-  defp latest_activity(socket) do
-    page = ActivityStream.page(socket.assigns.detail.run.id)
-
-    socket
-    |> assign(
-      activity_window: Enum.map(page.events, & &1.sequence),
-      activity_has_older: page.more?,
-      activity_browsing: false,
-      activity_latest:
-        case page.events do
-          [event | _] -> event.sequence
-          [] -> 0
-        end
-    )
-    |> stream(:run_activity, page.events, reset: true, limit: 30)
-  end
-
-  defp refresh_activity(socket) do
-    events = Enum.reverse(socket.assigns.detail.activity)
-
-    latest =
-      case events do
-        [event | _] -> event.sequence
-        [] -> 0
-      end
-
-    if socket.assigns.activity_browsing do
-      assign(socket, activity_latest: latest)
-    else
-      new_events = Enum.filter(events, &(&1.sequence > socket.assigns.activity_latest))
-
-      socket
-      |> assign(
-        activity_window: Enum.map(events, & &1.sequence),
-        activity_latest: latest,
-        activity_has_older: socket.assigns.detail.activity_has_more?
-      )
-      |> stream(:run_activity, Enum.reverse(new_events), at: 0, limit: 30)
-    end
   end
 
   defp refresh_log(%{assigns: %{log_paused: true}} = socket), do: socket
@@ -871,13 +780,14 @@ defmodule CuckodingWeb.RunLive do
           </ul>
         </section>
 
-        <.run_activity
-          events={@streams.run_activity}
-          window={@activity_window}
-          has_older={@activity_has_older}
-          has_newer={@activity_window != [] && hd(@activity_window) < @activity_latest}
-          browsing={@activity_browsing}
-          status={activity_status(@detail.activity)}
+        <.live_component
+          module={CuckodingWeb.ActivityHistoryComponent}
+          id="run-activity"
+          scope={{:run, @detail.run.id}}
+          revision={@detail.activity}
+          heading="Recent activity"
+          heading_id="activity-heading"
+          events_id="run-activity-events"
           run_state={@detail.run.state}
           run={@detail.run}
         />
@@ -885,9 +795,6 @@ defmodule CuckodingWeb.RunLive do
     </Layouts.app>
     """
   end
-
-  defp activity_status(events),
-    do: Cuckoding.ActivityStream.status(events, Cuckoding.Clock.wall_now(), 60_000)
 
   defp rtk_status(run, role) do
     {mode, reason} =

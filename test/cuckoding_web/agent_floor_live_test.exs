@@ -152,7 +152,7 @@ defmodule CuckodingWeb.AgentFloorLiveTest do
     assert has_element?(view, "#run-activity-events[class='space-y-3']")
 
     for _ <- 1..4, do: view |> element("#run-activity-events") |> render_hook("older-activity")
-    before = :sys.get_state(view.pid).socket.assigns.activity_window
+    before = activity_window(view)
     assert length(before) == 90
     assert length(Enum.uniq(before)) == 90
     assert has_element?(view, "#run-activity-events > li:last-child", "History 151")
@@ -167,14 +167,14 @@ defmodule CuckodingWeb.AgentFloorLiveTest do
 
     send(view.pid, :refresh_run)
     _ = render(view)
-    assert :sys.get_state(view.pid).socket.assigns.activity_window == before
+    assert activity_window(view) == before
     refute has_element?(view, "#run-activity-events", "New live update")
 
     view |> element("#run-activity-events") |> render_hook("newer-activity")
     assert has_element?(view, "#run-activity-events > li:first-child", "History 270")
     view |> element("#latest-activity") |> render_click()
     assert has_element?(view, "#run-activity-events > li:first-child", "New live update")
-    assert length(:sys.get_state(view.pid).socket.assigns.activity_window) == 30
+    assert length(activity_window(view)) == 30
 
     {:ok, reconnected, _} = live(conn, ~p"/runs/#{fixture.run.id}")
     assert has_element?(reconnected, "#run-activity-events > li:first-child", "New live update")
@@ -182,10 +182,13 @@ defmodule CuckodingWeb.AgentFloorLiveTest do
     seen =
       Enum.reduce(
         1..10,
-        MapSet.new(:sys.get_state(reconnected.pid).socket.assigns.activity_window),
+        MapSet.new(activity_window(reconnected)),
         fn _, seen ->
-          render_click(reconnected, "older-activity", %{"before" => "untrusted-cursor"})
-          window = :sys.get_state(reconnected.pid).socket.assigns.activity_window
+          reconnected
+          |> element("#run-activity-events")
+          |> render_hook("older-activity", %{"before" => "untrusted-cursor"})
+
+          window = activity_window(reconnected)
           assert length(window) <= 90
           MapSet.union(seen, MapSet.new(window))
         end
@@ -444,6 +447,12 @@ defmodule CuckodingWeb.AgentFloorLiveTest do
     fixture.run |> Ecto.Changeset.change(state: "failed") |> Repo.update!()
 
     assert AgentFloor.list_sessions() |> hd() |> Map.fetch!(:attention?)
+  end
+
+  defp activity_window(view) do
+    Regex.scan(~r/data-sequence="(\d+)"/, render(view), capture: :all_but_first)
+    |> List.flatten()
+    |> Enum.map(&String.to_integer/1)
   end
 
   defp domain_fixture(count, options \\ []) do

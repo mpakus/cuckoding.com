@@ -13,16 +13,12 @@ defmodule CuckodingWeb.TaskLive do
   alias Cuckoding.Workflows
   alias CuckodingWeb.PublicError
 
-  @message_page 100
-  @maximum_visible_messages 5_000
-
   @impl true
   def mount(%{"board_id" => board_id, "id" => task_id}, _session, socket) do
     with %{id: ^board_id} = board <- Workflows.get_board(board_id),
          %{board_id: ^board_id} = task <- Workflows.get_task(task_id) do
       if connected?(socket), do: Phoenix.PubSub.subscribe(Cuckoding.PubSub, "activity")
       runs = Execution.list_runs(task.id)
-      {messages, more_messages?} = task_messages(task.id, @message_page)
 
       {:ok,
        assign(socket,
@@ -33,10 +29,7 @@ defmodule CuckodingWeb.TaskLive do
          editable: Workflows.task_editable?(task),
          unsaved_changes: false,
          runs: runs,
-         messages: messages,
-         more_messages?: more_messages?,
-         message_limit: @message_page,
-         maximum_visible_messages: @maximum_visible_messages,
+         activity_revision: 0,
          specification: latest_specification(task.id),
          activity_refresh_pending: false,
          notice: nil,
@@ -69,18 +62,6 @@ defmodule CuckodingWeb.TaskLive do
   @impl true
   def handle_event("edit", %{"task" => attrs}, socket),
     do: {:noreply, remember_input(socket, attrs)}
-
-  def handle_event("show-older-messages", _params, socket) do
-    limit = min(socket.assigns.message_limit + @message_page, @maximum_visible_messages)
-    {messages, more?} = task_messages(socket.assigns.task.id, limit)
-
-    {:noreply,
-     assign(socket,
-       message_limit: limit,
-       messages: messages,
-       more_messages?: more? and limit < @maximum_visible_messages
-     )}
-  end
 
   def handle_event(action, _params, %{assigns: %{unsaved_changes: true}} = socket)
       when action in ["mark-ready", "prepare-run", "retry-task"] do
@@ -397,33 +378,17 @@ defmodule CuckodingWeb.TaskLive do
           </div>
         </section>
 
-        <section aria-labelledby="task-messages-heading" class="space-y-3">
-          <h2 id="task-messages-heading" class="text-xl font-semibold text-slate-950">
-            Task timeline and agent messages
-          </h2>
-          <p :if={@messages == []} class="text-sm text-slate-700">
-            No run activity yet. Stage progress and public agent messages will appear here after work starts.
-          </p>
-          <ol :if={@messages != []} id="task-messages" class="space-y-3">
-            <li :for={message <- @messages} class="rounded-lg border border-slate-200 bg-white p-4">
-              <p class="text-sm font-medium text-slate-700">
-                {role_label(message.role)} · Run {message.run_sequence}
-              </p>
-              <p class="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-900">
-                {message.text}
-              </p>
-            </li>
-          </ol>
-          <button
-            :if={@more_messages?}
-            type="button"
-            phx-click="show-older-messages"
-            class="min-h-10 rounded-md border border-slate-400 px-4 font-medium text-slate-950"
-          >Show older messages</button>
-          <p :if={@message_limit >= @maximum_visible_messages} class="text-sm text-slate-700">
-            Showing the latest 5,000 entries. Open a run above for its complete redacted process log.
-          </p>
-        </section>
+        <.live_component
+          module={CuckodingWeb.ActivityHistoryComponent}
+          id="task-activity"
+          scope={{:task, @task.id}}
+          revision={@activity_revision}
+          heading="Task timeline and agent messages"
+          heading_id="task-messages-heading"
+          events_id="task-messages"
+          run_state={@task.state}
+          run={nil}
+        />
 
         <section aria-labelledby="run-history-heading" class="space-y-3">
           <h2 id="run-history-heading" class="text-xl font-semibold text-slate-950">Run history</h2>
@@ -507,7 +472,6 @@ defmodule CuckodingWeb.TaskLive do
 
   defp reload(socket, notice) do
     task = Workflows.get_task(socket.assigns.task.id)
-    {messages, more?} = task_messages(task.id, socket.assigns.message_limit)
 
     assign(socket,
       task: task,
@@ -516,52 +480,11 @@ defmodule CuckodingWeb.TaskLive do
       editable: Workflows.task_editable?(task),
       page_title: task.title,
       runs: Execution.list_runs(task.id),
-      messages: messages,
-      more_messages?: more? and socket.assigns.message_limit < @maximum_visible_messages,
+      activity_revision: socket.assigns.activity_revision + 1,
       specification: latest_specification(task.id),
       notice: notice || socket.assigns.notice,
       error: if(socket.assigns.unsaved_changes, do: socket.assigns.error)
     )
-  end
-
-  defp task_messages(task_id, limit) do
-    rows =
-      Repo.all(
-        from(event in RunEvent,
-          join: run in Run,
-          on: run.id == event.run_id,
-          where:
-            run.task_id == ^task_id and
-              event.event_type in [
-                "activity.summary",
-                "agent.messages_unavailable",
-                "artifact.created",
-                "process.started",
-                "process.exited",
-                "run.preparation_failed",
-                "run.transitioned",
-                "stage_attempt.transitioned",
-                "workflow.failed"
-              ],
-          order_by: [desc: event.occurred_at, desc: event.sequence],
-          limit: ^(limit + 1),
-          select: {event, run.sequence}
-        )
-      )
-
-    messages =
-      rows
-      |> Enum.take(limit)
-      |> Enum.reverse()
-      |> Enum.map(fn {event, sequence} ->
-        %{
-          text: Redactor.redact(event.public_summary),
-          role: get_in(event.payload, ["correlation", "role"]),
-          run_sequence: sequence
-        }
-      end)
-
-    {messages, length(rows) > limit}
   end
 
   defp latest_specification(task_id) do
@@ -589,9 +512,6 @@ defmodule CuckodingWeb.TaskLive do
         nil
     end
   end
-
-  defp role_label(nil), do: "Run"
-  defp role_label(role), do: role |> String.replace("_", " ") |> String.capitalize()
 
   defp prepare_error(:runtime_setup_only),
     do:

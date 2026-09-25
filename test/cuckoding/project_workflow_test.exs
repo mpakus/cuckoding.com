@@ -459,6 +459,118 @@ defmodule Cuckoding.ProjectWorkflowTest do
     assert has_element?(view, "#task-messages", "Development started")
   end
 
+  test "task history pages across runs and keeps drafts and loaded history during live updates",
+       %{project: project, conn: conn} do
+    {:ok, board} =
+      ProjectWorkflow.create_board(project.id, %{"name" => "History", "concurrency_limit" => "1"})
+
+    {:ok, task} = ProjectWorkflow.create_task(board.id, %{"title" => "Read history"})
+    assert_transition(Workflows.transition_task(task.id, "ready", "history:ready"))
+    {:ok, %{run: first}} = ProjectWorkflow.prepare_task(task.id)
+    assert_transition(Execution.transition_run(first.id, "running", "history:running"))
+    assert_transition(Execution.transition_run(first.id, "failed", "history:failed"))
+    {:ok, %{run: second}} = ProjectWorkflow.retry_task(task.id)
+
+    # Identical timestamps and repeated per-run sequences must not skip entries.
+    message_ids =
+      for run <- [first, second], index <- 1..100 do
+        {:ok, {event, _}} =
+          EventStore.append(run.id, %{
+            event_type: "activity.summary",
+            occurred_at: ~U[2026-09-24 12:00:00.000000Z],
+            public_summary: "Run #{run.sequence} message #{index}",
+            payload: %{}
+          })
+
+        event.id
+      end
+
+    {:ok, other} = ProjectWorkflow.create_task(board.id, %{"title" => "Other task"})
+    assert_transition(Workflows.transition_task(other.id, "ready", "history:other-ready"))
+    {:ok, %{run: other_run}} = ProjectWorkflow.prepare_task(other.id)
+
+    {:ok, _} =
+      EventStore.append(other_run.id, %{
+        event_type: "activity.summary",
+        public_summary: "Other task's private message",
+        payload: %{}
+      })
+
+    {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}/tasks/#{task.id}")
+    assert length(history_ids(view)) == 30
+    assert has_element?(view, "#task-messages[phx-update=stream][phx-viewport-bottom]")
+    assert has_element?(view, "#task-messages > li:first-child", "Run 2 message 100")
+    assert has_element?(view, "#task-messages > li:last-child", "Run 2 message 71")
+    refute has_element?(view, "#task-messages", "Other task's private message")
+    form(view, "#task-edit", task: %{description: "Keep this unsaved draft"}) |> render_change()
+
+    seen =
+      Enum.reduce(1..7, MapSet.new(history_ids(view)), fn _, seen ->
+        if has_element?(view, "#older-activity") do
+          view
+          |> element("#task-messages")
+          |> render_hook("older-activity", %{"before" => "forged-cursor"})
+        end
+
+        assert length(history_ids(view)) <= 90
+        MapSet.union(seen, MapSet.new(history_ids(view)))
+      end)
+
+    assert MapSet.subset?(MapSet.new(message_ids), seen)
+    refute has_element?(view, "#older-activity")
+    assert has_element?(view, "#task-activity", "Beginning of this task's history")
+    before = history_ids(view)
+
+    long_message =
+      "Latest report\n" <> String.duplicate("Detailed evidence. ", 40) <> "Full ending retained."
+
+    {:ok, _} =
+      EventStore.append(second.id, %{
+        event_type: "activity.summary",
+        public_summary: long_message,
+        payload: %{}
+      })
+
+    send(view.pid, :refresh_task_activity)
+    assert history_ids(view) == before
+    assert has_element?(view, "#task-edit textarea", "Keep this unsaved draft")
+    view |> element("#task-messages") |> render_hook("newer-activity")
+    assert history_ids(view) != before
+    view |> element("#latest-activity") |> render_click()
+    assert length(history_ids(view)) == 30
+
+    assert has_element?(
+             view,
+             "#task-messages > li:first-child details:not([open]) summary",
+             "Read full message"
+           )
+
+    assert has_element?(
+             view,
+             "#task-messages > li:first-child details p",
+             "Full ending retained."
+           )
+
+    assert has_element?(view, "#task-edit textarea", "Keep this unsaved draft")
+    {:ok, reconnected, _} = live(conn, ~p"/boards/#{board.id}/tasks/#{task.id}")
+    assert length(history_ids(reconnected)) == 30
+    assert has_element?(reconnected, "#task-messages > li:first-child", "Latest report")
+
+    Phoenix.LiveView.send_update(view.pid, CuckodingWeb.ActivityHistoryComponent,
+      id: "task-activity",
+      scope: {:task, other.id}
+    )
+
+    assert has_element?(view, "#task-messages", "Other task's private message")
+    refute has_element?(view, "#task-messages", "Latest report")
+    assert length(history_ids(view)) == 1
+  end
+
+  defp history_ids(view),
+    do:
+      Regex.scan(~r/<li id="activity-([^"]+)"/, render(view), capture: :all_but_first)
+      |> List.flatten()
+
   test "blocked and failed delivery tasks can prepare distinct retries without losing old runs",
        %{
          project: project,
