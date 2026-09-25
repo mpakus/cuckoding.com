@@ -42,3 +42,19 @@ only the two direction predicates. Subsequent focused task/run tests (30 tests),
 the shared component's task/run scope changes, with a regression preventing
 entries from the prior scope remaining visible. Native UI interaction was
 interrupted by active Chrome use; final visual verification remains pending.
+
+Native rollout: task implementation merged locally to main as a731e27.
+`rtk env -u CR_PAT ./bin/dev.build` passed the production asset/compiler/release
+gates, Ruby metadata (6/15) and restart (6/98) checks, promotion checks, Rust
+fmt/10 tests/clippy, native bundle and sterile authentication, shutdown,
+safe-mode, update/rollback checks. Read-only native inventory before restart:
+one Blocked run, one Done run, all six processes Exited; the requested task
+contains 36 timeline messages. `rtk ./bin/dev.restart` gracefully stopped owned
+PID 41644, verified cleanup, and launched the new bundle at
+http://127.0.0.1:64521. The existing DBngin PATH warning did not prevent restart.
+No migration, task-content edit, provider run, remote push or signed release.
+
+`rtk git diff --check` passed. Automated component/domain verification and
+native rollout are complete. Remaining handoff: open the native menu's normal
+authenticated dashboard and visually check compact rows, native disclosures
+and scrolling on the supplied task; no browser-authentication bypass was used.
