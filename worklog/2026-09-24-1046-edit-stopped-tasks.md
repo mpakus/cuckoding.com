@@ -41,3 +41,20 @@ loaded by the new retry, and server-side length/priority validation.
 warnings-as-errors compilation, 10 properties / 351 tests, strict Credo,
 Sobelow and Hex audit. This includes transition property, scheduler fairness,
 LiveView keyboard and secret/confinement coverage. No findings/advisories.
+
+Integrated task changes into local main as 54d5967. The separate 1045 scroll
+edge correction is e5d428d. Final `rtk env -u CR_PAT ./bin/dev.build` passed:
+production assets/compiler/release, Ruby metadata (6 tests/15 assertions),
+restart helper (6/98), promotion checks, Rust fmt/10 tests/clippy, native bundle,
+and sterile authentication/shutdown/safe-mode/update/rollback verification.
+`rtk ./bin/dev.restart` gracefully stopped owned PID 20014, verified cleanup,
+and launched the updated app at http://127.0.0.1:60646. Health is ok; SQLite
+integrity is ok. The target task remains Blocked with zero task.edited events;
+no user task content was changed or retry started. No remote push or signed
+release. Existing DBngin PATH-permission warning did not prevent restart.
+
+Post-restart visual verification awaits the user's normal Open Dashboard
+menu action, requested in the conversation. The tray menu is unavailable to
+the UI tool; no authentication bypass was attempted. Native desktop rendering
+of the previous run page was checked during this turn; narrow rendering of
+the rebuilt editor is not yet verified.
