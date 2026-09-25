@@ -147,6 +147,9 @@ defmodule CuckodingWeb.AgentFloorLiveTest do
     assert has_element?(view, "#run-failure", "did not save a specific cause")
     assert has_element?(view, "#run-failure", "workflow_failed")
     assert has_element?(view, "#run-activity-events[phx-viewport-bottom]")
+    # The edge item must remain visible even when a fast scroll reaches the end.
+    # Viewport-sized padding lets it jump past LiveView's viewport detector.
+    assert has_element?(view, "#run-activity-events[class='space-y-3']")
 
     for _ <- 1..4, do: view |> element("#run-activity-events") |> render_hook("older-activity")
     before = :sys.get_state(view.pid).socket.assigns.activity_window

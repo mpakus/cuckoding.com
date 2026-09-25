@@ -70,7 +70,7 @@ defmodule CuckodingWeb.ActivityComponents do
           phx-update="stream"
           phx-viewport-top={@has_newer && JS.push("newer-activity", page_loading: true)}
           phx-viewport-bottom={@has_older && JS.push("older-activity", page_loading: true)}
-          class={["space-y-3", @has_newer && "pt-[36rem]", @has_older && "pb-[36rem]"]}
+          class="space-y-3"
         >
           <li
             :for={{dom_id, event} <- @events}
