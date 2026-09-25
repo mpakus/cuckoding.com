@@ -316,11 +316,19 @@ filters** restores the board. Each permitted move has a labeled native select
 and submit button. Drag-and-drop exposes the same server-authorized targets
 when their columns are visible and reconciles from the durable command result.
 Accepted moves use a polite status region and rejected moves an alert. Task
-title, description, and priority are editable only in Draft or Ready, with an
-event recorded before projection changes. Task detail gives state-specific next
-steps, requires local edits to be saved before marking Ready or preparing a run,
-and keeps the description readable after editing is locked. Unsaved indicators
+title, description, and priority are editable in Draft or Ready, and after a
+delivery run leaves the task Blocked, Failed, or Cancelled with no recorded
+running processes. The shared save command rechecks eligibility in the same
+transaction as the edit and its audit event; a stale browser cannot edit a
+running task. Task detail gives state-specific next steps, requires local edits
+to be saved before marking Ready, preparing a run, or retrying, and keeps entered
+text and validation errors through activity refresh. If another action locks
+editing, the draft remains visible with saving disabled. Unsaved indicators
 are warnings, not auto-save or a browser-navigation guard.
+Edits leave previous run events, worktrees, and artifacts unchanged. A new retry
+loads the saved request, and its assigned planning agent revisits the
+specification through the existing workflow. There is no separate agent editing
+session or automatic application of agent-written task changes.
 Task detail also shows the latest redacted Specifications message and a bounded,
 expandable timeline of stage transitions, artifacts, failures, and public agent
 messages across its runs. Agent messages appear

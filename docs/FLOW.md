@@ -38,7 +38,9 @@ Project setup, board setup, board task intake, and delivery execution are separa
    agent session. Once output exists, Artifacts follows the selected log's last
    5,000 lines in LiveView and offers a full filtered download; viewer pause does
    not pause execution. See [UI_DASHBOARD.md](UI_DASHBOARD.md) for safety limits.
-   A blocked or failed delivery task offers **Retry with a new run**. It closes
+   A blocked or failed delivery task allows editing its title, description, and
+   priority once all recorded processes have stopped. Save changes before
+   **Retry with a new run**. It closes
    the stopped blocked run as failed, returns the task to Ready, and prepares a
    new queued run with a distinct branch/worktree. The user can start the new run explicitly; project automatic mode also picks up queued delivery runs when capacity allows. Prior runs, worktrees, and evidence are
    retained; uncommitted changes from the old worktree are not copied.
@@ -159,7 +161,7 @@ lifecycle states; workflow stages appear in the run timeline.
 ## Domain levels
 
 - **Board:** a durable process with a workflow version, role assignments, concurrency budget, and Kanban view.
-- **Task:** user intent represented as a card. It may be edited while in Draft or Ready; material edits during execution create a new revision and may invalidate the current run.
+- **Task:** user intent represented as a card. It may be edited in Draft or Ready, or after a stopped delivery run in Blocked, Failed, or Cancelled. Active execution locks editing. Saved changes are used by a new retry; prior run evidence is retained.
 - **Task proposal:** untrusted, source-cited planning output owned by a hidden board-intake task. It is not a Kanban card until selected by a human and imported.
 - **Run:** one execution of a task against a fixed base revision, workflow, policy, and plugin snapshot.
 - **Stage attempt:** one try at a workflow stage.
@@ -175,9 +177,9 @@ lifecycle states; workflow stages appear in the run timeline.
 | `waiting` | Approval, dependency, budget, rate limit, or reconciliation | Resolve, approve, extend budget, pause, stop |
 | `paused` | Soft stop; runtime may remain allocated | Resume, hibernate, stop |
 | `hibernated` | Compute released; durable state preserved | Resume, stop, archive |
-| `blocked` | Cannot continue automatically | Retry, edit policy, reassign, stop |
+| `blocked` | Cannot continue automatically | Edit task after processes stop, retry, edit policy, reassign, stop |
 | `done` | Reviewed task completed locally or release handoff completed | Extract knowledge, archive, reopen as new run |
-| `failed` | Retry policy exhausted | Retry as new attempt, diagnose, stop |
+| `failed` | Retry policy exhausted | Edit task after processes stop, retry as new attempt, diagnose, stop |
 | `cancelled` | Explicitly ended | Archive or restart as new run |
 | `archived` | Removed from active boards; history kept | Restore, delete (confirmed) |
 
@@ -335,6 +337,11 @@ The evaluator checks attempt, active-time, wall-time, token, and cost budgets; r
 
 ## Retry semantics
 
+- A stopped delivery task may be edited before retry. Eligibility is rechecked
+  atomically with the save and audit event; any recorded running process for the
+  task prevents editing. Unsaved form changes prevent the UI retry action. Saving
+  does not start work or rewrite historical run events/artifacts. The new run's
+  planning stage uses the saved title/description to revise its specification.
 - Manual retry of a blocked or failed delivery task prepares a new run. It
   refuses to proceed while the previous run has a recorded running process;
   duplicate requests cannot create a second queued run. If new preparation

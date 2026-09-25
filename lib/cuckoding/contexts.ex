@@ -37,6 +37,10 @@ defmodule Cuckoding.Workflows do
 
   import Ecto.Query
 
+  alias Cuckoding.Execution.Environment
+  alias Cuckoding.Execution.EventStore
+  alias Cuckoding.Execution.ProcessRecord
+  alias Cuckoding.Execution.Run
   alias Cuckoding.Identifier
   alias Cuckoding.Repo
   alias Cuckoding.Workflows.Approval
@@ -143,12 +147,41 @@ defmodule Cuckoding.Workflows do
   def get_task(id), do: Repo.get(Task, id)
 
   def update_task(task_id, attrs) do
-    case Repo.get(Task, task_id) do
-      %Task{state: state} = task when state in ["draft", "ready"] -> edit_task(task, attrs)
-      %Task{} -> {:error, :task_not_editable}
-      nil -> {:error, :task_not_found}
-    end
+    EventStore.transaction(fn ->
+      with %Task{} = task <- Repo.get(Task, task_id),
+           true <- task_editable?(task),
+           {:ok, updated} <- edit_task(task, attrs) do
+        updated
+      else
+        nil -> Repo.rollback(:task_not_found)
+        false -> Repo.rollback(:task_not_editable)
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
   end
+
+  def task_editable?(%Task{state: state}) when state in ["draft", "ready"], do: true
+
+  def task_editable?(%Task{kind: "delivery", state: state} = task)
+      when state in ["blocked", "failed", "cancelled"] do
+    latest =
+      Repo.one(
+        from(run in Run, where: run.task_id == ^task.id, order_by: [desc: run.sequence], limit: 1)
+      )
+
+    match?(%Run{state: ^state}, latest) and
+      not Repo.exists?(
+        from(process in ProcessRecord,
+          join: environment in Environment,
+          on: environment.id == process.environment_id,
+          join: run in Run,
+          on: run.id == environment.run_id,
+          where: run.task_id == ^task.id and process.state == "running"
+        )
+      )
+  end
+
+  def task_editable?(_task), do: false
 
   def allowed_task_transitions(%Task{} = task),
     do: Cuckoding.Execution.Transitions.allowed_task_transitions(task)
@@ -184,6 +217,7 @@ defmodule Cuckoding.Workflows do
         public_summary: "Task details edited",
         payload: %{
           "task_id" => task.id,
+          "task_state" => task.state,
           "fields" => changed_fields(task, validated)
         }
       }

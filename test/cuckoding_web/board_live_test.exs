@@ -477,6 +477,6 @@ defmodule CuckodingWeb.BoardLiveTest do
 
     {:ok, locked, _html} = live(conn, ~p"/boards/#{board.id}/tasks/#{alpha.id}")
     refute has_element?(locked, "#task-edit")
-    assert has_element?(locked, "p", "Task details can be edited only in Draft or Ready")
+    assert has_element?(locked, "p", "after a blocked, failed, or cancelled run")
   end
 end

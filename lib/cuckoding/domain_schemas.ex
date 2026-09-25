@@ -241,6 +241,9 @@ defmodule Cuckoding.Workflows.Task do
     record
     |> cast(attrs, [:title, :description, :priority])
     |> validate_required([:title, :priority])
+    |> validate_length(:title, max: 200)
+    |> validate_length(:description, max: 10_000)
+    |> validate_number(:priority, greater_than_or_equal_to: -100, less_than_or_equal_to: 100)
   end
 
   @doc false

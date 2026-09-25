@@ -29,6 +29,8 @@ defmodule CuckodingWeb.TaskLive do
          page_title: task.title,
          board: board,
          task: task,
+         task_input: task_input(task),
+         editable: Workflows.task_editable?(task),
          unsaved_changes: false,
          runs: runs,
          messages: messages,
@@ -48,7 +50,8 @@ defmodule CuckodingWeb.TaskLive do
   @impl true
   def handle_info({:activity_event, run_id, _sequence}, socket) do
     if !socket.assigns.activity_refresh_pending and
-         Enum.any?(socket.assigns.runs, &(&1.id == run_id)) do
+         (run_id == "task:" <> socket.assigns.task.id or
+            Enum.any?(socket.assigns.runs, &(&1.id == run_id))) do
       Process.send_after(self(), :refresh_task_activity, 250)
       {:noreply, assign(socket, activity_refresh_pending: true)}
     else
@@ -64,8 +67,8 @@ defmodule CuckodingWeb.TaskLive do
   end
 
   @impl true
-  def handle_event("edit", _params, socket),
-    do: {:noreply, assign(socket, unsaved_changes: true)}
+  def handle_event("edit", %{"task" => attrs}, socket),
+    do: {:noreply, remember_input(socket, attrs)}
 
   def handle_event("show-older-messages", _params, socket) do
     limit = min(socket.assigns.message_limit + @message_page, @maximum_visible_messages)
@@ -80,20 +83,24 @@ defmodule CuckodingWeb.TaskLive do
   end
 
   def handle_event(action, _params, %{assigns: %{unsaved_changes: true}} = socket)
-      when action in ["mark-ready", "prepare-run"] do
+      when action in ["mark-ready", "prepare-run", "retry-task"] do
     {:noreply,
      assign(socket,
-       error: "Save your task changes before marking it Ready or preparing a run.",
+       error: "Save your task changes before marking it Ready, preparing a run, or retrying.",
        notice: nil
      )}
   end
 
   def handle_event("save", %{"task" => attrs}, socket) do
+    socket = remember_input(socket, attrs)
+
     case Workflows.update_task(socket.assigns.task.id, attrs) do
       {:ok, task} ->
         {:noreply,
          assign(socket,
            task: task,
+           task_input: task_input(task),
+           editable: Workflows.task_editable?(task),
            unsaved_changes: false,
            page_title: task.title,
            notice: "Task details saved.",
@@ -104,8 +111,7 @@ defmodule CuckodingWeb.TaskLive do
         {:noreply, assign(socket, error: changeset_error(changeset), notice: nil)}
 
       {:error, :task_not_editable} ->
-        {:noreply,
-         assign(socket, error: "Task details can be edited only in Draft or Ready.", notice: nil)}
+        {:noreply, assign(socket, editable: false, error: edit_unavailable(), notice: nil)}
 
       {:error, _reason} ->
         {:noreply,
@@ -281,12 +287,23 @@ defmodule CuckodingWeb.TaskLive do
         <.host_runner_notice />
 
         <form
-          :if={editable?(@task)}
+          :if={@editable || @unsaved_changes}
           id="task-edit"
           phx-change="edit"
           phx-submit="save"
           class="space-y-5"
         >
+          <p
+            :if={@task.state in ["blocked", "failed", "cancelled"]}
+            class="text-sm leading-6 text-slate-700"
+          >
+            Edit the request, scope, or acceptance criteria, then save before retrying.
+            Previous run logs and evidence stay unchanged. On a new run, the assigned
+            planning agent (Speculator) revises the specification from your saved details.
+          </p>
+          <p :if={!@editable} class="text-sm text-red-800">
+            {edit_unavailable()} Your unsaved text is retained below.
+          </p>
           <p :if={@unsaved_changes} role="status" class="text-sm text-slate-700">
             Unsaved changes. Save this task before leaving or starting work.
           </p>
@@ -295,7 +312,7 @@ defmodule CuckodingWeb.TaskLive do
             <input
               type="text"
               name="task[title]"
-              value={@task.title}
+              value={@task_input["title"]}
               required
               maxlength="200"
               aria-invalid={if(@error, do: "true", else: "false")}
@@ -310,7 +327,7 @@ defmodule CuckodingWeb.TaskLive do
               rows="6"
               maxlength="10000"
               class="rounded-md border border-slate-400 px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2"
-            >{@task.description}</textarea>
+            >{@task_input["description"]}</textarea>
           </label>
 
           <label class="grid max-w-40 gap-1 font-medium text-slate-800">
@@ -318,7 +335,7 @@ defmodule CuckodingWeb.TaskLive do
             <input
               type="number"
               name="task[priority]"
-              value={@task.priority}
+              value={@task_input["priority"]}
               min="-100"
               max="100"
               required
@@ -328,6 +345,7 @@ defmodule CuckodingWeb.TaskLive do
 
           <button
             type="submit"
+            disabled={!@editable}
             phx-disable-with="Saving task…"
             class="min-h-10 rounded-md bg-slate-950 px-4 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
           >
@@ -335,10 +353,17 @@ defmodule CuckodingWeb.TaskLive do
           </button>
         </form>
 
-        <p :if={!editable?(@task)} class="rounded-md border border-slate-300 p-4 text-slate-700">
-          Task details can be edited only in Draft or Ready.
+        <p
+          :if={!@editable && !@unsaved_changes}
+          class="rounded-md border border-slate-300 p-4 text-slate-700"
+        >
+          {edit_unavailable()}
         </p>
-        <section :if={!editable?(@task)} aria-labelledby="task-description-heading" class="space-y-3">
+        <section
+          :if={!@editable && !@unsaved_changes}
+          aria-labelledby="task-description-heading"
+          class="space-y-3"
+        >
           <h2 id="task-description-heading" class="text-xl font-semibold">Task details</h2>
           <p class="whitespace-pre-wrap text-slate-700">
             {@task.description || "No details were added to this task."}
@@ -433,7 +458,20 @@ defmodule CuckodingWeb.TaskLive do
     """
   end
 
-  defp editable?(task), do: task.state in ["draft", "ready"]
+  defp task_input(task),
+    do: %{"title" => task.title, "description" => task.description, "priority" => task.priority}
+
+  defp remember_input(socket, attrs) do
+    assign(socket,
+      task_input:
+        Map.merge(socket.assigns.task_input, Map.take(attrs, ~w(title description priority))),
+      unsaved_changes: true
+    )
+  end
+
+  defp edit_unavailable,
+    do:
+      "Task details are editable in Draft or Ready, or after a blocked, failed, or cancelled run has stopped all its processes."
 
   defp next_step(%{state: "draft"}, _runs),
     do:
@@ -453,7 +491,7 @@ defmodule CuckodingWeb.TaskLive do
 
   defp next_step(%{state: state}, _runs) when state in ["blocked", "failed", "cancelled"],
     do:
-      "Review the stopped or failed run. Retry prepares a fresh branch and worktree from the current base; the previous run, worktree, and evidence remain available. You start the new run after checking its agents."
+      "Review the stopped or failed run, edit the task details below, and save any changes. Retry prepares a fresh branch and worktree from the current base; the previous run, worktree, and evidence remain available. The new run uses your saved request."
 
   defp next_step(_task, _runs),
     do: "Open the current run for live progress, required approvals, and available controls."
@@ -473,13 +511,16 @@ defmodule CuckodingWeb.TaskLive do
 
     assign(socket,
       task: task,
+      task_input:
+        if(socket.assigns.unsaved_changes, do: socket.assigns.task_input, else: task_input(task)),
+      editable: Workflows.task_editable?(task),
       page_title: task.title,
       runs: Execution.list_runs(task.id),
       messages: messages,
       more_messages?: more? and socket.assigns.message_limit < @maximum_visible_messages,
       specification: latest_specification(task.id),
-      notice: notice,
-      error: nil
+      notice: notice || socket.assigns.notice,
+      error: if(socket.assigns.unsaved_changes, do: socket.assigns.error)
     )
   end
 

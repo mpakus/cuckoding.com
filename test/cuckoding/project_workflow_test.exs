@@ -481,6 +481,44 @@ defmodule Cuckoding.ProjectWorkflowTest do
 
     {:ok, task_view, _html} = live(conn, ~p"/boards/#{board.id}/tasks/#{task.id}")
     assert has_element?(task_view, "#retry-task", "Retry with a new run")
+    assert has_element?(task_view, "#task-edit", "planning agent (Speculator)")
+    stopped = Repo.get!(Run, first.id)
+    previous_events = Repo.all(from(event in RunEvent, where: event.run_id == ^first.id))
+
+    form(task_view, "#task-edit",
+      task: %{title: "Revised request", description: "Check docs/PLAN.md"}
+    )
+    |> render_change()
+
+    render_click(element(task_view, "#retry-task"))
+    assert has_element?(task_view, "#task-error", "Save your task changes")
+    assert length(Execution.list_runs(task.id)) == 1
+    send(task_view.pid, :refresh_task_activity)
+    assert has_element?(task_view, "#task-edit input[value='Revised request']")
+    assert has_element?(task_view, "#task-edit textarea", "Check docs/PLAN.md")
+    assert has_element?(task_view, "#task-error", "Save your task changes")
+
+    form(task_view, "#task-edit", task: %{title: "", description: "Retain this draft"})
+    |> render_submit()
+
+    send(task_view.pid, :refresh_task_activity)
+    assert has_element?(task_view, "#task-error", "Task could not be saved")
+    assert has_element?(task_view, "#task-edit textarea", "Retain this draft")
+
+    form(task_view, "#task-edit",
+      task: %{title: "Revised request", description: "Check docs/PLAN.md", priority: "4"}
+    )
+    |> render_submit()
+
+    assert has_element?(task_view, "#task-status", "Task details saved")
+    assert Workflows.get_task(task.id).state == "blocked"
+    assert Repo.get!(Run, first.id) == stopped
+    assert Repo.all(from(event in RunEvent, where: event.run_id == ^first.id)) == previous_events
+
+    assert Repo.get_by!(RunEvent, run_id: "task:" <> task.id, event_type: "task.edited").payload[
+             "task_state"
+           ] == "blocked"
+
     render_click(element(task_view, "#retry-task"))
     assert_redirect(task_view)
 
@@ -490,11 +528,19 @@ defmodule Cuckoding.ProjectWorkflowTest do
     assert second.state == "queued"
     assert second.branch != first.branch
     assert File.dir?(first_environment.worktree_path)
+    assert {:ok, retried} = WalkingSkeleton.load(second.id)
+    assert retried.task.title == "Revised request"
+    assert retried.task.description == "Check docs/PLAN.md"
     assert {:error, :task_not_retryable} = ProjectWorkflow.retry_task(task.id)
     assert length(Execution.list_runs(task.id)) == 2
 
     assert_transition(Execution.transition_run(second.id, "running", "retry-test:second-running"))
+
+    assert {:error, :task_not_editable} =
+             Workflows.update_task(task.id, %{"description" => "Late edit"})
+
     assert_transition(Execution.transition_run(second.id, "failed", "retry-test:second-failed"))
+    assert {:ok, _} = Workflows.update_task(task.id, %{"description" => "Failed-run revision"})
     assert {:ok, %{run: third}} = ProjectWorkflow.retry_task(task.id)
     assert third.sequence == 3
     assert third.branch != second.branch
@@ -523,7 +569,10 @@ defmodule Cuckoding.ProjectWorkflowTest do
     assert fourth.sequence == 4
   end
 
-  test "retry refuses a blocked run with a recorded live process", %{project: project} do
+  test "editing and retry refuse a stopped run with a recorded live process", %{
+    project: project,
+    conn: conn
+  } do
     {:ok, board} =
       ProjectWorkflow.create_board(project.id, %{
         "name" => "Guarded retry",
@@ -535,8 +584,10 @@ defmodule Cuckoding.ProjectWorkflowTest do
     {:ok, %{run: run, environment: environment}} = ProjectWorkflow.prepare_task(task.id)
     assert_transition(Execution.transition_run(run.id, "running", "guarded:running"))
     assert_transition(Execution.transition_run(run.id, "blocked", "guarded:blocked"))
+    {:ok, view, _html} = live(conn, ~p"/boards/#{board.id}/tasks/#{task.id}")
+    assert has_element?(view, "#task-edit")
 
-    assert {:ok, %ProcessRecord{}} =
+    assert {:ok, %ProcessRecord{} = process} =
              Execution.record_process(%{
                environment_id: environment.id,
                pid: 99_999,
@@ -546,8 +597,27 @@ defmodule Cuckoding.ProjectWorkflowTest do
              })
 
     assert {:error, :previous_process_running} = ProjectWorkflow.retry_task(task.id)
+
+    assert {:error, :task_not_editable} =
+             Workflows.update_task(task.id, %{"title" => "Unsafe edit"})
+
+    refute Workflows.task_editable?(Workflows.get_task(task.id))
+    render_submit(form(view, "#task-edit", task: %{title: "Keep my draft"}))
+    assert has_element?(view, "#task-edit input[value='Keep my draft']")
+    assert has_element?(view, "#task-edit button[disabled]")
+    assert has_element?(view, "#task-error", "stopped all its processes")
+    assert Workflows.get_task(task.id).title == "Guarded work"
     assert Repo.get!(Run, run.id).state == "blocked"
     assert length(Execution.list_runs(task.id)) == 1
+
+    {:ok, _} = Execution.finish_process(process, 1, DateTime.utc_now())
+    assert_transition(Execution.transition_run(run.id, "cancelled", "guarded:cancelled"))
+    assert Workflows.task_editable?(Workflows.get_task(task.id))
+    assert {:ok, _} = Workflows.update_task(task.id, %{"title" => "Safe revision"})
+    assert {:error, %Ecto.Changeset{}} = Workflows.update_task(task.id, %{"priority" => "101"})
+
+    assert {:error, %Ecto.Changeset{}} =
+             Workflows.update_task(task.id, %{"description" => String.duplicate("x", 10_001)})
   end
 
   test "failed retry preparation leaves the task Ready with the old run intact", %{
