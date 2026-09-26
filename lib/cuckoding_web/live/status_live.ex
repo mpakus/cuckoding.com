@@ -246,6 +246,12 @@ defmodule CuckodingWeb.StatusLive do
           <a href="#approvals-heading">Approvals ({length(@pending_approvals)})</a>
         </nav>
 
+        <CuckodingWeb.BoardControlComponents.panel
+          :for={stats <- @board_executions}
+          stats={stats}
+          compact
+        />
+
         <section
           id="workspace-execution-controls"
           aria-labelledby="workspace-execution-heading"
@@ -1019,6 +1025,7 @@ defmodule CuckodingWeb.StatusLive do
     active_sessions = Enum.filter(agent_cards, &active_session?/1)
 
     assign(socket,
+      board_executions: Cuckoding.BoardControl.Statistics.summaries(),
       execution_control: Cuckoding.RunControl.application_state(),
       health: Cuckoding.Health.snapshot(),
       activity_status:

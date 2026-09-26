@@ -264,17 +264,24 @@ defmodule Cuckoding.ProjectWorkflow do
     end
   end
 
-  def prepare_task(task_id) when is_binary(task_id) do
+  def prepare_task(task_id, options \\ []) when is_binary(task_id) do
     with %Task{state: "ready", active_run_id: nil} = task <- Workflows.get_task(task_id),
          board when not is_nil(board) <- Workflows.get_board(task.board_id),
          :ok <- active_board(board.status),
+         :ok <- Cuckoding.BoardControl.preparation(task, options[:board_execution_id]),
          project when not is_nil(project) <- Projects.get_project(board.project_id),
-         policy when not is_nil(policy) <- Projects.latest_config_version(project.id),
+         policy when not is_nil(policy) <- preparation_policy(project.id, options),
          :ok <- trusted_policy(policy.trusted_at),
          :ok <- runnable_roles(board.id, task),
          :ok <- no_queued_run(task.id),
-         {:ok, base_sha} <- GitService.capture_base(project),
-         {:ok, run} <- Execution.create_run(run_attrs(task, policy, base_sha)),
+         {:ok, base_sha} <- preparation_base(project, options),
+         attrs =
+           Map.put(
+             run_attrs(task, policy, base_sha),
+             :board_execution_id,
+             options[:board_execution_id]
+           ),
+         {:ok, run} <- Execution.create_run(attrs),
          {:ok, environment} <- prepare_environment(project, run),
          {:ok, _event} <- run_prepared(project, board, task, run) do
       {:ok, %{run: run, environment: environment}}
@@ -285,9 +292,30 @@ defmodule Cuckoding.ProjectWorkflow do
     end
   end
 
+  defp preparation_policy(project_id, options) do
+    case options[:board_execution_id] do
+      nil ->
+        Projects.latest_config_version(project_id)
+
+      id ->
+        Repo.get(
+          Cuckoding.Projects.ProjectConfigVersion,
+          Cuckoding.BoardControl.get(id).snapshot_json["policy_id"]
+        )
+    end
+  end
+
+  defp preparation_base(project, options) do
+    case options[:board_execution_id] do
+      nil -> GitService.capture_base(project)
+      id -> {:ok, Cuckoding.BoardControl.get(id).head_sha}
+    end
+  end
+
   @doc "Closes a stopped run and prepares a fresh, reviewable run for its task."
   def retry_task(task_id) when is_binary(task_id) do
     with %Task{kind: "delivery"} = task <- Workflows.get_task(task_id),
+         :ok <- Cuckoding.BoardControl.preparation(task, nil),
          {:ok, previous_run} <- retryable_run(task),
          :ok <- no_running_processes(previous_run.id),
          :ok <- close_blocked_run(previous_run),

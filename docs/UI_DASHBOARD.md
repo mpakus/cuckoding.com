@@ -278,6 +278,24 @@ the host runner's advisory network limitation.
 
 ### Board view
 
+**Start board** opens the shared LiveView modal with the fixed Draft/Ready queue,
+saved roles/models, budgets, dependency/exclusion checks, base revision and an
+explicit automatic-local-completion checkbox. The board development panel shows
+controller/delivery state, public decisions, current/next task, membership totals,
+role/stage progress, requested/observed model and recorded timing. Pause, Resume,
+Stop, Skip, Retry and pending-request Refresh use revision-checked commands;
+Stop/Skip/Refresh show confirmation. Refresh displays frozen requests and
+dependency IDs and rejects changes after that review.
+
+The home dashboard mirrors the latest batch per board and links to its controls.
+Expanded statistics include all controller and delivery attempts, usage coverage,
+cost provenance/currency, sampled resources with timestamp, and links to each
+run's specs/reviews/tests/logs/preview plus branch/worktree provenance. Missing
+measurements display Unavailable. Pause and sleep are separate, potentially
+overlapping intervals. Stage transitions reuse the existing 200 ms TaskBoard
+hook; text input, focus and native disclosure state survive updates. See
+[CUCKODING-CONTROL.md](CUCKODING-CONTROL.md) for outcomes and acceptance evidence.
+
 Each board has its own Kanban and snapshotted workflow and assignments. Current
 board creation accepts name, description, and concurrency; workflow selection,
 budget editing, and board-assignment editing are not exposed there. Kanban

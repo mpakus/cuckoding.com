@@ -8,6 +8,10 @@ Telemetry must make work attributable, failures diagnosable, costs explainable, 
 
 `project_id → board_id → task_id → run_id → stage_attempt_id → agent_session_id`, plus adapter, runtime version, requested/actual model, environment ID, process ID, command ID, plugin keys, knowledge item IDs, and trace/span IDs.
 
+For board batches, `runs.board_execution_id` links controller and delivery runs
+to one execution. Board events carry the execution ID and revision in the
+existing `board:<id>` stream. Membership is counted separately from attempts.
+
 ## Metric classes
 
 ### Workflow
@@ -47,6 +51,28 @@ Items by kind/status over time, candidates per run, approval rate, injected/retr
 
 Assertion time, sleep gaps per run, reconciliation outcomes (continued, resumed, recovered, blocked).
 
+### Board batch accounting
+
+`BoardControl.Statistics` queries all available records linked to the batch,
+including every retry and controller session. It does not derive totals from
+Agent Floor's 100-session or 50-operation display windows.
+
+| Measure | Current calculation and limit |
+| --- | --- |
+| Progress | One count per membership: pending, active, done, blocked, skipped or deferred; neither skipped nor deferred means completed |
+| Attempts and reviews | Retained runs and stage/session history; Review attempts after the first count as returns |
+| Time | Clock-elapsed batch wall time, persisted stage active time, board pause intervals and recorded machine sleep gaps; active work may be partial and sleep may overlap pause |
+| Tokens | Each reported dimension summed separately, with session coverage; cache/reasoning dimensions are not added into a fabricated total |
+| Cost | Integer micros grouped by currency and provider-reported/catalog-estimate source; missing measurements remain unavailable |
+| Resources | CPU deltas between retained samples, largest sampled process-tree memory, latest sampled active memory, owned process groups and observed ports; timestamp and coverage expose partial/stale observations |
+
+Raw resource samples still follow the retention rules above. This batch view
+does not reconstruct pruned samples from metric rollups, so complete membership
+coverage is not a promise of complete lifetime resource telemetry. No samples
+means unavailable. The panel exposes the recorded controller decision count and
+cap; it does not predict remaining spend or time. See
+[CUCKODING-CONTROL.md](CUCKODING-CONTROL.md).
+
 ## Cost calculation
 
 1. Prefer provider-reported monetary cost.
@@ -61,8 +87,19 @@ Plugin optimization claims record raw, optimized, and saved units with their own
 
 ## Event pipeline
 
-Workers emit structured internal telemetry. A redaction processor removes secrets and unsafe content. Durable business/audit events go to SQLite before PubSub. High-volume samples are batched. Optional OpenTelemetry export is disabled by default and must declare its destination and data classes.
+Workers emit structured internal telemetry. Redaction removes secrets and unsafe
+content before persistence. Durable business/audit events go to SQLite before
+PubSub. Samples and rollups are local. An optional OpenTelemetry exporter is a
+future extension; no outbound exporter is configured by the current source.
 
 ## Retention and export
 
-Raw sensitive logs use the shortest useful retention. Aggregates and audit facts use longer retention. Users can export redacted JSON/CSV bundles with schema version, timezone, price catalog version, confidence, and missing-data flags. Deletion and consolidation never rewrite original cost facts without an audit event.
+Raw resource samples and rollups have the age/coverage pruning described above.
+Full redacted process artifacts and diagnostic payload fragments have no automatic
+age purge. Original usage/cost and audit facts are retained; never infer a 30-day
+log deletion policy from the metrics retention window. See [DB.md](DB.md#retention).
+
+The implemented diagnostics export is an explicit, allowlisted local support
+bundle, not a general metrics export. Schema-versioned JSON/CSV telemetry export
+with price-catalog, confidence and missing-data fields remains a design target.
+There is no automatic outbound product analytics or crash-report upload.

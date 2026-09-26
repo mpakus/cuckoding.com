@@ -2,7 +2,9 @@
 
 ## Supported toolchain
 
-Task 0101 pins the application foundation to versions verified from official upstream metadata on 2026-09-17.
+The application foundation was pinned from official upstream metadata in task
+0101. The table reflects the current checked-in pins; it is not a fresh inventory
+of the user's installed tools.
 
 | Component | Version |
 | --- | --- |
@@ -15,7 +17,7 @@ Task 0101 pins the application foundation to versions verified from official ups
 | Esbuild wrapper / binary | 0.10.0 / 0.25.4 |
 | Bandit | 1.12.5 |
 
-The exact Erlang and Elixir versions are in `.tool-versions`; direct and transitive Elixir dependencies are fixed by `mix.exs` and `mix.lock`. Updating any pin is an explicit maintenance change with the full quality gate. Tailwind 4.3.0 was evaluated but its official arm64 binary was terminated by macOS before startup; 4.2.1 is the newest verified compiler for this target.
+The exact Erlang and Elixir versions are in `.tool-versions`; direct and transitive Elixir dependencies are fixed by `mix.exs` and `mix.lock`. Updating any pin is an explicit maintenance change with the full quality gate. Tailwind 4.3.0 was evaluated but its official arm64 binary was terminated by macOS before startup; 4.2.1 is the compiler retained from that verification.
 
 ## Clean bootstrap
 
@@ -27,7 +29,11 @@ rtk mix quality
 rtk env PHX_SERVER=true mix phx.server
 ```
 
-`mix setup` fetches dependencies, installs the pinned Tailwind and esbuild binaries, and builds assets. `mix quality` runs the formatter check, warnings-as-errors compilation, tests, Credo, Sobelow, and the Hex retirement audit. The server listens only on `127.0.0.1:4000`; open `http://127.0.0.1:4000`.
+`mix setup` fetches dependencies, creates/migrates the development database,
+installs the pinned Tailwind and esbuild binaries, and builds assets. `mix quality`
+checks formatting, unused locks, warnings-as-errors compilation, tests, strict
+Credo, Sobelow and the Hex dependency audit. The server listens only on
+`127.0.0.1:4000`; open `http://127.0.0.1:4000`.
 
 ## Developer application build
 
@@ -158,8 +164,13 @@ role configuration, and only then creates the feature worktree.
 `Cuckoding.GuidedRun` is the current run-page delivery launcher, delegating to
 the walking-skeleton execution service. Its old all-in-one constructor is not
 the dashboard onboarding flow. `Cuckoding.BoardTaskIntake` handles planning and
-proposal import separately. The run page must authenticate and start a queued
-run; preparing it does not launch a provider.
+proposal import separately. Preparation alone does not launch a provider;
+manual Start, project autopilot and the board controller use shared admission
+and live authorization checks. `BoardControl` uses the existing supervised
+dispatcher for fixed Draft/Ready batches, active Speculator decisions and reviewed
+commit handoff. Project autopilot omits claimed boards. Board controls, complete
+batch statistics and the start preflight are described in
+[CUCKODING-CONTROL.md](CUCKODING-CONTROL.md).
 
 Saved Codex accounts select the provider's file store in one private app-owned
 `CODEX_HOME` for login and execution; existing keyring sign-ins need to be
@@ -196,6 +207,8 @@ The application contexts own these implemented domain boundaries:
 | --- | --- |
 | `Cuckoding.Projects` | Project identity and configuration revisions |
 | `Cuckoding.Workflows` | Workflow definitions, boards, tasks, approvals, and transitions |
+| `Cuckoding.BoardControl` | Fixed board execution, validated decisions, reviewed head, commands and whole-batch accounting |
+| `Cuckoding.ProjectAutopilot` | Concurrent project Ready-task admission; its worker also dispatches sequential board batches |
 | `Cuckoding.Execution` | Durable commands, runs, attempts, leases, and host execution |
 | `Cuckoding.Adapters` | Replaceable agent-runtime contracts and normalized results |
 | `Cuckoding.Plugins` | Plugin manifests, activation, capabilities, and health |
@@ -213,7 +226,8 @@ LiveViews render durable context results; they do not own workflow state.
 - `/projects/:id/edit` manages saved agents, project role assignments, and boards.
 - `/settings/agents` is the machine-wide saved-agent catalog with executable
   discovery, explicit manual override, app-owned sign-in and model selection.
-- `/boards/:id` creates Draft tasks and planning runs and shows the Kanban.
+- `/boards/:id` creates Draft tasks/planning runs, starts reviewed board batches,
+  and shows Kanban, batch controls, statistics and evidence.
 - `/boards/:board_id/tasks/:id` edits eligible tasks and prepares their runs.
 - `/runs/:id` authenticates/starts queued work and shows progress, failures, proposals, and evidence.
 - `/agents` is Agent Floor; `/agents/:id` inspects a recorded session, not a saved account.

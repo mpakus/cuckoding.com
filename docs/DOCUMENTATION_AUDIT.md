@@ -1,6 +1,39 @@
 # Documentation Audit
 
-## Active full-flow implementation — task 1038
+## Current source review — 2026-09-25
+
+Task 1050 checked README and docs against the current
+`feature/1049-board-controller` working tree, based on `55f1bd1`. The task 1049
+implementation is uncommitted at this review. This is documentation/source
+validation, not a new provider, browser, native-build, deployment or release run.
+Earlier entries below retain their original dates and scope.
+
+| Topic | Current source contract | Documentation correction |
+| --- | --- | --- |
+| Execution modes | Start board snapshots Draft/Ready cards and chains reviewed commits; Start project admits Ready work concurrently on unclaimed boards; individual runs remain available on unclaimed boards | README, product journey, flow and operator/developer guides now distinguish the three modes |
+| Control authority | Read-only Speculator proposes bounded decisions; shared host admission validates ownership, revision, order, authorization and capacity | Controller, configuration and architecture contracts are linked from entry-point docs |
+| Completion and roles | New defaults use Speculator → Implementor → Reviewer with corrections through Speculator; explicit local completion is implemented; custom roles have confirmed slots/grants | Removed current-tense claims that completion policy or role permissions are still unimplemented; legacy snapshots retain their original behavior |
+| Controls and recovery | Board Pause/Resume/Stop/Skip/Retry retain history and claims; skipped prerequisites defer dependents; uncertain recovery stops admission | Separate project admission pause, board process controls and workspace controls |
+| Data and metrics | Durable batch membership plus all available linked attempts/sessions; unknown usage stays unavailable; raw resource retention limits historical totals | Added batch policy/accounting scope and clarified that generic telemetry export remains planned |
+| Progress and acceptance | Task 1049 records 369 tests and 10 properties, migration/motion and rendered desktop/mobile evidence | Cite that recorded run; do not represent it as a fresh test or native/provider acceptance in task 1050 |
+| Historical evidence | Phase 0 inventory, walking-skeleton provider demo and previous signed builds belong to specific earlier artifacts | Mark historical sections clearly and direct readers to current development and release guides |
+
+Primary source paths inspected: `lib/cuckoding/board_control.ex`, its decision
+and statistics modules, `project_autopilot.ex`, `project_workflow.ex`,
+`guided_run.ex`, `walking_skeleton.ex`, `execution/scheduler.ex`,
+`execution/git_service.ex`, `run_control.ex`, `agent_bindings.ex`, board/home
+LiveViews and the controller component. Toolchain/bootstrap claims were checked
+against `.tool-versions`, `mix.exs`, configuration and existing build entrypoints.
+
+No-go remains in effect for beta enrollment/public MVP release. Task 1049's
+real-provider, physical sleep/wake and packaged-app gates remain open; the wider
+beta/interview, signed-updater and clean-machine requirements also remain open.
+Evidence: [1049 implementation](../worklog/2026-09-25-1049-board-controller.md),
+[1050 documentation checks](../worklog/2026-09-25-1050-current-documentation.md),
+[control checklist](CUCKODING-CONTROL.md) and
+[release decision](RELEASE_READINESS.md).
+
+## Full-flow implementation history — task 1038
 
 Task 1037 is integrated into local main at `5fa55bc`. Task 1038 now adds canonical
 new role defaults, both correction routes through Speculator, immutable default

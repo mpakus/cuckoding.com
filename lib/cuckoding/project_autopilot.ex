@@ -116,6 +116,7 @@ defmodule Cuckoding.ProjectAutopilot do
 
   @doc "One bounded admission pass; callable with a fake starter/probe in tests."
   def dispatch_once(options \\ []) do
+    Cuckoding.BoardControl.dispatch_once(options)
     if Cuckoding.RunControl.admission_open?(), do: dispatch_running_projects(options), else: :ok
   end
 
@@ -261,7 +262,9 @@ defmodule Cuckoding.ProjectAutopilot do
   defp start_queued([], _options), do: :ok
 
   defp start_queued(ids, options) do
-    Enum.each(queued_runs(ids), fn run ->
+    owned = Cuckoding.BoardControl.owned_board_ids()
+
+    Enum.each(Enum.reject(queued_runs(ids), &(&1.board_id in owned)), fn run ->
       if match?(%Projection{state: "running"}, get(run.project_id)) and
            capacity_for_queued?(run.project_id, run.board_id) do
         start_run(run.id, run.project_id, options)
@@ -462,20 +465,24 @@ defmodule Cuckoding.ProjectAutopilot.Worker do
 
   @impl true
   def init(options) do
-    if Keyword.get(options, :enabled, true), do: Process.send_after(self(), :tick, 0)
-    {:ok, nil}
+    enabled? = Keyword.get(options, :enabled, true)
+    if enabled?, do: Process.send_after(self(), :tick, 0)
+    {:ok, enabled?}
   end
 
   @impl true
   def handle_cast(:tick, state) do
-    dispatch()
+    if state, do: dispatch()
     {:noreply, state}
   end
 
   @impl true
   def handle_info(:tick, state) do
-    dispatch()
-    Process.send_after(self(), :tick, @tick_ms)
+    if state do
+      dispatch()
+      Process.send_after(self(), :tick, @tick_ms)
+    end
+
     {:noreply, state}
   end
 

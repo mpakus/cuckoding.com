@@ -36,16 +36,26 @@ defmodule Cuckoding.RunControl do
     do:
       "Run control could not finish safely. Recorded state is preserved, but process suspension or cleanup is unconfirmed. Inspect the run and retry the control."
 
-  def admit(run_id, callback) do
-    case locked(run_id, fn -> admitted_transaction(callback) end) do
+  def admit(run_id, callback, options \\ []) do
+    case locked("admission", fn -> check_admission(run_id, callback, options) end) do
       {:ok, result} -> result
       error -> error
     end
   end
 
-  defp admitted_transaction(callback) do
+  defp check_admission(run_id, callback, options) do
+    with :ok <- Cuckoding.Execution.Scheduler.check_run(run_id, options),
+         do: admitted_transaction(run_id, callback, options)
+  end
+
+  defp admitted_transaction(run_id, callback, options) do
     EventStore.transaction(fn ->
       unless admission_open?(), do: Repo.rollback(:application_paused)
+
+      case Cuckoding.BoardControl.admission(Repo.get!(Run, run_id), options) do
+        :ok -> :ok
+        {:error, reason} -> Repo.rollback(reason)
+      end
 
       case callback.() do
         {:error, reason} -> Repo.rollback(reason)
@@ -100,9 +110,30 @@ defmodule Cuckoding.RunControl do
                event_type: "run.control_requested",
                public_summary: "User requested #{action} for this run",
                payload: %{"action" => action}
-             }),
-           do: apply_control(skeleton, action)
+             }) do
+        apply_control(skeleton, action)
+      else
+        {:error, :run_not_found} when action == "stop" -> stop_failed_preparation(run_id)
+        error -> error
+      end
     end)
+  end
+
+  defp stop_failed_preparation(id) do
+    with %Run{state: state} = run when state in ~w(failed cancelled) <- Repo.get(Run, id),
+         nil <- Repo.get_by(Cuckoding.Execution.Environment, run_id: id),
+         false <- Repo.exists?(from a in StageAttempt, where: a.run_id == ^id),
+         [] <- Registry.lookup(Cuckoding.RunRegistry, {:orchestration, id}),
+         {:ok, _} <-
+           EventStore.append(id, %{
+             event_type: "run.control_stopped",
+             public_summary: "Failed preparation has no execution environment or agent attempts",
+             payload: %{}
+           }) do
+      {:ok, run}
+    else
+      _ -> {:error, :unconfirmed_preparation}
+    end
   end
 
   def control_all(action) when action in ["pause", "resume", "stop"] do
@@ -172,6 +203,8 @@ defmodule Cuckoding.RunControl do
     previous = latest(skeleton.run.id, "run.control_paused")
 
     with true <- admission_open?(),
+         :ok <- Cuckoding.BoardControl.resume_admission(skeleton.run),
+         :ok <- resume_capacity(skeleton),
          :ok <- resumable(skeleton.run.id, previous),
          {:ok, _environment} <- LocalProcessRunner.resume(skeleton.environment),
          {:ok, run} <- persist_resume(skeleton.run.id, previous) do
@@ -195,6 +228,15 @@ defmodule Cuckoding.RunControl do
   end
 
   defp apply_control(_skeleton, _action), do: {:error, :control_not_available}
+
+  defp resume_capacity(skeleton) do
+    case Cuckoding.Execution.Scheduler.check_board(skeleton.board.id,
+           exclude_run_id: skeleton.run.id
+         ) do
+      {:wait, reason} -> {:error, {:capacity, reason}}
+      other -> other
+    end
+  end
 
   defp persist_pause(%{run: %{state: "paused"}}), do: :ok
 

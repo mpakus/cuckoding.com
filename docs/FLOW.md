@@ -25,7 +25,7 @@ Project setup, board setup, board task intake, and delivery execution are separa
 2. **Board setup** creates a named board with the default versioned workflow,
    copied project role assignments (which may still be unassigned), and a chosen concurrency limit. **Assign agents to board** explicitly applies current project roles to an existing board for future runs and appends compatible bindings to queued runs without rewriting their snapshots. Workflow
    selection and board-level role/budget editors remain design targets.
-3. **Task execution** can be started manually or by **Start project**. Moving a task to Ready does not start it while the project is paused. Once the project is running, a supervised dispatcher admits eligible Ready delivery tasks using the existing scheduler, prepares a separate run/worktree for each, and starts the Speculator → Implementor → Reviewer flow for new defaults. The Ready card's **Set up and start** link opens task
+3. **Individual/project execution** applies on boards without a nonterminal board batch. Moving a task to Ready does not start it while project automatic work is paused. **Start project** admits eligible Ready delivery tasks across unclaimed boards through the scheduler, prepares a separate run/worktree for each, and starts the Speculator → Implementor → Reviewer flow for new defaults. The Ready card's **Set up and start** link opens task
    detail; an already prepared task links directly to its queued run.
    **Prepare run** accepts only a
    Ready task on an active board, rejects setup-only runtimes, snapshots the
@@ -76,6 +76,14 @@ Project setup, board setup, board task intake, and delivery execution are separa
    transition. Once any proposal is imported, model review cannot revise that
    planning batch. Changing project roles does not rewrite a prepared run;
    apply roles to the board and create a new planning run to use new models.
+6. **Start board** is a separate reviewed execution command. It can operate while
+   project automatic admission is paused, provided workspace admission is open.
+   It snapshots current Draft/Ready delivery cards and explicit local-completion
+   authorization, then uses the assigned Speculator to coordinate one delivery
+   task at a time. Board ownership blocks other manual/project preparation and
+   starts, including newly added cards. Draft-to-Ready promotion is audited.
+   Reviewed commits pass to the next worktree; unfinished/skipped changes do not.
+   See [board controls and stopping rules](CUCKODING-CONTROL.md#5-controls-blockers-and-recovery).
 
 Start-time saved-agent probes update the durable authorization observation
 before the queued run transitions. A rejected sign-in names the affected
@@ -90,7 +98,9 @@ boards without fabricating a first task.
 Project operation state and limits live in `project_autopilots`, not the LiveView
 or worker. Start validates an active project, at least one Ready or queued delivery
 run, runnable board roles, and a readable committed base for Ready work.
-Start/Pause/attention/done append project events. The supervised worker re-reads
+Start/Pause/attention/done append project events. This project mode is separate
+from board execution; project Pause does not pause an independently started
+board batch. The supervised worker re-reads
 running projects after restart and periodically admits work; it stops new
 admissions at the configured count of distinct blocked delivery tasks with open
 `blocker` review findings on their active runs. Preparation and start failures
@@ -113,8 +123,8 @@ The accepted product flow uses **Speculator, Implementor and Reviewer**, as
 clarified on 2026-09-24. Speculator creates specs and task descriptions from a
 prompt or project `.md` plan files. Reviewer reports its result and comments to
 Cuckoding; every revision returns through Speculator, which updates the task
-and specs before Implementor changes code/tests again. This is the target; the
-new default implements this routing. Legacy snapshots retain their original
+and specs before Implementor changes code/tests again. The new default implements
+this routing. Legacy snapshots retain their original
 definition, including any direct Coding return.
 
 ```mermaid
@@ -370,6 +380,22 @@ Before resume, the host Git service compares the current default branch, checked
 
 ## Concurrency and scheduling
 
+**Start board** snapshots the current Draft/Ready delivery cards after reviewing
+agents, budgets, dependencies, exclusions and automatic local completion. Its
+read-only Speculator controller proposes `start_task`, `block` or `finish`;
+Cuckoding validates the closed response against durable membership, revision
+and dependency-aware priority order. One delivery task runs at a time. A passing
+independent review completes locally and supplies the next task's base; the
+project default branch stays unchanged.
+
+The first hard blocker enters Needs attention. Pause retains the claim and
+verifies suspension. Stop retains history and closes the batch. Skip preserves
+unfinished work and defers dependent descendants; they never count as completed.
+Retry creates a new run after verified cleanup. Confirmed Refresh replaces only
+the reviewed pending requests/dependencies, leaving membership and grants fixed.
+Done requires every member to complete; Finished with skips retains visible
+unfinished membership. See [CUCKODING-CONTROL.md](CUCKODING-CONTROL.md).
+
 - Board concurrency limits cap active tasks.
 - Project limits cap active runs, ports, and aggregate memory.
 - Global limits protect the machine and provider budgets.
@@ -380,4 +406,4 @@ Before resume, the host Git service compares the current default branch, checked
 
 `Cuckoding.Execution.Scheduler` implements the Phase 5 admission plan from durable rows. It excludes unmet dependencies, orders each board by priority and age, rotates boards by their oldest last-scheduled time, and then applies board, trusted-policy project, and global agent-session limits. Admission fails closed when the replaceable host probe cannot establish available memory or loopback-port capacity. The scheduler returns stable unattended approval notification keys and delegates all process-starting and notification side effects through behaviours; it does not make the planner process authoritative. Board pause or hibernate first durably pauses new admission, then delegates each active run to the ownership-aware run controller. Resume reopens admission but leaves each run's resume as an explicit lifecycle action.
 
-`ProjectAutopilot.Worker` is the production caller for project-wide automatic admission. It selects only durable running projects, uses the scheduler for Ready delivery tasks, and starts already queued delivery runs within available running slots. Its periodic tick is disposable; project state and run claims survive a worker restart. Human-triggered manual Start remains available when project automatic mode is paused.
+`ProjectAutopilot.Worker` dispatches board batches as well as project-wide automatic admission. Project autopilot selects durable running projects and unclaimed boards, uses the scheduler for Ready delivery tasks, and starts queued runs through shared admission. Its periodic tick is disposable; project/batch state and run claims survive a worker restart. Manual Start remains available when project automatic mode is paused, except on a board owned by a nonterminal batch. Workspace and resource gates still apply.

@@ -407,8 +407,9 @@ defmodule Cuckoding.Execution do
   alias Cuckoding.Workflows.WorkflowVersion
 
   def create_run(attrs) do
-    Repo.transaction(fn ->
+    Cuckoding.Execution.EventStore.transaction(fn ->
       with {:ok, attrs} <- snapshot_run(attrs),
+           {:ok, attrs} <- Cuckoding.BoardControl.run_snapshot(attrs),
            false <-
              Repo.exists?(
                from(run in Run,
@@ -418,6 +419,7 @@ defmodule Cuckoding.Execution do
                )
              ),
            {:ok, run} <- insert(Run, attrs) do
+        :ok = Cuckoding.BoardControl.attach_run(run)
         run
       else
         true -> Repo.rollback(:run_already_active)
@@ -506,7 +508,8 @@ defmodule Cuckoding.Execution do
     |> Repo.insert()
   end
 
-  defp snapshot_run(attrs) do
+  @doc false
+  def snapshot_run(attrs) do
     with %Task{} = task <- Repo.get(Task, attrs[:task_id]),
          %Board{} = board <- Repo.get(Board, task.board_id),
          %WorkflowVersion{} = workflow <- Repo.get(WorkflowVersion, board.workflow_version_id),

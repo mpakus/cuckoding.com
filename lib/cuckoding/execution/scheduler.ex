@@ -116,6 +116,82 @@ defmodule Cuckoding.Execution.Scheduler do
     end
   end
 
+  @doc "Shared launch admission, including prepared and manual runs."
+  def check_run(run_id, options \\ []) do
+    run = Cuckoding.Repo.get!(Run, run_id)
+    task = Cuckoding.Repo.get!(Task, run.task_id)
+
+    with :ok <- Cuckoding.BoardControl.admission(run, options),
+         :ok <- Cuckoding.BoardControl.validate_launch(run),
+         :ok <- run_dependencies(task),
+         :ok <- check_board(task.board_id, Keyword.put(options, :exclude_run_id, run_id)) do
+      :ok
+    else
+      {:wait, reason} -> {:error, {:capacity, reason}}
+      error -> error
+    end
+  end
+
+  def check_board(board_id, options \\ []) do
+    board = Repo.get!(Board, board_id)
+    project = Repo.get!(Project, board.project_id)
+    probe = Keyword.get(options, :resource_probe, HostResourceProbe)
+    policy = Cuckoding.Projects.latest_config_version(project.id)
+    limit = Keyword.get(options, :global_limit, configured_global_limit())
+
+    active = running_capacity(options[:exclude_run_id])
+    requested = requested_limit(project.id, limit)
+
+    with true <- board.status == "active" and project.status == "active",
+         {:ok, memory} <- probe_memory(probe),
+         {:ok, ports} <- available_ports(probe, project) do
+      cond do
+        Cuckoding.Power.Manager.status().wake_reconciliation_pending? ->
+          {:wait, :wake_reconciliation}
+
+        launch_slots(options[:exclude_run_id]) >= limit ->
+          {:wait, :global_session_limit}
+
+        Enum.count(active, &(&1.board_id == board.id)) >= board.concurrency_limit ->
+          {:wait, :board_concurrency_limit}
+
+        Enum.count(active, &(&1.project_id == project.id)) >=
+            min(requested, project_limit(policy, limit)) ->
+          {:wait, :project_concurrency_limit}
+
+        memory < memory_mb(policy, 1024) * 1_048_576 ->
+          {:wait, :memory_headroom}
+
+        ports < 1 ->
+          {:wait, :no_port_headroom}
+
+        true ->
+          :ok
+      end
+    else
+      false -> {:error, :board_not_active}
+      _ -> {:error, :capacity_unknown}
+    end
+  end
+
+  defp running_capacity(exclude),
+    do: Enum.reject(active_runs(), &(&1.run.id == exclude or &1.run.state == "queued"))
+
+  defp requested_limit(project_id, fallback) do
+    case Cuckoding.ProjectAutopilot.get(project_id) do
+      %{state: "running", max_active_runs: limit} -> limit
+      _ -> fallback
+    end
+  end
+
+  defp run_dependencies(%Task{kind: "delivery"} = task) do
+    if MapSet.member?(blocking_task_ids([task.id]), task.id),
+      do: {:error, :dependencies_blocked},
+      else: :ok
+  end
+
+  defp run_dependencies(_task), do: :ok
+
   def dispatch(options \\ []) do
     with {:ok, dispatcher} <- Keyword.fetch(options, :dispatcher),
          {:ok, plan} <- plan(options) do
@@ -151,6 +227,8 @@ defmodule Cuckoding.Execution.Scheduler do
         do: where(query, [task, board, project], project.id in ^project_ids),
         else: query
 
+    owned = Cuckoding.BoardControl.owned_board_ids()
+    query = where(query, [task, board, project], board.id not in ^owned)
     candidates = Repo.all(query)
 
     blocked = blocking_task_ids(Enum.map(candidates, & &1.task.id))
@@ -185,7 +263,7 @@ defmodule Cuckoding.Execution.Scheduler do
         join: board in Board,
         on: board.id == task.board_id,
         where:
-          run.state in ^@admitted_run_states and
+          task.kind == "delivery" and run.state in ^@admitted_run_states and
             (run.state != "waiting" or run.wait_reason != "approval"),
         select: %{run: run, board_id: board.id, project_id: board.project_id}
       )
@@ -198,6 +276,30 @@ defmodule Cuckoding.Execution.Scheduler do
       :count,
       :id
     )
+  end
+
+  defp launch_slots(exclude) do
+    sessions =
+      Repo.all(
+        from s in AgentSession,
+          join: a in Cuckoding.Execution.StageAttempt,
+          on: a.id == s.stage_attempt_id,
+          where: s.state in ^@active_session_states,
+          select: a.run_id
+      )
+
+    running =
+      Repo.all(
+        from r in Run,
+          where:
+            r.state in ["running", "waiting"] and
+              (r.state != "waiting" or r.wait_reason != "approval"),
+          select: r.id
+      )
+
+    # Reserve the gap before a newly admitted workflow creates its first session.
+    Enum.count(sessions, &(&1 != exclude)) +
+      Enum.count(running, &(&1 != exclude and &1 not in sessions))
   end
 
   defp latest_policies(candidates) do

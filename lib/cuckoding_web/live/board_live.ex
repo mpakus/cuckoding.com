@@ -40,6 +40,13 @@ defmodule CuckodingWeb.BoardLive do
            progress_by_task: %{},
            filters: %{"q" => "", "state" => "all"},
            task_modal: nil,
+           board_preview: nil,
+           board_preview_error: nil,
+           board_exclusions: [],
+           board_start_key: nil,
+           board_consent: false,
+           board_confirmation: nil,
+           board_stats: nil,
            task_error: nil,
            task_form: %{"title" => "", "description" => "", "priority" => "0"},
            intake_form: %{"prompt" => "", "role_key" => "spec_writer"},
@@ -83,10 +90,104 @@ defmodule CuckodingWeb.BoardLive do
 
   def handle_info(:board_tick, socket) do
     if connected?(socket), do: Process.send_after(self(), :board_tick, 5_000)
-    {:noreply, assign(socket, now: Cuckoding.Clock.wall_now())}
+
+    {:noreply,
+     assign(socket,
+       now: Cuckoding.Clock.wall_now(),
+       board_stats: Cuckoding.BoardControl.Statistics.for_board(socket.assigns.board.id)
+     )}
   end
 
   @impl true
+  def handle_event("open-board-start", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(
+       task_modal: "board",
+       board_start_key: Cuckoding.Identifier.generate(),
+       board_consent: false,
+       board_exclusions: []
+     )
+     |> board_preview()}
+  end
+
+  def handle_event("change-board-start", %{"batch" => attrs}, socket) do
+    excluded = Map.get(attrs, "excluded", []) |> Enum.reject(&(&1 == ""))
+
+    {:noreply,
+     socket
+     |> assign(board_exclusions: excluded, board_consent: attrs["consent"] == "true")
+     |> board_preview()}
+  end
+
+  def handle_event("start-board", params, socket) do
+    attrs = Map.get(params, "batch", %{})
+    preview = socket.assigns.board_preview
+
+    result =
+      if preview do
+        Cuckoding.BoardControl.start(
+          socket.assigns.board.id,
+          preview.digest,
+          socket.assigns.board_exclusions,
+          socket.assigns.board_start_key,
+          attrs["consent"] == "true"
+        )
+      else
+        {:error, :preflight_required}
+      end
+
+    case result do
+      {:ok, _} ->
+        Cuckoding.ProjectAutopilot.Worker.wake()
+
+        {:noreply,
+         socket
+         |> assign(task_modal: nil, notice: "Board development started.", error: nil)
+         |> load_tasks()}
+
+      {:error, reason} ->
+        {:noreply, assign(socket, board_preview_error: board_issue(reason))}
+    end
+  end
+
+  def handle_event("board-control", %{"action" => action, "revision" => revision}, socket)
+      when action in ~w(pause resume stop skip retry refresh) do
+    case Integer.parse(revision) do
+      {number, ""} ->
+        if action in ~w(stop skip refresh),
+          do:
+            {:noreply,
+             assign(socket,
+               board_confirmation: %{
+                 action: action,
+                 revision: number,
+                 snapshot:
+                   Cuckoding.BoardControl.pending_requests(
+                     socket.assigns.board_stats.execution.id
+                   )
+               }
+             )},
+          else: perform_board_control(socket, action, number, false)
+
+      _ ->
+        {:noreply, assign(socket, error: "Board state changed. Reload before controlling it.")}
+    end
+  end
+
+  def handle_event("confirm-board-control", _params, socket) do
+    case socket.assigns.board_confirmation do
+      %{action: action, revision: revision} ->
+        perform_board_control(socket, action, revision, true)
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("close-board-confirmation", _params, socket),
+    do: {:noreply, assign(socket, board_confirmation: nil)}
+
   def handle_event("open-task-modal", %{"form" => form}, socket)
       when form in ["task", "intake"],
       do: {:noreply, assign(socket, task_modal: form)}
@@ -224,6 +325,16 @@ defmodule CuckodingWeb.BoardLive do
 
         <div class="flex flex-wrap gap-3" aria-label="Add tasks">
           <button
+            :if={
+              !@board_stats or @board_stats.execution.state in ~w(done finished_with_skips stopped)
+            }
+            id="start-board-button"
+            type="button"
+            phx-click="open-board-start"
+            aria-haspopup="dialog"
+            class="min-h-11 rounded-md bg-emerald-900 px-5 text-sm font-medium text-white"
+          >Start board</button>
+          <button
             id="add-task-button"
             type="button"
             phx-click="open-task-modal"
@@ -244,6 +355,120 @@ defmodule CuckodingWeb.BoardLive do
             Ask an agent to plan tasks
           </button>
         </div>
+
+        <CuckodingWeb.BoardControlComponents.panel :if={@board_stats} stats={@board_stats} />
+
+        <.modal
+          :if={@task_modal == "board"}
+          id="start-board-modal"
+          title="Start board development"
+          on_cancel="close-task-modal"
+          return_focus="start-board-button"
+        >
+          <form
+            id="start-board-form"
+            phx-change="change-board-start"
+            phx-submit="start-board"
+            class="space-y-4"
+          >
+            <p>
+              Speculator coordinates this fixed batch one task at a time. Each task starts from the preceding reviewed commit. Newly added cards wait for the next batch.
+            </p>
+            <input type="hidden" name="batch[excluded][]" value="" />
+            <label :for={task <- @board_blocked_tasks} class="flex min-h-11 items-center gap-2">
+              <input
+                type="checkbox"
+                name="batch[excluded][]"
+                value={task.id}
+                checked={task.id in @board_exclusions}
+              /> Exclude {task.title} ({task.state}) from this batch
+            </label>
+            <p :if={@board_preview_error} role="alert" class="text-red-800">{@board_preview_error}</p>
+            <p :if={@board_preview_error} class="flex flex-wrap gap-3 text-sm">
+              <.link navigate={~p"/projects/#{@project.id}/edit"} class="underline">Review project and board agents</.link>
+              <.link navigate={~p"/settings/agents"} class="underline">Check saved-agent sign-in</.link>
+            </p>
+            <div :if={@board_preview} class="space-y-3">
+              <p>
+                {length(@board_preview.tasks)} Draft/Ready tasks · automatic local completion · initial revision
+                <code class="break-all">{@board_preview.snapshot["base_sha"]}</code>
+              </p>
+              <ol class="list-decimal space-y-1 pl-5">
+                <li :for={task <- @board_preview.queue}>
+                  {task["title"]} · priority {task["priority"]} · {length(task["dependencies"])} prerequisites
+                </li>
+              </ol>
+              <details id="board-preflight-roles" phx-mounted={JS.ignore_attributes("open")}>
+                <summary class="min-h-11 cursor-pointer">Assigned agents, models and budgets</summary>
+                <ul class="space-y-2 text-sm">
+                  <li :for={role <- @board_preview.snapshot["workflow"]["roles"]}>
+                    {role["role_key"]}: {role["adapter_key"] || "human"} · {role["model_ref"] ||
+                      "model unavailable"}
+                  </li>
+                  <li :for={stage <- @board_preview.snapshot["workflow"]["definition"]["stages"]}>
+                    {stage["name"]}: {stage["budgets"]["max_attempts"]} attempts, {stage["budgets"][
+                      "wall_ms"
+                    ]} ms wall, {stage["budgets"]["tokens"]} tokens, {stage["budgets"]["cost_micros"]} cost micros
+                  </li>
+                </ul>
+              </details>
+            </div>
+            <label class="flex min-h-11 items-start gap-2">
+              <input
+                type="checkbox"
+                name="batch[consent]"
+                value="true"
+                checked={@board_consent}
+                required
+              />
+              I authorize automatic local completion after independent passing review. Push, PR creation, merge, policy expansion and knowledge publication still require separate approval.
+            </label>
+            <button
+              type="submit"
+              disabled={!@board_preview}
+              phx-disable-with="Starting…"
+              class="min-h-11 rounded-md bg-slate-950 px-5 font-medium text-white disabled:opacity-50"
+            >Start reviewed batch</button>
+          </form>
+        </.modal>
+
+        <.modal
+          :if={@board_confirmation}
+          id="board-control-confirmation"
+          title={String.capitalize(@board_confirmation.action) <> " board work"}
+          on_cancel="close-board-confirmation"
+          return_focus={"board-#{@board_confirmation.action}"}
+        >
+          <p :if={@board_confirmation.action == "skip"}>
+            Exclude the current task from this batch and defer its dependent descendants? Changes, branches and evidence are retained. Independent tasks can continue.
+          </p>
+          <p :if={@board_confirmation.action == "stop"}>
+            Stop this batch and its owned execution? Changes, branches and evidence are retained.
+          </p>
+          <div :if={@board_confirmation.action == "refresh"} class="space-y-3">
+            <p>
+              Replace pending snapshots with these current card requests and dependencies? This keeps the same batch membership and grants.
+            </p>
+            <article
+              :for={request <- @board_confirmation.snapshot}
+              class="rounded border border-slate-300 p-3"
+            >
+              <p class="font-medium">
+                {request["title"]} · priority {request["priority"]}
+              </p>
+              <p class="whitespace-pre-wrap break-words">
+                {request["description"]}
+              </p>
+              <p class="break-words">Dependency IDs: {Enum.join(request["dependencies"], ", ")}</p>
+            </article>
+          </div>
+          <button
+            type="button"
+            phx-click="confirm-board-control"
+            phx-disable-with="Requesting…"
+            class="mt-4 min-h-11 rounded-md border border-slate-400 px-4"
+          >Confirm {String.capitalize(@board_confirmation.action)}</button>
+        </.modal>
 
         <.modal
           :if={@task_modal == "task"}
@@ -302,6 +527,7 @@ defmodule CuckodingWeb.BoardLive do
         <div class="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-700">
           <p>
             Cards update live. Ready tasks start automatically while this project is running, subject to capacity and dependencies; you can also open a task to start it yourself.
+            <span :if={batch_owned?(@board_stats)}>This board's active batch controls its included tasks; new cards wait for the next batch.</span>
           </p>
           <button
             :if={@filters["state"] == "all"}
@@ -382,13 +608,16 @@ defmodule CuckodingWeb.BoardLive do
                     Waiting: {task.wait_reason}
                   </p>
                   <p :if={task.state == "ready"} class="mt-2 text-sm text-slate-700">
-                    {ready_status(
-                      task,
-                      @board,
-                      @project_operation,
-                      @admission_by_task,
-                      @queued_runs_by_task
-                    )}
+                    {if batch_owned?(@board_stats),
+                      do: batch_task_status(@board_stats, task),
+                      else:
+                        ready_status(
+                          task,
+                          @board,
+                          @project_operation,
+                          @admission_by_task,
+                          @queued_runs_by_task
+                        )}
                   </p>
                 </div>
 
@@ -411,7 +640,9 @@ defmodule CuckodingWeb.BoardLive do
                   navigate={~p"/boards/#{@board.id}/tasks/#{task.id}"}
                   class="inline-flex min-h-11 items-center rounded-md bg-slate-950 px-4 text-sm font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2"
                 >
-                  {if @project_operation.state == "running", do: "Open task", else: "Set up and start"}
+                  {if @project_operation.state == "running" or batch_owned?(@board_stats),
+                    do: "Open task",
+                    else: "Set up and start"}
                 </.link>
 
                 <.link
@@ -676,12 +907,70 @@ defmodule CuckodingWeb.BoardLive do
       end
 
     assign(socket,
+      board_stats: Cuckoding.BoardControl.Statistics.for_board(socket.assigns.board.id),
+      board_blocked_tasks: Enum.filter(tasks, &(&1.state in ~w(blocked failed))),
       tasks: filtered,
       progress_by_task: AgentFloor.progress_for_tasks(filtered),
       now: Cuckoding.Clock.wall_now(),
       admission_by_task: admission_by_task,
       queued_runs_by_task: queued_runs_by_task
     )
+  end
+
+  defp board_preview(socket) do
+    case Cuckoding.BoardControl.preflight(
+           socket.assigns.board.id,
+           socket.assigns.board_exclusions
+         ) do
+      {:ok, preview} ->
+        assign(socket, board_preview: preview, board_preview_error: nil)
+
+      {:error, reason} ->
+        assign(socket, board_preview: nil, board_preview_error: board_issue(reason))
+    end
+  end
+
+  defp perform_board_control(socket, action, revision, confirmed) do
+    e = socket.assigns.board_stats.execution
+    key = "board:#{e.id}:#{revision}:#{action}"
+
+    expected = socket.assigns.board_confirmation && socket.assigns.board_confirmation.snapshot
+
+    case Cuckoding.BoardControl.control(e.id, revision, action, key,
+           confirmed: confirmed,
+           expected_snapshot: expected
+         ) do
+      {:ok, _} ->
+        Cuckoding.ProjectAutopilot.Worker.wake()
+
+        {:noreply,
+         socket
+         |> assign(board_confirmation: nil, error: nil, notice: "Board #{action} recorded.")
+         |> load_tasks()}
+
+      {:error, reason} ->
+        {:noreply,
+         socket |> assign(board_confirmation: nil, error: board_issue(reason)) |> load_tasks()}
+    end
+  end
+
+  defp board_issue(reason) when is_atom(reason) or is_binary(reason),
+    do: CuckodingWeb.BoardControlComponents.issue(reason)
+
+  defp board_issue(_),
+    do: "Board preflight could not finish. Inspect the project, agents and task dependencies."
+
+  defp batch_owned?(nil), do: false
+  defp batch_owned?(stats), do: stats.execution.state not in ~w(done finished_with_skips stopped)
+
+  defp batch_task_status(stats, task) do
+    case Enum.find(stats.items, &(&1.task_id == task.id)) do
+      nil ->
+        "New card: waiting for the next board batch."
+
+      item ->
+        "Board batch: #{state_label(item.state)}. Use the board controls to manage execution."
+    end
   end
 
   defp normalize_state(state) when state in ["all" | @states], do: state

@@ -28,7 +28,8 @@ at `/projects/:id/edit` attach saved agents and assign roles after registration.
 | Machine-local `provider_accounts` | Saved label, adapter, model/settings, immutable authorization-account reference, observed status | Catalog metadata changes; existing project copies are not synchronized |
 | Project configuration revision | Connections with stable account IDs, copied settings, role names/instructions/assignments, delivery slots and permissions | New saves append revisions; newly created boards use the latest revision |
 | Board | Default workflow version and copied role assignments/settings | Existing boards are not rewritten by project saves |
-| Run | Board workflow/roles plus trusted project policy and fixed repository revision | Historical snapshots remain unchanged |
+| Board execution | Fixed Draft/Ready membership, requests/dependencies, workflow/roles/plugins/policy, original base and local-completion authorization | Confirmed Refresh changes reviewed pending requests only; membership and grants stay fixed |
+| Run | Board or batch workflow/roles plus trusted policy and execution base | Historical snapshots remain unchanged; a batch run uses the latest validated reviewed head |
 
 **Use in this project** stages a saved connection in the form; save the agent
 or full configuration to persist attachment. Saving the full configuration
@@ -72,7 +73,24 @@ future runs and adds append-only bindings to compatible queued runs. The selecte
 runtime/executable/helper must match each queued role snapshot; if any missing
 role is incompatible, that run is left entirely unbound. Tasks and history stay
 intact, snapshots are not rewritten, and running/completed runs cannot be
-rebound.
+rebound. Batch-linked queued runs also refuse rebinding: the batch's reviewed
+roles stay fixed. Provider authorization is still checked live before launch.
+
+## Board execution policy
+
+**Start board** is a context/LiveView command, not a new YAML file or public API.
+The preflight freezes the current board workflow, roles, budgets, policy and
+plugin selection with the reviewed task batch. It requires a clean committed
+project base and explicit automatic-local-completion consent. The controller
+inherits the Speculator's finite stage budgets and read-only grant; its maximum
+decision count is `4 × included tasks + 10`, recorded in the batch snapshot.
+
+Each subsequent task uses the last validated reviewed commit while retaining
+the original project base for drift checks. A new trusted project policy revision,
+lost sign-in, or a stale pending request halts admission. Refresh is confirmed
+against displayed pending requests/dependencies; it cannot adopt a new policy,
+rebind agents, add cards or rewrite run history. Resolve configuration changes
+before starting a new batch. See [CUCKODING-CONTROL.md](CUCKODING-CONTROL.md).
 
 ## Configuration layout
 

@@ -1,6 +1,6 @@
 # MVP Release Readiness
 
-**Review date:** 2026-09-24 (documentation/source delta review; no new release acceptance)
+**Review date:** 2026-09-25 (documentation/source delta review; no new release acceptance)
 
 **Decision:** No-go for controlled-beta enrollment or public MVP release.
 
@@ -12,7 +12,16 @@ signed artifact after task 1003 has completed.
 
 ## Recent source and packaging status
 
-At this review, local `main` and the local `origin/main` tracking ref both point
+The current review covers task 1049's working-tree implementation on
+`feature/1049-board-controller`, based on `55f1bd1`. It adds fixed Draft/Ready
+board batches, active Speculator coordination, shared admission, reviewed commit
+handoff, controls/recovery and whole-batch statistics. Its worklog records 369
+tests and 10 properties, migration/motion and desktop/mobile browser checks.
+No feature commit, native rebuild/install, real-provider acceptance or public
+deployment is implied. See [CUCKODING-CONTROL.md](CUCKODING-CONTROL.md).
+
+The following packaging observations are historical. At the 2026-09-24 review,
+local `main` and the local `origin/main` tracking ref both pointed
 to `25c00d3`. Tasks 1034–1036 provide the pearl application design and the
 separate Pages design with Classic/Irony artwork; Irony is the Pages default.
 Task 1034 records an unsigned native rebuild and local launch. Its historical
@@ -27,7 +36,9 @@ compatibility pin. Real-provider lifecycle and clean-Mac acceptance remain open.
 The accepted default roles are now Speculator, Implementor and Reviewer, with
 Reviewer revisions returning through Cuckoding to Speculator. Task 1038 implements these names and routes for new defaults, passes the latest
 specification between roles, and preserves legacy workflow snapshots.
-Executable custom workflows and role-permission editing also remain open; see
+Custom roles now have explicit delivery slots and confirmed read-only/worktree
+grants. An arbitrary workflow graph or external-path/network permission editor
+is not implemented. Current native/provider acceptance remains open; see
 [role alignment](PLAN.md#role-contract-alignment--2026-09-24). This requirement
 update does not change the no-go decision or close any beta criterion.
 
@@ -40,6 +51,7 @@ update does not change the no-go decision or close any beta criterion.
 | Execution | Supervised host processes in distinct Git worktrees; **not a sandbox** | Real-provider runs, detached-process review, and multi-board isolation |
 | Agents | Claude Code, Codex, Cursor Agent launch adapters implemented; Codex/Cursor saved profiles use app-owned provider credentials | Default workflow, restart/refresh, revocation, and cross-project/concurrent execution with real provider accounts |
 | Setup-only agents | OpenCode and Custom Agent may be saved, but cannot launch tasks | Reviewed adapters and conformance before promising execution |
+| Board controller | Fixed sequential batch, validated Speculator decisions, reviewed local handoff, controls and statistics | Multi-task real-provider execution, physical sleep/wake, packaged restart and current-build UI acceptance |
 | Updates | Signed updater with backup/rollback checks in source and prior-host evidence | Current frozen updater artifact, update, rollback, and uninstall on a clean Mac |
 
 Provider CLIs, Git, and optional plugin binaries are discovered on the user's
@@ -63,21 +75,29 @@ the run's effective grant before starting. See
    run preparation needs a clean committed base.
 4. In project settings, attach agents and assign Speculator, Implementor, and
    Reviewer roles. Create a board, or explicitly apply saved agents to an
-   existing board. Add Draft tasks and mark only eligible work Ready. For a
-   manual run, use **Prepare run**, check sign-in, and start the workflow. For
-   automatic admission, review the project limits and use **Start project**;
-   it admits Ready delivery tasks up to those limits, not Draft tasks or
-   proposals. A board planning prompt still requires human review and import.
+   existing board. Add Draft tasks or review/import planning proposals. Use
+   **Start board** for a reviewed Draft/Ready snapshot, sequential execution and
+   reviewed commit handoff; it explicitly requires automatic local-completion
+   consent. Alternatively, on an unclaimed board mark work Ready and use
+   **Prepare run → Start workflow**, or **Start project** for concurrent Ready-task
+   admission within project/board/machine limits. Project mode does not include
+   Draft cards or provide the board's commit chain.
 5. Monitor the dashboard, task, and run pages. A blocked or failed delivery
-   task can use **Retry with a new run**; the old worktree and evidence remain,
-   and uncommitted old-worktree changes are not copied. Release push/PR and
+   task on an unclaimed board can use **Retry with a new run**; a batch-owned task
+   uses the board's Retry/Skip controls. The old worktree and evidence remain,
+   and unfinished changes are not copied into the next attempt. Board Pause
+   closes admission and verifies suspension; project Pause only stops project
+   admissions. Release push/PR and
    global knowledge publication require separate human approval. A passing
-   Review follows the start-time completion choice: manual by default, or
-   explicitly authorized automatic local completion with evidence retained.
+   Review follows the start-time completion choice: manual/project mode defaults
+   to waiting for a decision; Start board requires explicit automatic local
+   completion with evidence retained.
    Proposal import, blocked tasks and external release still need human action.
 
-Board role assignments and run snapshots are immutable copies: editing a
-project does not rewrite existing boards or historical runs. See
+Project saves do not silently rewrite existing board assignments. Explicitly
+applying project roles changes future board runs, while prepared runs and
+historical snapshots remain fixed; a board batch also freezes its roles/policy.
+See
 [FLOW.md](FLOW.md), [CONFIGURATION.md](CONFIGURATION.md), and
 [AGENT_AUTHORIZATION_FLOW.md](AGENT_AUTHORIZATION_FLOW.md).
 

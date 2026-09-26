@@ -157,6 +157,26 @@ before creation. There is no switch that expands the bundle to sensitive data.
 - Generated runtime configuration stays in the run's `agent/` directory with owner-only permissions; adapters reject a symlinked configuration directory and never write user-global runtime configuration.
 - On restart or wake, inspect and reconcile before killing or adopting a process.
 
+## Board controller boundary
+
+Board controller output is a closed structured proposal, not a trusted command.
+Host validation binds the execution/run/revision, next eligible task, snapshot,
+grants, review evidence and capacity before mutation or launch. A pause/resume
+may reuse in-flight controller output only after revalidation and only when all
+intervening batch events are those controls; content/policy/refresh changes
+invalidate it. Hidden controller sessions retain the Speculator's read-only
+grant and cannot start through the delivery entrypoint. Manual preparation,
+queued run rebinding and automatic starts cannot bypass batch ownership.
+
+Start board records explicit local-completion consent. Passing review, candidate
+identity, ancestry, clean worktree and unchanged original project revision are
+required for code handoff. Protected changes require existing path-set approval
+before Reviewer execution. Policy changes halt the batch; no same-run policy
+expansion is allowed. Stop/Skip/Refresh require confirmation and events. Missing
+workers, uncertain process cleanup, or unusable checkpoints retain evidence and
+keep admission closed. No batch command authorizes push, PR, merge or global
+knowledge publication. See [CUCKODING-CONTROL.md](CUCKODING-CONTROL.md).
+
 ## Audit events
 
 At minimum: authentication changes, capability grants, effective runtime permission grants, policy exceptions, plugin enablement and permission changes, stage transitions, approvals, secret reference use, process group creation/destruction, Git push/PR creation, knowledge publication/revocation, update installation, destructive retention actions, sleep gaps and reconciliation outcomes.

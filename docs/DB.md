@@ -11,7 +11,7 @@ Use SQLite through Ecto for the single-user local product. Configure WAL mode, f
 - Money as integer micros plus ISO currency.
 - Hashes as lowercase hexadecimal with the algorithm named in a sibling field.
 - Normalized enums as constrained strings.
-- `created_at`, `updated_at`, and optimistic `lock_version` where concurrent edits are possible.
+- Ecto `inserted_at`/`updated_at` timestamps on mutable projections; append-only facts use their declared occurrence timestamp. Board execution commands compare an explicit `revision`; do not assume every table has a `lock_version`.
 - JSON only for provider-specific payloads, snapshots, and flexible evidence; queryable business fields remain columns.
 
 ## Core entities
@@ -20,10 +20,14 @@ Use SQLite through Ecto for the single-user local product. Configure WAL mode, f
 erDiagram
     PROJECT ||--o{ BOARD : owns
     BOARD ||--o{ TASK : contains
+    BOARD ||--o{ BOARD_EXECUTION : batches
+    BOARD_EXECUTION ||--o{ BOARD_EXECUTION_ITEM : includes
+    TASK ||--o{ BOARD_EXECUTION_ITEM : participates
+    BOARD_EXECUTION o|--o{ RUN : links
     TASK ||--o{ RUN : executes
     RUN ||--o{ STAGE_ATTEMPT : advances
     STAGE_ATTEMPT ||--o{ AGENT_SESSION : uses
-    RUN ||--|| ENVIRONMENT : runs_in
+    RUN ||--o| ENVIRONMENT : prepares
     RUN ||--o{ ARTIFACT : produces
     RUN ||--o{ RUN_EVENT : records
     AGENT_SESSION ||--o{ USAGE_RECORD : reports
@@ -64,9 +68,10 @@ references, validated machine-local agent settings, and default role mappings.
 Updating a saved agent updates its global catalog row but never rewrites those
 immutable revisions. A board copies the selected mappings, including initially
 unassigned roles, into `role_assignments`; current project mappings may later be
-applied explicitly to the board for future runs. Compatible queued runs receive
-append-only `run.agent_connected` events in that same explicit operation; their
-workflow snapshots are not rewritten. A run copies roles into its workflow snapshot. This
+applied explicitly to the board for future runs. Compatible queued runs outside
+a board batch receive append-only `run.agent_connected` events in that same
+explicit operation; batch-owned runs reject rebinding. Workflow snapshots are
+not rewritten. A run copies roles into its workflow snapshot. This
 deliberate snapshot chain means later project, role, or agent-profile edits never
 rewrite an active or historical run. Project creation and settings saves must
 not insert board, task, run, environment, or process rows.
@@ -84,13 +89,23 @@ be interpreted as frozen credential availability or mode.
 | `tasks` | `board_id`, `title`, `description`, `priority`, `position`, `kind`, `intake_role_key?`, `state`, `wait_reason`, `active_run_id` | Kanban card or hidden `board_intake` run owner; only `delivery` tasks render as cards |
 | `task_proposals` | `intake_task_id`, `position`, `title`, `description`, `priority`, `source_json`, `imported_task_id?` | Bounded, source-cited, untrusted agent proposals; import linkage makes reviewed creation idempotent |
 | `task_dependencies` | `task_id`, `depends_on_task_id`, `kind` | Prevent cycles at write time |
+| `board_executions` | `board_id`, `controller_task_id`, `state`, `revision`, `base_sha`, `head_sha`, `snapshot_json`, `current_task_id?`, `current_run_id?`, `phase`, `issue?`, `pending_action?`, `control_json`, `finished_at?` | One nonterminal batch per board by partial unique index; paused/attention/control-pending states retain ownership |
+| `board_execution_items` | `board_execution_id`, `task_id`, `snapshot_json`, `state`, `reason?`, `completed_sha?` | Unique membership per batch/task; pending/active/done/blocked/skipped/deferred outcomes are separate from task lifecycle |
 | `task_comments` | `task_id`, `author_kind`, `body`, `created_at` | User and public agent notes |
-| `runs` | `task_id`, `sequence`, `state`, `wait_reason`, `workflow_snapshot_json`, `policy_snapshot_id`, `plugin_snapshot_json`, `branch`, `base_sha` | One task may have retries or replacements; workflow and roles are copied from the immutable board version |
+| `runs` | `task_id`, `board_execution_id?`, `sequence`, `state`, `wait_reason`, `workflow_snapshot_json`, `policy_snapshot_id`, `plugin_snapshot_json`, `branch`, `base_sha` | Retries retain earlier records; batch runs copy frozen workflow/roles/policy and the latest reviewed execution base |
 | `stage_attempts` | `run_id`, `stage_key`, `attempt`, `state`, `role_key`, `role_kind`, `started_at`, `finished_at`, `active_ms`, `wall_ms`, `checkpoint_json` | Immutable attempt history plus current state; checkpoint replacement is projected in the same transaction as `stage.checkpointed` |
 | `approvals` | `run_id`, `stage_attempt_id?`, `kind`, `decision`, `actor`, `reason`, `decided_at` | Trust-boundary evidence; protected-path approvals include the exact sorted change-set digest in `kind` |
 | `findings` | `run_id`, `stage_attempt_id`, `severity`, `category`, `status`, `summary`, `evidence_json` | Review and QA findings |
 
 ### Execution
+
+The forward migration `20260925120000` adds batch tables and nullable run linkage
+without rebuilding historical task-kind constraints. Controller tasks retain
+`board_intake` storage and use the distinct `board_control` stage and batch link.
+Board command/decision events use the existing `board:<id>` stream, with batch ID,
+revision and public outcome. The original base remains on the batch; each linked
+run records its own execution base. Prior-schema migration tests preserve old
+task/run facts and verify foreign keys and one-open-batch uniqueness.
 
 | Table | Important fields | Notes |
 | --- | --- | --- |

@@ -348,6 +348,7 @@ defmodule Cuckoding.Execution.Run do
   @primary_key {:id, :binary_id, autogenerate: false}
   schema "runs" do
     field :task_id, :binary_id
+    field :board_execution_id, :binary_id
     field :sequence, :integer
     field :state, :string, default: "queued"
     field :wait_reason, :string
@@ -364,6 +365,7 @@ defmodule Cuckoding.Execution.Run do
     |> cast(attrs, [
       :id,
       :task_id,
+      :board_execution_id,
       :sequence,
       :workflow_snapshot_json,
       :policy_snapshot_id,

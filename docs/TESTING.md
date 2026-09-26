@@ -79,6 +79,28 @@ run-owned HOME and policy configuration.
 
 ## Recent interface and discovery checks
 
+Task 1049 board control (2026-09-25): focused coverage lives in
+`test/cuckoding/board_control_test.exs`; forward migration of prior-schema task/run
+history is in `test/cuckoding/shared_authorization_migration_test.exs`. Together
+with the existing admission, Git, workflow, control, power/reconciliation,
+accounting and security suites, these exercise sequential reviewed handoff,
+frozen membership, proposals, controls and preserved skip/retry history. Run:
+
+```sh
+rtk env -u CR_PAT mix test test/cuckoding/board_control_test.exs test/cuckoding/shared_authorization_migration_test.exs
+rtk env -u CR_PAT mix quality
+rtk env -u CR_PAT mix assets.build
+rtk node --test test/task_board_motion_test.cjs
+rtk git diff --check
+```
+
+`CR_PAT` is removed from the tooling environment; no credential values are
+printed. The [1049 worklog](../worklog/2026-09-25-1049-board-controller.md) records
+exact counts and a separate loopback fixture browser check for desktop/mobile,
+keyboard/focus, reduced motion, disclosure/input retention and reconnect. Those
+checks do not prove paid-provider execution, physical sleep/wake, signing,
+packaging, installation, or the currently running native build.
+
 Board progress checks render two active tasks with independent stage/role/model
 metadata, distinguish requested from observed models, and move one task through
 durable pause while the other stays running. `rtk node test/task_board_motion_test.cjs`

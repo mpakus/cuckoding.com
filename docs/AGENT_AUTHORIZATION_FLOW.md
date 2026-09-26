@@ -143,7 +143,11 @@ future runs, and appends bindings for compatible queued work in the same
 transaction. Existing tasks stay on the board and queued workflow snapshots are
 not rewritten. If any role in a queued run is incompatible, that run receives no
 new bindings and points back to board assignment or safe replacement-run
-recovery. Running/completed runs are never rebound.
+recovery. Running/completed runs are never rebound. A queued run linked to a
+board batch also refuses rebinding because its roles were reviewed at Start
+board. Re-authorizing the same saved account remains a live dependency; changing
+the batch's role/policy requires resolving the current batch and reviewing a new
+one. See [board execution policy](CONFIGURATION.md#board-execution-policy).
 
 Connected accounts show a green, text-labeled status and a **Re-authorize agent**
 link. Run-local sign-in commands and per-role agent pickers are not shown; an

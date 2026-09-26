@@ -83,6 +83,25 @@ Safe cleanup delegates the exact registered path to Git only after the ownership
 
 `Cuckoding.ProjectAutopilot` owns a durable per-project admission projection and events. Its supervised periodic worker reads running controls, invokes `Scheduler.plan/1`, and delegates each selected task to the existing `ProjectWorkflow.prepare_task/1` and `GuidedRun.start/1` boundaries. SQLite transaction guards prevent a second active run for the same task. The worker has no authoritative in-memory queue; a restart re-reads project controls and queued runs. It does not bypass provider authorization, human completion, or release gates.
 
+### Board controller
+
+`Cuckoding.BoardControl` adds a durable sequential batch to the same supervised
+autopilot dispatcher. `board_executions` owns the fixed snapshot, current run,
+reviewed head, control intent and revision; `board_execution_items` owns membership
+outcomes. A partial unique index keeps one nonterminal batch per board. Hidden
+planning tasks with an immutable `board_control` stage reuse agent execution,
+evidence and process controls; the idle controller has no agent process or
+delivery slot. Active controller sessions count toward agent capacity.
+
+`RunControl.admit/3`, Scheduler and transactional run creation enforce the same
+board claim for manual, prepared, controller and automatic starts. The dispatcher
+uses a short TTL lease and reloads SQLite on each decision; no private queue
+survives only in a GenServer. Controls persist intent before process operations
+and retain the claim until their outcomes can be verified. Missing workers
+require explicit recovery. `BoardControl.Statistics` reads all linked records
+instead of the capped Agent Floor projection. See [CUCKODING-CONTROL.md](CUCKODING-CONTROL.md)
+and [ADR-030](DECISIONS.md#adr-030--sequential-board-execution-and-reviewed-commit-provenance).
+
 ### Agent adapter layer
 
 Each runtime adapter converts a common stage request into a provider-specific host process and converts output into normalized events, artifacts, usage, checkpoints, and completion status. Agents run on the host; their own permission systems (allowed tools, working directory, approval modes) are configured by the adapter from the stage capability grant, and the granted set is recorded. Capability discovery is explicit.

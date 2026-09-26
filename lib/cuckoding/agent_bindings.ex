@@ -22,7 +22,7 @@ defmodule Cuckoding.AgentBindings do
 
   def connect_run(run_id, role_key, account_id) do
     EventStore.transaction(fn ->
-      with %Run{state: "queued"} = run <- Repo.get(Run, run_id),
+      with %Run{state: "queued", board_execution_id: nil} = run <- Repo.get(Run, run_id),
            role when not is_nil(role) <-
              Enum.find(
                run.workflow_snapshot_json["roles"],

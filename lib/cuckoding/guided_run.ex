@@ -40,9 +40,10 @@ defmodule Cuckoding.GuidedRun do
     with true <- mode in ["manual", "local"],
          {:ok, skeleton} <- WalkingSkeleton.load(run_id),
          "queued" <- skeleton.run.state,
+         :ok <- Cuckoding.BoardControl.completion_policy(skeleton.run, mode, options),
          {:ok, role_adapters} <- adapters(skeleton),
          {:ok, _policy} <-
-           RunControl.admit(run_id, fn -> start_with_policy(run_id, mode, options) end) do
+           RunControl.admit(run_id, fn -> start_with_policy(run_id, mode, options) end, options) do
       launch(skeleton, role_adapters, options)
     else
       state when is_binary(state) -> {:error, :run_not_queued}

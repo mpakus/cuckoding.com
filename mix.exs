@@ -37,7 +37,7 @@ defmodule Cuckoding.MixProject do
       {:phoenix_live_view, "== 1.2.12"},
       {:ecto_sql, "== 3.14.0"},
       {:ecto_sqlite3, "== 0.24.1"},
-      {:lazy_html, "== 0.1.12", only: :test},
+      {:lazy_html, "== 0.1.13", only: :test},
       {:stream_data, "== 1.4.0", only: :test},
       {:esbuild, "== 0.10.0", runtime: Mix.env() == :dev},
       {:tailwind, "== 0.5.1", runtime: Mix.env() == :dev},

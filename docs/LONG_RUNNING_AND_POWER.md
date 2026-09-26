@@ -24,8 +24,13 @@ A run may last minutes, hours, or days: waiting for provider rate limits, runnin
 
 ## Checkpoint cadence
 
-- Adapters that support native session persistence checkpoint at stage boundaries and every N minutes of activity (policy `checkpoint_interval_minutes`).
-- Adapters without native persistence write a continuation package at the same cadence: task revision, current spec, diff summary, completed checks, open findings, artifact hashes, public handoff.
+- The design target is checkpointing at stage boundaries and periodically where
+  an adapter supports it. Executable workflow snapshots use
+  `checkpoint_interval_ms`; `checkpoint_interval_minutes` in example policy YAML
+  is not a guarantee of a live periodic provider checkpoint.
+- Control/lifecycle paths persist supported checkpoints or bounded continuation
+  data. Resuming a provider session depends on its adapter, retained session and
+  verified ownership. Missing workers/checkpoints require explicit recovery.
 - Long-running commands (test suites, builds) are launched with timeouts and are resumable only by re-execution; their partial output is kept as an artifact.
 
 ## Unattended mode
@@ -37,7 +42,10 @@ The latest trusted project policy may disable unattended mode or cap `unattended
 
 ## Quit, update, and restart
 
-- Quit offers: hibernate all runs (default), stop all runs, or cancel quit. Hibernate completes checkpoints before the shell terminates the release.
+- The implemented shell Quit path asks the host shutdown policy to pause
+  admission and hibernate active runs before terminating the release. A failed
+  hibernation blocks shutdown; this is not a three-choice quit dialog. Explicit
+  Stop all is a separate dashboard control.
 - Schema-changing updates require hibernation; the updater refuses to proceed with running stages.
 - On start, reconciliation runs before any scheduling: leases, processes, ports, worktrees, and pending commands.
 
@@ -49,8 +57,29 @@ The manager starts and stops a scrubbed `caffeinate -i -w <beam-pid>` child afte
 
 ## Budgets for long runs
 
-- Per-run `max_elapsed_hours` (active time) and `max_wall_hours` are separate; sleep gaps count toward wall time only.
-- Budget exhaustion moves the task to `waiting` for approval; the user can extend the budget with an audit event.
+Executable stage budgets use `max_attempts`, `active_ms`, `wall_ms`, `tokens`
+and `cost_micros`. The executor checks recorded attempt/timing/usage totals and
+passes the stage wall timeout to the runner. Reported token/cost data may arrive
+after execution; unavailable usage is not proof of unused budget.
+
+Exhaustion in the delivery executor fails the stage and blocks the run; a linked
+board batch enters Needs attention. It does not automatically open an
+extend-budget approval or rewrite the frozen policy. The hour-based policy
+examples describe intended configuration, not a separate implemented override UI.
+
+## Board execution recovery
+
+The durable board claim survives Pause, Needs attention and pending controls.
+The shared dispatcher reloads SQLite before admitting work and the shared
+resource gate waits while wake reconciliation is pending. An idle controller
+has no provider process; decision sessions use the normal owned process path.
+
+Resume rechecks authorization, policy, Git ownership and task requests. A missing
+orchestration worker cannot be assumed resumable: inspect retained evidence and
+use explicit Retry/Skip/Stop after verified cleanup. Pending control outcomes
+keep admission closed. Workspace Resume does not silently resume a separately
+paused board. See [CUCKODING-CONTROL.md](CUCKODING-CONTROL.md); physical sleep/wake
+and packaged restart for this controller remain open acceptance gates.
 
 ## Verification
 

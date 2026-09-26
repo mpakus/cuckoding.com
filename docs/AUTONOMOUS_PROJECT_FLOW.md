@@ -1,5 +1,15 @@
 # Autonomous project flow — implementation and remaining gates
 
+Task 1049 update (2026-09-25): **Start board** now runs a reviewed fixed batch of
+Draft/Ready cards with an active read-only Speculator controller, one delivery
+task at a time, reviewed commit handoff and explicit automatic local completion.
+Board Pause/Resume/Stop/Skip/Retry and confirmed pending-request refresh retain
+evidence. Manual/project admission respects batch ownership. The board and home
+dashboard expose progress and complete batch accounting. This is separate from
+the project-wide concurrent Ready-task mode described below. Source/fixture and
+browser verification is recorded in [CUCKODING-CONTROL.md](CUCKODING-CONTROL.md);
+real-provider, physical sleep/wake and packaged-app acceptance remain open.
+
 Task 1038 update: new default delivery loops return corrections through
 Speculator and pass descriptions/specs between roles. Before task import,
 another configured model can review proposals and save revisions/comments/report.
@@ -10,10 +20,13 @@ projects. Push, PR creation and merging require separate approval. The dated
 baseline and earlier decisions below are superseded by these specific source
 changes; current native/provider and full-flow acceptance remain task 1038 work.
 
-Status: **project-level automatic admission implemented for testing** on
-2026-09-22. The baseline audit below describes `main` at `4546f85` before
-task 1029. Current operation is described in [FLOW.md](FLOW.md); the remaining
-gates below are not claims of full unattended completion.
+Status: **project admission and sequential board execution implemented locally**,
+reviewed on 2026-09-25. Project mode admits Ready tasks concurrently on unclaimed
+boards; board mode reviews a fixed Draft/Ready batch and chains reviewed commits
+one task at a time. Both use shared admission and live authorization checks.
+Neither imports proposals or authorizes external release automatically. The
+baseline audit below describes `main` at `4546f85` before task 1029; current
+operation is described in [FLOW.md](FLOW.md).
 
 ## Implemented in task 1029
 
@@ -32,14 +45,16 @@ gates below are not claims of full unattended completion.
   runs count toward the project threshold. Preparation/start failures and unmet
   prerequisite deadlocks move the project to **Needs attention**. A project is
   **Done** only when every delivery task is done.
-- Start does not auto-import agent proposals, approve policy changes, complete
-  a passing review, push, create a PR, or merge. Pause only stops new starts;
-  active runs continue. OpenCode and Custom Agent remain setup-only.
+- The original task 1029 mode left passing Review at a human completion gate;
+  task 1038 subsequently added explicit local-completion authorization. Start
+  still cannot auto-import proposals, approve policy changes, push, create a PR
+  or merge. Project Pause only stops new starts; active runs continue. OpenCode
+  and Custom Agent remain setup-only.
 
 Still to verify on a signed clean macOS build: long-running real-provider
-concurrency, restart/sleep recovery, and shared-authorization refresh. The
-human completion decision and whether non-review failures count toward the
-critical threshold remain product decisions.
+concurrency, restart/sleep recovery, and shared-authorization refresh. The local
+completion policy is now implemented. A broader project critical-failure counter
+remains a separate proposal; a board batch already halts at its first hard blocker.
 
 ## User story
 
@@ -49,12 +64,18 @@ board. I add tasks myself or ask an agent to propose them from Markdown specs in
 the project. I assign saved agents to the project's workflow roles, set the
 project's concurrency and critical-blocker limit, and press **Start project**.
 Cuckoding then admits Ready tasks autonomously, running independent tasks in
-parallel up to those limits. Within each task, Specifications writes a spec,
-Coding implements it, and Review checks it; findings route back to the
-responsible stage. As agents become available, more eligible tasks start. The
+parallel up to those limits. Within each new-default task, Speculator writes a
+spec, Implementor implements it, and Reviewer checks it; corrections return
+through Speculator. As agents become available, more eligible tasks start. The
 project stops admitting work when every task is complete, I pause it, a safety
 gate needs my decision, or the configured critical-blocker threshold is met.
 I can see the reason, current owner, and evidence on the board and dashboard.
+
+For dependent development that must inherit earlier reviewed code, I choose
+**Start board** instead: review the Draft/Ready batch, authorize local completion,
+then use the board's controls until Done, Finished with skips, Stopped or Needs
+attention. This mode is independent of the project's admission switch; workspace
+controls and resource limits still apply.
 
 ## Baseline before task 1029
 
@@ -73,6 +94,10 @@ not autonomous UI-to-provider dispatch. Therefore that baseline did **not**
 yet deliver the requested hands-off project flow.
 
 ## Target behavior and remaining hardening
+
+**Historical pre-implementation proposal.** Tasks 1029, 1038 and 1049 supersede
+the completion, role and board-execution gaps below. These original requirements
+remain as design history, not the current UI contract.
 
 1. **Prepare.** In Agents, save/authorize connections and select models. Register
    a project and create a board without requiring final role assignments.
@@ -112,7 +137,12 @@ yet deliver the requested hands-off project flow.
 
 ### Product decisions needed before autonomous completion
 
-- **Human completion gate.** Today every passing Review waits for a person.
+**Historical decisions list.** Explicit automatic local completion and project
+concurrency controls are now implemented; the top of this document and
+CUCKODING-CONTROL.md describe the current choices. No unchecked proposal below
+is permission to widen the current grants or task-import boundary.
+
+- **Human completion gate (original baseline).** Every passing Review then waited for a person.
   Full “until all tasks are done” autonomy requires a separately reviewed
   policy for *local-only* auto-completion after validated Review. The safer
   initial implementation stops at **Needs attention** for that choice. Neither
@@ -131,6 +161,9 @@ yet deliver the requested hands-off project flow.
   provider quotas and real shared-login concurrency must be verified first.
 
 ## Small implementation slices and acceptance
+
+This was the original implementation order. Track current source completion in
+[PLAN.md](PLAN.md) and external acceptance in [RELEASE_READINESS.md](RELEASE_READINESS.md).
 
 1. **Configuration and preflight:** project cap, threshold, board role editing,
    explicit existing-board update, and a single readiness view. Test snapshot

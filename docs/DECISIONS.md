@@ -248,6 +248,17 @@ provider acceptance remains open.
 - **Consequences:** Optimization is optional and fails open before execution. Run-owned state and disabled raw recall prevent duplicate unredacted logs. Existing event storage records observations without equating an RTK prefix with measured reduction. No personal runtime settings or automatic upgrades are permitted.
 - **Verification:** Discovery, snapshot, adapter, hook isolation, permission, secret-canary, confinement and single-execution regressions; installed runtime smokes, native build and a managed run recorded separately.
 
+## ADR-030 — Sequential board execution and reviewed commit provenance
+
+- **Date:** 2026-09-25
+- **Status:** Accepted for implementation by the stakeholder
+- **Context:** Project admission and independent task branches do not implement the requested Speculator-controlled sequential board batch.
+- **Decision:** Persist a versioned board execution and fixed membership. The assigned read-only Speculator proposes bounded next-step decisions; host validation alone admits work and advances the reviewed commit chain. All launch paths respect the board claim and workspace/resource gates. Record original project revision separately from each task's reviewed execution base; main and external release approvals stay unchanged.
+- **Storage:** Reuse hidden board_intake task storage for controller runs, distinguished by BoardExecution.controller_task_id and the board_control stage. Additive tables/run references avoid rebuilding the task table merely to extend its checked kind enum. Controller work is excluded from delivery slots but its agent sessions count toward actual capacity.
+- **Consequences:** SQLite owns membership, progress, control intent and outcome; ephemeral workers never grant permission. Pause/attention retains board ownership. Skip retains unfinished work and defers dependents. Restart uncertainty blocks admission. Existing runs retain legacy bases and policy; no automatic permission expansion or publication.
+- **Verification:** Prior-schema migration and data preservation, command/admission races, forged decisions, chained reviewed code, controls/recovery, complete usage aggregation, LiveView/reconnect and motion checks. Real-provider/native acceptance is separate.
+- **Implementation evidence:** Task 1049 records the local source, 369 tests/10 properties and rendered checks in its [worklog](../worklog/2026-09-25-1049-board-controller.md). The [controller contract](CUCKODING-CONTROL.md) retains the real-provider, physical sleep/wake and packaged-app gates.
+
 ## ADR template
 
 ### ADR-NNN — Title

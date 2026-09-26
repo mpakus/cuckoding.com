@@ -22,6 +22,20 @@ separate gates where noted.
 | R13 malicious/destructive update | Release, update, snapshot, shell-controller, Rust updater, and packaged rollback checks cover pinned signatures, snapshots, migration guards, authenticated transitions, and rollback | Signing-account compromise requires incident response and Task 1004 release evidence |
 | R14 analytics disclosure | Activity, configuration, security-canary, and diagnostics tests prove bounded local allowlists and redaction; the MVP has no external analytics sender | Any future third-party crash or analytics service requires a new consent and processing review |
 
+## Board controller coverage
+
+`test/cuckoding/board_control_test.exs` adds task 1049 coverage to R1, R5–R7,
+R9 and R10: closed/ordered/stale proposals, shared manual/prepared admission,
+protected-path review, verified commit handoff, capacity/budget stops, durable
+controls, lost-worker/failed-preparation recovery and preserved skipped work.
+Its real shell-process fixture checks suspension/resumption without claiming
+real-provider behavior. `shared_authorization_migration_test.exs` checks additive
+batch schema migration and exclusive board ownership against copied prior data.
+
+These tests passed in the recorded [1049 quality run](../worklog/2026-09-25-1049-board-controller.md).
+Physical sleep/wake, provider authorization expiry/checkpoints and a signed
+current bundle remain separate gates in [CUCKODING-CONTROL.md](CUCKODING-CONTROL.md).
+
 ## E2E scenario 10
 
 `test/fixtures/malicious_repository/README.md` requests SSH reads, same-run

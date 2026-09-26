@@ -1,18 +1,41 @@
 # Phase 4 Walking Skeleton
 
+This document describes the retained execution service and its original demo.
+The 2026-09-17 provider checkpoint below is historical, not acceptance of the
+current board controller or packaged application. For normal operation use
+[FLOW.md](FLOW.md) and [CUCKODING-CONTROL.md](CUCKODING-CONTROL.md).
+
 ## Implemented loop
 
-`Cuckoding.WalkingSkeleton` creates one project, immutable policy and default-workflow snapshot, one board, five role assignments, one task, one run, and one owned worktree. It runs Specifications, Coding, and Review through the configured role adapters. Review must return a closed structured result. The host validates and persists findings, routes blockers to Specifications or Coding, and reruns downstream stages for at most three Review attempts. A passing result creates owner-only evidence and a project-scoped knowledge candidate, then stops in the durable `waiting` state for human choice. Specifications and Review use read-only provider grants. Coding may leave a patch for the host Git service to validate and commit when the provider sandbox correctly denies access to the worktree's Git metadata.
+`Cuckoding.WalkingSkeleton.create/1` is an all-in-one fixture/demo constructor:
+one project, policy, workflow, board, five role assignments, task, run and owned
+worktree. Normal onboarding creates these separately. `GuidedRun` and board
+delivery use its bounded executor with saved runtime assignments.
+
+New defaults run Speculator → Implementor → Reviewer, plus explicitly scheduled
+custom roles. The host validates closed Review output and routes corrections
+through Speculator within the attempt/budget limits (at most three Reviews).
+Task descriptions, the latest spec and returned findings pass between stages;
+legacy run snapshots preserve earlier routing. Passing review produces private
+evidence and a project-scoped knowledge candidate. Manual completion policy
+waits for a decision; explicit local policy completes automatically. Board
+delivery then validates the candidate again before advancing its reviewed head.
+Speculator and Reviewer remain read-only; Implementor may leave a patch for the
+host Git service to validate/commit when provider permissions deny Git metadata.
 
 The status LiveView lists pending choices and shows the candidate base/head, changed files, tests, typed artifacts, and project-knowledge citations. **Complete locally** requires visible confirmation and atomically marks the release decision rejected, the waiting human attempt cancelled, and the run/task done; no `VcsHost` is invoked, and the branch, worktree, and evidence remain. Release is a separate two-step keyboard-accessible action: **Review release**, then **Approve and release**. Approval is persisted before the system release stage calls the configured `VcsHost`. `LocalBareRemote` accepts only an absolute existing local bare `origin`; `GitHubVcsHost` fetches an opaque credential through `SecretStore`, pushes the candidate, and creates a draft pull request. Both require a clean recorded candidate revision, an approval for the same run, a non-protected branch, and a non-force exact branch refspec. If the handoff fails after approval, the attempt is durably failed and the approved release remains visible as **Retry release**; startup recovery can resume a waiting handoff without creating another approval decision. Merge remains outside the MVP workflow.
 
-The simulated sleep gap occurs while the specification attempt is active. The adapter checkpoint is persisted, the run hibernates, the worktree and policy marker are revalidated, and resume reuses the same attempt ID. The temporary preview-port lease used by the existing lifecycle is released before the stage continues.
+The deterministic demo can simulate a sleep gap while Specification is active.
+The checkpoint is persisted, the run hibernates, the worktree/policy marker is
+revalidated, and resume reuses the attempt ID. Normal GuidedRun and controller
+launches disable that fixture-only simulation; real wake handling belongs to the
+power/reconciliation services.
 
 ## Evidence
 
 Each run writes owner-only files under its run directory:
 
-- `artifacts/specification.md`
+- `artifacts/specification.md` and per-attempt specification artifacts
 - `artifacts/qa.md`
 - `artifacts/evidence.json`, a versioned typed bundle containing adapter, branch, base/candidate SHA, test results, structured findings, artifact hashes, knowledge citations, and measured active/wall milliseconds for each agent stage
 - `artifacts/release.json` after the approved push
@@ -30,11 +53,15 @@ Every file creation, finding, stage transition, checkpoint, completion choice, c
 | Plain knowledge candidate | Owner-only Markdown and project scope are real | Phase 7 review, index, provenance, publication, and usage tracking |
 | Local bare `origin` | Approval-gated, idempotent non-force push is real | `GitHubVcsHost` now provides the credential-isolated draft-PR path; later plugin work can add hosts |
 
-No plugin registry, knowledge database, automatic merge, or second frontend is part of this loop.
+The original thin demo does not exercise every plugin/knowledge subsystem.
+Those services now exist elsewhere in the application. Automatic merge and a
+second application frontend remain outside this loop.
 
 ## Demo procedure
 
-Use a clean Git repository whose `origin` is an absolute path to an existing local bare repository. From `iex -S mix phx.server`:
+Use a disposable clean Git repository whose `origin` is an absolute path to an
+existing local bare repository, plus an isolated development database. From
+`rtk iex -S mix phx.server`:
 
 ```elixir
 attrs = %{
@@ -59,6 +86,9 @@ On 2026-09-17, Codex `0.146.0` authenticated inside the run-scoped home and comp
 
 The run exposed five failed specification attempts before the successful retry: an unapplied local migration, delayed stdin EOF, a provider schema incompatibility, correctly protected Git metadata, and an adapter timeout that ignored its declared wall limit. Each failure remained durable and led to the narrow fixes documented in the worklog. The provider's safe PATH did not contain Mix, so the host independently ran the generated fixture's explicit-file formatter check and two-test suite. Run-scoped toolchain resolution remains a Phase 5 runner follow-up, not hidden demo evidence.
 
-## Product judgment
+## Historical Phase 4 product judgment
 
-**GO.** The real-provider checkpoint confirms that the loop is valuable enough to continue: one action surface exposes durable progress, recoverable provider and release failures, evidence, a host-owned candidate revision, and a clearly human-controlled release. Phase 5 should keep the existing boundaries and close the recorded toolchain-resolution gap instead of widening the walking skeleton.
+**GO to continue implementation, recorded in Phase 4.** The checkpoint established
+value in durable progress, retained failures, evidence and human-controlled
+release. It is not the current MVP release decision, which remains
+[no-go pending release acceptance](RELEASE_READINESS.md).

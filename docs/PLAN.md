@@ -2,6 +2,12 @@
 
 The plan is organized as gated phases. Task files under `tasks/` provide the detailed implementation units. A phase is complete only when its outcomes are demonstrated and every exit checklist item is true. The walking skeleton at the end of Phase 4 is the first checkpoint where the product is judged before more infrastructure is built.
 
+Current source review: **2026-09-25**. Checked implementation items record source
+and task-specific evidence; the unchecked MVP definition of done below still
+requires one current accepted release candidate. The newest feature is the
+[board development controller](CUCKODING-CONTROL.md), implemented in task 1049
+and not yet accepted on real providers or a packaged macOS app.
+
 ## Phase 0 — Discovery and feasibility
 
 **Outcome:** agreed MVP boundary, competitive position, trusted-host threat model, and proof that one agent runtime, the menubar shell, and sleep/wake handling work on macOS Apple Silicon.
@@ -216,7 +222,7 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
   - [x] Global dashboard lists projects, health, resources, active work, and attention.
   - [x] Add-project wizard separates identity, repository/branch, and review; project settings versions multiple agents and role assignments.
   - [x] Project settings creates boards independently from project registration.
-  - [x] Board task creation and run preparation use the default Specifications → Coding → Review workflow and copied board role assignments.
+  - [x] Board task creation and run preparation use the default Speculator → Implementor → Reviewer workflow and copied board role assignments; legacy snapshots retain earlier names/routing.
   - [x] Board prompts create planning runs; validated, user-selected proposals become Draft tasks.
   - [x] Task 1024: blocked or failed delivery tasks can prepare a distinct retry
     run without deleting the prior run, worktree, logs, or artifacts; failed
@@ -234,8 +240,9 @@ The plan is organized as gated phases. Task files under `tasks/` provide the det
     the real-provider acceptance gate.
   - [x] Task 1028: compare the requested autonomous project story with shipped
     behavior and record its gaps, decisions, and next implementation slices in
-    [AUTONOMOUS_PROJECT_FLOW.md](AUTONOMOUS_PROJECT_FLOW.md). This is a plan,
-    not an implemented board-level Start or autonomous dispatcher.
+    [AUTONOMOUS_PROJECT_FLOW.md](AUTONOMOUS_PROJECT_FLOW.md). Task 1028 was
+    documentation only; project dispatch followed in task 1029 and sequential
+    Start board followed in task 1049.
   - [x] Task 1030: Ready cards show the current scheduler admission reason
     during automatic project operation; paused and prepared-run states are
     explained without claiming that Ready never starts automatically.
@@ -292,6 +299,23 @@ complete local-application acceptance remain open:
   external-path and network permission editing are not offered.
 - [ ] Cover role defaults, Markdown intake, comment propagation, return routing,
   permission enforcement and snapshot preservation before claiming completion.
+
+## Board development controller — 2026-09-25
+
+- [x] Task 1048: source-grounded controller proposal and dependent CTRL-01–07 checklist.
+- [x] Task 1049: durable fixed membership, reviewed Start board, active read-only
+  Speculator decisions, shared admission and reviewed commit handoff.
+- [x] Task 1049: board controls/recovery, skip/defer outcomes, complete available
+  batch accounting, live board/home UI and accessible committed-state motion.
+- [x] Source validation: 369 tests and 10 properties, prior-schema migration,
+  motion tests and rendered desktop/mobile checks recorded in the
+  [1049 worklog](../worklog/2026-09-25-1049-board-controller.md).
+- [ ] Real-provider board execution, correction/authorization/usage evidence.
+- [ ] Physical sleep/wake and packaged-app restart with owned provider processes.
+- [ ] Signed clean-machine build/install and actual-running-revision checks.
+
+The detailed contract and acceptance list is [CUCKODING-CONTROL.md](CUCKODING-CONTROL.md).
+Task 1050 synchronizes documentation; it does not close these external gates.
 
 ## Definition of done for MVP
 

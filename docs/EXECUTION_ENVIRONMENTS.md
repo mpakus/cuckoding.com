@@ -36,6 +36,15 @@ The workspace root defaults to `~/Library/Application Support/Cuckoding/workspac
 
 `Cuckoding.Execution.GitService` requires the registered repository to be clean, resolves the repository and workspace directories before comparing paths, and creates a new non-protected branch from the recorded default-branch SHA. Each run directory starts with an atomic `run.json` ownership marker and its environment records the same base and head SHA. Existing branches, existing run directories, traversal identifiers, and symlink components below the resolved workspace root are refused rather than cleaned automatically.
 
+For a linked board batch, the trusted execution base can instead be its latest
+validated reviewed commit. The ownership marker additionally carries the batch
+ID and original project base, while `run.base_sha` remains the task's execution
+base. GitService still requires the clean default branch to match that original
+revision. Handoff verifies review/candidate identity and ancestry; skipped or
+failed branches remain isolated and never advance the batch head. Stop and Skip
+stop owned processes while retaining worktrees/artifacts; neither removes nor
+rebases unfinished work. See [CUCKODING-CONTROL.md](CUCKODING-CONTROL.md).
+
 The native app's HOME remains app-owned. Host-side GitService commands use the
 shell's `CUCKODING_RUNTIME_HOME` hint for a read-only Git configuration lookup of
 the effective `core.excludesFile` path, including repository overrides and tilde

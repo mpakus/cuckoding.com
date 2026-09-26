@@ -1,9 +1,11 @@
 # Cuckoding Control: board development controller
 
-Status: **Proposed; feature implementation is not complete.**
-Source baseline: local main `caed0e7`, inspected on 2026-09-25.
-Documentation delivery: [task 1048](../tasks/phase-10-hardening-beta/1048-cuckoding-control-plan.md)
-and [worklog](../worklog/2026-09-25-1048-cuckoding-control-plan.md).
+Status: **Implemented locally for development testing, 2026-09-25.**
+Implementation: [task 1049](../tasks/phase-10-hardening-beta/1049-board-controller.md)
+and [verification worklog](../worklog/2026-09-25-1049-board-controller.md).
+The original proposal was delivered in task 1048 at `55f1bd1`, based on main
+`caed0e7`. Real-provider, physical sleep/wake, and packaged-app acceptance remain
+open. This document distinguishes implemented contracts from those release gates.
 
 ## 1. Goal and agreed decisions
 
@@ -23,12 +25,16 @@ state transitions, permissions, evidence validation, and process ownership.
 | Skip | Exclude from this batch, preserve unfinished work, and continue independent tasks. |
 | Visibility | Animated live progress, complete batch statistics, public evidence, and accessible pause/resume/stop/skip/retry controls. |
 
-This document plans the feature. It does not mark it implemented, change existing
-project settings, or authorize a remote release. Existing boards, runs, and
-manual-completion defaults keep their historical contracts. A future Start board
-records the user's completion choice for that batch and each admitted run.
+Start board is independent of the project automatic-admission switch. It can
+run while project admission is paused, but workspace pause/stop and shared
+resource limits remain authoritative. Other unclaimed boards can run concurrently.
+Project/manual execution does not provide this batch's reviewed commit chain.
 
-## 2. Current implementation and gaps
+Existing boards, runs, and manual-completion defaults keep their historical
+contracts. Start board records explicit local-completion authorization for the
+batch and each admitted delivery run. It does not authorize a remote release.
+
+## 2. Source foundations and implementation
 
 The following is source inspection, not fresh runtime or real-provider evidence.
 Use [PRODUCT.md](PRODUCT.md), [FLOW.md](FLOW.md), [ARCHITECTURE.md](ARCHITECTURE.md),
@@ -36,15 +42,15 @@ and [DB.md](DB.md) alongside these entry points. Older sections of
 [AUTONOMOUS_PROJECT_FLOW.md](AUTONOMOUS_PROJECT_FLOW.md) describe earlier
 baselines; do not copy their open-gap claims without checking current source.
 
-| Existing foundation and source | Missing board-controller behavior |
+| Existing foundation and source | Board-controller implementation |
 | --- | --- |
-| [ProjectAutopilot](../lib/cuckoding/project_autopilot.ex#L118) persists project operation state and repeatedly admits Ready delivery tasks across active boards. | A fixed board batch, active Speculator coordination, and exactly one delivery task owned by that batch. |
-| [Scheduler](../lib/cuckoding/execution/scheduler.ex#L90) plans dependency-, priority-, capacity-, port-, and memory-aware admission. [Queued starts](../lib/cuckoding/project_autopilot.ex#L263) take a separate capacity path; [RunControl.admit](../lib/cuckoding/run_control.ex#L39) guards workspace admission. | One shared admission boundary for controller, prepared, manual, and automatic starts, with a durable board claim that none can bypass. |
-| [WalkingSkeleton](../lib/cuckoding/walking_skeleton.ex#L87) runs Speculator, Implementor, custom roles, and Reviewer; passes task/specification evidence; and bounds review attempts. [Local completion](../lib/cuckoding/walking_skeleton.ex#L367) retains branches and evidence. | Coordination between tasks, batch-level stopping/settlement, and promotion of a reviewed commit to the next task's base. |
-| [ProjectWorkflow.prepare_task](../lib/cuckoding/project_workflow.ex#L267) captures the project base. [GitService.prepare](../lib/cuckoding/execution/git_service.ex#L91) requires it to match the default branch. | Explicit provenance for a reviewed commit chain without relaxing ownership, protected-branch, or drift checks. |
-| [RunControl](../lib/cuckoding/run_control.ex#L95) supports per-run and workspace pause/resume/stop. Project pause stops new admissions. A lower-level [BoardControl](../lib/cuckoding/execution/scheduler.ex#L453) delegates pause/hibernate. | A complete board-execution control contract, batch-only skip, observed control outcomes, and restart recovery. |
-| [AgentFloor](../lib/cuckoding/agent_floor.ex#L21) limits session cards to 100 and operations to 50. Existing [accounting](../lib/cuckoding/telemetry/accounting.ex) and [resource metrics](../lib/cuckoding/telemetry/resource_metrics.ex) retain durable observations. | Whole-batch aggregates across every task, controller session, and retry, independent of visible list limits. |
-| [Board motion](../assets/js/app.js#L91) uses a 200 ms native animation; LiveView already exposes board progress and activity history. | A coherent controller panel, next-task explanation, board controls, complete statistics, and stage handoff visualization. |
+| [ProjectAutopilot](../lib/cuckoding/project_autopilot.ex) admits Ready tasks across project boards. | Its existing supervised worker also dispatches fixed batches through [BoardControl](../lib/cuckoding/board_control.ex); project autopilot omits claimed boards. |
+| [Scheduler](../lib/cuckoding/execution/scheduler.ex) checks dependencies, priority, capacity, ports and memory; [RunControl](../lib/cuckoding/run_control.ex) guards workspace admission. | Prepared, controller, manual and automatic starts share `RunControl.admit/3` and board ownership checks. |
+| [WalkingSkeleton](../lib/cuckoding/walking_skeleton.ex) runs configured delivery stages and independent review with correction limits. | [Decision](../lib/cuckoding/board_control/decision.ex) invokes the read-only Speculator at decision boundaries; validated local completion advances the batch head. |
+| [ProjectWorkflow](../lib/cuckoding/project_workflow.ex) prepares runs and [GitService](../lib/cuckoding/execution/git_service.ex) verifies Git ownership. | Batch worktrees carry original project provenance separately from their reviewed execution base; default-branch drift still blocks execution. |
+| [RunControl](../lib/cuckoding/run_control.ex) controls owned processes. | Board commands persist intent before verified pause/resume/stop, preserve attempts, and implement skip/defer/retry with fail-closed recovery. |
+| [AgentFloor](../lib/cuckoding/agent_floor.ex) caps visible projections. | [Statistics](../lib/cuckoding/board_control/statistics.ex) queries every batch-linked run/session/usage/resource record, including retries and controller work. |
+| [Board motion](../assets/js/app.js) provides the existing 200 ms hook. | [BoardControlComponents](../lib/cuckoding_web/components/board_control_components.ex) reuses it for committed stage transitions and provides board controls, evidence, accounting and a compact home summary. |
 
 Reuse these components. Add neither a second workflow engine nor another UI
 framework, provider abstraction, animation library, or metrics collector.
@@ -93,8 +99,10 @@ policy, change priority, or declare a task Done.
    priority, ascending creation time, then task ID, matching the current
    scheduler's within-board order.
 2. At a decision boundary, Speculator receives the queue, public evidence,
-   previous outcomes, remaining budgets, execution revision, and latest reviewed
-   commit. It proposes starting the next task, reporting a blocker, or finishing.
+   previous outcomes, recorded decision cap, execution revision, and latest
+   reviewed commit. The host enforces budgets; this input does not forecast
+   remaining spend or time. It proposes starting the next task, reporting a
+   blocker, or finishing.
 3. Parse a bounded, closed structured result tied to that execution revision.
    Validate membership, order, prerequisites, current state, permissions, and
    capacity host-side before converting a proposal into a trusted command.
@@ -139,20 +147,25 @@ update before the board starts under this contract.
 
 ### Persistence and commands
 
-Add a `BoardExecution` aggregate and membership records containing the versioned
+The `BoardControl.Execution` aggregate and membership records contain the versioned
 batch snapshot, linked runs/attempts, current item, reviewed head, control state,
 revision, and outcomes. Keep append-only events for decisions and transitions.
 Use a SQLite uniqueness constraint for one nonterminal execution per board;
 pausing or requesting attention does not release that ownership.
 
-Represent controller activity with a hidden `board_control` task/run, reusing
-stage attempts, agent sessions, artifacts, accounting, and owned process control.
-Exclude that task kind from delivery totals and ordinary task admission. An
+Controller activity uses a hidden task stored with the existing `board_intake`
+kind and a distinct, immutable `board_control` workflow stage. A fresh hidden task
+owns each completed decision; retry history remains on the previous run records.
+This avoids rebuilding SQLite's historical task-kind constraint; see
+[ADR-030](DECISIONS.md#adr-030--sequential-board-execution-and-reviewed-commit-provenance).
+Stage attempts, agent sessions, artifacts, accounting, and owned process control
+are reused. Hidden tasks stay outside delivery totals and ordinary admission. An
 active controller session consumes agent capacity, but an idle controller does
 not consume a delivery slot. Do not keep an otherwise unused process alive
 between decisions.
 
-Expose context commands `start`, `pause`, `resume`, `stop`, `skip`, and `retry`.
+Context commands are `start`, `pause`, `resume`, `stop`, `skip`, `retry`, and
+confirmed `refresh` of reviewed pending requests/dependencies.
 Commands carry a stable idempotency key and expected execution revision. Return
 an explicit accepted/rejected outcome, including the reason and current state.
 Reuse the command/event ledger; no new public HTTP API is required.
@@ -164,8 +177,9 @@ Extend the existing supervised dispatcher and shared admission boundary:
   starting controller or delivery execution. Prepared and manual runs cannot
   bypass these checks.
 - Atomically reserve the next item and persist its command/event before launch.
-  Use existing leases with TTL/heartbeat and reconciliation for abandoned work;
-  keep external process/Git operations outside long SQLite transactions.
+  Use existing leases and reconciliation for abandoned work; the short dispatcher
+  claim has a 60-second TTL and is released after each admission decision.
+  Keep external process/Git operations outside long SQLite transactions.
 - Retain the claim during pending control operations. Mark side-effect outcomes
   durably and recover interrupted preparation/launch without a duplicate run.
 - Persist before broadcasting. Workers and LiveViews reload authoritative state
@@ -230,8 +244,12 @@ skipped prerequisite are deferred for this batch with an explicit dependency
 reason; neither skipped nor deferred work counts as completed.
 
 Normal review corrections continue within the existing limits (currently three
-review attempts in the default executor). Bounded transient retries may continue
-under policy. Halt at the first authentication/permission requirement, exhausted
+review attempts in the default executor). Stage attempt, time, reported-token
+and cost budgets apply to controller and delivery stages. A batch also caps
+controller invocations at `4 × included tasks + 10`; unavailable usage cannot
+prove that a spend limit has remaining capacity. Existing bounded command retries
+remain in effect; a failed orchestration requires explicit recovery. Halt at the
+first authentication/permission requirement, exhausted
 budget, invalid controller output, unrecoverable failure, or unsatisfied
 dependency that prevents progress. A dependent waiting for a prerequisite still
 pending in this batch is not itself a hard blocker. A hard-blocked task does not
@@ -243,10 +261,13 @@ Needs attention; do not claim Pause/Stop/Skip succeeded or start the next task.
 Use verified PID/start identity and owned process groups, never raw process
 arguments or indiscriminate process termination.
 
-On restart or wake, reconcile recorded processes, worktrees, checkpoints,
+On restart or wake, the existing reconciler checks processes, worktrees, checkpoints,
 leases, decisions, and incomplete commands before admitting anything. Resume
 only where ownership and the runtime's checkpoint support can be established;
-otherwise require attention with retained evidence. Sleep gaps are recorded and
+otherwise require attention with retained evidence. A missing orchestration
+worker requires explicit Retry; the dispatcher never assumes its prior process
+has stopped. Failed preparation without an environment is recoverable only when
+no agent attempt or worker exists. Sleep gaps are recorded and
 reconciled, not treated as proof of a crash. Reopening the browser reconstructs
 the same state without restarting work.
 
@@ -258,7 +279,7 @@ follow [UI_DASHBOARD.md](UI_DASHBOARD.md).
 
 | Area | Required information |
 | --- | --- |
-| Controller | Execution state, Speculator identity/runtime/model, public decision summary, last activity, remaining budget, and recovery reason. |
+| Controller | Execution state, latest linked session's runtime/requested and observed model, last public batch event, recorded decision count/cap, and recovery reason. Controller decisions remain in activity history; saved role assignments and stage budgets are available in the start preflight and run evidence. |
 | Queue | Current/next task, priority, dependency eligibility, pending items, and skip/defer explanations. |
 | Workflow | Speculator → Implementor → Reviewer, configured custom roles, correction loop, current owner, runtime, requested/observed model, and stage elapsed time. |
 | Progress | Included, pending, active, completed, blocked, skipped, and deferred counts. Show paused/waiting detail without counting a task twice. |
@@ -276,7 +297,14 @@ separate and distinguish provider-reported cost from catalog estimates.
 
 Missing measurements are unavailable, not zero. Label measured, reported,
 estimated, partial, and stale values explicitly. Keep UTC timestamps and
-monotonic measured durations; record pause and sleep gaps without double counting.
+monotonic measured durations. Board pause and machine sleep intervals are shown
+separately with an overlap warning, never added into an invented duration total.
+CPU is the measured change between recorded process samples; peak memory is the
+largest sampled process-tree memory, not an inferred simultaneous batch peak.
+The last sample timestamp makes historical/stale observations visible.
+Resource totals use retained raw samples; this view does not reconstruct pruned
+samples from rollups. Whole-batch membership/session queries therefore do not
+promise complete historical CPU/memory coverage. See [TELEMETRY.md](TELEMETRY.md#board-batch-accounting).
 Do not fabricate per-agent completion percentages, forecasts, or hidden reasoning.
 
 Persist normalized events before broadcast, coalesce refreshes, and use the
@@ -292,9 +320,9 @@ state without replaying old events as new animation or duplicating commands.
 
 ## 7. Implementation tasks
 
-All checkboxes below describe future implementation acceptance. Documentation
-completion does not check them. Claim each implementation task separately and
-record its exact verification commands/results in its own worklog. Follow
+The CTRL slices were implemented together under the single claimed task 1049.
+Checked items refer to source, deterministic regression and rendered-browser
+evidence in its worklog, not real-provider or native release acceptance. Follow
 [REFERENCE_CODING.md](REFERENCE_CODING.md) before unfamiliar implementation and
 the relevant repository skills, including security and quality gates.
 
@@ -302,84 +330,84 @@ the relevant repository skills, including security and quality gates.
 
 Dependencies: none.
 
-- [ ] Record the architecture decision and state/ownership contract; synchronize affected architecture, database, flow, and security documentation.
-- [ ] Add BoardExecution, membership snapshots/outcomes, hidden board_control task kind, execution revision, and unique nonterminal board ownership.
-- [ ] Reuse durable commands/events/leases and existing stage/session evidence; distinguish controller capacity from delivery capacity.
-- [ ] Verify forward migration against a prior-schema copy, historical snapshot preservation, uniqueness, event ordering, and duplicate command behavior.
+- [x] Record the architecture decision and state/ownership contract; synchronize affected architecture, database, flow, and security documentation.
+- [x] Add BoardExecution, membership snapshots/outcomes, hidden board_control stage using the existing planning task kind, execution revision, and unique nonterminal board ownership.
+- [x] Reuse durable commands/events/leases and existing stage/session evidence; distinguish controller capacity from delivery capacity.
+- [x] Verify forward migration against a prior-schema copy, historical snapshot preservation, uniqueness, event ordering, and duplicate command behavior.
 
 ### CTRL-02 — Start-board preflight
 
 Dependencies: CTRL-01.
 
-- [ ] Add the reviewed Draft/Ready batch modal with ordered queue, explicit exclusions, saved roles/models, authorization, budgets, base revision, and local-completion consent.
-- [ ] Reject empty/stale/conflicting batches and unresolved external prerequisites; preserve unreviewed proposal-import boundaries.
-- [ ] Snapshot membership and policy; audit Draft-to-Ready transitions and any confirmed pending-snapshot refresh.
-- [ ] Verify missing sign-in, unsupported roles, dirty/unborn base, pending edits, new cards, explicit exclusions, keyboard access, and actionable validation.
+- [x] Add the reviewed Draft/Ready batch modal with ordered queue, explicit exclusions, saved roles/models, authorization, budgets, base revision, and local-completion consent.
+- [x] Reject empty/stale/conflicting batches and unresolved external prerequisites; preserve unreviewed proposal-import boundaries.
+- [x] Snapshot membership and policy; audit Draft-to-Ready transitions and any confirmed pending-snapshot refresh.
+- [x] Inspect the shared role/authentication/Git rejection guards; verify pending edits, fixed membership, actionable validation and keyboard access with fixtures and rendered UI. Live sign-in expiry remains in the external gates below.
 
 ### CTRL-03 — Speculator controller and shared admission
 
 Dependencies: CTRL-01, CTRL-02.
 
-- [ ] Invoke the assigned read-only Speculator at bounded decision points using the existing runtime, stage, artifact, and failure infrastructure.
-- [ ] Validate closed structured decisions, execution revision, membership, priority/dependencies, completion evidence, and effective grants host-side.
-- [ ] Apply one admission boundary to controller, queued, manual, and autopilot paths; enforce exactly one delivery task and all resource/workspace limits.
-- [ ] Verify concurrent ticks/clicks, forged/stale proposals, hidden-task exclusion, idle-controller capacity, transient waits, and durable dispatch failures.
+- [x] Invoke the assigned read-only Speculator at bounded decision points using the existing runtime, stage, artifact, and failure infrastructure.
+- [x] Validate closed structured decisions, execution revision, membership, priority/dependencies, completion evidence, and effective grants host-side.
+- [x] Apply one admission boundary to controller, queued, manual, and autopilot paths; enforce exactly one delivery task and all resource/workspace limits.
+- [x] Verify concurrent ticks/clicks, forged/stale proposals, hidden-task exclusion, idle-controller capacity, transient waits, and durable dispatch failures.
 
 ### CTRL-04 — Reviewed commit handoff
 
 Dependencies: CTRL-01, CTRL-03.
 
-- [ ] Carry original project revision, per-task base, candidate identity, and reviewed head through Git preparation, ownership markers, inspection, and recovery.
-- [ ] Advance only after validated review/local completion and clean, correctly related candidate evidence; preserve per-task and whole-batch change ranges.
-- [ ] Verify a later task reads its prerequisite's code, skipped/failed code is absent, external prerequisite evidence is present, and drift/tampered evidence blocks progress.
-- [ ] Verify the default branch is unchanged and no push, PR, merge, policy escalation, or automatic knowledge publication occurs.
+- [x] Carry original project revision, per-task base, candidate identity, and reviewed head through Git preparation, ownership markers, inspection, and recovery.
+- [x] Advance only after validated review/local completion and clean, correctly related candidate evidence; preserve per-task and whole-batch change ranges.
+- [x] Verify a later task reads its prerequisite's code, skipped/failed code is absent, external prerequisite evidence is present, and drift/tampered evidence blocks progress.
+- [x] Verify the default branch is unchanged and no push, PR, merge, policy escalation, or automatic knowledge publication occurs.
 
 ### CTRL-05 — Controls and recovery
 
 Dependencies: CTRL-03, CTRL-04.
 
-- [ ] Implement board Pause/Resume/Stop/Skip/Retry with durable intent, confirmed outcomes, retained ownership during control, and existing workspace-control precedence.
-- [ ] Halt at the first hard blocker; preserve bounded review/transient retries and distinguish Done, Finished with skips, and Stopped.
-- [ ] Defer skipped prerequisites' descendants without marking them complete; retain branches, worktrees, previous attempts, and evidence.
-- [ ] Verify controls during controller/delivery/stage-boundary execution, cleanup failure, restart, missing workers/checkpoints, sleep/wake, expired leases, and duplicate recovery.
+- [x] Implement board Pause/Resume/Stop/Skip/Retry with durable intent, confirmed outcomes, retained ownership during control, and existing workspace-control precedence.
+- [x] Halt at the first hard blocker; preserve bounded review/transient retries and distinguish Done, Finished with skips, and Stopped.
+- [x] Defer skipped prerequisites' descendants without marking them complete; retain branches, worktrees, previous attempts, and evidence.
+- [x] Verify controller process suspension/resumption, delivery skip, stage-boundary controls, missing-worker/failed-preparation retry, and existing cleanup/reconciliation/lease regression suites. Physical sleep/wake and packaged restart remain external gates.
 
 ### CTRL-06 — Dashboard and accounting
 
 Dependencies: CTRL-01, CTRL-03, CTRL-05. Build against the established command/event contracts.
 
-- [ ] Add the board controller panel and home summary with current/next task, public decisions, role/model/stage progress, controls, and evidence links.
-- [ ] Aggregate the entire batch, including controller work/retries; define nonoverlapping progress counts and honest timing, token, cost, and resource provenance.
-- [ ] Reuse LiveView and native 200 ms motion; preserve focus, input, disclosures, history position, reduced motion, and chart/table equivalence.
-- [ ] Verify totals beyond existing display caps, duplicate usage events, missing/stale samples, partial cost coverage, narrow screens, keyboard controls, and reconnect.
+- [x] Add the board controller panel and home summary with current/next task, public decisions, role/model/stage progress, controls, and evidence links.
+- [x] Aggregate the entire batch, including controller work/retries; define nonoverlapping progress counts and honest timing, token, cost, and resource provenance.
+- [x] Reuse LiveView and native 200 ms motion; preserve focus, input, disclosures, history position, reduced motion, and chart/table equivalence.
+- [x] Verify totals beyond existing display caps, duplicate usage events, missing/stale samples, partial cost coverage, narrow screens, keyboard controls, and reconnect.
 
 ### CTRL-07 — Integrated acceptance and documentation
 
 Dependencies: CTRL-01, CTRL-02, CTRL-03, CTRL-04, CTRL-05, CTRL-06.
 
-- [ ] Exercise the full board journey with deterministic adapters and explicit security, transition, migration, recovery, and process-ownership checks.
-- [ ] Run focused tests, full relevant quality gates, browser motion checks, and rendered desktop/mobile/keyboard/reduced-motion acceptance.
-- [ ] Synchronize PRODUCT, ARCHITECTURE, DB, FLOW, SECURITY, EXECUTION_ENVIRONMENTS, UI_DASHBOARD, AUTONOMOUS_PROJECT_FLOW, and TESTING claims where affected.
-- [ ] Record real-provider, sleep/restart, and packaged-app acceptance separately from fixtures; retain explicit open gates and exact build/revision evidence.
+- [x] Exercise the full board journey with deterministic adapters and explicit security, transition, migration, recovery, and process-ownership checks.
+- [x] Run focused tests, full relevant quality gates, browser motion checks, and rendered desktop/mobile/keyboard/reduced-motion acceptance.
+- [x] Synchronize PRODUCT, ARCHITECTURE, DB, FLOW, SECURITY, EXECUTION_ENVIRONMENTS, UI_DASHBOARD, AUTONOMOUS_PROJECT_FLOW, and TESTING claims where affected.
+- [x] Record real-provider, sleep/restart, and packaged-app acceptance separately from fixtures; retain explicit open gates and exact build/revision evidence.
 
 Execution order: CTRL-01 → CTRL-02 → CTRL-03 → CTRL-04 → CTRL-05 → CTRL-06 → CTRL-07.
-The dependency declarations above are authoritative; none of these tasks is
-completed by creating this proposal.
+The dependency declarations above describe the implementation order. External
+acceptance remains separate from the source and fixture checks below.
 
 ## 8. Integrated verification checklist
 
-- [ ] Mixed Draft/Ready tasks execute in dependency-aware priority order with exactly one delivery task active.
-- [ ] Equal priorities have deterministic ordering; ordinary pending prerequisites do not cause a false hard blocker.
-- [ ] Duplicate clicks, competing dispatchers, prepared runs, and manual starts cannot duplicate or bypass admission.
-- [ ] Forged, stale, out-of-batch, out-of-order, or permission-expanding controller proposals cannot mutate trusted state.
-- [ ] Reviewer corrections return through Speculator; exhausted limits halt the batch and retain evidence.
-- [ ] A later task demonstrably sees an earlier task's reviewed code; failed/skipped code is absent and the default branch remains unchanged.
-- [ ] Pause, Stop, Skip, and Retry work during controller execution, delivery, and stage boundaries; unconfirmed cleanup prevents the next launch.
-- [ ] Skipped prerequisites defer descendants; skipped/deferred/cancelled/archived work is never mislabeled completed.
-- [ ] Restart, sleep/wake, lost authorization, Git drift, stale snapshots, and uncertain process ownership preserve evidence and prevent unsafe launches.
-- [ ] Statistics include every batch attempt without double counting and label unavailable, stale, partial, and estimated telemetry honestly.
-- [ ] Desktop/mobile, keyboard-only, reduced-motion, focus/input/disclosure preservation, and reconnect checks pass.
-- [ ] Prior-schema migration, focused regression suites, full relevant quality gates, and motion tests pass against the feature under test.
-- [ ] Real-provider and packaged-app evidence is recorded independently of deterministic fixtures; open acceptance gates remain unchecked.
+- [x] Mixed Draft/Ready tasks execute in dependency-aware priority order with exactly one delivery task active.
+- [x] Equal priorities have deterministic ordering; ordinary pending prerequisites do not cause a false hard blocker.
+- [x] Duplicate clicks, competing dispatchers, prepared runs, and manual starts cannot duplicate or bypass admission.
+- [x] Forged, stale, out-of-batch, out-of-order, or permission-expanding controller proposals cannot mutate trusted state.
+- [x] Reviewer corrections return through Speculator; exhausted limits halt the batch and retain evidence.
+- [x] A later task demonstrably sees an earlier task's reviewed code; failed/skipped code is absent and the default branch remains unchanged.
+- [x] Pause, Stop, Skip, and Retry work during controller execution, delivery, and stage boundaries; unconfirmed cleanup prevents the next launch.
+- [x] Skipped prerequisites defer descendants; skipped/deferred/cancelled/archived work is never mislabeled completed.
+- [x] Deterministic reconciliation/control/authorization regressions and controller Git-drift/stale-snapshot/lost-worker checks preserve evidence and prevent unsafe launches; physical-machine/provider cases remain below.
+- [x] Statistics include every batch attempt without double counting and label unavailable, stale, partial, and estimated telemetry honestly.
+- [x] Desktop/mobile, keyboard-only, reduced-motion, focus/input/disclosure preservation, and reconnect checks pass.
+- [x] Prior-schema migration, focused regression suites, full relevant quality gates, and motion tests pass against the feature under test.
+- [x] Real-provider and packaged-app evidence is recorded independently of deterministic fixtures; open acceptance gates remain unchecked.
 
 Implementation verification includes `rtk mix quality` and
 `rtk node --test test/task_board_motion_test.cjs`, plus focused scheduler,
@@ -388,9 +416,15 @@ checks selected under [TESTING.md](TESTING.md). Process or packaging changes als
 require their applicable native gates. Record exact commands, tested revision,
 outcomes, and unavailable checks rather than treating this list as passing evidence.
 
-For task 1048's documentation delivery, validate local links/source anchors,
-current claims, task dependencies, checklist coverage, unchecked feature status,
-and `rtk git diff --check`. Product tests, native builds, application restarts,
-and provider runs are not evidence required for writing this proposal. Report
-working-tree delivery, local main integration, remote publication, and running
-build status separately.
+Task 1048 validated documentation only. Task 1049 records feature verification
+separately. Working-tree delivery does not imply local main integration, remote
+publication, a rebuilt native bundle, or an updated installed application.
+
+## 9. Remaining external acceptance
+
+- [ ] Run a multi-task board with the configured real provider, including reported usage/model identity, correction loops and live authorization expiry.
+- [ ] Run the controller across physical laptop sleep/wake and a packaged-app restart; record ownership/checkpoint classification and recovery evidence.
+- [ ] Build/install the signed macOS bundle and verify the actual running revision, native lifecycle controls and clean-machine packaging.
+
+These are acceptance gates, not implied by deterministic adapters, a loopback
+development browser session, or a passing source quality gate.

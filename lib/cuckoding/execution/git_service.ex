@@ -25,6 +25,15 @@ defmodule Cuckoding.Execution.GitService do
   @uuid ~r/\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\z/
   @sha ~r/\A[0-9a-f]{40}\z/
 
+  @doc "Checks that a recorded prerequisite commit is contained in a candidate base."
+  def ancestor(project, older, newer) do
+    with :ok <- valid_sha?(older),
+         :ok <- valid_sha?(newer),
+         {:ok, repo} <- canonical_directory(project.repo_path),
+         {:ok, _} <- git(repo, ["merge-base", "--is-ancestor", older, newer]),
+         do: :ok
+  end
+
   @doc "Captures the clean default-branch revision used to create a run."
   def capture_base(%Project{} = project) do
     with {:ok, {_repo, sha}} <-
@@ -100,7 +109,7 @@ defmodule Cuckoding.Execution.GitService do
          {:ok, base_sha} <- resolve_commit(repo, run.base_sha),
          {:ok, current_base} <-
            git(repo, ["rev-parse", "--verify", "refs/heads/#{project.default_branch}^{commit}"]),
-         :ok <- base_matches?(base_sha, current_base),
+         :ok <- base_matches?(Cuckoding.BoardControl.original_base(run), current_base),
          :ok <- branch_available?(repo, run.branch),
          {:ok, workspace_root} <- workspace_root(project.workspace_root),
          {:ok, run_dir, worktree} <- available_paths(workspace_root, project.id, run.id),
@@ -193,7 +202,7 @@ defmodule Cuckoding.Execution.GitService do
          :ok <- marker_matches?(environment, project, task, run, policy),
          {:ok, current_base} <-
            git(repo, ["rev-parse", "--verify", "refs/heads/#{project.default_branch}^{commit}"]),
-         :ok <- base_matches?(environment.base_sha, current_base),
+         :ok <- base_matches?(Cuckoding.BoardControl.original_base(run), current_base),
          {:ok, branch} <-
            git(environment.worktree_path, ["symbolic-ref", "--quiet", "--short", "HEAD"]),
          true <- String.trim(branch) == run.branch,
@@ -236,7 +245,7 @@ defmodule Cuckoding.Execution.GitService do
 
   defp drift_status(current_base, branch, head_sha, clean, run, environment) do
     cond do
-      current_base != environment.base_sha -> {:drift, :base_changed}
+      current_base != Cuckoding.BoardControl.original_base(run) -> {:drift, :base_changed}
       branch != run.branch -> {:drift, :branch_changed}
       head_sha != environment.head_sha -> {:drift, :head_changed}
       true -> {:ok, %{clean?: clean, head_sha: head_sha}}
@@ -515,7 +524,9 @@ defmodule Cuckoding.Execution.GitService do
          policy_hash: policy.source_hash,
          branch: run.branch,
          base_sha: base_sha,
-         head_sha: base_sha
+         head_sha: base_sha,
+         board_execution_id: run.board_execution_id,
+         project_base_sha: Cuckoding.BoardControl.original_base(run)
        }}
     else
       nil -> {:error, :ownership_source_not_found}
@@ -542,6 +553,15 @@ defmodule Cuckoding.Execution.GitService do
       "base_sha" => environment.base_sha,
       "head_sha" => environment.head_sha
     }
+
+    expected =
+      if run.board_execution_id,
+        do:
+          Map.merge(expected, %{
+            "board_execution_id" => run.board_execution_id,
+            "project_base_sha" => Cuckoding.BoardControl.original_base(run)
+          }),
+        else: expected
 
     with {:ok, contents} <- File.read(Path.join(environment.run_dir, "run.json")),
          {:ok, marker} <- Jason.decode(contents) do

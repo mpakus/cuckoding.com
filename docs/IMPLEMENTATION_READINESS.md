@@ -1,16 +1,26 @@
 # Implementation Readiness
 
-Originally prepared on 2026-09-17 from revision `897bc30a0712bdd68bec745daa8a1b987190df57`, then updated as the gates closed. Phase 0 is complete and task 0101 has started the Phase 1 product implementation.
+This is **historical Phase 0 / Phase 1 entry evidence**, originally prepared on
+2026-09-17 from revision `897bc30a0712bdd68bec745daa8a1b987190df57`. The repository
+now contains the application, SQLite schema/migrations, runtime adapters, native
+shell and board controller. Do not use the old tool inventory or entry checklist
+below as the current implementation status.
 
-## Repository baseline
+Use [DEVELOPMENT.md](DEVELOPMENT.md) for current checked-in pins/bootstrap,
+[PLAN.md](PLAN.md) for source progress, [CUCKODING-CONTROL.md](CUCKODING-CONTROL.md)
+for board execution and [RELEASE_READINESS.md](RELEASE_READINESS.md) for the
+remaining release gates. The latest documentation/source review is
+[DOCUMENTATION_AUDIT.md](DOCUMENTATION_AUDIT.md).
 
-- Commit `b101eee` deliberately removed the v1 application. The current tree is a clean-slate planning, policy, task, and tooling baseline; do not restore or copy v1 wholesale.
+## Repository baseline at Phase 1 entry
+
+- Commit `b101eee` deliberately removed the v1 application. At Phase 1 entry, the tree was a clean-slate planning, policy, task and tooling baseline; do not restore or copy v1 wholesale.
 - Repository skills are at `.agents/skills/` and example Cuckoding configuration is at `.cuckoding/`, matching `AGENTS.md`, `README.md`, and `docs/CONFIGURATION.md`.
-- Task 0101 now owns the Phoenix application and asset foundation. SQLite schemas remain intentionally absent until task 0102, and the production native shell remains Phase 9 work.
+- Task 0101 introduced the Phoenix application and asset foundation. SQLite schemas were intentionally deferred to task 0102 and the production native shell to Phase 9; both subsequently received implementations.
 - `inspire.jpg` remains excluded as an implementation input because its source and redistribution license are unknown.
 - The generic GitHub MCP example remains disabled because its npm package is not exactly pinned with integrity evidence.
 
-## Verified local toolchain
+## Verified local toolchain at the 2026-09-17 discovery gate
 
 | Tool | Verified version/status | Needed for |
 | --- | --- | --- |
@@ -48,7 +58,10 @@ Tasks 0002 and 0003 may run in parallel after 0001. Task 0004 requires the obser
 
 Tasks 0001–0007 are complete. Task 0003 passed its distinct clean-user-account launch, browser handoff, and shutdown check. Task 0004 passed assertion ownership, simulated and software-sleep reconciliation, and physical AC/battery lid-close checks without duplicate execution.
 
-Task 0003 confirmed the tray-shell architecture and bundled-release path. Developer ID signing and notarization remain Phase 9 gates.
+Task 0003 confirmed the tray-shell architecture and bundled-release path.
+Developer ID signing and notarization were deferred to Phase 9 at that time;
+later artifact-specific results and current open gates live in
+[RELEASE_READINESS.md](RELEASE_READINESS.md).
 
 ## Phase 1 entry gate
 

@@ -328,7 +328,8 @@ defmodule Cuckoding.Workflows.Definition do
     end
   end
 
-  defp within_budgets(budgets, context) do
+  @doc false
+  def within_budgets(budgets, context) do
     checks = [
       {"attempt", "max_attempts", 1},
       {"active_ms", "active_ms", 0},
