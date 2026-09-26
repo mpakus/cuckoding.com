@@ -7,6 +7,11 @@ The original proposal was delivered in task 1048 at `55f1bd1`, based on main
 `caed0e7`. Real-provider, physical sleep/wake, and packaged-app acceptance remain
 open. This document distinguishes implemented contracts from those release gates.
 
+Local integration: task 1051 merged the feature into main at `e83fb67`, built
+the unsigned developer bundle, backed up and migrated existing data, and verified
+one healthy restarted app. See the [integration worklog](../worklog/2026-09-25-1051-integrate-control-restart.md).
+This does not close real-provider, physical sleep/wake or signed clean-machine gates.
+
 ## 1. Goal and agreed decisions
 
 Let a user start development of a board in one action, watch its assigned
