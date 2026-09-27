@@ -53,7 +53,12 @@ Project setup, board setup, board task intake, and delivery execution are separa
 4. **Board task intake** accepts a bounded prompt and one snapshotted agent
    role. It creates a hidden planning task and normal queued run, verifies that
    role's saved authorization or isolated runtime setup, and launches a single read-only,
-   network-denied stage. The agent may use read-only inspection commands under
+   network-denied stage. Its process deadline uses the selected role's saved
+   workflow `wall_ms` budget (the lowest if the role has multiple stages);
+   roles without a matching stage retain a five-minute fallback. The queued
+   run displays that limit before the user starts analysis. Pause suspends
+   the process deadline. Historical session grants remain unchanged.
+   The agent may use read-only inspection commands under
    the runtime's permission mode so it can open project files; the host runner is
    not a sandbox. The run waits at `task proposal review`; validated
    proposals remain separate rows until a human selects them. Import creates
@@ -66,7 +71,8 @@ Project setup, board setup, board task intake, and delivery execution are separa
 5. **Independent proposal review** is available before any proposal is imported.
    The run page lists other snapshotted agent roles with a different configured
    model/runtime. Review launches a read-only, network-denied
-   `task_proposal_review` attempt on the same planning run. Its closed output
+   `task_proposal_review` attempt on the same planning run, using the selected
+   review role's saved time budget shown beside that role. Its closed output
    must return the same proposal IDs exactly once, valid repository file
    citations, revised descriptions/specs, per-task comments and an overall
    summary. Cuckoding saves a private Markdown report plus an append-only
@@ -159,7 +165,9 @@ separately approved release path can invoke a VCS host.
 Every planning or delivery worker runs behind the same durable failure boundary.
 Returned errors and unexpected worker exceptions append a safe failure code and
 public recovery message, fail the current agent session and running stage when
-present, and block the run. New unexpected-failure events also include a bounded
+present, and block the run. Host-enforced timeouts retain public activity and
+record `agent_timeout` rather than a generic process exit; an exit status of
+zero after termination cannot count as success. New unexpected-failure events also include a bounded
 application module/function/line when available; this is a diagnostic location,
 not a root cause. Raw exception text, arguments, and file paths are not
 persisted. Historical events do not acquire a location retroactively. The run

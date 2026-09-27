@@ -103,6 +103,7 @@ defmodule Cuckoding.BoardTaskIntakeTest do
     assert session.effective_grant_json["requested"]["deny_tools"] == ["write", "network"]
     assert session.effective_grant_json["requested"]["approval_mode"] == "plan"
     assert session.effective_grant_json["requested"]["network"] == "deny"
+    assert session.effective_grant_json["requested"]["resource_limits"]["wall_ms"] == 3_600_000
 
     schema =
       BoardTaskIntake.output_schema()
@@ -181,6 +182,80 @@ defmodule Cuckoding.BoardTaskIntakeTest do
              "#run-failure[role=alert]",
              "The agent returned task proposals that failed validation"
            )
+  end
+
+  test "planning limits use only the selected role's snapshot with a bounded fallback", %{
+    created: created
+  } do
+    run = created.run
+    assert BoardTaskIntake.time_limit_ms(run, "spec_writer") == 3_600_000
+    assert BoardTaskIntake.time_limit_ms(run, "planning_only") == 300_000
+
+    stages = [
+      %{"role" => "spec_writer", "budgets" => %{"wall_ms" => 900_000}},
+      %{"role" => "spec_writer", "budgets" => %{"wall_ms" => 600_000}},
+      %{"role" => "reviewer", "budgets" => %{"wall_ms" => 1_800_000}}
+    ]
+
+    run = %{run | workflow_snapshot_json: %{"definition" => %{"stages" => stages}}}
+    assert BoardTaskIntake.time_limit_ms(run, "spec_writer") == 600_000
+    assert BoardTaskIntake.time_limit_ms(run, "reviewer") == 1_800_000
+  end
+
+  test "an enforced planning timeout retains activity and renders its actual cause", %{
+    conn: conn,
+    created: created
+  } do
+    executable = Path.join(Path.dirname(created.project.repo_path), "timeout-codex-fixture")
+
+    File.write!(executable, """
+    #!/bin/sh
+    if [ "$1" = "--version" ]; then echo 'codex-cli 0.146.0'; exit; fi
+    if [ "$1" = "login" ]; then echo 'Logged in using ChatGPT'; exit; fi
+    echo '{"type":"item.completed","item":{"id":"progress","type":"agent_message","text":"Inspecting repository"}}'
+    exec /bin/sleep 60
+    """)
+
+    File.chmod!(executable, 0o700)
+
+    assert {:ok, intake} = create_intake(created.board.id)
+
+    snapshot =
+      update_in(intake.run.workflow_snapshot_json, ["definition", "stages"], fn stages ->
+        Enum.map(stages, &put_in(&1, ["budgets", "wall_ms"], 1_000))
+      end)
+
+    snapshot =
+      update_in(snapshot, ["roles"], fn roles ->
+        Enum.map(roles, fn role ->
+          if role["role_key"] == "spec_writer",
+            do:
+              Map.merge(role, %{
+                "adapter_key" => "codex",
+                "settings" => %{"executable_path" => executable}
+              }),
+            else: role
+        end)
+      end)
+
+    # Test-only legacy CLI snapshot and short budget exercise the real host deadline.
+    intake.run |> Ecto.Changeset.change(workflow_snapshot_json: snapshot) |> Repo.update!()
+
+    assert {:error, :agent_timeout} = BoardTaskIntake.start(intake.run.id, async: false)
+    assert Repo.get!(Run, intake.run.id).state == "blocked"
+    assert Workflows.list_task_proposals(intake.task.id) == []
+
+    events = Repo.all(from e in RunEvent, where: e.run_id == ^intake.run.id)
+    assert Enum.any?(events, &(&1.event_type == "process.timeout"))
+    assert Enum.any?(events, &(&1.public_summary == "Inspecting repository"))
+
+    assert Enum.any?(events, fn event ->
+             event.event_type == "task_intake.failed" and event.payload["code"] == "agent_timeout"
+           end)
+
+    assert {:ok, view, _html} = live(conn, ~p"/runs/#{intake.run.id}")
+    assert has_element?(view, "#run-failure[role=alert]", "reached its time limit")
+    refute has_element?(view, "#run-failure[role=alert]", "exited with status")
   end
 
   test "planning requires only the selected role to have a runnable adapter", %{created: created} do
@@ -423,6 +498,7 @@ defmodule Cuckoding.BoardTaskIntakeTest do
     [run] = Cuckoding.Execution.list_runs(intake.id)
     assert {:ok, run_view, _html} = follow_redirect(redirect, conn, ~p"/runs/#{run.id}")
     assert has_element?(run_view, "#flash-info[role=status]", "Planning run created")
+    assert has_element?(run_view, "#planning-time-limit", "60 minutes")
 
     assert has_element?(
              run_view,

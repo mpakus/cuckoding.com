@@ -1148,8 +1148,8 @@ defmodule Cuckoding.WalkingSkeleton do
 
   defp await_session(stored, %Types.Session{process: %{runner: runner, handle: handle}} = session) do
     case runner.result(handle) do
-      {:ok, %{exit_status: status} = result} ->
-        record_and_check_result(stored, session.adapter, result, status)
+      {:ok, %{exit_status: _status} = result} ->
+        record_and_check_result(stored, session.adapter, result)
 
       {:error, reason} ->
         {:error, reason}
@@ -1158,11 +1158,10 @@ defmodule Cuckoding.WalkingSkeleton do
 
   defp await_session(_stored, %Types.Session{}), do: {:ok, %{adapter: "fake", exit_status: 0}}
 
-  defp record_and_check_result(stored, adapter, result, status) do
-    case Cuckoding.ActivityStream.record_provider_messages(stored, adapter, result) do
-      :ok -> if status == 0, do: {:ok, result}, else: {:error, {:adapter_exit, status}}
-      error -> error
-    end
+  defp record_and_check_result(stored, adapter, result) do
+    with :ok <- Cuckoding.ActivityStream.record_provider_messages(stored, adapter, result),
+         :ok <- Adapters.check_process_result(result),
+         do: {:ok, result}
   end
 
   defp write_artifact(environment, type, name, contents, attempt_id \\ nil) do

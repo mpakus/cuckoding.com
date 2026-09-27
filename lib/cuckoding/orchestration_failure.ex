@@ -139,6 +139,10 @@ defmodule Cuckoding.OrchestrationFailure do
     do:
       "The proposals changed while review was running. Its revisions were not applied. Refresh this run before retrying."
 
+  defp public_failure(:task_intake, :agent_timeout),
+    do:
+      "The planning agent reached its time limit. Its log and activity are preserved. Narrow the planning request or review the selected role's workflow time budget, then create a new planning run."
+
   defp public_failure(:task_intake, {:adapter_exit, status}) when is_integer(status),
     do:
       "The planning agent exited with status #{status}. Inspect the redacted process log and create a new planning run."
@@ -153,6 +157,10 @@ defmodule Cuckoding.OrchestrationFailure do
 
   defp public_failure(:task_intake, _reason),
     do: "Task planning failed. Inspect recent activity and create a new planning run."
+
+  defp public_failure(:workflow, :agent_timeout),
+    do:
+      "The agent reached this stage's time limit. Its worktree, log and activity are preserved. Review the saved workflow budget and remaining work before retrying."
 
   defp public_failure(:workflow, {:adapter_exit, status}) when is_integer(status),
     do:

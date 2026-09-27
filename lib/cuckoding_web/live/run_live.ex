@@ -305,6 +305,14 @@ defmodule CuckodingWeb.RunLive do
           <p role="status" aria-live="polite" aria-atomic="true" class="mt-2 text-slate-700">
             {planning_status(@detail)}
           </p>
+          <p
+            :if={@detail.run.state == "queued"}
+            id="planning-time-limit"
+            class="mt-2 text-sm text-slate-700"
+          >
+            Planning time limit: {planning_limit(@detail.run, @detail.task.intake_role_key)}.
+            Starting analysis uses this saved role budget. Pausing suspends the deadline.
+          </p>
         </section>
 
         <section
@@ -932,7 +940,8 @@ defmodule CuckodingWeb.RunLive do
       [
         role_label(role["role_key"], run),
         get_in(role, ["settings", "connection_label"]),
-        role["model_ref"] || "Runtime default"
+        role["model_ref"] || "Runtime default",
+        planning_limit(run, role["role_key"]) <> " limit"
       ]
       |> Enum.reject(&is_nil/1),
       " · "
@@ -941,6 +950,19 @@ defmodule CuckodingWeb.RunLive do
 
   defp intake?(%{task: %{kind: "board_intake"}}), do: true
   defp intake?(_detail), do: false
+
+  defp planning_limit(run, role_key) do
+    case Cuckoding.BoardTaskIntake.time_limit_ms(run, role_key) do
+      ms when is_integer(ms) and ms > 0 and rem(ms, 60_000) == 0 ->
+        "#{div(ms, 60_000)} minutes"
+
+      ms when is_integer(ms) and ms > 0 ->
+        "#{ms / 1_000} seconds"
+
+      _invalid ->
+        "unavailable — review the workflow budget before starting"
+    end
+  end
 
   defp run_failure?(%{run: %{state: state}}), do: state in ["blocked", "failed"]
 

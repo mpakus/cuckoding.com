@@ -604,6 +604,11 @@ defmodule Cuckoding.Adapters do
   alias Cuckoding.Repo
   alias Cuckoding.Workflows.{Board, RoleAssignment}
 
+  @doc "Checks the host process outcome; an enforced deadline takes precedence over exit status."
+  def check_process_result(%{timed_out?: true}), do: {:error, :agent_timeout}
+  def check_process_result(%{exit_status: 0}), do: :ok
+  def check_process_result(%{exit_status: status}), do: {:error, {:adapter_exit, status}}
+
   def observe_provider(attrs) do
     ProviderAccount.create_changeset(
       %ProviderAccount{},

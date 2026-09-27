@@ -25,6 +25,14 @@ defmodule Cuckoding.BoardTaskIntake do
 
   @maximum_proposals 20
 
+  @doc "Returns the selected role's saved time budget; unscheduled roles retain five minutes."
+  def time_limit_ms(run, role_key) do
+    (get_in(run.workflow_snapshot_json, ["definition", "stages"]) || [])
+    |> Enum.filter(&(&1["role"] == role_key))
+    |> Enum.map(&get_in(&1, ["budgets", "wall_ms"]))
+    |> Enum.min(fn -> 300_000 end)
+  end
+
   def review(run_id, role_key, options \\ []) when is_binary(run_id) and is_binary(role_key) do
     with {:ok, skeleton} <- WalkingSkeleton.load(run_id),
          %Task{kind: "board_intake"} <- skeleton.task,
@@ -247,7 +255,7 @@ defmodule Cuckoding.BoardTaskIntake do
         "approval_mode" => "plan",
         "paths" => [skeleton.environment.worktree_path],
         "network" => "deny",
-        "resource_limits" => %{"wall_ms" => 300_000}
+        "resource_limits" => %{"wall_ms" => time_limit_ms(skeleton.run, attempt.role_key)}
       },
       plugins: [],
       required_output_schema:
@@ -535,8 +543,8 @@ defmodule Cuckoding.BoardTaskIntake do
          _options
        ) do
     case runner.result(handle) do
-      {:ok, %{exit_status: status} = result} ->
-        record_and_check_result(stored, session.adapter, result, status)
+      {:ok, %{exit_status: _status} = result} ->
+        record_and_check_result(stored, session.adapter, result)
 
       {:error, reason} ->
         {:error, reason}
@@ -559,9 +567,12 @@ defmodule Cuckoding.BoardTaskIntake do
     {:ok, %{structured_output: output}}
   end
 
-  defp record_and_check_result(stored, adapter, result, status) do
-    case Cuckoding.ActivityStream.record_provider_messages(stored, adapter, result) do
-      :ok -> if status == 0, do: {:ok, result}, else: {:error, adapter_failure(result, status)}
+  defp record_and_check_result(stored, adapter, result) do
+    with :ok <- Cuckoding.ActivityStream.record_provider_messages(stored, adapter, result),
+         :ok <- Adapters.check_process_result(result) do
+      {:ok, result}
+    else
+      {:error, {:adapter_exit, status}} -> {:error, adapter_failure(result, status)}
       error -> error
     end
   end

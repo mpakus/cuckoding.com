@@ -13,6 +13,19 @@ defmodule Cuckoding.Adapters.AgentAdapterTest do
 
   @now ~U[2026-09-17 23:50:00.000000Z]
 
+  test "host timeout takes precedence over provider exit status" do
+    for status <- [0, 1, 143] do
+      assert {:error, :agent_timeout} =
+               Adapters.check_process_result(%{exit_status: status, timed_out?: true})
+    end
+
+    assert :ok = Adapters.check_process_result(%{exit_status: 0, timed_out?: false})
+    assert :ok = Adapters.check_process_result(%{exit_status: 0})
+
+    assert {:error, {:adapter_exit, 1}} =
+             Adapters.check_process_result(%{exit_status: 1, timed_out?: false})
+  end
+
   setup do
     run_dir =
       Path.join(System.tmp_dir!(), "cuckoding-adapter-#{System.unique_integer([:positive])}")
