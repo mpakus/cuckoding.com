@@ -66,9 +66,9 @@ defmodule Cuckoding.Plugins.RTKTest do
     assert {"Unavailable", _} = RTK.status(policy)
   end
 
-  test "all pinned adapters keep native permissions and isolation across start and resume",
+  test "CLI adapters keep native permissions and isolation across start and resume",
        fixture do
-    for adapter <- [ClaudeCode, Codex, CursorAgent],
+    for adapter <- [ClaudeCode, Codex],
         role <- ~w(speculator implementor reviewer planning custom) do
       root = Path.join(fixture.root, "#{inspect(adapter)}-#{role}")
       File.mkdir_p!(Path.join(root, "agent"))
@@ -104,10 +104,33 @@ defmodule Cuckoding.Plugins.RTKTest do
       case adapter do
         ClaudeCode -> assert "--bare" in args
         Codex -> assert "features.hooks=false" in args
-        CursorAgent -> assert "enabled" in args
       end
 
       refute Enum.any?(args, &String.contains?(&1, "dangerously-bypass"))
+    end
+  end
+
+  test "Cursor keeps RTK instructions in ACP prompts and native permission configuration",
+       fixture do
+    for role <- ~w(speculator implementor reviewer planning custom) do
+      root = Path.join(fixture.root, "cursor-acp-#{role}")
+      File.mkdir_p!(Path.join(root, "agent"))
+      File.mkdir_p!(Path.join(root, "worktree"))
+      request = request(root, fixture.policy, role)
+      options = [path: fixture.binary, run_scoped_authenticated?: true]
+
+      assert {:ok, _grant} = CursorAgent.render_config(request, options)
+      assert {:ok, launch} = CursorAgent.launch_spec(request, options)
+      assert launch.command.executable == fixture.binary
+      assert "enabled" in launch.command.args
+      assert List.last(launch.command.args) == "acp"
+      prepared = RTK.prepare_request(request)
+      assert prepared.objective =~ "RTK: Instructions only"
+      assert prepared.objective =~ RTK.wrapper(root)
+      refute prepared.objective in launch.command.args
+      refute "rtk" in launch.command.args
+      assert {:ok, capability} = CursorAgent.capabilities([])
+      assert capability.shell_rewrite["mode"] == "instructions_only"
     end
   end
 

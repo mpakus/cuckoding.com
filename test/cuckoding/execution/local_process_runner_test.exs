@@ -120,6 +120,101 @@ defmodule Cuckoding.Execution.LocalProcessRunnerTest do
     assert Enum.any?(events, &(&1.event_type == "process.signal"))
   end
 
+  test "duplex exchanges ordinary stdio without persisting protocol or split secrets", fixture do
+    script = """
+    STDOUT.sync = true
+    STDERR.sync = true
+    STDERR.write('duplex-secret-')
+    sleep 0.03
+    STDERR.write("canary\\n")
+    while line = STDIN.gets
+      STDOUT.write(line)
+    end
+    """
+
+    assert {:ok, handle} =
+             LocalProcessRunner.start(
+               fixture.environment,
+               %{executable: "/usr/bin/ruby", args: ["-e", script]},
+               protocol_owner: self(),
+               redact: ["duplex-secret-canary"],
+               timeout: 3_000,
+               termination_grace_ms: 25
+             )
+
+    on_exit(fn -> if Process.alive?(handle.worker), do: LocalProcessRunner.stop(handle) end)
+    worker = handle.worker
+    frame = ~s({"jsonrpc":"2.0","method":"initialize","id":1}\n)
+    assert :ok = LocalProcessRunner.write(handle, frame)
+    assert_receive {:runner_stdout, ^worker, ^frame}, 2_000
+
+    assert {:error, :protocol_write_refused} =
+             Task.async(fn -> LocalProcessRunner.write(handle, "unauthorized\n") end)
+             |> Task.await()
+
+    assert {:ok, _} = LocalProcessRunner.pause(fixture.environment)
+    assert {:error, :protocol_not_writable} = LocalProcessRunner.write(handle, frame)
+    assert {:ok, _} = LocalProcessRunner.resume(fixture.environment)
+    assert :ok = LocalProcessRunner.write(handle, frame)
+    assert_receive {:runner_stdout, ^worker, ^frame}, 2_000
+    assert :ok = LocalProcessRunner.close_input(handle)
+    assert {:error, :protocol_not_writable} = LocalProcessRunner.write(handle, frame)
+    assert {:ok, result} = LocalProcessRunner.result(handle)
+    assert result.exit_status == 0
+    assert_receive {:runner_exited, ^worker, {:ok, _}}, 1_000
+    artifact = File.read!(result.artifact_path)
+    assert artifact =~ "[REDACTED]"
+    refute artifact =~ "duplex-secret"
+    refute artifact =~ "jsonrpc"
+    assert LocalHostInspector.groups_empty?([handle.process.pgid])
+  end
+
+  test "duplex ownership loss stops the owned process without replay", fixture do
+    owner = spawn(fn -> receive do: (:stop -> :ok) end)
+
+    assert {:ok, handle} =
+             LocalProcessRunner.start(
+               fixture.environment,
+               %{executable: "/usr/bin/ruby", args: ["-e", "sleep 60"]},
+               protocol_owner: owner,
+               timeout: 5_000,
+               termination_grace_ms: 25
+             )
+
+    on_exit(fn -> if Process.alive?(handle.worker), do: LocalProcessRunner.stop(handle) end)
+    waiter = Task.async(fn -> LocalProcessRunner.result(handle) end)
+    send(owner, :stop)
+    assert {:ok, result} = Task.await(waiter, 3_000)
+    assert result.exit_status != 0
+    refute result.timed_out?
+    assert LocalHostInspector.groups_empty?([handle.process.pgid])
+  end
+
+  test "duplex diagnostics have a disk bound and hide unfinished oversized lines", fixture do
+    script = """
+    STDERR.write("x" * 65536 + "split-secret-canary\\n")
+    260.times { STDERR.write("x" * 16383 + "\\n") }
+    """
+
+    assert {:ok, handle} =
+             LocalProcessRunner.start(
+               fixture.environment,
+               %{executable: "/usr/bin/ruby", args: ["-e", script]},
+               protocol_owner: self(),
+               redact: ["split-secret-canary"],
+               timeout: 5_000
+             )
+
+    assert {:ok, result} = LocalProcessRunner.result(handle)
+    assert result.exit_status == 0
+    assert result.truncated?
+    artifact = File.read!(result.artifact_path)
+    assert byte_size(artifact) <= 4_194_400
+    assert artifact =~ "Remaining diagnostics omitted"
+    assert artifact =~ "Diagnostic line omitted"
+    refute artifact =~ "split-secret"
+  end
+
   test "pause suspends owned work and its deadline, then resume keeps the same process",
        fixture do
     heartbeat = Path.join(fixture.environment.worktree_path, "heartbeat")

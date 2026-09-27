@@ -158,12 +158,10 @@ defmodule Cuckoding.Adapters.CursorAgentTest do
                run_scoped_authenticated?: true
              )
 
-    assert Enum.take(spec.command.args, 4) == [
-             "--print",
-             "--output-format",
-             "stream-json",
-             "--sandbox"
-           ]
+    assert Enum.take(spec.command.args, 3) == ["--sandbox", "enabled", "--trust"]
+    assert List.last(spec.command.args) == "acp"
+    assert spec.acp.mode == "agent"
+    refute request.objective in spec.command.args
 
     assert request.worktree_path in spec.command.args
     refute "--approve-mcps" in spec.command.args
@@ -222,7 +220,7 @@ defmodule Cuckoding.Adapters.CursorAgentTest do
              CursorAgent.render_config(request, [])
   end
 
-  test "starts, cancels, resumes, and recovers through the host runner", %{
+  test "requires duplex transport and refuses automatic replay after losing the process", %{
     request: request,
     executable: executable
   } do
@@ -233,9 +231,10 @@ defmodule Cuckoding.Adapters.CursorAgentTest do
       environment: %{id: "environment"}
     ]
 
-    assert {:ok, session} = CursorAgent.start(request, options)
-    assert session.process.runner == FakeRunner
-    assert elem(session.process.handle, 2)[:timeout] == 60_000
+    assert {:error, %Types.Error{code: :acp_duplex_runner_required}} =
+             CursorAgent.start(request, options)
+
+    session = %{session() | external_session_id: nil}
 
     assert {:error, %Types.Error{code: :follow_up_requires_resume}} =
              CursorAgent.send(session, %{"summary" => "Continue"}, [])
@@ -244,17 +243,12 @@ defmodule Cuckoding.Adapters.CursorAgentTest do
              CursorAgent.resume(session, %{}, Keyword.put(options, :request, request))
 
     observed = %{session | external_session_id: "cursor-session-1"}
-    resume_options = Keyword.put(options, :request, request)
-    assert {:ok, resumed} = CursorAgent.resume(observed, %{}, resume_options)
-    assert "cursor-session-1" in resumed.process.launch.command.args
 
     assert {:ok, ^observed} =
              CursorAgent.recover(observed, %{process: :matching, session: :available}, options)
 
-    assert {:ok, _recovered} =
-             CursorAgent.recover(observed, %{process: :gone, session: :available}, resume_options)
-
-    assert {:ok, %{state: "cancelled"}} = CursorAgent.cancel(session, [])
+    assert {:error, %Types.Error{code: :session_recovery_required}} =
+             CursorAgent.recover(observed, %{process: :gone, session: :available}, options)
   end
 
   test "normalizes the pinned fixture, redacts public output, and reports usage" do

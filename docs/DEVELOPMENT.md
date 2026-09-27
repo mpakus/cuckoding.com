@@ -155,6 +155,15 @@ cannot start task runs until their adapter contract and conformance evidence are
 complete. Each agent card saves or updates independently; role saves remain a
 separate immutable configuration revision.
 
+Task 1054 is migrating agent communication to ACP. Cursor's native transport
+uses the shared supervised client; Codex/Claude bridges remain under review.
+Run `rtk env -u CR_PAT mix test test/cuckoding/adapters/acp test/cuckoding/adapters/cursor_agent_test.exs test/cuckoding/execution/local_process_runner_test.exs`
+for its focused fixtures, then `rtk env -u CR_PAT mix quality` for the repository
+gates. An initialize-only probe is separate from authenticated planning,
+delivery, cancellation, sleep recovery and packaged-app acceptance. See the
+[migration contract](AGENT_RUNTIME_ADAPTERS.md#acp-migration-task-1054-in-progress)
+and [task worklog](../worklog/2026-09-27-1054-acp-communications.md).
+
 A project may be registered while its working tree is dirty so the user can
 organize existing work. Starting a task remains stricter: the run boundary
 requires a clean repository, captures the base revision, snapshots workflow and

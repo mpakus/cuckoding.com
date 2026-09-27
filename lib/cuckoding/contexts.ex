@@ -606,8 +606,24 @@ defmodule Cuckoding.Adapters do
 
   @doc "Checks the host process outcome; an enforced deadline takes precedence over exit status."
   def check_process_result(%{timed_out?: true}), do: {:error, :agent_timeout}
+
+  def check_process_result(%{
+        transport: :acp,
+        protocol_completed?: true,
+        stop_reason: "end_turn"
+      }),
+      do: :ok
+
   def check_process_result(%{exit_status: 0}), do: :ok
   def check_process_result(%{exit_status: status}), do: {:error, {:adapter_exit, status}}
+
+  def await_session(stored, %Types.Session{
+        process: %{runner: Cuckoding.Adapters.ACP.Client, handle: handle}
+      }),
+      do: Cuckoding.Adapters.ACP.Client.execute(handle, stored)
+
+  def await_session(_stored, %Types.Session{process: %{runner: runner, handle: handle}}),
+    do: runner.result(handle)
 
   def observe_provider(attrs) do
     ProviderAccount.create_changeset(
@@ -949,13 +965,15 @@ defmodule Cuckoding.Adapters do
   end
 
   def record_session_observation(session, observation) do
+    # A later state-only observation must not erase an identity reported while streaming.
+    session = Repo.get!(Cuckoding.Execution.AgentSession, session.id)
     effective_grant = Map.from_struct(observation.effective_grant)
     attempt = Repo.get!(StageAttempt, session.stage_attempt_id)
 
     changeset =
       Cuckoding.Execution.AgentSession.observation_changeset(session, %{
-        actual_model: observation.actual_model,
-        external_session_id: observation.external_session_id,
+        actual_model: observation.actual_model || session.actual_model,
+        external_session_id: observation.external_session_id || session.external_session_id,
         effective_grant_json: effective_grant,
         state: observation.state
       })

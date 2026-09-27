@@ -22,6 +22,46 @@ An adapter records the configured grant and the runtime-reported grant separatel
 
 `Cuckoding.Adapters.AgentAdapter` is the workflow-facing contract. Its shared types keep requested and observed model identity separate, attach source and confidence to usage, classify adapter errors for retry decisions, and mark every normalized provider event as untrusted. Recording an observed session updates the full effective grant and appends a same-transaction audit event whose public payload contains field names rather than path or policy values. `Cuckoding.Adapters.FakeAdapter` exercises the complete contract without a provider dependency. Its generated fixture configuration is mode `0600`, exists only at `<run_dir>/agent/fake-adapter.json`, rejects a symlinked `agent/` directory, and records restrictions the fake cannot enforce under `unenforced`.
 
+## ACP migration (task 1054, in progress)
+
+Cursor uses native `agent acp`; Codex and Claude Code still use their existing
+CLI transports while their ACP bridges are reviewed. This is not yet an
+all-provider ACP release. See ADR-031 in [Decisions](DECISIONS.md).
+
+`Adapters.ACP.Client` is a supervised ACP v1 client above the existing host
+runner. The runner separates protocol stdout from redacted diagnostic stderr.
+The client negotiates capabilities, creates or explicitly loads a session,
+selects an advertised mode/model, and returns its identity. Workflow code saves
+that identity before sending a prompt through `Adapters.await_session/2`.
+A durable command reserves each attempt before its first prompt; replacing a
+client cannot replay a consumed attempt. Loading history does not create new
+activity or usage records. Dead sessions require an explicit recovery decision.
+
+Public message and tool updates use the existing activity/event contexts before
+broadcast. Hidden reasoning and raw tool payloads are discarded. Text fragments
+are assembled before redaction so split secrets cannot reach public activity.
+Protocol frames and final messages are limited to 1 MiB, outstanding requests to
+eight, normalized events to 10,000, total protocol output to 64 MiB and diagnostic
+artifacts to 4 MiB. Oversized diagnostic lines are omitted. Missing usage stays
+unavailable; context-window occupancy is not added to billable token totals.
+Selecting a model does not invent an observed model when the agent has not
+reported it.
+
+The client advertises no filesystem or terminal services and supplies no MCP
+servers. Runtime-specific configuration still enforces the recorded grant.
+Permission requests receive a cancelled outcome and require attention;
+unsupported client requests cannot start host tools. An ACP completion only
+finishes the agent turn: existing schema, review and completion-policy gates
+remain authoritative.
+
+Cancellation waits for acknowledgement or bounded escalation and verified
+process cleanup. An idle server that ignores stdin closure is terminated through
+the existing owned process-group ladder. A completed turn can then succeed while
+retaining the real process exit status. Fixtures verify these paths; an installed
+Cursor initialize-only probe confirms protocol negotiation, not authenticated
+task execution or packaged-app acceptance. Board/run control integration, bridge
+conformance, and real-provider acceptance remain open in task 1054.
+
 ## Stage request envelope
 
 - project, board, task, run, stage, and attempt IDs;
@@ -57,7 +97,7 @@ Capabilities must be probed at runtime and documented per supported version; thi
 | --- | --- | --- | --- |
 | Claude Code | Headless/print mode | User login on the machine | Session continuation, permission modes and allowed tools, hooks, structured output, usage availability, auto-memory directory location (keep run-scoped, never write the user's global memory) |
 | Codex | CLI non-interactive | User login | Approval/sandbox modes (the runtime's own macOS sandbox is a plus on the host runner), event stream, session identifiers, usage |
-| Cursor Agent | CLI/headless | Cursor account | Non-interactive behavior, model observability, usage detail, cancellation |
+| Cursor Agent | Native ACP over stdio | Cursor account | Permission/configuration preservation, model observability, usage detail, cancellation |
 | OpenCode | CLI/server | Provider-specific | Provider/model mapping, event normalization, permission boundary |
 
 ### Claude Code 2.1.142
@@ -105,7 +145,7 @@ The flag and event vocabulary follow the [official non-interactive Codex documen
 
 ### Cursor Agent 2026.09.15-d2fe57e
 
-The Cursor adapter uses headless streamed JSON, the runtime sandbox with network denied, native resume, provider token usage, and the host runner's process-forest cancellation. Saved agents use an owner-only app-owned `HOME`; `CURSOR_CONFIG_DIR` and `CLAUDE_CONFIG_DIR` remain below `<run_dir>/agent/cursor`. Login, probe, launch, and logout set the pinned CLI's native `AGENT_CLI_CREDENTIAL_STORE=file`, which keeps the refreshable login at `<account-home>/.cursor/auth.json` with provider-managed `0600` permissions. Cuckoding never reads, copies, displays, or injects that file and never falls back to the user's global Cursor login.
+The Cursor adapter uses native ACP over stdio, the runtime sandbox with network denied, explicitly negotiated session loading, provider token usage, and the host runner's process-forest cancellation. Saved agents use an owner-only app-owned `HOME`; `CURSOR_CONFIG_DIR` and `CLAUDE_CONFIG_DIR` remain below `<run_dir>/agent/cursor`. Login, probe, launch, and logout set the pinned CLI's native `AGENT_CLI_CREDENTIAL_STORE=file`, which keeps the refreshable login at `<account-home>/.cursor/auth.json` with provider-managed `0600` permissions. Cuckoding never reads, copies, displays, or injects that file and never falls back to the user's global Cursor login.
 
 Cursor automatically discovers MCP configuration, so a tool permission deny is insufficient. Cuckoding writes and verifies an empty account-owned MCP file, writes run-owned task configuration, does not pass `--approve-mcps`, rejects enabled Cuckoding plugins for this adapter, refuses repositories containing project Cursor CLI, sandbox, MCP, or plugin overrides, and refuses plugin directories created inside the isolated login profile. The effective grant records the runtime sandbox, worktree path, network deny, and disabled MCP/plugins separately from advisory host resource limits. The retained real-runtime fixture covers public events and usage; an authenticated account-owned provider smoke remains an explicit release-evidence item.
 

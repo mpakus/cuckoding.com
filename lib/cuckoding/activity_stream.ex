@@ -47,6 +47,8 @@ defmodule Cuckoding.ActivityStream do
   end
 
   @doc "Copies public messages and reported usage from the redacted process log."
+  def record_provider_messages(%AgentSession{}, _adapter, %{transport: :acp}), do: :ok
+
   def record_provider_messages(%AgentSession{} = session, adapter, result) do
     case OutputParser.activity_events(adapter, result) do
       {:ok, events} ->

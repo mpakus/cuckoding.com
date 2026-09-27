@@ -2,9 +2,9 @@ defmodule Cuckoding.Adapters.CursorAgent do
   @moduledoc "Cursor Agent adapter with account-owned profiles and run-owned configuration."
   @behaviour Cuckoding.Adapters.AgentAdapter
 
+  alias Cuckoding.Adapters.ACP.Client
   alias Cuckoding.Adapters.SharedProfile
   alias Cuckoding.Adapters.Types
-  alias Cuckoding.Identifier
   alias Cuckoding.Security.Redactor
 
   @supported_version "2026.09.15-d2fe57e"
@@ -127,18 +127,11 @@ defmodule Cuckoding.Adapters.CursorAgent do
   def start(%Types.StageRequest{} = request, options) do
     with {:ok, grant} <- render_config(request, options),
          {:ok, spec} <- launch_spec(request, options),
-         {:ok, process} <- launch(spec, options) do
-      {:ok,
-       %Types.Session{
-         adapter: "cursor_agent",
-         session_id: Identifier.generate(),
-         external_session_id: Keyword.get(options, :resume_session),
-         requested_model: request.requested_model,
-         actual_model: nil,
-         effective_grant: grant,
-         state: "running",
-         process: process
-       }}
+         {:ok, session} <- Client.start(request, grant, spec, options) do
+      {:ok, session}
+    else
+      {:error, %Types.Error{} = error} -> {:error, error}
+      {:error, reason} -> error(reason, :capability, false)
     end
   end
 
@@ -182,10 +175,10 @@ defmodule Cuckoding.Adapters.CursorAgent do
   end
 
   @impl true
-  def recover(%Types.Session{} = session, inspection, options) when is_map(inspection) do
+  def recover(%Types.Session{} = session, inspection, _options) when is_map(inspection) do
     if inspection[:process] == :matching and inspection[:session] == :available,
       do: {:ok, session},
-      else: resume(session, %{"reason" => "sleep_gap"}, options)
+      else: error(:session_recovery_required, :capability, false)
   end
 
   @impl true
@@ -259,52 +252,31 @@ defmodule Cuckoding.Adapters.CursorAgent do
          {:ok, environment} <-
            scoped_environment(Keyword.put(options, :cursor_home, cursor_root(request))),
          {:ok, timeout} <- wall_timeout(request.grant) do
-      args =
-        [
-          "--print",
-          "--output-format",
-          "stream-json",
-          "--sandbox",
-          "enabled",
-          "--trust",
-          "--workspace",
-          request.worktree_path
-        ]
-        |> maybe_arg("--mode", execution_mode(request.grant))
-        |> maybe_arg("--model", request.requested_model)
-        |> maybe_arg("--resume", Keyword.get(options, :resume_session))
-        |> Kernel.++([Keyword.get(options, :prompt, request.objective)])
+      args = [
+        "--sandbox",
+        "enabled",
+        "--trust",
+        "--workspace",
+        request.worktree_path,
+        "acp"
+      ]
 
       {:ok,
        %{
          command: %{executable: path, args: args, role: "agent:cursor_agent"},
          environment: environment,
          environment_allowlist: Map.keys(environment),
-         timeout: timeout
+         timeout: timeout,
+         acp: %{
+           adapter: "cursor_agent",
+           mode: execution_mode(request.grant) || "agent",
+           session_params: %{}
+         }
        }}
     else
       false -> error(:run_scoped_auth_required, :authentication, false)
       {:error, %Types.Error{} = error} -> {:error, error}
       {:error, reason} -> error(reason, :capability, false)
-    end
-  end
-
-  defp launch(spec, options) do
-    runner = Keyword.get(options, :runner)
-    environment = Keyword.get(options, :environment)
-
-    if runner && environment do
-      case runner.start(environment, spec.command,
-             env: spec.environment,
-             environment_allowlist: spec.environment_allowlist,
-             timeout: spec.timeout,
-             redact: Keyword.get(options, :redact, [])
-           ) do
-        {:ok, handle} -> {:ok, %{runner: runner, handle: handle, launch: spec}}
-        {:error, reason} -> error(reason, :provider, true)
-      end
-    else
-      error(:runner_required, :capability, false)
     end
   end
 
@@ -657,9 +629,6 @@ defmodule Cuckoding.Adapters.CursorAgent do
 
   defp metadata(event, type) when type in ["session.completed", "session.failed"],
     do: Map.take(event, ["session_id", "request_id", "duration_ms", "usage", "is_error"])
-
-  defp maybe_arg(args, _flag, value) when value in [nil, ""], do: args
-  defp maybe_arg(args, flag, value), do: args ++ [flag, to_string(value)]
 
   defp continuation_prompt(package) do
     "Continue task revision #{package.task_revision}.\n\n#{package.summary}\n\nDiff: #{package.diff_summary}"

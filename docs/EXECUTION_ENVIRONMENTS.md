@@ -108,7 +108,19 @@ but contains no credential. Any other value for that key, and all other
 credential-shaped environment keys, remain refused. Provider authorization is
 read from the saved account profile, not injected into the process environment.
 
-Stdout and stderr are combined into one ordered stream. Redaction runs before a mode-`0600` artifact write. The in-memory/UI preview stops at the configured byte limit and emits a durable truncation event that points callers to the complete redacted artifact; truncation is never silent.
+Declared commands and legacy CLI adapters combine stdout and stderr into one
+ordered stream. Redaction runs before a mode-`0600` artifact write. The
+in-memory/UI preview stops at the configured byte limit and emits a durable
+truncation event.
+
+ACP sessions use the same supervised runner with separate protocol stdout and
+diagnostic stderr. A stdlib Ruby pipe multiplexer preserves ordinary child stdio;
+only its private Erlang-port channel uses packet framing. Only the recorded
+protocol owner can write stdin. Owner loss stops the owned process instead of
+replaying work. Diagnostic lines are assembled before redaction; oversized lines
+are omitted and diagnostic artifacts stop at 4 MiB with a durable truncation
+event. Raw protocol output never enters the process-log artifact. See
+[ACP migration](AGENT_RUNTIME_ADAPTERS.md#acp-migration-task-1054-in-progress).
 
 ## Path and command policy
 

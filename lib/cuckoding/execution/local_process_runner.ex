@@ -98,6 +98,14 @@ defmodule Cuckoding.Execution.LocalProcessRunner do
   def stop(%Handle{} = handle), do: LocalProcessWorker.stop(handle.worker)
   def result(%Handle{} = handle), do: LocalProcessWorker.await(handle.worker)
 
+  @doc "Writes to an owned duplex runtime. Only its protocol owner may write."
+  @impl true
+  def write(%Handle{} = handle, data), do: LocalProcessWorker.write(handle.worker, data)
+
+  @doc "Closes duplex stdin so an idle protocol server can exit gracefully."
+  @impl true
+  def close_input(%Handle{} = handle), do: LocalProcessWorker.close_input(handle.worker)
+
   defp terminate_process(process, options) do
     case Registry.lookup(Cuckoding.RunRegistry, {:process, process.id}) do
       [{worker, _value}] ->
@@ -173,6 +181,11 @@ defmodule Cuckoding.Execution.LocalProcessWorker do
 
   @ruby "/usr/bin/ruby"
   @shim "STDIN.reopen(File::NULL); STDOUT.sync=true; STDERR.reopen(STDOUT); sleep 0.05; exec(*ARGV)"
+  @external_resource Path.expand("../../../priv/runner/duplex.rb", __DIR__)
+  @duplex_shim File.read!(@external_resource)
+  @protocol_limit 67_108_864
+  @diagnostic_limit 4_194_304
+  @diagnostic_line_limit 65_536
   @safe_path "/usr/bin:/bin:/usr/sbin:/sbin"
   @base_keys ~w(PATH HOME LANG LC_ALL TZ PORT)
   @sensitive ~r/(AUTH|COOKIE|CREDENTIAL|KEY|PASSWORD|SECRET|TOKEN)/i
@@ -181,6 +194,8 @@ defmodule Cuckoding.Execution.LocalProcessWorker do
   def process(worker), do: GenServer.call(worker, :process)
   def await(worker), do: GenServer.call(worker, :await, :infinity)
   def stop(worker), do: GenServer.call(worker, :stop, :infinity)
+  def write(worker, data), do: GenServer.call(worker, {:write, data})
+  def close_input(worker), do: GenServer.call(worker, :close_input)
 
   def control(worker, action) when action in [:pause, :resume],
     do: GenServer.call(worker, action, :infinity)
@@ -190,10 +205,11 @@ defmodule Cuckoding.Execution.LocalProcessWorker do
     Process.flag(:trap_exit, true)
 
     with {:ok, executable, args, role} <- command(command),
+         {:ok, owner} <- protocol_owner(options),
          {:ok, child_env} <-
            child_environment(environment, Keyword.get(options, :env, %{}), options),
          {:ok, artifact, file} <- artifact(environment, Identifier.generate()),
-         {:ok, port, pid} <- spawn(executable, args, environment.worktree_path, child_env),
+         {:ok, port, pid} <- spawn(executable, args, environment.worktree_path, child_env, owner),
          {:ok, pgid, identity} <- ProcessTerminator.await_identity(pid),
          {:ok, process} <-
            Execution.record_process(%{
@@ -237,7 +253,14 @@ defmodule Cuckoding.Execution.LocalProcessWorker do
          paused_ms: 0,
          timed_out?: false,
          result: nil,
-         grace_ms: Keyword.get(options, :termination_grace_ms, 2_000)
+         grace_ms: Keyword.get(options, :termination_grace_ms, 2_000),
+         protocol_owner: owner,
+         protocol_monitor: if(owner, do: Process.monitor(owner)),
+         protocol_bytes: 0,
+         diagnostic_bytes: 0,
+         diagnostic_buffer: "",
+         diagnostic_dropping?: false,
+         input_closed?: false
        }}
     else
       {:error, reason} -> {:stop, reason}
@@ -246,6 +269,28 @@ defmodule Cuckoding.Execution.LocalProcessWorker do
 
   @impl true
   def handle_call(:process, _from, state), do: {:reply, {:ok, state.process}, state}
+
+  def handle_call({:write, data}, {owner, _tag}, %{protocol_owner: owner, result: nil} = state)
+      when is_pid(owner) and is_binary(data) and byte_size(data) <= 1_048_577 do
+    if state.input_closed? or not is_nil(state.paused_at) do
+      {:reply, {:error, :protocol_not_writable}, state}
+    else
+      {:reply, port_write(state.port, <<1, data::binary>>), state}
+    end
+  end
+
+  def handle_call({:write, _data}, _from, state),
+    do: {:reply, {:error, :protocol_write_refused}, state}
+
+  def handle_call(:close_input, {owner, _tag}, %{protocol_owner: owner, result: nil} = state)
+      when is_pid(owner) do
+    # Channel 0 is private to the shim; it closes only the child's stdin.
+    result = if state.input_closed?, do: :ok, else: port_write(state.port, <<0>>)
+    {:reply, result, %{state | input_closed?: result == :ok}}
+  end
+
+  def handle_call(:close_input, _from, state),
+    do: {:reply, {:error, :protocol_write_refused}, state}
 
   def handle_call(:await, _from, %{result: result} = state) when not is_nil(result),
     do: {:stop, :normal, response(result), state}
@@ -319,6 +364,35 @@ defmodule Cuckoding.Execution.LocalProcessWorker do
     do: {:reply, :ok, state}
 
   @impl true
+  def handle_info(
+        {port, {:data, <<1, data::binary>>}},
+        %{port: port, protocol_owner: owner} = state
+      )
+      when is_pid(owner) do
+    bytes = state.protocol_bytes + byte_size(data)
+
+    if bytes <= @protocol_limit do
+      send(owner, {:runner_stdout, self(), data})
+      {:noreply, %{state | protocol_bytes: bytes}}
+    else
+      send(owner, {:runner_protocol_error, self(), :protocol_output_limit})
+      {:noreply, begin_termination(state, false)}
+    end
+  end
+
+  def handle_info(
+        {port, {:data, <<2, data::binary>>}},
+        %{port: port, protocol_owner: owner} = state
+      )
+      when is_pid(owner),
+      do: {:noreply, bounded_diagnostic(state, data)}
+
+  def handle_info({port, {:data, _data}}, %{port: port, protocol_owner: owner} = state)
+      when is_pid(owner) do
+    send(owner, {:runner_protocol_error, self(), :invalid_transport_frame})
+    {:noreply, begin_termination(state, false)}
+  end
+
   def handle_info({port, {:data, data}}, %{port: port} = state) do
     safe = Redactor.redact(data, state.secrets)
     :ok = IO.binwrite(state.file, safe)
@@ -326,6 +400,7 @@ defmodule Cuckoding.Execution.LocalProcessWorker do
   end
 
   def handle_info({port, {:exit_status, status}}, %{port: port} = state) do
+    state = flush_diagnostic(state)
     if state.timer, do: Process.cancel_timer(state.timer)
     File.close(state.file)
 
@@ -392,7 +467,9 @@ defmodule Cuckoding.Execution.LocalProcessWorker do
 
     state = %{state | process: finished, result: response, waiters: []}
 
-    if waiters != [] do
+    notify_protocol_exit(state)
+
+    if waiters != [] or protocol_owner_gone?(state) do
       Enum.each(waiters, &GenServer.reply(&1, response(state.result)))
       {:stop, :normal, state}
     else
@@ -404,7 +481,110 @@ defmodule Cuckoding.Execution.LocalProcessWorker do
     do: {:noreply, begin_termination(state, true)}
 
   def handle_info({:timeout, _token}, state), do: {:noreply, state}
+
+  def handle_info(
+        {:DOWN, monitor, :process, owner, _reason},
+        %{protocol_monitor: monitor, protocol_owner: owner, result: nil} = state
+      ),
+      do: {:noreply, begin_termination(state, false)}
+
+  def handle_info(
+        {:DOWN, monitor, :process, _owner, _reason},
+        %{protocol_monitor: monitor} = state
+      ),
+      do: {:stop, :normal, state}
+
   def handle_info({:EXIT, _port, :normal}, state), do: {:noreply, state}
+
+  @impl true
+  def format_status(status) do
+    # Crash diagnostics must not print in-flight protocol bytes or redaction secrets.
+    Map.merge(status, %{state: :redacted, message: :redacted, reason: :redacted, log: []})
+  end
+
+  defp protocol_owner(options) do
+    case Keyword.get(options, :protocol_owner) do
+      nil -> {:ok, nil}
+      owner when is_pid(owner) -> {:ok, owner}
+      _other -> {:error, :invalid_protocol_owner}
+    end
+  end
+
+  defp protocol_owner_gone?(%{protocol_owner: nil}), do: false
+  defp protocol_owner_gone?(state), do: not Process.alive?(state.protocol_owner)
+
+  defp notify_protocol_exit(%{protocol_owner: nil}), do: :ok
+
+  defp notify_protocol_exit(state),
+    do: send(state.protocol_owner, {:runner_exited, self(), response(state.result)})
+
+  defp port_write(port, data) do
+    if Port.command(port, data, [:nosuspend]), do: :ok, else: {:error, :protocol_backpressure}
+  rescue
+    ArgumentError -> {:error, :protocol_closed}
+  end
+
+  defp capture_diagnostic(state, data) do
+    case :binary.split(data, "\n") do
+      [part, rest] ->
+        state
+        |> append_diagnostic(part)
+        |> flush_diagnostic()
+        |> capture_diagnostic(rest)
+
+      [part] ->
+        append_diagnostic(state, part)
+    end
+  end
+
+  defp bounded_diagnostic(%{diagnostic_bytes: bytes} = state, _data)
+       when bytes > @diagnostic_limit,
+       do: state
+
+  defp bounded_diagnostic(state, data) do
+    bytes = state.diagnostic_bytes + byte_size(data)
+    state = %{state | diagnostic_bytes: bytes}
+
+    if bytes <= @diagnostic_limit do
+      capture_diagnostic(state, data)
+    else
+      safe = "[Remaining diagnostics omitted: output limit reached]\n"
+      :ok = IO.binwrite(state.file, safe)
+
+      record_event(
+        state.environment.run_id,
+        state.process.id,
+        "process.diagnostics_truncated",
+        "Runtime diagnostic artifact reached its size limit",
+        %{"limit_bytes" => @diagnostic_limit}
+      )
+
+      state = capture_preview(state, safe)
+      %{state | diagnostic_buffer: "", diagnostic_dropping?: false, truncated?: true}
+    end
+  end
+
+  defp append_diagnostic(%{diagnostic_dropping?: true} = state, _part), do: state
+
+  defp append_diagnostic(state, part) do
+    if byte_size(state.diagnostic_buffer) + byte_size(part) <= @diagnostic_line_limit,
+      do: %{state | diagnostic_buffer: state.diagnostic_buffer <> part},
+      else: %{state | diagnostic_buffer: "", diagnostic_dropping?: true}
+  end
+
+  defp flush_diagnostic(%{protocol_owner: nil} = state), do: state
+  defp flush_diagnostic(%{diagnostic_buffer: "", diagnostic_dropping?: false} = state), do: state
+
+  defp flush_diagnostic(state) do
+    safe =
+      if state.diagnostic_dropping? or not String.valid?(state.diagnostic_buffer),
+        do: "[Diagnostic line omitted: invalid or oversized]\n",
+        else: Redactor.redact(state.diagnostic_buffer, state.secrets) <> "\n"
+
+    :ok = IO.binwrite(state.file, safe)
+    state = capture_preview(state, safe)
+    %{state | diagnostic_buffer: "", diagnostic_dropping?: false}
+  end
 
   defp response({:error, _reason} = error), do: error
   defp response(result), do: {:ok, result}
@@ -542,23 +722,26 @@ defmodule Cuckoding.Execution.LocalProcessWorker do
     end
   end
 
-  defp spawn(executable, args, cwd, environment) do
+  defp spawn(executable, args, cwd, environment, owner) do
     inherited_unsets =
       Enum.map(System.get_env(), fn {key, _value} -> {to_charlist(key), false} end)
 
     allowed = Enum.map(environment, fn {key, value} -> {to_charlist(key), to_charlist(value)} end)
 
     port =
-      Port.open({:spawn_executable, @ruby}, [
-        :binary,
-        :exit_status,
-        :use_stdio,
-        :stderr_to_stdout,
-        :hide,
-        {:cd, cwd},
-        {:env, inherited_unsets ++ allowed},
-        {:args, ["-e", @shim, "--", executable | args]}
-      ])
+      Port.open(
+        {:spawn_executable, @ruby},
+        [
+          :binary,
+          :exit_status,
+          :use_stdio,
+          :stderr_to_stdout,
+          :hide,
+          {:cd, cwd},
+          {:env, inherited_unsets ++ allowed},
+          {:args, ["-e", if(owner, do: @duplex_shim, else: @shim), "--", executable | args]}
+        ] ++ if(owner, do: [{:packet, 4}], else: [])
+      )
 
     case Port.info(port, :os_pid) do
       {:os_pid, pid} -> {:ok, port, pid}

@@ -164,6 +164,11 @@ defmodule Cuckoding.Adapters.OutputParser do
 
   def extract("fake", %{structured_output: output}) when is_map(output), do: {:ok, output}
 
+  def extract(_adapter, %{transport: :acp, structured_output: output}) when is_map(output),
+    do: {:ok, output}
+
+  def extract(_adapter, %{transport: :acp}), do: error(:malformed_output)
+
   def extract(adapter, %{artifact_path: path})
       when adapter in ~w(codex claude_code cursor_agent) and is_binary(path) do
     with {:ok, rows} <- rows(path, adapter) do

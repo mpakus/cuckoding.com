@@ -539,10 +539,10 @@ defmodule Cuckoding.BoardTaskIntake do
 
   defp await_session(
          stored,
-         %Types.Session{process: %{runner: runner, handle: handle}} = session,
+         %Types.Session{process: %{runner: _, handle: _}} = session,
          _options
        ) do
-    case runner.result(handle) do
+    case Adapters.await_session(stored, session) do
       {:ok, %{exit_status: _status} = result} ->
         record_and_check_result(stored, session.adapter, result)
 

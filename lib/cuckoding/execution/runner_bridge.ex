@@ -10,6 +10,9 @@ defmodule Cuckoding.Execution.RunnerBridge do
   @callback inspect(struct(), keyword()) :: {:ok, map()} | {:error, term()}
   @callback stream_events(struct(), keyword()) :: {:ok, list()} | {:error, term()}
   @callback destroy(struct(), keyword()) :: :ok | {:error, term()}
+  @callback write(term(), binary()) :: :ok | {:error, term()}
+  @callback close_input(term()) :: :ok | {:error, term()}
+  @optional_callbacks write: 2, close_input: 1
 end
 
 defmodule Cuckoding.Execution.FakeRunner do

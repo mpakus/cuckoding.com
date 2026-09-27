@@ -1,5 +1,15 @@
 # Security Model
 
+The task-1054 ACP migration preserves runtime-specific grants and host workflow
+authority. Protocol stdout is separated from diagnostic logs; hidden reasoning
+and raw tool arguments are discarded, public text is redacted after fragment
+assembly, and frames/output are bounded. ACP clients advertise no host
+filesystem or terminal capabilities, supply no MCP servers, and deny runtime
+permission requests pending attention. Durable per-attempt prompt reservations
+prevent blind replay. These controls currently back Cursor's ACP path;
+Codex/Claude bridge validation and authenticated provider acceptance remain
+open. See [ACP migration](AGENT_RUNTIME_ADAPTERS.md#acp-migration-task-1054-in-progress).
+
 ## Security objective
 
 Cuckoding runs powerful agent runtimes on a developer machine against untrusted repository content, without container isolation in the MVP. The design must constrain what Cuckoding itself grants, make the runtime's own permission grant explicit and recorded, protect credentials, preserve trustworthy audit evidence, require humans at irreversible boundaries, and never claim isolation it does not have.

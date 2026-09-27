@@ -1146,8 +1146,8 @@ defmodule Cuckoding.WalkingSkeleton do
          do: Adapters.record_session_observation(stored, session)
   end
 
-  defp await_session(stored, %Types.Session{process: %{runner: runner, handle: handle}} = session) do
-    case runner.result(handle) do
+  defp await_session(stored, %Types.Session{process: %{runner: _, handle: _}} = session) do
+    case Adapters.await_session(stored, session) do
       {:ok, %{exit_status: _status} = result} ->
         record_and_check_result(stored, session.adapter, result)
 
