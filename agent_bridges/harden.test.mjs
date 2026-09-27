@@ -8,7 +8,7 @@ import { harden } from "./harden.mjs";
 
 const source = (pkg, file) => readFileSync(new URL(`./node_modules/@agentclientprotocol/${pkg}/dist/${file}`, import.meta.url), "utf8");
 
-test("Codex presets cannot widen the saved grant or fall back to a bundled runtime", () => {
+test("Codex presets cannot widen the saved grant or fall back to a bundled runtime", async () => {
   const input = source("codex-acp", "index.js");
   assert.throws(() => harden("codex/index.js", input + "\n"), /Unreviewed/);
   const patched = harden("codex/index.js", input);
@@ -35,6 +35,19 @@ test("Codex presets cannot widen the saved grant or fall back to a bundled runti
   assert.equal(calls[0][0], "/app-owned/codex");
   assert.deepEqual(JSON.parse(JSON.stringify(calls[0][1])), ["app-server", "--strict-config"]);
   assert.equal(calls[0][2].shell, undefined);
+  const configure = patched.slice(patched.indexOf("  async createSessionConfig("), patched.indexOf("  async getConfigMcpServerNames("));
+  const Config = runInNewContext(`class Config { ${configure} }\nConfig;`, {
+    logger: { log() {} }, mergeGatewayConfig: config => config,
+    mergeSandboxWorkspaceWriteRoots: config => config,
+  });
+  const instance = new Config();
+  instance.gatewayConfig = null;
+  instance.config = { "features.plugins": false, "features.apps": false, "features.hooks": false };
+  instance.getNativeProviderConfig = () => ({});
+  instance.getModelProvider = () => "openai";
+  const config = await instance.createSessionConfig("/worktree", [], []);
+  assert.equal(config.features, undefined);
+  for (const key of Object.keys(instance.config)) assert.equal(config[key], false);
 });
 
 test("Claude preserves a native structured result as a separate public message", async () => {

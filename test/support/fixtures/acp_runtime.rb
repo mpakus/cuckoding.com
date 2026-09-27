@@ -4,7 +4,7 @@
 # Protocol fixture, never a provider integration or acceptance substitute.
 require 'json'
 STDOUT.sync = true
-scenario = ARGV.include?('acp') ? 'success' : ARGV.fetch(0, 'success')
+scenario = ARGV.include?('acp') ? 'cursor-model' : ARGV.fetch(0, 'success')
 request_log = File.open('acp-requests.jsonl', 'w')
 request_log.sync = true
 session = 'fixture-session'
@@ -23,12 +23,18 @@ configuration = {
   modes: {currentModeId: 'default', availableModes: %w[read-only workspace-write plan agent dontAsk].map { |id| {id: id, name: id} }},
   models: {currentModelId: scenario == 'model-unreported' ? 'default' : 'fixture-model', availableModels: [{modelId: 'fixture-model', name: 'Fixture'}]}
 }
-if %w[modern config-drift].include?(scenario)
+if %w[modern config-drift cursor-model].include?(scenario)
   configuration.delete(:models)
   configuration[:configOptions] = [
     {id: 'mode', category: 'mode', type: 'select', currentValue: 'read-only', options: [{value: 'read-only', name: 'Read only'}]},
     {id: 'provider-model', category: 'model', type: 'select', currentValue: 'default', options: [{value: 'fixture-model', name: 'Fixture'}]}
   ]
+  if scenario == 'cursor-model'
+    abort 'Missing saved CLI model' unless ARGV[ARGV.index('--model') + 1] == 'fixture-model'
+    configuration[:configOptions][0][:currentValue] = 'plan'
+    configuration[:configOptions][1][:currentValue] = 'fixture[effort=high]'
+    configuration[:configOptions][1][:options] = [{value: 'fixture[effort=high]', name: 'Fixture'}]
+  end
 end
 
 while line = STDIN.gets
@@ -62,7 +68,7 @@ while line = STDIN.gets
     case scenario
     when 'permission'
       puts JSON.generate(jsonrpc: '2.0', id: 'permission', method: 'session/request_permission',
-                         params: {sessionId: session, toolCall: {rawInput: 'must-not-persist'}, options: []})
+                         params: {sessionId: session, toolCall: {kind: 'execute', title: 'fixture-secret-canary command', rawInput: 'must-not-persist'}, options: []})
       permission_requested = true
     when 'wrong-session'
       update('other-session', sessionUpdate: 'agent_message_chunk', content: {type: 'text', text: 'forged'})

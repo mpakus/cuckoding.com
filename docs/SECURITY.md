@@ -9,8 +9,10 @@ attention. Claude receives only approved, snapshotted MCP settings through its
 SDK options; ACP itself supplies no MCP servers. Durable per-attempt prompt
 reservations prevent blind replay. All three supported providers use these
 controls. Packaged bridges disable automatic Bun configuration/environment
-loading and verify a pinned binary manifest before launch. Full control/recovery
-conformance and authenticated provider acceptance remain open. See [ACP migration](AGENT_RUNTIME_ADAPTERS.md#acp-migration-task-1054-in-progress).
+loading and verify a pinned binary manifest before launch. Reconciliation blocks
+surviving processes whose protocol owner is missing. Real read-only Codex/Cursor
+turns pass; a Cursor review permission request stopped without a grant expansion.
+Full provider workflow and native recovery acceptance remain separate. See [ACP migration](AGENT_RUNTIME_ADAPTERS.md#acp-migration-task-1054-in-progress).
 
 ## Security objective
 

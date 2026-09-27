@@ -9,6 +9,7 @@ require "securerandom"
 require "socket"
 require "tmpdir"
 require "time"
+require_relative "bridge_manifest"
 
 ROOT = File.expand_path(__dir__)
 RELEASE = ENV.fetch("CUCKODING_RELEASE_PATH", File.join(ROOT, "release/bin/cuckoding"))
@@ -217,6 +218,7 @@ ensure
 end
 
 raise "release missing; run desktop/build.sh first" unless File.executable?(RELEASE)
+assert(BridgeManifest.check(File.dirname(File.dirname(RELEASE))), "packaged ACP bridge integrity")
 
 run = spawn_release
 begin

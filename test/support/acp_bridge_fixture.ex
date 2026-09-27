@@ -6,7 +6,7 @@ defmodule Cuckoding.ACPBridgeFixture do
     path = Path.join(root, "#{name}-acp")
     File.cp!(Path.expand("test/support/fixtures/acp_runtime.rb"), path)
     File.chmod!(path, 0o700)
-    version = if name == "codex", do: "1.13.1+cuckoding.1", else: "0.81.2+cuckoding.1"
+    version = if name == "codex", do: "1.13.1+cuckoding.2", else: "0.81.2+cuckoding.1"
     digest = Base.encode16(:crypto.hash(:sha256, File.read!(path)), case: :lower)
 
     File.write!(

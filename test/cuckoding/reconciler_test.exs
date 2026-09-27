@@ -75,6 +75,56 @@ defmodule Cuckoding.ReconcilerTest do
     end
   end
 
+  test "a surviving protocol process without its ACP owner blocks instead of replaying",
+    do: check_missing_transport("process.started", %{"protocol_owner" => true})
+
+  test "a saved ACP binding also identifies a lost transport",
+    do: check_missing_transport("agent.process_bound", %{})
+
+  defp check_missing_transport(type, payload) do
+    fixture = running_fixture()
+
+    assert {:ok, _} =
+             Cuckoding.Execution.EventStore.append(fixture.run.id, %{
+               event_type: type,
+               public_summary: "Protocol fixture",
+               payload: Map.put(payload, "process_id", fixture.process.id)
+             })
+
+    assert {:ok, %{decisions: [{:ok, command}]}} = Reconciler.run(healthy_inspection(fixture))
+    assert command.result["outcome"] == "block"
+    assert command.result["reasons"] == ["agent_transport_missing"]
+    assert Repo.get!(Run, fixture.run.id).state == "blocked"
+    assert Repo.get!(ProcessRecord, fixture.process.id).state == "running"
+    assert Repo.get!(AgentSession, fixture.session.id).state == "interrupted"
+    assert count_attempts(fixture.run.id) == 1
+  end
+
+  test "recovery retains terminal session history", do: check_terminal_history()
+
+  defp check_terminal_history do
+    fixture = running_fixture()
+
+    history =
+      for state <- ~w(done cancelled failed finished) do
+        {:ok, session} =
+          Execution.create_agent_session(%{
+            stage_attempt_id: fixture.attempt.id,
+            adapter_key: "fake",
+            effective_grant_json: %{}
+          })
+
+        Repo.update!(Ecto.Changeset.change(session, state: state))
+      end
+
+    assert {:ok, _} =
+             Reconciler.run(
+               inspection_options(fixture, process: :gone, port: :free, worktree: :present)
+             )
+
+    for session <- history, do: assert(Repo.get!(AgentSession, session.id).state == session.state)
+  end
+
   test "a reused PID blocks the run without adopting or changing the process record" do
     fixture = running_fixture()
 

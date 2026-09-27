@@ -359,3 +359,152 @@ Quality iteration:
 
 No real provider task, application rebuild/restart, main integration, or remote
 publication is claimed by this increment. Task 1054 remains in progress.
+
+
+### Native compatibility, recovery, and packaging checkpoint
+
+Acceptance for this increment: refuse lost ACP ownership without replay; preserve
+historical terminal sessions; run real structured turns with the saved provider
+identities; preserve policy/model choices; verify the product planning and board
+paths; retain explicit failed-attempt evidence and clean up owned processes.
+The task remains 1054. No new orchestration framework, model substitution, global
+provider configuration edit, credential copy or A2A service was introduced.
+
+Startup/wake inspection now consults the live ACP registry owner as well as the
+recorded PID/start identity. Durable process-start and binding events identify
+protocol processes, including the pre-binding crash window. A surviving process
+without that owner blocks as `agent_transport_missing`; active attempts/sessions
+need attention, completed/cancelled session history remains unchanged, and no
+replacement attempt is launched. A live simulated wake gap retains one prompt.
+
+Real runtime checks found and fixed three compatibility problems:
+
+1. Codex creates plugin caches during account discovery. Block plugin loading
+   explicitly with both `features.plugins=false` and `features.remote_plugin=false`,
+   while leaving provider caches intact. Native `features list` confirmed the
+   flags are distinct. Keep apps/hooks/subagents disabled.
+2. Upstream codex-acp adds `features.cwd_relative_turn_diffs`, unsupported by
+   Codex 0.146.0. The exact-hash patch omits that table and preserves Cuckoding's
+   feature overrides. The bridge is now `1.13.1+cuckoding.2`; Claude remains
+   `0.81.2+cuckoding.1`.
+3. Cursor's CLI aliases differ from its canonical ACP model IDs. Pass the saved
+   alias through native `--model`, retain the reported advertised ID for ACP
+   selection/drift checks, and store requested/observed models separately. The
+   native CLI rejected an invalid alias before a prompt. No guessed mapping or
+   fallback model is used.
+
+A complete board attempt then found Codex's native account config had gained a
+repository trust entry. It contained only a `projects` table, with no model or
+execution options. A bounded strict validator accepts only the native absolute
+path/trust-level table format in a regular file. Extra settings, MCP tables,
+oversized files, and symlinks still fail closed. Existing trust entries are not
+modified or deleted. Rules/hooks and project `.codex` remain refused.
+
+Permission activity now retains bounded, redacted public tool title/kind while
+excluding raw arguments. The run-page failure explains the approval request
+and preserved evidence instead of a generic planning failure.
+
+Source/reference review reused the existing recovery/event/adapter boundaries
+and the prior pinned Hydra comparison. Codex bridge source was inspected at
+`dist/index.js:33969` (session config), `:33983` (feature override), and `:34413`
+(diff-path helper); SHA-pinned Apache-2.0 source is patched, not approximated.
+The official [Cursor ACP documentation](https://prod.cursor.com/docs/cli/acp)
+and [CLI parameters](https://cursor.com/docs/cli/reference/parameters) were
+checked against native behavior. The native Codex feature inventory and generated
+app-server schema were used rather than assuming current upstream flags apply
+to the pinned binary.
+
+#### Authenticated evidence (isolated data)
+
+Temporary harnesses live under `/tmp/cuckoding-1054-*.exs`. They use separate
+SQLite databases and tiny Git repositories, app-owned existing sign-ins, the
+production adapters/client/runner and real provider prompts. They do not alter
+the user's application database or personal provider config. Provider-owned
+caches/trust metadata are retained. Raw ACP frames/thoughts were not saved.
+
+- `rtk env -u CR_PAT MIX_ENV=test mix run --no-start /tmp/cuckoding-1054-native-probe.exs /tmp/cuckoding-1054-native-codex-4 codex`
+  passed: Codex 0.146.0, requested/observed `gpt-5.6-luna`, exact README title
+  structured output, persisted session identity, public tool activity,
+  `end_turn`, exit 0, clean worktree and verified empty owned process group.
+- `rtk env -u CR_PAT MIX_ENV=test mix run --no-start /tmp/cuckoding-1054-native-probe.exs /tmp/cuckoding-1054-native-cursor-2 cursor`
+  passed: Cursor 2026.09.15-d2fe57e, requested `grok-4.7-high`, observed
+  `grok-4.7[context=256k,reasoning_effort=high,fast=true]`, exact output and clean
+  worktree. Cursor ignored stdin closure; bounded host shutdown verified cleanup
+  and retained the real exit 130 alongside successful ACP `end_turn`.
+- `rtk env -u CR_PAT MIX_ENV=test mix run --no-start /tmp/cuckoding-1054-workflow-probe.exs /tmp/cuckoding-1054-native-workflow-3`
+  completed real Codex planning with one validated proposal. Cursor proposal
+  review halted on tool approval. The original proposal remained unchanged.
+- `rtk env -u CR_PAT MIX_ENV=test mix run --no-start /tmp/cuckoding-1054-review-probe.exs /tmp/cuckoding-1054-native-workflow-3 01a0e1e3-e7d2-7d2e-bd5c-45459075b9f0`
+  exercised an explicit new review attempt. It again stopped on a shell request,
+  now with a safe public title (`wc`, `od`, and Git inspection). This is permission
+  refusal evidence, not a passing review or permission expansion.
+- `rtk env -u CR_PAT MIX_ENV=test mix run --no-start /tmp/cuckoding-1054-board-probe.exs /tmp/cuckoding-1054-native-workflow-3 01a0e1e3-e7d2-7d2e-bd5c-45459075b9f0`
+  created a separate one-task batch with fresh Codex sessions for every role.
+  Controller, specification and implementation passed; the pre-review config
+  guard correctly halted on the newly created native trust entry.
+- After the strict trust-only fix,
+  `rtk env -u CR_PAT MIX_ENV=test mix run --no-start /tmp/cuckoding-1054-board-retry.exs /tmp/cuckoding-1054-native-workflow-3 01a0e1e7-b94f-70ba-934f-0674f6e3cb50`
+  used the normal board Retry command and reached **Done**, including independent
+  review, automatic local completion and the final Speculator decision. The
+  failed attempt remained. Read-only SQLite/Git/process checks verified main
+  unchanged, only README changed in the reviewed commit, one exact acceptance
+  line, original heading retained and **all ten recorded process groups gone**.
+  No push, PR, merge or knowledge publication occurred in this acceptance project.
+
+Early harness runs failed before provider prompts on a wrong task attribute,
+a syntax error, duplicate role insertion and a missing disabled Power.Manager.
+Those harness issues were corrected; they are not passing evidence. Earlier
+native probes surfaced the plugin cache, unsupported flag and Cursor alias
+issues above. No approved Claude authentication helper/account was available;
+its existing bridge/native negotiation evidence is not an authenticated turn.
+
+#### Verification
+
+- `rtk env -u CR_PAT mix test test/cuckoding/reconciler_test.exs test/cuckoding/adapters/acp/client_test.exs test/cuckoding/execution/lifecycle_test.exs test/cuckoding/power/manager_test.exs`:
+  **46 tests, 1 property**, zero failures, seed 752573.
+- `rtk env -u CR_PAT mix test test/cuckoding/adapters/acp/client_test.exs test/cuckoding/adapters/cursor_agent_test.exs`:
+  **38 tests**, zero failures, seed 335185.
+- `rtk env -u CR_PAT mix test test/cuckoding/board_task_intake_test.exs test/cuckoding/adapters/acp/client_test.exs`:
+  **40 tests**, zero failures, seed 945066.
+- `rtk env -u CR_PAT mix test test/cuckoding/adapters/codex_test.exs test/cuckoding/shared_agent_profile_test.exs`:
+  **16 tests**, zero failures, seed 572307, including trust-only metadata,
+  rejected extra settings/symlinks/oversize and retained provider caches.
+- First full quality pass: **416 tests, 10 properties, one failure**, seed 609660.
+  Changing the native Cursor fixture scenario broke the timeout fixture's exact
+  replacement. Corrected the fixture selection. A new run-page failure assertion
+  initially used a queued run, which cannot render a blocked-run panel; corrected
+  the setup to start that run before recording its failure.
+- Final `rtk env -u CR_PAT mix quality`: **417 tests, 10 properties, zero
+  failures**, seed 165640. Format, dependency checks, warnings-as-errors compile,
+  Credo, Sobelow and Hex audit passed. Expected plugin-crash fixture logs appeared.
+  Native harnesses used their own databases; no test-database overlap occurred.
+- `rtk node --test test/task_board_motion_test.cjs agent_bridges/harden.test.mjs`:
+  **4 checks passed**, including motion/reduced-motion/focus and bridge policy.
+- `rtk node agent_bridges/build.mjs` rebuilt both standalone bridges and passed
+  the hostile Bun configuration/environment canaries.
+
+Packaging review found signing would change bridge hashes and that hardened Bun
+executables require the existing JIT entitlement. `desktop/sign.sh` now verifies
+pre-signing hashes, signs the bridges with that entitlement, refreshes hashes
+before sealing the app, and the release verifier checks the packaged manifest.
+
+- `rtk proxy env -u GEM_HOME -u GEM_PATH PATH=/usr/bin:/bin:/usr/sbin:/sbin /usr/bin/ruby desktop/release_metadata_test.rb`:
+  **7 tests, 20 assertions**, zero failures, seed 49334. Covers stale hashes,
+  post-signing refresh and symlink refusal.
+- Copies of both real compiled binaries under
+  `/tmp/cuckoding-1054-bridge-signing-1` were signed with
+  `rtk /usr/bin/codesign --force --options runtime --entitlements desktop/entitlements/beam.plist --sign - <copied-bridge>`.
+  The verifier rejected stale hashes, refreshed and verified signed hashes;
+  both signed binaries returned their exact pinned versions in an empty
+  environment. This is ad-hoc signing evidence, not Developer ID/notarization.
+- `rtk sh -n desktop/sign.sh desktop/build.sh` passed.
+- RTK proxy exceptions use the repository's sterile system-Ruby invocation and
+  preserve exact Ruby test/signing-helper output; no product command was wrapped.
+
+No app rebuild/restart, local-main integration or remote publication is claimed
+at this checkpoint. Packaging/build integration, rendered checks and the final
+scope audit remain before task completion; physical sleep and authenticated
+Claude acceptance are recorded separately from fixture/local provider results.
+
+Checkpoint structural validation: inline `rtk python3 -` validated **28 local
+documentation links/anchors**; `rtk git diff --check` passed.

@@ -302,6 +302,7 @@ defmodule Cuckoding.Adapters.Codex do
       "sandbox_workspace_write.exclude_slash_tmp" => true,
       "web_search" => "disabled",
       "features.apps" => false,
+      "features.plugins" => false,
       "features.hooks" => false,
       "features.multi_agent" => false,
       "features.remote_plugin" => false,
@@ -327,15 +328,42 @@ defmodule Cuckoding.Adapters.Codex do
   defp acp_configuration_boundary(request, home, options) do
     shared =
       if options[:shared_profile_id],
-        do: ["config.toml", "rules", "hooks.json", "plugins"],
+        do: ["rules", "hooks.json"],
         else: []
 
     forbidden =
       [Path.join(request.worktree_path, ".codex")] ++ Enum.map(shared, &Path.join(home, &1))
 
-    if Enum.all?(forbidden, &(File.lstat(&1) == {:error, :enoent})),
-      do: :ok,
-      else: {:error, :acp_configuration_requires_review}
+    if Enum.all?(forbidden, &(File.lstat(&1) == {:error, :enoent})) and
+         (is_nil(options[:shared_profile_id]) or
+            native_trust_config?(Path.join(home, "config.toml"))),
+       do: :ok,
+       else: {:error, :acp_configuration_requires_review}
+  end
+
+  # Codex can persist repository trust during an authorized turn. Accept only its
+  # small native trust-table format, never arbitrary TOML execution configuration.
+  defp native_trust_config?(path) do
+    case File.lstat(path) do
+      {:error, :enoent} ->
+        true
+
+      {:ok, %{type: :regular, size: size}} when size <= 65_536 ->
+        case File.read(path) do
+          {:ok, text} ->
+            String.valid?(text) and
+              Regex.match?(
+                ~r/\A(?:\s*\[projects\."\/(?:[^"\\\r\n]|\\["\\])+"\]\s+trust_level\s*=\s*"(?:trusted|untrusted)"\s*)+\z/u,
+                text
+              )
+
+          _ ->
+            false
+        end
+
+      _ ->
+        false
+    end
   end
 
   defp executable(options) do
@@ -644,6 +672,7 @@ defmodule Cuckoding.Adapters.Codex do
       hooks = false
       multi_agent = false
       remote_plugin = false
+      plugins = false
       """
   end
 

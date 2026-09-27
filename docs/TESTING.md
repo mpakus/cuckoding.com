@@ -282,3 +282,21 @@ The plugin/adapter/command-policy suites test frozen scope grants, stage resume,
 missing/changed/non-executable binaries, symlink rejection, all managed role
 categories, unchanged provider commands and single execution. Hook compatibility
 is a separate gate: fixture conformance does not enable a native hook.
+
+## ACP migration evidence
+
+Task 1054 uses protocol fixtures for framing, redaction, grants, pause/stop,
+replay prevention and process ownership. Real authenticated Codex 0.146.0 and
+Cursor 2026.09.15-d2fe57e also passed isolated read-only structured-output turns
+with observed model identity, live public events and verified cleanup. The
+product planning path produced a validated Codex proposal. Cursor proposal
+review requested shell approval and stopped with the existing proposal retained;
+this is permission-refusal evidence, not a passing review.
+
+These checks use a separate database/worktree and existing app-owned sign-ins.
+A Codex board batch also completed controller, specification, implementation,
+review, local completion and final controller decision after an explicit retry.
+The reviewed commit changed only README, main stayed unchanged, and all ten
+recorded process groups were gone. No approved Claude helper was available:
+its native negotiation checks are not authenticated turn acceptance. Record full workflow, packaged-app and physical
+sleep checks separately in [the task worklog](../worklog/2026-09-27-1054-acp-communications.md).

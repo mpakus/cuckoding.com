@@ -162,6 +162,15 @@ defmodule Cuckoding.Adapters.ACP.ClientTest do
     assert session.effective_grant.enforced["mode"] == "plan"
     assert {:ok, result} = Cuckoding.Adapters.await_session(stored, session)
 
+    observed = Repo.get!(AgentSession, stored.id)
+    assert observed.requested_model == "fixture-model"
+    assert observed.actual_model == "fixture[effort=high]"
+
+    assert Enum.any?(requests(f), fn message ->
+             message["method"] == "session/set_config_option" and
+               message["params"]["value"] == "fixture[effort=high]"
+           end)
+
     assert {:ok, %{"summary" => "done"}} =
              Cuckoding.Adapters.OutputParser.extract("cursor_agent", result)
 
@@ -319,7 +328,10 @@ defmodule Cuckoding.Adapters.ACP.ClientTest do
 
   test "denies permission expansion and waits for cancellation and process cleanup", f do
     assert {:error, :acp_permission_required} = execute(f, "permission") |> Task.await(5_000)
-    assert wait_event(f.request.run_id, "approval.requested")
+    event = wait_event(f.request.run_id, "approval.requested")
+    assert event.payload["kind"] == "execute"
+    assert event.payload["title"] == "[REDACTED] command"
+    refute inspect(event) =~ "must-not-persist"
     refute inspect(ActivityStream.list(f.request.run_id, 0)) =~ "must-not-persist"
     assert Enum.any?(requests(f), &(&1["method"] == "session/cancel"))
     refute Enum.any?(requests(f), &(get_in(&1, ["result", "outcome", "outcome"]) == "selected"))
@@ -365,6 +377,33 @@ defmodule Cuckoding.Adapters.ACP.ClientTest do
     assert_owned_cleanup(f)
     refute Client.live_session?(session, %{process: :matching, session: :available})
     assert Enum.count(requests(f), &(&1["method"] == "session/prompt")) == 1
+  end
+
+  test "wake reconciliation retains the attached session without repeating its prompt", f do
+    task = execute(f, "wait")
+    assert_receive {:client_ready, _session}, 1_000
+    wait_event(f.request.run_id, "tool.started")
+    process = Repo.get_by!(ProcessRecord, environment_id: f.environment.id)
+
+    assert {:ok, %{decisions: [{:ok, command}]}} =
+             Cuckoding.Execution.Reconciler.run(
+               run_ids: [f.request.run_id],
+               gap_ms: 10_000,
+               cycle_id: "acp-wake",
+               inspector: Cuckoding.FakeRecoveryInspector,
+               inspector_options: [
+                 processes: %{process.pid => {:ok, process.start_identity}},
+                 worktrees: %{f.environment.worktree_path => :present},
+                 ports: %{}
+               ]
+             )
+
+    assert command.result["outcome"] == "continue"
+    assert Repo.get!(AgentSession, f.stored.id).state == "running"
+    assert {:ok, _} = RunControl.control(f.request.run_id, "stop")
+    assert {:error, :acp_cancelled} = Task.await(task)
+    assert Enum.count(requests(f), &(&1["method"] == "session/prompt")) == 1
+    assert_owned_cleanup(f)
   end
 
   test "a replacement client cannot replay a consumed attempt", f do

@@ -5,7 +5,7 @@ remain separate. The application never downloads or runs a global bridge.
 
 | Bridge | Upstream | Cuckoding build | Native runtime |
 | --- | --- | --- | --- |
-| Codex | `@agentclientprotocol/codex-acp` 1.13.1 | `1.13.1+cuckoding.1` | Codex 0.146.0 |
+| Codex | `@agentclientprotocol/codex-acp` 1.13.1 | `1.13.1+cuckoding.2` | Codex 0.146.0 |
 | Claude | `@agentclientprotocol/claude-agent-acp` 0.81.2 | `0.81.2+cuckoding.1` | Claude Code 2.1.142 |
 
 From the repository root, with Node and Bun **1.3.10** available:
@@ -21,13 +21,19 @@ manifest in ignored `priv/agent_bridges/`. End users need neither Node nor Bun.
 `desktop/build.sh` performs the same steps before packaging. Missing, modified,
 symlinked or writable-by-others bridge files fail closed at launch. Application
 bundle signing and distribution provenance remain separate release gates.
+`desktop/sign.sh` verifies bridge hashes before signing, gives the Bun executables
+the existing JIT entitlement, and refreshes their hashes before signing the app
+resource seal. The release verifier checks the packaged manifest; stale hashes
+and symlinked bridge files are rejected.
 
 `harden.mjs` verifies exact upstream file hashes before applying these changes:
 
 - Codex exposes only true read-only and worktree-write modes, never approves
   permissions automatically, denies network access and extra temporary-directory
   writes, and requires the application's explicit native executable and argv.
-  It forwards the stage's native output schema on every prompt.
+  It forwards the stage's native output schema on every prompt and omits the
+  upstream `cwd_relative_turn_diffs` override unsupported by Codex 0.146.0,
+  preserving Cuckoding's own feature restrictions.
 - Claude reads only the immutable run-owned settings file. It cannot import
   project/personal settings or managed environment variables into the bridge;
   native Claude policy still applies. It exposes only Plan and DontAsk modes,

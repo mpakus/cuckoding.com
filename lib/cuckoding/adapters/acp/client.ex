@@ -52,6 +52,18 @@ defmodule Cuckoding.Adapters.ACP.Client do
 
   def live_session?(_session, _inspection), do: false
 
+  @doc "Checks the live protocol owner during startup/wake inspection; never adopts a process."
+  def owns_process?(run_id, process_id) do
+    with registry when is_pid(registry) <- Process.whereis(Cuckoding.RunRegistry),
+         [{pid, _}] <- Registry.lookup(Cuckoding.RunRegistry, {:acp, run_id}) do
+      GenServer.call(pid, {:owns_process, process_id}, 5_000) == :ok
+    else
+      _ -> false
+    end
+  catch
+    :exit, _ -> false
+  end
+
   def stop_run(run_id) do
     case Registry.lookup(Cuckoding.RunRegistry, {:acp, run_id}) do
       [{pid, _}] ->
@@ -198,6 +210,15 @@ defmodule Cuckoding.Adapters.ACP.Client do
       end
 
     {:reply, live?, state}
+  end
+
+  def handle_call({:owns_process, id}, _from, %{handle: %{process: %{id: id}}} = state) do
+    result =
+      if Process.alive?(state.owner) and Process.alive?(state.handle.worker),
+        do: :ok,
+        else: {:error, :acp_owner_lost}
+
+    {:reply, result, state}
   end
 
   def handle_call(_message, _from, state), do: {:reply, {:error, :acp_command_refused}, state}
@@ -360,7 +381,7 @@ defmodule Cuckoding.Adapters.ACP.Client do
                state,
                "approval.requested",
                "Agent requested permission; review is required",
-               %{}
+               tool_metadata(params["toolCall"])
              ) do
         {:ok, cancel(%{state | error: :acp_permission_required})}
       end
@@ -432,11 +453,17 @@ defmodule Cuckoding.Adapters.ACP.Client do
     requested = state.request.requested_model
     current = models["currentModelId"]
 
-    if state.launch.acp[:model_format] == :codex and is_binary(current) and
-         is_binary(requested) and String.starts_with?(current, requested <> "[") do
-      current
-    else
-      requested || current
+    case state.launch.acp[:model_format] do
+      :cursor_cli ->
+        # Cursor has already resolved --model; keep that reported canonical choice
+        # for configuration and drift checks, while retaining the requested alias.
+        current
+
+      :codex when is_binary(current) and is_binary(requested) ->
+        if String.starts_with?(current, requested <> "["), do: current, else: requested
+
+      _ ->
+        requested || current
     end
   end
 
@@ -682,10 +709,16 @@ defmodule Cuckoding.Adapters.ACP.Client do
 
       if type,
         do:
-          record(state, type, "Agent tool #{status}", %{
-            "tool_call_id" => update["toolCallId"],
-            "status" => status
-          }),
+          record(
+            state,
+            type,
+            "Agent tool #{status}",
+            %{
+              "tool_call_id" => update["toolCallId"],
+              "status" => status
+            }
+            |> Map.merge(tool_metadata(update))
+          ),
         else: {:error, :acp_invalid_tool_status}
     else
       false -> {:error, :acp_invalid_tool_call}
@@ -712,6 +745,15 @@ defmodule Cuckoding.Adapters.ACP.Client do
        do: {:ok, state}
 
   defp turn_update(_state, _update), do: {:error, :acp_unsupported_update}
+
+  defp tool_metadata(tool) when is_map(tool) do
+    tool
+    |> Map.take(["title", "kind"])
+    |> Enum.filter(fn {_, value} -> is_binary(value) and byte_size(value) <= 500 end)
+    |> Map.new()
+  end
+
+  defp tool_metadata(_tool), do: %{}
 
   defp message_boundary(%{message_id: id} = state, next) when id != next,
     do: flush_message(state)

@@ -226,7 +226,8 @@ defmodule Cuckoding.Execution.LocalProcessWorker do
       record_event(environment.run_id, process.id, "process.started", "Process group started", %{
         "pid" => pid,
         "pgid" => pgid,
-        "role" => role
+        "role" => role,
+        "protocol_owner" => is_pid(owner)
       })
 
       timeout = Keyword.get(options, :timeout, 60_000)

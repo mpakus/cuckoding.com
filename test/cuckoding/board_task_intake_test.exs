@@ -210,7 +210,7 @@ defmodule Cuckoding.BoardTaskIntakeTest do
 
     protocol =
       File.read!(Path.expand("test/support/fixtures/acp_runtime.rb"))
-      |> String.replace("ARGV.include?('acp') ? 'success'", "ARGV.include?('acp') ? 'wait'")
+      |> String.replace("ARGV.include?('acp') ? 'cursor-model'", "ARGV.include?('acp') ? 'wait'")
       |> String.replace(
         "when 'wait', 'ignore-cancel'",
         "when 'wait', 'ignore-cancel'\n      update(session, sessionUpdate: 'agent_message_chunk', content: {type: 'text', text: 'Inspecting repository'})"
@@ -265,6 +265,24 @@ defmodule Cuckoding.BoardTaskIntakeTest do
     assert {:ok, view, _html} = live(conn, ~p"/runs/#{intake.run.id}")
     assert has_element?(view, "#run-failure[role=alert]", "reached its time limit")
     refute has_element?(view, "#run-failure[role=alert]", "exited with status")
+  end
+
+  test "ACP permission failures explain the retained request", %{conn: conn, created: created} do
+    assert {:ok, intake} = create_intake(created.board.id)
+
+    assert {:ok, _} =
+             Cuckoding.Execution.transition_run(intake.run.id, "running", "permission-test")
+
+    assert :ok =
+             Cuckoding.OrchestrationFailure.fail(
+               intake.run.id,
+               :task_intake,
+               :acp_permission_required
+             )
+
+    assert {:ok, view, _} = live(conn, ~p"/runs/#{intake.run.id}")
+    assert has_element?(view, "#run-failure[role=alert]", "agent requested tool approval")
+    assert has_element?(view, "#run-failure[role=alert]", "recent activity before retrying")
   end
 
   test "planning requires only the selected role to have a runnable adapter", %{created: created} do

@@ -257,9 +257,14 @@ defmodule Cuckoding.Adapters.CursorAgent do
         "enabled",
         "--trust",
         "--workspace",
-        request.worktree_path,
-        "acp"
+        request.worktree_path
       ]
+
+      # The native CLI resolves its saved aliases to the canonical ACP model IDs.
+      args =
+        args ++ if(request.requested_model, do: ["--model", request.requested_model], else: [])
+
+      args = args ++ ["acp"]
 
       {:ok,
        %{
@@ -269,6 +274,7 @@ defmodule Cuckoding.Adapters.CursorAgent do
          timeout: timeout,
          acp: %{
            adapter: "cursor_agent",
+           model_format: :cursor_cli,
            mode: execution_mode(request.grant) || "agent",
            session_params: %{}
          }

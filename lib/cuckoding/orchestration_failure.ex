@@ -119,6 +119,14 @@ defmodule Cuckoding.OrchestrationFailure do
     end
   end
 
+  defp public_failure(_kind, :acp_permission_required),
+    do:
+      "The agent requested tool approval. Its turn was stopped and evidence preserved. Inspect the permission request in recent activity before retrying."
+
+  defp public_failure(_kind, :acp_required_configuration_unavailable),
+    do:
+      "The agent could not select the saved model or permission mode. Review the assigned agent's configuration before retrying."
+
   defp public_failure(:task_intake, :invalid_output_schema),
     do:
       "The agent runtime rejected Cuckoding's task output schema. Update Cuckoding and create a new planning run."

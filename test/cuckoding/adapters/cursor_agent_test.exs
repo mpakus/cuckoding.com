@@ -160,6 +160,8 @@ defmodule Cuckoding.Adapters.CursorAgentTest do
 
     assert Enum.take(spec.command.args, 3) == ["--sandbox", "enabled", "--trust"]
     assert List.last(spec.command.args) == "acp"
+    assert Enum.take(spec.command.args, -3) == ["--model", request.requested_model, "acp"]
+    assert spec.acp.model_format == :cursor_cli
     assert spec.acp.mode == "agent"
     refute request.objective in spec.command.args
 

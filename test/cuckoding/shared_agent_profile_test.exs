@@ -62,6 +62,9 @@ defmodule Cuckoding.SharedAgentProfileTest do
     assert resolved["spec_writer"].settings["instructions"] == "spec_writer instructions"
 
     bridge = Cuckoding.ACPBridgeFixture.install(Path.join(root, "bridge"), "codex")
+    cache = Path.join(setup.home, "plugins/cache/provider-created")
+    File.mkdir_p!(cache)
+    File.write!(Path.join(cache, "sentinel"), "provider-owned cache")
 
     for {skeleton, runtime} <- [{first, resolved["implementer"]}, {second, next}] do
       request = request(skeleton)
@@ -76,6 +79,8 @@ defmodule Cuckoding.SharedAgentProfileTest do
       assert spec.environment["CODEX_HOME"] == setup.home
       args = Jason.decode!(spec.environment["CUCKODING_CODEX_ARGS"])
       assert ~s(cli_auth_credentials_store="file") in args
+      assert "features.plugins=false" in args
+      assert "features.remote_plugin=false" in args
 
       assert File.read!(spec.environment["CUCKODING_CODEX_CONFIG_FILE"]) =~
                "developer_instructions"
@@ -84,6 +89,34 @@ defmodule Cuckoding.SharedAgentProfileTest do
     end
 
     refute File.exists?(Path.join(setup.home, "config.toml"))
+    assert File.read!(Path.join(cache, "sentinel")) == "provider-owned cache"
+
+    config = Path.join(setup.home, "config.toml")
+    trust = "[projects.\"/tmp/native-repository\"]\ntrust_level = \"trusted\"\n"
+    File.write!(config, trust)
+    options = Keyword.put(next.options, :bridge_directory, bridge)
+    assert {:ok, _} = Codex.launch_spec(request(second), options)
+    assert File.read!(config) == trust
+
+    for unsafe <- [
+          trust <> "[mcp_servers.extra]\ncommand = \"unsafe\"\n",
+          trust <> "sandbox_mode = \"danger-full-access\"\n",
+          String.duplicate(trust, 2_000)
+        ] do
+      File.write!(config, unsafe)
+
+      assert {:error, %{code: :acp_configuration_requires_review}} =
+               Codex.launch_spec(request(second), options)
+    end
+
+    File.rm!(config)
+    File.ln_s!(Path.join(cache, "sentinel"), config)
+
+    assert {:error, %{code: :acp_configuration_requires_review}} =
+             Codex.launch_spec(request(second), options)
+
+    File.rm!(config)
+    File.write!(config, trust)
 
     setups =
       Enum.map(roles, fn role ->

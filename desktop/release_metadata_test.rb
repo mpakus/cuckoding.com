@@ -5,8 +5,31 @@ require "minitest/autorun"
 require "tmpdir"
 require_relative "mach_o_files"
 require_relative "release_metadata"
+require_relative "bridge_manifest"
 
 class ReleaseMetadataTest < Minitest::Test
+  def test_bridge_integrity_tracks_signed_bytes_and_rejects_symlinks
+    Dir.mktmpdir do |temporary|
+      root = File.realpath(temporary)
+      directory = File.join(root, "lib/cuckoding-0.1.0/priv/agent_bridges")
+      FileUtils.mkdir_p(directory)
+      entries = %w[codex claude].to_h do |name|
+        File.write(File.join(directory, "#{name}-acp"), "unsigned")
+        [name, {"executable" => "#{name}-acp", "sha256" => Digest::SHA256.hexdigest("unsigned")}]
+      end
+      File.write(File.join(directory, "manifest.json"), JSON.generate("schema" => 1, "bridges" => entries))
+      assert BridgeManifest.check(root)
+      binary = File.join(directory, "codex-acp")
+      File.write(binary, "signed bytes")
+      assert_raises(RuntimeError) { BridgeManifest.check(root) }
+      assert BridgeManifest.check(root, refresh: true)
+      assert BridgeManifest.check(root)
+      File.unlink(binary)
+      File.symlink(File.join(directory, "claude-acp"), binary)
+      assert_raises(RuntimeError) { BridgeManifest.check(root, refresh: true) }
+    end
+  end
+
   def test_parses_locked_hex_and_cargo_packages
     Dir.mktmpdir do |directory|
       mix = File.join(directory, "mix.lock")

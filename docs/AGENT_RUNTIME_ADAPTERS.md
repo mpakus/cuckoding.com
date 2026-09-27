@@ -26,8 +26,11 @@ An adapter records the configured grant and the runtime-reported grant separatel
 
 All three supported adapters now use `Adapters.ACP.Client`: native Cursor ACP,
 and packaged Codex/Claude bridges with pinned policy patches. This remains a
-migration in progress: full restart/sleep recovery conformance and
-authenticated/provider/native acceptance are still open. See ADR-031 in
+migration in progress: authenticated Codex and Cursor read-only turns pass, and
+Codex planning produces validated proposals. An isolated Codex board batch
+completed controller, specification, implementation, review and local completion
+after an explicit retry; main stayed unchanged. Packaged-app acceptance remains
+a separate check. See ADR-031 in
 [Decisions](DECISIONS.md) and [bridge build instructions](../agent_bridges/README.md).
 
 `Adapters.ACP.Client` is a supervised ACP v1 client above the existing host
@@ -69,19 +72,28 @@ pending negotiation request; resume continues that session without replaying the
 prompt. Protocol admission never blocks the client's cancellation mailbox.
 Late observations retain committed paused/cancelled state. Recovery requires the
 same live protocol owner, saved session, and verified process identity; persisted
-provider identifiers alone cannot establish a resumable live transport.
+provider identifiers alone cannot establish a resumable live transport. Startup
+and wake reconciliation block a surviving ACP process whose protocol owner is
+missing, preserve terminal sessions, and never create a replacement attempt.
 
 Cancellation waits for acknowledgement or bounded escalation and verified
 process cleanup. A paused process is terminated without resuming its work.
 An idle server that ignores stdin closure is terminated through
 the existing owned process-group ladder. A completed turn can then succeed while
-retaining the real process exit status. Fixtures verify these paths; an installed
-Cursor initialize-only probe confirms protocol negotiation. Compiled bridges also
-negotiate with the pinned native CLIs; Claude creates a session and selects its
-saved mode/model without a provider prompt, while Codex correctly requires
-sign-in before session creation. These probes do not establish authenticated task
-execution or packaged-app acceptance. Complete restart/sleep and bridge
-conformance, and real-provider acceptance remain open in task 1054.
+retaining the real process exit status. Authenticated read-only turns using
+Codex 0.146.0 and Cursor 2026.09.15-d2fe57e returned exact structured results,
+persisted observed models/session identity and public tool activity, and left
+clean worktrees with verified process cleanup. Codex also completed the product
+planning path. Cursor proposal review requested shell approval and halted with
+its proposal history preserved; bounded, redacted public tool titles identify
+such requests without storing raw tool arguments.
+
+Claude bridge/native session creation and mode/model selection pass without a
+provider prompt; no approved Claude authentication helper was available for an
+authenticated turn. Fixtures cover restart/wake ownership and cancellation.
+An isolated Codex board batch completed after an explicit retry, retaining the
+failed attempt and reviewed README commit. Physical sleep, broader provider
+workflows and packaged-app acceptance remain separate evidence in the task worklog.
 
 ## Stage request envelope
 
@@ -142,11 +154,11 @@ The effective grant marks tool allow/deny rules, approval mode, and the explicit
 ### Codex CLI 0.146.0
 
 The adapter pins native CLI `0.146.0` and packages `codex-acp` as
-`1.13.1+cuckoding.1`. The bridge launches the explicitly selected native binary
+`1.13.1+cuckoding.2`. The bridge launches the explicitly selected native binary
 with `app-server --stdio --strict-config`. Cuckoding sets approval policy Never,
 user-owned approval review, true read-only or worktree-write mode, no network or
 web search, no extra writable temporary directories, and disabled apps, hooks,
-remote plugins and subagents. The same overrides apply at process and session
+plugins, remote plugins and subagents. The same overrides apply at process and session
 setup; patched turn presets cannot weaken them. Native `outputSchema` comes
 from the stage's generated schema. Large schema/configuration payloads stay in
 run-owned files; instructions reach native thread setup over stdio, avoiding
@@ -155,8 +167,14 @@ run instructions, and ACP session loading replaces `codex exec resume`.
 
 This pinned app-server does not accept the legacy CLI's `--ignore-user-config`
 or `--ignore-rules` flags. Cuckoding therefore rejects a project `.codex` path or
-an account-owned config/rules/hooks/plugins override before launch, rather than
-silently importing it. Resolve that configuration explicitly before retrying.
+account-owned rules/hooks or execution configuration before launch. A bounded,
+regular account config containing only native absolute-path project trust entries
+is accepted unchanged; extra settings and symlinks are rejected. Codex can create
+these entries during an authorized turn. Provider-created plugin caches may
+remain: both `features.plugins` and `features.remote_plugin`
+are explicitly disabled. The bridge omits an upstream diff-path feature flag
+unsupported by this pinned native version; it preserves the host feature
+overrides. Resolve rejected configuration explicitly before retrying.
 
 The effective grant records the active Codex sandbox, non-interactive approval policy, worktree-only write boundary, network denial, and disabled web search. Codex `0.146.0` cannot express Cuckoding's per-tool allow/deny vocabulary, and the adapter does not add extra writable paths or expose MCP plugins, so those requested fields are recorded under `unenforced` or unavailable. The host command-policy and process-resource boundaries remain independently authoritative. Codex's own sandbox intentionally keeps Git administrative paths read-only; host-side Git services remain responsible for commits and later push/PR operations.
 
@@ -185,7 +203,7 @@ remains mandatory before a proposal, review or controller decision takes effect.
 
 The Cursor adapter uses native ACP over stdio, the runtime sandbox with network denied, explicitly negotiated session loading, provider token usage, and the host runner's process-forest cancellation. Saved agents use an owner-only app-owned `HOME`; `CURSOR_CONFIG_DIR` and `CLAUDE_CONFIG_DIR` remain below `<run_dir>/agent/cursor`. Login, probe, launch, and logout set the pinned CLI's native `AGENT_CLI_CREDENTIAL_STORE=file`, which keeps the refreshable login at `<account-home>/.cursor/auth.json` with provider-managed `0600` permissions. Cuckoding never reads, copies, displays, or injects that file and never falls back to the user's global Cursor login.
 
-Cursor automatically discovers MCP configuration, so a tool permission deny is insufficient. Cuckoding writes and verifies an empty account-owned MCP file, writes run-owned task configuration, does not pass `--approve-mcps`, rejects enabled Cuckoding plugins for this adapter, refuses repositories containing project Cursor CLI, sandbox, MCP, or plugin overrides, and refuses plugin directories created inside the isolated login profile. The effective grant records the runtime sandbox, worktree path, network deny, and disabled MCP/plugins separately from advisory host resource limits. The retained real-runtime fixture covers public events and usage; an authenticated account-owned provider smoke remains an explicit release-evidence item.
+Cursor automatically discovers MCP configuration, so a tool permission deny is insufficient. Cuckoding writes and verifies an empty account-owned MCP file, writes run-owned task configuration, does not pass `--approve-mcps`, rejects enabled Cuckoding plugins for this adapter, refuses repositories containing project Cursor CLI, sandbox, MCP, or plugin overrides, and refuses plugin directories created inside the isolated login profile. The effective grant records the runtime sandbox, worktree path, network deny, and disabled MCP/plugins separately from advisory host resource limits. The native CLI resolves the saved `--model` alias (for example `grok-4.7-high`) into an advertised canonical ACP ID. Cuckoding retains the requested alias, records the reported ID including its effort, and locks that ID for subsequent configuration checks. An unknown CLI alias fails before a prompt. Authenticated read-only output and cleanup passed; permission-requiring review stopped safely. Broader workflow acceptance remains separate.
 
 ### OpenCode stable stub
 

@@ -13,6 +13,7 @@ defmodule Cuckoding.Execution.Reconciler do
   alias Cuckoding.Execution.Leases
   alias Cuckoding.Execution.ProcessRecord
   alias Cuckoding.Execution.Run
+  alias Cuckoding.Execution.RunEvent
   alias Cuckoding.Execution.StageAttempt
   alias Cuckoding.Execution.UnavailableRecoveryInspector
   alias Cuckoding.Repo
@@ -133,7 +134,7 @@ defmodule Cuckoding.Execution.Reconciler do
               order_by: process.id
             )
           )
-          |> Enum.map(&inspect_process(&1, inspector, options))
+          |> Enum.map(&inspect_process(&1, inspector, options, run.id))
 
         %{
           environment: environment,
@@ -144,7 +145,7 @@ defmodule Cuckoding.Execution.Reconciler do
     end
   end
 
-  defp inspect_process(process, inspector, options) do
+  defp inspect_process(process, inspector, options, run_id) do
     status =
       case inspector.process_identity(process.pid, options) do
         {:ok, identity} when identity == process.start_identity -> :matching
@@ -153,7 +154,28 @@ defmodule Cuckoding.Execution.Reconciler do
         {:error, _reason} -> :unverified
       end
 
-    %{record: process, status: status}
+    protocol =
+      if protocol_process?(run_id, process.id) do
+        if Cuckoding.Adapters.ACP.Client.owns_process?(run_id, process.id),
+          do: :attached,
+          else: :missing
+      else
+        :not_applicable
+      end
+
+    %{record: process, status: status, protocol: protocol}
+  end
+
+  defp protocol_process?(run_id, process_id) do
+    Repo.exists?(
+      from event in RunEvent,
+        where:
+          event.run_id == ^run_id and
+            fragment("json_extract(?, '$.process_id')", event.payload) == ^process_id and
+            (event.event_type == "agent.process_bound" or
+               (event.event_type == "process.started" and
+                  fragment("json_extract(?, '$.protocol_owner')", event.payload) == true))
+    )
   end
 
   defp inspect_port(nil, _processes, _inspector, _options), do: :not_allocated
@@ -202,6 +224,7 @@ defmodule Cuckoding.Execution.Reconciler do
       unsafe_port(inspection.port),
       missing_worktree(inspection, statuses),
       missing_process(inspection, statuses),
+      missing_transport(inspection.processes),
       missing_port_service(inspection),
       missing_process_record(run, statuses),
       decision(:continue, [:resources_verified])
@@ -250,6 +273,11 @@ defmodule Cuckoding.Execution.Reconciler do
     do: decision(:recover, [:process_record_missing])
 
   defp missing_process_record(_run, _statuses), do: nil
+
+  defp missing_transport(processes) do
+    if Enum.any?(processes, &match?(%{status: :matching, protocol: :missing}, &1)),
+      do: decision(:block, [:agent_transport_missing])
+  end
 
   defp persist_decision(expected_run, inspection, decision, cycle_id, gap_ms, now) do
     run = Repo.get!(Run, expected_run.id)
@@ -323,6 +351,16 @@ defmodule Cuckoding.Execution.Reconciler do
     end
   end
 
+  defp recover_records(
+         repo,
+         run,
+         inspection,
+         %{reasons: [:agent_transport_missing]} = decision,
+         now
+       ),
+       do:
+         recover_records(repo, run, inspection, %{decision | outcome: :recover, reasons: []}, now)
+
   defp recover_records(_repo, _run, _inspection, %{outcome: :block}, _now), do: :ok
 
   defp recover_records(repo, run, inspection, decision, now) do
@@ -350,7 +388,8 @@ defmodule Cuckoding.Execution.Reconciler do
       from(session in AgentSession,
         join: attempt in StageAttempt,
         on: attempt.id == session.stage_attempt_id,
-        where: attempt.run_id == ^run.id and session.state not in ["finished", "failed"]
+        where:
+          attempt.run_id == ^run.id and session.state not in ~w(finished done failed cancelled)
       ),
       set: [state: "interrupted", updated_at: now]
     )
@@ -394,7 +433,7 @@ defmodule Cuckoding.Execution.Reconciler do
   end
 
   defp inspection_fingerprint(inspection) do
-    process_states = Enum.map(inspection.processes, &{&1.record.id, &1.status})
+    process_states = Enum.map(inspection.processes, &{&1.record.id, &1.status, &1.protocol})
     {environment_id(inspection.environment), inspection.worktree, inspection.port, process_states}
   end
 

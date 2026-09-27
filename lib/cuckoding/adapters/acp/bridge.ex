@@ -1,7 +1,7 @@
 defmodule Cuckoding.Adapters.ACP.Bridge do
   @moduledoc "App-packaged, pinned ACP bridges. Never downloads or discovers a global bridge."
 
-  @versions %{"codex" => "1.13.1+cuckoding.1", "claude" => "0.81.2+cuckoding.1"}
+  @versions %{"codex" => "1.13.1+cuckoding.2", "claude" => "0.81.2+cuckoding.1"}
 
   def executable(name, options \\ []) when is_map_key(@versions, name) do
     root =

@@ -36,10 +36,13 @@ if ! beam=$(rtk rg '/beam\.smp$' "$files"); then
   exit 65
 fi
 
+rtk proxy env -u GEM_HOME -u GEM_PATH PATH=/usr/bin:/bin:/usr/sbin:/sbin \
+  /usr/bin/ruby "$desktop_dir/bridge_manifest.rb" "$app/Contents/Resources/release" verify
+
 while IFS= read -r path; do
   [ "$path" = "$main" ] && continue
 
-  if [ "${path##*/}" = "beam.smp" ]; then
+  if [ "${path##*/}" = "beam.smp" ] || [ "${path##*/}" = "codex-acp" ] || [ "${path##*/}" = "claude-acp" ]; then
     rtk proxy /usr/bin/codesign --force --options runtime --timestamp \
       --entitlements "$entitlements" --sign "$identity" "$path"
   else
@@ -47,6 +50,9 @@ while IFS= read -r path; do
       --sign "$identity" "$path"
   fi
 done < "$files"
+
+rtk proxy env -u GEM_HOME -u GEM_PATH PATH=/usr/bin:/bin:/usr/sbin:/sbin \
+  /usr/bin/ruby "$desktop_dir/bridge_manifest.rb" "$app/Contents/Resources/release" refresh-after-signing
 
 rtk proxy /usr/bin/codesign --force --options runtime --timestamp \
   --sign "$identity" "$main"

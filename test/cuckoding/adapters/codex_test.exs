@@ -190,6 +190,7 @@ defmodule Cuckoding.Adapters.CodexTest do
     assert config =~ ~s(sandbox_mode = "workspace-write")
     assert config =~ "network_access = false"
     assert config =~ "remote_plugin = false"
+    assert config =~ "plugins = false"
     refute config =~ "auth.json"
     assert File.read!(Path.join(root, "home/AGENTS.md")) =~ "project:adapter"
     assert Bitwise.band(File.stat!(Path.join(root, "home/config.toml")).mode, 0o777) == 0o600
@@ -210,6 +211,7 @@ defmodule Cuckoding.Adapters.CodexTest do
     assert Enum.take(args, 3) == ["app-server", "--stdio", "--strict-config"]
     assert ~s(approval_policy="never") in args
     assert "features.hooks=false" in args
+    assert "features.plugins=false" in args
     assert spec.command.executable == Path.join(request.run_dir, "codex-acp")
     assert spec.acp.mode == "workspace-write"
     assert spec.environment["CODEX_PATH"] == executable

@@ -2,7 +2,7 @@
 // narrow execution policy. Refuse drift instead of applying approximate edits.
 import { createHash } from "node:crypto";
 
-export const versions = { codex: "1.13.1+cuckoding.1", claude: "0.81.2+cuckoding.1" };
+export const versions = { codex: "1.13.1+cuckoding.2", claude: "0.81.2+cuckoding.1" };
 
 const hashes = {
   "codex/index.js": "4c1f6c00e67c2ace5a96f0e0fe6e812502a48827a403014d4b68373464f55fce",
@@ -55,6 +55,11 @@ export function harden(name, source) {
 }
 
 function hardenCodex(source) {
+  // The pinned CLI has no cwd_relative_turn_diffs feature. Preserve the host's
+  // feature overrides instead of adding an unsupported replacement features table.
+  source = replaceOnce(source,
+    "...forceGitRootTurnDiffPaths(mergeGatewayConfig(this.config, this.gatewayConfig)),",
+    "...mergeGatewayConfig(this.config, this.gatewayConfig),");
   source = replaceOnce(source,
     source.slice(source.indexOf("  static ReadOnly = new _AgentMode("), source.indexOf("  toSessionMode() {", source.indexOf("// src/AgentMode.ts"))),
     `  static ReadOnly = new _AgentMode(
