@@ -26,17 +26,19 @@ An adapter records the configured grant and the runtime-reported grant separatel
 
 All three supported adapters now use `Adapters.ACP.Client`: native Cursor ACP,
 and packaged Codex/Claude bridges with pinned policy patches. This remains a
-migration in progress: board/run cancellation integration, recovery conformance,
-and authenticated/provider/native acceptance are still open. See ADR-031 in
+migration in progress: full restart/sleep recovery conformance and
+authenticated/provider/native acceptance are still open. See ADR-031 in
 [Decisions](DECISIONS.md) and [bridge build instructions](../agent_bridges/README.md).
 
 `Adapters.ACP.Client` is a supervised ACP v1 client above the existing host
 runner. The runner separates protocol stdout from redacted diagnostic stderr.
-The client negotiates capabilities, creates or explicitly loads a session,
-selects an advertised mode/model (including modern configuration options), and
-returns its identity. Configuration notifications cannot widen the selected mode
-or silently replace the model. Workflow code saves
-that identity before sending a prompt through `Adapters.await_session/2`.
+Starting returns a `starting` session after local process creation, without holding
+the run-control lock across provider negotiation. `Adapters.await_session/2` binds
+the saved session and process record before initialization. The client negotiates
+capabilities, creates or explicitly loads a session, selects an advertised
+mode/model (including modern configuration options), and saves the reported
+identity before sending a prompt. Configuration notifications cannot widen the
+selected mode or silently replace the model.
 A durable command reserves each attempt before its first prompt; replacing a
 client cannot replay a consumed attempt. Loading history does not create new
 activity or usage records. Dead sessions require an explicit recovery decision.
@@ -60,16 +62,26 @@ unsupported client requests cannot start host tools. An ACP completion only
 finishes the agent turn: existing schema, review and completion-policy gates
 remain authoritative.
 
+Run Stop, including board Stop/Skip, closes durable admission before requesting
+ACP cancellation. A stalled handshake can be stopped without waiting for its
+provider timeout. Pause suspends owned process groups and retains one bounded
+pending negotiation request; resume continues that session without replaying the
+prompt. Protocol admission never blocks the client's cancellation mailbox.
+Late observations retain committed paused/cancelled state. Recovery requires the
+same live protocol owner, saved session, and verified process identity; persisted
+provider identifiers alone cannot establish a resumable live transport.
+
 Cancellation waits for acknowledgement or bounded escalation and verified
-process cleanup. An idle server that ignores stdin closure is terminated through
+process cleanup. A paused process is terminated without resuming its work.
+An idle server that ignores stdin closure is terminated through
 the existing owned process-group ladder. A completed turn can then succeed while
 retaining the real process exit status. Fixtures verify these paths; an installed
 Cursor initialize-only probe confirms protocol negotiation. Compiled bridges also
 negotiate with the pinned native CLIs; Claude creates a session and selects its
 saved mode/model without a provider prompt, while Codex correctly requires
 sign-in before session creation. These probes do not establish authenticated task
-execution or packaged-app acceptance. Board/run control integration, complete
-bridge conformance, and real-provider acceptance remain open in task 1054.
+execution or packaged-app acceptance. Complete restart/sleep and bridge
+conformance, and real-provider acceptance remain open in task 1054.
 
 ## Stage request envelope
 

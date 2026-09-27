@@ -153,7 +153,7 @@ defmodule Cuckoding.Execution.LocalProcessRunnerTest do
              |> Task.await()
 
     assert {:ok, _} = LocalProcessRunner.pause(fixture.environment)
-    assert {:error, :protocol_not_writable} = LocalProcessRunner.write(handle, frame)
+    assert {:error, :protocol_paused} = LocalProcessRunner.write(handle, frame)
     assert {:ok, _} = LocalProcessRunner.resume(fixture.environment)
     assert :ok = LocalProcessRunner.write(handle, frame)
     assert_receive {:runner_stdout, ^worker, ^frame}, 2_000

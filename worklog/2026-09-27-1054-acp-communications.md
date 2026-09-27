@@ -256,3 +256,106 @@ publication, full native application build, or running-app restart is claimed.
 The goal remains active. Next work is board/run cancellation without holding
 the launch lock across protocol negotiation, durable process/session linkage,
 recovery conformance, and authenticated/native acceptance.
+
+## Run controls and live transport recovery
+
+Acceptance for this increment: Stop must interrupt both negotiation and a live
+turn, close durable admission before cancellation, and wait for verified owned
+cleanup. Pause/resume must retain the same prompt; protocol callbacks must stay
+responsive while admission is paused. Saved sessions/processes must be linked,
+late observations must preserve controls, and recovery must verify the live
+transport rather than trust a saved provider identifier.
+
+The worktree was clean on `feature/1054-acp-communications` at the start. Continued
+the existing task using Ponytail full mode and the adapter, local-runner,
+security-review and quality-gates instructions. No dependency, schema, personal
+configuration or provider credential changes were needed.
+
+Source review found that both planning and delivery called `adapter.start` inside
+`RunControl.launch`; ACP startup held this lock across every negotiation response.
+The protocol client also waited synchronously for admission before prompting,
+which could prevent it from handling cancellation. Startup now returns after
+local process creation. The saved session is bound to its durable process record
+before initialization; negotiated identity is persisted before the prompt.
+Protocol admission tries the existing lock without blocking and retries at the
+existing 100 ms cadence. The client remains responsive to Stop.
+
+Run/board Stop closes durable admission, asks the registered ACP owner to cancel,
+and retains the host runner's verified cleanup. Paused input has a distinct
+response; one bounded negotiation request waits for verified process resume.
+Stopping paused work does not send CONT. Terminal outcome/event writes share a
+transaction; observation projections read current state inside their transaction
+and retain paused/cancelled state. Registry ownership is released after cleanup
+and terminal persistence, before the next stage is allowed to start.
+
+All three adapters' recovery callbacks now require the same live protocol client,
+saved session, active worker and verified recorded process identity. This never
+loads/replays a prompt. Full application restart and physical sleep acceptance
+remain separate work.
+
+Reference review:
+
+- Reused this repository's `RunControl`, `EventStore`, process registry and
+  `LocalProcessRunner` signal/identity checks; no parallel control framework.
+- `rtk xerj search --prefix ref-hydra-v1 -k 3 'agent session recovery process resume'`
+  could not reach the loopback XERJ node. Used the pinned local source instead.
+- Hydra `electron/agents/AgentManager.ts:300` restores saved session metadata with
+  no live process and an empty initial prompt. Its MIT license was inspected;
+  `rtk git -C /Users/mpak/.local/share/cuckoding/reference-code/hydra rev-parse HEAD`
+  confirmed `d8ad56112c2c3acfb2f65f53b6890f30a25c693c`. No code was copied.
+  Cuckoding additionally requires durable ownership and live process verification.
+- Checked official ACP session/prompt documentation. Capability-gated session
+  loading is distinct from reconnecting a live client; cancellation still needs
+  verified host cleanup. A2A remains outside this local communication task.
+
+Verification so far:
+
+- `rtk env -u CR_PAT mix test test/cuckoding/adapters/acp/client_test.exs test/cuckoding/run_control_test.exs`
+  initially returned 25 tests, four failures: tests still expected negotiated
+  identity from synchronous startup, and one loop reused a now-failed bound
+  session. Updated expectations to durable observed identity and separated the
+  incompatible-negotiation cases. This failing run also emitted SQL sandbox
+  teardown diagnostics from the interrupted fixture.
+- `rtk env -u CR_PAT mix test test/cuckoding/adapters/acp/client_test.exs test/cuckoding/run_control_test.exs test/cuckoding/execution/local_process_runner_test.exs`
+  passed **44 tests**, seed 875509.
+- `rtk env -u CR_PAT mix test test/cuckoding/adapters test/cuckoding/run_control_test.exs test/cuckoding/execution/local_process_runner_test.exs`
+  passed **93 tests**, seed 435647. New real-subprocess fixtures exercise stalled
+  initialization, live cancellation, pending paused negotiation, paused admission,
+  session/process linkage, cancellation preservation and live recovery without
+  prompt replay. These remain protocol fixtures, not provider acceptance.
+- Changed Elixir files were formatted with `rtk env -u CR_PAT mix format`.
+- Final quality and documentation validation results are recorded below.
+
+Quality iteration:
+
+- The first `rtk env -u CR_PAT mix quality` passed **409 tests and 10 properties**,
+  seed 682581, then failed Credo on nesting, aliases and a simplified `with`.
+  Reused the existing launch-state helper, flattened the session-binding/test
+  helpers, and aliased the ACP client. `rtk env -u CR_PAT mix credo --strict`
+  then passed with no issues.
+- Added ownership/path and orchestration-owner-loss regressions. A subsequent
+  `rtk env -u CR_PAT mix test test/cuckoding/adapters/acp/client_test.exs --seed 0`
+  was mistakenly launched while `mix quality` was running (seed 115836), against
+  the same test database. This produced database-busy failures. Both owned test
+  processes were interrupted; neither run is passing evidence. The focused run
+  also exposed a fixture that reused a run already blocked by its first expected
+  failure; split the model/path cases into separate fixtures.
+- Inline `rtk python3 -` checked **18 local documentation links and anchors** in
+  the changed README/runtime/architecture documents. `rtk git diff --check`
+  passed at that checkpoint.
+- The clean final `rtk env -u CR_PAT mix quality` passed **412 tests and 10
+  properties**, zero failures, seed 966543. Formatter, unused-dependency check,
+  warnings-as-errors compiler, Credo, Sobelow and Hex audit all passed. Expected
+  deliberate plugin-crash fixture logs appeared; no database-busy failures.
+- `rtk node --test test/task_board_motion_test.cjs` passed its motion,
+  reduced-motion, focus, ordinary-update and cleanup check.
+- Read-only PID/start-identity/executable/cwd inspection found a paused ACP
+  fixture group left by the interrupted test command (group 26387, started
+  September 27 at 02:37:14 local time). Verified its two members were Ruby
+  processes in the exact `cuckoding-acp-135106/worktree` fixture, then applied
+  INT/TERM/KILL without CONT and verified zero remaining group members. Two
+  unrelated older run-control fixtures from September 24 were left untouched.
+  No application or provider process was stopped.
+
+No real provider task, application rebuild/restart, main integration, or remote
+publication is claimed by this increment. Task 1054 remains in progress.

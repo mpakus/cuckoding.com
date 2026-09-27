@@ -272,10 +272,10 @@ defmodule Cuckoding.Execution.LocalProcessWorker do
 
   def handle_call({:write, data}, {owner, _tag}, %{protocol_owner: owner, result: nil} = state)
       when is_pid(owner) and is_binary(data) and byte_size(data) <= 1_048_577 do
-    if state.input_closed? or not is_nil(state.paused_at) do
-      {:reply, {:error, :protocol_not_writable}, state}
-    else
-      {:reply, port_write(state.port, <<1, data::binary>>), state}
+    cond do
+      state.input_closed? -> {:reply, {:error, :protocol_not_writable}, state}
+      not is_nil(state.paused_at) -> {:reply, {:error, :protocol_paused}, state}
+      true -> {:reply, port_write(state.port, <<1, data::binary>>), state}
     end
   end
 
@@ -345,6 +345,8 @@ defmodule Cuckoding.Execution.LocalProcessWorker do
           "Owned process groups resumed",
           %{"paused_ms" => paused_ms}
         )
+
+        if state.protocol_owner, do: send(state.protocol_owner, {:runner_resumed, self()})
 
         {:reply, :ok,
          %{

@@ -99,7 +99,24 @@ defmodule Cuckoding.RunControl do
   end
 
   defp launch_active(id, callback) do
-    if Repo.get!(Run, id).state == "running", do: callback.(), else: {:error, :launch_paused}
+    case Repo.get(Run, id) do
+      %Run{state: "running"} -> callback.()
+      %Run{state: "paused"} -> {:error, :launch_paused}
+      _ -> {:error, :run_interrupted}
+    end
+  end
+
+  @doc "Nonblocking admission for protocol owners that must keep handling cancellation."
+  def try_launch(run_id, callback) do
+    case :global.trans(
+           {{__MODULE__, run_id}, self()},
+           fn -> launch_active(run_id, callback) end,
+           [node()],
+           0
+         ) do
+      :aborted -> {:error, :launch_busy}
+      result -> result
+    end
   end
 
   def control(run_id, action) when action in ["pause", "resume", "stop"] do
@@ -217,6 +234,7 @@ defmodule Cuckoding.RunControl do
 
   defp apply_control(skeleton, "stop") do
     with :ok <- persist_stop(skeleton.run),
+         :ok <- Cuckoding.Adapters.ACP.Client.stop_run(skeleton.run.id),
          :ok <- LocalProcessRunner.destroy(skeleton.environment),
          {:ok, _environment} <-
            Execution.update_environment_preview(skeleton.environment, %{
@@ -250,7 +268,7 @@ defmodule Cuckoding.RunControl do
       })
 
       transition!(skeleton.run.id, "paused")
-      update_sessions(skeleton.run.id, ~w(created starting running waiting), "paused")
+      update_sessions(skeleton.run.id, ~w(created starting ready running waiting), "paused")
       :ok
     end)
   end
@@ -295,7 +313,7 @@ defmodule Cuckoding.RunControl do
 
       update_sessions(
         run.id,
-        ~w(created starting running waiting paused interrupted),
+        ~w(created starting ready running waiting paused interrupted),
         "cancelled"
       )
 

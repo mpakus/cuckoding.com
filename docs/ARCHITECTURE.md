@@ -183,7 +183,9 @@ before a durably reserved prompt, and public events stored as they arrive.
 `Adapters.await_session/2` serves planning and delivery, including board-controller
 decisions. Cursor is native; Codex/Claude use pinned app-packaged bridges with
 explicit policy patches. Legacy log readers remain for historical evidence.
-Control/recovery and real-provider acceptance remain open; see
+Run and board Stop use ACP cancellation after closing durable admission; setup
+does not hold the launch lock across provider negotiation. Full restart/sleep
+recovery and real-provider acceptance remain open; see
 [the adapter contract](AGENT_RUNTIME_ADAPTERS.md#acp-migration-task-1054-in-progress).
 
 `Cuckoding.OrchestrationFailure` guards both delivery and task-intake workers.

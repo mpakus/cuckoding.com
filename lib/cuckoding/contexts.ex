@@ -965,18 +965,8 @@ defmodule Cuckoding.Adapters do
   end
 
   def record_session_observation(session, observation) do
-    # A later state-only observation must not erase an identity reported while streaming.
-    session = Repo.get!(Cuckoding.Execution.AgentSession, session.id)
     effective_grant = Map.from_struct(observation.effective_grant)
     attempt = Repo.get!(StageAttempt, session.stage_attempt_id)
-
-    changeset =
-      Cuckoding.Execution.AgentSession.observation_changeset(session, %{
-        actual_model: observation.actual_model || session.actual_model,
-        external_session_id: observation.external_session_id || session.external_session_id,
-        effective_grant_json: effective_grant,
-        state: observation.state
-      })
 
     attrs = %{
       event_type: "agent.effective_grant_recorded",
@@ -989,7 +979,27 @@ defmodule Cuckoding.Adapters do
       }
     }
 
-    projection = fn repo, _sequence -> repo.update(changeset) end
+    projection = fn repo, _sequence ->
+      # Read inside the write transaction: late output cannot undo a committed control.
+      current = repo.get!(Cuckoding.Execution.AgentSession, session.id)
+      run = repo.get!(Cuckoding.Execution.Run, attempt.run_id)
+
+      state =
+        cond do
+          current.state in ~w(done failed cancelled) -> current.state
+          run.state in ~w(paused cancelled) -> run.state
+          true -> observation.state
+        end
+
+      current
+      |> Cuckoding.Execution.AgentSession.observation_changeset(%{
+        actual_model: observation.actual_model || current.actual_model,
+        external_session_id: observation.external_session_id || current.external_session_id,
+        effective_grant_json: effective_grant,
+        state: state
+      })
+      |> repo.update()
+    end
 
     case EventStore.append(attempt.run_id, attrs, projection) do
       {:ok, {_event, updated}} -> {:ok, updated}

@@ -244,7 +244,7 @@ defmodule Cuckoding.Adapters.CursorAgentTest do
 
     observed = %{session | external_session_id: "cursor-session-1"}
 
-    assert {:ok, ^observed} =
+    assert {:error, %Types.Error{code: :session_recovery_required}} =
              CursorAgent.recover(observed, %{process: :matching, session: :available}, options)
 
     assert {:error, %Types.Error{code: :session_recovery_required}} =

@@ -2,6 +2,7 @@ defmodule Cuckoding.Adapters.ClaudeCode do
   @moduledoc "Claude Code 2.1.142 adapter with run-scoped configuration and host-runner launch specs."
   @behaviour Cuckoding.Adapters.AgentAdapter
 
+  alias Cuckoding.Adapters.ACP.Client
   alias Cuckoding.Adapters.Types
   alias Cuckoding.Security.Redactor
 
@@ -95,7 +96,7 @@ defmodule Cuckoding.Adapters.ClaudeCode do
   def start(%Types.StageRequest{} = request, options) do
     with {:ok, grant} <- render_config(request, options),
          {:ok, spec} <- launch_spec(request, options),
-         {:ok, session} <- Cuckoding.Adapters.ACP.Client.start(request, grant, spec, options) do
+         {:ok, session} <- Client.start(request, grant, spec, options) do
       {:ok, session}
     else
       {:error, %Types.Error{} = error} -> {:error, error}
@@ -140,7 +141,7 @@ defmodule Cuckoding.Adapters.ClaudeCode do
 
   @impl true
   def recover(%Types.Session{} = session, inspection, _options) when is_map(inspection) do
-    if inspection[:process] == :matching and inspection[:session] == :available,
+    if Client.live_session?(session, inspection),
       do: {:ok, session},
       else: error(:session_recovery_required, :capability, false)
   end

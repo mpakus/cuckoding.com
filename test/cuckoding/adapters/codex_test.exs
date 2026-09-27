@@ -311,7 +311,7 @@ defmodule Cuckoding.Adapters.CodexTest do
 
     observed = %{session() | external_session_id: "0199a213-81c0-7800-8aa1-bbab2a035a53"}
 
-    assert {:ok, ^observed} =
+    assert {:error, %Types.Error{code: :session_recovery_required}} =
              Codex.recover(observed, %{process: :matching, session: :available}, options)
 
     assert {:error, %Types.Error{code: :session_recovery_required}} =

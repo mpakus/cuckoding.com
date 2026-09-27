@@ -2,6 +2,7 @@ defmodule Cuckoding.Adapters.Codex do
   @moduledoc "Codex CLI 0.146.0 adapter with account-owned profiles and run-scoped permissions."
   @behaviour Cuckoding.Adapters.AgentAdapter
 
+  alias Cuckoding.Adapters.ACP.Client
   alias Cuckoding.Adapters.SharedProfile
   alias Cuckoding.Adapters.Types
   alias Cuckoding.Security.Redactor
@@ -108,7 +109,7 @@ defmodule Cuckoding.Adapters.Codex do
   def start(%Types.StageRequest{} = request, options) do
     with {:ok, grant} <- render_config(request, options),
          {:ok, spec} <- launch_spec(request, options),
-         {:ok, session} <- Cuckoding.Adapters.ACP.Client.start(request, grant, spec, options) do
+         {:ok, session} <- Client.start(request, grant, spec, options) do
       {:ok, session}
     else
       {:error, %Types.Error{} = error} -> {:error, error}
@@ -157,7 +158,7 @@ defmodule Cuckoding.Adapters.Codex do
 
   @impl true
   def recover(%Types.Session{} = session, inspection, _options) when is_map(inspection) do
-    if inspection[:process] == :matching and inspection[:session] == :available,
+    if Client.live_session?(session, inspection),
       do: {:ok, session},
       else: error(:session_recovery_required, :capability, false)
   end

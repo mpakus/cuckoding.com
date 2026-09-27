@@ -37,6 +37,7 @@ while line = STDIN.gets
   id = message['id']
   case message['method']
   when 'initialize'
+    next if scenario == 'wait-initialize'
     reply(id, protocolVersion: scenario == 'wrong-version' ? 99 : 1,
           agentCapabilities: {loadSession: scenario != 'no-load'})
   when 'session/new', 'session/load'

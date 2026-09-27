@@ -9,6 +9,7 @@ defmodule Cuckoding.Adapters.ACP.Client do
   alias Cuckoding.Execution.AgentSession
   alias Cuckoding.Execution.Commands
   alias Cuckoding.Execution.EventStore
+  alias Cuckoding.Execution.ProcessRecord
   alias Cuckoding.Execution.StageAttempt
   alias Cuckoding.Identifier
   alias Cuckoding.Repo
@@ -39,6 +40,33 @@ defmodule Cuckoding.Adapters.ACP.Client do
 
   def stop(pid), do: call(pid, :stop)
 
+  def live_session?(
+        %Types.Session{process: %{runner: __MODULE__, handle: pid}} = session,
+        %{process: :matching, session: :available}
+      )
+      when is_pid(pid) do
+    GenServer.call(pid, {:recover, session.session_id, session.external_session_id}, 5_000) == :ok
+  catch
+    :exit, _ -> false
+  end
+
+  def live_session?(_session, _inspection), do: false
+
+  def stop_run(run_id) do
+    case Registry.lookup(Cuckoding.RunRegistry, {:acp, run_id}) do
+      [{pid, _}] ->
+        case stop(pid) do
+          {:ok, _} -> :ok
+          # The caller still verifies all durable process records through the host runner.
+          {:error, :acp_session_lost} -> :ok
+          error -> error
+        end
+
+      [] ->
+        :ok
+    end
+  end
+
   defp call(pid, message) do
     GenServer.call(pid, message, :infinity)
   catch
@@ -59,7 +87,11 @@ defmodule Cuckoding.Adapters.ACP.Client do
     runner = Keyword.fetch!(options, :runner)
     environment = Keyword.fetch!(options, :environment)
 
-    if environment.run_id == request.run_id do
+    with true <-
+           environment.run_id == request.run_id and
+             environment.worktree_path == request.worktree_path and
+             environment.run_dir == request.run_dir,
+         {:ok, _} <- Registry.register(Cuckoding.RunRegistry, {:acp, request.run_id}, nil) do
       state = %{
         runner: runner,
         handle: nil,
@@ -71,9 +103,9 @@ defmodule Cuckoding.Adapters.ACP.Client do
         owner_monitor: Process.monitor(owner),
         worker_monitor: nil,
         wire: %Wire{},
-        phase: :initializing,
+        phase: :unbound,
         waiter: nil,
-        open_waiter: nil,
+        pending_write: nil,
         stop_waiters: [],
         stored: nil,
         sequence: 0,
@@ -93,7 +125,7 @@ defmodule Cuckoding.Adapters.ACP.Client do
           session_id: Identifier.generate(),
           requested_model: request.requested_model,
           effective_grant: grant,
-          state: "created",
+          state: "starting",
           process: %{runner: __MODULE__, handle: self()}
         },
         resume_session: Keyword.get(options, :resume_session),
@@ -106,50 +138,39 @@ defmodule Cuckoding.Adapters.ACP.Client do
 
       {:ok, state, {:continue, :launch}}
     else
-      {:stop, :acp_owner_mismatch}
+      false -> {:stop, :acp_owner_mismatch}
+      {:error, _} -> {:stop, :acp_run_already_owned}
     end
   end
 
   @impl true
   def handle_continue(:launch, state) do
     # Start the sibling only after init returns to the shared DynamicSupervisor.
-    with {:ok, handle} <-
-           state.runner.start(state.environment, state.launch.command,
-             env: state.launch.environment,
-             environment_allowlist: state.launch.environment_allowlist,
-             timeout: state.launch.timeout,
-             protocol_owner: self(),
-             redact: state.secrets,
-             termination_grace_ms: state.grace_ms
-           ),
-         state = %{state | handle: handle, worker_monitor: Process.monitor(handle.worker)},
-         {:ok, state} <-
-           request(state, "initialize", %{
-             "protocolVersion" => 1,
-             "clientInfo" => %{"name" => "cuckoding", "version" => "1"},
-             "clientCapabilities" => %{
-               "fs" => %{"readTextFile" => false, "writeTextFile" => false},
-               "terminal" => false
-             }
-           }) do
-      {:noreply, state}
-    else
-      {:error, _reason} -> {:stop, :normal, state}
+    case state.runner.start(state.environment, state.launch.command,
+           env: state.launch.environment,
+           environment_allowlist: state.launch.environment_allowlist,
+           timeout: state.launch.timeout,
+           protocol_owner: self(),
+           redact: state.secrets,
+           termination_grace_ms: state.grace_ms
+         ) do
+      {:ok, handle} ->
+        {:noreply, %{state | handle: handle, worker_monitor: Process.monitor(handle.worker)}}
+
+      {:error, _reason} ->
+        {:stop, :normal, state}
     end
   end
 
   @impl true
-  def handle_call(:open, {owner, _} = from, %{owner: owner, open_waiter: nil} = state) do
-    if state.phase == :ready,
-      do: {:reply, {:ok, state.runtime}, state},
-      else: {:noreply, %{state | open_waiter: from}}
-  end
+  def handle_call(:open, {owner, _}, %{owner: owner, phase: :unbound} = state),
+    do: {:reply, {:ok, state.runtime}, state}
 
-  def handle_call({:execute, id}, {owner, _} = from, %{owner: owner, phase: :ready} = state) do
+  def handle_call({:execute, id}, {owner, _} = from, %{owner: owner, phase: :unbound} = state) do
     state = %{state | waiter: from}
 
     case bind_session(state, id) do
-      {:ok, stored} -> {:noreply, begin_prompt(%{state | stored: stored})}
+      {:ok, stored} -> {:noreply, initialize(%{state | stored: stored})}
       {:error, reason} -> {:noreply, fail(%{state | waiter: from}, reason)}
     end
   end
@@ -159,9 +180,47 @@ defmodule Cuckoding.Adapters.ACP.Client do
     {:noreply, cancel(state)}
   end
 
+  def handle_call({:recover, id, external_id}, _from, state) do
+    live? =
+      with true <- state.phase in [:ready, :prompting],
+           true <-
+             state.runtime.session_id == id and state.runtime.external_session_id == external_id,
+           %AgentSession{state: status} <- Repo.get(AgentSession, state.stored.id),
+           true <- status in ~w(ready running paused),
+           true <- Process.alive?(state.owner) and Process.alive?(state.handle.worker),
+           %ProcessRecord{state: "running"} = process <-
+             Repo.get(ProcessRecord, state.handle.process.id),
+           true <- process.agent_session_id == state.stored.id,
+           {:ok, %{status: :matching}} <- state.runner.inspect(process) do
+        :ok
+      else
+        _ -> {:error, :session_recovery_required}
+      end
+
+    {:reply, live?, state}
+  end
+
   def handle_call(_message, _from, state), do: {:reply, {:error, :acp_command_refused}, state}
 
   @impl true
+  def handle_info(:admit_prompt, %{phase: :ready} = state),
+    do: {:noreply, admit_prompt(state)}
+
+  def handle_info(:admit_prompt, state), do: {:noreply, state}
+
+  def handle_info({:runner_resumed, worker}, %{handle: %{worker: worker}} = state) do
+    case state.pending_write do
+      nil ->
+        {:noreply, state}
+
+      bytes ->
+        case write_request(%{state | pending_write: nil}, bytes) do
+          {:ok, state} -> {:noreply, state}
+          {:error, reason} -> {:noreply, fail(state, reason)}
+        end
+    end
+  end
+
   def handle_info({:runner_stdout, worker, bytes}, %{handle: %{worker: worker}} = state) do
     case Wire.feed(state.wire, bytes) do
       {:ok, wire, messages} -> {:noreply, consume(messages, %{state | wire: wire})}
@@ -399,8 +458,17 @@ defmodule Cuckoding.Adapters.ACP.Client do
 
   defp ready(state) do
     runtime = %{state.runtime | state: "ready"}
-    if state.open_waiter, do: GenServer.reply(state.open_waiter, {:ok, runtime})
-    {:ok, %{state | runtime: runtime, phase: :ready, open_waiter: nil}}
+    state = %{state | runtime: runtime, phase: :ready}
+
+    with {:ok, stored} <- Adapters.record_session_observation(state.stored, runtime),
+         {:ok, state} <-
+           record(%{state | stored: stored}, "session.started", "ACP session ready", %{
+             "transport" => "acp",
+             "protocol_version" => 1
+           }) do
+      send(self(), :admit_prompt)
+      {:ok, state}
+    end
   end
 
   defp can_load(nil, _capabilities), do: :ok
@@ -408,22 +476,43 @@ defmodule Cuckoding.Adapters.ACP.Client do
   defp can_load(_id, _capabilities), do: {:error, :acp_load_unsupported}
 
   defp bind_session(state, id) do
+    EventStore.transaction(fn -> bind_process_session(state, id) end)
+  end
+
+  defp bind_process_session(state, id) do
     with %AgentSession{} = stored <- Repo.get(AgentSession, id),
-         true <- stored.state in ["created", "ready"],
+         true <- stored.state in ["created", "starting", "paused"],
          true <-
            stored.stage_attempt_id == state.request.attempt_id and
-             stored.adapter_key == state.runtime.adapter,
+             stored.adapter_key == state.runtime.adapter and
+             stored.requested_model == state.request.requested_model,
          %StageAttempt{run_id: run_id} <- Repo.get(StageAttempt, stored.stage_attempt_id),
-         true <- run_id == state.request.run_id do
-      Adapters.record_session_observation(stored, %{state.runtime | state: "running"})
+         true <- run_id == state.request.run_id,
+         %ProcessRecord{agent_session_id: nil, state: "running"} = process <-
+           Repo.get(ProcessRecord, state.handle.process.id),
+         true <- process.environment_id == state.environment.id,
+         {:ok, _} <-
+           EventStore.append_in_transaction(
+             run_id,
+             %{
+               event_type: "agent.process_bound",
+               public_summary: "ACP process linked to its saved session",
+               payload: %{"agent_session_id" => id, "process_id" => process.id}
+             },
+             fn repo, _ -> repo.update(Ecto.Changeset.change(process, agent_session_id: id)) end
+           ),
+         {:ok, stored} <- Adapters.record_session_observation(stored, state.runtime) do
+      stored
     else
-      _ -> {:error, :acp_owner_mismatch}
+      _ -> Repo.rollback(:acp_owner_mismatch)
     end
   end
 
   defp start_prompt(state) do
-    Cuckoding.RunControl.launch(state.request.run_id, fn ->
-      with :ok <- reserve_prompt(state) do
+    Cuckoding.RunControl.try_launch(state.request.run_id, fn ->
+      with :ok <- reserve_prompt(state),
+           {:ok, _} <-
+             Adapters.record_session_observation(state.stored, %{state.runtime | state: "running"}) do
         request(
           %{state | phase: :prompting},
           "session/prompt",
@@ -435,19 +524,31 @@ defmodule Cuckoding.Adapters.ACP.Client do
     end)
   end
 
-  defp begin_prompt(state) do
-    case record(state, "session.started", "ACP session ready", %{
-           "transport" => "acp",
-           "protocol_version" => 1
-         }) do
+  defp admit_prompt(state) do
+    case start_prompt(state) do
       {:ok, state} ->
-        case start_prompt(state) do
-          {:ok, state} -> state
-          {:error, reason} -> fail(state, reason)
-        end
+        state
+
+      {:error, reason} when reason in [:launch_busy, :launch_paused] ->
+        Process.send_after(self(), :admit_prompt, 100)
+        state
 
       {:error, reason} ->
         fail(state, reason)
+    end
+  end
+
+  defp initialize(state) do
+    case request(%{state | phase: :initializing}, "initialize", %{
+           "protocolVersion" => 1,
+           "clientInfo" => %{"name" => "cuckoding", "version" => "1"},
+           "clientCapabilities" => %{
+             "fs" => %{"readTextFile" => false, "writeTextFile" => false},
+             "terminal" => false
+           }
+         }) do
+      {:ok, state} -> state
+      {:error, reason} -> fail(state, reason)
     end
   end
 
@@ -700,9 +801,19 @@ defmodule Cuckoding.Adapters.ACP.Client do
 
   defp request(state, method, params) do
     with {:ok, wire, _id, bytes} <- Wire.request(state.wire, method, params),
-         :ok <- state.runner.write(state.handle, bytes),
-         do: {:ok, %{state | wire: wire}}
+         do: write_request(%{state | wire: wire}, bytes)
   end
+
+  # Negotiation is sequential: at most one bounded request waits for host resume.
+  defp write_request(%{pending_write: nil} = state, bytes) do
+    case state.runner.write(state.handle, bytes) do
+      :ok -> {:ok, state}
+      {:error, :protocol_paused} -> {:ok, %{state | pending_write: bytes}}
+      error -> error
+    end
+  end
+
+  defp write_request(_state, _bytes), do: {:error, :acp_request_pending}
 
   defp session_params(state, params),
     do: Map.put(params, "sessionId", state.runtime.external_session_id)
@@ -714,6 +825,7 @@ defmodule Cuckoding.Adapters.ACP.Client do
          :ok <- state.runner.write(state.handle, frame) do
       arm_close(%{state | phase: :cancelling, error: state.error || :acp_cancelled})
     else
+      {:error, :protocol_paused} -> fail(state, :acp_cancelled)
       _ -> fail(state, :acp_cancel_failed)
     end
   end
@@ -737,6 +849,7 @@ defmodule Cuckoding.Adapters.ACP.Client do
       state
       | phase: :closing,
         error: state.error || reason,
+        pending_write: nil,
         chunks: [],
         message_bytes: 0
     })
@@ -744,7 +857,7 @@ defmodule Cuckoding.Adapters.ACP.Client do
 
   defp finish(state, result) do
     outcome = persist_outcome(state, outcome(state, result))
-    if state.open_waiter, do: GenServer.reply(state.open_waiter, outcome)
+    Registry.unregister(Cuckoding.RunRegistry, {:acp, state.request.run_id})
     if state.waiter, do: GenServer.reply(state.waiter, outcome)
     Enum.each(state.stop_waiters, &GenServer.reply(&1, result))
     {:stop, :normal, state}
@@ -753,10 +866,29 @@ defmodule Cuckoding.Adapters.ACP.Client do
   defp persist_outcome(%{stored: nil}, outcome), do: outcome
 
   defp persist_outcome(state, outcome) do
+    case EventStore.transaction(fn -> persist_terminal(state, outcome) end) do
+      {:ok, outcome} -> outcome
+      {:error, _} -> {:error, :acp_event_persistence_failed}
+    end
+  end
+
+  defp persist_terminal(state, outcome) do
+    outcome =
+      if Repo.get!(AgentSession, state.stored.id).state == "cancelled",
+        do: {:error, :acp_cancelled},
+        else: outcome
+
     {type, status} =
-      if match?({:ok, _}, outcome),
-        do: {"session.completed", "done"},
-        else: {"session.failed", "failed"}
+      cond do
+        outcome == {:error, :acp_cancelled} ->
+          {"session.cancelled", "cancelled"}
+
+        match?({:ok, _}, outcome) ->
+          {"session.completed", "done"}
+
+        true ->
+          {"session.failed", "failed"}
+      end
 
     with {:ok, _} <-
            record(state, type, "ACP session #{status}", %{
@@ -767,7 +899,7 @@ defmodule Cuckoding.Adapters.ACP.Client do
            Adapters.record_session_observation(state.stored, %{state.runtime | state: status}) do
       outcome
     else
-      _ -> {:error, :acp_event_persistence_failed}
+      _ -> Repo.rollback(:acp_event_persistence_failed)
     end
   end
 

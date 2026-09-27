@@ -11,6 +11,7 @@ defmodule Cuckoding.Adapters.ACP.ClientTest do
   alias Cuckoding.Execution.ProcessRecord
   alias Cuckoding.Execution.RunEvent
   alias Cuckoding.Projects
+  alias Cuckoding.RunControl
   alias Cuckoding.Telemetry.UsageRecord
   alias Cuckoding.Workflows
 
@@ -29,17 +30,18 @@ defmodule Cuckoding.Adapters.ACP.ClientTest do
     :ok = ActivityStream.subscribe(f.request.run_id)
     task = execute(f, "success")
     assert_receive {:client_ready, session}, 3_000
-    assert session.external_session_id == "fixture-session"
-    assert session.actual_model == "fixture-model"
+    assert session.state == "starting"
 
     event = wait_event(f.request.run_id, "tool.started")
     assert event.payload["agent_session_id"] == f.stored.id
     assert Repo.get!(AgentSession, f.stored.id).external_session_id == "fixture-session"
+    assert Repo.get!(AgentSession, f.stored.id).actual_model == "fixture-model"
     assert_receive {:activity_event, _, _}
     assert {:ok, result} = Task.await(task, 5_000)
     assert result.transport == :acp
     assert result.structured_output == %{"summary" => "done"}
     assert LocalHostInspector.groups_empty?([result.process.pgid])
+    assert Repo.get!(ProcessRecord, result.process.id).agent_session_id == f.stored.id
 
     events = Repo.all(from e in RunEvent, where: e.run_id == ^f.request.run_id)
     text = inspect(events) <> File.read!(result.artifact_path)
@@ -71,7 +73,7 @@ defmodule Cuckoding.Adapters.ACP.ClientTest do
     assert {:ok, _result} =
              execute(f, "success", resume_session: "saved-session") |> Task.await(5_000)
 
-    assert_receive {:client_ready, %{external_session_id: "saved-session"}}
+    assert Repo.get!(AgentSession, f.stored.id).external_session_id == "saved-session"
     assert Enum.at(requests(f), 1)["method"] == "session/load"
     refute inspect(ActivityStream.list(f.request.run_id, 0)) =~ "historical-message"
     assert Repo.aggregate(UsageRecord, :count) == 1
@@ -86,7 +88,6 @@ defmodule Cuckoding.Adapters.ACP.ClientTest do
 
   test "negotiates modern configuration and persists the explicitly reported model", f do
     task = execute(f, "modern")
-    assert_receive {:client_ready, %{actual_model: "fixture-model"}}, 3_000
     assert {:ok, _} = Task.await(task)
     assert Repo.get!(AgentSession, f.stored.id).actual_model == "fixture-model"
     assert Enum.any?(requests(f), &(&1["method"] == "session/set_config_option"))
@@ -210,14 +211,99 @@ defmodule Cuckoding.Adapters.ACP.ClientTest do
     assert_owned_cleanup(f)
   end
 
-  test "refuses incompatible negotiation before any prompt", f do
-    for {scenario, options, expected} <- [
-          {"wrong-version", [], :acp_protocol_mismatch},
-          {"no-load", [resume_session: "saved"], :acp_load_unsupported}
-        ] do
-      assert {:error, ^expected} = execute(f, scenario, options) |> Task.await(5_000)
+  for {scenario, options, expected} <- [
+        {"wrong-version", [], :acp_protocol_mismatch},
+        {"no-load", [resume_session: "saved"], :acp_load_unsupported}
+      ] do
+    test "refuses #{scenario} negotiation before any prompt", f do
+      assert {:error, unquote(expected)} =
+               execute(f, unquote(scenario), unquote(options)) |> Task.await(5_000)
+
       refute Enum.any?(requests(f), &(&1["method"] == "session/prompt"))
     end
+  end
+
+  test "run Stop interrupts unresponsive negotiation without waiting for the provider timeout",
+       f do
+    task = execute(f, "wait-initialize")
+    assert_receive {:client_ready, _session}, 1_000
+    wait_event(f.request.run_id, "agent.process_bound")
+    control = Task.async(fn -> RunControl.control(f.request.run_id, "stop") end)
+    assert {:ok, %{state: "cancelled"}} = Task.await(control, 3_000)
+    assert {:error, :acp_cancelled} = Task.await(task)
+    assert Repo.get!(AgentSession, f.stored.id).state == "cancelled"
+    assert_owned_cleanup(f)
+    refute Enum.any?(requests(f), &(&1["method"] == "session/prompt"))
+  end
+
+  test "run Stop cancels the ACP turn and late observations preserve cancellation", f do
+    task = execute(f, "wait")
+    assert_receive {:client_ready, session}, 1_000
+    wait_event(f.request.run_id, "tool.started")
+    assert {:ok, %{state: "cancelled"}} = RunControl.control(f.request.run_id, "stop")
+    assert {:error, :acp_cancelled} = Task.await(task)
+    assert Enum.any?(requests(f), &(&1["method"] == "session/cancel"))
+
+    assert {:ok, stored} =
+             Cuckoding.Adapters.record_session_observation(f.stored, %{session | state: "done"})
+
+    assert stored.state == "cancelled"
+
+    refute Repo.exists?(
+             from e in RunEvent,
+               where: e.run_id == ^f.request.run_id and e.event_type == "session.failed"
+           )
+
+    assert_owned_cleanup(f)
+  end
+
+  test "pause before negotiation retains pending input and resume sends exactly one prompt", f do
+    task = execute(f, "wait", wait_for_bind: true)
+    assert_receive {:client_ready, _session}, 1_000
+    assert {:ok, %{state: "paused"}} = RunControl.control(f.request.run_id, "pause")
+    send(task.pid, :bind_session)
+    wait_event(f.request.run_id, "agent.process_bound")
+    assert Repo.get!(AgentSession, f.stored.id).state == "paused"
+    assert {:ok, %{state: "running"}} = RunControl.control(f.request.run_id, "resume")
+    wait_event(f.request.run_id, "tool.started")
+    assert {:ok, _} = RunControl.control(f.request.run_id, "pause")
+    assert {:ok, %{state: "cancelled"}} = RunControl.control(f.request.run_id, "stop")
+    assert {:error, :acp_cancelled} = Task.await(task)
+    assert Enum.count(requests(f), &(&1["method"] == "session/prompt")) == 1
+    assert Repo.get!(AgentSession, f.stored.id).state == "cancelled"
+    assert_owned_cleanup(f)
+  end
+
+  test "a ready client stays cancellable while durable admission is paused", f do
+    task = execute(f, "wait", wait_for_bind: true)
+    assert_receive {:client_ready, _session}, 1_000
+    assert {:ok, _} = RunControl.control(f.request.run_id, "pause")
+    send(task.pid, :bind_session)
+    wait_event(f.request.run_id, "agent.process_bound")
+    # Exercise the interval after process resume but before durable admission reopens.
+    assert {:ok, _} = LocalProcessRunner.resume(f.environment)
+    wait_event(f.request.run_id, "session.started")
+    control = Task.async(fn -> RunControl.control(f.request.run_id, "stop") end)
+    assert {:ok, %{state: "cancelled"}} = Task.await(control, 3_000)
+    assert {:error, :acp_cancelled} = Task.await(task)
+    refute Enum.any?(requests(f), &(&1["method"] == "session/prompt"))
+    assert_owned_cleanup(f)
+  end
+
+  test "recovery requires the same live client, saved session and verified process", f do
+    task = execute(f, "wait")
+    assert_receive {:client_ready, session}, 1_000
+    wait_event(f.request.run_id, "tool.started")
+    session = %{session | external_session_id: "fixture-session"}
+    inspection = %{process: :matching, session: :available}
+    assert {:ok, ^session} = Cuckoding.Adapters.Codex.recover(session, inspection, [])
+    refute Client.live_session?(%{session | session_id: "unrelated"}, inspection)
+    assert {:ok, _} = RunControl.control(f.request.run_id, "pause")
+    assert Client.live_session?(session, inspection)
+    assert {:ok, _} = RunControl.control(f.request.run_id, "stop")
+    assert {:error, :acp_cancelled} = Task.await(task)
+    refute Client.live_session?(session, inspection)
+    assert Enum.count(requests(f), &(&1["method"] == "session/prompt")) == 1
   end
 
   for {scenario, expected} <- [
@@ -254,6 +340,31 @@ defmodule Cuckoding.Adapters.ACP.ClientTest do
     assert {:error, :acp_owner_mismatch} = execute(f, "success") |> Task.await(5_000)
     refute Enum.any?(requests(f), &(&1["method"] == "session/prompt"))
     assert_owned_cleanup(f)
+  end
+
+  test "refuses a saved model mismatch before negotiation", f do
+    mismatch = %{f | request: %{f.request | requested_model: "other-model"}}
+    assert {:error, :acp_owner_mismatch} = execute(mismatch, "success") |> Task.await(5_000)
+    refute Enum.any?(requests(f), &(&1["method"] == "initialize"))
+    assert_owned_cleanup(f)
+  end
+
+  test "refuses an unrelated execution path before process creation", f do
+    mismatch = %{f | request: %{f.request | worktree_path: f.environment.run_dir}}
+    assert {:error, :acp_owner_mismatch} = execute(mismatch, "success") |> Task.await(5_000)
+    refute Repo.exists?(from p in ProcessRecord, where: p.environment_id == ^f.environment.id)
+  end
+
+  test "orchestration owner loss records failure and cleans up without replay", f do
+    task = execute(f, "wait")
+    assert_receive {:client_ready, session}, 1_000
+    wait_event(f.request.run_id, "tool.started")
+    assert Task.shutdown(task, :brutal_kill) == nil
+    wait_event(f.request.run_id, "session.failed")
+    assert Repo.get!(AgentSession, f.stored.id).state == "failed"
+    assert_owned_cleanup(f)
+    refute Client.live_session?(session, %{process: :matching, session: :available})
+    assert Enum.count(requests(f), &(&1["method"] == "session/prompt")) == 1
   end
 
   test "a replacement client cannot replay a consumed attempt", f do
@@ -314,32 +425,42 @@ defmodule Cuckoding.Adapters.ACP.ClientTest do
     owner = self()
 
     Task.async(fn ->
-      launch = %{
-        command: %{
-          executable: "/usr/bin/ruby",
-          args: [Path.expand("test/support/fixtures/acp_runtime.rb"), scenario]
-        },
-        environment: %{},
-        environment_allowlist: [],
-        timeout: 8_000,
-        acp: %{adapter: "codex", mode: "read-only", session_params: %{}}
-      }
-
-      options =
-        [
-          runner: LocalProcessRunner,
-          environment: f.environment,
-          termination_grace_ms: 25,
-          redact: ["fixture-secret-canary"]
-        ] ++ extra
-
-      grant = %Types.EffectiveGrant{requested: %{}, enforced: %{}, unenforced: %{}}
-
-      with {:ok, session} <- Client.start(f.request, grant, launch, options) do
-        send(owner, {:client_ready, session})
-        Client.execute(session.process.handle, f.stored)
-      end
+      RunControl.track(f.request.run_id, :workflow, fn ->
+        execute_owned(f, scenario, extra, owner)
+      end)
     end)
+  end
+
+  defp execute_owned(f, scenario, extra, owner) do
+    launch = %{
+      command: %{
+        executable: "/usr/bin/ruby",
+        args: [Path.expand("test/support/fixtures/acp_runtime.rb"), scenario]
+      },
+      environment: %{},
+      environment_allowlist: [],
+      timeout: 8_000,
+      acp: %{adapter: "codex", mode: "read-only", session_params: %{}}
+    }
+
+    options =
+      [
+        runner: LocalProcessRunner,
+        environment: f.environment,
+        termination_grace_ms: 25,
+        redact: ["fixture-secret-canary"]
+      ] ++ extra
+
+    grant = %Types.EffectiveGrant{requested: %{}, enforced: %{}, unenforced: %{}}
+
+    with {:ok, session} <-
+           RunControl.launch(f.request.run_id, fn ->
+             Client.start(f.request, grant, launch, options)
+           end) do
+      send(owner, {:client_ready, session})
+      if options[:wait_for_bind], do: receive(do: (:bind_session -> :ok))
+      Client.execute(session.process.handle, f.stored)
+    end
   end
 
   defp requests(f) do

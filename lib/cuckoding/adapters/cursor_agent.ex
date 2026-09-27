@@ -176,7 +176,7 @@ defmodule Cuckoding.Adapters.CursorAgent do
 
   @impl true
   def recover(%Types.Session{} = session, inspection, _options) when is_map(inspection) do
-    if inspection[:process] == :matching and inspection[:session] == :available,
+    if Client.live_session?(session, inspection),
       do: {:ok, session},
       else: error(:session_recovery_required, :capability, false)
   end
