@@ -589,3 +589,44 @@ Completion documentation validation: **39 local links/anchors** checked by
 inline `rtk python3 -`; `rtk git diff --check` passed. All nine task acceptance
 items have implementation and verification evidence; remaining external checks
 are named separately rather than counted as passes.
+
+### Continuation: current runtime and browser handoff
+
+Continued task 1054's remaining native acceptance check on September 27. Scope:
+verify the running build's ownership and health, inspect the existing browser,
+and try the normal menu-bar authentication flow. Implementation criteria remain
+complete; this follow-up cannot establish a new provider-workflow result.
+Ponytail 4.10.0 (MIT), quality-gates and menubar-shell guidance remain applied.
+
+The checkout began clean on local main at `5320013`, ahead of origin/main by ten
+commits. Read-only runtime inspection reused the existing restart helper:
+
+```sh
+rtk ruby --disable=gems -r json -e 'load "./bin/dev.restart"; s = DeveloperRestart.processes; shells = s.select { |p| File.basename(p[:executable]) == "cuckoding-shell" }; rows = shells.map { |p| {shell: p, releases: s.select { |c| c[:parent] == p[:pid] && File.basename(c[:executable]) == "beam.smp" }.map { |c| c.merge(healthy_port: DeveloperRestart.healthy_port(c)) }} }; puts JSON.pretty_generate(rows)'
+```
+
+It confirmed the same single development shell PID 65202 and owned release PID
+65284, start identity September 27 at 03:25:59 local, and healthy loopback-only
+port 49242. An initial `-r ./bin/dev.restart` probe failed because Ruby's require
+does not load that nonstandard extension; explicit `load` succeeded without
+invoking the restart entry point. No processes were restarted or terminated.
+
+Computer-use inspection of Chrome found the original planning-failure page still
+open on old port 52623, showing the historical 04:48:30 UTC failure. A separate
+tab at the current runtime's root redirected to `/unauthorized`, confirming that
+this browser needs the normal shell-issued session. The temporary tab was closed
+and the original run page preserved.
+
+Selecting Cuckoding by bundle identifier was ambiguous because multiple local
+builds share it. Selecting the verified running bundle by its exact path and
+trying the macOS menu-bar surface both returned computer-use error `-10005:
+timeoutReached`. Interactive authenticated dashboard acceptance remains
+unverified. No private token extraction, authentication bypass, run retry or
+permission change was attempted. The user can continue through the running
+Cuckoding menu-bar icon and its Cuckoding dashboard action.
+
+This follow-up changes only the worklog. `rtk git diff --check` passed; inline
+`rtk python3 -` verified the helper/task paths, unique follow-up section and
+explicit unverified UI boundary. Claims were reviewed against the tool results.
+The earlier automated and real provider results retain their original scope.
+No new runtime build is needed.
