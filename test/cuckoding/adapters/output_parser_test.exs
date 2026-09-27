@@ -107,6 +107,91 @@ defmodule Cuckoding.Adapters.OutputParserTest do
     refute inspect(events) =~ "private"
   end
 
+  test "ignores interleaved Codex diagnostics for results, activity, and usage", %{root: root} do
+    output = %{"summary" => "Completed planning", "tasks" => [%{"title" => "One"}]}
+
+    path =
+      write_jsonl(root, "diagnostics.jsonl", [
+        %{
+          "type" => "item.completed",
+          "item" => %{"type" => "agent_message", "text" => Jason.encode!(output)}
+        },
+        %{"type" => "turn.completed", "usage" => %{"input_tokens" => 12}}
+      ])
+
+    diagnostic =
+      "2026-09-27T04:08:28.035755Z ERROR codex_core::tools::router: " <>
+        "error=exec_command failed: diagnostic-private-canary\n"
+
+    contents = File.read!(path)
+
+    File.write!(
+      path,
+      "Reading additional input from stdin...\n" <>
+        diagnostic <> String.replace(contents, "\n", "\n" <> diagnostic)
+    )
+
+    assert {:ok, ^output} = OutputParser.extract("codex", %{artifact_path: path})
+    assert {:ok, [event]} = OutputParser.activity_events("codex", %{artifact_path: path})
+    assert event.public_summary == "Completed planning"
+    assert event.trust == :untrusted
+    refute inspect(event) =~ "diagnostic-private-canary"
+
+    assert {:ok, [{_, %{"input_tokens" => 12}}]} =
+             OutputParser.usage_events("codex", %{artifact_path: path})
+
+    File.write!(path, diagnostic <> contents)
+
+    for adapter <- ~w(claude_code cursor_agent) do
+      assert {:error, %Types.Error{code: :malformed_output}} =
+               OutputParser.extract(adapter, %{artifact_path: path})
+
+      for reader <- [&OutputParser.activity_events/2, &OutputParser.usage_events/2] do
+        assert {:error, %Types.Error{code: :malformed_activity_log}} =
+                 reader.(adapter, %{artifact_path: path})
+      end
+    end
+
+    for malformed <- [
+          "not-json",
+          ~s({"type":"turn.completed",broken}),
+          "2026-09-27T04:08:28Z ERROR unrelated::module: not-json",
+          "ERROR codex_core::tools::router: missing timestamp"
+        ] do
+      File.write!(path, diagnostic <> malformed <> "\n" <> contents)
+
+      assert {:error, %Types.Error{code: :malformed_output}} =
+               OutputParser.extract("codex", %{artifact_path: path})
+
+      for reader <- [&OutputParser.activity_events/2, &OutputParser.usage_events/2] do
+        assert {:error, %Types.Error{code: :malformed_activity_log}} =
+                 reader.("codex", %{artifact_path: path})
+      end
+    end
+
+    File.write!(path, String.duplicate(diagnostic, 2_001) <> contents)
+
+    assert {:error, %Types.Error{code: :structured_output_too_large}} =
+             OutputParser.extract("codex", %{artifact_path: path})
+
+    File.write!(path, String.duplicate(diagnostic, 50_001) <> contents)
+
+    for reader <- [&OutputParser.activity_events/2, &OutputParser.usage_events/2] do
+      assert {:error, %Types.Error{code: :activity_capture_limit}} =
+               reader.("codex", %{artifact_path: path})
+    end
+
+    File.write!(path, String.trim_trailing(diagnostic) <> String.duplicate("x", 1_048_576))
+
+    assert {:error, %Types.Error{code: :structured_output_too_large}} =
+             OutputParser.extract("codex", %{artifact_path: path})
+
+    for reader <- [&OutputParser.activity_events/2, &OutputParser.usage_events/2] do
+      assert {:error, %Types.Error{code: :activity_capture_limit}} =
+               reader.("codex", %{artifact_path: path})
+    end
+  end
+
   test "imports RTK observations from every adapter without duplicating command text", %{
     root: root
   } do

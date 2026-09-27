@@ -92,6 +92,15 @@ JSONL normalization accepts public `thread.*`, `turn.*`, `item.*`, and `error`
 shapes, rejects reasoning items, recursively redacts public summaries and
 metadata, and preserves provider-reported tokens without inventing a cost.
 
+The host runner retains stdout and stderr in one redacted process artifact.
+Result, activity, and usage readers ignore the initial Codex stdin prelude and
+UTC-timestamped Rust tracing lines with a known severity and `codex_core::`
+module prefix. Diagnostic text is never promoted into a task, public summary,
+or usage record. Capture limits still count diagnostic lines and bytes; other
+non-JSON output and malformed JSON remain errors. This exception applies only
+to Codex. The final structured result still requires domain validation before
+any proposal, review, or controller decision can take effect.
+
 The flag and event vocabulary follow the [official non-interactive Codex documentation](https://learn.chatgpt.com/docs/non-interactive-mode). Native resume follows the pinned Hydra MIT reference at `electron/agents/providers.ts:112-145`; Cuckoding adds the run-scoped authentication, strict sandbox, host-runner, redaction, and audit boundaries rather than copying its interactive launch code.
 
 ### Cursor Agent 2026.09.15-d2fe57e

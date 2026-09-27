@@ -7,6 +7,7 @@ defmodule Cuckoding.Adapters.OutputParser do
   @maximum_rows 2_000
   @maximum_activity_rows 50_000
   @maximum_messages 5_000
+  @codex_diagnostic ~r/\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z[ \t]+(?:TRACE|DEBUG|INFO|WARN|ERROR)[ \t]+codex_core(?:::[a-z_][a-z0-9_]*)+:[ \t]/
 
   @doc "Reads public agent messages from the complete redacted process log."
   def activity_events("fake", _result), do: {:ok, []}
@@ -72,8 +73,9 @@ defmodule Cuckoding.Adapters.OutputParser do
   defp skip_line?(line, adapter, sequence),
     do:
       String.trim(line) == "" or
-        (adapter == "codex" and sequence == 1 and
-           String.trim(line) == "Reading additional input from stdin...")
+        (adapter == "codex" and
+           ((sequence == 1 and String.trim(line) == "Reading additional input from stdin...") or
+              Regex.match?(@codex_diagnostic, line)))
 
   defp decode_event_line(line, sequence, adapter, kind, events, count) do
     case Jason.decode(line) do
@@ -175,9 +177,9 @@ defmodule Cuckoding.Adapters.OutputParser do
     case File.lstat(path) do
       {:ok, %{type: :regular, size: size}} when size <= @maximum_bytes ->
         with {:ok, contents} <- File.read(path),
-             lines = contents |> String.split("\n", trim: true) |> drop_known_prelude(adapter),
+             lines = String.split(contents, "\n", trim: true),
              true <- length(lines) <= @maximum_rows,
-             {:ok, rows} <- decode_rows(lines) do
+             {:ok, rows} <- decode_rows(lines, adapter) do
           {:ok, rows}
         else
           false -> error(:structured_output_too_large)
@@ -193,13 +195,11 @@ defmodule Cuckoding.Adapters.OutputParser do
     end
   end
 
-  defp drop_known_prelude(["Reading additional input from stdin..." | lines], "codex"),
-    do: lines
-
-  defp drop_known_prelude(lines, _adapter), do: lines
-
-  defp decode_rows(lines) do
-    Enum.reduce_while(lines, {:ok, []}, fn line, {:ok, rows} ->
+  defp decode_rows(lines, adapter) do
+    lines
+    |> Enum.with_index(1)
+    |> Enum.reject(fn {line, sequence} -> skip_line?(line, adapter, sequence) end)
+    |> Enum.reduce_while({:ok, []}, fn {line, _sequence}, {:ok, rows} ->
       case Jason.decode(line) do
         {:ok, row} when is_map(row) -> {:cont, {:ok, [row | rows]}}
         _other -> {:halt, error(:malformed_output)}
