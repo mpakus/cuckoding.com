@@ -1,7 +1,8 @@
 ---
-status: in progress
+status: done
 owner: codex
 started_at: 2026-09-27
+completed_at: 2026-09-27
 worklog: worklog/2026-09-27-1052-codex-diagnostic-output.md
 ---
 
@@ -12,4 +13,4 @@ worklog: worklog/2026-09-27-1052-codex-diagnostic-output.md
 - [x] Keep malformed JSON, unknown output, other providers, capture limits, and diagnostic privacy protected by regression checks.
 - [x] Validate the retained failed-run artifact read-only, without starting a provider or changing historical state or importing tasks.
 - [x] Update adapter documentation and record focused and quality-gate evidence, including deployment limits.
-- [ ] Carry the fix into local main and rebuild/restart the developer app under the existing user authorization, preserving prior run evidence.
+- [x] Carry the fix into local main and rebuild/restart the developer app under the existing user authorization, preserving prior run evidence.

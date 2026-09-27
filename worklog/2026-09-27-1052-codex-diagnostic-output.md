@@ -80,4 +80,52 @@ inspection using `require_relative` from `-e` failed without side effects;
 loading the helper by absolute path succeeded. Ruby reports the pre-existing
 world-writable DBngin PATH warning; no system permissions were changed.
 
-Build, restart, final validation, and historical-state checks are pending.
+- `rtk git commit -m 'fix(adapters): tolerate interleaved Codex diagnostics'`
+  created `77aa2a4`; `rtk git switch main` and
+  `rtk git merge --ff-only fix/1052-codex-diagnostic-output` integrated the fix
+  without conflicts. No remote push.
+- Gracefully stopped the old shell using the existing `DeveloperRestart`
+  identity/descendant/wait helpers via
+  `rtk env -u GEM_HOME -u GEM_PATH /usr/bin/ruby -e ...`. The guarded TERM was
+  sent only to shell 75985 after matching its absolute bundle executable and
+  start identity. All three descendants, including the prior defunct child,
+  exited. No force kill or unrelated application shutdown.
+- A read-only SQLite source connection and standard-library `backup` created
+  the mode-0600 backup
+  `~/Library/Application Support/com.cuckoding.desktop/manual-backups/1052-20260927T043848Z/cuckoding.sqlite3`.
+  Integrity/FKs passed; SHA-256
+  `aaaecb8b0ff78b4ca808611b9cd866e56bd0daf676831a42ff7073fd3a5a44e7`.
+- `rtk env -u CR_PAT ./bin/dev.build`: passed from clean main at `77aa2a4`.
+  Assets, warnings-as-errors production compilation, release assembly, metadata
+  (6 tests/15 assertions), restart helper (6 tests/98 assertions), release
+  promotion, Rust formatting/10 tests/Clippy and Tauri bundling all passed.
+  The sterile verifier passed authentication/token replay, browser handoff,
+  diagnostics redaction, graceful cleanup, crash-before/after-READY, safe mode,
+  and update snapshot/migration/rollback checks. Its database is disposable;
+  the user's database required no migration. Existing build/restart helper
+  `rtk proxy` calls preserve exact subprocess/stream semantics.
+- `rtk ./bin/dev.restart`: passed. A fresh inventory found exactly one owned
+  shell, PID 44078 (2026-09-26 23:40:25 local), and bundled BEAM PID 44186
+  (23:40:26), healthy at `127.0.0.1:52623`, plus its child setup process.
+  The chosen bundle is
+  `desktop/src-tauri/target/release/bundle/macos/Cuckoding.app`.
+- `rtk python3 /tmp/cuckoding-1052-data-check.py`: integrity/FKs passed;
+  complete rows matched the backup for 2 projects, 2 boards, 16 tasks, 4 runs,
+  7 sessions, 7 stage attempts, 8 prior proposals, and 22 migration records.
+  The reported planning run remains blocked. No tasks were imported or run.
+- The bundled `Elixir.Cuckoding.Adapters.OutputParser.beam` matches the new
+  production release byte-for-byte, SHA-256
+  `a60ec627d13d21790576894fc5799b95e6b3bec68f6ac0657c284c53b2c021cf`.
+  Shell SHA-256 remains
+  `5d6c951270e7566f7c363b2c9488d431f6ce5102ac91011f73c832707828987e`;
+  the fix is in the bundled Elixir module. Closing task/worklog edits do not
+  change the tested source build.
+
+## Handoff and limits
+
+Completed the parser fix, local integration and developer-app restart. Open
+the authenticated dashboard through the menubar action and create a new
+planning run to use the fix; old failures are not silently rewritten. Original
+artifact replay is real captured-output evidence, not a new paid provider run.
+No new real-provider execution, authenticated visual acceptance, physical
+sleep/wake drill, signed clean-Mac release, or remote publication is claimed.
