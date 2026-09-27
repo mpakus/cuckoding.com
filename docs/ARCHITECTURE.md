@@ -189,7 +189,7 @@ requires a live protocol owner as well as the recorded process identity; lost
 ownership blocks without replay. Real Codex/Cursor read-only turns and Codex
 planning and an isolated Codex board batch pass; broader native acceptance
 remains separate. See
-[the adapter contract](AGENT_RUNTIME_ADAPTERS.md#acp-migration-task-1054-in-progress).
+[the adapter contract](AGENT_RUNTIME_ADAPTERS.md#acp-communication-task-1054).
 
 `Cuckoding.OrchestrationFailure` guards both delivery and task-intake workers.
 An expected error or unexpected worker exception first appends a redacted,

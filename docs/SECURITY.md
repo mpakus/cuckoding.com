@@ -1,6 +1,6 @@
 # Security Model
 
-The task-1054 ACP migration preserves runtime-specific grants and host workflow
+Task 1054's ACP implementation preserves runtime-specific grants and host workflow
 authority. Protocol stdout is separated from diagnostic logs; hidden reasoning
 and raw tool arguments are discarded, public text is redacted after fragment
 assembly, and frames/output are bounded. ACP clients advertise no host
@@ -12,7 +12,7 @@ controls. Packaged bridges disable automatic Bun configuration/environment
 loading and verify a pinned binary manifest before launch. Reconciliation blocks
 surviving processes whose protocol owner is missing. Real read-only Codex/Cursor
 turns pass; a Cursor review permission request stopped without a grant expansion.
-Full provider workflow and native recovery acceptance remain separate. See [ACP migration](AGENT_RUNTIME_ADAPTERS.md#acp-migration-task-1054-in-progress).
+Full provider workflow and native recovery acceptance remain separate. See [ACP communication](AGENT_RUNTIME_ADAPTERS.md#acp-communication-task-1054).
 
 ## Security objective
 

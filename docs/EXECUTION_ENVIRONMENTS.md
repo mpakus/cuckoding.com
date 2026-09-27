@@ -123,7 +123,7 @@ event. Raw protocol output never enters the process-log artifact. Durable
 process-start/binding events identify ACP processes for restart/wake inspection.
 A matching PID with no live protocol owner is blocked as
 `agent_transport_missing`; it is never adopted or replayed. See
-[ACP migration](AGENT_RUNTIME_ADAPTERS.md#acp-migration-task-1054-in-progress).
+[ACP communication](AGENT_RUNTIME_ADAPTERS.md#acp-communication-task-1054).
 
 ## Path and command policy
 

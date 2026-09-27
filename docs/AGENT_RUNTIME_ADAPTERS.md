@@ -22,15 +22,17 @@ An adapter records the configured grant and the runtime-reported grant separatel
 
 `Cuckoding.Adapters.AgentAdapter` is the workflow-facing contract. Its shared types keep requested and observed model identity separate, attach source and confidence to usage, classify adapter errors for retry decisions, and mark every normalized provider event as untrusted. Recording an observed session updates the full effective grant and appends a same-transaction audit event whose public payload contains field names rather than path or policy values. `Cuckoding.Adapters.FakeAdapter` exercises the complete contract without a provider dependency. Its generated fixture configuration is mode `0600`, exists only at `<run_dir>/agent/fake-adapter.json`, rejects a symlinked `agent/` directory, and records restrictions the fake cannot enforce under `unenforced`.
 
-## ACP migration (task 1054, in progress)
+## ACP communication (task 1054)
 
 All three supported adapters now use `Adapters.ACP.Client`: native Cursor ACP,
-and packaged Codex/Claude bridges with pinned policy patches. This remains a
-migration in progress: authenticated Codex and Cursor read-only turns pass, and
-Codex planning produces validated proposals. An isolated Codex board batch
+and packaged Codex/Claude bridges with pinned policy patches. Authenticated
+Codex and Cursor read-only turns pass, and Codex planning produces validated
+proposals. An isolated Codex board batch
 completed controller, specification, implementation, review and local completion
-after an explicit retry; main stayed unchanged. Packaged-app acceptance remains
-a separate check. See ADR-031 in
+after an explicit retry; the acceptance repository's main stayed unchanged. The
+development bundle was rebuilt, verified and restarted on 2026-09-27. Developer
+ID distribution, physical sleep and broader provider acceptance remain separate.
+See ADR-031 in
 [Decisions](DECISIONS.md) and [bridge build instructions](../agent_bridges/README.md).
 
 `Adapters.ACP.Client` is a supervised ACP v1 client above the existing host

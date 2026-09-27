@@ -155,7 +155,7 @@ cannot start task runs until their adapter contract and conformance evidence are
 complete. Each agent card saves or updates independently; role saves remain a
 separate immutable configuration revision.
 
-Task 1054 is migrating agent communication to ACP. All three supported adapters
+Task 1054 implements agent communication through ACP. All three supported adapters
 use the shared client. Codex/Claude require the pinned standalone bridges in
 `priv/agent_bridges/`: follow [the bridge build instructions](../agent_bridges/README.md)
 once before development runs and after bridge changes. `desktop/build.sh`
@@ -164,7 +164,7 @@ Run `rtk env -u CR_PAT mix test test/cuckoding/adapters/acp test/cuckoding/adapt
 for its focused fixtures, then `rtk env -u CR_PAT mix quality` for the repository
 gates. An initialize-only probe is separate from authenticated planning,
 delivery, cancellation, sleep recovery and packaged-app acceptance. See the
-[migration contract](AGENT_RUNTIME_ADAPTERS.md#acp-migration-task-1054-in-progress)
+[communication contract](AGENT_RUNTIME_ADAPTERS.md#acp-communication-task-1054)
 and [task worklog](../worklog/2026-09-27-1054-acp-communications.md).
 
 A project may be registered while its working tree is dirty so the user can

@@ -538,3 +538,54 @@ Final post-title `rtk env -u CR_PAT mix quality` passed **417 tests and 10
 properties**, zero failures, seed 826375, with all formatter/compiler/static
 gates passing. Two SQLite transaction-busy messages were retried successfully;
 no overlapping test process was running.
+
+
+### Completion audit and local integration
+
+All nine task criteria are now checked against the source and evidence above.
+Planning/proposal review and delivery/controller stages share `await_session`;
+explicit continuations use the same client and capability-gated session loading
+in a new authorized attempt. ACP never changes host admission, review, completion
+or release authority. No historical failed run was rewritten or retried in the
+user's application database.
+
+- Runtime code checkpoint: **60267f5** (`fix(activity): show redacted ACP tool descriptions`).
+- Final `rtk env -u CR_PAT ./bin/dev.build` passed all bridge, Ruby, Rust,
+  production compile, packaging and sterile-release checks again. The final
+  verifier completed at 2026-09-27 08:25:34 UTC, including packaged bridge hashes,
+  authenticated HTTP rendering and no-descendant shutdown/recovery checks.
+- `rtk git switch main` and
+  `rtk git merge --ff-only feature/1054-acp-communications` integrated all five
+  ACP commits locally. No conflicts or user changes were present. No push.
+- `rtk ./bin/dev.restart` gracefully stopped the previously owned shell PID 54421
+  and its release, verified cleanup, then opened the chosen bundle once. It
+  reported healthy **http://127.0.0.1:49242**. A pre-existing Ruby warning noted
+  a world-writable DBngin PATH entry; no shell PATH setting was changed.
+- Read-only PID/start/executable inspection verified exactly one new shell,
+  **65202**, and release child **65284**, both started September 27 at 03:25:59
+  local time. `rtk lsof -nP -a -p 65284 -iTCP -sTCP:LISTEN` showed only
+  `127.0.0.1:49242`. A direct public `/health` read returned HTTP 200, status ok,
+  application cuckoding 0.1.0.
+- The existing database retained the same counts before and after restart:
+  three blocked runs, one done, one queued. No schema migration was added.
+- `rtk proxy /usr/bin/ruby --disable=gems desktop/bridge_manifest.rb desktop/src-tauri/target/release/bundle/macos/Cuckoding.app/Contents/Resources/release verify`
+  passed against the actual app. Its ACP client BEAM hash matches the verified
+  release (`f714177b7eb27677da10807a487e810d15a18810d8073c668a3672d137271534`).
+  The raw compile artifact initially differed because release assembly strips
+  debug chunks. A direct `rtk elixir -e` `:beam_lib.md5` comparison confirmed the
+  compiled/release code identity matches. A prior `MIX_ENV=prod mix run --no-start`
+  comparison was refused for missing production DB configuration; no database
+  or runtime was started by that failed check.
+
+Task 1054's communication implementation and requested local integration/restart
+are complete. Real Cursor approval refusal, unavailable authenticated Claude,
+physical sleep, interactive native/browser inspection and Developer ID/public
+release gates remain explicitly distinct from the passing automated, isolated
+provider and development-bundle evidence. No A2A service or remote publication
+was introduced. Later documentation-only completion bookkeeping does not require
+another rebuild of the verified runtime code.
+
+Completion documentation validation: **39 local links/anchors** checked by
+inline `rtk python3 -`; `rtk git diff --check` passed. All nine task acceptance
+items have implementation and verification evidence; remaining external checks
+are named separately rather than counted as passes.

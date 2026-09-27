@@ -7,10 +7,13 @@ release. The repository includes
 the loopback-only Phoenix LiveView control plane, durable SQLite workflows,
 host runner, implemented Claude Code, Codex, and Cursor Agent launch adapters,
 plugin and knowledge boundaries, and a native macOS shell. The latest board
-controller has local regression and desktop/mobile browser evidence; real-provider,
-physical sleep/wake and packaged-app acceptance remain open. Editing this source
+controller has local regression and desktop/mobile browser evidence. The ACP
+migration adds real Codex/Cursor turn checks, an isolated Codex board batch and a
+verified development-app rebuild/restart. Broader provider, physical sleep/wake
+and signed-release acceptance remain open. Editing this source
 does not update an installed application. See the
-[implementation evidence](worklog/2026-09-25-1049-board-controller.md) and
+[controller evidence](worklog/2026-09-25-1049-board-controller.md),
+[ACP evidence](worklog/2026-09-27-1054-acp-communications.md) and
 [beta ledger](docs/BETA_REPORT.md).
 The current [release-readiness decision](docs/RELEASE_READINESS.md) is no-go
 until a fresh signed candidate and the outstanding provider/beta gates pass.
@@ -107,7 +110,7 @@ in [Product](docs/PRODUCT.md), [Flow](docs/FLOW.md) and [Release readiness](docs
 - SQLite with Ecto for local durable state; Markdown files for human-readable knowledge.
 - Git worktrees and a `LocalProcessRunner` for concurrent feature work on the host.
 - Launch adapters for Claude Code, Codex, and Cursor Agent, with a stable adapter contract for OpenCode.
-- [ACP migration](docs/AGENT_RUNTIME_ADAPTERS.md#acp-migration-task-1054-in-progress): Codex, Claude and Cursor use one supervised ACP client with durable live updates and run/board cancellation. Pinned bridges are built with the app; restart/wake checks refuse lost protocol ownership. Real Codex/Cursor read-only turns, Codex planning, and an isolated Codex board batch pass; packaged-app acceptance remains in progress.
+- [ACP communication](docs/AGENT_RUNTIME_ADAPTERS.md#acp-communication-task-1054): Codex, Claude and Cursor use one supervised ACP client with durable live updates and run/board cancellation. Pinned bridges are built with the app; restart/wake checks refuse lost protocol ownership. Real Codex/Cursor read-only turns, Codex planning, and an isolated Codex board batch pass; the development bundle is rebuilt and running. Authenticated Claude, physical sleep and signed-release checks remain separate.
 - Saved agents at **Agents** (`/settings/agents`): authorize Codex/Cursor once and reuse the sign-in across named agents and projects, each with its own model and role assignments. Separate sign-ins are optional; shared profiles also share provider history. Runs retain separate permissions/worktrees. See [authorization flow and acceptance limits](docs/AGENT_AUTHORIZATION_FLOW.md).
 - Durable failures: agent sign-in/disconnect errors remain in the Agents page, while planning and delivery failures remain on the run page with a safe error code, timeline, and redacted live/full process logs.
 - A plugin system for connectors: knowledge backends (XERJ, others), shell-output filters (RTK), instruction skills (Ponytail, any `SKILL.md`), MCP servers, and future container runners (Docker, OrbStack, Colima, Apple Containers).
