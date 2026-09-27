@@ -508,3 +508,33 @@ Claude acceptance are recorded separately from fixture/local provider results.
 
 Checkpoint structural validation: inline `rtk python3 -` validated **28 local
 documentation links/anchors**; `rtk git diff --check` passed.
+
+
+### Packaged build and visible tool descriptions
+
+`eb74ba9` checkpoints the native/recovery fixes above. The first
+`rtk env -u CR_PAT ./bin/dev.build` passed: bridge install/audit (zero
+vulnerabilities), bridge policy tests and standalone builds, production
+assets/compile/release, Ruby metadata tests (7/20), restart tests (6/98), release
+promotion checks, Rust tests (10), fmt/Clippy, Tauri app packaging and sterile
+release verification. The verifier confirmed bridge integrity, one-time shell
+and browser handshakes, authenticated page rendering, graceful shutdown with no
+descendants, crash/safe-mode handling and update snapshot/rollback. No app restart
+had occurred during that build.
+
+Final UI-path inspection found activity cards render public summaries, not
+arbitrary metadata. ACP tool titles are now included in that summary and redacted
+there as well, so the retained approval request is actually visible. The focused
+`rtk env -u CR_PAT mix test test/cuckoding/adapters/acp/client_test.exs test/cuckoding/activity_stream_test.exs`
+result and final rebuild are recorded below. This keeps the existing activity
+component and adds no new UI state or controls.
+
+The focused activity/client run passed **36 tests**, zero failures, seed 92374.
+Native computer-use inspection by app name and bundle path timed out; no rendered
+native-menu/browser interaction is claimed from those attempts. The sterile
+release's authenticated HTTP render and LiveView regressions are separate evidence.
+
+Final post-title `rtk env -u CR_PAT mix quality` passed **417 tests and 10
+properties**, zero failures, seed 826375, with all formatter/compiler/static
+gates passing. Two SQLite transaction-busy messages were retried successfully;
+no overlapping test process was running.

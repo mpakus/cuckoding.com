@@ -791,12 +791,13 @@ defmodule Cuckoding.Adapters.ACP.Client do
 
   defp record(state, type, summary, metadata) do
     sequence = state.sequence + 1
+    summary = if metadata["title"], do: summary <> ": " <> metadata["title"], else: summary
 
     event = %Types.Event{
       event_id: "acp:#{state.runtime.session_id}:#{sequence}",
       sequence: sequence,
       type: type,
-      public_summary: summary,
+      public_summary: Redactor.redact(summary, state.secrets),
       metadata: Redactor.redact(metadata, state.secrets),
       trust: :untrusted
     }

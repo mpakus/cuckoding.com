@@ -331,6 +331,10 @@ defmodule Cuckoding.Adapters.ACP.ClientTest do
     event = wait_event(f.request.run_id, "approval.requested")
     assert event.payload["kind"] == "execute"
     assert event.payload["title"] == "[REDACTED] command"
+
+    assert event.public_summary ==
+             "Agent requested permission; review is required: [REDACTED] command"
+
     refute inspect(event) =~ "must-not-persist"
     refute inspect(ActivityStream.list(f.request.run_id, 0)) =~ "must-not-persist"
     assert Enum.any?(requests(f), &(&1["method"] == "session/cancel"))
