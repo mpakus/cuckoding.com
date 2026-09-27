@@ -73,6 +73,57 @@ The owned developer shell is 44078, bundled BEAM 44186, healthy on loopback
 52623. Inventory uses executable/PID/start identity, never raw arguments or
 environments. Reuse the existing graceful restart path after verification.
 
-All commands use RTK. Keep source tests, recorded-log diagnosis, native build
-checks, and fresh provider acceptance distinct. No migration or dependency is
-needed; final integration/restart evidence is pending.
+## Integration and running build
+
+- `rtk git commit -m 'fix(planning): honor saved role time budgets'` created
+  `cc48078`. `rtk git switch main` followed by
+  `rtk git merge --ff-only fix/1053-planning-time-budget` integrated it locally
+  without conflicts. No remote push.
+- Used the existing `DeveloperRestart` helper through
+  `rtk env -u GEM_HOME -u GEM_PATH /usr/bin/ruby -e ...`: verified the exact
+  developer-bundle path, shell PID/start identity and owned descendants, sent
+  graceful TERM to shell 44078, and verified all three descendants exited.
+  No unrelated process was signalled and no force kill was used. Ruby's
+  existing DBngin PATH-permission warning did not affect the operation.
+- Standard-library SQLite `backup` from a read-only source produced a verified
+  mode-0600 backup at
+  `~/Library/Application Support/com.cuckoding.desktop/manual-backups/1053-20260927T050148Z/cuckoding.sqlite3`,
+  SHA-256 `90cbfe4202e327870ce7b28b7b6415cd7223be8a4852e67d4e21907f258a0544`.
+  Integrity and foreign-key checks passed. No data migration was needed.
+- `rtk env -u CR_PAT ./bin/dev.build`: passed from clean main `cc48078`.
+  Production assets, warnings-as-errors compilation, release assembly, metadata
+  (6 tests/15 assertions), restart helper (6 tests/98 assertions), promotion,
+  Rust formatting/10 tests/Clippy, and Tauri bundling passed. The sterile
+  verifier passed bootstrap/token replay, authenticated browser handoff,
+  diagnostics redaction, graceful cleanup, crash-before/after-READY, safe mode,
+  and update backup/migration/rollback. Its database is disposable. Existing
+  `rtk proxy` calls in build/restart helpers preserve subprocess semantics.
+- `rtk ./bin/dev.restart`: passed. Fresh process inventory found exactly one
+  developer shell, PID 54421 (2026-09-27 00:03:12 local), bundled BEAM PID 54506
+  (00:03:13), and its child setup process. Health passed at
+  `127.0.0.1:53976`. The running build is
+  `desktop/src-tauri/target/release/bundle/macos/Cuckoding.app`.
+- `rtk python3 /tmp/cuckoding-1053-data-check.py`: integrity/FKs passed and all
+  rows matched the backup for 2 projects, 2 boards, 17 tasks, 5 runs, 8 sessions,
+  8 stage attempts, 8 proposals, and 22 migration records. Historical session
+  grants and both failed planning runs are unchanged.
+- Bundled BoardTaskIntake, Adapters, WalkingSkeleton, OrchestrationFailure,
+  RunLive, and OutputParser BEAM files match the freshly compiled production
+  release byte-for-byte. BoardTaskIntake SHA-256:
+  `1d03e8a3512b02307cb92b25ef2da558f6144e4e44b28ae540f34f53968afdc9`;
+  RunLive SHA-256:
+  `c2dd83d22c0dc84fb3cfef00bc6725a9363c5b14fd8d4ed54c20f7aea226aab1`.
+  The closing documentation commit does not change the source build.
+
+## Handoff
+
+Completed source fix, documentation, local integration, and developer-app
+restart. Open Cuckoding through its menubar action, create a new planning run,
+and verify the queued page shows the selected role's saved limit before
+starting. This project's recorded Speculator limit is 60 minutes. Old failed
+runs remain evidence; incomplete progress messages were not imported.
+
+No new paid provider run, authenticated native visual inspection, physical
+sleep/wake drill, signed clean-Mac acceptance, or remote publication is claimed.
+All commands use RTK; recorded-run diagnosis, deterministic tests, and native
+build verification are separate evidence. Final `rtk git diff --check` passed.
