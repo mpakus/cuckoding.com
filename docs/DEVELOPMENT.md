@@ -155,9 +155,12 @@ cannot start task runs until their adapter contract and conformance evidence are
 complete. Each agent card saves or updates independently; role saves remain a
 separate immutable configuration revision.
 
-Task 1054 is migrating agent communication to ACP. Cursor's native transport
-uses the shared supervised client; Codex/Claude bridges remain under review.
-Run `rtk env -u CR_PAT mix test test/cuckoding/adapters/acp test/cuckoding/adapters/cursor_agent_test.exs test/cuckoding/execution/local_process_runner_test.exs`
+Task 1054 is migrating agent communication to ACP. All three supported adapters
+use the shared client. Codex/Claude require the pinned standalone bridges in
+`priv/agent_bridges/`: follow [the bridge build instructions](../agent_bridges/README.md)
+once before development runs and after bridge changes. `desktop/build.sh`
+builds them for the native release. No Node/Bun installation is needed at runtime.
+Run `rtk env -u CR_PAT mix test test/cuckoding/adapters/acp test/cuckoding/adapters/codex_test.exs test/cuckoding/adapters/claude_code_test.exs test/cuckoding/adapters/cursor_agent_test.exs test/cuckoding/execution/local_process_runner_test.exs`
 for its focused fixtures, then `rtk env -u CR_PAT mix quality` for the repository
 gates. An initialize-only probe is separate from authenticated planning,
 delivery, cancellation, sleep recovery and packaged-app acceptance. See the

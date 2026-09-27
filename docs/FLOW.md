@@ -152,8 +152,8 @@ flowchart TD
 The current creation UI uses `Definition.default()`. `GuidedRun` invokes the
 bounded `WalkingSkeleton.run/2` executor. Review provider output comes from the
 run-owned legacy artifact or the completed ACP prompt and is revalidated by the
-host against a closed schema. During task 1054, Cursor uses ACP while Codex/Claude
-retain their existing transport. ACP public updates are durable before display;
+host against a closed schema. All three supported providers now use ACP; legacy log parsing remains for
+historical evidence. ACP public updates are durable before display;
 protocol completion itself cannot complete a delivery task or approve release.
 Error and blocker findings are persisted with their evidence and routed through
 `Definition.route_findings/3` using the run's immutable definition. New default

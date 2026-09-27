@@ -3,7 +3,6 @@ defmodule Cuckoding.Adapters.ClaudeCode do
   @behaviour Cuckoding.Adapters.AgentAdapter
 
   alias Cuckoding.Adapters.Types
-  alias Cuckoding.Identifier
   alias Cuckoding.Security.Redactor
 
   @supported_version "2.1.142"
@@ -96,18 +95,11 @@ defmodule Cuckoding.Adapters.ClaudeCode do
   def start(%Types.StageRequest{} = request, options) do
     with {:ok, grant} <- render_config(request, options),
          {:ok, spec} <- launch_spec(request, options),
-         {:ok, process} <- launch(spec, options) do
-      {:ok,
-       %Types.Session{
-         adapter: "claude_code",
-         session_id: Identifier.generate(),
-         external_session_id: Keyword.get(options, :resume_session),
-         requested_model: request.requested_model,
-         actual_model: nil,
-         effective_grant: grant,
-         state: "running",
-         process: process
-       }}
+         {:ok, session} <- Cuckoding.Adapters.ACP.Client.start(request, grant, spec, options) do
+      {:ok, session}
+    else
+      {:error, %Types.Error{} = error} -> {:error, error}
+      {:error, reason} -> error(reason, :provider, false)
     end
   end
 
@@ -147,10 +139,10 @@ defmodule Cuckoding.Adapters.ClaudeCode do
   end
 
   @impl true
-  def recover(%Types.Session{} = session, inspection, options) when is_map(inspection) do
+  def recover(%Types.Session{} = session, inspection, _options) when is_map(inspection) do
     if inspection[:process] == :matching and inspection[:session] == :available,
       do: {:ok, session},
-      else: resume(session, %{"reason" => "sleep_gap"}, options)
+      else: error(:session_recovery_required, :capability, false)
   end
 
   @impl true
@@ -225,75 +217,65 @@ defmodule Cuckoding.Adapters.ClaudeCode do
     request = Cuckoding.Plugins.RTK.prepare_request(request)
 
     with {:ok, path} <- executable(options),
-         true <- valid_helper?(Keyword.get(options, :api_key_helper)) do
+         true <- valid_helper?(Keyword.get(options, :api_key_helper)),
+         true <- Keyword.get(options, :run_scoped_authenticated?, false),
+         {:ok, timeout} <- wall_timeout(request.grant),
+         {:ok, bridge} <- Cuckoding.Adapters.ACP.Bridge.executable("claude", options) do
       claude_dir = Path.join([request.run_dir, "agent", "claude"])
       plugin_dir = Path.join([request.run_dir, "agent", "claude-plugin"])
 
-      args =
-        [
-          "--bare",
-          "--print",
-          "--output-format",
-          "stream-json",
-          "--verbose",
-          "--permission-mode",
-          permission_mode(request.grant),
-          "--allowedTools",
-          Enum.join(Map.get(request.grant, "tools", []), ","),
-          "--disallowedTools",
-          Enum.join(Map.get(request.grant, "deny_tools", []), ","),
-          "--settings",
-          Path.join(claude_dir, "settings.json"),
-          "--strict-mcp-config",
-          "--mcp-config",
-          Path.join(claude_dir, "mcp.json"),
-          "--plugin-dir",
-          plugin_dir,
-          "--append-system-prompt-file",
-          Path.join(claude_dir, "instructions.md"),
-          "--no-chrome"
-        ]
-        |> maybe_arg("--model", request.requested_model)
-        |> maybe_arg("--json-schema", schema(request.required_output_schema))
-        |> maybe_arg("--max-budget-usd", Map.get(request.grant, "max_budget_usd"))
-        |> maybe_arg("--resume", Keyword.get(options, :resume_session))
-        |> Kernel.++([Keyword.get(options, :prompt, request.objective)])
+      sdk_options =
+        %{
+          "allowedTools" => Map.get(request.grant, "tools", []),
+          "disallowedTools" => Map.get(request.grant, "deny_tools", []),
+          "allowDangerouslySkipPermissions" => false,
+          "settingSources" => [],
+          "settings" => Path.join(claude_dir, "settings.json"),
+          "strictMcpConfig" => true,
+          "mcpServers" => mcp_config(request)["mcpServers"],
+          "plugins" => [%{"type" => "local", "path" => plugin_dir}],
+          "systemPrompt" => %{
+            "type" => "preset",
+            "preset" => "claude_code",
+            "append" => instructions(request)
+          },
+          "model" => request.requested_model,
+          "maxBudgetUsd" => Map.get(request.grant, "max_budget_usd"),
+          "outputFormat" => %{"type" => "json_schema", "schema" => request.required_output_schema},
+          "extraArgs" => %{"bare" => nil, "no-chrome" => nil}
+        }
+        |> Map.reject(fn {_key, value} -> is_nil(value) end)
+
+      environment = %{
+        "CLAUDE_CONFIG_DIR" => claude_dir,
+        "CLAUDE_CODE_EXECUTABLE" => path,
+        "CLAUDE_CODE_DISABLE_AUTO_MEMORY" => "1",
+        "CLAUDE_CODE_DISABLE_BACKGROUND_TASKS" => "1"
+      }
 
       {:ok,
        %{
-         command: %{executable: path, args: args, role: "agent:claude_code"},
-         environment: %{
-           "CLAUDE_CONFIG_DIR" => claude_dir,
-           "CLAUDE_CODE_DISABLE_AUTO_MEMORY" => "1",
-           "CLAUDE_CODE_DISABLE_BACKGROUND_TASKS" => "1"
-         },
-         environment_allowlist: [
-           "CLAUDE_CONFIG_DIR",
-           "CLAUDE_CODE_DISABLE_AUTO_MEMORY",
-           "CLAUDE_CODE_DISABLE_BACKGROUND_TASKS"
-         ]
+         command: %{executable: bridge, args: [], role: "agent:claude_code"},
+         environment: environment,
+         environment_allowlist: Map.keys(environment),
+         timeout: timeout,
+         acp: %{
+           adapter: "claude_code",
+           mode: permission_mode(request.grant),
+           session_params: %{"_meta" => %{"claudeCode" => %{"options" => sdk_options}}}
+         }
        }}
     else
       false -> error(:run_scoped_auth_required, :authentication, false)
-      {:error, reason} -> {:error, reason}
+      {:error, %Types.Error{} = error} -> {:error, error}
+      {:error, reason} -> error(reason, :capability, false)
     end
   end
 
-  defp launch(spec, options) do
-    runner = Keyword.get(options, :runner)
-    environment = Keyword.get(options, :environment)
-
-    if runner && environment do
-      case runner.start(environment, spec.command,
-             env: spec.environment,
-             environment_allowlist: spec.environment_allowlist,
-             redact: Keyword.get(options, :redact, [])
-           ) do
-        {:ok, handle} -> {:ok, %{runner: runner, handle: handle, launch: spec}}
-        {:error, reason} -> error(reason, :provider, true)
-      end
-    else
-      error(:runner_required, :capability, false)
+  defp wall_timeout(grant) do
+    case get_in(grant, ["resource_limits", "wall_ms"]) do
+      timeout when is_integer(timeout) and timeout > 0 and timeout <= 86_400_000 -> {:ok, timeout}
+      _ -> {:error, :invalid_wall_time_limit}
     end
   end
 
@@ -450,11 +432,6 @@ defmodule Cuckoding.Adapters.ClaudeCode do
         {:error, reason}
     end
   end
-
-  defp maybe_arg(args, _flag, value) when value in [nil, "", %{}], do: args
-  defp maybe_arg(args, flag, value), do: args ++ [flag, to_string(value)]
-  defp schema(value) when value == %{}, do: nil
-  defp schema(value), do: Jason.encode!(value)
 
   defp continuation_prompt(package) do
     "Continue task revision #{package.task_revision}.\n\n#{package.summary}\n\nDiff: #{package.diff_summary}"

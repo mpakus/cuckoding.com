@@ -4,7 +4,6 @@ defmodule Cuckoding.Adapters.Codex do
 
   alias Cuckoding.Adapters.SharedProfile
   alias Cuckoding.Adapters.Types
-  alias Cuckoding.Identifier
   alias Cuckoding.Security.Redactor
 
   @supported_version "0.146.0"
@@ -92,6 +91,11 @@ defmodule Cuckoding.Adapters.Codex do
          :ok <- prepare_directory(home, codex_dir),
          :ok <- write_file(Path.join(home, "config.toml"), config(mode, credentials_store)),
          :ok <- write_file(Path.join(home, "AGENTS.md"), instructions(request)),
+         :ok <-
+           write_file(
+             Path.join(codex_dir, "acp-config.json"),
+             Jason.encode!(acp_config(request, options, mode))
+           ),
          :ok <- write_file(Path.join(codex_dir, "output-schema.json"), schema(request)) do
       {:ok, effective_grant(request, mode)}
     else
@@ -104,18 +108,11 @@ defmodule Cuckoding.Adapters.Codex do
   def start(%Types.StageRequest{} = request, options) do
     with {:ok, grant} <- render_config(request, options),
          {:ok, spec} <- launch_spec(request, options),
-         {:ok, process} <- launch(spec, options) do
-      {:ok,
-       %Types.Session{
-         adapter: "codex",
-         session_id: Identifier.generate(),
-         external_session_id: Keyword.get(options, :resume_session),
-         requested_model: request.requested_model,
-         actual_model: nil,
-         effective_grant: grant,
-         state: "running",
-         process: process
-       }}
+         {:ok, session} <- Cuckoding.Adapters.ACP.Client.start(request, grant, spec, options) do
+      {:ok, session}
+    else
+      {:error, %Types.Error{} = error} -> {:error, error}
+      {:error, reason} -> error(reason, :provider, false)
     end
   end
 
@@ -159,10 +156,10 @@ defmodule Cuckoding.Adapters.Codex do
   end
 
   @impl true
-  def recover(%Types.Session{} = session, inspection, options) when is_map(inspection) do
+  def recover(%Types.Session{} = session, inspection, _options) when is_map(inspection) do
     if inspection[:process] == :matching and inspection[:session] == :available,
       do: {:ok, session},
-      else: resume(session, %{"reason" => "sleep_gap"}, options)
+      else: error(:session_recovery_required, :capability, false)
   end
 
   @impl true
@@ -244,89 +241,45 @@ defmodule Cuckoding.Adapters.Codex do
          :ok <- valid_resume_session(options),
          :ok <- config_ready(request),
          {:ok, home} <- execution_home(request, options),
-         {:ok, timeout} <- wall_timeout(request.grant) do
+         :ok <- acp_configuration_boundary(request, home, options),
+         {:ok, timeout} <- wall_timeout(request.grant),
+         {:ok, bridge} <- Cuckoding.Adapters.ACP.Bridge.executable("codex", options) do
+      {:ok, mode} = sandbox_mode(request.grant)
+      config = acp_config(request, options, mode)
+
+      environment = %{
+        "CODEX_HOME" => home,
+        "CODEX_PATH" => path,
+        "CUCKODING_CODEX_CONFIG_FILE" =>
+          Path.join([request.run_dir, "agent", "codex", "acp-config.json"]),
+        "CUCKODING_CODEX_OUTPUT_SCHEMA_FILE" =>
+          Path.join([request.run_dir, "agent", "codex", "output-schema.json"]),
+        "INITIAL_AGENT_MODE" => mode,
+        "CUCKODING_CODEX_ARGS" => Jason.encode!(app_server_args(config))
+      }
+
       {:ok,
        %{
          command: %{
-           executable: path,
-           args: command_args(request, options),
+           executable: bridge,
+           args: [],
            role: "agent:codex"
          },
-         environment: %{"CODEX_HOME" => home},
-         environment_allowlist: ["CODEX_HOME"],
-         timeout: timeout
+         environment: environment,
+         environment_allowlist: Map.keys(environment),
+         timeout: timeout,
+         acp: %{
+           adapter: "codex",
+           mode: mode,
+           model_format: :codex,
+           reasoning_effort: options[:reasoning_effort],
+           session_params: %{}
+         }
        }}
     else
       false -> error(:run_scoped_auth_required, :authentication, false)
       {:error, %Types.Error{} = error} -> {:error, error}
       {:error, reason} -> error(reason, :capability, false)
-    end
-  end
-
-  defp launch(spec, options) do
-    runner = Keyword.get(options, :runner)
-    environment = Keyword.get(options, :environment)
-
-    if runner && environment do
-      case runner.start(environment, spec.command,
-             env: spec.environment,
-             environment_allowlist: spec.environment_allowlist,
-             timeout: spec.timeout,
-             redact: Keyword.get(options, :redact, [])
-           ) do
-        {:ok, handle} -> {:ok, %{runner: runner, handle: handle, launch: spec}}
-        {:error, reason} -> error(reason, :provider, true)
-      end
-    else
-      error(:runner_required, :capability, false)
-    end
-  end
-
-  defp command_args(request, options) do
-    schema_path = Path.join([request.run_dir, "agent", "codex", "output-schema.json"])
-    {:ok, mode} = sandbox_mode(request.grant)
-
-    common =
-      [
-        "--strict-config",
-        "--json",
-        "-c",
-        ~s(approval_policy="never"),
-        "-c",
-        ~s(sandbox_mode="#{mode}"),
-        "-c",
-        "sandbox_workspace_write.network_access=false",
-        "-c",
-        ~s(web_search="disabled"),
-        "-c",
-        "features.apps=false",
-        "-c",
-        "features.hooks=false",
-        "-c",
-        "features.multi_agent=false",
-        "-c",
-        "features.remote_plugin=false",
-        "--output-schema",
-        schema_path
-      ]
-      |> maybe_arg("--model", request.requested_model)
-
-    common =
-      case Keyword.get(options, :reasoning_effort) do
-        nil -> common
-        effort -> common ++ ["-c", ~s(model_reasoning_effort="#{effort}")]
-      end
-
-    common = common ++ shared_config(request, options)
-
-    prompt = Keyword.get(options, :prompt, request.objective)
-
-    case Keyword.get(options, :resume_session) do
-      session_id when is_binary(session_id) ->
-        ["exec", "resume"] ++ common ++ ["--", session_id, prompt]
-
-      _other ->
-        ["exec"] ++ common ++ ["--cd", request.worktree_path, "--", prompt]
     end
   end
 
@@ -337,29 +290,51 @@ defmodule Cuckoding.Adapters.Codex do
     end
   end
 
-  defp shared_config(request, options) do
-    if options[:shared_profile_id] do
-      [
-        "--ignore-user-config",
-        "--ignore-rules",
-        "-c",
-        ~s(cli_auth_credentials_store="file"),
-        "-c",
-        "sandbox_workspace_write.writable_roots=[]",
-        "-c",
-        "sandbox_workspace_write.exclude_tmpdir_env_var=true",
-        "-c",
-        "sandbox_workspace_write.exclude_slash_tmp=true",
-        "-c",
-        ~s(shell_environment_policy.inherit="core"),
-        "-c",
-        "shell_environment_policy.ignore_default_excludes=false",
-        "-c",
-        "developer_instructions=" <> Jason.encode!(instructions(request))
-      ]
-    else
-      []
-    end
+  defp acp_config(request, options, mode) do
+    %{
+      "approval_policy" => "never",
+      "approvals_reviewer" => "user",
+      "sandbox_mode" => mode,
+      "sandbox_workspace_write.writable_roots" => [],
+      "sandbox_workspace_write.network_access" => false,
+      "sandbox_workspace_write.exclude_tmpdir_env_var" => true,
+      "sandbox_workspace_write.exclude_slash_tmp" => true,
+      "web_search" => "disabled",
+      "features.apps" => false,
+      "features.hooks" => false,
+      "features.multi_agent" => false,
+      "features.remote_plugin" => false,
+      "shell_environment_policy.inherit" => "core",
+      "shell_environment_policy.ignore_default_excludes" => false,
+      "developer_instructions" => instructions(request),
+      "model" => request.requested_model,
+      "model_reasoning_effort" => options[:reasoning_effort],
+      "cli_auth_credentials_store" => options[:credentials_store]
+    }
+    |> Map.reject(fn {_key, value} -> is_nil(value) end)
+  end
+
+  defp app_server_args(config) do
+    # All values are booleans, strings or empty arrays, whose JSON is also TOML.
+    # Large instructions travel in thread/start configuration over stdio, not argv/env.
+    ["app-server", "--stdio", "--strict-config"] ++
+      Enum.flat_map(Enum.sort(Map.delete(config, "developer_instructions")), fn {key, value} ->
+        ["-c", key <> "=" <> Jason.encode!(value)]
+      end)
+  end
+
+  defp acp_configuration_boundary(request, home, options) do
+    shared =
+      if options[:shared_profile_id],
+        do: ["config.toml", "rules", "hooks.json", "plugins"],
+        else: []
+
+    forbidden =
+      [Path.join(request.worktree_path, ".codex")] ++ Enum.map(shared, &Path.join(home, &1))
+
+    if Enum.all?(forbidden, &(File.lstat(&1) == {:error, :enoent})),
+      do: :ok,
+      else: {:error, :acp_configuration_requires_review}
   end
 
   defp executable(options) do
@@ -698,7 +673,11 @@ defmodule Cuckoding.Adapters.Codex do
     root = Path.join([request.run_dir, "agent", "codex"])
 
     if Enum.all?(
-         [Path.join(root, "home/config.toml"), Path.join(root, "output-schema.json")],
+         [
+           Path.join(root, "home/config.toml"),
+           Path.join(root, "output-schema.json"),
+           Path.join(root, "acp-config.json")
+         ],
          &File.regular?/1
        ),
        do: :ok,
@@ -743,9 +722,6 @@ defmodule Cuckoding.Adapters.Codex do
         {:error, reason}
     end
   end
-
-  defp maybe_arg(args, _flag, value) when value in [nil, ""], do: args
-  defp maybe_arg(args, flag, value), do: args ++ [flag, to_string(value)]
 
   defp continuation_prompt(package) do
     "Continue task revision #{package.task_revision}.\n\n#{package.summary}\n\nDiff: #{package.diff_summary}"

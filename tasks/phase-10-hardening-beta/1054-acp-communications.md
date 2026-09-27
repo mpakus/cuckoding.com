@@ -25,6 +25,6 @@ No A2A network service, autonomous policy expansion, global runtime configuratio
 
 - Shared ACP framing/session client and separated host stdio are implemented with focused fixtures.
 - Planning and delivery (including board control) accept streamed ACP results through their common adapter boundary.
-- Cursor now launches native ACP. Codex/Claude bridge integration is still pending.
-- Existing process pause/cleanup remains in use; connecting board/run Stop directly to ACP cancellation, complete recovery conformance, and authenticated/native acceptance remain open.
+- Cursor launches native ACP; Codex and Claude launch pinned app-packaged ACP bridges with policy patches. Modern configuration and native structured-output handoff are implemented.
+- Existing process pause/cleanup remains in use; connecting board/run Stop directly to ACP cancellation, complete recovery conformance, bridge/native conformance, and authenticated/native acceptance remain open.
 - No local-main integration, remote publication, native rebuild or application restart has occurred for this task.

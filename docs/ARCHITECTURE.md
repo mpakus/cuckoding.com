@@ -174,18 +174,17 @@ hints and on a periodic bounded timer, so PubSub is never the state owner.
 `Cuckoding.BoardTaskIntake` is the separate planning-run boundary behind the
 board prompt. It reuses `ProjectWorkflow` preparation and `AgentRuntime`
 resolution, launches only the selected snapshotted role, and supplies a
-read-only, network-denied stage request with a closed output schema. Provider
-JSONL is bounded and decoded by `Adapters.OutputParser`; repository-relative
-evidence paths are canonicalized against the owned worktree before proposals
-are inserted. The planning task remains hidden from the delivery Kanban. The
-Codex parser accepts only its fixed stdin prelude before the JSONL stream;
-unknown non-JSON output still fails closed. During the task-1054 ACP migration,
-Cursor instead uses `Adapters.ACP.Client`: separated stdio, negotiated sessions,
-identity persistence before a durably reserved prompt, and public events stored
-as they arrive. `Adapters.await_session/2` serves both planning and delivery
-(including board-controller decisions). ACP results bypass diagnostic-log
-parsing and retain the existing host validation gates. Codex/Claude transport
-migration remains pending; see [the adapter contract](AGENT_RUNTIME_ADAPTERS.md#acp-migration-task-1054-in-progress).
+read-only, network-denied stage request with a closed output schema. ACP output
+is bounded and revalidated; repository-relative evidence paths are canonicalized
+against the owned worktree before proposals are inserted. The planning task
+remains hidden from the delivery Kanban. All three supported adapters use
+`Adapters.ACP.Client`: separated stdio, negotiated sessions, identity persistence
+before a durably reserved prompt, and public events stored as they arrive.
+`Adapters.await_session/2` serves planning and delivery, including board-controller
+decisions. Cursor is native; Codex/Claude use pinned app-packaged bridges with
+explicit policy patches. Legacy log readers remain for historical evidence.
+Control/recovery and real-provider acceptance remain open; see
+[the adapter contract](AGENT_RUNTIME_ADAPTERS.md#acp-migration-task-1054-in-progress).
 
 `Cuckoding.OrchestrationFailure` guards both delivery and task-intake workers.
 An expected error or unexpected worker exception first appends a redacted,

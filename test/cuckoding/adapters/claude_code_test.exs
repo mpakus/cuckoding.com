@@ -14,6 +14,7 @@ defmodule Cuckoding.Adapters.ClaudeCodeTest do
     run_dir =
       Path.join(System.tmp_dir!(), "cuckoding-claude-#{System.unique_integer([:positive])}")
 
+    Cuckoding.ACPBridgeFixture.install(run_dir, "claude")
     worktree = Path.join(run_dir, "worktree")
     helper = Path.join(run_dir, "api-key-helper")
     File.mkdir_p!(Path.join(run_dir, "agent"))
@@ -112,53 +113,50 @@ defmodule Cuckoding.Adapters.ClaudeCodeTest do
     skill = Path.join([request.run_dir, "agent", "claude-plugin", "skills", "review", "SKILL.md"])
     assert File.read!(skill) == "Review the diff."
 
-    assert {:ok, spec} = ClaudeCode.launch_spec(request, path: helper, api_key_helper: helper)
-    assert spec.command.executable == helper
-    assert "--bare" in spec.command.args
-    assert "--strict-mcp-config" in spec.command.args
-    assert "dontAsk" in spec.command.args
-    assert "Read,Edit" in spec.command.args
-    assert "WebFetch,Bash(curl *)" in spec.command.args
-    assert "0.01" in spec.command.args
-    refute Enum.any?(spec.command.args, &String.starts_with?(&1, System.user_home!()))
+    assert {:ok, spec} =
+             ClaudeCode.launch_spec(request,
+               path: helper,
+               api_key_helper: helper,
+               run_scoped_authenticated?: true,
+               bridge_directory: request.run_dir
+             )
+
+    assert spec.command.executable == Path.join(request.run_dir, "claude-acp")
+    sdk = get_in(spec, [:acp, :session_params, "_meta", "claudeCode", "options"])
+    assert sdk["extraArgs"] == %{"bare" => nil, "no-chrome" => nil}
+    assert sdk["strictMcpConfig"]
+    assert sdk["settingSources"] == []
+    refute sdk["allowDangerouslySkipPermissions"]
+    assert sdk["allowedTools"] == ["Read", "Edit"]
+    assert sdk["disallowedTools"] == ["WebFetch", "Bash(curl *)"]
+    assert sdk["maxBudgetUsd"] == 0.01
+    assert sdk["mcpServers"]["local"]["command"] == "/usr/bin/false"
+    assert sdk["outputFormat"]["schema"] == request.required_output_schema
+    assert spec.acp.mode == "dontAsk"
+    assert spec.timeout == 60_000
+    assert spec.environment["CLAUDE_CODE_EXECUTABLE"] == helper
     assert spec.environment["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] == "1"
 
     assert {:error, %Types.Error{code: :run_scoped_auth_required}} =
              ClaudeCode.launch_spec(request, path: helper)
   end
 
-  test "starts, cancels, resumes, and recovers through the host runner", %{
+  test "requires duplex communication and an explicit recovery attempt", %{
     request: request,
     helper: helper
   } do
     options = [
       path: helper,
       api_key_helper: helper,
-      runner: FakeRunner,
-      environment: %{id: "environment"}
+      run_scoped_authenticated?: true,
+      bridge_directory: request.run_dir
     ]
 
-    assert {:ok, session} = ClaudeCode.start(request, options)
-    assert session.requested_model == "claude-sonnet-4-6"
-    assert is_nil(session.actual_model)
-    assert session.process.runner == FakeRunner
+    assert {:error, %Types.Error{code: :acp_duplex_runner_required}} =
+             ClaudeCode.start(request, options)
 
-    assert {:error, %Types.Error{code: :follow_up_requires_resume}} =
-             ClaudeCode.send(session, %{"summary" => "Continue"}, [])
-
-    observed = %{session | external_session_id: "provider-session"}
-    resume_options = Keyword.put(options, :request, request)
-    assert {:ok, resumed} = ClaudeCode.resume(observed, %{}, resume_options)
-    assert "provider-session" in resumed.process.launch.command.args
-
-    assert {:ok, ^observed} =
-             ClaudeCode.recover(observed, %{process: :matching, session: :available}, options)
-
-    assert {:ok, recovered} =
-             ClaudeCode.recover(observed, %{process: :gone, session: :available}, resume_options)
-
-    assert "provider-session" in recovered.process.launch.command.args
-    assert {:ok, %{state: "cancelled"}} = ClaudeCode.cancel(session, [])
+    assert {:error, %Types.Error{code: :session_recovery_required}} =
+             ClaudeCode.recover(session(), %{process: :gone, session: :available}, options)
   end
 
   test "normalizes redacted fixtures and provider usage" do

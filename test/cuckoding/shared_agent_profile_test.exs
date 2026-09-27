@@ -61,20 +61,28 @@ defmodule Cuckoding.SharedAgentProfileTest do
     assert resolved["reviewer"].settings["instructions"] == "reviewer instructions"
     assert resolved["spec_writer"].settings["instructions"] == "spec_writer instructions"
 
-    specs =
-      for {skeleton, runtime} <- [{first, resolved["implementer"]}, {second, next}] do
-        request = request(skeleton)
-        assert {:ok, _grant} = Codex.render_config(request, runtime.options)
-        assert {:ok, spec} = Codex.launch_spec(request, runtime.options)
-        assert spec.environment["CODEX_HOME"] == setup.home
-        assert "--ignore-user-config" in spec.command.args
-        assert "--ignore-rules" in spec.command.args
-        assert ~s(cli_auth_credentials_store="file") in spec.command.args
-        assert Enum.any?(spec.command.args, &String.starts_with?(&1, "developer_instructions="))
-        spec
-      end
+    bridge = Cuckoding.ACPBridgeFixture.install(Path.join(root, "bridge"), "codex")
 
-    refute hd(specs).command.args == List.last(specs).command.args
+    for {skeleton, runtime} <- [{first, resolved["implementer"]}, {second, next}] do
+      request = request(skeleton)
+      assert {:ok, _grant} = Codex.render_config(request, runtime.options)
+
+      assert {:ok, spec} =
+               Codex.launch_spec(
+                 request,
+                 Keyword.put(runtime.options, :bridge_directory, bridge)
+               )
+
+      assert spec.environment["CODEX_HOME"] == setup.home
+      args = Jason.decode!(spec.environment["CUCKODING_CODEX_ARGS"])
+      assert ~s(cli_auth_credentials_store="file") in args
+
+      assert File.read!(spec.environment["CUCKODING_CODEX_CONFIG_FILE"]) =~
+               "developer_instructions"
+
+      spec
+    end
+
     refute File.exists?(Path.join(setup.home, "config.toml"))
 
     setups =
@@ -130,14 +138,16 @@ defmodule Cuckoding.SharedAgentProfileTest do
     }
 
     assert {:ok, _} = Codex.render_config(model_request, linked["implementer"].options)
-    assert {:ok, model_spec} = Codex.launch_spec(model_request, linked["implementer"].options)
 
-    assert ["--model", "custom-coding-model"] in Enum.chunk_every(
-             model_spec.command.args,
-             2,
-             1,
-             :discard
-           )
+    assert {:ok, model_spec} =
+             Codex.launch_spec(
+               model_request,
+               Keyword.put(linked["implementer"].options, :bridge_directory, bridge)
+             )
+
+    assert Jason.decode!(File.read!(model_spec.environment["CUCKODING_CODEX_CONFIG_FILE"]))[
+             "model"
+           ] == "custom-coding-model"
 
     File.write!(revoked, "revoked")
     assert {:error, :provider_auth_required} = AgentRuntime.resolve(first, "implementer")

@@ -206,15 +206,24 @@ defmodule Cuckoding.BoardTaskIntakeTest do
     conn: conn,
     created: created
   } do
-    executable = Path.join(Path.dirname(created.project.repo_path), "timeout-codex-fixture")
+    executable = Path.join(Path.dirname(created.project.repo_path), "timeout-acp-fixture")
 
-    File.write!(executable, """
-    #!/bin/sh
-    if [ "$1" = "--version" ]; then echo 'codex-cli 0.146.0'; exit; fi
-    if [ "$1" = "login" ]; then echo 'Logged in using ChatGPT'; exit; fi
-    echo '{"type":"item.completed","item":{"id":"progress","type":"agent_message","text":"Inspecting repository"}}'
-    exec /bin/sleep 60
-    """)
+    protocol =
+      File.read!(Path.expand("test/support/fixtures/acp_runtime.rb"))
+      |> String.replace("ARGV.include?('acp') ? 'success'", "ARGV.include?('acp') ? 'wait'")
+      |> String.replace(
+        "when 'wait', 'ignore-cancel'",
+        "when 'wait', 'ignore-cancel'\n      update(session, sessionUpdate: 'agent_message_chunk', content: {type: 'text', text: 'Inspecting repository'})"
+      )
+
+    File.write!(
+      executable,
+      """
+      #!/usr/bin/ruby --disable=gems
+      if ARGV.first == '--version'; puts '2026.09.15-d2fe57e'; exit; end
+      if ARGV.first == 'status'; puts '{"isAuthenticated":true}'; exit; end
+      """ <> protocol
+    )
 
     File.chmod!(executable, 0o700)
 
@@ -231,14 +240,14 @@ defmodule Cuckoding.BoardTaskIntakeTest do
           if role["role_key"] == "spec_writer",
             do:
               Map.merge(role, %{
-                "adapter_key" => "codex",
+                "adapter_key" => "cursor_agent",
                 "settings" => %{"executable_path" => executable}
               }),
             else: role
         end)
       end)
 
-    # Test-only legacy CLI snapshot and short budget exercise the real host deadline.
+    # Test-only ACP runtime and short budget exercise the real host deadline.
     intake.run |> Ecto.Changeset.change(workflow_snapshot_json: snapshot) |> Repo.update!()
 
     assert {:error, :agent_timeout} = BoardTaskIntake.start(intake.run.id, async: false)

@@ -24,14 +24,18 @@ An adapter records the configured grant and the runtime-reported grant separatel
 
 ## ACP migration (task 1054, in progress)
 
-Cursor uses native `agent acp`; Codex and Claude Code still use their existing
-CLI transports while their ACP bridges are reviewed. This is not yet an
-all-provider ACP release. See ADR-031 in [Decisions](DECISIONS.md).
+All three supported adapters now use `Adapters.ACP.Client`: native Cursor ACP,
+and packaged Codex/Claude bridges with pinned policy patches. This remains a
+migration in progress: board/run cancellation integration, recovery conformance,
+and authenticated/provider/native acceptance are still open. See ADR-031 in
+[Decisions](DECISIONS.md) and [bridge build instructions](../agent_bridges/README.md).
 
 `Adapters.ACP.Client` is a supervised ACP v1 client above the existing host
 runner. The runner separates protocol stdout from redacted diagnostic stderr.
 The client negotiates capabilities, creates or explicitly loads a session,
-selects an advertised mode/model, and returns its identity. Workflow code saves
+selects an advertised mode/model (including modern configuration options), and
+returns its identity. Configuration notifications cannot widen the selected mode
+or silently replace the model. Workflow code saves
 that identity before sending a prompt through `Adapters.await_session/2`.
 A durable command reserves each attempt before its first prompt; replacing a
 client cannot replay a consumed attempt. Loading history does not create new
@@ -47,8 +51,10 @@ unavailable; context-window occupancy is not added to billable token totals.
 Selecting a model does not invent an observed model when the agent has not
 reported it.
 
-The client advertises no filesystem or terminal services and supplies no MCP
-servers. Runtime-specific configuration still enforces the recorded grant.
+The client advertises no filesystem or terminal services and supplies no ACP
+MCP servers. Claude receives only the snapshotted, explicitly configured MCP
+servers through its trusted SDK options. Runtime configuration still enforces
+the recorded grant.
 Permission requests receive a cancelled outcome and require attention;
 unsupported client requests cannot start host tools. An ACP completion only
 finishes the agent turn: existing schema, review and completion-policy gates
@@ -58,9 +64,12 @@ Cancellation waits for acknowledgement or bounded escalation and verified
 process cleanup. An idle server that ignores stdin closure is terminated through
 the existing owned process-group ladder. A completed turn can then succeed while
 retaining the real process exit status. Fixtures verify these paths; an installed
-Cursor initialize-only probe confirms protocol negotiation, not authenticated
-task execution or packaged-app acceptance. Board/run control integration, bridge
-conformance, and real-provider acceptance remain open in task 1054.
+Cursor initialize-only probe confirms protocol negotiation. Compiled bridges also
+negotiate with the pinned native CLIs; Claude creates a session and selects its
+saved mode/model without a provider prompt, while Codex correctly requires
+sign-in before session creation. These probes do not establish authenticated task
+execution or packaged-app acceptance. Board/run control integration, complete
+bridge conformance, and real-provider acceptance remain open in task 1054.
 
 ## Stage request envelope
 
@@ -95,14 +104,24 @@ Capabilities must be probed at runtime and documented per supported version; thi
 
 | Runtime | Invocation | Auth | Key adapter concerns |
 | --- | --- | --- | --- |
-| Claude Code | Headless/print mode | User login on the machine | Session continuation, permission modes and allowed tools, hooks, structured output, usage availability, auto-memory directory location (keep run-scoped, never write the user's global memory) |
-| Codex | CLI non-interactive | User login | Approval/sandbox modes (the runtime's own macOS sandbox is a plus on the host runner), event stream, session identifiers, usage |
+| Claude Code | Packaged ACP bridge → native SDK stream | Approved run-scoped API-key helper | Session continuation, permission modes and allowed tools, hooks, structured output, usage availability, auto-memory directory location (keep run-scoped, never write the user's global memory) |
+| Codex | Packaged ACP bridge → native app-server stdio | App-owned file login | Approval/sandbox modes (the runtime's own macOS sandbox is a plus on the host runner), event stream, session identifiers, usage |
 | Cursor Agent | Native ACP over stdio | Cursor account | Permission/configuration preservation, model observability, usage detail, cancellation |
 | OpenCode | CLI/server | Provider-specific | Provider/model mapping, event normalization, permission boundary |
 
 ### Claude Code 2.1.142
 
-The implemented adapter pins `2.1.142`, uses `--bare --print --output-format stream-json`, `dontAsk` plus explicit allow/deny rules, strict run-scoped MCP configuration, run-scoped settings and skills, bounded budget/schema flags, and native `--resume`. It launches only through `LocalProcessRunner`, so cancellation uses the recorded process group. A non-interactive follow-up uses the tracked resume path; `send/3` fails closed instead of launching an untracked second process. Provider events are accepted from the pinned redacted fixture vocabulary, with hidden-reasoning and unknown shapes rejected; public text, tool metadata, and knowledge citations are redacted before becoming normalized events.
+The adapter pins native CLI `2.1.142` and packages `claude-agent-acp` as
+`0.81.2+cuckoding.1`. Its SDK subprocess retains `--bare`, explicit allow/deny
+rules, strict MCP configuration, run-owned settings/skills, and native budget
+and JSON-schema enforcement. Only `dontAsk` and `plan` modes are advertised.
+The bridge reads one immutable settings snapshot instead of discovering project
+or personal settings; it does not inject managed environment variables, while
+native Claude policy still applies. A loaded session uses the current saved
+grant. Native structured results become a separate ACP public message before the
+turn completes. `send/3` still refuses untracked follow-ups, and a lost process
+requires explicit recovery into a new attempt. Legacy event decoders remain for
+historical evidence.
 
 The effective grant marks tool allow/deny rules, approval mode, and the explicit plugin set as enforced by Claude Code. Worktree path, network, and resource limits remain `unenforced` at the adapter layer and rely on the host runner/runtime sandbox controls. The adapter never uses bypass-permissions mode.
 
@@ -110,7 +129,22 @@ The effective grant marks tool allow/deny rules, approval mode, and the explicit
 
 ### Codex CLI 0.146.0
 
-The implemented adapter pins `0.146.0` and launches `codex exec --json --strict-config` through `LocalProcessRunner`. Its owner-only run configuration sets `approval_policy = "never"`, maps plan work to `read-only` and implementation work to `workspace-write`, denies sandbox network access, disables web search, hooks, apps, remote plugins, and subagents, and repeats those critical values as command-line overrides. It never uses `danger-full-access` or the bypass flag. Reviewed knowledge is injected through `<run_dir>/agent/codex/home/AGENTS.md`; structured output uses a run-scoped JSON schema. The initial process runs at the recorded worktree, and native recovery uses `codex exec resume <UUID>` from that same host-runner environment.
+The adapter pins native CLI `0.146.0` and packages `codex-acp` as
+`1.13.1+cuckoding.1`. The bridge launches the explicitly selected native binary
+with `app-server --stdio --strict-config`. Cuckoding sets approval policy Never,
+user-owned approval review, true read-only or worktree-write mode, no network or
+web search, no extra writable temporary directories, and disabled apps, hooks,
+remote plugins and subagents. The same overrides apply at process and session
+setup; patched turn presets cannot weaken them. Native `outputSchema` comes
+from the stage's generated schema. Large schema/configuration payloads stay in
+run-owned files; instructions reach native thread setup over stdio, avoiding
+process argument/environment limits. Reviewed knowledge is supplied as explicit
+run instructions, and ACP session loading replaces `codex exec resume`.
+
+This pinned app-server does not accept the legacy CLI's `--ignore-user-config`
+or `--ignore-rules` flags. Cuckoding therefore rejects a project `.codex` path or
+an account-owned config/rules/hooks/plugins override before launch, rather than
+silently importing it. Resolve that configuration explicitly before retrying.
 
 The effective grant records the active Codex sandbox, non-interactive approval policy, worktree-only write boundary, network denial, and disabled web search. Codex `0.146.0` cannot express Cuckoding's per-tool allow/deny vocabulary, and the adapter does not add extra writable paths or expose MCP plugins, so those requested fields are recorded under `unenforced` or unavailable. The host command-policy and process-resource boundaries remain independently authoritative. Codex's own sandbox intentionally keeps Git administrative paths read-only; host-side Git services remain responsible for commits and later push/PR operations.
 
@@ -128,20 +162,12 @@ cross-project execution remains a real-provider gate. Cuckoding does not copy
 Legacy snapshots without an account reference retain provider-owned file login
 in their run home.
 
-JSONL normalization accepts public `thread.*`, `turn.*`, `item.*`, and `error`
-shapes, rejects reasoning items, recursively redacts public summaries and
-metadata, and preserves provider-reported tokens without inventing a cost.
-
-The host runner retains stdout and stderr in one redacted process artifact.
-Result, activity, and usage readers ignore the initial Codex stdin prelude and
-UTC-timestamped Rust tracing lines with a known severity and `codex_core::`
-module prefix. Diagnostic text is never promoted into a task, public summary,
-or usage record. Capture limits still count diagnostic lines and bytes; other
-non-JSON output and malformed JSON remain errors. This exception applies only
-to Codex. The final structured result still requires domain validation before
-any proposal, review, or controller decision can take effect.
-
-The flag and event vocabulary follow the [official non-interactive Codex documentation](https://learn.chatgpt.com/docs/non-interactive-mode). Native resume follows the pinned Hydra MIT reference at `electron/agents/providers.ts:112-145`; Cuckoding adds the run-scoped authentication, strict sandbox, host-runner, redaction, and audit boundaries rather than copying its interactive launch code.
+Historical Codex JSONL normalization still accepts the fixed stdin prelude and
+known Rust diagnostic lines, rejects hidden reasoning, and validates structured
+results. New work uses ACP protocol stdout separately from diagnostic stderr;
+workflow results no longer depend on parsing a process log. Authentication and
+model-discovery probes still use the pinned native CLI. Host schema validation
+remains mandatory before a proposal, review or controller decision takes effect.
 
 ### Cursor Agent 2026.09.15-d2fe57e
 

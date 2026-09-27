@@ -6,6 +6,10 @@ desktop_dir=$(CDPATH= cd -- "$script_dir" && pwd)
 root_dir=$(CDPATH= cd -- "$desktop_dir/.." && pwd)
 
 cd "$root_dir"
+rtk env -u CR_PAT npm --prefix agent_bridges ci --ignore-scripts --omit=optional \
+  --userconfig=/dev/null --registry=https://registry.npmjs.org
+rtk node --test agent_bridges/harden.test.mjs
+rtk node agent_bridges/build.mjs
 rtk mix deps.get
 rtk proxy env MIX_ENV=prod mix assets.deploy
 rtk proxy env MIX_ENV=prod mix compile --warnings-as-errors

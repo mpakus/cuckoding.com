@@ -84,6 +84,46 @@ defmodule Cuckoding.Adapters.ACP.ClientTest do
     assert Repo.get!(AgentSession, f.stored.id).actual_model == nil
   end
 
+  test "negotiates modern configuration and persists the explicitly reported model", f do
+    task = execute(f, "modern")
+    assert_receive {:client_ready, %{actual_model: "fixture-model"}}, 3_000
+    assert {:ok, _} = Task.await(task)
+    assert Repo.get!(AgentSession, f.stored.id).actual_model == "fixture-model"
+    assert Enum.any?(requests(f), &(&1["method"] == "session/set_config_option"))
+    refute Enum.any?(requests(f), &(&1["method"] == "session/set_model"))
+  end
+
+  test "configuration notifications cannot expand the permission mode", f do
+    assert {:error, :acp_configuration_changed} = execute(f, "config-drift") |> Task.await(5_000)
+    assert_owned_cleanup(f)
+  end
+
+  test "Codex uses the packaged bridge and common workflow boundary", f do
+    bridge =
+      Cuckoding.ACPBridgeFixture.install(Path.join(f.environment.run_dir, "bridge"), "codex")
+
+    request = %{
+      f.request
+      | grant: %{"approval_mode" => "plan", "resource_limits" => %{"wall_ms" => 5_000}}
+    }
+
+    assert {:ok, session} =
+             Cuckoding.Adapters.Codex.start(request,
+               path: "/usr/bin/true",
+               bridge_directory: bridge,
+               run_scoped_authenticated?: true,
+               runner: LocalProcessRunner,
+               environment: f.environment,
+               redact: ["fixture-secret-canary"]
+             )
+
+    assert session.process.runner == Client
+    assert session.effective_grant.enforced["sandbox_mode"] == "read-only"
+    assert {:ok, result} = Cuckoding.Adapters.await_session(f.stored, session)
+    assert result.structured_output == %{"summary" => "done"}
+    assert_owned_cleanup(f)
+  end
+
   test "Cursor launches native ACP and uses the shared workflow result boundary", f do
     path = Path.join(f.environment.run_dir, "cursor-acp-fixture")
     File.cp!(Path.expand("test/support/fixtures/acp_runtime.rb"), path)
@@ -126,6 +166,47 @@ defmodule Cuckoding.Adapters.ACP.ClientTest do
 
     assert :ok = ActivityStream.record_provider_messages(stored, "cursor_agent", result)
     assert Repo.aggregate(UsageRecord, :count) == 1
+    assert_owned_cleanup(f)
+  end
+
+  test "Claude passes the saved configuration through ACP before delivery", f do
+    bridge =
+      Cuckoding.ACPBridgeFixture.install(Path.join(f.environment.run_dir, "bridge"), "claude")
+
+    {:ok, stored} =
+      Execution.create_agent_session(%{
+        stage_attempt_id: f.request.attempt_id,
+        adapter_key: "claude_code",
+        requested_model: "fixture-model",
+        effective_grant_json: %{}
+      })
+
+    request = %{
+      f.request
+      | grant: %{
+          "approval_mode" => "plan",
+          "tools" => ["Read"],
+          "resource_limits" => %{"wall_ms" => 5_000}
+        }
+    }
+
+    assert {:ok, session} =
+             Cuckoding.Adapters.ClaudeCode.start(request,
+               path: "/usr/bin/true",
+               api_key_helper: "/usr/bin/true",
+               run_scoped_authenticated?: true,
+               bridge_directory: bridge,
+               runner: LocalProcessRunner,
+               environment: f.environment,
+               redact: ["fixture-secret-canary"]
+             )
+
+    assert {:ok, result} = Cuckoding.Adapters.await_session(stored, session)
+    assert result.structured_output == %{"summary" => "done"}
+    params = Enum.find(requests(f), &(&1["method"] == "session/new"))["params"]
+    assert params["cwd"] == f.request.worktree_path
+    assert params["_meta"]["claudeCode"]["options"]["allowedTools"] == ["Read"]
+    assert params["_meta"]["claudeCode"]["options"]["settingSources"] == []
     assert_owned_cleanup(f)
   end
 

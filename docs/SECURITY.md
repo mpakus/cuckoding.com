@@ -4,11 +4,13 @@ The task-1054 ACP migration preserves runtime-specific grants and host workflow
 authority. Protocol stdout is separated from diagnostic logs; hidden reasoning
 and raw tool arguments are discarded, public text is redacted after fragment
 assembly, and frames/output are bounded. ACP clients advertise no host
-filesystem or terminal capabilities, supply no MCP servers, and deny runtime
-permission requests pending attention. Durable per-attempt prompt reservations
-prevent blind replay. These controls currently back Cursor's ACP path;
-Codex/Claude bridge validation and authenticated provider acceptance remain
-open. See [ACP migration](AGENT_RUNTIME_ADAPTERS.md#acp-migration-task-1054-in-progress).
+filesystem or terminal capabilities and deny runtime permission requests pending
+attention. Claude receives only approved, snapshotted MCP settings through its
+SDK options; ACP itself supplies no MCP servers. Durable per-attempt prompt
+reservations prevent blind replay. All three supported providers use these
+controls. Packaged bridges disable automatic Bun configuration/environment
+loading and verify a pinned binary manifest before launch. Full control/recovery
+conformance and authenticated provider acceptance remain open. See [ACP migration](AGENT_RUNTIME_ADAPTERS.md#acp-migration-task-1054-in-progress).
 
 ## Security objective
 

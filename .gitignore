@@ -46,6 +46,9 @@ cuckoding-*.tar
 # In case you use Node.js/npm, you want to ignore these.
 npm-debug.log
 /assets/node_modules/
+/agent_bridges/node_modules/
+/agent_bridges/.build-*/
+/priv/agent_bridges/
 
 # Database files
 *.db

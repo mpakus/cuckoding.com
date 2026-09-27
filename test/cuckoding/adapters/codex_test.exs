@@ -14,6 +14,7 @@ defmodule Cuckoding.Adapters.CodexTest do
     run_dir =
       Path.join(System.tmp_dir!(), "cuckoding-codex-#{System.unique_integer([:positive])}")
 
+    Cuckoding.ACPBridgeFixture.install(run_dir, "codex")
     worktree = Path.join(run_dir, "worktree")
     executable = Path.join(run_dir, "codex")
     File.mkdir_p!(Path.join(run_dir, "agent"))
@@ -75,13 +76,20 @@ defmodule Cuckoding.Adapters.CodexTest do
       end
     end
 
-    assert {:ok, global} = Codex.probe(path: executable, command_runner: command_runner)
+    assert {:ok, global} =
+             Codex.probe(
+               path: executable,
+               bridge_directory: request.run_dir,
+               command_runner: command_runner
+             )
+
     refute global.authenticated?
     assert global.status == "run_scoped_auth_required"
 
     assert {:ok, unverified} =
              Codex.probe(
                path: executable,
+               bridge_directory: request.run_dir,
                codex_home: "/run/agent/codex/home",
                command_runner: command_runner
              )
@@ -92,6 +100,7 @@ defmodule Cuckoding.Adapters.CodexTest do
     assert {:ok, verified} =
              Codex.probe(
                path: executable,
+               bridge_directory: request.run_dir,
                codex_home: "/run/agent/codex/home",
                run_scoped_authenticated?: true,
                command_runner: command_runner
@@ -106,6 +115,7 @@ defmodule Cuckoding.Adapters.CodexTest do
     assert {:ok, missing_file} =
              Codex.probe(
                path: executable,
+               bridge_directory: request.run_dir,
                codex_home: home,
                credentials_store: "file",
                run_scoped_authenticated?: true,
@@ -120,6 +130,7 @@ defmodule Cuckoding.Adapters.CodexTest do
     assert {:ok, file_store} =
              Codex.probe(
                path: executable,
+               bridge_directory: request.run_dir,
                codex_home: home,
                credentials_store: "file",
                run_scoped_authenticated?: true,
@@ -158,6 +169,7 @@ defmodule Cuckoding.Adapters.CodexTest do
             ]} =
              Codex.available_models(
                path: executable,
+               bridge_directory: request.run_dir,
                codex_home: Path.join(request.run_dir, "codex-account")
              )
   end
@@ -190,14 +202,18 @@ defmodule Cuckoding.Adapters.CodexTest do
     assert {:ok, spec} =
              Codex.launch_spec(request,
                path: executable,
+               bridge_directory: request.run_dir,
                run_scoped_authenticated?: true
              )
 
-    assert Enum.take(spec.command.args, 2) == ["exec", "--strict-config"]
-    assert "--json" in spec.command.args
-    assert ~s(approval_policy="never") in spec.command.args
-    assert "features.hooks=false" in spec.command.args
-    assert request.worktree_path in spec.command.args
+    args = Jason.decode!(spec.environment["CUCKODING_CODEX_ARGS"])
+    assert Enum.take(args, 3) == ["app-server", "--stdio", "--strict-config"]
+    assert ~s(approval_policy="never") in args
+    assert "features.hooks=false" in args
+    assert spec.command.executable == Path.join(request.run_dir, "codex-acp")
+    assert spec.acp.mode == "workspace-write"
+    assert spec.environment["CODEX_PATH"] == executable
+    assert spec.command.args == []
     assert spec.environment["CODEX_HOME"] == Path.join(root, "home")
     assert spec.timeout == 60_000
     refute "--dangerously-bypass-approvals-and-sandbox" in spec.command.args
@@ -205,15 +221,19 @@ defmodule Cuckoding.Adapters.CodexTest do
     assert {:ok, reasoned} =
              Codex.launch_spec(request,
                path: executable,
+               bridge_directory: request.run_dir,
                run_scoped_authenticated?: true,
                reasoning_effort: "high"
              )
 
-    assert ~s(model_reasoning_effort="high") in reasoned.command.args
+    assert ~s(model_reasoning_effort="high") in Jason.decode!(
+             reasoned.environment["CUCKODING_CODEX_ARGS"]
+           )
 
     assert {:error, %Types.Error{code: :invalid_reasoning_effort}} =
              Codex.launch_spec(request,
                path: executable,
+               bridge_directory: request.run_dir,
                run_scoped_authenticated?: true,
                reasoning_effort: "high;rm"
              )
@@ -224,6 +244,7 @@ defmodule Cuckoding.Adapters.CodexTest do
     assert {:error, %Types.Error{code: :invalid_session_id}} =
              Codex.launch_spec(request,
                path: executable,
+               bridge_directory: request.run_dir,
                run_scoped_authenticated?: true,
                resume_session: "--last"
              )
@@ -236,6 +257,7 @@ defmodule Cuckoding.Adapters.CodexTest do
     assert {:error, %Types.Error{code: :invalid_wall_time_limit}} =
              Codex.launch_spec(%{request | grant: invalid_limit},
                path: executable,
+               bridge_directory: request.run_dir,
                run_scoped_authenticated?: true
              )
   end
@@ -252,42 +274,63 @@ defmodule Cuckoding.Adapters.CodexTest do
     refute File.exists?(Path.join(outside, "config.toml"))
   end
 
-  test "starts, cancels, resumes, and recovers through the host runner", %{
+  test "large instructions use run-owned files instead of overflowing process argv or env", %{
+    request: request,
+    executable: executable
+  } do
+    request = %{request | objective: String.duplicate("large planning input ", 15_000)}
+    assert {:ok, _} = Codex.render_config(request, [])
+
+    assert {:ok, spec} =
+             Codex.launch_spec(request,
+               path: executable,
+               bridge_directory: request.run_dir,
+               run_scoped_authenticated?: true
+             )
+
+    assert byte_size(Jason.encode!(spec.environment)) < 16_384
+    assert spec.command.args == []
+    assert File.read!(spec.environment["CUCKODING_CODEX_CONFIG_FILE"]) =~ request.objective
+
+    assert Jason.decode!(File.read!(spec.environment["CUCKODING_CODEX_OUTPUT_SCHEMA_FILE"])) ==
+             request.required_output_schema
+  end
+
+  test "requires a duplex runner and explicit recovery into a new attempt", %{
     request: request,
     executable: executable
   } do
     options = [
       path: executable,
-      run_scoped_authenticated?: true,
-      runner: FakeRunner,
-      environment: %{id: "environment"}
+      bridge_directory: request.run_dir,
+      run_scoped_authenticated?: true
     ]
 
-    assert {:ok, session} = Codex.start(request, options)
-    assert session.requested_model == "gpt-5.6-sol"
-    assert session.process.runner == FakeRunner
-    assert elem(session.process.handle, 2)[:timeout] == 60_000
+    assert {:error, %Types.Error{code: :acp_duplex_runner_required}} =
+             Codex.start(request, options)
 
-    assert {:error, %Types.Error{code: :follow_up_requires_resume}} =
-             Codex.send(session, %{"summary" => "Continue"}, [])
-
-    assert {:error, %Types.Error{code: :session_id_required}} =
-             Codex.resume(session, %{}, Keyword.put(options, :request, request))
-
-    observed = %{session | external_session_id: "0199a213-81c0-7800-8aa1-bbab2a035a53"}
-    resume_options = Keyword.put(options, :request, request)
-    assert {:ok, resumed} = Codex.resume(observed, %{}, resume_options)
-    assert Enum.take(resumed.process.launch.command.args, 2) == ["exec", "resume"]
-    assert observed.external_session_id in resumed.process.launch.command.args
+    observed = %{session() | external_session_id: "0199a213-81c0-7800-8aa1-bbab2a035a53"}
 
     assert {:ok, ^observed} =
              Codex.recover(observed, %{process: :matching, session: :available}, options)
 
-    assert {:ok, recovered} =
-             Codex.recover(observed, %{process: :gone, session: :available}, resume_options)
+    assert {:error, %Types.Error{code: :session_recovery_required}} =
+             Codex.recover(observed, %{process: :gone, session: :available}, options)
+  end
 
-    assert observed.external_session_id in recovered.process.launch.command.args
-    assert {:ok, %{state: "cancelled"}} = Codex.cancel(session, [])
+  test "blocks unreviewed project configuration before launching app-server", %{
+    request: request,
+    executable: executable
+  } do
+    assert {:ok, _} = Codex.render_config(request, [])
+    File.mkdir!(Path.join(request.worktree_path, ".codex"))
+
+    assert {:error, %Types.Error{code: :acp_configuration_requires_review}} =
+             Codex.launch_spec(request,
+               path: executable,
+               bridge_directory: request.run_dir,
+               run_scoped_authenticated?: true
+             )
   end
 
   test "normalizes redacted JSONL fixtures, citations, and usage" do

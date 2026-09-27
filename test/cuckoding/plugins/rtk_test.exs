@@ -66,70 +66,63 @@ defmodule Cuckoding.Plugins.RTKTest do
     assert {"Unavailable", _} = RTK.status(policy)
   end
 
-  test "CLI adapters keep native permissions and isolation across start and resume",
+  test "ACP adapters keep RTK instructions in prompts and native permission configuration",
        fixture do
-    for adapter <- [ClaudeCode, Codex],
+    for adapter <- [Codex, ClaudeCode, CursorAgent],
         role <- ~w(speculator implementor reviewer planning custom) do
-      root = Path.join(fixture.root, "#{inspect(adapter)}-#{role}")
+      root = Path.join(fixture.root, "#{inspect(adapter)}-acp-#{role}")
       File.mkdir_p!(Path.join(root, "agent"))
       File.mkdir_p!(Path.join(root, "worktree"))
       request = request(root, fixture.policy, role)
+
+      bridge =
+        Cuckoding.ACPBridgeFixture.install(
+          Path.join(root, "bridge"),
+          if(adapter == ClaudeCode, do: "claude", else: "codex")
+        )
 
       options = [
         path: fixture.binary,
         api_key_helper: fixture.binary,
         run_scoped_authenticated?: true,
-        runner: Runner,
-        environment: %{id: "environment"},
-        request: request
+        bridge_directory: bridge
       ]
 
-      assert {:ok, session} = adapter.start(request, options)
-      assert session.process.launch.command.executable == fixture.binary
-      refute hd(session.process.launch.command.args) == "rtk"
-      assert inspect(session.process.launch) =~ "RTK: Instructions only"
-
-      assert {:ok, resumed} =
-               adapter.resume(
-                 %{session | external_session_id: "12345678-1234-1234-1234-123456789abc"},
-                 %{},
-                 options
-               )
-
-      assert inspect(resumed.process.launch) =~ RTK.wrapper(root)
-      assert {:ok, capability} = adapter.capabilities([])
-      assert capability.shell_rewrite["mode"] == "instructions_only"
-      args = session.process.launch.command.args
+      assert {:ok, _grant} = adapter.render_config(request, options)
+      assert {:ok, launch} = adapter.launch_spec(request, options)
 
       case adapter do
-        ClaudeCode -> assert "--bare" in args
-        Codex -> assert "features.hooks=false" in args
+        Codex ->
+          assert launch.command.executable == Path.join(bridge, "codex-acp")
+
+          assert Jason.decode!(File.read!(launch.environment["CUCKODING_CODEX_CONFIG_FILE"]))[
+                   "features.hooks"
+                 ] == false
+
+        ClaudeCode ->
+          assert launch.command.executable == Path.join(bridge, "claude-acp")
+
+          assert get_in(launch, [
+                   :acp,
+                   :session_params,
+                   "_meta",
+                   "claudeCode",
+                   "options",
+                   "extraArgs"
+                 ]) == %{"bare" => nil, "no-chrome" => nil}
+
+        CursorAgent ->
+          assert launch.command.executable == fixture.binary
+          assert "enabled" in launch.command.args
+          assert List.last(launch.command.args) == "acp"
       end
 
-      refute Enum.any?(args, &String.contains?(&1, "dangerously-bypass"))
-    end
-  end
-
-  test "Cursor keeps RTK instructions in ACP prompts and native permission configuration",
-       fixture do
-    for role <- ~w(speculator implementor reviewer planning custom) do
-      root = Path.join(fixture.root, "cursor-acp-#{role}")
-      File.mkdir_p!(Path.join(root, "agent"))
-      File.mkdir_p!(Path.join(root, "worktree"))
-      request = request(root, fixture.policy, role)
-      options = [path: fixture.binary, run_scoped_authenticated?: true]
-
-      assert {:ok, _grant} = CursorAgent.render_config(request, options)
-      assert {:ok, launch} = CursorAgent.launch_spec(request, options)
-      assert launch.command.executable == fixture.binary
-      assert "enabled" in launch.command.args
-      assert List.last(launch.command.args) == "acp"
       prepared = RTK.prepare_request(request)
       assert prepared.objective =~ "RTK: Instructions only"
       assert prepared.objective =~ RTK.wrapper(root)
       refute prepared.objective in launch.command.args
       refute "rtk" in launch.command.args
-      assert {:ok, capability} = CursorAgent.capabilities([])
+      assert {:ok, capability} = adapter.capabilities([])
       assert capability.shell_rewrite["mode"] == "instructions_only"
     end
   end

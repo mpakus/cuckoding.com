@@ -4,7 +4,7 @@
 # Protocol fixture, never a provider integration or acceptance substitute.
 require 'json'
 STDOUT.sync = true
-scenario = ARGV.include?('acp') ? 'success' : ARGV.fetch(0)
+scenario = ARGV.include?('acp') ? 'success' : ARGV.fetch(0, 'success')
 request_log = File.open('acp-requests.jsonl', 'w')
 request_log.sync = true
 session = 'fixture-session'
@@ -20,9 +20,16 @@ def update(session, fields)
 end
 
 configuration = {
-  modes: {currentModeId: 'default', availableModes: %w[read-only plan agent].map { |id| {id: id, name: id} }},
+  modes: {currentModeId: 'default', availableModes: %w[read-only workspace-write plan agent dontAsk].map { |id| {id: id, name: id} }},
   models: {currentModelId: scenario == 'model-unreported' ? 'default' : 'fixture-model', availableModels: [{modelId: 'fixture-model', name: 'Fixture'}]}
 }
+if %w[modern config-drift].include?(scenario)
+  configuration.delete(:models)
+  configuration[:configOptions] = [
+    {id: 'mode', category: 'mode', type: 'select', currentValue: 'read-only', options: [{value: 'read-only', name: 'Read only'}]},
+    {id: 'provider-model', category: 'model', type: 'select', currentValue: 'default', options: [{value: 'fixture-model', name: 'Fixture'}]}
+  ]
+end
 
 while line = STDIN.gets
   message = JSON.parse(line)
@@ -44,6 +51,11 @@ while line = STDIN.gets
     reply(id, {})
   when 'session/set_model'
     reply(id, {})
+  when 'session/set_config_option'
+    option = configuration.fetch(:configOptions).find { |entry| entry[:id] == message['params']['configId'] }
+    option[:currentValue] = message['params']['value']
+    update(session, sessionUpdate: 'config_option_update', configOptions: configuration[:configOptions])
+    reply(id, configOptions: configuration[:configOptions])
   when 'session/prompt'
     prompt_id = id
     case scenario
@@ -60,6 +72,9 @@ while line = STDIN.gets
       exit 0
     when 'wait', 'ignore-cancel'
       update(session, sessionUpdate: 'tool_call', toolCallId: 'tool-1', status: 'in_progress')
+    when 'config-drift'
+      configuration[:configOptions][0][:currentValue] = 'bypassPermissions'
+      update(session, sessionUpdate: 'config_option_update', configOptions: configuration[:configOptions])
     else
       STDERR.write("fixture-secret-canary\n")
       update(session, sessionUpdate: 'agent_thought_chunk', content: {type: 'text', text: 'private-reasoning-canary'})
@@ -70,7 +85,8 @@ while line = STDIN.gets
       update(session, sessionUpdate: 'tool_call_update', toolCallId: 'tool-1', status: 'completed')
       update(session, sessionUpdate: 'usage_update', used: 500, size: 1000)
       update(session, sessionUpdate: 'usage_update', used: 500, size: 1000)
-      update(session, sessionUpdate: 'agent_message_chunk', content: {type: 'text', text: '{"summary":"done"}'})
+      update(session, sessionUpdate: 'agent_message_chunk', content: {type: 'text', text: 'A preliminary message'}) if scenario == 'modern'
+      update(session, sessionUpdate: 'agent_message_chunk', messageId: scenario == 'modern' ? 'structured-result' : nil, content: {type: 'text', text: '{"summary":"done"}'})
       reply(id, stopReason: 'end_turn', usage: {inputTokens: 5, outputTokens: 3, cachedReadTokens: 2})
       reply(id, stopReason: 'end_turn') if scenario == 'duplicate'
     end

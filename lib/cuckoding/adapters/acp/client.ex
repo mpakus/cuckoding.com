@@ -82,6 +82,7 @@ defmodule Cuckoding.Adapters.ACP.Client do
         message_id: nil,
         last_message: nil,
         selected_model: nil,
+        model_config_id: nil,
         error: nil,
         stop_reason: nil,
         close_timer: nil,
@@ -262,6 +263,14 @@ defmodule Cuckoding.Adapters.ACP.Client do
        ),
        do: ready(state)
 
+  defp receive_message(
+         %{phase: :setting_model} = state,
+         {:response, _, "session/set_config_option", {:ok, result}}
+       ) do
+    with {:ok, state} <- observe_configuration(state, result["configOptions"]),
+         do: ready(state)
+  end
+
   defp receive_message(%{phase: phase} = state, {:response, _, "session/prompt", {:ok, result}})
        when phase in [:prompting, :cancelling] do
     with reason when reason in @stop_reasons <- result["stopReason"],
@@ -311,18 +320,24 @@ defmodule Cuckoding.Adapters.ACP.Client do
 
   defp configure(state, result) do
     mode = state.launch.acp.mode
-    model = state.request.requested_model || get_in(result, ["models", "currentModelId"])
 
-    with true <- safe_id?(model, state.secrets),
+    with {:ok, models, config_id} <- model_configuration(result),
+         model = requested_model(state, models),
+         true <- safe_id?(model, state.secrets),
          %{"availableModes" => modes} when is_list(modes) <- result["modes"],
          true <- Enum.any?(modes, &(is_map(&1) and &1["id"] == mode)),
-         %{"availableModels" => models} when is_list(models) <- result["models"],
-         true <- Enum.any?(models, &(is_map(&1) and &1["modelId"] == model)) do
-      observed = if get_in(result, ["models", "currentModelId"]) == model, do: model
+         true <- Enum.any?(models["availableModels"], &(is_map(&1) and &1["modelId"] == model)) do
+      observed = if models["currentModelId"] == model, do: model
       runtime = %{state.runtime | actual_model: observed}
 
       request(
-        %{state | phase: :setting_mode, selected_model: model, runtime: runtime},
+        %{
+          state
+          | phase: :setting_mode,
+            selected_model: model,
+            model_config_id: config_id,
+            runtime: runtime
+        },
         "session/set_mode",
         session_params(state, %{"modeId" => mode})
       )
@@ -330,6 +345,49 @@ defmodule Cuckoding.Adapters.ACP.Client do
       _ -> {:error, :acp_required_configuration_unavailable}
     end
   end
+
+  defp model_configuration(%{"configOptions" => options}) when is_list(options) do
+    case Enum.filter(options, &(is_map(&1) and &1["category"] == "model")) do
+      [%{"id" => id, "type" => "select", "options" => models, "currentValue" => current}]
+      when is_binary(id) and is_list(models) ->
+        available =
+          Enum.map(models, fn
+            %{"value" => value} -> %{"modelId" => value}
+            _ -> %{"modelId" => nil}
+          end)
+
+        {:ok, %{"availableModels" => available, "currentModelId" => current}, id}
+
+      _ ->
+        {:error, :acp_required_configuration_unavailable}
+    end
+  end
+
+  defp model_configuration(%{"models" => %{"availableModels" => models} = config})
+       when is_list(models),
+       do: {:ok, config, nil}
+
+  defp model_configuration(_), do: {:error, :acp_required_configuration_unavailable}
+
+  defp requested_model(state, models) do
+    requested = state.request.requested_model
+    current = models["currentModelId"]
+
+    if state.launch.acp[:model_format] == :codex and is_binary(current) and
+         is_binary(requested) and String.starts_with?(current, requested <> "[") do
+      current
+    else
+      requested || current
+    end
+  end
+
+  defp select_model(%{model_config_id: id} = state) when is_binary(id),
+    do:
+      request(
+        %{state | phase: :setting_model},
+        "session/set_config_option",
+        session_params(state, %{"configId" => id, "value" => state.selected_model})
+      )
 
   defp select_model(state),
     do:
@@ -438,10 +496,49 @@ defmodule Cuckoding.Adapters.ACP.Client do
     if mode == state.launch.acp.mode, do: {:ok, state}, else: {:error, :acp_mode_changed}
   end
 
+  defp update(state, %{"sessionUpdate" => "config_option_update", "configOptions" => options}),
+    do: observe_configuration(state, options)
+
   defp update(%{phase: phase} = state, update) when phase in [:prompting, :cancelling],
     do: turn_update(state, update)
 
   defp update(_state, _update), do: {:error, :acp_update_outside_prompt}
+
+  defp observe_configuration(state, options) when is_list(options) do
+    expected = %{
+      "mode" => state.launch.acp.mode,
+      "model" => state.selected_model,
+      "thought_level" => state.launch.acp[:reasoning_effort]
+    }
+
+    valid? =
+      Enum.all?(options, fn
+        %{"category" => category, "currentValue" => value} ->
+          is_nil(expected[category]) or expected[category] == value
+
+        option ->
+          is_map(option)
+      end)
+
+    if valid? do
+      observed =
+        Enum.any?(
+          options,
+          &(&1["category"] == "model" and &1["currentValue"] == state.selected_model)
+        )
+
+      runtime =
+        if observed,
+          do: %{state.runtime | actual_model: state.selected_model},
+          else: state.runtime
+
+      {:ok, %{state | runtime: runtime}}
+    else
+      {:error, :acp_configuration_changed}
+    end
+  end
+
+  defp observe_configuration(_state, _options), do: {:error, :acp_invalid_configuration}
 
   defp turn_update(
          state,
@@ -515,7 +612,7 @@ defmodule Cuckoding.Adapters.ACP.Client do
 
   defp turn_update(_state, _update), do: {:error, :acp_unsupported_update}
 
-  defp message_boundary(%{message_id: id} = state, next) when id != nil and id != next,
+  defp message_boundary(%{message_id: id} = state, next) when id != next,
     do: flush_message(state)
 
   defp message_boundary(state, _id), do: {:ok, state}
