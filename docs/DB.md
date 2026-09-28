@@ -89,8 +89,10 @@ be interpreted as frozen credential availability or mode.
 | `tasks` | `board_id`, `title`, `description`, `priority`, `position`, `kind`, `intake_role_key?`, `state`, `wait_reason`, `active_run_id` | Kanban card or hidden `board_intake` run owner; only `delivery` tasks render as cards |
 | `task_proposals` | `intake_task_id`, `position`, `title`, `description`, `priority`, `source_json`, `imported_task_id?` | Bounded, source-cited, untrusted agent proposals; import linkage makes reviewed creation idempotent |
 | `task_dependencies` | `task_id`, `depends_on_task_id`, `kind` | Prevent cycles at write time |
-| `board_executions` | `board_id`, `controller_task_id`, `state`, `revision`, `base_sha`, `head_sha`, `snapshot_json`, `current_task_id?`, `current_run_id?`, `phase`, `issue?`, `pending_action?`, `control_json`, `finished_at?` | One nonterminal batch per board by partial unique index; paused/attention/control-pending states retain ownership |
-| `board_execution_items` | `board_execution_id`, `task_id`, `snapshot_json`, `state`, `reason?`, `completed_sha?` | Unique membership per batch/task; pending/active/done/blocked/skipped/deferred outcomes are separate from task lifecycle |
+| `board_executions` | `board_id`, `controller_task_id`, `state`, `mode`, `plan_cycle`, `revision`, `base_sha`, `head_sha`, `snapshot_json`, `current_task_id?`, `current_run_id?`, `phase`, `issue?`, `pending_action?`, `control_json`, `finished_at?` | One nonterminal batch per board by partial unique index; paused/attention/control-pending states retain ownership |
+| `board_execution_items` | `board_execution_id`, `task_id`, `snapshot_json`, `state`, `reason?`, `completed_sha?`, `criteria_json`, `superseded`, `replacement_ids_json`, `retry_count` | Unique membership per batch/task; pending/active/done/blocked/skipped/deferred outcomes are separate from task lifecycle |
+| `board_plan_revisions` | `board_execution_id`, `parent_id?`, `run_id`, `review_run_id?`, `cycle`, `state`, `plan_json`, `baseline_json`, `review_json?` | One proposal per planning run; proposed/accepted/rejected/invalidated history; acceptance and task import are one transaction |
+| `board_questions` | `board_execution_id`, `task_id?`, `run_id`, `revision`, `question`, `answer?`, `answered_at?` | One question per controller run; revision-checked answer commands cannot change authorization |
 | `task_comments` | `task_id`, `author_kind`, `body`, `created_at` | User and public agent notes |
 | `runs` | `task_id`, `board_execution_id?`, `sequence`, `state`, `wait_reason`, `workflow_snapshot_json`, `policy_snapshot_id`, `plugin_snapshot_json`, `branch`, `base_sha` | Retries retain earlier records; batch runs copy frozen workflow/roles/policy and the latest reviewed execution base |
 | `stage_attempts` | `run_id`, `stage_key`, `attempt`, `state`, `role_key`, `role_kind`, `started_at`, `finished_at`, `active_ms`, `wall_ms`, `checkpoint_json` | Immutable attempt history plus current state; checkpoint replacement is projected in the same transaction as `stage.checkpointed` |
@@ -111,12 +113,21 @@ task/run facts and verify foreign keys and one-open-batch uniqueness.
 | --- | --- | --- |
 | `environments` | `run_id`, `runner_key`, `kind` (`local_process` / `container` / `remote`), `worktree_path`, `run_dir`, `base_sha`, `head_sha`, `port`, `ports_json`, `preview_url`, `isolation_claims_json`, `state` | One active owner per worktree and run directory; the scalar port is the MVP ownership key and its preview URL must match the allocated loopback port |
 | `processes` | `environment_id`, `agent_session_id?`, `command_id?`, `pid`, `pgid`, `start_identity`, `role`, `state`, `exit_code`, `ended_at` | Recorded external process identity; exit status and end time are durable before the worker retires |
-| `agent_sessions` | `stage_attempt_id`, `adapter_key`, `runtime_version`, `requested_model`, `actual_model`, `external_session_id`, `effective_grant_json`, `state` | Requested and observed model kept separately; null actual model means not reported; effective grant records requested, enforced, and unenforced fields |
+| `agent_sessions` | `stage_attempt_id`, `adapter_key`, `runtime_version`, `requested_model`, `actual_model`, `external_session_id`, `effective_grant_json`, `state`, `conversation_key?`, `continuation_of_id?`, `continuation_mode?`, `continuation_identity_json?` | Requested and observed model kept separately; null actual model means not reported; effective grant records requested, enforced, and unenforced fields |
 | `leases` | `resource_type`, `resource_id`, `owner_id`, `token_hash`, `acquired_at`, `heartbeat_at`, `expires_at`, `released_at`, `release_reason` | One unreleased lease per resource; raw bearer tokens are returned once and never persisted |
 | `commands` | `idempotency_key`, `kind`, `target_type`, `target_id`, `payload`, `state`, `attempts`, `max_attempts`, `not_before`, `last_error`, `result` | Durable side-effect dispatch; duplicate keys return the original row/result |
 | `power_events` | `kind` (`assertion_on` / `assertion_off` / `sleep_gap` / `wake_reconciled` / `unattended_on` / `unattended_off`), `gap_ms`, `affected_runs_json`, `metadata_json`, `occurred_at` | Append-only power timeline; measured gaps are positive milliseconds and assertion metadata contains no capability-bearing value |
 | `update_attempts` | `from_version`, `to_version`, `schema_change`, `state`, `backup_path`, `backup_manifest_hash`, `active_run_ids_json`, `failure_reason` | Durable update projection; snapshot identity and pre-hibernation run inventory remain reviewable |
 | `update_events` | `update_attempt_id`, `event_type`, `command_key`, `details_json`, `occurred_at` | Append-only, idempotently keyed update lifecycle facts |
+
+Migration `20260928120000` adds autonomous modes, plan/question tables and nullable
+conversation lineage without rewriting old snapshots. Existing batches default
+to `fixed_batch` with zero plan cycles; existing sessions have no new conversation
+identity. The start snapshot version is 2 only for an explicitly authorized goal.
+Superseded membership uses the existing deferred storage state plus a flag and
+replacement links; projections count it separately. The replaced task is
+cancelled through an audited transition, keeping it outside later admission. Lifetime task/retry/cycle
+ceilings include previous attempts and superseded rows.
 
 ### Evidence and observability
 

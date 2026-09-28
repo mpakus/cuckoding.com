@@ -45,6 +45,17 @@ defmodule CuckodingWeb.BoardLive do
            board_exclusions: [],
            board_start_key: nil,
            board_consent: false,
+           board_mode: "fixed_batch",
+           board_goal: %{
+             "goal" => "",
+             "criteria" => "",
+             "tasks" => "20",
+             "revisions" => "3",
+             "retries" => "2",
+             "excluded_tasks" => []
+           },
+           board_control_target: nil,
+           board_answers: %{},
            board_confirmation: nil,
            board_stats: nil,
            task_error: nil,
@@ -116,7 +127,12 @@ defmodule CuckodingWeb.BoardLive do
 
     {:noreply,
      socket
-     |> assign(board_exclusions: excluded, board_consent: attrs["consent"] == "true")
+     |> assign(
+       board_exclusions: excluded,
+       board_consent: attrs["consent"] == "true",
+       board_mode: attrs["mode"] || "fixed_batch",
+       board_goal: Map.merge(socket.assigns.board_goal, Map.get(attrs, "goal", %{}))
+     )
      |> board_preview()}
   end
 
@@ -131,7 +147,8 @@ defmodule CuckodingWeb.BoardLive do
           preview.digest,
           socket.assigns.board_exclusions,
           socket.assigns.board_start_key,
-          attrs["consent"] == "true"
+          attrs["consent"] == "true",
+          goal_options(socket)
         )
       else
         {:error, :preflight_required}
@@ -151,8 +168,14 @@ defmodule CuckodingWeb.BoardLive do
     end
   end
 
-  def handle_event("board-control", %{"action" => action, "revision" => revision}, socket)
+  def handle_event(
+        "board-control",
+        %{"action" => action, "revision" => revision} = params,
+        socket
+      )
       when action in ~w(pause resume stop skip retry refresh) do
+    socket = assign(socket, board_control_target: params["task_id"])
+
     case Integer.parse(revision) do
       {number, ""} ->
         if action in ~w(stop skip refresh),
@@ -172,6 +195,40 @@ defmodule CuckodingWeb.BoardLive do
 
       _ ->
         {:noreply, assign(socket, error: "Board state changed. Reload before controlling it.")}
+    end
+  end
+
+  def handle_event("change-board-answer", %{"question" => attrs}, socket),
+    do:
+      {:noreply,
+       assign(socket,
+         board_answers: Map.put(socket.assigns.board_answers, attrs["id"], attrs["answer"])
+       )}
+
+  def handle_event("answer-board-question", %{"question" => attrs}, socket) do
+    e = socket.assigns.board_stats.execution
+
+    with {revision, ""} <- Integer.parse(attrs["revision"] || ""),
+         {:ok, _} <-
+           Cuckoding.BoardControl.answer_question(
+             e.id,
+             revision,
+             attrs["id"],
+             attrs["answer"],
+             "answer:#{attrs["id"]}:#{revision}"
+           ) do
+      Cuckoding.ProjectAutopilot.Worker.wake()
+
+      {:noreply,
+       socket
+       |> assign(error: nil, notice: "Answer saved. Permissions are unchanged.")
+       |> load_tasks()}
+    else
+      _ ->
+        {:noreply,
+         assign(socket,
+           error: "The answer could not be saved. Check the current board state and try again."
+         )}
     end
   end
 
@@ -356,7 +413,11 @@ defmodule CuckodingWeb.BoardLive do
           </button>
         </div>
 
-        <CuckodingWeb.BoardControlComponents.panel :if={@board_stats} stats={@board_stats} />
+        <CuckodingWeb.BoardControlComponents.panel
+          :if={@board_stats}
+          stats={@board_stats}
+          answers={@board_answers}
+        />
 
         <.modal
           :if={@task_modal == "board"}
@@ -371,9 +432,71 @@ defmodule CuckodingWeb.BoardLive do
             phx-submit="start-board"
             class="space-y-4"
           >
+            <label class="block font-medium" for="board-start-mode">Execution mode</label>
+            <select
+              id="board-start-mode"
+              name="batch[mode]"
+              class="min-h-11 w-full rounded border border-slate-400 p-2"
+            >
+              <option value="fixed_batch" selected={@board_mode == "fixed_batch"}>
+                Start reviewed batch
+              </option>
+              <option value="autonomous_goal" selected={@board_mode == "autonomous_goal"}>
+                Plan and execute
+              </option>
+            </select>
             <p>
-              Speculator coordinates this fixed batch one task at a time. Each task starts from the preceding reviewed commit. Newly added cards wait for the next batch.
+              Speculator coordinates one delivery task at a time. Each task starts from the preceding reviewed commit. Human-created cards outside this plan wait for explicit inclusion.
             </p>
+            <div :if={@board_mode == "autonomous_goal"} class="space-y-3">
+              <label class="block" for="board-goal">Goal</label>
+              <textarea
+                id="board-goal"
+                name="batch[goal][goal]"
+                required
+                maxlength="20000"
+                class="w-full rounded border p-2"
+              >{@board_goal["goal"]}</textarea>
+              <label class="block" for="board-criteria">Acceptance criteria (one per line, up to 20)</label>
+              <textarea
+                id="board-criteria"
+                name="batch[goal][criteria]"
+                required
+                class="w-full rounded border p-2"
+              >{@board_goal["criteria"]}</textarea>
+              <div class="grid gap-3 sm:grid-cols-3">
+                <label :for={
+                  {key, name, minimum, maximum} <- [
+                    {"tasks", "Lifetime tasks", 1, 20},
+                    {"revisions", "Plan revision cycles", 0, 3},
+                    {"retries", "Transient retries per task", 0, 2}
+                  ]
+                }>
+                  {name}
+                  <input
+                    type="number"
+                    name={"batch[goal][#{key}]"}
+                    value={@board_goal[key]}
+                    min={minimum}
+                    max={maximum}
+                    required
+                    class="min-h-11 w-full rounded border p-2"
+                  />
+                </label>
+              </div>
+              <p class="text-sm">
+                At most three Review attempts per task, across retries. Saved role budgets also apply; retries and revisions do not reset consumed limits. Missing cost telemetry remains unavailable.
+              </p>
+              <input type="hidden" name="batch[goal][excluded_tasks][]" value="" />
+              <label :for={task <- @board_candidate_tasks} class="flex min-h-11 items-center gap-2">
+                <input
+                  type="checkbox"
+                  name="batch[goal][excluded_tasks][]"
+                  value={task.id}
+                  checked={task.id in @board_goal["excluded_tasks"]}
+                /> Leave {task.title} outside this plan
+              </label>
+            </div>
             <input type="hidden" name="batch[excluded][]" value="" />
             <label :for={task <- @board_blocked_tasks} class="flex min-h-11 items-center gap-2">
               <input
@@ -421,14 +544,19 @@ defmodule CuckodingWeb.BoardLive do
                 checked={@board_consent}
                 required
               />
-              I authorize automatic local completion after independent passing review. Push, PR creation, merge, policy expansion and knowledge publication still require separate approval.
+              <span>
+                <span :if={@board_mode == "autonomous_goal"}>I authorize reviewed task import, reviewed plan changes within this goal and these limits, and bounded recovery. </span>
+                I authorize automatic local completion after independent passing review. Push, PR creation, merge, policy expansion and knowledge publication still require separate approval.
+              </span>
             </label>
             <button
               type="submit"
               disabled={!@board_preview}
               phx-disable-with="Starting…"
               class="min-h-11 rounded-md bg-slate-950 px-5 font-medium text-white disabled:opacity-50"
-            >Start reviewed batch</button>
+            >{if @board_mode == "autonomous_goal",
+              do: "Plan and execute",
+              else: "Start reviewed batch"}</button>
           </form>
         </.modal>
 
@@ -437,7 +565,12 @@ defmodule CuckodingWeb.BoardLive do
           id="board-control-confirmation"
           title={String.capitalize(@board_confirmation.action) <> " board work"}
           on_cancel="close-board-confirmation"
-          return_focus={"board-#{@board_confirmation.action}"}
+          return_focus={
+            if @board_control_target,
+              do:
+                "#{@board_confirmation.action}-#{Enum.find(@board_stats.items, &(&1.task_id == @board_control_target)).id}",
+              else: "board-#{@board_confirmation.action}"
+          }
         >
           <p :if={@board_confirmation.action == "skip"}>
             Exclude the current task from this batch and defer its dependent descendants? Changes, branches and evidence are retained. Independent tasks can continue.
@@ -909,6 +1042,7 @@ defmodule CuckodingWeb.BoardLive do
     assign(socket,
       board_stats: Cuckoding.BoardControl.Statistics.for_board(socket.assigns.board.id),
       board_blocked_tasks: Enum.filter(tasks, &(&1.state in ~w(blocked failed))),
+      board_candidate_tasks: Enum.filter(tasks, &(&1.state in ~w(draft ready))),
       tasks: filtered,
       progress_by_task: AgentFloor.progress_for_tasks(filtered),
       now: Cuckoding.Clock.wall_now(),
@@ -917,10 +1051,21 @@ defmodule CuckodingWeb.BoardLive do
     )
   end
 
+  defp goal_options(socket) do
+    if socket.assigns.board_mode == "autonomous_goal" do
+      Map.update!(
+        socket.assigns.board_goal,
+        "excluded_tasks",
+        &Enum.reject(&1, fn id -> id == "" end)
+      )
+    end
+  end
+
   defp board_preview(socket) do
     case Cuckoding.BoardControl.preflight(
            socket.assigns.board.id,
-           socket.assigns.board_exclusions
+           socket.assigns.board_exclusions,
+           goal_options(socket)
          ) do
       {:ok, preview} ->
         assign(socket, board_preview: preview, board_preview_error: nil)
@@ -938,6 +1083,7 @@ defmodule CuckodingWeb.BoardLive do
 
     case Cuckoding.BoardControl.control(e.id, revision, action, key,
            confirmed: confirmed,
+           task_id: socket.assigns.board_control_target,
            expected_snapshot: expected
          ) do
       {:ok, _} ->

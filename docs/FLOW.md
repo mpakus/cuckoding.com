@@ -91,6 +91,18 @@ Project setup, board setup, board task intake, and delivery execution are separa
    Reviewed commits pass to the next worktree; unfinished/skipped changes do not.
    See [board controls and stopping rules](CUCKODING-CONTROL.md#5-controls-blockers-and-recovery).
 
+7. **Plan and execute** opts into goal orchestration in that modal, including an
+   empty board. Explicit start consent authorizes reviewed task import, reviewed
+   plan changes and bounded recovery. Speculator proposes a criterion-linked plan;
+   the assigned Reviewer checks it independently before transactional import.
+   Same-model review uses a separate read-only conversation. Unstarted work may
+   be split or reprioritized after another passing plan review; old membership
+   and attempts remain visible. A task-local blocker defers descendants while
+   independent tasks continue. Global failures halt admission. The last unresolved
+   task leaves Needs attention, never Done. Answers are durable evidence, not
+   permissions. The [autonomous contract](CUCKODING-CONTROL.md#autonomous-goals-task-1055)
+   defines limits, decision schemas, continuation and recovery.
+
 Start-time saved-agent probes update the durable authorization observation
 before the queued run transitions. A rejected sign-in names the affected
 connection and links to its one-time Agents sign-in action; it does not create

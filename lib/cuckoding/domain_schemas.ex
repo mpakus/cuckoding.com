@@ -649,6 +649,10 @@ defmodule Cuckoding.Execution.AgentSession do
     field :actual_model, :string
     field :external_session_id, :string
     field :effective_grant_json, :map, default: %{}
+    field :conversation_key, :string
+    field :continuation_of_id, :binary_id
+    field :continuation_mode, :string
+    field :continuation_identity_json, :map, default: %{}
     field :state, :string, default: "created"
     timestamps(type: :utc_datetime_usec)
   end
@@ -661,7 +665,11 @@ defmodule Cuckoding.Execution.AgentSession do
       :adapter_key,
       :runtime_version,
       :requested_model,
-      :effective_grant_json
+      :effective_grant_json,
+      :conversation_key,
+      :continuation_of_id,
+      :continuation_mode,
+      :continuation_identity_json
     ])
     |> validate_required([:id, :stage_attempt_id, :adapter_key, :effective_grant_json])
     |> foreign_key_constraint(:stage_attempt_id)

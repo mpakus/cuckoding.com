@@ -79,6 +79,20 @@ defmodule Cuckoding.Adapters.ACP.ClientTest do
     assert Repo.aggregate(UsageRecord, :count) == 1
   end
 
+  test "compatible continuation falls back before any prompt when loading is no longer supported",
+       f do
+    Repo.update!(Ecto.Changeset.change(f.stored, continuation_mode: "native"))
+
+    assert {:ok, _} =
+             execute(f, "no-load", resume_session: "saved", continuation_fallback: true)
+             |> Task.await(5_000)
+
+    assert Enum.at(requests(f), 1)["method"] == "session/new"
+    assert Enum.count(requests(f), &(&1["method"] == "session/prompt")) == 1
+    assert Repo.get!(AgentSession, f.stored.id).continuation_mode == "saved_evidence"
+    assert Repo.aggregate(UsageRecord, :count) == 1
+  end
+
   test "model selection acknowledgement does not invent an observed model", f do
     task = execute(f, "model-unreported")
     assert_receive {:client_ready, %{requested_model: "fixture-model", actual_model: nil}}, 3_000

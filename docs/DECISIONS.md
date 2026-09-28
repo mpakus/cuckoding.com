@@ -271,6 +271,16 @@ provider acceptance remains open.
 - **Alternatives:** Keep adding provider-specific log heuristics (does not satisfy interactive communication); wrap the old one-shot pipeline behind ACP-shaped messages (does not provide an ACP session); install a new orchestration framework (duplicates existing durability and controls); A2A (serves external delegation rather than this local runtime boundary).
 - **Verification:** Protocol framing/correlation/capability/error tests; real subprocess duplex, cancellation, owner loss, pause and cleanup tests; provider configuration and secret-canary conformance; planning/review/controller/delivery integration; restart/sleep recovery; full relevant quality gates. Recorded fixtures, installed bridge negotiation and authenticated real-provider acceptance remain separate evidence.
 
+## ADR-032 — Reviewed autonomous goals extend the board controller
+
+- **Date:** 2026-09-28
+- **Status:** Accepted; implementation in task 1055
+- **Decision:** Add an explicitly authorized autonomous-goal mode to the existing board aggregate/dispatcher. Speculator proposes bounded plan revisions and coordination decisions; an independently scoped assigned Reviewer checks plans before transactional import. Cuckoding validates every action, maintains the reviewed commit chain, and enforces lifetime limits. Fixed batches retain their historical contract.
+- **Continuity:** Logical conversations belong to an execution/controller or task/role. Native session loading additionally requires compatible account, model, role, grant and workspace; otherwise a bounded public-evidence package continues the logical conversation in a new native session. Every turn has a distinct attempt. Provider history is neither workflow state nor permission.
+- **Recovery:** Recognized task-local failures may retry within the recorded limit or defer their descendants while independent tasks continue. Authorization, policy, provenance, budget and process-ownership failures close all admission. Questions and answers are durable; answers cannot expand authority. No incomplete or superseded task counts as completed.
+- **Storage:** Add forward-only plan revision, question and conversation-lineage persistence alongside existing execution/items/events. Accepted revisions preserve original authorization and historical run snapshots. Commands remain idempotent and events commit before broadcasts.
+- **Verification:** Migration preservation, adversarial/stale plan validation, same-model independent review, chained sequential delivery, task-local/global failure classification, bounded retries, session compatibility/redaction, controls/restart, accounting and accessible rendered UI. Native/provider gates remain separate from fixtures.
+
 ## ADR template
 
 ### ADR-NNN — Title

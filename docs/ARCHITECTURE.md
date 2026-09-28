@@ -102,6 +102,23 @@ require explicit recovery. `BoardControl.Statistics` reads all linked records
 instead of the capped Agent Floor projection. See [CUCKODING-CONTROL.md](CUCKODING-CONTROL.md)
 and [ADR-030](DECISIONS.md#adr-030--sequential-board-execution-and-reviewed-commit-provenance).
 
+Opt-in autonomous goals extend this aggregate with immutable start authorization
+and `planning` / `plan_review` phases. `BoardControl.Plans` validates bounded
+revisions against current cards and original criterion IDs; accepted changes,
+membership, review linkage and board events commit together before broadcasts.
+`board_plan_revisions` retains proposals, parentage, baselines and review evidence;
+`board_questions` retains user clarification without changing grants. Replaced
+membership is superseded rather than deleted. See [ADR-032](DECISIONS.md#adr-032--reviewed-autonomous-goals-extend-the-board-controller).
+
+`BoardControl.Conversations` adds role-scoped identity to normal agent sessions.
+The controller Speculator and plan Reviewer have separate lineages; delivery roles
+are additionally task-scoped. Compatible negotiated ACP sessions can load history;
+other turns receive bounded public evidence in fresh sessions. No new process
+manager or provider transport owns the workflow. Host failure classification
+permits bounded timeout recovery after verified cleanup, and task blockers defer
+descendants without releasing board ownership. Unknown/global failures stop
+admission. Dashboard summaries remain queries over durable records.
+
 ### Agent adapter layer
 
 Each runtime adapter converts a common stage request into a provider-specific host process and converts output into normalized events, artifacts, usage, checkpoints, and completion status. Agents run on the host; their own permission systems (allowed tools, working directory, approval modes) are configured by the adapter from the stage capability grant, and the granted set is recorded. Capability discovery is explicit.

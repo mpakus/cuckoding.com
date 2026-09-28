@@ -510,8 +510,15 @@ defmodule Cuckoding.Execution do
 
   @doc false
   def snapshot_run(attrs) do
-    with %Task{} = task <- Repo.get(Task, attrs[:task_id]),
-         %Board{} = board <- Repo.get(Board, task.board_id),
+    case Repo.get(Task, attrs[:task_id]) do
+      %Task{} = task -> snapshot_board(task.board_id, attrs)
+      nil -> {:error, :snapshot_source_not_found}
+    end
+  end
+
+  @doc false
+  def snapshot_board(board_id, attrs) do
+    with %Board{} = board <- Repo.get(Board, board_id),
          %WorkflowVersion{} = workflow <- Repo.get(WorkflowVersion, board.workflow_version_id),
          %ProjectConfigVersion{} = policy <-
            Repo.get(ProjectConfigVersion, attrs[:policy_snapshot_id]),

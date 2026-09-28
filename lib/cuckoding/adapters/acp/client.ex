@@ -141,6 +141,8 @@ defmodule Cuckoding.Adapters.ACP.Client do
           process: %{runner: __MODULE__, handle: self()}
         },
         resume_session: Keyword.get(options, :resume_session),
+        continuation_fallback: Keyword.get(options, :continuation_fallback, false),
+        load_session_supported: false,
         prompt:
           Keyword.get(options, :prompt, request.objective) <>
             "\n\nEnd this turn with one JSON object matching the following schema. " <>
@@ -295,6 +297,7 @@ defmodule Cuckoding.Adapters.ACP.Client do
        ) do
     with 1 <- result["protocolVersion"],
          capabilities when is_map(capabilities) <- Map.get(result, "agentCapabilities", %{}),
+         state = load_fallback(state, capabilities),
          :ok <- can_load(state.resume_session, capabilities) do
       params =
         Map.merge(state.launch.acp.session_params, %{
@@ -488,13 +491,32 @@ defmodule Cuckoding.Adapters.ACP.Client do
     state = %{state | runtime: runtime, phase: :ready}
 
     with {:ok, stored} <- Adapters.record_session_observation(state.stored, runtime),
+         {:ok, stored} <- continuation_mode(stored, state),
          {:ok, state} <-
            record(%{state | stored: stored}, "session.started", "ACP session ready", %{
              "transport" => "acp",
-             "protocol_version" => 1
+             "protocol_version" => 1,
+             "load_session_supported" => state.load_session_supported
            }) do
       send(self(), :admit_prompt)
       {:ok, state}
+    end
+  end
+
+  defp continuation_mode(%{continuation_mode: "native"} = stored, %{resume_session: nil}) do
+    Repo.update(Ecto.Changeset.change(stored, continuation_mode: "saved_evidence"))
+  end
+
+  defp continuation_mode(stored, _state), do: {:ok, stored}
+
+  defp load_fallback(state, capabilities) do
+    state = %{state | load_session_supported: capabilities["loadSession"] == true}
+
+    if state.resume_session && not state.load_session_supported && state.continuation_fallback do
+      # No prompt was sent. The fresh session receives the same bounded public evidence.
+      %{state | resume_session: nil}
+    else
+      state
     end
   end
 

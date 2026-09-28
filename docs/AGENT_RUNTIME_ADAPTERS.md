@@ -22,6 +22,24 @@ An adapter records the configured grant and the runtime-reported grant separatel
 
 `Cuckoding.Adapters.AgentAdapter` is the workflow-facing contract. Its shared types keep requested and observed model identity separate, attach source and confidence to usage, classify adapter errors for retry decisions, and mark every normalized provider event as untrusted. Recording an observed session updates the full effective grant and appends a same-transaction audit event whose public payload contains field names rather than path or policy values. `Cuckoding.Adapters.FakeAdapter` exercises the complete contract without a provider dependency. Its generated fixture configuration is mode `0600`, exists only at `<run_dir>/agent/fake-adapter.json`, rejects a symlinked `agent/` directory, and records restrictions the fake cannot enforce under `unenforced`.
 
+## Autonomous role continuity (task 1055)
+
+`BoardControl.Conversations` persists logical execution/controller and task/role
+identities on every autonomous stage session. Attempts and accounting remain
+separate. A completed session is a native-load candidate only when account,
+runtime version, requested and observed model, role configuration, workspace and requested
+grant match, and the provider previously negotiated `loadSession`. ACP negotiates
+again before loading. If support disappeared, the authorized continuation falls
+back before sending any prompt; its saved mode becomes `saved_evidence`.
+Other mismatches start fresh with a size-bounded `ContinuationPackage` of current
+assignment, public summaries and artifact hashes. No transcripts or hidden
+reasoning are copied. Session IDs alone never prove live process ownership.
+
+The plan Reviewer uses its assigned runtime/model in a distinct read-only
+conversation; the manual another-model review option is unchanged. Native
+continuation and packaged-app evidence for this extension remain separate from
+fixture coverage; consult [the worklog](../worklog/2026-09-28-1055-autonomous-board.md).
+
 ## ACP communication (task 1054)
 
 All three supported adapters now use `Adapters.ACP.Client`: native Cursor ACP,

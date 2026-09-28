@@ -99,7 +99,11 @@ defmodule Cuckoding.BoardControl.Statistics do
     %{
       execution: e,
       items: items,
-      totals: Enum.frequencies_by(items, & &1.state),
+      totals: Enum.frequencies_by(items, &if(&1.superseded, do: "superseded", else: &1.state)),
+      plans: BoardControl.Plans.revisions(e.id),
+      questions: BoardControl.Plans.questions(e.id),
+      recovery_attempts: Enum.sum(Enum.map(items, & &1.retry_count)),
+      criteria: criteria(e, items),
       included: length(items),
       next: next,
       runs: runs,
@@ -110,7 +114,9 @@ defmodule Cuckoding.BoardControl.Statistics do
       active_ms: if(attempts == [], do: nil, else: Enum.sum(Enum.map(attempts, & &1.active_ms))),
       pause_ms: pause_time(events, until),
       sleep_ms: sleep_ms,
-      review_returns: Enum.count(attempts, &(&1.stage_key == "qa" and &1.attempt > 1)),
+      review_returns:
+        review_returns(attempt_ids) +
+          Enum.count(BoardControl.Plans.revisions(e.id), &(&1.state == "rejected")),
       tokens:
         Map.new(
           ~w(input_tokens output_tokens reasoning_tokens cache_read_tokens cache_write_tokens)a,
@@ -126,6 +132,28 @@ defmodule Cuckoding.BoardControl.Statistics do
       resources: resources(samples, processes, session_ids),
       last_event: List.last(events)
     }
+  end
+
+  defp review_returns(attempt_ids) do
+    Repo.all(
+      from f in Cuckoding.Workflows.Finding,
+        where: f.stage_attempt_id in ^attempt_ids and f.severity in ~w(error blocker),
+        distinct: true,
+        select: f.stage_attempt_id
+    )
+    |> length()
+  end
+
+  defp criteria(e, items) do
+    for criterion <- get_in(e.snapshot_json, ["autonomy", "criteria"]) || [] do
+      members =
+        Enum.filter(
+          items,
+          &(not &1.superseded and criterion["id"] in (&1.criteria_json["ids"] || []))
+        )
+
+      Map.put(criterion, "passed", members != [] and Enum.all?(members, &(&1.state == "done")))
+    end
   end
 
   defp measure(rows, field, session_ids) do

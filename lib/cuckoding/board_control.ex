@@ -1,7 +1,7 @@
 defmodule Cuckoding.BoardControl do
   @moduledoc "Durable sequential board batches; agent decisions are proposals, never commands."
   import Ecto.Query
-  alias Cuckoding.BoardControl.{Execution, Item}
+  alias Cuckoding.BoardControl.{Execution, Item, Plans}
   alias Cuckoding.{Clock, Identifier, Projects, ProjectWorkflow, Repo, RunControl, Workflows}
   alias Cuckoding.Execution.{Commands, Environment, EventStore, GitService, Run}
   alias Cuckoding.Workflows.{Task, TaskDependency}
@@ -42,8 +42,9 @@ defmodule Cuckoding.BoardControl do
   def controller?(run),
     do: get_in(run.workflow_snapshot_json, ["definition", "entry"]) == "board_control"
 
-  def preflight(board_id, excluded \\ []) do
-    with board when not is_nil(board) <- Workflows.get_board(board_id),
+  def preflight(board_id, excluded \\ [], goal \\ nil) do
+    with {:ok, autonomy} <- Plans.settings(goal),
+         board when not is_nil(board) <- Workflows.get_board(board_id),
          project <- Projects.get_project(board.project_id),
          :ok <- require_active(board, project),
          nil <- current(board_id),
@@ -54,20 +55,18 @@ defmodule Cuckoding.BoardControl do
          true <- not is_nil(policy.trusted_at),
          tasks <- Workflows.list_tasks(board_id),
          :ok <- validate_exclusions(tasks, excluded),
-         candidates <- Enum.filter(tasks, &(&1.state in ~w(draft ready))),
-         true <- candidates != [],
+         candidates <- selected_candidates(tasks, autonomy),
+         true <- candidates != [] or not is_nil(autonomy),
+         true <- is_nil(autonomy) or length(candidates) <= autonomy["limits"]["tasks"],
          {:ok, snapshot} <-
-           Cuckoding.Execution.snapshot_run(%{
-             task_id: hd(candidates).id,
-             policy_snapshot_id: policy.id
-           }),
+           Cuckoding.Execution.snapshot_board(board.id, %{policy_snapshot_id: policy.id}),
          :ok <- current_flow(snapshot.workflow_snapshot_json),
          :ok <- authorize_roles(snapshot.workflow_snapshot_json),
          :ok <- dependencies_available(candidates, project, base) do
       requests = Enum.map(candidates, &task_snapshot/1) |> ordered()
 
       data = %{
-        "version" => 1,
+        "version" => if(autonomy, do: 2, else: 1),
         "tasks" => requests,
         "excluded" => Enum.sort(excluded),
         "base_sha" => base,
@@ -75,7 +74,9 @@ defmodule Cuckoding.BoardControl do
         "workflow" => snapshot.workflow_snapshot_json,
         "plugins" => snapshot.plugin_snapshot_json,
         "completion_mode" => "local",
-        "maximum_decisions" => length(requests) * 4 + 10
+        "maximum_decisions" =>
+          if(autonomy, do: autonomy["limits"]["tasks"] * 4 + 10, else: length(requests) * 4 + 10),
+        "autonomy" => autonomy
       }
 
       {:ok,
@@ -95,17 +96,22 @@ defmodule Cuckoding.BoardControl do
     end
   end
 
-  def start(board_id, expected_digest, excluded, key, consent)
+  defp selected_candidates(tasks, autonomy) do
+    excluded = if autonomy, do: autonomy["excluded_tasks"], else: []
+    Enum.filter(tasks, &(&1.state in ~w(draft ready) and &1.id not in excluded))
+  end
 
-  def start(board_id, expected_digest, excluded, key, true) do
-    preview_result = preflight(board_id, excluded)
+  def start(board_id, expected_digest, excluded, key, consent, goal \\ nil)
+
+  def start(board_id, expected_digest, excluded, key, true, goal) do
+    preview_result = preflight(board_id, excluded, goal)
 
     command(board_id, key, "start", fn ->
       start_snapshot(board_id, expected_digest, preview_result)
     end)
   end
 
-  def start(_board_id, _expected_digest, _excluded, _key, _consent),
+  def start(_board_id, _expected_digest, _excluded, _key, _consent, _goal),
     do: {:error, :local_completion_consent_required}
 
   defp start_snapshot(board_id, expected_digest, preview_result) do
@@ -116,7 +122,7 @@ defmodule Cuckoding.BoardControl do
          :ok <- no_conflicting_runs(board_id),
          true <-
            Enum.map(
-             Workflows.list_tasks(board_id) |> Enum.filter(&(&1.state in ~w(draft ready))),
+             selected_candidates(Workflows.list_tasks(board_id), preview.snapshot["autonomy"]),
              &task_snapshot/1
            )
            |> ordered() == preview.tasks,
@@ -137,7 +143,9 @@ defmodule Cuckoding.BoardControl do
           controller_task_id: task.id,
           base_sha: preview.snapshot["base_sha"],
           head_sha: preview.snapshot["base_sha"],
-          snapshot_json: preview.snapshot
+          snapshot_json: preview.snapshot,
+          mode: if(preview.snapshot["autonomy"], do: "autonomous_goal", else: "fixed_batch"),
+          phase: if(preview.snapshot["autonomy"], do: "planning", else: "decision")
         })
 
       Enum.each(preview.tasks, fn request ->
@@ -185,7 +193,7 @@ defmodule Cuckoding.BoardControl do
       workflow = e.snapshot_json["workflow"]
 
       workflow =
-        if task.id == e.controller_task_id, do: controller_workflow(workflow), else: workflow
+        if task.id == e.controller_task_id, do: controller_workflow(workflow, e), else: workflow
 
       {:ok,
        %{
@@ -269,7 +277,7 @@ defmodule Cuckoding.BoardControl do
   def validate_launch(run), do: validate_pending(get(run.board_execution_id))
 
   def next_item(e) do
-    members = items(e.id)
+    members = Enum.reject(items(e.id), & &1.superseded)
     done = members |> Enum.filter(&(&1.state == "done")) |> Enum.map(& &1.task_id)
     ids = Enum.map(members, & &1.task_id)
     pending = Enum.filter(members, &(&1.state == "pending"))
@@ -294,23 +302,31 @@ defmodule Cuckoding.BoardControl do
   end
 
   def decision_input(e) do
-    with {:ok, next} <- next_item(e) do
-      {:ok,
-       %{
-         "execution_id" => e.id,
-         "revision" => e.revision,
-         "head_sha" => e.head_sha,
-         "next_task_id" => next && next.task_id,
-         "queue" =>
-           Enum.map(
-             items(e.id),
-             &Map.merge(&1.snapshot_json, %{"outcome" => &1.state, "reason" => &1.reason})
-           ),
-         "maximum_decisions" => e.snapshot_json["maximum_decisions"],
-         "previous_outcomes" => previous_outcomes(e)
-       }}
+    with {:ok, next} <- decision_next(e) do
+      input = %{
+        "execution_id" => e.id,
+        "revision" => e.revision,
+        "head_sha" => e.head_sha,
+        "next_task_id" => next && next.task_id,
+        "queue" =>
+          Enum.map(
+            items(e.id),
+            &Map.merge(&1.snapshot_json, %{"outcome" => &1.state, "reason" => &1.reason})
+          ),
+        "maximum_decisions" => e.snapshot_json["maximum_decisions"],
+        "previous_outcomes" => previous_outcomes(e)
+      }
+
+      {:ok, if(Plans.autonomous?(e), do: Plans.input(e, input), else: input)}
     end
   end
+
+  defp decision_next(%Execution{phase: phase}) when phase in ~w(planning plan_review),
+    do: {:ok, nil}
+
+  defp decision_next(e), do: next_item(e)
+
+  def controller_phase?(e), do: e.phase in ~w(decision planning plan_review)
 
   defp previous_outcomes(e) do
     Repo.all(
@@ -389,7 +405,9 @@ defmodule Cuckoding.BoardControl do
         settle_run(e, run)
 
       state when state in ~w(blocked failed cancelled) ->
-        {:error, :task_blocked}
+        if Plans.autonomous?(e) and not controller?(run),
+          do: recover_delivery(e, run),
+          else: {:error, :task_blocked}
 
       "paused" ->
         {:error, :task_paused}
@@ -425,7 +443,8 @@ defmodule Cuckoding.BoardControl do
       else: :ok
   end
 
-  defp ready_target(%Execution{phase: "decision"} = e) do
+  defp ready_target(%Execution{phase: phase} = e)
+       when phase in ~w(decision planning plan_review) do
     task = Workflows.get_task(e.controller_task_id)
 
     case task.state do
@@ -468,12 +487,22 @@ defmodule Cuckoding.BoardControl do
     if task.state == "draft", do: transition_ready(task, e), else: {:ok, e}
   end
 
-  defp next_decision_valid(%Execution{phase: "delivery"}), do: :ok
+  defp next_decision_valid(%Execution{phase: phase})
+       when phase in ~w(delivery planning plan_review), do: :ok
 
   defp next_decision_valid(e) do
     case next_item(e) do
-      {:ok, _} -> :ok
-      error -> error
+      {:ok, _} ->
+        :ok
+
+      {:error, :unfinished_batch_item} when e.mode == "autonomous_goal" ->
+        {:error, :remaining_tasks_blocked}
+
+      {:error, :dependencies_blocked} when e.mode == "autonomous_goal" ->
+        {:error, :remaining_tasks_blocked}
+
+      error ->
+        error
     end
   end
 
@@ -528,6 +557,7 @@ defmodule Cuckoding.BoardControl do
         current = get(e.id)
         item = Repo.get_by!(Item, board_execution_id: e.id, task_id: run.task_id)
         change_item(item, %{state: "done", completed_sha: head, reason: nil})
+        recompute_deferrals(current)
 
         update(
           current,
@@ -568,14 +598,239 @@ defmodule Cuckoding.BoardControl do
     with true <- current.state == "running" and current.current_run_id == run.id,
          true <- decision_revision?(current, input["revision"]),
          :ok <- validate_snapshot(current),
-         {:ok, next} <- next_item(current),
-         :ok <- Cuckoding.BoardControl.Decision.validate(output, input, next) do
+         {:ok, next} <- decision_next(current),
+         {:ok, result} <- commit_proposal(current, run, input, output, next) do
       finish_controller_run(run)
-      apply_decision(current, output, next)
+      result
     else
       false -> Repo.rollback(:stale_controller_decision)
       {:error, reason} -> Repo.rollback(reason)
     end
+  end
+
+  defp commit_proposal(
+         %Execution{mode: "autonomous_goal", phase: "planning"} = e,
+         run,
+         input,
+         output,
+         _next
+       ) do
+    with {:ok, attrs} <- Plans.propose(e, run, input, output),
+         do: {:ok, update(e, attrs, "plan_proposed", "Plan proposed for independent review")}
+  end
+
+  defp commit_proposal(
+         %Execution{mode: "autonomous_goal", phase: "plan_review"} = e,
+         run,
+         input,
+         output,
+         _next
+       ) do
+    with {:ok, attrs} <- Plans.review(e, run, input, output) do
+      recompute_deferrals(e)
+      {:ok, update(e, attrs, "plan_reviewed", "Independent plan review recorded")}
+    end
+  end
+
+  defp commit_proposal(e, run, input, output, next) do
+    with :ok <- Cuckoding.BoardControl.Decision.validate(output, input, next) do
+      if Plans.autonomous?(e),
+        do: autonomous_decision(e, run, output, next),
+        else: {:ok, apply_decision(e, output, next)}
+    end
+  end
+
+  defp autonomous_decision(e, _run, %{"action" => "replan"} = output, _next) do
+    if e.plan_cycle < e.snapshot_json["autonomy"]["limits"]["revisions"],
+      do:
+        {:ok,
+         update(
+           e,
+           %{phase: "planning", plan_cycle: e.plan_cycle + 1, current_run_id: nil},
+           "replan_requested",
+           output["summary"]
+         )},
+      else: {:error, :plan_revision_limit}
+  end
+
+  defp autonomous_decision(e, run, %{"action" => "ask"} = output, next) do
+    Repo.insert!(%Cuckoding.BoardControl.Question{
+      id: Identifier.generate(),
+      board_execution_id: e.id,
+      run_id: run.id,
+      task_id: output["task_id"],
+      revision: e.revision,
+      question: Cuckoding.Security.Redactor.redact(output["summary"])
+    })
+
+    if output["task_id"] do
+      change_item(next, %{state: "blocked", reason: "question_required"})
+      recompute_deferrals(e)
+
+      {:ok,
+       update(
+         e,
+         %{current_run_id: nil, current_task_id: nil},
+         "question_requested",
+         "Task needs an answer; independent work may continue"
+       )}
+    else
+      {:ok,
+       update(
+         e,
+         %{state: "attention", issue: "question_required", current_run_id: nil},
+         "question_requested",
+         "Goal needs an answer"
+       )}
+    end
+  end
+
+  defp autonomous_decision(e, _run, %{"action" => "block"} = output, next) do
+    if next do
+      change_item(next, %{state: "blocked", reason: "controller_blocker"})
+      recompute_deferrals(e)
+
+      {:ok,
+       update(
+         e,
+         %{phase: "decision", current_task_id: nil, current_run_id: nil},
+         "task_blocked",
+         output["summary"]
+       )}
+    else
+      {:error, :remaining_tasks_blocked}
+    end
+  end
+
+  defp autonomous_decision(e, _run, %{"action" => "recover"} = output, _next) do
+    item = Repo.get_by(Item, board_execution_id: e.id, task_id: output["task_id"])
+    run = item && latest_run(item.task_id)
+
+    if recoverable?(e, item, run) do
+      {:ok,
+       update(
+         e,
+         %{phase: "delivery", current_task_id: item.task_id, current_run_id: run.id},
+         "recovery_requested",
+         "Bounded recovery requested; cleanup precedes retry"
+       )}
+    else
+      {:error, :recovery_not_permitted}
+    end
+  end
+
+  defp autonomous_decision(e, _run, output, next), do: {:ok, apply_decision(e, output, next)}
+
+  defp recoverable?(e, %Item{state: "blocked"} = item, %Run{} = run),
+    do:
+      run.board_execution_id == e.id and failure_class(run) == "transient" and
+        item.retry_count < e.snapshot_json["autonomy"]["limits"]["retries"]
+
+  defp recoverable?(_e, _item, _run), do: false
+
+  defp recover_delivery(e, run) do
+    with :ok <- validate_pending(e),
+         {:ok, _} <- RunControl.control(run.id, "stop"),
+         :ok <- recovery_git(run) do
+      item = Repo.get_by!(Item, board_execution_id: e.id, task_id: run.task_id)
+
+      case {failure_class(run),
+            item.retry_count < e.snapshot_json["autonomy"]["limits"]["retries"]} do
+        {"transient", true} ->
+          retry_delivery(e, run, item)
+
+        {class, _} when class in ~w(transient task) ->
+          block_delivery(e, item)
+
+        _ ->
+          {:error, :execution_failure_requires_attention}
+      end
+    end
+  end
+
+  defp block_delivery(e, item) do
+    transaction(fn ->
+      change_item(item, %{state: "blocked", reason: "task_failure"})
+      recompute_deferrals(e)
+
+      update(
+        get(e.id),
+        %{phase: "decision", current_task_id: nil, current_run_id: nil},
+        "task_blocked",
+        "Task blocked; independent work may continue"
+      )
+    end)
+  end
+
+  defp retry_delivery(e, run, item) do
+    with true <- item.retry_count < e.snapshot_json["autonomy"]["limits"]["retries"],
+         {:ok, _} <- RunControl.control(run.id, "stop") do
+      transaction(fn ->
+        current =
+          get(e.id)
+          |> Ecto.Changeset.change(
+            current_task_id: item.task_id,
+            current_run_id: run.id,
+            phase: "delivery"
+          )
+          |> Repo.update!()
+
+        apply_control(current, "retry")
+      end)
+    else
+      false -> {:error, :retry_limit}
+      error -> error
+    end
+  end
+
+  defp failure_class(run) do
+    Repo.one(
+      from event in Cuckoding.Execution.RunEvent,
+        where: event.run_id == ^run.id and event.event_type == "workflow.failed",
+        order_by: [desc: event.sequence],
+        limit: 1,
+        select: event.payload
+    )
+    |> case do
+      %{"recovery_class" => class} -> class
+      _ -> "global"
+    end
+  end
+
+  defp latest_run(task_id),
+    do:
+      Repo.one(
+        from r in Run, where: r.task_id == ^task_id, order_by: [desc: r.sequence], limit: 1
+      )
+
+  defp recompute_deferrals(e) do
+    members = Enum.reject(items(e.id), & &1.superseded)
+    roots = for i <- members, i.state in ~w(blocked skipped), do: i.task_id
+    deferred = dependent_ids(members, roots)
+
+    Enum.each(members, fn item ->
+      cond do
+        item.state == "pending" and item.task_id in deferred ->
+          change_item(item, %{state: "deferred", reason: "blocked_prerequisite"})
+
+        item.state == "deferred" and item.reason == "blocked_prerequisite" and
+            item.task_id not in deferred ->
+          change_item(item, %{state: "pending", reason: nil})
+
+        true ->
+          :ok
+      end
+    end)
+  end
+
+  defp dependent_ids(items, ids) do
+    expanded =
+      Enum.uniq(
+        ids ++
+          for(i <- items, Enum.any?(i.snapshot_json["dependencies"], &(&1 in ids)), do: i.task_id)
+      )
+
+    if length(expanded) == length(ids), do: expanded, else: dependent_ids(items, expanded)
   end
 
   defp decision_revision?(%{revision: revision}, revision), do: true
@@ -635,7 +890,9 @@ defmodule Cuckoding.BoardControl do
 
   defp apply_decision(e, output, nil) do
     outcome =
-      if Enum.all?(items(e.id), &(&1.state == "done")), do: "done", else: "finished_with_skips"
+      if Enum.all?(items(e.id), &(&1.state == "done" or &1.superseded)),
+        do: "done",
+        else: "finished_with_skips"
 
     update(
       e,
@@ -659,6 +916,15 @@ defmodule Cuckoding.BoardControl do
   defp mark_attention(%Execution{state: state} = e, _reason) when state in @terminal, do: e
 
   defp mark_attention(e, reason) do
+    if Plans.autonomous?(e) and reason in [:stale_task_snapshot, :stale_or_invalid_plan_review] do
+      Repo.update_all(
+        from(p in Cuckoding.BoardControl.PlanRevision,
+          where: p.board_execution_id == ^e.id and p.state == "proposed"
+        ),
+        set: [state: "invalidated"]
+      )
+    end
+
     mark_current_blocked(e, reason)
 
     update(
@@ -679,6 +945,62 @@ defmodule Cuckoding.BoardControl do
       _ ->
         :ok
     end
+  end
+
+  def answer_question(id, revision, question_id, answer, key) do
+    case get(id) do
+      nil -> {:error, :execution_not_found}
+      e -> answer_question(e, revision, question_id, answer, key, :validated)
+    end
+  end
+
+  defp answer_question(e, revision, question_id, answer, key, :validated) do
+    command(e.board_id, key, "answer", fn ->
+      current = get(e.id)
+      question = Repo.get(Cuckoding.BoardControl.Question, question_id)
+
+      with :ok <- answer_allowed(current, revision, question, answer),
+           do: {:ok, persist_answer(current, question, answer)}
+    end)
+  end
+
+  defp answer_allowed(e, revision, q, answer) do
+    valid_question = q && q.board_execution_id == e.id && is_nil(q.answer)
+    valid_answer = valid_answer?(answer)
+
+    if e.revision == revision and e.state not in @terminal and is_nil(e.pending_action) and
+         valid_question and valid_answer, do: :ok, else: {:error, :stale_or_invalid_answer}
+  end
+
+  defp valid_answer?(answer) when is_binary(answer),
+    do: String.trim(answer) != "" and byte_size(answer) <= 10_000
+
+  defp valid_answer?(_), do: false
+
+  defp persist_answer(e, question, answer) do
+    question
+    |> Ecto.Changeset.change(
+      answer: Cuckoding.Security.Redactor.redact(answer),
+      answered_at: Clock.wall_now()
+    )
+    |> Repo.update!()
+
+    resolve_question_item(e, question.task_id)
+
+    attrs =
+      if e.state == "attention" and e.issue in ~w(question_required remaining_tasks_blocked),
+        do: %{state: "running", issue: nil},
+        else: %{}
+
+    update(e, attrs, "question_answered", "User answer saved as evidence; permissions unchanged")
+  end
+
+  defp resolve_question_item(_e, nil), do: :ok
+
+  defp resolve_question_item(e, task_id) do
+    item = Repo.get_by!(Item, board_execution_id: e.id, task_id: task_id)
+    if item.reason == "question_required", do: change_item(item, %{state: "pending", reason: nil})
+    recompute_deferrals(e)
   end
 
   def control(id, revision, action, key, options \\ [])
@@ -714,9 +1036,9 @@ defmodule Cuckoding.BoardControl do
 
   defp control_intent(current, revision, action, options) do
     with :ok <- valid_control(current, revision, action, options) do
-      if action == "refresh",
+      if action == "refresh" and not Plans.autonomous?(current),
         do: refresh_pending(current, options[:snapshot], options[:expected_snapshot]),
-        else: record_control(current, action)
+        else: record_control(current, action, options)
     end
   end
 
@@ -728,23 +1050,45 @@ defmodule Cuckoding.BoardControl do
       current.state in @terminal ->
         {:error, :execution_finished}
 
-      current.pending_action not in [nil, action] ->
+      current.pending_action not in [nil, action] and action != "stop" ->
         {:error, :control_pending}
 
       action in ~w(resume retry refresh) and current.state not in ~w(paused attention) ->
         {:error, :control_not_available}
 
       true ->
-        confirm_control(current, action, options)
+        validate_control_scope(current, action, options)
     end
   end
+
+  defp validate_control_scope(current, action, options) do
+    with :ok <- autonomy_limit(current, action, options[:task_id]),
+         true <- is_nil(options[:task_id]) or valid_target?(current, action, options[:task_id]) do
+      confirm_control(current, action, options)
+    else
+      false -> {:error, :control_not_available}
+      error -> error
+    end
+  end
+
+  defp autonomy_limit(%{mode: "autonomous_goal"} = e, "refresh", _id) do
+    if e.plan_cycle < e.snapshot_json["autonomy"]["limits"]["revisions"],
+      do: :ok,
+      else: {:error, :plan_revision_limit}
+  end
+
+  defp autonomy_limit(%{mode: "autonomous_goal"} = e, "retry", id) do
+    if retry_limit?(e, id), do: {:error, :retry_limit}, else: :ok
+  end
+
+  defp autonomy_limit(_e, _action, _id), do: :ok
 
   defp confirm_control(current, action, options) do
     cond do
       action in ~w(stop skip refresh) and options[:confirmed] != true ->
         {:error, :confirmation_required}
 
-      action == "skip" and is_nil(skip_target(current)) ->
+      action == "skip" and is_nil(options[:task_id] || skip_target(current)) ->
         {:error, :no_current_task}
 
       true ->
@@ -752,8 +1096,32 @@ defmodule Cuckoding.BoardControl do
     end
   end
 
-  defp record_control(current, action) do
-    task_id = if action == "skip", do: skip_target(current), else: current.current_task_id
+  defp valid_target?(e, action, id) do
+    Plans.autonomous?(e) and action in ~w(skip retry) and e.state == "attention" and
+      (is_nil(e.current_run_id) or
+         Repo.get!(Run, e.current_run_id).state in ~w(blocked failed cancelled done)) and
+      Enum.any?(items(e.id), &(&1.task_id == id and &1.state == "blocked" and not &1.superseded))
+  end
+
+  defp retry_limit?(e, id) do
+    case Enum.find(items(e.id), &(&1.task_id == (id || e.current_task_id))) do
+      nil -> false
+      item -> item.retry_count >= e.snapshot_json["autonomy"]["limits"]["retries"]
+    end
+  end
+
+  defp record_control(current, action, options) do
+    task_id =
+      options[:task_id] ||
+        if(action == "skip", do: skip_target(current), else: current.current_task_id)
+
+    {phase, run_id} =
+      if options[:task_id] do
+        run = latest_run(task_id)
+        {if(run, do: "delivery", else: "decision"), run && run.id}
+      else
+        {current.phase, current.current_run_id}
+      end
 
     {:ok,
      update(
@@ -762,7 +1130,13 @@ defmodule Cuckoding.BoardControl do
          state: "controlling",
          current_task_id: task_id,
          pending_action: action,
-         control_json: %{"previous_state" => current.state}
+         control_json: %{
+           "previous_state" => current.state,
+           "snapshot" => options[:snapshot],
+           "expected_snapshot" => options[:expected_snapshot]
+         },
+         phase: phase,
+         current_run_id: run_id
        },
        "control_requested",
        "Board #{action} requested"
@@ -802,7 +1176,7 @@ defmodule Cuckoding.BoardControl do
   defp finish_process_control(e) do
     action = e.pending_action
     run = e.current_run_id && Repo.get(Run, e.current_run_id)
-    result = control_run(run, action)
+    result = with :ok <- control_run(run, action), do: recovery_control(e, run, action)
 
     case result do
       :ok ->
@@ -815,7 +1189,31 @@ defmodule Cuckoding.BoardControl do
     end
   end
 
-  defp validate_resume(e, "resume"), do: validate_pending(e)
+  defp recovery_control(%{mode: "autonomous_goal", phase: "delivery"}, %Run{} = run, "retry"),
+    do: recovery_git(run)
+
+  defp recovery_control(_e, _run, _action), do: :ok
+
+  defp recovery_git(run) do
+    case Repo.get_by(Environment, run_id: run.id) do
+      nil ->
+        :ok
+
+      environment ->
+        case GitService.inspect(environment) do
+          {:ok, _} -> :ok
+          _ -> {:error, :recovery_provenance_unverified}
+        end
+    end
+  end
+
+  defp validate_resume(e, action) when action in ~w(resume retry) do
+    if Enum.any?(
+         Plans.questions(e.id),
+         &(is_nil(&1.answer) and (is_nil(&1.task_id) or &1.task_id == e.current_task_id))
+       ), do: {:error, :question_required}, else: validate_pending(e)
+  end
+
   defp validate_resume(_e, _action), do: :ok
 
   defp control_run(nil, _action), do: :ok
@@ -829,12 +1227,24 @@ defmodule Cuckoding.BoardControl do
     do: {:error, :retry_required}
 
   defp control_run(run, action) do
-    operation = if action in ~w(stop skip retry), do: "stop", else: action
+    operation = if action in ~w(stop skip retry refresh), do: "stop", else: action
 
     case RunControl.control(run.id, operation) do
       {:ok, _} -> :ok
       {:error, reason} -> {:error, reason}
     end
+  end
+
+  defp apply_control(e, "refresh") do
+    {:ok, refreshed} =
+      refresh_pending(e, e.control_json["snapshot"], e.control_json["expected_snapshot"])
+
+    update(
+      refreshed,
+      %{state: e.control_json["previous_state"], pending_action: nil},
+      "refresh_completed",
+      "Pending edits retained for independent plan review"
+    )
   end
 
   defp apply_control(e, "pause"),
@@ -858,7 +1268,7 @@ defmodule Cuckoding.BoardControl do
           item = Repo.get_by!(Item, board_execution_id: e.id, task_id: e.current_task_id)
 
           change_item(item, %{
-            state: if(e.phase == "decision", do: "pending", else: "active"),
+            state: if(controller_phase?(e), do: "pending", else: "active"),
             reason: nil
           })
         end
@@ -869,7 +1279,7 @@ defmodule Cuckoding.BoardControl do
             state: "running",
             pending_action: nil,
             issue: nil,
-            current_task_id: if(e.phase == "decision", do: nil, else: e.current_task_id)
+            current_task_id: if(controller_phase?(e), do: nil, else: e.current_task_id)
           },
           "resumed",
           "Board resumed"
@@ -890,6 +1300,17 @@ defmodule Cuckoding.BoardControl do
     change_item(item, %{state: "skipped", reason: "user_skipped"})
     defer_descendants(e.id, [item.task_id])
 
+    planning? = e.phase in ~w(planning plan_review)
+
+    if planning?,
+      do:
+        Repo.update_all(
+          from(p in Cuckoding.BoardControl.PlanRevision,
+            where: p.board_execution_id == ^e.id and p.state == "proposed"
+          ),
+          set: [state: "invalidated"]
+        )
+
     update(
       e,
       %{
@@ -898,7 +1319,7 @@ defmodule Cuckoding.BoardControl do
         issue: nil,
         current_run_id: nil,
         current_task_id: nil,
-        phase: "decision"
+        phase: if(planning?, do: "planning", else: "decision")
       },
       "skipped",
       "Task skipped for this batch; dependent tasks deferred"
@@ -906,6 +1327,11 @@ defmodule Cuckoding.BoardControl do
   end
 
   defp apply_control(e, "retry") do
+    phase =
+      if e.phase == "plan_review" and match?(%{state: "invalidated"}, Plans.latest(e)),
+        do: "planning",
+        else: e.phase
+
     task_id = e.current_task_id || e.controller_task_id
     task = Workflows.get_task(task_id)
 
@@ -916,27 +1342,35 @@ defmodule Cuckoding.BoardControl do
       end
     end
 
-    if e.current_task_id do
-      item = Repo.get_by!(Item, board_execution_id: e.id, task_id: task_id)
-
-      change_item(item, %{
-        state: if(e.phase == "decision", do: "pending", else: "active"),
-        reason: nil
-      })
-    end
+    retry_item(e)
 
     update(
       e,
       %{
         state: "running",
+        phase: phase,
         pending_action: nil,
         issue: nil,
         current_run_id: nil,
-        current_task_id: if(e.phase == "decision", do: nil, else: e.current_task_id)
+        current_task_id: if(controller_phase?(e), do: nil, else: e.current_task_id)
       },
       "retried",
       "New board attempt authorized"
     )
+  end
+
+  defp retry_item(%{current_task_id: nil}), do: :ok
+
+  defp retry_item(e) do
+    item = Repo.get_by!(Item, board_execution_id: e.id, task_id: e.current_task_id)
+
+    change_item(item, %{
+      state: if(controller_phase?(e), do: "pending", else: "active"),
+      reason: nil,
+      retry_count: item.retry_count + if(Plans.autonomous?(e), do: 1, else: 0)
+    })
+
+    recompute_deferrals(e)
   end
 
   defp refresh_preview(e) do
@@ -960,7 +1394,27 @@ defmodule Cuckoding.BoardControl do
       change_item(item, %{snapshot_json: request})
     end)
 
-    {:ok, update(e, %{}, "snapshot_refreshed", "Pending task snapshots refreshed by user")}
+    if Plans.autonomous?(e) do
+      if e.plan_cycle >= e.snapshot_json["autonomy"]["limits"]["revisions"],
+        do: Repo.rollback(:plan_revision_limit)
+
+      Repo.update_all(
+        from(p in Cuckoding.BoardControl.PlanRevision,
+          where: p.board_execution_id == ^e.id and p.state == "proposed"
+        ),
+        set: [state: "invalidated"]
+      )
+
+      {:ok,
+       update(
+         e,
+         %{phase: "planning", plan_cycle: e.plan_cycle + 1, current_run_id: nil},
+         "snapshot_refreshed",
+         "User edits require a fresh independent plan review"
+       )}
+    else
+      {:ok, update(e, %{}, "snapshot_refreshed", "Pending task snapshots refreshed by user")}
+    end
   end
 
   defp defer_descendants(id, excluded) do
@@ -1036,7 +1490,9 @@ defmodule Cuckoding.BoardControl do
     task = Workflows.get_task(item.task_id)
 
     task_snapshot(task) == item.snapshot_json and
-      (item.task_id == e.current_task_id or task.state in ~w(draft ready))
+      (item.task_id == e.current_task_id or task.state in ~w(draft ready) or
+         (Plans.autonomous?(e) and item.state == "blocked" and
+            task.state in ~w(blocked failed cancelled)))
   end
 
   defp ensure_decision_budget(e) do
@@ -1049,12 +1505,13 @@ defmodule Cuckoding.BoardControl do
           select: count(r.id)
       )
 
-    if e.phase != "decision" or count < e.snapshot_json["maximum_decisions"],
+    if not controller_phase?(e) or count < e.snapshot_json["maximum_decisions"],
       do: :ok,
       else: {:error, :controller_budget_exhausted}
   end
 
-  defp task_snapshot(task) do
+  @doc false
+  def task_snapshot(task) do
     %{
       "id" => task.id,
       "title" => task.title,
@@ -1103,7 +1560,10 @@ defmodule Cuckoding.BoardControl do
   end
 
   defp order_key(t), do: {-t["priority"], t["created_at"], t["id"]}
-  defp target_task(%Execution{phase: "decision"} = e), do: e.controller_task_id
+
+  defp target_task(%Execution{phase: phase} = e) when phase in ~w(decision planning plan_review),
+    do: e.controller_task_id
+
   defp target_task(e), do: e.current_task_id
 
   defp digest(data),
@@ -1142,8 +1602,9 @@ defmodule Cuckoding.BoardControl do
        else: {:error, :workflow_update_required}
   end
 
-  defp controller_workflow(snapshot) do
-    spec = Enum.find(snapshot["definition"]["stages"], &(&1["key"] == "specification"))
+  defp controller_workflow(snapshot, e) do
+    key = if e.phase == "plan_review", do: "qa", else: "specification"
+    spec = Enum.find(snapshot["definition"]["stages"], &(&1["key"] == key))
 
     stage =
       Map.merge(spec, %{

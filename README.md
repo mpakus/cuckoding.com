@@ -33,6 +33,7 @@ until a fresh signed candidate and the outstanding provider/beta gates pass.
 | Action | Scope and order | Completion and code base |
 | --- | --- | --- |
 | **Start board** | Fixed snapshot of current Draft/Ready cards; one delivery task at a time, dependencies first, then descending priority | Explicit automatic local completion after passing review; each task starts from the latest reviewed batch commit |
+| **Plan and execute** (opt-in in Start board) | Goal and acceptance criteria, including an empty board; Speculator plans and the assigned Reviewer checks before task import; one delivery task at a time | Reviewed in-scope plan revisions, bounded recovery and the same reviewed commit chain; independent tasks continue around task-local blockers |
 | **Start project** | Eligible Ready tasks across unclaimed boards, up to board/project/machine limits | Manual completion by default, optional automatic local completion; independent task bases, without the board's reviewed commit chain |
 | **Prepare run → Start workflow** | One Ready task on an unclaimed board | Reviewed manual start, the same admission checks, and an explicit completion choice |
 
@@ -40,6 +41,15 @@ For **Start board**, review the queue, saved roles/models, budgets, dependencies
 exclusions and clean project revision, then authorize local completion. The
 assigned Speculator proposes each next step; Cuckoding validates it. New cards
 wait for another batch. The first hard blocker requires attention.
+
+For **Plan and execute**, authorize reviewed planning and bounded recovery once.
+Default ceilings are 20 lifetime tasks, three plan revision cycles, two retries
+per task and three Review attempts across retries. The dashboard shows goal
+criteria, reviewed plan changes, conversations, recovery and questions. A blocked
+task defers its dependents; independent work can finish. Unresolved work remains
+Needs attention with its evidence and board claim. See [task 1055 evidence](worklog/2026-09-28-1055-autonomous-board.md)
+for source checks; this does not establish real-provider continuation or installed
+app acceptance.
 
 The board provides **Pause, Resume, Stop, Skip, Retry** and a confirmed **Refresh**
 of pending requests. Skip preserves changes and history and defers dependent

@@ -9,7 +9,7 @@ defmodule Cuckoding.BoardControl.Decision do
     with {:ok, skeleton} <- WalkingSkeleton.load(run_id),
          "queued" <- skeleton.run.state,
          true <- BoardControl.controller?(skeleton.run),
-         {:ok, runtime} <- AgentRuntime.resolve(skeleton, "spec_writer"),
+         {:ok, runtime} <- AgentRuntime.resolve(skeleton, role(skeleton.run)),
          {:ok, _} <- RunControl.admit(run_id, fn -> mark_running(run_id) end, options) do
       launch(skeleton, runtime, options)
     else
@@ -52,7 +52,7 @@ defmodule Cuckoding.BoardControl.Decision do
   end
 
   def validate(output, input, next) when is_map(output) do
-    if valid_envelope?(output, input) and valid_action?(output, next),
+    if valid_envelope?(output, input) and valid_action?(output, input, next),
       do: :ok,
       else: {:error, :invalid_controller_output}
   end
@@ -68,16 +68,34 @@ defmodule Cuckoding.BoardControl.Decision do
       byte_size(output["summary"]) <= 2000
   end
 
-  defp valid_action?(output, next) do
-    expected_id = next && next.task_id
+  defp valid_action?(%{"action" => "start_task", "task_id" => id}, _input, %{task_id: id}),
+    do: true
 
-    case output["action"] do
-      "start_task" -> not is_nil(next) and output["task_id"] == expected_id
-      "finish" -> is_nil(next) and is_nil(output["task_id"])
-      "block" -> output["task_id"] == expected_id
-      _ -> false
-    end
-  end
+  defp valid_action?(%{"action" => "finish", "task_id" => nil}, _input, nil), do: true
+
+  defp valid_action?(%{"action" => "block", "task_id" => id}, _input, next),
+    do: id == (next && next.task_id)
+
+  defp valid_action?(
+         %{"action" => "replan", "task_id" => nil},
+         %{"mode" => "autonomous_goal"},
+         _next
+       ),
+       do: true
+
+  defp valid_action?(%{"action" => "ask", "task_id" => id}, %{"mode" => "autonomous_goal"}, next),
+    do: id in [nil, next && next.task_id]
+
+  defp valid_action?(
+         %{"action" => "recover", "task_id" => id},
+         %{"mode" => "autonomous_goal"} = input,
+         _next
+       ),
+       do: Enum.any?(input["members"], &(&1["task_id"] == id and &1["state"] == "blocked"))
+
+  defp valid_action?(_, _, _), do: false
+
+  def role(run), do: hd(run.workflow_snapshot_json["definition"]["stages"])["role"]
 
   def schema do
     %{
@@ -93,6 +111,9 @@ defmodule Cuckoding.BoardControl.Decision do
       }
     }
   end
+
+  def fake_output(%{"phase" => phase} = input) when phase in ~w(planning plan_review),
+    do: Cuckoding.BoardControl.Plans.fake_output(input)
 
   def fake_output(input) do
     %{

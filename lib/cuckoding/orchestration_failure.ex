@@ -51,7 +51,7 @@ defmodule Cuckoding.OrchestrationFailure do
 
   defp record(run_id, kind, reason, summary, attempt, session) do
     payload =
-      %{"code" => failure_code(kind, reason)}
+      %{"code" => failure_code(kind, reason), "recovery_class" => recovery_class(reason)}
       |> maybe_put("stage_attempt_id", attempt && attempt.id)
       |> maybe_put("agent_session_id", session && session.id)
       |> maybe_put("diagnostic_site", failure_site(reason))
@@ -72,6 +72,11 @@ defmodule Cuckoding.OrchestrationFailure do
       projection
     )
   end
+
+  # Only host-classified errors may trigger unattended recovery; provider prose never does.
+  def recovery_class(:agent_timeout), do: "transient"
+  def recovery_class(:review_attempt_budget_exceeded), do: "task"
+  def recovery_class(_), do: "global"
 
   defp latest_context(run_id) do
     attempt =

@@ -1,6 +1,7 @@
 # Cuckoding Control: board development controller
 
-Status: **Implemented locally for development testing, 2026-09-25.**
+Status: **Fixed-batch control implemented locally, 2026-09-25; opt-in autonomous
+goals added by task 1055, 2026-09-28.**
 Implementation: [task 1049](../tasks/phase-10-hardening-beta/1049-board-controller.md)
 and [verification worklog](../worklog/2026-09-25-1049-board-controller.md).
 The original proposal was delivered in task 1048 at `55f1bd1`, based on main
@@ -12,7 +13,110 @@ the unsigned developer bundle, backed up and migrated existing data, and verifie
 one healthy restarted app. See the [integration worklog](../worklog/2026-09-25-1051-integrate-control-restart.md).
 This does not close real-provider, physical sleep/wake or signed clean-machine gates.
 
-## 1. Goal and agreed decisions
+## Autonomous goals (task 1055)
+
+**Plan and execute** is an opt-in mode in the same Start board modal. Fixed
+batches remain the default and retain the contract in sections 1–7 below.
+Task 1055 extends the source; its [worklog](../worklog/2026-09-28-1055-autonomous-board.md)
+records verification separately from real-provider and packaged-app acceptance.
+Historical executions gain no autonomy after migration.
+
+The user supplies a goal and one to twenty acceptance criteria, selects which
+existing Draft/Ready cards to leave outside the plan, reviews the saved team and
+budgets, and explicitly authorizes reviewed import, reviewed in-scope plan
+changes, bounded recovery and local completion. Empty boards are supported.
+Limits can be lowered at start: **20 lifetime delivery tasks**, **three revision
+cycles after initial planning**, **two retries per task**, and **three Review
+attempts across a task's runs**. Superseded cards still consume the lifetime task
+ceiling. Each planning cycle permits at most three proposals/reviews; rejected
+or invalidated proposals consume attempts. Saved stage budgets also apply. Controller role time/token/cost usage accumulates
+across planning and coordination; delivery stage usage accumulates across that
+task's retries.
+
+Speculator proposes tasks, criterion IDs and dependencies. The assigned Reviewer
+checks coverage, scope and testability in a separate read-only conversation,
+even when both roles share a provider/model. Only a validated passing review
+atomically imports the changes. Corrections return to Speculator. This path does
+not change the separate manual planning flow's optional another-model review.
+
+### Closed commands and plans
+
+`BoardControl.Plans` validates exact structured keys, bounded text, membership,
+original criterion IDs, lifetime limits and an acyclic dependency graph. Existing
+work may be changed or split only before any run exists, while pending or
+deferred by a task-local blocker.
+Splits keep the old membership as superseded, link its replacements and preserve
+the card and run history. The replaced unstarted card is auditably cancelled through
+the normal state transition so project admission or a later batch cannot
+accidentally execute it again. Superseded work is neither completed nor skipped.
+Semantic scope is independently reviewed; criterion IDs alone do not prove scope.
+
+Planning returns `execution_id`, `revision`, `summary`, and `changes`. Every
+change carries `key`, nullable `task_id`, `title`, `description`, `priority`,
+`criteria`, `dependencies`, and `replaces`. Existing keys equal task IDs; new
+keys use `new_…`. Review returns `execution_id`, `revision`, `plan_id`,
+`verdict` (`pass`/`revise`), `summary`, and `comments`. Decisions retain the closed
+`execution_id`, `revision`, `action`, nullable `task_id`, `summary` envelope:
+
+| Action | Host validation and effect |
+| --- | --- |
+| `start_task` | Only the deterministic next eligible member; normal shared admission still applies. |
+| `replan` | Null task ID; consume a revision cycle and request another independent plan review. |
+| `recover` | Only a blocked member with a host-classified transient failure and remaining retry allowance. |
+| `block` | Preserve the next task as blocked, defer its descendants and continue independent work. |
+| `ask` | Persist the summary as a question; next task ID means task-local, null means halt the goal. |
+| `finish` | Host-derived completion only; unresolved blocked tasks prohibit Done. |
+
+A pending proposal captures the current card baseline. Concurrent edits cause
+attention and invalidate it instead of being overwritten. Confirmed Refresh
+records the user's edits, stops owned work through the control path and consumes
+a revision cycle for fresh planning/review. It cannot add outside cards, grant
+permissions or reset ceilings. New requirements need a new user-authorized scope.
+
+### Continuity, recovery and controls
+
+Logical conversations are scoped to project, execution and role: one controller
+Speculator lineage, a separate plan Reviewer lineage, and separate role lineages
+for each delivery task. Every turn has a new attempt/session and accounting row.
+Native ACP loading requires matching account, runtime version, known requested/observed model, role,
+workspace and grant identity, a completed prior session and negotiated load
+support. Otherwise the fresh session receives a bounded continuation package of
+public events/artifact hashes plus its current assignment. The dashboard labels
+`native` or `saved evidence`; loading history does not import old usage or replay
+completed actions. No hidden reasoning crosses a handoff.
+
+Recovery is conservative: the current automatic transient allowlist contains
+host-observed agent timeouts. Verified Stop/cleanup must succeed first. Review
+correction exhaustion is task-local; unknown failures, authentication/permission
+requests, invalid controller output, policy/Git drift, execution-budget exhaustion
+and uncertain process ownership close the whole execution. Failed branches and
+dirty worktrees remain intact and never advance the reviewed head.
+
+A blocked prerequisite defers descendants while independent tasks continue.
+When only blocked/deferred work remains, **Needs attention** retains the board
+claim. Retry selects a blocked item, consumes its remaining allowance and retains
+previous evidence. Successful completion restores eligible dependents. Skip
+preserves unfinished work; a prerequisite skip keeps descendants deferred. Done
+requires every non-superseded member completed; excluded work yields Finished
+with skips. No agent's prose can mark unfinished work completed.
+
+Questions and answers retain execution/task/revision linkage. Answering uses an
+idempotent, revision-checked context command and adds evidence, never permission.
+Unanswered goal questions prevent Resume/Retry. Pause, Stop and Skip reuse the
+same durable intent/process-verification path during planning and delivery.
+Restart/sleep reconciliation reloads persisted ownership and blocks unverifiable
+processes; it never replays a completed prompt.
+
+The board and compact home summary derive progress from public durable records:
+criterion progress, accepted/rejected plans, reasons, questions, blocked/deferred
+work, superseded replacements, role conversations and consumed recovery attempts.
+Every planning/review/controller/continuation/retry session contributes to totals.
+Cost or resource gaps remain unavailable/partial. Existing keyboard controls,
+focus/disclosure preservation, reduced-motion behavior and committed-event
+movement remain in use. ACP is the transport; this feature adds no A2A service,
+generic MCP server, parallel delivery, remote workers or scheduling.
+
+## 1. Fixed-batch goal and agreed decisions
 
 Let a user start development of a board in one action, watch its assigned
 Speculator coordinate tasks in priority order, and control execution until the
@@ -60,7 +164,7 @@ baselines; do not copy their open-gap claims without checking current source.
 Reuse these components. Add neither a second workflow engine nor another UI
 framework, provider abstraction, animation library, or metrics collector.
 
-## 3. Start and execution contract
+## 3. Fixed-batch start and execution contract
 
 ### Preflight and membership
 

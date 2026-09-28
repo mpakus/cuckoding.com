@@ -4,6 +4,7 @@ defmodule CuckodingWeb.BoardControlComponents do
 
   attr :stats, :map, required: true
   attr :compact, :boolean, default: false
+  attr :answers, :map, default: %{}
 
   def panel(assigns) do
     assigns = assign(assigns, :execution, assigns.stats.execution)
@@ -87,7 +88,8 @@ defmodule CuckodingWeb.BoardControlComponents do
             {"done", "Completed"},
             {"blocked", "Blocked"},
             {"skipped", "Skipped"},
-            {"deferred", "Deferred"}
+            {"deferred", "Deferred"},
+            {"superseded", "Superseded"}
           ]
         }>
           <dt>{name}</dt><dd>{Map.get(@stats.totals, state, 0)}</dd>
@@ -114,6 +116,120 @@ defmodule CuckodingWeb.BoardControlComponents do
         >
           {label(action)}
         </button>
+      </div>
+      <div :if={@execution.mode == "autonomous_goal"} class="space-y-3">
+        <h3 class="font-semibold">Goal progress</h3>
+        <p class="whitespace-pre-wrap break-words">{@execution.snapshot_json["autonomy"]["goal"]}</p>
+        <ul class="space-y-1 text-sm">
+          <li :for={criterion <- @stats.criteria}>
+            {criterion["id"]}: {criterion["text"]} · {if criterion["passed"],
+              do: "Reviewed",
+              else: "Unfinished"}
+          </li>
+        </ul>
+        <p class="text-sm">
+          Plan revisions: {@execution.plan_cycle}/{@execution.snapshot_json["autonomy"]["limits"][
+            "revisions"
+          ]}; lifetime tasks: {@stats.included}/{@execution.snapshot_json["autonomy"]["limits"][
+            "tasks"
+          ]}; recovery attempts: {@stats.recovery_attempts}.
+        </p>
+        <div :if={!@compact} class="space-y-3" aria-label="Attention list">
+          <article
+            :for={
+              item <-
+                Enum.filter(@stats.items, &(&1.state in ~w(blocked deferred) and not &1.superseded))
+            }
+            class="rounded border border-amber-300 p-3"
+          >
+            <p>
+              {item.snapshot_json["title"]} · {label(item.state)} · {label(item.reason)} · {item.retry_count} retries used
+            </p>
+            <div
+              :if={@execution.state == "attention" and item.state == "blocked"}
+              class="flex flex-wrap gap-2"
+            >
+              <button
+                :for={action <- ~w(retry skip)}
+                type="button"
+                id={"#{action}-#{item.id}"}
+                phx-click="board-control"
+                phx-value-task_id={item.task_id}
+                phx-value-action={action}
+                phx-value-revision={@execution.revision}
+                class="min-h-11 rounded border px-3"
+                disabled={
+                  action == "retry" and
+                    (item.reason == "question_required" or
+                       item.retry_count >= @execution.snapshot_json["autonomy"]["limits"]["retries"])
+                }
+              >{label(action)} {item.snapshot_json["title"]}</button>
+            </div>
+          </article>
+          <article
+            :for={question <- @stats.questions}
+            id={"board-question-#{question.id}"}
+            class="rounded border border-slate-300 p-3"
+          >
+            <p class="whitespace-pre-wrap break-words">{question.question}</p>
+            <p :if={question.answer} class="whitespace-pre-wrap break-words">
+              Answer: {question.answer}
+            </p>
+            <form
+              :if={!question.answer and @execution.state not in ~w(done finished_with_skips stopped)}
+              id={"answer-#{question.id}"}
+              phx-change="change-board-answer"
+              phx-submit="answer-board-question"
+              class="space-y-2"
+            >
+              <input type="hidden" name="question[id]" value={question.id} />
+              <input type="hidden" name="question[revision]" value={@execution.revision} />
+              <label class="block" for={"answer-text-#{question.id}"}>Answer (does not change permissions or limits)</label>
+              <textarea
+                id={"answer-text-#{question.id}"}
+                name="question[answer]"
+                maxlength="10000"
+                required
+                class="w-full rounded border p-2"
+              >{@answers[question.id] || ""}</textarea>
+              <button type="submit" class="min-h-11 rounded border px-4" phx-disable-with="Saving…">Save answer</button>
+            </form>
+          </article>
+        </div>
+        <details
+          :if={!@compact}
+          id={"board-plans-#{@execution.id}"}
+          phx-mounted={JS.ignore_attributes("open")}
+        >
+          <summary class="min-h-11 cursor-pointer font-medium">
+            Plan revisions and independent reviews
+          </summary>
+          <article
+            :for={plan <- @stats.plans}
+            id={"plan-#{plan.id}"}
+            class="space-y-2 border-t py-3 text-sm"
+          >
+            <p>Cycle {plan.cycle} · {label(plan.state)} · {plan.plan_json["summary"]}</p>
+            <p :if={plan.parent_id} class="break-all">Parent revision: {plan.parent_id}</p>
+            <ul>
+              <li :for={change <- plan.plan_json["changes"]}>
+                {change["title"]} · criteria {Enum.join(change["criteria"], ", ")} · priority {change[
+                  "priority"
+                ]}
+              </li>
+            </ul>
+            <p :if={plan.review_json}>Review: {plan.review_json["summary"]}</p>
+            <ul :if={plan.review_json}>
+              <li :for={comment <- plan.review_json["comments"]}>{comment}</li>
+            </ul>
+            <.link navigate={~p"/runs/#{plan.run_id}"} class="mr-3 underline">Planning evidence</.link>
+            <.link
+              :if={plan.review_run_id}
+              navigate={~p"/runs/#{plan.review_run_id}"}
+              class="underline"
+            >Independent review evidence</.link>
+          </article>
+        </details>
       </div>
       <p :if={@execution.pending_action} class="text-sm">
         {label(@execution.pending_action)} remains pending until process suspension or cleanup is verified.
@@ -200,7 +316,7 @@ defmodule CuckodingWeb.BoardControlComponents do
         </p>
         <div class="overflow-x-auto">
           <table class="w-full text-left text-sm">
-            <caption class="text-left font-medium">Fixed batch queue and outcomes</caption>
+            <caption class="text-left font-medium">Batch queue and outcomes</caption>
             <thead>
               <tr>
                 <th class="p-2">Task</th><th class="p-2">Priority</th><th class="p-2">
@@ -224,7 +340,13 @@ defmodule CuckodingWeb.BoardControlComponents do
                   )}
                 </td>
                 <td class="p-2">
-                  {label(item.state)}{if item.reason, do: " · " <> label(item.reason)}
+                  {if item.superseded, do: "Superseded", else: label(item.state)}{if item.reason,
+                    do: " · " <> label(item.reason)}
+                  <span :if={item.superseded} class="block break-all">Replaced by: {Enum.map_join(
+                    item.replacement_ids_json["ids"] || [],
+                    ", ",
+                    &(task_name(@stats, &1) || &1)
+                  )}</span>
                 </td>
               </tr>
             </tbody>
@@ -235,7 +357,7 @@ defmodule CuckodingWeb.BoardControlComponents do
             <.link navigate={~p"/runs/#{run.id}"} class="underline">{if Cuckoding.BoardControl.controller?(
                                                                           run
                                                                         ),
-                                                                        do: "Speculator controller",
+                                                                        do: "Board coordination",
                                                                         else:
                                                                           task_name(
                                                                             @stats,
@@ -256,6 +378,9 @@ defmodule CuckodingWeb.BoardControlComponents do
               "version unavailable"} ·
             requested: {session.requested_model || "unavailable"}; observed: {session.actual_model ||
               "unavailable"}
+            <span :if={session.conversation_key} class="block break-all">Conversation: {session.conversation_key} · {label(
+              session.continuation_mode
+            )}{if session.continuation_of_id, do: " · continues " <> session.continuation_of_id}</span>
           </li>
         </ul>
       </details>

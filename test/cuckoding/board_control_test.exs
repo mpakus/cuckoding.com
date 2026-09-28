@@ -582,6 +582,438 @@ defmodule Cuckoding.BoardControlTest do
         )
   end
 
+  test "autonomous empty board plans with the saved independent Reviewer and delivers", %{
+    board: board
+  } do
+    goal = %{"goal" => "Implement the approved goal", "criteria" => "A reviewed change exists"}
+    assert {:ok, preview} = BoardControl.preflight(board.id, [], goal)
+
+    assert {:ok, batch} =
+             BoardControl.start(board.id, preview.digest, [], "goal-start", true, goal)
+
+    assert batch.phase == "planning"
+    dispatch()
+    assert BoardControl.get(batch.id).phase == "plan_review"
+    assert [proposal] = Cuckoding.BoardControl.Plans.revisions(batch.id)
+    assert proposal.state == "proposed"
+    dispatch()
+    assert BoardControl.get(batch.id).phase == "decision", inspect(BoardControl.get(batch.id))
+
+    assert [%{state: "accepted", review_run_id: review_id}] =
+             Cuckoding.BoardControl.Plans.revisions(batch.id)
+
+    review_run = Repo.get!(Run, review_id)
+    assert Cuckoding.BoardControl.Decision.role(review_run) == "reviewer"
+    assert [item] = BoardControl.items(batch.id)
+    assert item.criteria_json == %{"ids" => ["C1"]}
+    for _ <- 1..4, do: dispatch()
+    assert BoardControl.get(batch.id).state == "done", inspect(BoardControl.get(batch.id))
+  end
+
+  test "task blocker defers descendants, independent work finishes, and explicit retry restores the queue",
+       %{board: board} do
+    a = task(board.id, "A", 9)
+    b = task(board.id, "B depends on A", 8)
+    c = task(board.id, "C independent", 1)
+    {:ok, _} = Workflows.add_dependency(b.id, a.id)
+    e = autonomous(board.id)
+    dispatch()
+    dispatch()
+    dispatch(fake_decision: decision("block", a.id))
+    assert Enum.find(BoardControl.items(e.id), &(&1.task_id == b.id)).state == "deferred"
+    for _ <- 1..4, do: dispatch()
+    current = BoardControl.get(e.id)
+    assert current.state == "attention"
+    assert current.issue == "remaining_tasks_blocked"
+    assert Enum.find(BoardControl.items(e.id), &(&1.task_id == c.id)).state == "done"
+
+    assert {:ok, _} =
+             BoardControl.control(e.id, current.revision, "retry", "retry-a", task_id: a.id)
+
+    for _ <- 1..8, do: dispatch()
+
+    assert BoardControl.get(e.id).state == "done",
+           inspect(
+             Map.take(BoardControl.get(e.id), [
+               :state,
+               :issue,
+               :phase,
+               :current_task_id,
+               :current_run_id
+             ])
+           )
+
+    assert Enum.find(BoardControl.items(e.id), &(&1.task_id == a.id)).retry_count == 1
+  end
+
+  test "reviewed split preserves history and rejects cycles, foreign criteria and lifetime overflow",
+       %{board: board} do
+    original = task(board.id, "Original", 1)
+    e = autonomous(board.id, %{"tasks" => "3"})
+    dispatch()
+    dispatch()
+    dispatch(fake_decision: decision("replan", nil))
+
+    proposed = fn input ->
+      Map.merge(Map.take(input, ~w(execution_id revision)), %{
+        "summary" => "Split within C1",
+        "changes" => [
+          change("new_first", [], [original.id]),
+          change("new_second", ["new_first"], [original.id])
+        ]
+      })
+    end
+
+    current = BoardControl.get(e.id)
+    {:ok, input} = BoardControl.decision_input(current)
+    plan = proposed.(input)
+    assert :ok = Cuckoding.BoardControl.Plans.validate(current, plan)
+
+    assert {:error, :invalid_goal_plan} =
+             Cuckoding.BoardControl.Plans.validate(
+               current,
+               put_in(plan, ["changes", Access.at(0), "dependencies"], ["new_second"])
+             )
+
+    assert {:error, :invalid_goal_plan} =
+             Cuckoding.BoardControl.Plans.validate(
+               current,
+               put_in(plan, ["changes", Access.at(0), "criteria"], ["C99"])
+             )
+
+    assert {:error, :invalid_goal_plan} =
+             Cuckoding.BoardControl.Plans.validate(
+               current,
+               Map.update!(plan, "changes", &(&1 ++ [change("new_extra", [], [])]))
+             )
+
+    dispatch(fake_decision: proposed)
+    dispatch()
+    members = BoardControl.items(e.id)
+    assert length(members) == 3
+    old = Enum.find(members, &(&1.task_id == original.id))
+    assert old.superseded and old.state == "deferred"
+    assert length(old.replacement_ids_json["ids"]) == 2
+    assert Workflows.get_task(original.id).state == "cancelled"
+    stats = Cuckoding.BoardControl.Statistics.snapshot(BoardControl.get(e.id))
+    assert stats.totals["superseded"] == 1
+    refute Map.has_key?(stats.totals, "done")
+    for _ <- 1..8, do: dispatch()
+
+    assert BoardControl.get(e.id).state == "done",
+           inspect(
+             Map.take(BoardControl.get(e.id), [
+               :state,
+               :issue,
+               :phase,
+               :current_task_id,
+               :current_run_id
+             ])
+           )
+  end
+
+  test "concurrent edits invalidate a pending plan without importing it", %{board: board} do
+    original = task(board.id, "Original", 1)
+    e = autonomous(board.id)
+    dispatch()
+    {:ok, _} = Workflows.update_task(original.id, %{title: "Human edit"})
+    dispatch()
+    assert BoardControl.get(e.id).state == "attention"
+    assert [%{state: "invalidated"}] = Cuckoding.BoardControl.Plans.revisions(e.id)
+    assert Workflows.get_task(original.id).title == "Human edit"
+    assert length(BoardControl.items(e.id)) == 1
+  end
+
+  test "durable clarification is idempotent, revision checked and cannot expand authorization", %{
+    board: board
+  } do
+    e = autonomous(board.id)
+    dispatch()
+    dispatch()
+    dispatch(fake_decision: decision("ask", nil))
+    current = BoardControl.get(e.id)
+    assert current.state == "attention"
+    assert [question] = Cuckoding.BoardControl.Plans.questions(e.id)
+
+    assert {:error, _} =
+             BoardControl.control(e.id, current.revision, "resume", "resume-unanswered")
+
+    current = BoardControl.get(e.id)
+    assert {:error, _} = BoardControl.answer_question(e.id, 1, question.id, "Yes", "stale-answer")
+
+    assert {:ok, answered} =
+             BoardControl.answer_question(
+               e.id,
+               current.revision,
+               question.id,
+               "Use the existing scope",
+               "answer"
+             )
+
+    assert {:ok, replay} =
+             BoardControl.answer_question(
+               e.id,
+               current.revision,
+               question.id,
+               "Change permissions",
+               "answer"
+             )
+
+    assert replay.id == answered.id
+    assert answered.snapshot_json == e.snapshot_json
+    assert [%{answer: "Use the existing scope"}] = Cuckoding.BoardControl.Plans.questions(e.id)
+  end
+
+  test "transient retry preserves the failed attempt, consumes its ceiling and keeps the reviewed base",
+       %{board: board} do
+    e = autonomous(board.id, %{"retries" => "1"})
+    dispatch()
+    dispatch()
+    dispatch()
+    current = BoardControl.get(e.id)
+    {:ok, _} = Workflows.transition_task(current.current_task_id, "ready", "fixture-ready")
+
+    {:ok, prepared} =
+      ProjectWorkflow.prepare_task(current.current_task_id, board_execution_id: e.id)
+
+    {:ok, _} = Cuckoding.Execution.transition_run(prepared.run.id, "running", "fixture-running")
+    env = Repo.get_by!(Environment, run_id: prepared.run.id)
+    File.write!(Path.join(env.worktree_path, "unfinished.txt"), "Retain this evidence")
+    Cuckoding.OrchestrationFailure.fail(prepared.run.id, :workflow, :agent_timeout)
+    dispatch()
+    assert Enum.at(BoardControl.items(e.id), 0).retry_count == 1
+    assert BoardControl.get(e.id).head_sha == e.base_sha
+    assert Repo.get!(Run, prepared.run.id).state == "cancelled"
+    dispatch()
+    dispatch()
+    dispatch()
+
+    assert BoardControl.get(e.id).state == "done",
+           inspect(
+             Map.take(BoardControl.get(e.id), [
+               :state,
+               :issue,
+               :phase,
+               :current_task_id,
+               :current_run_id
+             ])
+           )
+
+    assert [new, old] = Cuckoding.Execution.list_runs(current.current_task_id)
+    assert old.id == prepared.run.id
+    new_env = Repo.get_by!(Environment, run_id: new.id)
+    refute File.exists?(Path.join(new_env.worktree_path, "unfinished.txt"))
+    assert File.exists?(Path.join(env.worktree_path, "unfinished.txt"))
+    assert Cuckoding.OrchestrationFailure.recovery_class(:acp_permission_required) == "global"
+    assert Cuckoding.OrchestrationFailure.recovery_class(:acp_process_failed) == "global"
+  end
+
+  test "planning pauses and stops without importing or replaying work", %{board: board} do
+    e = autonomous(board.id)
+    assert {:ok, paused} = BoardControl.control(e.id, e.revision, "pause", "pause-plan")
+    dispatch()
+    assert Cuckoding.BoardControl.Plans.revisions(e.id) == []
+    assert {:ok, _} = BoardControl.control(e.id, paused.revision, "resume", "resume-plan")
+    dispatch()
+    current = BoardControl.get(e.id)
+    assert current.phase == "plan_review"
+
+    assert {:ok, _} =
+             BoardControl.control(e.id, current.revision, "stop", "stop-plan", confirmed: true)
+
+    dispatch()
+    assert BoardControl.items(e.id) == []
+    assert [%{state: "proposed"}] = Cuckoding.BoardControl.Plans.revisions(e.id)
+  end
+
+  test "autonomous modal retains goal input and shows limits and separate consent", %{
+    board: board,
+    conn: conn
+  } do
+    {:ok, view, _} = live(conn, ~p"/boards/#{board.id}")
+    view |> element("#start-board-button") |> render_click()
+    view |> form("#start-board-form", batch: %{mode: "autonomous_goal"}) |> render_change()
+
+    html =
+      view
+      |> form("#start-board-form",
+        batch: %{
+          mode: "autonomous_goal",
+          goal: %{
+            goal: "Approved goal",
+            criteria: "Tests pass",
+            tasks: "20",
+            revisions: "3",
+            retries: "2"
+          }
+        }
+      )
+      |> render_change()
+
+    assert html =~ "Approved goal"
+    assert html =~ "Lifetime tasks"
+    assert html =~ "reviewed task import"
+    send(view.pid, :board_tick)
+    assert render(view) =~ "Approved goal"
+  end
+
+  test "same-model plan review is separate and controller continuation uses only saved evidence",
+       %{board: board} do
+    e = autonomous(board.id)
+    dispatch()
+    dispatch()
+    dispatch()
+    stats = Cuckoding.BoardControl.Statistics.snapshot(BoardControl.get(e.id))
+    [planner, reviewer, controller] = stats.sessions
+    assert planner.adapter_key == reviewer.adapter_key
+    assert planner.requested_model == reviewer.requested_model
+    refute planner.conversation_key == reviewer.conversation_key
+    assert planner.conversation_key == controller.conversation_key
+    assert controller.continuation_of_id == planner.id
+    assert controller.continuation_mode == "saved_evidence"
+    assert reviewer.effective_grant_json["requested"]["approval_mode"] == "plan"
+    assert stats.tokens.input_tokens.value == nil
+  end
+
+  test "native continuation identity never crosses account, role, model, grant or workspace", %{
+    board: board
+  } do
+    e = autonomous(board.id)
+    dispatch()
+    [session] = Cuckoding.BoardControl.Statistics.snapshot(BoardControl.get(e.id)).sessions
+
+    identity =
+      Map.merge(session.continuation_identity_json, %{"account" => "account", "model" => "model"})
+
+    previous = %{session | continuation_identity_json: identity, actual_model: "model"}
+    assert Cuckoding.BoardControl.Conversations.compatible?(previous, identity)
+
+    for key <- ~w(account model role workspace grant adapter runtime_version) do
+      refute Cuckoding.BoardControl.Conversations.compatible?(
+               previous,
+               Map.put(identity, key, "different")
+             )
+    end
+
+    refute Cuckoding.BoardControl.Conversations.compatible?(
+             %{previous | state: "failed"},
+             identity
+           )
+  end
+
+  test "plan correction is bounded and Skip during review cannot bypass planning", %{board: board} do
+    original = task(board.id, "Original", 1)
+    e = autonomous(board.id)
+    dispatch()
+
+    dispatch(
+      fake_decision: fn input ->
+        Cuckoding.BoardControl.Plans.fake_output(input)
+        |> Map.merge(%{"verdict" => "revise", "comments" => ["Clarify test evidence"]})
+      end
+    )
+
+    assert BoardControl.get(e.id).phase == "planning"
+    assert [%{state: "rejected"}] = Cuckoding.BoardControl.Plans.revisions(e.id)
+    dispatch()
+    current = BoardControl.get(e.id)
+    assert current.phase == "plan_review"
+
+    assert {:ok, skipped} =
+             BoardControl.control(e.id, current.revision, "skip", "skip-review", confirmed: true)
+
+    assert skipped.phase == "planning"
+    assert Repo.aggregate(from(r in Run, where: r.task_id == ^original.id), :count) == 0
+
+    assert Enum.map(Cuckoding.BoardControl.Plans.revisions(e.id), & &1.state) == [
+             "rejected",
+             "invalidated"
+           ]
+  end
+
+  test "planning and coordination cannot reset the saved Speculator token budget", %{board: board} do
+    e = autonomous(board.id)
+    dispatch()
+    [session] = Cuckoding.BoardControl.Statistics.snapshot(BoardControl.get(e.id)).sessions
+
+    usage = %Cuckoding.Adapters.Types.Usage{
+      source: "provider",
+      confidence: "reported",
+      input_tokens: 200_001
+    }
+
+    assert {:ok, _} =
+             Cuckoding.Telemetry.Accounting.record_usage(session.id, "planner-budget", usage)
+
+    dispatch()
+    dispatch()
+    current = BoardControl.get(e.id)
+    assert current.state == "attention"
+    assert length(Cuckoding.BoardControl.Statistics.snapshot(current).sessions) == 2
+    assert current.head_sha == e.base_sha
+  end
+
+  test "questions preserve entered answers across live updates and save without expanding grants",
+       %{board: board, conn: conn} do
+    e = autonomous(board.id)
+    dispatch()
+    dispatch()
+    dispatch(fake_decision: decision("ask", nil))
+    [q] = Cuckoding.BoardControl.Plans.questions(e.id)
+    {:ok, view, _} = live(conn, ~p"/boards/#{board.id}")
+
+    html =
+      view
+      |> form("#answer-#{q.id}", question: %{answer: "Keep the existing scope"})
+      |> render_change()
+
+    assert html =~ "Keep the existing scope"
+    send(view.pid, :board_tick)
+    assert render(view) =~ "Keep the existing scope"
+
+    view
+    |> form("#answer-#{q.id}", question: %{answer: "Keep the existing scope"})
+    |> render_submit()
+
+    assert [%{answer: "Keep the existing scope"}] = Cuckoding.BoardControl.Plans.questions(e.id)
+    assert BoardControl.get(e.id).snapshot_json == e.snapshot_json
+  end
+
+  defp autonomous(board, overrides \\ %{}) do
+    goal =
+      Map.merge(
+        %{"goal" => "Implement the approved goal", "criteria" => "A reviewed change exists"},
+        overrides
+      )
+
+    {:ok, preview} = BoardControl.preflight(board, [], goal)
+    {:ok, e} = BoardControl.start(board, preview.digest, [], "autonomous", true, goal)
+    e
+  end
+
+  defp decision(action, id) do
+    fn input ->
+      Map.merge(Map.take(input, ~w(execution_id revision)), %{
+        "action" => action,
+        "task_id" => id,
+        "summary" => "Bounded fixture decision"
+      })
+    end
+  end
+
+  defp change(key, dependencies, replaces) do
+    %{
+      "key" => key,
+      "task_id" => nil,
+      "title" => key,
+      "description" => "Test the approved behavior",
+      "priority" => 1,
+      "criteria" => ["C1"],
+      "dependencies" => dependencies,
+      "replaces" => replaces
+    }
+  end
+
   defp start(board) do
     {:ok, preview} = BoardControl.preflight(board)
     {:ok, batch} = BoardControl.start(board, preview.digest, [], "start", true)

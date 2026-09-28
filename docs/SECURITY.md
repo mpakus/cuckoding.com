@@ -191,6 +191,24 @@ workers, uncertain process cleanup, or unusable checkpoints retain evidence and
 keep admission closed. No batch command authorizes push, PR, merge or global
 knowledge publication. See [CUCKODING-CONTROL.md](CUCKODING-CONTROL.md).
 
+Autonomous goals require a new explicit versioned start authorization; historical
+batches gain no authority. Closed plan/review/decision schemas bind original
+criterion IDs, membership, revision, dependency acyclicity and lifetime limits.
+The assigned Reviewer checks semantic scope in a separate read-only conversation,
+even with the same runtime/model. Atomic import revalidates the saved card
+baseline; concurrent user edits invalidate proposals. Only unstarted work can be
+split, with history retained. Questions/answers cannot expand scope or grants.
+
+Recovery trusts host classification, never provider claims that an error is
+retryable. Only recognized timeouts retry automatically, after verified owned
+process cleanup and snapshot/authorization checks. Unknown failures, exhausted
+execution budgets and uncertain ownership halt. Failed changes cannot advance
+the reviewed head. Native conversation loading requires compatible account,
+model, runtime, role, workspace and grant identity plus negotiated support;
+otherwise bounded public evidence starts a fresh session. Controller, plan
+review and delivery-role histories remain separate. ACP history replay creates
+no new usage or work. New sessions retain actual grants and attempt accounting.
+
 ## Audit events
 
 At minimum: authentication changes, capability grants, effective runtime permission grants, policy exceptions, plugin enablement and permission changes, stage transitions, approvals, secret reference use, process group creation/destruction, Git push/PR creation, knowledge publication/revocation, update installation, destructive retention actions, sleep gaps and reconciliation outcomes.

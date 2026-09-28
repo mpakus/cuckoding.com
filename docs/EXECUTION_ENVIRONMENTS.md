@@ -125,6 +125,14 @@ A matching PID with no live protocol owner is blocked as
 `agent_transport_missing`; it is never adopted or replayed. See
 [ACP communication](AGENT_RUNTIME_ADAPTERS.md#acp-communication-task-1054).
 
+Autonomous board recovery uses the same ownership and Stop/cleanup boundary.
+Only host-classified transient timeouts are automatically retried within the
+start ceiling. Every attempt gets a separate run/worktree based on the last
+reviewed head; dirty failed branches and evidence remain. A saved logical
+conversation is not a process checkpoint. Workspace/grant/account/model changes
+force public-evidence continuation in a new native session. A restart or sleep
+reconciliation never infers permission to replay a prompt from a conversation ID.
+
 ## Path and command policy
 
 - The run may write only inside its worktree and run folder; `protected_paths` (for example `.cuckoding/`, `.github/workflows/`) are read-only for agents and changes to them are flagged for approval.
