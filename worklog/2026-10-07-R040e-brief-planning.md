@@ -24,7 +24,9 @@ All repository shell invocations remain RTK-prefixed.
 
 ## Verification
 
-Implemented and verified; local main integration is the final bookkeeping step.
+Implemented in `c01bdab` and fast-forwarded into local `main`. Merged feature
+branch deleted. README, AGENTS and affected docs are updated; no remote push.
+The following documentation-only commit records this verified integration.
 
 - `rtk mix test test/cuckoding/planning_test.exs test/cuckoding_web/planning_live_test.exs test/cuckoding/model_check_test.exs`:
   14 passed initially. Consent/snapshot drift, idempotency, foreign scope, duplicate

@@ -1,6 +1,7 @@
 # R040e — Speculator proposals from a brief
 
-Status: implemented and verified; awaiting local main integration. Owner: Codex. Branch: `feature/R040e-brief-planning`.
+Status: complete on local main. Owner: Codex. Implementation: `c01bdab`.
+Merged feature branch deleted; no remote publication.
 
 - Use the Tabula's frozen Speculator/Codex/model binding, a fresh verified
   connection and explicit consent to send a bounded brief and saved instructions.
