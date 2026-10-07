@@ -7,7 +7,8 @@ Agent authorization, models and orchestration remain R020–R100.
 R020a–d complete version readiness, private-profile inspection, validated model
 caching, managed sign-in/out and the fixed model-check controls. Real-account/model/execution acceptance
 is still open. R030a delivers independently testable saved-team configuration;
-Arena/Tabula inheritance and execution grants remain open.
+R040a adds Arena registration and frozen team inheritance; Tabula inheritance
+and execution grants remain open.
 Historical source/tests/builds do not satisfy these gates.
 
 R015 adds the separately requested public site after R010; see [Site](SITE.md).
@@ -134,7 +135,8 @@ Execution acceptance depends on R020. R030a configuration can ship independently
   editor rejection and previous-revision inspection in the authenticated UI.
   See [task](../tasks/R030a-saved-team.md) and [evidence](../worklog/2026-10-07-R030a-saved-team.md).
 - [ ] Add explicit Arena/Tabula inheritance and overrides without changing saved
-  battle snapshots (alongside R040).
+  battle snapshots (alongside R040). Arena inheritance is implemented in R040a;
+  overrides and Tabula inheritance remain.
 - [ ] Add confirmed/audited execution slots and grants; prove independent sessions
   sharing one connection/model without inferring permission from role text.
 
@@ -146,8 +148,11 @@ expansion from role text.
 
 Depends on R030.
 
-- [ ] Register canonical local folders using a native chooser; support empty,
-  document-only, unborn-Git and existing repositories. Confirm Git init and
+- [x] R040a: register canonical local folders using a native chooser, explicit
+  confirmation and frozen default-team revision. Accept empty/document/Git-entry
+  folders without content reads or writes; reject duplicates/replaced identities.
+  See [task](../tasks/R040a-arena-registration.md) and [evidence](../worklog/2026-10-07-R040a-arena-registration.md).
+- [ ] Validate unborn/existing Git repositories, confirm Git init and
   preview/authorize any initial commit separately; preserve uncommitted files.
 - [ ] Create multiple Tabulae per Arena with Specs, ToDo, In Process, Review,
   Completed; show the assigned role for each working stage.

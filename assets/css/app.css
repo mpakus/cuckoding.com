@@ -9,7 +9,8 @@ a { color:inherit; text-decoration:none; }
 button { font:inherit; cursor:pointer; }
 button:disabled { cursor:wait; opacity:.65; }
 :focus-visible { outline:2px solid var(--accent); outline-offset:5px; border-radius:3px; }
-.app-shell { min-height:100vh; display:grid; grid-template-columns:248px 1fr; }
+.app-shell { min-height:100vh; display:grid; grid-template-columns:248px minmax(0,1fr); }
+.sidebar,.main { min-width:0; }
 .sidebar { border-right:1px solid var(--border); padding:34px 20px 24px; display:flex; flex-direction:column; gap:52px; }
 .brand { display:flex; align-items:center; gap:13px; padding:0 12px; letter-spacing:.13em; font:700 14px ui-monospace,SFMono-Regular,monospace; }
 .brand-mark { color:var(--accent); font-size:31px; border:1px solid var(--border); width:43px; height:43px; line-height:41px; text-align:center; border-radius:10px; }
@@ -30,6 +31,7 @@ h1 { font-size:clamp(27px,3vw,38px); font-weight:500; letter-spacing:-.04em; lin
 h2 { font-size:28px; font-weight:500; letter-spacing:-.03em; line-height:1.3; margin-bottom:14px; }
 .subtle,.panel>p:not(.eyebrow) { color:var(--muted); }
 .panel { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:34px; }
+.panel + .panel { margin-top:24px; }
 .welcome { padding:42px; }
 .steps { list-style:none; display:grid; grid-template-columns:repeat(5,1fr); padding:25px 0 34px; margin:0; gap:10px; }
 .steps li { color:var(--muted); border-top:1px solid var(--border); padding-top:16px; display:grid; gap:9px; font-size:13px; }
@@ -60,7 +62,7 @@ code { display:block; overflow-wrap:anywhere; font-size:11px; }
 .notice { border:1px solid #c59761; padding:16px; margin-bottom:20px; }
 .codex-setup { margin-top:24px; }
 .codex-setup form { display:grid; gap:14px; }
-.codex-setup input[type=text], .codex-setup select, .team-editor input[type=text], .team-editor select, .team-editor textarea { width:100%; min-width:0; padding:12px; border:1px solid var(--border); border-radius:5px; background:var(--bg); color:var(--text); font:13px ui-monospace,monospace; }
+.codex-setup input[type=text], .codex-setup select, .role-fields input[type=text], .team-editor select, .team-editor textarea { width:100%; min-width:0; padding:12px; border:1px solid var(--border); border-radius:5px; background:var(--bg); color:var(--text); font:13px ui-monospace,monospace; }
 .codex-setup label { font-size:13px; }
 .codex-setup .fine-print { margin:0; }
 .codex-setup .fine-print code { display:inline; }
@@ -85,10 +87,11 @@ code { display:block; overflow-wrap:anywhere; font-size:11px; }
 .team-history { overflow-wrap:anywhere; }
 .team-history dd { margin:8px 0 20px; color:var(--muted); white-space:pre-wrap; }
 .text-link { text-decoration:underline; text-underline-offset:3px; }
+.arena-path { overflow-wrap:anywhere; font-family:var(--mono, monospace); font-size:13px; }
 .skip-link { position:absolute; top:-100px; left:20px; padding:12px; background:var(--accent); color:var(--bg); z-index:1; }
 .skip-link:focus { top:12px; }
 @media (max-width:760px) {
-  .app-shell { grid-template-columns:1fr; }
+  .app-shell { grid-template-columns:minmax(0,1fr); }
   .sidebar { padding:16px; border-right:0; border-bottom:1px solid var(--border); gap:16px; }
   .brand { padding:0; }
   nav { display:flex; overflow-x:auto; gap:6px; }

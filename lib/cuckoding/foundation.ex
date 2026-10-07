@@ -3,7 +3,7 @@ defmodule Cuckoding.Foundation do
   import Ecto.Query
   alias Cuckoding.{Codex, Command, Event, Repo, Workspace}
   @auth_kinds ~w(login_codex logout_codex)
-  @exclusive_kinds @auth_kinds ++ ["check_codex_model"]
+  @exclusive_kinds @auth_kinds ++ ["check_codex_model", "choose_arena_folder"]
 
   def workspace, do: Repo.get!(Workspace, 1)
   def catalog_status(connection, now \\ DateTime.utc_now())
@@ -123,7 +123,8 @@ defmodule Cuckoding.Foundation do
               "inspect_codex",
               "login_codex",
               "logout_codex",
-              "check_codex_model"
+              "check_codex_model",
+              "choose_arena_folder"
             ] and
               state in ["pending", "running"] do
     Repo.update!(
@@ -317,7 +318,8 @@ defmodule Cuckoding.Foundation do
                  "inspect_codex",
                  "login_codex",
                  "logout_codex",
-                 "check_codex_model"
+                 "check_codex_model",
+                 "choose_arena_folder"
                ] and
                  state in ["running", "cancelling"] ->
             failed =
@@ -370,9 +372,13 @@ defmodule Cuckoding.Foundation do
   end
 
   defp lease_duration("login_codex"), do: 630_000
+  defp lease_duration("choose_arena_folder"), do: 135_000
   defp lease_duration("check_codex_model"), do: 140_000
   defp lease_duration(kind) when kind in ["inspect_codex", "logout_codex"], do: 20_000
   defp lease_duration(_), do: 10_000
+
+  def finish(%Command{kind: "choose_arena_folder"} = claim, result),
+    do: Cuckoding.Arenas.finish(claim, result)
 
   def finish(%Command{} = claim, tools) when is_map(tools) do
     result =
@@ -539,6 +545,7 @@ defmodule Cuckoding.Foundation do
   end
 
   defp prefix("discover_tools"), do: "discovery."
+  defp prefix("choose_arena_folder"), do: "arena_folder."
   defp prefix("probe_codex"), do: "codex."
   defp prefix("inspect_codex"), do: "connection."
   defp prefix("login_codex"), do: "login."

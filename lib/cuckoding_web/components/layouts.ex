@@ -25,8 +25,13 @@ defmodule CuckodingWeb.Layouts do
             class={["nav-link", @active == :home && "active"]}
             aria-current={if @active == :home, do: "page"}
           ><span aria-hidden="true">▦</span> Tabula Gladiatorum</.link>
-          <span class="nav-link muted" aria-disabled="true"><span aria-hidden="true">◇</span>
-          Arenas <small>Next</small></span>
+          <.link
+            navigate={~p"/arenas"}
+            class={["nav-link", @active == :arenas && "active"]}
+            aria-current={if @active == :arenas, do: "page"}
+          >
+            <span aria-hidden="true">◇</span> Arenas
+          </.link>
           <.link
             navigate={~p"/settings"}
             class={["nav-link", @active == :settings && "active"]}

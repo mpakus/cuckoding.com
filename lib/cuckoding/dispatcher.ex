@@ -32,6 +32,9 @@ defmodule Cuckoding.Dispatcher do
 
   defp execute(%{kind: "discover_tools"}), do: Cuckoding.Tools.discover()
 
+  defp execute(%{kind: "choose_arena_folder"} = command),
+    do: Cuckoding.NativeFolder.choose(command)
+
   defp execute(%{kind: "probe_codex"} = command) do
     if Cuckoding.Foundation.workspace().revision == command.expected_revision do
       directory = Cuckoding.Storage.probe_directory!(command.id, command.attempts)

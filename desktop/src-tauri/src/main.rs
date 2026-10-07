@@ -1,4 +1,5 @@
 mod connection;
+mod folder;
 mod probe;
 mod service;
 use service::Service;
@@ -20,6 +21,10 @@ fn main() {
         libc::umask(0o077);
     }
     let args: Vec<_> = std::env::args().skip(1).collect();
+    if args.as_slice() == ["--choose-arena-folder"] {
+        folder::main();
+        return;
+    }
     if args.first().is_some_and(|arg| arg == "--probe-codex") {
         probe::main(&args[1..]);
         return;

@@ -18,6 +18,12 @@ Avoid blinking cursors, decorative animation and dense analytics cards. Motion
 only clarifies a state change; controls remain usable without it.
 
 Sidebar: **Tabula Gladiatorum**, **Arenas**, **Agents**, **Team**, **Settings**.
+
+R040a enables Arenas with two regions: folder selection/confirmation and registered
+projects. Show the canonical path, unverified Git-entry observation and expandable
+frozen team before registration. Native selection shows elapsed time and Cancel;
+no agent/model is involved. Preserve name, errors and expanded roles through updates.
+Git mutation previews and the project dashboard below remain future work.
 No separate Agent Floor, knowledge graph or competing start screen.
 
 ## Screens

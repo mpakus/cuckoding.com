@@ -79,6 +79,22 @@ older history remains in SQLite. Existing bindings retain the resolved model
 through disconnect or catalog drift; new bindings require verified fresh metadata.
 Arena/Tabula overrides, schedules and executable grants are not implemented.
 
+R040a adds `arenas`: UUID, registration/selection command references, name,
+canonical path, device/inode identity, observed Git-entry presence, immutable
+`team_revision_id` and UTC creation time. Unique indexes cover path, device/inode,
+registration and selection command IDs. The team reference freezes the version
+displayed at selection, even if the default changes before registration.
+
+`choose_arena_folder` snapshots the team ID, serializes with setup operations and
+uses a 135-second claim around the two-minute dialog. Its bounded validated
+folder projection and measured duration live in command payload; events retain
+closed status/timing only. Cancellation waits for helper exit; expired running
+claims become interrupted without replay. `register_arena` records confirmed
+intent, Arena and event atomically after identity/duplicate checks. Neither
+command changes `workspace.revision`. Names are 1–80 characters and paths at most
+4,096 bytes. Directory replacement requires reselection; future file execution
+must revalidate identity and grants. Registration is not a filesystem lock.
+
 The default native root is `~/Library/Application Support/CCoding Rebuild`,
 marked `.ccoding-rebuild-v1`. Unknown nonempty roots and symlinked storage are
 refused before migration. `foundation.db` and sidecars are private; old Cuckoding

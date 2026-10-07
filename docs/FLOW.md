@@ -17,13 +17,21 @@ authorize a minimal baseline commit; never auto-add all documents or secrets.
 An Arena/Tabula can be saved before it is runnable. Start names any missing
 agent/model, baseline, grant or check instead of silently changing settings.
 
-R030a implements only the global default team. Required responsibilities keep
+R030a implements the global default team. Required responsibilities keep
 stable IDs even when renamed; Summa Rudis remains distinct. Custom roles default
 to planning-only/read-only and have no executable slots. Saved bindings survive
 account/catalog changes visibly; a new binding requires current verified metadata.
 Saving is versioned and audited, never a start command. Removal of saved custom
-roles requires confirmation and retains history. Arena/Tabula copying and execution
-grants described above are subsequent work.
+roles requires confirmation and retains history.
+
+R040a adds **Choose folder → preview path/team → confirm → Register Arena**.
+The native dialog accepts one existing directory and cannot create folders.
+Registration freezes the team revision shown at selection, permits unassigned
+drafts and leaves all project files untouched. Later default-team changes do not
+rewrite it. Git-entry presence is labeled unverified; repository validation,
+confirmed Git init/baseline commits, Arena overrides, Tabula copying and execution
+grants remain subsequent work. Cancel or interrupted selection requires a new
+explicit choice; it never starts planning or a battle.
 
 ## Planning
 

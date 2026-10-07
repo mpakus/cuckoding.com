@@ -11,6 +11,9 @@ tauri-build = { version = "=2.6.3", features = [] }
 tauri = { version = "=2.11.5", features = ["tray-icon"] }
 serde_json = "1.0"
 libc = "0.2"
+objc2 = "=0.6.5"
+objc2-app-kit = { version = "=0.3.2", default-features = false, features = ["std", "NSApplication", "NSOpenPanel", "NSSavePanel", "NSPanel", "NSResponder", "NSWindow"] }
+objc2-foundation = { version = "=0.3.2", default-features = false, features = ["std", "NSString", "NSURL"] }
 
 # Rust #157750: stripping proc-macro dylibs misaligns LINKEDIT on macOS 27.
 [profile.release]

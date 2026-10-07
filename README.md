@@ -19,14 +19,18 @@ catalog and a fixed model-access diagnostic. **Team** saves the four default
 roles plus custom roles, Codex/model assignments and instructions in immutable
 revisions. Drafts can remain unassigned; stale models are shown without silently
 replacing them. Saving a team starts no agent and grants no execution permission.
+**Arenas** adds a native folder chooser and confirmed local registration with a
+frozen team revision. It records directory identity without modifying project files.
 
 Real Codex `0.146.0` login start/cancel, signed-out inspection and restricted
 configuration/thread preflight passed. Successful model responses use fixtures;
 human-completed login, real responses and repository execution remain open.
-Arena/Tabula inheritance, execution grants and autonomous battles are next.
+Git validation/initialization, Tabula inheritance, execution grants and autonomous
+battles are next. A detected `.git` entry is not yet a validated repository.
 The product story above remains the target, not a shipped capability list.
 
-Evidence: [saved-team worklog](worklog/2026-10-07-R030a-saved-team.md),
+Evidence: [Arena registration worklog](worklog/2026-10-07-R040a-arena-registration.md),
+[saved-team worklog](worklog/2026-10-07-R030a-saved-team.md),
 [Codex diagnostic worklog](worklog/2026-10-07-R020d-model-access-check.md).
 
 Build with `rtk proxy bin/dev.build`, then open

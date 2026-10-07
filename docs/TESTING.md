@@ -18,6 +18,7 @@ and full-story gates remain open. Historical test counts do not establish proof.
 | R020 | Adapter parsing/cancellation/canaries, model-cache persistence/failure, real login + isolated execution across two workspaces |
 | R030a | Seed/immutable history, command replay, competing revisions, bounded roles, confirmed removal, stale/missing/drifted bindings, expired sessions, draft preservation/browser revision guard, fresh/prior-schema package smoke |
 | R030 | Team revision inheritance, custom role grants, model/auth separation, historical snapshot immutability |
+| R040a | Native chooser/select/cancel/parent loss, bounded protocol, confirmed/idempotent registration, unchanged folders, protected/replaced/duplicate identities, frozen team revision, reconnect/expired session, fresh/prior-schema bundle smoke |
 | R040 | Init refusal/consent, initial-commit preview, path confinement, file-task provenance, dependency cycles, custom column gates |
 | R050 | Structured decisions, stale/foreign proposal refusal, review return, exact-head/criteria/check binding, local integration |
 | R060 | Launch/integration crash windows, restart, cleanup/PID reuse, budgets, provider failure, sleep-gap accounting |

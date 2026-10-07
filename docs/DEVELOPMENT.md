@@ -2,7 +2,8 @@
 
 The local preview includes R010's tray, authenticated browser and durable setup
 check, plus Codex version, private-profile inspection, managed sign-in/out and a
-fixed model diagnostic, plus R030a saved default-team configuration. Human-completed real-account/model acceptance and repository
+fixed model diagnostic, R030a saved default-team configuration and R040a Arena
+registration. Human-completed real-account/model acceptance and repository
 execution remain R020 work. The previous source
 reset remains intentional; do not restore the deleted implementation wholesale.
 
@@ -79,8 +80,18 @@ custom role needs confirmation. A stale editor keeps its draft and refuses to
 overwrite a newer revision; **Reload saved** asks before discarding edits.
 Model disconnect/drift is visible and never silently replaces the saved model.
 To replace a changed model behind the same catalog ID, clear/save the binding
-then explicitly select/save it again. Saving starts no agent; grants and Arena/
+then explicitly select/save it again. Saving starts no agent; grants and
 Tabula inheritance remain later work. Use only non-secret role instructions.
+
+In **Arenas**, choose an existing directory in the native macOS dialog, enter a
+name and confirm the displayed path/team before **Register Arena**. The dialog
+cannot create folders, expires after two minutes and can be cancelled from either
+surface. Registration records metadata only. `.git` presence is unverified;
+Git validation/init/initial commits are not enabled. Expand the inherited team to
+inspect the frozen revision; changing the default later does not update it.
+Home/ancestor, system, known credential and application-data roots are refused.
+Duplicates and changed directory identities require a different/reselected folder.
+After interruption choose again explicitly; no dialog is automatically replayed.
 
 The shell starts a bundled OTP release with a private HOME, clean environment,
 exclusive data lock and an ephemeral IPv4 loopback port. It owns the one-time

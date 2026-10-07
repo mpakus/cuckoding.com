@@ -1,5 +1,19 @@
 # Security contract
 
+R040a Arena registration is metadata-only and grants no agent access. The native
+directory chooser runs as the app-owned fixed helper with a cleared environment,
+private HOME, owned process group, no child processes and a two-minute deadline;
+stdin closure/cancel terminates its window. Results are bounded to 8 KiB and
+closed status/path fields, then revalidated by Elixir. Canonical paths must have
+directory-only, non-symlink components; root/home ancestors, system roots,
+known credential directories and overlapping application storage are refused.
+Device/inode identity is checked again in the registration transaction. A `.git`
+entry is only statted without following it or reading its target. Registration
+neither validates Git nor protects against later filesystem changes; execution
+must revalidate the folder and apply separately authorized grants. Events omit
+project names, paths and content; local Arena/selection records contain the
+explicitly selected path. No model/provider is involved.
+
 Cuckoding runs powerful local agents against repository content on the host.
 Runtime permissions, owned worktrees and process supervision are required;
 they do not provide OS sandbox isolation.

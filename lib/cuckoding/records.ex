@@ -59,3 +59,20 @@ defmodule Cuckoding.TeamRevision do
     field :inserted_at, :utc_datetime_usec
   end
 end
+
+defmodule Cuckoding.Arena do
+  @moduledoc false
+  use Ecto.Schema
+  @primary_key {:id, :binary_id, autogenerate: true}
+  schema "arenas" do
+    field :command_id, :binary_id
+    field :selection_id, :binary_id
+    belongs_to :team_revision, Cuckoding.TeamRevision
+    field :name, :string
+    field :path, :string
+    field :device, :integer
+    field :inode, :integer
+    field :git_entry, :string
+    field :inserted_at, :utc_datetime_usec
+  end
+end

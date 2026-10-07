@@ -2,8 +2,9 @@
 
 Target architecture, implemented incrementally. R010 provides the tray,
 authenticated LiveView foundation, SQLite and metadata-only setup dispatcher.
-R020a–d add the Codex version/inspection/authorization and fixed model-check adapter. R030a adds saved default-team configuration. Arena inheritance, battles
-and the task runner below remain subsequent slices.
+R020a–d add the Codex version/inspection/authorization and fixed model-check adapter.
+R030a adds saved default-team configuration; R040a adds Arena registration and
+frozen team inheritance. Git operations, battles and the task runner below remain subsequent slices.
 
 Current startup order: Repo → schema validation/migration → PubSub → shell
 authority → durable dispatcher → loopback Endpoint → readiness message.
@@ -23,6 +24,14 @@ The single dispatcher serializes setup; parallel task execution is a later slice
 SQLite transactions. It never queues a worker or expands grants. TeamLive and
 HomeLive share the application layout and session boundary; live updates preserve
 unsaved team edits while refreshing catalog observations.
+
+`Cuckoding.Arenas` reuses the command ledger/dispatcher for a fixed native
+`NSOpenPanel` helper, then commits confirmed registration directly in SQLite.
+The chooser has a clean environment, its own process group, no child processes,
+and exits on stdin loss/cancel or a two-minute deadline. Folder results do not
+advance provider workspace revisions. Registration reads directory and `.git`
+entry metadata only; it never runs Git or reads project contents. ArenaLive
+previews the path and immutable team revision before confirmation.
 
 ## Components
 

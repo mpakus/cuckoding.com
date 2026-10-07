@@ -287,6 +287,9 @@ name = "ccoding"
 version = "0.1.0"
 dependencies = [
  "libc",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-foundation",
  "serde_json",
  "tauri",
  "tauri-build",

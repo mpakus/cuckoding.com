@@ -29,6 +29,7 @@ defmodule CuckodingWeb.Router do
       live "/", HomeLive, :home
       live "/settings", HomeLive, :settings
       live "/team", TeamLive, :team
+      live "/arenas", ArenaLive, :arenas
       live "/about", HomeLive, :about
     end
   end
