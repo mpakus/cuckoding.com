@@ -8,7 +8,8 @@ Current startup order: Repo → schema validation/migration → PubSub → shell
 authority → durable dispatcher → loopback Endpoint → readiness message.
 `Cuckoding.Foundation` owns idempotent setup commands and append-only events;
 `Cuckoding.Dispatcher` recovers their bounded read-only claims. The shell owns
-its release process group and storage lock. No provider process is launched.
+its release process group and storage lock. R020a adds an explicitly consented
+Codex version-only child process; no agent conversation or login is launched.
 
 ## Components
 
@@ -64,7 +65,7 @@ queue. A provider failure affects its work, not the app or every Arena.
 ## Packaging and extension limits
 
 Bundle the Phoenix release and required runtimes/helpers with the thin shell.
-Users should not install Elixir, Erlang, Rust or a database to run CCoding.
+Users should not install Elixir, Erlang, Rust or a database to run Cuckoding.
 Agent CLIs remain separately discoverable/authorizable. Initial distribution:
 macOS Apple Silicon. Pin toolchain and adapter versions when validating R010/R020;
 previous pins and binaries are historical evidence only.

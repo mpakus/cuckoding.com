@@ -18,12 +18,12 @@ From the repository root:
 
 ```sh
 rtk proxy bin/dev.build
-rtk proxy open desktop/src-tauri/target/release/bundle/macos/CCoding.app
+rtk proxy open desktop/src-tauri/target/release/bundle/macos/Cuckoding.app
 ```
 
-Launching the app opens the browser. Choose **Open CCoding** from its **trident** menu
+Launching the app opens the browser. Choose **Open Cuckoding** from its **C/furcina** menu
 bar item to return later. **Settings** opens tool
-discovery; **About CCoding** opens workspace details; **Quit** stops the owned
+discovery; **About Cuckoding** opens workspace details; **Quit** stops the owned
 release and listener. No dock window or embedded web frontend is created.
 This build is not notarized or public-release certified. Clean-machine, signing,
 update and physical sleep/wake acceptance remain R060/R100.
@@ -41,7 +41,9 @@ exclusive data lock and an ephemeral IPv4 loopback port. It owns the one-time
 handshake: do not run `mix phx.server` or the release executable directly.
 Use `CCODING_DATA_DIR` only for an absolute, empty or marked rebuild directory.
 The default is `~/Library/Application Support/CCoding Rebuild`; no old database
-or personal provider profile is imported. Quit before rebuilding a running app.
+or personal provider profile is imported. Display names use Cuckoding (CC for short);
+the established data directory, marker, executable and `CCODING_*` protocol keys
+remain stable so the rename does not strand data. Quit before rebuilding a running app.
 
 The build script re-signs Tailwind 4.3.0's downloaded standalone binary locally
 because its upstream ad-hoc signature is invalid on this Mac. Rust release
@@ -92,7 +94,7 @@ Use an isolated development data root. The source reset does not authorize
 erasing old app databases, provider profiles, knowledge, logs or worktrees.
 Any import/upgrade needs backup-first tests against a copy.
 
-A requested restart must inspect only owned CCoding instances by executable,
+A requested restart must inspect only owned Cuckoding instances by executable,
 PID/start identity, working directory and listeners; never dump argv/environments.
 Use the graceful shell shutdown path, verify process/listener cleanup, then open
 one explicitly chosen build and record its identity. Do not kill unrelated Codex,

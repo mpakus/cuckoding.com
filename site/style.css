@@ -47,8 +47,20 @@
   .hero-intro { display: flex; justify-content: space-between; align-items: end; gap: 24px; padding-block: 20px 34px; }
   .hero-intro p { font-size: 1rem; line-height: 1.6; max-width: 540px; }
   .spectacle { margin: 0 -24px; }
-  .art-window { position: relative; aspect-ratio: 1.88; overflow: hidden; background: #ba9971; }
-  [data-parallax] > img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 45%; transform: scale(1.13); }
+  .duel-track { height: 145vh; min-height: 900px; }
+  .art-window { position: sticky; top: 5vh; height: min(76vh, 800px); overflow: hidden; background: #ba9971; }
+  .stage { isolation: isolate; }
+  .scene-back { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scale(1.13); z-index: -1; }
+  .character { position: absolute; height: auto; object-fit: contain; transform-origin: 50% 85%; }
+  .sword, .morgenstern { width: 64%; height: 94%; bottom: 0; object-position: center bottom; }
+  .sword { left: 1%; }
+  .morgenstern { right: 1%; }
+  .drinker { width: 60%; left: -2%; bottom: 2%; }
+  .musicians { width: 47%; right: 0; bottom: 3%; }
+  .pan { width: 27%; left: 6%; bottom: 4%; }
+  .dancers { width: 66%; right: 2%; bottom: 1%; }
+  .emperor { width: 44%; right: 0; bottom: 38%; }
+  .humans { width: 70%; left: 0; bottom: -2%; }
   figcaption { display: flex; justify-content: space-between; align-items: baseline; gap: 20px; color: var(--muted); padding-block: 14px; font-size: .62rem; letter-spacing: 0; }
   figcaption button { flex-shrink: 0; color: var(--muted); border: 0; background: none; text-decoration: underline; text-underline-offset: 3px; padding: 8px 0; }
   #motion-toggle { position: fixed; right: 20px; bottom: 20px; z-index: 4; padding: 10px 15px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); box-shadow: 0 3px 12px #2428201a; font: .72rem/1.5 var(--mono); text-decoration: none; }
@@ -58,12 +70,13 @@
   .interlude-heading .eyebrow { grid-column: 1 / -1; color: var(--red); }
   .interlude-heading > p:last-child { font-size: .95rem; max-width: 390px; }
   .scene-story { margin: 0; }
-  .scene-window { position: relative; height: min(66.667vw, 900px); overflow: hidden; background: #ac8d68; }
-  .scene-window > img { object-position: 50% 50%; }
-  .scene-ornament { position: absolute; left: 6%; bottom: 8%; padding: 20px 30px; border: 1px solid #f0dbc0; outline: 1px solid #f0dbc0; outline-offset: -6px; background: #242820e8; color: #eee9dd; text-align: center; font: 2.3rem/1 var(--serif); letter-spacing: .04em; transform: rotate(-8deg); }
+  .scene-window { position: relative; height: min(60vw, 820px); overflow: hidden; background: #ac8d68; }
+  .scene-ornament { position: absolute; left: 6%; top: 8%; padding: 20px 30px; border: 1px solid #f0dbc0; outline: 1px solid #f0dbc0; outline-offset: -6px; background: #242820e8; color: #eee9dd; text-align: center; font: 2.3rem/1 var(--serif); letter-spacing: .04em; transform: rotate(-8deg); }
   .scene-ornament small { display: block; margin-top: 10px; font: .62rem var(--mono); letter-spacing: 0; }
   .interlude-foot { padding-block: 12px 40px; font: italic 1.1rem/1.5 var(--serif); }
   .revels { background: #d8d9cb; }
+  .revels .scene-back { filter: saturate(.7); }
+  .finale { background: #d0cec5; }
   .manifesto, .cast, .reality { padding-block: 108px 100px; }
   .section-index { display: flex; justify-content: space-between; align-items: baseline; gap: 24px; border-top: 1px solid var(--line); padding-top: 16px; color: var(--muted); }
   .manifesto-copy { display: grid; grid-template-columns: 1.1fr 1fr; gap: 8%; margin-top: 48px; }
@@ -180,8 +193,11 @@
     .hero-intro p br { display: none; }
     .button { padding: 14px 18px; font-size: .8rem; }
     .spectacle { margin-inline: -20px; }
-    .art-window { aspect-ratio: 1.12; }
-    #arena-art { object-position: 52% 15%; }
+    .duel-track { height: 110vh; min-height: 660px; }
+    .art-window { top: 10vh; height: 58vh; max-height: 520px; }
+    .sword, .morgenstern { width: 64%; bottom: 7%; }
+    .sword { left: 1%; }
+    .morgenstern { right: 1%; }
     .art-label { right: 14px; bottom: 18px; font-size: .8rem; padding: 9px 12px; }
     figcaption { padding: 10px 20px 0; flex-wrap: wrap; gap: 0; font-size: .55rem; }
     figcaption > span { flex-basis: 100%; }
@@ -190,10 +206,15 @@
     .interlude-heading { grid-template-columns: 1fr; gap: 24px; padding-bottom: 34px; }
     .interlude-heading > p:last-child { font-size: .86rem; }
     .interlude-heading > p br { display: none; }
-    .scene-window { height: 75vw; max-height: 600px; }
-    .scene-window > img { object-position: 45% 50%; }
-    .revels .scene-window > img { object-position: 35% 50%; }
-    .scene-ornament { left: 7%; padding: 16px 20px; font-size: 1.8rem; }
+    .scene-window { height: 100vw; max-height: 650px; }
+    .scene-back { object-position: 50% 50%; }
+    .drinker { width: 80%; left: -17%; bottom: 1%; }
+    .musicians { width: 58%; right: -5%; bottom: 10%; }
+    .pan { width: 39%; left: 0; bottom: 6%; }
+    .dancers { width: 80%; right: -9%; bottom: 7%; }
+    .emperor { width: 70%; right: -3%; bottom: 40%; }
+    .humans { width: 105%; max-width: none; left: -8%; bottom: 0; }
+    .scene-ornament { left: 7%; padding: 12px 16px; font-size: 1.3rem; }
     .scene-ornament small { font-size: .55rem; }
     .scene-story figcaption { padding-inline: 0; }
     .interlude-foot { font-size: .95rem; padding-bottom: 34px; }
@@ -241,7 +262,9 @@
   }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
-    [data-parallax] > img { transform: scale(1.13) !important; }
-    .scene-ornament { transform: rotate(-8deg) !important; }
+    .scene-back { transform: scale(1.13) !important; }
+    .character { transform: none !important; }
+    .duel-track { height: auto; min-height: 0; }
+    .art-window { position: relative; top: auto; }
   }
 }

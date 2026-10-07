@@ -12,7 +12,7 @@ are separate statuses. None implies the others.
 2. A fixed adapter version probe verifies compatibility, then **Authorize** opens
    the provider-supported login for an app-owned profile. Show progress and a
    copyable instruction only when the provider needs it. Never ask users to paste
-   credentials into CCoding forms.
+   credentials into Cuckoding forms.
 3. Probe authorization with that same profile and launch configuration. A login
    status result must be followed by an isolated real-session check in adapter
    acceptance; historical status alone cannot prove work will launch.
@@ -49,7 +49,7 @@ unsupported discovery honestly. Do not persist raw provider payloads/errors.
 
 ## Ownership and acceptance
 
-App-owned profiles contain provider-managed state; CCoding stores references,
+App-owned profiles contain provider-managed state; Cuckoding stores references,
 not credentials. Shared authorization may also share provider-managed history;
 explain this and support separate profiles. Task instructions and permission
 settings stay attempt-owned. Disconnect shows all affected roles/Arenas, requires

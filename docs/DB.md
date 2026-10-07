@@ -24,7 +24,7 @@ restart. Only the native helper's unreaped child handle authorizes group cleanup
 
 The default native root is `~/Library/Application Support/CCoding Rebuild`,
 marked `.ccoding-rebuild-v1`. Unknown nonempty roots and symlinked storage are
-refused before migration. `foundation.db` and sidecars are private; old CCoding
+refused before migration. `foundation.db` and sidecars are private; old Cuckoding
 data is not opened. `CCODING_DATA_DIR` can select an absolute isolated test root.
 
 ## Minimal records

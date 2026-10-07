@@ -9,12 +9,14 @@ function browser({ reduced = false, saved = null, denied = false } = {}) {
   const events = {};
   const frames = [];
   const attributes = {};
-  const styles = [{}, {}, {}];
-  const ornaments = [{}, {}];
-  const bounds = [{ top: 100, height: 400 }, { top: 1100, height: 600 }, { top: 2100, height: 500 }];
+  const motions = [["depth", "sword", "morgenstern"], ["depth", "drink", "toast"], ["depth", "pan", "dance"], ["depth", "leisure", "weight"]];
+  const layers = motions.map(names => names.map(motion => ({ dataset: { motion }, style: {} })));
+  const styles = layers.map(scene => scene[0].style);
+  const bounds = [{ top: 100, height: 1200, width: 1000 }, { top: 1100, height: 600, width: 1000 }, { top: 2100, height: 500, width: 1000 }, { top: 3100, height: 500, width: 1000 }];
   const scenes = styles.map((style, i) => ({
     getBoundingClientRect: () => bounds[i],
-    querySelector: selector => selector === "img" ? { style } : ornaments[i] ? { style: ornaments[i] } : null,
+    querySelector: () => ({ getBoundingClientRect: () => ({ height: 600, width: 1000 }) }),
+    querySelectorAll: () => layers[i],
   }));
   const offsets = () => styles.map(style => Number.parseFloat(style.transform.split(",")[1]));
   const toggle = { hidden: true, setAttribute: (k, v) => attributes[k] = v, addEventListener: (_, callback) => events.click = callback };
@@ -33,30 +35,35 @@ function browser({ reduced = false, saved = null, denied = false } = {}) {
     localStorage: storage,
     requestAnimationFrame: callback => frames.push(callback),
   });
-  return { events, frames, toggle, media, attributes, get offset() { return offsets()[0]; }, get offsets() { return offsets(); }, get saved() { return saved; }, bounds: value => bounds[0] = value, flush: () => frames.splice(0).forEach(callback => callback()) };
+  return { layers, events, frames, toggle, media, attributes, get offset() { return offsets()[0]; }, get offsets() { return offsets(); }, get saved() { return saved; }, bounds: (value, index = 0) => bounds[index] = value, flush: () => frames.splice(0).forEach(callback => callback()) };
 }
 
 test("parallax responds to scroll, coalesces frames and stays inside image overscan", () => {
   const ui = browser();
   assert.equal(ui.toggle.hidden, false);
-  assert.equal(ui.offset, 20);
-  ui.bounds({ top: -10000, height: 200 });
+  assert.ok(Math.abs(ui.offset + 9.9) < 0.00001);
+  const start = ui.layers[0][1].style.transform;
+  assert.match(start, /translate3d\(-66/);
+  ui.bounds({ top: -10000, height: 1200, width: 1000 });
   ui.events.scroll();
   ui.events.scroll();
   assert.equal(ui.frames.length, 1);
   ui.flush();
-  assert.equal(ui.offset, 12);
-  ui.bounds({ top: 10000, height: 400 });
+  assert.equal(ui.offset, 33);
+  assert.match(ui.layers[0][1].style.transform, /translate3d\(0px/);
+  assert.match(ui.layers[0][2].style.transform, /translate3d\(0px/);
+  ui.bounds({ top: 10000, height: 1200, width: 1000 });
   ui.events.resize();
   ui.flush();
-  assert.equal(ui.offset, -24);
+  assert.equal(ui.offset, -33);
   assert.equal(ui.frames.length, 0, "No perpetual animation loop");
 });
 
 test("pause persists and system reduced motion always stops displacement", () => {
   const ui = browser();
   ui.events.click();
-  assert.deepEqual(ui.offsets, [0, 0, 0]);
+  assert.deepEqual(ui.offsets, [0, 0, 0, 0]);
+  assert.ok(ui.layers.flat().every(layer => layer.style.transform.startsWith("translate3d(0px, 0px, 0) rotate(0deg)")));
   assert.equal(ui.saved, "paused");
   assert.equal(ui.attributes["aria-pressed"], "true");
   assert.equal(ui.toggle.textContent, "Resume parallax");
@@ -69,7 +76,7 @@ test("pause persists and system reduced motion always stops displacement", () =>
   assert.notEqual(restored.offset, 0);
   restored.media.matches = true;
   restored.events.media();
-  assert.deepEqual(restored.offsets, [0, 0, 0]);
+  assert.deepEqual(restored.offsets, [0, 0, 0, 0]);
   assert.equal(restored.toggle.disabled, true);
   assert.equal(restored.toggle.textContent, "Reduced motion on");
   restored.media.matches = false;
@@ -88,4 +95,23 @@ test("reduced motion on first load and denied storage remain usable", () => {
   assert.equal(denied.offset, 0);
   denied.events.click();
   assert.notEqual(denied.offset, 0);
+});
+
+
+test("each character moves independently, including the darker finale", () => {
+  const ui = browser();
+  // All below-fold scenes start in their first pose; bringing the page through
+  // the duel reaches the crossed pose without an animation clock.
+  const sword = ui.layers[0][1].style.transform;
+  const mace = ui.layers[0][2].style.transform;
+  assert.notEqual(sword, mace);
+  ui.bounds({ top: -650, height: 1200, width: 1000 });
+  ui.events.scroll(); ui.flush();
+  assert.match(ui.layers[0][1].style.transform, /^translate3d\(0px/);
+  for (let index = 1; index < 4; index++) ui.bounds({ top: 50, height: 600, width: 1000 }, index);
+  ui.events.scroll(); ui.flush();
+  for (const scene of ui.layers.slice(1)) assert.notEqual(scene[1].style.transform, scene[2].style.transform);
+  assert.match(ui.layers[3][1].style.transform, /, -[0-9.]+px/);
+  assert.match(ui.layers[3][2].style.transform, /, [0-9.]+px/);
+  assert.equal(ui.layers.flat().length, 12);
 });

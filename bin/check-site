@@ -64,11 +64,22 @@ ET.parse(site / "sitemap.xml")
 ET.parse(site / "assets/favicon.svg")
 assert (site / "assets/mark.svg").read_bytes() == (root / "desktop/mark.svg").read_bytes()
 assert (site / "assets/favicon.svg").read_bytes() == (root / "priv/static/favicon.svg").read_bytes()
-assert sum("data-parallax" in attrs for _, attrs in page.tags) == 3
-for name in ("robot-banquet.png", "pan-revels.png"):
-    assert any(tag == "img" and attrs.get("src") == f"assets/{name}" and attrs.get("loading") == "lazy" for tag, attrs in page.tags)
-    assert (site / "assets" / name).stat().st_size < 4_000_000
-assert (site / "assets/colosseum.png").stat().st_size < 4_000_000
+assert sum("data-parallax" in attrs for _, attrs in page.tags) == 4
+assert sum(attrs.get("class", "").startswith("character ") for _, attrs in page.tags) == 8
+assert sum(attrs.get("class") == "scene-back" for _, attrs in page.tags) == 4
+assert "CCoding" not in (site / "index.html").read_text()
+assert not re.search(r"\bemperor\b", text)
+for tag, attrs in page.tags:
+    if tag == "img" and attrs.get("data-motion"):
+        asset = site / attrs["src"]
+        assert asset.stat().st_size < 6_000_000
+        if attrs["data-motion"] != "depth":
+            assert asset.read_bytes()[25] == 6, f"Foreground needs RGBA transparency: {asset}"
+        if attrs["data-motion"] not in ("sword", "morgenstern") and "arena-back" not in attrs["src"]:
+            assert attrs.get("loading") == "lazy"
+for id in ("arena-art", "banquet-art", "revel-art", "doom-art"):
+    assert any(attrs.get("id") == id and attrs.get("role") == "img" and attrs.get("aria-label") for _, attrs in page.tags)
+assert '"productName": "Cuckoding"' in (root / "desktop/src-tauri/tauri.conf.json").read_text()
 for file in site.rglob("*"):
     assert not file.is_symlink(), f"Pages cannot publish symlinks: {file}"
 workflow = (root / ".github/workflows/pages.yml").read_text()

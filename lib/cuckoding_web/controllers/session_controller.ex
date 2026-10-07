@@ -15,13 +15,17 @@ defmodule CuckodingWeb.SessionController do
         |> redirect(to: path)
 
       _ ->
-        conn |> put_status(401) |> text("This link expired. Open CCoding from its menu bar icon.")
+        conn
+        |> put_status(401)
+        |> text("This link expired. Open Cuckoding from its menu bar icon.")
     end
   end
 
-  def open(conn, _), do: conn |> put_status(401) |> text("Open CCoding from its menu bar icon.")
+  def open(conn, _), do: conn |> put_status(401) |> text("Open Cuckoding from its menu bar icon.")
 
   def locked(conn, _),
     do:
-      conn |> put_status(401) |> text("Your session ended. Open CCoding from its menu bar icon.")
+      conn
+      |> put_status(401)
+      |> text("Your session ended. Open Cuckoding from its menu bar icon.")
 end

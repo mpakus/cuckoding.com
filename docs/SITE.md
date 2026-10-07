@@ -10,16 +10,22 @@ The site is a satirical Roman playbill: parchment, dark ink, vermilion, system
 serif headings, robot gladiators and a hungry, angry, laughing crowd. The image
 is explicitly concept art; the sample Tabula is explicitly illustrative.
 
-Three illustrated scenes move on scroll: combat, the robot banquet, and Pan’s
-arena revels. Foreground stamps move in the opposite direction for depth; text
-stays still. Movement is bounded within each image’s overscan. The fixed native button pauses/resumes all parallax and remembers the
-choice when storage is available. OS reduced motion takes precedence, including
-changes while the page is open. Denied storage is harmless. Without JavaScript,
-the complete site, anchors and board remain usable and the motion control is hidden.
-The board can be scrolled by keyboard and touch; no drag interaction is required.
+Four scenes each combine a background with two independent transparent character
+images: the scroll-driven sword/morgenstern clash, the drinking robot and satyr
+musicians, Pan and dancing robots, then chained melancholy people beneath robot
+leisure. The duel stays in view while the weapons approach and cross. Other
+characters bob, tilt or sink with scroll position; text stays still. The same
+Arena backdrop returns for the afterparty, with a quieter color treatment.
 
-The status section mirrors R010: local shell/browser, durable storage and tool
-detection. Provider authorization, models, roles, boards and autonomous battles
+Transforms are bounded, use one coalesced animation frame per scroll/resize, and
+never run an idle animation loop. The fixed native button pauses/resumes every
+layer and remembers the choice when storage is available. OS reduced motion takes
+precedence, including changes while open. Denied storage is harmless. Without
+JavaScript, all scenes, anchors and the keyboard-scrollable board remain usable;
+the hidden motion control does not advertise an unavailable action.
+
+The status section mirrors R010/R020a: local shell/browser, durable storage, tool
+detection and explicitly consented Codex version checks. Provider authorization, models, roles, boards and autonomous battles
 are planned. Ten-minute setup is an ambition, not measured acceptance. There is
 no download CTA or claim of a signed/notarized release. Keep those boundaries
 current when future implementation is integrated.
@@ -63,16 +69,13 @@ No third-party application implementation was copied.
 
 ## Artwork provenance
 
-`site/assets/colosseum.png` was generated with the built-in imagegen tool on
-2026-10-06 for this request. It is 1536×1024, retained without editing; CSS crops
-the view responsively. It is not a screenshot, historical depiction or evidence
-of runtime support. The logo is an original trident with code brackets: three agent prongs join one
-coordinated stem. `desktop/mark.svg` is the source. Run `rtk proxy bin/brand-icons`
-to regenerate the site mark, both favicons, native PNG/ICNS and monochrome tray
-mask. ICNS chunks are sorted for reproducible exports.
+The full display name is **Cuckoding**, abbreviated **CC**. **Emperor** is always
+capitalized in public copy. The icon is a playful C whose curling sperm/devil tail
+ends in a furcina. `desktop/mark.svg` is the source; run `rtk proxy bin/brand-icons`
+to regenerate the site mark, both favicons, native PNG/ICNS and monochrome tray.
+ICNS chunks are sorted for reproducible exports. Display renaming does not migrate
+private data paths or alter internal protocol/environment identifiers.
 
-The two additional scenes and their final prompts are in [Artwork](ARTWORK.md).
-
-Original hero image-generation prompt:
-
-> Use case: illustration-story. Asset type: ultra-wide editorial hero artwork for the Cuckoding.com website, about AI coding agents staged as an absurd ancient Roman gladiator spectacle. Create one richly detailed panoramic illustration, landscape 3:2 or wider. A HUGE recognizable ancient Roman Colosseum seen from within the stands, full of thousands of spectators, dramatic tiered stone arches and striped red awnings. In the sandy central arena, three distinct large retro-futuristic robot gladiators fight a theatrical, non-gory battle: a bulky bronze robot with a squared monitor face and oversized keyboard shield, a sleek ivory robot with red crest and a stylus spear, a scrappy dark steel robot tangled in a scroll of code. Funny physical poses and flying harmless papers; no injury or blood. In the close foreground, expressive diverse adult Roman spectators in tunics and togas: hungry people chewing bread and olives, angry people waving thumbs down, laughing people cheering wildly, a bored noble reviewing a wax tablet. Their human faces are readable, lively, individual, affectionate satire, not frightening. Art direction: sophisticated hand-painted vintage European editorial / illustrated Roman history-book plate with fine ink linework, rich chalky gouache, subtle printed-paper texture, warm ivory and sunlit limestone, deep charcoal olive shadows, terracotta vermilion accents, softly muted bronze metals. Cinematic depth, noon sunlight and a little dusty atmosphere, elegant coherent forms, spectacular sense of scale. Keep all meaningful subjects within the frame, clear central focus on the robots. No text, lettering, UI, logos, watermark, photorealism, neon cyberpunk, modern billboards, blurry faces, or blood. This is satirical concept art, not a product screenshot.
+[Artwork](ARTWORK.md) records the layer map, original prompts and provenance.
+The old flattened Colosseum illustration remains only in social metadata, where
+a static preview is required; all four visible scenes are separate image layers.

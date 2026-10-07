@@ -106,13 +106,13 @@ defmodule CuckodingWeb.HomeLive do
     <div class="app-shell">
       <a class="skip-link" href="#main">Skip to content</a>
       <aside class="sidebar" aria-label="Workspace navigation">
-        <.link navigate={~p"/"} class="brand" aria-label="CCoding home"><img
+        <.link navigate={~p"/"} class="brand" aria-label="Cuckoding home"><img
           src={~p"/favicon.svg"}
           class="brand-mark"
           width="43"
           height="43"
           alt=""
-        /><span>CCODING</span></.link>
+        /><span>Cuckoding</span></.link>
         <nav aria-label="Main">
           <.link
             navigate={~p"/"}
@@ -208,7 +208,7 @@ defmodule CuckodingWeb.HomeLive do
           <p class="eyebrow">CODEX / VERSION READINESS</p>
           <h2 id="codex-title">Choose your executable.</h2>
           <p class="subtle">
-            Run a version check in a private CCoding folder. Sign-in and models are the next step.
+            Run a version check in a private Cuckoding folder. Sign-in and models are the next step.
           </p>
           <form id="codex-check" phx-change="edit_codex" phx-submit="check_codex">
             <label for="codex-path">Codex executable</label>
@@ -257,7 +257,7 @@ defmodule CuckodingWeb.HomeLive do
           <div :if={@workspace.codex != %{}} id="codex-result" role="status" class="probe-result">
             <p>{codex_status(@workspace.codex["status"])}</p>
             <p :if={@workspace.codex["version"]} class="fine-print">
-              Observed version: {@workspace.codex["version"]} · Not signed in to CCoding
+              Observed version: {@workspace.codex["version"]} · Not signed in to Cuckoding
             </p>
             <details id="codex-evidence" phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
               <summary>Last check details</summary>
@@ -273,7 +273,7 @@ defmodule CuckodingWeb.HomeLive do
           <p class="eyebrow">WORKSPACE SETTINGS</p><h2 id="about-title">Local by design.</h2>
           <dl class="facts">
             <div>
-              <dt>CCoding</dt><dd>0.1.0 · foundation preview</dd>
+              <dt>Cuckoding</dt><dd>0.1.0 · foundation preview</dd>
             </div>
             <div>
               <dt>Data</dt><dd>A separate rebuild workspace; previous app data stays intact.</dd>
@@ -337,7 +337,7 @@ defmodule CuckodingWeb.HomeLive do
     do: "The executable changed before launch. Confirm the path again."
 
   defp codex_status("helper_unavailable"),
-    do: "Open this workspace from the CCoding menu bar app to check versions."
+    do: "Open this workspace from the Cuckoding menu bar app to check versions."
 
   defp codex_status("invalid_output"),
     do: "The executable did not return a recognized Codex version."

@@ -10,7 +10,7 @@ Before implementing an unfamiliar mechanism:
 2. If absent, inspect the smallest relevant primary documentation or licensed
    peer implementation. Pin the peer revision; do not copy a whole framework.
 3. Verify the license at that revision before adapting source.
-4. Record repository/revision, `path:line`, adapted idea and the CCoding boundary
+4. Record repository/revision, `path:line`, adapted idea and the Cuckoding boundary
    that changes it (SQLite authority, host permissions, ownership or approval).
 5. Add the smallest runnable regression check of the chosen behavior.
 

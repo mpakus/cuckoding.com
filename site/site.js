@@ -1,8 +1,8 @@
 (() => {
   const scenes = [...document.querySelectorAll("[data-parallax]")].map(frame => ({
     frame,
-    art: frame.querySelector("img"),
-    ornament: frame.querySelector(".scene-ornament"),
+    stage: frame.querySelector(".stage") || frame,
+    layers: [...frame.querySelectorAll("[data-motion]")],
   }));
   const toggle = document.querySelector("#motion-toggle");
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -14,13 +14,31 @@
   function paint() {
     pending = false;
     const off = paused || reduced.matches;
-    for (const { frame, art, ornament } of scenes) {
+    for (const { frame, stage, layers } of scenes) {
       const bounds = frame.getBoundingClientRect();
-      // At 1.13 scale, 6% displacement stays inside the 6.5% overscan on each edge.
-      const limit = Math.min(60, bounds.height * 0.06);
-      const offset = off ? 0 : Math.max(-limit, Math.min(limit, (innerHeight / 2 - bounds.top - bounds.height / 2) * 0.2));
-      art.style.transform = `translate3d(0, ${offset}px, 0) scale(1.13)`;
-      if (ornament) ornament.style.transform = `translate3d(0, ${-offset * 0.5}px, 0) rotate(-8deg)`;
+      const size = stage.getBoundingClientRect();
+      const progress = Math.max(0, Math.min(1, (innerHeight - bounds.top) / (innerHeight + bounds.height)));
+      const wave = Math.sin(progress * Math.PI * 4);
+      // The two weapon tips meet before the sticky scene leaves the viewport.
+      const approach = Math.max(0, 1 - progress * 1.8) * size.width * 0.18;
+      for (const layer of layers) {
+        let x = 0, y = 0, angle = 0;
+        const motion = layer.dataset.motion;
+        if (!off) {
+          switch (motion) {
+            case "depth": y = (progress * 2 - 1) * size.height * 0.055; break;
+            case "sword": x = -approach; angle = -approach / size.width * 8; break;
+            case "morgenstern": x = approach; angle = approach / size.width * 8; break;
+            case "drink": angle = wave * 3; y = -progress * size.height * 0.025; break;
+            case "toast": angle = -wave * 2; y = wave * size.height * 0.012; break;
+            case "pan": angle = wave * 6; y = -Math.abs(wave) * size.height * 0.035; break;
+            case "dance": angle = -wave * 4; y = -Math.abs(wave) * size.height * 0.022; break;
+            case "leisure": y = -progress * size.height * 0.04; break;
+            case "weight": y = progress * size.height * 0.025; break;
+          }
+        }
+        layer.style.transform = `translate3d(${x}px, ${y}px, 0) rotate(${angle}deg) scale(${motion === "depth" ? 1.13 : 1})`;
+      }
     }
   }
 

@@ -10,6 +10,7 @@ and full-story gates remain open. Historical test counts do not establish proof.
 | --- | --- |
 | R010 | Clean migration + prior-data isolation, event/command idempotency, shell authentication/replay/loopback, graceful Quit |
 | R015 | Static links/assets/scope, motion and denied-storage behavior, desktop/narrow/keyboard inspection; [commands](SITE.md#preview-and-checks) |
+| R017 | Brand export reproducibility, four three-layer scenes, alpha, crossing weapons, all-layer pause/reduced motion, desktop/narrow rendering and renamed bundle smoke |
 | R020a | Executable confirmation/identity, version allowlist, bounded/split/malformed output, clean environment, timeout/cancellation/descendants, durable interruption and prior-schema upgrade |
 | R020 | Adapter parsing/cancellation/canaries, model-cache persistence/failure, real login + isolated execution across two workspaces |
 | R030 | Team revision inheritance, custom role grants, model/auth separation, historical snapshot immutability |

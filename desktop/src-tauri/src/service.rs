@@ -79,7 +79,7 @@ fn data_lock(root: &Path) -> Result<File> {
         .open(path)?;
     // Held for the lifetime of the shell, so two instances cannot migrate the same DB.
     if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
-        return Err("CCoding is already running for this workspace".into());
+        return Err("Cuckoding is already running for this workspace".into());
     }
     Ok(file)
 }

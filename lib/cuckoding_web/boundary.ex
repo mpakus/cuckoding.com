@@ -21,7 +21,7 @@ defmodule CuckodingWeb.Boundary do
          get_req_header(conn, "sec-fetch-site") != ["cross-site"] do
       conn
     else
-      conn |> send_resp(403, "Open CCoding from its menu bar icon.") |> halt()
+      conn |> send_resp(403, "Open Cuckoding from its menu bar icon.") |> halt()
     end
   end
 

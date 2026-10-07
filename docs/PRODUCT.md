@@ -5,7 +5,7 @@ are targets until the [implementation checklist](PLAN.md) records fresh evidence
 
 ## The story
 
-Cuckoding (short name **CCoding**) helps one developer set up local coding agents
+Cuckoding (short name **CC**) helps one developer set up local coding agents
 in about ten minutes, then lets the team carry out simple processes autonomously.
 It opens from the macOS top bar into the default browser. The interface feels
 like a modern TUI with normal mouse controls: restrained typography, clear
@@ -45,7 +45,7 @@ status text, a narrow sidebar and one or two primary content regions.
 
 | Term | Meaning |
 | --- | --- |
-| Cuckoding / CCoding | Product / short product name |
+| Cuckoding / CC | Product / short product name |
 | Arena | Project: one selected local repository and its settings |
 | Tabula | A Kanban board belonging to an Arena |
 | Battle | One authorized execution of a Tabula's task set |

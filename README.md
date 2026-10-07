@@ -1,4 +1,4 @@
-# Cuckoding · CCoding
+# Cuckoding · CC
 
 A macOS menubar app for simple, autonomous AI-agent workflows. Open it in your
 browser, authorize local agents, choose models and roles, create an **Arena**
@@ -23,17 +23,18 @@ Agent authorization, models, roles, Arenas and battles are next;
 the product story above remains the target, not a shipped capability list.
 
 Build with `rtk proxy bin/dev.build`, then open
-`desktop/src-tauri/target/release/bundle/macos/CCoding.app`. It opens your browser;
-use the **trident menu → Open CCoding** to return later. See [Development](docs/DEVELOPMENT.md)
+`desktop/src-tauri/target/release/bundle/macos/Cuckoding.app`. It opens your browser;
+use the **C icon menu → Open Cuckoding** to return later. See [Development](docs/DEVELOPMENT.md)
 for prerequisites, quality commands and data isolation. This is a local
 development build, not a signed/notarized public release.
 
 ## Public site
 
 The Roman robot-gladiator site lives in [site/](site/index.html): original
-trident/code branding, robot banquets, Pan and satyrs dancing in the arena,
-a scrollable workflow, layered parallax and reduced-motion
-controls. Preview it with `rtk proxy python3 -m http.server 4387 --bind 127.0.0.1
+C/furcina branding, a sword-and-morgenstern duel, robot banquets and dancing
+Pan, ending with melancholy humans who outsourced their leisure. Each scene
+has a separate background and two character layers, with scroll motion, pause
+and reduced-motion controls. Preview it with `rtk proxy python3 -m http.server 4387 --bind 127.0.0.1
 --directory site`. [Site documentation](docs/SITE.md) covers checks, artwork and
 the prepared GitHub Pages workflow. This change is local; it has not been deployed.
 

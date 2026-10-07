@@ -1,8 +1,8 @@
 #!/bin/sh
 set -eu
 cd "$(dirname "$0")/.."
-CCODING_RELEASE_DIR="$(pwd)/desktop/src-tauri/target/release/bundle/macos/CCoding.app/Contents/Resources/release"
+CCODING_RELEASE_DIR="$(pwd)/desktop/src-tauri/target/release/bundle/macos/Cuckoding.app/Contents/Resources/release"
 CCODING_DATA_DIR="$(rtk proxy mktemp -d /private/tmp/ccoding-smoke.XXXXXX)"
 export CCODING_RELEASE_DIR CCODING_DATA_DIR
-rtk proxy desktop/src-tauri/target/release/bundle/macos/CCoding.app/Contents/MacOS/ccoding --smoke-test
+rtk proxy desktop/src-tauri/target/release/bundle/macos/Cuckoding.app/Contents/MacOS/ccoding --smoke-test
 printf 'Smoke data retained: %s\n' "$CCODING_DATA_DIR"

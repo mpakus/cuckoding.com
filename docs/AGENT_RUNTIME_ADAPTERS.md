@@ -59,7 +59,7 @@ to a new private app scratch directory; stderr is discarded and only validated
 version/status/timing/ownership observations reach SQLite. The helper clears
 inherited environment and stops the whole owned group before reaping its leader,
 including on cancellation, stdin loss and timeout. No account files are read or
-copied by CCoding. Scratch files are retained under `probes/`; this is host
+copied by Cuckoding. Scratch files are retained under `probes/`; this is host
 execution, not filesystem confinement. Select only trusted executables. A forced
 kill of the helper itself still needs later ownership reconciliation; persisted
 PIDs are never used to kill a process, and interrupted work is not auto-replayed.

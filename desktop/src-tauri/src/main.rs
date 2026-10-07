@@ -25,7 +25,7 @@ fn main() {
     }
     if std::env::args().any(|arg| arg == "--smoke-test") {
         if smoke().is_err() {
-            eprintln!("CCoding shell smoke test failed.");
+            eprintln!("Cuckoding shell smoke test failed.");
             std::process::exit(1);
         }
         return;
@@ -40,15 +40,15 @@ fn main() {
                 .map_err(|error| -> Box<dyn std::error::Error> { error.to_string().into() })?;
             let shared = Arc::new(Mutex::new(service));
             app.manage(shared.clone());
-            let open = MenuItem::with_id(app, "open", "Open CCoding", true, None::<&str>)?;
+            let open = MenuItem::with_id(app, "open", "Open Cuckoding", true, None::<&str>)?;
             let settings = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
-            let about = MenuItem::with_id(app, "about", "About CCoding", true, None::<&str>)?;
+            let about = MenuItem::with_id(app, "about", "About Cuckoding", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open, &settings, &about, &quit])?;
             TrayIconBuilder::new()
                 .icon(tauri::include_image!("icons/tray.png"))
                 .icon_as_template(true)
-                .tooltip("CCoding")
+                .tooltip("Cuckoding")
                 .menu(&menu)
                 .on_menu_event(|app, event| {
                     let shared = app.state::<Arc<Mutex<Service>>>();
@@ -92,7 +92,7 @@ fn main() {
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("CCoding could not start its local workspace.");
+        .expect("Cuckoding could not start its local workspace.");
     app.run(|app, event| {
         if let RunEvent::ExitRequested { api, code, .. } = event {
             if code.is_none() {

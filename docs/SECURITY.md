@@ -1,6 +1,6 @@
 # Security contract
 
-CCoding runs powerful local agents against repository content on the host.
+Cuckoding runs powerful local agents against repository content on the host.
 Runtime permissions, owned worktrees and process supervision are required;
 they do not provide OS sandbox isolation.
 
@@ -25,7 +25,7 @@ filesystem access to a worker. Do not print raw process argv or environments.
 
 ## Authorization and secrets
 
-Provider runtimes own their authentication and refresh. CCoding initiates scoped
+Provider runtimes own their authentication and refresh. Cuckoding initiates scoped
 login/status operations using a dedicated app-owned provider profile and stores
 only non-secret references/status. It never reads, copies or injects provider
 token values into prompts, configuration, events, argv or environment variables.

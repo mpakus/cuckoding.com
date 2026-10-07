@@ -44,7 +44,7 @@ Depends on R001. Read [architecture](ARCHITECTURE.md), [data](DB.md) and
   toolchain; establish the project license/distribution files before shipping.
 - [x] Create Phoenix app, SQLite migrations, durable command/event boundary and
   one supervised dispatcher. Preserve older app data in a separate data root.
-- [x] Add the minimal Tauri tray: Open CCoding, Settings, About, Quit; launch the
+- [x] Add the minimal Tauri tray: Open Cuckoding, Settings, About, Quit; launch the
   bundled development release and open the loopback LiveView home.
 - [x] Implement shell bootstrap, single-use browser handoff, origin/session/CSRF
   protections and owned graceful shutdown.
@@ -75,6 +75,15 @@ Depends on R010. User-requested addition; does not block the app's R020 sequence
 - [x] Extend bounded parallax to three scenes with one accessible pause control.
 - [x] Verify export, native build/smoke and responsive site behavior; see
   [R016 evidence](../worklog/2026-10-06-R016-trident-revels.md).
+
+## R017 — Cuckoding identity and layered satire
+
+- [x] Use Cuckoding/CC display names and Emperor capitalization; preserve data paths.
+- [x] Export the C/furcina tail mark across all brand consumers.
+- [x] Compose four scenes from independent backgrounds and character cutouts,
+  including scroll-driven weapon crossing and the melancholy human finale.
+- [x] Verify responsive, motion and native packaging gates; see
+  [R017 evidence](../worklog/2026-10-07-R017-layered-cuckoding.md).
 
 ## R020 — One real agent and durable models
 
