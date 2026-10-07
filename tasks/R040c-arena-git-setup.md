@@ -1,7 +1,7 @@
 # R040c — Arena Git inspection and initialization
 
-Status: implementation and verification complete; local integration pending.
-Owner: Codex. Branch: `feature/R040c-arena-git-setup`.
+Status: complete; merged into local main as `2a08564`.
+Owner: Codex. Merged branch: `feature/R040c-arena-git-setup` (deleted).
 
 - Inspect Git only on an explicit authenticated action for a registered Arena;
   persist bounded public observations, command lifecycle and audit events.

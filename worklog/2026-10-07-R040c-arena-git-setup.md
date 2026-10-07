@@ -123,4 +123,12 @@ Final `final/identity.json` SHA-256:
 
 `rtk proxy python3 -` Markdown path/anchor checker — **22 documents, 93 local
 links/anchors passed**. `rtk git diff --check` — passed. Static site unchanged;
-no site gates rerun. No new plugins needed. Local integration follows below.
+no site gates rerun. No new plugins needed.
+
+## Local integration
+
+`2a08564` — `feat(arenas): Add consented Git inspection and initialization`.
+`rtk git switch main` and `rtk git merge --ff-only feature/R040c-arena-git-setup`
+passed. `rtk git branch -d feature/R040c-arena-git-setup` deleted the merged branch.
+This integration-record update changes no tested application bytes. Local main
+only; remote publication, Pages and the user's running build are unchanged.
