@@ -158,7 +158,7 @@ Arena adoption affects only subsequently created Tabulae. Tabula adoption affect
 new planning consent/snapshots; creation references, earlier requests and draft
 history remain unchanged. The UI shows the last five adoptions; all remain stored.
 
-## Minimal records
+## Target records (not the current schema)
 
 | Record | Durable fields / invariant |
 | --- | --- |
@@ -246,3 +246,26 @@ command key; the same key replays its saved revision. Draft task, revision and
 provenance events commit atomically. Later user edits append normal revisions.
 The UI shows the five recent requests (active first); older receipts remain in SQLite. These
 records are not approved Markdown specs, execution policy or completion evidence.
+
+
+## R040f selected document snapshots
+
+No migration; seven versions remain. `preview_documents` stores Arena/Tabula IDs,
+selected paths and registered directory identity before a bounded local read.
+Its 25-second claim covers the 15-second native reader and cleanup. A matching
+completion stores exact text, relative path, byte count and SHA-256 in
+`payload.observation.files`. Known errors omit file content. Completed snapshots
+are retained as historical facts; cancellation/expired claims reject late reads
+and never automatically replay. Workspace provider revisions are unaffected.
+
+At consent, `plan_tabula` includes `document_preview_id` and a frozen `documents`
+list. Only a completed, matching-scope preview less than five minutes old can be
+selected; the setup fingerprint also binds its content. Earlier brief-only rows
+remain readable. Later file edits cannot silently alter the requested snapshot;
+old planning results remain importable after preview expiry. Import provenance
+links draft revision → proposal command/index → preview ID and exact text/hash.
+This is source-set provenance, not validated per-task citations or accepted specs.
+
+`documents.*` events record scope, status, file count and measured elapsed time,
+never paths, hashes or prose. Selected text is intentionally retained in the private
+local DB and sent only by separate planning consent; it is not secret-scanned.

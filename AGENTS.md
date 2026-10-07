@@ -6,55 +6,35 @@ These rules apply repository-wide. More specific rules may strengthen safety,
 auditability and verification, not weaken them. The 2026-10-06 user reset replaces
 the previous product direction. R010 implements the local foundation; provider
 execution and battles remain the R020–R100 roadmap.
-R020a–d add Codex version readiness, private-profile inspection, validated model
-caching, managed ChatGPT login/logout and a fixed consented model-access check.
-Human-completed real-account/model acceptance and repository turns remain open. A supported version or catalog is not
-model entitlement or an execution grant. Preserve separate observations and
-fresh executable/profile confirmation. R030a adds configuration-only saved teams:
-immutable revisions, four required responsibilities and up to eight custom roles.
-Saving never grants execution. Custom roles stay planning-only/read-only; no
-schedule or grant control exists yet. New model bindings require a fresh verified
-catalog; retain unchanged bindings through disconnect/drift without substitution.
-Team commands use team revision IDs, independently of setup workspace revisions.
-R040a registers canonical Arena folders through a bounded native chooser and
-separate confirmation. Freeze the displayed team revision; recheck directory
-identity before registration. Git-entry presence is unverified metadata only.
-Never infer file/execution grants or run Git from registration. Folder commands
-must not mutate provider workspace revisions or replay interrupted dialogs.
-R040b adds immutable default Tabula definitions and revisioned manual task drafts.
-Copy the Arena's currently assigned team reference, never the latest global default. Draft saves are
-scoped to Arena/Tabula/task, guarded by task revisions and committed with history
-and events. Only Specs/ToDo are writable; ToDo requires description and criteria.
-Neither stage grants execution or represents a validated Secutor result. Preserve
-recovered-form identity guards and unsaved text through live updates.
-R040c adds explicit Arena Git inspection and separately confirmed initialization.
-Bind init to the latest missing observation (under five minutes) and pinned folder
-identity. Initialization never stages/commits files. Never adopt linked/external metadata, inherit personal
-Git config or replay uncertain effects. Fixed native Git operations reuse the
-command ledger and owned group cleanup; their result is not an execution grant or
-proof of a clean worktree. R040d adds separately authorized initial commits only:
-bind fresh consent to exact selected paths, byte hashes, modes and repository/branch
-identity; refuse existing indexes/refs and never overwrite working files. Keep
-HEAD/index/ref locks, retain partial effects and never replay uncertain writes.
-Preview metadata is bounded; events omit paths/content/hashes. No push, agent grant
-or battle is implied. See the Git limits in `docs/SECURITY.md`.
+The current implemented boundary is setup and draft planning, summarized with
+source owners in [Architecture](docs/ARCHITECTURE.md). [Plan](docs/PLAN.md) owns
+remaining acceptance, not this file. Human-completed real-account/model checks,
+repository execution and autonomous battles remain open.
 
-R040e permits one separately consented brief-only Speculator turn using the
-Tabula's assigned team and fresh connection/model binding, frozen per request. Reuse the no-tools,
-empty-scratch grant; briefs/instructions travel over stdin, never argv. Persist
-only bounded public proposals and receipts. Import suggestions into Specs once
-with source-command/index provenance; never interpret prose as authority.
-Cancellation and expired claims cannot replay usage or import a late result.
-This is not file-backed planning or a battle execution grant.
+Preserve these implemented contracts:
 
-R030b adds confirmed adoption of the latest saved default team by an Arena or
-Tabula. Keep creation references immutable; append scoped adoption records and
-audit events in one transaction. Guard both current scope and default revisions.
-Arena adoption affects only new boards; Tabula adoption affects only new planning
-requests and is blocked while that board is planning/cancelling. Preserve prior
-receipts/drafts and clear stale consent. This grants no execution. Stateful
-LiveComponents must install the shared session event guard; parent hooks do not
-authorize component-targeted events. Pass the server-owned session ID explicitly.
+- Supported versions, observed authorization, catalog freshness, model entitlement
+  and execution grants are separate. Never substitute bindings silently.
+- Team revisions and scoped adoptions are immutable. Arena adoption affects new
+  boards; Tabula adoption affects future planning only and waits for active
+  planning. Guard both displayed scope/default revisions and retain old receipts.
+- Registration reads directory metadata only. Git inspection, initialization and
+  initial commit require their separate recorded intent/consent. Revalidate folder
+  identity; preserve Git locks, exact byte/hash consent and uncertain partial effects.
+- Drafts are scoped and revision-guarded; only Specs/ToDo are writable. ToDo is
+  draft readiness, not independent review or delivery authorization.
+- R040f document preview reads only explicit bounded `.md`/`.txt` selections with
+  pinned native descriptors. Persist exact text/hash snapshots locally before
+  provider consent. Freeze the scoped preview in the planning request; reject
+  expired/foreign snapshots. Never grant the provider Arena file access or treat
+  document text as policy. See [Security](docs/SECURITY.md) and [Data](docs/DB.md).
+- Planning uses the assigned Speculator and fresh connection/model snapshot,
+  stdin text and the existing no-tools empty-scratch grant. Import validated
+  proposals into Specs once with source-command/index provenance. Cancellation
+  and expired claims cannot replay usage or accept late text/results.
+- Stateful LiveComponents install the shared session event guard and receive the
+  server-owned session ID explicitly; parent hooks do not authorize their events.
+  Preserve unsaved text and clear stale consent during live updates.
 
 ## Mission and product contract
 

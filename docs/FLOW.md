@@ -60,7 +60,7 @@ revision. Per-scope role editing and grants remain open.
 
 ## Planning
 
-**Create tasks** launches the selected planning-capable role read-only, with a
+Target: **Create tasks** launches the selected planning-capable role read-only, with a
 bounded brief and explicitly selected, canonicalized Arena files. The agent
 proposes a versioned Markdown spec and tasks: stable IDs, description, source
 references, acceptance criteria, dependencies and suggested checks. Phoenix
@@ -88,8 +88,8 @@ moves between Specs and ToDo; ToDo requires description and criteria. This is
 draft readiness only, not a validated spec or execution authorization. Delivery
 columns reject manual moves until battle execution exists. Stale editors keep
 their text and require explicitly loading a current draft; history is never
-rewritten. File-based planning, file citations, dependencies and custom columns
-remain open.
+rewritten. Validated per-task citations, dependencies and custom columns remain
+open; R040f supplies selected document snapshots to planning below.
 
 | Column / stable key | Assigned role | Exit condition |
 | --- | --- | --- |
@@ -127,7 +127,7 @@ A fresh supported executable/account/catalog is required; changed observations
 invalidate old consent. Saving a new global team never changes this board.
 
 The brief is at most 8,000 UTF-8 bytes. One ephemeral, two-minute turn uses empty
-scratch read-only permissions with tools disabled; no Arena files are supplied.
+scratch read-only permissions with tools disabled; no live Arena access is granted.
 Its response must contain a summary (2,000 bytes) and one to six unique tasks,
 each with title (120 bytes), description (4,000 bytes) and criteria (2,000 bytes).
 The fixed output schema guides the provider; host validation remains authoritative.
@@ -135,7 +135,18 @@ Suggestions are untrusted text, not commands. Import is explicit, scoped and
 idempotent; it creates a Specs draft with source-request/index provenance.
 Cancellation waits for owned cleanup, preserves the brief and rejects late results.
 Expired running claims become interrupted once and never silently repeat usage.
-File inputs, Markdown spec artifacts, dependencies and battle workers remain open.
+Markdown spec artifacts, dependencies and battle workers remain open.
+
+R040f adds **Optional documents → enter relative paths → Preview documents →
+review exact snapshots → confirm provider usage → Generate proposals**. Local
+preview reads up to four `.md`/`.txt` files (4,096 bytes each, 12,000 total), saves
+text/hash evidence and invokes no model or Git command. Provider consent selects
+that exact snapshot, not future file contents. Preview selection expires after
+five minutes; re-preview or choose **Use brief only**. Changing selection clears
+consent without erasing the brief or draft editor. Reconnect retains the preview
+and previous planning sources but requires **Use these snapshots** to select it
+again. Imported drafts retain source-set provenance through their proposal;
+per-task citation validation and accepted Markdown specs remain open.
 
 ## Summa Rudis control loop
 

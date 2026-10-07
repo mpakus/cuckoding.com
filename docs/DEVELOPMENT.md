@@ -4,8 +4,8 @@ The local preview includes R010's tray, authenticated browser and durable setup
 check, plus Codex version, private-profile inspection, managed sign-in/out and a
 fixed model diagnostic, R030a saved default-team configuration and R040a Arena
 registration, R040b Tabulae/manual drafts, R040c Git inspection/init and R040d
-previewed initial commits. R040e adds brief-only Speculator proposals and explicit
-imports into Specs. R030b adds explicit saved-team adoption for existing scopes.
+previewed initial commits. R040e adds Speculator proposals and explicit imports into Specs; R040f adds
+selected document snapshots. R030b adds explicit saved-team adoption for existing scopes.
 Human-completed real-account/model acceptance and repository
 execution remain R020 work. The previous source
 reset remains intentional; do not restore the deleted implementation wholesale.
@@ -110,8 +110,8 @@ editor to inspect revisions. Stale editors keep their text; copy it before
 discarding and loading the current task. Recovered mismatched forms also keep
 text but cannot overwrite another task. All drafts live in SQLite; no project
 files, Git commands or agent work are involved in manual draft saves.
-Brief-only Speculator planning is available in R040e; custom stages, file-based
-planning/specs and battle execution remain unavailable.
+Brief/document Speculator planning is available; custom stages, accepted Markdown
+specs and battle execution remain unavailable.
 
 Expand **Repository setup** in the Arena's Tabulae screen and choose **Inspect Git**.
 This checks standalone Git metadata using `/usr/bin/git` from the installed macOS
@@ -207,15 +207,25 @@ user should need an Elixir/Rust toolchain to run the bundle.
 Reintroduce CI only with real scripts/checks; no pipeline should point to removed
 files or publish documentation claims as a working release.
 
-## Brief planning preview (R040e)
+## Planning preview (R040e/f)
 
 Save a Codex/model binding for Speculator, then create an Arena and Tabula or
 explicitly adopt the saved revision under **Tabula team** on an existing board. On the board open **Ask Speculator**, enter a brief, confirm
 provider usage and **Generate proposals**. Review suggestions and **Add to Specs**
 individually. Existing boards do not inherit later default-team edits. Refresh a
-stale catalog in Agents before confirming again. No project files are read.
+stale catalog in Agents before confirming again. Without document selection no
+project files are read.
 
-Focused checks: `rtk mix test test/cuckoding/planning_test.exs
+For documents, expand **Optional documents**, enter up to four explicit relative
+`.md`/`.txt` paths and **Preview documents**. Review each expandable exact text
+and SHA-256 before provider consent. Limits: 4,096 bytes each, 12,000 total, five
+minutes to select/send. This reads locally without launching Codex or modifying
+Git/files. **Use brief only** omits snapshots; reconnect shows the retained preview
+and requires **Use these snapshots** to select it again. Editing a project file
+does not change an existing snapshot; preview again to send new content. Imported
+drafts retain the proposal/source snapshot linkage.
+
+Focused checks: `rtk mix test test/cuckoding/planning_test.exs test/cuckoding/planning_documents_test.exs
 test/cuckoding_web/planning_live_test.exs test/cuckoding/model_check_test.exs` and
 `rtk proxy cargo test --manifest-path desktop/src-tauri/Cargo.toml connection::model_check`.
 Use an isolated `CARGO_TARGET_DIR` for native QA if another bundle is running.

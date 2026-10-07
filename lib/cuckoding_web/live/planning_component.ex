@@ -1,13 +1,15 @@
 defmodule CuckodingWeb.PlanningComponent do
   @moduledoc false
   use Phoenix.LiveComponent
-  alias Cuckoding.{Foundation, Planning, Tabulae}
+  alias Cuckoding.{Foundation, GitPreview, Planning, PlanningDocuments, Tabulae}
 
   @impl true
   def mount(socket) do
     {:ok,
      assign(socket,
        brief: "",
+       document_paths: "",
+       preview_id: nil,
        confirmed: false,
        consent_token: nil,
        key: Ecto.UUID.generate(),
@@ -23,10 +25,11 @@ defmodule CuckodingWeb.PlanningComponent do
   end
 
   defp refresh(socket) do
-    setup = Planning.setup(socket.assigns.board)
+    setup = Planning.setup(socket.assigns.board, socket.assigns.preview_id)
 
     assign(socket,
       setup: setup,
+      preview: PlanningDocuments.latest(socket.assigns.board.id),
       plans: Planning.history(socket.assigns.board.id),
       imported: Tabulae.imported(socket.assigns.board.id),
       confirmed: socket.assigns.confirmed && socket.assigns.consent_token == setup.token
@@ -36,19 +39,66 @@ defmodule CuckodingWeb.PlanningComponent do
   @impl true
   def handle_event("change", params, socket), do: {:noreply, input(socket, params)}
 
+  def handle_event("document-paths", %{"paths" => paths}, socket)
+      when is_binary(paths) and byte_size(paths) <= 4_000 do
+    {:noreply,
+     socket
+     |> assign(document_paths: paths, preview_id: nil, confirmed: false, consent_token: nil)
+     |> refresh()}
+  end
+
+  def handle_event("preview-documents", %{"paths" => paths}, socket) do
+    a = socket.assigns
+
+    result =
+      with {:ok, selected} <- GitPreview.paths(paths),
+           do: PlanningDocuments.request(a.key, a.board.arena_id, a.board.id, selected)
+
+    socket =
+      case result do
+        {:ok, %{state: "pending", id: id}} -> assign(socket, :preview_id, id)
+        _ -> socket
+      end
+
+    {:noreply,
+     socket |> result(result) |> assign(confirmed: false, consent_token: nil) |> refresh()}
+  end
+
+  def handle_event("use-documents", _, %{assigns: %{preview: %{id: id}}} = socket) do
+    {:noreply,
+     socket
+     |> assign(preview_id: id, confirmed: false, consent_token: nil)
+     |> refresh()}
+  end
+
+  def handle_event("brief-only", _, socket) do
+    {:noreply,
+     socket |> assign(preview_id: nil, confirmed: false, consent_token: nil) |> refresh()}
+  end
+
   def handle_event("generate", params, socket) do
     socket = input(socket, params)
     a = socket.assigns
 
     result =
-      Planning.request(a.key, a.board.arena_id, a.board.id, a.brief, a.consent_token, a.confirmed)
+      Planning.request(
+        a.key,
+        a.board.arena_id,
+        a.board.id,
+        a.brief,
+        a.consent_token,
+        a.confirmed,
+        a.preview_id
+      )
 
     {:noreply,
      socket |> result(result) |> assign(confirmed: false, consent_token: nil) |> refresh()}
   end
 
   def handle_event("cancel", %{"id" => id}, socket) do
-    if Enum.any?(socket.assigns.plans, &(&1.id == id)), do: Foundation.cancel_probe(id)
+    if Enum.any?([socket.assigns.preview | socket.assigns.plans], &(&1 && &1.id == id)),
+      do: Foundation.cancel_probe(id)
+
     {:noreply, refresh(socket)}
   end
 
@@ -109,7 +159,14 @@ defmodule CuckodingWeb.PlanningComponent do
 
   defp message("planning_setup_changed"),
     do:
-      "The saved Speculator or connection is unavailable or changed. Check Agents and confirm again."
+      "The team, connection or selected document snapshot changed or expired. Check the selection and confirm again."
+
+  defp message(reason)
+       when reason in ~w(invalid_selection invalid_documents selection_limit unsafe_file invalid_text preview_changed folder_changed),
+       do:
+         "Preview refused. Select up to four safe .md/.txt files, 4,096 bytes each and 12,000 total, then preview again."
+
+  defp message("previewed"), do: "Snapshots saved locally. Review the exact text before sending."
 
   defp message("profile_busy"),
     do: "Another setup or planning operation is active. Wait or cancel it first."
@@ -140,16 +197,97 @@ defmodule CuckodingWeb.PlanningComponent do
       class="git-setup"
       phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
     >
-      <summary>Ask Speculator · proposals from a brief</summary>
+      <summary>Ask Speculator · brief and documents</summary>
       <p class="fine-print">
         {@setup.role["name"]} · Codex · {if @setup.payload,
           do: @setup.payload["model"],
           else: "model unavailable"} · saved team {@setup.team_id}
       </p>
-      <p :if={!@setup.token} class="notice">
+      <p :if={!@setup.token && is_nil(@preview_id)} class="notice">
         This Tabula needs a saved Speculator with an available Codex model. Check Agents.
         After saving a model on Team, open Tabula team above to adopt that saved revision.
       </p>
+      <details id="planning-documents" phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
+        <summary>Optional documents · preview locally</summary>
+        <p class="fine-print">
+          Enter up to four Arena-relative .md/.txt paths, one per line. Each file may contain
+          4,096 bytes; 12,000 bytes total. Preview saves the exact text in local history.
+          Provider consent below sends the snapshot, including any private text you select.
+        </p>
+        <.form
+          for={%{}}
+          id="documents-form"
+          class="role-fields"
+          phx-change="document-paths"
+          phx-submit="preview-documents"
+          phx-target={@myself}
+        >
+          <label for="document-paths">Selected document paths</label>
+          <textarea
+            id="document-paths"
+            name="paths"
+            rows="3"
+            maxlength="1000"
+            required
+            placeholder="docs/plan.md"
+          >{@document_paths}</textarea>
+          <button type="submit" class="button" disabled={@busy} phx-disable-with="Reading…">Preview documents</button>
+        </.form>
+        <article :if={@preview} id="document-preview" class="team-role">
+          <h3>Local document preview · {@preview.state}</h3>
+          <p class="fine-print">
+            Owner: you · local reader · no agent/model · {Calendar.strftime(
+              @preview.inserted_at,
+              "%Y-%m-%d %H:%M UTC"
+            )} · {if active?(@preview),
+              do: max(0, DateTime.diff(@now, @preview.inserted_at)),
+              else: max(0, DateTime.diff(@preview.updated_at, @preview.inserted_at))}s
+          </p>
+          <button
+            :if={active?(@preview)}
+            type="button"
+            class="button"
+            phx-click="cancel"
+            phx-target={@myself}
+            phx-value-id={@preview.id}
+            disabled={@preview.state == "cancelling"}
+          >Cancel preview</button>
+          <p :if={!active?(@preview)} role="status">{message(@preview.result)}</p>
+          <.documents
+            id={"preview-documents-#{@preview.id}"}
+            files={get_in(@preview.payload, ["observation", "files"]) || []}
+          />
+          <button
+            :if={@preview.state == "completed" && @preview_id != @preview.id}
+            type="button"
+            class="button"
+            phx-click="use-documents"
+            phx-target={@myself}
+            disabled={!match?({:ok, _}, PlanningDocuments.selected(@board, @preview.id))}
+          >
+            Use these snapshots
+          </button>
+        </article>
+      </details>
+      <p id="document-selection" class="fine-print">
+        {cond do
+          is_nil(@preview_id) ->
+            "Brief only. No document snapshots selected."
+
+          @setup.token ->
+            "Selected document snapshots will be sent with the brief. Preview expires after five minutes."
+
+          true ->
+            "Selected snapshot is pending, expired or unavailable. Preview again or use the brief only."
+        end}
+      </p>
+      <button
+        :if={@preview_id}
+        type="button"
+        class="button"
+        phx-click="brief-only"
+        phx-target={@myself}
+      >Use brief only</button>
       <.form
         for={%{}}
         id="planning-form"
@@ -169,7 +307,7 @@ defmodule CuckodingWeb.PlanningComponent do
             checked={@confirmed}
             disabled={!@setup.token || @busy}
           />
-          Send this brief and the saved Speculator instructions to Codex. This may use my account allowance.
+          Send this brief, selected document snapshots and the saved Speculator instructions to Codex. This may use my account allowance.
         </label>
         <p class="fine-print">
           One turn, no tools or project-file access. Up to six suggestions; adding a draft does not start a battle.
@@ -209,6 +347,7 @@ defmodule CuckodingWeb.PlanningComponent do
         <details id={"brief-#{plan.id}"} phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
           <summary>Source brief · team {plan.payload["team_revision_id"]}</summary>
           <p class="draft-copy">{plan.payload["brief"]}</p>
+          <.documents id={"plan-documents-#{plan.id}"} files={plan.payload["documents"] || []} />
         </details>
         <div :if={proposal = Planning.proposal(plan)}>
           <p class="draft-copy">{proposal["summary"]}</p>
@@ -232,6 +371,20 @@ defmodule CuckodingWeb.PlanningComponent do
           </article>
         </div>
       </article>
+    </details>
+    """
+  end
+
+  defp documents(assigns) do
+    ~H"""
+    <details
+      :for={{file, index} <- Enum.with_index(@files)}
+      id={"#{@id}-#{index}"}
+      phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
+    >
+      <summary>{file["path"]} · {file["bytes"]} bytes</summary>
+      <p class="fine-print draft-copy">SHA-256: {file["sha256"]}</p>
+      <pre class="draft-copy">{file["text"]}</pre>
     </details>
     """
   end

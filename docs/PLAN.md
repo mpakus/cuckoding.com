@@ -11,7 +11,8 @@ R040a adds Arena registration and frozen team inheritance; R040b adds default
 Tabulae and manual draft tasks; R040c adds explicit Git inspection and confirmed
 initialization. R040d adds explicit file previews and consented initial commits.
 R040e adds consented Speculator proposals from typed briefs and individual imports
-into Specs. File-backed planning and execution grants remain open.
+into Specs. R040f adds explicit selected-document previews and consented snapshot
+inputs. Accepted Markdown specs and execution grants remain open.
 R030b lets existing Arenas/Tabulae explicitly adopt a newer saved default team
 without rewriting earlier requests or drafts. Per-scope role editing remains open.
 Historical source/tests/builds do not satisfy these gates.
@@ -175,13 +176,19 @@ Depends on R030.
   consent; validate/store up to six public proposals and import each into Specs
   once with provenance. No project reads/tools or battle authority. See
   [task](../tasks/R040e-brief-planning.md) and [evidence](../worklog/2026-10-07-R040e-brief-planning.md).
+- [x] R040f: preview up to four selected text documents, persist exact snapshots,
+  then freeze them in separately consented planning. Reuse no-tools permissions
+  and source-command provenance; no directory crawl or delivery work. See
+  [task](../tasks/R040f-document-planning.md) and
+  [evidence](../worklog/2026-10-07-R040f-document-planning.md).
 - [ ] Add/rename/reorder columns and assign custom roles through versioned
   definitions. Enforce mandatory final Secutor review after all writing stages.
 - [ ] Create/edit tasks manually and from a selected planning role using a brief,
   selected files or `docs/`; persist versioned specs, source references and
   acceptance criteria. R040b implements manual database drafts and criteria;
-  R040e adds brief proposals and source-command provenance; file-backed accepted
-  specs, selected-file/docs inputs and custom planning-role selection remain.
+  R040e adds brief proposals and source-command provenance; R040f adds selected
+  document snapshots. File-backed accepted specs, per-task validated citations
+  and custom planning-role selection remain.
 - [ ] Validate bounds, paths, duplicates and acyclic dependencies; support user
   edits before Start without launching delivery work.
 - [ ] Persist project-approved check commands and grants separately from agent

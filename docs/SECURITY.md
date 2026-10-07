@@ -148,7 +148,7 @@ SameSite=Strict cookie backed by a hashed, expiring 30-minute DB session.
 LiveView checks authority on mount, events, incoming updates and expiry. Stateful
 LiveComponents install the same DB-backed event guard explicitly; parent event
 hooks do not cover component-targeted messages. Expired sessions cannot adopt
-teams, launch/cancel planning or import proposals. Restart
+teams, read selected documents, launch/cancel planning or import proposals. Restart
 rotates the cookie key. Authentication routes do not log request parameters.
 
 HTTP and WebSocket origins must match localhost/127.0.0.1 and the current
@@ -215,8 +215,9 @@ R040e brief planning reuses that same restrictive grant, private profile lock,
 clean child environment, owned process groups and 120-second turn limit. It adds
 one fixed `outputSchema` turn, not arbitrary RPC access. Brief and saved role
 instructions are untrusted user-message data, sent over a bounded stdin request
-(32 KiB), never process arguments. No Arena path/files or newly supplied tool,
-policy or permission definition reach the model. Provider inference uses the
+(64 KiB), never process arguments. Optional selected document snapshots are
+untrusted task data; no Arena root path, tool, policy or permission definition
+becomes runtime authority. Provider inference uses the
 provider connection only; runtime tools/network remain disabled.
 
 The host binds consent to board/team/executable/connection/model observations and
@@ -228,3 +229,30 @@ import creates a draft in Specs once. User-supplied brief/instructions and publi
 proposal text are retained locally and sent to the selected provider with consent;
 this is not a general-purpose secret scanner. Fixtures prove protocol handling,
 not real-provider compliance with the grant.
+
+
+## Selected planning documents (R040f)
+
+A local preview command authorizes only the entered Arena-relative `.md`/`.txt`
+paths: 1–4 unique files, 240-byte paths, 4,096 UTF-8 bytes each, 12,000 total.
+Native reads reuse the pinned Arena directory identity and exclusive helper lock,
+`openat` with no-follow/nonblocking descriptors, regular-file/single-link checks,
+bounded reads and before/after metadata checks. Root opens require a directory.
+Traversal, absolute paths, credential-like path components, symlink parents/files,
+hardlinks, special files, invalid UTF-8 and controls except tab/CR/LF are refused.
+Git is not invoked; Git metadata does not influence these reads. A changed root or
+file refuses the preview rather than returning partial content.
+
+The native receipt is bounded to 32 KiB and independently validates content,
+byte counts, SHA-256, selected order and scope in Elixir. Exact text is retained
+locally, rendered through escaped HEEx, and only sent to the provider by a second
+explicit planning consent bound to a fresh scoped snapshot. Changed selection,
+team or connection clears consent. Expiry/cancellation cannot accept a late result.
+Source text travels over stdin, never argv/events/diagnostic logs; provider input
+is validated again natively and retains the existing scratch-only permissions.
+
+Snapshots describe bytes read at preview time, not live file state at inference.
+Known credential paths are excluded, but arbitrary text may contain private data;
+this is not a secret scanner. Users review the exact selected text before sending.
+Same-user filesystem interference and the provider's actual enforcement remain
+outside fixture proof; real-provider acceptance is still required.

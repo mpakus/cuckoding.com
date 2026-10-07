@@ -25,6 +25,7 @@ and full-story gates remain open. Historical test counts do not establish proof.
 | R040d | Exact selected-byte/empty first commit, mode/hash/branch/config drift, existing index/refs refusal, path/link/credential guards, metadata bounds, retained partial staging, fresh scoped consent, cancellation/no replay, packaged browser and restart |
 | R040c | Fresh scoped init consent, unchanged files/index/history, missing/unborn/committed real Git fixtures, unsafe config/layout refusal, directory identity, deadlines/cancel/descendants, no interrupted replay, expired sessions, packaged desktop/narrow flow and fresh/prior-schema smoke |
 | R040e | Frozen Speculator/consent binding, strict structured proposals, tool/model/scope refusal, once-only draft imports/provenance, cancellation/no replay, preserved forms/reconnect, packaged fixture turn and restart; real provider acceptance separate |
+| R040f | Selected-file bounds, descriptor-relative path/link/special-file refusal, exact text/hash/scope binding, consent/expiry/cancellation/no replay, source/import provenance, unchanged runtime grant, preserved UI and packaged fixture/restart proof |
 | R050 | Structured decisions, stale/foreign proposal refusal, review return, exact-head/criteria/check binding, local integration |
 | R060 | Launch/integration crash windows, restart, cleanup/PID reuse, budgets, provider failure, sleep-gap accounting |
 | R070 | Concurrent task/port claims, fairness, prerequisite bases, stale reviews, conflicting integration and recovery |

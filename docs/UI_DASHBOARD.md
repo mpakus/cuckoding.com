@@ -119,5 +119,9 @@ brief, focus and disclosure state through live updates; clear consent if setup
 changes. Requests show state, elapsed time, owner/runtime/model and Cancel while
 active. Each validated suggestion has one **Add to Specs** button, replaced by
 **Added to Specs** after import. Keep unrelated unsaved manual drafts intact.
-Show source brief and the five recent requests (active first) after reconnect. Describe this as
-brief-only proposals with no file access, tools, accepted specs or delivery work.
+Show source brief/snapshots and the five recent requests (active first) after
+reconnect. R040f nests an optional local document preview: explicit relative paths,
+read state, exact expandable text/hash and separate provider consent. Changing
+selection clears consent; **Use brief only** omits snapshots. Reconnect retains
+evidence but requires explicit snapshot selection. Describe these as proposals
+with no live Arena access, tools, accepted specs or delivery work.

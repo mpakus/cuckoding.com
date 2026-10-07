@@ -133,7 +133,7 @@ defmodule Cuckoding.Codex do
       125_000,
       progress: :no_progress,
       args: [scratch, request["model"], request["effort"]],
-      input: Jason.encode!(Map.take(request, ~w(request_id brief instructions))) <> "\n"
+      input: Jason.encode!(Map.take(request, ~w(request_id brief instructions documents))) <> "\n"
     )
   end
 

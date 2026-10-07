@@ -595,11 +595,11 @@ pub fn plan_main(args: &[String]) {
     let mut input = Vec::new();
     let read = io::stdin()
         .lock()
-        .take(32_769)
+        .take(65_537)
         .read_until(b'\n', &mut input);
     let request = read
         .ok()
-        .filter(|n| *n <= 32_768)
+        .filter(|n| *n <= 65_536)
         .and_then(|_| serde_json::from_slice::<Value>(&input).ok());
     match (args, request) {
         ([_, _, scratch, model, effort], Some(request)) if model_check::valid_request(&request) => {

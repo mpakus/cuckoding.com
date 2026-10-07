@@ -1,5 +1,5 @@
 defmodule Cuckoding.Planning do
-  @moduledoc "Consented brief-only proposals using the frozen Speculator; no delivery authority."
+  @moduledoc "Consented brief and document proposals using the frozen Speculator; no delivery authority."
   import Ecto.Query
   alias Cuckoding.{Codex, Command, Foundation, Repo, Storage, Tabulae, Team, TeamAssignments}
 
@@ -17,12 +17,15 @@ defmodule Cuckoding.Planning do
     )
   end
 
-  def setup(board) do
+  alias Cuckoding.PlanningDocuments
+
+  def setup(board, preview_id \\ nil) do
+    documents = PlanningDocuments.selected(board, preview_id)
     team = TeamAssignments.assigned(board)
     role = Enum.find(team.definition["roles"], &(&1["id"] == "speculator"))
     catalog = Team.catalog()
 
-    if role["agent"] == "codex" and
+    if match?({:ok, _}, documents) and role["agent"] == "codex" and
          Team.binding_status(role, catalog) in [:untested, :check_passed] do
       model = Enum.find(catalog.models, &(&1["id"] == role["model_id"]))
       connection = Foundation.workspace().connection
@@ -38,7 +41,9 @@ defmodule Cuckoding.Planning do
           "arena_id" => board.arena_id,
           "tabula_id" => board.id,
           "grant" => "scratch-read-only-v1",
-          "contract" => "brief-plan-v1"
+          "contract" => "brief-plan-v1",
+          "document_preview_id" => preview_id,
+          "documents" => elem(documents, 1)
         })
 
       %{
@@ -52,7 +57,7 @@ defmodule Cuckoding.Planning do
     end
   end
 
-  def request(key, arena_id, tabula_id, brief, token, confirmed) do
+  def request(key, arena_id, tabula_id, brief, token, confirmed, preview_id \\ nil) do
     with {:ok, key} <- Ecto.UUID.cast(key),
          {:ok, arena_id} <- Ecto.UUID.cast(arena_id),
          %{} = board <- Tabulae.get(arena_id, tabula_id),
@@ -62,7 +67,8 @@ defmodule Cuckoding.Planning do
         "arena_id" => arena_id,
         "tabula_id" => board.id,
         "brief" => brief,
-        "setup_token" => token
+        "setup_token" => token,
+        "document_preview_id" => preview_id
       }
 
       transaction(fn -> enqueue(key, board, input) end)
@@ -74,7 +80,7 @@ defmodule Cuckoding.Planning do
   defp enqueue(key, board, input) do
     case Repo.get(Command, key) do
       nil ->
-        setup = setup(board)
+        setup = setup(board, input["document_preview_id"])
 
         reason = rejection(setup, input)
 
@@ -122,7 +128,7 @@ defmodule Cuckoding.Planning do
         payload["identity"],
         Storage.codex_profile!(),
         Storage.probe_directory!(command.id, command.attempts),
-        Map.merge(Map.take(payload, ~w(model effort brief)), %{
+        Map.merge(Map.take(payload, ~w(model effort brief documents)), %{
           "request_id" => command.id,
           "instructions" => payload["role"]["instructions"]
         }),

@@ -2,7 +2,7 @@
 
 Status: R020a–d implement Codex version readiness, private-profile status,
 validated catalog caching, managed ChatGPT login/logout, a fixed model diagnostic
-and R040e brief-only planning. Codex `0.146.0` is
+and R040e/f brief/document-snapshot planning. Codex `0.146.0` is
 the observed baseline; other versions remain unverified. Human-completed login,
 signed-in real-model acceptance and repository turns remain open. Claude Code, Codex,
 Cursor and Hermes are requested targets;

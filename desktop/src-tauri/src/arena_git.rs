@@ -1,6 +1,7 @@
 //! Fixed local Git operations. Repository text never supplies argv or authority.
 mod initial;
 use crate::probe::{exited, private_directory, Group};
+pub(crate) use initial::valid_documents;
 use serde_json::{json, Value};
 use std::{
     fs::{self, File, OpenOptions},
@@ -330,8 +331,9 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
     let [operation, path, device, inode, home, extra @ ..] = args else {
         return Err("invalid_request");
     };
-    if !["inspect", "init", "preview", "commit"].contains(&operation.as_str())
-        || extra.len() != usize::from(["preview", "commit"].contains(&operation.as_str()))
+    if !["inspect", "init", "preview", "commit", "documents"].contains(&operation.as_str())
+        || extra.len()
+            != usize::from(["preview", "commit", "documents"].contains(&operation.as_str()))
         || path.len() > 4096
         || path.chars().any(char::is_control)
     {
@@ -342,7 +344,7 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
     private_directory(home).map_err(|_| "invalid_request")?;
     let directory = OpenOptions::new()
         .read(true)
-        .custom_flags(libc::O_NOFOLLOW)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_DIRECTORY | libc::O_NONBLOCK)
         .open(root)
         .map_err(|_| "folder_changed")?;
     if unsafe { libc::flock(directory.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
@@ -360,6 +362,11 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
     git.identity(device, inode)?;
     if ["preview", "commit"].contains(&operation.as_str()) {
         return initial::run(&git, operation, &extra[0], device, inode);
+    }
+    if operation == "documents" {
+        let result = initial::documents(&git, &extra[0])?;
+        git.identity(device, inode)?;
+        return Ok(result);
     }
     let observed = git.inspect()?;
     if operation == "inspect" {
@@ -381,6 +388,11 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
         return Err("recheck_required");
     }
     git.identity(device, inode)?;
+    if operation == "documents" {
+        let result = initial::documents(&git, &extra[0])?;
+        git.identity(device, inode)?;
+        return Ok(result);
+    }
     let observed = git.inspect()?;
     if observed["status"] == "unborn" {
         Ok(json!({"status":"initialized"}))
@@ -439,6 +451,70 @@ mod tests {
         args[0] = name.into();
         let (_sender, receiver) = mpsc::channel();
         run(&args, receiver, Duration::from_secs(10))
+    }
+
+    #[test]
+    fn documents_read_only_selected_regular_text_without_git() {
+        use std::os::unix::fs::symlink;
+        let (root, home, args) = fixture();
+        fs::create_dir(root.join("docs")).unwrap();
+        fs::write(root.join("docs/plan.md"), "# План\nBuild a feature.\t").unwrap();
+        fs::write(home.join("private.txt"), "unselected-canary").unwrap();
+        let selected = |paths: Value| {
+            let mut args = args.clone();
+            args.push(json!({"paths":paths}).to_string());
+            operation(&args, "documents")
+        };
+        let receipt = selected(json!(["docs/plan.md"])).unwrap();
+        assert_eq!(receipt["status"], "previewed");
+        assert!(valid_documents(&receipt["files"]));
+        assert_eq!(receipt["files"][0]["text"], "# План\nBuild a feature.\t");
+        assert!(!receipt.to_string().contains("unselected-canary"));
+        assert!(!root.join(".git").exists());
+        for paths in [
+            json!([]),
+            json!(["../private/private.txt"]),
+            json!([".env/secret.md"]),
+            json!(["code.ex"]),
+            json!(["docs/plan.md", "docs/plan.md"]),
+        ] {
+            assert_eq!(selected(paths), Err("invalid_selection"));
+        }
+        symlink(&home, root.join("linked")).unwrap();
+        symlink(home.join("private.txt"), root.join("linked.txt")).unwrap();
+        fs::hard_link(home.join("private.txt"), root.join("hard.txt")).unwrap();
+        let fifo = std::ffi::CString::new(root.join("pipe.txt").to_str().unwrap()).unwrap();
+        assert_eq!(unsafe { libc::mkfifo(fifo.as_ptr(), 0o600) }, 0);
+        for path in [
+            "linked/private.txt",
+            "linked.txt",
+            "hard.txt",
+            "pipe.txt",
+            "missing.md",
+        ] {
+            assert_eq!(selected(json!([path])), Err("unsafe_file"));
+        }
+        for content in [b"bad\0text".to_vec(), vec![255]] {
+            fs::write(root.join("bad.txt"), content).unwrap();
+            assert_eq!(selected(json!(["bad.txt"])), Err("invalid_text"));
+        }
+        fs::write(root.join("large.txt"), "a".repeat(4097)).unwrap();
+        assert_eq!(selected(json!(["large.txt"])), Err("selection_limit"));
+        for n in 1..=4 {
+            fs::write(root.join(format!("{n}.md")), "x".repeat(3001)).unwrap();
+        }
+        assert_eq!(
+            selected(json!(["1.md", "2.md", "3.md", "4.md"])),
+            Err("selection_limit")
+        );
+        let mut forged = receipt["files"].clone();
+        forged[0]["sha256"] = json!("forged");
+        assert!(!valid_documents(&forged));
+        let mut changed = args.clone();
+        changed[3] = "0".into();
+        changed.push(json!({"paths":["docs/plan.md"]}).to_string());
+        assert_eq!(operation(&changed, "documents"), Err("folder_changed"));
+        fs::remove_dir_all(root.parent().unwrap()).unwrap();
     }
 
     fn git(root: &Path, home: &Path, args: &[&str]) -> (i32, Vec<u8>) {

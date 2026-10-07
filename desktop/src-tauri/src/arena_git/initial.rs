@@ -69,7 +69,7 @@ fn open_at(directory: &File, name: &str, flags: i32) -> Result<File> {
     }
 }
 
-fn read_file(git: &Git<'_>, path: &str) -> Result<(Value, Vec<u8>)> {
+fn read_file(git: &Git<'_>, path: &str, limit: u64) -> Result<(Value, Vec<u8>)> {
     git.active()?;
     let mut directory = git.directory.try_clone().map_err(|_| "unsafe_file")?;
     let parts: Vec<_> = path.split('/').collect();
@@ -81,12 +81,12 @@ fn read_file(git: &Git<'_>, path: &str) -> Result<(Value, Vec<u8>)> {
     if !before.is_file() || before.nlink() != 1 {
         return Err("unsafe_file");
     }
-    if before.len() > FILE_LIMIT {
+    if before.len() > limit {
         return Err("selection_limit");
     }
     let mut bytes = Vec::new();
     (&file)
-        .take(FILE_LIMIT + 1)
+        .take(limit + 1)
         .read_to_end(&mut bytes)
         .map_err(|_| "unsafe_file")?;
     let after = file.metadata().map_err(|_| "unsafe_file")?;
@@ -109,6 +109,73 @@ fn read_file(git: &Git<'_>, path: &str) -> Result<(Value, Vec<u8>)> {
         json!({"path":path,"bytes":bytes.len(),"sha256":digest(&bytes),"mode":mode}),
         bytes,
     ))
+}
+
+pub(crate) fn valid_documents(value: &Value) -> bool {
+    let Some(files) = value.as_array() else {
+        return false;
+    };
+    let names = Value::Array(files.iter().map(|file| file["path"].clone()).collect());
+    let Ok(names) = paths(&names) else {
+        return false;
+    };
+    !files.is_empty()
+        && files.len() <= 4
+        && names.iter().all(|path| {
+            let path = path.to_ascii_lowercase();
+            path.ends_with(".md") || path.ends_with(".txt")
+        })
+        && files.iter().all(|file| {
+            file.as_object().is_some_and(|map| map.len() == 4)
+                && file["text"].as_str().is_some_and(|text| {
+                    text.len() <= 4096
+                        && !text
+                            .chars()
+                            .any(|c| c.is_control() && !['\n', '\r', '\t'].contains(&c))
+                        && file["bytes"].as_u64() == Some(text.len() as u64)
+                        && file["sha256"] == digest(text.as_bytes())
+                })
+        })
+        && files
+            .iter()
+            .map(|file| file["bytes"].as_u64().unwrap_or(12_001))
+            .sum::<u64>()
+            <= 12_000
+}
+
+pub(super) fn documents(git: &Git<'_>, extra: &str) -> Result<Value> {
+    if extra.len() > 4096 {
+        return Err("invalid_selection");
+    }
+    let request: Value = serde_json::from_str(extra).map_err(|_| "invalid_selection")?;
+    let selected = paths(&request["paths"])?;
+    if selected.is_empty()
+        || selected.len() > 4
+        || !selected.iter().all(|path| {
+            let path = path.to_ascii_lowercase();
+            path.ends_with(".md") || path.ends_with(".txt")
+        })
+    {
+        return Err("invalid_selection");
+    }
+    let mut files = Vec::new();
+    let mut total = 0;
+    for path in selected {
+        let (mut file, bytes) = read_file(git, path, 4096)?;
+        total += bytes.len();
+        if total > 12_000 {
+            return Err("selection_limit");
+        }
+        let text = String::from_utf8(bytes).map_err(|_| "invalid_text")?;
+        file.as_object_mut().unwrap().remove("mode");
+        file["text"] = json!(text);
+        files.push(file);
+    }
+    let files = Value::Array(files);
+    if !valid_documents(&files) {
+        return Err("invalid_text");
+    }
+    Ok(json!({"status":"previewed", "files":files}))
 }
 
 fn preview(git: &Git<'_>, paths: &[&str]) -> Result<(Value, Vec<Vec<u8>>)> {
@@ -163,7 +230,7 @@ fn preview(git: &Git<'_>, paths: &[&str]) -> Result<(Value, Vec<Vec<u8>>)> {
     let mut contents = Vec::new();
     let mut total = 0;
     for path in paths {
-        let (file, bytes) = read_file(git, path)?;
+        let (file, bytes) = read_file(git, path, FILE_LIMIT)?;
         total += bytes.len();
         if total > TOTAL_LIMIT {
             return Err("selection_limit");

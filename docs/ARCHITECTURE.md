@@ -1,75 +1,49 @@
 # Architecture
 
-Target architecture, implemented incrementally. R010 provides the tray,
-authenticated LiveView foundation, SQLite and metadata-only setup dispatcher.
-R020a–d add the Codex version/inspection/authorization and fixed model-check adapter.
-R030a adds saved default-team configuration; R040a adds Arena registration and
-frozen team inheritance. R040b adds default Tabulae and manual draft tasks.
-R040c adds explicit metadata inspection and confirmed Git initialization.
-R040d adds bounded previews and separately confirmed initial commits.
-R040e adds brief-only Speculator proposals with explicit imports into draft tasks.
-Battles and the task runner below remain subsequent slices.
+## Implemented boundary · reviewed 2026-10-07
 
-Current startup order: Repo → schema validation/migration → PubSub → shell
-authority → durable dispatcher → loopback Endpoint → readiness message.
-`Cuckoding.Foundation` owns idempotent setup commands and append-only events;
-`Cuckoding.Dispatcher` executes their bounded claims; uncertain provider effects
-are interrupted rather than automatically replayed. The shell owns
-its release process group and storage lock. R020a adds an explicitly consented
-Codex version child process. R020b can inspect a stable private profile through
-a fixed native app-server helper. R020c adds managed login/logout with native
-profile locking and no agent conversation. SQLite owns login lifecycle; a small
-dispatcher-owned ETS table holds only the expiring provider URL. LiveView exposes
-a session-protected local redirect, never the provider URL in its state.
-R020d reuses the same ledger/helper for a separately consented, fixed model
-diagnostic with private scratch permissions and a validated public receipt.
-The single dispatcher serializes setup; parallel task execution is a later slice.
-`Cuckoding.Team` commits configuration-only revisions and audit events directly in
-SQLite transactions. It never queues a worker or expands grants. TeamLive and
-HomeLive share the application layout and session boundary; live updates preserve
-unsaved team edits while refreshing catalog observations.
+Cuckoding currently delivers authenticated setup and draft planning. It does
+**not** yet run battles, worktree task attempts, review loops or parallel workers.
+The later sections describe the target architecture, not additional shipped code.
 
-`Cuckoding.Arenas` reuses the command ledger/dispatcher for a fixed native
-`NSOpenPanel` helper, then commits confirmed registration directly in SQLite.
-The chooser has a clean environment, its own process group, no child processes,
-and exits on stdin loss/cancel or a two-minute deadline. Folder results do not
-advance provider workspace revisions. Registration reads directory and `.git`
-entry metadata only; it never runs Git or reads project contents. ArenaLive
-previews the path and immutable team revision before confirmation.
+Startup: Repo → schema validation/migration → PubSub → shell authority →
+durable dispatcher → loopback Endpoint → readiness message. SQLite is authoritative;
+LiveView owns unsaved forms, not workflow progress. The native shell owns the
+release process group and private storage lock.
 
-`Cuckoding.Tabulae` commits boards and manual task revisions synchronously through
-the same SQLite command/event boundary. TabulaLive scopes routes to their Arena,
-shows the currently assigned team and preserves dirty editors during broadcasts.
-Specs/ToDo are the only writable draft columns; the other three are visible future
-stages. Draft saves involve no provider, Git service, filesystem or dispatcher.
+| Current source | Responsibility and durable owner |
+| --- | --- |
+| `Foundation`, `Dispatcher`, `records.ex` | Idempotent commands, expiring claims, append-only events and setup projections in SQLite; one synchronous dispatcher executes bounded external operations |
+| `ShellAuth`, web session guard | One-time shell/browser handoff and expiring DB sessions; stateful components must guard their own events |
+| `Codex`, native `connection.rs` / `model_check.rs` | Private-profile authorization, model catalog, fixed diagnostic and structured no-tools planning; SQLite retains only normalized public receipts |
+| `Team`, `TeamAssignments` | Immutable default revisions and confirmed scoped adoptions; no provider launch or permission grant |
+| `Arenas`, native `folder.rs` | Native folder selection and confirmed directory identity; registration reads metadata only |
+| `Tabulae` | Immutable default boards, revisioned Specs/ToDo drafts and proposal import provenance; delivery columns stay locked |
+| `Planning`, `PlanningDocuments` | Freeze team/model/brief and optional selected text snapshots in commands; validate proposals before explicit draft import |
+| `ArenaGit`, `NativeHelper`, native `arena_git.rs` | Fixed inspect/init/initial-commit operations and descriptor-relative selected file reads; no remotes, hooks or arbitrary commands |
 
-`Cuckoding.TeamAssignments` resolves the latest append-only scoped adoption or
-creation team. Confirmed adoption uses the command/event transaction boundary;
-Arena changes affect future boards and Tabula changes affect future planning.
-The adoption component previews both full rosters. Adoption and planning components
-install the shared DB session guard because parent event hooks do not run for
-component-targeted events. No new worker or execution grant is introduced.
+The dispatcher serializes setup, local previews and planning globally. This is a
+known preview-stage capacity limit, not the future parallel scheduler. Pending
+intent/cancellation remains usable through other DB connections. Expired external
+operations become interrupted without replay; metadata discovery alone retries.
+Login URLs are transient in dispatcher-owned ETS and a protected redirect; their
+absence after restart does not invalidate historical authorization observations.
 
-`Cuckoding.Planning` freezes the currently assigned board Speculator and current connection in a
-consented `plan_tabula` command. The existing dispatcher and Codex adapter send
-one structured ephemeral turn under the diagnostic scratch grant. Request text
-travels on helper stdin. Validated public proposals live in the command receipt;
-imports reuse Tabulae's transactional draft writer. A LiveComponent owns only
-presentation; SQLite retains the source brief, snapshots, results and import
-provenance. No new worker, migration or authority boundary is introduced.
+R040f reuses the native pinned-directory reader for up to four selected `.md`/`.txt`
+files without running Git. A local `preview_documents` command stores exact text,
+relative paths, byte counts and SHA-256; events omit content/paths/hashes. A
+separately consented `plan_tabula` freezes the scoped, fresh preview reference and
+text. The provider receives untrusted snapshots on stdin, under the unchanged
+empty-scratch/no-tools grant; it never receives the Arena root. No new worker,
+dependency or migration is introduced. See [Security](SECURITY.md) for limits.
 
-`Cuckoding.ArenaGit` uses the setup ledger/dispatcher and `GitAdapter` boundary for
-explicit Git operations. `LocalGit` shares `NativeHelper`'s bounded, cancellable
-Port transport with the folder chooser. The fixed native helper calls system Git
-in owned process groups with a clean environment and pinned directory handle.
-TabulaLive exposes inspection and fresh-observation init consent in a disclosure;
-durable command receipts survive reconnect, without changing setup revisions or
-requiring a new schema. R040d extends the same boundary with exact file snapshots,
-a private candidate index and a first-commit receipt. Git creates blobs/trees/commit;
-the helper exclusively publishes the index and loose branch while holding Git
-locks. Partial effects survive interruption. These Git operations never contact a remote or launch an agent.
+Audit consequences: preserve these domain/host boundaries; extend planning and
+acceptance evidence before adding execution. The seven-migration schema has no
+accepted spec artifacts, dependencies, battle authorization, attempts, reviews,
+worker leases or integration receipts. Required work remains in [Plan](PLAN.md),
+including real-account acceptance; fixture responses do not close that gate.
 
-## Components
+## Target components
 
 ```mermaid
 flowchart TD
@@ -104,7 +78,7 @@ Do not scaffold deferred subsystems or introduce a second queue/database. Start
 with the OTP supervision tree needed by actual workers, one durable command
 dispatcher and one common admission path for every launch.
 
-## Durable effects
+## Target durable effects
 
 Accept UI actions and validated agent proposals as commands with stable keys and
 expected revisions. In a short transaction, check authorization/state, write

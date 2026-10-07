@@ -6,6 +6,7 @@ defmodule Cuckoding.Foundation do
   @exclusive_kinds @auth_kinds ++
                      [
                        "plan_tabula",
+                       "preview_documents",
                        "check_codex_model",
                        "choose_arena_folder",
                        "inspect_arena_git",
@@ -133,6 +134,7 @@ defmodule Cuckoding.Foundation do
               "login_codex",
               "logout_codex",
               "plan_tabula",
+              "preview_documents",
               "check_codex_model",
               "choose_arena_folder",
               "inspect_arena_git",
@@ -333,6 +335,7 @@ defmodule Cuckoding.Foundation do
                  "login_codex",
                  "logout_codex",
                  "plan_tabula",
+                 "preview_documents",
                  "check_codex_model",
                  "choose_arena_folder",
                  "inspect_arena_git",
@@ -396,10 +399,14 @@ defmodule Cuckoding.Foundation do
 
   defp lease_duration("login_codex"), do: 630_000
   defp lease_duration("choose_arena_folder"), do: 135_000
+  defp lease_duration("preview_documents"), do: 25_000
   defp lease_duration("plan_tabula"), do: 140_000
   defp lease_duration("check_codex_model"), do: 140_000
   defp lease_duration(kind) when kind in ["inspect_codex", "logout_codex"], do: 20_000
   defp lease_duration(_), do: 10_000
+
+  def finish(%Command{kind: "preview_documents"} = claim, result),
+    do: Cuckoding.PlanningDocuments.finish(claim, result)
 
   def finish(%Command{kind: "plan_tabula"} = claim, result),
     do: Cuckoding.Planning.finish(claim, result)
@@ -579,6 +586,7 @@ defmodule Cuckoding.Foundation do
        when kind in ~w(inspect_arena_git init_arena_git preview_arena_git commit_arena_git),
        do: "arena_git."
 
+  defp prefix("preview_documents"), do: "documents."
   defp prefix("discover_tools"), do: "discovery."
   defp prefix("choose_arena_folder"), do: "arena_folder."
   defp prefix("probe_codex"), do: "codex."

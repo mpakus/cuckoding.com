@@ -70,4 +70,19 @@ defmodule Cuckoding.PlanningFixtures do
       }
     }
   end
+
+  def document_receipt(path \\ "docs/plan.md", text \\ "# Selected plan\nBuild a small feature.") do
+    %{
+      "status" => "previewed",
+      "elapsed_ms" => 12,
+      "files" => [
+        %{
+          "path" => path,
+          "text" => text,
+          "bytes" => byte_size(text),
+          "sha256" => Base.encode16(:crypto.hash(:sha256, text), case: :lower)
+        }
+      ]
+    }
+  end
 end

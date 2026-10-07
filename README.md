@@ -30,20 +30,25 @@ explicitly selected files (or an empty baseline) and create its first local comm
 after fresh confirmation. Working files remain unchanged; existing indexes/history
 are refused. See [Git setup limits](docs/DEVELOPMENT.md).
 
-**Ask Speculator** turns a typed brief into up to six proposals using the Tabula's
+**Ask Speculator** turns a typed brief and optional selected document snapshots
+into up to six proposals using the Tabula's
 saved Codex/model binding and separate usage consent. Review each suggestion and
 add it to Specs once, then edit it like any draft. This turn has no tools or project
-file access; proposals and their source brief survive reconnect/restart.
+file access. **Preview documents** reads up to four explicit Arena-relative
+`.md`/`.txt` files locally (4,096 bytes each, 12,000 total). Review exact text and
+hashes, then separately consent to send those snapshots. Proposals and source
+text survive reconnect/restart. Files are never crawled or implicitly uploaded.
 
 Real Codex `0.146.0` login start/cancel, signed-out inspection and restricted
 configuration/thread preflight passed. Successful model responses use fixtures;
 human-completed login, real responses and repository execution remain open.
-Planning from files, accepted Markdown specs, execution grants and autonomous
-battles are next. Registration alone does not validate Git; an explicit inspection
+Accepted Markdown specs, task dependencies, execution grants and autonomous
+battles remain unimplemented. Registration alone does not validate Git; an explicit inspection
 distinguishes missing, unborn and committed standalone repositories.
 The product story above remains the target, not a shipped capability list.
 
-Evidence: [Scoped team adoption worklog](worklog/2026-10-07-R030b-scoped-team-adoption.md),
+Evidence: [Selected document planning worklog](worklog/2026-10-07-R040f-document-planning.md),
+[Scoped team adoption worklog](worklog/2026-10-07-R030b-scoped-team-adoption.md),
 [Brief planning worklog](worklog/2026-10-07-R040e-brief-planning.md),
 [Initial commit worklog](worklog/2026-10-07-R040d-initial-commit.md),
 [Git setup worklog](worklog/2026-10-07-R040c-arena-git-setup.md),
