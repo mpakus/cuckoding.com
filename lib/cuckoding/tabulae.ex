@@ -40,8 +40,19 @@ defmodule Cuckoding.Tabulae do
     end
   end
 
-  def tasks(tabula_id),
-    do: Repo.all(from t in DraftTask, where: t.tabula_id == ^tabula_id, order_by: t.inserted_at)
+  def tasks(tabula_id) do
+    Repo.all(
+      from t in DraftTask,
+        join: r in DraftTaskRevision,
+        on: r.task_id == t.id and r.revision == t.revision,
+        where: t.tabula_id == ^tabula_id,
+        order_by: t.inserted_at,
+        select: {t, r.content}
+    )
+    |> Enum.map(fn {task, content} ->
+      %{task | depends_on: Map.get(content, "depends_on", [])}
+    end)
+  end
 
   def history(tabula_id, task_id) do
     Repo.all(
@@ -54,7 +65,8 @@ defmodule Cuckoding.Tabulae do
     )
   end
 
-  def content(task), do: Map.new(@fields, &{&1, Map.fetch!(task, String.to_existing_atom(&1))})
+  def content(task),
+    do: Map.new(@fields ++ ["depends_on"], &{&1, Map.fetch!(task, String.to_existing_atom(&1))})
 
   def create(key, arena_id, name) do
     with {:ok, key} <- Ecto.UUID.cast(key),
@@ -209,7 +221,7 @@ defmodule Cuckoding.Tabulae do
         "stale_task"
 
       true ->
-        stage_rejection(payload["content"])
+        stage_rejection(payload["content"]) || dependency_rejection(payload)
     end
   end
 
@@ -221,6 +233,33 @@ defmodule Cuckoding.Tabulae do
   end
 
   defp stage_rejection(_), do: "stage_unavailable"
+
+  defp dependency_rejection(payload) do
+    # ponytail: load the board graph per save; query reachable edges if boards outgrow memory.
+    graph = Map.new(tasks(payload["tabula_id"]), &{&1.id, &1.depends_on})
+    id = payload["task_id"]
+    dependencies = Map.get(payload["content"], "depends_on", Map.get(graph, id, []))
+
+    cond do
+      Enum.any?(dependencies, &(&1 == id or not Map.has_key?(graph, &1))) ->
+        "invalid_dependencies"
+
+      reaches?(dependencies, id, graph, MapSet.new()) ->
+        "dependency_cycle"
+
+      true ->
+        nil
+    end
+  end
+
+  defp reaches?([], _, _, _), do: false
+  defp reaches?([id | _], id, _, _), do: true
+
+  defp reaches?([id | rest], target, graph, visited) do
+    if MapSet.member?(visited, id),
+      do: reaches?(rest, target, graph, visited),
+      else: reaches?(Map.get(graph, id, []) ++ rest, target, graph, MapSet.put(visited, id))
+  end
 
   defp write("create_tabula", id, _, payload) do
     arena = Repo.get!(Arena, payload["arena_id"])
@@ -258,9 +297,19 @@ defmodule Cuckoding.Tabulae do
   end
 
   defp write("save_draft", id, expected, payload) do
-    attrs = Map.new(payload["content"], fn {k, v} -> {String.to_existing_atom(k), v} end)
+    attrs = Map.new(@fields, &{String.to_existing_atom(&1), payload["content"][&1]})
     previous = Repo.get(DraftTask, payload["task_id"])
     task = previous || %DraftTask{id: payload["task_id"], tabula_id: payload["tabula_id"]}
+
+    content =
+      Map.put_new_lazy(payload["content"], "depends_on", fn ->
+        if previous do
+          Repo.get_by!(DraftTaskRevision, task_id: task.id, revision: previous.revision).content
+          |> Map.get("depends_on", [])
+        else
+          []
+        end
+      end)
 
     task
     |> Ecto.Changeset.change(Map.put(attrs, :revision, expected + 1))
@@ -270,7 +319,7 @@ defmodule Cuckoding.Tabulae do
       task_id: task.id,
       command_id: id,
       revision: expected + 1,
-      content: payload["content"],
+      content: content,
       inserted_at: DateTime.utc_now()
     })
 
@@ -281,19 +330,28 @@ defmodule Cuckoding.Tabulae do
         "tabula_id" => task.tabula_id,
         "revision" => expected + 1,
         "from" => if(previous, do: previous.column),
-        "to" => attrs.column
+        "to" => attrs.column,
+        "depends_on" => content["depends_on"]
       },
       id
     )
   end
 
   defp valid_content?(attrs) when is_map(attrs) do
-    Enum.sort(Map.keys(attrs)) == Enum.sort(@fields) and
+    Enum.sort(Map.keys(Map.delete(attrs, "depends_on"))) == Enum.sort(@fields) and
+      valid_dependencies?(Map.get(attrs, "depends_on", [])) and
       text?(attrs["title"], 1, 120, false) and text?(attrs["description"], 0, 8_000, true) and
       text?(attrs["criteria"], 0, 4_000, true) and text?(attrs["column"], 1, 32, false)
   end
 
   defp valid_content?(_), do: false
+
+  defp valid_dependencies?(ids) when is_list(ids) do
+    length(ids) <= 16 and length(Enum.uniq(ids)) == length(ids) and
+      Enum.all?(ids, &(is_binary(&1) and byte_size(&1) == 36 and Ecto.UUID.cast(&1) == {:ok, &1}))
+  end
+
+  defp valid_dependencies?(_), do: false
 
   defp text?(value, min, max, multiline) when is_binary(value) do
     byte_size(value) <= max * 4 and String.valid?(value) and

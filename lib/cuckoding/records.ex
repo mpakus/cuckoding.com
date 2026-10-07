@@ -115,6 +115,7 @@ defmodule Cuckoding.DraftTask do
     field :description, :string
     field :criteria, :string
     field :column, :string
+    field :depends_on, {:array, :string}, virtual: true, default: []
     timestamps(type: :utc_datetime_usec)
   end
 end

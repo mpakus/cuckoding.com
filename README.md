@@ -24,6 +24,9 @@ replacing them. Saving a team starts no agent and grants no execution permission
 frozen team revision. It records directory identity without modifying project files.
 **Tabulae** adds multiple boards per Arena, inherited team roles, manual task
 drafts, saved revision history and keyboard movement between Specs and ToDo.
+Select up to sixteen prerequisite tasks on the same board; circular dependencies
+are refused and each saved selection remains in history. This records planning
+order without launching agents.
 **Repository setup** inspects registered Arenas and can initialize a missing Git
 repository after separate confirmation. An unborn repository can then preview
 explicitly selected files (or an empty baseline) and create its first local commit
@@ -42,12 +45,13 @@ text survive reconnect/restart. Files are never crawled or implicitly uploaded.
 Real Codex `0.146.0` login start/cancel, signed-out inspection and restricted
 configuration/thread preflight passed. Successful model responses use fixtures;
 human-completed login, real responses and repository execution remain open.
-Accepted Markdown specs, task dependencies, execution grants and autonomous
+Accepted Markdown specs, dependency scheduling, execution grants and autonomous
 battles remain unimplemented. Registration alone does not validate Git; an explicit inspection
 distinguishes missing, unborn and committed standalone repositories.
 The product story above remains the target, not a shipped capability list.
 
-Evidence: [Selected document planning worklog](worklog/2026-10-07-R040f-document-planning.md),
+Evidence: [Task prerequisites worklog](worklog/2026-10-07-R040g-task-prerequisites.md),
+[Selected document planning worklog](worklog/2026-10-07-R040f-document-planning.md),
 [Scoped team adoption worklog](worklog/2026-10-07-R030b-scoped-team-adoption.md),
 [Brief planning worklog](worklog/2026-10-07-R040e-brief-planning.md),
 [Initial commit worklog](worklog/2026-10-07-R040d-initial-commit.md),

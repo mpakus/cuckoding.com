@@ -12,7 +12,8 @@ Tabulae and manual draft tasks; R040c adds explicit Git inspection and confirmed
 initialization. R040d adds explicit file previews and consented initial commits.
 R040e adds consented Speculator proposals from typed briefs and individual imports
 into Specs. R040f adds explicit selected-document previews and consented snapshot
-inputs. Accepted Markdown specs and execution grants remain open.
+inputs. R040g adds revisioned, acyclic manual task prerequisites. Accepted Markdown
+specs, dependency scheduling and execution grants remain open.
 R030b lets existing Arenas/Tabulae explicitly adopt a newer saved default team
 without rewriting earlier requests or drafts. Per-scope role editing remains open.
 Historical source/tests/builds do not satisfy these gates.
@@ -189,8 +190,13 @@ Depends on R030.
   R040e adds brief proposals and source-command provenance; R040f adds selected
   document snapshots. File-backed accepted specs, per-task validated citations
   and custom planning-role selection remain.
-- [ ] Validate bounds, paths, duplicates and acyclic dependencies; support user
-  edits before Start without launching delivery work.
+- [x] R040g: select bounded same-board task prerequisites, reject cycles against
+  the latest graph and retain dependency revisions without launching work. See
+  [task](../tasks/R040g-task-prerequisites.md) and
+  [evidence](../worklog/2026-10-07-R040g-task-prerequisites.md).
+- [ ] Extend dependency/citation validation to provider-proposed task graphs;
+  current proposals deliberately contain no dependency IDs. Manual bounds and
+  pre-start edits are implemented; accepted-spec validation remains open.
 - [ ] Persist project-approved check commands and grants separately from agent
   proposals. Provide empty states and keyboard task movement.
 

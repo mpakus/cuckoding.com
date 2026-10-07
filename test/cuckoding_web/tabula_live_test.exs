@@ -103,6 +103,78 @@ defmodule CuckodingWeb.TabulaLiveTest do
     assert has_element?(view, "[role=alert]", "recovered form")
   end
 
+  test "prerequisite controls preserve selections, show history and reject cycles", %{
+    conn: conn,
+    arena: arena,
+    board: board,
+    path: path
+  } do
+    a = Ecto.UUID.generate()
+    b = Ecto.UUID.generate()
+    attrs = %{"title" => "First", "description" => "", "criteria" => "", "column" => "specs"}
+    {:ok, _} = Tabulae.save(Ecto.UUID.generate(), arena.id, board.id, a, 0, attrs)
+
+    {:ok, _} =
+      Tabulae.save(Ecto.UUID.generate(), arena.id, board.id, b, 0, %{attrs | "title" => "Second"})
+
+    signed = sign_in(conn)
+    {:ok, view, _} = live(signed, path)
+    view |> element("button[aria-label='Edit Second']") |> render_click()
+    refute has_element?(view, "#depends-on-#{b}")
+    assert has_element?(view, "#draft-prerequisites legend", "Prerequisites")
+    view |> form("#draft-form", depends_on: [a]) |> render_change()
+    Foundation.broadcast()
+    assert has_element?(view, "#depends-on-#{a}[checked]")
+    view |> element("button", "New draft") |> render_click()
+    assert has_element?(view, "[role=alert]", "Discard your unsaved edits")
+    view |> element("button", "Keep editing") |> render_click()
+    view |> form("#draft-form") |> render_submit()
+    assert has_element?(view, "#task-#{b}", "Prerequisites: First")
+
+    {:ok, again, _} = live(signed, path)
+    again |> element("button[aria-label='Edit Second']") |> render_click()
+    assert has_element?(again, "#depends-on-#{a}[checked]")
+    assert has_element?(again, "#draft-history", "Prerequisites (current task names): First")
+    again |> element("button[aria-label='Edit First']") |> render_click()
+    again |> form("#draft-form", depends_on: [b]) |> render_submit()
+    assert has_element?(again, "#draft-error", "circular dependency")
+    assert has_element?(again, "#draft-save", "Save task")
+    Foundation.broadcast()
+    assert has_element?(again, "#draft-error", "circular dependency")
+    assert has_element?(again, "#depends-on-#{b}[checked]")
+    again |> form("#draft-form", depends_on: [""]) |> render_submit()
+    assert Repo.get!(Cuckoding.DraftTask, a).revision == 2
+    again |> element("button[aria-label='Edit Second']") |> render_click()
+    again |> form("#draft-form", depends_on: [""]) |> render_submit()
+    refute has_element?(again, "#task-#{b}", "Prerequisites:")
+    again |> element("button[aria-label='Edit Second']") |> render_click()
+    refute has_element?(again, "#depends-on-#{a}[checked]")
+    assert has_element?(again, "#draft-history", "Prerequisites (current task names): First")
+    assert {:ok, nil} = Foundation.claim()
+  end
+
+  test "malformed prerequisite form values cannot crash or save the editor", %{
+    conn: conn,
+    board: board,
+    path: path
+  } do
+    for bad <- ["bad", %{"bad" => "x"}, [String.duplicate("x", 37)], List.duplicate("", 18)] do
+      {:ok, view, _} = conn |> sign_in() |> live(path)
+
+      render_change(view, "change", %{
+        "title" => "Kept",
+        "description" => "",
+        "criteria" => "",
+        "column" => "specs",
+        "depends_on" => bad
+      })
+
+      assert has_element?(view, "#draft-error")
+      view |> form("#draft-form", title: "Cannot save") |> render_submit()
+      assert Tabulae.tasks(board.id) == []
+    end
+  end
+
   test "auth, bad routes and forged input fail closed", %{
     conn: conn,
     arena: arena,

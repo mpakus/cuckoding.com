@@ -90,6 +90,8 @@ defmodule Cuckoding.PlanningTest do
              )
 
     assert revision.content["column"] == "specs"
+    assert revision.content["depends_on"] == []
+    assert hd(Tabulae.tasks(board.id)).depends_on == []
     assert Repo.get!(Command, revision.command_id).payload["proposal_id"] == command.id
     {:ok, other} = Tabulae.create(Ecto.UUID.generate(), board.arena_id, "Other")
 

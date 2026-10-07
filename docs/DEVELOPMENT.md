@@ -5,7 +5,7 @@ check, plus Codex version, private-profile inspection, managed sign-in/out and a
 fixed model diagnostic, R030a saved default-team configuration and R040a Arena
 registration, R040b Tabulae/manual drafts, R040c Git inspection/init and R040d
 previewed initial commits. R040e adds Speculator proposals and explicit imports into Specs; R040f adds
-selected document snapshots. R030b adds explicit saved-team adoption for existing scopes.
+selected document snapshots. R040g adds manual task prerequisites. R030b adds explicit saved-team adoption for existing scopes.
 Human-completed real-account/model acceptance and repository
 execution remain R020 work. The previous source
 reset remains intentional; do not restore the deleted implementation wholesale.
@@ -105,7 +105,12 @@ Choose **Open Tabulae** on a registered Arena, name a board and **Create Tabula*
 It inherits that Arena's team revision, even if global defaults have changed.
 Enter a task title, description and acceptance criteria, then **Save task**.
 Use **Edit task** and the **Column** select to move between Specs and ToDo;
-ToDo requires nonblank description and criteria. Expand saved history in the
+ToDo requires nonblank description and criteria. Use **Prerequisites** to check
+up to sixteen other tasks in this board that must come first. Tab/Space operate
+the native checkboxes. Circular dependencies are refused without losing your
+selection; uncheck a prerequisite to remove it. Cards show saved prerequisites.
+This is planning order; dependency scheduling remains future work.
+Expand saved history in the
 editor to inspect revisions. Stale editors keep their text; copy it before
 discarding and loading the current task. Recovered mismatched forms also keep
 text but cannot overwrite another task. All drafts live in SQLite; no project

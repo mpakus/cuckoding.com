@@ -114,6 +114,20 @@ criteria limits are 120/8,000/4,000 characters; ToDo needs nonblank description 
 criteria. The UI reads the latest five revisions; older history stays in SQLite.
 These are database drafts (manual or imported from R040e proposals), not file-backed accepted specification artifacts.
 
+R040g adds `depends_on` to revision content, with up to sixteen distinct canonical
+task UUIDs from the same Tabula. It adds no migration or persisted projection
+column: `Tabulae.tasks/1` joins the current revision and populates a virtual field.
+Missing fields in old history read as `[]`; old rows/command payloads are never
+rewritten. Saving without this optional field preserves current prerequisites;
+an explicit `[]` clears them. Imported proposals begin with `[]`.
+
+The immediate save transaction rejects self, missing, cross-board and cyclic
+links against the latest board graph. This also catches a cycle introduced by
+another task changing after the editor opened. Rejections retain the original
+task/history; `draft.saved` includes dependency IDs but no prose. No task deletion
+or board reassignment is available; future commands must enforce these graph
+invariants too. These links are planning facts, not execution readiness.
+
 R040c reuses the six-migration schema. `inspect_arena_git` / `init_arena_git`
 snapshot Arena ID, operation, directory identity and (for init) the confirmed
 observation command ID. Init requires the latest completed `missing` inspection

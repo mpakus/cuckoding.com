@@ -18,7 +18,7 @@ release process group and private storage lock.
 | `Codex`, native `connection.rs` / `model_check.rs` | Private-profile authorization, model catalog, fixed diagnostic and structured no-tools planning; SQLite retains only normalized public receipts |
 | `Team`, `TeamAssignments` | Immutable default revisions and confirmed scoped adoptions; no provider launch or permission grant |
 | `Arenas`, native `folder.rs` | Native folder selection and confirmed directory identity; registration reads metadata only |
-| `Tabulae` | Immutable default boards, revisioned Specs/ToDo drafts and proposal import provenance; delivery columns stay locked |
+| `Tabulae` | Immutable default boards, revisioned Specs/ToDo drafts, acyclic prerequisites and proposal import provenance; delivery columns stay locked |
 | `Planning`, `PlanningDocuments` | Freeze team/model/brief and optional selected text snapshots in commands; validate proposals before explicit draft import |
 | `ArenaGit`, `NativeHelper`, native `arena_git.rs` | Fixed inspect/init/initial-commit operations and descriptor-relative selected file reads; no remotes, hooks or arbitrary commands |
 
@@ -37,9 +37,15 @@ text. The provider receives untrusted snapshots on stdin, under the unchanged
 empty-scratch/no-tools grant; it never receives the Arena root. No new worker,
 dependency or migration is introduced. See [Security](SECURITY.md) for limits.
 
+R040g stores prerequisite IDs in existing immutable draft revision JSON. Current
+tasks join their matching revision; save validates the current board graph inside
+the immediate transaction before projection/history/event writes. No new table,
+worker or scheduler is needed. The graph is loaded per save; query reachable
+edges if board size makes this too costly.
+
 Audit consequences: preserve these domain/host boundaries; extend planning and
 acceptance evidence before adding execution. The seven-migration schema has no
-accepted spec artifacts, dependencies, battle authorization, attempts, reviews,
+accepted spec artifacts, battle authorization, attempts, reviews,
 worker leases or integration receipts. Required work remains in [Plan](PLAN.md),
 including real-account acceptance; fixture responses do not close that gate.
 

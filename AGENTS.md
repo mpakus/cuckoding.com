@@ -23,6 +23,11 @@ Preserve these implemented contracts:
   identity; preserve Git locks, exact byte/hash consent and uncertain partial effects.
 - Drafts are scoped and revision-guarded; only Specs/ToDo are writable. ToDo is
   draft readiness, not independent review or delivery authorization.
+- Draft prerequisites live in immutable revision content, projected from the
+  current revision. Validate same-board references and cycles in the save
+  transaction. Old history means no prerequisites; legacy saves omitting the
+  field preserve existing links. Future deletion/scope changes must preserve
+  graph integrity. Planning links never authorize execution.
 - R040f document preview reads only explicit bounded `.md`/`.txt` selections with
   pinned native descriptors. Persist exact text/hash snapshots locally before
   provider consent. Freeze the scoped preview in the planning request; reject

@@ -332,7 +332,13 @@ defmodule CuckodingWeb.TabulaLive do
     content =
       if task,
         do: Tabulae.content(task),
-        else: %{"title" => "", "description" => "", "criteria" => "", "column" => "specs"}
+        else: %{
+          "title" => "",
+          "description" => "",
+          "criteria" => "",
+          "column" => "specs",
+          "depends_on" => []
+        }
 
     assign(socket,
       task_id: if(task, do: task.id, else: Ecto.UUID.generate()),
@@ -348,13 +354,16 @@ defmodule CuckodingWeb.TabulaLive do
   defp input(socket, params) do
     content = Map.take(params, ~w(title description criteria column))
     bounded = Enum.all?(content, fn {_, v} -> is_binary(v) and byte_size(v) <= 32_000 end)
+    dependencies = Map.get(params, "depends_on", socket.assigns.content["depends_on"])
 
     matches =
       socket.assigns.board != nil and params["task_id"] == socket.assigns.task_id and
         params["revision"] == to_string(socket.assigns.revision) and
         params["tabula_id"] == socket.assigns.board.id
 
-    if bounded && map_size(content) == 4 do
+    if bounded && map_size(content) == 4 && bounded_dependencies?(dependencies) do
+      content = Map.put(content, "depends_on", List.delete(dependencies, ""))
+
       assign(socket,
         content: content,
         dirty: content != socket.assigns.original,
@@ -366,6 +375,11 @@ defmodule CuckodingWeb.TabulaLive do
     end
   end
 
+  defp bounded_dependencies?(ids) when is_list(ids),
+    do: length(ids) <= 17 and Enum.all?(ids, &(is_binary(&1) and byte_size(&1) <= 36))
+
+  defp bounded_dependencies?(_), do: false
+
   defp role_name(team, key) do
     case Enum.find(team.definition["roles"], &(&1["id"] == key)) do
       nil -> "System result"
@@ -373,10 +387,25 @@ defmodule CuckodingWeb.TabulaLive do
     end
   end
 
+  defp dependency_label(tasks, id) do
+    case Enum.find(tasks, &(&1.id == id)) do
+      nil -> id
+      task -> "#{task.title} · #{String.slice(id, 0, 8)}"
+    end
+  end
+
   defp message("invalid_board"), do: "Enter a Tabula name of 1–80 characters."
 
   defp message("invalid_task"),
-    do: "Enter a title (1–120 characters), description (up to 8,000) and criteria (up to 4,000)."
+    do:
+      "Enter a title (1–120 characters), description (up to 8,000), criteria (up to 4,000) and up to 16 distinct prerequisites."
+
+  defp message("invalid_dependencies"),
+    do: "Choose other tasks in this Tabula as prerequisites. Your draft is kept."
+
+  defp message("dependency_cycle"),
+    do:
+      "These prerequisites create a circular dependency. Your draft is kept; revise the selection."
 
   defp message("criteria_required"),
     do: "ToDo needs a description and acceptance criteria. Your draft is kept."
@@ -640,6 +669,9 @@ defmodule CuckodingWeb.TabulaLive do
               >
                 <h4>{task.title}</h4>
                 <p class="fine-print">Draft · revision {task.revision} · no active agent</p>
+                <p :if={task.depends_on != []} class="fine-print">
+                  Prerequisites: {Enum.map_join(task.depends_on, "; ", &dependency_label(@tasks, &1))}
+                </p>
                 <button
                   type="button"
                   class="button"
@@ -696,11 +728,31 @@ defmodule CuckodingWeb.TabulaLive do
             </option>
             <option value="todo" selected={@content["column"] == "todo"}>ToDo · planned work</option>
           </select>
+          <fieldset id="draft-prerequisites" aria-describedby="prerequisites-help">
+            <legend>Prerequisites</legend>
+            <p id="prerequisites-help" class="fine-print">
+              Choose up to 16 tasks that must come first. This records a plan; it does not start work.
+            </p>
+            <input type="hidden" name="depends_on[]" value="" />
+            <label :for={task <- Enum.reject(@tasks, &(&1.id == @task_id))} class="confirm-executable">
+              <input
+                id={"depends-on-#{task.id}"}
+                type="checkbox"
+                name="depends_on[]"
+                value={task.id}
+                checked={task.id in @content["depends_on"]}
+              />
+              {dependency_label(@tasks, task.id)}
+            </label>
+            <p :if={!Enum.any?(@tasks, &(&1.id != @task_id))} class="fine-print">
+              Save another task to add a prerequisite.
+            </p>
+          </fieldset>
           <p class="fine-print">
             ToDo needs a description and criteria. These are database drafts; project files stay untouched.
           </p>
           <p :if={@error} id="draft-error" role="alert" class="notice">{@error}</p>
-          <button type="submit" class="button primary" phx-disable-with="Saving…">Save task</button>
+          <button id="draft-save" type="submit" class="button primary" phx-disable-with="Saving…">Save task</button>
         </.form>
         <details
           :if={@history != []}
@@ -714,6 +766,12 @@ defmodule CuckodingWeb.TabulaLive do
             <h4>{revision.content["title"]}</h4>
             <p class="draft-copy">{revision.content["description"]}</p>
             <p class="draft-copy">{revision.content["criteria"]}</p>
+            <p class="fine-print">
+              Prerequisites (current task names): {case Map.get(revision.content, "depends_on", []) do
+                [] -> "None"
+                ids -> Enum.map_join(ids, "; ", &dependency_label(@tasks, &1))
+              end}
+            </p>
           </article>
         </details>
       </section>
