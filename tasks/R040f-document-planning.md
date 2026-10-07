@@ -1,6 +1,7 @@
 # R040f — Preview selected documents for Speculator
 
-Status: verified; local integration pending. Owner: Codex.
+Status: complete on local main. Owner: Codex. Implementation: `fc5a7c1`.
+Merged feature branch deleted; no remote publication.
 
 - Audit current component/state ownership and distinguish implemented setup and
   planning from the target battle architecture in docs and contributor guidance.

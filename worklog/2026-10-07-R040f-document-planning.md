@@ -107,4 +107,13 @@ citations, dependencies/custom workflows, execution grants, autonomous review
 loops, parallelism, physical sleep and release signing remain open. Site was not
 changed; no site gates, remote push or deployment were performed.
 
-Local main integration is the final step; verified working tree only at this entry.
+## Local integration
+
+`fc5a7c1` (`feat(planning): Preview selected documents for Speculator`) was
+fast-forward merged into local `main` with
+`rtk git merge --ff-only feature/r040f-document-planning` after verification.
+`rtk git branch -d feature/r040f-document-planning` deleted the merged branch.
+This entry records actual local integration. No remote push or Pages deployment
+occurred; the isolated native proof bundle is built and stopped, not the running
+user application. Documentation link targets/heading anchors and
+`rtk git diff --check` passed before integration.
