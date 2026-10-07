@@ -27,6 +27,12 @@ scoped to Arena/Tabula/task, guarded by task revisions and committed with histor
 and events. Only Specs/ToDo are writable; ToDo requires description and criteria.
 Neither stage grants execution or represents a validated Secutor result. Preserve
 recovered-form identity guards and unsaved text through live updates.
+R040c adds explicit Arena Git inspection and separately confirmed initialization.
+Bind init to the latest missing observation (under five minutes) and pinned folder
+identity. Never stage/commit files, adopt linked/external metadata, inherit personal
+Git config or replay uncertain effects. Fixed native Git operations reuse the
+command ledger and owned group cleanup; their result is not an execution grant or
+proof of a clean worktree. See the Git limits in `docs/SECURITY.md`.
 
 ## Mission and product contract
 

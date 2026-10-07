@@ -28,10 +28,18 @@ R040a adds **Choose folder → preview path/team → confirm → Register Arena*
 The native dialog accepts one existing directory and cannot create folders.
 Registration freezes the team revision shown at selection, permits unassigned
 drafts and leaves all project files untouched. Later default-team changes do not
-rewrite it. Git-entry presence is labeled unverified; repository validation,
-confirmed Git init/baseline commits, Arena overrides and execution
-grants remain subsequent work. Cancel or interrupted selection requires a new
+rewrite it. Git-entry presence is labeled unverified; baseline commits, Arena
+overrides and execution grants remain subsequent work. Cancel or interrupted selection requires a new
 explicit choice; it never starts planning or a battle.
+
+R040c adds **Open Tabulae → Repository setup → Inspect Git**. A missing result
+offers a separate confirmation to initialize `.git` on `main`, with no templates,
+staging or commit. Consent binds the latest observation and expires after five
+minutes; changed identity or newly appeared metadata refuses initialization.
+Unborn means no HEAD commit; existing means a validated HEAD commit, not clean
+files or execution readiness. Cancel waits for native cleanup; interruption or
+uncertain cleanup requires a fresh inspection and never automatically retries.
+Manual drafts remain usable when Git is unavailable or the layout is unsupported.
 
 ## Planning
 

@@ -113,6 +113,18 @@ criteria limits are 120/8,000/4,000 characters; ToDo needs nonblank description 
 criteria. The UI reads the latest five revisions; older history stays in SQLite.
 These are manual database drafts, not file-backed accepted specification artifacts.
 
+R040c reuses the six-migration schema. `inspect_arena_git` / `init_arena_git`
+snapshot Arena ID, operation, directory identity and (for init) the confirmed
+observation command ID. Init requires the latest completed `missing` inspection
+to be less than five minutes old. Matching command keys return the same receipt.
+They serialize with other setup effects using 25-second claims; cancelled or
+interrupted running effects are never replayed. A new inspection reconciles state.
+The command payload stores a closed observation (status, measured duration and
+validated HEAD hash when committed); `arena_git.*` events contain only IDs,
+operation, closed reason/status and duration. Neither setup workspace revisions
+nor the Arena's original registration fact changes. This is metadata observation,
+not a clean-file inventory or a runnable baseline.
+
 The default native root is `~/Library/Application Support/CCoding Rebuild`,
 marked `.ccoding-rebuild-v1`. Unknown nonempty roots and symlinked storage are
 refused before migration. `foundation.db` and sidecars are private; old Cuckoding

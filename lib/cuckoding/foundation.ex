@@ -3,7 +3,13 @@ defmodule Cuckoding.Foundation do
   import Ecto.Query
   alias Cuckoding.{Codex, Command, Event, Repo, Workspace}
   @auth_kinds ~w(login_codex logout_codex)
-  @exclusive_kinds @auth_kinds ++ ["check_codex_model", "choose_arena_folder"]
+  @exclusive_kinds @auth_kinds ++
+                     [
+                       "check_codex_model",
+                       "choose_arena_folder",
+                       "inspect_arena_git",
+                       "init_arena_git"
+                     ]
 
   def workspace, do: Repo.get!(Workspace, 1)
   def catalog_status(connection, now \\ DateTime.utc_now())
@@ -124,7 +130,9 @@ defmodule Cuckoding.Foundation do
               "login_codex",
               "logout_codex",
               "check_codex_model",
-              "choose_arena_folder"
+              "choose_arena_folder",
+              "inspect_arena_git",
+              "init_arena_git"
             ] and
               state in ["pending", "running"] do
     Repo.update!(
@@ -319,7 +327,9 @@ defmodule Cuckoding.Foundation do
                  "login_codex",
                  "logout_codex",
                  "check_codex_model",
-                 "choose_arena_folder"
+                 "choose_arena_folder",
+                 "inspect_arena_git",
+                 "init_arena_git"
                ] and
                  state in ["running", "cancelling"] ->
             failed =
@@ -371,11 +381,16 @@ defmodule Cuckoding.Foundation do
     |> tap(fn result -> if match?({:ok, %Command{}}, result), do: broadcast() end)
   end
 
+  defp lease_duration(kind) when kind in ~w(inspect_arena_git init_arena_git), do: 25_000
   defp lease_duration("login_codex"), do: 630_000
   defp lease_duration("choose_arena_folder"), do: 135_000
   defp lease_duration("check_codex_model"), do: 140_000
   defp lease_duration(kind) when kind in ["inspect_codex", "logout_codex"], do: 20_000
   defp lease_duration(_), do: 10_000
+
+  def finish(%Command{kind: kind} = claim, result)
+      when kind in ~w(inspect_arena_git init_arena_git),
+      do: Cuckoding.ArenaGit.finish(claim, result)
 
   def finish(%Command{kind: "choose_arena_folder"} = claim, result),
     do: Cuckoding.Arenas.finish(claim, result)
@@ -544,6 +559,7 @@ defmodule Cuckoding.Foundation do
     {[connection: public], Map.put(data, "model_count", length(result["models"] || []))}
   end
 
+  defp prefix(kind) when kind in ~w(inspect_arena_git init_arena_git), do: "arena_git."
   defp prefix("discover_tools"), do: "discovery."
   defp prefix("choose_arena_folder"), do: "arena_folder."
   defp prefix("probe_codex"), do: "codex."

@@ -1,6 +1,6 @@
 defmodule CuckodingWeb.TabulaLive do
   use CuckodingWeb, :live_view
-  alias Cuckoding.Tabulae
+  alias Cuckoding.{ArenaGit, Foundation, Tabulae}
   alias CuckodingWeb.Layouts
 
   @impl true
@@ -9,7 +9,10 @@ defmodule CuckodingWeb.TabulaLive do
     board = if arena, do: Tabulae.get(arena.id, params["id"])
 
     if arena && (is_nil(params["id"]) || board) do
-      if connected?(socket), do: Phoenix.PubSub.subscribe(Cuckoding.PubSub, "foundation")
+      if connected?(socket) do
+        Phoenix.PubSub.subscribe(Cuckoding.PubSub, "foundation")
+        Process.send_after(self(), :tick, 1_000)
+      end
 
       {:ok,
        socket
@@ -19,6 +22,10 @@ defmodule CuckodingWeb.TabulaLive do
          board_name: "",
          board_key: Ecto.UUID.generate(),
          board_error: nil,
+         git_key: Ecto.UUID.generate(),
+         git_error: nil,
+         init_confirmed: false,
+         confirmed_observation: nil,
          error: nil,
          message: nil,
          pending_edit: nil
@@ -32,6 +39,21 @@ defmodule CuckodingWeb.TabulaLive do
   end
 
   @impl true
+  def handle_event("inspect-git", _, socket) do
+    {:noreply, git_request(socket, "inspect")}
+  end
+
+  def handle_event("git-change", params, socket), do: {:noreply, git_input(socket, params)}
+
+  def handle_event("init-git", params, socket) do
+    {:noreply, socket |> git_input(params) |> git_request("init")}
+  end
+
+  def handle_event("cancel-git", _, socket) do
+    if socket.assigns.git, do: Foundation.cancel_probe(socket.assigns.git.id)
+    {:noreply, refresh(socket)}
+  end
+
   def handle_event("board-change", %{"name" => name}, socket)
       when is_binary(name) and byte_size(name) <= 320,
       do: {:noreply, assign(socket, :board_name, name)}
@@ -108,10 +130,18 @@ defmodule CuckodingWeb.TabulaLive do
   def handle_info(:updated, socket), do: {:noreply, refresh(socket)}
   def handle_info(:session_expired, socket), do: {:noreply, redirect(socket, to: "/locked")}
 
+  def handle_info(:tick, socket) do
+    Process.send_after(self(), :tick, 1_000)
+    {:noreply, assign(socket, :now, DateTime.utc_now())}
+  end
+
   defp refresh(socket) do
     board = socket.assigns.board
 
     assign(socket,
+      git: ArenaGit.latest(socket.assigns.arena.id),
+      setup_busy: Foundation.pending?(),
+      now: DateTime.utc_now(),
       boards: Tabulae.list(socket.assigns.arena.id),
       tasks: if(board, do: Tabulae.tasks(board.id), else: []),
       history:
@@ -121,6 +151,87 @@ defmodule CuckodingWeb.TabulaLive do
         )
     )
   end
+
+  defp git_input(socket, params) do
+    current = socket.assigns.git
+
+    confirmed =
+      current != nil and params["observation_id"] == current.id and
+        ArenaGit.can_initialize?(current) and params["confirmed"] == "true"
+
+    assign(socket,
+      init_confirmed: confirmed,
+      confirmed_observation: if(confirmed, do: current.id)
+    )
+  end
+
+  defp git_request(socket, operation) do
+    result =
+      ArenaGit.request(
+        socket.assigns.git_key,
+        socket.assigns.arena.id,
+        operation,
+        if(operation == "init", do: socket.assigns.confirmed_observation),
+        socket.assigns.init_confirmed
+      )
+
+    error =
+      case result do
+        {:ok, %{state: "rejected", result: reason}} -> git_message(reason)
+        {:ok, _} -> nil
+        {:error, reason} -> git_message(reason)
+      end
+
+    socket
+    |> assign(
+      git_error: error,
+      git_key: Ecto.UUID.generate(),
+      init_confirmed: false,
+      confirmed_observation: nil
+    )
+    |> refresh()
+  end
+
+  defp git_active?(command), do: command && command.state in ~w(pending running cancelling)
+
+  defp git_message("missing"),
+    do: "No Git repository. Initialization is optional and needs your confirmation."
+
+  defp git_message(status) when status in ~w(unborn initialized),
+    do: "Git repository has no commits yet. Initial-commit preview and consent are coming next."
+
+  defp git_message("existing"),
+    do: "Local HEAD commit verified. Working files and index were not inspected or changed."
+
+  defp git_message("confirmation_required"),
+    do: "Confirm initialization for the displayed folder and inspection."
+
+  defp git_message("folder_changed"),
+    do: "The registered folder changed or is unavailable. No new Git action is allowed."
+
+  defp git_message("setup_busy"),
+    do: "Another setup operation is active. Finish or cancel it first."
+
+  defp git_message("git_unavailable"),
+    do: "System Git is unavailable. Check your Apple command-line tools, then inspect again."
+
+  defp git_message("nested_repository"),
+    do: "This folder is inside another repository. Select its repository root instead."
+
+  defp git_message(status) when status in ~w(unsupported_layout unsafe_config),
+    do:
+      "This Git layout or configuration is not supported safely yet. Linked metadata and external configuration are not followed."
+
+  defp git_message("metadata_limit"),
+    do: "Git metadata exceeds the inspection limit. Manual planning remains available."
+
+  defp git_message("invalid_repository"),
+    do:
+      "Git metadata could not be validated. Existing files were preserved; inspect the repository before retrying."
+
+  defp git_message(_),
+    do:
+      "Git setup needs a fresh inspection. An interrupted initialization may have created metadata; it will not be replayed."
 
   defp select_task(socket, id) do
     task = Enum.find(socket.assigns.tasks, &(&1.id == id))
@@ -200,6 +311,57 @@ defmodule CuckodingWeb.TabulaLive do
       <section class="panel" aria-labelledby="tabula-title">
         <p class="eyebrow">04 / TABULA</p>
         <h2 id="tabula-title">{if @board, do: @board.name, else: "Plan your next battle."}</h2>
+        <details
+          id="arena-git"
+          class="git-setup"
+          phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
+        >
+          <summary>Repository setup · {if @git, do: @git.state, else: "not inspected"}</summary>
+          <p class="arena-path">{@arena.path}</p>
+          <p class="fine-print">
+            Inspect local Git metadata. This grants no agent access and does not stage, commit or contact a remote.
+          </p>
+          <p :if={@git_error} role="alert" class="notice">{@git_error}</p>
+          <p :if={@git && !git_active?(@git)} role="status">{git_message(@git.result)}</p>
+          <p :if={@git && @git.payload["observation"]} class="fine-print">
+            Observed {Calendar.strftime(@git.updated_at, "%Y-%m-%d %H:%M:%S UTC")}
+            <code :if={@git.payload["observation"]["head"]}>HEAD {@git.payload["observation"]["head"]}</code>
+          </p>
+          <div :if={git_active?(@git)} role="status" class="notice">
+            <p>Git setup · {@git.state} · {max(0, DateTime.diff(@now, @git.inserted_at))}s</p>
+            <p class="fine-print">
+              Owner: you · system Git · no agent or model · 15-second operation limit
+            </p>
+            <button
+              type="button"
+              class="button"
+              phx-click="cancel-git"
+              disabled={@git.state == "cancelling"}
+            >Cancel Git operation</button>
+          </div>
+          <div class="team-actions">
+            <button type="button" class="button" phx-click="inspect-git" disabled={@setup_busy}>Inspect Git</button>
+          </div>
+          <.form
+            :if={ArenaGit.can_initialize?(@git, @now)}
+            for={%{}}
+            id="git-init-form"
+            phx-change="git-change"
+            phx-submit="init-git"
+          >
+            <input type="hidden" name="observation_id" value={@git.id} />
+            <label class="confirm-executable">
+              <input
+                type="checkbox"
+                name="confirmed"
+                value="true"
+                checked={@init_confirmed && @confirmed_observation == @git.id}
+              />
+              Create .git in this folder with an empty main branch. Keep all existing files; do not make a commit.
+            </label>
+            <button type="submit" class="button" disabled={@setup_busy} phx-disable-with="Starting…">Initialize Git</button>
+          </.form>
+        </details>
         <p>
           Draft work locally. In Process, Review and Completed unlock with future battle execution.
         </p>

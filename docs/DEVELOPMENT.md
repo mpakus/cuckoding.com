@@ -3,7 +3,8 @@
 The local preview includes R010's tray, authenticated browser and durable setup
 check, plus Codex version, private-profile inspection, managed sign-in/out and a
 fixed model diagnostic, R030a saved default-team configuration and R040a Arena
-registration, plus R040b Tabulae/manual drafts. Human-completed real-account/model acceptance and repository
+registration, R040b Tabulae/manual drafts and R040c Git inspection/init.
+Human-completed real-account/model acceptance and repository
 execution remain R020 work. The previous source
 reset remains intentional; do not restore the deleted implementation wholesale.
 
@@ -87,7 +88,7 @@ In **Arenas**, choose an existing directory in the native macOS dialog, enter a
 name and confirm the displayed path/team before **Register Arena**. The dialog
 cannot create folders, expires after two minutes and can be cancelled from either
 surface. Registration records metadata only. `.git` presence is unverified;
-Git validation/init/initial commits are not enabled. Expand the inherited team to
+registration runs no Git commands. Expand the inherited team to
 inspect the frozen revision; changing the default later does not update it.
 Home/ancestor, system, known credential and application-data roots are refused.
 Duplicates and changed directory identities require a different/reselected folder.
@@ -103,6 +104,18 @@ discarding and loading the current task. Recovered mismatched forms also keep
 text but cannot overwrite another task. All drafts live in SQLite; no project
 files, Git commands or agent work are involved. Custom stages, file-backed specs,
 agent planning and battle execution remain unavailable.
+
+Expand **Repository setup** in the Arena's Tabulae screen and choose **Inspect Git**.
+This checks standalone Git metadata using `/usr/bin/git` from the installed macOS
+command-line tools; it does not read or stage working files. Missing repositories
+offer a checkbox and **Initialize Git**. Confirmation is valid for that observation
+for five minutes, creates `.git` on `main` with no templates, and creates no commit.
+An unborn repository still needs a separately previewed/authorized initial commit
+(not yet implemented). Existing HEAD is a metadata observation, not proof of clean
+files. Unsupported nested/linked/external layouts remain usable for manual drafts.
+Cancel waits for helper cleanup; after an interrupted/uncertain result inspect again
+instead of assuming initialization rolled back. Use a temporary registered project
+and isolated `CCODING_DATA_DIR` for QA; never initialize a copied fixture's real path.
 
 The shell starts a bundled OTP release with a private HOME, clean environment,
 exclusive data lock and an ephemeral IPv4 loopback port. It owns the one-time

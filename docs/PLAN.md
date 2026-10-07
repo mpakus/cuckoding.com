@@ -8,7 +8,8 @@ R020a–d complete version readiness, private-profile inspection, validated mode
 caching, managed sign-in/out and the fixed model-check controls. Real-account/model/execution acceptance
 is still open. R030a delivers independently testable saved-team configuration;
 R040a adds Arena registration and frozen team inheritance; R040b adds default
-Tabulae and manual draft tasks. Agent planning and execution grants remain open.
+Tabulae and manual draft tasks; R040c adds explicit Git inspection and confirmed
+initialization. Initial commits, agent planning and execution grants remain open.
 Historical source/tests/builds do not satisfy these gates.
 
 R015 adds the separately requested public site after R010; see [Site](SITE.md).
@@ -152,8 +153,11 @@ Depends on R030.
   confirmation and frozen default-team revision. Accept empty/document/Git-entry
   folders without content reads or writes; reject duplicates/replaced identities.
   See [task](../tasks/R040a-arena-registration.md) and [evidence](../worklog/2026-10-07-R040a-arena-registration.md).
-- [ ] Validate unborn/existing Git repositories, confirm Git init and
-  preview/authorize any initial commit separately; preserve uncommitted files.
+- [x] R040c: inspect missing/unborn/committed standalone Git repositories and
+  confirm init separately; preserve existing files and refuse external metadata.
+  See [task](../tasks/R040c-arena-git-setup.md) and [evidence](../worklog/2026-10-07-R040c-arena-git-setup.md).
+- [ ] Preview/authorize initial-commit file selection separately; preserve
+  uncommitted files and revalidate the candidate before any commit.
 - [x] R040b: create multiple Tabulae per Arena with Specs, ToDo, In Process,
   Review, Completed and inherited stage roles. Draft/edit tasks with immutable
   history and accessible Specs/ToDo movement; delivery stages remain locked.

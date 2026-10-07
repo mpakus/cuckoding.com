@@ -1,14 +1,22 @@
-defmodule Cuckoding.NativeFolder do
+defmodule Cuckoding.NativeHelper do
   @moduledoc false
   alias Cuckoding.Foundation
 
-  def choose(command) do
+  def choose_folder(command), do: request(command, ["--choose-arena-folder"], 125_000, &decode/1)
+
+  def request(command, args, timeout, decode) do
     started = System.monotonic_time(:millisecond)
-    result = run(command, started)
-    Map.put(result, "elapsed_ms", System.monotonic_time(:millisecond) - started)
+    previous = Process.flag(:trap_exit, true)
+
+    try do
+      result = run(command, args, started + timeout, decode)
+      Map.put(result, "elapsed_ms", System.monotonic_time(:millisecond) - started)
+    after
+      Process.flag(:trap_exit, previous)
+    end
   end
 
-  defp run(command, started) do
+  defp run(command, args, deadline, decode) do
     helper = Application.fetch_env!(:cuckoding, :native_helper)
     {:ok, _} = Cuckoding.Codex.executable(helper)
     root = Application.fetch_env!(:cuckoding, :data_dir)
@@ -31,53 +39,71 @@ defmodule Cuckoding.NativeFolder do
       Port.open({:spawn_executable, helper}, [
         :binary,
         :exit_status,
-        args: ["--choose-arena-folder"],
+        args: args,
         env: env,
         cd: root
       ])
 
     try do
-      collect(port, command, started, "")
+      collect(port, command, deadline, decode, "")
     after
       if Port.info(port), do: Port.close(port)
+
+      receive do
+        {:EXIT, ^port, _} -> :ok
+      after
+        0 -> :ok
+      end
     end
   rescue
     _ -> %{"status" => "unavailable"}
   end
 
-  defp collect(port, command, started, bytes) do
+  defp collect(port, command, deadline, decode, bytes) do
     cond do
       not Foundation.probe_active?(command) ->
         cancel(port)
 
-      System.monotonic_time(:millisecond) - started > 125_000 ->
-        %{"status" => "timeout"}
+      System.monotonic_time(:millisecond) > deadline ->
+        halt(port, "timeout")
 
       byte_size(bytes) > 8192 ->
-        %{"status" => "unavailable"}
+        halt(port, "unavailable")
 
       true ->
         receive do
-          {^port, {:data, chunk}} -> collect(port, command, started, bytes <> chunk)
-          {^port, {:exit_status, 0}} -> decode(bytes)
-          {^port, {:exit_status, _}} -> %{"status" => "unavailable"}
+          {^port, {:data, chunk}} -> collect(port, command, deadline, decode, bytes <> chunk)
+          {^port, {:exit_status, 0}} -> decode.(bytes)
+          {^port, {:exit_status, _}} -> %{"status" => "cleanup_uncertain"}
+          {:EXIT, ^port, _} -> %{"status" => "cleanup_uncertain"}
         after
-          100 -> collect(port, command, started, bytes)
+          100 -> collect(port, command, deadline, decode, bytes)
         end
+    end
+  end
+
+  defp halt(port, status) do
+    case cancel(port) do
+      %{"status" => "cancelled"} -> %{"status" => status}
+      result -> result
     end
   end
 
   defp cancel(port) do
     Port.command(port, "\n")
     wait_for_exit(port, System.monotonic_time(:millisecond) + 3_000)
+  rescue
+    ArgumentError -> %{"status" => "cleanup_uncertain"}
   end
 
   defp wait_for_exit(port, deadline) do
     remaining = max(0, deadline - System.monotonic_time(:millisecond))
 
     receive do
-      {^port, {:exit_status, _}} -> %{"status" => "cancelled"}
+      {^port, {:exit_status, 0}} -> %{"status" => "cancelled"}
+      {^port, {:exit_status, _}} -> %{"status" => "cleanup_uncertain"}
       {^port, {:data, _}} -> wait_for_exit(port, deadline)
+      {:EXIT, ^port, _} -> %{"status" => "cleanup_uncertain"}
     after
       remaining -> %{"status" => "cleanup_uncertain"}
     end

@@ -88,6 +88,9 @@ code { display:block; overflow-wrap:anywhere; font-size:11px; }
 .team-history dd { margin:8px 0 20px; color:var(--muted); white-space:pre-wrap; }
 .text-link { text-decoration:underline; text-underline-offset:3px; }
 .arena-path { overflow-wrap:anywhere; font-family:var(--mono, monospace); font-size:13px; }
+.git-setup { border-block:1px solid var(--border); padding:12px 0; margin:20px 0; }
+.git-setup summary { min-height:44px; }
+.git-setup .notice { margin-top:16px; }
 .tabula-scroll { overflow-x:auto; margin-top:24px; padding-bottom:12px; }
 .tabula-columns { display:grid; grid-template-columns:repeat(5, minmax(210px,1fr)); gap:12px; }
 .tabula-column { padding:16px; background:var(--bg); border:1px solid var(--border); border-radius:6px; }

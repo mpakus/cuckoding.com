@@ -1,6 +1,6 @@
 defmodule Cuckoding.ArenasTest do
   use Cuckoding.DataCase
-  alias Cuckoding.{Arena, Arenas, Command, Event, Foundation, NativeFolder, Team}
+  alias Cuckoding.{Arena, Arenas, Command, Event, Foundation, NativeHelper, Team}
 
   setup do
     root = "/private/tmp/cuckoding-arena-#{Ecto.UUID.generate()}"
@@ -183,12 +183,13 @@ defmodule Cuckoding.ArenasTest do
       [ "$HOME" = "#{root}/data/runtime-home" ] || exit 9
       [ "$PWD" = "#{root}/data" ] || exit 9
       printf '%s' '#{output}'
+      #{if byte_size(output) > 8192, do: "read -r line", else: ""}
       """)
 
       File.chmod!(script, 0o700)
       {:ok, _} = Arenas.choose(Ecto.UUID.generate())
       {:ok, claim} = Foundation.claim()
-      result = NativeFolder.choose(claim)
+      result = NativeHelper.choose_folder(claim)
 
       assert result["status"] ==
                if(String.starts_with?(output, "{"), do: "cancelled", else: "unavailable")
@@ -197,13 +198,16 @@ defmodule Cuckoding.ArenasTest do
       Foundation.finish(claim, result)
     end
 
-    File.write!(script, "#!/bin/sh\nread -r line\n")
-    {:ok, _} = Arenas.choose(Ecto.UUID.generate())
-    {:ok, claim} = Foundation.claim()
-    task = Task.async(fn -> NativeFolder.choose(claim) end)
-    Foundation.cancel_probe(claim.id)
-    assert %{"status" => "cancelled"} = Task.await(task)
-    Foundation.finish(claim, %{"status" => "cancelled"})
+    for {code, status} <- [{0, "cancelled"}, {9, "cleanup_uncertain"}] do
+      File.write!(script, "#!/bin/sh\nread -r line\nexit #{code}\n")
+      {:ok, _} = Arenas.choose(Ecto.UUID.generate())
+      {:ok, claim} = Foundation.claim()
+      task = Task.async(fn -> NativeHelper.choose_folder(claim) end)
+      Foundation.cancel_probe(claim.id)
+      assert %{"status" => ^status} = Task.await(task)
+      Foundation.finish(claim, %{"status" => "cancelled"})
+    end
+
     refute Foundation.pending?()
   end
 

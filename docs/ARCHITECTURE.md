@@ -5,7 +5,8 @@ authenticated LiveView foundation, SQLite and metadata-only setup dispatcher.
 R020a–d add the Codex version/inspection/authorization and fixed model-check adapter.
 R030a adds saved default-team configuration; R040a adds Arena registration and
 frozen team inheritance. R040b adds default Tabulae and manual draft tasks.
-Git operations, battles and the task runner below remain subsequent slices.
+R040c adds explicit metadata inspection and confirmed Git initialization.
+Initial commits, battles and the task runner below remain subsequent slices.
 
 Current startup order: Repo → schema validation/migration → PubSub → shell
 authority → durable dispatcher → loopback Endpoint → readiness message.
@@ -38,7 +39,15 @@ previews the path and immutable team revision before confirmation.
 the same SQLite command/event boundary. TabulaLive scopes routes to their Arena,
 shows the frozen team assignments and preserves dirty editors during broadcasts.
 Specs/ToDo are the only writable draft columns; the other three are visible future
-stages. No provider, Git service, project filesystem or dispatcher is involved.
+stages. Draft saves involve no provider, Git service, filesystem or dispatcher.
+
+`Cuckoding.ArenaGit` uses the setup ledger/dispatcher and `GitAdapter` boundary for
+explicit Git operations. `LocalGit` shares `NativeHelper`'s bounded, cancellable
+Port transport with the folder chooser. The fixed native helper calls system Git
+in owned process groups with a clean environment and pinned directory handle.
+TabulaLive exposes inspection and fresh-observation init consent in a disclosure;
+durable command receipts survive reconnect, without changing setup revisions or
+requiring a new schema. No staging, commit, network or agent operation is available.
 
 ## Components
 

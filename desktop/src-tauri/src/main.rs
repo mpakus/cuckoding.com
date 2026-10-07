@@ -1,3 +1,4 @@
+mod arena_git;
 mod connection;
 mod folder;
 mod probe;
@@ -21,6 +22,10 @@ fn main() {
         libc::umask(0o077);
     }
     let args: Vec<_> = std::env::args().skip(1).collect();
+    if args.first().is_some_and(|arg| arg == "--arena-git") {
+        arena_git::main(&args[1..]);
+        return;
+    }
     if args.as_slice() == ["--choose-arena-folder"] {
         folder::main();
         return;

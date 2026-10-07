@@ -14,6 +14,28 @@ must revalidate the folder and apply separately authorized grants. Events omit
 project names, paths and content; local Arena/selection records contain the
 explicitly selected path. No model/provider is involved.
 
+R040c Git inspection is separately requested. Initialization needs fresh,
+observation-bound confirmation and exclusive creation of the missing `.git`.
+The helper pins and verifies the registered directory handle, locks it against
+other Cuckoding Git helpers, and uses only fixed `/usr/bin/git` builtins. It clears
+inherited Git variables/config, disables credentials, hooks, fsmonitor, replacement
+objects, lazy fetch and protocols, and supplies an empty init template. Repository
+config keys are inspected without includes before opening the repository. Nested
+roots, gitfiles, linked metadata, symlinks, hardlinks, alternate object stores,
+includes, worktree overrides and extensions are refused. Metadata walks stop at
+50,000 entries; config is at most 64 KiB and command output at most 8 KiB. No
+working-file content, index status, commit author or raw diagnostics are exposed.
+
+The native operation has a 15-second deadline and owned child process groups;
+stdin loss/cancel kills descendants before reaping their leader. The Port waits
+20 seconds and reports unacknowledged/nonzero cleanup as uncertain. Interrupted
+claims never replay. Cancellation may leave a newly created/partial `.git`; retain
+it and re-inspect, never delete it as rollback. An advisory directory lock cannot
+exclude ordinary Git or hostile same-user filesystem changes. Validation narrows
+but cannot eliminate metadata races or forcibly killed-helper cleanup risk; these
+are supervised host operations, not an OS sandbox. Future file/commit/execution
+operations need their own validation and grants. No initial commit is enabled.
+
 Cuckoding runs powerful local agents against repository content on the host.
 Runtime permissions, owned worktrees and process supervision are required;
 they do not provide OS sandbox isolation.

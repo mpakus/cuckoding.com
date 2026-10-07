@@ -1,5 +1,13 @@
 # Execution and recovery
 
+R040c's implemented Git setup uses a fixed native host helper, outside any agent
+session: inspect metadata or initialize a missing standalone repository after
+confirmation. It reuses owned child groups and cancellation with a 15-second
+native deadline, 20-second transport deadline and 25-second durable claim.
+The root handle is pinned and checked against the registered device/inode;
+unknown metadata and external layouts fail closed. This is not the future task
+runner and grants no working-file access to agents. See [limits](SECURITY.md).
+
 The first runner is a supervised host process runner using Git worktrees.
 There are no containers, remote workers or claimed host sandbox boundaries.
 
