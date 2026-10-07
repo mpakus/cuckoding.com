@@ -457,7 +457,7 @@ defmodule Cuckoding.Execution.LocalProcessWorker do
       finished.id,
       "process.exited",
       if(finished_status == status, do: "Process group exited", else: "Process cleanup failed"),
-      %{"exit_status" => status, "timed_out" => state.timed_out?}
+      %{"exit_status" => status, "timed_out" => state.timed_out?, "paused_ms" => result.paused_ms}
     )
 
     waiters = state.waiters
@@ -681,6 +681,7 @@ defmodule Cuckoding.Execution.LocalProcessWorker do
 
       {:ok,
        %{"PATH" => @safe_path, "HOME" => home, "LANG" => "en_US.UTF-8", "TZ" => "UTC"}
+       |> Map.merge(Cuckoding.BoardControl.GoalChecks.environment(environment.run_id))
        |> Map.merge(requested)}
     end
   end
@@ -742,7 +743,15 @@ defmodule Cuckoding.Execution.LocalProcessWorker do
           :hide,
           {:cd, cwd},
           {:env, inherited_unsets ++ allowed},
-          {:args, ["-e", if(owner, do: @duplex_shim, else: @shim), "--", executable | args]}
+          # RubyGems startup warnings bypass the shim and corrupt packet framing.
+          {:args,
+           [
+             "--disable-gems",
+             "-e",
+             if(owner, do: @duplex_shim, else: @shim),
+             "--",
+             executable | args
+           ]}
         ] ++ if(owner, do: [{:packet, 4}], else: [])
       )
 

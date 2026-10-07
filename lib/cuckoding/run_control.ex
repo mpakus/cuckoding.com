@@ -100,9 +100,14 @@ defmodule Cuckoding.RunControl do
 
   defp launch_active(id, callback) do
     case Repo.get(Run, id) do
-      %Run{state: "running"} -> callback.()
-      %Run{state: "paused"} -> {:error, :launch_paused}
-      _ -> {:error, :run_interrupted}
+      %Run{state: "running"} = run ->
+        with :ok <- Cuckoding.BoardControl.launch_authorized(run), do: callback.()
+
+      %Run{state: "paused"} ->
+        {:error, :launch_paused}
+
+      _ ->
+        {:error, :run_interrupted}
     end
   end
 

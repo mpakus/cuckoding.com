@@ -121,6 +121,11 @@ defmodule Cuckoding.Execution.LocalProcessRunnerTest do
   end
 
   test "duplex exchanges ordinary stdio without persisting protocol or split secrets", fixture do
+    # RubyGems warns about this PATH before the shim can frame or redact stderr.
+    tool_bin = Path.join(fixture.environment.worktree_path, "tool-bin")
+    File.mkdir_p!(tool_bin)
+    File.chmod!(tool_bin, 0o777)
+
     script = """
     STDOUT.sync = true
     STDERR.sync = true
@@ -137,6 +142,7 @@ defmodule Cuckoding.Execution.LocalProcessRunnerTest do
                fixture.environment,
                %{executable: "/usr/bin/ruby", args: ["-e", script]},
                protocol_owner: self(),
+               env: %{"PATH" => tool_bin <> ":/usr/bin:/bin"},
                redact: ["duplex-secret-canary"],
                timeout: 3_000,
                termination_grace_ms: 25

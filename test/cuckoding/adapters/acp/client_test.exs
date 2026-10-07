@@ -79,6 +79,42 @@ defmodule Cuckoding.Adapters.ACP.ClientTest do
     assert Repo.aggregate(UsageRecord, :count) == 1
   end
 
+  for reason <- ~w(max_tokens max_turn_requests) do
+    test "preserves the typed #{reason} stop after owned cleanup", f do
+      assert {:error, {:acp_turn_stopped, unquote(reason)}} =
+               execute(f, unquote(reason)) |> Task.await(5_000)
+
+      assert_owned_cleanup(f)
+
+      assert Cuckoding.OrchestrationFailure.recovery_class({:acp_turn_stopped, unquote(reason)}) ==
+               "continuation"
+    end
+  end
+
+  for adapter <- ~w(codex claude_code),
+      {scenario, expected} <- [
+        {"provider-rate", :provider_rate_limited},
+        {"provider-overloaded", :provider_unavailable},
+        {"provider-quota", :provider_failure_requires_attention}
+      ] do
+    test "normalizes #{adapter} #{scenario} metadata without retaining private error details",
+         f do
+      stored = Repo.update!(Ecto.Changeset.change(f.stored, adapter_key: unquote(adapter)))
+      f = %{f | stored: stored}
+
+      assert {:error, unquote(expected)} =
+               execute(f, unquote(scenario), adapter: unquote(adapter)) |> Task.await(5_000)
+
+      assert_owned_cleanup(f)
+      events = inspect(ActivityStream.list(f.request.run_id, 0))
+      refute events =~ "private-reasoning-canary"
+      refute events =~ "fixture-secret-canary"
+      capabilities = hd(requests(f))["params"]["clientCapabilities"]
+      assert capabilities["terminal"] == false
+      assert capabilities["_meta"]["jetbrains"]["air"]["capabilities"] == ["sessionFailure"]
+    end
+  end
+
   test "compatible continuation falls back before any prompt when loading is no longer supported",
        f do
     Repo.update!(Ecto.Changeset.change(f.stored, continuation_mode: "native"))
@@ -497,7 +533,11 @@ defmodule Cuckoding.Adapters.ACP.ClientTest do
       environment: %{},
       environment_allowlist: [],
       timeout: 8_000,
-      acp: %{adapter: "codex", mode: "read-only", session_params: %{}}
+      acp: %{
+        adapter: Keyword.get(extra, :adapter, "codex"),
+        mode: "read-only",
+        session_params: %{}
+      }
     }
 
     options =

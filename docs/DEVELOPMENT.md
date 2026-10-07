@@ -140,7 +140,9 @@ enumerates the selected folder. Registration accepts an empty folder, an unborn
 Git repository, or an existing project. Inspection is read-only until final
 confirmation; then Cuckoding initializes Git and creates the first local commit
 when needed. Registration records only the project and its first trusted
-configuration version, then redirects to project settings. It does not create a
+configuration version. A saved default team is copied into that revision and
+opens the project brief screen; otherwise registration opens project settings.
+Later default-team edits affect new projects only. Registration does not create a
 board, task, queued run, feature branch, worktree, port, or provider process.
 
 Project settings can save machine-wide agents, attach them to projects, and assign them to
@@ -175,8 +177,12 @@ role configuration, and only then creates the feature worktree.
 `Cuckoding.ProjectWorkflow` creates boards and prepares task runs;
 `Cuckoding.GuidedRun` is the current run-page delivery launcher, delegating to
 the walking-skeleton execution service. Its old all-in-one constructor is not
-the dashboard onboarding flow. `Cuckoding.BoardTaskIntake` handles planning and
-proposal import separately. Preparation alone does not launch a provider;
+the dashboard onboarding flow. `Cuckoding.BoardTaskIntake` retains the manual
+planning/import path. `ProjectDelivery.prepare/3` handles the guided brief:
+Create plan starts bounded read-only planning and independent review, imports
+Draft tasks, verifies native tools and stops at Ready to run. Run separately
+authorizes the exact prepared goal and trusted commands. Task preparation alone
+does not launch a provider;
 manual Start, project autopilot and the board controller use shared admission
 and live authorization checks. `BoardControl` uses the existing supervised
 dispatcher for fixed Draft/Ready batches, active Speculator decisions and reviewed

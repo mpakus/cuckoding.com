@@ -3,6 +3,7 @@ defmodule Cuckoding.ProjectOnboardingTest do
 
   alias Cuckoding.Adapters
   alias Cuckoding.Adapters.ProviderAccount
+  alias Cuckoding.DefaultTeam
   alias Cuckoding.Execution.Environment
   alias Cuckoding.Execution.Run
   alias Cuckoding.ProjectOnboarding
@@ -274,6 +275,105 @@ defmodule Cuckoding.ProjectOnboardingTest do
       tasks: Repo.aggregate(Task, :count),
       runs: Repo.aggregate(Run, :count),
       environments: Repo.aggregate(Environment, :count)
+    }
+  end
+
+  test "one default team configures two new projects without changing earlier snapshots", %{
+    repo_path: repo_path
+  } do
+    {:ok, %{project: old}} = ProjectOnboarding.create(project_attrs(repo_path, "Existing"))
+
+    {:ok, agent} =
+      ProjectOnboarding.save_agent(%{
+        "label" => "Shared coder",
+        "adapter_key" => "codex",
+        "executable_path" => "/usr/bin/true"
+      })
+
+    attrs = team_attrs(agent.id)
+    assert {:ok, team} = DefaultTeam.save(0, attrs)
+    assert team.revision == 1
+    assert {:ok, ^team} = DefaultTeam.save(1, attrs)
+
+    {:ok, first} =
+      ProjectOnboarding.create(project_attrs(temporary_directory("default-first"), "First"))
+
+    {:ok, second} =
+      ProjectOnboarding.create(project_attrs(temporary_directory("default-second"), "Second"))
+
+    for created <- [first, second] do
+      config = created.config.config_json
+      assert config["default_team_revision"] == 1
+      assert [%{"provider_account_id" => id}] = config["agent_connections"]
+      assert id == agent.id
+      assert Enum.all?(config["default_roles"], &(&1["agent_connection_key"] == "agent-" <> id))
+
+      assert Enum.map(config["default_roles"], & &1["permissions"]) ==
+               ~w(read_only workspace_write read_only)
+
+      assert config["execution_profile"] == DefaultTeam.limits()
+    end
+
+    changed =
+      put_in(attrs, ["roles", "spec_writer", "instructions"], "Use the project conventions.")
+
+    assert {:ok, %{revision: 2}} = DefaultTeam.save(1, changed)
+    assert {:error, :stale_default_team} = DefaultTeam.save(1, attrs)
+    assert Projects.latest_config_version(old.id).config_json["agent_connections"] == []
+    assert Projects.latest_config_version(first.project.id) == first.config
+    assert Projects.latest_config_version(second.project.id) == second.config
+    assert execution_counts() == %{boards: 0, tasks: 0, runs: 0, environments: 0}
+    assert length(Cuckoding.ActivityStream.list("default_team", 0)) == 2
+  end
+
+  test "default team validates saved references and finite limits before registration" do
+    assert DefaultTeam.latest() == nil
+
+    assert {:error, {:invalid_default_role, "spec_writer"}} =
+             DefaultTeam.save(0, team_attrs(Ecto.UUID.generate()))
+
+    {:ok, agent} =
+      ProjectOnboarding.save_agent(%{
+        "label" => "Coder",
+        "adapter_key" => "codex",
+        "executable_path" => "/usr/bin/true"
+      })
+
+    attrs = team_attrs(agent.id)
+
+    for invalid <- [0, -1, "infinity", "1x", 1441] do
+      assert {:error, :invalid_execution_limits} =
+               DefaultTeam.save(0, Map.put(attrs, "limits", %{"wall_minutes" => invalid}))
+    end
+
+    assert DefaultTeam.latest() == nil
+    assert {:ok, _} = DefaultTeam.save(0, attrs)
+
+    # Changing an executable cannot silently expand a previously saved team's grant.
+    assert {:ok, _} =
+             ProjectOnboarding.save_agent(%{
+               "provider_account_id" => agent.id,
+               "label" => "Changed coder",
+               "adapter_key" => "codex",
+               "executable_path" => "/usr/bin/false"
+             })
+
+    path = temporary_directory("stale-default")
+
+    assert {:error, :default_team_agent_changed} =
+             ProjectOnboarding.create(project_attrs(path, "Blocked setup"))
+
+    refute File.exists?(Path.join(path, ".git"))
+  end
+
+  defp team_attrs(account_id) do
+    %{
+      "roles" =>
+        Map.new(
+          ProjectOnboarding.default_roles(),
+          &{&1["key"],
+           %{"provider_account_id" => account_id, "instructions" => &1["instructions"]}}
+        )
     }
   end
 

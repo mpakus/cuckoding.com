@@ -2,14 +2,60 @@
 
 ## Setup boundaries
 
+Task 1057 adds a guided project goal entry point at `/projects/:id`. **Create
+plan** creates/reuses one delivery board and authorizes bounded read-only
+Speculator/Reviewer work. The accepted plan imports Draft tasks and waits in
+`ready_to_run`; navigation, reconnect, dispatch and Resume cannot authorize
+delivery. **Run** binds the displayed plan/brief/team/policy and finite profile
+in an immutable authorization before entering normal board delivery. **Edit
+brief** requires another independent review; **Discard plan** retains history
+and releases the claim. Existing board/manual paths keep their previous behavior.
+Version-3 proposals that fail host plan validation are retained as rejected and
+returned to Speculator with host feedback; they consume the same three-proposal
+ceiling as independent review corrections. No task is imported until a corrected
+proposal passes host validation and independent Review. Response schemas bind the
+current request identity explicitly, including review plan and final-head IDs.
+The preparation schema includes named setup/check command arrays. Preflight
+checks native executable metadata and command policy, then probes fixed version
+flags in the isolated environment before Ready. Missing or unusable runtimes stop
+preparation. Run displays and freezes the declarations and selected tool paths;
+changed tools stop later launches. Every delivery stage receives the original goal, criterion
+mapping and authorized commands. After task settlement, `final_review` creates a
+fresh worktree at the last reviewed head, runs setup/checks through the supervised
+host runner and asks the independent Reviewer to assess every original criterion.
+Host receipts, artifact hashes, command status and current Git identity gate Done.
+Failing checks or generated dirty files trigger another reviewed repair plan within
+the original revision/task/time limits. Protected-path changes, uncertain process
+outcomes and changed Git identity stop for attention. Command replay in the same
+run reuses completed receipts; an incomplete start is not blindly repeated.
+Known-ended stages can enter durable `waiting/goal_recovery`. The dispatcher
+resumes the same run/worktree after the saved UTC eligibility time and shared
+admission checks. Transient failures, typed provider waits and token/turn
+continuations consume separate finite counters; none resets cumulative time or
+usage. Completed stage evidence is reused with artifact validation. Pause and
+Stop remain authoritative. Unknown prompt outcomes and unverified cleanup require
+inspection. If only host-classified task failures remain, a prepared goal can
+consume a revision cycle for an independently reviewed change of approach. The
+same task IDs, criteria, dependencies, counters and prior run evidence remain;
+only a changed implementation description may return a stopped task to Ready.
+Permission failures and unanswered questions do not enter this repair path.
+Prepared-goal questions require a supported reason, a goal criterion, already
+checked evidence and an explanation of the outcome at stake. Answers are collected
+on the project screen and remain evidence, never capability grants. Full
+real-provider/native recovery acceptance remains tracked in
+[task 1057](../tasks/phase-10-hardening-beta/1057-autonomous-project-flow.md).
+
+The numbered steps below are the advanced manual path. A new project with a saved default team uses the guided brief above instead of board creation and proposal selection.
+
 Project setup, board setup, board task intake, and delivery execution are separate commands:
 
 1. **Project setup** registers identity, a system-selected project folder, and
    base branch through Project → Repository → Review. Folder inspection is
    read-only until review is confirmed. A confirmed empty or unborn folder is
    initialized with a first local commit; an existing branch is not changed.
-   Registration redirects to project settings, where machine-wide saved agents
-   can be attached and project role defaults are versioned separately. A saved
+   Registration copies the explicitly saved machine default team and opens the
+   project brief screen; without defaults it opens project settings for assignment.
+   Project role defaults remain independently versioned. A saved
    agent holds only validated runtime settings, authorization status, and a bounded
    provider-reported model catalog refreshed after successful sign-in checks;
    its add wizard steps through name/runtime, discovered executable and
@@ -427,6 +473,6 @@ unfinished membership. See [CUCKODING-CONTROL.md](CUCKODING-CONTROL.md).
 - A user can pause or hibernate a board, which drains or stops its active work according to policy.
 - Unattended mode keeps a board's queue moving and the machine awake up to approval gates.
 
-`Cuckoding.Execution.Scheduler` implements the Phase 5 admission plan from durable rows. It excludes unmet dependencies, orders each board by priority and age, rotates boards by their oldest last-scheduled time, and then applies board, trusted-policy project, and global agent-session limits. Admission fails closed when the replaceable host probe cannot establish available memory or loopback-port capacity. The scheduler returns stable unattended approval notification keys and delegates all process-starting and notification side effects through behaviours; it does not make the planner process authoritative. Board pause or hibernate first durably pauses new admission, then delegates each active run to the ownership-aware run controller. Resume reopens admission but leaves each run's resume as an explicit lifecycle action.
+`Cuckoding.Execution.Scheduler` implements the Phase 5 admission plan from durable rows. It excludes unmet dependencies, orders each board by priority and age, rotates boards by their oldest last-scheduled time, and then applies board, trusted-policy project, and global agent-session limits. Admission fails closed when the replaceable host probe cannot establish available memory or loopback-port capacity. The scheduler returns stable unattended approval notification keys and delegates all process-starting and notification side effects through behaviours; it does not make the planner process authoritative. Board pause or hibernate first durably pauses new admission, then delegates each active run to the ownership-aware run controller. Resume reopens admission but leaves each run's resume as an explicit lifecycle action. Application startup reopens admission on boards paused by shutdown hibernation and does not resume those runs.
 
 `ProjectAutopilot.Worker` dispatches board batches as well as project-wide automatic admission. Project autopilot selects durable running projects and unclaimed boards, uses the scheduler for Ready delivery tasks, and starts queued runs through shared admission. Its periodic tick is disposable; project/batch state and run claims survive a worker restart. Manual Start remains available when project automatic mode is paused, except on a board owned by a nonterminal batch. Workspace and resource gates still apply.

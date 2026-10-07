@@ -55,7 +55,7 @@ defmodule Cuckoding.Power.ManagerTest do
       {:ok,
        %{
          extended_leases: 1,
-         expired_leases: [],
+         expired_leases: 0,
          recovered_commands: 0,
          dispatched_commands: 0,
          decisions: []
@@ -119,6 +119,35 @@ defmodule Cuckoding.Power.ManagerTest do
   end
 
   @tag recovery_drill: true
+  test "wake reconciliation records the real reconciler's lease counts without crashing" do
+    {:ok, clock} =
+      Agent.start_link(fn ->
+        [
+          %{continuous_ms: 1_000, uptime_ms: 1_000},
+          %{continuous_ms: 7_000, uptime_ms: 2_000}
+        ]
+      end)
+
+    sample = fn ->
+      Agent.get_and_update(clock, fn [current | remaining] ->
+        {{:ok, current}, remaining}
+      end)
+    end
+
+    {:ok, manager} =
+      Manager.start_link(name: nil, enabled: true, tick_ms: :infinity, clock: sample)
+
+    assert {:ok, _status} = Manager.tick(manager)
+    assert {:ok, %{wake_reconciliation_pending?: false}} = Manager.tick(manager)
+    assert Process.alive?(manager)
+
+    event = Repo.one!(from(event in PowerEvent, where: event.kind == "wake_reconciled"))
+    assert event.gap_ms == 5_000
+    assert event.metadata_json["expired_leases"] == 0
+    assert event.metadata_json["extended_leases"] == 0
+  end
+
+  @tag recovery_drill: true
   test "macOS clock and caffeinate driver expose and release owned resources" do
     assert {:ok, %{continuous_ms: continuous, uptime_ms: uptime}} = MacOSClock.sample()
     assert continuous > 0
@@ -162,7 +191,7 @@ defmodule Cuckoding.Power.ManagerTest do
         {:ok,
          %{
            extended_leases: 0,
-           expired_leases: [],
+           expired_leases: 0,
            recovered_commands: 0,
            dispatched_commands: 0,
            decisions: []

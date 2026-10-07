@@ -51,6 +51,7 @@ erDiagram
 | `workflow_versions` | `project_id?`, `name`, `version`, `definition_json`, `published_at` | Immutable once used by a run |
 | `role_assignments` | `board_id`, `role_key`, `adapter_key`, `model_ref`, `settings_json` | Board snapshot of project role defaults; run snapshot is separate |
 | `provider_accounts` | `adapter_key`, `label`, `authorization_account_id?`, `auth_mode`, `status`, `capabilities_json`, `probed_at` | Named agent with an optional indexed root-account FK; model in validated settings; authorization status resolved from the root; never credential values |
+| `default_teams` | `revision`, `config_json`, `source_hash`, `inserted_at` | Append-only machine defaults: saved-agent references, snapshotted settings/instructions and finite execution profile. No row is created by migration; user saves explicitly. Updates/deletes are rejected by database triggers |
 | `secret_access_audits` | `secret_ref`, `purpose`, `run_id?`, `occurred_at` | Opaque reference-use audit; never stores the value |
 | `security_audit_events` | `event_type`, `method`, `path`, `status`, `occurred_at` | Append-only shell/browser rejection audit; never stores credentials or query strings |
 | `plugins` | `key`, `kind`, `version`, `source`, `manifest_path`, `manifest_hash`, `manifest_json`, `detected_binaries_json`, `health`, `detected_at`, `last_error` | Validated bundled/user registry state |
@@ -62,7 +63,11 @@ the event payload records manifest and permission hashes instead of secret or
 unbounded provider data.
 
 Project registration stores an initial `project_config_versions.config_json`
-with the built-in role definitions unassigned and no agent connections. Project
+with a copy of the explicitly saved default team, including its revision, or
+unassigned built-in roles and no connections when no default exists. A changed
+or missing referenced runtime rejects inheritance before Git initialization;
+actual authorization is checked at launch. Saving defaults never changes an
+existing project or authorizes execution. Project
 settings append immutable revisions containing stable `provider_account_id`
 references, validated machine-local agent settings, and default role mappings.
 Updating a saved agent updates its global catalog row but never rewrites those
@@ -101,6 +106,17 @@ be interpreted as frozen credential availability or mode.
 
 ### Execution
 
+Task 1057 reuses `stage_attempts.checkpoint_json` for `completed_stage` (cycle,
+public output, tools) and `recovery` (source attempt/run, execution, scope, kind,
+count/limit, cycle, normalized code, UTC next eligibility and pending/claimed
+state). Checkpoint and `goal.recovery_scheduled/resumed` events retain history.
+The append-only scheduled events count provider waits and continuations across
+restarts; the existing item retry counter counts transient failures. The claim,
+run transition and event commit inside shared admission, preventing duplicate
+wakeups. No recovery table or second queue is introduced. Failed stage timing
+uses the normal idempotent timing command; process-exit events retain measured
+pause duration so failed turns also consume cumulative time allowances.
+
 The forward migration `20260925120000` adds batch tables and nullable run linkage
 without rebuilding historical task-kind constraints. Controller tasks retain
 `board_intake` storage and use the distinct `board_control` stage and batch link.
@@ -128,6 +144,29 @@ Superseded membership uses the existing deferred storage state plus a flag and
 replacement links; projections count it separately. The replaced task is
 cancelled through an audited transition, keeping it outside later admission. Lifetime task/retry/cycle
 ceilings include previous attempts and superseded rows.
+
+Task 1057's `20260930130000` adds `preparation_json` (current brief and revision)
+and nullable `delivery_authorization_json` to board executions. Version-3 start
+snapshots authorize read-only preparation; accepted plans can wait in the existing
+`waiting` state with phase `ready_to_run`. The dispatcher starts no work in that
+phase. Run binds plan/brief/team/policy/base/limits in a separate authorization;
+the database rejects changing a non-null authorization. Historical snapshots are
+unchanged. Brief revisions append events before updating the projection. The
+stable project delivery-board command supplies one board identity without a new
+project execution table.
+
+The authorization also freezes the validated setup/check declarations and selected
+tool records (name, native path, size, mtime, inode). Plan-review
+`goal.toolchain_verified` events bind the plan and command digest to resolved
+commands, tool records, owned version-probe processes and hashed logs. PATH is
+derived at launch, never persisted as a raw environment payload. Final
+verification reuses a controller run with phase `final_review` and an independent
+Reviewer. Append-only `goal.check_started`/`goal.check_completed` events bind each
+command digest, process, log digest and exit result to the authorization/head;
+`goal.reviewed` retains the complete criterion assessment and host check receipts.
+Prepared task evidence uses schema 2 with its authorized goal context and an empty
+test list: a task review does not fabricate a test count. Whole-goal completion
+requires final host checks. Historical schema-1 evidence remains readable.
 
 ### Evidence and observability
 

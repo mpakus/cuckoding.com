@@ -159,6 +159,8 @@ defmodule Cuckoding.WalkingSkeleton do
   end
 
   defp run_review_cycle(skeleton, start_stage, adapter, options, stages) do
+    cycle = Keyword.get(options, :review_cycle, 0)
+
     with {:ok, {skeleton, stages}} <-
            maybe_run_specification(skeleton, start_stage, adapter, options, stages),
          specification =
@@ -185,12 +187,14 @@ defmodule Cuckoding.WalkingSkeleton do
              review: review
            }}
 
-        target when review_stage.attempt.attempt < @max_review_attempts ->
+        target when cycle + 1 < @max_review_attempts ->
           run_review_cycle(
             %{skeleton | environment: review_stage.environment},
             target,
             adapter,
-            Keyword.put(options, :review_findings, blocking_findings(review["findings"])),
+            options
+            |> Keyword.put(:review_findings, blocking_findings(review["findings"]))
+            |> Keyword.put(:review_cycle, cycle + 1),
             stages
           )
 
@@ -292,6 +296,8 @@ defmodule Cuckoding.WalkingSkeleton do
 
   defp bounded_text?(value, maximum),
     do: is_binary(value) and String.trim(value) != "" and String.length(value) <= maximum
+
+  defp persist_review_findings(%{replayed?: true}, _findings), do: {:ok, []}
 
   defp persist_review_findings(stage, findings) do
     Enum.reduce_while(findings, {:ok, []}, fn finding, {:ok, stored} ->
@@ -624,24 +630,74 @@ defmodule Cuckoding.WalkingSkeleton do
 
     with {:ok, stage} <-
            run_stage(skeleton, "board_control", role, runtime.adapter, options),
-         {:ok, %{clean?: true}} <- GitService.inspect(skeleton.environment),
+         :ok <- controller_candidate(skeleton, input),
          do: {:ok, stage.output}
   end
 
+  defp controller_candidate(skeleton, %{"phase" => "final_review", "head_sha" => head}) do
+    case GitService.inspect(skeleton.environment) do
+      {:ok, %{head_sha: ^head}} -> :ok
+      _ -> {:error, :goal_candidate_changed}
+    end
+  end
+
+  defp controller_candidate(skeleton, _input) do
+    with {:ok, %{clean?: true}} <- GitService.inspect(skeleton.environment), do: :ok
+  end
+
   defp run_stage(skeleton, stage_key, role_key, adapter, options) do
+    cached =
+      if Keyword.get(options, :resume, false) and
+           Cuckoding.BoardControl.Recovery.enabled?(skeleton.run),
+         do:
+           Cuckoding.BoardControl.Recovery.replay(
+             skeleton,
+             stage_key,
+             Keyword.get(options, :review_cycle, 0)
+           ),
+         else: :new
+
+    case cached do
+      :new -> execute_stage(skeleton, stage_key, role_key, adapter, options)
+      result -> result
+    end
+  end
+
+  defp execute_stage(skeleton, stage_key, role_key, adapter, options) do
     {adapter, options} = stage_runtime(role_key, adapter, options)
 
     with :ok <- RunControl.await_running(skeleton.run.id),
          {:ok, attempt} <- stage_attempt(skeleton.run, stage_key, role_key, "agent") do
+      started = System.monotonic_time(:millisecond)
+
       result =
         with :ok <- review_policy(skeleton, attempt, stage_key),
              do: run_stage_attempt(skeleton, attempt, stage_key, adapter, options)
 
       case result do
-        {:ok, result} -> {:ok, result}
-        {:error, reason} -> fail_stage_attempt(attempt, reason)
+        {:ok, result} ->
+          Cuckoding.BoardControl.Recovery.checkpoint(
+            result,
+            skeleton.run,
+            Keyword.get(options, :review_cycle, 0)
+          )
+
+        {:error, reason} ->
+          recover_stage(
+            skeleton,
+            attempt,
+            reason,
+            Keyword.get(options, :review_cycle, 0),
+            started
+          )
       end
     end
+  end
+
+  defp recover_stage(skeleton, attempt, reason, cycle, started) do
+    with {:ok, _} <- Cuckoding.BoardControl.Recovery.record_failed_time(attempt, started),
+         {:error, ^reason} <- fail_stage_attempt(attempt, reason),
+         do: Cuckoding.BoardControl.Recovery.schedule(skeleton, attempt, reason, cycle)
   end
 
   defp review_policy(skeleton, attempt, "qa"),
@@ -734,6 +790,7 @@ defmodule Cuckoding.WalkingSkeleton do
              Jason.encode!(Cuckoding.Security.Redactor.redact(value)),
              attempt.id
            ),
+         :ok <- Cuckoding.BoardControl.Decision.validate_stage(value, options[:control_input]),
          do: {:ok, value}
   end
 
@@ -843,6 +900,9 @@ defmodule Cuckoding.WalkingSkeleton do
       {:ok, environment, stage.session}
     end
   end
+
+  defp candidate(%{replayed?: true}, environment, _adapter, _task, _options),
+    do: {:ok, environment}
 
   defp candidate(_stage, environment, FakeAdapter, task, options) do
     action = Keyword.get(options, :fake_implementation, &fake_implementation(&1, task))
@@ -955,10 +1015,7 @@ defmodule Cuckoding.WalkingSkeleton do
         )
 
       # Missing provider usage stays unavailable in accounting; only reported usage can exhaust a monetary/token limit.
-      total_attempt =
-        if Cuckoding.BoardControl.controller?(run),
-          do: number,
-          else: number + Enum.count(attempts, &(&1.run_id != run.id))
+      total_attempt = budget_attempt(run, attempts, number)
 
       if stage_key == "qa" and total_attempt > @max_review_attempts do
         {:error, :review_attempt_budget_exceeded}
@@ -975,6 +1032,26 @@ defmodule Cuckoding.WalkingSkeleton do
     else
       :ok
     end
+  end
+
+  defp budget_attempt(run, attempts, number) do
+    total =
+      if Cuckoding.BoardControl.controller?(run),
+        do: number,
+        else: number + Enum.count(attempts, &(&1.run_id != run.id))
+
+    if Cuckoding.BoardControl.Recovery.enabled?(run),
+      do: max(total - recovered_attempts(run, attempts), 1),
+      else: total
+  end
+
+  defp recovered_attempts(run, attempts) do
+    relevant =
+      if Cuckoding.BoardControl.controller?(run),
+        do: Enum.filter(attempts, &(&1.run_id == run.id)),
+        else: attempts
+
+    Cuckoding.BoardControl.Recovery.recovered_attempts(relevant)
   end
 
   defp budget_run_ids(run) do
@@ -1042,7 +1119,9 @@ defmodule Cuckoding.WalkingSkeleton do
           attempt.role_key,
           stage_key,
           skeleton.task,
-          Keyword.put(options, :role_settings, settings)
+          options
+          |> Keyword.put(:role_settings, settings)
+          |> Keyword.put(:goal_context, Cuckoding.BoardControl.GoalChecks.context(skeleton.run))
         ),
       worktree_path: skeleton.environment.worktree_path,
       run_dir: skeleton.environment.run_dir,
@@ -1053,7 +1132,13 @@ defmodule Cuckoding.WalkingSkeleton do
         "approval_mode" => if(write?, do: "default", else: "plan"),
         "paths" => [skeleton.environment.worktree_path],
         "network" => "deny",
-        "resource_limits" => %{"wall_ms" => get_in(stage, ["budgets", "wall_ms"])}
+        "resource_limits" => %{
+          "wall_ms" =>
+            Cuckoding.BoardControl.Budget.timeout(
+              skeleton.run,
+              get_in(stage, ["budgets", "wall_ms"])
+            )
+        }
       },
       plugins: [],
       required_output_schema: request_schema(stage_key, options),
@@ -1065,7 +1150,7 @@ defmodule Cuckoding.WalkingSkeleton do
 
   defp request_schema("board_control", options) do
     if options[:control_input]["mode"] == "autonomous_goal",
-      do: Cuckoding.BoardControl.Plans.schema(options[:control_input]["phase"]),
+      do: Cuckoding.BoardControl.Plans.schema(options[:control_input]),
       else: output_schema("board_control")
   end
 
@@ -1132,6 +1217,7 @@ defmodule Cuckoding.WalkingSkeleton do
       end
 
     base = append_role_reports(base, Keyword.get(options, :role_reports, []))
+    base = append_goal_context(base, options[:goal_context])
 
     case Keyword.get(options, :review_findings, []) do
       [] ->
@@ -1155,6 +1241,14 @@ defmodule Cuckoding.WalkingSkeleton do
       "Do not modify files. Return only the required structured decision.\n" <>
       Jason.encode!(options[:control_input])
   end
+
+  defp append_goal_context(base, nil), do: base
+
+  defp append_goal_context(base, context),
+    do:
+      base <>
+        "\n\nOriginal authorized goal, criteria and commands (preserve every requirement; implement/review this task's mapped criteria and avoid regressions):\n" <>
+        Jason.encode!(context)
 
   defp append_role_reports(base, []), do: base
 
@@ -1312,6 +1406,16 @@ defmodule Cuckoding.WalkingSkeleton do
         "knowledge_citations" => [knowledge]
       }
 
+    # Task review is not a test command. Prepared goals run real checks at the final head.
+    bundle =
+      case Cuckoding.BoardControl.GoalChecks.context(run) do
+        nil ->
+          bundle
+
+        context ->
+          Map.merge(bundle, %{"schema_version" => 2, "tests" => [], "goal_context" => context})
+      end
+
     case GateEvaluator.verify(bundle, environment.run_dir) do
       {:ok, validated} ->
         contents = Jason.encode!(validated) <> "\n"
@@ -1354,10 +1458,25 @@ defmodule Cuckoding.WalkingSkeleton do
       {:ok, %{type: :regular, size: size}} when size <= 1_048_576 ->
         with {:ok, contents} <- File.read(path),
              {:ok, bundle} <- Jason.decode(contents),
+             :ok <- evidence_goal_context(bundle, environment),
              do: GateEvaluator.verify(bundle, environment.run_dir)
 
       _other ->
         {:error, :invalid_evidence_file}
+    end
+  end
+
+  defp evidence_goal_context(bundle, environment) do
+    run = Repo.get!(Run, environment.run_id)
+
+    case Cuckoding.BoardControl.GoalChecks.context(run) do
+      nil ->
+        :ok
+
+      context ->
+        if bundle["schema_version"] == 2 and bundle["goal_context"] == context,
+          do: :ok,
+          else: {:error, :goal_evidence_context_changed}
     end
   end
 

@@ -110,6 +110,24 @@ defmodule CuckodingWeb.BoardLive do
   end
 
   @impl true
+  def handle_event("resume-board", _params, socket) do
+    case Cuckoding.Execution.BoardControl.resume(socket.assigns.board.id) do
+      {:ok, board} ->
+        {:noreply,
+         socket
+         |> assign(
+           board: board,
+           notice: "Board resumed. You can ask an agent to plan tasks.",
+           error: nil,
+           intake_error: nil
+         )
+         |> load_tasks()}
+
+      {:error, _reason} ->
+        {:noreply, assign(socket, error: "The board could not be resumed. Reload and try again.")}
+    end
+  end
+
   def handle_event("open-board-start", _params, socket) do
     {:noreply,
      socket
@@ -360,6 +378,25 @@ defmodule CuckodingWeb.BoardLive do
             </.link>
           </nav>
         </header>
+
+        <div
+          :if={@board.status == "paused"}
+          id="board-paused"
+          role="status"
+          class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"
+        >
+          <p>
+            This board is paused, so Ask an agent cannot start a planning run. Hibernated runs stay as they are until you resume each one.
+          </p>
+          <button
+            id="resume-board"
+            type="button"
+            phx-click="resume-board"
+            class="inline-flex min-h-11 items-center rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white"
+          >
+            Resume board
+          </button>
+        </div>
 
         <div
           id="board-project-operation"
@@ -1229,6 +1266,10 @@ defmodule CuckodingWeb.BoardLive do
     do: "Enter a planning prompt of 10,000 characters or fewer."
 
   defp intake_error(:intake_role_required), do: "Choose an assigned agent role."
+
+  defp intake_error(:board_not_active),
+    do: "This board is paused, so a planning run cannot start. Resume the board, then try again."
+
   defp intake_error(:policy_not_trusted), do: "Review and trust the project policy first."
 
   defp intake_error(:dirty_repository),

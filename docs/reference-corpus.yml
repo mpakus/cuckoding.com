@@ -43,3 +43,15 @@ peers:
     xerj_prefix: ref-hydra-v1
     mode: lexical
     use_for: cross-provider desktop sessions, provider-session resume, MCP integration, and usage accounting
+
+  - key: paperclip
+    repository: https://github.com/paperclipai/paperclip.git
+    checkout: paperclip
+    revision: a36cbffa9e71443a627641972052fbf52e636755
+    license: MIT
+    reviewed_at: "2026-09-30"
+    # Prefix reserved only; this checkout has not been indexed into XERJ.
+    xerj_prefix: ref-paperclip-v1
+    mode: lexical
+    index_status: not_indexed
+    use_for: goal-bound completion, durable intent, idempotent preparation, reason-aware recovery, and concise outcomes

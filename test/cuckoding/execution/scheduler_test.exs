@@ -231,6 +231,20 @@ defmodule Cuckoding.Execution.SchedulerTest do
            )
   end
 
+  test "reopening admission restores a paused board and leaves its run untouched", fixture do
+    run = run_task(fixture.task_a, fixture.policy, "running")
+
+    assert {:ok, %{board: %{status: "paused"}}} =
+             BoardControl.control(fixture.board_a.id, :hibernate,
+               run_controller: %{hibernate: fn _run -> {:ok, :hibernated} end}
+             )
+
+    assert :ok = BoardControl.reopen_admission()
+    assert Repo.get!(Board, fixture.board_a.id).status == "active"
+    assert Repo.get!(Board, fixture.board_b.id).status == "active"
+    assert Repo.get!(Execution.Run, run.id).state == "running"
+  end
+
   test "overnight unattended window queues approval notification and releases assertion on expiry",
        fixture do
     run = run_task(fixture.task_a, fixture.policy, "waiting")

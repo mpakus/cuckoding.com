@@ -77,6 +77,14 @@ while line = STDIN.gets
     when 'partial'
       STDOUT.write('{"jsonrpc":')
       exit 0
+    when 'max_tokens', 'max_turn_requests'
+      update(session, sessionUpdate: 'agent_message_chunk', content: {type: 'text', text: 'Partial public result retained'})
+      reply(id, stopReason: scenario)
+    when 'provider-rate', 'provider-overloaded', 'provider-quota'
+      failure = {severity: 'error', category: scenario == 'provider-overloaded' ? 'service' : 'limit',
+                 actions: scenario == 'provider-quota' ? [] : ['retry'],
+                 title: 'private-reasoning-canary', details: 'fixture-secret-canary', id: 'failure-1', revision: 1}
+      reply(id, stopReason: 'end_turn', _meta: {jetbrains: {air: {version: 1, sessionFailure: failure}}})
     when 'wait', 'ignore-cancel'
       update(session, sessionUpdate: 'tool_call', toolCallId: 'tool-1', status: 'in_progress')
     when 'config-drift'

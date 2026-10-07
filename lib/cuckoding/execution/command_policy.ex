@@ -88,8 +88,16 @@ defmodule Cuckoding.Execution.CommandPolicy do
   @doc "Resolves a command from the immutable trusted snapshot attached to a run."
   def resolve(%Run{} = run, command_key) when is_binary(command_key) do
     with {:ok, snapshot} <- policy_snapshot(run),
-         :ok <- validate(snapshot.config_json),
-         {:ok, declaration} <- declared_command(snapshot.config_json, command_key),
+         :ok <- validate(snapshot.config_json) do
+      resolve_config(snapshot.config_json, command_key)
+    end
+  end
+
+  def resolve(%Run{}, command_key), do: {:error, {:invalid_command_key, command_key}}
+
+  @doc "Resolves a declaration after its enclosing configuration has been validated."
+  def resolve_config(config, command_key) do
+    with {:ok, declaration} <- declared_command(config, command_key),
          {:ok, argv} <- declaration_argv(declaration),
          {:ok, executable} <- executable(hd(argv)),
          :ok <- safe_arguments(tl(argv)) do
@@ -98,8 +106,6 @@ defmodule Cuckoding.Execution.CommandPolicy do
       {:error, reason} -> {:error, reason}
     end
   end
-
-  def resolve(%Run{}, command_key), do: {:error, {:invalid_command_key, command_key}}
 
   @doc "Executes a declared command through the selected runner."
   def execute(%Run{} = run, environment, command_key, options \\ []) do

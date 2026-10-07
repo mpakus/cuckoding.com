@@ -13,6 +13,21 @@ defmodule Cuckoding.BoardControlTest do
     end
   end
 
+  defmodule RecoveryFailure do
+    defdelegate capabilities(options), to: Cuckoding.Adapters.FakeAdapter
+
+    def start(_request, options) do
+      File.write!(
+        Path.join(options[:environment].worktree_path, "WALKING_SKELETON.md"),
+        "Unfinished work retained for continuation\n"
+      )
+
+      Process.sleep(10)
+
+      {:error, Keyword.fetch!(options, :failure)}
+    end
+  end
+
   setup do
     root = Path.join(System.tmp_dir!(), "board-control-#{System.unique_integer([:positive])}")
     repo = Path.join(root, "repo")
@@ -99,6 +114,615 @@ defmodule Cuckoding.BoardControlTest do
     assert {:ok, base} = GitService.capture_base(project)
     assert base == batch.base_sha
     assert Enum.all?(BoardControl.items(batch.id), &(&1.state == "done"))
+  end
+
+  test "preparation stops at reviewed Draft tasks until one idempotent Run", %{board: board} do
+    assert {:ok, e} =
+             BoardControl.prepare_goal(board.id, "Build a useful tested application", "prepare")
+
+    snapshot = e.snapshot_json
+    assert snapshot["completion_mode"] == "planning"
+
+    assert {:ok, replay} =
+             BoardControl.prepare_goal(board.id, "Build a useful tested application", "prepare")
+
+    assert replay.id == e.id
+    dispatch()
+    dispatch()
+    ready = BoardControl.get(e.id)
+    assert ready.phase == "ready_to_run", inspect(ready.issue)
+    assert ready.state == "waiting"
+    assert ready.delivery_authorization_json == nil
+    [item] = BoardControl.items(e.id)
+    assert Workflows.get_task(item.task_id).state == "draft"
+    for _ <- 1..3, do: dispatch()
+    assert Cuckoding.Execution.list_runs(item.task_id) == []
+
+    assert {:error, "delivery_not_authorized"} =
+             BoardControl.control(e.id, ready.revision, "resume", "resume-unapproved")
+
+    assert {:error, :task_not_ready} =
+             ProjectWorkflow.prepare_task(item.task_id, board_execution_id: e.id)
+
+    {:ok, _} = Workflows.transition_task(item.task_id, "ready", "attempt-bypass")
+
+    assert {:error, :board_owned} =
+             ProjectWorkflow.prepare_task(item.task_id, board_execution_id: e.id)
+
+    assert {:ok, preview} = BoardControl.delivery_preview(e.id)
+    assert preview.snapshot["goal"]["goal"] == "Build a useful tested application"
+    assert {:ok, running} = BoardControl.activate_goal(e.id, preview.digest, "run")
+    assert running.phase == "decision"
+    assert running.delivery_authorization_json["digest"] == preview.digest
+    assert running.snapshot_json == snapshot
+    assert {:ok, replay} = BoardControl.activate_goal(e.id, preview.digest, "run")
+    assert replay.id == e.id
+
+    assert {:error, "goal_not_ready"} =
+             BoardControl.activate_goal(e.id, preview.digest, "run-again")
+
+    dispatch()
+    dispatch()
+    assert [%Run{state: "done"}] = Cuckoding.Execution.list_runs(item.task_id)
+    dispatch()
+    dispatch()
+    assert %{phase: "final_review", state: "running"} = BoardControl.get(e.id)
+    refute hd(BoardControl.Statistics.for_board(board.id).criteria)["passed"]
+    dispatch()
+    done = BoardControl.get(e.id)
+
+    assert done.state == "done",
+           inspect(Map.take(done, [:state, :phase, :issue, :current_run_id]))
+
+    final = BoardControl.GoalReview.latest(e.id)
+    assert final["passed"]
+    assert final["head_sha"] == done.head_sha
+    assert [%{"exit_status" => 0, "phase" => "check"}] = final["checks"]
+    assert hd(BoardControl.Statistics.for_board(board.id).criteria)["passed"]
+
+    [run] = Cuckoding.Execution.list_runs(item.task_id)
+    env = Repo.get_by!(Environment, run_id: run.id)
+
+    assert {:ok, %{"schema_version" => 2, "tests" => [], "goal_context" => context}} =
+             WalkingSkeleton.validated_evidence(env)
+
+    assert context["task_criteria"] == ["C1"]
+    assert context["authorization_digest"] == preview.digest
+  end
+
+  test "goal commands reject unknown tools, inline programs, outside paths and incomplete declarations" do
+    command = %{"name" => "test", "phase" => "check", "command" => ["git", "diff", "--check"]}
+    assert {:ok, [resolved]} = BoardControl.GoalChecks.prepare([command])
+    assert Path.type(hd(resolved["command"])) == :absolute
+
+    for argv <- [
+          ["sh", "-c", "true"],
+          ["node", "-e", "true"],
+          ["node", "--test", "../other.js"],
+          ["node", "--test", "/private/other.js"],
+          ["./node", "--test"],
+          ["git", "push"],
+          ["true"]
+        ] do
+      assert {:error, :invalid_goal_commands} =
+               BoardControl.GoalChecks.prepare([%{command | "command" => argv}])
+    end
+
+    for declarations <- [
+          [],
+          [command, command],
+          [%{command | "phase" => "setup"}],
+          [%{"command" => ["git"]}]
+        ] do
+      assert {:error, :invalid_goal_commands} = BoardControl.GoalChecks.prepare(declarations)
+    end
+  end
+
+  test "native tools are verified before Ready and frozen without importing the host environment",
+       %{board: board} do
+    native = fixture_node()
+    {:ok, e} = BoardControl.prepare_goal(board.id, "Use the installed Node tool", "native-tools")
+    dispatch(fake_decision: tool_plan(native))
+
+    dispatch(
+      fake_decision: fn input ->
+        assert native in input["available_tools"]["node"]
+        assert [%{"path" => ^native}] = input["toolchain"]["toolchain"]["tools"]
+        BoardControl.Plans.fake_output(input)
+      end
+    )
+
+    assert BoardControl.get(e.id).phase == "ready_to_run"
+    {:ok, preview} = BoardControl.delivery_preview(e.id)
+    assert [%{"path" => ^native, "name" => "node"}] = preview.snapshot["toolchain"]["tools"]
+    {:ok, _} = BoardControl.activate_goal(e.id, preview.digest, "native-run")
+    assert :ok = BoardControl.launch_authorized(%Run{board_execution_id: e.id})
+    dispatch()
+    selected = BoardControl.get(e.id)
+    {:ok, _} = Workflows.transition_task(selected.current_task_id, "ready", "native-ready")
+
+    {:ok, prepared} =
+      ProjectWorkflow.prepare_task(selected.current_task_id, board_execution_id: e.id)
+
+    {:ok, _} = Cuckoding.Execution.transition_run(prepared.run.id, "running", "native-running")
+    {:ok, environment} = Cuckoding.Execution.LocalProcessRunner.prepare(prepared.environment, [])
+
+    {:ok, result} =
+      Cuckoding.Execution.LocalProcessRunner.exec(
+        environment,
+        %{executable: "/usr/bin/env", args: []}
+      )
+
+    assert result.output =~ "PATH=#{Path.dirname(native)}:/usr/bin:/bin:/usr/sbin:/sbin"
+    assert result.output =~ "HOME=#{Path.join([environment.run_dir, "agent", "home"])}"
+    refute result.output =~ "CUCKODING_RUNTIME_HOME"
+    refute result.output =~ "must-not-be-inherited"
+
+    File.write!(native, "#!/bin/sh\necho changed-tool\n")
+
+    assert {:error, :goal_toolchain_changed} =
+             RunControl.launch(prepared.run.id, fn -> send(self(), :changed_tool_launched) end)
+
+    refute_received :changed_tool_launched
+  end
+
+  test "an unusable installed tool stops before Ready with its owned version log retained", %{
+    board: board
+  } do
+    native = fixture_node("exit 42")
+    {:ok, e} = BoardControl.prepare_goal(board.id, "Require this Node runtime", "bad-tool")
+    dispatch(fake_decision: tool_plan(native))
+    dispatch()
+    current = BoardControl.get(e.id)
+    assert current.state == "attention"
+    assert current.issue == "goal_toolchain_unavailable"
+    assert BoardControl.items(e.id) == []
+    assert current.delivery_authorization_json == nil
+
+    assert [%{exit_code: 42, ended_at: ended}] =
+             Repo.all(
+               from p in Cuckoding.Execution.ProcessRecord,
+                 join: env in Environment,
+                 on: env.id == p.environment_id,
+                 where: env.run_id == ^current.current_run_id
+             )
+
+    assert ended
+  end
+
+  test "a failed required check overrides an optimistic final reviewer and repairs without Run again",
+       %{board: board} do
+    e =
+      ready_for_final_review(board, [
+        %{
+          "name" => "test",
+          "phase" => "check",
+          "command" => ["node", "--test", "missing-goal.test.js"]
+        }
+      ])
+
+    authorization = e.delivery_authorization_json
+    dispatch()
+    current = BoardControl.get(e.id)
+    assert current.phase == "planning", inspect(current.issue)
+    assert current.state == "running"
+    assert current.plan_cycle == 1
+    review = BoardControl.GoalReview.latest(e.id)
+    refute review["passed"]
+    assert [%{"exit_status" => status}] = review["checks"]
+    assert status != 0
+    assert [%{"verdict" => "pass"}] = review["criteria"]
+    dispatch()
+    dispatch()
+    current = BoardControl.get(e.id)
+    assert current.phase == "decision", inspect(current.issue)
+    assert current.delivery_authorization_json == authorization
+    assert Enum.any?(BoardControl.items(e.id), &(&1.state == "pending"))
+    refute hd(BoardControl.Statistics.for_board(board.id).criteria)["passed"]
+  end
+
+  test "final checks replay once and reject forged or changed artifacts", %{board: board} do
+    e = ready_for_final_review(board)
+    dispatch()
+    final = BoardControl.GoalReview.latest(e.id)
+    assert final["passed"]
+    e = BoardControl.get(e.id)
+    run = Repo.get!(Run, final["run_id"])
+    assert :ok = BoardControl.GoalChecks.verify(e, run, final["checks"])
+    [check] = final["checks"]
+
+    assert {:error, :invalid_goal_check_evidence} =
+             BoardControl.GoalChecks.verify(e, run, [%{check | "exit_status" => 42}])
+
+    assert {:error, :invalid_goal_check_evidence} =
+             BoardControl.GoalChecks.verify(%{e | head_sha: e.base_sha}, run, final["checks"])
+
+    env = Repo.get_by!(Environment, run_id: run.id)
+    assert {:ok, skeleton} = WalkingSkeleton.load(run.id)
+    assert {:ok, replay} = BoardControl.GoalChecks.run(skeleton, %{"phase" => "final_review"})
+    assert replay["checks"] == final["checks"]
+
+    File.write!(Path.join(env.worktree_path, "generated.txt"), "Check-generated work")
+
+    assert {:ok, dirty_replay} =
+             BoardControl.GoalChecks.run(skeleton, %{"phase" => "final_review"})
+
+    refute dirty_replay["candidate_clean"]
+    assert dirty_replay["checks"] == final["checks"]
+
+    assert Repo.aggregate(
+             from(event in Cuckoding.Execution.RunEvent,
+               where: event.run_id == ^run.id and event.event_type == "goal.check_started"
+             ),
+             :count
+           ) == 1
+
+    File.write!(Path.join([env.run_dir, "artifacts", check["path"]]), "tampered")
+
+    assert {:error, :invalid_goal_check_evidence} =
+             BoardControl.GoalChecks.verify(e, run, final["checks"])
+  end
+
+  test "two reviewed tasks that regress integration repair automatically at the final head", %{
+    board: board,
+    project: project
+  } do
+    File.write!(Path.join(project.repo_path, "test_integration.py"), """
+    import pathlib
+    import unittest
+    class Integration(unittest.TestCase):
+        def test_both_requirements_survive(self):
+            result = pathlib.Path('WALKING_SKELETON.md').read_text()
+            self.assertIn('First', result)
+            self.assertIn('Second', result)
+    """)
+
+    File.write!(Path.join(project.repo_path, ".gitignore"), "__pycache__/\n")
+    git!(project.repo_path, ["add", "test_integration.py", ".gitignore"])
+    git!(project.repo_path, ["commit", "-m", "Fixture integration contract"])
+
+    {:ok, e} =
+      BoardControl.prepare_goal(board.id, "Retain First and Second together", "integrate")
+
+    dispatch(
+      fake_decision: fn input ->
+        BoardControl.Plans.fake_output(input)
+        |> Map.put("changes", [
+          Map.put(change("new_first", [], []), "title", "First"),
+          Map.put(change("new_second", ["new_first"], []), "title", "Second")
+        ])
+        |> Map.put("commands", [
+          %{
+            "name" => "integration",
+            "phase" => "check",
+            "command" => ["python3", "-m", "unittest"]
+          }
+        ])
+      end
+    )
+
+    dispatch()
+    {:ok, preview} = BoardControl.delivery_preview(e.id)
+    {:ok, _} = BoardControl.activate_goal(e.id, preview.digest, "one-integration-run")
+    for _ <- 1..7, do: dispatch()
+    assert %{phase: "final_review", state: "running"} = BoardControl.get(e.id)
+    assert Enum.all?(BoardControl.items(e.id), &(&1.state == "done"))
+    dispatch()
+    failed = BoardControl.GoalReview.latest(e.id)
+    refute failed["passed"]
+    [failed_check] = failed["checks"]
+    failed_environment = Repo.get_by!(Environment, run_id: failed["run_id"])
+
+    assert failed_check["exit_status"] == 1,
+           File.read!(Path.join([failed_environment.run_dir, "artifacts", failed_check["path"]]))
+
+    assert BoardControl.get(e.id).phase == "planning"
+
+    dispatch(
+      fake_decision: fn input ->
+        assert input["final_review"]["head_sha"] == failed["head_sha"]
+
+        BoardControl.Plans.fake_output(input)
+        |> put_in(["changes", Access.at(0), "title"], "First and Second")
+      end
+    )
+
+    dispatch()
+    for _ <- 1..5, do: dispatch()
+    done = BoardControl.get(e.id)
+    final = BoardControl.GoalReview.latest(e.id)
+    assert done.state == "done", inspect(done.issue)
+    assert final["passed"]
+    assert final["head_sha"] == done.head_sha
+    refute final["head_sha"] == failed["head_sha"]
+    assert final["authorization_digest"] == preview.digest
+    assert length(BoardControl.items(e.id)) == 3
+    assert BoardControl.Plans.questions(e.id) == []
+  end
+
+  test "final review cannot omit criteria or claim another head", %{board: board} do
+    e = ready_for_final_review(board)
+
+    dispatch(
+      fake_decision: fn input ->
+        BoardControl.Plans.fake_output(input) |> Map.put("criteria", [])
+      end
+    )
+
+    assert BoardControl.get(e.id).state == "attention"
+    assert BoardControl.get(e.id).issue == "invalid_final_goal_review"
+    assert BoardControl.GoalReview.latest(e.id) == nil
+  end
+
+  test "editing the brief requires another plan review and invalidates the old Run preview", %{
+    board: board
+  } do
+    {:ok, e} = BoardControl.prepare_goal(board.id, "Original outcome", "prepare-edit")
+    dispatch()
+    dispatch()
+    ready = BoardControl.get(e.id)
+    {:ok, preview} = BoardControl.delivery_preview(e.id)
+
+    assert {:ok, revised} =
+             BoardControl.revise_brief(e.id, ready.revision, "Revised outcome", "edit")
+
+    assert revised.phase == "planning"
+    assert revised.preparation_json == %{"brief" => "Revised outcome", "revision" => 2}
+    assert revised.snapshot_json == ready.snapshot_json
+
+    assert {:error, "goal_not_ready"} =
+             BoardControl.activate_goal(e.id, preview.digest, "stale-run")
+
+    assert {:error, "brief_revision_not_permitted"} =
+             BoardControl.revise_brief(e.id, ready.revision, "Stale edit", "stale-edit")
+
+    dispatch()
+    dispatch()
+    assert BoardControl.get(e.id).phase == "ready_to_run"
+    {:ok, next} = BoardControl.delivery_preview(e.id)
+    refute next.digest == preview.digest
+    assert next.snapshot["goal"]["goal"] == "Revised outcome"
+
+    assert {:error, "stale_preflight_or_workspace_paused"} =
+             BoardControl.activate_goal(e.id, preview.digest, "stale-ready-run")
+
+    assert {:ok, _} = BoardControl.activate_goal(e.id, next.digest, "revised-run")
+  end
+
+  test "controller schemas bind the current envelope instead of nested proposal identity" do
+    for phase <- ~w(planning plan_review decision final_review) do
+      input = %{
+        "phase" => phase,
+        "preparing" => true,
+        "prepared_goal" => true,
+        "execution_id" => "current-goal",
+        "revision" => 8,
+        "head_sha" => "reviewed-head",
+        "plan" => %{"id" => "current-plan", "proposal" => %{"revision" => 2}}
+      }
+
+      properties = BoardControl.Plans.schema(input)["properties"]
+      assert properties["execution_id"]["enum"] == ["current-goal"]
+      assert properties["revision"]["enum"] == [8]
+      if phase == "plan_review", do: assert(properties["plan_id"]["enum"] == ["current-plan"])
+      if phase == "final_review", do: assert(properties["head_sha"]["enum"] == ["reviewed-head"])
+      assert BoardControl.Plans.objective(input) =~ "TOP-LEVEL execution_id and revision"
+    end
+  end
+
+  test "host-invalid goal plans receive bounded correction without importing tasks", %{
+    board: board
+  } do
+    {:ok, e} = BoardControl.prepare_goal(board.id, "Cover every requirement", "correct-invalid")
+
+    dispatch(
+      fake_decision: fn input ->
+        BoardControl.Plans.fake_output(input)
+        |> Map.put("criteria", [%{"id" => "C2", "text" => "Unmapped requirement"}])
+      end
+    )
+
+    assert BoardControl.get(e.id).phase == "planning"
+    assert BoardControl.items(e.id) == []
+
+    assert [%{state: "rejected", review_run_id: nil} = rejected] =
+             BoardControl.Plans.revisions(e.id)
+
+    assert rejected.review_json["source"] == "host_validation"
+
+    dispatch()
+    assert BoardControl.get(e.id).phase == "plan_review"
+    assert BoardControl.items(e.id) == []
+    dispatch()
+    assert BoardControl.get(e.id).phase == "ready_to_run"
+    assert BoardControl.Plans.accepted(e).review_run_id != nil
+  end
+
+  test "repeated host-invalid plans consume the existing three-proposal ceiling", %{board: board} do
+    {:ok, e} = BoardControl.prepare_goal(board.id, "Cover every requirement", "invalid-ceiling")
+
+    for _ <- 1..3 do
+      dispatch(
+        fake_decision: fn input ->
+          BoardControl.Plans.fake_output(input) |> Map.put("changes", [])
+        end
+      )
+    end
+
+    assert %{state: "attention", issue: "plan_review_limit"} = BoardControl.get(e.id)
+    assert length(BoardControl.Plans.revisions(e.id)) == 3
+    assert BoardControl.items(e.id) == []
+    dispatch()
+    assert length(BoardControl.Plans.revisions(e.id)) == 3
+  end
+
+  test "malformed generated criteria fail closed and preparation can be discarded", %{
+    board: board
+  } do
+    {:ok, e} = BoardControl.prepare_goal(board.id, "Whole brief", "malformed-plan")
+    {:ok, input} = BoardControl.decision_input(e)
+    output = BoardControl.Plans.fake_output(input)
+
+    command_name =
+      BoardControl.Plans.schema(input)["properties"]["commands"]["items"]["properties"]["name"]
+
+    assert command_name["maxLength"] == 40
+    pattern = Regex.compile!(command_name["pattern"])
+    assert Regex.match?(pattern, "node_tests")
+    refute Regex.match?(pattern, "Run Node built-in test suite")
+    assert BoardControl.Plans.objective(input) =~ "lowercase snake_case"
+
+    for criteria <- [
+          [nil],
+          [%{"id" => "C1", "text" => ""}],
+          [%{"id" => "C1", "text" => "Pass", "grant" => "write"}]
+        ] do
+      assert {:error, :invalid_goal_plan} =
+               BoardControl.Plans.validate(e, Map.put(output, "criteria", criteria))
+    end
+
+    dispatch()
+    dispatch()
+    ready = BoardControl.get(e.id)
+
+    assert {:ok, stopped} =
+             BoardControl.control(e.id, ready.revision, "stop", "discard", confirmed: true)
+
+    assert stopped.state == "stopped"
+    assert BoardControl.current(board.id) == nil
+    assert BoardControl.items(e.id) != []
+    assert BoardControl.Plans.revisions(e.id) != []
+  end
+
+  test "project brief creates its board once and reconnects to one reviewed Run action", %{
+    conn: conn,
+    project: project
+  } do
+    policy = Cuckoding.Projects.latest_config_version(project.id)
+
+    roles =
+      Enum.map(
+        Cuckoding.ProjectOnboarding.default_roles(),
+        &Map.put(&1, "agent_connection_key", "fixture")
+      )
+
+    config =
+      Map.merge(policy.config_json, %{
+        "default_roles" => roles,
+        "agent_connections" => [
+          %{"key" => "fixture", "label" => "Fixture", "adapter_key" => "fake", "settings" => %{}}
+        ]
+      })
+
+    {:ok, _} =
+      Cuckoding.Projects.add_config_version(%{
+        project_id: project.id,
+        revision: policy.revision + 1,
+        config_json: config,
+        source_hash: "fixture-team",
+        trusted_at: Cuckoding.Clock.wall_now()
+      })
+
+    {:ok, view, _} = live(conn, ~p"/projects/#{project.id}")
+    assert Cuckoding.ProjectDelivery.board(project.id) == nil
+
+    view
+    |> form("#project-goal-form", goal: %{brief: "Build the described application"})
+    |> render_change()
+
+    send(view.pid, {:activity_event, "fixture", 1})
+    assert render(view) =~ "Build the described application"
+    view |> form("#project-goal-form") |> render_submit()
+    render_async(view, 10_000)
+    board = Cuckoding.ProjectDelivery.board(project.id)
+    assert board
+    e = BoardControl.current(board.id)
+    assert e && e.phase == "planning", render(view)
+
+    assert {:ok, replay} =
+             Cuckoding.ProjectDelivery.prepare(
+               project.id,
+               "Build the described application",
+               "reconnect"
+             )
+
+    assert replay.id == e.id
+    dispatch()
+    dispatch()
+    {:ok, reconnected, _} = live(conn, ~p"/projects/#{project.id}")
+
+    assert has_element?(reconnected, "#goal-state", "Ready to run"),
+           inspect(BoardControl.get(e.id))
+
+    assert has_element?(reconnected, "#run-goal", "Run")
+    refute has_element?(reconnected, "input[type=checkbox]")
+    reconnected |> element("#stop-goal") |> render_click()
+
+    assert has_element?(
+             reconnected,
+             "#stop-goal-modal[data-cancel='cancel-stop'][data-return-focus='stop-goal']"
+           )
+
+    reconnected |> element("#stop-goal-modal button[phx-click='cancel-stop']") |> render_click()
+    refute has_element?(reconnected, "#stop-goal-modal")
+    assert BoardControl.get(e.id).state == "waiting"
+    reconnected |> element("#run-goal") |> render_click()
+    render_async(reconnected, 10_000)
+    assert BoardControl.get(e.id).delivery_authorization_json
+    refute has_element?(reconnected, "#run-goal")
+    assert Cuckoding.ProjectDelivery.board(project.id).id == board.id
+    for _ <- 1..6, do: dispatch()
+    send(reconnected.pid, :tick)
+    assert has_element?(reconnected, "#goal-state", "Done"), render(reconnected)
+    assert has_element?(reconnected, "#goal-progress", "Reviewer")
+    assert has_element?(reconnected, "#goal-result", "Final goal verification")
+    assert has_element?(reconnected, "#goal-result", "Local branch:")
+    assert has_element?(reconnected, "#goal-result", "integrity: passed")
+    assert has_element?(reconnected, "#goal-open-finder", "Open in Finder")
+  end
+
+  test "the goal deadline includes planning and closes every later process launch", %{
+    board: board
+  } do
+    {:ok, e} = BoardControl.prepare_goal(board.id, "A bounded outcome", "bounded-goal")
+    dispatch()
+    dispatch()
+    {:ok, preview} = BoardControl.delivery_preview(e.id)
+    {:ok, _} = BoardControl.activate_goal(e.id, preview.digest, "bounded-run")
+    dispatch()
+    selected = BoardControl.get(e.id)
+    {:ok, _} = Workflows.transition_task(selected.current_task_id, "ready", "expiring-task-ready")
+
+    {:ok, prepared} =
+      ProjectWorkflow.prepare_task(selected.current_task_id, board_execution_id: e.id)
+
+    {:ok, _} = Cuckoding.Execution.transition_run(prepared.run.id, "running", "test-expiring-run")
+
+    expired =
+      Repo.update!(
+        Ecto.Changeset.change(BoardControl.get(e.id),
+          inserted_at: DateTime.add(Cuckoding.Clock.wall_now(), -121 * 60, :second)
+        )
+      )
+
+    assert {:error, :goal_budget_exhausted} = BoardControl.Budget.check(expired)
+
+    assert {:error, :goal_budget_exhausted} =
+             RunControl.launch(prepared.run.id, fn -> send(self(), :unauthorized_launch) end)
+
+    refute_received :unauthorized_launch
+    dispatch()
+    assert BoardControl.get(e.id).state == "attention"
+    assert BoardControl.get(e.id).issue == "goal_budget_exhausted"
+
+    assert BoardControl.get(e.id).delivery_authorization_json ==
+             expired.delivery_authorization_json
+
+    assert {:ok, replay} =
+             BoardControl.prepare_goal(board.id, "A bounded outcome", "bounded-goal")
+
+    assert replay.id == e.id
+    assert {:error, :goal_budget_exhausted} = BoardControl.Budget.check(replay)
   end
 
   test "external prerequisites require reviewed code in the captured project base", %{
@@ -899,6 +1523,342 @@ defmodule Cuckoding.BoardControlTest do
              %{previous | state: "failed"},
              identity
            )
+
+    timed = put_in(identity, ["grant", "resource_limits", "wall_ms"], 20_000)
+    previous = %{previous | continuation_identity_json: timed}
+
+    assert Cuckoding.BoardControl.Conversations.compatible?(
+             previous,
+             put_in(timed, ["grant", "resource_limits", "wall_ms"], 10_000)
+           )
+
+    refute Cuckoding.BoardControl.Conversations.compatible?(
+             previous,
+             put_in(timed, ["grant", "resource_limits", "wall_ms"], 30_000)
+           )
+  end
+
+  test "productive continuation retains the run and worktree and resumes through final review", %{
+    board: board
+  } do
+    {e, skeleton} = recovery_run(board)
+    assert {:recovering, recovery} = fail_delivery(skeleton, {:acp_turn_stopped, "max_tokens"})
+    assert recovery["kind"] == "continuation"
+    assert recovery["count"] == 1
+    attempt = BoardControl.Recovery.pending(skeleton.run)
+    assert attempt.wall_ms >= 10
+    assert attempt.active_ms <= attempt.wall_ms
+
+    assert File.read!(Path.join(skeleton.environment.worktree_path, "WALKING_SKELETON.md")) =~
+             "Unfinished"
+
+    assert Repo.get!(Run, skeleton.run.id).wait_reason == "goal_recovery"
+    assert BoardControl.Recovery.ready?(Repo.get!(Run, skeleton.run.id))
+    assert BoardControl.get(e.id).head_sha == e.base_sha
+
+    dispatch()
+    assert Repo.get!(Run, skeleton.run.id).state == "done"
+    assert Repo.get_by!(Environment, run_id: skeleton.run.id).id == skeleton.environment.id
+
+    assert Repo.aggregate(
+             from(a in Cuckoding.Execution.StageAttempt,
+               where: a.run_id == ^skeleton.run.id and a.stage_key == "specification"
+             ),
+             :count
+           ) == 1
+
+    assert {:error, :recovery_not_ready_or_owned} =
+             RunControl.admit(skeleton.run.id, fn -> BoardControl.Recovery.claim(skeleton.run) end)
+
+    for _ <- 1..4, do: dispatch()
+    assert BoardControl.get(e.id).state == "done", inspect(BoardControl.get(e.id).issue)
+    assert length(Cuckoding.Execution.list_runs(skeleton.task.id)) == 1
+    assert [%{"kind" => "continuation"}] = BoardControl.Recovery.events(e)
+  end
+
+  test "an invalid goal decision corrects automatically before any task starts", %{board: board} do
+    e = authorized_goal(board)
+    authorization = e.delivery_authorization_json
+    {:ok, input} = BoardControl.decision_input(e)
+    schema = BoardControl.Plans.schema(input)
+    assert schema["properties"]["task_id"]["enum"] == [nil, input["next_task_id"]]
+
+    dispatch(
+      fake_decision: fn current ->
+        BoardControl.Decision.fake_output(current) |> Map.put("task_id", "wrong-task")
+      end
+    )
+
+    waiting = BoardControl.get(e.id)
+    run = Repo.get!(Run, waiting.current_run_id)
+    assert run.state == "waiting" and run.wait_reason == "goal_recovery"
+    assert waiting.current_task_id == nil
+    assert [%{"code" => "invalid_goal_decision", "count" => 1}] = BoardControl.Recovery.events(e)
+    make_recovery_due(run)
+
+    dispatch(
+      fake_decision: fn current ->
+        assert current["recovery"]["code"] == "invalid_goal_decision"
+        BoardControl.Decision.fake_output(current)
+      end
+    )
+
+    selected = BoardControl.get(e.id)
+    assert selected.phase == "delivery"
+    assert selected.current_task_id == input["next_task_id"]
+    assert selected.delivery_authorization_json == authorization
+    assert Repo.get!(Run, run.id).state == "done"
+    assert BoardControl.Plans.questions(e.id) == []
+  end
+
+  test "repeated invalid goal decisions exhaust the saved retry allowance", %{board: board} do
+    e = authorized_goal(board)
+    limit = e.snapshot_json["execution_profile"]["retries"]
+
+    for attempt <- 1..(limit + 1) do
+      dispatch(
+        fake_decision: fn current ->
+          BoardControl.Decision.fake_output(current) |> Map.put("task_id", "wrong-task")
+        end
+      )
+
+      if attempt <= limit do
+        current = BoardControl.get(e.id)
+        make_recovery_due(Repo.get!(Run, current.current_run_id))
+      end
+    end
+
+    dispatch()
+    assert BoardControl.get(e.id).state == "attention"
+    assert length(BoardControl.Recovery.events(e)) == limit
+    assert Enum.all?(BoardControl.items(e.id), &(&1.state == "pending"))
+  end
+
+  test "provider backoff is durable, respects Pause and resumes without resetting other counters",
+       %{board: board, project: project, conn: conn} do
+    {e, skeleton} = recovery_run(board)
+    assert {:recovering, recovery} = fail_delivery(skeleton, :provider_rate_limited)
+    assert recovery["kind"] == "provider_wait"
+    refute BoardControl.Recovery.ready?(Repo.get!(Run, skeleton.run.id))
+    dispatch()
+    assert Repo.get!(Run, skeleton.run.id).state == "waiting"
+    assert length(BoardControl.Recovery.events(e)) == 1
+    # Link this fixture's existing board as the project's delivery board.
+    {:ok, _} =
+      Cuckoding.Execution.Commands.execute_once(
+        %{
+          idempotency_key: "project:#{project.id}:delivery-board",
+          kind: "project.delivery_board",
+          target_type: "project",
+          target_id: project.id
+        },
+        fn _ -> {:ok, %{"board_id" => board.id}} end
+      )
+
+    {:ok, view, html} = live(conn, ~p"/projects/#{project.id}")
+    assert html =~ "goal-recovery"
+    assert has_element?(view, "#goal-recovery", "Waiting for the provider")
+    assert has_element?(view, "#goal-recovery[role=status]")
+    assert has_element?(view, "button[phx-value-action=pause]")
+    current = BoardControl.get(e.id)
+    assert {:ok, paused} = BoardControl.control(e.id, current.revision, "pause", "pause-wait")
+    make_recovery_due(skeleton.run)
+    dispatch()
+    refute Repo.get!(Run, skeleton.run.id).state == "done"
+    assert {:ok, _} = BoardControl.control(e.id, paused.revision, "resume", "resume-wait")
+    dispatch()
+    assert Repo.get!(Run, skeleton.run.id).state == "done", inspect(BoardControl.get(e.id).issue)
+    assert Enum.at(BoardControl.items(e.id), 0).retry_count == 0
+    assert [%{"kind" => "provider_wait", "count" => 1}] = BoardControl.Recovery.events(e)
+  end
+
+  test "continuations and failures consume separate finite counters without rerunning completed stages",
+       %{board: board} do
+    {e, skeleton} = recovery_run(board)
+
+    assert {:recovering, %{"kind" => "transient", "count" => 1}} =
+             fail_delivery(skeleton, :agent_timeout)
+
+    for count <- 1..3 do
+      claim_recovery(skeleton.run)
+
+      assert {:recovering, data} =
+               fail_delivery(skeleton, {:acp_turn_stopped, "max_turn_requests"}, resume: true)
+
+      assert data["count"] == count
+      assert data["kind"] == "continuation"
+    end
+
+    claim_recovery(skeleton.run)
+
+    assert {:error, :goal_recovery_limit} =
+             fail_delivery(skeleton, {:acp_turn_stopped, "max_turn_requests"}, resume: true)
+
+    assert Enum.at(BoardControl.items(e.id), 0).retry_count == 1
+    assert length(BoardControl.Recovery.events(e)) == 4
+    assert Repo.get!(Run, skeleton.run.id).state == "blocked"
+
+    assert Repo.aggregate(
+             from(a in Cuckoding.Execution.StageAttempt,
+               where: a.run_id == ^skeleton.run.id and a.stage_key == "specification"
+             ),
+             :count
+           ) == 1
+
+    dispatch()
+    assert BoardControl.get(e.id).phase == "decision"
+    dispatch()
+    current = BoardControl.get(e.id)
+    assert current.phase == "planning", inspect(current.issue)
+    assert current.plan_cycle == 1
+    assert BoardControl.Plans.repairable_tasks(current) == [skeleton.task.id]
+    {:ok, input} = BoardControl.decision_input(current)
+    failed = Enum.find(input["previous_outcomes"], &(&1["run_id"] == skeleton.run.id))
+    assert failed["failure"]["code"] == "goal_recovery_limit"
+    assert failed["failure"]["recovery_class"] == "task"
+    proposed = repaired_plan(input, skeleton.task.id)
+    assert :ok = BoardControl.Plans.validate(current, proposed)
+
+    assert {:error, :invalid_goal_plan} =
+             BoardControl.Plans.validate(
+               current,
+               put_in(
+                 proposed,
+                 ["changes", Access.at(0), "description"],
+                 skeleton.task.description
+               )
+             )
+
+    assert {:error, :invalid_goal_plan} =
+             BoardControl.Plans.validate(
+               current,
+               put_in(proposed, ["changes", Access.at(0), "criteria"], ["C99"])
+             )
+
+    dispatch(fake_decision: &repaired_plan(&1, skeleton.task.id))
+    assert Workflows.get_task(skeleton.task.id).state == "cancelled"
+    assert length(Cuckoding.Execution.list_runs(skeleton.task.id)) == 1
+    dispatch()
+    assert Workflows.get_task(skeleton.task.id).state == "ready"
+    assert Enum.at(BoardControl.items(e.id), 0).retry_count == 1
+    for _ <- 1..5, do: dispatch()
+    assert BoardControl.get(e.id).state == "done", inspect(BoardControl.get(e.id).issue)
+    assert Enum.at(BoardControl.items(e.id), 0).retry_count == 1
+    assert length(BoardControl.Recovery.events(e)) == 4
+    assert length(Cuckoding.Execution.list_runs(skeleton.task.id)) == 2
+    assert Repo.get!(Run, skeleton.run.id).state == "cancelled"
+
+    assert File.read!(Path.join(skeleton.environment.worktree_path, "WALKING_SKELETON.md")) =~
+             "Unfinished"
+  end
+
+  test "permission failures never enter automatic task repair", %{board: board} do
+    {e, skeleton} = recovery_run(board)
+    assert {:error, :acp_permission_required} = fail_delivery(skeleton, :acp_permission_required)
+    dispatch()
+    current = BoardControl.get(e.id)
+    assert current.state == "attention"
+    assert current.issue == "execution_failure_requires_attention"
+    assert current.plan_cycle == 0
+    assert BoardControl.Plans.repairable_tasks(current) == []
+    refute Workflows.get_task(skeleton.task.id).state == "ready"
+  end
+
+  test "automatic changes of approach stop at the original revision ceiling", %{board: board} do
+    {e, skeleton} = recovery_run(board)
+    assert {:error, :goal_recovery_limit} = fail_delivery(skeleton, :goal_recovery_limit)
+    dispatch()
+    current = BoardControl.get(e.id)
+    Repo.update!(Ecto.Changeset.change(current, plan_cycle: 3))
+    before = Repo.aggregate(from(r in Run, where: r.board_execution_id == ^e.id), :count)
+    dispatch()
+    stopped = BoardControl.get(e.id)
+    assert stopped.state == "attention"
+    assert stopped.issue == "plan_revision_limit"
+    assert stopped.plan_cycle == 3
+    assert stopped.delivery_authorization_json == e.delivery_authorization_json
+    assert Repo.aggregate(from(r in Run, where: r.board_execution_id == ^e.id), :count) == before
+  end
+
+  test "prepared questions require criterion-linked justification and are answered on the project",
+       %{board: board, project: project, conn: conn} do
+    e = authorized_goal(board)
+    {:ok, input} = BoardControl.decision_input(e)
+
+    output =
+      Map.merge(BoardControl.Decision.fake_output(input), %{
+        "action" => "ask",
+        "task_id" => nil,
+        "summary" => "Should the required export use CSV or JSON?",
+        "question" => %{
+          "kind" => "requirement_choice",
+          "criterion_id" => "C1",
+          "checked" => ["Original brief and README.md contain no export format"],
+          "why_needed" =>
+            "The requested integration accepts only one format and guessing would change the result."
+        }
+      })
+
+    {:ok, next} = BoardControl.next_item(e)
+    assert :ok = BoardControl.Decision.validate(output, input, next)
+
+    for bad <- [
+          Map.put(output, "question", nil),
+          put_in(output, ["question", "kind"], "ordinary_naming"),
+          put_in(output, ["question", "checked"], []),
+          put_in(output, ["question", "criterion_id"], "C99"),
+          put_in(output, ["question", "why_needed"], " "),
+          put_in(output, ["question", "permissions"], ["push"])
+        ] do
+      assert {:error, :invalid_controller_output} =
+               BoardControl.Decision.validate(bad, input, next)
+    end
+
+    dispatch(fake_decision: fn current -> Map.put(output, "revision", current["revision"]) end)
+    [q] = BoardControl.Plans.questions(e.id)
+    assert q.question =~ "Already checked: Original brief"
+    assert BoardControl.get(e.id).state == "attention"
+    authorization = BoardControl.get(e.id).delivery_authorization_json
+    link_delivery(board, project)
+    {:ok, view, _} = live(conn, ~p"/projects/#{project.id}")
+
+    assert has_element?(
+             view,
+             "#board-question-#{q.id}",
+             "Should the required export use CSV or JSON?"
+           )
+
+    view |> form("#answer-#{q.id}", question: %{answer: "CSV"}) |> render_change()
+    send(view.pid, :tick)
+    assert has_element?(view, "#answer-text-#{q.id}", "CSV")
+    view |> form("#answer-#{q.id}", question: %{answer: "CSV"}) |> render_submit()
+    assert [%{answer: "CSV"}] = BoardControl.Plans.questions(e.id)
+    assert BoardControl.get(e.id).state == "running"
+    assert BoardControl.get(e.id).delivery_authorization_json == authorization
+  end
+
+  test "recovery refuses changed stage artifacts and unverified cleanup", %{board: board} do
+    {_e, skeleton} = recovery_run(board)
+    assert {:recovering, _} = fail_delivery(skeleton, :provider_unavailable)
+    {:ok, stage} = BoardControl.Recovery.replay(skeleton, "specification", 0)
+    path = Path.join([skeleton.environment.run_dir, "artifacts", stage.output.artifact["path"]])
+    File.write!(path, "Changed saved evidence")
+
+    assert {:error, :recovery_artifact_changed} =
+             BoardControl.Recovery.replay(skeleton, "specification", 0)
+
+    {:ok, _} =
+      Cuckoding.Execution.EventStore.append(skeleton.run.id, %{
+        event_type: "process.cleanup_failed",
+        public_summary: "Fixture unverified cleanup",
+        payload: %{}
+      })
+
+    assert {:error, :recovery_process_unverified} =
+             Cuckoding.GuidedRun.resume(skeleton.run.id, async: false)
+
+    assert BoardControl.Recovery.pending(skeleton.run).checkpoint_json["recovery"]["state"] ==
+             "pending"
   end
 
   test "plan correction is bounded and Skip during review cannot bypass planning", %{board: board} do
@@ -977,6 +1937,175 @@ defmodule Cuckoding.BoardControlTest do
 
     assert [%{answer: "Keep the existing scope"}] = Cuckoding.BoardControl.Plans.questions(e.id)
     assert BoardControl.get(e.id).snapshot_json == e.snapshot_json
+  end
+
+  defp ready_for_final_review(
+         board,
+         commands \\ [
+           %{"name" => "integrity", "phase" => "check", "command" => ["git", "diff", "--check"]}
+         ]
+       ) do
+    {:ok, e} = BoardControl.prepare_goal(board.id, "A reviewed tested change", "prepare-final")
+
+    dispatch(
+      fake_decision: fn input ->
+        BoardControl.Plans.fake_output(input) |> Map.put("commands", commands)
+      end
+    )
+
+    dispatch()
+    {:ok, preview} = BoardControl.delivery_preview(e.id)
+    {:ok, _} = BoardControl.activate_goal(e.id, preview.digest, "run-final")
+    for _ <- 1..4, do: dispatch()
+    assert %{phase: "final_review", state: "running"} = BoardControl.get(e.id)
+    BoardControl.get(e.id)
+  end
+
+  defp fixture_node(body \\ "printf 'fixture node version\\n'") do
+    home = Path.join(System.tmp_dir!(), "goal-tool-home-#{System.unique_integer([:positive])}")
+    path = Path.join(home, ".volta/tools/image/node/99.0.0/bin/node")
+    File.mkdir_p!(Path.dirname(path))
+    File.write!(path, "#!/bin/sh\n#{body}\n")
+    File.chmod!(path, 0o700)
+
+    previous =
+      Map.new(~w(CUCKODING_RUNTIME_HOME CUCKODING_TOOL_CANARY), &{&1, System.get_env(&1)})
+
+    System.put_env("CUCKODING_RUNTIME_HOME", home)
+    System.put_env("CUCKODING_TOOL_CANARY", "must-not-be-inherited")
+
+    on_exit(fn ->
+      restore_environment(previous)
+      File.rm_rf!(home)
+    end)
+
+    path
+  end
+
+  defp restore_environment(previous) do
+    Enum.each(previous, fn {key, value} ->
+      if value, do: System.put_env(key, value), else: System.delete_env(key)
+    end)
+  end
+
+  defp tool_plan(native) do
+    fn input ->
+      assert native in input["available_tools"]["node"]
+
+      BoardControl.Plans.fake_output(input)
+      |> Map.put("commands", [
+        %{"name" => "tests", "phase" => "check", "command" => [native, "--test"]}
+      ])
+    end
+  end
+
+  defp recovery_run(board) do
+    e = authorized_goal(board)
+    dispatch()
+    selected = BoardControl.get(e.id)
+    {:ok, _} = Workflows.transition_task(selected.current_task_id, "ready", "fixture-ready")
+
+    {:ok, prepared} =
+      ProjectWorkflow.prepare_task(selected.current_task_id, board_execution_id: e.id)
+
+    {:ok, _} = Cuckoding.Execution.transition_run(prepared.run.id, "running", "fixture-running")
+
+    {:ok, _} =
+      Cuckoding.Execution.EventStore.append(prepared.run.id, %{
+        event_type: "run.completion_policy",
+        public_summary: "Fixture uses authorized local completion",
+        payload: %{
+          "mode" => "local",
+          "actor" => "board:#{e.id}",
+          "release_handoff" => "requires_approval"
+        }
+      })
+
+    {:ok, skeleton} = WalkingSkeleton.load(prepared.run.id)
+    {e, skeleton}
+  end
+
+  defp authorized_goal(board) do
+    {:ok, e} =
+      BoardControl.prepare_goal(board.id, "A recoverable tested application", "prepare-recovery")
+
+    dispatch()
+    dispatch()
+    {:ok, preview} = BoardControl.delivery_preview(e.id)
+    {:ok, _} = BoardControl.activate_goal(e.id, preview.digest, "run-recovery")
+    BoardControl.get(e.id)
+  end
+
+  defp repaired_plan(input, id) do
+    task = Enum.find(input["queue"], &(&1["id"] == id))
+
+    Map.merge(Map.take(input, ~w(execution_id revision)), %{
+      "summary" => "Use a smaller implementation step after the retained turn-limit failure",
+      "changes" => [
+        %{
+          "key" => id,
+          "task_id" => id,
+          "title" => task["title"],
+          "description" =>
+            task["description"] <>
+              "\nImplement the smallest passing core before optional presentation work.",
+          "priority" => task["priority"],
+          "criteria" => ["C1"],
+          "dependencies" => task["dependencies"],
+          "replaces" => []
+        }
+      ]
+    })
+  end
+
+  defp link_delivery(board, project) do
+    {:ok, _} =
+      Cuckoding.Execution.Commands.execute_once(
+        %{
+          idempotency_key: "project:#{project.id}:delivery-board",
+          kind: "project.delivery_board",
+          target_type: "project",
+          target_id: project.id
+        },
+        fn _ -> {:ok, %{"board_id" => board.id}} end
+      )
+  end
+
+  defp fail_delivery(skeleton, failure, options \\ []) do
+    RunControl.track(skeleton.run.id, :workflow, fn ->
+      WalkingSkeleton.run(
+        skeleton,
+        Keyword.merge(options,
+          simulate_sleep_gap: false,
+          role_adapters: %{
+            "implementer" => %{
+              adapter: RecoveryFailure,
+              options: [failure: failure],
+              version: "fixture"
+            }
+          }
+        )
+      )
+    end)
+  end
+
+  defp make_recovery_due(run) do
+    attempt = BoardControl.Recovery.pending(run)
+
+    checkpoint =
+      put_in(
+        attempt.checkpoint_json,
+        ["recovery", "next_eligible_at"],
+        Cuckoding.Clock.wall_now() |> DateTime.add(-1, :second) |> DateTime.to_iso8601()
+      )
+
+    # Advance this fixture's durable clock boundary; production deadlines are never reset.
+    {:ok, _} = Cuckoding.Execution.checkpoint_stage_attempt(attempt, checkpoint)
+  end
+
+  defp claim_recovery(run) do
+    make_recovery_due(run)
+    assert {:ok, _} = RunControl.admit(run.id, fn -> BoardControl.Recovery.claim(run) end)
   end
 
   defp autonomous(board, overrides \\ %{}) do

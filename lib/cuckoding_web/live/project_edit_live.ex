@@ -349,6 +349,10 @@ defmodule CuckodingWeb.ProjectEditLive do
       <section aria-labelledby="project-edit-heading" class="mx-auto max-w-5xl space-y-8">
         <header class="space-y-3">
           <p class="text-sm font-semibold uppercase tracking-wide text-slate-600">Project settings</p>
+          <.link
+            navigate={~p"/projects/#{@project.id}"}
+            class="inline-flex min-h-11 items-center underline"
+          >Describe and run a goal</.link>
           <div class="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h1

@@ -374,25 +374,36 @@ defmodule CuckodingWeb.StatusLive do
                   </div>
                 </dl>
               </div>
-              <div class="mt-5 flex flex-wrap gap-2">
+              <div class="mt-5 flex flex-wrap items-center gap-3">
                 <.link
-                  navigate={~p"/projects/#{card.project.id}/edit"}
-                  class="inline-flex min-h-10 items-center rounded-md border border-slate-300 px-3 text-sm font-medium text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2"
-                >
-                  {if card.autopilot.state == "running",
-                    do: "Monitor project",
-                    else: "Set up or start project"}
-                </.link>
-                <.link
-                  :for={board <- card.boards}
-                  navigate={~p"/boards/#{board.id}"}
-                  class="inline-flex min-h-10 items-center rounded-md border border-slate-300 px-3 text-sm font-medium text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2"
-                >Open {board.name}</.link>
-                <.link
-                  :if={card.boards == []}
-                  navigate={~p"/projects/#{card.project.id}/edit#boards-heading"}
-                  class="inline-flex min-h-10 items-center rounded-md border border-slate-300 px-3 text-sm font-medium text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2"
-                >Create board</.link>
+                  navigate={~p"/projects/#{card.project.id}"}
+                  class="inline-flex min-h-11 items-center rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2"
+                >Describe and run</.link>
+                <details id={"project-advanced-#{card.project.id}"} class="min-w-0">
+                  <summary class="min-h-11 cursor-pointer py-3 text-sm font-medium text-slate-700">
+                    Advanced controls
+                  </summary>
+                  <div class="flex flex-wrap gap-2 pb-1">
+                    <.link
+                      navigate={~p"/projects/#{card.project.id}/edit"}
+                      class="inline-flex min-h-10 items-center rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2"
+                    >
+                      {if card.autopilot.state == "running",
+                        do: "Monitor project",
+                        else: "Project settings"}
+                    </.link>
+                    <.link
+                      :for={board <- card.boards}
+                      navigate={~p"/boards/#{board.id}"}
+                      class="inline-flex min-h-10 items-center rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2"
+                    >Open {board.name}</.link>
+                    <.link
+                      :if={card.boards == []}
+                      navigate={~p"/projects/#{card.project.id}/edit#boards-heading"}
+                      class="inline-flex min-h-10 items-center rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2"
+                    >Create board</.link>
+                  </div>
+                </details>
               </div>
             </li>
           </ul>

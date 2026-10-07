@@ -62,6 +62,20 @@ defmodule Cuckoding.GuidedRun do
     ) || %{"mode" => "manual"}
   end
 
+  def resume(run_id, options \\ []) do
+    with {:ok, skeleton} <- WalkingSkeleton.load(run_id),
+         :ok <- Cuckoding.BoardControl.Recovery.preflight(skeleton),
+         {:ok, role_adapters} <- adapters(skeleton),
+         {:ok, _} <-
+           RunControl.admit(
+             run_id,
+             fn -> Cuckoding.BoardControl.Recovery.claim(skeleton.run) end,
+             options
+           ) do
+      launch(skeleton, role_adapters, Keyword.put(options, :resume, true))
+    end
+  end
+
   defp start_with_policy(run_id, mode, options) do
     key = "guided:#{run_id}:running:#{Identifier.generate()}"
     actor = Keyword.get(options, :completion_actor, "local_user")
@@ -129,6 +143,7 @@ defmodule Cuckoding.GuidedRun do
           adapter_options: implementation.options,
           runtime_version: implementation.version,
           role_adapters: role_adapters,
+          resume: Keyword.get(options, :resume, false),
           simulate_sleep_gap: false
         )
       end)

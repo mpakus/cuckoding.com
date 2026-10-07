@@ -2,6 +2,24 @@
 
 ## System shape
 
+Task 1057 extends the existing controller rather than adding a runtime:
+`DefaultTeam` stores immutable machine defaults; `ProjectOnboarding` copies them into new project revisions; `ProjectDelivery` supplies the idempotent default
+board identity; `ProjectDeliveryLive` projects the brief, planning and Run flow.
+`BoardControl` persists preparation separately from immutable delivery authority.
+Ready to run owns no live provider or delivery slot. A goal deadline gates common
+process launches and bounds process timers; measured active/wall/sleep accounting
+stays in the existing attempt/statistics records. `GoalChecks` resolves the
+reviewed command declarations before Run and uses the existing supervised host
+runner for final setup/checks. `Execution.Toolchain` lists native installations
+using bounded metadata-only discovery. During plan review, `GoalChecks` probes
+their versions in the isolated environment; Run freezes that evidence and the
+selected executable metadata. Agent and check PATH values derive from those
+binary directories, with no personal environment or shell profile import.
+`GoalReview` records criterion assessments against
+that final head and the host's command receipts; failed checks or dirty output
+return to bounded reviewed planning. Full unattended completion
+acceptance remains open in task 1057.
+
 Cuckoding is a menubar application whose real body is a local Phoenix control plane. The control plane owns workflow state, supervision, adapters, plugins, policy, knowledge, and telemetry. Agent processes and project commands run on the host inside per-run Git worktrees and process groups. SQLite is the durable source of truth; knowledge is Markdown on disk indexed in SQLite. The UI is LiveView served on a loopback port and opened in the default browser.
 
 ```mermaid
@@ -97,8 +115,8 @@ delivery slot. Active controller sessions count toward agent capacity.
 board claim for manual, prepared, controller and automatic starts. The dispatcher
 uses a short TTL lease and reloads SQLite on each decision; no private queue
 survives only in a GenServer. Controls persist intent before process operations
-and retain the claim until their outcomes can be verified. Missing workers
-require explicit recovery. `BoardControl.Statistics` reads all linked records
+and retain the claim until their outcomes can be verified. Missing workers without
+a known-ended recovery checkpoint require inspection. `BoardControl.Statistics` reads all linked records
 instead of the capped Agent Floor projection. See [CUCKODING-CONTROL.md](CUCKODING-CONTROL.md)
 and [ADR-030](DECISIONS.md#adr-030--sequential-board-execution-and-reviewed-commit-provenance).
 
@@ -114,10 +132,15 @@ membership is superseded rather than deleted. See [ADR-032](DECISIONS.md#adr-032
 The controller Speculator and plan Reviewer have separate lineages; delivery roles
 are additionally task-scoped. Compatible negotiated ACP sessions can load history;
 other turns receive bounded public evidence in fresh sessions. No new process
-manager or provider transport owns the workflow. Host failure classification
-permits bounded timeout recovery after verified cleanup, and task blockers defer
-descendants without releasing board ownership. Unknown/global failures stop
-admission. Dashboard summaries remain queries over durable records.
+manager or provider transport owns the workflow. Version-3 goals additionally
+reuse stage checkpoints for automatic same-run recovery of known-ended work.
+`BoardControl.Recovery` separates failure retries, provider waits and productive
+continuations, stores backoff before waiting, and claims due checkpoints through
+shared launch admission. Completed stages replay validated public evidence;
+unfinished code stays in its worktree. Native session reuse may narrow only the
+remaining wall timer; account, model, role, runtime, workspace and other grants
+must match. Unknown/global failures stop admission. Task blockers defer descendants
+without releasing board ownership. Dashboard summaries remain queries over durable records.
 
 ### Agent adapter layer
 

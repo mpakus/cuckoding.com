@@ -145,16 +145,31 @@ defmodule Cuckoding.BoardControl.Statistics do
   end
 
   defp criteria(e, items) do
-    for criterion <- get_in(e.snapshot_json, ["autonomy", "criteria"]) || [] do
+    criteria =
+      if BoardControl.Plans.autonomous?(e), do: BoardControl.Plans.goal(e)["criteria"], else: []
+
+    final = if BoardControl.Plans.prepared_goal?(e), do: BoardControl.GoalReview.latest(e.id)
+
+    for criterion <- criteria do
       members =
         Enum.filter(
           items,
           &(not &1.superseded and criterion["id"] in (&1.criteria_json["ids"] || []))
         )
 
-      Map.put(criterion, "passed", members != [] and Enum.all?(members, &(&1.state == "done")))
+      passed =
+        if BoardControl.Plans.prepared_goal?(e),
+          do: final_passed?(final, e),
+          else: members != [] and Enum.all?(members, &(&1.state == "done"))
+
+      Map.put(criterion, "passed", passed)
     end
   end
+
+  defp final_passed?(%{"passed" => true, "head_sha" => head}, %{head_sha: head, state: "done"}),
+    do: true
+
+  defp final_passed?(_, _), do: false
 
   defp measure(rows, field, session_ids) do
     known = Enum.filter(rows, &is_integer(Map.get(&1, field)))

@@ -341,6 +341,10 @@ defmodule CuckodingWeb.BoardLiveTest do
     assert {:ok, _board} = Workflows.set_board_status(board.id, "paused")
     send(view.pid, :refresh_board)
     assert has_element?(view, "#task-#{beta.id}", "Board is paused")
+    assert has_element?(view, "#resume-board", "Resume board")
+    view |> element("#resume-board") |> render_click()
+    refute has_element?(view, "#resume-board")
+    assert Repo.get!(Workflows.Board, board.id).status == "active"
   end
 
   test "running project renders an eligible Ready task", %{conn: conn, board: board, beta: beta} do

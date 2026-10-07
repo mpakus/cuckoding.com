@@ -317,6 +317,42 @@ complete local-application acceptance remain open:
 The detailed contract and acceptance list is [CUCKODING-CONTROL.md](CUCKODING-CONTROL.md).
 Task 1050 synchronizes documentation; it does not close these external gates.
 
+## Paperclip adoption proposal — 2026-09-30
+
+Task 1056 analyzed a pinned MIT-licensed Paperclip checkout against current
+Cuckoding source and the goal **Agents once → new project → describe → Run →
+working result**. The revised [adoption plan](PAPERCLIP_ADOPTION_PLAN.md) prioritizes
+a reusable default team, automatically reviewed task planning, one delivery
+authorization, bounded autonomous resolution and verified whole-goal completion.
+Recurring routines and portable bundles are removed from this roadmap; Attention
+is limited to exceptions. AU-01–AU-05 replace the earlier PC slice labels.
+These are proposals, not implemented capabilities or release evidence. The
+existing role chain, board controller and separate release boundaries remain.
+
+Implementation is now authorized and tracked in
+[task 1057](../tasks/phase-10-hardening-beta/1057-autonomous-project-flow.md).
+The working tree contains reusable default-team setup, the guided project brief
+screen, automatic reviewed Draft creation, durable Ready to run, separate Run
+authorization and a shared elapsed deadline. Trusted command preflight and host
+receipts now support final criterion/integration review at the last reviewed
+head, with bounded automatic repair planning. Reason-aware recovery reuses durable
+stage checkpoints. Real Codex empty-folder and existing-project runs reached Done;
+a further one-Run drill passed a plan-review correction, injected provider wait
+and fresh-VM restart without questions or repeating completed Speculator work.
+The current packaged control plane also completed an existing-project run with a
+real post-Run review correction, two tasks, seven verified criteria and zero questions.
+All 469 tests and 10 properties pass. The native shell launched after a verified
+backup and forward migration, and graceful restart preserved waiting work.
+Retained diagnostics exposed a wake-metadata count/list mismatch; the fix now has
+a real-reconciler regression and a passing rebuilt bundle. A native one-Run
+empty-project drill completed two tasks, nine criteria and two host checks after
+real physical sleep and 12 measured wake gaps. Authorization stayed unchanged,
+no task questions or manual recovery occurred, and all 20 owned processes ended.
+A subsequent native restart preserved the completed result and Ready plan without
+starting delivery. The final UI observation needs a fresh tray-menu browser session.
+Full autonomous Tauri-shell restart
+and signed-release evidence remain separate open gates in task 1057's worklog.
+
 ## Definition of done for MVP
 
 The [current-flow audit](DOCUMENTATION_AUDIT.md) separates implemented UI/domain

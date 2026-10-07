@@ -80,6 +80,10 @@ The client advertises no filesystem or terminal services and supplies no ACP
 MCP servers. Claude receives only the snapshotted, explicitly configured MCP
 servers through its trusted SDK options. Runtime configuration still enforces
 the recorded grant.
+The pinned Codex and Claude bridges also negotiate AIR `sessionFailure` metadata.
+Terminal service/rate failures explicitly permitting retry use the goal's bounded
+provider-wait path. Quota/authentication failures remain exceptions; free-form error
+titles do not drive recovery and private failure details are not retained.
 Permission requests receive a cancelled outcome and require attention;
 unsupported client requests cannot start host tools. An ACP completion only
 finishes the agent turn: existing schema, review and completion-policy gates

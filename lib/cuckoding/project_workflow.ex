@@ -250,6 +250,8 @@ defmodule Cuckoding.ProjectWorkflow do
   def create_task_intake(board_id, attrs) when is_binary(board_id) and is_map(attrs) do
     with {:ok, prompt} <- bounded_text(attrs["prompt"], :intake_prompt_required, 10_000),
          {:ok, role} <- intake_role(board_id, attrs["role_key"]),
+         board when not is_nil(board) <- Workflows.get_board(board_id),
+         :ok <- active_board(board.status),
          {:ok, task} <- create_intake_task(board_id, prompt, role.role_key),
          {:ok, %{result: %{"outcome" => "transitioned"}}} <-
            Workflows.transition_task(task.id, "ready", "intake:#{task.id}:ready"),
@@ -258,6 +260,9 @@ defmodule Cuckoding.ProjectWorkflow do
     else
       {:ok, %{result: %{"outcome" => "rejected", "reason" => reason}}} ->
         {:error, {:intake_transition_rejected, reason}}
+
+      nil ->
+        {:error, :board_not_found}
 
       error ->
         error

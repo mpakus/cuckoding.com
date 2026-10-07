@@ -281,6 +281,18 @@ provider acceptance remains open.
 - **Storage:** Add forward-only plan revision, question and conversation-lineage persistence alongside existing execution/items/events. Accepted revisions preserve original authorization and historical run snapshots. Commands remain idempotent and events commit before broadcasts.
 - **Verification:** Migration preservation, adversarial/stale plan validation, same-model independent review, chained sequential delivery, task-local/global failure classification, bounded retries, session compatibility/redaction, controls/restart, accounting and accessible rendered UI. Native/provider gates remain separate from fixtures.
 
+## ADR-033 — Prepare a goal before one local-delivery authorization
+
+- **Date:** 2026-09-30
+- **Status:** Accepted for implementation by the stakeholder; task 1057
+- **Context:** Repeated role setup and manual task intake interrupt the requested Agents once → Describe → Run flow. Current autonomous Start combines planning and delivery authority.
+- **Decision:** Store a revisioned machine default team referencing existing saved agents. Copy its validated role/settings/profile snapshot into new projects only. Extend the existing board aggregate with read-only preparation and durable Ready to run. A separate idempotent Run command binds the reviewed plan, brief, repository base, team, policy and finite cumulative limits before delivery. Never rewrite the planning authorization to imply earlier delivery consent.
+- **Recovery and completion:** Use typed host failure classification, separate bounded retries/continuations/waits and existing supervised dispatch. All work counts toward the goal allowance. Preserve process ownership checks and reviewed commit chaining. Carry original criteria into each stage and verify final integration at the final candidate before marking the new flow Done; correction loops remain automatic within authority and limits.
+- **Developer tools:** Reuse the supervised runner for fixed version probes before Ready. Discover native executables from bounded known installer layouts using metadata only; freeze selected paths and file metadata in Run. Derive child PATH from these directories while retaining run-owned HOME. Reject missing, unusable or changed tools instead of importing personal shell profiles or version-manager configuration. No new tool registry or environment settings system is needed.
+- **Authority:** Saving defaults grants no execution; Create plan permits read-only agent planning/review and host-validated Draft creation only. Run grants local completion after validated Review, never push/PR/merge, global knowledge publication or new capabilities. Existing projects, fixed batches and historical snapshots keep their recorded behavior.
+- **Alternatives:** Repeated manual setup/import, another queue/runtime, company hierarchies, portable bundles and a separate attention inbox do not satisfy this journey with less complexity.
+- **Verification:** Default inheritance and stale-write checks, forward migration preservation, phase/command replay and admission tests, correction/recovery and cumulative accounting, final-goal evidence validation, accessible reconnect-safe UI, plus separate authenticated provider and native sleep/restart acceptance.
+
 ## ADR template
 
 ### ADR-NNN — Title

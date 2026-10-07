@@ -15,6 +15,19 @@ This does not close real-provider, physical sleep/wake or signed clean-machine g
 
 ## Autonomous goals (task 1055)
 
+Task 1057's prepared project goals use snapshot version 3 and add a separate
+Create plan → Ready to run → Run authorization. The version-2 contract below
+remains unchanged for historical board goals. Version-3 extensions are documented
+in [the project flow](FLOW.md#setup-boundaries): same-run bounded recovery, final
+criterion/check verification, and criterion-linked justified questions.
+If only classified stopped task failures remain, a revision cycle can request a
+reviewed change of approach on those same tasks. Their criterion/dependency IDs,
+retry counts, cumulative time/usage and failed worktrees remain unchanged; passing
+plan Review makes the revised tasks Ready. Unknown/permission failures, unanswered
+requirements and exhausted revision allowances remain exceptions. A changed
+description alone is insufficient: normal implementation and independent final
+checks still have to pass.
+
 **Plan and execute** is an opt-in mode in the same Start board modal. Fixed
 batches remain the default and retain the contract in sections 1–7 below.
 Task 1055 extends the source; its [worklog](../worklog/2026-09-28-1055-autonomous-board.md)

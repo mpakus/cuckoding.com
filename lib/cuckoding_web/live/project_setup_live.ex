@@ -3,6 +3,7 @@ defmodule CuckodingWeb.ProjectSetupLive do
 
   import CuckodingWeb.PolicyComponents
 
+  alias Cuckoding.DefaultTeam
   alias Cuckoding.FolderPicker
   alias Cuckoding.ProjectOnboarding
   alias CuckodingWeb.PublicError
@@ -17,6 +18,7 @@ defmodule CuckodingWeb.ProjectSetupLive do
        step: 1,
        steps: @steps,
        error: nil,
+       default_team: DefaultTeam.latest(),
        project: %{
          "name" => "",
          "description" => "",
@@ -83,16 +85,30 @@ defmodule CuckodingWeb.ProjectSetupLive do
   def handle_event("create", %{"project" => params}, socket) do
     project = Map.merge(socket.assigns.project, params)
 
+    team_revision =
+      if socket.assigns.default_team, do: socket.assigns.default_team.revision, else: 0
+
+    project = Map.put(project, "default_team_revision", team_revision)
+
     if project["confirmed"] == "true" do
       case ProjectOnboarding.create(project) do
-        {:ok, %{project: created}} ->
+        {:ok, %{project: created, config: config}} ->
           {:noreply,
            socket
            |> put_flash(
              :info,
-             "#{created.name} was added. Connect agents and assign their roles."
+             if(config.config_json["default_team_revision"],
+               do: "#{created.name} was added with your default team.",
+               else: "#{created.name} was added. Connect agents and assign their roles."
+             )
            )
-           |> push_navigate(to: ~p"/projects/#{created.id}/edit")}
+           |> push_navigate(
+             to:
+               if(config.config_json["default_team_revision"],
+                 do: ~p"/projects/#{created.id}",
+                 else: ~p"/projects/#{created.id}/edit"
+               )
+           )}
 
         {:error, reason} ->
           {:noreply, assign(socket, project: project, error: error_message(reason))}
@@ -118,7 +134,7 @@ defmodule CuckodingWeb.ProjectSetupLive do
           </h1>
           <p class="max-w-2xl text-base leading-7 text-slate-700">
             Choose a project folder and review the registration.
-            Next, you will connect agents, assign roles, and create a board. No agents start during setup.
+            New projects inherit your saved default team. No agents start during setup.
           </p>
         </header>
 
@@ -273,7 +289,10 @@ defmodule CuckodingWeb.ProjectSetupLive do
               </div>
               <div class="sm:col-span-2">
                 <dt class="text-sm text-slate-600">Agents and roles</dt><dd class="font-medium text-slate-950">
-                  Configure after registration on the project settings page
+                  {if @default_team,
+                    do: "Use your saved default team",
+                    else:
+                      "Choose a default team in Agents or configure this project after registration"}
                 </dd>
               </div>
             </dl>
@@ -363,6 +382,15 @@ defmodule CuckodingWeb.ProjectSetupLive do
   end
 
   defp error_message(:project_name_required), do: "Enter a project name."
+
+  defp error_message(:stale_default_team),
+    do:
+      "The default team changed during setup. Reload to review the new team before adding this project."
+
+  defp error_message(:default_team_agent_changed),
+    do:
+      "A default-team agent was removed or its runtime settings changed. Review and save the default team in Agents before adding this project."
+
   defp error_message(:missing_directory), do: "That repository folder does not exist."
   defp error_message(:not_a_directory), do: "The repository path must point to a folder."
   defp error_message(:not_a_git_repository), do: "Choose the root folder of a Git repository."

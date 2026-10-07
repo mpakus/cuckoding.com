@@ -12,6 +12,8 @@ defmodule Cuckoding.BoardControl.Execution do
     field :base_sha, :string
     field :head_sha, :string
     field :snapshot_json, :map
+    field :preparation_json, :map, default: %{}
+    field :delivery_authorization_json, :map
     field :current_run_id, :binary_id
     field :current_task_id, :binary_id
     field :phase, :string, default: "decision"

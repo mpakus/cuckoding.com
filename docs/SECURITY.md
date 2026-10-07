@@ -16,6 +16,71 @@ Full provider workflow and native recovery acceptance remain separate. See [ACP 
 
 ## Security objective
 
+The task-1057 guided flow has two explicit authorizations. Create plan permits
+only read-only planning/review and host-validated Draft creation. Run authorizes
+the exact accepted plan, brief, team, policy/base and finite limits for local
+delivery. Generated criteria and assumptions remain untrusted until independent
+review and host validation. They cannot expand grants or narrow the original
+brief. The delivery authorization is immutable in SQLite; prepared goals cannot
+use Resume or a direct task launch to bypass Run. Machine defaults store saved
+agent references/settings, never credentials, and change no existing project.
+The goal deadline gates each process launch; late cost reports are still neither
+a guaranteed provider billing cap nor proof of complete telemetry.
+
+Prepared goals use validated command arrays in their reviewed configuration;
+they cannot execute free-form planning text. Supported developer-tool commands
+resolve against installed executables and the existing command-path checks before
+Run. Discovery reads executable metadata in known installer layouts, excludes
+personal version-manager shims, and never executes candidates. Plan review then
+runs only fixed version flags through the supervised runner before Ready. It
+retains process/log evidence for each selected tool and required runtime. Run
+freezes native paths and size/mtime/inode metadata; later launches reject changed
+tools. PATH derives only from those binary directories and system directories;
+HOME remains run-owned. The host-only `CUCKODING_RUNTIME_HOME` discovery hint and
+personal shell/configuration environment are not imported into children. Metadata
+comparison detects installation changes, not adversarial binary tampering.
+The UI discloses host execution and dependency downloads for setup. Run
+freezes these declarations; post-Run revisions cannot add or replace them.
+They execute with `LocalProcessRunner` ownership, environment filtering, log
+redaction, process-group cleanup and remaining deadline. This grants execution
+of repository build/test code, not container isolation or an enforced network
+sandbox. Every completed command records its digest, authorization digest, head,
+exit/timeout status and log hash; raw process arguments remain redacted from
+events. Command configuration remains reviewable, as with existing project
+command policy. Final completion rejects missing/forged receipts, changed logs,
+changed heads, dirty worktrees, missing criteria and failing commands. Repository
+policy changes remain protected and cannot silently replace the authorized set.
+
+Automatic recovery accepts only typed host/provider outcomes: timeouts, ACP
+`max_tokens`/`max_turn_requests`, and supported temporary provider errors. The
+pinned Codex and Claude bridges' terminal AIR `sessionFailure` metadata classifies retryable
+rate/service failures; free-form titles/details are neither recovery instructions
+nor persisted diagnostics. Quota, authentication, permission and unknown failures
+remain exceptions. ACP advertises only this metadata capability, no filesystem or
+terminal capability. Recovery requires ended owned processes, no cleanup failure,
+valid Git identity and unchanged authority; a durable checkpoint is claimed once
+under normal capacity/board admission. Reusing evidence or a native session never
+increases a grant, resets a goal deadline or authorizes release.
+
+Prepared-goal controller decisions are validated before their stage succeeds.
+An invalid action, task identity or question retains its report and consumes the
+existing failure-retry allowance, with host feedback on the next read-only turn.
+The response schema limits task IDs to the next eligible task, blocked recovery
+targets or null. Commit-time state and authority validation still runs separately;
+stale authority cannot be corrected by retrying model output.
+
+Version-3 repair planning may edit only stopped, host-classified task failures
+after cleanup, through the existing independently reviewed plan transaction. It
+preserves task identity, criteria/dependencies, original authorization and all
+consumed allowances. Questions use a closed reason/criterion/evidence contract;
+ordinary naming/layout choices are instructed to remain with the team. The host
+validates structure and linkage; it does not claim to prove semantic necessity
+from a model's explanation. Clarification never changes execution authority.
+Host-invalid version-3 plans may be corrected within the existing proposal
+ceiling. The rejected proposal and host feedback stay in plan history; rejection
+imports no tasks and grants no authority. Independent review remains mandatory
+for the corrected proposal. Stale/foreign controller envelopes still fail closed.
+
 Cuckoding runs powerful agent runtimes on a developer machine against untrusted repository content, without container isolation in the MVP. The design must constrain what Cuckoding itself grants, make the runtime's own permission grant explicit and recorded, protect credentials, preserve trustworthy audit evidence, require humans at irreversible boundaries, and never claim isolation it does not have.
 
 `docs/TRUSTED_HOST_THREAT_MODEL.md` enumerates assets and attackers, maps every boundary to risks and validation tasks, records the malicious-repository tabletop, and states the residual risks disclosed by the MVP.
@@ -38,14 +103,14 @@ Cuckoding runs powerful agent runtimes on a developer machine against untrusted 
 | --- | --- |
 | Unauthorized local web access | Loopback bind, one-time bootstrap secret, single-use `/open` tokens, short-lived cookie sessions, origin/host checks, CSRF, optional re-auth after sleep |
 | Prompt injection from repository | Separate trusted instructions from data; least-privilege runtime permission grant configured by the adapter; protected paths; approvals; no output-to-command promotion |
-| Agent-generated board tasks | Closed structured-output schema; 1 MiB/2,000-row JSONL bounds; only fixed provider preludes may precede JSONL; maximum 20 proposals; canonical, regular, worktree-confined evidence files; human selection before transactional Draft-task import |
+| Agent-generated board tasks | Closed structured-output schema; 1 MiB/2,000-row JSONL bounds; only fixed provider preludes may precede JSONL; maximum 20 proposals; canonical, regular, worktree-confined evidence files. A guided goal imports Draft tasks only after independent review and host validation. Advanced planning still requires human selection before import |
 | Secret theft | Keychain references; no secrets in agent environment or argv; provider CLIs use their own auth; environment allowlist; argument/environment scrubbing; redaction tests |
 | Host mutation outside the worktree | Path confinement for Cuckoding-executed commands; runtime permission grant limited to the worktree; protected paths flagged; honest limitation notice |
 | Cross-run and cross-project leakage | Worktree per run; port ranges; knowledge scope; per-run generated runtime configuration; tests |
 | Config self-escalation | Trusted config hash; changed execution policy or plugin set requires independent human approval |
 | Destructive Git action | Host-side constrained Git service; protected branches; explicit approval; no force-push |
 | Project-folder initialization | Native folder selection, canonical root validation, a review that names the pending Git mutation, and no initialization or commit before explicit confirmation |
-| Local completion mistaken for publication | Explicit start-time choice recorded in `run.completion_policy`, or a separate manual completion confirmation; `run.completed_locally` atomically closes approval/run/task without invoking any VCS host. Default and migrated projects remain manual; branch, worktree and evidence stay local |
+| Local completion mistaken for publication | Explicit start-time choice recorded in `run.completion_policy`, or a separate manual completion confirmation; `run.completed_locally` atomically closes approval/run/task without invoking any VCS host. Guided Run records automatic local completion for that goal. Other starts and migrated projects remain manual unless that choice is recorded. Branch, worktree and evidence stay local |
 | Forged completion | Typed artifact schemas, exit-code checks, independent QA, immutable event sequence |
 | Cost/resource denial | Per-stage and global budgets, concurrency limits, pause/hibernate, alerts, unattended-mode caps |
 | Malicious plugin | Manifest permissions, user approval to enable, supervised process, untrusted output, no secret access without declaration |

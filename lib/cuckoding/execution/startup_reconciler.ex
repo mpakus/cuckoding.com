@@ -12,8 +12,10 @@ defmodule Cuckoding.Execution.StartupReconciler do
 
   @impl true
   def init(options) do
-    case Reconciler.run(options) do
-      {:ok, summary} -> {:ok, summary}
+    with {:ok, summary} <- Reconciler.run(options),
+         :ok <- Cuckoding.Execution.BoardControl.reopen_admission() do
+      {:ok, summary}
+    else
       {:error, reason} -> {:stop, reason}
     end
   end

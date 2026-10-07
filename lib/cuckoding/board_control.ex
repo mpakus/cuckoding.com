@@ -1,7 +1,7 @@
 defmodule Cuckoding.BoardControl do
   @moduledoc "Durable sequential board batches; agent decisions are proposals, never commands."
   import Ecto.Query
-  alias Cuckoding.BoardControl.{Execution, Item, Plans}
+  alias Cuckoding.BoardControl.{Budget, Execution, Item, Plans}
   alias Cuckoding.{Clock, Identifier, Projects, ProjectWorkflow, Repo, RunControl, Workflows}
   alias Cuckoding.Execution.{Commands, Environment, EventStore, GitService, Run}
   alias Cuckoding.Workflows.{Task, TaskDependency}
@@ -101,6 +101,178 @@ defmodule Cuckoding.BoardControl do
     Enum.filter(tasks, &(&1.state in ~w(draft ready) and &1.id not in excluded))
   end
 
+  @doc "Authorize bounded read-only planning. Delivery requires a separate Run command."
+  def prepare_goal(board_id, brief, key) when is_binary(brief) do
+    board = Workflows.get_board(board_id)
+    policy = board && Projects.latest_config_version(board.project_id)
+
+    profile =
+      Map.merge(
+        Cuckoding.DefaultTeam.limits(),
+        (policy && policy.config_json["execution_profile"]) || %{}
+      )
+
+    goal =
+      Map.merge(Map.take(profile, ~w(tasks revisions retries)), %{
+        "goal" => String.trim(brief),
+        "criteria" =>
+          "Deliver every requirement in the original brief with a working, tested result."
+      })
+
+    preview =
+      with {:ok, preview} <- preflight(board_id, [], goal) do
+        snapshot =
+          Map.merge(preview.snapshot, %{
+            "version" => 3,
+            "completion_mode" => "planning",
+            "execution_profile" => profile
+          })
+
+        {:ok, %{preview | snapshot: snapshot, digest: digest(snapshot)}}
+      end
+
+    command(board_id, key, "prepare_goal", fn ->
+      with {:ok, ready} <- preview, do: start_snapshot(board_id, ready.digest, preview)
+    end)
+  end
+
+  def prepare_goal(_board_id, _brief, _key), do: {:error, :invalid_goal_or_limits}
+
+  @doc "Preview the exact prepared scope that Run will authorize, without starting delivery."
+  def delivery_preview(id) do
+    with %Execution{phase: "ready_to_run", state: "waiting", current_run_id: nil} = e <- get(id),
+         true <- Plans.preparing?(e),
+         :ok <- Budget.check(e),
+         :ok <- validate_pending(e),
+         %{} = plan <- Plans.accepted(e),
+         {:ok, verified} <- Cuckoding.BoardControl.GoalChecks.verified_toolchain(plan) do
+      snapshot = %{
+        "version" => 1,
+        "execution_id" => e.id,
+        "revision" => e.revision,
+        "plan_id" => plan.id,
+        "plan" => plan.plan_json,
+        "commands" => verified["commands"],
+        "toolchain" => verified["toolchain"],
+        "goal" => Plans.goal(e),
+        "preparation" => e.preparation_json,
+        "base_sha" => e.base_sha,
+        "policy_id" => e.snapshot_json["policy_id"],
+        "workflow" => e.snapshot_json["workflow"],
+        "plugins" => e.snapshot_json["plugins"],
+        "execution_profile" => e.snapshot_json["execution_profile"],
+        "completion_mode" => "local",
+        "tasks" => pending_requests(e.id)
+      }
+
+      {:ok, %{snapshot: snapshot, digest: digest(snapshot)}}
+    else
+      {:error, _} = error -> error
+      _ -> {:error, :goal_not_ready}
+    end
+  end
+
+  def activate_goal(id, expected_digest, key) do
+    case get(id) do
+      nil ->
+        {:error, :execution_not_found}
+
+      e ->
+        preview_result = delivery_preview(id)
+
+        command(e.board_id, key, "activate_goal", fn ->
+          activate_prepared_goal(e, expected_digest, preview_result)
+        end)
+    end
+  end
+
+  defp activate_prepared_goal(e, expected_digest, preview_result) do
+    current = get(e.id)
+
+    with true <- RunControl.admission_open?(),
+         {:ok, preview} <- preview_result,
+         true <- preview.digest == expected_digest,
+         true <-
+           current.revision == preview.snapshot["revision"] and Plans.preparing?(current) and
+             current.phase == "ready_to_run",
+         true <- policy_current?(Workflows.get_board(e.board_id).project_id, current),
+         :ok <- Budget.check(current),
+         :ok <- validate_snapshot(current),
+         :ok <- no_conflicting_runs(e.board_id) do
+      authorization =
+        Map.merge(preview, %{authorized_at: DateTime.to_iso8601(Clock.wall_now())})
+        |> Map.new(fn {key, value} -> {to_string(key), value} end)
+
+      {:ok,
+       update(
+         get(e.id),
+         %{
+           delivery_authorization_json: authorization,
+           phase: "decision",
+           state: "running",
+           issue: nil
+         },
+         "delivery_authorized",
+         "Run authorized the reviewed goal and automatic local completion"
+       )}
+    else
+      false -> {:error, :stale_preflight_or_workspace_paused}
+      error -> error
+    end
+  end
+
+  @doc "Revise a prepared brief with another bounded read-only planning authorization."
+  def revise_brief(id, revision, brief, key) when is_binary(brief) do
+    case get(id) do
+      nil ->
+        {:error, :execution_not_found}
+
+      e ->
+        validation = validate_pending(e)
+
+        command(e.board_id, key, "revise_brief", fn ->
+          revise_prepared_brief(e, revision, brief, validation)
+        end)
+    end
+  end
+
+  def revise_brief(_id, _revision, _brief, _key), do: {:error, :invalid_goal_or_limits}
+
+  defp revise_prepared_brief(e, revision, brief, validation) do
+    current = get(e.id)
+
+    with true <- current.revision == revision and Plans.preparing?(current),
+         true <- current.phase == "ready_to_run" and is_nil(current.current_run_id),
+         true <- byte_size(brief) in 1..20_000 and String.trim(brief) != "",
+         true <-
+           current.plan_cycle < current.snapshot_json["autonomy"]["limits"]["revisions"],
+         :ok <- validation,
+         true <- policy_current?(Workflows.get_board(e.board_id).project_id, current),
+         :ok <- Budget.check(current),
+         :ok <- validate_snapshot(current) do
+      preparation = %{
+        "brief" => String.trim(brief),
+        "revision" => current.preparation_json["revision"] + 1
+      }
+
+      {:ok,
+       update(
+         current,
+         %{
+           preparation_json: preparation,
+           phase: "planning",
+           state: "running",
+           plan_cycle: current.plan_cycle + 1
+         },
+         "brief_revised",
+         "Brief revised; a new independent plan review is required"
+       )}
+    else
+      false -> {:error, :brief_revision_not_permitted}
+      error -> error
+    end
+  end
+
   def start(board_id, expected_digest, excluded, key, consent, goal \\ nil)
 
   def start(board_id, expected_digest, excluded, key, true, goal) do
@@ -144,6 +316,11 @@ defmodule Cuckoding.BoardControl do
           base_sha: preview.snapshot["base_sha"],
           head_sha: preview.snapshot["base_sha"],
           snapshot_json: preview.snapshot,
+          preparation_json:
+            if(preview.snapshot["version"] == 3,
+              do: %{"brief" => preview.snapshot["autonomy"]["goal"], "revision" => 1},
+              else: %{}
+            ),
           mode: if(preview.snapshot["autonomy"], do: "autonomous_goal", else: "fixed_batch"),
           phase: if(preview.snapshot["autonomy"], do: "planning", else: "decision")
         })
@@ -157,7 +334,15 @@ defmodule Cuckoding.BoardControl do
         })
       end)
 
-      event(e, "started", "Board batch started with automatic local completion")
+      if Plans.preparing?(e),
+        do:
+          event(
+            e,
+            "preparation_authorized",
+            "Read-only goal planning authorized; delivery waits for Run"
+          ),
+        else: event(e, "started", "Board batch started with automatic local completion")
+
       {:ok, e}
     else
       false -> {:error, :stale_preflight_or_workspace_paused}
@@ -173,6 +358,7 @@ defmodule Cuckoding.BoardControl do
 
       e ->
         if e.id == requested_id and e.state == "running" and is_nil(e.current_run_id) and
+             authorized_phase?(e) and
              task.id == target_task(e), do: :ok, else: {:error, :board_owned}
     end
   end
@@ -220,9 +406,10 @@ defmodule Cuckoding.BoardControl do
   def completion_policy(%Run{board_execution_id: nil}, _mode, _options), do: :ok
 
   def completion_policy(run, mode, options) do
-    if mode == "local" and options[:completion_actor] == "board:#{run.board_execution_id}",
-      do: :ok,
-      else: {:error, :board_owned}
+    if mode == "local" and options[:completion_actor] == "board:#{run.board_execution_id}" and
+         not Plans.preparing?(get(run.board_execution_id)),
+       do: :ok,
+       else: {:error, :board_owned}
   end
 
   def review_gate(%Run{board_execution_id: nil}, _environment, _attempt_id), do: :ok
@@ -253,13 +440,16 @@ defmodule Cuckoding.BoardControl do
         if is_nil(run.board_execution_id), do: :ok, else: {:error, :board_not_running}
 
       e ->
-        if e.id == run.board_execution_id and e.current_run_id == run.id and
+        if owns_run?(e, run) and
              e.state in ~w(running waiting) and is_nil(e.pending_action) and
+             authorized_phase?(e) and
              controller?(run) == Keyword.get(options, :board_controller, false),
            do: :ok,
            else: {:error, :board_owned}
     end
   end
+
+  defp owns_run?(e, run), do: e.id == run.board_execution_id and e.current_run_id == run.id
 
   def resume_admission(%Run{board_execution_id: nil}), do: :ok
 
@@ -274,7 +464,30 @@ defmodule Cuckoding.BoardControl do
   end
 
   def validate_launch(%Run{board_execution_id: nil}), do: :ok
-  def validate_launch(run), do: validate_pending(get(run.board_execution_id))
+
+  def validate_launch(run) do
+    e = get(run.board_execution_id)
+    if authorized_phase?(e), do: validate_pending(e), else: {:error, :delivery_not_authorized}
+  end
+
+  defp authorized_phase?(e), do: not Plans.preparing?(e) or e.phase in ~w(planning plan_review)
+
+  def launch_authorized(%Run{board_execution_id: nil}), do: :ok
+
+  def launch_authorized(run) do
+    e = get(run.board_execution_id)
+
+    cond do
+      not authorized_phase?(e) ->
+        {:error, :delivery_not_authorized}
+
+      not Cuckoding.BoardControl.GoalChecks.toolchain_current?(e) ->
+        {:error, :goal_toolchain_changed}
+
+      true ->
+        Budget.check(e)
+    end
+  end
 
   def next_item(e) do
     members = Enum.reject(items(e.id), & &1.superseded)
@@ -321,12 +534,13 @@ defmodule Cuckoding.BoardControl do
     end
   end
 
-  defp decision_next(%Execution{phase: phase}) when phase in ~w(planning plan_review),
-    do: {:ok, nil}
+  defp decision_next(%Execution{phase: phase})
+       when phase in ~w(planning plan_review final_review),
+       do: {:ok, nil}
 
   defp decision_next(e), do: next_item(e)
 
-  def controller_phase?(e), do: e.phase in ~w(decision planning plan_review)
+  def controller_phase?(e), do: e.phase in ~w(decision planning plan_review final_review)
 
   defp previous_outcomes(e) do
     Repo.all(
@@ -342,6 +556,7 @@ defmodule Cuckoding.BoardControl do
         "state" => run.state,
         "branch" => run.branch,
         "base_sha" => run.base_sha,
+        "failure" => failure_outcome(run),
         "evidence" =>
           Repo.all(
             from event in Cuckoding.Execution.RunEvent,
@@ -381,7 +596,7 @@ defmodule Cuckoding.BoardControl do
   end
 
   defp dispatch_safely(e, options) do
-    case advance(e, options) do
+    case advance_with_budget(e, options) do
       {:error, reason} -> attention(e.id, reason)
       _ -> :ok
     end
@@ -389,8 +604,29 @@ defmodule Cuckoding.BoardControl do
     _ -> attention(e.id, :dispatch_failed)
   end
 
+  defp advance_with_budget(e, options) do
+    case Budget.check(e) do
+      :ok ->
+        advance(e, options)
+
+      {:error, _} = error ->
+        case stop_exhausted_goal(e.current_run_id) do
+          :ok -> error
+          _ -> {:error, :goal_budget_cleanup_required}
+        end
+    end
+  end
+
+  defp stop_exhausted_goal(nil), do: :ok
+
+  defp stop_exhausted_goal(run_id) do
+    with {:ok, _} <- RunControl.control(run_id, "stop"), do: :ok
+  end
+
   defp advance(%Execution{state: state}, _options)
        when state not in ~w(running waiting controlling), do: :ok
+
+  defp advance(%Execution{phase: "ready_to_run", pending_action: nil}, _options), do: :ok
 
   defp advance(%Execution{state: "controlling"} = e, _options), do: finish_control(e)
 
@@ -405,12 +641,13 @@ defmodule Cuckoding.BoardControl do
         settle_run(e, run)
 
       state when state in ~w(blocked failed cancelled) ->
-        if Plans.autonomous?(e) and not controller?(run),
-          do: recover_delivery(e, run),
-          else: {:error, :task_blocked}
+        recover_terminal(e, run)
 
       "paused" ->
         {:error, :task_paused}
+
+      "waiting" when run.wait_reason == "goal_recovery" ->
+        resume_recovery(e, run, options)
 
       state when state in ~w(running waiting) ->
         worker_available(run)
@@ -431,7 +668,33 @@ defmodule Cuckoding.BoardControl do
       launch(get(e.id), prepared.run, options)
     else
       {:wait, reason} -> wait_for_capacity(e, reason)
+      {:repair, ids} -> request_task_repair(e, ids)
       error -> error
+    end
+  end
+
+  defp recover_terminal(e, run) do
+    if Plans.autonomous?(e) and not controller?(run),
+      do: recover_delivery(e, run),
+      else: {:error, :task_blocked}
+  end
+
+  defp resume_recovery(e, run, options) do
+    if Cuckoding.BoardControl.Recovery.ready?(run) and
+         Registry.lookup(Cuckoding.RunRegistry, {:orchestration, run.id}) == [] do
+      {:ok, e} = ready_capacity(e)
+
+      result =
+        if controller?(run),
+          do: Cuckoding.BoardControl.Decision.resume(run.id, options),
+          else: Cuckoding.GuidedRun.resume(run.id, options)
+
+      case result do
+        {:error, {:capacity, reason}} -> wait_for_capacity(e, reason)
+        other -> other
+      end
+    else
+      :ok
     end
   end
 
@@ -444,7 +707,7 @@ defmodule Cuckoding.BoardControl do
   end
 
   defp ready_target(%Execution{phase: phase} = e)
-       when phase in ~w(decision planning plan_review) do
+       when phase in ~w(decision planning plan_review final_review) do
     task = Workflows.get_task(e.controller_task_id)
 
     case task.state do
@@ -488,22 +751,38 @@ defmodule Cuckoding.BoardControl do
   end
 
   defp next_decision_valid(%Execution{phase: phase})
-       when phase in ~w(delivery planning plan_review), do: :ok
+       when phase in ~w(delivery planning plan_review final_review), do: :ok
 
   defp next_decision_valid(e) do
     case next_item(e) do
       {:ok, _} ->
         :ok
 
-      {:error, :unfinished_batch_item} when e.mode == "autonomous_goal" ->
-        {:error, :remaining_tasks_blocked}
-
-      {:error, :dependencies_blocked} when e.mode == "autonomous_goal" ->
-        {:error, :remaining_tasks_blocked}
+      {:error, reason}
+      when reason in [:unfinished_batch_item, :dependencies_blocked] and
+             e.mode == "autonomous_goal" ->
+        case Plans.repairable_tasks(e) do
+          [] -> {:error, :remaining_tasks_blocked}
+          ids -> {:repair, ids}
+        end
 
       error ->
         error
     end
+  end
+
+  defp request_task_repair(e, ids) do
+    transaction(fn ->
+      if e.plan_cycle >= e.snapshot_json["autonomy"]["limits"]["revisions"],
+        do: Repo.rollback(:plan_revision_limit)
+
+      update(
+        e,
+        %{phase: "planning", plan_cycle: e.plan_cycle + 1, current_run_id: nil},
+        "task_repair_requested",
+        "Reviewing a different approach for #{length(ids)} stopped task(s)"
+      )
+    end)
   end
 
   defp transition_ready(task, e) do
@@ -597,6 +876,7 @@ defmodule Cuckoding.BoardControl do
 
     with true <- current.state == "running" and current.current_run_id == run.id,
          true <- decision_revision?(current, input["revision"]),
+         :ok <- Budget.check(current),
          :ok <- validate_snapshot(current),
          {:ok, next} <- decision_next(current),
          {:ok, result} <- commit_proposal(current, run, input, output, next) do
@@ -632,6 +912,11 @@ defmodule Cuckoding.BoardControl do
     end
   end
 
+  defp commit_proposal(%Execution{phase: "final_review"} = e, run, input, output, _next) do
+    with {:ok, attrs} <- Cuckoding.BoardControl.GoalReview.accept(e, run, input, output),
+         do: {:ok, update(e, attrs, "goal_reviewed", "Whole-goal verification recorded")}
+  end
+
   defp commit_proposal(e, run, input, output, next) do
     with :ok <- Cuckoding.BoardControl.Decision.validate(output, input, next) do
       if Plans.autonomous?(e),
@@ -660,7 +945,8 @@ defmodule Cuckoding.BoardControl do
       run_id: run.id,
       task_id: output["task_id"],
       revision: e.revision,
-      question: Cuckoding.Security.Redactor.redact(output["summary"])
+      question:
+        Cuckoding.Security.Redactor.redact(Cuckoding.BoardControl.Decision.question_text(output))
     })
 
     if output["task_id"] do
@@ -783,7 +1069,9 @@ defmodule Cuckoding.BoardControl do
     end
   end
 
-  defp failure_class(run) do
+  defp failure_class(run), do: failure_outcome(run)["recovery_class"] || "global"
+
+  defp failure_outcome(run) do
     Repo.one(
       from event in Cuckoding.Execution.RunEvent,
         where: event.run_id == ^run.id and event.event_type == "workflow.failed",
@@ -792,8 +1080,8 @@ defmodule Cuckoding.BoardControl do
         select: event.payload
     )
     |> case do
-      %{"recovery_class" => class} -> class
-      _ -> "global"
+      %{} = payload -> Map.take(payload, ~w(code recovery_class stage_attempt_id))
+      _ -> %{}
     end
   end
 
@@ -894,12 +1182,21 @@ defmodule Cuckoding.BoardControl do
         do: "done",
         else: "finished_with_skips"
 
-    update(
-      e,
-      %{state: outcome, finished_at: Clock.wall_now(), current_run_id: nil},
-      "finished",
-      output["summary"]
-    )
+    if outcome == "done" and Plans.prepared_goal?(e) do
+      update(
+        e,
+        %{phase: "final_review", current_run_id: nil},
+        "goal_verification_requested",
+        "Tasks settled; verifying the original goal at the final head"
+      )
+    else
+      update(
+        e,
+        %{state: outcome, finished_at: Clock.wall_now(), current_run_id: nil},
+        "finished",
+        output["summary"]
+      )
+    end
   end
 
   defp finish_controller_run(run) do
@@ -1050,6 +1347,9 @@ defmodule Cuckoding.BoardControl do
       current.state in @terminal ->
         {:error, :execution_finished}
 
+      unapproved_control?(current, action) ->
+        {:error, :delivery_not_authorized}
+
       current.pending_action not in [nil, action] and action != "stop" ->
         {:error, :control_pending}
 
@@ -1060,6 +1360,9 @@ defmodule Cuckoding.BoardControl do
         validate_control_scope(current, action, options)
     end
   end
+
+  defp unapproved_control?(%{phase: "ready_to_run"}, action), do: action != "stop"
+  defp unapproved_control?(_e, _action), do: false
 
   defp validate_control_scope(current, action, options) do
     with :ok <- autonomy_limit(current, action, options[:task_id]),
@@ -1561,8 +1864,9 @@ defmodule Cuckoding.BoardControl do
 
   defp order_key(t), do: {-t["priority"], t["created_at"], t["id"]}
 
-  defp target_task(%Execution{phase: phase} = e) when phase in ~w(decision planning plan_review),
-    do: e.controller_task_id
+  defp target_task(%Execution{phase: phase} = e)
+       when phase in ~w(decision planning plan_review final_review),
+       do: e.controller_task_id
 
   defp target_task(e), do: e.current_task_id
 
@@ -1603,7 +1907,7 @@ defmodule Cuckoding.BoardControl do
   end
 
   defp controller_workflow(snapshot, e) do
-    key = if e.phase == "plan_review", do: "qa", else: "specification"
+    key = if e.phase in ~w(plan_review final_review), do: "qa", else: "specification"
     spec = Enum.find(snapshot["definition"]["stages"], &(&1["key"] == key))
 
     stage =
@@ -1676,7 +1980,15 @@ defmodule Cuckoding.BoardControl do
           "state" => e.state,
           "action" => e.pending_action,
           "task_id" => e.current_task_id,
-          "issue" => e.issue
+          "issue" => e.issue,
+          "phase" => e.phase,
+          "preparation" =>
+            if(type in ~w(preparation_authorized brief_revised),
+              do: e.preparation_json,
+              else: Map.take(e.preparation_json, ["revision"])
+            ),
+          "authorization_digest" =>
+            e.delivery_authorization_json && e.delivery_authorization_json["digest"]
         }
       })
   end

@@ -55,6 +55,11 @@ The implemented `Cuckoding.Power.Manager` uses the task 0004 clock contract thro
 
 The manager starts and stops a scrubbed `caffeinate -i -w <beam-pid>` child after verifying its PID/start identity. Eligible provider sessions hold it unless the run is waiting on a pending human approval. A durable, unexpired unattended board window may also hold it while the board has active or queued work, but the manager never decides or mutates an approval. The test environment starts the manager disabled and exercises it through explicit injected clock ticks.
 
+Successful `wake_reconciled` metadata records `extended_leases` and
+`expired_leases` as integer counts from the reconciler. A regression exercises
+the real reconciler through the power manager so test doubles cannot mask a
+count/list contract mismatch.
+
 ## Budgets for long runs
 
 Executable stage budgets use `max_attempts`, `active_ms`, `wall_ms`, `tokens`
@@ -78,8 +83,26 @@ Resume rechecks authorization, policy, Git ownership and task requests. A missin
 orchestration worker cannot be assumed resumable: inspect retained evidence and
 use explicit Retry/Skip/Stop after verified cleanup. Pending control outcomes
 keep admission closed. Workspace Resume does not silently resume a separately
-paused board. See [CUCKODING-CONTROL.md](CUCKODING-CONTROL.md); physical sleep/wake
-and packaged restart for this controller remain open acceptance gates.
+paused board. See [CUCKODING-CONTROL.md](CUCKODING-CONTROL.md). Full autonomous
+Tauri-shell restart remains a separate acceptance gate.
+
+Prepared autonomous goals add a narrower automatic path: a classified, known-ended
+stage can persist a recovery checkpoint and backoff, then resume through the shared
+dispatcher after restart. The host verifies ended processes, retained worktree and
+unchanged authorization before claiming that checkpoint once. Completed stage
+evidence is reused; failure retries, provider waits and productive continuations
+have separate counters within the same cumulative goal deadline. Unknown prompt
+outcomes or unverified ownership still require attention. This does not change
+historical fixed-batch recovery.
+
+Task 1057 exercised physical sleep on the current native Tauri build with real
+Codex delivery. Its empty-project goal completed two tasks and nine criteria
+after 12 measured gaps totaling 202,608 ms; each gap had a durable successful wake
+event, delivery stages were not duplicated, and the single Run authorization was
+unchanged. The existing fresh-VM restart sample covers a known-ended checkpoint;
+it is not an in-flight Tauri restart test. See the
+[task worklog](../worklog/2026-09-30-1057-autonomous-project-flow.md) for exact
+provider, build, process and result evidence.
 
 ## Verification
 

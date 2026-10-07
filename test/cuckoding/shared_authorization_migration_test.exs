@@ -157,9 +157,10 @@ defmodule Cuckoding.SharedAuthorizationMigrationTest do
     stop_supervised!(MigrationRepo)
     start_supervised!({MigrationRepo, database: copy, pool_size: 1})
 
-    assert Ecto.Migrator.run(MigrationRepo, migrations, :up, all: true, log: false) == [
-             20_260_928_120_000
-           ]
+    assert Ecto.Migrator.run(MigrationRepo, migrations, :up, to: 20_260_928_120_000, log: false) ==
+             [
+               20_260_928_120_000
+             ]
 
     rows =
       Ecto.Adapters.SQL.query!(MigrationRepo, "SELECT * FROM board_executions ORDER BY id").rows
@@ -169,6 +170,83 @@ defmodule Cuckoding.SharedAuthorizationMigrationTest do
 
     assert Ecto.Adapters.SQL.query!(MigrationRepo, "SELECT * FROM board_plan_revisions").rows ==
              []
+
+    assert Ecto.Adapters.SQL.query!(MigrationRepo, "PRAGMA foreign_key_check").rows == []
+    assert Ecto.Adapters.SQL.query!(MigrationRepo, "PRAGMA integrity_check").rows == [["ok"]]
+    assert_default_team_upgrade(migrations, root)
+  end
+
+  defp assert_default_team_upgrade(migrations, root) do
+    tables = ~w(projects project_config_versions provider_accounts board_executions runs tasks)
+
+    before =
+      Map.new(
+        tables,
+        &{&1, Ecto.Adapters.SQL.query!(MigrationRepo, "SELECT * FROM #{&1} ORDER BY id").rows}
+      )
+
+    copy = Path.join(root, "default-team-copy.db")
+    Ecto.Adapters.SQL.query!(MigrationRepo, "VACUUM INTO ?", [copy])
+    stop_supervised!(MigrationRepo)
+    start_supervised!({MigrationRepo, database: copy, pool_size: 1})
+
+    assert Ecto.Migrator.run(MigrationRepo, migrations, :up, to: 20_260_930_120_000, log: false) ==
+             [20_260_930_120_000]
+
+    for table <- tables do
+      assert Ecto.Adapters.SQL.query!(MigrationRepo, "SELECT * FROM #{table} ORDER BY id").rows ==
+               before[table]
+    end
+
+    assert Ecto.Adapters.SQL.query!(MigrationRepo, "SELECT * FROM default_teams").rows == []
+
+    Ecto.Adapters.SQL.query!(
+      MigrationRepo,
+      "INSERT INTO default_teams (revision, config_json, source_hash, inserted_at) VALUES (1, '{}', 'preserved', '2026-09-30 00:00:00')"
+    )
+
+    assert {:error, _} =
+             Ecto.Adapters.SQL.query(
+               MigrationRepo,
+               "UPDATE default_teams SET source_hash = 'rewritten'"
+             )
+
+    assert {:error, _} = Ecto.Adapters.SQL.query(MigrationRepo, "DELETE FROM default_teams")
+    assert Ecto.Adapters.SQL.query!(MigrationRepo, "PRAGMA foreign_key_check").rows == []
+    assert Ecto.Adapters.SQL.query!(MigrationRepo, "PRAGMA integrity_check").rows == [["ok"]]
+    assert_preparation_upgrade(migrations, root)
+  end
+
+  defp assert_preparation_upgrade(migrations, root) do
+    before =
+      Ecto.Adapters.SQL.query!(MigrationRepo, "SELECT * FROM board_executions ORDER BY id").rows
+
+    teams = Ecto.Adapters.SQL.query!(MigrationRepo, "SELECT * FROM default_teams").rows
+    copy = Path.join(root, "preparation-copy.db")
+    Ecto.Adapters.SQL.query!(MigrationRepo, "VACUUM INTO ?", [copy])
+    stop_supervised!(MigrationRepo)
+    start_supervised!({MigrationRepo, database: copy, pool_size: 1})
+
+    assert Ecto.Migrator.run(MigrationRepo, migrations, :up, to: 20_260_930_130_000, log: false) ==
+             [20_260_930_130_000]
+
+    rows =
+      Ecto.Adapters.SQL.query!(MigrationRepo, "SELECT * FROM board_executions ORDER BY id").rows
+
+    assert Enum.map(rows, &Enum.drop(&1, -2)) == before
+    assert Enum.all?(rows, &(Enum.take(&1, -2) == ["{}", nil]))
+    assert Ecto.Adapters.SQL.query!(MigrationRepo, "SELECT * FROM default_teams").rows == teams
+
+    Ecto.Adapters.SQL.query!(
+      MigrationRepo,
+      "UPDATE board_executions SET delivery_authorization_json = '{\"digest\":\"approved\"}' WHERE id = 'batch'"
+    )
+
+    assert {:error, _} =
+             Ecto.Adapters.SQL.query(
+               MigrationRepo,
+               "UPDATE board_executions SET delivery_authorization_json = '{}' WHERE id = 'batch'"
+             )
 
     assert Ecto.Adapters.SQL.query!(MigrationRepo, "PRAGMA foreign_key_check").rows == []
     assert Ecto.Adapters.SQL.query!(MigrationRepo, "PRAGMA integrity_check").rows == [["ok"]]

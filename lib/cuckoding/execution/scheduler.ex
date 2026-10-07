@@ -578,6 +578,17 @@ defmodule Cuckoding.Execution.BoardControl do
 
   def resume(board_id), do: Workflows.set_board_status(board_id, "active")
 
+  @doc "Reopens admission on boards paused by shutdown. Hibernated runs stay hibernated."
+  def reopen_admission do
+    Repo.all(from board in Board, where: board.status == "paused", select: board.id)
+    |> Enum.reduce_while(:ok, fn board_id, :ok ->
+      case resume(board_id) do
+        {:ok, _board} -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, {board_id, reason}}}
+      end
+    end)
+  end
+
   defp active_runs(board_id) do
     Repo.all(
       from(run in Run,

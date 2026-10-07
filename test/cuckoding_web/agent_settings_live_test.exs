@@ -2,6 +2,49 @@ defmodule CuckodingWeb.AgentSettingsLiveTest do
   use CuckodingWeb.ConnCase, async: false
   import Phoenix.LiveViewTest
 
+  test "default team saves once and keeps unsaved instructions across activity updates", %{
+    conn: conn
+  } do
+    {:ok, account} =
+      Cuckoding.ProjectOnboarding.save_agent(%{
+        "label" => "Default coder",
+        "adapter_key" => "codex",
+        "executable_path" => "/usr/bin/true"
+      })
+
+    {:ok, view, _} = live(conn, ~p"/settings/agents")
+
+    roles =
+      Map.new(
+        Cuckoding.ProjectOnboarding.default_roles(),
+        &{&1["key"], %{"provider_account_id" => account.id, "instructions" => &1["instructions"]}}
+      )
+
+    view |> form("#default-team-form", team: %{roles: roles}) |> render_submit()
+    assert has_element?(view, "#default-team-status", "Default team saved")
+    assert Cuckoding.DefaultTeam.latest().revision == 1
+
+    view
+    |> form("#default-team-form",
+      team: %{roles: %{"spec_writer" => %{"instructions" => "Keep this unfinished edit"}}}
+    )
+    |> render_change()
+
+    send(view.pid, {:activity_event, "default_team", 1})
+    assert render(view) =~ "Keep this unfinished edit"
+
+    assert Cuckoding.DefaultTeam.latest().config_json["default_roles"]
+           |> hd()
+           |> Map.fetch!("instructions") != "Keep this unfinished edit"
+
+    {:ok, reconnected, _} = live(conn, ~p"/settings/agents")
+
+    assert has_element?(
+             reconnected,
+             "select[name='team[roles][reviewer][provider_account_id]'] option[value='#{account.id}'][selected]"
+           )
+  end
+
   test "finds an installed runtime, keeps manual edits and locks saved setup", %{conn: conn} do
     root =
       Path.join(System.tmp_dir!(), "cuckoding-agent-detect-#{System.unique_integer([:positive])}")

@@ -260,14 +260,15 @@ remains the safe control for every recorded session.
 
 ### Project workspace
 
-Current entry point: `/projects/:id/edit`, with project settings, boards, and
-**Create board**. The tabbed workspace and aggregate filters below remain design
-targets, not additional shipped routes:
+The home project card leads with **Describe and run** at `/projects/:id`.
+Board creation, project settings, and **Start board** stay under **Advanced
+controls**. The settings page remains `/projects/:id/edit`. The tabbed workspace
+and aggregate filters below remain design targets, not additional shipped routes:
 
 - Project status, repository folder, base branch, configuration revision, runner (host, with limitation notice), plugins in use, tool health.
 - Tabs: boards, runs, knowledge, metrics, settings, audit history.
 - Aggregate costs and resources filtered by board, runtime, model, role, stage, and date.
-- **Create board** is the primary action when a project has no boards; **Add task** belongs to a board, never project setup.
+- **Create board** belongs to advanced project settings. **Add task** belongs to a board, never project setup. The guided goal creates its delivery board when the user submits **Create plan**.
 
 The Phase 8 Settings → Plugins route `/settings/plugins` exposes the durable
 registry without color-only status. Each entry names its health and last error,

@@ -37,6 +37,11 @@ defmodule CuckodingWeb.BoardControlComponents do
         </p>
       </div>
       <p :if={@execution.issue} role="alert" class="text-amber-900">{issue(@execution.issue)}</p>
+      <.link
+        :if={@execution.phase == "ready_to_run"}
+        navigate={~p"/projects/#{Cuckoding.Workflows.get_board(@execution.board_id).project_id}"}
+        class="inline-flex min-h-11 items-center underline"
+      >Open prepared goal to Run</.link>
       <p :if={@stats.last_event} class="text-sm text-slate-700">{@stats.last_event.public_summary}</p>
       <p class="text-sm">
         Controller decisions: {Enum.count(@stats.runs, &Cuckoding.BoardControl.controller?/1)}/{@execution.snapshot_json[
@@ -119,7 +124,9 @@ defmodule CuckodingWeb.BoardControlComponents do
       </div>
       <div :if={@execution.mode == "autonomous_goal"} class="space-y-3">
         <h3 class="font-semibold">Goal progress</h3>
-        <p class="whitespace-pre-wrap break-words">{@execution.snapshot_json["autonomy"]["goal"]}</p>
+        <p class="whitespace-pre-wrap break-words">
+          {Cuckoding.BoardControl.Plans.goal(@execution)["goal"]}
+        </p>
         <ul class="space-y-1 text-sm">
           <li :for={criterion <- @stats.criteria}>
             {criterion["id"]}: {criterion["text"]} · {if criterion["passed"],
@@ -166,35 +173,12 @@ defmodule CuckodingWeb.BoardControlComponents do
               >{label(action)} {item.snapshot_json["title"]}</button>
             </div>
           </article>
-          <article
+          <.question
             :for={question <- @stats.questions}
-            id={"board-question-#{question.id}"}
-            class="rounded border border-slate-300 p-3"
-          >
-            <p class="whitespace-pre-wrap break-words">{question.question}</p>
-            <p :if={question.answer} class="whitespace-pre-wrap break-words">
-              Answer: {question.answer}
-            </p>
-            <form
-              :if={!question.answer and @execution.state not in ~w(done finished_with_skips stopped)}
-              id={"answer-#{question.id}"}
-              phx-change="change-board-answer"
-              phx-submit="answer-board-question"
-              class="space-y-2"
-            >
-              <input type="hidden" name="question[id]" value={question.id} />
-              <input type="hidden" name="question[revision]" value={@execution.revision} />
-              <label class="block" for={"answer-text-#{question.id}"}>Answer (does not change permissions or limits)</label>
-              <textarea
-                id={"answer-text-#{question.id}"}
-                name="question[answer]"
-                maxlength="10000"
-                required
-                class="w-full rounded border p-2"
-              >{@answers[question.id] || ""}</textarea>
-              <button type="submit" class="min-h-11 rounded border px-4" phx-disable-with="Saving…">Save answer</button>
-            </form>
-          </article>
+            question={question}
+            execution={@execution}
+            answers={@answers}
+          />
         </div>
         <details
           :if={!@compact}
@@ -388,12 +372,89 @@ defmodule CuckodingWeb.BoardControlComponents do
     """
   end
 
+  attr :question, :map, required: true
+  attr :execution, :map, required: true
+  attr :answers, :map, default: %{}
+
+  def question(assigns) do
+    ~H"""
+    <article
+      id={"board-question-#{@question.id}"}
+      class="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-4"
+    >
+      <p class="text-sm font-medium text-amber-950">
+        Needs you. This answer changes the requested outcome or supplies information the repository does not contain. It does not grant a new capability.
+      </p>
+      <p class="whitespace-pre-wrap break-words text-sm leading-6">{@question.question}</p>
+      <p :if={@question.answer} class="whitespace-pre-wrap break-words">
+        Answer: {@question.answer}
+      </p>
+      <form
+        :if={!@question.answer and @execution.state not in ~w(done finished_with_skips stopped)}
+        id={"answer-#{@question.id}"}
+        phx-change="change-board-answer"
+        phx-submit="answer-board-question"
+        class="space-y-2"
+      >
+        <input type="hidden" name="question[id]" value={@question.id} />
+        <input type="hidden" name="question[revision]" value={@execution.revision} />
+        <label class="block" for={"answer-text-#{@question.id}"}>Answer (does not change permissions or limits)</label>
+        <textarea
+          id={"answer-text-#{@question.id}"}
+          name="question[answer]"
+          maxlength="10000"
+          required
+          class="w-full rounded border p-2"
+        >{@answers[@question.id] || ""}</textarea>
+        <button type="submit" class="min-h-11 rounded border px-4" phx-disable-with="Saving…">Save answer</button>
+      </form>
+    </article>
+    """
+  end
+
   def controls(%{pending_action: action}, _next) when is_binary(action), do: [action]
+  def controls(%{phase: "ready_to_run"}, _next), do: ["stop"]
 
   def controls(e, next) do
     recovery = if e.state in ~w(paused attention), do: ~w(resume retry refresh), else: ["pause"]
     recovery ++ if(e.current_task_id || next, do: ~w(skip stop), else: ["stop"])
   end
+
+  def issue("invalid_goal_commands"),
+    do:
+      "The plan needs supported setup and test commands with tools installed on this machine. Edit the brief to specify the existing toolchain, then prepare the plan again."
+
+  def issue("goal_repair_limit"),
+    do:
+      "Final verification still fails after the authorized repair allowance. Inspect the unmet criteria and retained check logs, then start a revised goal."
+
+  def issue("goal_recovery_limit"),
+    do:
+      "The saved recovery allowance is exhausted. Inspect the retained work and failure evidence before starting a revised goal."
+
+  def issue("recovery_process_unverified"),
+    do:
+      "The previous process could not be confirmed ended. Inspect its ownership and cleanup before retrying; retained work will not be run twice."
+
+  def issue("goal_budget_exhausted"),
+    do:
+      "The goal reached its authorized total deadline. Its work and evidence are retained; inspect the result before starting a revised goal."
+
+  def issue("invalid_goal_check_evidence"),
+    do:
+      "The command evidence no longer matches the authorized result. Work is retained; inspect the final run before authorizing another attempt."
+
+  def issue("goal_check_outcome_unknown"),
+    do:
+      "A command started without a confirmed result. Inspect its owned processes and log before retrying; it will not be repeated automatically."
+
+  def issue(reason) when reason in ~w(goal_toolchain_unavailable goal_toolchain_changed),
+    do:
+      "A required developer tool is missing, changed, or cannot run in the isolated environment. Inspect the tool-version log, install the required native tool, then prepare a fresh plan. Personal shell profiles and credentials are not imported."
+
+  def issue("goal_candidate_changed"),
+    do:
+      "The final worktree or Git head changed during verification. Inspect the retained branch and commit before retrying."
 
   def issue(reason),
     do:

@@ -8,7 +8,7 @@ defmodule Cuckoding.Workflows.GateEvaluator do
   @doc "Returns a validated bundle or a failed outcome with structured findings."
   def evaluate(
         %{
-          "schema_version" => 1,
+          "schema_version" => _version,
           "run_id" => run_id,
           "branch" => branch,
           "base_sha" => base_sha,
@@ -23,7 +23,7 @@ defmodule Cuckoding.Workflows.GateEvaluator do
              is_binary(head_sha) and is_list(artifacts) and is_list(tests) and
              is_list(findings) and is_list(citations) do
     with :ok <- validate_artifacts(artifacts),
-         :ok <- validate_tests(tests),
+         :ok <- validate_tests(tests, bundle),
          :ok <- validate_findings(findings),
          :ok <- validate_citations(citations) do
       failed = failed_test_findings(tests) ++ blocking_findings(findings)
@@ -57,6 +57,17 @@ defmodule Cuckoding.Workflows.GateEvaluator do
       valid_descriptor?(artifact) and artifact["type"] in @artifact_types
     end)
   end
+
+  defp validate_tests([], %{"schema_version" => 2, "goal_context" => context})
+       when is_map(context) do
+    if nonempty?(context["authorization_digest"]) and is_list(context["task_criteria"]) and
+         context["task_criteria"] != [],
+       do: :ok,
+       else: {:error, "missing authorized goal context"}
+  end
+
+  defp validate_tests(tests, %{"schema_version" => 1}), do: validate_tests(tests)
+  defp validate_tests(_, _), do: {:error, "invalid goal task evidence"}
 
   defp validate_tests([]), do: {:error, "evidence bundle has no test results"}
 

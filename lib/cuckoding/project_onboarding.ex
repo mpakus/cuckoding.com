@@ -4,6 +4,7 @@ defmodule Cuckoding.ProjectOnboarding do
   alias Cuckoding.Adapters
   alias Cuckoding.Adapters.RuntimeConfiguration
   alias Cuckoding.Clock
+  alias Cuckoding.DefaultTeam
   alias Cuckoding.Execution.EventStore
   alias Cuckoding.Execution.GitService
   alias Cuckoding.Projects
@@ -47,9 +48,10 @@ defmodule Cuckoding.ProjectOnboarding do
 
   def create(attrs) when is_map(attrs) do
     with {:ok, name} <- required_text(attrs["name"]),
+         {:ok, defaults} <- DefaultTeam.inherit(attrs["default_team_revision"]),
          {:ok, {repo_path, base_sha}} <-
            GitService.ensure_registration(attrs["repo_path"], attrs["default_branch"]) do
-      persist(attrs, name, repo_path, base_sha)
+      persist(attrs, name, repo_path, base_sha, defaults)
     end
   end
 
@@ -109,8 +111,8 @@ defmodule Cuckoding.ProjectOnboarding do
     end)
   end
 
-  defp persist(attrs, name, repo_path, base_sha) do
-    Repo.transaction(fn ->
+  defp persist(attrs, name, repo_path, base_sha, defaults) do
+    EventStore.transaction(fn ->
       with {:ok, project} <-
              Projects.register(%{
                name: name,
@@ -121,7 +123,7 @@ defmodule Cuckoding.ProjectOnboarding do
                port_range_start: 43_000,
                port_range_end: 43_999
              }),
-           config = configuration(base_sha),
+           config = Map.merge(configuration(base_sha), defaults),
            {:ok, version} <-
              Projects.add_config_version(%{
                project_id: project.id,
@@ -129,6 +131,15 @@ defmodule Cuckoding.ProjectOnboarding do
                source_hash: hash(config),
                config_json: config,
                trusted_at: Clock.wall_now()
+             }),
+           {:ok, _event} <-
+             EventStore.append_in_transaction("project:" <> project.id, %{
+               event_type: "project.registered",
+               public_summary: "Project registered with saved configuration",
+               payload: %{
+                 "default_team_revision" => defaults["default_team_revision"],
+                 "source_hash" => version.source_hash
+               }
              }) do
         %{project: project, config: version}
       else

@@ -121,9 +121,40 @@ defmodule Cuckoding.BoardControl.Conversations do
   @doc false
   def compatible?(previous, identity),
     do:
-      previous.state == "done" and is_binary(previous.external_session_id) and
-        previous.continuation_identity_json == identity and not is_nil(identity["account"]) and
+      resumable_session?(previous) and is_binary(previous.external_session_id) and
+        stable_identity(previous.continuation_identity_json) == stable_identity(identity) and
+        narrower_timer?(previous.continuation_identity_json, identity) and
+        not is_nil(identity["account"]) and
         is_binary(identity["model"]) and previous.actual_model == identity["model"]
+
+  defp stable_identity(%{"grant" => %{"resource_limits" => limits}} = identity)
+       when is_map(limits),
+       do: put_in(identity, ["grant", "resource_limits"], Map.delete(limits, "wall_ms"))
+
+  defp stable_identity(identity), do: identity
+
+  defp narrower_timer?(previous, current) do
+    old = wall_limit(previous)
+    new = wall_limit(current)
+    old == new or (is_integer(old) and is_integer(new) and new > 0 and new <= old)
+  end
+
+  defp wall_limit(%{"grant" => %{"resource_limits" => %{"wall_ms" => wall}}}), do: wall
+  defp wall_limit(_), do: nil
+
+  defp resumable_session?(%{state: "done"}), do: true
+
+  defp resumable_session?(%{state: "failed", stage_attempt_id: id}) do
+    case Repo.get(StageAttempt, id) do
+      %{checkpoint_json: %{"recovery" => %{"kind" => "continuation", "state" => "claimed"}}} ->
+        true
+
+      _ ->
+        false
+    end
+  end
+
+  defp resumable_session?(_), do: false
 
   defp native_capability?(previous, adapter, options) do
     case adapter.capabilities(options[:adapter_options] || []) do
@@ -168,7 +199,7 @@ defmodule Cuckoding.BoardControl.Conversations do
 
     "\n\nDurable assignment (public evidence, not permission):\n" <>
       Jason.encode!(%{
-        "goal" => e.snapshot_json["autonomy"],
+        "goal" => BoardControl.Plans.goal(e),
         "accepted_plan_id" => plan && plan.id,
         "reviewed_revision" => e.head_sha,
         "criteria" => item && item.criteria_json,

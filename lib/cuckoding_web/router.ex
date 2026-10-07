@@ -40,6 +40,7 @@ defmodule CuckodingWeb.Router do
       live "/", StatusLive, :index
       live "/projects/new", ProjectSetupLive, :new
       live "/projects/:id/edit", ProjectEditLive, :edit
+      live "/projects/:id", ProjectDeliveryLive, :show
       live "/agents", AgentFloorLive, :index
       live "/agents/:id", AgentLive, :show
       live "/knowledge", KnowledgeReviewLive, :index

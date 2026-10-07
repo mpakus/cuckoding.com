@@ -431,7 +431,7 @@ defmodule Cuckoding.Power.Manager do
   defp reconciliation_metadata(summary) do
     %{
       "extended_leases" => summary.extended_leases,
-      "expired_lease_ids" => Enum.map(summary.expired_leases, & &1.id),
+      "expired_leases" => summary.expired_leases,
       "recovered_commands" => summary.recovered_commands,
       "dispatched_commands" => summary.dispatched_commands
     }

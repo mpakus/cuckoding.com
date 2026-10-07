@@ -359,7 +359,7 @@ defmodule Cuckoding.Adapters.ACP.Client do
     with reason when reason in @stop_reasons <- result["stopReason"],
          {:ok, state} <- flush_message(state),
          :ok <- record_usage(state, result) do
-      state = %{state | stop_reason: reason}
+      state = %{state | stop_reason: reason, error: state.error || prompt_failure(state, result)}
       close(state)
     else
       {:error, reason} -> {:error, reason}
@@ -593,13 +593,57 @@ defmodule Cuckoding.Adapters.ACP.Client do
            "clientInfo" => %{"name" => "cuckoding", "version" => "1"},
            "clientCapabilities" => %{
              "fs" => %{"readTextFile" => false, "writeTextFile" => false},
-             "terminal" => false
+             "terminal" => false,
+             "_meta" => failure_capability(state)
            }
          }) do
       {:ok, state} -> state
       {:error, reason} -> fail(state, reason)
     end
   end
+
+  # Read-only metadata extension implemented by both pinned bridges. It grants no tools.
+  defp failure_capability(%{runtime: %{adapter: adapter}})
+       when adapter in ["codex", "claude_code"],
+       do: %{"jetbrains" => %{"air" => %{"version" => 1, "capabilities" => ["sessionFailure"]}}}
+
+  defp failure_capability(_), do: %{}
+
+  defp prompt_failure(
+         %{runtime: %{adapter: adapter}},
+         %{"_meta" => %{"jetbrains" => %{"air" => metadata}}}
+       )
+       when adapter in ["codex", "claude_code"] do
+    case metadata do
+      %{
+        "version" => 1,
+        "sessionFailure" => %{
+          "severity" => "error",
+          "category" => "limit",
+          "actions" => ["retry"]
+        }
+      } ->
+        :provider_rate_limited
+
+      %{
+        "version" => 1,
+        "sessionFailure" => %{
+          "severity" => "error",
+          "category" => "service",
+          "actions" => ["retry"]
+        }
+      } ->
+        :provider_unavailable
+
+      %{"sessionFailure" => _} ->
+        :provider_failure_requires_attention
+
+      _ ->
+        nil
+    end
+  end
+
+  defp prompt_failure(_state, _result), do: nil
 
   defp reserve_prompt(state) do
     attrs = %{

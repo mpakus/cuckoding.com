@@ -78,7 +78,7 @@ defmodule CuckodingWeb.ProjectSetupLiveTest do
     refute has_element?(view, "select[name='project[runtime]']")
     assert has_element?(view, "#host-runner-notice", "not a sandbox")
     assert has_element?(view, "#project-step-3", "Use the existing repository")
-    assert has_element?(view, "#project-step-3", "Configure after registration")
+    assert has_element?(view, "#project-step-3", "Choose a default team in Agents")
     assert has_element?(view, "#project-step-3", "Do not start agents")
 
     before_counts = execution_counts()

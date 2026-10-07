@@ -5,6 +5,7 @@ defmodule CuckodingWeb.AgentSettingsLive do
   alias Cuckoding.Adapters
   alias Cuckoding.Adapters.RuntimeConfiguration
   alias Cuckoding.AgentRuntime
+  alias Cuckoding.DefaultTeam
   alias Cuckoding.ProjectOnboarding
 
   @impl true
@@ -22,10 +23,32 @@ defmodule CuckodingWeb.AgentSettingsLive do
        error: nil,
        notice: nil
      )
+     |> load_default_team()
      |> refresh()}
   end
 
   @impl true
+  def handle_event("change_default_team", %{"team" => params}, socket) do
+    {:noreply, assign(socket, team_form: params, team_notice: nil)}
+  end
+
+  def handle_event("save_default_team", %{"team" => params}, socket) do
+    case DefaultTeam.save(socket.assigns.team_revision, params) do
+      {:ok, team} ->
+        {:noreply,
+         assign(socket,
+           team_form: params,
+           team_revision: team.revision,
+           team_error: nil,
+           team_notice: "Default team saved. New projects will use these agents."
+         )}
+
+      {:error, reason} ->
+        {:noreply,
+         assign(socket, team_form: params, team_notice: nil, team_error: team_error(reason))}
+    end
+  end
+
   def handle_event("change", %{"agent" => params}, socket) do
     form = Map.merge(socket.assigns.form, params)
 
@@ -310,7 +333,7 @@ defmodule CuckodingWeb.AgentSettingsLive do
         <header class="space-y-3">
           <h1 id="agents-heading" class="text-3xl font-semibold text-slate-950">Agents</h1>
           <p>
-            Add and sign in once. Choose these agents in any project's settings and assign their roles.
+            Add and sign in once, then choose a default team for new projects.
           </p>
           <p
             id="profile-sharing"
@@ -332,6 +355,107 @@ defmodule CuckodingWeb.AgentSettingsLive do
         >
           {@error}
         </p>
+        <section
+          aria-labelledby="default-team-heading"
+          class="space-y-4 rounded-xl border border-slate-300 bg-white p-5"
+        >
+          <h2 id="default-team-heading" class="text-xl font-semibold">Default team</h2>
+          <p>
+            New projects inherit this team. Existing projects keep their saved assignments. The same agent can fill all roles; each review runs independently.
+          </p>
+          <p :if={@accounts == []}>Add an agent below, then select it for each role.</p>
+          <p :if={@team_error} id="default-team-error" role="alert" class="text-red-950">
+            {@team_error}
+          </p>
+          <p id="default-team-status" role="status" aria-live="polite" class="text-emerald-900">
+            {@team_notice}
+          </p>
+          <form
+            id="default-team-form"
+            phx-change="change_default_team"
+            phx-submit="save_default_team"
+            class="space-y-4"
+          >
+            <div class="grid gap-4 md:grid-cols-3">
+              <div :for={role <- ProjectOnboarding.default_roles()} class="space-y-2">
+                <label class="grid gap-2 font-medium">
+                  {role["name"]}
+                  <select
+                    name={"team[roles][#{role["key"]}][provider_account_id]"}
+                    required
+                    class="min-h-11 rounded border border-slate-400 bg-white px-3"
+                  >
+                    <option value="">Choose an agent</option>
+                    <option
+                      :for={account <- @accounts}
+                      :if={account.adapter_key in ~w(codex claude_code cursor_agent)}
+                      value={account.id}
+                      selected={
+                        get_in(@team_form, ["roles", role["key"], "provider_account_id"]) ==
+                          account.id
+                      }
+                    >
+                      {account.label}
+                    </option>
+                  </select>
+                </label>
+                <details
+                  id={"default-team-instructions-#{role["key"]}"}
+                  phx-mounted={JS.ignore_attributes("open")}
+                >
+                  <summary class="cursor-pointer py-2">Role instructions</summary>
+                  <label class="grid gap-2 text-sm">
+                    Instructions for {role["name"]}
+                    <textarea
+                      name={"team[roles][#{role["key"]}][instructions]"}
+                      rows="4"
+                      maxlength="4000"
+                      required
+                      class="w-full rounded border border-slate-400 p-2"
+                    >{get_in(@team_form, ["roles", role["key"], "instructions"])}</textarea>
+                  </label>
+                </details>
+              </div>
+            </div>
+            <details id="default-team-limits" phx-mounted={JS.ignore_attributes("open")}>
+              <summary class="cursor-pointer py-2">Execution limits</summary>
+              <div class="grid gap-3 sm:grid-cols-3">
+                <label
+                  :for={
+                    {key, label, minimum, maximum} <- [
+                      {"tasks", "Tasks", 1, 20},
+                      {"revisions", "Plan revisions", 0, 3},
+                      {"retries", "Failure retries per task", 0, 2},
+                      {"continuations", "Continuations per task", 0, 10},
+                      {"provider_waits", "Provider waits per task", 0, 10},
+                      {"wall_minutes", "Elapsed minutes", 1, 1440}
+                    ]
+                  }
+                  class="grid gap-2"
+                >
+                  {label}
+                  <input
+                    type="number"
+                    name={"team[limits][#{key}]"}
+                    value={get_in(@team_form, ["limits", key])}
+                    min={minimum}
+                    max={maximum}
+                    required
+                    class="min-h-11 rounded border border-slate-400 px-3"
+                  />
+                </label>
+              </div>
+              <p class="mt-2 text-sm">
+                Saving does not start work. You authorize each goal with Run; changes apply to new projects only.
+              </p>
+            </details>
+            <button
+              disabled={@accounts == []}
+              phx-disable-with="Saving…"
+              class="min-h-11 rounded bg-slate-950 px-4 text-white disabled:opacity-50"
+            >Save default team</button>
+          </form>
+        </section>
         <form
           id="agent-form"
           phx-change="change"
@@ -811,6 +935,42 @@ defmodule CuckodingWeb.AgentSettingsLive do
 
     assign(socket, accounts: accounts, setups: setups, impacts: impacts, failures: failures)
   end
+
+  defp load_default_team(socket) do
+    team = DefaultTeam.latest()
+    config = if team, do: team.config_json, else: %{}
+    connections = Map.new(config["agent_connections"] || [], &{&1["key"], &1})
+
+    roles =
+      Map.new(config["default_roles"] || ProjectOnboarding.default_roles(), fn role ->
+        account_id = get_in(connections, [role["agent_connection_key"], "provider_account_id"])
+
+        {role["key"],
+         %{"provider_account_id" => account_id || "", "instructions" => role["instructions"]}}
+      end)
+
+    assign(socket,
+      team_revision: if(team, do: team.revision, else: 0),
+      team_form: %{
+        "roles" => roles,
+        "limits" => config["execution_profile"] || DefaultTeam.limits()
+      },
+      team_error: nil,
+      team_notice: nil
+    )
+  end
+
+  defp team_error(:stale_default_team),
+    do: "The default team changed in another window. Reload to review it before saving again."
+
+  defp team_error(:invalid_execution_limits),
+    do: "Keep every execution limit within the displayed range."
+
+  defp team_error({:invalid_default_role, _role}),
+    do: "Choose a saved supported agent and non-empty instructions for each role."
+
+  defp team_error(_reason),
+    do: "The default team could not be saved. Review the agents and limits."
 
   defp empty_form,
     do: %{

@@ -74,9 +74,31 @@ defmodule Cuckoding.OrchestrationFailure do
   end
 
   # Only host-classified errors may trigger unattended recovery; provider prose never does.
-  def recovery_class(:agent_timeout), do: "transient"
+  def recovery_class(reason) when reason in [:agent_timeout, :invalid_goal_decision],
+    do: "transient"
+
+  def recovery_class({:acp_turn_stopped, reason}) when reason in ~w(max_tokens max_turn_requests),
+    do: "continuation"
+
+  def recovery_class(reason) when reason in [:provider_rate_limited, :provider_unavailable],
+    do: "provider_wait"
+
+  def recovery_class(%Types.Error{category: :transient, retryable?: true, code: code})
+      when code in [:rate_limited, :provider_unavailable, :capacity_unavailable],
+      do: "provider_wait"
+
+  def recovery_class(%Types.Error{category: :transient, retryable?: true, code: :timeout}),
+    do: "transient"
+
+  def recovery_class(:goal_recovery_limit), do: "task"
   def recovery_class(:review_attempt_budget_exceeded), do: "task"
   def recovery_class(_), do: "global"
+
+  def recovery_code({:acp_turn_stopped, reason}) when reason in ~w(max_tokens max_turn_requests),
+    do: reason
+
+  def recovery_code(%Types.Error{code: code}) when is_atom(code), do: Atom.to_string(code)
+  def recovery_code(reason) when is_atom(reason), do: Atom.to_string(reason)
 
   defp latest_context(run_id) do
     attempt =
