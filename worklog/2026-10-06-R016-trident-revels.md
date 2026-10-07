@@ -44,4 +44,3 @@ an isolated target and record the distinction from the current runtime.
   displacement to zero. Existing R015 navigation/board remains unchanged.
 - `rtk git diff --check`: pass. README, AGENTS, plan, product and site docs updated.
   Local merge only; no push or Pages publication. Continue R020 next.
-
