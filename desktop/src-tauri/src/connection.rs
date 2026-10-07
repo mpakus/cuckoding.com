@@ -2,7 +2,7 @@
 use crate::probe::{private_directory, Group};
 use serde_json::{json, Value};
 use std::{
-    collections::HashSet,
+    collections::{HashSet, VecDeque},
     fs::{File, OpenOptions},
     io::{self, BufRead, BufReader, Read, Write},
     os::unix::{fs::OpenOptionsExt, io::AsRawFd, process::CommandExt},
@@ -13,16 +13,23 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
+mod model_check;
+
 type Result<T> = std::result::Result<T, &'static str>;
 const FRAME_LIMIT: usize = 65_536;
 // Codex 0.146.0's bundled plugin cache already contains more than 7,000 entries.
 const PROFILE_ENTRY_LIMIT: usize = 32_768;
 
 #[derive(Clone, Copy, PartialEq)]
-pub enum Operation {
+pub enum Operation<'a> {
     Inspect,
     Login,
     Logout,
+    Check {
+        scratch: &'a Path,
+        model: &'a str,
+        effort: &'a str,
+    },
 }
 
 struct ProfileLock(File);
@@ -58,6 +65,8 @@ struct Rpc {
     sequence: u32,
     auth_changes: bool,
     completion: Option<(String, bool)>,
+    capture: bool,
+    pending: VecDeque<Value>,
 }
 
 impl Rpc {
@@ -74,6 +83,17 @@ impl Rpc {
         let result = (|| loop {
             let message = self.next()?;
             if message.get("method").is_some() {
+                if self.capture
+                    && !message["method"]
+                        .as_str()
+                        .unwrap_or("")
+                        .starts_with("item/reasoning")
+                {
+                    if self.pending.len() >= 128 {
+                        return Err("invalid_output");
+                    }
+                    self.pending.push_back(message);
+                }
                 continue;
             }
             if message["id"].as_u64() != Some(id.into()) {
@@ -248,10 +268,10 @@ fn catalog(rpc: &mut Rpc) -> Result<Vec<Value>> {
     Err("invalid_catalog")
 }
 
-fn initialize(rpc: &mut Rpc, directory: &Path) -> Result<()> {
+fn initialize(rpc: &mut Rpc, directory: &Path, experimental: bool) -> Result<Value> {
     let init = rpc.request(
         "initialize",
-        json!({"clientInfo":{"name":"cuckoding","title":"Cuckoding","version":"0.1.0"}}),
+        json!({"clientInfo":{"name":"cuckoding","title":"Cuckoding","version":"0.1.0"},"capabilities":{"experimentalApi":experimental}}),
     )?;
     if init["codexHome"].as_str() != directory.to_str() {
         return Err("profile_mismatch");
@@ -263,7 +283,7 @@ fn initialize(rpc: &mut Rpc, directory: &Path) -> Result<()> {
     {
         return Err("unsupported_profile");
     }
-    Ok(())
+    Ok(config["config"].clone())
 }
 
 fn account(rpc: &mut Rpc) -> Result<Value> {
@@ -358,9 +378,16 @@ fn operate(
     operation: Operation,
     progress: &mut impl FnMut(&str) -> Result<()>,
 ) -> Result<Value> {
-    initialize(rpc, directory)?;
+    let config = initialize(rpc, directory, matches!(operation, Operation::Check { .. }))?;
     match operation {
         Operation::Inspect => {}
+        Operation::Check {
+            scratch,
+            model,
+            effort,
+        } => {
+            return model_check::check(rpc, &config, scratch, model, effort);
+        }
         Operation::Login => {
             let before = account(rpc)?;
             if !before["account"].is_null() {
@@ -425,29 +452,38 @@ fn run_operation(
         .duration_since(UNIX_EPOCH)
         .map_err(|_| "launch_failed")?
         .as_millis();
+    let mut command = Command::new(executable);
+    command.args([
+        "app-server",
+        "--listen",
+        "stdio://",
+        "-c",
+        "cli_auth_credentials_store=\"file\"",
+        "-c",
+        "model_provider=\"openai\"",
+        "-c",
+        "approval_policy=\"never\"",
+    ]);
+    let cwd = match operation {
+        Operation::Check { scratch, .. } => {
+            model_check::configure(&mut command, scratch)?;
+            scratch
+        }
+        _ => {
+            command.args(["-c", "sandbox_mode=\"read-only\""]);
+            directory
+        }
+    };
     let mut group = Group(
-        Command::new(executable)
-            .args([
-                "app-server",
-                "--listen",
-                "stdio://",
-                "-c",
-                "cli_auth_credentials_store=\"file\"",
-                "-c",
-                "model_provider=\"openai\"",
-                "-c",
-                "sandbox_mode=\"read-only\"",
-                "-c",
-                "approval_policy=\"never\"",
-            ])
+        command
             .env_clear()
             .env("HOME", directory)
             .env("CODEX_HOME", directory)
-            .env("TMPDIR", directory)
+            .env("TMPDIR", cwd)
             .env("PATH", "/usr/bin:/bin:/usr/sbin:/sbin")
             .env("LANG", "en_US.UTF-8")
             .env("TZ", "UTC")
-            .current_dir(directory)
+            .current_dir(cwd)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -469,6 +505,8 @@ fn run_operation(
         sequence: 0,
         auth_changes: false,
         completion: None,
+        capture: false,
+        pending: VecDeque::new(),
     };
     let mut result = operate(&mut rpc, directory, operation, &mut progress)
         .unwrap_or_else(|error| json!({"status":error}));
@@ -491,10 +529,10 @@ pub fn main(args: &[String], operation: Operation) {
             Path::new(path),
             Path::new(directory),
             cancel,
-            Duration::from_secs(if operation == Operation::Login {
-                600
-            } else {
-                10
+            Duration::from_secs(match operation {
+                Operation::Login => 600,
+                Operation::Check { .. } => 120,
+                _ => 10,
             }),
             operation,
             |url| {
@@ -515,6 +553,22 @@ pub fn main(args: &[String], operation: Operation) {
         "{}",
         result.unwrap_or_else(|status| json!({"status":status}))
     );
+}
+
+pub fn model_main(args: &[String]) {
+    match args {
+        [_, _, scratch, model, effort] => main(
+            &args[..2],
+            Operation::Check {
+                scratch: Path::new(scratch),
+                model,
+                effort,
+            },
+        ),
+        _ => {
+            let _ = writeln!(io::stdout(), "{}", json!({"status":"invalid_output"}));
+        }
+    }
 }
 
 #[cfg(test)]
@@ -692,7 +746,7 @@ done
         fs::remove_dir_all(dir).unwrap();
     }
 
-    fn fixture(account: Value, models: Value) -> (PathBuf, PathBuf) {
+    pub(super) fn fixture(account: Value, models: Value) -> (PathBuf, PathBuf) {
         let dir = PathBuf::from(format!(
             "/private/tmp/cuckoding-connection-{}-{}",
             std::process::id(),
@@ -733,7 +787,7 @@ done
         (dir, path)
     }
 
-    fn sample() -> Value {
+    pub(super) fn sample() -> Value {
         json!({"id":"test-model","model":"test-model","displayName":"Test model","hidden":false,"isDefault":true,"defaultReasoningEffort":"medium","supportedReasoningEfforts":[{"reasoningEffort":"medium","description":"fixture-secret"}],"inputModalities":["text"],"unknown":"fixture-secret"})
     }
 

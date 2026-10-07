@@ -1,8 +1,9 @@
 # Development
 
 The local preview includes R010's tray, authenticated browser and durable setup
-check, plus Codex version, private-profile inspection and managed sign-in/out.
-Human-completed real-account/model acceptance and execution remain R020 work. The previous source
+check, plus Codex version, private-profile inspection, managed sign-in/out and a
+fixed model diagnostic. Human-completed real-account/model acceptance and repository
+execution remain R020 work. The previous source
 reset remains intentional; do not restore the deleted implementation wholesale.
 
 ## Build and open
@@ -59,7 +60,16 @@ unknown: the provider may have completed just before cancellation. Check connect
 before trying again. Interrupted authentication never replays automatically.
 **Sign out of this private profile** has its own confirmation and affects only this
 app-owned profile. Both actions immediately clear old account/catalog observations.
-Setup operations serialize while authentication is active. No agent turn runs.
+Setup operations serialize while authentication or a model check is active.
+
+With a fresh signed-in catalog, **Try a model** offers **Check model access**.
+Select a model and confirm possible provider usage. This sends one fixed prompt,
+with the lowest advertised effort, restricted private scratch permissions and a
+two-minute limit. It accepts only a matching completed acknowledgement and shows
+requested/runtime model, timestamp and measured duration. **Cancel model check**
+waits for cleanup; provider usage may already have occurred. A failed/interrupted
+check requires fresh consent and never automatically retries. No repository task
+or arbitrary prompt is available. Connection refresh clears the current result.
 
 The shell starts a bundled OTP release with a private HOME, clean environment,
 exclusive data lock and an ephemeral IPv4 loopback port. It owns the one-time

@@ -4,10 +4,11 @@ Target experience: connect once, choose models/roles once, reuse across Arenas.
 Runtime discovery, version compatibility, authorization and model availability
 are separate statuses. None implies the others.
 
-Current R020a–c preview implements version/identity checks, private-profile
+Current R020a–d preview implements version/identity checks, private-profile
 inspection, managed ChatGPT browser login/logout and validated catalog caching
 with 24-hour freshness. Real Codex login start/cancel and signed-out inspection
-are verified; human-completed login, model access and isolated turns remain open.
+are verified. A separately consented fixed model diagnostic is implemented;
+real responses after human-completed login and repository turns remain open.
 Login/logout clear previous observations before launch. The single profile can
 be signed out and then signed in; named connections/roles remain planned.
 
@@ -20,6 +21,17 @@ completion triggers account/model refresh. Cancellation holds admission through
 helper cleanup and leaves status unknown until checked; it cannot undo a provider
 completion that raced with Cancel. Expired/interrupted commands never replay.
 The native profile lock also refuses overlapping helpers.
+
+**Try a model** selects from a fresh, validated catalog and asks for explicit
+provider-usage consent. Changing the selection or connection resets consent. The host picks the
+lowest advertised reasoning effort and sends only a fixed acknowledgement prompt
+in a private scratch directory, with a two-minute limit and Cancel control.
+Permission preflight, model matching and completion validation precede a saved
+pass. The UI distinguishes requested from runtime-selected model and retains the
+result across reconnects. It is a point-in-time observation, not entitlement or
+permission to run repository work. Cancel may follow provider usage; interruption
+never automatically resends the prompt. Refreshing the connection clears the
+current diagnostic result, retaining its audit history.
 
 ## User flow
 

@@ -2,7 +2,7 @@
 
 Target architecture, implemented incrementally. R010 provides the tray,
 authenticated LiveView foundation, SQLite and metadata-only setup dispatcher.
-R020a–c add the Codex version/inspection/authorization adapter. Roles, battles and the task
+R020a–d add the Codex version/inspection/authorization and fixed model-check adapter. Roles, battles and the task
 runner below remain subsequent slices.
 
 Current startup order: Repo → schema validation/migration → PubSub → shell
@@ -16,6 +16,8 @@ a fixed native app-server helper. R020c adds managed login/logout with native
 profile locking and no agent conversation. SQLite owns login lifecycle; a small
 dispatcher-owned ETS table holds only the expiring provider URL. LiveView exposes
 a session-protected local redirect, never the provider URL in its state.
+R020d reuses the same ledger/helper for a separately consented, fixed model
+diagnostic with private scratch permissions and a validated public receipt.
 The single dispatcher serializes setup; parallel task execution is a later slice.
 
 ## Components

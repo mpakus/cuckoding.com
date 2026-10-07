@@ -3,6 +3,7 @@ defmodule Cuckoding.Foundation do
   import Ecto.Query
   alias Cuckoding.{Codex, Command, Event, Repo, Workspace}
   @auth_kinds ~w(login_codex logout_codex)
+  @exclusive_kinds @auth_kinds ++ ["check_codex_model"]
 
   def workspace, do: Repo.get!(Workspace, 1)
   def catalog_status(connection, now \\ DateTime.utc_now())
@@ -111,13 +112,19 @@ defmodule Cuckoding.Foundation do
   end
 
   defp cancel_command(%Command{kind: kind, state: "running"} = command)
-       when kind in @auth_kinds do
+       when kind in @exclusive_kinds do
     Repo.update!(Ecto.Changeset.change(command, state: "cancelling", result: "awaiting_cleanup"))
     record(prefix(kind) <> "cancelling", %{}, command.id)
   end
 
   defp cancel_command(%Command{kind: kind, state: state} = command)
-       when kind in ["probe_codex", "inspect_codex", "login_codex", "logout_codex"] and
+       when kind in [
+              "probe_codex",
+              "inspect_codex",
+              "login_codex",
+              "logout_codex",
+              "check_codex_model"
+            ] and
               state in ["pending", "running"] do
     Repo.update!(
       Ecto.Changeset.change(command, state: "cancelled", result: "cancelled", lease_until: nil)
@@ -137,18 +144,68 @@ defmodule Cuckoding.Foundation do
   end
 
   defp profile_command(key, expected, confirmed, kind) do
-    ready = workspace().codex
-
     with true <- confirmed == true,
-         %{"status" => "supported", "command_id" => id, "path" => path} <- ready,
-         %Command{kind: "probe_codex", state: "completed", payload: identity} <-
-           Repo.get(Command, id),
-         {:ok, ^identity} <- Codex.executable(path) do
+         {:ok, identity} <- verified_executable() do
       command(key, expected, kind, identity)
     else
       false -> {:error, :confirmation_required}
+      error -> error
+    end
+  end
+
+  defp verified_executable do
+    with %{"status" => "supported", "command_id" => id, "path" => path} <- workspace().codex,
+         %Command{kind: "probe_codex", state: "completed", payload: identity} <-
+           Repo.get(Command, id),
+         {:ok, ^identity} <- Codex.executable(path) do
+      {:ok, identity}
+    else
       _ -> {:error, :version_required}
     end
+  end
+
+  def check_model(key, expected, model_id, confirmed) do
+    connection = workspace().connection
+
+    with true <- confirmed == true,
+         {:ok, identity} <- verified_executable(),
+         %{} = model <- Enum.find(connection["models"] || [], &(&1["id"] == model_id)) do
+      # The least advertised effort is enough for the fixed diagnostic response.
+      effort =
+        Enum.find(~w(none minimal low medium high xhigh max), &(&1 in model["efforts"])) ||
+          model["default_effort"]
+
+      command(key, expected, "check_codex_model", %{
+        "identity" => identity,
+        "model_id" => model_id,
+        "model" => model["model"],
+        "effort" => effort,
+        "connection_command_id" => connection["command_id"],
+        "fetched_at" => connection["fetched_at"],
+        "grant" => "scratch-read-only-v1"
+      })
+    else
+      false -> {:error, :confirmation_required}
+      {:error, _} = error -> error
+      _ -> {:error, :model_refresh_required}
+    end
+  end
+
+  def model_check_current?(payload) do
+    connection = workspace().connection
+
+    connection["status"] == "checked" and connection["authorization"] == "chatgpt" and
+      catalog_status(connection) == "fresh" and connection["identity"] == payload["identity"] and
+      connection["command_id"] == payload["connection_command_id"] and
+      connection["fetched_at"] == payload["fetched_at"] and
+      model_available?(connection, payload)
+  end
+
+  defp model_available?(connection, payload) do
+    Enum.any?(connection["models"] || [], fn model ->
+      model["id"] == payload["model_id"] and model["model"] == payload["model"] and
+        payload["effort"] in model["efforts"]
+    end)
   end
 
   def discover(key, expected_revision) do
@@ -180,18 +237,7 @@ defmodule Cuckoding.Foundation do
   end
 
   defp enqueue(id, expected, kind, payload) do
-    reason =
-      cond do
-        workspace().revision != expected ->
-          "stale_revision"
-
-        (kind in @auth_kinds and pending?()) or pending_probe(@auth_kinds) != nil ->
-          "profile_busy"
-
-        true ->
-          nil
-      end
-
+    reason = rejection_reason(expected, kind, payload)
     state = if reason, do: "rejected", else: "pending"
 
     command =
@@ -221,7 +267,31 @@ defmodule Cuckoding.Foundation do
       )
     end
 
+    if state == "pending" and kind == "check_codex_model" do
+      Repo.update!(
+        Ecto.Changeset.change(workspace(),
+          connection: Map.delete(workspace().connection, "model_check")
+        )
+      )
+    end
+
     command
+  end
+
+  defp rejection_reason(expected, kind, payload) do
+    cond do
+      workspace().revision != expected ->
+        "stale_revision"
+
+      (kind in @exclusive_kinds and pending?()) or pending_probe(@exclusive_kinds) != nil ->
+        "profile_busy"
+
+      kind == "check_codex_model" and not model_check_current?(payload) ->
+        "model_refresh_required"
+
+      true ->
+        nil
+    end
   end
 
   def claim(now \\ System.system_time(:millisecond)) do
@@ -242,7 +312,13 @@ defmodule Cuckoding.Foundation do
             nil
 
           %{kind: kind, state: state} = command
-          when kind in ["probe_codex", "inspect_codex", "login_codex", "logout_codex"] and
+          when kind in [
+                 "probe_codex",
+                 "inspect_codex",
+                 "login_codex",
+                 "logout_codex",
+                 "check_codex_model"
+               ] and
                  state in ["running", "cancelling"] ->
             failed =
               Repo.update!(
@@ -294,6 +370,7 @@ defmodule Cuckoding.Foundation do
   end
 
   defp lease_duration("login_codex"), do: 630_000
+  defp lease_duration("check_codex_model"), do: 140_000
   defp lease_duration(kind) when kind in ["inspect_codex", "logout_codex"], do: 20_000
   defp lease_duration(_), do: 10_000
 
@@ -388,11 +465,33 @@ defmodule Cuckoding.Foundation do
      Map.take(public, ~w(status version pid spawned_at_ms elapsed_ms))}
   end
 
+  defp projection(%{kind: "check_codex_model"} = claim, result) do
+    result = result |> Jason.encode!() |> Codex.normalize_model_check()
+
+    result =
+      if result["status"] == "passed" and
+           (result["requested_model"] != claim.payload["model"] or
+              result["observed_model"] != claim.payload["model"] or
+              result["effort"] != claim.payload["effort"] or
+              not model_check_current?(claim.payload)),
+         do: %{"status" => "model_mismatch"},
+         else: result
+
+    public =
+      Map.merge(result, %{
+        "requested_model" => claim.payload["model"],
+        "checked_at" => DateTime.to_iso8601(DateTime.utc_now()),
+        "command_id" => claim.id
+      })
+
+    {[connection: Map.put(workspace().connection, "model_check", public)], public}
+  end
+
   defp projection(%{kind: kind} = claim, result)
        when kind in ["inspect_codex", "login_codex", "logout_codex"] do
     result = result |> Jason.encode!() |> Codex.normalize_connection()
     now = DateTime.to_iso8601(DateTime.utc_now())
-    previous = workspace().connection
+    previous = Map.delete(workspace().connection, "model_check")
 
     previous =
       if kind == "inspect_codex" and previous["identity"] == claim.payload,
@@ -444,6 +543,7 @@ defmodule Cuckoding.Foundation do
   defp prefix("inspect_codex"), do: "connection."
   defp prefix("login_codex"), do: "login."
   defp prefix("logout_codex"), do: "logout."
+  defp prefix("check_codex_model"), do: "model_check."
 
   def broadcast, do: Phoenix.PubSub.broadcast(Cuckoding.PubSub, "foundation", :updated)
 end

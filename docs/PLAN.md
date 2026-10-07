@@ -4,8 +4,8 @@
 R001 and R010 establish the documentation contract and local application shell.
 See [R010 evidence](../worklog/2026-10-06-R010-local-foundation.md).
 Agent authorization, models and orchestration remain R020–R100.
-R020a–c complete version readiness, private-profile inspection, validated model
-caching and managed sign-in/out controls. Real-account/model/execution acceptance
+R020a–d complete version readiness, private-profile inspection, validated model
+caching, managed sign-in/out and the fixed model-check controls. Real-account/model/execution acceptance
 is still open.
 Historical source/tests/builds do not satisfy these gates.
 
@@ -108,6 +108,10 @@ the real-provider gate.
   login remains open. See [R020c evidence](../worklog/2026-10-07-R020c-codex-sign-in.md).
 - [ ] Fetch models after login; cache bounded IDs/options/source/freshness in
   SQLite, with stale catalog, manual refresh and validated fallback behavior.
+- [x] R020d: consented fixed model-access diagnostic, fresh catalog/identity
+  binding, restrictive scratch permissions, matching public completion, cancellation
+  and no automatic replay. Real unsigned config/thread preflight passed; successful
+  responses use protocol fixtures. See [R020d evidence](../worklog/2026-10-07-R020d-model-access-check.md).
 - [ ] Prove a read-only turn and a permitted worktree-writing turn in isolated
   workspaces; normalize public activity, outcomes and redacted logs.
 - [ ] Add task/process identity, cancellation, clean environment, path policy,

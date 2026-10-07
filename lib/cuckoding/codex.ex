@@ -1,7 +1,8 @@
 defmodule Cuckoding.AgentAdapter do
-  @moduledoc "Implemented profile operations; agent turns are not enabled yet."
+  @moduledoc "Private profile operations and one fixed diagnostic turn; repository tasks are not enabled."
   @callback probe(map(), binary(), (-> boolean())) :: map()
   @callback inspect_connection(map(), binary(), (-> boolean())) :: map()
+  @callback check_model(map(), binary(), binary(), binary(), binary(), (-> boolean())) :: map()
   @callback authorize(map(), binary(), :login | :logout, (-> boolean()), (binary() -> any())) ::
               map()
 end
@@ -14,6 +15,9 @@ defmodule Cuckoding.Codex do
   @errors ~w(launch_failed timeout cancelled invalid_output executable_changed helper_unavailable)
   @connection_errors @errors ++
                        ~w(connection_lost provider_error unexpected_message profile_mismatch unsupported_profile unsafe_profile profile_busy invalid_login login_failed logout_unconfirmed cleanup_uncertain)
+
+  @model_errors @connection_errors ++
+                  ~w(not_connected model_unavailable model_mismatch unsupported_grant invalid_response unexpected_tool turn_failed interrupted)
 
   # Ephemeral presentation only. The dispatcher owns this table; SQLite owns lifecycle.
   def init_login_links, do: :ets.new(:cuckoding_login_link, [:named_table, :protected, :set])
@@ -97,7 +101,22 @@ defmodule Cuckoding.Codex do
       &normalize_connection/1,
       524_288,
       if(operation == :login, do: 615_000, else: 13_000),
-      progress
+      progress: progress
+    )
+  end
+
+  @impl true
+  def check_model(identity, profile, scratch, model, effort, active?) do
+    observe(
+      identity,
+      profile,
+      active?,
+      "--check-codex-model",
+      &normalize_model_check/1,
+      1024,
+      125_000,
+      progress: :no_progress,
+      args: [scratch, model, effort]
     )
   end
 
@@ -109,7 +128,7 @@ defmodule Cuckoding.Codex do
          normalize,
          limit,
          timeout,
-         progress \\ nil
+         options \\ []
        ) do
     helper = Application.get_env(:cuckoding, :native_helper)
 
@@ -123,12 +142,12 @@ defmodule Cuckoding.Codex do
       true ->
         run(
           helper,
-          [operation, identity["path"], directory],
+          [operation, identity["path"], directory] ++ Keyword.get(options, :args, []),
           active?,
           normalize,
           limit,
           timeout,
-          progress
+          Keyword.get(options, :progress)
         )
     end
   end
@@ -150,6 +169,7 @@ defmodule Cuckoding.Codex do
         auth_collect(
           port,
           %{
+            normalize: normalize,
             buffer: "",
             bytes: 0,
             result: nil,
@@ -239,7 +259,7 @@ defmodule Cuckoding.Codex do
   defp auth_frame(%{result: nil} = state, line, progress) do
     case Jason.decode(line) do
       {:ok, %{"status" => "awaiting_login", "auth_url" => url}} ->
-        if not state.prompted and valid_login_url?(url) do
+        if is_function(progress) and not state.prompted and valid_login_url?(url) do
           publish_progress(state, url, progress)
           {:ok, %{state | prompted: true}}
         else
@@ -247,7 +267,7 @@ defmodule Cuckoding.Codex do
         end
 
       _ ->
-        {:ok, %{state | result: normalize_connection(line)}}
+        {:ok, %{state | result: state.normalize.(line)}}
     end
   end
 
@@ -328,6 +348,29 @@ defmodule Cuckoding.Codex do
   end
 
   def normalize_connection(_), do: %{"status" => "invalid_output"}
+
+  def normalize_model_check(data) when is_binary(data) and byte_size(data) <= 1024 do
+    case Jason.decode(data) do
+      {:ok, %{"status" => "passed", "grant" => "scratch-read-only-v1"} = result} ->
+        if Enum.all?(~w(requested_model observed_model effort), &identifier?(result[&1])) and
+             match?({:ok, _}, Ecto.UUID.cast(result["thread_id"])) and
+             match?({:ok, _}, Ecto.UUID.cast(result["turn_id"])) do
+          result
+          |> Map.take(~w(status requested_model observed_model effort thread_id turn_id grant))
+          |> Map.merge(public_fields(result))
+        else
+          %{"status" => "invalid_output"}
+        end
+
+      {:ok, %{"status" => status} = result} when status in @model_errors ->
+        Map.put(public_fields(result), "status", status)
+
+      _ ->
+        %{"status" => "invalid_output"}
+    end
+  end
+
+  def normalize_model_check(_), do: %{"status" => "invalid_output"}
 
   defp normalize_models(result, models) when is_list(models) and length(models) <= 128 do
     if Enum.all?(models, &valid_model?/1) and Enum.uniq_by(models, & &1["id"]) == models do

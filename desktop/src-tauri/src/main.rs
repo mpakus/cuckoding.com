@@ -24,6 +24,10 @@ fn main() {
         probe::main(&args[1..]);
         return;
     }
+    if args.first().is_some_and(|arg| arg == "--check-codex-model") {
+        connection::model_main(&args[1..]);
+        return;
+    }
     if args.first().is_some_and(|arg| arg == "--inspect-codex") {
         connection::main(&args[1..], connection::Operation::Inspect);
         return;

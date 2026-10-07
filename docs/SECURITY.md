@@ -138,3 +138,16 @@ stop the owned process group. Same-user TOCTOU, force-killed helper reconciliati
 managed policy compatibility and physical sleep still require later acceptance.
 Account status is an observation, not proof of token validity or model access.
 Catalog fixtures do not satisfy the real-provider authorization gate.
+
+R020d's separate model diagnostic records explicit usage consent and a fresh
+executable/account/catalog snapshot. Its fixed ephemeral thread must report the
+requested model and validated permission profile before inference. The named
+profile denies filesystem root, allows read access only to an empty app scratch
+directory and disables command network access; inherited project instructions,
+MCP, tool-bearing features, hooks and permission expansion are disabled/checked.
+Provider inference itself necessarily uses the provider connection. A runtime
+that cannot report these restrictions is refused; this does not make the host
+runner an OS sandbox. Real grant-adversarial execution remains an acceptance gate.
+Model output cannot become a command: only matching completion and the fixed
+acknowledgement can pass. All other content is discarded, including hidden
+reasoning. Cancellation/interruptions cannot persist a late pass or replay usage.

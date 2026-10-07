@@ -1,6 +1,6 @@
 # R020 — Codex connection and durable models
 
-Status: R020a version readiness, R020b inspection/cache and R020c managed sign-in/out delivered; parent R020 remains partial.
+Status: R020a version readiness, R020b inspection/cache, R020c managed sign-in/out and R020d fixed model check delivered; parent R020 remains partial.
 Date: 2026-10-06. Branch: `feature/r020-codex-connection`.
 Installed runtime observed: Codex CLI 0.146.0; schema generated from that binary.
 
@@ -34,6 +34,8 @@ Installed runtime observed: Codex CLI 0.146.0; schema generated from that binary
 R020b implements private-profile status and the durable model-catalog path with
 fixture coverage, plus real signed-out inspection. See [R020b](R020b-codex-connection-inspection.md).
 [R020c](R020c-codex-sign-in.md) adds managed sign-in/out, transient links and
-account-change invalidation. Next: human-completed sign-in/model validation;
+account-change invalidation. [R020d](R020d-model-access-check.md) adds one bounded,
+consented model diagnostic, with real restrictive thread preflight but fixture-only
+successful responses. Next: human-completed sign-in/model validation;
 retain real authorization and two-workspace execution as separate proof gates.
 R020a is not evidence of sign-in, models or task execution.

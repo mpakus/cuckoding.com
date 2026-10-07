@@ -76,6 +76,24 @@ defmodule Cuckoding.Dispatcher do
     _ -> %{"status" => "launch_failed"}
   end
 
+  defp execute(%{kind: "check_codex_model"} = command) do
+    if Cuckoding.Foundation.workspace().revision == command.expected_revision and
+         Cuckoding.Foundation.model_check_current?(command.payload) do
+      Cuckoding.Codex.check_model(
+        command.payload["identity"],
+        Cuckoding.Storage.codex_profile!(),
+        Cuckoding.Storage.probe_directory!(command.id, command.attempts),
+        command.payload["model"],
+        command.payload["effort"],
+        fn -> Cuckoding.Foundation.probe_active?(command) end
+      )
+    else
+      %{"status" => "model_unavailable"}
+    end
+  rescue
+    _ -> %{"status" => "launch_failed"}
+  end
+
   defp publish_login_link(command, url) do
     if Cuckoding.Foundation.login_waiting(command) == :ok do
       Cuckoding.Codex.put_login_link(command.id, url)

@@ -49,6 +49,17 @@ catalog or report a cancelled
 operation as successful. Expired claims become interrupted, never replayed.
 A later explicit inspection reconciles uncertain provider state.
 
+R020d also needs no migration. `check_codex_model` snapshots the executable,
+connection command/fetch time, catalog ID, model, effort and versioned scratch
+grant before launch. A 140-second claim covers the 120-second native operation
+and cleanup. The command excludes other setup operations and cannot replay after
+interruption. `workspace.connection.model_check` holds a closed public receipt:
+status, requested/runtime model, effort, thread/turn UUIDs, grant and measured
+timing. Successful receipts must match the saved intent and current connection.
+Starting another check or refreshing/changing the connection clears its current
+projection while append-only `model_check.*` events retain historical evidence.
+Cancellation holds admission until cleanup and cannot record late success.
+
 The default native root is `~/Library/Application Support/CCoding Rebuild`,
 marked `.ccoding-rebuild-v1`. Unknown nonempty roots and symlinked storage are
 refused before migration. `foundation.db` and sidecars are private; old Cuckoding

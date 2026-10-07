@@ -1,9 +1,9 @@
 # Runtime adapters
 
-Status: R020a–c implement Codex version readiness, private-profile status,
-validated catalog caching and managed ChatGPT login/logout. Codex `0.146.0` is
+Status: R020a–d implement Codex version readiness, private-profile status,
+validated catalog caching, managed ChatGPT login/logout and a fixed model diagnostic. Codex `0.146.0` is
 the observed baseline; other versions remain unverified. Human-completed login,
-signed-in real-model acceptance and turns remain open. Claude Code, Codex,
+signed-in real-model acceptance and repository turns remain open. Claude Code, Codex,
 Cursor and Hermes are requested targets;
 each needs current official documentation and real installed-version evidence.
 
@@ -41,7 +41,7 @@ is actually required.
 
 | Target | Rebuild status | Evidence needed before enabling execution |
 | --- | --- | --- |
-| Codex | Version, fresh-profile status and login start/cancel verified on 0.146.0; signed-in catalogs use fixtures | App-owned login, isolated turns/model listing, grant mapping and cancellation |
+| Codex | Version, signed-out status, login start/cancel and restrictive thread preflight verified on 0.146.0; successful model diagnostic uses fixtures | Human-completed login, real responses, repository grants/turns and cancellation |
 | Claude Code | Pending | Current official interface, safe reusable authorization, models/default behavior and permission boundary |
 | Cursor | Pending | Current official CLI identity, profile/history behavior, model discovery and project config isolation |
 | Hermes | Pending | Confirm intended runtime/distribution, supported headless interface, authorization, model catalog and enforceable grants |
@@ -88,13 +88,34 @@ Cancellation attempts `account/login/cancel` before owned-group termination. Log
 uses `account/logout` and requires a subsequent signed-out observation. Each RPC
 is limited to ten seconds; login has a ten-minute monotonic/wall-clock deadline.
 All profile helpers hold an exclusive native lock through group cleanup.
-No thread or turn operation is available.
+These account operations cannot launch a turn.
+
+R020d adds `check_model/6`, a single fixed diagnostic rather than a general RPC
+interface. It checks the current private account/catalog, starts an ephemeral
+thread and verifies model/provider, permissions, instruction sources and scratch
+scope before a fixed prompt. Codex 0.146.0's experimental named permission profile
+denies root access and grants read access only to the empty scratch path, with
+command network disabled. Effective config also disables shell/edit/browser/MCP,
+plugins, hooks, memory, multi-agent and permission-expansion paths. No provider
+model fallback is allowed. Unsupported config or a wider returned grant aborts.
+
+The native helper requires matching thread/turn IDs, completed status and exactly
+`CC_READY`; tool activity, rerouting and foreign completion fail. Bounded queued
+notifications cover completion arriving before the turn/start response. Raw text
+and hidden reasoning are discarded. Requested and runtime-selected models are
+stored separately; this is the runtime's report, not independent proof of backend
+model identity. Deadline is 120 seconds (monotonic and wall), with ten-second RPC
+limits, turn/interrupt on cancellation/failure, then owned-group cleanup. Cuckoding
+stores only a closed 1 KiB public receipt. Provider usage may precede cancellation.
 
 Real acceptance so far: installed Codex initialized a fresh profile, returned
 not_connected, and started/cancelled browser login without an auth file. Connected
 catalogs and completed login use fixtures only. Human-completed login, revoked
 access, concurrent session reuse, physical sleep recovery and real scoped turns
-remain R020 gates. No API key is requested.
+remain R020 gates. A fresh-profile real thread preflight verified the restrictive
+response without calling turn/start; a signed-out model check refused inference.
+These are not real model-response or adversarial filesystem-grant acceptance.
+No API key is requested.
 
 ## Conformance
 

@@ -14,6 +14,7 @@ and full-story gates remain open. Historical test counts do not establish proof.
 | R020a | Executable confirmation/identity, version allowlist, bounded/split/malformed output, clean environment, timeout/cancellation/descendants, durable interruption and prior-schema upgrade |
 | R020b | Bounded RPC, private profile/config, model pages/cursors/validation, stale retention/age, account separation, cancellation, prior-schema copy and real signed-out inspection |
 | R020c | Consent/invalidation, official URL validation and session redirect, matching completion, profile exclusion, cancel/cleanup, uncertain restart, real login start/cancel and packaged UI |
+| R020d | Usage consent, fresh identity/catalog binding, effective grant preflight, model/thread/turn matching, early completion, tool refusal, cancellation/no replay, closed receipts/canaries, reconnect UI and packaged smoke; real signed-in responses remain separate |
 | R020 | Adapter parsing/cancellation/canaries, model-cache persistence/failure, real login + isolated execution across two workspaces |
 | R030 | Team revision inheritance, custom role grants, model/auth separation, historical snapshot immutability |
 | R040 | Init refusal/consent, initial-commit preview, path confinement, file-task provenance, dependency cycles, custom column gates |

@@ -6,9 +6,9 @@ These rules apply repository-wide. More specific rules may strengthen safety,
 auditability and verification, not weaken them. The 2026-10-06 user reset replaces
 the previous product direction. R010 implements the local foundation; provider
 authorization, roles, Arenas and battles remain the R020–R100 roadmap.
-R020a–c add Codex version readiness, private-profile inspection, validated model
-caching and managed ChatGPT login/logout. Human-completed real-account/model
-acceptance and actual turns remain open. A supported version or catalog is not
+R020a–d add Codex version readiness, private-profile inspection, validated model
+caching, managed ChatGPT login/logout and a fixed consented model-access check.
+Human-completed real-account/model acceptance and repository turns remain open. A supported version or catalog is not
 model entitlement or an execution grant. Preserve separate observations and
 fresh executable/profile confirmation.
 
@@ -103,6 +103,11 @@ Do not restore the old implementation or treat historical tests as current proof
   lock; never replay interrupted authentication. Hold cancellation until helper
   exit/cleanup or report uncertainty. Keep validated login URLs transient and
   behind the session-protected redirect, never in LiveView assigns, SQLite or logs.
+  The model diagnostic requires separate usage consent, a fresh identity/catalog
+  snapshot, verified restrictive effective config and one fixed prompt. Reject
+  model drift, tool activity and foreign completion. Persist only the public
+  receipt; keep requested/runtime model separate. Hold cancellation through
+  cleanup and never replay interrupted inference. This grants no repository work.
 - Inspect processes by executable, PID/start identity, working directory and
   listeners. Never dump raw argv/environments. Redact before logs/UI/artifacts.
 - For a requested restart follow [Development](docs/DEVELOPMENT.md): identify only

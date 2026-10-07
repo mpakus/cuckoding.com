@@ -25,6 +25,9 @@ defmodule CuckodingWeb.HomeLive do
      |> assign(:probe_error, nil)
      |> assign(:connection_error, nil)
      |> assign(:auth_error, nil)
+     |> assign(:model_id, "")
+     |> assign(:model_error, nil)
+     |> assign(:model_confirmed, false)
      |> assign(:confirmed, false)
      |> reload()}
   end
@@ -137,6 +140,51 @@ defmodule CuckodingWeb.HomeLive do
     end
   end
 
+  def handle_event("edit_model", params, socket) do
+    {:noreply,
+     assign(socket,
+       model_id: params["model_id"],
+       model_confirmed:
+         params["model_id"] == socket.assigns.model_id and params["model_confirmed"] == "true"
+     )}
+  end
+
+  def handle_event("check_model", params, socket) do
+    case Foundation.check_model(
+           socket.assigns.command_key,
+           socket.assigns.workspace.revision,
+           params["model_id"],
+           params["model_confirmed"] == "true"
+         ) do
+      {:ok, command} ->
+        error =
+          if command.state == "rejected",
+            do:
+              "Setup changed or another operation is active. Refresh the connection and try again."
+
+        {:noreply,
+         socket
+         |> assign(command_key: Ecto.UUID.generate(), model_error: error, model_confirmed: false)
+         |> reload()}
+
+      {:error, :confirmation_required} ->
+        {:noreply,
+         assign(
+           socket,
+           :model_error,
+           "Confirm the model check and possible provider usage first."
+         )}
+
+      _ ->
+        {:noreply,
+         assign(
+           socket,
+           :model_error,
+           "Sign in, refresh the connection and select an available model first."
+         )}
+    end
+  end
+
   @impl true
   def handle_info(:updated, socket), do: {:noreply, reload(socket)}
   def handle_info(:session_expired, socket), do: {:noreply, redirect(socket, to: "/locked")}
@@ -153,9 +201,16 @@ defmodule CuckodingWeb.HomeLive do
 
   defp reload(socket) do
     auth = Foundation.pending_probe(["login_codex", "logout_codex"])
+    workspace = Foundation.workspace()
+    previous = socket.assigns[:workspace]
 
     socket
-    |> assign(:workspace, Foundation.workspace())
+    |> assign(
+      :model_confirmed,
+      socket.assigns.model_confirmed and not is_nil(previous) and
+        previous.connection == workspace.connection
+    )
+    |> assign(:workspace, workspace)
     |> assign(:pending, Foundation.pending?())
     |> assign(:discovering, Foundation.pending_probe("discover_tools") != nil)
     |> assign(:auth_command, auth)
@@ -164,6 +219,8 @@ defmodule CuckodingWeb.HomeLive do
     |> assign(:events, Foundation.events())
     |> assign(:probe, Foundation.pending_probe())
     |> assign(:last_probe, Foundation.last_probe())
+    |> assign(:model_check, Foundation.pending_probe("check_codex_model"))
+    |> assign(:last_model_check, Foundation.last_probe("check_codex_model"))
     |> assign(:connection_check, Foundation.pending_probe("inspect_codex"))
     |> assign(:last_connection_check, Foundation.last_probe("inspect_codex"))
     |> assign(:now, DateTime.utc_now())
@@ -498,9 +555,103 @@ defmodule CuckodingWeb.HomeLive do
                 </ul>
               </details>
             </div>
+            <section class="probe-result" aria-labelledby="model-check-title">
+              <h3 id="model-check-title">Try a model.</h3>
+              <p class="subtle">
+                A catalog lists models. This sends one fixed connection prompt to check whether a selected model responds.
+                It can consume provider usage. Repository tasks are not enabled.
+              </p>
+              <p :if={@model_error} role="alert" class="notice">{@model_error}</p>
+              <form
+                :if={
+                  @workspace.connection["authorization"] == "chatgpt" &&
+                    Foundation.catalog_status(@workspace.connection, @now) == "fresh"
+                }
+                id="model-check"
+                phx-change="edit_model"
+                phx-submit="check_model"
+              >
+                <label for="model-id">Model</label>
+                <select id="model-id" name="model_id" required>
+                  <option value="" selected={@model_id == ""}>Choose a model</option>
+                  <option
+                    :for={model <- @workspace.connection["models"] || []}
+                    value={model["id"]}
+                    selected={@model_id == model["id"]}
+                  >
+                    {model["name"]} · {model["model"]}
+                  </option>
+                </select>
+                <p class="fine-print">
+                  Two-minute limit. Uses the lowest advertised reasoning effort, a private scratch folder and restricted runtime permissions.
+                  Only a fixed acknowledgement is accepted; raw responses are discarded.
+                </p>
+                <label class="confirm-executable">
+                  <input
+                    type="checkbox"
+                    name="model_confirmed"
+                    value="true"
+                    checked={@model_confirmed}
+                    required
+                  />
+                  Run one model check using my connected account. This may use my provider allowance.
+                </label>
+                <button class="button primary" disabled={@pending} phx-disable-with="Starting…">Check model access</button>
+              </form>
+              <p
+                :if={
+                  @workspace.connection["authorization"] != "chatgpt" ||
+                    Foundation.catalog_status(@workspace.connection, @now) != "fresh"
+                }
+                class="fine-print"
+              >
+                Sign in and refresh the connection to choose a model from its current catalog.
+              </p>
+              <div :if={@model_check} id="model-check-progress" role="status" class="probe-progress">
+                <p>
+                  Codex · connection test · {@model_check.payload["model"]} · {@model_check.state} · {max(
+                    0,
+                    DateTime.diff(@now, @model_check.inserted_at)
+                  )} s
+                </p>
+                <button
+                  class="button"
+                  phx-click="cancel_probe"
+                  phx-value-id={@model_check.id}
+                  disabled={@model_check.state == "cancelling"}
+                >{if @model_check.state == "cancelling", do: "Stopping…", else: "Cancel model check"}</button>
+              </div>
+              <p
+                :if={@last_model_check && @last_model_check.state in ["failed", "cancelled"]}
+                class="notice"
+                role="status"
+              >
+                Model check {@last_model_check.state}. It will not run again automatically. Provider usage may already have occurred.
+              </p>
+              <div
+                :if={@workspace.connection["model_check"] && !@model_check}
+                id="model-check-result"
+                role="status"
+              >
+                <p>{model_check_status(@workspace.connection["model_check"]["status"])}</p>
+                <p class="fine-print">
+                  Requested: {@workspace.connection["model_check"]["requested_model"]}
+                  <span :if={@workspace.connection["model_check"]["observed_model"]}> · Runtime model: {@workspace.connection[
+                    "model_check"
+                  ]["observed_model"]}</span>
+                  · {@workspace.connection["model_check"]["checked_at"]}
+                  <span :if={is_integer(@workspace.connection["model_check"]["elapsed_ms"])}> · {@workspace.connection[
+                    "model_check"
+                  ]["elapsed_ms"]} ms</span>
+                </p>
+                <p class="fine-print">
+                  This is a point-in-time connection result, not a grant to run repository tasks.
+                </p>
+              </div>
+            </section>
             <p class="fine-print">
               One private profile serves this workspace. Cuckoding keeps public account status and model metadata;
-              Codex manages its own credentials. A model catalog does not prove model access. Agent turns are not enabled yet.
+              Codex manages its own credentials. A model catalog does not prove model access. Only the fixed model check can run; repository tasks are not enabled.
             </p>
           </div>
         </section>
@@ -562,7 +713,34 @@ defmodule CuckodingWeb.HomeLive do
   defp event_label("connection." <> status), do: "Codex connection check: " <> status
   defp event_label("login." <> status), do: "Codex sign-in: " <> status
   defp event_label("logout." <> status), do: "Codex sign-out: " <> status
+  defp event_label("model_check." <> status), do: "Codex model check: " <> status
   defp event_label(_), do: "Workspace updated"
+
+  defp model_check_status("passed"), do: "Model responded to the fixed connection check."
+
+  defp model_check_status("not_connected"),
+    do: "The private profile is signed out. Sign in and refresh the connection."
+
+  defp model_check_status("unsupported_grant"),
+    do:
+      "The runtime could not confirm the restricted permissions. No diagnostic turn was authorized."
+
+  defp model_check_status("model_unavailable"),
+    do: "This model or reasoning option is no longer available. Refresh the connection."
+
+  defp model_check_status("model_mismatch"),
+    do: "The runtime selected a different model or setup changed. No passing result was recorded."
+
+  defp model_check_status("cancelled"), do: "Model check cancelled."
+
+  defp model_check_status("timeout"),
+    do: "Model check timed out. It will not retry automatically."
+
+  defp model_check_status("cleanup_uncertain"),
+    do: "The helper did not confirm cleanup. Inspect the app before trying again."
+
+  defp model_check_status(_),
+    do: "Model access was not verified. Check the connection and try again."
 
   defp codex_status("supported"), do: "Version matches the verified Codex baseline."
 
@@ -590,7 +768,7 @@ defmodule CuckodingWeb.HomeLive do
     do: "Not signed in to Cuckoding's private Codex profile."
 
   defp connection_status(%{"status" => "checked", "authorization" => "chatgpt"}),
-    do: "Codex reported a ChatGPT account in this profile. Model access still needs a real turn."
+    do: "Codex reported a ChatGPT account in this profile. Model checks are recorded separately."
 
   defp connection_status(%{"status" => "checked", "authorization" => "unsupported_account"}),
     do: "This profile uses an account type not supported by this preview."

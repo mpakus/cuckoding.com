@@ -124,7 +124,7 @@ defmodule CuckodingWeb.FoundationLiveTest do
     assert {:ok, _, html} = live(signed, "/settings")
     assert html =~ "Not signed in to Cuckoding"
     assert has_element?(view, "#codex-login button", "Sign in with ChatGPT")
-    assert html =~ "Agent turns are not enabled yet"
+    assert html =~ "repository tasks are not enabled"
 
     connection = %{
       "status" => "checked",
@@ -145,6 +145,86 @@ defmodule CuckodingWeb.FoundationLiveTest do
     assert {:ok, view, _} = live(signed, "/settings")
     assert has_element?(view, "#codex-models summary", "1 cached models · stale")
     assert has_element?(view, "#codex-models[phx-mounted*=ignore_attrs]")
+  end
+
+  test "model selection resets usage consent and completion survives reconnect", %{conn: conn} do
+    {:ok, _} = Foundation.check_codex(Ecto.UUID.generate(), 0, "/bin/sh", true)
+    {:ok, claim} = Foundation.claim()
+    Foundation.finish(claim, %{"status" => "supported", "version" => "0.146.0"})
+    {:ok, _} = Foundation.inspect_codex(Ecto.UUID.generate(), 1, true)
+    {:ok, claim} = Foundation.claim()
+
+    models =
+      for id <- ["model-a", "model-b"] do
+        %{
+          "id" => id,
+          "model" => id,
+          "name" => id,
+          "efforts" => ["low"],
+          "default_effort" => "low",
+          "input_modalities" => ["text"],
+          "default" => false
+        }
+      end
+
+    Foundation.finish(claim, %{
+      "status" => "checked",
+      "authorization" => "chatgpt",
+      "catalog_status" => "fresh",
+      "models" => models
+    })
+
+    signed = sign_in(conn)
+    {:ok, view, _} = live(signed, "/settings")
+    assert has_element?(view, "label[for='model-id']", "Model")
+    view |> form("#model-check", model_id: "model-a") |> render_change()
+    view |> form("#model-check", model_id: "model-a", model_confirmed: "true") |> render_change()
+    assert has_element?(view, "input[name='model_confirmed'][checked]")
+    {:ok, _} = Foundation.inspect_codex(Ecto.UUID.generate(), 2, true)
+    {:ok, refresh} = Foundation.claim()
+
+    Foundation.finish(refresh, %{
+      "status" => "checked",
+      "authorization" => "chatgpt",
+      "catalog_status" => "fresh",
+      "models" => models
+    })
+
+    refute has_element?(view, "input[name='model_confirmed'][checked]")
+    assert has_element?(view, "#model-id option[value='model-a'][selected]")
+    view |> form("#model-check", model_id: "model-a", model_confirmed: "true") |> render_change()
+    view |> form("#model-check", model_id: "model-b", model_confirmed: "true") |> render_change()
+    refute has_element?(view, "input[name='model_confirmed'][checked]")
+    Foundation.broadcast()
+    assert has_element?(view, "#model-id option[value='model-b'][selected]")
+    view |> form("#model-check", model_id: "model-b") |> render_submit()
+    assert render(view) =~ "Confirm the model check and possible provider usage"
+    refute Foundation.pending?()
+    view |> form("#model-check", model_id: "model-b", model_confirmed: "true") |> render_submit()
+    assert has_element?(view, "#model-check-progress", "model-b")
+    {:ok, claim} = Foundation.claim()
+
+    Foundation.finish(claim, %{
+      "status" => "passed",
+      "requested_model" => "model-b",
+      "observed_model" => "model-b",
+      "effort" => "low",
+      "thread_id" => Ecto.UUID.generate(),
+      "turn_id" => Ecto.UUID.generate(),
+      "grant" => "scratch-read-only-v1",
+      "elapsed_ms" => 17
+    })
+
+    assert has_element?(view, "#model-check-result", "Runtime model: model-b")
+    assert {:ok, again, _} = live(signed, "/settings")
+    assert has_element?(again, "#model-check-result", "Runtime model: model-b")
+    again |> form("#model-check", model_id: "model-a", model_confirmed: "true") |> render_submit()
+    {:ok, claim} = Foundation.claim()
+    again |> element("button", "Cancel model check") |> render_click()
+    assert has_element?(again, "#model-check-progress button[disabled]", "Stopping")
+    Foundation.finish(claim, %{"status" => "cancelled"})
+    assert render(again) =~ "Model check cancelled"
+    refute has_element?(again, "#model-check-result", "Runtime model:")
   end
 
   test "sign-in links require live authority, survive reconnect and vanish on cancellation", %{
