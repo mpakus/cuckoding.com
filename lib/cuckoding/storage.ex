@@ -42,6 +42,21 @@ defmodule Cuckoding.Storage do
     :ok
   end
 
+  # A new private scratch directory per consented check; no account profile is imported.
+  # sobelow_skip ["Traversal.FileModule"]
+  def probe_directory!(id, attempt) do
+    {:ok, ^id} = Ecto.UUID.cast(id)
+    true = is_integer(attempt) and attempt in 1..3
+    root = Application.fetch_env!(:cuckoding, :data_dir)
+    prepare!(root)
+    path = Path.join([root, "probes", id <> "-" <> Integer.to_string(attempt)])
+    reject_symlinks!(path)
+    File.mkdir_p!(path)
+    File.chmod!(Path.dirname(path), 0o700)
+    File.chmod!(path, 0o700)
+    path
+  end
+
   # Only a private, bounded, regular launch file inside the validated data root.
   # sobelow_skip ["Traversal.FileModule"]
   def consume_bootstrap!(root, path) do

@@ -1,7 +1,9 @@
 # Runtime adapters
 
-Status: requirements, not a current support claim. The prior source and version
-pins were removed. Claude Code, Codex, Cursor and Hermes are requested targets;
+Status: R020a implements Codex version readiness only. Codex `0.146.0` is the
+observed baseline; other versions remain unverified. Authorization, models and
+turns are still requirements, not current support claims. Claude Code, Codex,
+Cursor and Hermes are requested targets;
 each needs current official documentation and real installed-version evidence.
 
 ## One replaceable boundary
@@ -38,7 +40,7 @@ is actually required.
 
 | Target | Rebuild status | Evidence needed before enabling execution |
 | --- | --- | --- |
-| Codex | Pending | Current official interface, app-owned login, isolated launch/model listing, grant mapping and cancellation |
+| Codex | Version readiness verified on 0.146.0 | App-owned login, isolated turns/model listing, grant mapping and cancellation |
 | Claude Code | Pending | Current official interface, safe reusable authorization, models/default behavior and permission boundary |
 | Cursor | Pending | Current official CLI identity, profile/history behavior, model discovery and project config isolation |
 | Hermes | Pending | Confirm intended runtime/distribution, supported headless interface, authorization, model catalog and enforceable grants |
@@ -49,6 +51,18 @@ the verified version and official source date in the implementation worklog.
 If Hermes refers to a different distribution than the adapter implementor finds,
 resolve that identity before installing/launching it. This planning reset installs
 no providers or plugins.
+
+The current adapter callback is `probe/3`. Its native helper runs only
+`--version`, with a five-second deadline, 128-byte provider-output ceiling and
+1 KiB host response ceiling. HOME, CODEX_HOME, TMPDIR and working directory point
+to a new private app scratch directory; stderr is discarded and only validated
+version/status/timing/ownership observations reach SQLite. The helper clears
+inherited environment and stops the whole owned group before reaping its leader,
+including on cancellation, stdin loss and timeout. No account files are read or
+copied by CCoding. Scratch files are retained under `probes/`; this is host
+execution, not filesystem confinement. Select only trusted executables. A forced
+kill of the helper itself still needs later ownership reconciliation; persisted
+PIDs are never used to kill a process, and interrupted work is not auto-replayed.
 
 ## Conformance
 

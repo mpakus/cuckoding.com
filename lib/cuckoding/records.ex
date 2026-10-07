@@ -5,6 +5,7 @@ defmodule Cuckoding.Workspace do
   schema "workspace" do
     field :revision, :integer
     field :tools, :map
+    field :codex, :map, default: %{}
     field :checked_at, :utc_datetime_usec
   end
 end
@@ -15,6 +16,7 @@ defmodule Cuckoding.Command do
   @primary_key {:id, :binary_id, autogenerate: false}
   schema "commands" do
     field :kind, :string
+    field :payload, :map, default: %{}
     field :expected_revision, :integer
     field :state, :string, default: "pending"
     field :attempts, :integer, default: 0

@@ -12,6 +12,16 @@ IDs are UUIDs. SQLite triggers reject event updates/deletes. Startup refuses
 unknown migration versions. Two pooled connections allow the Ecto migration
 lock and migration query to coexist; the busy timeout is five seconds.
 
+R020a adds `workspace.codex` for the last public version observation and
+`commands.payload` for the consented executable metadata (path, device/inode,
+size and change/modify times). `probe_codex` shares command keys/revisions and
+the event stream. Cancellation is durable; late results are refused. Expired
+running probes become `failed/interrupted` and require a fresh command, while
+metadata discovery retains its bounded automatic retry. A completed check can
+report unsupported/failed readiness; it never changes account authorization.
+The observed PID/spawn time is evidence, not authority to signal that PID after
+restart. Only the native helper's unreaped child handle authorizes group cleanup.
+
 The default native root is `~/Library/Application Support/CCoding Rebuild`,
 marked `.ccoding-rebuild-v1`. Unknown nonempty roots and symlinked storage are
 refused before migration. `foundation.db` and sidecars are private; old CCoding

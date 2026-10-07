@@ -69,4 +69,30 @@ defmodule CuckodingWeb.FoundationLiveTest do
     Foundation.broadcast()
     assert_redirect(view, "/locked")
   end
+
+  test "Codex requires explicit consent and preserves entered paths through updates", %{
+    conn: conn
+  } do
+    signed = sign_in(conn)
+    {:ok, view, _} = live(signed, "/settings")
+    assert has_element?(view, "label[for='codex-path']", "Codex executable")
+    assert has_element?(view, "input[name='confirmed'][required]")
+    view |> form("#codex-check", path: "/bin/sh") |> render_change()
+    Foundation.broadcast()
+    assert has_element?(view, "#codex-path[value='/bin/sh']")
+    view |> form("#codex-check", path: "/bin/sh", confirmed: "true") |> render_change()
+    assert has_element?(view, "input[name='confirmed'][checked]")
+    view |> form("#codex-check", path: "/bin/ls", confirmed: "true") |> render_change()
+    refute has_element?(view, "input[name='confirmed'][checked]")
+    view |> form("#codex-check", path: "/bin/sh") |> render_submit()
+    assert render(view) =~ "Confirm that you trust this executable"
+    refute Foundation.pending_probe()
+    view |> form("#codex-check", path: "/bin/sh", confirmed: "true") |> render_submit()
+    assert Foundation.pending_probe()
+    assert has_element?(view, "button", "Cancel check")
+    view |> element("button", "Cancel check") |> render_click()
+    assert render(view) =~ "Check cancelled."
+    assert {:ok, _, html} = live(signed, "/settings")
+    assert html =~ "Check cancelled."
+  end
 end

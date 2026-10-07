@@ -1,7 +1,8 @@
 # Development
 
-R010 is a local foundation preview: tray, authenticated browser, durable setup
-check. Provider authorization and execution start in R020. The previous source
+The local preview includes R010's tray, authenticated browser and durable setup
+check, plus R020a's explicit Codex executable/version check. Provider authorization
+and execution remain the next R020 work. The previous source
 reset remains intentional; do not restore the deleted implementation wholesale.
 
 ## Build and open
@@ -20,12 +21,20 @@ rtk proxy bin/dev.build
 rtk proxy open desktop/src-tauri/target/release/bundle/macos/CCoding.app
 ```
 
-Launching the app opens the browser. Choose **Open CCoding** from its **CC** menu
+Launching the app opens the browser. Choose **Open CCoding** from its **trident** menu
 bar item to return later. **Settings** opens tool
 discovery; **About CCoding** opens workspace details; **Quit** stops the owned
 release and listener. No dock window or embedded web frontend is created.
 This build is not notarized or public-release certified. Clean-machine, signing,
 update and physical sleep/wake acceptance remain R060/R100.
+
+In **Agents & roles**, Check setup discovers paths without running them. Choose
+or edit the Codex path, confirm that you trust it, then **Check Codex version**.
+Changing the path clears confirmation. The fixed version probe expires after
+five seconds, has a Cancel control and persists public results. It does not sign
+in or list models. Interrupted checks need a fresh confirmation; the observed
+baseline is `0.146.0`. The shell supplies its own executable as the native helper;
+never point `CCODING_NATIVE_HELPER` at an unrelated program.
 
 The shell starts a bundled OTP release with a private HOME, clean environment,
 exclusive data lock and an ephemeral IPv4 loopback port. It owns the one-time

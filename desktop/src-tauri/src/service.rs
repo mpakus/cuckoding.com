@@ -126,6 +126,7 @@ impl Service {
             .env("RELEASE_DISTRIBUTION", "none")
             .env("CCODING_DATA_DIR", root)
             .env("CCODING_BOOTSTRAP_FILE", &boot.0)
+            .env("CCODING_NATIVE_HELPER", std::env::current_exe()?)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())

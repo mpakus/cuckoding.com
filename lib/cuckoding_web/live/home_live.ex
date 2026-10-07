@@ -12,10 +12,19 @@ defmodule CuckodingWeb.HomeLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    if connected?(socket), do: Phoenix.PubSub.subscribe(Cuckoding.PubSub, "foundation")
+    if connected?(socket) do
+      Phoenix.PubSub.subscribe(Cuckoding.PubSub, "foundation")
+      Process.send_after(self(), :clock, 1_000)
+    end
 
     {:ok,
-     socket |> assign(:tools, @tools) |> assign(:command_key, Ecto.UUID.generate()) |> reload()}
+     socket
+     |> assign(:tools, @tools)
+     |> assign(:command_key, Ecto.UUID.generate())
+     |> assign(:codex_path, nil)
+     |> assign(:probe_error, nil)
+     |> assign(:confirmed, false)
+     |> reload()}
   end
 
   @impl true
@@ -26,15 +35,69 @@ defmodule CuckodingWeb.HomeLive do
     end
   end
 
+  def handle_event("edit_codex", params, socket) do
+    previous =
+      socket.assigns.codex_path || socket.assigns.workspace.codex["path"] ||
+        get_in(socket.assigns.workspace.tools, ["codex", "path"]) || ""
+
+    {:noreply,
+     assign(socket,
+       codex_path: params["path"],
+       confirmed: params["path"] == previous and params["confirmed"] == "true"
+     )}
+  end
+
+  def handle_event("check_codex", params, socket) do
+    case Foundation.check_codex(
+           socket.assigns.command_key,
+           socket.assigns.workspace.revision,
+           params["path"],
+           params["confirmed"] == "true"
+         ) do
+      {:ok, command} ->
+        error = if command.state == "rejected", do: "Setup changed. Check the path and try again."
+
+        {:noreply,
+         socket
+         |> assign(command_key: Ecto.UUID.generate(), probe_error: error, confirmed: false)
+         |> reload()}
+
+      {:error, :confirmation_required} ->
+        {:noreply,
+         assign(socket, :probe_error, "Confirm that you trust this executable before running it.")}
+
+      _ ->
+        {:noreply,
+         assign(
+           socket,
+           :probe_error,
+           "Choose an absolute path to an executable file on this Mac."
+         )}
+    end
+  end
+
+  def handle_event("cancel_probe", %{"id" => id}, socket) do
+    Foundation.cancel_probe(id)
+    {:noreply, reload(socket)}
+  end
+
   @impl true
   def handle_info(:updated, socket), do: {:noreply, reload(socket)}
   def handle_info(:session_expired, socket), do: {:noreply, redirect(socket, to: "/locked")}
+
+  def handle_info(:clock, socket) do
+    Process.send_after(self(), :clock, 1_000)
+    {:noreply, assign(socket, :now, DateTime.utc_now())}
+  end
 
   defp reload(socket) do
     socket
     |> assign(:workspace, Foundation.workspace())
     |> assign(:pending, Foundation.pending?())
     |> assign(:events, Foundation.events())
+    |> assign(:probe, Foundation.pending_probe())
+    |> assign(:last_probe, Foundation.last_probe())
+    |> assign(:now, DateTime.utc_now())
   end
 
   @impl true
@@ -135,9 +198,75 @@ defmodule CuckodingWeb.HomeLive do
           <div class="defaults">
             <span>RTK <b>Required</b></span><span>Ponytail <b>Full</b></span>
           </div>
-          <p class="fine-print">
-            Provider authorization and model selection arrive in the next build.
+        </section>
+
+        <section
+          :if={@live_action == :settings}
+          class="panel codex-setup"
+          aria-labelledby="codex-title"
+        >
+          <p class="eyebrow">CODEX / VERSION READINESS</p>
+          <h2 id="codex-title">Choose your executable.</h2>
+          <p class="subtle">
+            Run a version check in a private CCoding folder. Sign-in and models are the next step.
           </p>
+          <form id="codex-check" phx-change="edit_codex" phx-submit="check_codex">
+            <label for="codex-path">Codex executable</label>
+            <input
+              id="codex-path"
+              name="path"
+              type="text"
+              required
+              maxlength="4096"
+              value={
+                @codex_path || @workspace.codex["path"] || get_in(@workspace.tools, ["codex", "path"]) ||
+                  ""
+              }
+              placeholder="/absolute/path/to/codex"
+              spellcheck="false"
+              autocomplete="off"
+              aria-describedby="codex-execution-note"
+            />
+            <p id="codex-execution-note" class="fine-print">
+              This runs the selected program with <code>--version</code>
+              on your Mac. Only select an executable you trust.
+            </p>
+            <label class="confirm-executable"><input
+              name="confirmed"
+              type="checkbox"
+              value="true"
+              checked={@confirmed}
+              required
+            /> I trust this executable. Run the version check.</label>
+            <p :if={@probe_error} id="codex-error" role="alert" class="notice">{@probe_error}</p>
+            <button class="button primary" disabled={@pending} phx-disable-with="Checking…">Check Codex version</button>
+          </form>
+          <div :if={@probe} class="probe-progress" role="status">
+            <p>Codex · setup · {@probe.state} · {max(0, DateTime.diff(@now, @probe.updated_at))} s</p>
+            <button class="button" phx-click="cancel_probe" phx-value-id={@probe.id}>Cancel check</button>
+          </div>
+          <p
+            :if={@last_probe && @last_probe.state in ["failed", "cancelled"]}
+            role="status"
+            class="fine-print"
+          >
+            {if @last_probe.state == "cancelled",
+              do: "Check cancelled.",
+              else: "Check interrupted. Confirm the path to run a new check."}
+          </p>
+          <div :if={@workspace.codex != %{}} id="codex-result" role="status" class="probe-result">
+            <p>{codex_status(@workspace.codex["status"])}</p>
+            <p :if={@workspace.codex["version"]} class="fine-print">
+              Observed version: {@workspace.codex["version"]} · Not signed in to CCoding
+            </p>
+            <details id="codex-evidence" phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
+              <summary>Last check details</summary>
+              <code>{@workspace.codex["path"]}</code>
+              <p class="fine-print">
+                {@workspace.codex["checked_at"]} · {@workspace.codex["elapsed_ms"] || 0} ms
+              </p>
+            </details>
+          </div>
         </section>
 
         <section :if={@live_action == :about} class="panel" aria-labelledby="about-title">
@@ -193,5 +322,28 @@ defmodule CuckodingWeb.HomeLive do
   defp event_label("shell.quit_requested"), do: "Quit requested"
   defp event_label("shell.disconnected"), do: "Menu bar disconnected"
   defp event_label("discovery." <> status), do: "Setup check: " <> status
+  defp event_label("codex." <> status), do: "Codex version check: " <> status
   defp event_label(_), do: "Workspace updated"
+
+  defp codex_status("supported"), do: "Version matches the verified Codex baseline."
+
+  defp codex_status("unsupported"),
+    do: "This version has not been verified. The current baseline is 0.146.0."
+
+  defp codex_status("timeout"),
+    do: "The version check timed out. Check the executable and try again."
+
+  defp codex_status("executable_changed"),
+    do: "The executable changed before launch. Confirm the path again."
+
+  defp codex_status("helper_unavailable"),
+    do: "Open this workspace from the CCoding menu bar app to check versions."
+
+  defp codex_status("invalid_output"),
+    do: "The executable did not return a recognized Codex version."
+
+  defp codex_status("cancelled"), do: "Check cancelled."
+
+  defp codex_status(_),
+    do: "The version check could not start. Check the executable and try again."
 end

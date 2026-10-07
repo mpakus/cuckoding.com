@@ -12,15 +12,19 @@ attention items and logs.
 
 ## Current state
 
-**R010 foundation preview, 2026-10-06 (local main: `86ef4b3`).** The tray shell, authenticated local
-browser UI, SQLite event/command storage and metadata-only tool check are
-implemented and locally verified (22 Elixir tests, 4 Rust tests and packaged
-launch/authentication/shutdown smoke). Agent authorization, models, roles, Arenas and battles are next;
+**Local foundation + Codex readiness preview, 2026-10-06.** The tray shell,
+authenticated browser UI, SQLite events/commands and metadata-only discovery
+are implemented. Agents & roles now accepts a Codex executable and runs an
+explicitly confirmed, cancellable version check. The observed baseline is
+`0.146.0`; detection, compatibility and authorization remain separate.
+Verification: 30 Elixir tests, 8 Rust tests, packaged smoke, prior-schema upgrade
+and a real Codex version check through the browser.
+Agent authorization, models, roles, Arenas and battles are next;
 the product story above remains the target, not a shipped capability list.
 
 Build with `rtk proxy bin/dev.build`, then open
 `desktop/src-tauri/target/release/bundle/macos/CCoding.app`. It opens your browser;
-use **CC → Open CCoding** to return later. See [Development](docs/DEVELOPMENT.md)
+use the **trident menu → Open CCoding** to return later. See [Development](docs/DEVELOPMENT.md)
 for prerequisites, quality commands and data isolation. This is a local
 development build, not a signed/notarized public release.
 

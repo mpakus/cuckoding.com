@@ -11,13 +11,13 @@ defmodule Cuckoding.Dispatcher do
 
   @impl true
   def handle_info(:updated, state), do: {:noreply, state}
+  def handle_info({port, _}, state) when is_port(port), do: {:noreply, state}
 
   def handle_info(:tick, state) do
-    # This first command only reads metadata, so expired claims are safe to retry.
-    # Side-effecting provider commands must add reconciliation before dispatch.
     case Cuckoding.Foundation.claim() do
       {:ok, %{state: "running"} = command} ->
-        Cuckoding.Foundation.finish(command, Cuckoding.Tools.discover())
+        result = execute(command)
+        Cuckoding.Foundation.finish(command, result)
 
       _ ->
         :ok
@@ -25,5 +25,21 @@ defmodule Cuckoding.Dispatcher do
 
     Process.send_after(self(), :tick, 500)
     {:noreply, state}
+  end
+
+  defp execute(%{kind: "discover_tools"}), do: Cuckoding.Tools.discover()
+
+  defp execute(%{kind: "probe_codex"} = command) do
+    if Cuckoding.Foundation.workspace().revision == command.expected_revision do
+      directory = Cuckoding.Storage.probe_directory!(command.id, command.attempts)
+
+      Cuckoding.Codex.probe(command.payload, directory, fn ->
+        Cuckoding.Foundation.probe_active?(command)
+      end)
+    else
+      %{}
+    end
+  rescue
+    _ -> %{"status" => "launch_failed"}
   end
 end

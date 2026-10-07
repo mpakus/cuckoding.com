@@ -1,3 +1,4 @@
+mod probe;
 mod service;
 use service::Service;
 use std::{
@@ -16,6 +17,11 @@ fn main() {
     // Restrict files made by the release and its children, including SQLite WAL.
     unsafe {
         libc::umask(0o077);
+    }
+    let args: Vec<_> = std::env::args().skip(1).collect();
+    if args.first().is_some_and(|arg| arg == "--probe-codex") {
+        probe::main(&args[1..]);
+        return;
     }
     if std::env::args().any(|arg| arg == "--smoke-test") {
         if smoke().is_err() {

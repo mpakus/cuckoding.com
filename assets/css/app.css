@@ -58,6 +58,17 @@ code { display:block; overflow-wrap:anywhere; font-size:11px; }
 .activity ol { padding-left:18px; }
 .activity time { font-family:ui-monospace,monospace; margin-right:12px; }
 .notice { border:1px solid #c59761; padding:16px; margin-bottom:20px; }
+.codex-setup { margin-top:24px; }
+.codex-setup form { display:grid; gap:14px; }
+.codex-setup input[type=text] { width:100%; min-width:0; padding:12px; border:1px solid var(--border); border-radius:5px; background:var(--bg); color:var(--text); font:13px ui-monospace,monospace; }
+.codex-setup label { font-size:13px; }
+.codex-setup .fine-print { margin:0; }
+.codex-setup .fine-print code { display:inline; }
+.confirm-executable { display:flex; align-items:center; gap:10px; min-height:44px; }
+.confirm-executable input { width:18px; height:18px; flex:none; accent-color:var(--accent); }
+.probe-progress,.probe-result { border-top:1px solid var(--border); padding-top:20px; margin-top:24px; }
+.probe-result details { margin-top:12px; font-size:12px; }
+.probe-progress .button { background:transparent; color:var(--text); }
 .skip-link { position:absolute; top:-100px; left:20px; padding:12px; background:var(--accent); color:var(--bg); z-index:1; }
 .skip-link:focus { top:12px; }
 @media (max-width:760px) {
