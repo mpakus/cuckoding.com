@@ -10,7 +10,8 @@ is still open. R030a delivers independently testable saved-team configuration;
 R040a adds Arena registration and frozen team inheritance; R040b adds default
 Tabulae and manual draft tasks; R040c adds explicit Git inspection and confirmed
 initialization. R040d adds explicit file previews and consented initial commits.
-Agent planning and execution grants remain open.
+R040e adds consented Speculator proposals from typed briefs and individual imports
+into Specs. File-backed planning and execution grants remain open.
 Historical source/tests/builds do not satisfy these gates.
 
 R015 adds the separately requested public site after R010; see [Site](SITE.md).
@@ -165,12 +166,17 @@ Depends on R030.
   Review, Completed and inherited stage roles. Draft/edit tasks with immutable
   history and accessible Specs/ToDo movement; delivery stages remain locked.
   See [task](../tasks/R040b-tabula-drafts.md) and [evidence](../worklog/2026-10-07-R040b-tabula-drafts.md).
+- [x] R040e: use the frozen Speculator with a typed brief and explicit usage
+  consent; validate/store up to six public proposals and import each into Specs
+  once with provenance. No project reads/tools or battle authority. See
+  [task](../tasks/R040e-brief-planning.md) and [evidence](../worklog/2026-10-07-R040e-brief-planning.md).
 - [ ] Add/rename/reorder columns and assign custom roles through versioned
   definitions. Enforce mandatory final Secutor review after all writing stages.
 - [ ] Create/edit tasks manually and from a selected planning role using a brief,
   selected files or `docs/`; persist versioned specs, source references and
   acceptance criteria. R040b implements manual database drafts and criteria;
-  agent planning and file-backed accepted specs with provenance remain.
+  R040e adds brief proposals and source-command provenance; file-backed accepted
+  specs, selected-file/docs inputs and custom planning-role selection remain.
 - [ ] Validate bounds, paths, duplicates and acyclic dependencies; support user
   edits before Start without launching delivery work.
 - [ ] Persist project-approved check commands and grants separately from agent

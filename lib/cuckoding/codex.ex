@@ -1,8 +1,9 @@
 defmodule Cuckoding.AgentAdapter do
-  @moduledoc "Private profile operations and one fixed diagnostic turn; repository tasks are not enabled."
+  @moduledoc "Private profile operations and restricted diagnostic/brief turns; no repository tasks."
   @callback probe(map(), binary(), (-> boolean())) :: map()
   @callback inspect_connection(map(), binary(), (-> boolean())) :: map()
   @callback check_model(map(), binary(), binary(), binary(), binary(), (-> boolean())) :: map()
+  @callback plan(map(), binary(), binary(), map(), (-> boolean())) :: map()
   @callback authorize(map(), binary(), :login | :logout, (-> boolean()), (binary() -> any())) ::
               map()
 end
@@ -120,6 +121,22 @@ defmodule Cuckoding.Codex do
     )
   end
 
+  @impl true
+  def plan(identity, profile, scratch, request, active?) do
+    observe(
+      identity,
+      profile,
+      active?,
+      "--plan-codex-brief",
+      &Cuckoding.Planning.normalize/1,
+      65_536,
+      125_000,
+      progress: :no_progress,
+      args: [scratch, request["model"], request["effort"]],
+      input: Jason.encode!(Map.take(request, ~w(request_id brief instructions))) <> "\n"
+    )
+  end
+
   defp observe(
          identity,
          directory,
@@ -147,14 +164,16 @@ defmodule Cuckoding.Codex do
           normalize,
           limit,
           timeout,
-          Keyword.get(options, :progress)
+          options
         )
     end
   end
 
   # Only the app-owned native helper gets a Port. It clears the provider environment,
   # owns the process group and returns fixed public fields, never raw provider output.
-  defp run(helper, args, active?, normalize, limit, timeout, progress) do
+  defp run(helper, args, active?, normalize, limit, timeout, options) do
+    progress = Keyword.get(options, :progress)
+
     port =
       Port.open({:spawn_executable, helper}, [
         :binary,
@@ -163,6 +182,7 @@ defmodule Cuckoding.Codex do
       ])
 
     try do
+      if input = options[:input], do: Port.command(port, input)
       deadline = System.monotonic_time(:millisecond) + timeout
 
       if progress do

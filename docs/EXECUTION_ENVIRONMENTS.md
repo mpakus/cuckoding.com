@@ -81,3 +81,9 @@ identity, no live processes and a clean worktree. Dirty or uncertain work stays
 available for inspection. No force deletion or reset. Archive/deletion needs a
 preview and explicit human confirmation. See [flow](FLOW.md) for local integration
 and [testing](TESTING.md) for crash/sleep/parallel acceptance.
+
+R040e brief planning uses R020d's private-profile/empty-scratch execution boundary.
+It supplies only a consented typed brief and frozen Speculator instructions, with
+no project filesystem grant or worktree. It is a bounded structured turn, not the
+repository task runner described above. No successful real-account planning turn
+has yet been recorded; protocol fixtures do not establish provider enforcement.

@@ -30,6 +30,8 @@ defmodule Cuckoding.Dispatcher do
     {:noreply, state}
   end
 
+  defp execute(%{kind: "plan_tabula"} = command), do: Cuckoding.Planning.execute(command)
+
   defp execute(%{kind: "discover_tools"}), do: Cuckoding.Tools.discover()
 
   defp execute(%{kind: "choose_arena_folder"} = command),

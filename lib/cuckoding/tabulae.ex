@@ -1,7 +1,17 @@
 defmodule Cuckoding.Tabulae do
   @moduledoc "Arena-scoped boards and revisioned manual drafts. No execution authority."
   import Ecto.Query
-  alias Cuckoding.{Arena, Command, DraftTask, DraftTaskRevision, Foundation, Repo, Tabula}
+
+  alias Cuckoding.{
+    Arena,
+    Command,
+    DraftTask,
+    DraftTaskRevision,
+    Foundation,
+    Planning,
+    Repo,
+    Tabula
+  }
 
   @fields ~w(title description criteria column)
   @columns [
@@ -76,6 +86,44 @@ defmodule Cuckoding.Tabulae do
     end
   end
 
+  def import_proposal(key, arena_id, tabula_id, proposal_id, index) do
+    with {:ok, key} <- Ecto.UUID.cast(key),
+         {:ok, arena_id} <- Ecto.UUID.cast(arena_id),
+         {:ok, tabula_id} <- Ecto.UUID.cast(tabula_id),
+         {:ok, proposal_id} <- Ecto.UUID.cast(proposal_id),
+         true <- is_integer(index) and index in 0..5 do
+      command(key, "import_plan_task", 0, %{
+        "arena_id" => arena_id,
+        "tabula_id" => tabula_id,
+        "task_id" => key,
+        "proposal_id" => proposal_id,
+        "index" => index
+      })
+    else
+      _ -> {:error, "invalid_proposal"}
+    end
+  end
+
+  def imported(tabula_id) do
+    Repo.all(
+      from c in Command,
+        where:
+          c.kind == "import_plan_task" and c.state == "completed" and
+            fragment("json_extract(?, '$.tabula_id')", c.payload) == ^tabula_id,
+        select: c.payload
+    )
+    |> MapSet.new(&{&1["proposal_id"], &1["index"]})
+  end
+
+  defp proposal_task(payload) do
+    command = Repo.get(Command, payload["proposal_id"])
+
+    if (command && command.payload["arena_id"] == payload["arena_id"]) and
+         command.payload["tabula_id"] == payload["tabula_id"] do
+      if proposal = Planning.proposal(command), do: Enum.at(proposal["tasks"], payload["index"])
+    end
+  end
+
   defp command(id, kind, expected, payload) do
     result =
       Repo.transaction(
@@ -132,6 +180,22 @@ defmodule Cuckoding.Tabulae do
     if Repo.get(Arena, payload["arena_id"]) == nil, do: "scope_missing"
   end
 
+  defp rejection("import_plan_task", _, payload) do
+    cond do
+      is_nil(get(payload["arena_id"], payload["tabula_id"])) or is_nil(proposal_task(payload)) ->
+        "invalid_proposal"
+
+      MapSet.member?(imported(payload["tabula_id"]), {payload["proposal_id"], payload["index"]}) ->
+        "already_imported"
+
+      Repo.get(DraftTask, payload["task_id"]) != nil ->
+        "invalid_proposal"
+
+      true ->
+        nil
+    end
+  end
+
   defp rejection("save_draft", expected, payload) do
     board = Repo.get_by(Tabula, id: payload["tabula_id"], arena_id: payload["arena_id"])
     task = Repo.get(DraftTask, payload["task_id"])
@@ -177,6 +241,17 @@ defmodule Cuckoding.Tabulae do
         "tabula_id" => board.id,
         "team_revision" => board.team_revision_id
       },
+      id
+    )
+  end
+
+  defp write("import_plan_task", id, expected, payload) do
+    content = Map.put(proposal_task(payload), "column", "specs")
+    write("save_draft", id, expected, Map.put(payload, "content", content))
+
+    Foundation.record(
+      "planning.task_imported",
+      Map.take(payload, ~w(tabula_id task_id proposal_id index)),
       id
     )
   end

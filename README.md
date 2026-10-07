@@ -29,15 +29,21 @@ explicitly selected files (or an empty baseline) and create its first local comm
 after fresh confirmation. Working files remain unchanged; existing indexes/history
 are refused. See [Git setup limits](docs/DEVELOPMENT.md).
 
+**Ask Speculator** turns a typed brief into up to six proposals using the Tabula's
+saved Codex/model binding and separate usage consent. Review each suggestion and
+add it to Specs once, then edit it like any draft. This turn has no tools or project
+file access; proposals and their source brief survive reconnect/restart.
+
 Real Codex `0.146.0` login start/cancel, signed-out inspection and restricted
 configuration/thread preflight passed. Successful model responses use fixtures;
 human-completed login, real responses and repository execution remain open.
-Agent-generated planning, execution grants and autonomous
+Planning from files, accepted Markdown specs, execution grants and autonomous
 battles are next. Registration alone does not validate Git; an explicit inspection
 distinguishes missing, unborn and committed standalone repositories.
 The product story above remains the target, not a shipped capability list.
 
-Evidence: [Initial commit worklog](worklog/2026-10-07-R040d-initial-commit.md),
+Evidence: [Brief planning worklog](worklog/2026-10-07-R040e-brief-planning.md),
+[Initial commit worklog](worklog/2026-10-07-R040d-initial-commit.md),
 [Git setup worklog](worklog/2026-10-07-R040c-arena-git-setup.md),
 [Tabula drafts worklog](worklog/2026-10-07-R040b-tabula-drafts.md),
 [Arena registration worklog](worklog/2026-10-07-R040a-arena-registration.md),

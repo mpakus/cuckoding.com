@@ -399,6 +399,14 @@ defmodule CuckodingWeb.TabulaLive do
       <section class="panel" aria-labelledby="tabula-title">
         <p class="eyebrow">04 / TABULA</p>
         <h2 id="tabula-title">{if @board, do: @board.name, else: "Plan your next battle."}</h2>
+        <.live_component
+          :if={@board}
+          module={CuckodingWeb.PlanningComponent}
+          id="planning"
+          board={@board}
+          now={@now}
+          busy={@setup_busy}
+        />
         <details
           id="arena-git"
           class="git-setup"
@@ -632,7 +640,7 @@ defmodule CuckodingWeb.TabulaLive do
           </div>
         </div>
         <p :if={@board} class="fine-print">
-          Team revision {@board.team_revision_id} · workflow 1 · manual planning only. ToDo does not authorize execution.
+          Team revision {@board.team_revision_id} · workflow 1 · planning drafts. ToDo does not authorize execution.
         </p>
       </section>
       <section :if={@board} class="panel" aria-labelledby="draft-title">

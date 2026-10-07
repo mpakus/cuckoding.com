@@ -7,6 +7,7 @@ R030a adds saved default-team configuration; R040a adds Arena registration and
 frozen team inheritance. R040b adds default Tabulae and manual draft tasks.
 R040c adds explicit metadata inspection and confirmed Git initialization.
 R040d adds bounded previews and separately confirmed initial commits.
+R040e adds brief-only Speculator proposals with explicit imports into draft tasks.
 Battles and the task runner below remain subsequent slices.
 
 Current startup order: Repo → schema validation/migration → PubSub → shell
@@ -42,6 +43,14 @@ shows the frozen team assignments and preserves dirty editors during broadcasts.
 Specs/ToDo are the only writable draft columns; the other three are visible future
 stages. Draft saves involve no provider, Git service, filesystem or dispatcher.
 
+`Cuckoding.Planning` freezes the board Speculator and current connection in a
+consented `plan_tabula` command. The existing dispatcher and Codex adapter send
+one structured ephemeral turn under the diagnostic scratch grant. Request text
+travels on helper stdin. Validated public proposals live in the command receipt;
+imports reuse Tabulae's transactional draft writer. A LiveComponent owns only
+presentation; SQLite retains the source brief, snapshots, results and import
+provenance. No new worker, migration or authority boundary is introduced.
+
 `Cuckoding.ArenaGit` uses the setup ledger/dispatcher and `GitAdapter` boundary for
 explicit Git operations. `LocalGit` shares `NativeHelper`'s bounded, cancellable
 Port transport with the folder chooser. The fixed native helper calls system Git
@@ -51,7 +60,7 @@ durable command receipts survive reconnect, without changing setup revisions or
 requiring a new schema. R040d extends the same boundary with exact file snapshots,
 a private candidate index and a first-commit receipt. Git creates blobs/trees/commit;
 the helper exclusively publishes the index and loose branch while holding Git
-locks. Partial effects survive interruption. No network or agent operation is available.
+locks. Partial effects survive interruption. These Git operations never contact a remote or launch an agent.
 
 ## Components
 

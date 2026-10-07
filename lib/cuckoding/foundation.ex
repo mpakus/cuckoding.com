@@ -5,6 +5,7 @@ defmodule Cuckoding.Foundation do
   @auth_kinds ~w(login_codex logout_codex)
   @exclusive_kinds @auth_kinds ++
                      [
+                       "plan_tabula",
                        "check_codex_model",
                        "choose_arena_folder",
                        "inspect_arena_git",
@@ -131,6 +132,7 @@ defmodule Cuckoding.Foundation do
               "inspect_codex",
               "login_codex",
               "logout_codex",
+              "plan_tabula",
               "check_codex_model",
               "choose_arena_folder",
               "inspect_arena_git",
@@ -330,6 +332,7 @@ defmodule Cuckoding.Foundation do
                  "inspect_codex",
                  "login_codex",
                  "logout_codex",
+                 "plan_tabula",
                  "check_codex_model",
                  "choose_arena_folder",
                  "inspect_arena_git",
@@ -393,9 +396,13 @@ defmodule Cuckoding.Foundation do
 
   defp lease_duration("login_codex"), do: 630_000
   defp lease_duration("choose_arena_folder"), do: 135_000
+  defp lease_duration("plan_tabula"), do: 140_000
   defp lease_duration("check_codex_model"), do: 140_000
   defp lease_duration(kind) when kind in ["inspect_codex", "logout_codex"], do: 20_000
   defp lease_duration(_), do: 10_000
+
+  def finish(%Command{kind: "plan_tabula"} = claim, result),
+    do: Cuckoding.Planning.finish(claim, result)
 
   def finish(%Command{kind: kind} = claim, result)
       when kind in ~w(inspect_arena_git init_arena_git preview_arena_git commit_arena_git),
@@ -578,6 +585,7 @@ defmodule Cuckoding.Foundation do
   defp prefix("inspect_codex"), do: "connection."
   defp prefix("login_codex"), do: "login."
   defp prefix("logout_codex"), do: "logout."
+  defp prefix("plan_tabula"), do: "planning."
   defp prefix("check_codex_model"), do: "model_check."
 
   def broadcast, do: Phoenix.PubSub.broadcast(Cuckoding.PubSub, "foundation", :updated)

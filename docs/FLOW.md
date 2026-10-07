@@ -79,7 +79,7 @@ moves between Specs and ToDo; ToDo requires description and criteria. This is
 draft readiness only, not a validated spec or execution authorization. Delivery
 columns reject manual moves until battle execution exists. Stale editors keep
 their text and require explicitly loading a current draft; history is never
-rewritten. Agent planning, source citations, dependencies and custom columns
+rewritten. File-based planning, file citations, dependencies and custom columns
 remain open.
 
 | Column / stable key | Assigned role | Exit condition |
@@ -110,6 +110,23 @@ steps must precede a mandatory final Secutor review. After-review steps are
 read-only or route back through review if they change the candidate. Renaming
 a column changes only its label. Reordering or adding steps publishes a new
 workflow revision; no arbitrary conditional graph editor is required.
+
+R040e implements **Ask Speculator → type brief → confirm provider usage → Generate
+proposals → review → Add to Specs**. It uses the board's frozen required Speculator
+and the catalog's default effort, without per-task assignment or model fallback.
+A fresh supported executable/account/catalog is required; changed observations
+invalidate old consent. Saving a new global team never changes this board.
+
+The brief is at most 8,000 UTF-8 bytes. One ephemeral, two-minute turn uses empty
+scratch read-only permissions with tools disabled; no Arena files are supplied.
+Its response must contain a summary (2,000 bytes) and one to six unique tasks,
+each with title (120 bytes), description (4,000 bytes) and criteria (2,000 bytes).
+The fixed output schema guides the provider; host validation remains authoritative.
+Suggestions are untrusted text, not commands. Import is explicit, scoped and
+idempotent; it creates a Specs draft with source-request/index provenance.
+Cancellation waits for owned cleanup, preserves the brief and rejects late results.
+Expired running claims become interrupted once and never silently repeat usage.
+File inputs, Markdown spec artifacts, dependencies and battle workers remain open.
 
 ## Summa Rudis control loop
 

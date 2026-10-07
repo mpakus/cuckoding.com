@@ -112,3 +112,12 @@ Manual column moves invoke the same gates as automated moves; dragging into
 Completed cannot forge a review. Provide focus return, clear focus rings,
 screen-reader labels, live announcements without event spam, adequate targets
 and horizontal board scrolling on narrow widths. No color-only status.
+
+R040e adds one **Ask Speculator** disclosure above the board. Show the frozen
+role/model/team, a brief textarea and explicit provider-usage consent. Preserve
+brief, focus and disclosure state through live updates; clear consent if setup
+changes. Requests show state, elapsed time, owner/runtime/model and Cancel while
+active. Each validated suggestion has one **Add to Specs** button, replaced by
+**Added to Specs** after import. Keep unrelated unsaved manual drafts intact.
+Show source brief and the five recent requests (active first) after reconnect. Describe this as
+brief-only proposals with no file access, tools, accepted specs or delivery work.

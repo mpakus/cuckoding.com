@@ -4,7 +4,8 @@ The local preview includes R010's tray, authenticated browser and durable setup
 check, plus Codex version, private-profile inspection, managed sign-in/out and a
 fixed model diagnostic, R030a saved default-team configuration and R040a Arena
 registration, R040b Tabulae/manual drafts, R040c Git inspection/init and R040d
-previewed initial commits.
+previewed initial commits. R040e adds brief-only Speculator proposals and explicit
+imports into Specs.
 Human-completed real-account/model acceptance and repository
 execution remain R020 work. The previous source
 reset remains intentional; do not restore the deleted implementation wholesale.
@@ -103,8 +104,9 @@ ToDo requires nonblank description and criteria. Expand saved history in the
 editor to inspect revisions. Stale editors keep their text; copy it before
 discarding and loading the current task. Recovered mismatched forms also keep
 text but cannot overwrite another task. All drafts live in SQLite; no project
-files, Git commands or agent work are involved. Custom stages, file-backed specs,
-agent planning and battle execution remain unavailable.
+files, Git commands or agent work are involved in manual draft saves.
+Brief-only Speculator planning is available in R040e; custom stages, file-based
+planning/specs and battle execution remain unavailable.
 
 Expand **Repository setup** in the Arena's Tabulae screen and choose **Inspect Git**.
 This checks standalone Git metadata using `/usr/bin/git` from the installed macOS
@@ -199,3 +201,19 @@ R010 pins development versions; prove clean-machine packaging in R100. No macOS
 user should need an Elixir/Rust toolchain to run the bundle.
 Reintroduce CI only with real scripts/checks; no pipeline should point to removed
 files or publish documentation claims as a working release.
+
+## Brief planning preview (R040e)
+
+Save a Codex/model binding for Speculator, then create a new Arena and Tabula to
+freeze that team. On the board open **Ask Speculator**, enter a brief, confirm
+provider usage and **Generate proposals**. Review suggestions and **Add to Specs**
+individually. Existing boards do not inherit later default-team edits. Refresh a
+stale catalog in Agents before confirming again. No project files are read.
+
+Focused checks: `rtk mix test test/cuckoding/planning_test.exs
+test/cuckoding_web/planning_live_test.exs test/cuckoding/model_check_test.exs` and
+`rtk proxy cargo test --manifest-path desktop/src-tauri/Cargo.toml connection::model_check`.
+Use an isolated `CARGO_TARGET_DIR` for native QA if another bundle is running.
+Successful proposal fixtures are explicitly synthetic; human login and actual
+provider responses remain separate acceptance work. See the
+[R040e worklog](../worklog/2026-10-07-R040e-brief-planning.md).

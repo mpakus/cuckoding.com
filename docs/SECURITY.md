@@ -207,3 +207,21 @@ runner an OS sandbox. Real grant-adversarial execution remains an acceptance gat
 Model output cannot become a command: only matching completion and the fixed
 acknowledgement can pass. All other content is discarded, including hidden
 reasoning. Cancellation/interruptions cannot persist a late pass or replay usage.
+
+R040e brief planning reuses that same restrictive grant, private profile lock,
+clean child environment, owned process groups and 120-second turn limit. It adds
+one fixed `outputSchema` turn, not arbitrary RPC access. Brief and saved role
+instructions are untrusted user-message data, sent over a bounded stdin request
+(32 KiB), never process arguments. No Arena path/files or newly supplied tool,
+policy or permission definition reach the model. Provider inference uses the
+provider connection only; runtime tools/network remain disabled.
+
+The host binds consent to board/team/executable/connection/model observations and
+validates output structure, text/collection bounds, unique titles and matching
+request/model/effort/thread/turn/grant receipts before persistence. Only known
+public fields survive; invalid results discard proposal text. HEEx escapes all
+rendered text. Proposals cannot grant access or execute actions; a separate scoped
+import creates a draft in Specs once. User-supplied brief/instructions and public
+proposal text are retained locally and sent to the selected provider with consent;
+this is not a general-purpose secret scanner. Fixtures prove protocol handling,
+not real-provider compliance with the grant.

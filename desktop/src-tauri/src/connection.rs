@@ -25,6 +25,12 @@ pub enum Operation<'a> {
     Inspect,
     Login,
     Logout,
+    Plan {
+        scratch: &'a Path,
+        model: &'a str,
+        effort: &'a str,
+        request: &'a Value,
+    },
     Check {
         scratch: &'a Path,
         model: &'a str,
@@ -378,7 +384,11 @@ fn operate(
     operation: Operation,
     progress: &mut impl FnMut(&str) -> Result<()>,
 ) -> Result<Value> {
-    let config = initialize(rpc, directory, matches!(operation, Operation::Check { .. }))?;
+    let config = initialize(
+        rpc,
+        directory,
+        matches!(operation, Operation::Check { .. } | Operation::Plan { .. }),
+    )?;
     match operation {
         Operation::Inspect => {}
         Operation::Check {
@@ -386,7 +396,15 @@ fn operate(
             model,
             effort,
         } => {
-            return model_check::check(rpc, &config, scratch, model, effort);
+            return model_check::check(rpc, &config, scratch, model, effort, None);
+        }
+        Operation::Plan {
+            scratch,
+            model,
+            effort,
+            request,
+        } => {
+            return model_check::check(rpc, &config, scratch, model, effort, Some(request));
         }
         Operation::Login => {
             let before = account(rpc)?;
@@ -465,7 +483,7 @@ fn run_operation(
         "approval_policy=\"never\"",
     ]);
     let cwd = match operation {
-        Operation::Check { scratch, .. } => {
+        Operation::Check { scratch, .. } | Operation::Plan { scratch, .. } => {
             model_check::configure(&mut command, scratch)?;
             scratch
         }
@@ -531,7 +549,7 @@ pub fn main(args: &[String], operation: Operation) {
             cancel,
             Duration::from_secs(match operation {
                 Operation::Login => 600,
-                Operation::Check { .. } => 120,
+                Operation::Check { .. } | Operation::Plan { .. } => 120,
                 _ => 10,
             }),
             operation,
@@ -565,6 +583,36 @@ pub fn model_main(args: &[String]) {
                 effort,
             },
         ),
+        _ => {
+            let _ = writeln!(io::stdout(), "{}", json!({"status":"invalid_output"}));
+        }
+    }
+}
+
+// One bounded request on stdin, followed by the existing cancellation/EOF signal.
+// Briefs and role instructions never enter process arguments or diagnostics.
+pub fn plan_main(args: &[String]) {
+    let mut input = Vec::new();
+    let read = io::stdin()
+        .lock()
+        .take(32_769)
+        .read_until(b'\n', &mut input);
+    let request = read
+        .ok()
+        .filter(|n| *n <= 32_768)
+        .and_then(|_| serde_json::from_slice::<Value>(&input).ok());
+    match (args, request) {
+        ([_, _, scratch, model, effort], Some(request)) if model_check::valid_request(&request) => {
+            main(
+                &args[..2],
+                Operation::Plan {
+                    scratch: Path::new(scratch),
+                    model,
+                    effort,
+                    request: &request,
+                },
+            );
+        }
         _ => {
             let _ = writeln!(io::stdout(), "{}", json!({"status":"invalid_output"}));
         }

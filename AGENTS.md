@@ -39,6 +39,14 @@ HEAD/index/ref locks, retain partial effects and never replay uncertain writes.
 Preview metadata is bounded; events omit paths/content/hashes. No push, agent grant
 or battle is implied. See the Git limits in `docs/SECURITY.md`.
 
+R040e permits one separately consented brief-only Speculator turn using the
+Tabula's frozen team and fresh connection/model binding. Reuse the no-tools,
+empty-scratch grant; briefs/instructions travel over stdin, never argv. Persist
+only bounded public proposals and receipts. Import suggestions into Specs once
+with source-command/index provenance; never interpret prose as authority.
+Cancellation and expired claims cannot replay usage or import a late result.
+This is not file-backed planning or a battle execution grant.
+
 ## Mission and product contract
 
 Build a local-first macOS menubar application opening a minimal Phoenix LiveView

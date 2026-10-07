@@ -111,7 +111,7 @@ Events include IDs, revision and old/new columns, never task prose. Neither
 command touches setup revisions or enters the dispatcher. Title/description/
 criteria limits are 120/8,000/4,000 characters; ToDo needs nonblank description and
 criteria. The UI reads the latest five revisions; older history stays in SQLite.
-These are manual database drafts, not file-backed accepted specification artifacts.
+These are database drafts (manual or imported from R040e proposals), not file-backed accepted specification artifacts.
 
 R040c reuses the six-migration schema. `inspect_arena_git` / `init_arena_git`
 snapshot Arena ID, operation, directory identity and (for init) the confirmed
@@ -211,3 +211,19 @@ separate rebuild data root until a verified import/migration path exists.
 Clean-install and prior-schema-copy tests, backup integrity, foreign-key checks,
 failure preservation and recovery are release gates. Released migrations are
 forward-only; incompatible downgrade refuses startup with a recovery path.
+
+## R040e planning receipts
+
+No schema change. `plan_tabula` commands retain the explicit brief, setup-consent
+fingerprint, immutable team/Speculator snapshot, executable identity, connection
+observation, model/effort and `brief-plan-v1` contract. A matching completion adds
+only its validated public proposal and thread/turn/grant/timing receipt to
+`payload.observation`. Status/events contain IDs, counts and timing, never prose,
+raw frames or hidden reasoning. Invalid/cancelled/interrupted results cannot import.
+
+`import_plan_task` stores the source command ID and zero-based suggestion index.
+An immediate SQLite transaction rejects duplicate imports even with a different
+command key; the same key replays its saved revision. Draft task, revision and
+provenance events commit atomically. Later user edits append normal revisions.
+The UI shows the five recent requests (active first); older receipts remain in SQLite. These
+records are not approved Markdown specs, execution policy or completion evidence.

@@ -1,7 +1,8 @@
 # Runtime adapters
 
 Status: R020a–d implement Codex version readiness, private-profile status,
-validated catalog caching, managed ChatGPT login/logout and a fixed model diagnostic. Codex `0.146.0` is
+validated catalog caching, managed ChatGPT login/logout, a fixed model diagnostic
+and R040e brief-only planning. Codex `0.146.0` is
 the observed baseline; other versions remain unverified. Human-completed login,
 signed-in real-model acceptance and repository turns remain open. Claude Code, Codex,
 Cursor and Hermes are requested targets;
@@ -130,3 +131,10 @@ Session continuation requires compatible account, model, runtime, role,
 workspace, policy and spec identity. Otherwise use a fresh session with public
 evidence. Never reuse an Implementor conversation as Secutor's independent
 review or share writable session state between clones.
+
+R040e adds `plan/5` to the adapter, reusing the restricted diagnostic transport.
+`--plan-codex-brief` accepts one bounded JSON line on stdin followed by the existing
+cancel/EOF signal. It adds a fixed per-turn `outputSchema`, accepts only matching
+public assistant completion and returns a bound proposal receipt. Elixir validates
+the closed proposal schema again before storage. This does not expose arbitrary
+prompts with tools, general RPC, repository reads/writes or custom execution roles.
