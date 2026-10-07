@@ -69,7 +69,7 @@ skills applied. Acceptance is recorded in the task before implementation.
   tab closed. Screenshots: `/private/tmp/cuckoding-r040a-arenas-desktop.jpg` and
   `/private/tmp/cuckoding-r040a-arenas-narrow.jpg`. Catalog/model labels in the
   copied test team are fixtures, not real-provider evidence.
-- `rtk proxy python3` local Markdown link/path validation: 21 files, zero missing
+- `rtk proxy python3` local Markdown link/path validation: 22 files, zero missing
   targets. `rtk git diff --check`: passed.
 
 ## Fixes found during verification
@@ -99,6 +99,8 @@ Evidence root: `/private/tmp/cuckoding-r040a-proof-6r6___ob`; identity file
 - original copied-prior DB: `57d469cc7a806759e8b3073730db5c9dc4abf2b182744556c2255bebfe2b6806`
 
 Final UI used owned shell PID 80725, release PID 80726, loopback port 59241.
+All R040a owned test processes and listeners were verified closed after testing;
+the retained DB has one registered Arena and zero pending/running/cancelling commands.
 Test cleanup uses verified owned release SIGTERM and waits for native heartbeat
 exit because native tray AX targeting is unavailable; bundled smoke independently
 tests graceful shell Quit. Test data is retained. Earlier test ports 57328/57636
@@ -112,4 +114,9 @@ next R040 slices. The native two-minute deadline was not a timed interactive dri
 
 ## Local integration
 
-Pending commit/fast-forward into local main; all implementation gates above passed.
+Implementation commit `d1736e3` (`feat(arenas): Register local folders with frozen
+teams`) was fast-forwarded into local `main` from `396a36c` with
+`rtk git merge --ff-only feature/R040a-arena-registration`. The merged feature
+branch was deleted using `rtk git branch -d feature/R040a-arena-registration`.
+README, AGENTS and affected docs are included in that commit. This follow-up
+records the completed local integration; no push or deployment was performed.
