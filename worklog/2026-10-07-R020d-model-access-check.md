@@ -131,8 +131,8 @@ closed after the owned release-stop drill. The pre-consent-fix HomeLive BEAM SHA
 `b6c6847bfe119761b406fcc50e8122bd5d49056ae482c5bae3b1b2302f727316`;
 the later consent-reset safeguard is rebuilt and checked separately below.
 
-Local integration: verification complete; awaiting commit and fast-forward into
-main. Remote publication and the user's previously opened app are unchanged.
+Local integration: completed below. No remote publication or replacement of the
+user's previously opened app was performed.
 
 Final review added one narrow safeguard: a changed connection observation clears
 model usage confirmation while preserving the selected model. The existing
@@ -149,3 +149,22 @@ Final remote read (`rtk git ls-remote --heads origin`) still showed only main,
 now at `d98fd09` rather than the initial `4a82081`: earlier work was published
 outside this turn while implementation ran. This turn performs no push.
 `rtk git fetch --prune origin` refreshes local tracking before final integration.
+
+
+## Local integration
+
+`rtk git commit -m 'feat(codex): Add consented model access checks'` created
+`5ad8df9`. `rtk git switch main` and
+`rtk git merge --ff-only feature/r020d-model-access-check` passed.
+`rtk git branch -d feature/r020d-model-access-check` deleted the integrated branch.
+Together with the nine previously merged branches removed at the start, **ten
+merged local branches were deleted**. Only local main remains; remote has only
+main. The worktree was clean after integration. This task/checklist receipt is
+committed on main separately; no source or package change follows verification.
+Final documentation path validation and `rtk git diff --check` passed.
+
+Handoff: R020d is implemented and locally integrated. R020's next evidence gate
+is a human-completed sign-in in Cuckoding's private profile followed by a real
+model check; repository read/write execution remains unimplemented. Current
+verified bundle is the isolated R020d path above, with no test instance left
+running. Public site and external deployment were not changed by this step.
