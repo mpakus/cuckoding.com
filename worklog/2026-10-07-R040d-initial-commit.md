@@ -113,3 +113,12 @@ or real-provider execution was tested by this slice. Existing staging/history,
 content-level secret detection and richer file selection remain manual. Next app
 work: read-only agent planning with file provenance and separate execution grants.
 Local main integration follows; this is not remote publication.
+
+Local integration:
+- Implementation `2e8d4ad` committed after all relevant checks and final packaged QA.
+- `rtk git switch main`, `rtk git merge --ff-only feature/R040d-initial-commit`
+  and `rtk git branch -d feature/R040d-initial-commit` passed. Only local main remains.
+- `rtk git status --short --branch` showed a clean main, seven commits ahead of
+  the saved origin/main ref before this documentation-only integration receipt.
+  No push/fetch/deployment was performed. README, AGENTS, current docs, task and
+  worklog are synchronized; the user's previously running build is unchanged.

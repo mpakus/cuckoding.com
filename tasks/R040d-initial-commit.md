@@ -1,6 +1,7 @@
 # R040d — Initial commit preview and consent
 
-Status: verified; local main integration pending. Owner: Codex. Branch: `feature/R040d-initial-commit`.
+Status: complete on local main. Owner: Codex. Implementation: `2e8d4ad`.
+Merged feature branch deleted; no remote publication.
 
 - Preview explicitly selected relative files (or an empty baseline) in a registered
   unborn standalone repository. Show paths, sizes, modes, SHA-256, branch and author.
