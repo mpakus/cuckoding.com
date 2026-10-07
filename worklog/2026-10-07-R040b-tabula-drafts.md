@@ -97,4 +97,10 @@ No push, Pages deployment or replacement of the user's running app. Next R040
 work: Git validation/consented initialization and baseline commit, then agent
 planning/provenance, dependencies and custom workflow definitions.
 
-Local main integration pending below.
+## Local integration
+
+`9092f8d` — `feat(tabulae): Add inherited boards and revisioned task drafts`.
+`rtk git switch main` and `rtk git merge --ff-only feature/R040b-tabula-drafts`
+passed; `rtk git branch -d feature/R040b-tabula-drafts` removed the merged branch.
+The tested application bytes are unchanged by this integration-record update.
+Local integration only; no remote publication or deployment.
