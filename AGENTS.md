@@ -21,6 +21,12 @@ separate confirmation. Freeze the displayed team revision; recheck directory
 identity before registration. Git-entry presence is unverified metadata only.
 Never infer file/execution grants or run Git from registration. Folder commands
 must not mutate provider workspace revisions or replay interrupted dialogs.
+R040b adds immutable default Tabula definitions and revisioned manual task drafts.
+Copy the Arena's team reference, never the latest global default. Draft saves are
+scoped to Arena/Tabula/task, guarded by task revisions and committed with history
+and events. Only Specs/ToDo are writable; ToDo requires description and criteria.
+Neither stage grants execution or represents a validated Secutor result. Preserve
+recovered-form identity guards and unsaved text through live updates.
 
 ## Mission and product contract
 

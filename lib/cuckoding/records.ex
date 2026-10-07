@@ -76,3 +76,45 @@ defmodule Cuckoding.Arena do
     field :inserted_at, :utc_datetime_usec
   end
 end
+
+defmodule Cuckoding.Tabula do
+  @moduledoc false
+  use Ecto.Schema
+  @primary_key {:id, :binary_id, autogenerate: true}
+  schema "tabulae" do
+    belongs_to :arena, Cuckoding.Arena, type: :binary_id
+    belongs_to :team_revision, Cuckoding.TeamRevision
+    field :command_id, :binary_id
+    field :name, :string
+    field :definition, :map
+    field :inserted_at, :utc_datetime_usec
+  end
+end
+
+defmodule Cuckoding.DraftTask do
+  @moduledoc false
+  use Ecto.Schema
+  @primary_key {:id, :binary_id, autogenerate: false}
+  schema "draft_tasks" do
+    belongs_to :tabula, Cuckoding.Tabula, type: :binary_id
+    field :revision, :integer
+    field :title, :string
+    field :description, :string
+    field :criteria, :string
+    field :column, :string
+    timestamps(type: :utc_datetime_usec)
+  end
+end
+
+defmodule Cuckoding.DraftTaskRevision do
+  @moduledoc false
+  use Ecto.Schema
+
+  schema "draft_task_revisions" do
+    field :task_id, :binary_id
+    field :command_id, :binary_id
+    field :revision, :integer
+    field :content, :map
+    field :inserted_at, :utc_datetime_usec
+  end
+end

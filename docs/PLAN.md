@@ -7,8 +7,8 @@ Agent authorization, models and orchestration remain R020–R100.
 R020a–d complete version readiness, private-profile inspection, validated model
 caching, managed sign-in/out and the fixed model-check controls. Real-account/model/execution acceptance
 is still open. R030a delivers independently testable saved-team configuration;
-R040a adds Arena registration and frozen team inheritance; Tabula inheritance
-and execution grants remain open.
+R040a adds Arena registration and frozen team inheritance; R040b adds default
+Tabulae and manual draft tasks. Agent planning and execution grants remain open.
 Historical source/tests/builds do not satisfy these gates.
 
 R015 adds the separately requested public site after R010; see [Site](SITE.md).
@@ -136,7 +136,7 @@ Execution acceptance depends on R020. R030a configuration can ship independently
   See [task](../tasks/R030a-saved-team.md) and [evidence](../worklog/2026-10-07-R030a-saved-team.md).
 - [ ] Add explicit Arena/Tabula inheritance and overrides without changing saved
   battle snapshots (alongside R040). Arena inheritance is implemented in R040a;
-  overrides and Tabula inheritance remain.
+  Tabula inheritance is implemented in R040b; overrides remain.
 - [ ] Add confirmed/audited execution slots and grants; prove independent sessions
   sharing one connection/model without inferring permission from role text.
 
@@ -154,13 +154,16 @@ Depends on R030.
   See [task](../tasks/R040a-arena-registration.md) and [evidence](../worklog/2026-10-07-R040a-arena-registration.md).
 - [ ] Validate unborn/existing Git repositories, confirm Git init and
   preview/authorize any initial commit separately; preserve uncommitted files.
-- [ ] Create multiple Tabulae per Arena with Specs, ToDo, In Process, Review,
-  Completed; show the assigned role for each working stage.
+- [x] R040b: create multiple Tabulae per Arena with Specs, ToDo, In Process,
+  Review, Completed and inherited stage roles. Draft/edit tasks with immutable
+  history and accessible Specs/ToDo movement; delivery stages remain locked.
+  See [task](../tasks/R040b-tabula-drafts.md) and [evidence](../worklog/2026-10-07-R040b-tabula-drafts.md).
 - [ ] Add/rename/reorder columns and assign custom roles through versioned
   definitions. Enforce mandatory final Secutor review after all writing stages.
 - [ ] Create/edit tasks manually and from a selected planning role using a brief,
   selected files or `docs/`; persist versioned specs, source references and
-  acceptance criteria.
+  acceptance criteria. R040b implements manual database drafts and criteria;
+  agent planning and file-backed accepted specs with provenance remain.
 - [ ] Validate bounds, paths, duplicates and acyclic dependencies; support user
   edits before Start without launching delivery work.
 - [ ] Persist project-approved check commands and grants separately from agent

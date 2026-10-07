@@ -95,6 +95,24 @@ command changes `workspace.revision`. Names are 1–80 characters and paths at m
 4,096 bytes. Directory replacement requires reselection; future file execution
 must revalidate identity and grants. Registration is not a filesystem lock.
 
+R040b adds immutable `tabulae` (UUID, Arena/team references, creation command,
+name, version-1 default columns, `execution: disabled`), `draft_tasks` (UUID,
+Tabula, current revision/content/column and timestamps) and append-only
+`draft_task_revisions` (task, unique command, revision, full content, timestamp).
+Unique task/revision indexes and history/board immutability triggers retain facts;
+a draft-stage trigger permits only Specs/ToDo. A future execution schema must
+explicitly handle this boundary rather than treating drafts as executable work.
+
+`create_tabula` copies the Arena team, even after global defaults change.
+`save_draft` atomically commits the current projection, immutable history and
+`draft.saved` event; a failed event rolls back all writes. Matching keys return
+the original revision receipt. Scope/stale/stage/readiness rejections are durable.
+Events include IDs, revision and old/new columns, never task prose. Neither
+command touches setup revisions or enters the dispatcher. Title/description/
+criteria limits are 120/8,000/4,000 characters; ToDo needs nonblank description and
+criteria. The UI reads the latest five revisions; older history stays in SQLite.
+These are manual database drafts, not file-backed accepted specification artifacts.
+
 The default native root is `~/Library/Application Support/CCoding Rebuild`,
 marked `.ccoding-rebuild-v1`. Unknown nonempty roots and symlinked storage are
 refused before migration. `foundation.db` and sidecars are private; old Cuckoding

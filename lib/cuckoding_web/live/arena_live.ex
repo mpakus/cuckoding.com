@@ -156,7 +156,7 @@ defmodule CuckodingWeb.ArenaLive do
         <h2 id="arena-title">Give your team an Arena.</h2>
         <p>Choose a local folder, then register it with a saved team.</p>
         <p class="fine-print">
-          Registration leaves files untouched. Git setup, Tabulae and battles are coming next.
+          Registration leaves files untouched. Create Tabulae and draft tasks after registration.
         </p>
         <p :if={@message} role="status" class="team-message">{@message}</p>
         <p :if={@error} role="alert" class="notice">{@error}</p>
@@ -221,6 +221,7 @@ defmodule CuckodingWeb.ArenaLive do
         </p>
         <article :for={arena <- @arenas} id={"arena-#{arena.id}"} class="team-role">
           <h3>{arena.name}</h3>
+          <.link navigate={~p"/arenas/#{arena.id}"} class="button">Open Tabulae</.link>
           <p class="arena-path">{arena.path}</p>
           <p class="fine-print">{git_label(arena.git_entry)} · observed at registration</p>
           <.team revision={arena.team_revision} id={"arena-team-#{arena.id}"} />

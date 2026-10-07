@@ -29,7 +29,7 @@ The native dialog accepts one existing directory and cannot create folders.
 Registration freezes the team revision shown at selection, permits unassigned
 drafts and leaves all project files untouched. Later default-team changes do not
 rewrite it. Git-entry presence is labeled unverified; repository validation,
-confirmed Git init/baseline commits, Arena overrides, Tabula copying and execution
+confirmed Git init/baseline commits, Arena overrides and execution
 grants remain subsequent work. Cancel or interrupted selection requires a new
 explicit choice; it never starts planning or a battle.
 
@@ -55,6 +55,16 @@ checked by Secutor and imported by the host within the original criteria and
 lifetime task limit; running/completed task history is never rewritten.
 
 ## Default Tabula
+
+R040b implements **Open Tabulae → Create Tabula → Save task** for manual planning.
+Each board freezes the Arena team and the five default stage keys. Tasks retain
+title, description, criteria and immutable revision history. The Column select
+moves between Specs and ToDo; ToDo requires description and criteria. This is
+draft readiness only, not a validated spec or execution authorization. Delivery
+columns reject manual moves until battle execution exists. Stale editors keep
+their text and require explicitly loading a current draft; history is never
+rewritten. Agent planning, source citations, dependencies and custom columns
+remain open.
 
 | Column / stable key | Assigned role | Exit condition |
 | --- | --- | --- |

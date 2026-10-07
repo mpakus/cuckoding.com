@@ -62,7 +62,7 @@ code { display:block; overflow-wrap:anywhere; font-size:11px; }
 .notice { border:1px solid #c59761; padding:16px; margin-bottom:20px; }
 .codex-setup { margin-top:24px; }
 .codex-setup form { display:grid; gap:14px; }
-.codex-setup input[type=text], .codex-setup select, .role-fields input[type=text], .team-editor select, .team-editor textarea { width:100%; min-width:0; padding:12px; border:1px solid var(--border); border-radius:5px; background:var(--bg); color:var(--text); font:13px ui-monospace,monospace; }
+.codex-setup input[type=text], .codex-setup select, .role-fields input[type=text], .role-fields select, .role-fields textarea, .team-editor select, .team-editor textarea { width:100%; min-width:0; padding:12px; border:1px solid var(--border); border-radius:5px; background:var(--bg); color:var(--text); font:13px ui-monospace,monospace; }
 .codex-setup label { font-size:13px; }
 .codex-setup .fine-print { margin:0; }
 .codex-setup .fine-print code { display:inline; }
@@ -88,6 +88,14 @@ code { display:block; overflow-wrap:anywhere; font-size:11px; }
 .team-history dd { margin:8px 0 20px; color:var(--muted); white-space:pre-wrap; }
 .text-link { text-decoration:underline; text-underline-offset:3px; }
 .arena-path { overflow-wrap:anywhere; font-family:var(--mono, monospace); font-size:13px; }
+.tabula-scroll { overflow-x:auto; margin-top:24px; padding-bottom:12px; }
+.tabula-columns { display:grid; grid-template-columns:repeat(5, minmax(210px,1fr)); gap:12px; }
+.tabula-column { padding:16px; background:var(--bg); border:1px solid var(--border); border-radius:6px; }
+.tabula-column h3 { margin:0; font-size:16px; }
+.task-card { margin-top:20px; border-top:1px solid var(--border); padding-top:16px; }
+.task-card h4 { margin:0; overflow-wrap:anywhere; font-weight:500; }
+.task-card .button { margin-top:12px; }
+.draft-copy { white-space:pre-wrap; overflow-wrap:anywhere; }
 .skip-link { position:absolute; top:-100px; left:20px; padding:12px; background:var(--accent); color:var(--bg); z-index:1; }
 .skip-link:focus { top:12px; }
 @media (max-width:760px) {

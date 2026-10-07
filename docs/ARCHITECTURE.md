@@ -4,7 +4,8 @@ Target architecture, implemented incrementally. R010 provides the tray,
 authenticated LiveView foundation, SQLite and metadata-only setup dispatcher.
 R020a–d add the Codex version/inspection/authorization and fixed model-check adapter.
 R030a adds saved default-team configuration; R040a adds Arena registration and
-frozen team inheritance. Git operations, battles and the task runner below remain subsequent slices.
+frozen team inheritance. R040b adds default Tabulae and manual draft tasks.
+Git operations, battles and the task runner below remain subsequent slices.
 
 Current startup order: Repo → schema validation/migration → PubSub → shell
 authority → durable dispatcher → loopback Endpoint → readiness message.
@@ -32,6 +33,12 @@ and exits on stdin loss/cancel or a two-minute deadline. Folder results do not
 advance provider workspace revisions. Registration reads directory and `.git`
 entry metadata only; it never runs Git or reads project contents. ArenaLive
 previews the path and immutable team revision before confirmation.
+
+`Cuckoding.Tabulae` commits boards and manual task revisions synchronously through
+the same SQLite command/event boundary. TabulaLive scopes routes to their Arena,
+shows the frozen team assignments and preserves dirty editors during broadcasts.
+Specs/ToDo are the only writable draft columns; the other three are visible future
+stages. No provider, Git service, project filesystem or dispatcher is involved.
 
 ## Components
 

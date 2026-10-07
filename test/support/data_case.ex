@@ -19,4 +19,29 @@ defmodule Cuckoding.DataCase do
     pid = Sandbox.start_owner!(Cuckoding.Repo, shared: not tags[:async])
     on_exit(fn -> Sandbox.stop_owner(pid) end)
   end
+
+  # A registered Arena projection; draft-board tests never touch its project path.
+  def arena_fixture do
+    alias Cuckoding.{Arena, Command, Repo, Team}
+    id = Ecto.UUID.generate()
+
+    Repo.insert!(%Command{
+      id: id,
+      kind: "register_arena",
+      state: "completed",
+      expected_revision: 1
+    })
+
+    Repo.insert!(%Arena{
+      command_id: id,
+      selection_id: id,
+      team_revision_id: Team.current().id,
+      name: "Test Arena",
+      path: "/private/tmp/draft-fixture-#{id}",
+      device: 1,
+      inode: System.unique_integer([:positive]),
+      git_entry: "absent",
+      inserted_at: DateTime.utc_now()
+    })
+  end
 end

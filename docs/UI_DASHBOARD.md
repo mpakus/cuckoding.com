@@ -26,6 +26,14 @@ no agent/model is involved. Preserve name, errors and expanded roles through upd
 Git mutation previews and the project dashboard below remain future work.
 No separate Agent Floor, knowledge graph or competing start screen.
 
+R040b adds an Arena-scoped board selector, collapsed board creation and two primary
+regions: a horizontally scrollable five-column Tabula and a manual task editor.
+Each stage names its inherited role; unavailable delivery stages say so in text.
+Cards show draft revision and no active agent. The labelled Column select provides
+Specs/ToDo movement without dragging; errors stay beside Save. Dirty edits survive
+live updates, discard is confirmed inline, and recovered forms cannot target a
+different task. Saved history is collapsed and limited to the latest five revisions.
+
 ## Screens
 
 | Screen | Primary content | Main action |

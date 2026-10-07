@@ -20,6 +20,7 @@ and full-story gates remain open. Historical test counts do not establish proof.
 | R030 | Team revision inheritance, custom role grants, model/auth separation, historical snapshot immutability |
 | R040a | Native chooser/select/cancel/parent loss, bounded protocol, confirmed/idempotent registration, unchanged folders, protected/replaced/duplicate identities, frozen team revision, reconnect/expired session, fresh/prior-schema bundle smoke |
 | R040 | Init refusal/consent, initial-commit preview, path confinement, file-task provenance, dependency cycles, custom column gates |
+| R040b | Frozen Arena-to-Tabula team, immutable task receipts/history, command replay, atomic event rollback, stale/foreign IDs, draft-only stage gates, recovered/dirty forms, desktop/narrow UI and fresh/prior-schema package smoke |
 | R050 | Structured decisions, stale/foreign proposal refusal, review return, exact-head/criteria/check binding, local integration |
 | R060 | Launch/integration crash windows, restart, cleanup/PID reuse, budgets, provider failure, sleep-gap accounting |
 | R070 | Concurrent task/port claims, fairness, prerequisite bases, stale reviews, conflicting integration and recovery |
