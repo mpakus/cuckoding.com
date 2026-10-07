@@ -1,6 +1,6 @@
 # R040h — Speculator prerequisites and source citations
 
-Status: implemented and verified; local integration pending. Owner: Codex.
+Status: complete; verified and merged into local main at `ffe58e9`. Owner: Codex.
 
 - Version the planning response contract. New proposals include prerequisite
   indices and selected-document indices; existing v1 receipts remain unchanged.

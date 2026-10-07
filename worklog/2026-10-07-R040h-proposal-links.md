@@ -102,4 +102,15 @@ The QA root's `identity.json` retains all five changed BEAM hashes.
 No real-provider acceptance, battle execution, physical sleep/wake, clean-machine
 installation, signing/notarization, remote publication or Pages deployment claimed.
 No migration/dependency added. README, AGENTS and affected docs describe shipped
-planning separately from accepted specs and execution. Local integration pending.
+planning separately from accepted specs and execution.
+
+## Local integration
+
+Implementation commit `ffe58e9` (`feat(planning): preserve proposal prerequisites
+and source citations`) was fast-forwarded into local main with
+`rtk git switch main` and `rtk git merge --ff-only feature/r040h-proposal-links`.
+`rtk git branch -d feature/r040h-proposal-links` removed the merged branch.
+`rtk git status --short --branch` was clean, main 17 commits ahead of the saved
+origin/main reference before this documentation closeout. No push performed.
+The packaged evidence above is the same implementation; this closeout changes
+task/worklog status only.
