@@ -27,7 +27,8 @@ development build, not a signed/notarized public release.
 ## Public site
 
 The Roman robot-gladiator site lives in [site/](site/index.html): original
-satirical artwork, a scrollable workflow, subtle parallax and reduced-motion
+trident/code branding, robot banquets, Pan and satyrs dancing in the arena,
+a scrollable workflow, layered parallax and reduced-motion
 controls. Preview it with `rtk proxy python3 -m http.server 4387 --bind 127.0.0.1
 --directory site`. [Site documentation](docs/SITE.md) covers checks, artwork and
 the prepared GitHub Pages workflow. This change is local; it has not been deployed.

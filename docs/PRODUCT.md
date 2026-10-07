@@ -106,7 +106,8 @@ outside the first rebuild.
 
 Defer a plugin marketplace, container/remote runners, general workflow graphs,
 cross-project knowledge publication, autonomous memory extraction, pricing
-analytics, competitive positioning and a public-site redesign. Keep project
+analytics and competitive positioning. The separately requested public site is
+tracked in R015/R016 and does not imply additional app capabilities. Keep project
 documents/specs as ordinary readable Markdown with scoped metadata in SQLite.
 No vector database or external indexing service is needed for the described flow.
 

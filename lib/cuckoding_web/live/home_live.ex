@@ -43,7 +43,13 @@ defmodule CuckodingWeb.HomeLive do
     <div class="app-shell">
       <a class="skip-link" href="#main">Skip to content</a>
       <aside class="sidebar" aria-label="Workspace navigation">
-        <.link navigate={~p"/"} class="brand" aria-label="CCoding home"><span class="brand-mark">C</span><span>CCODING</span></.link>
+        <.link navigate={~p"/"} class="brand" aria-label="CCoding home"><img
+          src={~p"/favicon.svg"}
+          class="brand-mark"
+          width="43"
+          height="43"
+          alt=""
+        /><span>CCODING</span></.link>
         <nav aria-label="Main">
           <.link
             navigate={~p"/"}

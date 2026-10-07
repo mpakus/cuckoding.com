@@ -1,1 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="4" fill="#eee9dd"/><path d="M13 55V27a19 19 0 0 1 38 0v28Z" fill="none" stroke="#aa3926" stroke-width="3"/><path d="M42 23c-4-5-17-4-17 11s13 16 17 11" fill="none" stroke="#242820" stroke-width="4"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="12" fill="#eee9dd"/><title>CCoding — three agents, one trident</title>
+  <g fill="none" stroke="#a83c29" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M32 55V9m-6 7 6-8 6 8M13 13v13c0 9 8 15 19 15s19-6 19-15V13M7 19l6-8 6 8m26 0 6-8 6 8"/>
+    <path d="m24 26-5 5 5 5m16-10 5 5-5 5" stroke="#242820" stroke-width="3"/>
+    <path d="M26 55h12"/>
+  </g>
+</svg>

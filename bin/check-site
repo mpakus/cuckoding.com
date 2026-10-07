@@ -24,7 +24,7 @@ class Page(HTMLParser):
             if key in attrs:
                 self.refs.append(attrs[key])
         if tag == "img":
-            assert attrs.get("alt"), "Images need truthful alternative text"
+            assert attrs.get("alt") or attrs.get("aria-hidden") == "true", "Images need alternative text or explicit decoration"
             assert int(attrs["width"]) > 0 and int(attrs["height"]) > 0
         assert not any(key.startswith("on") for key in attrs), "Keep scripts external"
         if tag in ("script", "iframe"):
@@ -62,6 +62,12 @@ assert (site / "CNAME").read_text().strip() == "cuckoding.com"
 assert (site / ".nojekyll").is_file()
 ET.parse(site / "sitemap.xml")
 ET.parse(site / "assets/favicon.svg")
+assert (site / "assets/mark.svg").read_bytes() == (root / "desktop/mark.svg").read_bytes()
+assert (site / "assets/favicon.svg").read_bytes() == (root / "priv/static/favicon.svg").read_bytes()
+assert sum("data-parallax" in attrs for _, attrs in page.tags) == 3
+for name in ("robot-banquet.png", "pan-revels.png"):
+    assert any(tag == "img" and attrs.get("src") == f"assets/{name}" and attrs.get("loading") == "lazy" for tag, attrs in page.tags)
+    assert (site / "assets" / name).stat().st_size < 4_000_000
 assert (site / "assets/colosseum.png").stat().st_size < 4_000_000
 for file in site.rglob("*"):
     assert not file.is_symlink(), f"Pages cannot publish symlinks: {file}"

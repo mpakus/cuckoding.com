@@ -1,0 +1,36 @@
+#!/bin/sh
+set -eu
+cd "$(dirname "$0")/.."
+stage=$(rtk proxy mktemp -d /private/tmp/ccoding-icons.XXXXXX)
+trap 'rtk proxy rm -rf "$stage"' EXIT
+rtk proxy python3 - "$stage" <<'PY'
+from pathlib import Path
+import sys
+source = Path('desktop/mark.svg').read_text()
+stage = Path(sys.argv[1])
+tile = source.replace('<title>', '<rect width="64" height="64" rx="12" fill="#eee9dd"/><title>', 1)
+(stage / 'tile.svg').write_text(tile)
+(stage / 'tray.svg').write_text(source.replace('#a83c29', '#000000').replace('#242820', '#000000'))
+Path('site/assets/mark.svg').write_text(source)
+Path('site/assets/favicon.svg').write_text(tile)
+Path('priv/static/favicon.svg').write_text(tile)
+PY
+rtk cargo tauri icon "$stage/tile.svg" --output "$stage/app"
+rtk cargo tauri icon "$stage/tray.svg" --output "$stage/tray"
+rtk proxy cp "$stage/app/icon.png" desktop/src-tauri/icons/icon.png
+rtk proxy cp "$stage/app/icon.icns" desktop/src-tauri/icons/icon.icns
+rtk proxy cp "$stage/tray/32x32.png" desktop/src-tauri/icons/tray.png
+# Tauri emits ICNS sizes in hash-map order; normalize only the container ordering.
+rtk proxy python3 - <<'PY'
+from pathlib import Path
+path = Path('desktop/src-tauri/icons/icon.icns')
+data = path.read_bytes()
+assert data[:4] == b'icns' and int.from_bytes(data[4:8], 'big') == len(data)
+chunks, offset = [], 8
+while offset < len(data):
+    size = int.from_bytes(data[offset + 4:offset + 8], 'big')
+    assert size >= 8 and offset + size <= len(data)
+    chunks.append(data[offset:offset + size])
+    offset += size
+path.write_bytes(data[:8] + b''.join(sorted(chunks)))
+PY

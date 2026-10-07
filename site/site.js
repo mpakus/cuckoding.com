@@ -1,6 +1,9 @@
 (() => {
-  const art = document.querySelector("#arena-art");
-  const frame = document.querySelector("#art-window");
+  const scenes = [...document.querySelectorAll("[data-parallax]")].map(frame => ({
+    frame,
+    art: frame.querySelector("img"),
+    ornament: frame.querySelector(".scene-ornament"),
+  }));
   const toggle = document.querySelector("#motion-toggle");
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
   let paused = false;
@@ -10,12 +13,15 @@
 
   function paint() {
     pending = false;
-    const bounds = frame.getBoundingClientRect();
     const off = paused || reduced.matches;
-    // Keep movement inside the image's 13% overscan, including short mobile views.
-    const limit = Math.min(40, bounds.height * 0.06);
-    const offset = off ? 0 : Math.max(-limit, Math.min(limit, (innerHeight / 2 - bounds.top - bounds.height / 2) * 0.09));
-    art.style.setProperty("--parallax-y", `${offset}px`);
+    for (const { frame, art, ornament } of scenes) {
+      const bounds = frame.getBoundingClientRect();
+      // At 1.13 scale, 6% displacement stays inside the 6.5% overscan on each edge.
+      const limit = Math.min(60, bounds.height * 0.06);
+      const offset = off ? 0 : Math.max(-limit, Math.min(limit, (innerHeight / 2 - bounds.top - bounds.height / 2) * 0.2));
+      art.style.transform = `translate3d(0, ${offset}px, 0) scale(1.13)`;
+      if (ornament) ornament.style.transform = `translate3d(0, ${-offset * 0.5}px, 0) rotate(-8deg)`;
+    }
   }
 
   function schedule() {

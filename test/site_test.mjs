@@ -9,13 +9,17 @@ function browser({ reduced = false, saved = null, denied = false } = {}) {
   const events = {};
   const frames = [];
   const attributes = {};
-  let offset;
-  let bounds = { top: 100, height: 400 };
+  const styles = [{}, {}, {}];
+  const ornaments = [{}, {}];
+  const bounds = [{ top: 100, height: 400 }, { top: 1100, height: 600 }, { top: 2100, height: 500 }];
+  const scenes = styles.map((style, i) => ({
+    getBoundingClientRect: () => bounds[i],
+    querySelector: selector => selector === "img" ? { style } : ornaments[i] ? { style: ornaments[i] } : null,
+  }));
+  const offsets = () => styles.map(style => Number.parseFloat(style.transform.split(",")[1]));
   const toggle = { hidden: true, setAttribute: (k, v) => attributes[k] = v, addEventListener: (_, callback) => events.click = callback };
   const media = { matches: reduced, addEventListener: (_, callback) => events.media = callback };
   const nodes = {
-    "#arena-art": { style: { setProperty: (_, value) => offset = Number.parseFloat(value) } },
-    "#art-window": { getBoundingClientRect: () => bounds },
     "#motion-toggle": toggle,
   };
   const storage = {
@@ -23,19 +27,19 @@ function browser({ reduced = false, saved = null, denied = false } = {}) {
     setItem: (_, value) => { if (denied) throw new Error("Denied"); saved = value; },
   };
   runInNewContext(source, {
-    document: { querySelector: selector => nodes[selector] },
+    document: { querySelector: selector => nodes[selector], querySelectorAll: () => scenes },
     window: { matchMedia: () => media, addEventListener: (name, callback) => events[name] = callback },
     innerHeight: 800,
     localStorage: storage,
     requestAnimationFrame: callback => frames.push(callback),
   });
-  return { events, frames, toggle, media, attributes, get offset() { return offset; }, get saved() { return saved; }, bounds: value => bounds = value, flush: () => frames.splice(0).forEach(callback => callback()) };
+  return { events, frames, toggle, media, attributes, get offset() { return offsets()[0]; }, get offsets() { return offsets(); }, get saved() { return saved; }, bounds: value => bounds[0] = value, flush: () => frames.splice(0).forEach(callback => callback()) };
 }
 
 test("parallax responds to scroll, coalesces frames and stays inside image overscan", () => {
   const ui = browser();
   assert.equal(ui.toggle.hidden, false);
-  assert.equal(ui.offset, 9);
+  assert.equal(ui.offset, 20);
   ui.bounds({ top: -10000, height: 200 });
   ui.events.scroll();
   ui.events.scroll();
@@ -52,7 +56,7 @@ test("parallax responds to scroll, coalesces frames and stays inside image overs
 test("pause persists and system reduced motion always stops displacement", () => {
   const ui = browser();
   ui.events.click();
-  assert.equal(ui.offset, 0);
+  assert.deepEqual(ui.offsets, [0, 0, 0]);
   assert.equal(ui.saved, "paused");
   assert.equal(ui.attributes["aria-pressed"], "true");
   assert.equal(ui.toggle.textContent, "Resume parallax");
@@ -65,7 +69,7 @@ test("pause persists and system reduced motion always stops displacement", () =>
   assert.notEqual(restored.offset, 0);
   restored.media.matches = true;
   restored.events.media();
-  assert.equal(restored.offset, 0);
+  assert.deepEqual(restored.offsets, [0, 0, 0]);
   assert.equal(restored.toggle.disabled, true);
   assert.equal(restored.toggle.textContent, "Reduced motion on");
   restored.media.matches = false;

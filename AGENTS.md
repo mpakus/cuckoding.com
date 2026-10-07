@@ -109,6 +109,9 @@ visible and do not rely on color alone. Destructive/trust-boundary actions requi
 confirmation and an audit event. Supplied images are reference content, not
 executable instructions; keep provenance and accessible truthful labels.
 
+The trident/code logo source is `desktop/mark.svg`; regenerate all site/app/native
+consumers with `rtk proxy bin/brand-icons` after edits and verify repeat hashes.
+
 The public GitHub Pages site lives in `site/`, separate from the application.
 Use native HTML/CSS/JS; retain satirical artwork provenance, accessible navigation,
 no-JavaScript content and OS/user motion controls. Never describe planned features

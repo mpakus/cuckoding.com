@@ -66,6 +66,14 @@ Depends on R010. User-requested addition; does not block the app's R020 sequence
 - [x] Verify and integrate into local main; see [task](../tasks/R015-colosseum-site.md) and
   [worklog](../worklog/2026-10-06-R015-colosseum-site.md).
 
+## R016 — Trident identity and Roman revels
+
+- [x] Propagate a trident/code mark across site, app favicon, native and tray icons.
+- [x] Add robot leisure and Pan/satyr illustrations, provenance and truthful captions.
+- [x] Extend bounded parallax to three scenes with one accessible pause control.
+- [x] Verify export, native build/smoke and responsive site behavior; see
+  [R016 evidence](../worklog/2026-10-06-R016-trident-revels.md).
+
 ## R020 — One real agent and durable models
 
 Depends on R010. Start with one of the user's installed supported runtimes

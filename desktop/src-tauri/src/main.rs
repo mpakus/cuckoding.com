@@ -40,7 +40,8 @@ fn main() {
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open, &settings, &about, &quit])?;
             TrayIconBuilder::new()
-                .title("CC")
+                .icon(tauri::include_image!("icons/tray.png"))
+                .icon_as_template(true)
                 .tooltip("CCoding")
                 .menu(&menu)
                 .on_menu_event(|app, event| {
