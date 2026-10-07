@@ -1,371 +1,242 @@
-# Implementation Plan
+# Implementation plan and checklist
 
-The plan is organized as gated phases. Task files under `tasks/` provide the detailed implementation units. A phase is complete only when its outcomes are demonstrated and every exit checklist item is true. The walking skeleton at the end of Phase 4 is the first checkpoint where the product is judged before more infrastructure is built.
+**Rebuild baseline: 2026-10-06. All application items below are unchecked.**
+R001 changes documentation only. Historical source/tests/builds do not satisfy
+these gates. Keep the existing stack; build a usable vertical slice early, then
+extend it to the complete user story.
 
-Current source review: **2026-09-25**. Checked implementation items record source
-and task-specific evidence; the unchecked MVP definition of done below still
-requires one current accepted release candidate. The newest feature is the
-[board development controller](CUCKODING-CONTROL.md), implemented in task 1049
-and not yet accepted on real providers or a packaged macOS app.
+Claim exactly one task file when beginning a slice. Use the R010–R100 IDs below
+for those files and worklogs; do not generate a folder of empty task templates.
+Every slice includes its LiveView surface, durable events, focused regression
+checks and documentation update. R080 is cross-screen polish, not the first UI.
 
-## Phase 0 — Discovery and feasibility
+## Sequence and dependencies
 
-**Outcome:** agreed MVP boundary, competitive position, trusted-host threat model, and proof that one agent runtime, the menubar shell, and sleep/wake handling work on macOS Apple Silicon.
+`R010 → R020 → R030 → R040 → R050 → R060 → R070 → R080 → R090 → R100`
 
-- [x] Record product boundaries, competitors, name/license/pricing hypotheses, and threat model.
-- [x] Spike one agent runtime on the host in a worktree with permissions, cancel, and resume.
-- [x] Spike the menubar shell launching a bundled release and opening the browser. Protocol, clean-account, browser-handoff, and shutdown checks pass.
-- [x] Spike sleep/wake detection and power assertions. Simulated, software-sleep, AC lid-close, and battery recovery checks pass.
-- [x] Record findings and revise decisions.
-- [x] Audit the planning pack and establish RTK/XERJ reference coding.
-- [x] Place repository skills/configuration at root and verify the local toolchain.
+R010 establishes a safe browser shell; R020 proves one real provider; R050 proves
+one autonomous task; R070 adds required parallelism. R090 completes all requested
+provider adapters. Earlier demos are milestones, not claims that the requested
+product is finished.
 
-## Phase 1 — Phoenix foundation
+| User step | Implementation owners |
+| --- | --- |
+| 1. Authorize local agents | R020, R090 |
+| 2. Fetch/cache models | R020, R090 |
+| 3. Roles and Summa Rudis | R030, R050 |
+| 4. Arena and Git consent | R040 |
+| 5. Tabula and role columns | R040 |
+| 6. Tasks from description/files | R040, R050 |
+| 7. Autonomous battle/review loop | R050, R060, R070 |
+| 8. Both dashboards, logs, parallel clones | R070, R080 |
 
-**Outcome:** a testable Phoenix/LiveView application with SQLite, supervision, durable commands, and local developer tooling.
+## R010 — Local application foundation
 
-- [x] Create the Phoenix application and quality gates.
-- [x] Configure SQLite durability and migrations.
-- [x] Implement append-only events and durable command dispatch.
-- [x] Add process registry, supervision, leases, and correlation IDs.
+Depends on R001. Read [architecture](ARCHITECTURE.md), [data](DB.md) and
+[security](SECURITY.md).
 
-## Phase 2 — Domain and persistence
+- [ ] Pin a supported Elixir/OTP, Phoenix/LiveView, Ecto/SQLite and Tauri 2
+  toolchain; establish the project license/distribution files before shipping.
+- [ ] Create Phoenix app, SQLite migrations, durable command/event boundary and
+  one supervised dispatcher. Preserve older app data in a separate data root.
+- [ ] Add the minimal Tauri tray: Open CCoding, Settings, About, Quit; launch the
+  bundled development release and open the loopback LiveView home.
+- [ ] Implement shell bootstrap, single-use browser handoff, origin/session/CSRF
+  protections and owned graceful shutdown.
+- [ ] Wire RTK/Ponytail defaults and executable discovery; define formatter,
+  compiler, ExUnit, Credo, Sobelow and shell quality commands.
 
-**Outcome:** projects, boards, tasks, workflows, runs, attempts, approvals, artifacts, events, and secrets survive restarts.
+Acceptance: launch from the tray, see one browser screen, reject unauthorized/
+replayed access, reconnect without data loss, Quit cleans only owned processes.
+Run foundation/migration/security/shell checks and record the actual build.
 
-- [x] Implement schemas and domain commands.
-- [x] Enforce versioned workflow and policy snapshots.
-- [x] Implement idempotent transitions and event sequencing.
-- [x] Implement startup reconciliation and recovery.
-- [x] Implement Keychain-backed `SecretStore` and redaction.
+## R020 — One real agent and durable models
 
-## Phase 3 — Local workspaces and process runner
+Depends on R010. Start with one of the user's installed supported runtimes
+(default implementation order: Codex first); no simulated connection may pass
+the real-provider gate.
 
-**Outcome:** confined worktrees, supervised host processes, ports and preview URLs, hibernate/resume, and power handling.
+- [ ] Implement the shared adapter/runner boundary and metadata-only discovery,
+  manual executable selection and separate compatibility/authorization states.
+- [ ] Add app-owned login/status/logout and connection persistence.
+- [ ] Fetch models after login; cache bounded IDs/options/source/freshness in
+  SQLite, with stale catalog, manual refresh and validated fallback behavior.
+- [ ] Prove a read-only turn and a permitted worktree-writing turn in isolated
+  workspaces; normalize public activity, outcomes and redacted logs.
+- [ ] Add task/process identity, cancellation, clean environment, path policy,
+  finite timeout and baseline adapter conformance checks.
 
-- [x] Git worktree lifecycle and path confinement.
-- [x] `LocalProcessRunner` with process groups, environment allowlist, timeouts.
-- [x] Command policy and protected paths.
-- [x] Port allocation and preview URLs.
-- [x] Pause, hibernate, resume, safe cleanup.
-- [x] Power assertions and sleep/wake reconciliation.
+Acceptance: one login supports two Arena-shaped workspaces and different models
+across app restart; revoked access and missing models produce actionable errors;
+personal profiles are untouched; canaries do not enter artifacts.
 
-## Phase 4 — Agent adapters and walking skeleton
+## R030 — Saved roles and team
 
-**Outcome:** normalized adapters and one end-to-end thin slice.
+Depends on R020.
 
-- [x] Adapter behaviour, fake adapter, conformance suite.
-- [x] Claude Code, Codex, and run-scoped Cursor Agent adapters.
-- [x] Cursor Agent adapter and OpenCode stable stub.
-- [x] Walking skeleton: fake CI plus an isolated real-Codex demo cover sleep/resume, approval UI, evidence, and local-bare-remote release.
+- [ ] Seed Speculator, Implementor, Secutor and a separate Summa Rudis coordinator
+  binding; let one connection/model serve all in independent sessions.
+- [ ] Build create/edit/name/agent/model/instructions for custom roles with
+  read-only defaults and confirmed/audited grant changes.
+- [ ] Persist immutable default-team revisions and explicit Arena/Tabula overrides.
+- [ ] Show role readiness and unresolved bindings without starting work.
+- [ ] Keep same-account model edits separate from authorization identity.
 
-## Phase 5 — Workflow engine and Kanban
+Acceptance: save the team once, reuse it without per-task assignment, change a
+future default without changing an existing snapshot, and reject permission
+expansion from role text.
 
-**Outcome:** tasks move through configurable durable workflows across multiple boards.
+## R040 — Arena, Tabula and planning
 
-- [x] Workflow validation and transition evaluation.
-- [x] Accessible Kanban and task detail.
-- [x] Multiple boards, dependencies, budgets, concurrency, unattended mode.
-- [x] Gates, human approval, host-side release handoff.
+Depends on R030.
 
-## Phase 6 — Agent Floor and telemetry
+- [ ] Register canonical local folders using a native chooser; support empty,
+  document-only, unborn-Git and existing repositories. Confirm Git init and
+  preview/authorize any initial commit separately; preserve uncommitted files.
+- [ ] Create multiple Tabulae per Arena with Specs, ToDo, In Process, Review,
+  Completed; show the assigned role for each working stage.
+- [ ] Add/rename/reorder columns and assign custom roles through versioned
+  definitions. Enforce mandatory final Secutor review after all writing stages.
+- [ ] Create/edit tasks manually and from a selected planning role using a brief,
+  selected files or `docs/`; persist versioned specs, source references and
+  acceptance criteria.
+- [ ] Validate bounds, paths, duplicates and acyclic dependencies; support user
+  edits before Start without launching delivery work.
+- [ ] Persist project-approved check commands and grants separately from agent
+  proposals. Provide empty states and keyboard task movement.
 
-**Outcome:** users see who is doing what, what it costs, and what happened during sleep.
+Acceptance: create an Arena from an empty folder and one from existing docs;
+decline Git initialization without mutation; generate usable tasks with citations;
+custom columns cannot bypass review; planning creates no coding processes.
 
-- [x] Normalized activity stream.
-- [x] Host resource metrics and rollups.
-- [x] Usage and cost accounting with confidence labels.
-- [x] Agent Floor, run detail, agent inspector.
+## R050 — First autonomous battle
 
-## Phase 7 — Knowledge
+Depends on R040. This is the first end-to-end product milestone.
 
-**Outcome:** evidence becomes reviewed project and global knowledge and skills; use is visible.
+- [ ] Implement one Start battle authorization for goal/spec, task membership,
+  team, model, policy, base revision, check commands and cumulative limits.
+- [ ] Give Summa Rudis a closed decision contract; host-validate/persist decisions
+  and route every launch through common admission.
+- [ ] Run Speculator → Implementor → Secutor with explicit spec/candidate/evidence
+  handoff; return all review comments to Speculator before another implementation.
+- [ ] Execute confirmed custom stages in order with their actual grants.
+- [ ] Retain independent Secutor sessions; bind passes to exact criteria, Git
+  heads and host-check receipts. Summa Rudis cannot override rejection.
+- [ ] Integrate locally into a battle branch, run final checks and final Secutor
+  assessment, then show a complete result with branch/spec/review/log links.
+- [ ] Permit reviewed in-scope repairs/splits while preserving original criteria,
+  task lineage, lifetime counters and authorization.
 
-- [x] Knowledge store, front matter, index sync.
-- [x] Per-run extraction with memory operations.
-- [x] Consolidation jobs and redaction.
-- [x] Review queue, publication, skill packaging, revocation.
-- [x] Injection into runtimes and usage tracking.
-- [x] Knowledge Growth and Lineage/Usage views.
+Acceptance: one Start completes a two-task dependency chain with a forced review
+return and no ordinary human prompts. A forged/stale completion cannot advance
+state. New unrelated tasks remain outside the running battle. No remote Git
+operation or user-checkout merge occurs.
 
-## Phase 8 — Plugin system
+## R060 — Controls and durable recovery
 
-**Outcome:** optional tools connect through manifests without touching the core.
+Depends on R050.
 
-- [x] Manifest schema, discovery, registry, health, enablement.
-- [x] Behaviours and conformance suites per kind.
-- [x] Reference plugins: RTK, Ponytail, XERJ, generic MCP server.
-- [x] Container runner plugin contract and stub.
+- [ ] Implement Pause/Resume/Retry/Stop/Skip with durable intent, correct pending
+  states, verified process cleanup and retained partial artifacts.
+- [ ] Add bounded transient recovery/backoff, separate review/failure counters,
+  deadline enforcement and no repeated sign-in questions per task.
+- [ ] Reconcile DB/process/transport/worktree/Git/port ownership before startup
+  admission; never blindly replay uncertain work.
+- [ ] Detect sleep gaps, reconcile leases, preserve active/wall accounting and
+  manage the native idle-sleep assertion honestly.
+- [ ] Classify task-local versus Arena-wide blockers; continue independent work
+  when safe and present the smallest actionable attention request.
+- [ ] Preserve input/focus and reconnect both UI and workers safely.
 
-## Phase 9 — Shell and packaging
+Acceptance: crash before/after launch and integration, lost transport, rate-limit
+wait, revoked auth, PID reuse and budget exhaustion produce correct durable
+states without duplicate execution. Pass simulated and physical sleep/wake tests
+separately. Stop preserves changes and cannot kill an unrelated provider app.
 
-**Outcome:** a signed, notarized, updateable macOS build with the menubar shell.
+## R070 — Parallel workers and safe combined results
 
-- [x] Menubar shell and handshake.
-- [x] Release bundling, signing, notarization.
-- [x] Updater, backups, migrations, rollback.
-- [x] Login item and diagnostics bundle.
+Depends on R060. Required for the requested release, not a deferred enhancement.
 
-## Phase 10 — Hardening and beta
+- [ ] Clone role instances into independent sessions/worktrees/process groups.
+- [ ] Atomically claim tasks, capacity and ports; enforce global/Arena/Tabula/
+  provider caps, fairness and one active battle per Arena.
+- [ ] Dispatch independent tasks concurrently; wait for integrated prerequisites.
+- [ ] Serialize integration; if the battle head changed, validate/test/review the
+  combined candidate and compare-and-swap the head.
+- [ ] Route conflicts to bounded spec/implementation repair; retain every branch
+  and failed integration candidate.
+- [ ] Recover uncertain Git effects and expired claims without duplicate work;
+  reserve scheduling opportunity for coordinator/review to avoid starvation.
 
-**Outcome:** the product withstands common threats and recovers predictably; controlled external testing.
+Acceptance: run two independent tasks concurrently, a third dependent task after
+both, a deliberate overlap/conflict, two Arenas and a crash during integration.
+No lost code, duplicate claims, stale review acceptance or premature Completed.
 
-- [x] Capability and secret hardening, adversarial prompt and plugin tests.
-- [x] Crash, power-loss, and sleep recovery drills.
-- [x] Task 1003 source prerequisite: two disposable boards reached Development
-  concurrently with distinct branches, worktrees, artifacts, ownership markers,
-  and board/task-correlated events. Real-provider process/port isolation and
-  enrolled-app D03 observation remain open.
-- [x] The `3246b3b` unsigned developer `.app` built and passed the sterile
-  release verifier, including startup/authentication, crash cleanup, safe mode,
-  and update/rollback checks on 2026-09-21. The subsequent test-only gate
-  correction did not change app source. This is not
-  a signed beta enrollment build or clean-Mac release acceptance.
-- [x] Release artifact staging preserves the prior signed distribution if
-  notarization, updater signing, or metadata generation fails; a completed
-  candidate is promoted with the previous distribution retained for rollback.
-  This script regression is not a fresh signed/notarized build.
-- [x] Automatic resource-sample pruning now retains old measurements until a
-  finished stage aggregate is durable, including after a simulated eight-day
-  interruption.
-- [x] Task 1004: completed-minute rollups catch up in bounded, durable batches
-  after a simulated outage; raw samples wait for both minute and stage
-  aggregates before pruning. Signed-build retention/consent still needs
-  verification.
-- [x] Task 1004: reconcile the current launch-adapter, credential-store,
-  public-name/license, and output-retention disclosures with shipped source.
-  Artifact retention policy and signed-build consent verification remain open.
-- [x] Task 1004: publish a source-grounded operator guide and explicit no-go
-  report covering support, onboarding, limits, privacy/data, backup, recovery,
-  and troubleshooting. Release notes/artifacts and clean-Mac acceptance remain
-  open in [RELEASE_READINESS.md](RELEASE_READINESS.md).
-- [x] Task 1004: the official macOS release workflow now runs `mix quality`
-  before signing/notary secrets are imported. The first manual CI run exposed
-  two tests that assumed an installed Claude CLI; after fixing those fixtures,
-  [run 35663188771](https://github.com/mpakus/cuckoding.com/actions/runs/35663188771)
-  on `112473e` passed 288 tests/10 properties, lint, security scan, and audit.
-  The value-free preflight then stopped before certificate import because five
-  Apple certificate/notary secrets are absent. Signed-artifact acceptance is open.
-- [x] Task 1004: rerun the official hosted release source gate on `e96882b`.
-  [Run 35680103836](https://github.com/mpakus/cuckoding.com/actions/runs/35680103836)
-  passed `mix quality` (289 tests, 10 properties, zero failures) before the
-  value-free preflight again found the same five missing Apple secrets.
-  Signing, notarization, updater packaging, and artifact upload were skipped.
-- [x] Task 1004: rerun that non-publishing release workflow on then-current `main`
-  `734128f`. [Run 35684138654](https://github.com/mpakus/cuckoding.com/actions/runs/35684138654)
-  passed pinned setup and `mix quality` (290 tests, 10 properties, zero
-  failures); the same five absent Apple secrets stopped configuration before
-  signing, packaging, or upload.
-- [x] Task 1004: replace two non-resolving release-action SHAs with verified
-  upstream v1.24.1 setup-beam and v7.0.0 certificate-import commits. Both
-  pinned setup actions executed in the manual job; certificate import remains
-  untested because the preflight correctly stopped first.
-- [x] Task 1004: update the release workflow's checkout pin to official
-  Node 24-native v5.1.0. [Branch run 35681124404](https://github.com/mpakus/cuckoding.com/actions/runs/35681124404)
-  executed that checkout and passed `mix quality` (289 tests, 10 properties);
-  it still stopped before signing on the same five missing Apple secrets.
-- [x] Task 1004: verify GitHub Actions `macos-15` targets Apple Silicon and add
-  a value-free preflight for all required release secrets and update variables
-  after source quality, before certificate import. Missing Apple credentials
-  still block an actual signed candidate.
-- [x] Task 1004: document the stakeholder credential handoff for CI, including
-  Developer ID `.p12` export, Team API key versus local `notarytool` profile,
-  and the distinction between issuer ID and Team ID. Provisioning the five
-  missing secrets and accepting a signed CI artifact remain open.
-- [x] Task 1004: disclose in Settings that an explicitly created diagnostics
-  bundle stays local until the owner deletes it and is not uploaded by the app.
-  Stakeholder artifact-retention approval and signed-build consent checks remain open.
-- [x] Task 1004: re-run the unsigned developer build and full source gate.
-  The concurrent event-sequence property's wait now covers the existing bounded
-  SQLite retry window; a controlled 11-second lock still completed and the
-  full gate passed. This is not signed-release or real-provider evidence.
-- [x] Task 1004: sign the then-current `3246b3b` app's 26 Mach-O files with
-  Developer ID, notarize it with the saved `Cuckoding` profile, staple the accepted ticket,
-  pass Gatekeeper, and re-run the embedded release's sterile verifier. This
-  local app drill is not a signed updater/release package or clean-Mac acceptance.
-- [x] Task 1004: archive that stapled app, extract the ZIP on the same Mac,
-  apply a quarantine attribute to the extracted copy, and recheck its ticket,
-  strict signature, Gatekeeper acceptance, and embedded-release sterile suite.
-  The ZIP has a recorded SHA-256; this is not a clean-Mac install or updater.
-- [x] Task 1004: stage the checksum-matched ZIP for the separate QA macOS
-  account. Its menubar/browser launch remains unobserved: the current user's
-  signed shell would use live app data, and switching to `qa` needs an
-  administrator or an interactive QA login.
-- [x] Task 1004: build then-current `17d367a` source in an isolated checkout, pass
-  the sterile bundled-release verifier, sign all 26 Mach-O files, notarize and
-  staple the app, then verify a quarantined extraction of its post-staple ZIP.
-  This is revision-specific same-Mac app evidence, not a complete signed updater,
-  clean-Mac install, or enrollment release.
-- [x] Task 1004: stage that checksum-matched `17d367a` ZIP for the existing `qa`
-  macOS account without replacing the older staged copy. Its menubar/browser
-  launch and data checks remain unobserved.
-- [x] Task 1004: rebuild `a3ef7b1` with `bin/dev.build`, pass its sterile
-  verifier, sign and notarize the app, then verify a quarantined extraction
-  of its post-staple ZIP on the same Mac. Stage a checksum-matched copy for
-  the existing `qa` account without replacing older candidates. This is not
-  an updater, QA-account launch, or clean-Mac acceptance.
-- [x] Task 1004: repeat the build, Developer ID signing, Apple notarization,
-  quarantined post-staple ZIP checks, and embedded-release sterile drill for
-  `6ebbd6c` after the runner fix. Stage a checksum-matched copy for `qa`
-  without replacing earlier candidates. This remains same-Mac app evidence.
-- [x] Task 1004: repeat those same-Mac checks for current app code `d7a6222`
-  and stage its distinct checksum-matched ZIP for `qa`. Neither the QA account
-  nor a clean Mac has launched it; updater and release-package gates remain open.
-- [ ] Produce and verify a fresh signed/notarized enrollment build at the
-  accepted beta revision. The `d7a6222` signed app and ZIP passed same-Mac
-  checks, but `desktop/dist/` predates current app code; the signed updater,
-  complete release metadata, clean-Mac test, and CI Apple certificate/notary
-  secrets remain open.
-- [x] Task 1008: safe public-message boundary and actionable empty states across
-  Phoenix UI surfaces; raw internal errors are excluded from browser alerts.
-- [x] Complete the accepted project-first product flow:
-  - [x] Global dashboard lists projects, health, resources, active work, and attention.
-  - [x] Add-project wizard separates identity, repository/branch, and review; project settings versions multiple agents and role assignments.
-  - [x] Project settings creates boards independently from project registration.
-  - [x] Board task creation and run preparation use the default Speculator → Implementor → Reviewer workflow and copied board role assignments; legacy snapshots retain earlier names/routing.
-  - [x] Board prompts create planning runs; validated, user-selected proposals become Draft tasks.
-  - [x] Task 1024: blocked or failed delivery tasks can prepare a distinct retry
-    run without deleting the prior run, worktree, logs, or artifacts; failed
-    preparation leaves the task Ready for recovery.
-  - [x] Task 1025: completed delivery and planning processes ingest bounded,
-    provider-reported usage into idempotent session records. Missing or malformed
-    telemetry remains unavailable; historical runs require an explicit safe
-    replay and real-provider accounting acceptance remains open.
-  - [x] Task 1026: new unexpected worker failures record a bounded, non-secret
-    application source location and show it on the run page. This does not
-    diagnose the older blocked Development run or replace real-provider retest.
-  - [x] Task 1027: saved-agent creation uses Name/runtime → executable and
-    authorization → provider models and Codex-supported reasoning levels.
-    CLI paths are suggested with a manual fallback; fixture checks do not close
-    the real-provider acceptance gate.
-  - [x] Task 1028: compare the requested autonomous project story with shipped
-    behavior and record its gaps, decisions, and next implementation slices in
-    [AUTONOMOUS_PROJECT_FLOW.md](AUTONOMOUS_PROJECT_FLOW.md). Task 1028 was
-    documentation only; project dispatch followed in task 1029 and sequential
-    Start board followed in task 1049.
-  - [x] Task 1030: Ready cards show the current scheduler admission reason
-    during automatic project operation; paused and prepared-run states are
-    explained without claiming that Ready never starts automatically.
-  - [x] Saved machine-local agent metadata can be attached across projects without rewriting old board/run snapshots.
-  - [x] Task 1020: host-validated Review findings rerun Specifications/Coding within a fixed budget; passing runs can complete locally without release or continue to approved handoff.
-- [ ] Task 1018: complete real-provider acceptance of [agent-first authorization](AGENT_AUTHORIZATION_FLOW.md). Global management, shared profiles, automatic checks, grouped roles and explicit legacy bindings are implemented and regression-tested. Both Cursor and Codex keyring access fail with an isolated run `HOME`; their native app-owned file stores are now selected consistently for sign-in, check, model discovery, launch and logout. Authenticated cross-project runs remain required evidence.
-- [x] Task 1018 preflight: on 2026-09-21 both installed CLIs reported
-  authenticated under isolated, app-owned file profiles. This is CLI status
-  evidence only; it does not close the real-provider execution gate above.
-- [x] Task 1018 runner hardening: a real Cursor smoke exposed same-group worker processes left after CLI exit; exit-time cleanup now has a failing-before/fixed-after regression and audited signal events. The smoke reused one Cursor sign-in in two disposable repositories, but did not exercise the full board workflow. Detached-group ownership and Codex workflow execution remain open gates.
-- [x] Task 1018 process inspection now fails closed when the host `ps` table
-  is unavailable or malformed before signaling or reporting a live group.
-  This does not resolve detached descendants or replace real-provider tests.
-- [x] Task 1019: reuse a compatible provider sign-in across named agents by default; select each agent's model independently and preserve it in planning/workflow requests. Additive migration and regression checks preserve existing accounts. Provider-controlled expiry and real authenticated concurrency remain task 1018 gates.
-- [ ] Verify one saved login across isolated runs in two projects for each supported runtime, including refresh/restart/revocation and concurrency; current configuration tests are not proof of credential reuse.
-- [x] Complete shared-account revocation UX and per-project impact lists. The
-  confirmed provider-scoped logout records value-free request/completion events, blocks new
-  launches for linked agents, and preserves running work and historical snapshots.
-- [ ] Dogfood and controlled beta.
-- [ ] MVP release readiness.
+## R080 — Tabula Gladiatorum and ten-minute experience
 
-The previously reported provider-key rotation was stakeholder-confirmed on
-2026-09-23 without secret inspection; see [BETA_REPORT.md](BETA_REPORT.md).
-Remaining gate order: finish real-provider and shared-account lifecycle evidence; run controlled beta;
-then execute task 1004 against one frozen signed release candidate. Isolated
-CLI sign-in status and automated tests never substitute for those execution,
-participant, or release acceptance gates.
+Depends on R070; earlier slices already provide functional UI.
 
-## Role contract alignment — 2026-09-24
+- [ ] Global dashboard: Arena summaries, active workers, progress and attention.
+- [ ] Arena dashboard: selected Tabula, team/progress and worker details using the
+  same durable projections.
+- [ ] Task inspector: spec, review comments, attempts, candidates and evidence.
+- [ ] Scrollable/paginated logs with follow-tail control and safe file opening.
+- [ ] Apply the one/two-region modern TUI visual contract, mouse/keyboard
+  alternatives, non-color status, responsive layout and reduced motion.
+- [ ] Remove duplicate start paths and per-task setup; keep provider internals in
+  inspect views and preserve user text/focus across updates.
+- [ ] Time an unfamiliar user's first launch through ready-to-start; fix any
+  repeated assignments, missing defaults or unexplained states.
 
-The user clarified the intended defaults in [PRODUCT.md](PRODUCT.md#default-roles-and-extensibility).
-Task 1038 implements the checked source changes; unchecked items and the
-complete local-application acceptance remain open:
+Acceptance: user identifies who does what globally and per Arena, opens old/new
+log chunks, pauses/retries by keyboard and completes the setup target. Record
+rendered desktop/narrow screenshots and observed timing with prerequisites.
 
-- [x] Present Speculator, Implementor and Reviewer as the three default agent
-  roles while preserving stable identifiers and historical snapshots.
-- [ ] Verify Speculator creates specs and task descriptions from prompts and
-  committed project `.md` plan files, and Implementor uses both to produce code
-  and tests. Keep task-proposal import and trust boundaries explicit.
-- [x] Route every Reviewer revision result in new default workflows through Cuckoding to Speculator with
-  the review-comment list; rerun implementation/review within finite budgets.
-  Older boards/run snapshots retain their versioned routing. New boards publish
-  a revised default version; no history is rewritten.
-- [x] Add another-model proposal review before import, with validated revisions,
-  comments, preserved IDs/history, a saved Markdown report and retry handling.
-  Focused domain/LiveView checks pass; current native/provider acceptance is
-  tracked separately by task 1038.
-- [x] Offer explicit automatic local completion at run/project start, retain the
-  per-run decision and evidence, and preserve separate remote-release approval.
-  Prior project controls migrate to manual mode without changing existing data.
-- [x] Connect user-added roles to versioned delivery slots after Speculator or
-  Implementor, with confirmed read-only/worktree-write grants, downstream reports
-  and preserved run snapshots. This is source/fixture evidence; arbitrary graph,
-  external-path and network permission editing are not offered.
-- [ ] Cover role defaults, Markdown intake, comment propagation, return routing,
-  permission enforcement and snapshot preservation before claiming completion.
+## R090 — Complete requested runtime coverage
 
-## Board development controller — 2026-09-25
+Depends on R080 for final user-flow acceptance; reuse R020's adapter boundary.
 
-- [x] Task 1048: source-grounded controller proposal and dependent CTRL-01–07 checklist.
-- [x] Task 1049: durable fixed membership, reviewed Start board, active read-only
-  Speculator decisions, shared admission and reviewed commit handoff.
-- [x] Task 1049: board controls/recovery, skip/defer outcomes, complete available
-  batch accounting, live board/home UI and accessible committed-state motion.
-- [x] Source validation: 369 tests and 10 properties, prior-schema migration,
-  motion tests and rendered desktop/mobile checks recorded in the
-  [1049 worklog](../worklog/2026-09-25-1049-board-controller.md).
-- [ ] Real-provider board execution, correction/authorization/usage evidence.
-- [ ] Physical sleep/wake and packaged-app restart with owned provider processes.
-- [ ] Signed clean-machine build/install and actual-running-revision checks.
+- [ ] Claude Code: verify current official interface/license, safe authorization,
+  model discovery/defaults, grant mapping, streaming, cancellation and recovery.
+- [ ] Cursor: verify the same plus profile/history and project config behavior.
+- [ ] Hermes: verify the intended official distribution/interface, license and
+  all the same capabilities; record unsupported functions explicitly.
+- [ ] Re-run Codex acceptance on the pinned shipping version.
+- [ ] Exercise a mixed-runtime team and parallel same-account sessions.
+- [ ] Degrade gracefully when one runtime is missing, disconnected or unsupported.
 
-The detailed contract and acceptance list is [CUCKODING-CONTROL.md](CUCKODING-CONTROL.md).
-Task 1050 synchronizes documentation; it does not close these external gates.
+Acceptance: each advertised runtime passes shared conformance and real-provider
+two-Arena/login/restart/review/cancellation tests. A capability gap stays an open
+item and is reported to the user; it is not silently counted as provider support.
 
-## Paperclip adoption proposal — 2026-09-30
+## R100 — Package and prove the story
 
-Task 1056 analyzed a pinned MIT-licensed Paperclip checkout against current
-Cuckoding source and the goal **Agents once → new project → describe → Run →
-working result**. The revised [adoption plan](PAPERCLIP_ADOPTION_PLAN.md) prioritizes
-a reusable default team, automatically reviewed task planning, one delivery
-authorization, bounded autonomous resolution and verified whole-goal completion.
-Recurring routines and portable bundles are removed from this roadmap; Attention
-is limited to exceptions. AU-01–AU-05 replace the earlier PC slice labels.
-These are proposals, not implemented capabilities or release evidence. The
-existing role chain, board controller and separate release boundaries remain.
+Depends on every previous slice.
 
-Implementation is now authorized and tracked in
-[task 1057](../tasks/phase-10-hardening-beta/1057-autonomous-project-flow.md).
-The working tree contains reusable default-team setup, the guided project brief
-screen, automatic reviewed Draft creation, durable Ready to run, separate Run
-authorization and a shared elapsed deadline. Trusted command preflight and host
-receipts now support final criterion/integration review at the last reviewed
-head, with bounded automatic repair planning. Reason-aware recovery reuses durable
-stage checkpoints. Real Codex empty-folder and existing-project runs reached Done;
-a further one-Run drill passed a plan-review correction, injected provider wait
-and fresh-VM restart without questions or repeating completed Speculator work.
-The current packaged control plane also completed an existing-project run with a
-real post-Run review correction, two tasks, seven verified criteria and zero questions.
-All 469 tests and 10 properties pass. The native shell launched after a verified
-backup and forward migration, and graceful restart preserved waiting work.
-Retained diagnostics exposed a wake-metadata count/list mismatch; the fix now has
-a real-reconciler regression and a passing rebuilt bundle. A native one-Run
-empty-project drill completed two tasks, nine criteria and two host checks after
-real physical sleep and 12 measured wake gaps. Authorization stayed unchanged,
-no task questions or manual recovery occurred, and all 20 owned processes ended.
-A subsequent native restart preserved the completed result and Ready plan without
-starting delivery. The final UI observation needs a fresh tray-menu browser session.
-Full autonomous Tauri-shell restart
-and signed-release evidence remain separate open gates in task 1057's worklog.
+- [ ] Reproducible signed/notarized Apple Silicon application with bundled release
+  and verified helper provenance; no developer toolchain needed by the user.
+- [ ] Clean-machine install/launch/quit and login persistence; document provider
+  prerequisites separately.
+- [ ] Prior-data backup/import or safe explicit separate-data behavior; verify
+  recovery and prevent accidental old-database overwrite.
+- [ ] Signed update, migration and rollback/recovery path that preserves evidence;
+  no update while owned mutations are uncertain.
+- [ ] Run the complete [acceptance matrix](TESTING.md): ten-minute setup, file
+  planning, custom role/column, review loop, parallel conflict, both dashboards,
+  logs, provider interruption, restart, sleep and final local result.
+- [ ] Record source revision, build identity, actual launched artifact, provider
+  versions, commands/results and remaining limitations. Recreate release CI
+  only when the invoked scripts exist and have passed.
+- [ ] Publish user-facing claims only from this evidence, with separate human
+  approval for external release.
 
-## Definition of done for MVP
+Definition of done: all eight story steps work in the packaged app, required
+checks pass, no required criteria remain unresolved, and no old test count or
+mock provider is used as current release evidence.
 
-The [current-flow audit](DOCUMENTATION_AUDIT.md) separates implemented UI/domain
-surfaces from real-provider and release evidence. Custom workflow/board editors
-and execution through OpenCode/Custom Agent are not shipped capabilities.
+## Deferred work
 
-- [ ] Two supported agent runtimes complete the default workflow on the host runner.
-- [ ] Two boards run concurrently without worktree, port, process, or event crossover. The deterministic source test covers worktrees and events; it does not exercise provider process groups, ports, or the enrolled app.
-- [ ] A running task survives hibernate, app quit, relaunch, and a real sleep/wake cycle with a single execution of each stage. Task 1002 passed 27/27 named recovery drills, including physical sleep, but those stage workers were fixtures; the integrated current-build task observation remains open.
-- [ ] The Agent Floor attributes every action to a role, runtime, model, and run.
-- [ ] Provider-reported and estimated costs are visually distinguishable; active and wall time are both shown.
-- [ ] A failed QA gate returns structured findings to development.
-- [ ] Human approval triggers a host-side release handoff that pushes a branch and creates a draft PR.
-- [ ] A completed run yields knowledge candidates; consolidation and publication require the documented approvals; the next run records knowledge usage; both dashboard views render.
-- [ ] RTK, XERJ, Ponytail, and a generic MCP plugin can be enabled, contribute labeled results, and be removed without breaking core.
-- [ ] A clean supported Mac installs, starts from the menubar, executes a sample project, updates, and uninstalls safely.
+No plugin marketplace, vector/indexing server, autonomous knowledge pipeline,
+remote/container workers, public-site rebuild, automatic push/PR/merge or
+analytics suite in these slices. Add only for a concrete later user need.
+Use `rtk rg`, existing project skills and scoped Markdown files now.

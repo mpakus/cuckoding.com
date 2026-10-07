@@ -5,6 +5,8 @@ description: Extract, consolidate, review, publish, inject, and track use of pro
 
 # Knowledge Compression
 
+This subsystem is deferred by `docs/PRODUCT.md`. Do not introduce it as part of the Arena/Tabula rebuild unless explicitly requested.
+
 - Markdown files with front matter are the content; SQLite indexes items, candidates, jobs, and usage.
 - Extraction runs per run with bounded input, redaction, and explicit memory operations (add/update/supersede/noop).
 - Consolidation runs when idle or on demand; rewrites are versioned; contradictions become supersessions.

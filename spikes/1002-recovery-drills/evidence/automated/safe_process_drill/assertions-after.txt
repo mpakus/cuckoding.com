@@ -1,3 +1,0 @@
-source: /usr/bin/pmset -g assertions
-target_pid: 62543
-target_present: false

@@ -1,333 +1,43 @@
 # Development
 
-## Supported toolchain
-
-The application foundation was pinned from official upstream metadata in task
-0101. The table reflects the current checked-in pins; it is not a fresh inventory
-of the user's installed tools.
-
-| Component | Version |
-| --- | --- |
-| Erlang/OTP | 28.4 |
-| Elixir / Mix | 1.19.5 compiled for OTP 28 |
-| Phoenix / `phx_new` | 1.8.14 |
-| Phoenix LiveView | 1.2.12 |
-| Ecto SQL / SQLite3 adapter | 3.14.0 / 0.24.1 |
-| Tailwind wrapper / binary | 0.5.1 / 4.2.1 |
-| Esbuild wrapper / binary | 0.10.0 / 0.25.4 |
-| Bandit | 1.12.5 |
-
-The exact Erlang and Elixir versions are in `.tool-versions`; direct and transitive Elixir dependencies are fixed by `mix.exs` and `mix.lock`. Updating any pin is an explicit maintenance change with the full quality gate. Tailwind 4.3.0 was evaluated but its official arm64 binary was terminated by macOS before startup; 4.2.1 is the compiler retained from that verification.
-
-## Clean bootstrap
-
-From a clean checkout with RTK available:
-
-```sh
-rtk mix setup
-rtk mix quality
-rtk env PHX_SERVER=true mix phx.server
-```
-
-`mix setup` fetches dependencies, creates/migrates the development database,
-installs the pinned Tailwind and esbuild binaries, and builds assets. `mix quality`
-checks formatting, unused locks, warnings-as-errors compilation, tests, strict
-Credo, Sobelow and the Hex dependency audit. The server listens only on
-`127.0.0.1:4000`; open `http://127.0.0.1:4000`.
-
-## Developer application build
-
-On Apple Silicon macOS, create the unsigned application used for local testing:
-
-```sh
-rtk ./bin/dev.build
-```
-
-The entrypoint delegates to the one existing desktop build pipeline. It builds
-the production Phoenix release, runs the release-metadata and pinned Rust
-checks, bundles the Tauri application, and runs the sterile shell verifier. The
-verified application is written to
-`desktop/src-tauri/target/release/bundle/macos/Cuckoding.app`. This command does
-not Developer ID sign, notarize, or create distributable update artifacts; use
-`desktop/release.sh` only for an authorized release.
-
-Restart that development bundle with:
-
-```sh
-rtk ./bin/dev.restart
-```
-
-The helper works from any current directory. It sends the supported graceful
-shutdown signal only after checking this checkout's shell path, PID and start
-identity, waits for its descendants to exit, opens the bundle once, and prints
-the new loopback address after health succeeds. Use the menu bar to open an
-authenticated dashboard. A stopped app is simply started. Another Cuckoding
-bundle, an orphaned release, failed shutdown or failed health check stops the
-command with an error; it never force-kills processes or changes application
-data. It restarts the existing build; run `bin/dev.build` for changed source.
-Schema upgrades still require the data-upgrade procedure below.
-
-The focused restart regression uses simulated process/HTTP responses and
-intercepts all signals and application launches:
-
-```sh
-rtk proxy env -u GEM_HOME -u GEM_PATH PATH=/usr/bin:/bin:/usr/sbin:/sbin /usr/bin/ruby desktop/dev_restart_test.rb
-```
-
-### Testing one local instance
-
-The native bundle, a Phoenix development/test preview, and the static
-`github.page/` preview are separate processes and may show different revisions.
-Editing source or merging main does not update an already built or running app.
-For a requested stop-all-and-run-one check:
-
-1. Identify owned Cuckoding shells, their release children and task-owned
-   previews by executable name, PID/start identity, working directory and
-   loopback listener. Never dump full process arguments or environments; they
-   can contain credentials belonging to unrelated applications. Historical
-   worklog ports/PIDs are not a current process inventory.
-2. Use the Cuckoding menu's **Quit** path (or its supported graceful signal
-   path), which hibernates work before shutdown. If hibernation fails, inspect
-   the failure instead of killing active runs. Stop only verified task-owned
-   previews and confirm their listeners/descendants have exited. Do not stop
-   Codex Desktop, Cursor or unrelated BEAM processes.
-3. When testing new application source, build with `rtk ./bin/dev.build`, follow
-   the data-upgrade procedure below if needed, then open the resulting
-   `desktop/src-tauri/target/release/bundle/macos/Cuckoding.app` once.
-4. Verify exactly one intended Cuckoding shell/control-plane pair, its actual
-   loopback listener and healthy `/health` response. Open the authenticated
-   dashboard through the menubar action; do not bypass the handshake. Record
-   build identity, database scope, health and UI checks separately.
-
-For isolated UI checks, use a separate disposable database/provider directory
-and disable execution workers. Do not print raw preview/debug logs: redact
-before inspection, including session/CSRF/bootstrap values. No preview or old
-unsigned build substitutes for clean-Mac signed-release acceptance.
-
-### Updating existing developer data
-
-Signed updates create a durable database, knowledge, and configuration snapshot
-before migration. Directly replacing an unsigned developer bundle does not
-fabricate that updater state, so startup fails closed when its existing schema
-is older than the embedded release.
-
-For a local developer-data upgrade, quit Cuckoding and use this sequence:
-
-1. Confirm no process has the application database open, `PRAGMA
-   integrity_check` returns `ok`, and no run is active.
-2. Create a uniquely named, mode-`0600` SQLite online backup beneath
-   `~/Library/Application Support/com.cuckoding.desktop/manual-backups/` and
-   verify the backup independently. Snapshot any project `.cuckoding/knowledge`
-   and `.cuckoding/project.yml` files when present.
-3. Run only the checked-in forward migrations from the exact developer bundle
-   being tested. Do not create or edit `pending-update.json`; that marker belongs
-   to the signed updater and its durable update attempt.
-4. Recheck database integrity, foreign keys, applied migration versions, and
-   important row counts before reopening the application. Retain the backup
-   until the rebuilt application has started and the data has been inspected.
-
-The evidence from the first exercised developer-data upgrade is recorded in
-`worklog/2026-09-20-1022-developer-data-migration.md`. This maintenance path is
-for local source builds only; release installation must use the updater flow in
-`docs/DISTRIBUTION.md`.
-
-## Project-first onboarding
-
-The dashboard's **Add project** action opens a three-step wizard: project
-identity, a native macOS folder chooser and base branch, then review. The local
-Phoenix service opens the system chooser, so the browser never uploads or
-enumerates the selected folder. Registration accepts an empty folder, an unborn
-Git repository, or an existing project. Inspection is read-only until final
-confirmation; then Cuckoding initializes Git and creates the first local commit
-when needed. Registration records only the project and its first trusted
-configuration version. A saved default team is copied into that revision and
-opens the project brief screen; otherwise registration opens project settings.
-Later default-team edits affect new projects only. Registration does not create a
-board, task, queued run, feature branch, worktree, port, or provider process.
-
-Project settings can save machine-wide agents, attach them to projects, and assign them to
-the built-in Speculator, Implementor, and Reviewer roles or user-added roles.
-Every save appends an immutable configuration revision. The runtime selector
-shows Codex, Claude Code, Cursor Agent, OpenCode, and Custom Agent; the Claude
-API-key helper is rendered and validated only for Claude Code. Saved Cursor
-agents reuse an app-owned provider file profile; each run retains its own task
-configuration and worktree. OpenCode and Custom Agent record
-only reviewed machine-local settings, carry an explicit setup-only warning, and
-cannot start task runs until their adapter contract and conformance evidence are
-complete. Each agent card saves or updates independently; role saves remain a
-separate immutable configuration revision.
-
-Task 1054 implements agent communication through ACP. All three supported adapters
-use the shared client. Codex/Claude require the pinned standalone bridges in
-`priv/agent_bridges/`: follow [the bridge build instructions](../agent_bridges/README.md)
-once before development runs and after bridge changes. `desktop/build.sh`
-builds them for the native release. No Node/Bun installation is needed at runtime.
-Run `rtk env -u CR_PAT mix test test/cuckoding/adapters/acp test/cuckoding/adapters/codex_test.exs test/cuckoding/adapters/claude_code_test.exs test/cuckoding/adapters/cursor_agent_test.exs test/cuckoding/execution/local_process_runner_test.exs`
-for its focused fixtures, then `rtk env -u CR_PAT mix quality` for the repository
-gates. An initialize-only probe is separate from authenticated planning,
-delivery, cancellation, sleep recovery and packaged-app acceptance. See the
-[communication contract](AGENT_RUNTIME_ADAPTERS.md#acp-communication-task-1054)
-and [task worklog](../worklog/2026-09-27-1054-acp-communications.md).
-
-A project may be registered while its working tree is dirty so the user can
-organize existing work. Starting a task remains stricter: the run boundary
-requires a clean repository, captures the base revision, snapshots workflow and
-role configuration, and only then creates the feature worktree.
-
-`Cuckoding.ProjectWorkflow` creates boards and prepares task runs;
-`Cuckoding.GuidedRun` is the current run-page delivery launcher, delegating to
-the walking-skeleton execution service. Its old all-in-one constructor is not
-the dashboard onboarding flow. `Cuckoding.BoardTaskIntake` retains the manual
-planning/import path. `ProjectDelivery.prepare/3` handles the guided brief:
-Create plan starts bounded read-only planning and independent review, imports
-Draft tasks, verifies native tools and stops at Ready to run. Run separately
-authorizes the exact prepared goal and trusted commands. Task preparation alone
-does not launch a provider;
-manual Start, project autopilot and the board controller use shared admission
-and live authorization checks. `BoardControl` uses the existing supervised
-dispatcher for fixed Draft/Ready batches, active Speculator decisions and reviewed
-commit handoff. Project autopilot omits claimed boards. Board controls, complete
-batch statistics and the start preflight are described in
-[CUCKODING-CONTROL.md](CUCKODING-CONTROL.md).
-
-Saved Codex accounts select the provider's file store in one private app-owned
-`CODEX_HOME` for login and execution; existing keyring sign-ins need to be
-repeated there. Real cross-project reuse still needs the check described in
-[TESTING.md](TESTING.md). Legacy board snapshots without saved-account IDs keep
-per-run login. Claude Code uses a reviewed helper, and saved Cursor accounts
-use a private app-owned file store too.
-See [CONFIGURATION.md](CONFIGURATION.md) before expecting a project edit to
-affect an existing board. The wizard never infers GitHub credentials.
-
-## Production release smoke test
-
-Build assets and the release with production configuration:
-
-```sh
-rtk env MIX_ENV=prod mix assets.deploy
-rtk env MIX_ENV=prod mix release --overwrite
-```
-
-The release requires a writable `CUCKODING_DATABASE_PATH` and a unique mode-0600
-`CUCKODING_BOOTSTRAP_FILE` containing the per-launch session secret and bootstrap
-token. It uses `CUCKODING_PORT` when present and starts the web endpoint only
-when `PHX_SERVER=true`. It always binds IPv4 loopback. The desktop shell creates
-and deletes the credential file; credentials never appear in argv or ordinary
-environment variables.
-
-SQLite connections use WAL journaling, foreign keys, a 5-second busy timeout, synchronous `NORMAL`, and immediate write transactions. `mix setup` creates and migrates the development database; `mix test` creates and migrates the disposable test database before running tests.
-
-## Context boundaries
-
-The application contexts own these implemented domain boundaries:
-
-| Context | Responsibility |
-| --- | --- |
-| `Cuckoding.Projects` | Project identity and configuration revisions |
-| `Cuckoding.Workflows` | Workflow definitions, boards, tasks, approvals, and transitions |
-| `Cuckoding.BoardControl` | Fixed board execution, validated decisions, reviewed head, commands and whole-batch accounting |
-| `Cuckoding.ProjectAutopilot` | Concurrent project Ready-task admission; its worker also dispatches sequential board batches |
-| `Cuckoding.Execution` | Durable commands, runs, attempts, leases, and host execution |
-| `Cuckoding.Adapters` | Replaceable agent-runtime contracts and normalized results |
-| `Cuckoding.Plugins` | Plugin manifests, activation, capabilities, and health |
-| `Cuckoding.Knowledge` | Knowledge provenance, review, publication, and retrieval |
-| `Cuckoding.Power` | Assertions, sleep-gap detection, and wake reconciliation |
-| `Cuckoding.Telemetry` | Activity, measurements, estimates, and diagnostics |
-| `Cuckoding.Shell` | Authenticated native-shell/control-plane boundary |
-
-LiveViews render durable context results; they do not own workflow state.
-
-## Runtime surfaces
-
-- `/` is the project-first operations dashboard.
-- `/projects/new` is the non-executing project registration wizard.
-- `/projects/:id/edit` manages saved agents, project role assignments, and boards.
-- `/settings/agents` is the machine-wide saved-agent catalog with executable
-  discovery, explicit manual override, app-owned sign-in and model selection.
-- `/boards/:id` creates Draft tasks/planning runs, starts reviewed board batches,
-  and shows Kanban, batch controls, statistics and evidence.
-- `/boards/:board_id/tasks/:id` edits eligible tasks and prepares their runs.
-- `/runs/:id` authenticates/starts queued work and shows progress, failures, proposals, and evidence.
-- `/agents` is Agent Floor; `/agents/:id` inspects a recorded session, not a saved account.
-- `/health` reports application and dependency health separately.
-- `/status` adds an allowlisted configuration snapshot; sensitive configuration is never inspected wholesale.
-- Requests receive `x-request-id` and matching `x-correlation-id` response headers, and both identifiers are included in key-value log metadata.
-
-Use `Cuckoding.Correlation.capture/0` before spawning work and `with_context/2` inside the child process. Emit application telemetry through `Cuckoding.Correlation.execute/3` so the current public correlation ID is carried without copying Logger process metadata by hand.
-
-The injected `Cuckoding.Clock` behaviour supplies wall and monotonic time. Tests use `Cuckoding.TestClock`; durable code must not call system time directly when behavior depends on time.
-
-## Reference coding
-
-The local XERJ search for task 0101 returned the existing loopback endpoint at `spikes/0003-menubar-release/control_plane/lib/cuckoding_shell_spike/endpoint.ex:1-27` and Vibe Kanban's request-ID and health route at `crates/remote/src/routes/mod.rs:161-183` in pinned revision `735654971bd396aa97b65166955678e4c34f8bf8` (Apache-2.0). This foundation adapts only the patterns: loopback service boundaries, propagated request IDs, and a small versioned health response. Cuckoding adds separate dependency health, correlation metadata, secret-safe diagnostics, and the repository's release constraints.
-
-For task 0102, XERJ returned Agetor's WAL, synchronous `NORMAL`, and foreign-key setup at `src/bun/db.ts:61-73` in pinned revision `eb74ab5f3d6d71dfb91d5bd34e9c679c5a955a6a` (MIT). Cuckoding adapts those SQLite durability settings through the official Ecto SQLite3 adapter and adds a busy timeout, immediate write transactions, append-only event triggers, transactional per-run sequencing, and a durable idempotent command ledger.
-
-For task 0103, XERJ returned Hydra's persisted-agent hydration at `electron/agents/AgentManager.ts:300-346` in pinned revision `d8ad56112c2c3acfb2f65f53b6890f30a25c693c` (MIT). Cuckoding adapts only the restart principle: reconstruct volatile workers from durable identifiers and reset transient state. Cuckoding keeps lease ownership in SQLite, hashes bearer tokens, orders sleep-gap extension before expiry, and uses OTP registry/supervision rather than an in-memory agent map.
-
-For task 0201, XERJ returned Vibe Kanban's explicit UUID-backed task record at `crates/db/src/models/task.rs:1-56` in pinned revision `735654971bd396aa97b65166955678e4c34f8bf8` (Apache-2.0). Cuckoding adapts the relational identity pattern while adding its board/run/attempt hierarchy, UUIDv7 command boundary, database enum checks, DAG rejection, immutable snapshots, and partial ownership indexes.
-
-For task 0202, XERJ returned Vibe Kanban's closed `TaskStatus` enum at `crates/db/src/models/task.rs:7-20` in the same pinned Apache-2.0 revision. Cuckoding adapts the explicit state vocabulary, then adds guarded transition graphs, same-transaction task/run projections and public events, persisted idempotent outcomes, required wait reasons, and separate active/wall timing.
-
-For task 0203, XERJ returned the repository's measured PID-plus-start-identity check at `spikes/0004-sleep-wake-power/power_manager_spike.rb:507-510` and Hydra's persisted-agent hydration at `electron/agents/AgentManager.ts:300-351` in pinned MIT revision `d8ad56112c2c3acfb2f65f53b6890f30a25c693c`. Cuckoding keeps the identity check, durable-ID reconstruction, and duplicate-session guard, then adds read-only port/worktree inspection, explicit continue/recover/block events, sleep-gap lease ordering, and a synchronous pre-scheduling gate.
-
-For task 0204, XERJ returned Vibe Kanban's `SecretString` storage and redacted debug formatter at `crates/relay-tunnel/src/server_bin/auth.rs:14-15,58-68` in pinned Apache-2.0 revision `735654971bd396aa97b65166955678e4c34f8bf8`. Cuckoding adapts the non-printing boundary and adds Keychain-backed opaque references, stdin-only writes, value-free access audits, and recursive pre-boundary canary redaction.
-
-For task 0303, XERJ returned Vibe Kanban's structured `git diff --name-status` model and rename/copy parser at `crates/git/src/cli.rs:47-66,215-227,466-509`, plus its approval request path at `crates/executors/src/executors/codex/client.rs:456-499`, in pinned Apache-2.0 revision `735654971bd396aa97b65166955678e4c34f8bf8`. Cuckoding adapts the structured change-list and fail-closed approval boundary, then adds NUL-delimited filenames, both rename paths, trusted configuration snapshots, `.cuckoding/` as an unconditional protected root, exact change-set digests, atomic single-use decisions, and durable audit events.
-
-For task 0304, XERJ returned Vibe Kanban's loopback availability probe and ascending free-port search at `scripts/setup-dev-environment.js:12-36`, and its direct listener bind with OS-selected actual ports at `crates/server/src/main.rs:96-121`, in pinned Apache-2.0 revision `735654971bd396aa97b65166955678e4c34f8bf8`. Cuckoding adapts loopback bind verification but adds a declared project range, durable exclusive lease, database active-port constraint, second OS check, token-free persistence, fixed loopback environment, bounded no-redirect health probe, process/start-identity ownership, and explicit stop/hibernate release.
-
-For task 0305, XERJ returned Vibe Kanban's centralized Git worktree cleanup at `crates/worktree-manager/src/worktree_manager.rs:230-265` in the same pinned Apache-2.0 revision. Cuckoding adapts the single Git-service boundary, but rejects forced deletion and ignored errors: checkpoint ordering, PID/start-identity validation, canonical confinement, marker and revision matching, clean status, no-running-process proof, and retained-artifact events are mandatory.
-
-For task 0306, XERJ returned the repository's accepted clock, assertion, and reconciliation spike at `spikes/0004-sleep-wake-power/power_manager_spike.rb:13-109`. The production manager keeps that measured continuous-minus-uptime algorithm and `caffeinate -i -w` lifecycle, then adds SQLite `power_events`, the existing lease-first reconciler, provider-session eligibility, durable unattended expiry, and pending-approval preservation. The pinned Hydra search supplied no power-specific code to adapt.
-
-For task 0401, project XERJ retrieval returned the runtime spike's explicit grant and sandbox-hash boundary at `spikes/0002-host-runtime/host_runtime_spike.rb:90-136`; the pinned Hydra MIT index confirmed persisted provider session IDs and native resume as adapter boundaries. Cuckoding adapts those ideas into a provider-neutral behaviour with typed requests, explicit requested/enforced/unenforced grants, separate requested and observed models, normalized untrusted events, bounded continuation packages, and a deterministic fake adapter. No peer code was copied.
-
-For task 0402, XERJ returned the repository's redacted host-runtime harness at `spikes/0002-host-runtime/host_runtime_spike.rb:131-235,318-324,390-412` and Hydra's provider preflight/headless/resume split at `electron/agents/providers.ts:4-24,34-81,84-110` in pinned MIT revision `d8ad56112c2c3acfb2f65f53b6890f30a25c693c`. Cuckoding retains only the preflight and native-resume concepts. It adds a pinned fixture vocabulary, strict run-scoped configuration, non-bypass permissions, explicit unenforced restrictions, secret/reasoning filtering, host-runner cancellation, knowledge citations, and the fail-closed OAuth isolation boundary. No peer code was copied.
-
-For task 0403, XERJ returned the accepted runtime spike summary at `docs/HOST_AGENT_RUNTIME_SPIKE.md` and Hydra's Codex native-resume/model-selection boundary at `electron/agents/providers.ts:112-145` in the same pinned MIT revision. Cuckoding adapts only the native session-resume concept. It adds a pinned `0.146.0` JSONL vocabulary, run-scoped `CODEX_HOME` and `AGENTS.md`, strict sandbox and non-interactive approval mapping, disabled network/plugin/hook/subagent surfaces, host-runner cancellation, recursive redaction, explicit tool-grant limitations, and a fail-closed scoped-auth boundary. No peer code was copied.
-
-For task 0404, XERJ returned the accepted Cursor isolation decision at `docs/HOST_AGENT_RUNTIME_SPIKE.md:3-8,34-50,70-78` and Hydra's basic Cursor/OpenCode launch/resume mapping. Cuckoding does not adapt that launch code: the local Cursor evidence violates global state/plugin isolation, and only the OpenCode desktop app is installed. Both integrations are small fail-closed stubs with real binary probes, zero advertised adapter capabilities, and disabled, visibly explained LiveView options.
-
-For task 0405, project XERJ retrieval returned the walking-skeleton, testing, and later release-handoff contracts. The pinned Vibe Kanban implementation at `crates/git/src/cli.rs:368-397` constructs an explicit branch refspec and disables terminal prompting for push at commit `735654971bd396aa97b65166955678e4c34f8bf8` (Apache-2.0). Cuckoding adapts only that bounded push shape and adds a same-run human approval, durable idempotency, local-bare-only validation, clean candidate/ownership checks, non-force behavior, and ordered audit events. No peer code was copied.
-
-The real-provider completion pass also retrieved Agetor's explicit attempt ordinals at `src/shared/types.ts:142-205` in pinned MIT revision `eb74ab5f3d6d71dfb91d5bd34e9c679c5a955a6a`, plus Vibe Kanban's null stdin at `crates/executors/src/executors/opencode.rs:115-120` and bounded review timeout at `crates/review/src/main.rs:23` in the pinned Apache-2.0 revision above. Cuckoding independently applies those behaviors through durable failed attempts, monotonic retry numbers, immediate noninteractive stdin EOF, and a validated adapter wall limit. Its stricter host boundary still owns candidate commits and approved pushes; no peer code was copied.
-
-For task 0501, the local XERJ node was unavailable, so the pinned checkouts were inspected directly and the degraded retrieval is recorded in the worklog. Vibe Kanban's closed task vocabulary at `crates/db/src/models/task.rs:7-24` and Agetor's finite recovery-attempt metadata at `src/shared/types.ts:142-205` confirmed the useful boundaries. Cuckoding keeps lifecycle states separate from versioned stage graphs and implements its own normalized validator, finite budgets, labeled transition evaluator, cycle safety, and finding routing. No peer code was copied.
-
-For task 0502, the local XERJ node remained unavailable, so the pinned Vibe Kanban checkout was inspected directly. Its workspace preferences at `crates/db/src/models/scratch.rs:132-152` persist project and Kanban filters in the database. Cuckoding uses URL query parameters instead, giving the single-user local board reloadable and shareable filters without a new preference table. The accessible native transition controls, server-authorized drag targets, durable command outcomes, and edit audit event are independent implementations; no peer code was copied.
-
-For task 0503, the local XERJ node remained unavailable, so the pinned peers were inspected directly. Hydra's `electron/agents/AgentManager.ts:168-176` and `electron/agents/AgentManager.test.ts:298-317` enforce and verify a hard active-agent cap. Agetor's `src/bun/claude-tmux-queue.test.ts:660-688` verifies that independent task queues do not block each other. Cuckoding adapts those two behaviors into layered durable admission and cross-board fairness, then adds dependencies, trusted project limits, memory/port probes, unattended approval notification keys, and safe board-control behaviours. No peer code was copied.
-
-For task 0504, the local XERJ node remained unavailable, so pinned Agetor revision `eb74ab5f3d6d71dfb91d5bd34e9c679c5a955a6a` was inspected directly under its MIT license. `src/bun/github.ts:60-120,1610-1650` constrains the API origin, requires a credential, validates PR inputs, and sends a draft-PR payload. Cuckoding adapts that trust boundary while adding typed hash-verified evidence, protected-branch refusal, same-run human approval, opaque `SecretStore` references, host-only Git authentication, value-free audit records, and fixture-injected network tests. No peer code was copied.
-
-For task 0601, the local XERJ node remained unavailable, so pinned Vibe Kanban revision `735654971bd396aa97b65166955678e4c34f8bf8` was inspected directly under Apache-2.0. `crates/utils/src/msg_store.rs:37-119` retains bounded in-memory history and combines it with a broadcast stream, but logs and drops subscriber lag. Cuckoding adapts the history-plus-live interface while replacing volatile history with redacted append-only SQLite rows, gapless per-stream sequences, post-commit PubSub hints, subscribe-before-catch-up reads, durable-ID deduplication, and explicit sleep-gap/stale UI text. No peer code was copied.
-
-For task 0602, the local XERJ node remained unavailable, so the project and pinned Hydra revision `d8ad56112c2c3acfb2f65f53b6890f30a25c693c` were inspected directly under their existing licenses. The project identity check in `lib/cuckoding/execution/local_process_runner.ex` was the applicable source; Hydra had no process-resource pattern to adapt. Cuckoding extends its verified PID/start-identity boundary to the owned process group, records cumulative CPU, RSS, process count, and listening ports without interpolation, keeps stage active and wall time separate, and explicitly labels host limits unenforced. No peer code was copied.
-
-For task 0603, the local XERJ node remained unavailable, so pinned MIT sources were inspected directly. Agetor revision `eb74ab5f3d6d71dfb91d5bd34e9c679c5a955a6a` validates usage independently from optional cost at `src/bun/fx-acp.ts:1832-1856`; Hydra revision `d8ad56112c2c3acfb2f65f53b6890f30a25c693c` labels its dashboard as local-log analysis and normalizes token/cost dimensions at `src/components/UsageDashboard/UsageDashboard.tsx:86-89,346-370`. Cuckoding adapts the separation principle, then adds immutable effective-dated catalogs, integer formulas, explicit billing mode, session-scoped replay protection, independent usage/cost provenance, and append-only plugin claims. No peer code was copied.
-
-For task 0604, the local XERJ node remained unavailable, so pinned Hydra revision `d8ad56112c2c3acfb2f65f53b6890f30a25c693c` was inspected directly under its MIT license. Its status-aware agent cards and grouping patterns appear at `src/components/Sidebar/AgentItem.tsx:32-175`, `src/components/GridView/TerminalTile.tsx:80-165`, and `src/components/GridView/GridView.tsx:240-330`. Cuckoding adapts only the visible status, grouping, and inspection ideas. Its own implementation uses durable database projections, bounded fixed-query retrieval, native links and selects, table alternatives, coalesced refreshes, and no mutating control without a live ownership handle. The pinned Vibe Kanban source contained no more applicable UI pattern, and no peer code was copied.
-
-For task 0701, the local XERJ node remained unavailable, so the pinned peers were inspected directly. Agetor revision `eb74ab5f3d6d71dfb91d5bd34e9c679c5a955a6a` reads Markdown front matter only from a successfully readable project-tree file and keeps project/global source identity explicit at `src/bun/commands.ts:49-119,300-356` (MIT). Cuckoding adapts only those file-authority and scope-separation ideas. It adds a strict bounded schema, exact-byte hashes, confined non-symlink paths, durable mismatch states, explicit higher-version user acceptance, required global review, and project authorization before path resolution. No peer code was copied.
-
-For task 0702, the local XERJ node remained unavailable and direct inspection of pinned MIT Agetor plus Apache-2.0 Vibe Kanban found no knowledge-extraction pipeline to adapt. Cuckoding therefore follows its own documented boundary: only normalized public events and artifact descriptors enter a bounded fixed template; redaction runs before and after the recorded run adapter; the control plane assigns evidence and classifies memory operations; and a failed job cannot leave partial candidates. No peer code was copied.
-
-For tasks 0802 and 0803, the local XERJ node remained unavailable. Direct
-inspection of pinned Apache-2.0 Vibe Kanban
-`crates/executors/src/executors/mod.rs:222-285` and
-`crates/executors/src/executors/qa_mock.rs:1-85` informed explicit contracts
-with deterministic fakes. Pinned MIT Agetor
-`src/bun/commands.ts:380-420,610-682` informed scoped MCP discovery and
-credential-free descriptions. Cuckoding adds current durable activation,
-signed run-scoped grants, closed/redacted outputs, source-labeled numbers,
-server-derived namespaces, offline exact-package configuration, and tool
-allowlists. No peer code was copied.
-
-For task 1002, the local XERJ node was unreachable, so pinned MIT Agetor
-revision `eb74ab5f3d6d71dfb91d5bd34e9c679c5a955a6a` was inspected directly.
-Its abortable full-jitter stream retry at `src/cli/sse.ts:112-130` remains an
-adapter-layer option only after Cuckoding durably records the sleep gap,
-extends leases, and performs one idempotent reconciliation. The drill reuses
-the repository's existing lifecycle, power, reconciler, and release fixtures;
-no peer code was copied.
+Current checkout: documentation reset with application sources intentionally
+removed. There is no runnable Mix app, native build or release script here yet.
+Begin with R010 in [the plan](PLAN.md); do not run old build commands or restore
+the deleted implementation wholesale.
+
+## Working procedure
+
+1. Read [AGENTS](../AGENTS.md), the core contracts and one selected plan slice.
+2. Claim one task file and add a worklog with acceptance criteria.
+3. Inspect Git state; preserve the user's intentional deletions and unrelated
+   edits. Use the task's feature/fix branch.
+4. Search local source with RTK; follow [reference coding](REFERENCE_CODING.md)
+   for unfamiliar mechanisms. Apply Ponytail full.
+5. Implement the smallest complete behavior with focused checks and durable
+   events; update only affected contracts.
+6. Run [quality gates](TESTING.md), record exact evidence and leave an explicit
+   handoff for anything still open.
+
+Every repository shell command starts with `rtk`. Use `rtk proxy` when filtering
+would corrupt exact source/protocol output or command semantics; record why.
+Stored product commands describe the underlying operation, not the RTK wrapper.
+
+## Data and runtime safety
+
+Use an isolated development data root. The source reset does not authorize
+erasing old app databases, provider profiles, knowledge, logs or worktrees.
+Any import/upgrade needs backup-first tests against a copy.
+
+A future requested restart must inspect only owned CCoding instances by executable,
+PID/start identity, working directory and listeners; never dump argv/environments.
+Use the graceful shell shutdown path, verify process/listener cleanup, then open
+one explicitly chosen build and record its identity. Do not kill unrelated Codex,
+Claude, Cursor or Hermes processes. This docs task does not restart the old app.
+
+## Toolchain and distribution
+
+Keep Elixir/OTP, Phoenix LiveView/Tailwind, Ecto/SQLite, Git worktrees and Tauri 2.
+Choose/pin current compatible versions in R010 and prove clean-machine packaging
+in R100. No macOS user should need an Elixir/Rust toolchain to run the bundle.
+Reintroduce CI only with real scripts/checks; no pipeline should point to removed
+files or publish documentation claims as a working release.

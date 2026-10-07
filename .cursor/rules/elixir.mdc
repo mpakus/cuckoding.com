@@ -1,17 +1,14 @@
 ---
-description: Elixir, Ecto, and LiveView conventions for AgentDesk
+description: Elixir, Ecto and LiveView conventions for Cuckoding
 globs: **/*.{ex,exs,heex}
 alwaysApply: false
 ---
 
-# Elixir conventions
-
-- Supervise long-lived processes. Use `DynamicSupervisor` + `Registry` for sessions.
-- Keep GenServer callbacks thin; put rules in pure modules.
-- Tagged tuples at boundaries. UTC microsecond timestamps. UUID primary keys.
-- Cast external data with changesets. Pin query values with `^`.
-- No DB queries in disconnected LiveView `mount/3` — use `assign_async`.
-- Streams for large activity lists. Subscribe to PubSub only when `connected?/1`.
-- Authorize every `handle_event`. Never `raw/1` untrusted agent or repo content.
-- Spawn provider processes with argv lists, never interpolated shell strings.
-- After changes: `mix compile --warnings-as-errors` and `mix format --check-formatted`.
+- Supervise long-lived workers; keep domain rules outside LiveViews.
+- SQLite owns state. Write events and projections atomically; broadcast afterward.
+- Use changesets and bound external values; never create atoms from model input.
+- Subscribe to PubSub only when connected; reload committed state after reconnect.
+- Authorize every mutation and escape repository/agent content.
+- Preserve forms/focus across live updates; stream/paginate long activity lists.
+- Launch commands as validated executable/argv, never interpolated shell strings.
+- Run relevant RTK-wrapped formatter, compiler, tests and static analysis.

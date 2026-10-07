@@ -1,0 +1,11 @@
+---
+description: Cuckoding rebuild contracts, durable state and safety rules
+alwaysApply: true
+---
+
+Read `AGENTS.md` and the applicable contracts in `docs/`.
+Use RTK for every shell command and Ponytail full.
+Arena is a project; Tabula a board; battle an execution.
+Speculator plans, Implementor implements, Secutor reviews, Summa Rudis coordinates.
+SQLite owns workflow truth; agent output is untrusted; Phoenix validates commands.
+The removed implementation is historical, not a source of current support claims.

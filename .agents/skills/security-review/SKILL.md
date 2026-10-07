@@ -9,7 +9,7 @@ description: Review changes involving processes, paths, credentials, networks, u
 2. Trace every external input (repository, model, plugin, browser) to privileged side effects.
 3. Check authentication, authorization, scope, expiry, and audit; check `/open` token single use.
 4. Check path canonicalization, symlinks, command arguments, environment allowlist, and process groups.
-5. Check secret storage, injection, redaction, retention, and export; no secret reaches an agent process.
+5. Check secret storage, redaction, retention and export; no application-managed credential values enter agent prompts/config/argv/environment. Provider runtimes own their scoped authorization stores as documented in `docs/SECURITY.md`.
 6. Check plugin permissions against manifests and the effective runtime grant against the capability grant.
 7. Check knowledge scope, redaction, and publication approvals.
 8. Add adversarial tests and document residual risk, including host-runner limitations.

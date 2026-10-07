@@ -1,302 +1,88 @@
-# Testing Strategy
+# Verification and acceptance
 
-## Principles
+All gates describe future implementation unless the R001 worklog says a
+documentation check ran. The user removed the old test/build sources.
 
-- Every behaviour has a fake implementation used by core tests; real tools run only in opt-in integration suites.
-- Tests that touch time use injected continuous-monotonic, uptime, and wall sources. Sleep gaps are continuous-minus-uptime divergence; wall time supplies UTC timestamps and must not trigger a gap by itself.
-- Failure evidence is preserved: run/event IDs, redacted logs, process inspection, database snapshot metadata, artifact hashes. No raw secrets or unrelated source data.
-- Normal CI never depends on paid providers; real-provider smoke tests are opt-in, budget-capped, and redact captured data before fixture review.
-- The deterministic workflow lane covers closed Review output validation, Specifications/Coding return routes, mixed-stage ordering, the three-Review budget, durable finding events, and both confirmed completion choices. Local-completion tests assert that evidence/worktree remain and no remote ref or release attempt exists.
+## Gates by slice
 
-## Test matrix by component
+| Slice | Smallest required evidence |
+| --- | --- |
+| R010 | Clean migration + prior-data isolation, event/command idempotency, shell authentication/replay/loopback, graceful Quit |
+| R020 | Adapter parsing/cancellation/canaries, model-cache persistence/failure, real login + isolated execution across two workspaces |
+| R030 | Team revision inheritance, custom role grants, model/auth separation, historical snapshot immutability |
+| R040 | Init refusal/consent, initial-commit preview, path confinement, file-task provenance, dependency cycles, custom column gates |
+| R050 | Structured decisions, stale/foreign proposal refusal, review return, exact-head/criteria/check binding, local integration |
+| R060 | Launch/integration crash windows, restart, cleanup/PID reuse, budgets, provider failure, sleep-gap accounting |
+| R070 | Concurrent task/port claims, fairness, prerequisite bases, stale reviews, conflicting integration and recovery |
+| R080 | LiveView reconnect, keyboard/focus/input preservation, narrow viewport, logs pagination/tail, timed setup |
+| R090 | Full conformance + real evidence for each named provider and mixed-runtime team |
+| R100 | Signed clean-machine install/update, DB backup/restore, physical sleep and complete story on actual bundle |
 
-Task 1019 additionally verifies authorization-reference compatibility and
-immutability, shared revocation status, model-only edits preserving login,
-per-model stage requests despite authentication-probe deduplication, planning
-model snapshots, and a prior-schema database copy migrated without changing
-existing account data. LiveView tests cover model selection and shared sign-in
-controls in both Agents and project settings. Native refresh and years-long
-retention cannot be established by fixture tests.
-Task 1018 lifecycle coverage also verifies that root impact is aggregated across
-linked named agents and current project/board roles, that only a confirmed root
-control is rendered, and that scoped provider logout records value-free request/completion events
-while propagating authorization-required status. The fake command runner asserts
-the app-owned environment and provider logout argv without reading credentials.
-Live browser acceptance on 2026-09-20 verifies the real Codex and Cursor command
-copy interactions, polite status feedback, and exact 320 px reflow without
-horizontal overflow. The viewport override is reset after the check.
+For Elixir changes, establish/run formatter, compiler with warnings as errors,
+focused ExUnit checks and relevant Credo/Sobelow/dependency analysis. For Rust
+shell changes, formatter, Clippy with warnings denied and focused tests.
+Broaden only when dependencies or changed behavior justify it. Package/resource/
+adapter changes also need their domain gates. Do not invent passing commands for
+scripts that are absent; R010 establishes the exact runnable quality commands.
 
-| Component | Unit / property | Persistence | Integration | Adversarial | Recovery |
-| --- | --- | --- | --- | --- | --- |
-| Domain state machines | Transition guards, workflow validation, DAG validation, budget math, retry classification (property-based) | Event/projection atomicity, constraints, idempotent commands | — | Forged completion payloads | Interrupted command replay |
-| Leases and dispatcher | Expiry, heartbeat, sleep-gap extension | Partial unique indexes | — | Duplicate dispatch under concurrency | Restart mid-dispatch |
-| LocalProcessRunner | Environment allowlist, path canonicalization, port allocation | Environment and process rows | Real processes: process-group kill, timeouts, output bounds | Symlink escape, path traversal, port squatting | Orphan reconciliation after crash |
-| Git service | Branch naming, base SHA capture | — | Real worktrees: create, commit, clean status, push to a local bare remote | Dirty base, protected branch, force-push attempt | Worktree drift on resume |
-| Power manager | Gap detection math | `power_events` | `caffeinate` lifecycle on a real machine (opt-in) | Wall clock jump without sleep | Wake with dead process, wake with live process |
-| Adapters | Event decoding, grant mapping, usage parsing | Session rows, effective grant | Fixture-driven fake CLI; opt-in real CLI | Malformed stream, secret canary in output, injected instructions | Cancel, sleep gap, restart, resume |
-| Workflow and Kanban | Scheduling fairness, dependencies | Snapshots | LiveView: keyboard transitions, rejections, reconnect | Invalid transition via UI | Reconnect after gap |
-| Knowledge | Front-matter parsing, memory-op classification, redaction | Index/file sync, usage records | Extraction and consolidation with fixture runtime | Secret in evidence, injected publication instruction, cross-project retrieval | Job resume after crash |
-| Plugins | Manifest schema, permission narrowing | Registry rows | Detection with fake binaries; conformance per kind | Undeclared access, crashing plugin, output promotion attempt | Plugin restart limits |
-| Shell | Token generation, readiness parsing | — | Launch, `/open` exchange, status polling, quit ladder | Token replay, unauthorized browser | Child crash before/after readiness |
-| Telemetry | Cost formula, rollups, active vs wall | Samples and rollups | — | Missing samples not interpolated | — |
+## Complete user-story exercise
 
-Claude Code fixture conformance is pinned to `test/fixtures/agent/claude-code-2.1.142.stream.jsonl`. A real smoke is allowed only when the run-scoped authentication probe succeeds; global OAuth alone is not sufficient because bare mode intentionally ignores it.
-Codex fixture conformance is pinned to `test/fixtures/agent/codex-0.146.0.jsonl`. Strict config is validated against the installed CLI with an isolated unauthenticated `CODEX_HOME`; a real provider smoke is allowed only after that scoped home's file store authenticates, never by copying the user's global `auth.json` or passing a provider key to the child process. A real 2026-09-21 smoke with the earlier keyring mode failed under an isolated `HOME` despite a successful personal-shell status check. Regression checks now require file-store selection at sign-in, probe, model discovery, launch and logout, and reject symlinked or group-readable credential files. A fresh sign-in and a real isolated provider run remain required.
+- [ ] Start a freshly installed app from the macOS top bar into the browser.
+- [ ] Authorize one supported runtime; fetch models; restart and reuse connection
+  and catalog. Repeat provider acceptance for every advertised adapter.
+- [ ] Save Speculator, Implementor, Secutor and Summa Rudis; add a named role with
+  its own agent/model and explicit grant.
+- [ ] Create empty and existing-document Arenas; decline Git init once and prove
+  no mutation, then consent and inspect the baseline commit.
+- [ ] Create default Tabula, add a custom column/role, generate tasks from brief
+  and docs, inspect criteria and edit before starting.
+- [ ] Start once; observe Summa Rudis dispatch and Secutor return comments;
+  Speculator revises and Implementor repairs without routine approval prompts.
+- [ ] Run two independent workers simultaneously and a dependent task afterward;
+  force an overlapping change and validate the combined result before completion.
+- [ ] Open global/Arena Tabula Gladiatorum; identify agent/model/task/progress;
+  inspect scrollable logs and the redacted log file.
+- [ ] Pause/resume/stop/retry, reconnect browser, restart app and sleep/wake; retain
+  state/evidence with no duplicate launches or lost edits.
+- [ ] Finish on a local reviewable branch with all criteria and required checks
+  passed on the final candidate; prove no remote publication occurred.
 
-Saved-agent tests cover persistence, cross-project attachment, immutable copies,
-matching login/probe/launch profiles, separate per-run config, role deduplication,
-account separation, simulated revocation, stale status updates, unsafe paths and
-explicit legacy binding preservation. These checks do not replace authenticated
-acceptance: sign in once, attach the account to two projects and start both runs
-without another login or copied credentials. Histories may be shared by the
-approved ADR-025 contract; permission config must remain independent. Verify
-restart, refresh and concurrent use, then revoke and confirm a fresh launch
-fails clearly. The 2026-09-20 18:05 UTC real CLI status checks reported sign-in
-required; on 2026-09-21 both saved app-owned CLI profiles reported authenticated
-after a development-server restart, but Codex's result depended on the personal
-shell's Keychain availability and was not a valid isolated-run check. A subsequent
-isolated file-store status correctly reported sign-in required at that time.
-On 2026-09-21 at 19:52 UTC, both saved Codex and Cursor CLIs reported signed
-in from their app-owned file profiles under scrubbed, isolated environments.
-No provider task was launched by those status checks. Authenticated two-project
-acceptance is still pending; account-page or CLI status alone is not a pass. Old boards/runs have explicit,
-audited saved-account linking.
-Cursor adapter tests assert shared app-owned HOME for saved agents, run-owned
-task configuration, scoped-auth probing, owner-only generated policy, empty
-MCP configuration, project-override rejection, launch/resume/cancel behavior,
-fixture event normalization, redaction, and usage. The retained real-runtime
-fixture proves its event contract and earlier lifecycle behavior; the current
-change does not claim a new authenticated real-provider smoke. OpenCode remains
-a stable-stub test with fail-closed operational callbacks.
-The Phase 4 walking-skeleton test uses the fake adapter but real SQLite state,
-Git repositories, worktree, candidate commit, hibernate/resume lifecycle,
-evidence files, LiveView confirmation, and local bare push. It asserts a single
-specification attempt across the sleep simulation, rejects release before
-approval, rejects candidate path traversal and symlinks, and replays the
-release command without another push event. A real-provider demo remains opt-in
-and must authenticate from its selected app-owned profile under a separate
-run-owned HOME and policy configuration.
+Time first launch to ready-to-start. State runtime/account prerequisites and
+record full installation time separately. At least one unfamiliar user must
+perform the journey; a developer clicking a fixture is not ten-minute acceptance.
 
-## Recent interface and discovery checks
+## Adversarial and failure cases
 
-Task 1049 board control (2026-09-25): focused coverage lives in
-`test/cuckoding/board_control_test.exs`; forward migration of prior-schema task/run
-history is in `test/cuckoding/shared_authorization_migration_test.exs`. Together
-with the existing admission, Git, workflow, control, power/reconciliation,
-accounting and security suites, these exercise sequential reviewed handoff,
-frozen membership, proposals, controls and preserved skip/retry history. Run:
+- Malicious docs/model output asks for home-directory reads, shell commands, new
+  tools, forged reviews or DB writes: no new authority or unsafe mutation.
+- Secret canaries, split chunks, nested errors and raw protocol frames never
+  leak to DB, UI, files or export.
+- Unauthorized browser, reused handoff token, hostile origin and expired session
+  are refused. Artifact IDs cannot expose another Arena or arbitrary file.
+- Expired task leases, duplicate clicks, concurrent coordinator results and
+  reused PID values do not create duplicate work or kill foreign processes.
+- Protected configuration changes, symlink escape, dirty original checkout and
+  moved Git refs fail closed while preserving data.
+- Lost protocol owner, timeout, provider revocation, missing model and exhausted
+  limits produce explicit recoverable/attention states; no silent model switch.
+- Secutor rejection, missing check receipt or changed candidate cannot be turned
+  into Completed by Summa Rudis, a custom column or a manual drag.
+- Sleep and forced process death are tested independently. Unknown external
+  effect outcomes require reconciliation rather than automatic repetition.
+- Prior DB copies survive failed migration; integrity/foreign keys and restored
+  hashes are checked. No test reads/modifies a live user's database.
 
-```sh
-rtk env -u CR_PAT mix test test/cuckoding/board_control_test.exs test/cuckoding/shared_authorization_migration_test.exs
-rtk env -u CR_PAT mix quality
-rtk env -u CR_PAT mix assets.build
-rtk node --test test/task_board_motion_test.cjs
-rtk git diff --check
-```
+## Documentation-only gate
 
-`CR_PAT` is removed from the tooling environment; no credential values are
-printed. The [1049 worklog](../worklog/2026-09-25-1049-board-controller.md) records
-exact counts and a separate loopback fixture browser check for desktop/mobile,
-keyboard/focus, reduced motion, disclosure/input retention and reconnect. Those
-checks do not prove paid-provider execution, physical sleep/wake, signing,
-packaging, installation, or the currently running native build.
+Check local links/anchors and referenced files, coherent names/flow, honest status,
+unimplemented checklist items, skill references and absence of stale operational
+commands. Run `rtk git diff --check`. No application tests are needed for prose
+edits; record unavailable implementation checks rather than call them passing.
 
-Board progress checks render two active tasks with independent stage/role/model
-metadata, distinguish requested from observed models, and move one task through
-durable pause while the other stays running. `rtk node test/task_board_motion_test.cjs`
-checks the real TaskBoard hook's state-only motion, reduced-motion cancellation,
-keyboard focus, timer/layout updates and cleanup without a browser dependency.
-Native/browser checks still verify geometry, focus preservation and readability.
+## Evidence record
 
-Task 1038's custom-role checks cover project save → explicit board application
-→ immutable run snapshot → configured extra stages → final Review/local
-completion. They exercise read-only and worktree-write grants, planning-only
-exclusion, correction-loop repetition, report handoff/integrity, unexpected
-read-only writes, reserved role keys, and invalid permission input. The combined
-role/control/board suite includes 10 properties and 333 tests; exact command
-results and subsequent fixes are in task 1038's worklog.
-These are fixture/domain/LiveView checks; they do not establish provider
-enforcement or native/browser acceptance. Requested, enforced and unenforced
-runtime permissions must still be inspected in the actual run.
-
-For the Pages surface, use its existing dependency-free checks:
-
-```sh
-rtk ruby github.page/verify.rb
-rtk node test/github_page_art_mode_test.cjs
-rtk node test/github_page_motion_test.cjs
-rtk node --check github.page/script.js
-```
-
-These cover local assets/anchors, both image budgets, Irony/no-JS defaults,
-saved Classic, invalid/denied storage, source/alt/caption switching and changing
-reduced-motion preferences. Render both modes at desktop, 390 px and 320 px;
-check keyboard selection, focus, live status, artwork cropping/loading, reload
-and overflow. Static checks and a local preview do not prove Pages deployment.
-
-For executable discovery, the focused regression command is:
-
-```sh
-rtk mix test test/cuckoding/adapters/runtime_configuration_test.exs test/cuckoding_web/agent_settings_live_test.exs test/cuckoding/execution/local_process_runner_test.exs
-```
-
-It covers known-location precedence, desktop fallback, missing/invalid paths,
-manual override/rescan, saved-path locking and exclusion of the discovery-home
-hint from child environments. Native shell edits also require the Rust gates.
-Render the form with an app-owned HOME and restricted PATH to reproduce native
-launch conditions. A discovered file is not proof of adapter compatibility,
-provider sign-in or authenticated execution; those retain their separate gates.
-
-Documentation-only follow-ups validate changed local links, referenced source
-paths, consistency with implementation and `rtk git diff --check`. Do not claim
-a fresh compiler/full-suite/native-package pass when only documents changed.
-Record the source revision and working-tree state for each result, and keep
-local source, native bundle, running build, remote deployment and real-provider
-evidence separate. The pending role contract in [PLAN.md](PLAN.md#role-contract-alignment--2026-09-24)
-retains its remaining acceptance items. Task 1038's source regressions verify
-task-description/latest-spec handoff across separate adapters, return comments,
-revised spec artifacts, both new correction routes and preservation of older
-workflow versions. They do not establish live-provider or native-app acceptance.
-
-Task 1038 also exercises another-model proposal review/report/history, explicit
-local completion with copied-schema migration, process suspension/timer retention,
-simultaneous stop/result callers, run pause/resume/stop, global admission and
-individual-pause preservation. `test/cuckoding/run_control_test.exs` uses real
-owned shell processes behind a fixture adapter to prove progress stops without
-duplicating attempts. Its LiveView controls test covers confirmation attributes
-and durable effects; rendered keyboard/mobile/native and real-provider checks
-remain separate.
-
-The 2026-09-24 local acceptance exercise registered an isolated project through
-the browser, discovered the installed Codex path, overrode it with a clearly
-labeled simulated executable, and saved three reusable agents with distinct
-models sharing one fixture authorization. Application-service checks then ran
-Markdown planning, different-model proposal review with comments/report, import,
-the complete Speculator → Implementor → Reviewer correction loop, and automatic
-local completion. The generated candidate's focused test passed. This exercised
-the Codex JSONL/host-process path with a fixture CLI, not an external provider.
-
-Desktop and 390-pixel board rendering were inspected; the narrow page had no
-horizontal overflow. After the initially stuck browser confirmation cleared,
-the clicked fixture journey created a board, selected Speculator, generated
-proposals from a Markdown plan, selected another review model, displayed its
-report/comments, imported a Draft task, moved it to Ready with the keyboard,
-and used Project Start with explicit automatic local completion. The card
-updated through the correction loop to Done without reloading the board.
-Two additional tasks ran concurrently; individual pause/resume and dashboard
-pause/resume verified that workspace resume preserves an individual pause.
-
-The browser exercise caught live updates collapsing native disclosures.
-Disclosure `open` state now belongs to the browser after mount via LiveView's
-`JS.ignore_attributes`. A runnable browser regression opens the planning panel,
-selects a role, types a prompt, lets multiple five-second updates arrive, then
-asserts the panel stays open, the prompt is unchanged and focus remains in its
-textarea before submitting. The pre-fix page lost the open state; the fixed
-page passed and continued through planning. The server still supplies initial
-open defaults and updates disclosure content normally.
-
-Task 1041 replaces the two board disclosures with button-triggered LiveView
-modals. Focused checks are `rtk env -u CR_PAT mix test
-test/cuckoding_web/board_live_test.exs test/cuckoding/board_task_intake_test.exs`.
-They cover hidden forms, opening/closing, retained input across refresh and
-reopening, local validation, missing-role feedback, Draft creation/audit and
-planning navigation/import. Browser verification must also exercise native
-dialog focus containment, Escape/Cancel and focus return, typing through
-five-second updates, plus narrow-screen scrolling. Other disclosures retain
-the regression contract above.
-
-Native confirmation controls and visible motion remain separate acceptance
-items. Native folder-picker automation was unavailable; the isolated exercise
-substituted a deterministic fixture picker. Neither limitation was bypassed in
-the native app, and fixture-provider results do not prove real-provider behavior.
-
-The rebuilt unsigned native app passed the desktop verifier and started with a
-healthy database after a verified backup and forward migration. Its database
-has no saved provider authorization. Opening the authenticated native dashboard,
-connecting a real provider, and verifying the full journey there remain release
-evidence gaps. See [task 1038's worklog](../worklog/2026-09-24-1038-complete-board-flow.md)
-for build identities, migration checks and limitations.
-
-## Fixtures
-
-- Recorded provider output per supported runtime version, redacted, with a compatibility manifest.
-- Sample repositories: Elixir, Node, mixed; one with malicious content (prompt injection in README, symlink escapes, protected-path edits).
-- Fake agent CLI that emits configurable event streams, delays, crashes, and usage.
-- Knowledge fixtures: duplicate facts, contradictory decisions, stale observations, secrets in evidence.
-- Plugin fixtures: valid manifests, over-permissive manifests, missing binaries, wrong versions.
-- Plugin-kind fakes: one deterministic implementation per closed behaviour;
-  the reusable conformance checker validates every operation through a current
-  run-scoped capability and the public result boundary.
-
-## End-to-end scenarios
-
-1. Create project → board → task → spec → development → QA → human approval → release handoff → branch pushed to local bare remote and evidence bundle produced.
-2. Two boards run concurrently; assert separate worktrees, ports, process groups, and event streams.
-3. Pause, hibernate, quit the app, relaunch from the shell, resume; assert single execution of each stage.
-4. Simulated sleep gap during development; assert reconciliation events, lease continuity, no duplicate commits.
-5. Real sleep drill on a test machine (opt-in): `pmset sleepnow` during a stage.
-6. Fail QA and return structured findings to development; assert routing and attempt increments.
-7. Lose network or provider auth; assert transient classification, retry within budget, block on exhaustion.
-8. Complete a run; extract candidates; consolidate; reject one, accept one, publish one globally; assert files, index, audit, and injected/retrieved/cited usage records in the next run, then accept a correction and assert accepted/contradicted lineage.
-9. Enable RTK/XERJ/Ponytail and the read-only MCP plugin with fake binaries;
-   assert policy-first wrapping, stage overlay, server-derived namespaces,
-   exact package/tool configuration, labeled contributions, and clean
-   degradation when binaries disappear. Implemented by the focused reference
-   plugin and run-detail tests.
-10. Malicious repository: injected instruction to publish knowledge and edit `.cuckoding/`; assert refusal, flags, and approvals.
-11. Unauthorized browser access and token replay; assert rejection and audit.
-12. Unattended mode overnight simulation: queued approvals, notifications, assertion held only while work is queued.
-
-Scenarios 10 and 11 are implemented by the focused tests documented in
-`docs/SECURITY_TEST_MATRIX.md`. Scenario 10 combines the malicious fixture,
-command-policy/protected-path checks, and the pending-only knowledge extraction
-boundary. Scenario 11 combines loopback/origin/token rejection with secret-free,
-append-only security audit rows.
-
-## Quality gates
-
-- Public-message tests scan every LiveView for internal `inspect/1` rendering,
-  verify bounded application-owned changeset copy, and exercise representative
-  alert/status regions through LiveView tests. The inventory excludes closed
-  machine API error codes and non-error state labels.
-- Elixir formatting and compilation with warnings treated as errors.
-- Unit, integration, and migration tests.
-- Static analysis and dependency audit.
-- Shell formatting, lints with warnings denied, tests.
-- Security fixtures and secret canary scan.
-- Accessibility checks and a keyboard-only critical journey (including the lineage graph's table alternative).
-- Plugin conformance for every kind with a bundled reference plugin.
-- Reproducible release smoke test on a clean machine.
-
-## Determinism
-
-Freeze clock, identifiers, price catalog, workflow version, plugin versions, and provider fixtures where applicable.
-
-## RTK compatibility and confinement
-
-`rtk env -u CR_PAT MIX_ENV=test mix run scripts/rtk_runtime_smoke.exs` checks the
-installed 0.49.0 binary in private temporary run storage under restricted PATH.
-It requires permission-sensitive rewrite exits, quoting/compound preservation,
-no double wrapping, exact-output/nonzero-exit behavior and no persisted canary.
-The plugin/adapter/command-policy suites test frozen scope grants, stage resume,
-missing/changed/non-executable binaries, symlink rejection, all managed role
-categories, unchanged provider commands and single execution. Hook compatibility
-is a separate gate: fixture conformance does not enable a native hook.
-
-## ACP migration evidence
-
-Task 1054 uses protocol fixtures for framing, redaction, grants, pause/stop,
-replay prevention and process ownership. Real authenticated Codex 0.146.0 and
-Cursor 2026.09.15-d2fe57e also passed isolated read-only structured-output turns
-with observed model identity, live public events and verified cleanup. The
-product planning path produced a validated Codex proposal. Cursor proposal
-review requested shell approval and stopped with the existing proposal retained;
-this is permission-refusal evidence, not a passing review.
-
-These checks use a separate database/worktree and existing app-owned sign-ins.
-A Codex board batch also completed controller, specification, implementation,
-review, local completion and final controller decision after an explicit retry.
-The reviewed commit changed only README, main stayed unchanged, and all ten
-recorded process groups were gone. No approved Claude helper was available:
-its native negotiation checks are not authenticated turn acceptance. Record full workflow, packaged-app and physical
-sleep checks separately in [the task worklog](../worklog/2026-09-27-1054-acp-communications.md).
+Each task worklog records acceptance, source/build identity, exact commands and
+results, fixture versus real-provider evidence, screenshots when UI changes,
+skipped checks and the next action. Distinguish working tree, commit, remote
+publication, native build and actually running artifact. A build does not prove
+provider acceptance; passing unit tests do not prove sleep/cleanup on macOS.

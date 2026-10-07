@@ -1,316 +1,84 @@
-# Security Model
+# Security contract
 
-Task 1054's ACP implementation preserves runtime-specific grants and host workflow
-authority. Protocol stdout is separated from diagnostic logs; hidden reasoning
-and raw tool arguments are discarded, public text is redacted after fragment
-assembly, and frames/output are bounded. ACP clients advertise no host
-filesystem or terminal capabilities and deny runtime permission requests pending
-attention. Claude receives only approved, snapshotted MCP settings through its
-SDK options; ACP itself supplies no MCP servers. Durable per-attempt prompt
-reservations prevent blind replay. All three supported providers use these
-controls. Packaged bridges disable automatic Bun configuration/environment
-loading and verify a pinned binary manifest before launch. Reconciliation blocks
-surviving processes whose protocol owner is missing. Real read-only Codex/Cursor
-turns pass; a Cursor review permission request stopped without a grant expansion.
-Full provider workflow and native recovery acceptance remain separate. See [ACP communication](AGENT_RUNTIME_ADAPTERS.md#acp-communication-task-1054).
+CCoding runs powerful local agents against repository content on the host.
+Runtime permissions, owned worktrees and process supervision are required;
+they do not provide OS sandbox isolation.
 
-## Security objective
+## Boundaries and controls
 
-The task-1057 guided flow has two explicit authorizations. Create plan permits
-only read-only planning/review and host-validated Draft creation. Run authorizes
-the exact accepted plan, brief, team, policy/base and finite limits for local
-delivery. Generated criteria and assumptions remain untrusted until independent
-review and host validation. They cannot expand grants or narrow the original
-brief. The delivery authorization is immutable in SQLite; prepared goals cannot
-use Resume or a direct task launch to bypass Run. Machine defaults store saved
-agent references/settings, never credentials, and change no existing project.
-The goal deadline gates each process launch; late cost reports are still neither
-a guaranteed provider billing cap nor proof of complete telemetry.
-
-Prepared goals use validated command arrays in their reviewed configuration;
-they cannot execute free-form planning text. Supported developer-tool commands
-resolve against installed executables and the existing command-path checks before
-Run. Discovery reads executable metadata in known installer layouts, excludes
-personal version-manager shims, and never executes candidates. Plan review then
-runs only fixed version flags through the supervised runner before Ready. It
-retains process/log evidence for each selected tool and required runtime. Run
-freezes native paths and size/mtime/inode metadata; later launches reject changed
-tools. PATH derives only from those binary directories and system directories;
-HOME remains run-owned. The host-only `CUCKODING_RUNTIME_HOME` discovery hint and
-personal shell/configuration environment are not imported into children. Metadata
-comparison detects installation changes, not adversarial binary tampering.
-The UI discloses host execution and dependency downloads for setup. Run
-freezes these declarations; post-Run revisions cannot add or replace them.
-They execute with `LocalProcessRunner` ownership, environment filtering, log
-redaction, process-group cleanup and remaining deadline. This grants execution
-of repository build/test code, not container isolation or an enforced network
-sandbox. Every completed command records its digest, authorization digest, head,
-exit/timeout status and log hash; raw process arguments remain redacted from
-events. Command configuration remains reviewable, as with existing project
-command policy. Final completion rejects missing/forged receipts, changed logs,
-changed heads, dirty worktrees, missing criteria and failing commands. Repository
-policy changes remain protected and cannot silently replace the authorized set.
-
-Automatic recovery accepts only typed host/provider outcomes: timeouts, ACP
-`max_tokens`/`max_turn_requests`, and supported temporary provider errors. The
-pinned Codex and Claude bridges' terminal AIR `sessionFailure` metadata classifies retryable
-rate/service failures; free-form titles/details are neither recovery instructions
-nor persisted diagnostics. Quota, authentication, permission and unknown failures
-remain exceptions. ACP advertises only this metadata capability, no filesystem or
-terminal capability. Recovery requires ended owned processes, no cleanup failure,
-valid Git identity and unchanged authority; a durable checkpoint is claimed once
-under normal capacity/board admission. Reusing evidence or a native session never
-increases a grant, resets a goal deadline or authorizes release.
-
-Prepared-goal controller decisions are validated before their stage succeeds.
-An invalid action, task identity or question retains its report and consumes the
-existing failure-retry allowance, with host feedback on the next read-only turn.
-The response schema limits task IDs to the next eligible task, blocked recovery
-targets or null. Commit-time state and authority validation still runs separately;
-stale authority cannot be corrected by retrying model output.
-
-Version-3 repair planning may edit only stopped, host-classified task failures
-after cleanup, through the existing independently reviewed plan transaction. It
-preserves task identity, criteria/dependencies, original authorization and all
-consumed allowances. Questions use a closed reason/criterion/evidence contract;
-ordinary naming/layout choices are instructed to remain with the team. The host
-validates structure and linkage; it does not claim to prove semantic necessity
-from a model's explanation. Clarification never changes execution authority.
-Host-invalid version-3 plans may be corrected within the existing proposal
-ceiling. The rejected proposal and host feedback stay in plan history; rejection
-imports no tasks and grants no authority. Independent review remains mandatory
-for the corrected proposal. Stale/foreign controller envelopes still fail closed.
-
-Cuckoding runs powerful agent runtimes on a developer machine against untrusted repository content, without container isolation in the MVP. The design must constrain what Cuckoding itself grants, make the runtime's own permission grant explicit and recorded, protect credentials, preserve trustworthy audit evidence, require humans at irreversible boundaries, and never claim isolation it does not have.
-
-`docs/TRUSTED_HOST_THREAT_MODEL.md` enumerates assets and attackers, maps every boundary to risks and validation tasks, records the malicious-repository tabletop, and states the residual risks disclosed by the MVP.
-
-## Trust boundaries
-
-- Menubar shell ↔ local Phoenix service.
-- Browser session ↔ Phoenix service.
-- Phoenix control plane ↔ agent runtime process (host).
-- Run A worktree ↔ Run B worktree and the rest of the filesystem.
-- Project A ↔ Project B (knowledge, ports, worktrees).
-- Application ↔ plugins.
-- Application ↔ GitHub/provider credentials.
-- Untrusted repository/model/plugin output ↔ trusted commands and policy.
-- Local application ↔ update and optional telemetry endpoints.
-
-## Threats and controls
-
-| Threat | Required controls |
+| Input / boundary | Required control |
 | --- | --- |
-| Unauthorized local web access | Loopback bind, one-time bootstrap secret, single-use `/open` tokens, short-lived cookie sessions, origin/host checks, CSRF, optional re-auth after sleep |
-| Prompt injection from repository | Separate trusted instructions from data; least-privilege runtime permission grant configured by the adapter; protected paths; approvals; no output-to-command promotion |
-| Agent-generated board tasks | Closed structured-output schema; 1 MiB/2,000-row JSONL bounds; only fixed provider preludes may precede JSONL; maximum 20 proposals; canonical, regular, worktree-confined evidence files. A guided goal imports Draft tasks only after independent review and host validation. Advanced planning still requires human selection before import |
-| Secret theft | Keychain references; no secrets in agent environment or argv; provider CLIs use their own auth; environment allowlist; argument/environment scrubbing; redaction tests |
-| Host mutation outside the worktree | Path confinement for Cuckoding-executed commands; runtime permission grant limited to the worktree; protected paths flagged; honest limitation notice |
-| Cross-run and cross-project leakage | Worktree per run; port ranges; knowledge scope; per-run generated runtime configuration; tests |
-| Config self-escalation | Trusted config hash; changed execution policy or plugin set requires independent human approval |
-| Destructive Git action | Host-side constrained Git service; protected branches; explicit approval; no force-push |
-| Project-folder initialization | Native folder selection, canonical root validation, a review that names the pending Git mutation, and no initialization or commit before explicit confirmation |
-| Local completion mistaken for publication | Explicit start-time choice recorded in `run.completion_policy`, or a separate manual completion confirmation; `run.completed_locally` atomically closes approval/run/task without invoking any VCS host. Guided Run records automatic local completion for that goal. Other starts and migrated projects remain manual unless that choice is recorded. Branch, worktree and evidence stay local |
-| Forged completion | Typed artifact schemas, exit-code checks, independent QA, immutable event sequence |
-| Cost/resource denial | Per-stage and global budgets, concurrency limits, pause/hibernate, alerts, unattended-mode caps |
-| Malicious plugin | Manifest permissions, user approval to enable, supervised process, untrusted output, no secret access without declaration |
-| Malicious update | Signature verification, pinned update endpoint, rollback, migration backup, provenance/SBOM |
-| Knowledge poisoning | Evidence requirements, redaction, project scope, human publication review, validity/supersession/revocation, usage feedback |
+| Tray → Phoenix → browser | Loopback-only listener, one-time shell bootstrap, single-use short-lived browser handoff, authenticated short-lived sessions, host/origin checks and CSRF |
+| Repository/files → planning | Explicit folder scope, canonical paths, symlink/path traversal checks, bounded reads, content treated as untrusted evidence |
+| Agent output → commands | Closed bounded schema, role/battle/revision binding, allowlisted actions, grants and idempotency checked host-side |
+| Worker → host | Runtime grant mapping, recorded enforced/unenforced restrictions, clean child environment, process-group ownership and cancellation |
+| Parallel work → Git | Separate worktrees, dependency checks, task leases, reviewed candidates and serialized compare-and-swap integration |
+| Secutor → completion | Independent session, exact spec/head/check evidence; Summa Rudis cannot override failure |
+| Logs/artifacts → UI/disk | Redaction before persistence/broadcast, public summaries only, escaping and authorized artifact IDs |
+| Settings/files → authority | Immutable trusted snapshot; changed execution policy is never adopted silently within a battle |
+| Update → application/data | Verified signature/provenance, backup first, tested migration/restore; no destructive downgrade |
 
-## Capability model
+Do not expose the real home directory, SSH keys, personal Keychain, cloud
+credentials, unrelated repositories or personal provider history through app
+configuration or MCP. Host executable discovery is metadata-only and grants no
+filesystem access to a worker. Do not print raw process argv or environments.
 
-Each stage receives an unguessable short-lived capability set: allowed worktree, tool categories, network class (advisory on the host runner), secret references (Cuckoding-managed only), knowledge namespaces, plugin set, budget, expiry, approval requirements. The adapter maps tool categories and worktree onto the runtime's permission settings and records the effective grant. Capabilities can be narrowed but not expanded by an agent or a plugin.
+## Authorization and secrets
 
-Plugin discovery treats manifests as untrusted input: it accepts only regular,
-non-symlinked files below configured plugin roots, a closed schema, confined
-permission roots, and fixed single-argument version probes executed without a
-shell. Discovery never enables a plugin. Activation requires an explicit reason
-and approval class, persists an event before the projection changes, and may
-only narrow an enabled ancestor grant. `none`, `loopback`, and `external` are
-stored as distinct grants; on the host runner they remain approval and runtime
-configuration boundaries, not a claim of network sandboxing.
+Provider runtimes own their authentication and refresh. CCoding initiates scoped
+login/status operations using a dedicated app-owned provider profile and stores
+only non-secret references/status. It never reads, copies or injects provider
+token values into prompts, configuration, events, argv or environment variables.
+A provider may read its own credential store; this is a residual host-process
+risk, not a claim that no credential exists anywhere in that process.
 
-Plugin invocation uses a signed token with a maximum fifteen-minute lifetime
-(five minutes by default). Verification re-resolves the current activation and
-requires the signed run, plugin, activation, optional stage/role, permission
-map, approved configuration, manifest hash, and network class to match;
-activation revocation or mutation fails closed.
-Public results reject unlabeled numbers, unknown shapes, private fields from
-non-secret plugins, and payloads over 1 MiB. Plugin failures collapse to a
-public `plugin_failed` error so raw third-party errors are not promoted into
-trusted output.
+Saved roles may share one authorization while keeping instructions, sessions,
+worktrees and evidence separate. Explain provider-profile/history sharing and
+offer separate sign-in profiles. No silent import of personal CLI credentials or
+config. If a runtime cannot satisfy this boundary, mark it unsupported until a
+reviewed adapter solution exists.
 
-Reference adapters do not accept model-selected executables, namespaces, MCP
-packages, integrity values, roots, or unreviewed tools. RTK resolves the
-underlying trusted command before adding its wrapper. XERJ namespaces come from
-the run's project and board records. The filesystem MCP package is exact and
-offline with no write tools, secrets, or network permission; because it remains
-a host process, these controls are not described as OS isolation.
+Use the host secret-store boundary for application secrets. Any future approved
+push/PR service owns its own narrowly scoped credentials; agents never receive
+them. Do not log authentication URLs with secrets, cookies, headers or token
+values. Redaction must handle split chunks and nested payloads; malformed or
+oversized protocol data is rejected before storage.
 
-## Secrets
+## Authority
 
-- `SecretStore` is owned by the Phoenix process: macOS Keychain through the `security` CLI (MVP) or a small native library later; the database holds opaque references only.
-- The CLI implementation invokes absolute `/usr/bin/security` paths and sends new values over stdin, never argv. Reads are audited by opaque reference, declared purpose, optional run, and timestamp. A future native implementation replaces only the behaviour adapter with Security.framework calls; reference and audit semantics remain unchanged.
-- Provider authentication belongs to the runtime (Claude Code, Codex, Cursor, OpenCode logins); `provider_accounts` stores only non-secret connection metadata and observed status. Cuckoding probes status and never reads, copies, serializes, or displays provider credential values.
-- Claude Code bare-mode authentication may use only a host-approved absolute executable helper referenced from run-scoped settings. Helper presence is not treated as successful authentication; an isolated probe must confirm it. Global OAuth state never causes Cuckoding to expose the real home directory or copy credential files into a run.
-- Saved Codex accounts use the same app-owned `CODEX_HOME` for login, probes and launch with `cli_auth_credentials_store="file"`. The provider stores refreshable credentials in owner-only `CODEX_HOME/auth.json`; Cuckoding checks that an existing file is regular and private, but never reads, copies, logs, exports or passes its contents. The provider process can access its own credential file; host execution is not a sandbox, so a malicious same-user process remains a residual risk. Launch ignores saved execution config and execpolicy rules and supplies permission overrides and task instructions separately. Per-run generated files remain evidence, not shared mutable configuration. Cuckoding never exposes the personal CLI home or passes API keys in commands. The previous keyring mode failed under the run-owned `HOME`; existing keyring sign-ins must be repeated in this profile. Legacy snapshots retain their old setup until explicitly bound to a saved account.
-- A Codex file-store probe requires both a successful provider login status and a regular owner-only `auth.json` in that exact profile. Missing or unsafe files cannot retain a stale Connected display. The start-time probe records the observed status before any run transition, without reading credential contents.
-- Saved Cursor agents share one app-owned HOME per authorization; `CURSOR_CONFIG_DIR` and `CLAUDE_CONFIG_DIR` remain run-specific at launch. Login, probes, launches and logout select the pinned CLI's native file credential store, which writes owner-only `<account-home>/.cursor/auth.json`; no credential value enters a command, environment snapshot, database, event, log, artifact, or UI. Fixed shared sandbox and empty MCP files must match their approved contents; changed files and profile symlinks fail closed. Project Cursor CLI/sandbox/MCP/plugin overrides and shared-profile plugin directories remain forbidden. An MCP tool deny alone is not process isolation. The stakeholder approved cross-project profile/history sharing on 2026-09-20 (ADR-025); choose a separate sign-in explicitly for separate provider histories (ADR-026). Actual authenticated refresh/concurrency/global-write/MCP acceptance remains a release gate. OpenCode remains a stub.
-- GitHub credentials are fetched from `SecretStore` only inside the host-side VCS service after approval. They are supplied to the constrained Git process through ephemeral environment configuration and to the fixed `https://api.github.com` endpoint through an authorization header; they are never added to an agent grant, command payload, event, artifact, remote URL, or pull-request body.
-- The Phase 4 local VCS host accepts only an absolute existing bare `origin`, the exact approved run and recorded clean candidate SHA, disables terminal prompting, constructs a non-force `refs/heads/<branch>:refs/heads/<branch>` refspec, and records the result. It never receives provider credentials or performs merge.
-- Never persist complete environment maps, authorization headers, or CLI arguments containing secrets.
-- Redact before disk, UI broadcast, analytics export, and knowledge extraction.
-- The shared recursive redactor replaces configured canary values in strings and removes authorization, cookie, password, secret, token, complete environment, and argv fields before those boundaries.
-- The browser UI has a separate public-message boundary: expected errors map to
-  reviewed copy, application-owned validation messages exclude submitted values,
-  and unknown failures use fixed recovery text. Raw tuples, changesets,
-  exceptions, provider/plugin payloads, paths, and internal error atoms are not
-  interpolated into alerts.
-- Rotate or revoke credentials after any suspected exposure and record an incident.
+Start battle authorizes routine local work, required role sessions, approved
+checks, bounded recovery and integration into the app-owned battle branch.
+It does not authorize push/PR, merging the user's branch, deployment, arbitrary
+network or filesystem expansion, new tools, global knowledge publication or
+destructive cleanup.
 
-## Local service hardening
+Git initialization requires its own explicit confirmation, as requested by the
+user. Initial-commit file selection is previewed. Role names and instructions
+cannot grant capabilities. Custom roles default to planning/read-only; changing
+a grant or schedule is confirmed and audited. Repository changes to
+`.cuckoding/` and other protected execution configuration can be proposed but
+cannot become active policy in the same battle without a new explicit decision.
 
-ADR-026 permits several named agents/models to reuse one root authorization.
-References are immutable and validated against runtime/executable/helper; broken
-or incompatible references fail closed. Separate-account creation remains
-explicit; existing profiles are never silently merged. There is no app-imposed
-authorization expiry or token copying; provider-native refresh and revocation
-remain authoritative. Model IDs are bounded validated argv values, never shell
-fragments. Models do not determine credential identity or permission grants.
-The Agents page exposes current project/board/role impact before a confirmed
-disconnect. Disconnect runs the provider's logout with only the app-owned profile
-environment, records value-free request and completion events, and changes the durable observed
-status to authorization-required. It does not delete profile directories, touch a
-personal CLI home, interrupt existing processes, or rewrite immutable run snapshots.
-After an authenticated scoped probe, model discovery executes with the same
-app-owned provider profile. Only validated model IDs, bounded display labels,
-and allowlisted provider-reported Codex reasoning levels
-are persisted; raw JSONL, terminal output, provider errors, credentials, and
-hidden models are discarded. Discovery failure is recorded as non-secret status
-and does not downgrade a successfully verified authorization.
+No routine human approval is inserted between authorized task stages. Ask only
+for unresolved intent, exhausted limits or a genuine trust boundary. Clarification
+answers cannot silently enlarge the original authorization.
 
-- Random port on `127.0.0.1`; never bind `0.0.0.0`. LiveView accepts only the
-  `127.0.0.1` and `localhost` browser origins used to reach that loopback
-  listener.
-- Bootstrap token passed via file descriptor or 0600 file, never argv or logs; exchanged once.
-- Strict origin and host validation; secure cookies and CSRF.
-- Disable debug endpoints and source disclosure in release builds.
-- Artifact serving by authorized opaque IDs, not paths.
+## Recovery and audit
 
-The production shell uses a unique regular mode-0600 file containing separate
-per-launch session-signing and bootstrap secrets. Runtime configuration reads
-the signing secret, the supervised auth process deletes the file before READY,
-and the bootstrap exchange is then consumed exactly once. Shell bearer tokens
-remain in memory; browser handoff tokens expire after 60 seconds and are removed
-on their first use. If shell authentication is configured but its process is
-unavailable, browser authorization remains fail-closed.
+Persist intent before effects and events before broadcast. Inspect executable,
+PID/start identity, working directory, protocol owner and listeners before any
+adoption/signal/retry. Unknown ownership closes admission. Never signal unrelated
+provider applications or remove dirty/ambiguous worktrees. Preserve failed
+branches, logs and DB snapshots for review.
 
-The updater embeds only an HTTPS metadata endpoint and the Tauri public
-verification key. The private updater key is release-only. Downloaded bytes
-are not installed until Tauri verifies their detached signature. Phoenix
-requires shell authentication for every update transition, records the
-attempt before snapshotting, writes a private pending marker, and rejects
-forward migration of an existing database without that marker. Backups and
-manifests are owner-only and hash-verified; symlinks and path escape are
-rejected. Rollback preserves the failed database before restoring compatible
-data, and an older binary refuses any unknown applied migration.
+Record authorization changes, grants, start snapshots, accepted/rejected
+decisions, transitions, review results, approvals, process lifecycle, integration,
+sleep/wake, recovery, settings changes and cleanup. Keep hidden chain-of-thought
+out of every artifact and UI. Public reasoning summaries and tool activity are
+sufficient.
 
-Diagnostics export is an authenticated, explicit local action. Its schema is a
-fixed allowlist of bounded summaries, not a log collector: source, prompts,
-provider and command output, credentials, argv, environment variables, private
-paths, plugin manifests, and free-form errors are excluded before serialization.
-Every JSON member is redacted again, written to an owner-only archive beneath a
-non-symlinked application-data directory, and disclosed in the settings UI
-before creation. There is no switch that expands the bundle to sensitive data.
-
-## Process safety
-
-- Child processes in their own process groups; PID plus start identity recorded.
-- Timeouts and termination ladders; every step recorded.
-- Cuckoding-executed repository commands come only from the run's immutable trusted configuration snapshot and are launched without a shell. This narrows command injection but does not turn a trusted-host child into a sandbox.
-- Protected-path QA approvals are scoped to a digest of the exact changed path set. Approval decisions use a pending-only atomic update and append a durable event, so they cannot be silently overwritten or reused for a broader later diff.
-- Redact stdout/stderr before persistence.
-- Build child environments from scratch; reject undeclared and credential-shaped variables instead of inheriting the Phoenix environment.
-- All provider and plugin output is data until parsed and validated.
-- Adapter event normalization accepts only the closed public event vocabulary, recursively redacts summaries and metadata, and fails closed on malformed or unknown provider output.
-- Generated runtime configuration stays in the run's `agent/` directory with owner-only permissions; adapters reject a symlinked configuration directory and never write user-global runtime configuration.
-- On restart or wake, inspect and reconcile before killing or adopting a process.
-
-## Board controller boundary
-
-Board controller output is a closed structured proposal, not a trusted command.
-Host validation binds the execution/run/revision, next eligible task, snapshot,
-grants, review evidence and capacity before mutation or launch. A pause/resume
-may reuse in-flight controller output only after revalidation and only when all
-intervening batch events are those controls; content/policy/refresh changes
-invalidate it. Hidden controller sessions retain the Speculator's read-only
-grant and cannot start through the delivery entrypoint. Manual preparation,
-queued run rebinding and automatic starts cannot bypass batch ownership.
-
-Start board records explicit local-completion consent. Passing review, candidate
-identity, ancestry, clean worktree and unchanged original project revision are
-required for code handoff. Protected changes require existing path-set approval
-before Reviewer execution. Policy changes halt the batch; no same-run policy
-expansion is allowed. Stop/Skip/Refresh require confirmation and events. Missing
-workers, uncertain process cleanup, or unusable checkpoints retain evidence and
-keep admission closed. No batch command authorizes push, PR, merge or global
-knowledge publication. See [CUCKODING-CONTROL.md](CUCKODING-CONTROL.md).
-
-Autonomous goals require a new explicit versioned start authorization; historical
-batches gain no authority. Closed plan/review/decision schemas bind original
-criterion IDs, membership, revision, dependency acyclicity and lifetime limits.
-The assigned Reviewer checks semantic scope in a separate read-only conversation,
-even with the same runtime/model. Atomic import revalidates the saved card
-baseline; concurrent user edits invalidate proposals. Only unstarted work can be
-split, with history retained. Questions/answers cannot expand scope or grants.
-
-Recovery trusts host classification, never provider claims that an error is
-retryable. Only recognized timeouts retry automatically, after verified owned
-process cleanup and snapshot/authorization checks. Unknown failures, exhausted
-execution budgets and uncertain ownership halt. Failed changes cannot advance
-the reviewed head. Native conversation loading requires compatible account,
-model, runtime, role, workspace and grant identity plus negotiated support;
-otherwise bounded public evidence starts a fresh session. Controller, plan
-review and delivery-role histories remain separate. ACP history replay creates
-no new usage or work. New sessions retain actual grants and attempt accounting.
-
-## Audit events
-
-At minimum: authentication changes, capability grants, effective runtime permission grants, policy exceptions, plugin enablement and permission changes, stage transitions, approvals, secret reference use, process group creation/destruction, Git push/PR creation, knowledge publication/revocation, update installation, destructive retention actions, sleep gaps and reconciliation outcomes.
-
-Rejected shell/browser authorization and loopback-boundary requests are stored
-in append-only `security_audit_events`. The closed record contains only event
-type, HTTP method, route path without its query string, response status, and UTC
-time. Authorization headers, tokens, origins, hosts, IP addresses, and arbitrary
-descriptions are never accepted by this audit boundary.
-
-## Human approval gates
-
-Preview URLs and probes accept only `http://127.0.0.1:<allocated-port>`; health paths reject CR/LF injection and redirects are not followed. Listener recovery uses `/usr/sbin/lsof`, the process-group leader, and its recorded start identity, and ambiguous output fails closed. Finder/editor actions operate only on the database-recorded worktree after physical path resolution and invoke absolute `/usr/bin/open` with argv.
-
-Lifecycle cleanup fails closed unless the database relationship, canonical workspace paths, ownership marker, base/branch/head identities, clean Git status, and lack of running process records all agree. It never uses force removal, preserves the run directory and artifacts, and records cleanup intent before invoking Git so startup reconciliation can diagnose an interrupted cleanup.
-
-The power manager launches only absolute system binaries behind `/usr/bin/env -i`, records the assertion PID and start identity, and refuses to signal a reused PID. Unattended mode changes assertion eligibility only: pending approvals remain pending and no capability, policy, budget, push, or merge gate is bypassed.
-
-Mandatory for policy escalation, newly modified execution configuration, enabling plugins with host or network permissions, destructive cleanup with uncertain ownership, global knowledge publication, external push/PR, final merge/release, and installation of untrusted skills or binaries.
-
-## Security verification
-
-`docs/SECURITY_TEST_MATRIX.md` maps risks R1–R14 to current executable evidence
-and keeps the residual physical-machine, provider, signing, and reviewer gates
-explicit.
-
-- Threat-model review before beta and after material architecture changes.
-- Path traversal and symlink race tests on confinement.
-- Prompt injection and tool-output forgery fixtures.
-- Knowledge retrieval capabilities store only a SHA-256 token hash, expire
-  after a bounded interval, and are resolved back through the recorded
-  project/run/stage ownership chain. Project items never cross that chain;
-  global items additionally require the run's trusted policy snapshot to opt
-  in. Retrieval queries are not persisted in plaintext.
-- Secret canary tests across logs, database, UI, exports, and knowledge files.
-- Local unauthorized browser/session and token replay tests.
-- Cross-project knowledge and port isolation tests.
-- Plugin permission tests: undeclared access is refused and audited.
-- Dependency, binary provenance, and updater verification.
-- Recovery exercises that preserve evidence after forced termination and sleep.
+[Testing](TESTING.md) requires malicious-repository/proposal fixtures, token replay,
+cross-Arena access refusal, canaries, process identity reuse, Git drift,
+concurrent integration and recovery checks. A provider fixture does not establish
+safe real-provider behavior. A secret leak or ambiguous authority is a stop
+condition, not an automatic retry.

@@ -1,29 +1,30 @@
-# Repository Skill Registry
+# Engineering skills
 
-Skills under `.agents/skills/` are concise execution guides for humans and compatible agents. They do not replace task requirements, architecture decisions, or security policy.
+RTK and Ponytail full are mandatory contributor defaults. RTK 0.49.0 and the
+installed Ponytail 4.13.0 (MIT) were read/checked for R001; this does not establish
+a future packaged tool version. No extra plugin was needed for this reset.
 
-Before unfamiliar implementation work, also follow `docs/REFERENCE_CODING.md`. It is a repository-wide evidence workflow rather than a role-specific skill: retrieve from the project and pinned peer indices, cite `path:line`, check the pinned license, and record the adaptation in the task worklog.
+Load only relevant repository skills under [the skill directory](../.agents/skills):
 
-| Skill | Use when |
+| Work | Skill |
 | --- | --- |
-| `cuckoding-architecture` | Changing component boundaries, state ownership, or extension contracts |
-| `elixir-phoenix-liveview` | Building domain, OTP, Ecto, PubSub, or LiveView behavior |
-| `menubar-shell` | Packaging, starting, authenticating, or stopping the release from the shell |
-| `local-runner` | Worktrees, process groups, ports, confinement, hibernate/resume, power handling |
-| `agent-adapter` | Adding or changing a coding-agent runtime integration |
-| `workflow-and-kanban` | Editing state machines, boards, scheduling, gates, or UI transitions |
-| `observability` | Adding events, metrics, costs, resource sampling, or dashboards |
-| `knowledge-compression` | Extraction, consolidation, publication, injection, usage tracking |
-| `plugin-system` | Adding or changing any connector kind or reference plugin |
-| `rtk-optimization` | Working on the RTK plugin |
-| `ponytail-minimalism` | Every repository change or review, and work on the Ponytail plugin |
-| `security-review` | Touching execution, credentials, paths, processes, network, updates, plugins, or publication |
-| `quality-gates` | Defining or running verification and release evidence |
+| Every change/review | ponytail-minimalism |
+| Before task completion | quality-gates |
+| Workflow, roles, Tabula and battles | workflow-and-kanban |
+| Architecture/state ownership | cuckoding-architecture |
+| Elixir/LiveView/UI | elixir-phoenix-liveview |
+| Processes, worktrees, ports and sleep | local-runner |
+| Runtime authorization/models | agent-adapter |
+| Execution/path/credential/network boundaries | security-review |
+| Native packaging/tray | menubar-shell |
+| Public activity and measured usage | observability |
+| RTK integration | rtk-optimization |
 
-## Skill selection
+Plugin-system and knowledge-compression remain guidance for explicitly deferred
+work; their presence does not add features to the rebuild. Use the existing
+skills before installing anything. Any future dependency must solve a demonstrated
+gap, have a checked source/license and respect the user's grants.
 
-Every repository change or review uses Ponytail in full mode by default, and every shell command uses RTK. Add only the other skills relevant to the task. Security review and quality gates are additive and cannot be disabled by minimalism. If a skill conflicts with `AGENTS.md`, architecture decisions, or the assigned task, follow the higher-level repository rule and record the conflict.
-
-## Skill lifecycle
-
-Keep each skill focused and version substantive changes through Git. Add evidence and review ownership before publishing a compressed skill globally. Test instructions on a representative task. Revoke or supersede stale skills rather than silently rewriting historical artifacts. Revalidate external commands and links before each release.
+Managed agent roles receive versioned Ponytail full instructions and RTK shell
+guidance in attempt-owned configuration. Neither instruction text nor a skill
+grants host access. See [execution](EXECUTION_ENVIRONMENTS.md).

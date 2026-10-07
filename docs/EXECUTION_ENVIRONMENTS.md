@@ -1,195 +1,72 @@
-# Execution Environments
+# Execution and recovery
 
-## Summary
+The first runner is a supervised host process runner using Git worktrees.
+There are no containers, remote workers or claimed host sandbox boundaries.
 
-The MVP runs every agent and every repository command on the host, as the current user, through `LocalProcessRunner`. Isolation between runs comes from Git worktrees, per-run folders, port allocations, and process groups. Isolation from the rest of the machine comes only from Cuckoding's path/command policy and from the runtime's own permission system. This is a trusted-host model, not a sandbox, and the UI says so.
+## Owned execution
 
-Container isolation is a `RunnerBridge` plugin family added later (Docker, OrbStack, Colima, Apple Containers). Its frozen stub contract is in `docs/CONTAINER_RUNNER_CONTRACT.md`; no container backend is selectable yet. Nothing in the domain layer may assume either runner.
+Each task attempt has a recorded worktree/branch/base, run directory, generated
+runtime instructions, process group and optional leased loopback ports.
+Parallel workers never share a writable checkout. Read-only roles receive
+candidate/spec evidence through their own scoped sessions. Approved checks may
+write build outputs to an owned verification area; source modifications invalidate
+review. The original Arena checkout is not the working directory for agents.
 
-## RunnerBridge contract
+Canonicalize paths and reject symlinks escaping granted roots. Keep generated
+config private and separate from provider authorization profiles. Every launched
+process records executable identity, PID, PGID, start identity, owner and result.
+Pass argv without a shell; build child environments from a minimal allowlist.
+Never import the user's shell startup environment or secret-bearing variables.
 
-| Operation | LocalProcessRunner behavior |
-| --- | --- |
-| `prepare` | Validate policy snapshot; create worktree under the workspace root; allocate ports; write generated agent configuration files inside the run folder |
-| `start` | Launch the agent process in a new process group with a scrubbed environment; record PID, start identity, and ports |
-| `exec` | Run a declared project command (bootstrap, test, lint, dev server) in the worktree, in its own process group, with timeout and output limits |
-| `pause` | Persist the active checkpoint, verify PID/start identity, suspend owned process groups with `SIGSTOP`, and keep them alive |
-| `hibernate` | Checkpoint, stop processes with the termination ladder, release ports and leases, keep the worktree |
-| `resume` | Revalidate worktree and policy hashes, reallocate ports, restart services, resume or continue the session |
-| `inspect` | Process tree, resource samples, port state, worktree status |
-| `stream_events` | Normalized stdout/stderr/lifecycle events after redaction |
-| `destroy` | Verify ownership, stop everything, remove worktree per retention |
+Validate named approved command declarations before execution. Model text cannot
+become a shell command. Preserve full exit/timeout/cleanup outcomes and hashed
+redacted logs. Instructions to an agent are not proof that its runtime enforces
+the requested restriction; adapters report actual enforcement.
 
-## Workspace layout
+## RTK and Ponytail
 
-```
-<workspace_root>/
-  <project_id>/
-    <run_id>/
-      worktree/        # git worktree checked out on the feature branch
-      agent/           # generated, read-only runtime configuration for this run
-      artifacts/       # specs, patches, reports, logs (content-addressed)
-      run.json         # ownership marker: project/board/task/run IDs and policy hash
-```
+Contributors use RTK for every repository shell command and Ponytail full.
+Managed role instructions carry the same defaults. App-owned repository shell
+commands use the verified RTK wrapper after validating the underlying command.
+Saved command declarations remain unwrapped so policy sees the actual operation.
 
-The workspace root defaults to `~/Library/Application Support/Cuckoding/workspaces` and is configurable per project. Worktrees are created from the trusted base SHA. The main repository's `.git` stays where the user keeps it; because everything runs on the host, worktree `gitdir` pointers work without special handling.
+Never filter JSON-RPC/ACP or other machine-readable protocol frames through RTK.
+Use an exact-output bypass for those transports and for semantic incompatibilities,
+recording the reason. RTK preserves exit codes, necessary failures and reviewed
+command meaning. A missing required tool blocks the affected launch with a clear
+setup action; no hidden installation or permission expansion. Pin/license-check
+any bundled helper during packaging.
 
-`Cuckoding.Execution.GitService` requires the registered repository to be clean, resolves the repository and workspace directories before comparing paths, and creates a new non-protected branch from the recorded default-branch SHA. Each run directory starts with an atomic `run.json` ownership marker and its environment records the same base and head SHA. Existing branches, existing run directories, traversal identifiers, and symlink components below the resolved workspace root are refused rather than cleaned automatically.
+## Pause, stop, crash and sleep
 
-For a linked board batch, the trusted execution base can instead be its latest
-validated reviewed commit. The ownership marker additionally carries the batch
-ID and original project base, while `run.base_sha` remains the task's execution
-base. GitService still requires the clean default branch to match that original
-revision. Handoff verifies review/candidate identity and ancestry; skipped or
-failed branches remain isolated and never advance the batch head. Stop and Skip
-stop owned processes while retaining worktrees/artifacts; neither removes nor
-rebases unfinished work. See [CUCKODING-CONTROL.md](CUCKODING-CONTROL.md).
+Persist control intent before signalling a process. Pause closes admission,
+saves a public checkpoint and quiesces workers using supported adapter behavior.
+Stop cancels then uses an ownership-checked termination ladder. Check descendants
+as well as the parent; only release leases/ports after verified cleanup.
+Keep partial edits and evidence. Resume continues a compatible session or starts
+a fresh one with public evidence; it never fabricates a restored process.
 
-The native app's HOME remains app-owned. Host-side GitService commands use the
-shell's `CUCKODING_RUNTIME_HOME` hint for a read-only Git configuration lookup of
-the effective `core.excludesFile` path, including repository overrides and tilde
-expansion. Only that setting is passed to subsequent Git commands; personal
-hooks, credential helpers and other global settings are not imported. Without
-an explicit setting, Git's XDG/default `~/.config/git/ignore` location is used.
-This keeps globally ignored files such as `.DS_Store` from falsely blocking
-planning while tracked edits and other untracked files still block preparation.
-The hint and personal HOME never reach agent children. Invalid ignore
-configuration fails closed; no files are automatically stashed or removed.
+On startup/wake, reconcile commands, sessions, process identities, worktrees,
+Git refs, ports and leases before scheduling. Distinguish a measured sleep gap
+from a crash; expired heartbeat alone cannot justify a duplicate task.
+Known-ended transient failures may retry within the battle's cumulative limits.
+Uncertain launch/integration results require inspection before replay.
 
-## Optional RTK filtering
+Use a macOS idle-sleep assertion only while eligible work is active. It cannot
+guarantee lid-closed execution or prevent forced sleep. Persist sleep gaps, use
+monotonic active durations and UTC deadlines; wall-time limits remain in force.
+Quit checkpoints/stops owned work gracefully and keeps it resumable. Updates
+must not race active mutations.
 
-The audited global RTK plugin activation applies to all roles in new runs,
-with frozen project/board/role policy and narrower stage restrictions. Discovery
-checks approved installation locations even under the native app's restricted
-PATH. Each role receives the same run-owned RTK launcher and instructions.
-Current pinned agent adapters use **Instructions only**: automatic hooks remain
-disabled until their native permission, trust and isolation checks pass.
-No personal runtime configuration is changed.
+## Capacity and cleanup
 
-After policy validation, synchronous declared commands retain their exact
-executable, argv, working directory and exit status. Successful bounded redacted
-output may pass through the existing RTK shell-filter adapter; failures,
-streaming output, authentication, provider protocols and internal Git checks
-remain unfiltered. A filtering failure never repeats execution. See
-[RTK policy, compatibility and storage](plugins/RTK.md).
+Atomic task and resource claims enforce global, Arena, Tabula and provider
+limits. CPU/memory observations are advisory on this runner. Required preview
+ports use both durable leases and actual bind/listener checks; surface a race
+or foreign owner rather than silently attaching to it.
 
-## Process supervision
-
-- Every launched process gets its own process group. Because a runtime may create additional descendant groups, inspect and own the full process forest; signaling only the initial group is insufficient.
-- Record PID plus start timestamp; verify both before signalling to avoid PID reuse.
-- Startup and wake reconciliation use a read-only inspector. A numeric PID alone is never sufficient to continue, adopt, or signal a process; the observed start identity must match the durable record.
-- Termination ladder: adapter graceful stop → signal owned descendant groups before the root group with `SIGINT` → `SIGTERM` → `SIGKILL`, each with a bounded wait and an event. Completion requires every observed PID and PGID to be gone.
-- Explicit pause suspends the process execution timer; `SIGCONT` resumes the
-  same verified process and its remaining timer. Old timeout messages cannot
-  terminate a resumed process. Pause/resume signals and measured pause duration
-  are recorded. Stage wall time includes the pause; active time subtracts the
-  process's measured paused duration. Stop replies to every waiting caller,
-  including both the workflow worker and the control request. A missing process
-  worker fails pause/resume closed instead of pretending an orphan can resume.
-  Task/global coordination now has separate `RunControl` regressions covering
-  stage boundaries, durable admission, waiting-state restoration and cancellation;
-  runner tests alone do not establish native/provider acceptance.
-- Bound stdout/stderr, apply redaction before persistence, and stream a public summary to the UI.
-- Environment is built from an allowlist: `PATH` (resolved tool paths), `HOME`, locale, `PORT`/`CUCKODING_*`, and only the variables the policy declares. Never inherit the shell's full environment.
-
-`Cuckoding.Execution.LocalProcessRunner` owns each Erlang port through a temporary supervised worker. The macOS port launcher creates the process group; a short `/usr/bin/ruby` argv-preserving shim delays `exec` long enough to record the leader's PID, PGID, and `ps` start identity. The runner snapshots descendant groups, signals child groups before the root group, records each attempted signal before sending it, and refuses to signal when the durable start identity differs. This is supervision, not sandboxing.
-
-On normal command exit, the runner also checks the recorded root process group and applies the same audited signal ladder to children that remain there before recording successful completion. It rechecks the recorded leader identity between signals and treats process-inspection failure as an error, not an empty group. If ownership or cleanup cannot be confirmed, the process is recorded as failed and the caller receives a cleanup error. This does not prove cleanup of a descendant that deliberately moved into a separate group before the parent exited; full detached-group ownership remains a beta acceptance gate.
-
-The pre-signal and live-inspection paths also reject a failed, empty, or
-malformed `ps` snapshot; they cannot infer that no child groups remain from
-an unavailable process table.
-
-The child environment starts empty: Cuckoding removes every inherited key, supplies a fixed system `PATH`, a per-run `HOME`, locale/timezone defaults, explicit `CUCKODING_*` values, and only policy-allowlisted additions. Credential-shaped names are refused. macOS may add its own platform bookkeeping variables after launch; ambient application values are not copied.
-
-The reviewed Cursor selector `AGENT_CLI_CREDENTIAL_STORE=file` is the one
-exception to the credential-shaped-name rule. It names the app-owned file store
-but contains no credential. Any other value for that key, and all other
-credential-shaped environment keys, remain refused. Provider authorization is
-read from the saved account profile, not injected into the process environment.
-
-Declared commands and legacy CLI adapters combine stdout and stderr into one
-ordered stream. Redaction runs before a mode-`0600` artifact write. The
-in-memory/UI preview stops at the configured byte limit and emits a durable
-truncation event.
-
-ACP sessions use the same supervised runner with separate protocol stdout and
-diagnostic stderr. A stdlib Ruby pipe multiplexer preserves ordinary child stdio;
-only its private Erlang-port channel uses packet framing. Only the recorded
-protocol owner can write stdin. Owner loss stops the owned process instead of
-replaying work. Diagnostic lines are assembled before redaction; oversized lines
-are omitted and diagnostic artifacts stop at 4 MiB with a durable truncation
-event. Raw protocol output never enters the process-log artifact. Durable
-process-start/binding events identify ACP processes for restart/wake inspection.
-A matching PID with no live protocol owner is blocked as
-`agent_transport_missing`; it is never adopted or replayed. See
-[ACP communication](AGENT_RUNTIME_ADAPTERS.md#acp-communication-task-1054).
-
-Autonomous board recovery uses the same ownership and Stop/cleanup boundary.
-Only host-classified transient timeouts are automatically retried within the
-start ceiling. Every attempt gets a separate run/worktree based on the last
-reviewed head; dirty failed branches and evidence remain. A saved logical
-conversation is not a process checkpoint. Workspace/grant/account/model changes
-force public-evidence continuation in a new native session. A restart or sleep
-reconciliation never infers permission to replay a prompt from a conversation ID.
-
-## Path and command policy
-
-- The run may write only inside its worktree and run folder; `protected_paths` (for example `.cuckoding/`, `.github/workflows/`) are read-only for agents and changes to them are flagged for approval.
-- Board task-intake runs request read and shell tools for read-only file inspection, deny write/network tools, and accept only bounded structured proposals. Runtime-specific enforcement is recorded separately; the host runner is not a sandbox. The host validates every cited path against the owned worktree and does not promote provider text into a command or task until human import.
-- Declared commands in `project.yml` are the only commands Cuckoding itself executes. The agent runtime executes its own commands under its own permission system; Cuckoding records the tool activity it can observe and does not claim to filter it.
-- The project loader hashes a validated, non-symlinked version 2 file. Command strings are tokenized without a shell, resolved to an absolute executable, and passed as argv; undeclared names, shell executables, NUL bytes, and statically visible absolute or parent-traversal arguments fail closed.
-- The protected-path scanner combines the frozen-base commit range with staged, unstaged, and untracked changes. It includes both sides of renames/copies, always protects `.cuckoding/`, and keys approval to the exact sorted path-set digest. Pending or rejected approval blocks QA; a broader later diff needs another decision.
-- Resolve symlinks before confinement checks. Reject worktree roots outside the workspace root.
-- Reject commands referencing paths outside the worktree in Cuckoding-executed commands.
-- Reconciliation treats a missing worktree as recoverable only when no recorded process is still alive. Drift, an unverified canonical path, or a missing worktree with a live process blocks the run for human inspection.
-- Git inspection is read-only: a changed default-branch SHA, checked-out branch, recorded head SHA, or ownership marker returns drift and blocks resume. It never rebases, resets, deletes, or accepts the new state without the later user decision.
-
-## Preview ports and local URLs
-
-- Each project declares an optional `commands.dev_server` and a `ports.range` (for example `4300-4399`).
-- `prepare` allocates a free port from the range, passes it as `PORT` and `CUCKODING_PORT`, and records `preview_url` (`http://127.0.0.1:<port>`) on the environment row.
-- The UI shows the preview link, health (probe on `/` or a declared `health_path`), and the worktree path with an "Open in Finder/editor" action.
-- Ports are released on hibernate/stop and reallocated on resume; a run never reuses another active run's port.
-- Reconciliation accepts a bound port only when its owner PID and start identity match one of the environment's durable process records. A free expected service port requests recovery; an unknown owner blocks the run.
-- Optional later: a Cuckoding reverse proxy giving stable `http://127.0.0.1:<app>/preview/<run>/` paths.
-
-The implemented allocator checks the OS with a temporary loopback listener, acquires an exclusive SQLite lease, checks the OS again, and then writes the port and exact `http://127.0.0.1:<port>` URL under the database's active-port uniqueness constraint. Concurrent Cuckoding allocations therefore cannot collide. An arbitrary development server cannot inherit the probe socket, so another same-user host process can still win the short bind race; health exposes the failure and cleanup or lease expiry recovers it.
-
-The dev server is the immutable snapshot's declared `dev_server` command. Cuckoding injects `HOST=127.0.0.1`, `PORT`, and `CUCKODING_PORT`; the health probe accepts only a loopback HTTP URL and an origin-relative path, follows no redirects, and reports `Healthy`, `Unhealthy · HTTP <status>`, or `Unavailable`. Stop terminates the owned process group before releasing the port. Hibernate uses the same release with `hibernated` state; resume performs a new allocation rather than trusting the prior port.
-
-The shared LiveView preview panel renders textual health, a guarded preview link, and keyboard-accessible Finder/editor buttons. The user-triggered opener re-reads the environment, requires the recorded worktree path, resolves its physical directory, and invokes `/usr/bin/open` with argv rather than a shell.
-
-## Lifecycle and cleanup
-
-`Cuckoding.Execution.Lifecycle` composes the runner operations; it does not make an in-memory process the workflow owner. Pause verifies every recorded live process and persists the adapter's public checkpoint before the task/run transition. Hibernate persists a fresh checkpoint before the termination ladder, then releases the port lease and preserves the worktree. A checkpoint failure leaves the processes and run state unchanged.
-
-Resume reloads durable rows, accepts only a hibernated run, calls the read-only Git ownership/drift inspection, reallocates a port, and gives the adapter the same active attempt plus `checkpoint_json`. A failed resume releases the new allocation back to hibernated state. Cleanup stops owned processes, releases the port, and removes only a clean registered worktree whose canonical paths and `run.json` ownership fields still match. The run directory and artifacts are retained and enumerated; Cuckoding never force-removes a dirty or ambiguous path.
-
-## Resource accounting
-
-- Sample CPU time, RSS, thread/process count, and open ports for every process group every 2–5 seconds while active.
-- Aggregate to 1-minute and stage-level rollups; attribute to the agent session or command.
-- Sustained breaches of per-run limits (declared in policy) generate events and may pause or hibernate the run. Hard enforcement of CPU/memory limits is not available on the host runner and is labeled as such.
-
-## Concurrency limits
-
-- Board and project concurrency limits cap active runs.
-- A global limit on active agent sessions protects the machine and provider quotas.
-- The scheduler checks free ports and memory headroom before starting a run.
-
-The Phase 5 scheduler reads the global session cap from application configuration, each board limit from SQLite, and the project run limit plus per-run advisory memory ceiling from the latest trusted project configuration (`resources.per_project.max_active_runs` and `resources.per_run.memory_mb_ceiling`). Its macOS host probe counts only loopback ports that are both physically bindable and free of an active durable lease, and derives available memory from `vm_stat`. These checks are admission signals, not a claim of hard host resource isolation; `PortAllocator` still performs the authoritative lease-and-bind claim when a run starts.
-
-## Honest limitations of the host runner
-
-- No filesystem isolation beyond policy and the runtime's permission prompts.
-- No network isolation or egress control.
-- No hard CPU/memory limits.
-- Malicious repository content can instruct an agent to act on the host; mitigations are the runtime's permission mode, protected paths, no secrets in environment, and human approval gates.
-- Provider-specific config-directory switches may not redirect transcripts, workspace trust, plugins, or compatibility configuration. Cursor uses an app-owned account HOME and its native owner-only file credential store for saved agents (legacy unbound runs retain their run-owned HOME), run-owned config directories and no project runtime/MCP/plugin overrides. ADR-025 explicitly permits history and authentication sharing between projects using the same saved agent, never access to the personal home or macOS login keychain. Each adapter must inventory actual child processes and global writes before release acceptance.
-
-These limitations are shown in the project settings and in the run detail when the local runner is active.
-
-## Future container runners
-
-A container runner plugin implements `RunnerBridge` and declares in its manifest which isolation properties it provides (filesystem, network, resource limits, egress). The UI labels these as declared, never inferred. Candidate backends are Docker Desktop, OrbStack, Colima, and Apple Containers. The stable contract keeps Git host-side and confines mounts to the run worktree and run directory; see `docs/CONTAINER_RUNNER_CONTRACT.md`.
+Cleanup requires matching DB owner, canonical path, ownership marker, Git
+identity, no live processes and a clean worktree. Dirty or uncertain work stays
+available for inspection. No force deletion or reset. Archive/deletion needs a
+preview and explicit human confirmation. See [flow](FLOW.md) for local integration
+and [testing](TESTING.md) for crash/sleep/parallel acceptance.

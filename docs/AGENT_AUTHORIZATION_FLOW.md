@@ -1,253 +1,63 @@
-# Agent-first authorization flow
+# Agent setup and model catalog
 
-Status: shared-profile implementation delivered (task 1018); authenticated
-two-project/refresh acceptance remains open. This replaces per-run sign-in as
-the normal saved-agent journey in ADR-024. It does not claim provider-specific
-acceptance from configuration tests alone.
+Target experience: connect once, choose models/roles once, reuse across Arenas.
+Runtime discovery, version compatibility, authorization and model availability
+are separate statuses. None implies the others.
 
-## User journey
+## User flow
 
-1. Open **Agents** from the main navigation. This is the machine-wide catalog,
-   separate from **Agent activity**, which shows running and historical sessions.
-2. **Add agent** follows three steps: **Name and runtime**; **Authorization**;
-   **Model**. The executable is suggested when found; **Find automatically**
-   repeats the [known-location search](#executable-discovery). The absolute-path
-   field stays editable before saving and in **Edit agent**. A failed search
-   keeps the typed path; after saving, the wizard cannot silently rescan or
-   replace the saved path. The second step saves the agent, reuses a compatible
-   Codex/Cursor sign-in by default,
-   and shows a copyable sign-in command only when needed. **Use a separate
-   sign-in** creates an independent account. After sign-in, **Check sign-in and
-   fetch models** verifies the app-owned provider profile and refreshes its
-   catalog; a connected shared account can continue without a second login.
-   The final step selects a discovered model or runtime default. A validated
-   Custom model ID remains available when discovery is unsupported or unavailable.
-   For Codex, a discovered model also exposes only its reported reasoning levels;
-   **Model default** leaves the effort to Codex. Other runtimes do not present an
-   unverified reasoning override. Closing setup after step two leaves the saved
-   agent in the catalog for later completion.
-3. Add a project through **Project → Repository → Review**. In project settings,
-   select existing agents and assign their roles; do not re-enter credentials.
-   Use Projects to return to the project after adding an agent.
-4. Create a board and tasks as before. Several roles may use the same agent.
-   An agent entry lists all of its assigned roles, rather than duplicating login
-   cards for Specifications and Review.
-5. Choose **Start workflow** on a prepared run. Check each distinct connection
-   automatically before starting provider work. Do not render login commands as
-   the default screen. Authentication checks do not skip policy, budget,
-   concurrency, Git, or release-approval gates.
-6. Only if a connection needs attention, name that agent, explain the reason,
-   and offer **Re-authorize agent**. Repair the saved connection once, then retry
-   the run without creating a replacement project, board, or task.
+1. **Add agent** suggests known installed runtimes and an editable absolute path.
+   Discovery checks known paths/file metadata; it does not execute candidates,
+   scan the home directory or read credentials.
+2. A fixed adapter version probe verifies compatibility, then **Authorize** opens
+   the provider-supported login for an app-owned profile. Show progress and a
+   copyable instruction only when the provider needs it. Never ask users to paste
+   credentials into CCoding forms.
+3. Probe authorization with that same profile and launch configuration. A login
+   status result must be followed by an isolated real-session check in adapter
+   acceptance; historical status alone cannot prove work will launch.
+4. On success, fetch and normalize available model IDs, labels and supported
+   options. Store the catalog in SQLite with source, scope and timestamp.
+5. Save a human-readable agent name; role forms choose this connection and model.
+   Different roles may select different models using the same authorization.
+   Choose the three delivery roles and the distinct Summa Rudis coordinator.
+6. New Arenas inherit the default team. Starting work checks each distinct
+   connection once and shows a targeted reconnect action when necessary.
 
-"Authorize once" means authorization survives subsequent projects, boards,
-runs, and application restarts while the provider session remains valid. It
-does not promise that revoked, expired, or administratively restricted access
-never needs renewed authorization. Unsupported runtimes must say so before
-they can be assigned for execution.
+The normal path does not reassign agents per task or ask for another login on
+each app launch. Provider expiry/revocation remains authoritative; there is no
+app promise of permanent authorization.
 
-No Cuckoding timer clears authorization on restart or after a run. Provider-native
-storage and refresh determine its lifetime; years-long validity cannot be set by
-Cuckoding. Only the provider runtime handles token values. See
-[official Codex authentication documentation](https://learn.chatgpt.com/docs/auth).
+## Discovery behavior
 
-## Ownership and security
+Refresh after successful authorization, on user request, and when the selected
+catalog is stale at start. Initial freshness default: 24 hours, recorded as a
+product setting. Deduplicate concurrent refreshes per connection/runtime.
+Keep a last-good catalog on temporary failure, mark it stale and show the last
+successful refresh time. A catalog error does not turn a valid login into a
+failed login.
 
-The path lookup described below does not change these ownership boundaries.
+Offer a runtime default only if the adapter supports it. Manual model IDs are an
+advanced fallback with format and availability validation; label them unverified
+until checked. Never invent a catalog or silently substitute another model.
+A missing/removed selected model blocks the affected role with an explicit
+selection action. Retain requested and provider-reported actual models separately.
 
-- Reuse `provider_accounts`; do not create a second catalog. It owns stable
-  identity, non-secret runtime settings, and observed connection status.
-- A project owns role assignments, a board owns its versioned workflow and
-  defaults, and a run owns the immutable execution snapshot and worktree.
-- The selected provider identity is a live authentication dependency. Token
-  rotation or revocation does not rewrite execution history.
-- Decision confirmed on 2026-09-20: use one app-owned runtime profile per saved
-  agent across projects. Provider history and session metadata may be shared.
-  ADR-026 allows multiple named agents to reference the same provider profile;
-  only an explicit separate sign-in gets a separate profile. Never use the user's personal
-  CLI home. Generated task instructions, permission settings, and worktrees
-  remain run-owned; shared state is not reviewed project knowledge.
-- Database rows, events, logs, prompts, artifacts, clipboard commands, and
-  exported configuration contain no credential values. Provider-native storage
-  remains responsible for secrets. Codex and Cursor native file stores are confined
-  to private app-owned profiles; Cuckoding never reads or copies their token files.
-- Provider model discovery runs only after the scoped authorization probe. The
-  database stores bounded model IDs, display labels, validated Codex reasoning
-  levels, and discovery status,
-  never raw CLI output or provider errors. Codex uses the official app-server
-  `model/list` method; Cursor uses its account-scoped `models` command.
-- `provider_accounts.authorization_account_id` points only to a compatible root
-  account (same runtime/executable/helper). New automatic selection prefers a
-  connected root, then the oldest compatible root. Existing accounts remain
-  independent unless newly created with a shared reference. References cannot be
-  redirected later, preventing silent identity changes to historical runs.
-- Each agent's model and Codex reasoning level remain independent. Project
-  settings copy both; boards and runs preserve them in snapshots. Planning and
-  workflow requests forward the selected model and per-role reasoning level;
-  reported actual model stays separate. Changing the model in project settings
-  clears a copied reasoning level so an unsupported combination is not retained.
-- Shared profiles are now explicitly approved. Codex uses the same account
-  home for login, probes and execution, with saved execution config ignored.
-  Cursor shares its app-owned HOME and native credential file but keeps task
-  configuration run-owned.
-- Editing and status checks record a value-free audit event before broadcasting
-  status. Future launches fail clearly after revocation; they do not silently
-  switch to another account or restart/kill existing work. Root account cards
-  list every current project/board role using that sign-in. **Disconnect shared
-  sign-in** requires confirmation, records the request before invoking the
-  provider's scoped logout, records `provider.authorization_disconnected`, and blocks future launches for all
-  linked agents without rewriting running work or historical snapshots.
+Cache account-dependent availability under the authorization identity and runtime
+version, not a global list shared indiscriminately between accounts. Record
+unsupported discovery honestly. Do not persist raw provider payloads/errors.
 
-## Executable discovery
+## Ownership and acceptance
 
-`RuntimeConfiguration.default_executable/2` supplies suggestions to Agents and
-project settings. It checks the first existing absolute regular executable
-file in this order, without executing candidates:
+App-owned profiles contain provider-managed state; CCoding stores references,
+not credentials. Shared authorization may also share provider-managed history;
+explain this and support separate profiles. Task instructions and permission
+settings stay attempt-owned. Disconnect shows all affected roles/Arenas, requires
+confirmation, logs out only that profile and blocks future launches. It does not
+silently erase work or revoke unrelated personal sign-ins.
 
-1. Directories in the host process PATH.
-2. Under the discovery home: `.local/bin`, `.volta/bin`, `.npm-global/bin`,
-   `.bun/bin`, `.asdf/shims`, `.opencode/bin`.
-3. `/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin`.
-4. For Codex only, `Codex.app/Contents/Resources/codex` and
-   `ChatGPT.app/Contents/Resources/codex`, first under `/Applications`, then
-   under `~/Applications`.
-
-Names are `codex`, `claude`, `cursor-agent` then `agent` in each directory, and
-`opencode` for their respective runtimes. Custom Agent has no guessed name.
-Normal symlinks to executable files work; directories, non-executable files,
-broken links and relative paths do not qualify. This is a bounded search of
-known locations, not a recursive disk scan or guarantee that every installer
-layout is covered. Unusual locations require the manual absolute-path field.
-
-The native shell keeps Phoenix HOME app-owned and PATH restricted, and passes
-the actual home as `CUCKODING_RUNTIME_HOME` for host-side executable discovery
-and [Git ignore-file lookup](EXECUTION_ENVIRONMENTS.md#workspace-layout). Without that
-hint the helper uses `System.user_home()`. The hint is excluded from agent child
-environments. Discovery does not source shell startup files, change PATH, read
-credential files or import Codex Desktop/ChatGPT sign-in, settings or chats.
-
-**Found**, **compatible** and **signed in** are separate results. Codex's current
-adapter requires CLI `0.146.0`; finding a newer desktop bundle does not expand
-that support. Use **Edit agent** to choose a supported executable after a version
-failure. Cuckoding still requires its own app-owned provider sign-in. Source and
-preview verification for task 1037 does not prove an older installed native app
-contains this discovery code; see [RELEASE_READINESS.md](RELEASE_READINESS.md).
-
-## Existing boards and runs
-
-Do not match old connections to accounts by display name alone, silently mutate
-historical snapshots, or require users to abandon boards containing their tasks.
-Provide an explicit **Assign agents to board** upgrade. It validates current
-project roles and compatible account IDs, updates the board assignment used by
-future runs, and appends bindings for compatible queued work in the same
-transaction. Existing tasks stay on the board and queued workflow snapshots are
-not rewritten. If any role in a queued run is incompatible, that run receives no
-new bindings and points back to board assignment or safe replacement-run
-recovery. Running/completed runs are never rebound. A queued run linked to a
-board batch also refuses rebinding because its roles were reviewed at Start
-board. Re-authorizing the same saved account remains a live dependency; changing
-the batch's role/policy requires resolving the current batch and reviewing a new
-one. See [board execution policy](CONFIGURATION.md#board-execution-policy).
-
-Connected accounts show a green, text-labeled status and a **Re-authorize agent**
-link. Run-local sign-in commands and per-role agent pickers are not shown; an
-authenticated account's one-time command stays collapsed under **Re-authorize
-agent** in Agents.
-
-For Codex, a prior "Connected" observation cannot override a missing private
-`CODEX_HOME/auth.json` in the app-owned file store. The CLI must report signed
-in **and** that regular owner-only file must exist. Run start rechecks each
-distinct saved sign-in and records its latest status before execution. If one
-needs sign-in, the run stays queued, names that agent, and links to its Agents
-card; the task and worktree remain unchanged. A user who signed in before the
-keyring-to-file-store change must complete one new sign-in for this app-owned
-profile. Later runs reuse it until the provider revokes or expires it.
-
-## Implementation order and acceptance
-
-1. Prove the credential boundary for the installed, pinned runtime versions.
-   One login must authenticate isolated runs in two projects, survive restart
-   and refresh, and fail safely after revocation. Check global writes and MCP
-   process startup as well as a successful status command. Do not read or print
-   a user's token to establish this evidence.
-2. Build the independent Agents catalog with add/edit/connect/check/reconnect
-   actions using existing domain validation and LiveView conventions. Project
-   settings select accounts and assign roles.
-3. Resolve and verify unique connection identities at the shared runtime
-   boundary, then reuse the result for every assigned role. Deduplicate by
-   account ID and relevant snapshotted execution settings, never runtime name
-   alone. A saved status is not proof of current authorization.
-4. Add the reviewed legacy-board/queued-run upgrade path. Explain impact and
-   preserve all task, event, artifact, and snapshot history.
-5. Verify duplicate-role display, two-account separation, revoked/unavailable
-   providers, reconnect, app restart, concurrent runs/refresh, secret canaries,
-   path confinement, keyboard behavior, and LiveView status refresh. Record
-   mock/fixture checks separately from real-provider acceptance.
-
-## Implemented and remaining verification
-
-- `/settings/agents` provides a three-step add wizard, full edit form, copyable sign-in commands and async checks;
-  status updates arrive after durable provider audit events. Project settings
-  retain existing add/edit controls for compatibility and can attach accounts.
-- Codex and Cursor authorization checks also refresh a bounded provider model
-  catalog. The root sign-in owns the catalog; linked agents immediately reuse it,
-  and editing an agent preserves it. Discovery failure does not discard a valid
-  sign-in and is shown separately from authentication status.
-- Linked agents show shared live status and a link to the original sign-in card,
-  not a second login command. Model/name edits do not clear authorization status.
-- Codex login, probe, model discovery, launch and logout now select the file store
-  in the same account-owned home. An existing Keychain login does not transfer;
-  sign in again through Agents. The provider's `auth.json` must be a regular
-  owner-only file. Per-run instructions and permission overrides do not overwrite
-  shared configuration.
-- Cursor uses `AGENT_CLI_CREDENTIAL_STORE=file` for login, probes, launch and
-  logout. The pinned CLI stores refreshable credentials at owner-only
-  `<account-home>/.cursor/auth.json`; Cuckoding does not read, copy, log or place
-  them in argv/environment. Task config and compatibility directories remain
-  per-run. Fixed shared sandbox/MCP files are checked against expected contents
-  and unsafe paths fail closed.
-- Claude Code has a reusable reviewed helper; OpenCode and Custom Agent remain
-  setup-only and cannot be advertised as working reusable launch adapters.
-- Saved-agent cards group assigned roles. A board upgrade matches stable
-  connection keys and compatible executable/helper settings, never names. Each
-  queued binding is a separate event; a run is never partly rebound when one of
-  its missing roles is incompatible.
-- Deterministic regression tests cover profile reuse across two project-shaped
-  runs, distinct accounts, invalid/symlink paths, revoked probes, changed shared
-  MCP files, separate task settings and historical snapshot preservation.
-- Root account cards show the affected saved-agent count and current project,
-  board and role assignments before a confirmed shared-sign-in disconnect.
-  Linked cards continue to point to the one root instead of offering duplicate
-  login or logout controls. Cuckoding never silently logs out an idle account.
-- Real CLI status checks on 2026-09-20 at 18:05 UTC returned sign-in required for
-  both existing app-owned accounts. A later Cursor login exposed that an
-  isolated `HOME` cannot resolve the macOS default keychain; the browser step
-  succeeded but credential persistence failed. Cursor now uses its native
-  account-owned file store instead. On 2026-09-21, after a development-server
-  restart, the installed Codex CLI reported a ChatGPT login and the installed
-  Cursor CLI reported authenticated under their saved app-owned profiles.
-  A real Codex invocation with the run-owned `HOME` then failed to find the
-  default Keychain; the Codex status check was a false positive for isolated
-  execution. The same isolated status with the corrected file-store mode reports
-  sign-in required. Verify fresh sign-in, authenticated two-project use, token
-  refresh/restart and concurrent provider behavior before closing task 1018.
-- On 2026-09-21 at 19:52 UTC, read-only isolated-profile preflight found a
-  private Codex file-store credential by metadata only. The installed Codex CLI
-  reported ChatGPT sign-in with `CODEX_HOME` set to that app-owned profile,
-  file-store mode selected, and a scrubbed explicit environment. The installed
-  Cursor CLI reported authenticated with its app-owned `HOME`, config paths,
-  native file store, and a scrubbed explicit environment. No credential value,
-  provider task, or personal CLI profile was read. These checks establish
-  current CLI status, not authenticated cross-project execution or refresh.
-- The confirmed disconnect control is implemented and regression-tested. It is
-  a provider-scoped logout, not destructive profile-directory deletion, and it
-  never touches personal profiles. Real post-login revocation evidence remains open.
-- Browser acceptance verifies both root sign-in commands remain complete,
-  read-only fields with adjacent copy controls and polite copied-status feedback.
-  At a 320 px viewport the page has no horizontal overflow and retains every
-  runtime, model, provider-sign-in, edit, copy, and authorization-check control.
-
-Official Codex documentation describes cached login reuse and file/keyring
-storage; Cuckoding uses the documented file store because keyring discovery
-fails under the isolated run home:
-[Authentication](https://learn.chatgpt.com/docs/auth).
+For each runtime, verify fresh login, two Arenas, different models, concurrent
+sessions, app restart, refresh, revocation and isolated execution. Inspect global
+writes and child processes without exposing credentials. If safe profile reuse
+or required permissions cannot be demonstrated, the adapter remains unavailable.
+See [adapter contract](AGENT_RUNTIME_ADAPTERS.md) and [R020/R090](PLAN.md).
