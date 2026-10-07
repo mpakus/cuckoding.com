@@ -1,0 +1,7 @@
+[
+  exit: "low",
+  skip: true,
+  # Loopback HTTP is intentional. The socket uses a tested dynamic-port origin MFA
+  # that Sobelow cannot resolve. See docs/SECURITY.md; no other checks are disabled.
+  ignore: ["Config.HTTPS", "Config.CSWH"]
+]

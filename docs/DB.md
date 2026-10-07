@@ -4,6 +4,19 @@ Target schema, to be implemented incrementally. Use Ecto and SQLite with WAL,
 foreign keys, a busy timeout and short write transactions. Persist workflow
 truth here; files store human-readable content and processes do the work.
 
+R010 currently creates four tables: singleton `workspace` (setup projection and
+revision), `commands` (UUID key, expected revision, status, three-attempt limit
+and ten-second claim), append-only `events`, and `browser_tokens` (SHA-256
+digests, purpose and expiry). Events use an ordered integer sequence; command
+IDs are UUIDs. SQLite triggers reject event updates/deletes. Startup refuses
+unknown migration versions. Two pooled connections allow the Ecto migration
+lock and migration query to coexist; the busy timeout is five seconds.
+
+The default native root is `~/Library/Application Support/CCoding Rebuild`,
+marked `.ccoding-rebuild-v1`. Unknown nonempty roots and symlinked storage are
+refused before migration. `foundation.db` and sidecars are private; old CCoding
+data is not opened. `CCODING_DATA_DIR` can select an absolute isolated test root.
+
 ## Minimal records
 
 | Record | Durable fields / invariant |

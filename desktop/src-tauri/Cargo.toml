@@ -1,0 +1,17 @@
+[package]
+name = "ccoding"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.97"
+
+[build-dependencies]
+tauri-build = { version = "=2.6.3", features = [] }
+
+[dependencies]
+tauri = { version = "=2.11.5", features = ["tray-icon"] }
+serde_json = "1.0"
+libc = "0.2"
+
+# Rust #157750: stripping proc-macro dylibs misaligns LINKEDIT on macOS 27.
+[profile.release]
+strip = false

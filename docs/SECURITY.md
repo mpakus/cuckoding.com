@@ -82,3 +82,30 @@ cross-Arena access refusal, canaries, process identity reuse, Git drift,
 concurrent integration and recovery checks. A provider fixture does not establish
 safe real-provider behavior. A secret leak or ambiguous authority is a stop
 condition, not an automatic retry.
+
+## R010 implementation and static-analysis exceptions
+
+The native shell writes a 0600 launch file in the private rebuild root. Startup
+consumes/deletes it; a one-use bootstrap establishes in-memory shell authority.
+The browser gets a single-use 60-second handoff and an encrypted HttpOnly,
+SameSite=Strict cookie backed by a hashed, expiring 30-minute DB session.
+LiveView checks authority on mount, events, incoming updates and expiry. Restart
+rotates the cookie key. Authentication routes do not log request parameters.
+
+HTTP and WebSocket origins must match localhost/127.0.0.1 and the current
+ephemeral loopback port. HTTP also rejects foreign Host and cross-site fetches;
+LiveView retains its CSRF token check. CSP permits only local assets/connections,
+with no framing, objects or inline scripts. The shell sends a heartbeat every
+five seconds; loss of authority/service closes the shell, and the service exits
+after 30 seconds without shell contact. Sleep reconciliation remains R060.
+
+Sobelow exclusions are limited to intentional loopback HTTP (`Config.HTTPS`),
+its inability to resolve the dynamic-port origin MFA (`Config.CSWH`), the browser
+pipeline whose CSP is already set by `Boundary`, and two storage functions with
+explicit absolute-path/symlink/private-file guards. Other checks fail at low
+confidence or higher. Boundary, replay, expiry and storage tests cover these
+decisions; exclusions are not permission to weaken them in later slices.
+
+The host is not an adversarial same-user sandbox: another process with the
+user's filesystem rights can inspect app-owned data. No provider credentials,
+agent grants, external publication or remote listener exist in R010.

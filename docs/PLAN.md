@@ -1,9 +1,10 @@
 # Implementation plan and checklist
 
-**Rebuild baseline: 2026-10-06. All application items below are unchecked.**
-R001 changes documentation only. Historical source/tests/builds do not satisfy
-these gates. Keep the existing stack; build a usable vertical slice early, then
-extend it to the complete user story.
+**Rebuild baseline: 2026-10-06. R010 foundation is verified for local main.**
+R001 and R010 establish the documentation contract and local application shell.
+See [R010 evidence](../worklog/2026-10-06-R010-local-foundation.md).
+Agent authorization, models and orchestration remain R020–R100.
+Historical source/tests/builds do not satisfy these gates.
 
 Claim exactly one task file when beginning a slice. Use the R010–R100 IDs below
 for those files and worklogs; do not generate a folder of empty task templates.
@@ -35,15 +36,15 @@ product is finished.
 Depends on R001. Read [architecture](ARCHITECTURE.md), [data](DB.md) and
 [security](SECURITY.md).
 
-- [ ] Pin a supported Elixir/OTP, Phoenix/LiveView, Ecto/SQLite and Tauri 2
+- [x] Pin a supported Elixir/OTP, Phoenix/LiveView, Ecto/SQLite and Tauri 2
   toolchain; establish the project license/distribution files before shipping.
-- [ ] Create Phoenix app, SQLite migrations, durable command/event boundary and
+- [x] Create Phoenix app, SQLite migrations, durable command/event boundary and
   one supervised dispatcher. Preserve older app data in a separate data root.
-- [ ] Add the minimal Tauri tray: Open CCoding, Settings, About, Quit; launch the
+- [x] Add the minimal Tauri tray: Open CCoding, Settings, About, Quit; launch the
   bundled development release and open the loopback LiveView home.
-- [ ] Implement shell bootstrap, single-use browser handoff, origin/session/CSRF
+- [x] Implement shell bootstrap, single-use browser handoff, origin/session/CSRF
   protections and owned graceful shutdown.
-- [ ] Wire RTK/Ponytail defaults and executable discovery; define formatter,
+- [x] Wire RTK/Ponytail defaults and executable discovery; define formatter,
   compiler, ExUnit, Credo, Sobelow and shell quality commands.
 
 Acceptance: launch from the tray, see one browser screen, reject unauthorized/

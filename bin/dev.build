@@ -1,0 +1,30 @@
+#!/bin/sh
+set -eu
+PATH="${CARGO_HOME:-$HOME/.cargo}/bin:$PATH"
+export PATH
+cd "$(dirname "$0")/.."
+rtk mix deps.get --check-locked
+rtk mix assets.setup
+# The upstream standalone Tailwind binary has a stale ad-hoc signature on macOS.
+rtk proxy codesign --force --sign - _build/tailwind-macos-arm64-4.3.0
+rtk proxy env MIX_ENV=prod mix assets.deploy
+rtk proxy env MIX_ENV=prod mix compile --warnings-as-errors
+rtk proxy env MIX_ENV=prod mix release --overwrite
+rtk mkdir -p desktop/resources
+# Only replace generated bundle resources, never the application's data directory.
+rtk proxy rm -rf desktop/resources/release
+rtk proxy cp -R _build/prod/rel/cuckoding desktop/resources/release
+# Homebrew OTP links crypto to OpenSSL. Relocate that one non-system dependency.
+rtk mkdir -p desktop/resources/release/vendor
+rtk proxy cp /opt/homebrew/opt/openssl@3/lib/libcrypto.3.dylib desktop/resources/release/vendor/
+rtk proxy cp /opt/homebrew/opt/openssl@3/LICENSE.txt desktop/resources/release/vendor/OPENSSL-LICENSE.txt
+rtk proxy install_name_tool -id @loader_path/libcrypto.3.dylib desktop/resources/release/vendor/libcrypto.3.dylib
+rtk proxy codesign --force --sign - desktop/resources/release/vendor/libcrypto.3.dylib
+for library in desktop/resources/release/lib/crypto-*/priv/lib/*.so; do
+  rtk proxy install_name_tool -change /opt/homebrew/opt/openssl@3/lib/libcrypto.3.dylib @loader_path/../../../../vendor/libcrypto.3.dylib "$library"
+  rtk proxy codesign --force --sign - "$library"
+done
+# Tauri must be able to overwrite its staged resources on the next build.
+rtk proxy chmod -R u+w desktop/resources/release
+cd desktop
+rtk cargo tauri build --bundles app --ci -- --locked

@@ -1,7 +1,14 @@
 # Architecture
 
-Target architecture; no application implementation currently exists in this
-checkout. Keep the established stack and build one vertical workflow first.
+Target architecture, implemented incrementally. R010 provides the tray,
+authenticated LiveView foundation, SQLite and metadata-only setup dispatcher.
+The runner, adapters, roles and battle domains below remain subsequent slices.
+
+Current startup order: Repo → schema validation/migration → PubSub → shell
+authority → durable dispatcher → loopback Endpoint → readiness message.
+`Cuckoding.Foundation` owns idempotent setup commands and append-only events;
+`Cuckoding.Dispatcher` recovers their bounded read-only claims. The shell owns
+its release process group and storage lock. No provider process is launched.
 
 ## Components
 

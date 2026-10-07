@@ -1,7 +1,8 @@
 # Verification and acceptance
 
-All gates describe future implementation unless the R001 worklog says a
-documentation check ran. The user removed the old test/build sources.
+R010 has current foundation checks; see its [worklog](../worklog/2026-10-06-R010-local-foundation.md)
+and [runnable commands](DEVELOPMENT.md#quality-and-bundled-smoke). Later slice
+and full-story gates remain open. Historical test counts do not establish proof.
 
 ## Gates by slice
 
@@ -23,7 +24,7 @@ focused ExUnit checks and relevant Credo/Sobelow/dependency analysis. For Rust
 shell changes, formatter, Clippy with warnings denied and focused tests.
 Broaden only when dependencies or changed behavior justify it. Package/resource/
 adapter changes also need their domain gates. Do not invent passing commands for
-scripts that are absent; R010 establishes the exact runnable quality commands.
+scripts that are absent; Development owns the exact runnable quality commands.
 
 ## Complete user-story exercise
 

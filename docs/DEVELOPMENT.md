@@ -1,9 +1,64 @@
 # Development
 
-Current checkout: documentation reset with application sources intentionally
-removed. There is no runnable Mix app, native build or release script here yet.
-Begin with R010 in [the plan](PLAN.md); do not run old build commands or restore
-the deleted implementation wholesale.
+R010 is a local foundation preview: tray, authenticated browser, durable setup
+check. Provider authorization and execution start in R020. The previous source
+reset remains intentional; do not restore the deleted implementation wholesale.
+
+## Build and open
+
+Apple Silicon prerequisites: Xcode command-line tools, RTK, asdf with the pinned
+Elixir 1.20.3-otp-28 / OTP 28.5, rustup 1.97.1 and cargo-tauri 2.11.4.
+The development packaging script uses Homebrew OpenSSL 3, bundles its runtime
+library/license, and relocates OTP's crypto references. Cargo.lock fixes the
+compatible Tauri 2.11.5 dependency cohort; use `--locked` for native checks.
+Mix.lock fixes Phoenix 1.8.15, LiveView 1.2.12, Ecto 3.14.2 and SQLite adapter 0.25.0.
+
+From the repository root:
+
+```sh
+rtk proxy bin/dev.build
+rtk proxy open desktop/src-tauri/target/release/bundle/macos/CCoding.app
+```
+
+Launching the app opens the browser. Choose **Open CCoding** from its **CC** menu
+bar item to return later. **Settings** opens tool
+discovery; **About CCoding** opens workspace details; **Quit** stops the owned
+release and listener. No dock window or embedded web frontend is created.
+This build is not notarized or public-release certified. Clean-machine, signing,
+update and physical sleep/wake acceptance remain R060/R100.
+
+The shell starts a bundled OTP release with a private HOME, clean environment,
+exclusive data lock and an ephemeral IPv4 loopback port. It owns the one-time
+handshake: do not run `mix phx.server` or the release executable directly.
+Use `CCODING_DATA_DIR` only for an absolute, empty or marked rebuild directory.
+The default is `~/Library/Application Support/CCoding Rebuild`; no old database
+or personal provider profile is imported. Quit before rebuilding a running app.
+
+The build script re-signs Tailwind 4.3.0's downloaded standalone binary locally
+because its upstream ad-hoc signature is invalid on this Mac. Rust release
+stripping is disabled for the verified LINKEDIT alignment failure described in
+[rust-lang/rust#157750](https://github.com/rust-lang/rust/issues/157750).
+These build-tool workarounds do not disable Gatekeeper or signature verification.
+
+## Quality and bundled smoke
+
+```sh
+rtk mix quality
+rtk cargo fmt --manifest-path desktop/src-tauri/Cargo.toml --check
+rtk cargo clippy --manifest-path desktop/src-tauri/Cargo.toml --locked --all-targets -- -D warnings
+rtk cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked
+rtk proxy bin/dev.build
+rtk proxy bin/smoke
+rtk git diff --check
+```
+
+`mix quality` runs formatting, compilation with warnings treated as errors,
+ExUnit, Credo, Sobelow and dependency audit. Sobelow's architecture-specific
+exceptions are documented in [Security](SECURITY.md). Its Elixir 1.20 warnings
+while parsing Mix's generated lockfile are tool diagnostics, not compiler errors.
+The test DB is `.ccoding/test/foundation.db`; tests use rollback isolation.
+The smoke test creates a new private temporary root, checks the packaged native
+shell/release protocol and Quit, and prints its retained data location.
 
 ## Working procedure
 
@@ -28,16 +83,16 @@ Use an isolated development data root. The source reset does not authorize
 erasing old app databases, provider profiles, knowledge, logs or worktrees.
 Any import/upgrade needs backup-first tests against a copy.
 
-A future requested restart must inspect only owned CCoding instances by executable,
+A requested restart must inspect only owned CCoding instances by executable,
 PID/start identity, working directory and listeners; never dump argv/environments.
 Use the graceful shell shutdown path, verify process/listener cleanup, then open
 one explicitly chosen build and record its identity. Do not kill unrelated Codex,
-Claude, Cursor or Hermes processes. This docs task does not restart the old app.
+Claude, Cursor or Hermes processes. The R010 app identity is `com.cuckoding.rebuild`.
 
 ## Toolchain and distribution
 
 Keep Elixir/OTP, Phoenix LiveView/Tailwind, Ecto/SQLite, Git worktrees and Tauri 2.
-Choose/pin current compatible versions in R010 and prove clean-machine packaging
-in R100. No macOS user should need an Elixir/Rust toolchain to run the bundle.
+R010 pins development versions; prove clean-machine packaging in R100. No macOS
+user should need an Elixir/Rust toolchain to run the bundle.
 Reintroduce CI only with real scripts/checks; no pipeline should point to removed
 files or publish documentation claims as a working release.

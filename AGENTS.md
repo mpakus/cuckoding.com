@@ -4,7 +4,8 @@
 
 These rules apply repository-wide. More specific rules may strengthen safety,
 auditability and verification, not weaken them. The 2026-10-06 user reset replaces
-the previous product direction; implementation is currently absent.
+the previous product direction. R010 implements the local foundation; provider
+authorization, roles, Arenas and battles remain the R020–R100 roadmap.
 
 ## Mission and product contract
 
@@ -125,6 +126,14 @@ sleep/reconciliation; adapter/plugin conformance; LiveView accessibility/end-to-
 end; native clean-machine packaging. Record exact commands/results in worklog.
 Absent checks are unavailable, never passing.
 
+Current commands: `rtk mix quality`; `rtk cargo fmt --manifest-path
+desktop/src-tauri/Cargo.toml --check`; `rtk cargo clippy --manifest-path
+desktop/src-tauri/Cargo.toml --locked --all-targets -- -D warnings`; `rtk cargo
+test --manifest-path desktop/src-tauri/Cargo.toml --locked`; `rtk proxy
+bin/dev.build`. See [Development](docs/DEVELOPMENT.md) for the bundled smoke test
+and private rebuild data location. Run commands from the repository root with
+the pinned toolchains; do not start the release without its native handshake.
+
 ## Task protocol
 
 1. Claim exactly one task file and add a worklog.
@@ -136,10 +145,10 @@ Absent checks are unavailable, never passing.
    local commit, remote publication, native build and actually running artifact.
    Fixture tests and historical ports/PIDs are not current provider acceptance.
 7. Leave an explicit handoff for blocked/partial work.
-8. After each completed R010–R100 plan slice, commit it and merge into local
-   `main` only after its acceptance checks pass. Update `docs/` and this file
-   when behavior or working rules change. Do not merge a partial slice or infer
-   permission to push/publish from this local integration instruction.
+8. After every completed task or plan slice, commit it and merge into local
+   `main` after verification. Always update the relevant `docs/`, `AGENTS.md` and
+   `README.md` with the resulting scope/status and instructions. Record unavailable
+   checks honestly; never infer permission to push/publish from local integration.
 
 Branches: `feature/<task-id>-<short-name>` or `fix/<task-id>-<short-name>`.
 Commits: `<type>(<area>): <imperative summary>`. Keep one task per branch.

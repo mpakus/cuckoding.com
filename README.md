@@ -12,10 +12,17 @@ attention items and logs.
 
 ## Current state
 
-**Documentation reset, 2026-10-06. Implementation pending.**
-The previous application sources were intentionally removed. These documents
-define the rebuild; old commits, test counts and installed applications do not
-prove this contract works. This checkout currently has no application build.
+**R010 foundation preview, 2026-10-06.** The tray shell, authenticated local
+browser UI, SQLite event/command storage and metadata-only tool check are
+implemented and locally verified (22 Elixir tests, 4 Rust tests and packaged
+launch/authentication/shutdown smoke). Agent authorization, models, roles, Arenas and battles are next;
+the product story above remains the target, not a shipped capability list.
+
+Build with `rtk proxy bin/dev.build`, then open
+`desktop/src-tauri/target/release/bundle/macos/CCoding.app`. It opens your browser;
+use **CC → Open CCoding** to return later. See [Development](docs/DEVELOPMENT.md)
+for prerequisites, quality commands and data isolation. This is a local
+development build, not a signed/notarized public release.
 
 ## Start here
 
