@@ -84,5 +84,7 @@ Screenshots: `/private/tmp/cuckoding-r030b-team.jpg` and
 This is saved-default adoption, not arbitrary per-scope editing, execution grants
 or a battle. Real-account successful planning/writing, physical sleep and signed
 clean-machine release gates remain open. No site change, push or deployment.
-Local main integration pending.
+Implementation `0bb8a7e` was fast-forwarded into local `main`; the merged feature
+branch was deleted. This documentation-only follow-up records the verified
+integration. No remote push or deployment.
 

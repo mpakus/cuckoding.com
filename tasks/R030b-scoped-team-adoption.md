@@ -1,6 +1,7 @@
 # R030b — Adopt saved teams in existing scopes
 
-Status: verified; local main integration pending. Owner: Codex.
+Status: complete on local main. Owner: Codex. Implementation: `0bb8a7e`.
+Merged feature branch deleted; no remote publication.
 
 - Preview the current and latest saved default team in an Arena or Tabula;
   explicitly confirm adoption, including changed/removed roles and instructions.
