@@ -2,6 +2,7 @@ defmodule Cuckoding.Foundation do
   @moduledoc "Idempotent setup commands and their committed public event stream."
   import Ecto.Query
   alias Cuckoding.{Codex, Command, Event, Repo, Workspace}
+  @auth_kinds ~w(login_codex logout_codex)
 
   def workspace, do: Repo.get!(Workspace, 1)
   def catalog_status(connection, now \\ DateTime.utc_now())
@@ -18,19 +19,67 @@ defmodule Cuckoding.Foundation do
 
   def catalog_status(connection, _), do: connection["catalog_status"] || "not_requested"
   def events, do: Repo.all(from e in Event, order_by: [desc: e.id], limit: 10)
-  def pending?, do: Repo.exists?(from c in Command, where: c.state in ["pending", "running"])
+
+  def pending?,
+    do: Repo.exists?(from c in Command, where: c.state in ["pending", "running", "cancelling"])
 
   def pending_probe(kind \\ "probe_codex") do
+    kinds = List.wrap(kind)
+
     Repo.one(
       from c in Command,
-        where: c.kind == ^kind and c.state in ["pending", "running"],
+        where: c.kind in ^kinds and c.state in ["pending", "running", "cancelling"],
         order_by: c.inserted_at,
         limit: 1
     )
   end
 
   def last_probe(kind \\ "probe_codex") do
-    Repo.one(from c in Command, where: c.kind == ^kind, order_by: [desc: c.inserted_at], limit: 1)
+    kinds = List.wrap(kind)
+
+    Repo.one(
+      from c in Command, where: c.kind in ^kinds, order_by: [desc: c.inserted_at], limit: 1
+    )
+  end
+
+  def login_link(
+        %Command{kind: "login_codex", state: "running", result: "awaiting_login"} = command
+      ) do
+    if probe_active?(command), do: Codex.login_link(command.id)
+  end
+
+  def login_link(_), do: nil
+
+  def login_redirect(id) do
+    with {:ok, id} <- Ecto.UUID.cast(id),
+         %Command{} = command <- Repo.get(Command, id) do
+      login_link(command)
+    else
+      _ -> nil
+    end
+  end
+
+  def login_waiting(claim) do
+    case Repo.transaction(
+           fn -> mark_login_waiting(claim) end,
+           mode: :immediate
+         ) do
+      {:ok, _} -> :ok
+      _ -> :error
+    end
+  end
+
+  defp mark_login_waiting(claim) do
+    current = Repo.get!(Command, claim.id)
+
+    if current.kind != "login_codex" or not probe_active?(claim) or
+         workspace().revision != claim.expected_revision,
+       do: Repo.rollback(:lost_claim)
+
+    unless current.result == "awaiting_login" do
+      Repo.update!(Ecto.Changeset.change(current, result: "awaiting_login"))
+      record("login.awaiting_browser", %{}, claim.id)
+    end
   end
 
   def probe_active?(claim) do
@@ -61,8 +110,15 @@ defmodule Cuckoding.Foundation do
     end
   end
 
+  defp cancel_command(%Command{kind: kind, state: "running"} = command)
+       when kind in @auth_kinds do
+    Repo.update!(Ecto.Changeset.change(command, state: "cancelling", result: "awaiting_cleanup"))
+    record(prefix(kind) <> "cancelling", %{}, command.id)
+  end
+
   defp cancel_command(%Command{kind: kind, state: state} = command)
-       when kind in ["probe_codex", "inspect_codex"] and state in ["pending", "running"] do
+       when kind in ["probe_codex", "inspect_codex", "login_codex", "logout_codex"] and
+              state in ["pending", "running"] do
     Repo.update!(
       Ecto.Changeset.change(command, state: "cancelled", result: "cancelled", lease_until: nil)
     )
@@ -73,6 +129,14 @@ defmodule Cuckoding.Foundation do
   defp cancel_command(_), do: :ok
 
   def inspect_codex(key, expected, confirmed) do
+    profile_command(key, expected, confirmed, "inspect_codex")
+  end
+
+  def authorize_codex(key, expected, operation, confirmed) when operation in [:login, :logout] do
+    profile_command(key, expected, confirmed, "#{operation}_codex")
+  end
+
+  defp profile_command(key, expected, confirmed, kind) do
     ready = workspace().codex
 
     with true <- confirmed == true,
@@ -80,7 +144,7 @@ defmodule Cuckoding.Foundation do
          %Command{kind: "probe_codex", state: "completed", payload: identity} <-
            Repo.get(Command, id),
          {:ok, ^identity} <- Codex.executable(path) do
-      command(key, expected, "inspect_codex", identity)
+      command(key, expected, kind, identity)
     else
       false -> {:error, :confirmation_required}
       _ -> {:error, :version_required}
@@ -116,7 +180,19 @@ defmodule Cuckoding.Foundation do
   end
 
   defp enqueue(id, expected, kind, payload) do
-    state = if workspace().revision == expected, do: "pending", else: "rejected"
+    reason =
+      cond do
+        workspace().revision != expected ->
+          "stale_revision"
+
+        (kind in @auth_kinds and pending?()) or pending_probe(@auth_kinds) != nil ->
+          "profile_busy"
+
+        true ->
+          nil
+      end
+
+    state = if reason, do: "rejected", else: "pending"
 
     command =
       Repo.insert!(%Command{
@@ -125,10 +201,26 @@ defmodule Cuckoding.Foundation do
         payload: payload,
         expected_revision: expected,
         state: state,
-        result: if(state == "rejected", do: "stale_revision")
+        result: reason
       })
 
     record(prefix(kind) <> state, %{}, id)
+
+    if state == "pending" and kind in @auth_kinds do
+      Repo.update!(
+        Ecto.Changeset.change(workspace(),
+          connection: %{
+            "status" => "needs_recheck",
+            "authorization" => "unknown",
+            "models" => [],
+            "catalog_status" => "not_requested",
+            "command_id" => id,
+            "identity" => payload
+          }
+        )
+      )
+    end
+
     command
   end
 
@@ -138,7 +230,9 @@ defmodule Cuckoding.Foundation do
         command =
           Repo.one(
             from c in Command,
-              where: c.state == "pending" or (c.state == "running" and c.lease_until < ^now),
+              where:
+                c.state == "pending" or
+                  (c.state in ["running", "cancelling"] and c.lease_until < ^now),
               order_by: c.inserted_at,
               limit: 1
           )
@@ -147,8 +241,9 @@ defmodule Cuckoding.Foundation do
           nil ->
             nil
 
-          %{kind: kind, state: "running"} = command
-          when kind in ["probe_codex", "inspect_codex"] ->
+          %{kind: kind, state: state} = command
+          when kind in ["probe_codex", "inspect_codex", "login_codex", "logout_codex"] and
+                 state in ["running", "cancelling"] ->
             failed =
               Repo.update!(
                 Ecto.Changeset.change(command,
@@ -180,7 +275,7 @@ defmodule Cuckoding.Foundation do
                 Ecto.Changeset.change(command,
                   state: "running",
                   attempts: command.attempts + 1,
-                  lease_until: now + if(command.kind == "inspect_codex", do: 20_000, else: 10_000)
+                  lease_until: now + lease_duration(command.kind)
                 )
               )
 
@@ -198,13 +293,17 @@ defmodule Cuckoding.Foundation do
     |> tap(fn result -> if match?({:ok, %Command{}}, result), do: broadcast() end)
   end
 
+  defp lease_duration("login_codex"), do: 630_000
+  defp lease_duration(kind) when kind in ["inspect_codex", "logout_codex"], do: 20_000
+  defp lease_duration(_), do: 10_000
+
   def finish(%Command{} = claim, tools) when is_map(tools) do
     result =
       Repo.transaction(
         fn ->
           current = Repo.get!(Command, claim.id)
 
-          unless current.state == "running" and current.attempts == claim.attempts do
+          unless current.state in ["running", "cancelling"] and current.attempts == claim.attempts do
             Repo.rollback(:lost_claim)
           end
 
@@ -223,28 +322,7 @@ defmodule Cuckoding.Foundation do
             record(prefix(claim.kind) <> "rejected", %{"reason" => "stale_revision"}, claim.id)
             command
           else
-            {fields, data} = projection(claim, tools)
-
-            Repo.update!(
-              Ecto.Changeset.change(workspace, [{:revision, workspace.revision + 1} | fields])
-            )
-
-            command =
-              Repo.update!(
-                Ecto.Changeset.change(current,
-                  state: "completed",
-                  result: "checked",
-                  lease_until: nil
-                )
-              )
-
-            record(
-              prefix(claim.kind) <> "completed",
-              data,
-              claim.id
-            )
-
-            command
+            complete_command(current, claim, workspace, tools)
           end
         end,
         mode: :immediate
@@ -252,6 +330,30 @@ defmodule Cuckoding.Foundation do
 
     if match?({:ok, _}, result), do: broadcast()
     result
+  end
+
+  defp complete_command(current, claim, workspace, tools) do
+    cancelled = current.state == "cancelling"
+    state = if cancelled, do: "cancelled", else: "completed"
+    {fields, data} = projection(claim, if(cancelled, do: cancelled_result(tools), else: tools))
+    Repo.update!(Ecto.Changeset.change(workspace, [{:revision, workspace.revision + 1} | fields]))
+
+    command =
+      Repo.update!(
+        Ecto.Changeset.change(current,
+          state: state,
+          result: if(cancelled, do: "recheck_required", else: "checked"),
+          lease_until: nil
+        )
+      )
+
+    record(prefix(claim.kind) <> state, data, claim.id)
+    command
+  end
+
+  defp cancelled_result(tools) do
+    status = if tools["status"] == "cleanup_uncertain", do: "cleanup_uncertain", else: "cancelled"
+    tools |> Map.take(~w(pid spawned_at_ms elapsed_ms)) |> Map.put("status", status)
   end
 
   def record(kind, data \\ %{}, command_id \\ nil) do
@@ -286,11 +388,16 @@ defmodule Cuckoding.Foundation do
      Map.take(public, ~w(status version pid spawned_at_ms elapsed_ms))}
   end
 
-  defp projection(%{kind: "inspect_codex"} = claim, result) do
+  defp projection(%{kind: kind} = claim, result)
+       when kind in ["inspect_codex", "login_codex", "logout_codex"] do
     result = result |> Jason.encode!() |> Codex.normalize_connection()
     now = DateTime.to_iso8601(DateTime.utc_now())
     previous = workspace().connection
-    previous = if previous["identity"] == claim.payload, do: previous, else: %{}
+
+    previous =
+      if kind == "inspect_codex" and previous["identity"] == claim.payload,
+        do: previous,
+        else: %{}
 
     public =
       Map.merge(
@@ -335,6 +442,8 @@ defmodule Cuckoding.Foundation do
   defp prefix("discover_tools"), do: "discovery."
   defp prefix("probe_codex"), do: "codex."
   defp prefix("inspect_codex"), do: "connection."
+  defp prefix("login_codex"), do: "login."
+  defp prefix("logout_codex"), do: "logout."
 
   def broadcast, do: Phoenix.PubSub.broadcast(Cuckoding.PubSub, "foundation", :updated)
 end

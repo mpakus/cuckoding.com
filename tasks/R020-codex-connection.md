@@ -1,6 +1,6 @@
 # R020 — Codex connection and durable models
 
-Status: R020a version readiness and R020b private-profile inspection/cache delivered; parent R020 remains partial.
+Status: R020a version readiness, R020b inspection/cache and R020c managed sign-in/out delivered; parent R020 remains partial.
 Date: 2026-10-06. Branch: `feature/r020-codex-connection`.
 Installed runtime observed: Codex CLI 0.146.0; schema generated from that binary.
 
@@ -20,11 +20,11 @@ Installed runtime observed: Codex CLI 0.146.0; schema generated from that binary
 ## Remaining R020 acceptance
 
 - [ ] Extend the adapter to bounded structured runtime transport and permissions.
-- [ ] Separate detection, compatibility, app-owned login/status/logout; persist
+- [x] Separate detection, compatibility, app-owned login/status/logout; persist
   non-secret connection state and public audit events in SQLite.
 - [ ] Fetch and retain validated model metadata after login, expose source/freshness,
   refresh without confusing catalog failures with authorization failures.
-- [ ] Extend LiveView controls to sign-in/model operations; keep login
+- [x] Extend LiveView controls to sign-in/model operations; keep login
   credentials/URLs out of logs and stored events.
 - [ ] Cover malformed/split/oversized protocol, canaries, restart and lost-process
   outcomes, plus migration and UI behavior.
@@ -33,6 +33,7 @@ Installed runtime observed: Codex CLI 0.146.0; schema generated from that binary
 
 R020b implements private-profile status and the durable model-catalog path with
 fixture coverage, plus real signed-out inspection. See [R020b](R020b-codex-connection-inspection.md).
-Next: app-owned login/logout and real signed-in model validation;
+[R020c](R020c-codex-sign-in.md) adds managed sign-in/out, transient links and
+account-change invalidation. Next: human-completed sign-in/model validation;
 retain real authorization and two-workspace execution as separate proof gates.
 R020a is not evidence of sign-in, models or task execution.

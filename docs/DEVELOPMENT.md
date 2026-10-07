@@ -1,8 +1,8 @@
 # Development
 
 The local preview includes R010's tray, authenticated browser and durable setup
-check, plus Codex version and private-profile inspection. Login/logout and real
-execution remain the next R020 work. The previous source
+check, plus Codex version, private-profile inspection and managed sign-in/out.
+Human-completed real-account/model acceptance and execution remain R020 work. The previous source
 reset remains intentional; do not restore the deleted implementation wholesale.
 
 ## Build and open
@@ -40,11 +40,26 @@ After a supported version check, **Check Codex connection** requires its own
 confirmation. It uses the displayed verified executable with Cuckoding's private
 `agents/codex` profile, a clean environment and fixed read-only account/catalog
 operations. A fresh profile correctly reports Not signed in. It does not adopt
-personal Codex credentials or launch a turn. Sign-in/out controls are not enabled.
+personal Codex credentials or launch a turn.
 A successful catalog shows source, fetched time, IDs, effort choices and input
 modalities; after 24 hours or a failed refresh it is stale. A catalog is not
 proof that the account can run a model. Inspection expires after ten seconds,
 can be cancelled and does not retry automatically after interruption.
+
+**Sign in with ChatGPT** needs a separate confirmation to use the private profile.
+Choose **Continue on OpenAI** and complete the provider page yourself. The local
+link works only in an authenticated Cuckoding browser session, expires within ten
+minutes, and is recovered after browser reconnect while the app stays running.
+Credentials go directly to the provider; no token-paste form exists. A successful
+matching completion triggers account/model refresh. Already-connected profiles
+are inspected without replacing their account.
+
+**Cancel account operation** waits for helper cleanup and leaves authorization
+unknown: the provider may have completed just before cancellation. Check connection
+before trying again. Interrupted authentication never replays automatically.
+**Sign out of this private profile** has its own confirmation and affects only this
+app-owned profile. Both actions immediately clear old account/catalog observations.
+Setup operations serialize while authentication is active. No agent turn runs.
 
 The shell starts a bundled OTP release with a private HOME, clean environment,
 exclusive data lock and an ephemeral IPv4 loopback port. It owns the one-time

@@ -12,17 +12,19 @@ attention items and logs.
 
 ## Current state
 
-**Local foundation + Codex connection inspection preview, 2026-10-07.** The tray
+**Local foundation + private Codex sign-in preview, 2026-10-07.** The tray
 shell, authenticated browser UI, SQLite commands/events and tool discovery work.
 Agents & roles provides consented, cancellable Codex version and private-profile
-checks. Model catalog parsing, persistence and 24-hour freshness are implemented,
-including retention after a failed refresh. The installed `0.146.0` runtime was
-verified with a fresh, signed-out app-owned profile; signed-in catalog behavior
-has fixture coverage only. Sign-in/out and real scoped turns remain the next R020
+checks, ChatGPT browser sign-in and private sign-out. Login links expire, survive
+browser reconnects while the app runs, and stay out of app logs and SQLite.
+Account operations invalidate old model observations; successful login refreshes
+the catalog. Model parsing, persistence and 24-hour freshness have fixture coverage.
+Installed Codex `0.146.0` passed real login start/cancel and signed-out inspection.
+Human-completed login, real model access and scoped turns remain R020 acceptance
 gates. Roles, Arenas and battles are still planned.
 
-Verification: 38 Elixir tests, 14 Rust tests, four site motion tests, packaged
-smoke and prior-schema upgrade. The product story above remains the target,
+Verification: 45 Elixir tests, 18 Rust tests, packaged smoke and prior-schema
+compatibility; see [R020c evidence](worklog/2026-10-07-R020c-codex-sign-in.md). The product story above remains the target,
 not a shipped capability list.
 
 Build with `rtk proxy bin/dev.build`, then open

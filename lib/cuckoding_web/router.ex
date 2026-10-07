@@ -23,6 +23,7 @@ defmodule CuckodingWeb.Router do
     pipe_through :browser
     get "/open", SessionController, :open, log: false
     get "/locked", SessionController, :locked, log: false
+    get "/codex/login/:id", SessionController, :codex_login, log: false
 
     live_session :authenticated, on_mount: CuckodingWeb.SessionAuth do
       live "/", HomeLive, :home

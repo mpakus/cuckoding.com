@@ -23,6 +23,21 @@ defmodule CuckodingWeb.SessionController do
 
   def open(conn, _), do: conn |> put_status(401) |> text("Open Cuckoding from its menu bar icon.")
 
+  # The provider URL never enters LiveView assigns, request params or persistent state.
+  def codex_login(conn, %{"id" => id}) do
+    if ShellAuth.valid_session?(get_session(conn, :session_id)) do
+      case Cuckoding.Foundation.login_redirect(id) do
+        url when is_binary(url) ->
+          redirect(conn, external: url)
+
+        _ ->
+          conn |> put_status(410) |> text("This sign-in link expired. Return to Agents & roles.")
+      end
+    else
+      locked(conn, %{})
+    end
+  end
+
   def locked(conn, _),
     do:
       conn

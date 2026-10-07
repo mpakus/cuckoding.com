@@ -1,17 +1,49 @@
 defmodule Cuckoding.AgentAdapter do
-  @moduledoc "Implemented adapter surface; login and turns are not enabled yet."
+  @moduledoc "Implemented profile operations; agent turns are not enabled yet."
   @callback probe(map(), binary(), (-> boolean())) :: map()
   @callback inspect_connection(map(), binary(), (-> boolean())) :: map()
+  @callback authorize(map(), binary(), :login | :logout, (-> boolean()), (binary() -> any())) ::
+              map()
 end
 
 defmodule Cuckoding.Codex do
-  @moduledoc "Version readiness and read-only private-profile inspection."
+  @moduledoc "Version readiness and fixed private-profile operations."
   @behaviour Cuckoding.AgentAdapter
   import Bitwise
   @verified_version "0.146.0"
   @errors ~w(launch_failed timeout cancelled invalid_output executable_changed helper_unavailable)
   @connection_errors @errors ++
-                       ~w(connection_lost provider_error unexpected_message profile_mismatch unsupported_profile unsafe_profile)
+                       ~w(connection_lost provider_error unexpected_message profile_mismatch unsupported_profile unsafe_profile profile_busy invalid_login login_failed logout_unconfirmed cleanup_uncertain)
+
+  # Ephemeral presentation only. The dispatcher owns this table; SQLite owns lifecycle.
+  def init_login_links, do: :ets.new(:cuckoding_login_link, [:named_table, :protected, :set])
+  def clear_login_link, do: :ets.delete_all_objects(:cuckoding_login_link)
+
+  def put_login_link(id, url) do
+    if valid_login_url?(url) do
+      :ets.insert(:cuckoding_login_link, {id, url, System.system_time(:second) + 600})
+    end
+  end
+
+  def login_link(id) do
+    case :ets.lookup(:cuckoding_login_link, id) do
+      [{^id, url, expires}] -> if expires > System.system_time(:second), do: url
+      _ -> nil
+    end
+  rescue
+    ArgumentError -> nil
+  end
+
+  def valid_login_url?(url) when is_binary(url) and byte_size(url) in 1..8192 do
+    uri = URI.parse(url)
+
+    uri.scheme == "https" and uri.host in ["auth.openai.com", "chatgpt.com"] and
+      uri.port == 443 and is_nil(uri.userinfo) and is_nil(uri.fragment) and
+      uri.path in ["/oauth/authorize", "/auth/authorize"] and
+      not Regex.match?(~r/[\x00-\x20\x7f\\\\]/, url)
+  end
+
+  def valid_login_url?(_), do: false
 
   # Metadata only; never execute a path while editing or discovering it.
   # sobelow_skip ["Traversal.FileModule"]
@@ -54,7 +86,31 @@ defmodule Cuckoding.Codex do
     )
   end
 
-  defp observe(identity, directory, active?, operation, normalize, limit, timeout) do
+  @impl true
+  def authorize(identity, directory, operation, active?, progress)
+      when operation in [:login, :logout] do
+    observe(
+      identity,
+      directory,
+      active?,
+      "--#{operation}-codex",
+      &normalize_connection/1,
+      524_288,
+      if(operation == :login, do: 615_000, else: 13_000),
+      progress
+    )
+  end
+
+  defp observe(
+         identity,
+         directory,
+         active?,
+         operation,
+         normalize,
+         limit,
+         timeout,
+         progress \\ nil
+       ) do
     helper = Application.get_env(:cuckoding, :native_helper)
 
     cond do
@@ -65,13 +121,21 @@ defmodule Cuckoding.Codex do
         %{"status" => "helper_unavailable"}
 
       true ->
-        run(helper, [operation, identity["path"], directory], active?, normalize, limit, timeout)
+        run(
+          helper,
+          [operation, identity["path"], directory],
+          active?,
+          normalize,
+          limit,
+          timeout,
+          progress
+        )
     end
   end
 
   # Only the app-owned native helper gets a Port. It clears the provider environment,
   # owns the process group and returns fixed public fields, never raw provider output.
-  defp run(helper, args, active?, normalize, limit, timeout) do
+  defp run(helper, args, active?, normalize, limit, timeout, progress) do
     port =
       Port.open({:spawn_executable, helper}, [
         :binary,
@@ -80,7 +144,25 @@ defmodule Cuckoding.Codex do
       ])
 
     try do
-      collect(port, "", System.monotonic_time(:millisecond) + timeout, active?, normalize, limit)
+      deadline = System.monotonic_time(:millisecond) + timeout
+
+      if progress do
+        auth_collect(
+          port,
+          %{
+            buffer: "",
+            bytes: 0,
+            result: nil,
+            prompted: false,
+            deadline: deadline,
+            cancelling: false
+          },
+          active?,
+          progress
+        )
+      else
+        collect(port, "", deadline, active?, normalize, limit)
+      end
     after
       if Port.info(port), do: Port.close(port)
     end
@@ -88,6 +170,88 @@ defmodule Cuckoding.Codex do
     ArgumentError -> %{"status" => "launch_failed"}
     ErlangError -> %{"status" => "launch_failed"}
   end
+
+  defp auth_collect(port, state, active?, progress) do
+    now = System.monotonic_time(:millisecond)
+
+    state =
+      if not state.cancelling and not active?.() do
+        Port.command(port, "cancel\n")
+        %{state | cancelling: true, deadline: min(state.deadline, now + 3_000)}
+      else
+        state
+      end
+
+    if now >= state.deadline do
+      %{"status" => "cleanup_uncertain"}
+    else
+      auth_receive(port, state, active?, progress)
+    end
+  end
+
+  defp auth_receive(port, state, active?, progress) do
+    receive do
+      {^port, {:data, chunk}} ->
+        case auth_frames(state, chunk, progress) do
+          {:ok, next} -> auth_collect(port, next, active?, progress)
+          :error -> %{"status" => "invalid_output"}
+        end
+
+      {^port, {:exit_status, 0}} ->
+        if state.buffer == "" and state.result,
+          do: state.result,
+          else: %{"status" => "invalid_output"}
+
+      {^port, {:exit_status, _}} ->
+        %{"status" => "cleanup_uncertain"}
+    after
+      50 -> auth_collect(port, state, active?, progress)
+    end
+  end
+
+  defp auth_frames(state, chunk, progress) do
+    bytes = state.bytes + byte_size(chunk)
+
+    if bytes > 524_288 do
+      :error
+    else
+      lines = String.split(state.buffer <> chunk, "\n")
+      pending = List.last(lines)
+
+      Enum.reduce_while(
+        Enum.drop(lines, -1),
+        {:ok, %{state | bytes: bytes, buffer: pending}},
+        fn line, {:ok, state} -> reduce_auth_frame(state, line, progress) end
+      )
+    end
+  end
+
+  defp reduce_auth_frame(state, line, progress) do
+    case auth_frame(state, line, progress) do
+      {:ok, next} -> {:cont, {:ok, next}}
+      :error -> {:halt, :error}
+    end
+  end
+
+  defp publish_progress(%{cancelling: true}, _, _), do: :ok
+  defp publish_progress(_, url, progress), do: progress.(url)
+
+  defp auth_frame(%{result: nil} = state, line, progress) do
+    case Jason.decode(line) do
+      {:ok, %{"status" => "awaiting_login", "auth_url" => url}} ->
+        if not state.prompted and valid_login_url?(url) do
+          publish_progress(state, url, progress)
+          {:ok, %{state | prompted: true}}
+        else
+          :error
+        end
+
+      _ ->
+        {:ok, %{state | result: normalize_connection(line)}}
+    end
+  end
+
+  defp auth_frame(_, _, _), do: :error
 
   defp collect(port, data, deadline, active?, normalize, limit) do
     cond do

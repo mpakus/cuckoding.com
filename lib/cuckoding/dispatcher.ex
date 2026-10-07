@@ -4,6 +4,7 @@ defmodule Cuckoding.Dispatcher do
   def start_link(opts), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   @impl true
   def init(_) do
+    Cuckoding.Codex.init_login_links()
     Phoenix.PubSub.subscribe(Cuckoding.PubSub, "foundation")
     send(self(), :tick)
     {:ok, nil}
@@ -13,10 +14,12 @@ defmodule Cuckoding.Dispatcher do
   def handle_info(:updated, state), do: {:noreply, state}
   def handle_info({port, _}, state) when is_port(port), do: {:noreply, state}
 
+  # ponytail: setup is serialized; per-profile workers when multiple connections exist.
   def handle_info(:tick, state) do
     case Cuckoding.Foundation.claim() do
       {:ok, %{state: "running"} = command} ->
         result = execute(command)
+        Cuckoding.Codex.clear_login_link()
         Cuckoding.Foundation.finish(command, result)
 
       _ ->
@@ -55,5 +58,28 @@ defmodule Cuckoding.Dispatcher do
     end
   rescue
     _ -> %{"status" => "launch_failed"}
+  end
+
+  defp execute(%{kind: kind} = command) when kind in ["login_codex", "logout_codex"] do
+    if Cuckoding.Foundation.workspace().revision == command.expected_revision do
+      Cuckoding.Codex.authorize(
+        command.payload,
+        Cuckoding.Storage.codex_profile!(),
+        if(kind == "login_codex", do: :login, else: :logout),
+        fn -> Cuckoding.Foundation.probe_active?(command) end,
+        fn url -> publish_login_link(command, url) end
+      )
+    else
+      %{"status" => "executable_changed"}
+    end
+  rescue
+    _ -> %{"status" => "launch_failed"}
+  end
+
+  defp publish_login_link(command, url) do
+    if Cuckoding.Foundation.login_waiting(command) == :ok do
+      Cuckoding.Codex.put_login_link(command.id, url)
+      Cuckoding.Foundation.broadcast()
+    end
   end
 end

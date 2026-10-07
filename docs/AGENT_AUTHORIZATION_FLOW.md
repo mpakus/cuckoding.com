@@ -4,12 +4,22 @@ Target experience: connect once, choose models/roles once, reuse across Arenas.
 Runtime discovery, version compatibility, authorization and model availability
 are separate statuses. None implies the others.
 
-Current R020b preview: version/identity checks, explicit private-profile
-inspection, validated catalog caching and 24-hour freshness are implemented.
-A fresh real Codex profile is verified signed out. Login/logout and actual model
-access remain unverified; the complete flow below is still the target. The single
-profile cannot be switched through the UI; a future login/account change must
-clear its old catalog before roles may reuse it.
+Current R020a–c preview implements version/identity checks, private-profile
+inspection, managed ChatGPT browser login/logout and validated catalog caching
+with 24-hour freshness. Real Codex login start/cancel and signed-out inspection
+are verified; human-completed login, model access and isolated turns remain open.
+Login/logout clear previous observations before launch. The single profile can
+be signed out and then signed in; named connections/roles remain planned.
+
+Login uses a ten-minute managed browser flow. A validated official HTTPS URL is
+held only in dispatcher-owned memory; the UI carries a local command link whose
+redirect requires a current browser session and active command. URLs, login IDs,
+raw provider errors and credentials never enter app tables/events or LiveView
+assigns. Closing the browser does not cancel; app interruption does. A matching
+completion triggers account/model refresh. Cancellation holds admission through
+helper cleanup and leaves status unknown until checked; it cannot undo a provider
+completion that raced with Cancel. Expired/interrupted commands never replay.
+The native profile lock also refuses overlapping helpers.
 
 ## User flow
 

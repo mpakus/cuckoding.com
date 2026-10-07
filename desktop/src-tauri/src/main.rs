@@ -25,7 +25,15 @@ fn main() {
         return;
     }
     if args.first().is_some_and(|arg| arg == "--inspect-codex") {
-        connection::main(&args[1..]);
+        connection::main(&args[1..], connection::Operation::Inspect);
+        return;
+    }
+    if args.first().is_some_and(|arg| arg == "--login-codex") {
+        connection::main(&args[1..], connection::Operation::Login);
+        return;
+    }
+    if args.first().is_some_and(|arg| arg == "--logout-codex") {
+        connection::main(&args[1..], connection::Operation::Logout);
         return;
     }
     if std::env::args().any(|arg| arg == "--smoke-test") {

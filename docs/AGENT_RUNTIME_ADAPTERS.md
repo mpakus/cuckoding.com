@@ -1,9 +1,9 @@
 # Runtime adapters
 
-Status: R020a/b implement Codex version readiness, private-profile status and
-validated catalog caching. Codex `0.146.0` is the observed baseline; other versions
-remain unverified. Login/logout, signed-in real-model acceptance and turns remain
-open. Claude Code, Codex,
+Status: R020a–c implement Codex version readiness, private-profile status,
+validated catalog caching and managed ChatGPT login/logout. Codex `0.146.0` is
+the observed baseline; other versions remain unverified. Human-completed login,
+signed-in real-model acceptance and turns remain open. Claude Code, Codex,
 Cursor and Hermes are requested targets;
 each needs current official documentation and real installed-version evidence.
 
@@ -41,7 +41,7 @@ is actually required.
 
 | Target | Rebuild status | Evidence needed before enabling execution |
 | --- | --- | --- |
-| Codex | Version + fresh-profile status verified on 0.146.0; catalog fixtures pass | App-owned login, isolated turns/model listing, grant mapping and cancellation |
+| Codex | Version, fresh-profile status and login start/cancel verified on 0.146.0; signed-in catalogs use fixtures | App-owned login, isolated turns/model listing, grant mapping and cancellation |
 | Claude Code | Pending | Current official interface, safe reusable authorization, models/default behavior and permission boundary |
 | Cursor | Pending | Current official CLI identity, profile/history behavior, model discovery and project config isolation |
 | Hermes | Pending | Confirm intended runtime/distribution, supported headless interface, authorization, model catalog and enforceable grants |
@@ -70,7 +70,7 @@ R020b adds `inspect_connection/3`: initialize → effective config check → acc
 credential storage and the OpenAI provider; rejects an unexpected profile,
 unsupported effective config, linked/special profile files, server requests and
 mid-inspection account changes. Profile inspection is metadata-only and capped
-at 4096 entries. This is host-process hygiene, not a sandbox or an MDM bypass.
+at 32,768 entries (the observed bundled-plugin cache alone exceeded 7,000). This is host-process hygiene, not a sandbox or an MDM bypass.
 
 Stdio has 64 KiB frame / 512 KiB cumulative limits, bounded channel buffering,
 a ten-second deadline and the same owned-group cleanup. Model discovery accepts
@@ -81,10 +81,20 @@ fields are discarded. The host validates normalized output again before SQLite.
 Only IDs, labels, default/effort/input metadata survive. Catalog provenance is
 `codex-app-server/model/list`; this may be runtime-cached metadata, not entitlement.
 
-Real acceptance so far: installed Codex initialized a fresh profile and returned
-not_connected, with no auth file. Connected catalogs use fixtures only. Login,
-logout, account-switch invalidation, concurrent profile reuse, full sleep recovery
-and real scoped turns remain subsequent R020 gates. No API key is requested.
+R020c adds `authorize/5` for fixed login/logout operations. Login sends
+`account/login/start` with `type=chatgpt`, validates an official HTTPS authorization
+URL, waits for the matching `account/login/completed`, then refreshes account/models.
+Cancellation attempts `account/login/cancel` before owned-group termination. Logout
+uses `account/logout` and requires a subsequent signed-out observation. Each RPC
+is limited to ten seconds; login has a ten-minute monotonic/wall-clock deadline.
+All profile helpers hold an exclusive native lock through group cleanup.
+No thread or turn operation is available.
+
+Real acceptance so far: installed Codex initialized a fresh profile, returned
+not_connected, and started/cancelled browser login without an auth file. Connected
+catalogs and completed login use fixtures only. Human-completed login, revoked
+access, concurrent session reuse, physical sleep recovery and real scoped turns
+remain R020 gates. No API key is requested.
 
 ## Conformance
 

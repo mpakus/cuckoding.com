@@ -6,10 +6,11 @@ These rules apply repository-wide. More specific rules may strengthen safety,
 auditability and verification, not weaken them. The 2026-10-06 user reset replaces
 the previous product direction. R010 implements the local foundation; provider
 authorization, roles, Arenas and battles remain the R020–R100 roadmap.
-R020a/b add Codex version readiness, read-only private-profile inspection and
-validated model caching. A supported version or catalog is not model entitlement
-or an execution grant. Login/logout and actual turns remain open. Preserve
-separate observations and fresh executable/profile confirmation.
+R020a–c add Codex version readiness, private-profile inspection, validated model
+caching and managed ChatGPT login/logout. Human-completed real-account/model
+acceptance and actual turns remain open. A supported version or catalog is not
+model entitlement or an execution grant. Preserve separate observations and
+fresh executable/profile confirmation.
 
 ## Mission and product contract
 
@@ -96,7 +97,12 @@ Do not restore the old implementation or treat historical tests as current proof
   them as metadata discovery. The fixed app-server inspection permits only
   initialize/config-read/account-read/model-list, keeps raw frames and account
   identifiers out of Cuckoding storage, and rejects unsafe profiles. Retain the
-  last catalog as stale after failure; age it out after 24 hours.
+  last catalog as stale after inspection failure; age it out after 24 hours.
+  Login/logout invalidate account/catalog observations before launch and require
+  separate consent. Serialize profile operations through the ledger and native
+  lock; never replay interrupted authentication. Hold cancellation until helper
+  exit/cleanup or report uncertainty. Keep validated login URLs transient and
+  behind the session-protected redirect, never in LiveView assigns, SQLite or logs.
 - Inspect processes by executable, PID/start identity, working directory and
   listeners. Never dump raw argv/environments. Redact before logs/UI/artifacts.
 - For a requested restart follow [Development](docs/DEVELOPMENT.md): identify only

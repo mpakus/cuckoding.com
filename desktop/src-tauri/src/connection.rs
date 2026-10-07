@@ -1,10 +1,11 @@
-//! Fixed read-only app-server inspection. Raw frames never leave this helper.
+//! Fixed profile operations. Only a validated, transient login URL leaves alongside public results.
 use crate::probe::{private_directory, Group};
 use serde_json::{json, Value};
 use std::{
     collections::HashSet,
+    fs::{File, OpenOptions},
     io::{self, BufRead, BufReader, Read, Write},
-    os::unix::process::CommandExt,
+    os::unix::{fs::OpenOptionsExt, io::AsRawFd, process::CommandExt},
     path::Path,
     process::{ChildStdin, Command, Stdio},
     sync::mpsc::{self, Receiver},
@@ -14,13 +15,49 @@ use std::{
 
 type Result<T> = std::result::Result<T, &'static str>;
 const FRAME_LIMIT: usize = 65_536;
+// Codex 0.146.0's bundled plugin cache already contains more than 7,000 entries.
+const PROFILE_ENTRY_LIMIT: usize = 32_768;
+
+#[derive(Clone, Copy, PartialEq)]
+pub enum Operation {
+    Inspect,
+    Login,
+    Logout,
+}
+
+struct ProfileLock(File);
+impl Drop for ProfileLock {
+    fn drop(&mut self) {
+        unsafe { libc::flock(self.0.as_raw_fd(), libc::LOCK_UN) };
+    }
+}
+
+fn profile_lock(directory: &Path) -> Result<ProfileLock> {
+    profile(directory)?;
+    let file = OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW)
+        .open(directory.join(".cuckoding-lock"))
+        .map_err(|_| "unsafe_profile")?;
+    if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
+        return Err("profile_busy");
+    }
+    Ok(ProfileLock(file))
+}
 
 struct Rpc {
     input: ChildStdin,
     output: Receiver<Result<Value>>,
     cancel: Receiver<()>,
     deadline: Instant,
+    wall_deadline: SystemTime,
     sequence: u32,
+    auth_changes: bool,
+    completion: Option<(String, bool)>,
 }
 
 impl Rpc {
@@ -32,11 +69,35 @@ impl Rpc {
         self.sequence += 1;
         let id = self.sequence;
         self.send(json!({"id":id,"method":method,"params":params}))?;
+        let previous_deadline = self.deadline;
+        self.deadline = self.deadline.min(Instant::now() + Duration::from_secs(10));
+        let result = (|| loop {
+            let message = self.next()?;
+            if message.get("method").is_some() {
+                continue;
+            }
+            if message["id"].as_u64() != Some(id.into()) {
+                return Err("invalid_output");
+            }
+            if message.get("error").is_some() {
+                return Err("provider_error");
+            }
+            return message
+                .get("result")
+                .filter(|v| v.is_object())
+                .cloned()
+                .ok_or("invalid_output");
+        })();
+        self.deadline = previous_deadline;
+        result
+    }
+
+    fn next(&mut self) -> Result<Value> {
         loop {
             if self.cancel.try_recv().is_ok() {
                 return Err("cancelled");
             }
-            if Instant::now() >= self.deadline {
+            if Instant::now() >= self.deadline || SystemTime::now() >= self.wall_deadline {
                 return Err("timeout");
             }
             match self.output.recv_timeout(Duration::from_millis(20)) {
@@ -44,22 +105,29 @@ impl Rpc {
                     if message.get("method").is_some() {
                         // A provider request never becomes a host command. Account drift
                         // while fetching a catalog invalidates the observation as well.
-                        if message.get("id").is_some() || message["method"] == "account/updated" {
+                        if message.get("id").is_some()
+                            || (!self.auth_changes
+                                && matches!(
+                                    message["method"].as_str(),
+                                    Some("account/updated" | "account/login/completed")
+                                ))
+                        {
                             return Err("unexpected_message");
                         }
-                        continue;
+                        if message["method"] == "account/login/completed" {
+                            if self.completion.is_some() {
+                                return Err("unexpected_message");
+                            }
+                            let params = &message["params"];
+                            self.completion = Some((
+                                identifier(&params["loginId"])
+                                    .map_err(|_| "invalid_output")?
+                                    .to_owned(),
+                                params["success"].as_bool().ok_or("invalid_output")?,
+                            ));
+                        }
                     }
-                    if message["id"].as_u64() != Some(id.into()) {
-                        return Err("invalid_output");
-                    }
-                    if message.get("error").is_some() {
-                        return Err("provider_error");
-                    }
-                    return message
-                        .get("result")
-                        .filter(|v| v.is_object())
-                        .cloned()
-                        .ok_or("invalid_output");
+                    return Ok(message);
                 }
                 Ok(Err(error)) => return Err(error),
                 Err(mpsc::RecvTimeoutError::Disconnected) => return Err("connection_lost"),
@@ -180,7 +248,7 @@ fn catalog(rpc: &mut Rpc) -> Result<Vec<Value>> {
     Err("invalid_catalog")
 }
 
-fn inspect(rpc: &mut Rpc, directory: &Path) -> Result<Value> {
+fn initialize(rpc: &mut Rpc, directory: &Path) -> Result<()> {
     let init = rpc.request(
         "initialize",
         json!({"clientInfo":{"name":"cuckoding","title":"Cuckoding","version":"0.1.0"}}),
@@ -195,10 +263,22 @@ fn inspect(rpc: &mut Rpc, directory: &Path) -> Result<Value> {
     {
         return Err("unsupported_profile");
     }
+    Ok(())
+}
+
+fn account(rpc: &mut Rpc) -> Result<Value> {
     let account = rpc.request("account/read", json!({"refreshToken":false}))?;
     if !account["requiresOpenaiAuth"].is_boolean() {
         return Err("invalid_output");
     }
+    if account.get("account").is_none() {
+        return Err("invalid_output");
+    }
+    Ok(account)
+}
+
+fn observe(rpc: &mut Rpc, account: Value) -> Result<Value> {
+    rpc.auth_changes = false;
     if account["account"].is_null() {
         return Ok(
             json!({"status":"checked","authorization":"not_connected","catalog_status":"not_requested"}),
@@ -220,6 +300,90 @@ fn inspect(rpc: &mut Rpc, directory: &Path) -> Result<Value> {
     }
 }
 
+fn login_url(value: &Value) -> Result<&str> {
+    let raw = value
+        .as_str()
+        .filter(|s| s.len() <= 8192 && !s.chars().any(char::is_control))
+        .ok_or("invalid_login")?;
+    let url = tauri::Url::parse(raw).map_err(|_| "invalid_login")?;
+    if url.scheme() != "https"
+        || !matches!(url.host_str(), Some("auth.openai.com" | "chatgpt.com"))
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.port().is_some()
+        || url.fragment().is_some()
+        || !matches!(url.path(), "/oauth/authorize" | "/auth/authorize")
+    {
+        return Err("invalid_login");
+    }
+    Ok(raw)
+}
+
+fn login(rpc: &mut Rpc, progress: &mut impl FnMut(&str) -> Result<()>) -> Result<()> {
+    rpc.auth_changes = true;
+    let start = rpc.request("account/login/start", json!({"type":"chatgpt"}))?;
+    let id = identifier(&start["loginId"])
+        .map_err(|_| "invalid_login")?
+        .to_owned();
+    let result = (|| {
+        if start["type"] != "chatgpt" {
+            return Err("invalid_login");
+        }
+        progress(login_url(&start["authUrl"])?)?;
+        loop {
+            if let Some((completed, success)) = rpc.completion.take() {
+                if completed != id {
+                    return Err("unexpected_message");
+                }
+                return if success { Ok(()) } else { Err("login_failed") };
+            }
+            let message = rpc.next()?;
+            if message.get("method").is_none() {
+                return Err("unexpected_message");
+            }
+        }
+    })();
+    if result.is_err() {
+        // Cancellation is best effort; group termination remains the final boundary.
+        rpc.deadline = Instant::now() + Duration::from_secs(1);
+        rpc.wall_deadline = SystemTime::now() + Duration::from_secs(1);
+        let _ = rpc.request("account/login/cancel", json!({"loginId":id}));
+    }
+    result
+}
+
+fn operate(
+    rpc: &mut Rpc,
+    directory: &Path,
+    operation: Operation,
+    progress: &mut impl FnMut(&str) -> Result<()>,
+) -> Result<Value> {
+    initialize(rpc, directory)?;
+    match operation {
+        Operation::Inspect => {}
+        Operation::Login => {
+            let before = account(rpc)?;
+            if !before["account"].is_null() {
+                return observe(rpc, before);
+            }
+            login(rpc, progress)?;
+            rpc.deadline = Instant::now() + Duration::from_secs(10);
+        }
+        Operation::Logout => {
+            rpc.auth_changes = true;
+            rpc.request("account/logout", json!({}))?;
+        }
+    }
+    let after = account(rpc)?;
+    if operation == Operation::Logout && !after["account"].is_null() {
+        return Err("logout_unconfirmed");
+    }
+    if operation == Operation::Login && after["account"]["type"] != "chatgpt" {
+        return Err("login_failed");
+    }
+    observe(rpc, after)
+}
+
 fn profile(directory: &Path) -> Result<()> {
     private_directory(directory).map_err(|_| "unsafe_profile")?;
     let mut pending = vec![directory.to_path_buf()];
@@ -229,7 +393,7 @@ fn profile(directory: &Path) -> Result<()> {
         for entry in std::fs::read_dir(path).map_err(|_| "unsafe_profile")? {
             let entry = entry.map_err(|_| "unsafe_profile")?;
             count += 1;
-            if count > 4096 {
+            if count > PROFILE_ENTRY_LIMIT {
                 return Err("unsafe_profile");
             }
             let kind = entry.file_type().map_err(|_| "unsafe_profile")?;
@@ -243,8 +407,15 @@ fn profile(directory: &Path) -> Result<()> {
     Ok(())
 }
 
-fn run(path: &Path, directory: &Path, cancel: Receiver<()>, limit: Duration) -> Result<Value> {
-    profile(directory)?;
+fn run_operation(
+    path: &Path,
+    directory: &Path,
+    cancel: Receiver<()>,
+    limit: Duration,
+    operation: Operation,
+    mut progress: impl FnMut(&str) -> Result<()>,
+) -> Result<Value> {
+    let _lock = profile_lock(directory)?;
     let executable = std::fs::canonicalize(path).map_err(|_| "launch_failed")?;
     if !path.is_absolute() {
         return Err("launch_failed");
@@ -294,9 +465,13 @@ fn run(path: &Path, directory: &Path, cancel: Receiver<()>, limit: Duration) -> 
         output,
         cancel,
         deadline: started + limit,
+        wall_deadline: SystemTime::now() + limit,
         sequence: 0,
+        auth_changes: false,
+        completion: None,
     };
-    let mut result = inspect(&mut rpc, directory).unwrap_or_else(|error| json!({"status":error}));
+    let mut result = operate(&mut rpc, directory, operation, &mut progress)
+        .unwrap_or_else(|error| json!({"status":error}));
     drop(rpc);
     drop(group);
     result["pid"] = json!(pid);
@@ -305,18 +480,33 @@ fn run(path: &Path, directory: &Path, cancel: Receiver<()>, limit: Duration) -> 
     Ok(result)
 }
 
-pub fn main(args: &[String]) {
+pub fn main(args: &[String], operation: Operation) {
     let (sender, cancel) = mpsc::channel();
     thread::spawn(move || {
         let _ = io::stdin().read(&mut [0]);
         let _ = sender.send(());
     });
     let result = match args {
-        [path, directory] => run(
+        [path, directory] => run_operation(
             Path::new(path),
             Path::new(directory),
             cancel,
-            Duration::from_secs(10),
+            Duration::from_secs(if operation == Operation::Login {
+                600
+            } else {
+                10
+            }),
+            operation,
+            |url| {
+                let mut output = io::stdout().lock();
+                writeln!(
+                    output,
+                    "{}",
+                    json!({"status":"awaiting_login","auth_url":url})
+                )
+                .and_then(|_| output.flush())
+                .map_err(|_| "connection_lost")
+            },
         ),
         _ => Err("launch_failed"),
     };
@@ -337,6 +527,170 @@ mod tests {
         sync::atomic::{AtomicUsize, Ordering},
     };
     static SERIAL: AtomicUsize = AtomicUsize::new(0);
+
+    #[test]
+    fn provider_cache_remains_inspectable_without_unbounded_traversal() {
+        let (dir, _) = fixture(Value::Null, json!([]));
+        let cache = dir.join("cache");
+        fs::create_dir(&cache).unwrap();
+        for i in 0..8_000 {
+            fs::write(cache.join(i.to_string()), "").unwrap();
+        }
+        assert!(profile(&dir).is_ok());
+        for i in 8_000..PROFILE_ENTRY_LIMIT {
+            fs::write(cache.join(i.to_string()), "").unwrap();
+        }
+        assert_eq!(profile(&dir), Err("unsafe_profile"));
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    fn run(path: &Path, directory: &Path, cancel: Receiver<()>, limit: Duration) -> Result<Value> {
+        run_operation(path, directory, cancel, limit, Operation::Inspect, |_| {
+            Ok(())
+        })
+    }
+
+    fn auth_fixture(mode: &str, url: &str) -> (PathBuf, PathBuf) {
+        let (dir, path) = fixture(Value::Null, json!([]));
+        let init = json!({"codexHome":dir});
+        let config =
+            json!({"config":{"cli_auth_credentials_store":"file","model_provider":"openai"}});
+        let start = json!({"type":"chatgpt","loginId":"login-one","authUrl":url});
+        let models = json!({"data":[sample()],"nextCursor":null});
+        let completion = match mode {
+            "wrong" => {
+                json!({"method":"account/login/completed","params":{"loginId":"foreign","success":true}})
+            }
+            "failed" => {
+                json!({"method":"account/login/completed","params":{"loginId":"login-one","success":false,"error":"fixture-secret"}})
+            }
+            _ => {
+                json!({"method":"account/login/completed","params":{"loginId":"login-one","success":true}})
+            }
+        };
+        fs::write(&path, format!(r#"#!/bin/sh
+account=null
+while IFS= read -r line; do
+ id=$(printf '%s' "$line" | sed -n 's/.*"id":\([0-9]*\).*/\1/p')
+ case "$line" in
+  *'"method":"initialize"'*) result='{init}' ;;
+  *'"method":"initialized"'*) continue ;;
+  *'"method":"config/read"'*) result='{config}' ;;
+  *'"method":"account/read"'*) result='{{"requiresOpenaiAuth":true,"account":'"$account"'}}' ;;
+  *'"method":"account/login/start"'*)
+    printf '{{"id":%s,"result":%s}}\n' "$id" '{start}'
+    account='{{"type":"chatgpt","email":"fixture-secret"}}'
+    if test '{mode}' != wait; then printf '%s\n' '{completion}'; fi
+    continue ;;
+  *'"method":"account/login/cancel"'*) echo cancelled > cancelled; result='{{}}' ;;
+  *'"method":"account/logout"'*)
+    echo logout > logout; account=null; result='{{}}'
+    printf '%s\n' '{{"method":"account/updated","params":{{"authMode":null,"planType":"fixture-secret"}}}}' ;;
+  *'"method":"model/list"'*) result='{models}' ;;
+  *) exit 9 ;;
+ esac
+ printf '{{"id":%s,"result":%s}}\n' "$id" "$result"
+done
+"#)).unwrap();
+        (dir, path)
+    }
+
+    #[test]
+    fn login_matches_completion_refreshes_models_and_logout_confirms_account() {
+        let url = "https://auth.openai.com/oauth/authorize?state=fixture-link-secret";
+        for operation in [Operation::Login, Operation::Logout] {
+            let (dir, path) = auth_fixture("success", url);
+            let (_sender, cancel) = mpsc::channel();
+            let mut seen = false;
+            let result = run_operation(
+                &path,
+                &dir,
+                cancel,
+                Duration::from_secs(2),
+                operation,
+                |link| {
+                    assert_eq!(link, url);
+                    seen = true;
+                    Ok(())
+                },
+            )
+            .unwrap();
+            assert_eq!(result["status"], "checked");
+            assert!(!result.to_string().contains("fixture-"));
+            if operation == Operation::Login {
+                assert!(seen);
+                assert_eq!(result["authorization"], "chatgpt");
+                assert_eq!(result["models"].as_array().unwrap().len(), 1);
+            } else {
+                assert!(!seen);
+                assert_eq!(result["authorization"], "not_connected");
+                assert!(dir.join("logout").exists());
+            }
+            fs::remove_dir_all(dir).unwrap();
+        }
+    }
+
+    #[test]
+    fn login_failures_cancel_and_release_exclusive_profile() {
+        for (mode, status) in [
+            ("wrong", "unexpected_message"),
+            ("failed", "login_failed"),
+            ("wait", "timeout"),
+        ] {
+            let (dir, path) = auth_fixture(
+                mode,
+                "https://auth.openai.com/oauth/authorize?state=fixture-link-secret",
+            );
+            let (_sender, cancel) = mpsc::channel();
+            let result = run_operation(
+                &path,
+                &dir,
+                cancel,
+                Duration::from_millis(250),
+                Operation::Login,
+                |_| Ok(()),
+            )
+            .unwrap();
+            assert_eq!(result["status"], status);
+            assert!(dir.join("cancelled").exists());
+            let lock = profile_lock(&dir).unwrap();
+            assert_eq!(profile_lock(&dir).err(), Some("profile_busy"));
+            drop(lock);
+            assert!(profile_lock(&dir).is_ok());
+            fs::remove_dir_all(dir).unwrap();
+        }
+        for url in [
+            "http://auth.openai.com/oauth/authorize",
+            "https://auth.openai.com.evil.test/oauth/authorize",
+            "https://evil@auth.openai.com/oauth/authorize",
+            "https://auth.openai.com:444/oauth/authorize",
+            "https://auth.openai.com/other",
+            "https://auth.openai.com/oauth/authorize#secret",
+        ] {
+            assert_eq!(login_url(&json!(url)), Err("invalid_login"));
+        }
+    }
+
+    #[test]
+    fn cancelling_login_notifies_provider_before_owned_group_exit() {
+        let (dir, path) = auth_fixture("wait", "https://auth.openai.com/oauth/authorize");
+        let (sender, cancel) = mpsc::channel();
+        let result = run_operation(
+            &path,
+            &dir,
+            cancel,
+            Duration::from_secs(2),
+            Operation::Login,
+            |_| {
+                sender.send(()).unwrap();
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert_eq!(result["status"], "cancelled");
+        assert!(dir.join("cancelled").exists());
+        fs::remove_dir_all(dir).unwrap();
+    }
 
     fn fixture(account: Value, models: Value) -> (PathBuf, PathBuf) {
         let dir = PathBuf::from(format!(

@@ -24,6 +24,7 @@ defmodule CuckodingWeb.HomeLive do
      |> assign(:codex_path, nil)
      |> assign(:probe_error, nil)
      |> assign(:connection_error, nil)
+     |> assign(:auth_error, nil)
      |> assign(:confirmed, false)
      |> reload()}
   end
@@ -109,19 +110,57 @@ defmodule CuckodingWeb.HomeLive do
     end
   end
 
+  def handle_event("authorize_codex", %{"operation" => operation} = params, socket)
+      when operation in ["login", "logout"] do
+    operation = if operation == "login", do: :login, else: :logout
+
+    case Foundation.authorize_codex(
+           socket.assigns.command_key,
+           socket.assigns.workspace.revision,
+           operation,
+           params["auth_confirmed"] == "true"
+         ) do
+      {:ok, command} ->
+        error =
+          if command.state == "rejected",
+            do: "Another setup operation is active or setup changed. Wait, then try again."
+
+        {:noreply,
+         socket |> assign(command_key: Ecto.UUID.generate(), auth_error: error) |> reload()}
+
+      {:error, :confirmation_required} ->
+        {:noreply,
+         assign(socket, :auth_error, "Confirm the private-profile sign-in or sign-out first.")}
+
+      _ ->
+        {:noreply, assign(socket, :auth_error, "Check the current executable version first.")}
+    end
+  end
+
   @impl true
   def handle_info(:updated, socket), do: {:noreply, reload(socket)}
   def handle_info(:session_expired, socket), do: {:noreply, redirect(socket, to: "/locked")}
 
   def handle_info(:clock, socket) do
     Process.send_after(self(), :clock, 1_000)
-    {:noreply, assign(socket, :now, DateTime.utc_now())}
+
+    {:noreply,
+     assign(socket,
+       now: DateTime.utc_now(),
+       login_ready: Foundation.login_link(socket.assigns.auth_command) != nil
+     )}
   end
 
   defp reload(socket) do
+    auth = Foundation.pending_probe(["login_codex", "logout_codex"])
+
     socket
     |> assign(:workspace, Foundation.workspace())
     |> assign(:pending, Foundation.pending?())
+    |> assign(:discovering, Foundation.pending_probe("discover_tools") != nil)
+    |> assign(:auth_command, auth)
+    |> assign(:last_auth, Foundation.last_probe(["login_codex", "logout_codex"]))
+    |> assign(:login_ready, Foundation.login_link(auth) != nil)
     |> assign(:events, Foundation.events())
     |> assign(:probe, Foundation.pending_probe())
     |> assign(:last_probe, Foundation.last_probe())
@@ -201,7 +240,7 @@ defmodule CuckodingWeb.HomeLive do
               phx-click="discover"
               phx-disable-with="Checking…"
               disabled={@pending}
-            >{if @pending, do: "Checking…", else: "Check setup"}</button>
+            >{if @discovering, do: "Checking…", else: "Check setup"}</button>
           </div>
           <p class="subtle">
             This checks executable locations. It does not run tools or sign you in.
@@ -223,7 +262,7 @@ defmodule CuckodingWeb.HomeLive do
             </li>
           </ul>
           <p role="status" aria-live="polite" class="fine-print">
-            {if @pending, do: "Checking installed tools…", else: checked_at(@workspace.checked_at)}
+            {if @discovering, do: "Checking installed tools…", else: checked_at(@workspace.checked_at)}
           </p>
           <div class="defaults">
             <span>RTK <b>Required</b></span><span>Ponytail <b>Full</b></span>
@@ -307,6 +346,77 @@ defmodule CuckodingWeb.HomeLive do
               Check account status and refresh its model catalog in a Cuckoding-owned profile. Personal Codex settings and sign-ins stay separate. No task runs.
             </p>
             <p class="fine-print">Verified executable: <code>{@workspace.codex["path"]}</code></p>
+            <p :if={@auth_error} class="notice" role="alert">{@auth_error}</p>
+            <form id="codex-login" phx-submit="authorize_codex">
+              <input type="hidden" name="operation" value="login" />
+              <label class="confirm-executable"><input
+                id={"login-consent-#{@command_key}"}
+                type="checkbox"
+                name="auth_confirmed"
+                value="true"
+                required
+              /> Use this executable to sign in to Cuckoding's private Codex profile.</label>
+              <button class="button primary" disabled={@pending} phx-disable-with="Starting…">Sign in with ChatGPT</button>
+            </form>
+            <div :if={@auth_command} id="codex-auth-progress" class="probe-progress" role="status">
+              <p>
+                Codex · account setup · {if @auth_command.kind == "login_codex",
+                  do: "sign-in",
+                  else: "sign-out"} · {@auth_command.state} · {max(
+                  0,
+                  DateTime.diff(@now, @auth_command.inserted_at)
+                )} s
+              </p>
+              <a
+                :if={@login_ready}
+                id="codex-login-link"
+                class="button primary"
+                href={~p"/codex/login/#{@auth_command.id}"}
+                target="_blank"
+                rel="noopener noreferrer"
+                referrerpolicy="no-referrer"
+              >Continue on OpenAI ↗</a>
+              <p :if={@auth_command.result == "awaiting_login"} class="fine-print">
+                Finish sign-in in the OpenAI tab, then return here. This request expires after ten minutes.
+                Your credentials go directly to OpenAI. You can close this tab and return while the app stays open.
+              </p>
+              <button
+                class="button"
+                phx-click="cancel_probe"
+                phx-value-id={@auth_command.id}
+                disabled={@auth_command.state == "cancelling"}
+              >{if @auth_command.state == "cancelling",
+                do: "Stopping…",
+                else: "Cancel account operation"}</button>
+            </div>
+            <p
+              :if={@last_auth && @last_auth.state in ["failed", "cancelled"]}
+              class="notice"
+              role="status"
+            >
+              Account operation {if @last_auth.state == "cancelled",
+                do: "cancelled",
+                else: "interrupted"}.
+              Check the connection before trying again; a sign-in may have completed just before cancellation.
+            </p>
+            <details id="codex-signout" phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
+              <summary>Sign out of this private profile</summary>
+              <p class="fine-print">
+                This disconnects Cuckoding's Codex profile and clears its saved model list.
+                Personal Codex sign-ins stay separate. No roles or battles are enabled yet.
+              </p>
+              <form id="codex-logout" phx-submit="authorize_codex">
+                <input type="hidden" name="operation" value="logout" />
+                <label class="confirm-executable"><input
+                  id={"logout-consent-#{@command_key}"}
+                  type="checkbox"
+                  name="auth_confirmed"
+                  value="true"
+                  required
+                /> Sign out of Cuckoding's private Codex profile.</label>
+                <button class="button" disabled={@pending} phx-disable-with="Signing out…">Sign out of Codex</button>
+              </form>
+            </details>
             <form id="connection-check" phx-submit="inspect_codex">
               <label class="confirm-executable"><input
                 id={"profile-consent-#{@command_key}"}
@@ -336,18 +446,26 @@ defmodule CuckodingWeb.HomeLive do
                 do: "Connection check cancelled.",
                 else: "Connection check interrupted. Confirm a fresh check to retry."}
             </p>
-            <div :if={@workspace.connection != %{}} id="connection-result" role="status">
+            <div
+              :if={@workspace.connection != %{} && !@auth_command}
+              id="connection-result"
+              role="status"
+            >
               <p>{connection_status(@workspace.connection)}</p>
-              <p class="fine-print">
-                Last check: {@workspace.connection["checked_at"]} · {@workspace.connection[
-                  "elapsed_ms"
-                ] || 0} ms
+              <p :if={@workspace.connection["checked_at"]} class="fine-print">
+                Updated: {@workspace.connection["checked_at"]}
+                <span :if={is_integer(@workspace.connection["elapsed_ms"])}>
+                  · {@workspace.connection["elapsed_ms"]} ms
+                </span>
               </p>
               <p :if={@workspace.connection["authorization_checked_at"]} class="fine-print">
                 Account observation: {@workspace.connection["authorization_checked_at"]}
               </p>
               <p
-                :if={Foundation.catalog_status(@workspace.connection, @now) == "stale"}
+                :if={
+                  @workspace.connection["models"] not in [nil, []] &&
+                    Foundation.catalog_status(@workspace.connection, @now) == "stale"
+                }
                 class="notice"
               >
                 The saved catalog is stale. Refresh it to check available models; cached entries do not establish current access.
@@ -381,7 +499,8 @@ defmodule CuckodingWeb.HomeLive do
               </details>
             </div>
             <p class="fine-print">
-              Sign-in and sign-out controls are the next connection step. This preview does not import credentials or start an authorization flow.
+              One private profile serves this workspace. Cuckoding keeps public account status and model metadata;
+              Codex manages its own credentials. A model catalog does not prove model access. Agent turns are not enabled yet.
             </p>
           </div>
         </section>
@@ -441,6 +560,8 @@ defmodule CuckodingWeb.HomeLive do
   defp event_label("discovery." <> status), do: "Setup check: " <> status
   defp event_label("codex." <> status), do: "Codex version check: " <> status
   defp event_label("connection." <> status), do: "Codex connection check: " <> status
+  defp event_label("login." <> status), do: "Codex sign-in: " <> status
+  defp event_label("logout." <> status), do: "Codex sign-out: " <> status
   defp event_label(_), do: "Workspace updated"
 
   defp codex_status("supported"), do: "Version matches the verified Codex baseline."
@@ -479,6 +600,16 @@ defmodule CuckodingWeb.HomeLive do
 
   defp connection_status(%{"status" => "timeout"}),
     do: "The connection check timed out. Try again."
+
+  defp connection_status(%{"status" => "profile_busy"}),
+    do: "Another operation owns this private profile. Wait for it to finish, then retry."
+
+  defp connection_status(%{"status" => status})
+       when status in ~w(needs_recheck cancelled cleanup_uncertain logout_unconfirmed),
+       do: "Account status needs a fresh connection check. No saved model list is trusted."
+
+  defp connection_status(%{"status" => status}) when status in ~w(invalid_login login_failed),
+    do: "Sign-in did not finish. Check the connection, then retry sign-in if needed."
 
   defp connection_status(%{"status" => status})
        when status in ~w(unsafe_profile profile_mismatch unsupported_profile),

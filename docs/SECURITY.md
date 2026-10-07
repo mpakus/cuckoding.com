@@ -110,16 +110,28 @@ The host is not an adversarial same-user sandbox: another process with the
 user's filesystem rights can inspect app-owned data. No provider credentials,
 agent grants, external publication or remote listener exist in R010.
 
-## R020b inspection boundary
+## R020 inspection and authorization boundary
 
-The bundled helper exposes one fixed read-only inspection operation, not a
-caller-selected RPC method. It validates private profile paths/metadata, forces
+The bundled helper exposes fixed inspection/login/logout operations, not a
+caller-selected RPC method. Inspection validates private profile paths/metadata, forces
 file-based provider credential storage, checks effective profile/provider config,
 and sends only initialize, config/read, account/read and model/list. It never
-starts a login, thread, turn, tool or host command. Provider requests or account
+starts a thread, turn, tool or host command. Provider requests or account
 changes during inspection abort. No raw frames, account email/plan, auth URLs or
 provider error text enter Cuckoding logs/SQLite. Codex may maintain its own
 private runtime files inside the profile. Cuckoding does not read credential values.
+
+Separately confirmed login/logout add only the managed account RPCs. Provider
+URLs are bounded, parsed against an exact official HTTPS host/path allowlist twice,
+kept in expiring dispatcher memory and exposed through a session-protected local
+redirect with no-referrer/no-store headers. The LiveView process keeps only a
+readiness flag and command ID. Neither URL nor login ID enters SQLite or logs.
+A matching completion and fresh account read are required before publishing model
+observations. Native locking prevents concurrent profile helpers. Cancellation
+retains the durable claim until helper exit or a reported cleanup timeout;
+cancelled/interrupted operations leave authorization unknown and require explicit
+reconciliation. This cannot reverse
+a provider-side success racing with cancellation. Authentication is never replayed.
 
 All child environment values are explicit; stdin loss, cancellation and deadlines
 stop the owned process group. Same-user TOCTOU, force-killed helper reconciliation,

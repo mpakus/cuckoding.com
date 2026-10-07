@@ -123,7 +123,8 @@ defmodule CuckodingWeb.FoundationLiveTest do
     assert render(view) =~ "Not signed in to Cuckoding"
     assert {:ok, _, html} = live(signed, "/settings")
     assert html =~ "Not signed in to Cuckoding"
-    assert html =~ "Sign-in and sign-out controls are the next connection step"
+    assert has_element?(view, "#codex-login button", "Sign in with ChatGPT")
+    assert html =~ "Agent turns are not enabled yet"
 
     connection = %{
       "status" => "checked",
@@ -144,5 +145,43 @@ defmodule CuckodingWeb.FoundationLiveTest do
     assert {:ok, view, _} = live(signed, "/settings")
     assert has_element?(view, "#codex-models summary", "1 cached models · stale")
     assert has_element?(view, "#codex-models[phx-mounted*=ignore_attrs]")
+  end
+
+  test "sign-in links require live authority, survive reconnect and vanish on cancellation", %{
+    conn: conn
+  } do
+    Cuckoding.Codex.init_login_links()
+    {:ok, _} = Foundation.check_codex(Ecto.UUID.generate(), 0, "/bin/sh", true)
+    {:ok, version} = Foundation.claim()
+    Foundation.finish(version, %{"status" => "supported", "version" => "0.146.0"})
+    signed = sign_in(conn)
+    {:ok, view, _} = live(signed, "/settings")
+    view |> form("#codex-login") |> render_submit()
+    assert render(view) =~ "Confirm the private-profile"
+    refute Foundation.pending?()
+    view |> form("#codex-login", auth_confirmed: "true") |> render_submit()
+    {:ok, claim} = Foundation.claim()
+    assert :ok = Foundation.login_waiting(claim)
+    url = "https://auth.openai.com/oauth/authorize?state=fixture-link-canary"
+    Cuckoding.Codex.put_login_link(claim.id, url)
+    Foundation.broadcast()
+    local = "/codex/login/" <> claim.id
+    assert has_element?(view, "#codex-login-link[href='#{local}'][rel='noopener noreferrer']")
+    refute render(view) =~ "fixture-link-canary"
+    assert {:ok, reconnected, _} = live(signed, "/settings")
+    assert has_element?(reconnected, "#codex-login-link")
+    assert get(conn, local) |> response(401)
+    assert get(signed, "/codex/login/invalid") |> response(410)
+    assert get(signed, local) |> redirected_to() == url
+    view |> element("button", "Cancel account operation") |> render_click()
+    refute has_element?(view, "#codex-login-link")
+    assert has_element?(view, "#codex-auth-progress button[disabled]", "Stopping")
+    assert get(signed, local) |> response(410)
+    Foundation.finish(claim, %{"status" => "cancelled"})
+    assert render(view) =~ "Account operation cancelled"
+    refute view |> element("#connection-result") |> render() =~ "0 ms"
+    refute view |> element("#connection-result") |> render() =~ "The saved catalog is stale"
+    refute Foundation.pending?()
+    assert has_element?(view, "#codex-logout input[required]")
   end
 end

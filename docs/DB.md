@@ -29,15 +29,25 @@ credential or auth URL is copied into Cuckoding tables/events. A successful
 catalog replaces the snapshot; a failed refresh keeps the last entries as stale.
 Freshness is derived from the stored timestamp (24 hours), never an in-memory
 clock alone. Signed-out/unsupported account observations clear unusable entries;
-a changed executable identity clears the connection projection. Future login or
-account-switch operations must invalidate old account-dependent catalogs.
+a changed executable identity clears the connection projection. R020c login/logout
+invalidate account-dependent observations when intent is enqueued, before launch.
 
 `inspect_codex` uses the same idempotent command ledger, a 20-second claim and
 bounded helper execution. Expired inspections are interrupted, never replayed.
 Cancellation prevents late completion. Events contain outcome/count/timing only;
 full validated model metadata belongs in the connection projection. The single
 Codex profile is `agents/codex` beneath the private rebuild root; Codex owns its
-contents. Multiple profiles and account switching are not enabled in this slice.
+contents. Named/multiple profiles are not enabled.
+
+R020c reuses these tables without a migration. `login_codex` / `logout_codex` use
+630-/20-second claims and exclude other setup commands while pending, running or
+cancelling. The helper has a ten-minute total login limit and ten-second RPC
+limits. `login.awaiting_browser` stores public progress only; the URL stays in
+expiring memory. Running cancellation becomes `cancelling/awaiting_cleanup` until
+the helper exits or cleanup times out visibly; late results cannot restore an old
+catalog or report a cancelled
+operation as successful. Expired claims become interrupted, never replayed.
+A later explicit inspection reconciles uncertain provider state.
 
 The default native root is `~/Library/Application Support/CCoding Rebuild`,
 marked `.ccoding-rebuild-v1`. Unknown nonempty roots and symlinked storage are

@@ -4,8 +4,9 @@
 R001 and R010 establish the documentation contract and local application shell.
 See [R010 evidence](../worklog/2026-10-06-R010-local-foundation.md).
 Agent authorization, models and orchestration remain R020–R100.
-R020a/b complete version readiness, private-profile inspection and validated
-model caching. Real-account/model/execution acceptance is still open.
+R020a–c complete version readiness, private-profile inspection, validated model
+caching and managed sign-in/out controls. Real-account/model/execution acceptance
+is still open.
 Historical source/tests/builds do not satisfy these gates.
 
 R015 adds the separately requested public site after R010; see [Site](SITE.md).
@@ -101,7 +102,10 @@ the real-provider gate.
   [R020b evidence](../worklog/2026-10-07-R020b-codex-connection-inspection.md).
 - [ ] Extend the implemented adapter version boundary to the owned structured
   runtime transport, permissions and operations below.
-- [ ] Add app-owned login/status/logout and connection persistence.
+- [x] R020c: app-owned ChatGPT browser login/status/logout, transient protected
+  login redirect, cancellation/cleanup, profile serialization and durable
+  account/catalog invalidation. Real login start/cancel passed; human-completed
+  login remains open. See [R020c evidence](../worklog/2026-10-07-R020c-codex-sign-in.md).
 - [ ] Fetch models after login; cache bounded IDs/options/source/freshness in
   SQLite, with stale catalog, manual refresh and validated fallback behavior.
 - [ ] Prove a read-only turn and a permitted worktree-writing turn in isolated
