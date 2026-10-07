@@ -1,6 +1,6 @@
 defmodule CuckodingWeb.TabulaLive do
   use CuckodingWeb, :live_view
-  alias Cuckoding.{ArenaGit, Foundation, GitPreview, Tabulae}
+  alias Cuckoding.{ArenaGit, Foundation, GitPreview, Tabulae, TeamAssignments}
   alias CuckodingWeb.Layouts
 
   @impl true
@@ -178,6 +178,8 @@ defmodule CuckodingWeb.TabulaLive do
     paths = if git, do: git.payload["paths"] || [], else: []
 
     assign(socket,
+      arena_team: TeamAssignments.assigned(socket.assigns.arena),
+      board_team: if(board, do: TeamAssignments.assigned(board)),
       git: git,
       git_paths: socket.assigns.git_paths || Enum.join(paths, "\n"),
       setup_busy: Foundation.pending?(),
@@ -364,8 +366,8 @@ defmodule CuckodingWeb.TabulaLive do
     end
   end
 
-  defp role_name(board, key) do
-    case Enum.find(board.team_revision.definition["roles"], &(&1["id"] == key)) do
+  defp role_name(team, key) do
+    case Enum.find(team.definition["roles"], &(&1["id"] == key)) do
       nil -> "System result"
       role -> role["name"]
     end
@@ -399,10 +401,20 @@ defmodule CuckodingWeb.TabulaLive do
       <section class="panel" aria-labelledby="tabula-title">
         <p class="eyebrow">04 / TABULA</p>
         <h2 id="tabula-title">{if @board, do: @board.name, else: "Plan your next battle."}</h2>
+        <.link :if={@board} navigate={~p"/arenas/#{@arena.id}"}>Arena settings</.link>
+        <.live_component
+          module={CuckodingWeb.TeamAdoptionComponent}
+          id="scope-team"
+          session_id={@session_id}
+          scope={@board || @arena}
+          revision={if @board, do: @board_team.id, else: @arena_team.id}
+          now={@now}
+        />
         <.live_component
           :if={@board}
           module={CuckodingWeb.PlanningComponent}
           id="planning"
+          session_id={@session_id}
           board={@board}
           now={@now}
           busy={@setup_busy}
@@ -584,7 +596,7 @@ defmodule CuckodingWeb.TabulaLive do
               required
             />
             <p class="fine-print">
-              Inherits Arena team revision {@arena.team_revision_id}. No agent access is granted.
+              Inherits Arena team revision {@arena_team.id}. No agent access is granted.
             </p>
             <p :if={@board_error} role="alert" class="notice">{@board_error}</p>
             <button type="submit" class="button" phx-disable-with="Creating…">Create Tabula</button>
@@ -608,7 +620,7 @@ defmodule CuckodingWeb.TabulaLive do
               aria-labelledby={"heading-#{column["key"]}"}
             >
               <h3 id={"heading-#{column["key"]}"}>{column["name"]}</h3>
-              <p class="fine-print">{role_name(@board, column["role"])}</p>
+              <p class="fine-print">{role_name(@board_team, column["role"])}</p>
               <p :if={column["key"] not in ~w(specs todo)} class="fine-print">
                 Unavailable until battles
               </p>
@@ -640,7 +652,7 @@ defmodule CuckodingWeb.TabulaLive do
           </div>
         </div>
         <p :if={@board} class="fine-print">
-          Team revision {@board.team_revision_id} · workflow 1 · planning drafts. ToDo does not authorize execution.
+          Team revision {@board_team.id} · workflow 1 · planning drafts. ToDo does not authorize execution.
         </p>
       </section>
       <section :if={@board} class="panel" aria-labelledby="draft-title">

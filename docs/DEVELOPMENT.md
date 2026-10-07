@@ -5,7 +5,7 @@ check, plus Codex version, private-profile inspection, managed sign-in/out and a
 fixed model diagnostic, R030a saved default-team configuration and R040a Arena
 registration, R040b Tabulae/manual drafts, R040c Git inspection/init and R040d
 previewed initial commits. R040e adds brief-only Speculator proposals and explicit
-imports into Specs.
+imports into Specs. R030b adds explicit saved-team adoption for existing scopes.
 Human-completed real-account/model acceptance and repository
 execution remain R020 work. The previous source
 reset remains intentional; do not restore the deleted implementation wholesale.
@@ -90,8 +90,13 @@ In **Arenas**, choose an existing directory in the native macOS dialog, enter a
 name and confirm the displayed path/team before **Register Arena**. The dialog
 cannot create folders, expires after two minutes and can be cancelled from either
 surface. Registration records metadata only. `.git` presence is unverified;
-registration runs no Git commands. Expand the inherited team to
-inspect the frozen revision; changing the default later does not update it.
+registration runs no Git commands. Expand the registration team to inspect its
+frozen revision. To update future-board defaults, open the Arena and expand
+**Arena team**, review both rosters and confirm **Adopt saved team**. Existing
+boards stay unchanged; each has a separate **Tabula team** adoption control.
+**Arena settings** on a board returns to the Arena control. Adoption needs fresh
+confirmation after another team edit and waits for that board's active planning
+to finish/cancel. It preserves drafts and earlier planning receipts.
 Home/ancestor, system, known credential and application-data roots are refused.
 Duplicates and changed directory identities require a different/reselected folder.
 After interruption choose again explicitly; no dialog is automatically replayed.
@@ -204,8 +209,8 @@ files or publish documentation claims as a working release.
 
 ## Brief planning preview (R040e)
 
-Save a Codex/model binding for Speculator, then create a new Arena and Tabula to
-freeze that team. On the board open **Ask Speculator**, enter a brief, confirm
+Save a Codex/model binding for Speculator, then create an Arena and Tabula or
+explicitly adopt the saved revision under **Tabula team** on an existing board. On the board open **Ask Speculator**, enter a brief, confirm
 provider usage and **Generate proposals**. Review suggestions and **Add to Specs**
 individually. Existing boards do not inherit later default-team edits. Refresh a
 stale catalog in Agents before confirming again. No project files are read.

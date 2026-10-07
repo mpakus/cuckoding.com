@@ -1,7 +1,7 @@
 defmodule Cuckoding.Planning do
   @moduledoc "Consented brief-only proposals using the frozen Speculator; no delivery authority."
   import Ecto.Query
-  alias Cuckoding.{Codex, Command, Foundation, Repo, Storage, Tabulae, Team}
+  alias Cuckoding.{Codex, Command, Foundation, Repo, Storage, Tabulae, Team, TeamAssignments}
 
   def history(tabula_id) do
     Repo.all(
@@ -18,7 +18,8 @@ defmodule Cuckoding.Planning do
   end
 
   def setup(board) do
-    role = Enum.find(board.team_revision.definition["roles"], &(&1["id"] == "speculator"))
+    team = TeamAssignments.assigned(board)
+    role = Enum.find(team.definition["roles"], &(&1["id"] == "speculator"))
     catalog = Team.catalog()
 
     if role["agent"] == "codex" and
@@ -33,7 +34,7 @@ defmodule Cuckoding.Planning do
           "model" => model["model"],
           "effort" => model["default_effort"],
           "role" => role,
-          "team_revision_id" => board.team_revision_id,
+          "team_revision_id" => team.id,
           "arena_id" => board.arena_id,
           "tabula_id" => board.id,
           "grant" => "scratch-read-only-v1",
@@ -41,12 +42,13 @@ defmodule Cuckoding.Planning do
         })
 
       %{
+        team_id: team.id,
         role: role,
         payload: payload,
         token: Base.encode16(:crypto.hash(:sha256, :erlang.term_to_binary(payload)))
       }
     else
-      %{role: role, payload: nil, token: nil}
+      %{team_id: team.id, role: role, payload: nil, token: nil}
     end
   end
 

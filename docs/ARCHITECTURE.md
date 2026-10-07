@@ -39,11 +39,18 @@ previews the path and immutable team revision before confirmation.
 
 `Cuckoding.Tabulae` commits boards and manual task revisions synchronously through
 the same SQLite command/event boundary. TabulaLive scopes routes to their Arena,
-shows the frozen team assignments and preserves dirty editors during broadcasts.
+shows the currently assigned team and preserves dirty editors during broadcasts.
 Specs/ToDo are the only writable draft columns; the other three are visible future
 stages. Draft saves involve no provider, Git service, filesystem or dispatcher.
 
-`Cuckoding.Planning` freezes the board Speculator and current connection in a
+`Cuckoding.TeamAssignments` resolves the latest append-only scoped adoption or
+creation team. Confirmed adoption uses the command/event transaction boundary;
+Arena changes affect future boards and Tabula changes affect future planning.
+The adoption component previews both full rosters. Adoption and planning components
+install the shared DB session guard because parent event hooks do not run for
+component-targeted events. No new worker or execution grant is introduced.
+
+`Cuckoding.Planning` freezes the currently assigned board Speculator and current connection in a
 consented `plan_tabula` command. The existing dispatcher and Codex adapter send
 one structured ephemeral turn under the diagnostic scratch grant. Request text
 travels on helper stdin. Validated public proposals live in the command receipt;

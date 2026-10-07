@@ -17,6 +17,7 @@ not establish implementation or acceptance of this rebuild.
 | D010 | Source reset preserves old application data; use a separate rebuild data root | No inferred permission to destroy databases/profiles/worktrees |
 | D011 | Ten minutes from first launch to ready with runtime/account prerequisites stated | Measurable setup target; also report full installation timing |
 | D012 | Provider capabilities require per-version real evidence | Named runtimes are targets, not unsupported promises; transport stays adapter-specific |
+| D013 | Append-only scoped team adoptions override creation defaults for future work | Explicit confirmation and revision guards; Arena changes affect new boards, Tabula changes affect new planning, historical receipts stay unchanged |
 
 The first release scope and deferred features are in [Product](PRODUCT.md).
 [Flow](FLOW.md) owns state, defaults and limits. Changes to settled boundaries

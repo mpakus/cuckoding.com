@@ -28,8 +28,8 @@ R040a adds **Choose folder → preview path/team → confirm → Register Arena*
 The native dialog accepts one existing directory and cannot create folders.
 Registration freezes the team revision shown at selection, permits unassigned
 drafts and leaves all project files untouched. Later default-team changes do not
-rewrite it. Git-entry presence is labeled unverified; Arena
-overrides and execution grants remain subsequent work. Cancel or interrupted selection requires a new
+rewrite it. Git-entry presence is labeled unverified; execution grants remain
+subsequent work. Cancel or interrupted selection requires a new
 explicit choice; it never starts planning or a battle.
 
 R040c adds **Open Tabulae → Repository setup → Inspect Git**. A missing result
@@ -48,6 +48,15 @@ branch, fixed author and message. Consent expires in five minutes and is invalid
 by changed selection, bytes, mode, repository or branch. No bulk add is implicit.
 A commit receipt persists its head/tree; interrupted publication may leave staged
 files/objects and needs inspection, never automatic rollback or replay.
+
+R030b adds **Arena settings or Tabula team → review current/proposed rosters →
+confirm → Adopt saved team**. The latest saved default is an explicit choice;
+changing Team alone never propagates. Arena adoption changes inheritance for new
+boards; an existing board needs its own adoption. Preview includes role removals,
+models and full instructions. Stale scope/default revisions require fresh consent.
+A board cannot change team during pending/running/cancelling planning. Earlier
+proposals and task drafts remain usable; new planning consent binds the adopted
+revision. Per-scope role editing and grants remain open.
 
 ## Planning
 
@@ -112,7 +121,7 @@ a column changes only its label. Reordering or adding steps publishes a new
 workflow revision; no arbitrary conditional graph editor is required.
 
 R040e implements **Ask Speculator → type brief → confirm provider usage → Generate
-proposals → review → Add to Specs**. It uses the board's frozen required Speculator
+proposals → review → Add to Specs**. It snapshots the board's currently assigned required Speculator
 and the catalog's default effort, without per-task assignment or model fallback.
 A fresh supported executable/account/catalog is required; changed observations
 invalidate old consent. Saving a new global team never changes this board.

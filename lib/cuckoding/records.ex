@@ -77,6 +77,19 @@ defmodule Cuckoding.Arena do
   end
 end
 
+defmodule Cuckoding.TeamAdoption do
+  @moduledoc false
+  use Ecto.Schema
+
+  schema "team_adoptions" do
+    field :arena_id, :binary_id
+    field :tabula_id, :binary_id
+    belongs_to :team_revision, Cuckoding.TeamRevision
+    field :command_id, :binary_id
+    field :inserted_at, :utc_datetime_usec
+  end
+end
+
 defmodule Cuckoding.Tabula do
   @moduledoc false
   use Ecto.Schema

@@ -13,7 +13,8 @@ defmodule CuckodingWeb.PlanningComponent do
        key: Ecto.UUID.generate(),
        error: nil,
        message: nil
-     )}
+     )
+     |> CuckodingWeb.SessionAuth.guard_events()}
   end
 
   @impl true
@@ -143,11 +144,11 @@ defmodule CuckodingWeb.PlanningComponent do
       <p class="fine-print">
         {@setup.role["name"]} · Codex · {if @setup.payload,
           do: @setup.payload["model"],
-          else: "model unavailable"} · saved team {@board.team_revision_id}
+          else: "model unavailable"} · saved team {@setup.team_id}
       </p>
       <p :if={!@setup.token} class="notice">
         This Tabula needs a saved Speculator with an available Codex model. Check Agents.
-        Team changes apply to new Arenas; this Tabula keeps its original team.
+        After saving a model on Team, open Tabula team above to adopt that saved revision.
       </p>
       <.form
         for={%{}}

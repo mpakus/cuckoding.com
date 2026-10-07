@@ -22,7 +22,7 @@ identity before registration. Git-entry presence is unverified metadata only.
 Never infer file/execution grants or run Git from registration. Folder commands
 must not mutate provider workspace revisions or replay interrupted dialogs.
 R040b adds immutable default Tabula definitions and revisioned manual task drafts.
-Copy the Arena's team reference, never the latest global default. Draft saves are
+Copy the Arena's currently assigned team reference, never the latest global default. Draft saves are
 scoped to Arena/Tabula/task, guarded by task revisions and committed with history
 and events. Only Specs/ToDo are writable; ToDo requires description and criteria.
 Neither stage grants execution or represents a validated Secutor result. Preserve
@@ -40,12 +40,21 @@ Preview metadata is bounded; events omit paths/content/hashes. No push, agent gr
 or battle is implied. See the Git limits in `docs/SECURITY.md`.
 
 R040e permits one separately consented brief-only Speculator turn using the
-Tabula's frozen team and fresh connection/model binding. Reuse the no-tools,
+Tabula's assigned team and fresh connection/model binding, frozen per request. Reuse the no-tools,
 empty-scratch grant; briefs/instructions travel over stdin, never argv. Persist
 only bounded public proposals and receipts. Import suggestions into Specs once
 with source-command/index provenance; never interpret prose as authority.
 Cancellation and expired claims cannot replay usage or import a late result.
 This is not file-backed planning or a battle execution grant.
+
+R030b adds confirmed adoption of the latest saved default team by an Arena or
+Tabula. Keep creation references immutable; append scoped adoption records and
+audit events in one transaction. Guard both current scope and default revisions.
+Arena adoption affects only new boards; Tabula adoption affects only new planning
+requests and is blocked while that board is planning/cancelling. Preserve prior
+receipts/drafts and clear stale consent. This grants no execution. Stateful
+LiveComponents must install the shared session event guard; parent hooks do not
+authorize component-targeted events. Pass the server-owned session ID explicitly.
 
 ## Mission and product contract
 

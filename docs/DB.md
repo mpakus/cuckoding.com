@@ -77,7 +77,8 @@ requires explicit confirmation. Events contain counts/revision/removed IDs or a
 closed reason, not instruction text. The UI exposes the latest five revisions;
 older history remains in SQLite. Existing bindings retain the resolved model
 through disconnect or catalog drift; new bindings require verified fresh metadata.
-Arena/Tabula overrides, schedules and executable grants are not implemented.
+R030b adds scoped adoption of saved defaults (below); per-scope role editing,
+schedules and executable grants are not implemented.
 
 R040a adds `arenas`: UUID, registration/selection command references, name,
 canonical path, device/inode identity, observed Git-entry presence, immutable
@@ -103,7 +104,7 @@ Unique task/revision indexes and history/board immutability triggers retain fact
 a draft-stage trigger permits only Specs/ToDo. A future execution schema must
 explicitly handle this boundary rather than treating drafts as executable work.
 
-`create_tabula` copies the Arena team, even after global defaults change.
+`create_tabula` copies the currently assigned Arena team, even after global defaults change.
 `save_draft` atomically commits the current projection, immutable history and
 `draft.saved` event; a failed event rolls back all writes. Matching keys return
 the original revision receipt. Scope/stale/stage/readiness rejections are durable.
@@ -138,6 +139,24 @@ The default native root is `~/Library/Application Support/CCoding Rebuild`,
 marked `.ccoding-rebuild-v1`. Unknown nonempty roots and symlinked storage are
 refused before migration. `foundation.db` and sidecars are private; old Cuckoding
 data is not opened. `CCODING_DATA_DIR` can select an absolute isolated test root.
+
+## R030b scoped team adoptions
+
+The seventh migration adds append-only `team_adoptions`: integer sequence, Arena
+ID, optional Tabula ID, saved team revision FK, unique command ID and UTC time.
+A composite index selects the newest entry per scope; absent adoption falls back
+to the immutable creation reference. SQLite refuses rewrites/deletion and foreign
+Arena/Tabula pairs. Prior schema rows need no rewrite or inferred adoption.
+
+`adopt_team` records explicit confirmation, previous scope revision and target
+saved default revision. An immediate transaction validates both revisions, scope
+and lack of pending/running/cancelling planning for a Tabula, then records adoption
+and `team.adoption_completed`. Rejections are durable and idempotent with
+`team.adoption_rejected`; events contain IDs/reasons, not role instructions.
+The command never enters the dispatcher or changes provider workspace revisions.
+Arena adoption affects only subsequently created Tabulae. Tabula adoption affects
+new planning consent/snapshots; creation references, earlier requests and draft
+history remain unchanged. The UI shows the last five adoptions; all remain stored.
 
 ## Minimal records
 

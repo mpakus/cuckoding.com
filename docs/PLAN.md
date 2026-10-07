@@ -12,6 +12,8 @@ Tabulae and manual draft tasks; R040c adds explicit Git inspection and confirmed
 initialization. R040d adds explicit file previews and consented initial commits.
 R040e adds consented Speculator proposals from typed briefs and individual imports
 into Specs. File-backed planning and execution grants remain open.
+R030b lets existing Arenas/Tabulae explicitly adopt a newer saved default team
+without rewriting earlier requests or drafts. Per-scope role editing remains open.
 Historical source/tests/builds do not satisfy these gates.
 
 R015 adds the separately requested public site after R010; see [Site](SITE.md).
@@ -139,7 +141,10 @@ Execution acceptance depends on R020. R030a configuration can ship independently
   See [task](../tasks/R030a-saved-team.md) and [evidence](../worklog/2026-10-07-R030a-saved-team.md).
 - [ ] Add explicit Arena/Tabula inheritance and overrides without changing saved
   battle snapshots (alongside R040). Arena inheritance is implemented in R040a;
-  Tabula inheritance is implemented in R040b; overrides remain.
+  Tabula inheritance is implemented in R040b. R030b adds confirmed adoption of the
+  latest saved default for either scope; per-scope role editing remains. See
+  [task](../tasks/R030b-scoped-team-adoption.md) and
+  [evidence](../worklog/2026-10-07-R030b-scoped-team-adoption.md).
 - [ ] Add confirmed/audited execution slots and grants; prove independent sessions
   sharing one connection/model without inferring permission from role text.
 

@@ -13,7 +13,7 @@ defmodule CuckodingWeb.SessionAuth do
       socket =
         socket
         |> assign(:session_id, session["session_id"])
-        |> attach_hook(:session_check, :handle_event, &authorize_event/3)
+        |> guard_events()
         |> attach_hook(:session_check, :handle_info, fn _, socket ->
           authorize_event(nil, nil, socket)
         end)
@@ -23,6 +23,10 @@ defmodule CuckodingWeb.SessionAuth do
       {:halt, redirect(socket, to: "/locked")}
     end
   end
+
+  # Component-targeted events do not run the parent LiveView's event hooks.
+  def guard_events(socket),
+    do: attach_hook(socket, :session_check, :handle_event, &authorize_event/3)
 
   defp authorize_event(_, _, socket) do
     if Cuckoding.ShellAuth.valid_session?(socket.assigns.session_id),

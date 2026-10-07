@@ -17,7 +17,8 @@ commands/events, tool discovery and Codex setup work. **Agents** provides
 consented version/profile checks, managed ChatGPT sign-in/out, a cached model
 catalog and a fixed model-access diagnostic. **Team** saves the four default
 roles plus custom roles, Codex/model assignments and instructions in immutable
-revisions. Drafts can remain unassigned; stale models are shown without silently
+revisions. Existing Arenas and Tabulae can explicitly adopt a newer saved team;
+previous requests and draft history stay unchanged. Drafts can remain unassigned; stale models are shown without silently
 replacing them. Saving a team starts no agent and grants no execution permission.
 **Arenas** adds a native folder chooser and confirmed local registration with a
 frozen team revision. It records directory identity without modifying project files.
@@ -42,7 +43,8 @@ battles are next. Registration alone does not validate Git; an explicit inspecti
 distinguishes missing, unborn and committed standalone repositories.
 The product story above remains the target, not a shipped capability list.
 
-Evidence: [Brief planning worklog](worklog/2026-10-07-R040e-brief-planning.md),
+Evidence: [Scoped team adoption worklog](worklog/2026-10-07-R030b-scoped-team-adoption.md),
+[Brief planning worklog](worklog/2026-10-07-R040e-brief-planning.md),
 [Initial commit worklog](worklog/2026-10-07-R040d-initial-commit.md),
 [Git setup worklog](worklog/2026-10-07-R040c-arena-git-setup.md),
 [Tabula drafts worklog](worklog/2026-10-07-R040b-tabula-drafts.md),

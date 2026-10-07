@@ -5,6 +5,14 @@ defmodule CuckodingWeb.PlanningLiveTest do
   alias Cuckoding.{Foundation, Planning, Tabulae}
   setup do: planning_fixture()
 
+  test "expired sessions cannot launch component-targeted planning", %{conn: conn, board: board} do
+    {:ok, view, _} = conn |> sign_in() |> live("/arenas/#{board.arena_id}/tabulae/#{board.id}")
+    Cuckoding.Repo.update_all(Cuckoding.BrowserToken, set: [expires_at: 0])
+    view |> form("#planning-form", brief: "No authority", confirmed: "true") |> render_submit()
+    assert_redirect(view, "/locked")
+    assert Planning.history(board.id) == []
+  end
+
   test "brief consent, progress, durable proposals and import preserve unrelated draft text", %{
     conn: conn,
     board: board

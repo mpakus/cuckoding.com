@@ -10,7 +10,8 @@ defmodule Cuckoding.Tabulae do
     Foundation,
     Planning,
     Repo,
-    Tabula
+    Tabula,
+    TeamAssignments
   }
 
   @fields ~w(title description criteria column)
@@ -227,7 +228,7 @@ defmodule Cuckoding.Tabulae do
     board =
       Repo.insert!(%Tabula{
         arena_id: arena.id,
-        team_revision_id: arena.team_revision_id,
+        team_revision_id: TeamAssignments.assigned(arena).id,
         command_id: id,
         name: payload["name"],
         definition: %{"version" => 1, "execution" => "disabled", "columns" => @columns},

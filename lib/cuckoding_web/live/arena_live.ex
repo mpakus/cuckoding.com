@@ -240,9 +240,9 @@ defmodule CuckodingWeb.ArenaLive do
   defp team(assigns) do
     ~H"""
     <details id={@id} class="activity" phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
-      <summary>Inherited team · revision {@revision.id}</summary>
+      <summary>Registration team · revision {@revision.id}</summary>
       <p class="fine-print">
-        Frozen at folder selection. Future default-team changes do not change this Arena. No execution grants.
+        Frozen at folder selection. Open Tabulae to inspect or explicitly adopt a newer team for future boards. No execution grants.
       </p>
       <dl class="team-history">
         <div :for={role <- @revision.definition["roles"]}>

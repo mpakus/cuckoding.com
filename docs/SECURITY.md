@@ -145,7 +145,10 @@ The native shell writes a 0600 launch file in the private rebuild root. Startup
 consumes/deletes it; a one-use bootstrap establishes in-memory shell authority.
 The browser gets a single-use 60-second handoff and an encrypted HttpOnly,
 SameSite=Strict cookie backed by a hashed, expiring 30-minute DB session.
-LiveView checks authority on mount, events, incoming updates and expiry. Restart
+LiveView checks authority on mount, events, incoming updates and expiry. Stateful
+LiveComponents install the same DB-backed event guard explicitly; parent event
+hooks do not cover component-targeted messages. Expired sessions cannot adopt
+teams, launch/cancel planning or import proposals. Restart
 rotates the cookie key. Authentication routes do not log request parameters.
 
 HTTP and WebSocket origins must match localhost/127.0.0.1 and the current
