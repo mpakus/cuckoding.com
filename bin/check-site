@@ -1,0 +1,72 @@
+#!/usr/bin/env python3
+"""Dependency-free checks for the exact directory published to Pages."""
+from html.parser import HTMLParser
+from pathlib import Path
+from urllib.parse import urlsplit
+import re
+import xml.etree.ElementTree as ET
+
+root = Path(__file__).resolve().parents[1]
+site = root / "site"
+
+
+class Page(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.ids, self.refs, self.tags, self.text = [], [], [], []
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        self.tags.append((tag, attrs))
+        if "id" in attrs:
+            self.ids.append(attrs["id"])
+        for key in ("src", "href"):
+            if key in attrs:
+                self.refs.append(attrs[key])
+        if tag == "img":
+            assert attrs.get("alt"), "Images need truthful alternative text"
+            assert int(attrs["width"]) > 0 and int(attrs["height"]) > 0
+        assert not any(key.startswith("on") for key in attrs), "Keep scripts external"
+        if tag in ("script", "iframe"):
+            assert not urlsplit(attrs.get("src", "")).netloc, "No third-party scripts"
+
+    def handle_data(self, text):
+        self.text.append(text)
+
+
+page = Page()
+page.feed((site / "index.html").read_text())
+assert len(page.ids) == len(set(page.ids)), "Duplicate element IDs"
+for ref in page.refs:
+    url = urlsplit(ref)
+    if url.scheme or url.netloc:
+        assert url.scheme == "https", f"Unsafe public link: {ref}"
+        continue
+    assert not url.path.startswith("/"), f"Use project-path-safe assets: {ref}"
+    if url.path:
+        target = (site / url.path).resolve()
+        assert target.is_relative_to(site) and target.is_file(), f"Missing local file: {ref}"
+    if url.fragment and not url.path:
+        assert url.fragment in page.ids, f"Missing anchor: {ref}"
+assert sum(tag == "h1" for tag, _ in page.tags) == 1
+assert sum(tag == "main" for tag, _ in page.tags) == 1
+assert any(tag == "html" and attrs.get("lang") == "en" for tag, attrs in page.tags)
+assert any(tag == "meta" and attrs.get("name") == "viewport" for tag, attrs in page.tags)
+assert any(tag == "a" and attrs.get("class") == "skip" for tag, attrs in page.tags)
+assert any(tag == "button" and attrs.get("id") == "motion-toggle" and "hidden" in attrs for tag, attrs in page.tags)
+text = " ".join(page.text)
+for claim in ("In development", "Planned workflow", "Satirical concept art", "Not a product screenshot", "Detection does not authorize", "not a signed or notarized public release", "Speculator", "Implementor", "Secutor", "Summa Rudis"):
+    assert claim in text, f"Missing public scope/provenance: {claim}"
+assert "prefers-reduced-motion: reduce" in (site / "style.css").read_text()
+assert (site / "CNAME").read_text().strip() == "cuckoding.com"
+assert (site / ".nojekyll").is_file()
+ET.parse(site / "sitemap.xml")
+ET.parse(site / "assets/favicon.svg")
+assert (site / "assets/colosseum.png").stat().st_size < 4_000_000
+for file in site.rglob("*"):
+    assert not file.is_symlink(), f"Pages cannot publish symlinks: {file}"
+workflow = (root / ".github/workflows/pages.yml").read_text()
+assert "path: site\n" in workflow
+assert all(re.fullmatch(r"[0-9a-f]{40}", pin) for pin in re.findall(r"uses: [^@]+@(\S+)", workflow))
+assert "needs: check" in workflow and "github.event_name != 'pull_request'" in workflow
+print(f"PASS: {len(page.refs)} links/assets, accessibility structure, scope/provenance, motion fallback and Pages boundary")

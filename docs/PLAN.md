@@ -6,10 +6,12 @@ See [R010 evidence](../worklog/2026-10-06-R010-local-foundation.md).
 Agent authorization, models and orchestration remain R020–R100.
 Historical source/tests/builds do not satisfy these gates.
 
-Claim exactly one task file when beginning a slice. Use the R010–R100 IDs below
+R015 adds the separately requested public site after R010; see [Site](SITE.md).
+
+Claim exactly one task file when beginning a slice. Use the slice IDs below
 for those files and worklogs; do not generate a folder of empty task templates.
-Every slice includes its LiveView surface, durable events, focused regression
-checks and documentation update. R080 is cross-screen polish, not the first UI.
+Every application slice includes its LiveView surface, durable events, focused
+regression checks and documentation update. R080 is cross-screen polish, not the first UI.
 
 ## Sequence and dependencies
 
@@ -50,6 +52,19 @@ Depends on R001. Read [architecture](ARCHITECTURE.md), [data](DB.md) and
 Acceptance: launch from the tray, see one browser screen, reject unauthorized/
 replayed access, reconnect without data loss, Quit cleans only owned processes.
 Run foundation/migration/security/shell checks and record the actual build.
+
+## R015 — Satirical Coliseum public site
+
+Depends on R010. User-requested addition; does not block the app's R020 sequence.
+
+- [x] Build native static `site/` with robot gladiators, expressive spectators,
+  Roman irony, responsive scroll sections and decorative parallax.
+- [x] Preserve no-JavaScript content, keyboard navigation, OS reduced motion and
+  a persistent pause control; label concept art and illustrative UI.
+- [x] Separate available foundation from planned capabilities and public release.
+- [x] Prepare pinned, scoped GitHub Pages workflow; no external publication.
+- [x] Verify and integrate into local main; see [task](../tasks/R015-colosseum-site.md) and
+  [worklog](../worklog/2026-10-06-R015-colosseum-site.md).
 
 ## R020 — One real agent and durable models
 
@@ -238,6 +253,6 @@ mock provider is used as current release evidence.
 ## Deferred work
 
 No plugin marketplace, vector/indexing server, autonomous knowledge pipeline,
-remote/container workers, public-site rebuild, automatic push/PR/merge or
+remote/container workers, automatic push/PR/merge or
 analytics suite in these slices. Add only for a concrete later user need.
 Use `rtk rg`, existing project skills and scoped Markdown files now.

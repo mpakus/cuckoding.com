@@ -12,7 +12,7 @@ attention items and logs.
 
 ## Current state
 
-**R010 foundation preview, 2026-10-06.** The tray shell, authenticated local
+**R010 foundation preview, 2026-10-06 (local main: `86ef4b3`).** The tray shell, authenticated local
 browser UI, SQLite event/command storage and metadata-only tool check are
 implemented and locally verified (22 Elixir tests, 4 Rust tests and packaged
 launch/authentication/shutdown smoke). Agent authorization, models, roles, Arenas and battles are next;
@@ -23,6 +23,14 @@ Build with `rtk proxy bin/dev.build`, then open
 use **CC → Open CCoding** to return later. See [Development](docs/DEVELOPMENT.md)
 for prerequisites, quality commands and data isolation. This is a local
 development build, not a signed/notarized public release.
+
+## Public site
+
+The Roman robot-gladiator site lives in [site/](site/index.html): original
+satirical artwork, a scrollable workflow, subtle parallax and reduced-motion
+controls. Preview it with `rtk proxy python3 -m http.server 4387 --bind 127.0.0.1
+--directory site`. [Site documentation](docs/SITE.md) covers checks, artwork and
+the prepared GitHub Pages workflow. This change is local; it has not been deployed.
 
 ## Start here
 

@@ -9,6 +9,7 @@ and full-story gates remain open. Historical test counts do not establish proof.
 | Slice | Smallest required evidence |
 | --- | --- |
 | R010 | Clean migration + prior-data isolation, event/command idempotency, shell authentication/replay/loopback, graceful Quit |
+| R015 | Static links/assets/scope, motion and denied-storage behavior, desktop/narrow/keyboard inspection; [commands](SITE.md#preview-and-checks) |
 | R020 | Adapter parsing/cancellation/canaries, model-cache persistence/failure, real login + isolated execution across two workspaces |
 | R030 | Team revision inheritance, custom role grants, model/auth separation, historical snapshot immutability |
 | R040 | Init refusal/consent, initial-commit preview, path confinement, file-task provenance, dependency cycles, custom column gates |
