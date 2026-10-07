@@ -95,5 +95,10 @@ No public site edits/deployment or default installed/running bundle replacement.
 `rtk proxy python3 /private/tmp/cuckoding-r040g-proof-7bubbza6/check-docs.py`:
 91 local Markdown link targets passed. Source/claim review and
 `rtk git diff --check` passed.
-Local main integration: pending. Remaining work includes accepted Markdown specs,
+Local main integration: `1184a43` fast-forwarded with
+`rtk git switch main` and `rtk git merge --ff-only feature/r040g-task-prerequisites`;
+`rtk git branch -d feature/r040g-task-prerequisites` removed the merged branch.
+`rtk git status --short --branch` confirmed clean main, 15 commits ahead of the
+saved remote reference before this documentation closeout. No push or deployment.
+Remaining work includes accepted Markdown specs,
 provider-proposed dependencies, custom columns/role grants and battle execution.

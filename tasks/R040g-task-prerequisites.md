@@ -1,6 +1,6 @@
 # R040g — Revisioned task prerequisites
 
-Status: verified; local integration pending. Owner: Codex.
+Status: complete; verified and merged into local main as `1184a43`. Owner: Codex.
 
 - Select up to sixteen other tasks in the same Tabula as prerequisites using
   keyboard-accessible controls; show saved prerequisites on cards and in history.
