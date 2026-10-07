@@ -24,9 +24,9 @@ precedence, including changes while open. Denied storage is harmless. Without
 JavaScript, all scenes, anchors and the keyboard-scrollable board remain usable;
 the hidden motion control does not advertise an unavailable action.
 
-The status section mirrors R010/R020a: local shell/browser, durable storage, tool
-detection and explicitly consented Codex version checks. Provider authorization, models, roles, boards and autonomous battles
-are planned. Ten-minute setup is an ambition, not measured acceptance. There is
+The status section mirrors R010/R020a/b: local shell/browser, durable storage, tool
+detection and explicitly consented Codex version/private-profile checks. Real
+provider sign-in, model access, roles, boards and autonomous battles remain planned. Ten-minute setup is an ambition, not measured acceptance. There is
 no download CTA or claim of a signed/notarized release. Keep those boundaries
 current when future implementation is integrated.
 

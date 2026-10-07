@@ -23,6 +23,7 @@ defmodule CuckodingWeb.HomeLive do
      |> assign(:command_key, Ecto.UUID.generate())
      |> assign(:codex_path, nil)
      |> assign(:probe_error, nil)
+     |> assign(:connection_error, nil)
      |> assign(:confirmed, false)
      |> reload()}
   end
@@ -81,6 +82,33 @@ defmodule CuckodingWeb.HomeLive do
     {:noreply, reload(socket)}
   end
 
+  def handle_event("inspect_codex", params, socket) do
+    case Foundation.inspect_codex(
+           socket.assigns.command_key,
+           socket.assigns.workspace.revision,
+           params["profile_confirmed"] == "true"
+         ) do
+      {:ok, command} ->
+        error =
+          if command.state == "rejected", do: "Setup changed. Check the version and try again."
+
+        {:noreply,
+         socket |> assign(command_key: Ecto.UUID.generate(), connection_error: error) |> reload()}
+
+      {:error, :confirmation_required} ->
+        {:noreply,
+         assign(socket, :connection_error, "Confirm the private profile check before continuing.")}
+
+      _ ->
+        {:noreply,
+         assign(
+           socket,
+           :connection_error,
+           "Run a supported version check for the current executable first."
+         )}
+    end
+  end
+
   @impl true
   def handle_info(:updated, socket), do: {:noreply, reload(socket)}
   def handle_info(:session_expired, socket), do: {:noreply, redirect(socket, to: "/locked")}
@@ -97,6 +125,8 @@ defmodule CuckodingWeb.HomeLive do
     |> assign(:events, Foundation.events())
     |> assign(:probe, Foundation.pending_probe())
     |> assign(:last_probe, Foundation.last_probe())
+    |> assign(:connection_check, Foundation.pending_probe("inspect_codex"))
+    |> assign(:last_connection_check, Foundation.last_probe("inspect_codex"))
     |> assign(:now, DateTime.utc_now())
   end
 
@@ -208,7 +238,7 @@ defmodule CuckodingWeb.HomeLive do
           <p class="eyebrow">CODEX / VERSION READINESS</p>
           <h2 id="codex-title">Choose your executable.</h2>
           <p class="subtle">
-            Run a version check in a private Cuckoding folder. Sign-in and models are the next step.
+            Check the executable first, then inspect Cuckoding's private Codex profile.
           </p>
           <form id="codex-check" phx-change="edit_codex" phx-submit="check_codex">
             <label for="codex-path">Codex executable</label>
@@ -257,7 +287,7 @@ defmodule CuckodingWeb.HomeLive do
           <div :if={@workspace.codex != %{}} id="codex-result" role="status" class="probe-result">
             <p>{codex_status(@workspace.codex["status"])}</p>
             <p :if={@workspace.codex["version"]} class="fine-print">
-              Observed version: {@workspace.codex["version"]} · Not signed in to Cuckoding
+              Observed version: {@workspace.codex["version"]} · Account status is checked separately
             </p>
             <details id="codex-evidence" phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
               <summary>Last check details</summary>
@@ -266,6 +296,93 @@ defmodule CuckodingWeb.HomeLive do
                 {@workspace.codex["checked_at"]} · {@workspace.codex["elapsed_ms"] || 0} ms
               </p>
             </details>
+          </div>
+          <div
+            :if={@workspace.codex["status"] == "supported"}
+            class="probe-result"
+            aria-labelledby="connection-title"
+          >
+            <h3 id="connection-title">Your private Codex connection.</h3>
+            <p class="subtle">
+              Check account status and refresh its model catalog in a Cuckoding-owned profile. Personal Codex settings and sign-ins stay separate. No task runs.
+            </p>
+            <p class="fine-print">Verified executable: <code>{@workspace.codex["path"]}</code></p>
+            <form id="connection-check" phx-submit="inspect_codex">
+              <label class="confirm-executable"><input
+                id={"profile-consent-#{@command_key}"}
+                name="profile_confirmed"
+                type="checkbox"
+                value="true"
+                required
+              /> Check this private profile with the verified executable.</label>
+              <p :if={@connection_error} role="alert" class="notice">{@connection_error}</p>
+              <button class="button primary" disabled={@pending} phx-disable-with="Checking…">Check Codex connection</button>
+            </form>
+            <div :if={@connection_check} role="status" class="probe-progress">
+              <p>
+                Codex · connection setup · {@connection_check.state} · {max(
+                  0,
+                  DateTime.diff(@now, @connection_check.updated_at)
+                )} s
+              </p>
+              <button class="button" phx-click="cancel_probe" phx-value-id={@connection_check.id}>Cancel connection check</button>
+            </div>
+            <p
+              :if={@last_connection_check && @last_connection_check.state in ["failed", "cancelled"]}
+              role="status"
+              class="fine-print"
+            >
+              {if @last_connection_check.state == "cancelled",
+                do: "Connection check cancelled.",
+                else: "Connection check interrupted. Confirm a fresh check to retry."}
+            </p>
+            <div :if={@workspace.connection != %{}} id="connection-result" role="status">
+              <p>{connection_status(@workspace.connection)}</p>
+              <p class="fine-print">
+                Last check: {@workspace.connection["checked_at"]} · {@workspace.connection[
+                  "elapsed_ms"
+                ] || 0} ms
+              </p>
+              <p :if={@workspace.connection["authorization_checked_at"]} class="fine-print">
+                Account observation: {@workspace.connection["authorization_checked_at"]}
+              </p>
+              <p
+                :if={Foundation.catalog_status(@workspace.connection, @now) == "stale"}
+                class="notice"
+              >
+                The saved catalog is stale. Refresh it to check available models; cached entries do not establish current access.
+              </p>
+              <details
+                :if={@workspace.connection["models"] not in [nil, []]}
+                id="codex-models"
+                phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
+              >
+                <summary>
+                  {length(@workspace.connection["models"])} cached models · {Foundation.catalog_status(
+                    @workspace.connection,
+                    @now
+                  )}
+                </summary>
+                <p class="fine-print">
+                  Source: {@workspace.connection["source"]} · Fetched: {@workspace.connection[
+                    "fetched_at"
+                  ]}. Catalog metadata is not an entitlement check.
+                </p>
+                <ul class="tool-list">
+                  <li :for={model <- @workspace.connection["models"]}>
+                    <span>{model["name"]} <small :if={model["default"]}>Runtime default</small></span>
+                    <code>{model["model"]}</code>
+                    <span class="fine-print">Effort: {Enum.join(model["efforts"], ", ")} · Inputs: {Enum.join(
+                      model["input_modalities"],
+                      ", "
+                    )}</span>
+                  </li>
+                </ul>
+              </details>
+            </div>
+            <p class="fine-print">
+              Sign-in and sign-out controls are the next connection step. This preview does not import credentials or start an authorization flow.
+            </p>
           </div>
         </section>
 
@@ -313,7 +430,7 @@ defmodule CuckodingWeb.HomeLive do
   defp title(:about), do: "Settings"
   defp tool_status(_, nil), do: "Not checked"
   defp tool_status("rtk", %{"status" => "found"}), do: "Found"
-  defp tool_status(_, %{"status" => "found"}), do: "Found · not authorized"
+  defp tool_status(_, %{"status" => "found"}), do: "Found · authorization separate"
   defp tool_status(_, _), do: "Not found"
   defp checked_at(nil), do: "No setup check yet."
   defp checked_at(time), do: "Last checked " <> Calendar.strftime(time, "%H:%M UTC")
@@ -323,6 +440,7 @@ defmodule CuckodingWeb.HomeLive do
   defp event_label("shell.disconnected"), do: "Menu bar disconnected"
   defp event_label("discovery." <> status), do: "Setup check: " <> status
   defp event_label("codex." <> status), do: "Codex version check: " <> status
+  defp event_label("connection." <> status), do: "Codex connection check: " <> status
   defp event_label(_), do: "Workspace updated"
 
   defp codex_status("supported"), do: "Version matches the verified Codex baseline."
@@ -346,4 +464,28 @@ defmodule CuckodingWeb.HomeLive do
 
   defp codex_status(_),
     do: "The version check could not start. Check the executable and try again."
+
+  defp connection_status(%{"status" => "checked", "authorization" => "not_connected"}),
+    do: "Not signed in to Cuckoding's private Codex profile."
+
+  defp connection_status(%{"status" => "checked", "authorization" => "chatgpt"}),
+    do: "Codex reported a ChatGPT account in this profile. Model access still needs a real turn."
+
+  defp connection_status(%{"status" => "checked", "authorization" => "unsupported_account"}),
+    do: "This profile uses an account type not supported by this preview."
+
+  defp connection_status(%{"status" => "executable_changed"}),
+    do: "The executable changed. Run a new version check first."
+
+  defp connection_status(%{"status" => "timeout"}),
+    do: "The connection check timed out. Try again."
+
+  defp connection_status(%{"status" => status})
+       when status in ~w(unsafe_profile profile_mismatch unsupported_profile),
+       do:
+         "The private profile could not be verified. Check its storage and managed Codex configuration."
+
+  defp connection_status(_),
+    do:
+      "The connection check failed. Previous observations are retained; confirm a fresh check to retry."
 end

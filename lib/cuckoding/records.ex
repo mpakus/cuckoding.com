@@ -6,6 +6,7 @@ defmodule Cuckoding.Workspace do
     field :revision, :integer
     field :tools, :map
     field :codex, :map, default: %{}
+    field :connection, :map, default: %{}
     field :checked_at, :utc_datetime_usec
   end
 end

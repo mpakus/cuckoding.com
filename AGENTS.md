@@ -6,9 +6,10 @@ These rules apply repository-wide. More specific rules may strengthen safety,
 auditability and verification, not weaken them. The 2026-10-06 user reset replaces
 the previous product direction. R010 implements the local foundation; provider
 authorization, roles, Arenas and battles remain the R020–R100 roadmap.
-R020a adds explicit Codex version readiness only; a supported version is not an
-authorized account or an execution grant. Preserve the separate states and the
-fresh executable confirmation when its path changes.
+R020a/b add Codex version readiness, read-only private-profile inspection and
+validated model caching. A supported version or catalog is not model entitlement
+or an execution grant. Login/logout and actual turns remain open. Preserve
+separate observations and fresh executable/profile confirmation.
 
 ## Mission and product contract
 
@@ -91,7 +92,11 @@ Do not restore the old implementation or treat historical tests as current proof
   discovery hints never become child environment or filesystem grants.
   The native fixed `--version` probe uses a private scratch directory, empty
   inherited environment, bounded output and owned group cleanup. Interrupted
-  probes require a new consented command; never replay them as metadata discovery.
+  probes and connection inspections require a new consented command; never replay
+  them as metadata discovery. The fixed app-server inspection permits only
+  initialize/config-read/account-read/model-list, keeps raw frames and account
+  identifiers out of Cuckoding storage, and rejects unsafe profiles. Retain the
+  last catalog as stale after failure; age it out after 24 hours.
 - Inspect processes by executable, PID/start identity, working directory and
   listeners. Never dump raw argv/environments. Redact before logs/UI/artifacts.
 - For a requested restart follow [Development](docs/DEVELOPMENT.md): identify only

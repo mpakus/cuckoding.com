@@ -1,8 +1,9 @@
 # Runtime adapters
 
-Status: R020a implements Codex version readiness only. Codex `0.146.0` is the
-observed baseline; other versions remain unverified. Authorization, models and
-turns are still requirements, not current support claims. Claude Code, Codex,
+Status: R020a/b implement Codex version readiness, private-profile status and
+validated catalog caching. Codex `0.146.0` is the observed baseline; other versions
+remain unverified. Login/logout, signed-in real-model acceptance and turns remain
+open. Claude Code, Codex,
 Cursor and Hermes are requested targets;
 each needs current official documentation and real installed-version evidence.
 
@@ -40,7 +41,7 @@ is actually required.
 
 | Target | Rebuild status | Evidence needed before enabling execution |
 | --- | --- | --- |
-| Codex | Version readiness verified on 0.146.0 | App-owned login, isolated turns/model listing, grant mapping and cancellation |
+| Codex | Version + fresh-profile status verified on 0.146.0; catalog fixtures pass | App-owned login, isolated turns/model listing, grant mapping and cancellation |
 | Claude Code | Pending | Current official interface, safe reusable authorization, models/default behavior and permission boundary |
 | Cursor | Pending | Current official CLI identity, profile/history behavior, model discovery and project config isolation |
 | Hermes | Pending | Confirm intended runtime/distribution, supported headless interface, authorization, model catalog and enforceable grants |
@@ -52,7 +53,7 @@ If Hermes refers to a different distribution than the adapter implementor finds,
 resolve that identity before installing/launching it. This planning reset installs
 no providers or plugins.
 
-The current adapter callback is `probe/3`. Its native helper runs only
+The version adapter callback is `probe/3`. Its native helper runs only
 `--version`, with a five-second deadline, 128-byte provider-output ceiling and
 1 KiB host response ceiling. HOME, CODEX_HOME, TMPDIR and working directory point
 to a new private app scratch directory; stderr is discarded and only validated
@@ -63,6 +64,27 @@ copied by Cuckoding. Scratch files are retained under `probes/`; this is host
 execution, not filesystem confinement. Select only trusted executables. A forced
 kill of the helper itself still needs later ownership reconciliation; persisted
 PIDs are never used to kill a process, and interrupted work is not auto-replayed.
+
+R020b adds `inspect_connection/3`: initialize → effective config check → account/read
+→ model/list only for a reported managed ChatGPT account. The helper forces file
+credential storage and the OpenAI provider; rejects an unexpected profile,
+unsupported effective config, linked/special profile files, server requests and
+mid-inspection account changes. Profile inspection is metadata-only and capped
+at 4096 entries. This is host-process hygiene, not a sandbox or an MDM bypass.
+
+Stdio has 64 KiB frame / 512 KiB cumulative limits, bounded channel buffering,
+a ten-second deadline and the same owned-group cleanup. Model discovery accepts
+at most four pages of 32 entries; repeated cursors/IDs, invalid metadata or a
+partial failure cannot publish a partial catalog. A catalog failure does not
+rewrite a successful account observation. Emails, plans, raw errors and unknown
+fields are discarded. The host validates normalized output again before SQLite.
+Only IDs, labels, default/effort/input metadata survive. Catalog provenance is
+`codex-app-server/model/list`; this may be runtime-cached metadata, not entitlement.
+
+Real acceptance so far: installed Codex initialized a fresh profile and returned
+not_connected, with no auth file. Connected catalogs use fixtures only. Login,
+logout, account-switch invalidation, concurrent profile reuse, full sleep recovery
+and real scoped turns remain subsequent R020 gates. No API key is requested.
 
 ## Conformance
 

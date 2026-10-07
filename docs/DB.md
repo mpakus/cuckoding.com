@@ -22,6 +22,23 @@ report unsupported/failed readiness; it never changes account authorization.
 The observed PID/spawn time is evidence, not authority to signal that PID after
 restart. Only the native helper's unreaped child handle authorizes group cleanup.
 
+R020b adds `workspace.connection`, separate from version readiness. It records
+normalized account observation/time, executable identity, catalog entries/source/
+fetched time and the last inspection outcome. No email, plan details, raw frame,
+credential or auth URL is copied into Cuckoding tables/events. A successful
+catalog replaces the snapshot; a failed refresh keeps the last entries as stale.
+Freshness is derived from the stored timestamp (24 hours), never an in-memory
+clock alone. Signed-out/unsupported account observations clear unusable entries;
+a changed executable identity clears the connection projection. Future login or
+account-switch operations must invalidate old account-dependent catalogs.
+
+`inspect_codex` uses the same idempotent command ledger, a 20-second claim and
+bounded helper execution. Expired inspections are interrupted, never replayed.
+Cancellation prevents late completion. Events contain outcome/count/timing only;
+full validated model metadata belongs in the connection projection. The single
+Codex profile is `agents/codex` beneath the private rebuild root; Codex owns its
+contents. Multiple profiles and account switching are not enabled in this slice.
+
 The default native root is `~/Library/Application Support/CCoding Rebuild`,
 marked `.ccoding-rebuild-v1`. Unknown nonempty roots and symlinked storage are
 refused before migration. `foundation.db` and sidecars are private; old Cuckoding

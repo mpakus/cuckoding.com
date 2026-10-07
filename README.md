@@ -12,15 +12,18 @@ attention items and logs.
 
 ## Current state
 
-**Local foundation + Codex readiness preview, 2026-10-06.** The tray shell,
-authenticated browser UI, SQLite events/commands and metadata-only discovery
-are implemented. Agents & roles now accepts a Codex executable and runs an
-explicitly confirmed, cancellable version check. The observed baseline is
-`0.146.0`; detection, compatibility and authorization remain separate.
-Verification: 30 Elixir tests, 8 Rust tests, packaged smoke, prior-schema upgrade
-and a real Codex version check through the browser.
-Agent authorization, models, roles, Arenas and battles are next;
-the product story above remains the target, not a shipped capability list.
+**Local foundation + Codex connection inspection preview, 2026-10-07.** The tray
+shell, authenticated browser UI, SQLite commands/events and tool discovery work.
+Agents & roles provides consented, cancellable Codex version and private-profile
+checks. Model catalog parsing, persistence and 24-hour freshness are implemented,
+including retention after a failed refresh. The installed `0.146.0` runtime was
+verified with a fresh, signed-out app-owned profile; signed-in catalog behavior
+has fixture coverage only. Sign-in/out and real scoped turns remain the next R020
+gates. Roles, Arenas and battles are still planned.
+
+Verification: 38 Elixir tests, 14 Rust tests, four site motion tests, packaged
+smoke and prior-schema upgrade. The product story above remains the target,
+not a shipped capability list.
 
 Build with `rtk proxy bin/dev.build`, then open
 `desktop/src-tauri/target/release/bundle/macos/Cuckoding.app`. It opens your browser;

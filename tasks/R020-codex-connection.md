@@ -1,6 +1,6 @@
 # R020 — Codex connection and durable models
 
-Status: R020a version-readiness slice verified; parent R020 remains partial.
+Status: R020a version readiness and R020b private-profile inspection/cache delivered; parent R020 remains partial.
 Date: 2026-10-06. Branch: `feature/r020-codex-connection`.
 Installed runtime observed: Codex CLI 0.146.0; schema generated from that binary.
 
@@ -31,6 +31,8 @@ Installed runtime observed: Codex CLI 0.146.0; schema generated from that binary
 - [ ] Prove real-provider sign-in/model reuse and scoped read/write execution across
   two isolated workspaces; separate unavailable human/account gates honestly.
 
-Next: app-owned Codex account login/status/logout, then durable model catalog;
+R020b implements private-profile status and the durable model-catalog path with
+fixture coverage, plus real signed-out inspection. See [R020b](R020b-codex-connection-inspection.md).
+Next: app-owned login/logout and real signed-in model validation;
 retain real authorization and two-workspace execution as separate proof gates.
 R020a is not evidence of sign-in, models or task execution.

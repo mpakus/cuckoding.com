@@ -4,22 +4,33 @@ defmodule Cuckoding.Foundation do
   alias Cuckoding.{Codex, Command, Event, Repo, Workspace}
 
   def workspace, do: Repo.get!(Workspace, 1)
+  def catalog_status(connection, now \\ DateTime.utc_now())
+
+  def catalog_status(%{"catalog_status" => "fresh", "fetched_at" => fetched}, now)
+      when is_binary(fetched) do
+    with {:ok, time, _} <- DateTime.from_iso8601(fetched),
+         age when age in 0..86_399 <- DateTime.diff(now, time) do
+      "fresh"
+    else
+      _ -> "stale"
+    end
+  end
+
+  def catalog_status(connection, _), do: connection["catalog_status"] || "not_requested"
   def events, do: Repo.all(from e in Event, order_by: [desc: e.id], limit: 10)
   def pending?, do: Repo.exists?(from c in Command, where: c.state in ["pending", "running"])
 
-  def pending_probe do
+  def pending_probe(kind \\ "probe_codex") do
     Repo.one(
       from c in Command,
-        where: c.kind == "probe_codex" and c.state in ["pending", "running"],
+        where: c.kind == ^kind and c.state in ["pending", "running"],
         order_by: c.inserted_at,
         limit: 1
     )
   end
 
-  def last_probe do
-    Repo.one(
-      from c in Command, where: c.kind == "probe_codex", order_by: [desc: c.inserted_at], limit: 1
-    )
+  def last_probe(kind \\ "probe_codex") do
+    Repo.one(from c in Command, where: c.kind == ^kind, order_by: [desc: c.inserted_at], limit: 1)
   end
 
   def probe_active?(claim) do
@@ -50,16 +61,31 @@ defmodule Cuckoding.Foundation do
     end
   end
 
-  defp cancel_command(%Command{kind: "probe_codex", state: state} = command)
-       when state in ["pending", "running"] do
+  defp cancel_command(%Command{kind: kind, state: state} = command)
+       when kind in ["probe_codex", "inspect_codex"] and state in ["pending", "running"] do
     Repo.update!(
       Ecto.Changeset.change(command, state: "cancelled", result: "cancelled", lease_until: nil)
     )
 
-    record("codex.cancelled", %{}, command.id)
+    record(prefix(kind) <> "cancelled", %{}, command.id)
   end
 
   defp cancel_command(_), do: :ok
+
+  def inspect_codex(key, expected, confirmed) do
+    ready = workspace().codex
+
+    with true <- confirmed == true,
+         %{"status" => "supported", "command_id" => id, "path" => path} <- ready,
+         %Command{kind: "probe_codex", state: "completed", payload: identity} <-
+           Repo.get(Command, id),
+         {:ok, ^identity} <- Codex.executable(path) do
+      command(key, expected, "inspect_codex", identity)
+    else
+      false -> {:error, :confirmation_required}
+      _ -> {:error, :version_required}
+    end
+  end
 
   def discover(key, expected_revision) do
     command(key, expected_revision, "discover_tools", %{})
@@ -121,7 +147,8 @@ defmodule Cuckoding.Foundation do
           nil ->
             nil
 
-          %{kind: "probe_codex", state: "running"} = command ->
+          %{kind: kind, state: "running"} = command
+          when kind in ["probe_codex", "inspect_codex"] ->
             failed =
               Repo.update!(
                 Ecto.Changeset.change(command,
@@ -131,7 +158,7 @@ defmodule Cuckoding.Foundation do
                 )
               )
 
-            record("codex.interrupted", %{}, command.id)
+            record(prefix(kind) <> "interrupted", %{}, command.id)
             failed
 
           %{attempts: count} = command when count >= 3 ->
@@ -153,7 +180,7 @@ defmodule Cuckoding.Foundation do
                 Ecto.Changeset.change(command,
                   state: "running",
                   attempts: command.attempts + 1,
-                  lease_until: now + 10_000
+                  lease_until: now + if(command.kind == "inspect_codex", do: 20_000, else: 10_000)
                 )
               )
 
@@ -252,11 +279,62 @@ defmodule Cuckoding.Foundation do
         "command_id" => claim.id
       })
 
-    {[codex: public], Map.take(public, ~w(status version pid spawned_at_ms elapsed_ms))}
+    fields =
+      if workspace().connection["identity"] == claim.payload, do: [], else: [connection: %{}]
+
+    {[{:codex, public} | fields],
+     Map.take(public, ~w(status version pid spawned_at_ms elapsed_ms))}
+  end
+
+  defp projection(%{kind: "inspect_codex"} = claim, result) do
+    result = result |> Jason.encode!() |> Codex.normalize_connection()
+    now = DateTime.to_iso8601(DateTime.utc_now())
+    previous = workspace().connection
+    previous = if previous["identity"] == claim.payload, do: previous, else: %{}
+
+    public =
+      Map.merge(
+        previous,
+        Map.merge(result, %{
+          "identity" => claim.payload,
+          "checked_at" => now,
+          "command_id" => claim.id
+        })
+      )
+
+    public =
+      cond do
+        result["catalog_status"] == "fresh" ->
+          Map.merge(public, %{
+            "fetched_at" => now,
+            "source" => "codex-app-server/model/list",
+            "catalog_error" => nil
+          })
+
+        result["catalog_status"] == "not_requested" ->
+          Map.merge(public, %{
+            "models" => [],
+            "fetched_at" => nil,
+            "source" => nil,
+            "catalog_error" => nil
+          })
+
+        true ->
+          Map.put(public, "catalog_status", "stale")
+      end
+
+    public =
+      if result["authorization"],
+        do: Map.put(public, "authorization_checked_at", now),
+        else: public
+
+    data = Map.take(result, ~w(status authorization catalog_status pid spawned_at_ms elapsed_ms))
+    {[connection: public], Map.put(data, "model_count", length(result["models"] || []))}
   end
 
   defp prefix("discover_tools"), do: "discovery."
   defp prefix("probe_codex"), do: "codex."
+  defp prefix("inspect_codex"), do: "connection."
 
   def broadcast, do: Phoenix.PubSub.broadcast(Cuckoding.PubSub, "foundation", :updated)
 end

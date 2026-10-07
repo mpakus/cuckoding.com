@@ -2,14 +2,16 @@
 
 Target architecture, implemented incrementally. R010 provides the tray,
 authenticated LiveView foundation, SQLite and metadata-only setup dispatcher.
-The runner, adapters, roles and battle domains below remain subsequent slices.
+R020a/b add the Codex version/inspection adapter. Roles, battles and the task
+runner below remain subsequent slices.
 
 Current startup order: Repo → schema validation/migration → PubSub → shell
 authority → durable dispatcher → loopback Endpoint → readiness message.
 `Cuckoding.Foundation` owns idempotent setup commands and append-only events;
 `Cuckoding.Dispatcher` recovers their bounded read-only claims. The shell owns
 its release process group and storage lock. R020a adds an explicitly consented
-Codex version-only child process; no agent conversation or login is launched.
+Codex version child process. R020b can inspect a stable private profile through
+a fixed native app-server helper; no agent conversation or login is launched.
 
 ## Components
 

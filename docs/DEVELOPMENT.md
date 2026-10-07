@@ -1,8 +1,8 @@
 # Development
 
 The local preview includes R010's tray, authenticated browser and durable setup
-check, plus R020a's explicit Codex executable/version check. Provider authorization
-and execution remain the next R020 work. The previous source
+check, plus Codex version and private-profile inspection. Login/logout and real
+execution remain the next R020 work. The previous source
 reset remains intentional; do not restore the deleted implementation wholesale.
 
 ## Build and open
@@ -35,6 +35,16 @@ five seconds, has a Cancel control and persists public results. It does not sign
 in or list models. Interrupted checks need a fresh confirmation; the observed
 baseline is `0.146.0`. The shell supplies its own executable as the native helper;
 never point `CCODING_NATIVE_HELPER` at an unrelated program.
+
+After a supported version check, **Check Codex connection** requires its own
+confirmation. It uses the displayed verified executable with Cuckoding's private
+`agents/codex` profile, a clean environment and fixed read-only account/catalog
+operations. A fresh profile correctly reports Not signed in. It does not adopt
+personal Codex credentials or launch a turn. Sign-in/out controls are not enabled.
+A successful catalog shows source, fetched time, IDs, effort choices and input
+modalities; after 24 hours or a failed refresh it is stale. A catalog is not
+proof that the account can run a model. Inspection expires after ten seconds,
+can be cancelled and does not retry automatically after interruption.
 
 The shell starts a bundled OTP release with a private HOME, clean environment,
 exclusive data lock and an ephemeral IPv4 loopback port. It owns the one-time

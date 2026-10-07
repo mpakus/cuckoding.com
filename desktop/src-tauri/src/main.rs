@@ -1,3 +1,4 @@
+mod connection;
 mod probe;
 mod service;
 use service::Service;
@@ -21,6 +22,10 @@ fn main() {
     let args: Vec<_> = std::env::args().skip(1).collect();
     if args.first().is_some_and(|arg| arg == "--probe-codex") {
         probe::main(&args[1..]);
+        return;
+    }
+    if args.first().is_some_and(|arg| arg == "--inspect-codex") {
+        connection::main(&args[1..]);
         return;
     }
     if std::env::args().any(|arg| arg == "--smoke-test") {

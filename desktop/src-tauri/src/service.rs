@@ -17,7 +17,16 @@ pub struct Service {
     child: OwnedChild,
     pub port: u16,
     token: String,
-    _lock: File,
+    _lock: DataLock,
+}
+
+struct DataLock(File);
+impl Drop for DataLock {
+    fn drop(&mut self) {
+        // A concurrent fork may briefly inherit the descriptor before exec closes it.
+        // Explicit unlock ends this shell's ownership without waiting for that copy.
+        unsafe { libc::flock(self.0.as_raw_fd(), libc::LOCK_UN) };
+    }
 }
 
 struct OwnedChild(Child);
@@ -41,7 +50,7 @@ fn random_hex(bytes: usize) -> io::Result<String> {
     Ok(value.iter().map(|b| format!("{b:02x}")).collect())
 }
 
-fn data_lock(root: &Path) -> Result<File> {
+fn data_lock(root: &Path) -> Result<DataLock> {
     if !root.is_absolute() {
         return Err("data directory must be absolute".into());
     }
@@ -81,7 +90,7 @@ fn data_lock(root: &Path) -> Result<File> {
     if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
         return Err("Cuckoding is already running for this workspace".into());
     }
-    Ok(file)
+    Ok(DataLock(file))
 }
 
 impl Service {
@@ -342,8 +351,10 @@ mod tests {
         let first = data_lock(&root).unwrap();
         fs::write(root.join(".ccoding-rebuild-v1"), b"ccoding-rebuild-v1\n").unwrap();
         assert!(data_lock(&root).is_err());
+        let inherited = first.0.try_clone().unwrap();
         drop(first);
         assert!(data_lock(&root).is_ok());
+        drop(inherited);
         let link = root.with_extension("link");
         std::os::unix::fs::symlink(&root, &link).unwrap();
         assert!(data_lock(&link).is_err());

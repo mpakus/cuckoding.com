@@ -95,4 +95,54 @@ defmodule CuckodingWeb.FoundationLiveTest do
     assert {:ok, _, html} = live(signed, "/settings")
     assert html =~ "Check cancelled."
   end
+
+  test "private connection observation is consented, cancellable and survives reconnect", %{
+    conn: conn
+  } do
+    {:ok, _} = Foundation.check_codex(Ecto.UUID.generate(), 0, "/bin/sh", true)
+    {:ok, claim} = Foundation.claim()
+    Foundation.finish(claim, %{"status" => "supported", "version" => "0.146.0"})
+    signed = sign_in(conn)
+    {:ok, view, _} = live(signed, "/settings")
+    view |> form("#connection-check") |> render_submit()
+    assert render(view) =~ "Confirm the private profile check"
+    refute Foundation.pending_probe("inspect_codex")
+    view |> form("#connection-check", profile_confirmed: "true") |> render_submit()
+    assert has_element?(view, "button", "Cancel connection check")
+    view |> element("button", "Cancel connection check") |> render_click()
+    assert render(view) =~ "Connection check cancelled."
+    view |> form("#connection-check", profile_confirmed: "true") |> render_submit()
+    {:ok, claim} = Foundation.claim()
+
+    Foundation.finish(claim, %{
+      "status" => "checked",
+      "authorization" => "not_connected",
+      "catalog_status" => "not_requested"
+    })
+
+    assert render(view) =~ "Not signed in to Cuckoding"
+    assert {:ok, _, html} = live(signed, "/settings")
+    assert html =~ "Not signed in to Cuckoding"
+    assert html =~ "Sign-in and sign-out controls are the next connection step"
+
+    connection = %{
+      "status" => "checked",
+      "authorization" => "chatgpt",
+      "catalog_status" => "fresh",
+      "fetched_at" => "2020-01-01T00:00:00Z",
+      "models" => [
+        %{
+          "name" => "Test",
+          "model" => "test",
+          "efforts" => ["medium"],
+          "input_modalities" => ["text"]
+        }
+      ]
+    }
+
+    Foundation.workspace() |> Ecto.Changeset.change(connection: connection) |> Repo.update!()
+    assert {:ok, view, _} = live(signed, "/settings")
+    assert has_element?(view, "#codex-models summary", "1 cached models · stale")
+    assert has_element?(view, "#codex-models[phx-mounted*=ignore_attrs]")
+  end
 end

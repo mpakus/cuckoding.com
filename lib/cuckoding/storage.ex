@@ -57,6 +57,19 @@ defmodule Cuckoding.Storage do
     path
   end
 
+  # Stable provider-owned profile; only metadata is inspected by Cuckoding.
+  # sobelow_skip ["Traversal.FileModule"]
+  def codex_profile! do
+    root = Application.fetch_env!(:cuckoding, :data_dir)
+    prepare!(root)
+    path = Path.join([root, "agents", "codex"])
+    reject_symlinks!(path)
+    File.mkdir_p!(path)
+    File.chmod!(Path.dirname(path), 0o700)
+    File.chmod!(path, 0o700)
+    path
+  end
+
   # Only a private, bounded, regular launch file inside the validated data root.
   # sobelow_skip ["Traversal.FileModule"]
   def consume_bootstrap!(root, path) do

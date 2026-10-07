@@ -42,4 +42,18 @@ defmodule Cuckoding.Dispatcher do
   rescue
     _ -> %{"status" => "launch_failed"}
   end
+
+  defp execute(%{kind: "inspect_codex"} = command) do
+    if Cuckoding.Foundation.workspace().revision == command.expected_revision do
+      directory = Cuckoding.Storage.codex_profile!()
+
+      Cuckoding.Codex.inspect_connection(command.payload, directory, fn ->
+        Cuckoding.Foundation.probe_active?(command)
+      end)
+    else
+      %{}
+    end
+  rescue
+    _ -> %{"status" => "launch_failed"}
+  end
 end

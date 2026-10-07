@@ -4,6 +4,13 @@ Target experience: connect once, choose models/roles once, reuse across Arenas.
 Runtime discovery, version compatibility, authorization and model availability
 are separate statuses. None implies the others.
 
+Current R020b preview: version/identity checks, explicit private-profile
+inspection, validated catalog caching and 24-hour freshness are implemented.
+A fresh real Codex profile is verified signed out. Login/logout and actual model
+access remain unverified; the complete flow below is still the target. The single
+profile cannot be switched through the UI; a future login/account change must
+clear its old catalog before roles may reuse it.
+
 ## User flow
 
 1. **Add agent** suggests known installed runtimes and an editable absolute path.

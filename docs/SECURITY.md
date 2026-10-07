@@ -109,3 +109,20 @@ decisions; exclusions are not permission to weaken them in later slices.
 The host is not an adversarial same-user sandbox: another process with the
 user's filesystem rights can inspect app-owned data. No provider credentials,
 agent grants, external publication or remote listener exist in R010.
+
+## R020b inspection boundary
+
+The bundled helper exposes one fixed read-only inspection operation, not a
+caller-selected RPC method. It validates private profile paths/metadata, forces
+file-based provider credential storage, checks effective profile/provider config,
+and sends only initialize, config/read, account/read and model/list. It never
+starts a login, thread, turn, tool or host command. Provider requests or account
+changes during inspection abort. No raw frames, account email/plan, auth URLs or
+provider error text enter Cuckoding logs/SQLite. Codex may maintain its own
+private runtime files inside the profile. Cuckoding does not read credential values.
+
+All child environment values are explicit; stdin loss, cancellation and deadlines
+stop the owned process group. Same-user TOCTOU, force-killed helper reconciliation,
+managed policy compatibility and physical sleep still require later acceptance.
+Account status is an observation, not proof of token validity or model access.
+Catalog fixtures do not satisfy the real-provider authorization gate.

@@ -4,8 +4,8 @@
 R001 and R010 establish the documentation contract and local application shell.
 See [R010 evidence](../worklog/2026-10-06-R010-local-foundation.md).
 Agent authorization, models and orchestration remain R020–R100.
-R020a completes the Codex executable/version-readiness substep; the R020
-real-account/model/execution acceptance is still open.
+R020a/b complete version readiness, private-profile inspection and validated
+model caching. Real-account/model/execution acceptance is still open.
 Historical source/tests/builds do not satisfy these gates.
 
 R015 adds the separately requested public site after R010; see [Site](SITE.md).
@@ -94,6 +94,11 @@ the real-provider gate.
 - [x] R020a: metadata-only discovery, manual Codex executable selection,
   explicitly confirmed version probe, durable readiness and separate authorization
   status. See [task](../tasks/R020-codex-connection.md) and [evidence](../worklog/2026-10-06-R020-codex-connection.md).
+- [x] R020b: fixed read-only app-server inspection, stable private profile,
+  normalized account observation, bounded model cache with stale retention and
+  24-hour freshness, consent/cancellation/reconnect UI. Fresh signed-out Codex
+  tested; connected catalog fixtures are not real-account acceptance. See
+  [R020b evidence](../worklog/2026-10-07-R020b-codex-connection-inspection.md).
 - [ ] Extend the implemented adapter version boundary to the owned structured
   runtime transport, permissions and operations below.
 - [ ] Add app-owned login/status/logout and connection persistence.

@@ -11,7 +11,7 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-struct Group(Child);
+pub(crate) struct Group(pub(crate) Child);
 impl Drop for Group {
     fn drop(&mut self) {
         // Never reap before group cleanup: the unreaped leader pins its PID/PGID.
@@ -22,7 +22,7 @@ impl Drop for Group {
     }
 }
 
-fn exited(child: &Child) -> io::Result<bool> {
+pub(crate) fn exited(child: &Child) -> io::Result<bool> {
     let mut info: libc::siginfo_t = unsafe { std::mem::zeroed() };
     let result = unsafe {
         libc::waitid(
@@ -38,7 +38,7 @@ fn exited(child: &Child) -> io::Result<bool> {
     Ok(unsafe { info.si_pid() } != 0)
 }
 
-fn private_directory(path: &Path) -> io::Result<()> {
+pub(crate) fn private_directory(path: &Path) -> io::Result<()> {
     if !path.is_absolute() {
         return Err(io::ErrorKind::InvalidInput.into());
     }
