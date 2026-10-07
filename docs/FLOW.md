@@ -28,7 +28,7 @@ R040a adds **Choose folder → preview path/team → confirm → Register Arena*
 The native dialog accepts one existing directory and cannot create folders.
 Registration freezes the team revision shown at selection, permits unassigned
 drafts and leaves all project files untouched. Later default-team changes do not
-rewrite it. Git-entry presence is labeled unverified; baseline commits, Arena
+rewrite it. Git-entry presence is labeled unverified; Arena
 overrides and execution grants remain subsequent work. Cancel or interrupted selection requires a new
 explicit choice; it never starts planning or a battle.
 
@@ -40,6 +40,14 @@ Unborn means no HEAD commit; existing means a validated HEAD commit, not clean
 files or execution readiness. Cancel waits for native cleanup; interruption or
 uncertain cleanup requires a fresh inspection and never automatically retries.
 Manual drafts remain usable when Git is unavailable or the layout is unsupported.
+
+R040d adds **relative file paths → Preview initial commit → confirm exact preview
+→ Create initial commit** for unborn repositories with no refs/index. Blank paths
+mean an empty baseline. Show each path, byte size, mode and expandable SHA-256 plus
+branch, fixed author and message. Consent expires in five minutes and is invalidated
+by changed selection, bytes, mode, repository or branch. No bulk add is implicit.
+A commit receipt persists its head/tree; interrupted publication may leave staged
+files/objects and needs inspection, never automatic rollback or replay.
 
 ## Planning
 

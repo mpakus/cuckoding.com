@@ -3,7 +3,8 @@
 The local preview includes R010's tray, authenticated browser and durable setup
 check, plus Codex version, private-profile inspection, managed sign-in/out and a
 fixed model diagnostic, R030a saved default-team configuration and R040a Arena
-registration, R040b Tabulae/manual drafts and R040c Git inspection/init.
+registration, R040b Tabulae/manual drafts, R040c Git inspection/init and R040d
+previewed initial commits.
 Human-completed real-account/model acceptance and repository
 execution remain R020 work. The previous source
 reset remains intentional; do not restore the deleted implementation wholesale.
@@ -110,9 +111,19 @@ This checks standalone Git metadata using `/usr/bin/git` from the installed macO
 command-line tools; it does not read or stage working files. Missing repositories
 offer a checkbox and **Initialize Git**. Confirmation is valid for that observation
 for five minutes, creates `.git` on `main` with no templates, and creates no commit.
-An unborn repository still needs a separately previewed/authorized initial commit
-(not yet implemented). Existing HEAD is a metadata observation, not proof of clean
-files. Unsupported nested/linked/external layouts remain usable for manual drafts.
+For an unborn repository, enter one relative file path per line and choose
+**Preview initial commit**. Leave it blank for an empty baseline. Review paths,
+sizes, modes, expandable hashes, branch and fixed author/message, then check the
+separate confirmation and choose **Create initial commit** within five minutes.
+Only those raw bytes are committed; attributes/filters are not applied and explicit
+selection may include ignored files. Limits: 16 regular files, 240-byte paths,
+1 MiB each, 8 MiB total and 7,000-byte preview metadata. Existing refs/indexes,
+unsafe paths and changed previews are refused. No working file is overwritten.
+The commit author is `Cuckoding <local@cuckoding.invalid>`, message
+`Initialize Arena with Cuckoding`; no personal identity/config is imported.
+If publication is interrupted, inspect Git; staged files/objects may remain and
+need manual handling. Never delete ambiguous indexes/locks to retry.
+Existing HEAD is a metadata observation, not proof of clean files. Unsupported nested/linked/external layouts remain usable for manual drafts.
 Cancel waits for helper cleanup; after an interrupted/uncertain result inspect again
 instead of assuming initialization rolled back. Use a temporary registered project
 and isolated `CCODING_DATA_DIR` for QA; never initialize a copied fixture's real path.

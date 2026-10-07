@@ -23,7 +23,7 @@ R040a enables Arenas with two regions: folder selection/confirmation and registe
 projects. Show the canonical path, unverified Git-entry observation and expandable
 frozen team before registration. Native selection shows elapsed time and Cancel;
 no agent/model is involved. Preserve name, errors and expanded roles through updates.
-Initial-commit previews and the project dashboard below remain future work.
+The project dashboard below remains future work.
 No separate Agent Floor, knowledge graph or competing start screen.
 
 R040b adds an Arena-scoped board selector, collapsed board creation and two primary
@@ -40,6 +40,12 @@ elapsed time/Cancel while active. A recent missing result reveals a separately
 confirmed Initialize Git form that names the path and exact `.git` effect. Keep
 the checkbox bound to its observation through reconnect and reject stale consent.
 No agent or model is involved. Git problems must not block the manual task editor.
+
+R040d extends that disclosure with one relative path per line and a separate
+preview/commit form. Blank input explicitly means an empty baseline. Render exact
+paths, sizes, modes, collapsible hashes, branch, fixed author/message and distinct
+confirmation. Preserve edited paths across updates; recovered/stale consent cannot
+commit another selection. No drag/file browser or per-file content viewer is needed.
 
 ## Screens
 

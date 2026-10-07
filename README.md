@@ -24,17 +24,21 @@ frozen team revision. It records directory identity without modifying project fi
 **Tabulae** adds multiple boards per Arena, inherited team roles, manual task
 drafts, saved revision history and keyboard movement between Specs and ToDo.
 **Repository setup** inspects registered Arenas and can initialize a missing Git
-repository after separate confirmation. It leaves documents unstaged and uncommitted.
+repository after separate confirmation. An unborn repository can then preview
+explicitly selected files (or an empty baseline) and create its first local commit
+after fresh confirmation. Working files remain unchanged; existing indexes/history
+are refused. See [Git setup limits](docs/DEVELOPMENT.md).
 
 Real Codex `0.146.0` login start/cancel, signed-out inspection and restricted
 configuration/thread preflight passed. Successful model responses use fixtures;
 human-completed login, real responses and repository execution remain open.
-Initial-commit preview, agent-generated planning, execution grants and autonomous
+Agent-generated planning, execution grants and autonomous
 battles are next. Registration alone does not validate Git; an explicit inspection
 distinguishes missing, unborn and committed standalone repositories.
 The product story above remains the target, not a shipped capability list.
 
-Evidence: [Git setup worklog](worklog/2026-10-07-R040c-arena-git-setup.md),
+Evidence: [Initial commit worklog](worklog/2026-10-07-R040d-initial-commit.md),
+[Git setup worklog](worklog/2026-10-07-R040c-arena-git-setup.md),
 [Tabula drafts worklog](worklog/2026-10-07-R040b-tabula-drafts.md),
 [Arena registration worklog](worklog/2026-10-07-R040a-arena-registration.md),
 [saved-team worklog](worklog/2026-10-07-R030a-saved-team.md),

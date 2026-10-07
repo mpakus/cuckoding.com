@@ -4,11 +4,11 @@ defmodule Cuckoding.GitAdapter do
 end
 
 defmodule Cuckoding.LocalGit do
-  @moduledoc "Fixed native Git metadata inspection and consented initialization."
+  @moduledoc "Fixed native Git setup with scoped preview and mutation consent."
   @behaviour Cuckoding.GitAdapter
-  alias Cuckoding.NativeHelper
+  alias Cuckoding.{GitPreview, NativeHelper}
 
-  @statuses ~w(missing unborn existing initialized cancelled timeout cleanup_uncertain unavailable invalid_request folder_changed git_unavailable invalid_repository metadata_limit nested_repository unsupported_layout unsafe_config repository_busy repository_changed recheck_required)
+  @statuses ~w(missing unborn initialized cancelled timeout cleanup_uncertain unavailable invalid_request folder_changed git_unavailable invalid_repository metadata_limit nested_repository unsupported_layout unsafe_config repository_busy repository_changed recheck_required invalid_selection selection_limit unsafe_file preview_changed initial_only index_present commit_incomplete)
 
   @impl true
   def run(command) do
@@ -24,11 +24,25 @@ defmodule Cuckoding.LocalGit do
         to_string(payload["device"]),
         to_string(payload["inode"]),
         home
-      ],
+      ] ++ extra(command),
       20_000,
       &decode/1
     )
   end
+
+  defp extra(%{payload: %{"operation" => "preview", "paths" => paths}}),
+    do: [Jason.encode!(%{"paths" => paths})]
+
+  defp extra(%{id: key, payload: %{"operation" => "commit"} = payload}),
+    do: [
+      Jason.encode!(%{
+        "key" => key,
+        "preview_id" => payload["observation_id"],
+        "preview" => payload["preview"]
+      })
+    ]
+
+  defp extra(_), do: []
 
   defp decode(bytes) do
     case Jason.decode(bytes) do
@@ -37,28 +51,42 @@ defmodule Cuckoding.LocalGit do
     end
   end
 
-  def normalize(%{"status" => status} = result) when status in @statuses do
-    cond do
-      status == "existing" and is_binary(result["head"]) and
-          Regex.match?(~r/\A[0-9a-f]{40}\z/, result["head"]) ->
-        Map.take(result, ~w(status head))
-
-      status == "existing" ->
-        %{"status" => "invalid_repository"}
-
-      true ->
-        Map.take(result, ~w(status))
+  def normalize(%{"status" => "previewed", "preview" => preview}) do
+    case GitPreview.normalize(preview) do
+      nil -> %{"status" => "invalid_repository"}
+      valid -> %{"status" => "previewed", "preview" => valid}
     end
   end
+
+  def normalize(%{"status" => "committed"} = result) do
+    if GitPreview.hash?(result["head"], 40) and GitPreview.hash?(result["tree"], 40) and
+         match?({:ok, _}, Ecto.UUID.cast(result["preview_id"])),
+       do: Map.take(result, ~w(status head tree preview_id)),
+       else: %{"status" => "invalid_repository"}
+  end
+
+  def normalize(%{"status" => "existing"} = result) do
+    if GitPreview.hash?(result["head"], 40),
+      do: Map.take(result, ~w(status head)),
+      else: %{"status" => "invalid_repository"}
+  end
+
+  def normalize(%{"status" => status}) when status in @statuses, do: %{"status" => status}
 
   def normalize(_), do: %{"status" => "unavailable"}
 end
 
 defmodule Cuckoding.ArenaGit do
-  @moduledoc "Durable, Arena-scoped Git setup; no staging, commits or execution grants."
+  @moduledoc "Durable, consented Arena Git setup; no remote or agent execution grants."
   import Ecto.Query
-  alias Cuckoding.{Arena, Arenas, Command, Foundation, LocalGit, Repo}
-  @kinds ~w(inspect_arena_git init_arena_git)
+  alias Cuckoding.{Arena, Arenas, Command, Foundation, GitPreview, LocalGit, Repo}
+  @kinds ~w(inspect_arena_git init_arena_git preview_arena_git commit_arena_git)
+  @success %{
+    "inspect" => ~w(missing unborn existing),
+    "init" => ~w(initialized),
+    "preview" => ~w(previewed),
+    "commit" => ~w(committed)
+  }
 
   def latest(arena_id) do
     Repo.one(
@@ -81,13 +109,35 @@ defmodule Cuckoding.ArenaGit do
 
   def can_initialize?(_, _), do: false
 
+  def can_commit?(command, now \\ DateTime.utc_now())
+
+  def can_commit?(
+        %Command{kind: "preview_arena_git", state: "completed", result: "previewed"} = command,
+        now
+      ),
+      do:
+        DateTime.diff(now, command.updated_at) in 0..299 and
+          not is_nil(GitPreview.normalize(command.payload["observation"]["preview"]))
+
+  def can_commit?(_, _), do: false
+
+  def preview(key, arena_id, paths) do
+    with {:ok, key} <- Ecto.UUID.cast(key),
+         {:ok, arena_id} <- Ecto.UUID.cast(arena_id),
+         true <- GitPreview.valid_paths?(paths) do
+      transaction(fn -> enqueue(key, arena_id, "preview", nil, %{"paths" => paths}) end)
+    else
+      _ -> {:error, "invalid_selection"}
+    end
+  end
+
   def request(key, arena_id, operation, observation_id \\ nil, confirmed \\ false) do
     with {:ok, key} <- Ecto.UUID.cast(key),
          {:ok, arena_id} <- Ecto.UUID.cast(arena_id),
-         true <- operation in ~w(inspect init),
+         true <- operation in ~w(inspect init commit),
          true <-
            (operation == "inspect" and is_nil(observation_id)) or
-             (operation == "init" and confirmed == true and
+             (operation in ~w(init commit) and confirmed == true and
                 match?({:ok, _}, Ecto.UUID.cast(observation_id))) do
       transaction(fn -> enqueue(key, arena_id, operation, observation_id) end)
     else
@@ -95,33 +145,41 @@ defmodule Cuckoding.ArenaGit do
     end
   end
 
-  defp enqueue(key, arena_id, operation, observation_id) do
+  defp enqueue(key, arena_id, operation, observation_id, options \\ %{}) do
     kind = "#{operation}_arena_git"
 
     case Repo.get(Command, key) do
       nil ->
-        new_command(key, arena_id, kind, operation, observation_id)
+        new_command(key, arena_id, kind, operation, observation_id, options)
 
       %Command{
         kind: ^kind,
         payload: %{"arena_id" => ^arena_id, "observation_id" => ^observation_id}
       } = command ->
-        command
+        if Map.take(command.payload, Map.keys(options)) == options,
+          do: command,
+          else: Repo.rollback(:key_conflict)
 
       _ ->
         Repo.rollback(:key_conflict)
     end
   end
 
-  defp new_command(key, arena_id, kind, operation, observation_id) do
+  defp new_command(key, arena_id, kind, operation, observation_id, options) do
     arena = Repo.get(Arena, arena_id)
     reason = rejection(arena, operation, observation_id)
 
-    payload = %{
-      "arena_id" => arena_id,
-      "operation" => operation,
-      "observation_id" => observation_id
-    }
+    payload =
+      Map.merge(options, %{
+        "arena_id" => arena_id,
+        "operation" => operation,
+        "observation_id" => observation_id
+      })
+
+    payload =
+      if operation == "commit" and is_nil(reason),
+        do: Map.put(payload, "preview", latest(arena.id).payload["observation"]["preview"]),
+        else: payload
 
     payload =
       if arena,
@@ -162,6 +220,9 @@ defmodule Cuckoding.ArenaGit do
         "setup_busy"
 
       operation == "init" and (not can_initialize?(previous) or previous.id != observation_id) ->
+        "recheck_required"
+
+      operation == "commit" and (not can_commit?(previous) or previous.id != observation_id) ->
         "recheck_required"
 
       true ->
@@ -218,18 +279,12 @@ defmodule Cuckoding.ArenaGit do
   end
 
   defp observation(command, result) do
-    public = LocalGit.normalize(result)
+    public = LocalGit.normalize(result) |> bind_receipt(command)
 
     public =
       case {command.kind, command.state, public["status"]} do
         {_, "cancelling", status} when status != "cleanup_uncertain" ->
           %{"status" => "cancelled"}
-
-        {"inspect_arena_git", _, "initialized"} ->
-          %{"status" => "recheck_required"}
-
-        {"init_arena_git", _, status} when status in ~w(missing unborn existing) ->
-          %{"status" => "recheck_required"}
 
         _ ->
           public
@@ -242,10 +297,32 @@ defmodule Cuckoding.ArenaGit do
       else: public
   end
 
+  defp bind_receipt(public, command) do
+    success = public["status"] in ~w(missing unborn existing initialized previewed committed)
+    valid_operation = public["status"] in Map.fetch!(@success, command.payload["operation"])
+
+    cond do
+      success and not valid_operation ->
+        %{"status" => "recheck_required"}
+
+      public["status"] == "previewed" and
+          Enum.map(public["preview"]["files"], & &1["path"]) != command.payload["paths"] ->
+        %{"status" => "recheck_required"}
+
+      public["status"] == "committed" and
+          public["preview_id"] != command.payload["observation_id"] ->
+        %{"status" => "recheck_required"}
+
+      true ->
+        public
+    end
+  end
+
   defp result_state("cancelled"), do: "cancelled"
 
-  defp result_state(status) when status in ~w(missing unborn existing initialized),
-    do: "completed"
+  defp result_state(status)
+       when status in ~w(missing unborn existing initialized previewed committed),
+       do: "completed"
 
   defp result_state(_), do: "failed"
 

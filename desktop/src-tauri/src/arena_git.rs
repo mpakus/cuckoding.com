@@ -1,4 +1,5 @@
 //! Fixed local Git operations. Repository text never supplies argv or authority.
+mod initial;
 use crate::probe::{exited, private_directory, Group};
 use serde_json::{json, Value};
 use std::{
@@ -26,6 +27,15 @@ struct Git<'a> {
     directory: File,
     cancel: Receiver<()>,
     deadline: Instant,
+}
+
+impl Drop for Git<'_> {
+    fn drop(&mut self) {
+        // Explicit unlock also releases the lock from descriptors inherited during a fork.
+        unsafe {
+            libc::flock(self.directory.as_raw_fd(), libc::LOCK_UN);
+        }
+    }
 }
 
 impl Git<'_> {
@@ -58,6 +68,16 @@ impl Git<'_> {
     }
 
     fn command(&self, args: &[&str], in_repository: bool) -> Result<(i32, Vec<u8>)> {
+        self.command_input(args, in_repository, None, None)
+    }
+
+    fn command_input(
+        &self,
+        args: &[&str],
+        in_repository: bool,
+        input: Option<Vec<u8>>,
+        index: Option<&Path>,
+    ) -> Result<(i32, Vec<u8>)> {
         self.active()?;
         let mut command = Command::new("/usr/bin/git");
         command
@@ -76,6 +96,10 @@ impl Git<'_> {
             .env("GIT_ALLOW_PROTOCOL", "")
             .env("GIT_NO_REPLACE_OBJECTS", "1")
             .env("GIT_CEILING_DIRECTORIES", self.home)
+            .env("GIT_AUTHOR_NAME", "Cuckoding")
+            .env("GIT_AUTHOR_EMAIL", "local@cuckoding.invalid")
+            .env("GIT_COMMITTER_NAME", "Cuckoding")
+            .env("GIT_COMMITTER_EMAIL", "local@cuckoding.invalid")
             .arg("--no-pager")
             .args([
                 "-c",
@@ -86,9 +110,17 @@ impl Git<'_> {
                 "credential.helper=",
                 "-c",
                 "core.commitGraph=false",
+                "-c",
+                "commit.gpgsign=false",
+                "-c",
+                "core.splitIndex=false",
             ])
             .current_dir(self.home)
-            .stdin(Stdio::null())
+            .stdin(if input.is_some() {
+                Stdio::piped()
+            } else {
+                Stdio::null()
+            })
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .process_group(0);
@@ -107,7 +139,16 @@ impl Git<'_> {
             command.arg("--git-dir=.git");
         }
         command.args(args);
+        if let Some(index) = index {
+            command.env("GIT_INDEX_FILE", index);
+        }
         let mut group = Group(command.spawn().map_err(|_| "git_unavailable")?);
+        let writer = if let Some(bytes) = input {
+            let mut stdin = group.0.stdin.take().ok_or("git_unavailable")?;
+            Some(thread::spawn(move || stdin.write_all(&bytes)))
+        } else {
+            None
+        };
         let stdout = group.0.stdout.take().ok_or("git_unavailable")?;
         let (sender, receiver) = mpsc::sync_channel(1);
         thread::spawn(move || {
@@ -145,6 +186,12 @@ impl Git<'_> {
             }
         };
         drop(group); // Kill descendants before reaping the owned leader.
+        if let Some(writer) = writer {
+            writer
+                .join()
+                .map_err(|_| "recheck_required")?
+                .map_err(|_| "recheck_required")?;
+        }
         Ok((code, bytes.unwrap_or_default()))
     }
 
@@ -280,10 +327,11 @@ impl Git<'_> {
 }
 
 fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> {
-    let [operation, path, device, inode, home] = args else {
+    let [operation, path, device, inode, home, extra @ ..] = args else {
         return Err("invalid_request");
     };
-    if !["inspect", "init"].contains(&operation.as_str())
+    if !["inspect", "init", "preview", "commit"].contains(&operation.as_str())
+        || extra.len() != usize::from(["preview", "commit"].contains(&operation.as_str()))
         || path.len() > 4096
         || path.chars().any(char::is_control)
     {
@@ -310,6 +358,9 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
     let device = device.parse().map_err(|_| "invalid_request")?;
     let inode = inode.parse().map_err(|_| "invalid_request")?;
     git.identity(device, inode)?;
+    if ["preview", "commit"].contains(&operation.as_str()) {
+        return initial::run(&git, operation, &extra[0], device, inode);
+    }
     let observed = git.inspect()?;
     if operation == "inspect" {
         return Ok(observed);
@@ -631,5 +682,202 @@ mod tests {
         }
         peer.kill().unwrap();
         peer.wait().unwrap();
+    }
+
+    fn initial(args: &[String], operation: &str, request: Value) -> Result<Value> {
+        let mut args = args.to_vec();
+        args[0] = operation.into();
+        args.push(request.to_string());
+        let (_sender, cancel) = mpsc::channel();
+        run(&args, cancel, Duration::from_secs(15))
+    }
+
+    fn consent(preview: &Value) -> Value {
+        json!({"key":"00000000-0000-4000-8000-000000000001", "preview_id":"00000000-0000-4000-8000-000000000002", "preview":preview["preview"]})
+    }
+
+    #[test]
+    fn first_commit_contains_only_exact_preview_and_leaves_working_files() {
+        let (root, home, args) = fixture();
+        operation(&args, "init").unwrap();
+        fs::write(root.join(".git/HEAD"), "ref: refs/heads/setup/docs\n").unwrap();
+        fs::create_dir(root.join("docs")).unwrap();
+        fs::write(root.join("docs/a, b.md"), "previewed bytes\r\n").unwrap();
+        fs::write(root.join("run.sh"), "echo fixture\n").unwrap();
+        fs::set_permissions(root.join("run.sh"), fs::Permissions::from_mode(0o700)).unwrap();
+        fs::write(root.join(".env"), "UNSELECTED_SECRET_CANARY").unwrap();
+        let observed =
+            initial(&args, "preview", json!({"paths":["docs/a, b.md","run.sh"]})).unwrap();
+        assert_eq!(observed["status"], "previewed");
+        assert_eq!(observed["preview"]["files"][1]["mode"], "100755");
+        assert!(!observed.to_string().contains("UNSELECTED_SECRET_CANARY"));
+        assert!(!root.join(".git/index").exists());
+        let result = initial(&args, "commit", consent(&observed)).unwrap();
+        assert_eq!(result["status"], "committed");
+        assert!(root.join(".git/refs/heads/setup/docs").is_file());
+        assert!(!root.join(".git/refs/heads/setup/docs.lock").exists());
+        assert!(!root.join(".git/packed-refs.lock").exists());
+        assert_eq!(
+            git(&root, &home, &["rev-list", "--count", "HEAD"]).1,
+            b"1\n"
+        );
+        assert_eq!(
+            git(&root, &home, &["ls-tree", "--name-only", "-r", "HEAD"]).1,
+            b"docs/a, b.md\nrun.sh\n"
+        );
+        assert_eq!(
+            git(&root, &home, &["cat-file", "blob", "HEAD:docs/a, b.md"]).1,
+            b"previewed bytes\r\n"
+        );
+        assert_eq!(git(&root, &home, &["diff", "--cached", "--quiet"]).0, 0);
+        assert_eq!(
+            fs::read(root.join("docs/a, b.md")).unwrap(),
+            b"previewed bytes\r\n"
+        );
+        assert_eq!(
+            fs::read(root.join(".env")).unwrap(),
+            b"UNSELECTED_SECRET_CANARY"
+        );
+        assert!(!root.join(".git/index.lock").exists());
+        assert!(!root.join(".git/HEAD.lock").exists());
+        assert_eq!(fs::metadata(root.join(".git/index")).unwrap().nlink(), 1);
+        let commit = git(&root, &home, &["cat-file", "-p", "HEAD"]).1;
+        let commit = String::from_utf8(commit).unwrap();
+        assert!(commit.contains("author Cuckoding <local@cuckoding.invalid>"));
+        assert!(commit.contains("Initialize Arena with Cuckoding"));
+        assert!(!commit.contains("parent "));
+        assert_eq!(
+            initial(&args, "commit", consent(&observed)),
+            Err("initial_only")
+        );
+        fs::remove_file(root.join(".git/index")).unwrap();
+        fs::write(root.join(".git/HEAD"), "ref: refs/heads/other\n").unwrap();
+        assert_eq!(
+            initial(&args, "preview", json!({"paths":[]})),
+            Err("initial_only")
+        );
+        fs::remove_dir_all(root.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn empty_baseline_and_failed_ref_publication_preserve_state() {
+        for fail in [false, true] {
+            let (root, home, args) = fixture();
+            operation(&args, "init").unwrap();
+            let observed = initial(&args, "preview", json!({"paths":[]})).unwrap();
+            if fail {
+                fs::write(root.join(".git/refs/heads/main.lock"), "foreign lock").unwrap();
+            }
+            let result = initial(&args, "commit", consent(&observed));
+            if fail {
+                assert_eq!(result, Err("repository_busy"));
+                assert_eq!(
+                    fs::read(root.join(".git/refs/heads/main.lock")).unwrap(),
+                    b"foreign lock"
+                );
+                assert_eq!(operation(&args, "inspect").unwrap()["status"], "unborn");
+                assert!(root.join(".git/index").exists());
+                assert_eq!(
+                    initial(&args, "preview", json!({"paths":[]})),
+                    Err("index_present")
+                );
+            } else {
+                assert_eq!(result.unwrap()["status"], "committed");
+                assert_eq!(git(&root, &home, &["ls-tree", "-r", "HEAD"]).1, b"");
+            }
+            assert!(!root.join(".git/index.lock").exists());
+            assert!(!root.join(".git/HEAD.lock").exists());
+            fs::remove_dir_all(root.parent().unwrap()).unwrap();
+        }
+    }
+
+    #[test]
+    fn stale_files_config_branch_or_index_refuse_initial_commit() {
+        for change in ["file", "mode", "config", "branch", "index", "identity"] {
+            let (root, _, args) = fixture();
+            operation(&args, "init").unwrap();
+            fs::write(root.join("plan.md"), "before").unwrap();
+            let observed = initial(&args, "preview", json!({"paths":["plan.md"]})).unwrap();
+            match change {
+                "file" => fs::write(root.join("plan.md"), "after").unwrap(),
+                "mode" => {
+                    fs::set_permissions(root.join("plan.md"), fs::Permissions::from_mode(0o700))
+                        .unwrap()
+                }
+                "config" => {
+                    let mut f = OpenOptions::new()
+                        .append(true)
+                        .open(root.join(".git/config"))
+                        .unwrap();
+                    writeln!(f, "[user]\nname = Changed").unwrap();
+                }
+                "branch" => fs::write(root.join(".git/HEAD"), "ref: refs/heads/other\n").unwrap(),
+                "index" => fs::write(root.join(".git/index"), "existing index bytes").unwrap(),
+                "identity" => {
+                    fs::rename(root.join(".git"), root.join("saved-git")).unwrap();
+                    operation(&args, "init").unwrap();
+                }
+                _ => unreachable!(),
+            }
+            assert!(
+                initial(&args, "commit", consent(&observed)).is_err(),
+                "{change}"
+            );
+            assert!(!root.join(".git/refs/heads/main").exists());
+            assert!(!root.join(".git/index.lock").exists());
+            if change == "index" {
+                assert_eq!(
+                    fs::read(root.join(".git/index")).unwrap(),
+                    b"existing index bytes"
+                );
+            } else {
+                assert!(!root.join(".git/index").exists());
+            }
+            fs::remove_dir_all(root.parent().unwrap()).unwrap();
+        }
+    }
+
+    #[test]
+    fn selection_rejects_escapes_links_special_files_and_bounds() {
+        let (root, home, args) = fixture();
+        operation(&args, "init").unwrap();
+        fs::write(home.join("outside"), "OUTSIDE_CANARY").unwrap();
+        std::os::unix::fs::symlink(&home, root.join("linked")).unwrap();
+        fs::hard_link(home.join("outside"), root.join("hardlink")).unwrap();
+        let pipe = std::ffi::CString::new(root.join("pipe").to_str().unwrap()).unwrap();
+        assert_eq!(unsafe { libc::mkfifo(pipe.as_ptr(), 0o600) }, 0);
+        fs::write(root.join("large"), vec![0u8; 1_048_577]).unwrap();
+        for path in [
+            "../outside",
+            "/outside",
+            ".git/config",
+            ".env",
+            "docs//x",
+            "./x",
+            "x\ny",
+            "linked/outside",
+            "hardlink",
+            "pipe",
+            "large",
+        ] {
+            assert!(
+                initial(&args, "preview", json!({"paths":[path]})).is_err(),
+                "{path}"
+            );
+        }
+        assert!(initial(&args, "preview", json!({"paths":["same","same"]})).is_err());
+        assert!(initial(&args, "preview", json!({"paths":vec!["x";17]})).is_err());
+        let quoted: Vec<_> = (0..16)
+            .map(|i| format!("{i}{}", "\"".repeat(235)))
+            .collect();
+        for name in &quoted {
+            fs::write(root.join(name), "bounded").unwrap();
+        }
+        assert_eq!(
+            initial(&args, "preview", json!({"paths":quoted})),
+            Err("selection_limit")
+        );
+        assert!(!root.join(".git/index").exists());
+        fs::remove_dir_all(root.parent().unwrap()).unwrap();
     }
 }

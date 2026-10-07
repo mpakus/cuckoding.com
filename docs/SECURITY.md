@@ -33,8 +33,28 @@ claims never replay. Cancellation may leave a newly created/partial `.git`; reta
 it and re-inspect, never delete it as rollback. An advisory directory lock cannot
 exclude ordinary Git or hostile same-user filesystem changes. Validation narrows
 but cannot eliminate metadata races or forcibly killed-helper cleanup risk; these
-are supervised host operations, not an OS sandbox. Future file/commit/execution
-operations need their own validation and grants. No initial commit is enabled.
+are supervised host operations, not an OS sandbox.
+
+R040d initial commits require a fresh exact preview and separate confirmation.
+Only repositories with no refs and no index are accepted. Selection is explicit:
+at most 16 regular single-link files, 240-byte relative paths, 1 MiB per file,
+8 MiB total and 7,000 bytes of serialized preview metadata. Traversal, symlink
+components, special files and common credential paths are refused. This filename
+guard is not content-level secret detection; the user selects appropriate files.
+Reads use pinned directory handles and no-follow opens. Persist SHA-256/size/mode,
+not content. Recheck bytes, branch, config and directory identity before publishing.
+
+Git plumbing writes raw approved bytes with no filters, hooks or signing, using
+a private candidate index and fixed Cuckoding author/message. Explicit selection
+can include ignored files. Exclusive index/HEAD locks cover preparation; packed-ref
+and branch locks guard exclusive publication of the absent loose branch. No existing
+index/ref is overwritten. The first commit has no parent and no Git reflog is
+created; SQLite retains consent and receipt. Working files remain unchanged.
+Index and ref publication are not atomic: cancellation/failure may leave objects,
+a candidate index, a staged index or a completed commit without a receipt. Retain
+all effects, re-inspect and handle existing staging manually; never replay or
+remove ambiguous files/locks automatically. Hostile same-user metadata changes
+remain outside isolation guarantees. No agent, push, network or later commit is authorized.
 
 Cuckoding runs powerful local agents against repository content on the host.
 Runtime permissions, owned worktrees and process supervision are required;

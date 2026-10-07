@@ -118,3 +118,5 @@ code { display:block; overflow-wrap:anywhere; font-size:11px; }
   .main-foot { padding-top:32px; }
 }
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; animation:none!important; transition:none!important; } }
+.git-files { list-style: none; padding: 0; }
+.git-files li { margin-block: 1rem; overflow-wrap: anywhere; }

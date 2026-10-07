@@ -29,10 +29,15 @@ Neither stage grants execution or represents a validated Secutor result. Preserv
 recovered-form identity guards and unsaved text through live updates.
 R040c adds explicit Arena Git inspection and separately confirmed initialization.
 Bind init to the latest missing observation (under five minutes) and pinned folder
-identity. Never stage/commit files, adopt linked/external metadata, inherit personal
+identity. Initialization never stages/commits files. Never adopt linked/external metadata, inherit personal
 Git config or replay uncertain effects. Fixed native Git operations reuse the
 command ledger and owned group cleanup; their result is not an execution grant or
-proof of a clean worktree. See the Git limits in `docs/SECURITY.md`.
+proof of a clean worktree. R040d adds separately authorized initial commits only:
+bind fresh consent to exact selected paths, byte hashes, modes and repository/branch
+identity; refuse existing indexes/refs and never overwrite working files. Keep
+HEAD/index/ref locks, retain partial effects and never replay uncertain writes.
+Preview metadata is bounded; events omit paths/content/hashes. No push, agent grant
+or battle is implied. See the Git limits in `docs/SECURITY.md`.
 
 ## Mission and product contract
 

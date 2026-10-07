@@ -20,6 +20,26 @@ defmodule Cuckoding.DataCase do
     on_exit(fn -> Sandbox.stop_owner(pid) end)
   end
 
+  def preview_receipt(paths \\ ["docs/plan.md"]) do
+    %{
+      "status" => "previewed",
+      "preview" => %{
+        "branch" => "refs/heads/main",
+        "repository" => String.duplicate("a", 64),
+        "files" =>
+          Enum.map(
+            paths,
+            &%{
+              "path" => &1,
+              "bytes" => 8,
+              "mode" => "100644",
+              "sha256" => String.duplicate("b", 64)
+            }
+          )
+      }
+    }
+  end
+
   # A registered Arena projection; draft-board tests never touch its project path.
   def arena_fixture do
     alias Cuckoding.{Arena, Command, Repo, Team}

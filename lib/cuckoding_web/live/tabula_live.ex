@@ -1,6 +1,6 @@
 defmodule CuckodingWeb.TabulaLive do
   use CuckodingWeb, :live_view
-  alias Cuckoding.{ArenaGit, Foundation, Tabulae}
+  alias Cuckoding.{ArenaGit, Foundation, GitPreview, Tabulae}
   alias CuckodingWeb.Layouts
 
   @impl true
@@ -26,6 +26,9 @@ defmodule CuckodingWeb.TabulaLive do
          git_error: nil,
          init_confirmed: false,
          confirmed_observation: nil,
+         git_paths: nil,
+         commit_confirmed: false,
+         confirmed_preview: nil,
          error: nil,
          message: nil,
          pending_edit: nil
@@ -52,6 +55,40 @@ defmodule CuckodingWeb.TabulaLive do
   def handle_event("cancel-git", _, socket) do
     if socket.assigns.git, do: Foundation.cancel_probe(socket.assigns.git.id)
     {:noreply, refresh(socket)}
+  end
+
+  def handle_event("commit-paths-change", %{"paths" => paths}, socket)
+      when is_binary(paths) and byte_size(paths) <= 4_000,
+      do:
+        {:noreply,
+         assign(socket, git_paths: paths, commit_confirmed: false, confirmed_preview: nil)}
+
+  def handle_event("preview-git", %{"paths" => paths}, socket) do
+    case GitPreview.paths(paths) do
+      {:ok, selected} ->
+        result = ArenaGit.preview(socket.assigns.git_key, socket.assigns.arena.id, selected)
+        {:noreply, socket |> assign(:git_paths, paths) |> git_result(result)}
+
+      _ ->
+        {:noreply, assign(socket, :git_error, git_message("invalid_selection"))}
+    end
+  end
+
+  def handle_event("commit-change", params, socket), do: {:noreply, commit_input(socket, params)}
+
+  def handle_event("commit-git", params, socket) do
+    socket = commit_input(socket, params)
+
+    result =
+      ArenaGit.request(
+        socket.assigns.git_key,
+        socket.assigns.arena.id,
+        "commit",
+        socket.assigns.confirmed_preview,
+        socket.assigns.commit_confirmed
+      )
+
+    {:noreply, git_result(socket, result)}
   end
 
   def handle_event("board-change", %{"name" => name}, socket)
@@ -137,9 +174,12 @@ defmodule CuckodingWeb.TabulaLive do
 
   defp refresh(socket) do
     board = socket.assigns.board
+    git = ArenaGit.latest(socket.assigns.arena.id)
+    paths = if git, do: git.payload["paths"] || [], else: []
 
     assign(socket,
-      git: ArenaGit.latest(socket.assigns.arena.id),
+      git: git,
+      git_paths: socket.assigns.git_paths || Enum.join(paths, "\n"),
       setup_busy: Foundation.pending?(),
       now: DateTime.utc_now(),
       boards: Tabulae.list(socket.assigns.arena.id),
@@ -150,6 +190,17 @@ defmodule CuckodingWeb.TabulaLive do
           else: []
         )
     )
+  end
+
+  defp commit_input(socket, params) do
+    current = socket.assigns.git
+
+    confirmed =
+      ArenaGit.can_commit?(current) and params["observation_id"] == current.id and
+        params["commit_confirmed"] == "true" and
+        GitPreview.paths(socket.assigns.git_paths) == {:ok, current.payload["paths"]}
+
+    assign(socket, commit_confirmed: confirmed, confirmed_preview: if(confirmed, do: current.id))
   end
 
   defp git_input(socket, params) do
@@ -175,6 +226,10 @@ defmodule CuckodingWeb.TabulaLive do
         socket.assigns.init_confirmed
       )
 
+    git_result(socket, result)
+  end
+
+  defp git_result(socket, result) do
     error =
       case result do
         {:ok, %{state: "rejected", result: reason}} -> git_message(reason)
@@ -187,7 +242,9 @@ defmodule CuckodingWeb.TabulaLive do
       git_error: error,
       git_key: Ecto.UUID.generate(),
       init_confirmed: false,
-      confirmed_observation: nil
+      confirmed_observation: nil,
+      commit_confirmed: false,
+      confirmed_preview: nil
     )
     |> refresh()
   end
@@ -198,13 +255,44 @@ defmodule CuckodingWeb.TabulaLive do
     do: "No Git repository. Initialization is optional and needs your confirmation."
 
   defp git_message(status) when status in ~w(unborn initialized),
-    do: "Git repository has no commits yet. Initial-commit preview and consent are coming next."
+    do: "Git repository has no commits yet. Preview selected files or an empty baseline below."
+
+  defp git_message("previewed"),
+    do: "Review the exact file snapshot before creating the first local commit."
+
+  defp git_message("committed"),
+    do: "Initial local commit created. Working files were preserved; nothing was pushed."
+
+  defp git_message("invalid_selection"),
+    do:
+      "Use up to 16 distinct relative file paths, one per line (240 bytes each). Traversal and known credential paths are refused."
+
+  defp git_message("selection_limit"),
+    do: "Selection exceeds the limit: 1 MiB per file and 8 MiB total."
+
+  defp git_message("unsafe_file"),
+    do:
+      "A selected file is missing or unsafe. Only regular files without symlink parents or hardlinks are supported."
+
+  defp git_message("preview_changed"),
+    do: "The files or repository changed. Preview again before committing."
+
+  defp git_message("index_present"),
+    do:
+      "An index already exists. Keep any staged work and handle the initial commit in Git, then inspect again."
+
+  defp git_message("initial_only"),
+    do: "This action requires a repository with no HEAD commit. Inspect Git again."
+
+  defp git_message("commit_incomplete"),
+    do:
+      "Commit setup was interrupted or refused. Objects or staged files may remain. Inspect Git before any manual recovery; nothing will replay."
 
   defp git_message("existing"),
     do: "Local HEAD commit verified. Working files and index were not inspected or changed."
 
   defp git_message("confirmation_required"),
-    do: "Confirm initialization for the displayed folder and inspection."
+    do: "Confirm the displayed Git action and its current preview."
 
   defp git_message("folder_changed"),
     do: "The registered folder changed or is unavailable. No new Git action is allowed."
@@ -361,6 +449,98 @@ defmodule CuckodingWeb.TabulaLive do
             </label>
             <button type="submit" class="button" disabled={@setup_busy} phx-disable-with="Starting…">Initialize Git</button>
           </.form>
+          <.form
+            :if={@git && @git.state == "completed" && @git.result in ~w(unborn initialized previewed)}
+            for={%{}}
+            id="git-preview-form"
+            class="role-fields"
+            phx-change="commit-paths-change"
+            phx-submit="preview-git"
+          >
+            <label for="git-paths">Files for the initial commit · one relative path per line</label>
+            <textarea
+              id="git-paths"
+              name="paths"
+              rows="3"
+              maxlength="4000"
+              aria-describedby="git-paths-help"
+            >{@git_paths}</textarea>
+            <p id="git-paths-help" class="fine-print">
+              For example: docs/plan.md. Leave empty for an empty baseline. Up to 16 files,
+              1 MiB each / 8 MiB total. No folders, links or known credential paths.
+              Preview reads only these files; no file contents are saved in Cuckoding.
+            </p>
+            <button class="button" disabled={@setup_busy} phx-disable-with="Reading…">Preview initial commit</button>
+          </.form>
+          <div :if={@git && @git.result == "previewed"} id="git-preview">
+            <p>
+              <strong>Initial commit · {length(@git.payload["observation"]["preview"]["files"])} {if length(
+                                                                                                       @git.payload[
+                                                                                                         "observation"
+                                                                                                       ][
+                                                                                                         "preview"
+                                                                                                       ][
+                                                                                                         "files"
+                                                                                                       ]
+                                                                                                     ) ==
+                                                                                                       1,
+                                                                                                     do:
+                                                                                                       "file",
+                                                                                                     else:
+                                                                                                       "files"}</strong>
+            </p>
+            <p class="fine-print">
+              Branch: {@git.payload["observation"]["preview"]["branch"]}<br />
+              Author / committer: Cuckoding &lt;local@cuckoding.invalid&gt;<br />
+              Message: Initialize Arena with Cuckoding
+            </p>
+            <p :if={@git.payload["observation"]["preview"]["files"] == []}>
+              Empty baseline · no working files will be included.
+            </p>
+            <ul class="git-files">
+              <li :for={
+                {file, index} <- Enum.with_index(@git.payload["observation"]["preview"]["files"])
+              }>
+                <code>{file["path"]}</code>
+                · {file["bytes"]} bytes · {if file["mode"] == "100755",
+                  do: "executable",
+                  else: "regular"}
+                <details
+                  id={"git-hash-#{@git.id}-#{index}"}
+                  phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
+                >
+                  <summary>SHA-256</summary><code>{file["sha256"]}</code>
+                </details>
+              </li>
+            </ul>
+            <p class="fine-print">
+              Commit exact bytes without Git filters, hooks or signing. Explicit file selection
+              also includes ignored files. Files on disk stay unchanged. Nothing is pushed.
+              Interrupted work can leave objects or staged files for inspection.
+            </p>
+            <.form
+              :if={ArenaGit.can_commit?(@git, @now)}
+              for={%{}}
+              id="git-commit-form"
+              phx-change="commit-change"
+              phx-submit="commit-git"
+            >
+              <input type="hidden" name="observation_id" value={@git.id} />
+              <label class="confirm-executable">
+                <input
+                  type="checkbox"
+                  name="commit_confirmed"
+                  value="true"
+                  checked={@commit_confirmed && @confirmed_preview == @git.id}
+                />
+                I reviewed this snapshot and authorize the first local commit, including only these files.
+              </label>
+              <button class="button" disabled={@setup_busy} phx-disable-with="Committing…">Create initial commit</button>
+            </.form>
+            <p :if={!ArenaGit.can_commit?(@git, @now)} role="status">
+              Preview expired. Preview again before confirming.
+            </p>
+          </div>
         </details>
         <p>
           Draft work locally. In Process, Review and Completed unlock with future battle execution.

@@ -17,7 +17,7 @@ defmodule CuckodingWeb.ArenaGitLiveTest do
     Foundation.finish(claim, %{"status" => "missing"})
     assert has_element?(view, "#git-init-form")
     view |> form("#git-init-form") |> render_submit()
-    assert has_element?(view, "[role='alert']", "Confirm initialization")
+    assert has_element?(view, "[role='alert']", "Confirm the displayed Git action")
     assert ArenaGit.latest(arena.id).kind == "inspect_arena_git"
     view |> form("#git-init-form", confirmed: "true") |> render_change()
     Foundation.broadcast()

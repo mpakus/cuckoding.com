@@ -125,6 +125,15 @@ operation, closed reason/status and duration. Neither setup workspace revisions
 nor the Arena's original registration fact changes. This is metadata observation,
 not a clean-file inventory or a runnable baseline.
 
+R040d adds `preview_arena_git` / `commit_arena_git` in the same ledger/schema.
+Preview stores bounded selected paths, sizes, modes, SHA-256 and a repository
+fingerprint (Git directory identity, branch and config digest), never file bytes.
+Commit copies the latest preview and its command ID after fresh explicit consent;
+idempotency includes selected paths/preview identity. Matching completion carries
+head/tree and preview ID. Events keep IDs, closed statuses and measured duration;
+paths/hashes/content stay out of events. Expired or foreign receipts fail closed.
+SQLite and filesystem publication are not atomic; uncertain claims never replay.
+
 The default native root is `~/Library/Application Support/CCoding Rebuild`,
 marked `.ccoding-rebuild-v1`. Unknown nonempty roots and symlinked storage are
 refused before migration. `foundation.db` and sidecars are private; old Cuckoding

@@ -6,7 +6,8 @@ R020a–d add the Codex version/inspection/authorization and fixed model-check a
 R030a adds saved default-team configuration; R040a adds Arena registration and
 frozen team inheritance. R040b adds default Tabulae and manual draft tasks.
 R040c adds explicit metadata inspection and confirmed Git initialization.
-Initial commits, battles and the task runner below remain subsequent slices.
+R040d adds bounded previews and separately confirmed initial commits.
+Battles and the task runner below remain subsequent slices.
 
 Current startup order: Repo → schema validation/migration → PubSub → shell
 authority → durable dispatcher → loopback Endpoint → readiness message.
@@ -47,7 +48,10 @@ Port transport with the folder chooser. The fixed native helper calls system Git
 in owned process groups with a clean environment and pinned directory handle.
 TabulaLive exposes inspection and fresh-observation init consent in a disclosure;
 durable command receipts survive reconnect, without changing setup revisions or
-requiring a new schema. No staging, commit, network or agent operation is available.
+requiring a new schema. R040d extends the same boundary with exact file snapshots,
+a private candidate index and a first-commit receipt. Git creates blobs/trees/commit;
+the helper exclusively publishes the index and loose branch while holding Git
+locks. Partial effects survive interruption. No network or agent operation is available.
 
 ## Components
 
@@ -69,7 +73,7 @@ flowchart TD
 | Domain contexts in Elixir | Agents, roles, Arenas, Tabulae, planning, battles, review and validated commands |
 | OTP supervisors and workers | Execute/recover bounded jobs; never own the only copy of workflow state |
 | Ecto + SQLite | Config revisions, snapshots, tasks, leases, command ledger, events and evidence index |
-| Git service | Inspect/init with consent, worktrees, candidate provenance and serialized local integration |
+| Git service | Inspect/init/first commit with separate consent, worktrees, candidate provenance and serialized local integration |
 | Runtime adapters | Runtime-specific authorization, model discovery, permissions, transport and normalized output |
 | Runner | Owned host process groups, environment, cancellation, logs, ports and recovery |
 

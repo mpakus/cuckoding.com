@@ -2,7 +2,10 @@
 
 R040c's implemented Git setup uses a fixed native host helper, outside any agent
 session: inspect metadata or initialize a missing standalone repository after
-confirmation. It reuses owned child groups and cancellation with a 15-second
+confirmation. R040d also previews explicitly selected bounded files and creates a
+first local commit after separate confirmation, with a private candidate index and
+exclusive index/HEAD/ref locks. Objects or staging may survive failed publication;
+retain them for inspection. It reuses owned child groups and cancellation with a 15-second
 native deadline, 20-second transport deadline and 25-second durable claim.
 The root handle is pinned and checked against the registered device/inode;
 unknown metadata and external layouts fail closed. This is not the future task
