@@ -17,6 +17,14 @@ authorize a minimal baseline commit; never auto-add all documents or secrets.
 An Arena/Tabula can be saved before it is runnable. Start names any missing
 agent/model, baseline, grant or check instead of silently changing settings.
 
+R030a implements only the global default team. Required responsibilities keep
+stable IDs even when renamed; Summa Rudis remains distinct. Custom roles default
+to planning-only/read-only and have no executable slots. Saved bindings survive
+account/catalog changes visibly; a new binding requires current verified metadata.
+Saving is versioned and audited, never a start command. Removal of saved custom
+roles requires confirmation and retains history. Arena/Tabula copying and execution
+grants described above are subsequent work.
+
 ## Planning
 
 **Create tasks** launches the selected planning-capable role read-only, with a

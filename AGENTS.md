@@ -5,12 +5,17 @@
 These rules apply repository-wide. More specific rules may strengthen safety,
 auditability and verification, not weaken them. The 2026-10-06 user reset replaces
 the previous product direction. R010 implements the local foundation; provider
-authorization, roles, Arenas and battles remain the R020–R100 roadmap.
+execution, Arenas and battles remain the R020–R100 roadmap.
 R020a–d add Codex version readiness, private-profile inspection, validated model
 caching, managed ChatGPT login/logout and a fixed consented model-access check.
 Human-completed real-account/model acceptance and repository turns remain open. A supported version or catalog is not
 model entitlement or an execution grant. Preserve separate observations and
-fresh executable/profile confirmation.
+fresh executable/profile confirmation. R030a adds configuration-only saved teams:
+immutable revisions, four required responsibilities and up to eight custom roles.
+Saving never grants execution. Custom roles stay planning-only/read-only; no
+schedule or grant control exists yet. New model bindings require a fresh verified
+catalog; retain unchanged bindings through disconnect/drift without substitution.
+Team commands use team revision IDs, independently of setup workspace revisions.
 
 ## Mission and product contract
 

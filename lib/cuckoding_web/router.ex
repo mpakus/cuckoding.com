@@ -28,6 +28,7 @@ defmodule CuckodingWeb.Router do
     live_session :authenticated, on_mount: CuckodingWeb.SessionAuth do
       live "/", HomeLive, :home
       live "/settings", HomeLive, :settings
+      live "/team", TeamLive, :team
       live "/about", HomeLive, :about
     end
   end

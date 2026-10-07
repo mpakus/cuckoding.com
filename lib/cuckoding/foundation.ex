@@ -153,7 +153,7 @@ defmodule Cuckoding.Foundation do
     end
   end
 
-  defp verified_executable do
+  def verified_executable do
     with %{"status" => "supported", "command_id" => id, "path" => path} <- workspace().codex,
          %Command{kind: "probe_codex", state: "completed", payload: identity} <-
            Repo.get(Command, id),

@@ -2,8 +2,8 @@
 
 Target architecture, implemented incrementally. R010 provides the tray,
 authenticated LiveView foundation, SQLite and metadata-only setup dispatcher.
-R020a–d add the Codex version/inspection/authorization and fixed model-check adapter. Roles, battles and the task
-runner below remain subsequent slices.
+R020a–d add the Codex version/inspection/authorization and fixed model-check adapter. R030a adds saved default-team configuration. Arena inheritance, battles
+and the task runner below remain subsequent slices.
 
 Current startup order: Repo → schema validation/migration → PubSub → shell
 authority → durable dispatcher → loopback Endpoint → readiness message.
@@ -19,6 +19,10 @@ a session-protected local redirect, never the provider URL in its state.
 R020d reuses the same ledger/helper for a separately consented, fixed model
 diagnostic with private scratch permissions and a validated public receipt.
 The single dispatcher serializes setup; parallel task execution is a later slice.
+`Cuckoding.Team` commits configuration-only revisions and audit events directly in
+SQLite transactions. It never queues a worker or expands grants. TeamLive and
+HomeLive share the application layout and session boundary; live updates preserve
+unsaved team edits while refreshing catalog observations.
 
 ## Components
 

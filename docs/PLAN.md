@@ -6,7 +6,8 @@ See [R010 evidence](../worklog/2026-10-06-R010-local-foundation.md).
 Agent authorization, models and orchestration remain R020–R100.
 R020a–d complete version readiness, private-profile inspection, validated model
 caching, managed sign-in/out and the fixed model-check controls. Real-account/model/execution acceptance
-is still open.
+is still open. R030a delivers independently testable saved-team configuration;
+Arena/Tabula inheritance and execution grants remain open.
 Historical source/tests/builds do not satisfy these gates.
 
 R015 adds the separately requested public site after R010; see [Site](SITE.md).
@@ -123,15 +124,19 @@ personal profiles are untouched; canaries do not enter artifacts.
 
 ## R030 — Saved roles and team
 
-Depends on R020.
+Execution acceptance depends on R020. R030a configuration can ship independently.
 
-- [ ] Seed Speculator, Implementor, Secutor and a separate Summa Rudis coordinator
-  binding; let one connection/model serve all in independent sessions.
-- [ ] Build create/edit/name/agent/model/instructions for custom roles with
-  read-only defaults and confirmed/audited grant changes.
-- [ ] Persist immutable default-team revisions and explicit Arena/Tabula overrides.
-- [ ] Show role readiness and unresolved bindings without starting work.
-- [ ] Keep same-account model edits separate from authorization identity.
+- [x] R030a: seed four required responsibilities, edit names/instructions, and
+  add/remove custom read-only planning roles with explicit removal confirmation.
+- [x] Save unassigned drafts or validated Codex/model bindings; show missing,
+  stale, changed or untested models without authorizing work or substitution.
+- [x] Persist immutable default-team revisions, idempotent audited saves, stale
+  editor rejection and previous-revision inspection in the authenticated UI.
+  See [task](../tasks/R030a-saved-team.md) and [evidence](../worklog/2026-10-07-R030a-saved-team.md).
+- [ ] Add explicit Arena/Tabula inheritance and overrides without changing saved
+  battle snapshots (alongside R040).
+- [ ] Add confirmed/audited execution slots and grants; prove independent sessions
+  sharing one connection/model without inferring permission from role text.
 
 Acceptance: save the team once, reuse it without per-task assignment, change a
 future default without changing an existing snapshot, and reject permission

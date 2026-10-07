@@ -12,24 +12,22 @@ attention items and logs.
 
 ## Current state
 
-**Local foundation + Codex model-check preview, 2026-10-07.** The tray
-shell, authenticated browser UI, SQLite commands/events and tool discovery work.
-Agents & roles provides consented, cancellable Codex version and private-profile
-checks, ChatGPT browser sign-in and private sign-out. Login links expire, survive
-browser reconnects while the app runs, and stay out of app logs and SQLite.
-Account operations invalidate old model observations; successful login refreshes
-the catalog. Model parsing, persistence and 24-hour freshness have fixture coverage.
-Installed Codex `0.146.0` passed real login start/cancel and signed-out inspection.
-**Try a model** adds a separately confirmed, two-minute diagnostic using a fresh
-catalog selection and restricted scratch permissions. It records a matching public
-result, supports cancellation and never replays interrupted inference. Real Codex
-configuration/thread preflight and signed-out refusal passed without sending a
-prompt. Human-completed login, real model responses and repository read/write
-execution remain R020 acceptance gates. Roles, Arenas and battles are still planned.
+**Local preview, 2026-10-07.** The tray shell, authenticated browser, SQLite
+commands/events, tool discovery and Codex setup work. **Agents** provides
+consented version/profile checks, managed ChatGPT sign-in/out, a cached model
+catalog and a fixed model-access diagnostic. **Team** saves the four default
+roles plus custom roles, Codex/model assignments and instructions in immutable
+revisions. Drafts can remain unassigned; stale models are shown without silently
+replacing them. Saving a team starts no agent and grants no execution permission.
 
-Verification and packaging evidence: [R020d worklog](worklog/2026-10-07-R020d-model-access-check.md).
-The product story above remains the target,
-not a shipped capability list.
+Real Codex `0.146.0` login start/cancel, signed-out inspection and restricted
+configuration/thread preflight passed. Successful model responses use fixtures;
+human-completed login, real responses and repository execution remain open.
+Arena/Tabula inheritance, execution grants and autonomous battles are next.
+The product story above remains the target, not a shipped capability list.
+
+Evidence: [saved-team worklog](worklog/2026-10-07-R030a-saved-team.md),
+[Codex diagnostic worklog](worklog/2026-10-07-R020d-model-access-check.md).
 
 Build with `rtk proxy bin/dev.build`, then open
 `desktop/src-tauri/target/release/bundle/macos/Cuckoding.app`. It opens your browser;

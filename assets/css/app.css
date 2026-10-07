@@ -60,7 +60,7 @@ code { display:block; overflow-wrap:anywhere; font-size:11px; }
 .notice { border:1px solid #c59761; padding:16px; margin-bottom:20px; }
 .codex-setup { margin-top:24px; }
 .codex-setup form { display:grid; gap:14px; }
-.codex-setup input[type=text], .codex-setup select { width:100%; min-width:0; padding:12px; border:1px solid var(--border); border-radius:5px; background:var(--bg); color:var(--text); font:13px ui-monospace,monospace; }
+.codex-setup input[type=text], .codex-setup select, .team-editor input[type=text], .team-editor select, .team-editor textarea { width:100%; min-width:0; padding:12px; border:1px solid var(--border); border-radius:5px; background:var(--bg); color:var(--text); font:13px ui-monospace,monospace; }
 .codex-setup label { font-size:13px; }
 .codex-setup .fine-print { margin:0; }
 .codex-setup .fine-print code { display:inline; }
@@ -69,6 +69,22 @@ code { display:block; overflow-wrap:anywhere; font-size:11px; }
 .probe-progress,.probe-result { border-top:1px solid var(--border); padding-top:20px; margin-top:24px; }
 .probe-result details { margin-top:12px; font-size:12px; }
 .probe-progress .button { background:transparent; color:var(--text); }
+.team-role { border-top:1px solid var(--border); padding:12px 0; }
+.team-role:first-child { margin-top:28px; }
+.team-role summary { min-height:44px; overflow-wrap:anywhere; }
+.team-role summary small { display:block; padding-left:18px; color:var(--muted); font-size:11px; }
+.role-fields { display:grid; gap:8px; padding:16px 0; }
+.role-fields label { font-size:13px; }
+.role-fields textarea { resize:vertical; }
+.role-binding { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+.role-binding label { display:block; margin:8px 0; }
+.team-actions { display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:20px 0; }
+.team-actions .fine-print { margin:0; }
+.team-editor .notice { margin:20px 0; }
+.team-message { margin-top:20px; }
+.team-history { overflow-wrap:anywhere; }
+.team-history dd { margin:8px 0 20px; color:var(--muted); white-space:pre-wrap; }
+.text-link { text-decoration:underline; text-underline-offset:3px; }
 .skip-link { position:absolute; top:-100px; left:20px; padding:12px; background:var(--accent); color:var(--bg); z-index:1; }
 .skip-link:focus { top:12px; }
 @media (max-width:760px) {
@@ -84,6 +100,7 @@ code { display:block; overflow-wrap:anywhere; font-size:11px; }
   .panel-heading { align-items:flex-start; flex-direction:column; }
   .tool-status { font-size:10px; }
   .facts div { grid-template-columns:1fr; gap:4px; }
+  .role-binding { grid-template-columns:1fr; gap:4px; }
   .main-foot { padding-top:32px; }
 }
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; animation:none!important; transition:none!important; } }

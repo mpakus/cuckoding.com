@@ -16,7 +16,14 @@ defmodule CuckodingWeb.Endpoint do
     longpoll: false
 
   plug CuckodingWeb.Boundary
-  plug Plug.Static, at: "/", from: :cuckoding, gzip: true, only: CuckodingWeb.static_paths()
+
+  plug Plug.Static,
+    at: "/",
+    from: :cuckoding,
+    gzip: true,
+    only: CuckodingWeb.static_paths(),
+    only_matching: ["favicon-"]
+
   plug Plug.RequestId
   plug Plug.Parsers, parsers: [:urlencoded, :json], pass: [], json_decoder: Jason, length: 8_192
   plug Plug.MethodOverride

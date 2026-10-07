@@ -17,7 +17,7 @@ Start with a dark theme respecting accessible contrast and OS reduced motion.
 Avoid blinking cursors, decorative animation and dense analytics cards. Motion
 only clarifies a state change; controls remain usable without it.
 
-Sidebar: **Tabula Gladiatorum**, **Arenas**, **Agents & roles**, **Settings**.
+Sidebar: **Tabula Gladiatorum**, **Arenas**, **Agents**, **Team**, **Settings**.
 No separate Agent Floor, knowledge graph or competing start screen.
 
 ## Screens
@@ -25,7 +25,8 @@ No separate Agent Floor, knowledge graph or competing start screen.
 | Screen | Primary content | Main action |
 | --- | --- | --- |
 | First launch | One setup card with Agents → Team → Arena → Tabula → Describe | Continue |
-| Agents & roles | Connection list; selected agent/team editor | Authorize / save team |
+| Agents | Connection list and provider setup | Authorize / check model |
+| Team | One role editor with collapsed history | Save team |
 | Arena creation | Name + native folder chooser; Git status and mutation preview | Create Arena |
 | Tabula setup | Default columns and role assignments; collapsed optional settings | Create Tabula |
 | Describe | Brief/file selection; proposed spec/task list | Create tasks |
@@ -38,6 +39,16 @@ Show plain explanations beside unfamiliar names initially: “Arena · project�
 “Tabula · board”, “Summa Rudis · coordinator”, “Secutor · final review”.
 The Arena dashboard contains the selected Tabula, avoiding an extra navigation
 hop to see tasks. A Tabula selector supports multiple saved boards.
+
+The current Team screen uses native disclosures, labelled text fields/selects,
+one Save action and explicit saved-role removal confirmation. Four responsibilities
+cannot be removed; names and instructions can change. New model choices come from
+the fresh verified Codex catalog. Saved stale/missing/changed bindings stay visible.
+It shows catalog availability separately from a passing diagnostic and never claims
+execution is enabled. Errors and dirty drafts survive live updates; stale saves
+are rejected, Reload saved asks before discarding edits, and saved state survives
+reconnect. The form retains its original revision guard during browser recovery.
+History is read-only and limited to the latest five entries on screen.
 
 ## Live activity
 

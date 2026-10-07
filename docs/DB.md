@@ -60,6 +60,25 @@ Starting another check or refreshing/changing the connection clears its current
 projection while append-only `model_check.*` events retain historical evidence.
 Cancellation holds admission until cleanup and cannot record late success.
 
+R030a adds append-only `team_revisions` (integer revision ID, unique nullable
+command ID, versioned JSON definition, UTC creation time). Migration seeds the
+four unassigned responsibilities as revision 1; custom roles use stable UUIDs.
+Definitions store ordered names/instructions, agent, catalog ID and resolved model
+identifier, with `execution: disabled`. Role text never becomes a grant. Names are
+unique after trim/case folding, at most 60 characters; instructions at most 2,000;
+teams contain 4–12 roles. SQLite triggers prohibit revision updates/deletes.
+
+`save_team` commits a completed/rejected command, revision when accepted and
+`team.saved`/`team.rejected` event in one short transaction before broadcast.
+Its expected revision is the **team** revision, not `workspace.revision`; saving
+cannot invalidate provider work. Matching command keys return the original result,
+stale editors cannot overwrite current state, and removing saved custom roles
+requires explicit confirmation. Events contain counts/revision/removed IDs or a
+closed reason, not instruction text. The UI exposes the latest five revisions;
+older history remains in SQLite. Existing bindings retain the resolved model
+through disconnect or catalog drift; new bindings require verified fresh metadata.
+Arena/Tabula overrides, schedules and executable grants are not implemented.
+
 The default native root is `~/Library/Application Support/CCoding Rebuild`,
 marked `.ccoding-rebuild-v1`. Unknown nonempty roots and symlinked storage are
 refused before migration. `foundation.db` and sidecars are private; old Cuckoding

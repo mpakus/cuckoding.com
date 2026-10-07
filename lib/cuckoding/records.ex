@@ -48,3 +48,14 @@ defmodule Cuckoding.BrowserToken do
     field :expires_at, :integer
   end
 end
+
+defmodule Cuckoding.TeamRevision do
+  @moduledoc false
+  use Ecto.Schema
+
+  schema "team_revisions" do
+    field :command_id, :binary_id
+    field :definition, :map
+    field :inserted_at, :utc_datetime_usec
+  end
+end

@@ -2,7 +2,7 @@
 
 The local preview includes R010's tray, authenticated browser and durable setup
 check, plus Codex version, private-profile inspection, managed sign-in/out and a
-fixed model diagnostic. Human-completed real-account/model acceptance and repository
+fixed model diagnostic, plus R030a saved default-team configuration. Human-completed real-account/model acceptance and repository
 execution remain R020 work. The previous source
 reset remains intentional; do not restore the deleted implementation wholesale.
 
@@ -29,7 +29,7 @@ release and listener. No dock window or embedded web frontend is created.
 This build is not notarized or public-release certified. Clean-machine, signing,
 update and physical sleep/wake acceptance remain R060/R100.
 
-In **Agents & roles**, Check setup discovers paths without running them. Choose
+In **Agents**, Check setup discovers paths without running them. Choose
 or edit the Codex path, confirm that you trust it, then **Check Codex version**.
 Changing the path clears confirmation. The fixed version probe expires after
 five seconds, has a Cancel control and persists public results. It does not sign
@@ -70,6 +70,17 @@ requested/runtime model, timestamp and measured duration. **Cancel model check**
 waits for cleanup; provider usage may already have occurred. A failed/interrupted
 check requires fresh consent and never automatically retries. No repository task
 or arbitrary prompt is available. Connection refresh clears the current result.
+
+Open **Team** to rename the four default roles, edit instructions or add up to
+eight custom roles. Leave assignments empty to save a draft; choose Codex and a
+model from its current catalog to bind one. Save creates an immutable revision;
+expand **Recent saved revisions** to inspect the latest five. Removing a saved
+custom role needs confirmation. A stale editor keeps its draft and refuses to
+overwrite a newer revision; **Reload saved** asks before discarding edits.
+Model disconnect/drift is visible and never silently replaces the saved model.
+To replace a changed model behind the same catalog ID, clear/save the binding
+then explicitly select/save it again. Saving starts no agent; grants and Arena/
+Tabula inheritance remain later work. Use only non-secret role instructions.
 
 The shell starts a bundled OTP release with a private HOME, clean environment,
 exclusive data lock and an ephemeral IPv4 loopback port. It owns the one-time

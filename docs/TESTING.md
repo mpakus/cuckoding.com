@@ -16,6 +16,7 @@ and full-story gates remain open. Historical test counts do not establish proof.
 | R020c | Consent/invalidation, official URL validation and session redirect, matching completion, profile exclusion, cancel/cleanup, uncertain restart, real login start/cancel and packaged UI |
 | R020d | Usage consent, fresh identity/catalog binding, effective grant preflight, model/thread/turn matching, early completion, tool refusal, cancellation/no replay, closed receipts/canaries, reconnect UI and packaged smoke; real signed-in responses remain separate |
 | R020 | Adapter parsing/cancellation/canaries, model-cache persistence/failure, real login + isolated execution across two workspaces |
+| R030a | Seed/immutable history, command replay, competing revisions, bounded roles, confirmed removal, stale/missing/drifted bindings, expired sessions, draft preservation/browser revision guard, fresh/prior-schema package smoke |
 | R030 | Team revision inheritance, custom role grants, model/auth separation, historical snapshot immutability |
 | R040 | Init refusal/consent, initial-commit preview, path confinement, file-task provenance, dependency cycles, custom column gates |
 | R050 | Structured decisions, stale/foreign proposal refusal, review return, exact-head/criteria/check binding, local integration |
