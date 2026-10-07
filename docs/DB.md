@@ -119,7 +119,8 @@ task UUIDs from the same Tabula. It adds no migration or persisted projection
 column: `Tabulae.tasks/1` joins the current revision and populates a virtual field.
 Missing fields in old history read as `[]`; old rows/command payloads are never
 rewritten. Saving without this optional field preserves current prerequisites;
-an explicit `[]` clears them. Imported proposals begin with `[]`.
+an explicit `[]` clears them. Legacy v1 imports begin with `[]`; v2 imports
+resolve proposed dependencies as described below.
 
 The immediate save transaction rejects self, missing, cross-board and cyclic
 links against the latest board graph. This also catches a cycle introduced by
@@ -127,6 +128,23 @@ another task changing after the editor opened. Rejections retain the original
 task/history; `draft.saved` includes dependency IDs but no prose. No task deletion
 or board reassignment is available; future commands must enforce these graph
 invariants too. These links are planning facts, not execution readiness.
+
+R040h adds the versioned `brief-plan-v2` response contract without a migration.
+Each of 1–6 suggestions has title/description/criteria plus distinct `depends_on`
+and `sources` integer arrays. Dependencies reference earlier zero-based suggestion
+indices; sources reference the 0–4 selected snapshots in the frozen request.
+Self/forward/cyclic/duplicate/missing/out-of-range references and v1-shaped answers
+to v2 requests are discarded before proposal storage. Old v1 requests/receipts
+keep their three-field tasks and remain importable without invented citations.
+
+`import_plan_task` resolves prerequisite indices to UUIDs using completed import
+commands from the same proposal and Tabula, inside its immediate transaction.
+Missing imports record `prerequisites_not_imported`; retry uses a fresh command
+key. Imported tasks never overwrite an earlier imported task's edits. The draft
+revision stores resolved UUIDs; the import's proposal/index link retains original
+citations. UI citations show the exact stored path/text/hash, not current files or
+evidence that later edits are supported. `planning.completed` adds dependency and
+citation counts only; source text and paths stay out of events.
 
 R040c reuses the six-migration schema. `inspect_arena_git` / `init_arena_git`
 snapshot Arena ID, operation, directory identity and (for init) the confirmed

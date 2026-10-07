@@ -12,7 +12,8 @@ Tabulae and manual draft tasks; R040c adds explicit Git inspection and confirmed
 initialization. R040d adds explicit file previews and consented initial commits.
 R040e adds consented Speculator proposals from typed briefs and individual imports
 into Specs. R040f adds explicit selected-document previews and consented snapshot
-inputs. R040g adds revisioned, acyclic manual task prerequisites. Accepted Markdown
+inputs. R040g adds revisioned, acyclic manual task prerequisites; R040h adds
+Speculator prerequisite proposals and per-task snapshot references. Accepted Markdown
 specs, dependency scheduling and execution grants remain open.
 R030b lets existing Arenas/Tabulae explicitly adopt a newer saved default team
 without rewriting earlier requests or drafts. Per-scope role editing remains open.
@@ -188,15 +189,17 @@ Depends on R030.
   selected files or `docs/`; persist versioned specs, source references and
   acceptance criteria. R040b implements manual database drafts and criteria;
   R040e adds brief proposals and source-command provenance; R040f adds selected
-  document snapshots. File-backed accepted specs, per-task validated citations
-  and custom planning-role selection remain.
+  document snapshots; R040h validates per-task citation scope and proposed
+  prerequisites. File-backed accepted specs and custom planning-role selection remain.
 - [x] R040g: select bounded same-board task prerequisites, reject cycles against
   the latest graph and retain dependency revisions without launching work. See
   [task](../tasks/R040g-task-prerequisites.md) and
   [evidence](../worklog/2026-10-07-R040g-task-prerequisites.md).
-- [ ] Extend dependency/citation validation to provider-proposed task graphs;
-  current proposals deliberately contain no dependency IDs. Manual bounds and
-  pre-start edits are implemented; accepted-spec validation remains open.
+- [x] R040h: validate prerequisite-first proposal graphs and selected-snapshot
+  citations; resolve imported prerequisites and preserve original source linkage.
+  See [task](../tasks/R040h-proposal-links.md) and
+  [evidence](../worklog/2026-10-07-R040h-proposal-links.md). Citation meaning and
+  accepted-spec validation remain separate from reference validation.
 - [ ] Persist project-approved check commands and grants separately from agent
   proposals. Provide empty states and keyboard task movement.
 

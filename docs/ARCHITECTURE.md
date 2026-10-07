@@ -43,6 +43,13 @@ the immediate transaction before projection/history/event writes. No new table,
 worker or scheduler is needed. The graph is loaded per save; query reachable
 edges if board size makes this too costly.
 
+R040h versions new proposals as `brief-plan-v2`. Task references use earlier
+proposal indices; citations use frozen document indices. Elixir binds both to
+the saved contract/request before persistence. Tabulae resolves prerequisite
+indices through completed same-board import receipts in the existing transaction.
+Original citations remain reachable through the import command after draft edits.
+The native transport still uses the same no-tools scratch grant. No new migration.
+
 Audit consequences: preserve these domain/host boundaries; extend planning and
 acceptance evidence before adding execution. The seven-migration schema has no
 accepted spec artifacts, battle authorization, attempts, reviews,

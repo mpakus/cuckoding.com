@@ -174,6 +174,7 @@ defmodule CuckodingWeb.TabulaLive do
 
   defp refresh(socket) do
     board = socket.assigns.board
+    editing = board != nil and socket.assigns.revision > 0
     git = ArenaGit.latest(socket.assigns.arena.id)
     paths = if git, do: git.payload["paths"] || [], else: []
 
@@ -186,8 +187,12 @@ defmodule CuckodingWeb.TabulaLive do
       now: DateTime.utc_now(),
       boards: Tabulae.list(socket.assigns.arena.id),
       tasks: if(board, do: Tabulae.tasks(board.id), else: []),
+      source:
+        if(editing,
+          do: Tabulae.source(board.id, socket.assigns.task_id)
+        ),
       history:
-        if(board && socket.assigns.revision > 0,
+        if(editing,
           do: Tabulae.history(board.id, socket.assigns.task_id),
           else: []
         )
@@ -754,6 +759,22 @@ defmodule CuckodingWeb.TabulaLive do
           <p :if={@error} id="draft-error" role="alert" class="notice">{@error}</p>
           <button id="draft-save" type="submit" class="button primary" phx-disable-with="Saving…">Save task</button>
         </.form>
+        <details
+          :if={@source}
+          id="draft-source"
+          phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
+        >
+          <summary>Original proposal sources</summary>
+          <p class="fine-print">
+            Proposal {@source.plan_id} · suggestion {@source.index + 1}.
+            These snapshots describe the original import, not later draft edits or live files.
+          </p>
+          <p :if={@source.documents == []} class="fine-print">No task-specific document citations.</p>
+          <CuckodingWeb.PlanningComponent.documents
+            id="draft-source-document"
+            files={@source.documents}
+          />
+        </details>
         <details
           :if={@history != []}
           id="draft-history"

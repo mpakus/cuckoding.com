@@ -125,7 +125,28 @@ defmodule Cuckoding.Tabulae do
             fragment("json_extract(?, '$.tabula_id')", c.payload) == ^tabula_id,
         select: c.payload
     )
-    |> MapSet.new(&{&1["proposal_id"], &1["index"]})
+    |> Map.new(&{{&1["proposal_id"], &1["index"]}, &1["task_id"]})
+  end
+
+  def source(tabula_id, task_id) do
+    imported =
+      Repo.one(
+        from c in Command,
+          where:
+            c.kind == "import_plan_task" and c.state == "completed" and
+              fragment("json_extract(?, '$.tabula_id')", c.payload) == ^tabula_id and
+              fragment("json_extract(?, '$.task_id')", c.payload) == ^task_id
+      )
+
+    if imported do
+      plan = Repo.get!(Command, imported.payload["proposal_id"])
+
+      %{
+        plan_id: plan.id,
+        index: imported.payload["index"],
+        documents: Planning.sources(plan, imported.payload["index"])
+      }
+    end
   end
 
   defp proposal_task(payload) do
@@ -135,6 +156,18 @@ defmodule Cuckoding.Tabulae do
          command.payload["tabula_id"] == payload["tabula_id"] do
       if proposal = Planning.proposal(command), do: Enum.at(proposal["tasks"], payload["index"])
     end
+  end
+
+  defp import_content(payload) do
+    task = proposal_task(payload)
+    imported = imported(payload["tabula_id"])
+
+    dependencies =
+      Enum.map(Map.get(task, "depends_on", []), &Map.get(imported, {payload["proposal_id"], &1}))
+
+    task
+    |> Map.take(~w(title description criteria))
+    |> Map.merge(%{"column" => "specs", "depends_on" => dependencies})
   end
 
   defp command(id, kind, expected, payload) do
@@ -198,14 +231,18 @@ defmodule Cuckoding.Tabulae do
       is_nil(get(payload["arena_id"], payload["tabula_id"])) or is_nil(proposal_task(payload)) ->
         "invalid_proposal"
 
-      MapSet.member?(imported(payload["tabula_id"]), {payload["proposal_id"], payload["index"]}) ->
+      Map.has_key?(imported(payload["tabula_id"]), {payload["proposal_id"], payload["index"]}) ->
         "already_imported"
 
       Repo.get(DraftTask, payload["task_id"]) != nil ->
         "invalid_proposal"
 
       true ->
-        nil
+        content = import_content(payload)
+
+        if Enum.any?(content["depends_on"], &is_nil/1),
+          do: "prerequisites_not_imported",
+          else: dependency_rejection(Map.put(payload, "content", content))
     end
   end
 
@@ -286,7 +323,7 @@ defmodule Cuckoding.Tabulae do
   end
 
   defp write("import_plan_task", id, expected, payload) do
-    content = Map.put(proposal_task(payload), "column", "specs")
+    content = import_content(payload)
     write("save_draft", id, expected, Map.put(payload, "content", content))
 
     Foundation.record(

@@ -41,6 +41,11 @@ file access. **Preview documents** reads up to four explicit Arena-relative
 `.md`/`.txt` files locally (4,096 bytes each, 12,000 total). Review exact text and
 hashes, then separately consent to send those snapshots. Proposals and source
 text survive reconnect/restart. Files are never crawled or implicitly uploaded.
+New suggestions include prerequisites and citations to those exact snapshots.
+Add prerequisite suggestions to Specs first; dependent imports retain their task
+links. **Original proposal sources** in the task editor preserves cited text and
+hashes after later edits. Check that each citation supports the suggestion; the
+app validates reference scope, not semantic correctness.
 
 Real Codex `0.146.0` login start/cancel, signed-out inspection and restricted
 configuration/thread preflight passed. Successful model responses use fixtures;
@@ -50,7 +55,8 @@ battles remain unimplemented. Registration alone does not validate Git; an expli
 distinguishes missing, unborn and committed standalone repositories.
 The product story above remains the target, not a shipped capability list.
 
-Evidence: [Task prerequisites worklog](worklog/2026-10-07-R040g-task-prerequisites.md),
+Evidence: [Proposal links worklog](worklog/2026-10-07-R040h-proposal-links.md),
+[Task prerequisites worklog](worklog/2026-10-07-R040g-task-prerequisites.md),
 [Selected document planning worklog](worklog/2026-10-07-R040f-document-planning.md),
 [Scoped team adoption worklog](worklog/2026-10-07-R030b-scoped-team-adoption.md),
 [Brief planning worklog](worklog/2026-10-07-R040e-brief-planning.md),

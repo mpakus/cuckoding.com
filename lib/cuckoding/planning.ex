@@ -41,7 +41,7 @@ defmodule Cuckoding.Planning do
           "arena_id" => board.arena_id,
           "tabula_id" => board.id,
           "grant" => "scratch-read-only-v1",
-          "contract" => "brief-plan-v1",
+          "contract" => "brief-plan-v2",
           "document_preview_id" => preview_id,
           "documents" => elem(documents, 1)
         })
@@ -128,7 +128,7 @@ defmodule Cuckoding.Planning do
         payload["identity"],
         Storage.codex_profile!(),
         Storage.probe_directory!(command.id, command.attempts),
-        Map.merge(Map.take(payload, ~w(model effort brief documents)), %{
+        Map.merge(Map.take(payload, ~w(model effort brief documents contract)), %{
           "request_id" => command.id,
           "instructions" => payload["role"]["instructions"]
         }),
@@ -160,13 +160,18 @@ defmodule Cuckoding.Planning do
           )
         )
 
+      tasks = get_in(result, ["proposal", "tasks"]) || []
+
       Foundation.record(
         "planning.#{state}",
         Map.merge(
           Map.take(result, ~w(status pid spawned_at_ms elapsed_ms)),
           %{
             "tabula_id" => claim.payload["tabula_id"],
-            "task_count" => length(get_in(result, ["proposal", "tasks"]) || [])
+            "task_count" => length(tasks),
+            "dependency_count" =>
+              Enum.sum(Enum.map(tasks, &length(Map.get(&1, "depends_on", [])))),
+            "citation_count" => Enum.sum(Enum.map(tasks, &length(Map.get(&1, "sources", []))))
           }
         ),
         claim.id
@@ -184,9 +189,16 @@ defmodule Cuckoding.Planning do
   end
 
   defp outcome(_, claim, %{"status" => "planned"} = result) do
-    if matching?(claim, result),
-      do: {"completed", result},
-      else: {"failed", %{"status" => "model_mismatch"}}
+    cond do
+      not matching?(claim, result) ->
+        {"failed", %{"status" => "model_mismatch"}}
+
+      not scoped_proposal?(claim.payload, result["proposal"]) ->
+        {"failed", %{"status" => "invalid_response"}}
+
+      true ->
+        {"completed", result}
+    end
   end
 
   defp outcome(_, _, result), do: {"failed", result}
@@ -236,27 +248,64 @@ defmodule Cuckoding.Planning do
         payload: payload
       }) do
     result = payload["observation"] |> Jason.encode!() |> normalize()
-    result["proposal"]
+
+    if result["proposal"] && scoped_proposal?(payload, result["proposal"]),
+      do: result["proposal"]
   end
 
   def proposal(_), do: nil
 
+  def sources(command, index) when is_integer(index) and index in 0..5 do
+    with %{} = proposal <- proposal(command),
+         %{} = task <- Enum.at(proposal["tasks"], index) do
+      Enum.map(Map.get(task, "sources", []), &Enum.at(command.payload["documents"] || [], &1))
+    else
+      _ -> []
+    end
+  end
+
+  defp scoped_proposal?(payload, proposal) do
+    size =
+      case payload["contract"] do
+        "brief-plan-v1" -> 3
+        "brief-plan-v2" -> 5
+        _ -> 0
+      end
+
+    Enum.all?(proposal["tasks"], fn task ->
+      map_size(task) == size and
+        indexes?(Map.get(task, "sources", []), length(payload["documents"] || []))
+    end)
+  end
+
   defp valid_proposal?(%{"summary" => summary, "tasks" => tasks} = proposal)
        when is_list(tasks) and length(tasks) in 1..6 do
-    map_size(proposal) == 2 and text?(summary, 2_000) and Enum.all?(tasks, &valid_task?/1) and
+    map_size(proposal) == 2 and text?(summary, 2_000) and
+      Enum.all?(Enum.with_index(tasks), fn {task, index} -> valid_task?(task, index) end) and
       length(Enum.uniq_by(tasks, &String.downcase(String.trim(&1["title"])))) == length(tasks)
   end
 
   defp valid_proposal?(_), do: false
 
   defp valid_task?(
-         %{"title" => title, "description" => description, "criteria" => criteria} = task
+         %{"title" => title, "description" => description, "criteria" => criteria} = task,
+         index
        ),
        do:
-         map_size(task) == 3 and text?(title, 120) and not String.contains?(title, ["\n", "\t"]) and
+         (map_size(task) == 3 or
+            (map_size(task) == 5 and indexes?(task["depends_on"], index) and
+               indexes?(task["sources"], 4))) and
+           text?(title, 120) and not String.contains?(title, ["\n", "\t"]) and
            text?(description, 4_000) and text?(criteria, 2_000)
 
-  defp valid_task?(_), do: false
+  defp valid_task?(_, _), do: false
+
+  defp indexes?(values, bound) when is_list(values),
+    do:
+      length(values) <= bound and length(Enum.uniq(values)) == length(values) and
+        Enum.all?(values, &(is_integer(&1) and &1 >= 0 and &1 < bound))
+
+  defp indexes?(_, _), do: false
 
   defp text?(text, max) when is_binary(text),
     do:

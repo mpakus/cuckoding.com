@@ -64,7 +64,9 @@ defmodule Cuckoding.PlanningFixtures do
           %{
             "title" => "A proposed task",
             "description" => "Implement the brief",
-            "criteria" => "A focused test passes"
+            "criteria" => "A focused test passes",
+            "depends_on" => [],
+            "sources" => []
           }
         ]
       }
@@ -84,5 +86,45 @@ defmodule Cuckoding.PlanningFixtures do
         }
       ]
     }
+  end
+
+  def document_plan_fixture(board) do
+    {:ok, preview} =
+      Cuckoding.PlanningDocuments.request(Ecto.UUID.generate(), board.arena_id, board.id, [
+        "docs/plan.md"
+      ])
+
+    {:ok, claim} = Foundation.claim()
+    {:ok, _} = Foundation.finish(claim, document_receipt())
+    setup = Cuckoding.Planning.setup(board, preview.id)
+
+    {:ok, _} =
+      Cuckoding.Planning.request(
+        Ecto.UUID.generate(),
+        board.arena_id,
+        board.id,
+        "Plan from the selected source",
+        setup.token,
+        true,
+        preview.id
+      )
+
+    {:ok, claim} = Foundation.claim()
+    claim
+  end
+
+  def linked_planning_receipt(id) do
+    task = hd(planning_receipt(id)["proposal"]["tasks"])
+
+    tasks =
+      for {title, dependencies} <- [
+            {"Specify response", []},
+            {"Implement response", [0]},
+            {"Check response", [0, 1]}
+          ] do
+        Map.merge(task, %{"title" => title, "depends_on" => dependencies, "sources" => [0]})
+      end
+
+    put_in(planning_receipt(id), ["proposal", "tasks"], tasks)
   end
 end

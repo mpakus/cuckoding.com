@@ -6,6 +6,7 @@ fixed model diagnostic, R030a saved default-team configuration and R040a Arena
 registration, R040b Tabulae/manual drafts, R040c Git inspection/init and R040d
 previewed initial commits. R040e adds Speculator proposals and explicit imports into Specs; R040f adds
 selected document snapshots. R040g adds manual task prerequisites. R030b adds explicit saved-team adoption for existing scopes.
+R040h adds proposed prerequisites and per-task selected-snapshot citations.
 Human-completed real-account/model acceptance and repository
 execution remain R020 work. The previous source
 reset remains intentional; do not restore the deleted implementation wholesale.
@@ -229,6 +230,15 @@ Git/files. **Use brief only** omits snapshots; reconnect shows the retained prev
 and requires **Use these snapshots** to select it again. Editing a project file
 does not change an existing snapshot; preview again to send new content. Imported
 drafts retain the proposal/source snapshot linkage.
+
+New suggestions list their prerequisites and cite selected snapshots by exact
+stored text/hash. Expand each citation and check its relevance, then add the
+prerequisite suggestions before their dependents. An out-of-order import leaves
+all drafts unchanged. Later imports keep links to already imported tasks without
+replacing user edits. Open an imported task and expand **Original proposal sources**
+to inspect its citations, including after app restart. These describe the original
+proposal; editing a task does not update or revalidate its source claims. Older
+proposals still import with no inferred prerequisite/citation fields.
 
 Focused checks: `rtk mix test test/cuckoding/planning_test.exs test/cuckoding/planning_documents_test.exs
 test/cuckoding_web/planning_live_test.exs test/cuckoding/model_check_test.exs` and

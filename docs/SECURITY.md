@@ -256,3 +256,11 @@ Known credential paths are excluded, but arbitrary text may contain private data
 this is not a secret scanner. Users review the exact selected text before sending.
 Same-user filesystem interference and the provider's actual enforcement remain
 outside fixture proof; real-provider acceptance is still required.
+
+R040h reference arrays grant no new authority. A new v2 response may reference
+only earlier suggestions and document snapshots in its frozen request; the host
+rejects contract downgrade and malformed/foreign references before storing text.
+Import resolves same-board prerequisite UUIDs through application receipts, never
+provider-supplied task IDs. Paths/hashes/text come from the retained selected
+snapshots; this validates provenance scope, not the truth of a model's citation.
+Original-source disclosures remain session/scoped and escaped after draft edits.

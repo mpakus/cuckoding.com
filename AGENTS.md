@@ -37,6 +37,11 @@ Preserve these implemented contracts:
   stdin text and the existing no-tools empty-scratch grant. Import validated
   proposals into Specs once with source-command/index provenance. Cancellation
   and expired claims cannot replay usage or accept late text/results.
+- New planning uses `brief-plan-v2`: distinct prerequisite indices refer only to
+  earlier suggestions; citation indices refer only to snapshots frozen in that
+  request. Reject downgrade/malformed references before storage. Resolve imports
+  through same-board receipts and preserve earlier user edits. Keep v1 receipts
+  readable without inferring links. A scoped citation is not proof of its truth.
 - Stateful LiveComponents install the shared session event guard and receive the
   server-owned session ID explicitly; parent hooks do not authorize their events.
   Preserve unsaved text and clear stale consent during live updates.

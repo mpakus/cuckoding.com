@@ -174,6 +174,9 @@ defmodule CuckodingWeb.PlanningComponent do
   defp message("already_imported"),
     do: "This suggestion is already in Specs. Edit the existing task."
 
+  defp message("prerequisites_not_imported"),
+    do: "Add this suggestion's prerequisites to Specs first. Existing tasks stay unchanged."
+
   defp message("planned"), do: "Proposals ready · review before adding to Specs."
   defp message("cancelled"), do: "Planning cancelled. No proposals were imported."
 
@@ -351,10 +354,28 @@ defmodule CuckodingWeb.PlanningComponent do
         </details>
         <div :if={proposal = Planning.proposal(plan)}>
           <p class="draft-copy">{proposal["summary"]}</p>
-          <article :for={{task, index} <- Enum.with_index(proposal["tasks"])} class="task-card">
-            <h4>{task["title"]}</h4>
+          <article
+            :for={{task, index} <- Enum.with_index(proposal["tasks"])}
+            id={"proposal-#{plan.id}-#{index}"}
+            class="task-card"
+          >
+            <h4>{index + 1}. {task["title"]}</h4>
             <p class="draft-copy">{task["description"]}</p>
             <p class="draft-copy">Acceptance criteria: {task["criteria"]}</p>
+            <p :if={Map.get(task, "depends_on", []) != []} class="fine-print">
+              Add prerequisites first: {Enum.map_join(
+                task["depends_on"],
+                "; ",
+                &Enum.at(proposal["tasks"], &1)["title"]
+              )}
+            </p>
+            <div :if={Map.get(task, "sources", []) != []}>
+              <p class="fine-print">Cited snapshots · check that these support the suggestion.</p>
+              <.documents
+                id={"proposal-sources-#{plan.id}-#{index}"}
+                files={Planning.sources(plan, index)}
+              />
+            </div>
             <button
               type="button"
               class="button"
@@ -362,9 +383,9 @@ defmodule CuckodingWeb.PlanningComponent do
               phx-target={@myself}
               phx-value-id={plan.id}
               phx-value-index={index}
-              disabled={MapSet.member?(@imported, {plan.id, index})}
+              disabled={Map.has_key?(@imported, {plan.id, index})}
             >
-              {if MapSet.member?(@imported, {plan.id, index}),
+              {if Map.has_key?(@imported, {plan.id, index}),
                 do: "Added to Specs",
                 else: "Add to Specs"}
             </button>
@@ -375,7 +396,7 @@ defmodule CuckodingWeb.PlanningComponent do
     """
   end
 
-  defp documents(assigns) do
+  def documents(assigns) do
     ~H"""
     <details
       :for={{file, index} <- Enum.with_index(@files)}

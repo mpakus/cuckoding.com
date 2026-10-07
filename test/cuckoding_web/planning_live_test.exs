@@ -119,4 +119,45 @@ defmodule CuckodingWeb.PlanningLiveTest do
     assert_redirect(view, "/locked")
     assert Cuckoding.PlanningDocuments.latest(board.id) == nil
   end
+
+  test "linked suggestions show source snapshots, gate imports and retain original provenance", %{
+    conn: conn,
+    board: board
+  } do
+    claim = document_plan_fixture(board)
+    {:ok, _} = Foundation.finish(claim, linked_planning_receipt(claim.id))
+    path = "/arenas/#{board.arena_id}/tabulae/#{board.id}"
+    signed = sign_in(conn)
+    {:ok, view, _} = live(signed, path)
+    view |> form("#draft-form", title: "Keep my manual draft") |> render_change()
+
+    assert has_element?(
+             view,
+             "#proposal-#{claim.id}-1",
+             "Add prerequisites first: Specify response"
+           )
+
+    assert has_element?(view, "#proposal-sources-#{claim.id}-1-0 pre", "Selected plan")
+    view |> element("#proposal-#{claim.id}-1 button", "Add to Specs") |> render_click()
+    assert has_element?(view, "#planning-error", "prerequisites to Specs first")
+    assert Tabulae.tasks(board.id) == []
+    view |> element("#proposal-#{claim.id}-0 button", "Add to Specs") |> render_click()
+    view |> element("#proposal-#{claim.id}-1 button", "Add to Specs") |> render_click()
+    [first, second] = Tabulae.tasks(board.id)
+    assert second.depends_on == [first.id]
+    assert has_element?(view, "#draft-title-input[value='Keep my manual draft']")
+    {:ok, again, _} = live(signed, path)
+    again |> element("button[aria-label='Edit Implement response']") |> render_click()
+    assert has_element?(again, "#draft-source", "Original proposal sources")
+    assert has_element?(again, "#draft-source-document-0", "docs/plan.md")
+    assert has_element?(again, "#draft-source-document-0 pre", "Build a small feature")
+    again |> form("#draft-form", title: "Edited implementation") |> render_submit()
+    again |> element("button[aria-label='Edit Edited implementation']") |> render_click()
+    assert has_element?(again, "#draft-source-document-0 pre", "Build a small feature")
+    assert has_element?(again, "#draft-source[phx-mounted*=ignore_attrs]")
+    Cuckoding.Repo.update_all(Cuckoding.BrowserToken, set: [expires_at: 0])
+    again |> element("#proposal-#{claim.id}-2 button", "Add to Specs") |> render_click()
+    assert_redirect(again, "/locked")
+    assert length(Tabulae.tasks(board.id)) == 2
+  end
 end

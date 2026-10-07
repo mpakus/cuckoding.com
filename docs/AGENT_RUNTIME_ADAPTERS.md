@@ -138,3 +138,11 @@ cancel/EOF signal. It adds a fixed per-turn `outputSchema`, accepts only matchin
 public assistant completion and returns a bound proposal receipt. Elixir validates
 the closed proposal schema again before storage. This does not expose arbitrary
 prompts with tools, general RPC, repository reads/writes or custom execution roles.
+
+R040h freezes `brief-plan-v2` in new requests and forwards it through the existing
+stdin boundary. Its outputSchema requires `depends_on` and `sources` integer
+arrays in addition to task text. The fixed reference instructions require earlier
+task indices and selected-document indices; Elixir validates ordering and request
+scope before persistence. Saved v1 requests use the original schema and receipts
+remain unchanged. Runtime permissions, model matching and cancellation are unchanged;
+v2 successful responses currently have fixture evidence only.

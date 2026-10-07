@@ -88,16 +88,24 @@ moves between Specs and ToDo; ToDo requires description and criteria. This is
 draft readiness only, not a validated spec or execution authorization. Delivery
 columns reject manual moves until battle execution exists. Stale editors keep
 their text and require explicitly loading a current draft; history is never
-rewritten. Validated per-task citations and custom columns remain
-open; R040f supplies selected document snapshots to planning below.
+rewritten. Accepted Markdown specs and custom columns remain open; R040f supplies
+selected document snapshots and R040h binds per-task source references below.
 
 R040g adds **Edit task → Prerequisites → Save task**. Select up to sixteen other
 tasks in the same Tabula; self-links, missing/foreign tasks and cycles are refused
 on save against the latest graph. Native checkboxes work with the keyboard.
 Cards show prerequisite titles/short IDs; revision history retains the exact IDs
 and labels them using current titles. Unsaved selections survive live updates.
-Imported proposals start without prerequisites. These are manual planning links;
+Legacy proposals start without prerequisites. These are planning links;
 ToDo does not wait for completion yet because battle scheduling is not implemented.
+
+R040h proposals list prerequisite suggestions first and cite only selected
+document snapshots. Expand citations to inspect exact text/hash, then **Add to
+Specs** in prerequisite order. Out-of-order imports are refused; they do not
+silently import other suggestions. Dependent tasks receive the prerequisite UUIDs
+without replacing earlier edits. **Original proposal sources** in the task editor
+retains citations after edits/reconnect. Citations are references to inspect, not
+a correctness verdict or live-file observation. Old proposals retain v1 behavior.
 
 | Column / stable key | Assigned role | Exit condition |
 | --- | --- | --- |
