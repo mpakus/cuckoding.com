@@ -1,6 +1,6 @@
 # R040j — Saved project checks
 
-Status: implemented and verified; local integration pending. Owner: Codex.
+Status: complete; implemented, verified and merged to local main (`6a83d06`). Owner: Codex.
 
 - Let the user configure up to eight named Arena checks with an executable name,
   literal argument list, relative working directory and finite timeout. Do not

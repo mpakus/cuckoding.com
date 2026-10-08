@@ -137,4 +137,12 @@ README, AGENTS and docs now distinguish saved checks from authority to execute.
 diff check found one extra EOF blank in DECISIONS.md; `rtk proxy git diff --check`
 exposed the exact diagnostic and it was fixed before the passing check.
 
-Local integration closeout pending.
+## Local integration
+
+Implementation commit `6a83d06` (`feat(checks): save confirmed Arena verification
+declarations`) was fast-forwarded into local main with `rtk git switch main` and
+`rtk git merge --ff-only feature/r040j-project-checks`.
+`rtk git branch -d feature/r040j-project-checks` deleted the merged feature branch.
+`rtk git status --short --branch` was clean, one commit ahead of saved origin/main
+before this task/worklog closeout. No push performed. The tested package contains
+the same implementation; this closeout changes only task and worklog status.
