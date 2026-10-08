@@ -328,3 +328,34 @@ task text, source paths and Markdown stay out of events.
 `documents.*` events record scope, status, file count and measured elapsed time,
 never paths, hashes or prose. Selected text is intentionally retained in the private
 local DB and sent only by separate planning consent; it is not secret-scanned.
+
+## R040j project check declarations
+
+The eighth migration adds append-only `check_revisions`: Arena FK, unique command
+FK, per-Arena consecutive revision, versioned definition and UTC timestamp. A
+unique Arena/revision index and sequence trigger reject duplicate/skipped revisions;
+update/delete triggers preserve all earlier definitions. Old Arenas have implicit
+revision 0 with no checks; the migration does not invent approval or rewrite data.
+
+`save_checks` validates a closed declaration schema and records explicit confirmation,
+expected revision and definition in a completed/rejected command. An immediate
+transaction saves revision +1 and `checks.completed` together, or records a closed
+`checks.rejected` reason. Matching keys return the original receipt; changed keys'
+inputs conflict, and stale writers cannot replace newer settings. These synchronous
+configuration commands never enter dispatch or change provider/workspace revisions.
+
+Format 1 contains `execution: disabled` and 0–8 checks, each with a canonical UUID,
+unique case-insensitive name (1–60 characters), executable basename (1–80 ASCII
+bytes, no RTK wrapper), up to 16 nonempty literal arguments (256 UTF-8 bytes each),
+a worktree-relative directory (240 bytes, `.` permitted, no traversal/empty parts/
+backslashes/home expansion), and integer timeout 1–1,800 seconds. Extra keys,
+controls and malformed inputs are refused. Empty lists explicitly remove configured
+checks; they never represent successful verification. Names/arguments are stored
+locally, escaped in the UI and omitted from events. Events contain Arena ID,
+previous/resulting revision, check count and closed reason only.
+
+The UI exposes the latest five immutable revisions; older rows remain in SQLite.
+Preview binds exact normalized fields before confirmation. Future battles must
+snapshot an explicit check revision; changing configuration cannot mutate a saved
+battle or imply permission to execute. Runtime grants and check receipts do not
+exist in this slice.

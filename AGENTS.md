@@ -48,6 +48,12 @@ Preserve these implemented contracts:
   overwrite or replay uncertain artifacts. Later task/prerequisite edits invalidate
   current acceptance; downloads require a live session and matching file hash.
   Specification acceptance never authorizes execution or modifies Arena files.
+- Project checks are explicit user-authored Arena revisions. Preview exact literal
+  argv, relative directory and timeout; require fresh consent for changes/removals.
+  Save revision/command/event atomically and reject stale or recovered foreign forms.
+  Never infer execution permission from these declarations or consume proposed
+  commands as policy. Future battle admission must freeze a revision and validate
+  executable identity, owned paths and actual grants before running anything.
 - Stateful LiveComponents install the shared session event guard and receive the
   server-owned session ID explicitly; parent hooks do not authorize their events.
   Preserve unsaved text and clear stale consent during live updates.

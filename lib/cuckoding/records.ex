@@ -90,6 +90,19 @@ defmodule Cuckoding.TeamAdoption do
   end
 end
 
+defmodule Cuckoding.CheckRevision do
+  @moduledoc false
+  use Ecto.Schema
+
+  schema "check_revisions" do
+    field :arena_id, :binary_id
+    field :command_id, :binary_id
+    field :revision, :integer
+    field :definition, :map
+    field :inserted_at, :utc_datetime_usec
+  end
+end
+
 defmodule Cuckoding.Tabula do
   @moduledoc false
   use Ecto.Schema

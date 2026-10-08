@@ -29,6 +29,7 @@ and full-story gates remain open. Historical test counts do not establish proof.
 | R040g | Same-board bounds/UUIDs, self/missing/foreign/cyclic refusal against the current graph, immutable history/legacy omission, idempotency/stale writes/event rollback, native checkboxes/dirty forms/reconnect and packaged prior-data/restart proof |
 | R040h | Versioned native/host contract, prerequisite-first indices/cycles/source scope, downgrade/legacy handling, ordered/idempotent imports with retained user edits, rollback and citation provenance, escaped/session-guarded UI, packaged fixture and restart |
 | R040i | Exact preview/revision consent, private Markdown/hash safety, stale task/prerequisite refusal, atomic acceptance/ToDo/history/event rollback, cancellation/interruption without replay, session-guarded downloads, preserved forms, packaged prior-data and restart |
+| R040j | Exact check preview/confirmation, closed bounds/literal argv, immutable scoped revisions, idempotency/stale writes/event rollback, recovered/expired forms, keyboard/dirty-state UI and fresh/prior-schema/restart package proof |
 | R050 | Structured decisions, stale/foreign proposal refusal, review return, exact-head/criteria/check binding, local integration |
 | R060 | Launch/integration crash windows, restart, cleanup/PID reuse, budgets, provider failure, sleep-gap accounting |
 | R070 | Concurrent task/port claims, fairness, prerequisite bases, stale reviews, conflicting integration and recovery |

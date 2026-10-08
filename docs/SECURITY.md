@@ -285,3 +285,22 @@ the descriptor-relative untrusted Arena reader. They do not defeat a hostile
 same-user process racing path replacement or arbitrary disk failure. A lost or
 changed file is reported; Cuckoding does not silently regenerate acceptance.
 This grants no provider access, command execution, repository write or publication.
+
+
+R040j check declarations are configuration from the authenticated user only. The
+closed bounded schema permits literal argv, a relative directory and a finite
+timeout; it rejects extra environment/network/grant keys, RTK wrappers, paths as
+executables, path traversal and control characters. Previewed content is escaped;
+changed content/scope/revision clears consent. Every save/removal needs explicit
+confirmation and an atomic revision/event. Stale/recovered forms cannot silently
+rebase their edits, and expired sessions cannot save. No provider/filesystem reader
+feeds this trusted configuration path. Event data omits command text.
+
+Validation checks declaration structure, not command safety or tool availability.
+Arguments such as quotes, spaces or shell-looking text remain exact data. An
+explicit interpreter/program may interpret arguments or run repository code;
+there is no claim that these strings enforce confinement. Nothing is resolved,
+read or executed in this slice. Future admission must verify executable identity,
+owned worktree paths (including symlinks), permitted operation, child environment,
+actual runtime grants and candidate-bound receipts. Do not put credentials in
+stored arguments. Saving checks does not grant network, file or process access.

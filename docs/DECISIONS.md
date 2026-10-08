@@ -23,6 +23,8 @@ not establish implementation or acceptance of this rebuild.
 | D016 | New Speculator proposals reference earlier tasks and selected snapshots by bounded indices | A versioned contract binds references to the frozen request; import resolves prerequisites through same-board receipts and retains source provenance. No arbitrary path, task ID or execution authority comes from provider output |
 | D017 | Accepted specs freeze task and prerequisite revisions before writing private Markdown | Reuse durable command receipts and draft history. Verify the file and revisions before atomic acceptance/ToDo; keep stale or interrupted artifacts, never overwrite or auto-replay them. Acceptance grants no execution |
 
+| D018 | Save approved check declarations as immutable Arena revisions before battle execution | Explicitly preview literal argv, relative working directory and timeout; confirm changes/removals and audit atomically. Configuration never grants execution or proves a command safe. Future Start snapshots the revision and validates executable/worktree/runtime grants |
+
 The first release scope and deferred features are in [Product](PRODUCT.md).
 [Flow](FLOW.md) owns state, defaults and limits. Changes to settled boundaries
 must update this file before implementation and preserve the user-approved scope.

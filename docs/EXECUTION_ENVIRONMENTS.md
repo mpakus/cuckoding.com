@@ -34,6 +34,12 @@ become a shell command. Preserve full exit/timeout/cleanup outcomes and hashed
 redacted logs. Instructions to an agent are not proof that its runtime enforces
 the requested restriction; adapters report actual enforcement.
 
+R040j stores user-approved check declarations only. Each Arena revision retains
+literal argv, a relative working directory and finite timeout, with execution
+disabled. Configuration reads no files and launches no process. The eventual
+runner must bind this revision to Start authority, resolve/verify executables and
+worktree paths, enforce grants and retain check receipts; those remain open.
+
 ## RTK and Ponytail
 
 Contributors use RTK for every repository shell command and Ponytail full.

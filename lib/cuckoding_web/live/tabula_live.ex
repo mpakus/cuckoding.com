@@ -436,6 +436,7 @@ defmodule CuckodingWeb.TabulaLive do
         <p class="eyebrow">04 / TABULA</p>
         <h2 id="tabula-title">{if @board, do: @board.name, else: "Plan your next battle."}</h2>
         <.link :if={@board} navigate={~p"/arenas/#{@arena.id}"}>Arena settings</.link>
+        <.link navigate={~p"/arenas/#{@arena.id}/checks"} class="text-link">Project checks ↗</.link>
         <.live_component
           module={CuckodingWeb.TeamAdoptionComponent}
           id="scope-team"

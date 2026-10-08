@@ -32,6 +32,7 @@ defmodule CuckodingWeb.Router do
       live "/team", TeamLive, :team
       live "/arenas", ArenaLive, :arenas
       live "/arenas/:arena_id", TabulaLive, :index
+      live "/arenas/:arena_id/checks", ProjectChecksLive, :checks
       live "/arenas/:arena_id/tabulae/:id", TabulaLive, :show
       live "/about", HomeLive, :about
     end

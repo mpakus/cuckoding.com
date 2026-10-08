@@ -58,6 +58,23 @@ A board cannot change team during pending/running/cancelling planning. Earlier
 proposals and task drafts remain usable; new planning consent binds the adopted
 revision. Per-scope role editing and grants remain open.
 
+## Project checks
+
+R040j adds **Arena → Project checks → Add check → Review changes → confirm → Save
+checks**. Enter an executable name and one nonempty literal argument per line;
+spaces/quotes stay in that argument. An entirely blank argument field means no
+arguments. Choose a relative directory (`.` for worktree root) and timeout. The
+preview shows the exact executable/argument array. Removals are staged in the
+draft and require the same review/confirmation, including removal of every check.
+
+Saving creates an immutable Arena revision, starts nothing and grants no access.
+Live updates preserve draft text/errors, clear stale approval and show newer saved
+revisions. **Reload saved checks** asks before discarding edits; recovered forms
+from another Arena/revision remain blocked until reload. Historical definitions
+survive edits/restart. Future Start must bind the selected revision and separately
+validate executable, worktree and grants. No task or agent proposal can add an
+approved command, and an empty check list is never proof that checks passed.
+
 ## Planning
 
 Target: **Create tasks** launches the selected planning-capable role read-only, with a

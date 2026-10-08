@@ -8,6 +8,7 @@ previewed initial commits. R040e adds Speculator proposals and explicit imports 
 selected document snapshots. R040g adds manual task prerequisites. R030b adds explicit saved-team adoption for existing scopes.
 R040h adds proposed prerequisites and per-task selected-snapshot citations.
 R040i adds accepted private Markdown specifications with revision and hash checks.
+R040j adds revisioned, confirmed Arena check declarations; execution remains unavailable.
 Human-completed real-account/model acceptance and repository
 execution remain R020 work. The previous source
 reset remains intentional; do not restore the deleted implementation wholesale.
@@ -264,3 +265,26 @@ Use an isolated `CARGO_TARGET_DIR` for native QA if another bundle is running.
 Successful proposal fixtures are explicitly synthetic; human login and actual
 provider responses remain separate acceptance work. See the
 [R040e worklog](../worklog/2026-10-07-R040e-brief-planning.md).
+
+
+## Project checks (R040j)
+
+Open an Arena or Tabula and follow **Project checks**. **Add check** provides name,
+executable basename (for example `mix`), one nonempty argument per line (for
+example `test`), relative worktree directory (`.`) and timeout (default 300 seconds,
+range 1–1,800). Use up to eight named checks. Enter no RTK prefix or credentials.
+Quotes and spaces are literal, not shell syntax; leave the whole argument field
+blank for no arguments. Existence and runtime permission are not checked yet.
+
+**Review changes** shows exact normalized arrays/directories/timeouts. Confirm
+before **Save checks**, including staged removals. This records configuration only;
+it executes nothing and grants no access. Saved settings apply to the Arena;
+future battles must explicitly freeze a revision. Stale editors keep text and
+refuse to overwrite. **Reload saved checks** asks before discarding edits. The
+history disclosure retains the latest five definitions, with older rows in SQLite.
+An empty list never counts as passing verification.
+
+Focused checks: `rtk mix test test/cuckoding/project_checks_test.exs test/cuckoding_web/project_checks_live_test.exs`.
+The additive eighth migration preserves existing drafts/specifications and creates
+no check approval for old Arenas. Verify upgrades only on a backup copy. Older
+seven-migration builds refuse the new schema; do not downgrade a migrated root.

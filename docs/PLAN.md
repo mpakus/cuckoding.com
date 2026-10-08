@@ -14,7 +14,8 @@ R040e adds consented Speculator proposals from typed briefs and individual impor
 into Specs. R040f adds explicit selected-document previews and consented snapshot
 inputs. R040g adds revisioned, acyclic manual task prerequisites; R040h adds
 Speculator prerequisite proposals and per-task snapshot references. R040i adds
-explicit accepted Markdown specifications. Dependency scheduling and execution grants remain open.
+explicit accepted Markdown specifications. R040j adds confirmed Arena check declarations.
+Dependency scheduling, check execution and execution grants remain open.
 R030b lets existing Arenas/Tabulae explicitly adopt a newer saved default team
 without rewriting earlier requests or drafts. Per-scope role editing remains open.
 Historical source/tests/builds do not satisfy these gates.
@@ -202,7 +203,12 @@ Depends on R030.
   [evidence](../worklog/2026-10-07-R040h-proposal-links.md). Citation meaning and
   accepted-spec validation remain separate from reference validation.
 - [ ] Persist project-approved check commands and grants separately from agent
-  proposals. Provide empty states and keyboard task movement.
+  proposals. R040j implements saved declarations; actual grants/execution remain.
+  Draft empty states and keyboard movement exist in R040b.
+- [x] R040j: explicit check preview/consent, immutable Arena revisions, idempotent
+  audited saves, stale/recovered editor refusal and no implied execution authority.
+  See [task](../tasks/R040j-project-checks.md) and
+  [evidence](../worklog/2026-10-08-R040j-project-checks.md).
 - [x] R040i: preview/accept exact saved intent as private Markdown, bind task and
   prerequisite revisions, verify hashes and preserve historical artifacts after edits.
   Acceptance/ToDo/history/events commit together; uncertain writes never replay.
