@@ -21,6 +21,7 @@ release process group and private storage lock.
 | `Tabulae` | Immutable default boards, revisioned Specs/ToDo drafts, acyclic prerequisites and proposal import provenance; delivery columns stay locked |
 | `Planning`, `PlanningDocuments` | Freeze team/model/brief and optional selected text snapshots in commands; validate proposals before explicit draft import |
 | `ProjectChecks` | Immutable Arena check declarations, explicit preview/consent and atomic command/revision/event saves; no executable resolution, filesystem access or execution |
+| `BattlePreview` | Read-only aggregation of scoped saved preparation and verified spec artifacts; no durable battle state or launch authority |
 | `Specifications`, `Storage` | Freeze accepted draft/prerequisite revisions, write private Markdown, verify artifact hash and atomically commit acceptance/history/ToDo; no execution authority |
 | `ArenaGit`, `NativeHelper`, native `arena_git.rs` | Fixed inspect/init/initial-commit operations and descriptor-relative selected file reads; no remotes, hooks or arbitrary commands |
 
@@ -64,6 +65,14 @@ editor previews literal argv, relative directories and timeouts before consent;
 updates retain dirty input and clear stale approval. The existing command/event
 transaction records configuration synchronously without entering the dispatcher.
 Old Arenas begin with no approved checks. No arbitrary command runner is added.
+
+R050a builds Battle preview from a read transaction over existing projections and
+receipts, using the shared catalog checks and private specification reader. The
+current draft revision points directly to its acceptance command; truncated UI
+history is never used as an authority lookup. Git is a dated saved observation,
+not a fresh repository inspection. The LiveView marks displayed details stale on
+PubSub updates or after one minute and refreshes explicitly, retaining disclosures.
+No mutation, command, audit event, worker, migration or new runtime boundary is added.
 
 Audit consequences: preserve these domain/host boundaries; extend execution
 evidence before adding battles. The eight-migration schema has no

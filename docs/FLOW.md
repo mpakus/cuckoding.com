@@ -195,6 +195,20 @@ R040h adds per-task citation scope checks and R040i adds accepted Markdown specs
 
 ## Summa Rudis control loop
 
+R050a implements **Tabula → Battle preview → Refresh preview** as a read-only
+preparation view. It shows every saved task with its revision, acceptance/artifact
+status and current prerequisites; the assigned team (including planning-only
+custom roles); exact saved check argv/directories/timeouts; and the latest dated
+Git receipt. Defaults are never silently adopted. Saved ToDo placement without
+an acceptance receipt remains a draft. Missing/changed Markdown and prerequisite
+edits are visible, with links to the relevant setup screens.
+
+Updates or one minute of elapsed preview time mark the display stale. Refresh
+re-reads evidence without launching Git, checks or providers. This is not Start,
+membership selection, admission, a frozen snapshot or completion evidence.
+Specification acceptance remains optional planning; future Start still authorizes
+ordinary in-scope Speculator preparation. The control loop below remains a target.
+
 1. Read committed battle state, eligible tasks, public reports and remaining
    limits. Invoke the coordinator only for a decision/event, not a busy polling
    conversation.

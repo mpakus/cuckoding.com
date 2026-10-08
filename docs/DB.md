@@ -1,5 +1,10 @@
 # Data model
 
+R050a's Battle preview adds no table or persisted workflow state. It reads existing
+team adoption, draft revision/acceptance, check revision and Git command receipts
+in one read transaction. Artifact verification describes bytes at observation
+time. No battle membership, approval or execution evidence is inferred or saved.
+
 Target schema, to be implemented incrementally. Use Ecto and SQLite with WAL,
 foreign keys, a busy timeout and short write transactions. Persist workflow
 truth here; files store human-readable content and processes do the work.

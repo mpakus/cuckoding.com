@@ -12,7 +12,7 @@ attention items and logs.
 
 ## Current state
 
-**Local preview, 2026-10-07.** The tray shell, authenticated browser, SQLite
+**Local preview, 2026-10-08.** The tray shell, authenticated browser, SQLite
 commands/events, tool discovery and Codex setup work. **Agents** provides
 consented version/profile checks, managed ChatGPT sign-in/out, a cached model
 catalog and a fixed model-access diagnostic. **Team** saves the four default
@@ -56,6 +56,11 @@ task or prerequisite edits mark it historical. Arena files remain untouched.
 a relative directory and a timeout. Review the exact declarations and confirm to
 create a revision; earlier versions remain available. Saving runs nothing.
 
+**Tabula → Battle preview** brings together the assigned team, saved tasks,
+prerequisites, verified accepted Markdown, declared checks and last Git observation.
+It shows missing or outdated preparation and links to settings. Refresh after
+changes; the preview grants no execution and starts no battle.
+
 Real Codex `0.146.0` login start/cancel, signed-out inspection and restricted
 configuration/thread preflight passed. Successful model responses use fixtures;
 human-completed login, real responses and repository execution remain open.
@@ -64,7 +69,8 @@ battles remain unimplemented. Registration alone does not validate Git; an expli
 distinguishes missing, unborn and committed standalone repositories.
 The product story above remains the target, not a shipped capability list.
 
-Evidence: [Project checks worklog](worklog/2026-10-08-R040j-project-checks.md),
+Evidence: [Battle preview worklog](worklog/2026-10-08-R050a-battle-preview.md),
+[Project checks worklog](worklog/2026-10-08-R040j-project-checks.md),
 [Accepted specifications worklog](worklog/2026-10-07-R040i-accepted-specifications.md),
 [Proposal links worklog](worklog/2026-10-07-R040h-proposal-links.md),
 [Task prerequisites worklog](worklog/2026-10-07-R040g-task-prerequisites.md),

@@ -57,6 +57,13 @@ Preserve these implemented contracts:
 - Stateful LiveComponents install the shared session event guard and receive the
   server-owned session ID explicitly; parent hooks do not authorize their events.
   Preserve unsaved text and clear stale consent during live updates.
+- Battle preview is a read-only observation, not a frozen battle, grant or Start
+  authorization. Use the Tabula's assigned team and current revision's acceptance
+  receipt; verify retained Markdown and prerequisite revisions. Mark old previews
+  stale on updates/expiry. A recorded HEAD or model diagnostic never proves live
+  Git cleanliness, worktree permission or task completion. Future Start still
+  needs atomic authority and fresh admission; optional spec acceptance must not
+  introduce ordinary per-task approval after Start.
 
 ## Mission and product contract
 

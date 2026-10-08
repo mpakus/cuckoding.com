@@ -9,6 +9,7 @@ selected document snapshots. R040g adds manual task prerequisites. R030b adds ex
 R040h adds proposed prerequisites and per-task selected-snapshot citations.
 R040i adds accepted private Markdown specifications with revision and hash checks.
 R040j adds revisioned, confirmed Arena check declarations; execution remains unavailable.
+R050a adds a read-only Battle preview for saved preparation and missing setup.
 Human-completed real-account/model acceptance and repository
 execution remain R020 work. The previous source
 reset remains intentional; do not restore the deleted implementation wholesale.
@@ -288,3 +289,22 @@ Focused checks: `rtk mix test test/cuckoding/project_checks_test.exs test/cuckod
 The additive eighth migration preserves existing drafts/specifications and creates
 no check approval for old Arenas. Verify upgrades only on a backup copy. Older
 seven-migration builds refuse the new schema; do not downgrade a migrated root.
+
+## Battle preview (R050a)
+
+From a Tabula, open **Battle preview**. Expand Git baseline, Assigned team, Saved
+tasks and Project checks with mouse or keyboard. The page shows the board's saved
+team revision, all draft tasks/prerequisites, current accepted Markdown status,
+exact check arrays and dated Git evidence. Download links recheck artifact hashes.
+Follow the settings links to address missing setup. Git observations expire after
+five minutes; **Refresh preview** only re-reads saved evidence, so use **Repository
+setup → Inspect Git** for a fresh repository observation.
+
+The page marks its details stale after saved updates or one minute. Refresh keeps
+disclosures open and rebuilds evidence. It creates no command, starts no provider,
+reads no Arena files and changes no draft. It is not a battle authorization or a
+promise that a configured command can run. Start/grants/worktrees/check execution
+and the independent review loop remain the next execution work; accepting specs
+beforehand stays optional. The schema is unchanged at eight migrations.
+
+Focused checks: `rtk mix test test/cuckoding/battle_preview_test.exs test/cuckoding_web/battle_preview_live_test.exs`.

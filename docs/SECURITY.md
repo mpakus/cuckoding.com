@@ -304,3 +304,13 @@ read or executed in this slice. Future admission must verify executable identity
 owned worktree paths (including symlinks), permitted operation, child environment,
 actual runtime grants and candidate-bound receipts. Do not put credentials in
 stored arguments. Saving checks does not grant network, file or process access.
+
+R050a Battle preview is protected by the existing session mount/event/update
+guards and validates Arena/Tabula scope before reading their evidence. It reuses
+private artifact hash/path checks and catalog executable-metadata checks, reads
+no Arena files and launches no command. Task/role/check text is escaped. A stale
+preview retains visibly historical details; Refresh creates no authorization.
+Recorded Git HEADs cannot establish current folder identity or cleanliness, and
+catalog/model diagnostics cannot establish repository grants. The future Start
+boundary must revalidate those facts independently. No hidden reasoning or new
+provider data is collected; no state transition means no synthetic audit event.
