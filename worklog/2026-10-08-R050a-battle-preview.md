@@ -126,4 +126,12 @@ no commands or workflow mutations. `rtk proxy python3
 Markdown link targets; `rtk git diff --check` passed. README, AGENTS and affected
 docs describe the delivered read-only boundary and remaining execution work.
 
-Local integration: pending.
+## Local integration
+
+Implementation commit `6899090` (`feat(battles): add scoped preparation preview`)
+was fast-forwarded into local main with `rtk git switch main` and
+`rtk git merge --ff-only feature/r050a-battle-preview`. Deleted the merged branch
+with `rtk git branch -d feature/r050a-battle-preview`. Local main was clean and
+one commit ahead of the saved origin/main reference before this documentation
+closeout. No fetch/push or deployment was performed. The tested bundle contains
+the same implementation; this closeout changes only task/worklog status.

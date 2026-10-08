@@ -1,6 +1,6 @@
 # R050a — Battle preparation preview
 
-Status: implementation and verification complete; local main integration pending. Owner: Codex.
+Status: complete; implemented, verified and merged to local main (`6899090`). Owner: Codex.
 
 - Give each Tabula a session-protected, read-only Battle preview using its
   assigned team, all saved tasks, current accepted Markdown, prerequisite
