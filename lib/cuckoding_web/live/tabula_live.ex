@@ -759,6 +759,17 @@ defmodule CuckodingWeb.TabulaLive do
           <p :if={@error} id="draft-error" role="alert" class="notice">{@error}</p>
           <button id="draft-save" type="submit" class="button primary" phx-disable-with="Saving…">Save task</button>
         </.form>
+        <.live_component
+          :if={@revision > 0}
+          module={CuckodingWeb.SpecificationComponent}
+          id="task-specifications"
+          session_id={@session_id}
+          board={@board}
+          task_id={@task_id}
+          revision={@revision}
+          dirty={@dirty || !@form_matches}
+          now={@now}
+        />
         <details
           :if={@source}
           id="draft-source"

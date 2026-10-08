@@ -13,8 +13,8 @@ initialization. R040d adds explicit file previews and consented initial commits.
 R040e adds consented Speculator proposals from typed briefs and individual imports
 into Specs. R040f adds explicit selected-document previews and consented snapshot
 inputs. R040g adds revisioned, acyclic manual task prerequisites; R040h adds
-Speculator prerequisite proposals and per-task snapshot references. Accepted Markdown
-specs, dependency scheduling and execution grants remain open.
+Speculator prerequisite proposals and per-task snapshot references. R040i adds
+explicit accepted Markdown specifications. Dependency scheduling and execution grants remain open.
 R030b lets existing Arenas/Tabulae explicitly adopt a newer saved default team
 without rewriting earlier requests or drafts. Per-scope role editing remains open.
 Historical source/tests/builds do not satisfy these gates.
@@ -190,7 +190,8 @@ Depends on R030.
   acceptance criteria. R040b implements manual database drafts and criteria;
   R040e adds brief proposals and source-command provenance; R040f adds selected
   document snapshots; R040h validates per-task citation scope and proposed
-  prerequisites. File-backed accepted specs and custom planning-role selection remain.
+  prerequisites. R040i adds file-backed accepted specs; custom planning-role selection
+  and battle-time spec preparation remain.
 - [x] R040g: select bounded same-board task prerequisites, reject cycles against
   the latest graph and retain dependency revisions without launching work. See
   [task](../tasks/R040g-task-prerequisites.md) and
@@ -202,6 +203,11 @@ Depends on R030.
   accepted-spec validation remain separate from reference validation.
 - [ ] Persist project-approved check commands and grants separately from agent
   proposals. Provide empty states and keyboard task movement.
+- [x] R040i: preview/accept exact saved intent as private Markdown, bind task and
+  prerequisite revisions, verify hashes and preserve historical artifacts after edits.
+  Acceptance/ToDo/history/events commit together; uncertain writes never replay.
+  See [task](../tasks/R040i-accepted-specifications.md) and
+  [evidence](../worklog/2026-10-07-R040i-accepted-specifications.md).
 
 Acceptance: create an Arena from an empty folder and one from existing docs;
 decline Git initialization without mutation; generate usable tasks with citations;

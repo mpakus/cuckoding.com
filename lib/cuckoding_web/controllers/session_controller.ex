@@ -43,4 +43,25 @@ defmodule CuckodingWeb.SessionController do
       conn
       |> put_status(401)
       |> text("Your session ended. Open Cuckoding from its menu bar icon.")
+
+  def specification(conn, %{"id" => id}) do
+    if ShellAuth.valid_session?(get_session(conn, :session_id)) do
+      case Cuckoding.Specifications.read(id) do
+        {:ok, markdown} ->
+          send_download(conn, {:binary, markdown},
+            filename: "specification-#{id}.md",
+            content_type: "text/markdown"
+          )
+
+        _ ->
+          conn
+          |> put_status(410)
+          |> text(
+            "This specification file is missing, changed or unavailable. Return to the task to accept a new preview."
+          )
+      end
+    else
+      locked(conn, %{})
+    end
+  end
 end

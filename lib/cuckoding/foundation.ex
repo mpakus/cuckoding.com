@@ -7,6 +7,7 @@ defmodule Cuckoding.Foundation do
                      [
                        "plan_tabula",
                        "preview_documents",
+                       "accept_spec",
                        "check_codex_model",
                        "choose_arena_folder",
                        "inspect_arena_git",
@@ -135,6 +136,7 @@ defmodule Cuckoding.Foundation do
               "logout_codex",
               "plan_tabula",
               "preview_documents",
+              "accept_spec",
               "check_codex_model",
               "choose_arena_folder",
               "inspect_arena_git",
@@ -336,6 +338,7 @@ defmodule Cuckoding.Foundation do
                  "logout_codex",
                  "plan_tabula",
                  "preview_documents",
+                 "accept_spec",
                  "check_codex_model",
                  "choose_arena_folder",
                  "inspect_arena_git",
@@ -407,6 +410,9 @@ defmodule Cuckoding.Foundation do
 
   def finish(%Command{kind: "preview_documents"} = claim, result),
     do: Cuckoding.PlanningDocuments.finish(claim, result)
+
+  def finish(%Command{kind: "accept_spec"} = claim, result),
+    do: Cuckoding.Specifications.finish(claim, result)
 
   def finish(%Command{kind: "plan_tabula"} = claim, result),
     do: Cuckoding.Planning.finish(claim, result)
@@ -587,6 +593,7 @@ defmodule Cuckoding.Foundation do
        do: "arena_git."
 
   defp prefix("preview_documents"), do: "documents."
+  defp prefix("accept_spec"), do: "spec."
   defp prefix("discover_tools"), do: "discovery."
   defp prefix("choose_arena_folder"), do: "arena_folder."
   defp prefix("probe_codex"), do: "codex."

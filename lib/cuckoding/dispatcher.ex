@@ -33,6 +33,8 @@ defmodule Cuckoding.Dispatcher do
   defp execute(%{kind: "preview_documents"} = command),
     do: Cuckoding.PlanningDocuments.execute(command)
 
+  defp execute(%{kind: "accept_spec"} = command), do: Cuckoding.Specifications.execute(command)
+
   defp execute(%{kind: "plan_tabula"} = command), do: Cuckoding.Planning.execute(command)
 
   defp execute(%{kind: "discover_tools"}), do: Cuckoding.Tools.discover()

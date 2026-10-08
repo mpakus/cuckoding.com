@@ -7,6 +7,7 @@ registration, R040b Tabulae/manual drafts, R040c Git inspection/init and R040d
 previewed initial commits. R040e adds Speculator proposals and explicit imports into Specs; R040f adds
 selected document snapshots. R040g adds manual task prerequisites. R030b adds explicit saved-team adoption for existing scopes.
 R040h adds proposed prerequisites and per-task selected-snapshot citations.
+R040i adds accepted private Markdown specifications with revision and hash checks.
 Human-completed real-account/model acceptance and repository
 execution remain R020 work. The previous source
 reset remains intentional; do not restore the deleted implementation wholesale.
@@ -116,8 +117,8 @@ editor to inspect revisions. Stale editors keep their text; copy it before
 discarding and loading the current task. Recovered mismatched forms also keep
 text but cannot overwrite another task. All drafts live in SQLite; no project
 files, Git commands or agent work are involved in manual draft saves.
-Brief/document Speculator planning is available; custom stages, accepted Markdown
-specs and battle execution remain unavailable.
+Brief/document Speculator planning and accepted Markdown specifications are
+available; custom stages and battle execution remain unavailable.
 
 Expand **Repository setup** in the Arena's Tabulae screen and choose **Inspect Git**.
 This checks standalone Git metadata using `/usr/bin/git` from the installed macOS
@@ -239,6 +240,22 @@ replacing user edits. Open an imported task and expand **Original proposal sourc
 to inspect its citations, including after app restart. These describe the original
 proposal; editing a task does not update or revalidate its source claims. Older
 proposals still import with no inferred prerequisite/citation fields.
+
+On a saved task, expand **Accepted specifications**, choose **Preview specification**
+and inspect **Exact Markdown text**. Nonempty description/criteria are required.
+Confirm the displayed task/prerequisite revisions and **Accept specification**.
+The app writes a private Markdown artifact and moves the exact saved task to ToDo;
+no agent, Git command or Arena file write occurs. Use **Reload task** for the new
+editor revision. Unsaved text is preserved and guarded before reload.
+
+**Download Markdown** verifies the file against its saved SHA-256. Artifacts live
+under `<app data>/specifications/<acceptance command UUID>.md`; they survive restart.
+Editing a task/prerequisite makes its old acceptance historical. Editing/removing
+a Markdown file makes downloads unavailable; accept a new preview to retain a new
+file. Prior files, including uncertain partial writes, are never overwritten or
+automatically replayed. Specification acceptance is intent, not execution approval.
+
+Focused acceptance checks: `rtk mix test test/cuckoding/specifications_test.exs test/cuckoding_web/specification_live_test.exs`.
 
 Focused checks: `rtk mix test test/cuckoding/planning_test.exs test/cuckoding/planning_documents_test.exs
 test/cuckoding_web/planning_live_test.exs test/cuckoding/model_check_test.exs` and

@@ -112,7 +112,8 @@ Events include IDs, revision and old/new columns, never task prose. Neither
 command touches setup revisions or enters the dispatcher. Title/description/
 criteria limits are 120/8,000/4,000 characters; ToDo needs nonblank description and
 criteria. The UI reads the latest five revisions; older history stays in SQLite.
-These are database drafts (manual or imported from R040e proposals), not file-backed accepted specification artifacts.
+These saves create database drafts. R040i separately accepts a saved revision as
+a file-backed specification; manually moving to ToDo does not create acceptance.
 
 R040g adds `depends_on` to revision content, with up to sixteen distinct canonical
 task UUIDs from the same Tabula. It adds no migration or persisted projection
@@ -199,7 +200,7 @@ history remain unchanged. The UI shows the last five adoptions; all remain store
 | Role definitions and team revisions | Stable role ID, display name, instructions, connection/model, grant, coordinator binding, revision |
 | Arenas | Canonical repository path, name, selected base ref, trusted settings revision |
 | Tabulae and workflow revisions | Arena, ordered columns/keys, role bindings, entry/exit contracts, limits |
-| Specs | Arena/Tabula/task scope, revision, source paths and hashes, Markdown artifact, criteria IDs |
+| Specs | R040i implements scoped revision snapshots, source paths/hashes and Markdown via commands; per-criterion IDs and battle binding remain |
 | Tasks and dependencies | Tabula, description, spec/criteria revision, column/status, priority, dependency edges, active attempt reference |
 | Battles and items | Arena/Tabula, state/revision, immutable authorization snapshot, task membership, original base and reviewed head |
 | Attempts and sessions | Task/stage/role instance, connection, requested/actual model, runtime/grant identity, lifecycle, continuation reference, cumulative counters |
@@ -297,6 +298,32 @@ remain readable. Later file edits cannot silently alter the requested snapshot;
 old planning results remain importable after preview expiry. Import provenance
 links draft revision → proposal command/index → preview ID and exact text/hash.
 This is source-set provenance, not validated per-task citations or accepted specs.
+
+## R040i accepted specifications
+
+No migration. `accept_spec` snapshots format version 1, Arena/Tabula/task IDs,
+source draft revision/content, prerequisite IDs/revisions, original proposal/index
+and cited snapshots, exact Markdown and SHA-256. Description and criteria must be
+nonempty. Confirmation binds the preview hash; scope, task and prerequisites are
+revalidated before enqueue and completion. Matching keys return the saved receipt.
+
+The dispatcher writes `specifications/<command UUID>.md` beneath private app
+storage, using exclusive creation, private permissions and a synced file. It never
+overwrites or writes into the Arena. Completion verifies bytes/hash, then commits
+the accepted receipt, draft revision +1, ToDo projection and events atomically.
+The normal draft history row references the acceptance command. No DB transaction
+is held during writing; a failed completion may leave a retained unaccepted file.
+The ten-second claim expires to interrupted without replay, and cancellation
+cannot accept a late write. Retry uses a new key/file; all prior files are retained.
+
+Current acceptance requires the exact resulting task revision and prerequisite
+revisions. Even a save that returns to old text invalidates the previous acceptance.
+The UI shows the five most recent requests; all command receipts/files remain.
+Authenticated downloads resolve only a completed acceptance ID and verify its hash;
+missing/changed/unsafe files are refused. A new acceptance can replace an unavailable
+artifact without overwriting it. File-backed intent is not tested completion or
+execution policy. `spec.*` events retain scope/revision/status/measured duration;
+task text, source paths and Markdown stay out of events.
 
 `documents.*` events record scope, status, file count and measured elapsed time,
 never paths, hashes or prose. Selected text is intentionally retained in the private

@@ -47,15 +47,21 @@ links. **Original proposal sources** in the task editor preserves cited text and
 hashes after later edits. Check that each citation supports the suggestion; the
 app validates reference scope, not semantic correctness.
 
+On a saved task, **Accepted specifications → Preview specification** shows exact
+Markdown with task/prerequisite revisions and original citations. Confirm to retain
+a private `.md` file and move the task to ToDo. Download verifies its hash; later
+task or prerequisite edits mark it historical. Arena files remain untouched.
+
 Real Codex `0.146.0` login start/cancel, signed-out inspection and restricted
 configuration/thread preflight passed. Successful model responses use fixtures;
 human-completed login, real responses and repository execution remain open.
-Accepted Markdown specs, dependency scheduling, execution grants and autonomous
+Dependency scheduling, execution grants and autonomous
 battles remain unimplemented. Registration alone does not validate Git; an explicit inspection
 distinguishes missing, unborn and committed standalone repositories.
 The product story above remains the target, not a shipped capability list.
 
-Evidence: [Proposal links worklog](worklog/2026-10-07-R040h-proposal-links.md),
+Evidence: [Accepted specifications worklog](worklog/2026-10-07-R040i-accepted-specifications.md),
+[Proposal links worklog](worklog/2026-10-07-R040h-proposal-links.md),
 [Task prerequisites worklog](worklog/2026-10-07-R040g-task-prerequisites.md),
 [Selected document planning worklog](worklog/2026-10-07-R040f-document-planning.md),
 [Scoped team adoption worklog](worklog/2026-10-07-R030b-scoped-team-adoption.md),

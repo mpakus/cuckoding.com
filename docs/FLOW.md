@@ -88,7 +88,7 @@ moves between Specs and ToDo; ToDo requires description and criteria. This is
 draft readiness only, not a validated spec or execution authorization. Delivery
 columns reject manual moves until battle execution exists. Stale editors keep
 their text and require explicitly loading a current draft; history is never
-rewritten. Accepted Markdown specs and custom columns remain open; R040f supplies
+rewritten. Custom columns remain open; R040f supplies
 selected document snapshots and R040h binds per-task source references below.
 
 R040g adds **Edit task → Prerequisites → Save task**. Select up to sixteen other
@@ -106,6 +106,18 @@ silently import other suggestions. Dependent tasks receive the prerequisite UUID
 without replacing earlier edits. **Original proposal sources** in the task editor
 retains citations after edits/reconnect. Citations are references to inspect, not
 a correctness verdict or live-file observation. Old proposals retain v1 behavior.
+
+R040i adds **Edit saved task → Accepted specifications → Preview specification →
+review exact Markdown → confirm → Accept specification**. Save unsaved edits first.
+Acceptance freezes the task, prerequisite revisions and original citations in
+private app storage, then moves the unchanged task to ToDo. It starts no agent.
+**Reload task** loads the resulting revision and asks before discarding unsaved
+edits. **Download Markdown** verifies retained bytes/hash through the authenticated
+session. Later task/prerequisite revisions mark the acceptance historical. Missing
+or modified files require a new preview/acceptance; old artifacts are preserved.
+Manual ToDo moves remain draft planning and do not imply acceptance. This is an
+optional pre-battle planning action; future Start authority still covers ordinary
+in-scope specification preparation without repeated post-Start prompts.
 
 | Column / stable key | Assigned role | Exit condition |
 | --- | --- | --- |
@@ -151,7 +163,7 @@ Suggestions are untrusted text, not commands. Import is explicit, scoped and
 idempotent; it creates a Specs draft with source-request/index provenance.
 Cancellation waits for owned cleanup, preserves the brief and rejects late results.
 Expired running claims become interrupted once and never silently repeat usage.
-Markdown spec artifacts, dependencies and battle workers remain open.
+R040g/h add dependencies; R040i adds accepted Markdown artifacts. Battle workers remain open.
 
 R040f adds **Optional documents → enter relative paths → Preview documents →
 review exact snapshots → confirm provider usage → Generate proposals**. Local
@@ -162,7 +174,7 @@ five minutes; re-preview or choose **Use brief only**. Changing selection clears
 consent without erasing the brief or draft editor. Reconnect retains the preview
 and previous planning sources but requires **Use these snapshots** to select it
 again. Imported drafts retain source-set provenance through their proposal;
-per-task citation validation and accepted Markdown specs remain open.
+R040h adds per-task citation scope checks and R040i adds accepted Markdown specs.
 
 ## Summa Rudis control loop
 

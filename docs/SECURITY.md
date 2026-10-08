@@ -160,7 +160,7 @@ after 30 seconds without shell contact. Sleep reconciliation remains R060.
 
 Sobelow exclusions are limited to intentional loopback HTTP (`Config.HTTPS`),
 its inability to resolve the dynamic-port origin MFA (`Config.CSWH`), the browser
-pipeline whose CSP is already set by `Boundary`, and two storage functions with
+pipeline whose CSP is already set by `Boundary`, and storage helpers with
 explicit absolute-path/symlink/private-file guards. Other checks fail at low
 confidence or higher. Boundary, replay, expiry and storage tests cover these
 decisions; exclusions are not permission to weaken them in later slices.
@@ -264,3 +264,24 @@ Import resolves same-board prerequisite UUIDs through application receipts, neve
 provider-supplied task IDs. Paths/hashes/text come from the retained selected
 snapshots; this validates provenance scope, not the truth of a model's citation.
 Original-source disclosures remain session/scoped and escaped after draft edits.
+
+R040i specification acceptance writes only a UUID-named `.md` file beneath the
+private app-owned `specifications/` directory. It never uses model/user paths or
+touches Arena files. Persist consented revision/text/hash intent before I/O; use
+exclusive creation, directory mode 0700, file mode 0600 and file sync. Reject
+symlink components; downloads require a bounded regular single-link private file,
+stable metadata and matching SHA-256. Existing or partial files are never overwritten.
+
+The Markdown is bounded to 256 KiB and user/model text is fenced as literal text.
+HEEx previews escape it; authenticated downloads send an attachment with nosniff
+and no-store. Only canonical textual UUIDs for completed acceptances resolve files
+or download names (Ecto also accepts binary UUID aliases). Pending, cancelled,
+foreign command kinds and expired sessions cannot download. Late/stale completion
+cannot move a task or record acceptance. Missing/changed artifacts never become
+valid merely because a historical DB receipt exists. Reacceptance writes a new file.
+
+These app-owned storage checks follow the existing same-user trust boundary, not
+the descriptor-relative untrusted Arena reader. They do not defeat a hostile
+same-user process racing path replacement or arbitrary disk failure. A lost or
+changed file is reported; Cuckoding does not silently regenerate acceptance.
+This grants no provider access, command execution, repository write or publication.

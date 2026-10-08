@@ -68,6 +68,17 @@ defmodule Cuckoding.Tabulae do
   def content(task),
     do: Map.new(@fields ++ ["depends_on"], &{&1, Map.fetch!(task, String.to_existing_atom(&1))})
 
+  # Called only by Specifications.finish inside its acceptance transaction, after revalidation.
+  def accept_spec(%Command{kind: "accept_spec"} = command) do
+    true = Repo.in_transaction?()
+    payload = Map.update!(command.payload, "content", &Map.put(&1, "column", "todo"))
+
+    case rejection("save_draft", command.expected_revision, payload) do
+      nil -> write("save_draft", command.id, command.expected_revision, payload)
+      reason -> Repo.rollback(reason)
+    end
+  end
+
   def create(key, arena_id, name) do
     with {:ok, key} <- Ecto.UUID.cast(key),
          {:ok, arena_id} <- Ecto.UUID.cast(arena_id),

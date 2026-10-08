@@ -42,6 +42,12 @@ Preserve these implemented contracts:
   request. Reject downgrade/malformed references before storage. Resolve imports
   through same-board receipts and preserve earlier user edits. Keep v1 receipts
   readable without inferring links. A scoped citation is not proof of its truth.
+- Accepted specifications freeze a saved draft, prerequisite revisions and original
+  citations in `accept_spec` before writing private Markdown. Verify bytes/hash and
+  current revisions before acceptance/ToDo/history/event commit together. Never
+  overwrite or replay uncertain artifacts. Later task/prerequisite edits invalidate
+  current acceptance; downloads require a live session and matching file hash.
+  Specification acceptance never authorizes execution or modifies Arena files.
 - Stateful LiveComponents install the shared session event guard and receive the
   server-owned session ID explicitly; parent hooks do not authorize their events.
   Preserve unsaved text and clear stale consent during live updates.

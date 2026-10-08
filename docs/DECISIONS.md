@@ -21,6 +21,7 @@ not establish implementation or acceptance of this rebuild.
 | D014 | Explicit selected-document snapshots feed the existing no-tools planning turn | Local preview reads bounded text using pinned descriptors; separate provider consent freezes the scoped snapshot reference. Documents are untrusted evidence, never filesystem or execution authority |
 | D015 | Draft prerequisites live in immutable draft revision content | Reuse the existing save transaction and current-revision projection; validate same-board references and acyclicity before saving. No scheduler or new execution authority is implied |
 | D016 | New Speculator proposals reference earlier tasks and selected snapshots by bounded indices | A versioned contract binds references to the frozen request; import resolves prerequisites through same-board receipts and retains source provenance. No arbitrary path, task ID or execution authority comes from provider output |
+| D017 | Accepted specs freeze task and prerequisite revisions before writing private Markdown | Reuse durable command receipts and draft history. Verify the file and revisions before atomic acceptance/ToDo; keep stale or interrupted artifacts, never overwrite or auto-replay them. Acceptance grants no execution |
 
 The first release scope and deferred features are in [Product](PRODUCT.md).
 [Flow](FLOW.md) owns state, defaults and limits. Changes to settled boundaries

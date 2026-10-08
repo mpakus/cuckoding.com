@@ -20,6 +20,7 @@ release process group and private storage lock.
 | `Arenas`, native `folder.rs` | Native folder selection and confirmed directory identity; registration reads metadata only |
 | `Tabulae` | Immutable default boards, revisioned Specs/ToDo drafts, acyclic prerequisites and proposal import provenance; delivery columns stay locked |
 | `Planning`, `PlanningDocuments` | Freeze team/model/brief and optional selected text snapshots in commands; validate proposals before explicit draft import |
+| `Specifications`, `Storage` | Freeze accepted draft/prerequisite revisions, write private Markdown, verify artifact hash and atomically commit acceptance/history/ToDo; no execution authority |
 | `ArenaGit`, `NativeHelper`, native `arena_git.rs` | Fixed inspect/init/initial-commit operations and descriptor-relative selected file reads; no remotes, hooks or arbitrary commands |
 
 The dispatcher serializes setup, local previews and planning globally. This is a
@@ -50,9 +51,16 @@ indices through completed same-board import receipts in the existing transaction
 Original citations remain reachable through the import command after draft edits.
 The native transport still uses the same no-tools scratch grant. No new migration.
 
-Audit consequences: preserve these domain/host boundaries; extend planning and
-acceptance evidence before adding execution. The seven-migration schema has no
-accepted spec artifacts, battle authorization, attempts, reviews,
+R040i reuses commands as accepted-spec receipts. Preview generates literal Markdown
+from saved task/prerequisite revisions and original citations. A consented command
+persists intent before an exclusive private file write; completion hash-checks
+the file and current revisions, then commits acceptance, draft history and ToDo
+atomically. Missing/changed files cannot be downloaded. Later edits retain historical
+artifacts; cancelled/interrupted writes do not replay. No new table or migration.
+
+Audit consequences: preserve these domain/host boundaries; extend execution
+evidence before adding battles. The seven-migration schema has no
+battle authorization, attempts, reviews,
 worker leases or integration receipts. Required work remains in [Plan](PLAN.md),
 including real-account acceptance; fixture responses do not close that gate.
 

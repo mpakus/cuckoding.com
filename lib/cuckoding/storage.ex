@@ -111,4 +111,62 @@ defmodule Cuckoding.Storage do
       end
     end)
   end
+
+  # Fixed app-owned UUID paths only; never overwrite an earlier or partial artifact.
+  # sobelow_skip ["Traversal.FileModule"]
+  def write_spec(id, text) when is_binary(text) and byte_size(text) <= 262_144 do
+    path = spec_path!(id)
+    File.mkdir_p!(Path.dirname(path))
+    File.chmod!(Path.dirname(path), 0o700)
+    reject_symlinks!(path)
+
+    case File.open(path, [:write, :binary, :exclusive]) do
+      {:ok, file} ->
+        try do
+          File.chmod!(path, 0o600)
+          with :ok <- IO.binwrite(file, text), do: :file.sync(file)
+        after
+          File.close(file)
+        end
+
+      _ ->
+        {:error, :unavailable}
+    end
+  rescue
+    _ -> {:error, :unavailable}
+  end
+
+  def write_spec(_, _), do: {:error, :unavailable}
+
+  # Hash-check bounded regular single-link files; never serve arbitrary paths or raw Markdown as HTML.
+  # sobelow_skip ["Traversal.FileModule"]
+  def read_spec(id, hash) do
+    path = spec_path!(id)
+
+    with {:ok, stat} <- File.lstat(path),
+         true <-
+           stat.type == :regular and stat.links == 1 and stat.size <= 262_144 and
+             band(stat.mode, 0o077) == 0,
+         {:ok, text} <- File.open(path, [:read, :binary], &IO.binread(&1, 262_145)),
+         true <- is_binary(text) and byte_size(text) == stat.size,
+         {:ok, after_read} <- File.lstat(path),
+         true <-
+           Map.delete(Map.from_struct(stat), :atime) ==
+             Map.delete(Map.from_struct(after_read), :atime),
+         true <- Base.encode16(:crypto.hash(:sha256, text), case: :lower) == hash do
+      {:ok, text}
+    else
+      _ -> {:error, :unavailable}
+    end
+  rescue
+    _ -> {:error, :unavailable}
+  end
+
+  defp spec_path!(id) do
+    {:ok, ^id} = Ecto.UUID.cast(id)
+    root = Application.fetch_env!(:cuckoding, :data_dir)
+    path = Path.join([root, "specifications", id <> ".md"])
+    reject_symlinks!(path)
+    path
+  end
 end
