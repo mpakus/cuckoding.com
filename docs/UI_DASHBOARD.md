@@ -125,3 +125,11 @@ read state, exact expandable text/hash and separate provider consent. Changing
 selection clears consent; **Use brief only** omits snapshots. Reconnect retains
 evidence but requires explicit snapshot selection. Describe these as proposals
 with no live Arena access, tools, accepted specs or delivery work.
+
+R050b places **Isolated worktrees** inside Repository setup. The consent form
+shows exact commit and destination and expires with its five-minute Git observation.
+Changes clear stale consent. Native disclosures remain open across live updates;
+progress names the user, system Git, no model, elapsed time and Cancel. The latest
+ten retained attempts show status/paths after reconnect. Creation is explicitly
+separate from Start and from a current-integrity claim; partial effects require
+inspection and are never presented as rolled back.

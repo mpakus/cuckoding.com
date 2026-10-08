@@ -16,6 +16,7 @@ inputs. R040g adds revisioned, acyclic manual task prerequisites; R040h adds
 Speculator prerequisite proposals and per-task snapshot references. R040i adds
 explicit accepted Markdown specifications. R040j adds confirmed Arena check declarations.
 R050a adds a read-only battle preparation preview; it does not implement Start.
+R050b adds consented detached worktree preparation with retained ownership receipts.
 Dependency scheduling, check execution and execution grants remain open.
 R030b lets existing Arenas/Tabulae explicitly adopt a newer saved default team
 without rewriting earlier requests or drafts. Per-scope role editing remains open.
@@ -229,6 +230,11 @@ Depends on R040. This is the first end-to-end product milestone.
   preview. Mark stale evidence and link to settings; no execution authority.
   See [task](../tasks/R050a-battle-preview.md) and
   [evidence](../worklog/2026-10-08-R050a-battle-preview.md).
+- [x] R050b: prepare a bounded detached locked worktree from a fresh consented HEAD,
+  keep original files/index intact, retain private ownership and durable receipts,
+  and reject stale/cancelled/expired success without replay. No execution authority.
+  See [task](../tasks/R050b-owned-worktree.md) and
+  [evidence](../worklog/2026-10-08-R050b-owned-worktree.md).
 - [ ] Implement one Start battle authorization for goal/spec, task membership,
   team, model, policy, base revision, check commands and cumulative limits.
 - [ ] Give Summa Rudis a closed decision contract; host-validate/persist decisions

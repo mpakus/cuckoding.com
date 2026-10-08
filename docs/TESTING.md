@@ -32,6 +32,7 @@ and full-story gates remain open. Historical test counts do not establish proof.
 | R040j | Exact check preview/confirmation, closed bounds/literal argv, immutable scoped revisions, idempotency/stale writes/event rollback, recovered/expired forms, keyboard/dirty-state UI and fresh/prior-schema/restart package proof |
 | R050 | Structured decisions, stale/foreign proposal refusal, review return, exact-head/criteria/check binding, local integration |
 | R050a | Read-only scoped preview, current acceptance/artifact/prerequisite validation, assigned-team/catalog drift, dated Git observations, exact checks, no effects, stale/expiry/refresh and authenticated packaged UI |
+| R050b | Fresh scoped HEAD consent, unchanged source/index, detached locked ownership, unsafe tree/filter/path bounds, cancellation/expiry/no replay, receipt binding, session/recovered form guards, packaged real Git and restart |
 | R060 | Launch/integration crash windows, restart, cleanup/PID reuse, budgets, provider failure, sleep-gap accounting |
 | R070 | Concurrent task/port claims, fairness, prerequisite bases, stale reviews, conflicting integration and recovery |
 | R080 | LiveView reconnect, keyboard/focus/input preservation, narrow viewport, logs pagination/tail, timed setup |

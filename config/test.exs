@@ -1,5 +1,6 @@
 import Config
 config :cuckoding, :testing, true
+config :cuckoding, :data_dir, Path.expand("../.ccoding/test", __DIR__)
 config :cuckoding, :dispatcher, false
 
 config :cuckoding, CuckodingWeb.Endpoint,

@@ -10,6 +10,7 @@ R040h adds proposed prerequisites and per-task selected-snapshot citations.
 R040i adds accepted private Markdown specifications with revision and hash checks.
 R040j adds revisioned, confirmed Arena check declarations; execution remains unavailable.
 R050a adds a read-only Battle preview for saved preparation and missing setup.
+R050b adds consented isolated Git worktree preparation.
 Human-completed real-account/model acceptance and repository
 execution remain R020 work. The previous source
 reset remains intentional; do not restore the deleted implementation wholesale.
@@ -143,6 +144,22 @@ Existing HEAD is a metadata observation, not proof of clean files. Unsupported n
 Cancel waits for helper cleanup; after an interrupted/uncertain result inspect again
 instead of assuming initialization rolled back. Use a temporary registered project
 and isolated `CCODING_DATA_DIR` for QA; never initialize a copied fixture's real path.
+
+After a committed Git inspection, expand **Repository setup → Isolated worktrees**.
+Review the exact commit and private destination, confirm, then **Prepare worktree**
+within five minutes. It creates a detached locked checkout and a source Git
+registration, leaving original staged, unsaved and untracked files untouched.
+Limits: 10,000 regular files, 240-byte paths, 8 MiB per blob / 64 MiB total,
+1 MiB listing; no symlinks, submodules, Git filters or known credential paths.
+The host is not a sandbox. Preparation runs no agents or declared project checks.
+
+The latest ten attempts show progress/cancellation, result and retained location.
+Each `<data>/runtime-home/worktrees/<command UUID>/` keeps `owner.json` beside
+`checkout/`. If stopped or interrupted, inspect both this location and the source
+Git worktree registration. Do not delete/reset/prune uncertain or dirty work to
+retry; the app neither removes it nor replays a lost command. A new preparation
+requires new consent and a new destination. Creation receipts persist across
+restart but do not certify current contents. Future execution must revalidate them.
 
 The shell starts a bundled OTP release with a private HOME, clean environment,
 exclusive data lock and an ephemeral IPv4 loopback port. It owns the one-time

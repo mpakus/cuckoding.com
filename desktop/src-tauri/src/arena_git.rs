@@ -1,5 +1,6 @@
 //! Fixed local Git operations. Repository text never supplies argv or authority.
 mod initial;
+mod worktree;
 use crate::probe::{exited, private_directory, Group};
 pub(crate) use initial::valid_documents;
 use serde_json::{json, Value};
@@ -79,6 +80,17 @@ impl Git<'_> {
         input: Option<Vec<u8>>,
         index: Option<&Path>,
     ) -> Result<(i32, Vec<u8>)> {
+        self.command_bounded(args, in_repository, input, index, 8192)
+    }
+
+    fn command_bounded(
+        &self,
+        args: &[&str],
+        in_repository: bool,
+        input: Option<Vec<u8>>,
+        index: Option<&Path>,
+        output_limit: usize,
+    ) -> Result<(i32, Vec<u8>)> {
         self.active()?;
         let mut command = Command::new("/usr/bin/git");
         command
@@ -154,7 +166,7 @@ impl Git<'_> {
         let (sender, receiver) = mpsc::sync_channel(1);
         thread::spawn(move || {
             let mut bytes = Vec::new();
-            let result = stdout.take(8193).read_to_end(&mut bytes);
+            let result = stdout.take(output_limit as u64 + 1).read_to_end(&mut bytes);
             let _ = sender.send(result.map(|_| bytes));
         });
         let mut bytes = None;
@@ -163,7 +175,7 @@ impl Git<'_> {
             if let Ok(result) = receiver.try_recv() {
                 bytes = Some(result.map_err(|_| "invalid_repository")?);
             }
-            if bytes.as_ref().is_some_and(|b| b.len() > 8192) {
+            if bytes.as_ref().is_some_and(|b| b.len() > output_limit) {
                 return Err("metadata_limit");
             }
             if exited(&group.0).map_err(|_| "git_unavailable")? && bytes.is_some() {
@@ -331,9 +343,19 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
     let [operation, path, device, inode, home, extra @ ..] = args else {
         return Err("invalid_request");
     };
-    if !["inspect", "init", "preview", "commit", "documents"].contains(&operation.as_str())
+    if ![
+        "inspect",
+        "init",
+        "preview",
+        "commit",
+        "documents",
+        "worktree",
+    ]
+    .contains(&operation.as_str())
         || extra.len()
-            != usize::from(["preview", "commit", "documents"].contains(&operation.as_str()))
+            != usize::from(
+                ["preview", "commit", "documents", "worktree"].contains(&operation.as_str()),
+            )
         || path.len() > 4096
         || path.chars().any(char::is_control)
     {
@@ -367,6 +389,9 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
         let result = initial::documents(&git, &extra[0])?;
         git.identity(device, inode)?;
         return Ok(result);
+    }
+    if operation == "worktree" {
+        return worktree::run(&git, &extra[0], device, inode);
     }
     let observed = git.inspect()?;
     if operation == "inspect" {
@@ -954,6 +979,236 @@ mod tests {
             Err("selection_limit")
         );
         assert!(!root.join(".git/index").exists());
+        fs::remove_dir_all(root.parent().unwrap()).unwrap();
+    }
+    fn worktree_request(args: &[String], head: &Value) -> Vec<String> {
+        let mut args = args.to_vec();
+        args.push(json!({"key":"00000000-0000-4000-8000-000000000050", "head":head}).to_string());
+        args
+    }
+
+    fn commit_fixture(root: &Path, home: &Path) {
+        assert_eq!(git(root, home, &["add", "--all"]).0, 0);
+        assert_eq!(
+            git(
+                root,
+                home,
+                &["commit", "--quiet", "--allow-empty", "-m", "fixture"]
+            )
+            .0,
+            0
+        );
+    }
+
+    #[test]
+    fn worktree_uses_exact_commit_preserves_dirty_index_and_disables_hooks() {
+        let (root, home, args) = fixture();
+        operation(&args, "init").unwrap();
+        // Exercise the larger, bounded tree listing without changing other Git output limits.
+        for n in 0..150 {
+            fs::write(root.join(format!("file-{n:03}.txt")), "baseline").unwrap();
+        }
+        commit_fixture(&root, &home);
+        let head = operation(&args, "inspect").unwrap()["head"].clone();
+        fs::write(root.join("file-000.txt"), "staged work").unwrap();
+        assert_eq!(git(&root, &home, &["add", "file-000.txt"]).0, 0);
+        fs::write(root.join("file-000.txt"), "unsaved work").unwrap();
+        fs::write(root.join(".env"), "UNTRACKED_CANARY").unwrap();
+        fs::create_dir_all(root.join(".git/hooks")).unwrap();
+        fs::write(
+            root.join(".git/hooks/post-checkout"),
+            "#!/bin/sh\ntouch HOOK_RAN\n",
+        )
+        .unwrap();
+        fs::set_permissions(
+            root.join(".git/hooks/post-checkout"),
+            fs::Permissions::from_mode(0o700),
+        )
+        .unwrap();
+        let index = fs::read(root.join(".git/index")).unwrap();
+        let request = worktree_request(&args, &head);
+        let receipt = operation(&request, "worktree").unwrap();
+        assert_eq!(receipt["status"], "prepared");
+        assert_eq!(receipt["head"], head);
+        let checkout = Path::new(receipt["path"].as_str().unwrap());
+        assert_eq!(
+            fs::read(checkout.join("file-000.txt")).unwrap(),
+            b"baseline"
+        );
+        assert!(!checkout.join(".env").exists());
+        assert!(!checkout.join("HOOK_RAN").exists());
+        assert!(!root.join("HOOK_RAN").exists());
+        assert_eq!(
+            fs::read(root.join("file-000.txt")).unwrap(),
+            b"unsaved work"
+        );
+        assert_eq!(fs::read(root.join(".git/index")).unwrap(), index);
+        assert_eq!(operation(&args, "inspect").unwrap()["head"], head);
+        let registered = git(&root, &home, &["worktree", "list", "--porcelain"]).1;
+        assert!(String::from_utf8(registered)
+            .unwrap()
+            .contains("detached\nlocked 00000000-"));
+        assert!(checkout.parent().unwrap().join("owner.json").is_file());
+        assert_eq!(operation(&request, "worktree"), Err("worktree_exists"));
+        fs::write(checkout.join("keep.txt"), "partial work").unwrap();
+        assert_eq!(operation(&request, "worktree"), Err("worktree_exists"));
+        assert_eq!(
+            fs::read(checkout.join("keep.txt")).unwrap(),
+            b"partial work"
+        );
+        fs::remove_dir_all(root.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn worktree_refuses_filters_links_secrets_submodules_large_files_and_stale_head() {
+        for change in [
+            "filter",
+            "link",
+            "secret",
+            "submodule",
+            "large",
+            "head",
+            "parent",
+        ] {
+            let (root, home, args) = fixture();
+            operation(&args, "init").unwrap();
+            fs::write(root.join("plan.md"), "safe").unwrap();
+            commit_fixture(&root, &home);
+            let before = operation(&args, "inspect").unwrap()["head"].clone();
+            match change {
+                "filter" => {
+                    assert_eq!(
+                        git(
+                            &root,
+                            &home,
+                            &["config", "filter.evil.smudge", "touch FILTER_RAN"]
+                        )
+                        .0,
+                        0
+                    );
+                }
+                "link" => {
+                    std::os::unix::fs::symlink(&home, root.join("link")).unwrap();
+                    commit_fixture(&root, &home);
+                }
+                "secret" => {
+                    fs::write(root.join(".env"), "canary").unwrap();
+                    commit_fixture(&root, &home);
+                }
+                "submodule" => {
+                    assert_eq!(
+                        git(
+                            &root,
+                            &home,
+                            &[
+                                "update-index",
+                                "--add",
+                                "--cacheinfo",
+                                "160000",
+                                before.as_str().unwrap(),
+                                "sub"
+                            ]
+                        )
+                        .0,
+                        0
+                    );
+                    assert_eq!(
+                        git(&root, &home, &["commit", "--quiet", "-m", "gitlink"]).0,
+                        0
+                    );
+                }
+                "large" => {
+                    fs::write(root.join("large"), vec![0u8; 8_388_609]).unwrap();
+                    commit_fixture(&root, &home);
+                }
+                "head" => {
+                    fs::write(root.join("plan.md"), "changed").unwrap();
+                    commit_fixture(&root, &home);
+                }
+                "parent" => {
+                    std::os::unix::fs::symlink(&root, home.join("worktrees")).unwrap();
+                }
+                _ => unreachable!(),
+            }
+            let head = if change == "head" {
+                before
+            } else {
+                operation(&args, "inspect").unwrap()["head"].clone()
+            };
+            let expected = match change {
+                "filter" => "unsafe_config",
+                "large" => "tree_limit",
+                "head" => "repository_changed",
+                "parent" => "unsupported_layout",
+                _ => "unsafe_tree",
+            };
+            assert_eq!(
+                operation(&worktree_request(&args, &head), "worktree"),
+                Err(expected),
+                "{change}"
+            );
+            assert!(!root.join("FILTER_RAN").exists());
+            assert!(!home
+                .join("worktrees/00000000-0000-4000-8000-000000000050")
+                .exists());
+            fs::remove_dir_all(root.parent().unwrap()).unwrap();
+        }
+    }
+
+    #[test]
+    fn worktree_cancellation_deadline_and_foreign_ownership_do_not_replay() {
+        let (root, home, args) = fixture();
+        operation(&args, "init").unwrap();
+        commit_fixture(&root, &home);
+        let head = operation(&args, "inspect").unwrap()["head"].clone();
+        let mut request = worktree_request(&args, &head);
+        request[0] = "worktree".into();
+        let (sender, receiver) = mpsc::channel();
+        sender.send(()).unwrap();
+        assert_eq!(
+            run(&request, receiver, Duration::from_secs(10)),
+            Err("cancelled")
+        );
+        let (_sender, receiver) = mpsc::channel();
+        assert_eq!(run(&request, receiver, Duration::ZERO), Err("timeout"));
+        assert!(!home.join("worktrees").exists());
+        let owned = home.join("worktrees/00000000-0000-4000-8000-000000000050");
+        fs::create_dir_all(&owned).unwrap();
+        fs::set_permissions(home.join("worktrees"), fs::Permissions::from_mode(0o700)).unwrap();
+        fs::write(owned.join("owner.json"), "foreign or incomplete owner").unwrap();
+        assert_eq!(operation(&request, "worktree"), Err("worktree_exists"));
+        assert_eq!(
+            fs::read(owned.join("owner.json")).unwrap(),
+            b"foreign or incomplete owner"
+        );
+        fs::remove_dir_all(root.parent().unwrap()).unwrap();
+    }
+    #[test]
+    fn cancelling_after_ownership_creation_retains_the_marker() {
+        let (root, home, args) = fixture();
+        operation(&args, "init").unwrap();
+        commit_fixture(&root, &home);
+        let head = operation(&args, "inspect").unwrap()["head"].clone();
+        let mut request = worktree_request(&args, &head);
+        request[0] = "worktree".into();
+        let owned = home.join("worktrees/00000000-0000-4000-8000-000000000050");
+        let marker = owned.join("owner.json");
+        let (sender, receiver) = mpsc::channel();
+        let worker = thread::spawn(move || run(&request, receiver, Duration::from_secs(10)));
+        let deadline = Instant::now() + Duration::from_secs(8);
+        while !marker.exists() && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(1));
+        }
+        assert!(marker.exists());
+        sender.send(()).unwrap();
+        assert_eq!(worker.join().unwrap(), Err("cancelled"));
+        let owner: Value = serde_json::from_slice(&fs::read(&marker).unwrap()).unwrap();
+        assert_eq!(owner["head"], head);
+        assert_eq!(
+            operation(&worktree_request(&args, &head), "worktree"),
+            Err("worktree_exists")
+        );
+        assert!(marker.exists());
         fs::remove_dir_all(root.parent().unwrap()).unwrap();
     }
 }

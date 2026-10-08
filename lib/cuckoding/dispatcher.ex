@@ -43,7 +43,7 @@ defmodule Cuckoding.Dispatcher do
     do: Cuckoding.NativeHelper.choose_folder(command)
 
   defp execute(%{kind: kind} = command)
-       when kind in ~w(inspect_arena_git init_arena_git preview_arena_git commit_arena_git),
+       when kind in ~w(inspect_arena_git init_arena_git preview_arena_git commit_arena_git worktree_arena_git),
        do: Cuckoding.ArenaGit.execute(command)
 
   defp execute(%{kind: "probe_codex"} = command) do

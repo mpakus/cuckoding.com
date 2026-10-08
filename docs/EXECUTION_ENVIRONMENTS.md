@@ -11,6 +11,14 @@ The root handle is pinned and checked against the registered device/inode;
 unknown metadata and external layouts fail closed. This is not the future task
 runner and grants no working-file access to agents. See [limits](SECURITY.md).
 
+R050b also prepares a locked detached worktree from a consented committed HEAD,
+using the same deadlines/process group and a private UUID-owned directory. It
+excludes uncommitted source changes, refuses unsafe checkout mechanisms and keeps
+partial effects without retry. This optional repository setup utility does not
+implement task admission; future Start must authorize ordinary attempt creation
+without adding per-task confirmation. Preparation allocates no runtime ports,
+provider session or power assertion. Actual wake/reconciliation remains R060.
+
 The first runner is a supervised host process runner using Git worktrees.
 There are no containers, remote workers or claimed host sandbox boundaries.
 

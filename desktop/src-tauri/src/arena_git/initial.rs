@@ -13,7 +13,7 @@ fn digest(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
 
-fn paths(value: &Value) -> Result<Vec<&str>> {
+pub(super) fn paths(value: &Value) -> Result<Vec<&str>> {
     let values = value.as_array().ok_or("invalid_selection")?;
     if values.len() > 16 {
         return Err("selection_limit");
@@ -314,7 +314,7 @@ fn oid(bytes: Vec<u8>) -> Result<String> {
     Ok(hash.into())
 }
 
-fn uuid(value: &Value) -> Result<&str> {
+pub(super) fn uuid(value: &Value) -> Result<&str> {
     let value = value.as_str().ok_or("invalid_request")?;
     if value.len() != 36
         || !value.bytes().enumerate().all(|(i, b)| {

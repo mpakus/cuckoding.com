@@ -314,3 +314,30 @@ Recorded Git HEADs cannot establish current folder identity or cleanliness, and
 catalog/model diagnostics cannot establish repository grants. The future Start
 boundary must revalidate those facts independently. No hidden reasoning or new
 provider data is collected; no state transition means no synthetic audit event.
+
+## R050b isolated checkout boundary
+
+Separate confirmation binds the latest successful inspect/initial-commit receipt
+(under five minutes old), source directory identity and generated private path.
+The existing native directory lock serializes cooperating operations. A bounded
+`ls-tree` preflight accepts regular blobs only: at most 10,000 files, 240-byte paths,
+8 MiB per blob, 64 MiB total and 1 MiB listing. Traversal, known credential names,
+case-colliding paths, symlinks and submodules are refused. These name checks do not
+prove committed files contain no secrets; no file content is sent to a provider.
+
+The helper refuses configured `filter.*` drivers, external Git config/metadata,
+and changed HEAD/config; it disables hooks, fsmonitor, external attributes,
+autocrlf, sparse checkout, recursive submodules and transport. Git may still apply
+committed built-in attributes (for example encoding); the receipt does not claim
+raw byte equality. Configuration reads and child output are bounded. No arbitrary
+command, network operation or source checkout/index write is introduced. The
+locked worktree does add registration under the source `.git/worktrees` directory.
+
+The private UUID parent and `owner.json` are exclusive and precede Git effects.
+Failures preserve both files and Git registration; no reset, prune, rollback or
+force-removal is attempted. Expired leases cause helper cancellation and cannot
+accept a late receipt. Future reuse/removal must revalidate DB, marker, checkout
+and Git identities and owned processes. Worktrees share Git metadata; the host
+runner and cooperative directory lock are not a sandbox against another process
+running as the same user. Concurrent noncooperating filesystem/config mutation
+can leave an uncertain result and must never be treated as clean execution proof.

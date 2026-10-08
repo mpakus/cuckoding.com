@@ -173,6 +173,127 @@ defmodule Cuckoding.ArenaGitTest do
              Foundation.finish(claim, %{"status" => "cleanup_uncertain"})
   end
 
+  test "worktree consent freezes HEAD and path without changing the baseline observation" do
+    arena = arena_fixture()
+    observed = inspect_head(arena)
+    assert ArenaGit.can_prepare?(observed)
+    refute ArenaGit.can_prepare?(observed, DateTime.add(observed.updated_at, 300))
+    key = Ecto.UUID.generate()
+
+    assert {:error, "confirmation_required"} =
+             ArenaGit.request(key, arena.id, "worktree", observed.id)
+
+    assert {:ok, pending} = ArenaGit.request(key, arena.id, "worktree", observed.id, true)
+    assert {:ok, ^pending} = ArenaGit.request(key, arena.id, "worktree", observed.id, true)
+    assert pending.payload["head"] == observed.payload["observation"]["head"]
+    assert pending.payload["worktree_path"] == ArenaGit.worktree_path(key)
+    assert ArenaGit.latest(arena.id).id == observed.id
+    {:ok, claim} = Foundation.claim()
+    assert {:ok, done} = Foundation.finish(claim, worktree_receipt(claim))
+    assert done.result == "prepared"
+    assert hd(ArenaGit.worktrees(arena.id)).id == done.id
+    assert ArenaGit.latest(arena.id).id == observed.id
+    refute inspect(Repo.all(Event)) =~ "checkout"
+    refute inspect(Repo.all(Command)) =~ "fixture-secret"
+    assert {:ok, ^done} = ArenaGit.request(key, arena.id, "worktree", observed.id, true)
+    assert {:ok, nil} = Foundation.claim()
+  end
+
+  test "worktrees reject foreign or stale observations and foreign native receipts" do
+    arena = arena_fixture()
+    previous = inspect_head(arena)
+
+    assert {:ok, %{result: "recheck_required"}} =
+             ArenaGit.request(
+               Ecto.UUID.generate(),
+               arena_fixture().id,
+               "worktree",
+               previous.id,
+               true
+             )
+
+    observed = inspect_head(arena)
+
+    assert {:ok, %{result: "recheck_required"}} =
+             ArenaGit.request(Ecto.UUID.generate(), arena.id, "worktree", previous.id, true)
+
+    for {field, value} <- [
+          {"key", Ecto.UUID.generate()},
+          {"head", String.duplicate("b", 40)},
+          {"path", "/foreign/checkout"}
+        ] do
+      {:ok, _} = ArenaGit.request(Ecto.UUID.generate(), arena.id, "worktree", observed.id, true)
+      {:ok, claim} = Foundation.claim()
+
+      assert {:ok, %{result: "recheck_required"}} =
+               Foundation.finish(claim, Map.put(worktree_receipt(claim), field, value))
+    end
+
+    Repo.update!(
+      Ecto.Changeset.change(observed, updated_at: DateTime.add(DateTime.utc_now(), -301))
+    )
+
+    assert {:ok, %{result: "recheck_required"}} =
+             ArenaGit.request(Ecto.UUID.generate(), arena.id, "worktree", observed.id, true)
+  end
+
+  test "worktree cancellation holds ownership and expired receipts never become successful or replay" do
+    arena = arena_fixture()
+    observed = inspect_head(arena)
+
+    {:ok, pending} =
+      ArenaGit.request(Ecto.UUID.generate(), arena.id, "worktree", observed.id, true)
+
+    Foundation.cancel_probe(pending.id)
+    assert {:ok, nil} = Foundation.claim()
+    {:ok, _} = ArenaGit.request(Ecto.UUID.generate(), arena.id, "worktree", observed.id, true)
+    {:ok, claim} = Foundation.claim()
+    Foundation.cancel_probe(claim.id)
+    assert Foundation.pending?()
+    assert {:ok, %{state: "cancelled"}} = Foundation.finish(claim, worktree_receipt(claim))
+    {:ok, _} = ArenaGit.request(Ecto.UUID.generate(), arena.id, "worktree", observed.id, true)
+    {:ok, expired} = Foundation.claim(1000)
+    refute Foundation.probe_active?(expired)
+    assert {:error, :lost_claim} = Foundation.finish(expired, worktree_receipt(expired))
+    assert {:ok, %{result: "interrupted"}} = Foundation.claim(3_601_000)
+    assert {:ok, nil} = Foundation.claim(3_602_000)
+    assert {:error, :lost_claim} = Foundation.finish(expired, worktree_receipt(expired))
+
+    assert Repo.get!(Command, expired.id).payload["worktree_path"] ==
+             ArenaGit.worktree_path(expired.id)
+
+    assert {:ok, _} =
+             ArenaGit.request(Ecto.UUID.generate(), arena.id, "worktree", observed.id, true)
+
+    {:ok, claim} = Foundation.claim()
+    assert {:ok, %{result: "profile_busy"}} = Foundation.discover(Ecto.UUID.generate(), 0)
+    Foundation.cancel_probe(claim.id)
+
+    assert {:ok, %{state: "failed", result: "cleanup_uncertain"}} =
+             Foundation.finish(claim, %{"status" => "cleanup_uncertain"})
+  end
+
+  defp inspect_head(arena) do
+    {:ok, _} = ArenaGit.request(Ecto.UUID.generate(), arena.id, "inspect")
+    {:ok, claim} = Foundation.claim()
+
+    {:ok, observed} =
+      Foundation.finish(claim, %{"status" => "existing", "head" => String.duplicate("a", 40)})
+
+    observed
+  end
+
+  defp worktree_receipt(claim),
+    do: %{
+      "status" => "prepared",
+      "head" => claim.payload["head"],
+      "key" => claim.id,
+      "path" => claim.payload["worktree_path"],
+      "device" => 1,
+      "inode" => 42,
+      "raw" => "fixture-secret"
+    }
+
   defp inspect_missing(arena) do
     {:ok, _} = ArenaGit.request(Ecto.UUID.generate(), arena.id, "inspect")
     {:ok, claim} = Foundation.claim()

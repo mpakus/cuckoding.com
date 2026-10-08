@@ -70,4 +70,68 @@ defmodule CuckodingWeb.ArenaGitLiveTest do
     assert_redirect(view, "/locked")
     assert ArenaGit.latest(arena.id) == nil
   end
+
+  test "worktree confirmation is scoped, clears on update and survives reconnect as a receipt", %{
+    conn: conn
+  } do
+    arena = Cuckoding.DataCase.arena_fixture()
+    signed = sign_in(conn)
+    path = "/arenas/#{arena.id}"
+    {:ok, view, _} = live(signed, path)
+    view |> element("button", "Inspect Git") |> render_click()
+    {:ok, claim} = Foundation.claim()
+    Foundation.finish(claim, %{"status" => "existing", "head" => String.duplicate("a", 40)})
+    assert has_element?(view, "#worktree-form")
+    view |> form("#worktree-form") |> render_submit()
+    assert ArenaGit.worktrees(arena.id) == []
+    view |> form("#worktree-form", confirmed: "true") |> render_change()
+    Foundation.broadcast()
+    assert has_element?(view, "#worktree-form input[checked]")
+
+    render_submit(view, "prepare-worktree", %{
+      "confirmed" => "true",
+      "observation_id" => claim.id,
+      "key" => Ecto.UUID.generate()
+    })
+
+    assert ArenaGit.worktrees(arena.id) == []
+    view |> form("#worktree-form", confirmed: "true") |> render_change()
+    {:ok, _} = ArenaGit.request(Ecto.UUID.generate(), arena.id, "inspect")
+    {:ok, fresh} = Foundation.claim()
+    Foundation.finish(fresh, %{"status" => "existing", "head" => String.duplicate("b", 40)})
+    refute has_element?(view, "#worktree-form input[checked]")
+    view |> form("#worktree-form", confirmed: "true") |> render_submit()
+    {:ok, prepare} = Foundation.claim()
+    assert prepare.kind == "worktree_arena_git"
+    assert has_element?(view, "#worktree-form button[aria-disabled=true]:not([disabled])")
+    view |> form("#worktree-form", confirmed: "true") |> render_submit()
+    assert length(ArenaGit.worktrees(arena.id)) == 1
+    assert render(view) =~ "no model"
+    assert has_element?(view, "button", "Cancel preparation")
+
+    Foundation.finish(prepare, %{
+      "status" => "prepared",
+      "key" => prepare.id,
+      "head" => prepare.payload["head"],
+      "path" => prepare.payload["worktree_path"],
+      "device" => 1,
+      "inode" => 2
+    })
+
+    assert has_element?(view, "#worktree-receipts", "checkout prepared")
+    {:ok, again, _} = live(signed, path)
+    assert has_element?(again, "#worktree-receipts", prepare.payload["worktree_path"])
+    assert has_element?(again, "#worktree-setup[phx-mounted*=ignore_attrs]")
+    refute has_element?(again, "#worktree-form input[checked]")
+    again |> form("#worktree-form", confirmed: "true") |> render_submit()
+    {:ok, pending} = Foundation.claim()
+    again |> element("button", "Cancel preparation") |> render_click()
+    assert has_element?(again, "button[disabled]", "Waiting for cleanup")
+    Foundation.finish(pending, %{"status" => "prepared"})
+    assert has_element?(again, "#worktree-receipts", "Nothing is retried")
+    Repo.update_all(BrowserToken, set: [expires_at: 0])
+    render_submit(again, "prepare-worktree", %{})
+    assert_redirect(again, "/locked")
+    assert length(ArenaGit.worktrees(arena.id)) == 2
+  end
 end

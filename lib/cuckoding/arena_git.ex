@@ -8,7 +8,7 @@ defmodule Cuckoding.LocalGit do
   @behaviour Cuckoding.GitAdapter
   alias Cuckoding.{GitPreview, NativeHelper}
 
-  @statuses ~w(missing unborn initialized cancelled timeout cleanup_uncertain unavailable invalid_request folder_changed git_unavailable invalid_repository metadata_limit nested_repository unsupported_layout unsafe_config repository_busy repository_changed recheck_required invalid_selection selection_limit unsafe_file preview_changed initial_only index_present commit_incomplete)
+  @statuses ~w(missing unborn initialized cancelled timeout cleanup_uncertain unavailable invalid_request folder_changed git_unavailable invalid_repository metadata_limit nested_repository unsupported_layout unsafe_config repository_busy repository_changed recheck_required invalid_selection selection_limit unsafe_file preview_changed initial_only index_present commit_incomplete unsafe_tree tree_limit worktree_incomplete worktree_exists)
 
   @impl true
   def run(command) do
@@ -42,6 +42,9 @@ defmodule Cuckoding.LocalGit do
       })
     ]
 
+  defp extra(%{id: key, payload: %{"operation" => "worktree", "head" => head}}),
+    do: [Jason.encode!(%{"key" => key, "head" => head})]
+
   defp extra(_), do: []
 
   defp decode(bytes) do
@@ -65,6 +68,16 @@ defmodule Cuckoding.LocalGit do
        else: %{"status" => "invalid_repository"}
   end
 
+  def normalize(%{"status" => "prepared"} = result) do
+    if GitPreview.hash?(result["head"], 40) and
+         match?({:ok, _}, Ecto.UUID.cast(result["key"])) and
+         is_binary(result["path"]) and byte_size(result["path"]) <= 4096 and
+         is_integer(result["device"]) and result["device"] >= 0 and
+         is_integer(result["inode"]) and result["inode"] > 0,
+       do: Map.take(result, ~w(status key head path device inode)),
+       else: %{"status" => "invalid_repository"}
+  end
+
   def normalize(%{"status" => "existing"} = result) do
     if GitPreview.hash?(result["head"], 40),
       do: Map.take(result, ~w(status head)),
@@ -80,24 +93,57 @@ defmodule Cuckoding.ArenaGit do
   @moduledoc "Durable, consented Arena Git setup; no remote or agent execution grants."
   import Ecto.Query
   alias Cuckoding.{Arena, Arenas, Command, Foundation, GitPreview, LocalGit, Repo}
-  @kinds ~w(inspect_arena_git init_arena_git preview_arena_git commit_arena_git)
+
+  @kinds ~w(inspect_arena_git init_arena_git preview_arena_git commit_arena_git worktree_arena_git)
   @success %{
     "inspect" => ~w(missing unborn existing),
     "init" => ~w(initialized),
     "preview" => ~w(previewed),
-    "commit" => ~w(committed)
+    "commit" => ~w(committed),
+    "worktree" => ~w(prepared)
   }
 
   def latest(arena_id) do
     Repo.one(
       from c in Command,
         where:
-          c.kind in @kinds and
+          c.kind in @kinds and c.kind != "worktree_arena_git" and
             fragment("json_extract(?, '$.arena_id')", c.payload) == ^arena_id,
         order_by: [desc: c.inserted_at],
         limit: 1
     )
   end
+
+  def worktrees(arena_id) do
+    Repo.all(
+      from c in Command,
+        where:
+          c.kind == "worktree_arena_git" and
+            fragment("json_extract(?, '$.arena_id')", c.payload) == ^arena_id,
+        order_by: [desc: c.inserted_at],
+        limit: 10
+    )
+  end
+
+  def worktree_path(key),
+    do:
+      Path.join([
+        Application.fetch_env!(:cuckoding, :data_dir),
+        "runtime-home",
+        "worktrees",
+        key,
+        "checkout"
+      ])
+
+  def can_prepare?(command, now \\ DateTime.utc_now())
+
+  def can_prepare?(%Command{state: "completed", kind: kind, result: result} = command, now)
+      when kind in ~w(inspect_arena_git commit_arena_git) and result in ~w(existing committed),
+      do:
+        DateTime.diff(now, command.updated_at) in 0..299 and
+          GitPreview.hash?(command.payload["observation"]["head"], 40)
+
+  def can_prepare?(_, _), do: false
 
   def can_initialize?(command, now \\ DateTime.utc_now())
 
@@ -134,10 +180,10 @@ defmodule Cuckoding.ArenaGit do
   def request(key, arena_id, operation, observation_id \\ nil, confirmed \\ false) do
     with {:ok, key} <- Ecto.UUID.cast(key),
          {:ok, arena_id} <- Ecto.UUID.cast(arena_id),
-         true <- operation in ~w(inspect init commit),
+         true <- operation in ~w(inspect init commit worktree),
          true <-
            (operation == "inspect" and is_nil(observation_id)) or
-             (operation in ~w(init commit) and confirmed == true and
+             (operation in ~w(init commit worktree) and confirmed == true and
                 match?({:ok, _}, Ecto.UUID.cast(observation_id))) do
       transaction(fn -> enqueue(key, arena_id, operation, observation_id) end)
     else
@@ -182,6 +228,15 @@ defmodule Cuckoding.ArenaGit do
         else: payload
 
     payload =
+      if operation == "worktree" and is_nil(reason),
+        do:
+          Map.merge(payload, %{
+            "head" => latest(arena.id).payload["observation"]["head"],
+            "worktree_path" => worktree_path(key)
+          }),
+        else: payload
+
+    payload =
       if arena,
         do:
           Map.merge(
@@ -219,10 +274,8 @@ defmodule Cuckoding.ArenaGit do
       Foundation.pending?() ->
         "setup_busy"
 
-      operation == "init" and (not can_initialize?(previous) or previous.id != observation_id) ->
-        "recheck_required"
-
-      operation == "commit" and (not can_commit?(previous) or previous.id != observation_id) ->
+      operation in ~w(init commit worktree) and
+          not current_consent?(previous, operation, observation_id) ->
         "recheck_required"
 
       true ->
@@ -230,16 +283,36 @@ defmodule Cuckoding.ArenaGit do
     end
   end
 
+  defp current_consent?(%Command{id: id} = previous, operation, id) do
+    case operation do
+      "init" -> can_initialize?(previous)
+      "commit" -> can_commit?(previous)
+      "worktree" -> can_prepare?(previous)
+    end
+  end
+
+  defp current_consent?(_, _, _), do: false
+
   def execute(command) do
     with %Arena{} = arena <- Repo.get(Arena, command.payload["arena_id"]),
          {:ok, current} <- Arenas.inspect_folder(arena.path),
          true <- Enum.all?(~w(path device inode), &(current[&1] == command.payload[&1])),
-         true <- Foundation.probe_active?(command) do
+         true <- Foundation.probe_active?(command),
+         true <- worktree_current?(command) do
       LocalGit.run(command)
     else
       _ -> %{"status" => "folder_changed"}
     end
   end
+
+  defp worktree_current?(%{kind: "worktree_arena_git"} = command) do
+    previous = latest(command.payload["arena_id"])
+
+    can_prepare?(previous) and previous.id == command.payload["observation_id"] and
+      is_integer(command.lease_until) and command.lease_until > System.system_time(:millisecond)
+  end
+
+  defp worktree_current?(_), do: true
 
   def finish(claim, result) do
     transaction(fn ->
@@ -248,6 +321,10 @@ defmodule Cuckoding.ArenaGit do
       unless current.kind in @kinds and current.state in ~w(running cancelling) and
                current.attempts == claim.attempts,
              do: Repo.rollback(:lost_claim)
+
+      if current.kind == "worktree_arena_git" and current.state == "running" and
+           (is_nil(current.lease_until) or current.lease_until <= System.system_time(:millisecond)),
+         do: Repo.rollback(:lost_claim)
 
       public = observation(current, result)
       state = result_state(public["status"])
@@ -297,8 +374,19 @@ defmodule Cuckoding.ArenaGit do
       else: public
   end
 
+  defp bind_receipt(
+         %{"status" => "prepared"} = public,
+         %{kind: "worktree_arena_git", payload: %{"operation" => "worktree"}} = command
+       ) do
+    if matching_worktree?(public, command), do: public, else: %{"status" => "recheck_required"}
+  end
+
+  defp bind_receipt(%{"status" => "prepared"}, _), do: %{"status" => "recheck_required"}
+
   defp bind_receipt(public, command) do
-    success = public["status"] in ~w(missing unborn existing initialized previewed committed)
+    success =
+      public["status"] in ~w(missing unborn existing initialized previewed committed prepared)
+
     valid_operation = public["status"] in Map.fetch!(@success, command.payload["operation"])
 
     cond do
@@ -318,10 +406,18 @@ defmodule Cuckoding.ArenaGit do
     end
   end
 
+  defp matching_worktree?(public, command) do
+    Map.take(public, ~w(key head path)) == %{
+      "key" => command.id,
+      "head" => command.payload["head"],
+      "path" => command.payload["worktree_path"]
+    } and public["path"] == worktree_path(command.id)
+  end
+
   defp result_state("cancelled"), do: "cancelled"
 
   defp result_state(status)
-       when status in ~w(missing unborn existing initialized previewed committed),
+       when status in ~w(missing unborn existing initialized previewed committed prepared),
        do: "completed"
 
   defp result_state(_), do: "failed"

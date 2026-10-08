@@ -2,7 +2,7 @@
 
 ## Implemented boundary · reviewed 2026-10-08
 
-Cuckoding currently delivers authenticated setup and draft planning. It does
+Cuckoding currently delivers authenticated setup, draft planning and consented worktree preparation. It does
 **not** yet run battles, worktree task attempts, review loops or parallel workers.
 The later sections describe the target architecture, not additional shipped code.
 
@@ -23,7 +23,7 @@ release process group and private storage lock.
 | `ProjectChecks` | Immutable Arena check declarations, explicit preview/consent and atomic command/revision/event saves; no executable resolution, filesystem access or execution |
 | `BattlePreview` | Read-only aggregation of scoped saved preparation and verified spec artifacts; no durable battle state or launch authority |
 | `Specifications`, `Storage` | Freeze accepted draft/prerequisite revisions, write private Markdown, verify artifact hash and atomically commit acceptance/history/ToDo; no execution authority |
-| `ArenaGit`, `NativeHelper`, native `arena_git.rs` | Fixed inspect/init/initial-commit operations and descriptor-relative selected file reads; no remotes, hooks or arbitrary commands |
+| `ArenaGit`, `NativeHelper`, native `arena_git.rs` | Fixed inspect/init/initial-commit/detached-worktree operations and descriptor-relative selected file reads; no remotes, hooks or arbitrary commands |
 
 The dispatcher serializes setup, local previews and planning globally. This is a
 known preview-stage capacity limit, not the future parallel scheduler. Pending
@@ -73,6 +73,13 @@ history is never used as an authority lookup. Git is a dated saved observation,
 not a fresh repository inspection. The LiveView marks displayed details stale on
 PubSub updates or after one minute and refreshes explicitly, retaining disclosures.
 No mutation, command, audit event, worker, migration or new runtime boundary is added.
+
+R050b extends the existing Git adapter/command boundary with `worktree_arena_git`.
+SQLite freezes source identity, observed HEAD and generated destination before the
+native helper creates a private owner record and a detached locked worktree.
+Worktree attempts have separate retrieval so they cannot replace the last baseline
+observation or turn Battle preview into an action. Completion binds the native
+key/HEAD/path and refuses expired claims. No new table, runner or dependency.
 
 Audit consequences: preserve these domain/host boundaries; extend execution
 evidence before adding battles. The eight-migration schema has no

@@ -6,7 +6,8 @@ These rules apply repository-wide. More specific rules may strengthen safety,
 auditability and verification, not weaken them. The 2026-10-06 user reset replaces
 the previous product direction. R010 implements the local foundation; provider
 execution and battles remain the R020–R100 roadmap.
-The current implemented boundary is setup and draft planning, summarized with
+The current implemented boundary is setup, draft planning and consented isolated
+worktree preparation, summarized with
 source owners in [Architecture](docs/ARCHITECTURE.md). [Plan](docs/PLAN.md) owns
 remaining acceptance, not this file. Human-completed real-account/model checks,
 repository execution and autonomous battles remain open.
@@ -64,6 +65,15 @@ Preserve these implemented contracts:
   Git cleanliness, worktree permission or task completion. Future Start still
   needs atomic authority and fresh admission; optional spec acceptance must not
   introduce ordinary per-task approval after Start.
+
+- Worktree preparation freezes a fresh committed Git observation and source folder
+  identity before native effects. Derive private destinations from command UUIDs;
+  exclusively create ownership records outside detached locked checkouts. Reject
+  unsafe filters/tree layouts and preserve original index/working files. Retain
+  all partial effects; expired/cancelled claims cannot publish success or replay.
+  Creation receipts never grant execution or prove current checkout integrity.
+  Keep this setup utility separate from read-only Battle preview; future Start
+  still owns ordinary worktree admission under its single bounded authorization.
 
 ## Mission and product contract
 

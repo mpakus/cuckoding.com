@@ -364,3 +364,21 @@ Preview binds exact normalized fields before confirmation. Future battles must
 snapshot an explicit check revision; changing configuration cannot mutate a saved
 battle or imply permission to execute. Runtime grants and check receipts do not
 exist in this slice.
+
+## R050b worktree receipts
+
+`worktree_arena_git` reuses commands/events; schema remains at eight migrations.
+Intent freezes Arena ID, source path/device/inode, observation ID, exact HEAD and
+`<data>/runtime-home/worktrees/<command UUID>/checkout`. A completed public receipt
+retains command key, HEAD, checkout path/device/inode and measured duration.
+Events contain only scoped IDs, operation, status and elapsed time; no source paths
+or contents. Native `owner.json` beside the checkout stores version, key, HEAD,
+source device/inode and destination, exclusively before Git effects. It is an
+ownership aid, not a live integrity check or a substitute for the DB command.
+
+Pending cancellation launches nothing; running cancellation holds ownership until
+cleanup. An expired running claim rejects late success, then becomes interrupted
+without replay. Partial directories and Git registrations remain. The UI shows
+the latest ten attempts; older receipts remain in SQLite. No auto-prune/delete or
+battle membership/grant is created. `ArenaGit.latest/1` excludes worktree attempts
+so a creation receipt never becomes the source repository's latest observation.

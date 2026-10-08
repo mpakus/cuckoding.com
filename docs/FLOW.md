@@ -296,3 +296,13 @@ required criterion is met, no required tasks remain blocked/skipped/cancelled,
 final checks pass on the final head, and Secutor records a final independent
 review. Summa Rudis summarizes the result; the host records completion. Local
 integration is part of Start battle authority; user-branch merge/push is separate.
+
+## Worktree preparation (R050b)
+
+Repository setup → fresh committed Git observation → separate confirmation →
+durable `worktree_arena_git` → native owned checkout → retained receipt.
+Pending → running → completed/failed; cancellation waits for cleanup. Expired
+running/cancelling commands become interrupted without replay. A mismatched
+key/HEAD/path or late result cannot publish success. Original checkout changes
+stay outside the new worktree. This optional setup action neither freezes a battle
+nor authorizes agents/checks; the read-only Battle preview stays read-only.

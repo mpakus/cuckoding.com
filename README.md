@@ -31,7 +31,11 @@ order without launching agents.
 repository after separate confirmation. An unborn repository can then preview
 explicitly selected files (or an empty baseline) and create its first local commit
 after fresh confirmation. Working files remain unchanged; existing indexes/history
-are refused. See [Git setup limits](docs/DEVELOPMENT.md).
+are refused. **Isolated worktrees** can prepare a locked, detached checkout from
+a freshly inspected commit after separate confirmation. Original staged/unsaved
+files stay unchanged. Attempts retain their location and receipt; uncertain partial
+work is preserved. This is repository preparation, with no agent/check execution.
+See [Git setup limits](docs/DEVELOPMENT.md).
 
 **Ask Speculator** turns a typed brief and optional selected document snapshots
 into up to six proposals using the Tabula's
@@ -69,7 +73,8 @@ battles remain unimplemented. Registration alone does not validate Git; an expli
 distinguishes missing, unborn and committed standalone repositories.
 The product story above remains the target, not a shipped capability list.
 
-Evidence: [Battle preview worklog](worklog/2026-10-08-R050a-battle-preview.md),
+Evidence: [Owned worktree worklog](worklog/2026-10-08-R050b-owned-worktree.md),
+[Battle preview worklog](worklog/2026-10-08-R050a-battle-preview.md),
 [Project checks worklog](worklog/2026-10-08-R040j-project-checks.md),
 [Accepted specifications worklog](worklog/2026-10-07-R040i-accepted-specifications.md),
 [Proposal links worklog](worklog/2026-10-07-R040h-proposal-links.md),

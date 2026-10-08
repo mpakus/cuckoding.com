@@ -24,6 +24,8 @@ defmodule CuckodingWeb.TabulaLive do
          board_error: nil,
          git_key: Ecto.UUID.generate(),
          git_error: nil,
+         worktree_confirmed: false,
+         worktree_observation: nil,
          init_confirmed: false,
          confirmed_observation: nil,
          git_paths: nil,
@@ -44,6 +46,32 @@ defmodule CuckodingWeb.TabulaLive do
   @impl true
   def handle_event("inspect-git", _, socket) do
     {:noreply, git_request(socket, "inspect")}
+  end
+
+  def handle_event("worktree-change", params, socket),
+    do: {:noreply, worktree_input(socket, params)}
+
+  def handle_event("prepare-worktree", _, %{assigns: %{setup_busy: true}} = socket),
+    do: {:noreply, socket}
+
+  def handle_event("prepare-worktree", params, socket) do
+    socket = worktree_input(socket, params)
+
+    result =
+      ArenaGit.request(
+        socket.assigns.git_key,
+        socket.assigns.arena.id,
+        "worktree",
+        socket.assigns.worktree_observation,
+        socket.assigns.worktree_confirmed
+      )
+
+    {:noreply, git_result(socket, result)}
+  end
+
+  def handle_event("cancel-worktree", %{"id" => id}, socket) do
+    if Enum.any?(socket.assigns.worktrees, &(&1.id == id)), do: Foundation.cancel_probe(id)
+    {:noreply, refresh(socket)}
   end
 
   def handle_event("git-change", params, socket), do: {:noreply, git_input(socket, params)}
@@ -182,6 +210,8 @@ defmodule CuckodingWeb.TabulaLive do
       arena_team: TeamAssignments.assigned(socket.assigns.arena),
       board_team: if(board, do: TeamAssignments.assigned(board)),
       git: git,
+      worktrees: ArenaGit.worktrees(socket.assigns.arena.id),
+      worktree_confirmed: current_worktree_consent?(socket, git),
       git_paths: socket.assigns.git_paths || Enum.join(paths, "\n"),
       setup_busy: Foundation.pending?(),
       now: DateTime.utc_now(),
@@ -196,6 +226,24 @@ defmodule CuckodingWeb.TabulaLive do
           do: Tabulae.history(board.id, socket.assigns.task_id),
           else: []
         )
+    )
+  end
+
+  defp current_worktree_consent?(socket, git),
+    do:
+      socket.assigns.worktree_confirmed && ArenaGit.can_prepare?(git) &&
+        socket.assigns.worktree_observation == git.id
+
+  defp worktree_input(socket, params) do
+    current = socket.assigns.git
+
+    confirmed =
+      ArenaGit.can_prepare?(current) and params["observation_id"] == current.id and
+        params["key"] == socket.assigns.git_key and params["confirmed"] == "true"
+
+    assign(socket,
+      worktree_confirmed: confirmed,
+      worktree_observation: if(confirmed, do: current.id)
     )
   end
 
@@ -247,6 +295,8 @@ defmodule CuckodingWeb.TabulaLive do
     socket
     |> assign(
       git_error: error,
+      worktree_confirmed: false,
+      worktree_observation: nil,
       git_key: Ecto.UUID.generate(),
       init_confirmed: false,
       confirmed_observation: nil,
@@ -257,6 +307,25 @@ defmodule CuckodingWeb.TabulaLive do
   end
 
   defp git_active?(command), do: command && command.state in ~w(pending running cancelling)
+
+  defp worktree_message(status)
+       when status in ~w(worktree_incomplete worktree_exists cancelled interrupted timeout cleanup_uncertain),
+       do:
+         "Preparation stopped or needs inspection. Its ownership record and any partial checkout or Git metadata are retained. Nothing is retried or deleted automatically."
+
+  defp worktree_message(status), do: git_message(status)
+
+  defp git_message("prepared"),
+    do:
+      "Detached, locked checkout prepared. Receipt records its creation; execution is not enabled."
+
+  defp git_message("unsafe_tree"),
+    do:
+      "This commit contains unsupported paths, links, submodules or known credential names. No checkout was created."
+
+  defp git_message("tree_limit"),
+    do:
+      "The commit exceeds checkout limits: 10,000 files, 8 MiB per file, 64 MiB total or 1 MiB of tree metadata."
 
   defp git_message("missing"),
     do: "No Git repository. Initialization is optional and needs your confirmation."
@@ -490,6 +559,69 @@ defmodule CuckodingWeb.TabulaLive do
           <div class="team-actions">
             <button type="button" class="button" phx-click="inspect-git" disabled={@setup_busy}>Inspect Git</button>
           </div>
+          <details id="worktree-setup" phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
+            <summary>Isolated worktrees</summary>
+            <p class="fine-print">
+              Prepare committed files in a private detached checkout. Unsaved, staged and
+              untracked changes stay in your original folder. This adds locked Git worktree
+              metadata to the repository. It runs no agents or project checks and does not start a battle.
+            </p>
+            <.form
+              :if={ArenaGit.can_prepare?(@git, @now)}
+              for={%{}}
+              id="worktree-form"
+              phx-change="worktree-change"
+              phx-submit="prepare-worktree"
+            >
+              <input type="hidden" name="observation_id" value={@git.id} />
+              <input type="hidden" name="key" value={@git_key} />
+              <p>Commit: <code>{@git.payload["observation"]["head"]}</code></p>
+              <p>Checkout: <code>{ArenaGit.worktree_path(@git_key)}</code></p>
+              <p class="fine-print">Up to 10,000 regular files, 8 MiB each / 64 MiB total;
+                1 MiB of tree metadata. Links, submodules, Git filters and known credential paths are refused.
+                Partial effects are retained for inspection.</p>
+              <label class="confirm-executable">
+                <input type="checkbox" name="confirmed" value="true" checked={@worktree_confirmed} />
+                Create this isolated checkout from the displayed commit and retain its Git registration.
+              </label>
+              <button class="button" aria-disabled={to_string(@setup_busy)}>Prepare worktree</button>
+            </.form>
+            <p :if={!ArenaGit.can_prepare?(@git, @now)}>
+              Inspect Git to confirm a current committed baseline before preparing a worktree.
+            </p>
+            <ul id="worktree-receipts" class="git-files">
+              <li :for={command <- @worktrees} id={"worktree-#{command.id}"}>
+                <strong>{command.state}</strong>
+                · {Calendar.strftime(command.inserted_at, "%Y-%m-%d %H:%M UTC")}
+                <p :if={git_active?(command)} role="status">
+                  User · system Git · no model · {max(0, DateTime.diff(@now, command.updated_at))}s elapsed
+                  · 15s native limit
+                </p>
+                <button
+                  :if={git_active?(command)}
+                  type="button"
+                  class="button"
+                  phx-click="cancel-worktree"
+                  phx-value-id={command.id}
+                  disabled={command.state == "cancelling"}
+                >
+                  {if command.state == "cancelling",
+                    do: "Waiting for cleanup…",
+                    else: "Cancel preparation"}
+                </button>
+                <p :if={command.result} role="status">{worktree_message(command.result)}</p>
+                <p :if={command.payload["head"]}>Commit: <code>{command.payload["head"]}</code></p>
+                <p :if={command.payload["worktree_path"]}>
+                  Retained location: <code>{command.payload["worktree_path"]}</code>
+                </p>
+              </li>
+            </ul>
+            <p :if={@worktrees != []} class="fine-print">
+              Latest 10 attempts. Older receipts remain in local storage.
+              A creation receipt does not verify the checkout's current contents. Worktrees share Git metadata;
+              they are not a security sandbox.
+            </p>
+          </details>
           <.form
             :if={ArenaGit.can_initialize?(@git, @now)}
             for={%{}}
