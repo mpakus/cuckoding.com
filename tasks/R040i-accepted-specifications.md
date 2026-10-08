@@ -1,6 +1,6 @@
 # R040i — Accepted Markdown specifications
 
-Status: implemented and verified; local integration pending. Owner: Codex.
+Status: complete; implemented, verified and merged to local main (`40061ef`). Owner: Codex.
 
 - Preview a saved task as bounded, readable Markdown with its exact task revision,
   prerequisite revisions and original cited snapshots. Require nonempty description

@@ -125,4 +125,13 @@ README, AGENTS and affected docs distinguish accepted intent from execution.
 `rtk proxy python3 /private/tmp/cuckoding-r040i-proof-5llneac_/check-docs.py`:
 98 local Markdown link targets passed. `rtk git diff --check`: passed.
 
-Local integration closeout pending.
+## Local integration
+
+Implementation commit `40061ef` (`feat(specifications): retain accepted Markdown
+task snapshots`) was fast-forwarded into local main with `rtk git switch main`
+and `rtk git merge --ff-only feature/r040i-accepted-specs`.
+`rtk git branch -d feature/r040i-accepted-specs` removed the merged branch.
+`rtk git status --short --branch` confirmed clean local main, 19 commits ahead of
+the saved origin/main reference before this task/worklog closeout. No push performed.
+The tested package above contains the same implementation. This closeout changes
+only task/worklog status; it does not alter the tested application.
