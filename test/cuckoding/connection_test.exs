@@ -132,6 +132,36 @@ defmodule Cuckoding.ConnectionTest do
     refute Jason.encode!(result) =~ "fixture-secret"
   end
 
+  test "full catalogs retain additional models and reject malformed visibility", %{path: path} do
+    ready(path)
+    visible = hd(catalog()["models"])
+
+    additional =
+      Map.merge(visible, %{"id" => "additional", "model" => "additional", "hidden" => true})
+
+    result =
+      catalog()
+      |> Map.put("models", [visible, additional])
+      |> Jason.encode!()
+      |> Codex.normalize_connection()
+
+    assert result["catalog_status"] == "fresh"
+    assert {:ok, _} = Foundation.finish(inspect_profile(), result)
+    assert Foundation.workspace().connection["models"] == [visible, additional]
+
+    for flag <- [nil, "false", 1] do
+      invalid =
+        catalog()
+        |> Map.put("models", [Map.put(visible, "hidden", flag)])
+        |> Jason.encode!()
+        |> Codex.normalize_connection()
+
+      assert invalid["catalog_status"] == "failed"
+      assert {:ok, _} = Foundation.finish(inspect_profile(), invalid)
+      assert Foundation.workspace().connection["models"] == [visible, additional]
+    end
+  end
+
   test "interrupted inspections never replay; cancellation refuses a late catalog", %{path: path} do
     ready(path)
     {:ok, _} = Foundation.inspect_codex(Ecto.UUID.generate(), 1, true)

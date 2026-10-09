@@ -75,11 +75,14 @@ at 32,768 entries (the observed bundled-plugin cache alone exceeded 7,000). This
 
 Stdio has 64 KiB frame / 512 KiB cumulative limits, bounded channel buffering,
 a ten-second deadline and the same owned-group cleanup. Model discovery accepts
-at most four pages of 32 entries; repeated cursors/IDs, invalid metadata or a
+at most four pages of 32 entries with `includeHidden:true` on every request.
+R020f includes entries hidden from the agent’s default picker, validates/stores
+the boolean `hidden` flag, and exposes them as additional models in Agents/Team.
+Older normalized rows without the flag remain readable. Repeated cursors/IDs, invalid metadata or a
 partial failure cannot publish a partial catalog. A catalog failure does not
 rewrite a successful account observation. Emails, plans, raw errors and unknown
 fields are discarded. The host validates normalized output again before SQLite.
-Only IDs, labels, default/effort/input metadata survive. Catalog provenance is
+Only IDs, labels, visibility and default/effort/input metadata survive. Catalog provenance is
 `codex-app-server/model/list`; this may be runtime-cached metadata, not entitlement.
 
 R020c adds `authorize/5` for fixed login/logout operations. Login sends
@@ -110,8 +113,11 @@ limits, turn/interrupt on cancellation/failure, then owned-group cleanup. Cuckod
 stores only a closed 1 KiB public receipt. Provider usage may precede cancellation.
 
 Real acceptance so far: installed Codex initialized a fresh profile, returned
-not_connected, and started/cancelled browser login without an auth file. Connected
-catalogs and completed login use fixtures only. Human-completed login, revoked
+not_connected, and started/cancelled browser login without an auth file. R020f also verified a read-only full catalog fetch from the existing signed-in
+private profile: six entries, three hidden from the default picker. The returned
+set depends on the installed client and account; no additional model IDs are
+invented or borrowed from another client. Login completion itself was not driven
+by that check. Human-completed login acceptance, revoked
 access, concurrent session reuse, physical sleep recovery and real scoped turns
 remain R020 gates. A fresh-profile real thread preflight verified the restrictive
 response without calling turn/start; a signed-out model check refused inference.

@@ -147,6 +147,54 @@ defmodule CuckodingWeb.FoundationLiveTest do
     assert has_element?(view, "#codex-models[phx-mounted*=ignore_attrs]")
   end
 
+  test "agent and team selectors expose every returned model including additional entries", %{
+    conn: conn
+  } do
+    {:ok, _} = Foundation.check_codex(Ecto.UUID.generate(), 0, "/bin/sh", true)
+    {:ok, claim} = Foundation.claim()
+    Foundation.finish(claim, %{"status" => "supported", "version" => "0.146.0"})
+    {:ok, _} = Foundation.inspect_codex(Ecto.UUID.generate(), 1, true)
+    {:ok, claim} = Foundation.claim()
+
+    models =
+      for n <- 1..7,
+          do: %{
+            "id" => "model-#{n}",
+            "model" => "model-#{n}",
+            "name" => "Model #{n}",
+            "efforts" => ["medium"],
+            "default_effort" => "medium",
+            "default" => n == 1,
+            "input_modalities" => ["text"],
+            "hidden" => n > 3
+          }
+
+    connection = %{
+      "status" => "checked",
+      "authorization" => "chatgpt",
+      "catalog_status" => "fresh",
+      "fetched_at" => DateTime.to_iso8601(DateTime.utc_now()),
+      "models" => models
+    }
+
+    assert {:ok, _} = Foundation.finish(claim, connection)
+
+    signed = sign_in(conn)
+    {:ok, agents, _} = live(signed, "/settings")
+    assert has_element?(agents, "#codex-models summary", "7 cached models")
+
+    for model <- models,
+        do: assert(has_element?(agents, "#model-id option[value='#{model["id"]}']"))
+
+    assert has_element?(agents, "#model-id option[value='model-7']", "additional")
+    {:ok, team, _} = live(signed, "/team")
+
+    for model <- models,
+        do: assert(has_element?(team, "#model-speculator option[value='#{model["id"]}']"))
+
+    assert has_element?(team, "#model-speculator option[value='model-7']", "additional")
+  end
+
   test "profile checkboxes survive clock and unrelated updates and can be unchecked", %{
     conn: conn
   } do

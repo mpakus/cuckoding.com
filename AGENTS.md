@@ -168,6 +168,9 @@ Do not restore the old implementation or treat historical tests as current proof
   initialize/config-read/account-read/model-list, keeps raw frames and account
   identifiers out of Cuckoding storage, and rejects unsafe profiles. Retain the
   last catalog as stale after inspection failure; age it out after 24 hours.
+  Fetch the full bounded agent catalog, including entries hidden from its default
+  picker. Validate/preserve that flag and expose additional models without
+  inventing IDs or inferring entitlement; older cached rows remain readable.
   Login/logout invalidate account/catalog observations before launch and require
   separate consent. Serialize profile operations through the ledger and native
   lock; never replay interrupted authentication. Hold cancellation until helper

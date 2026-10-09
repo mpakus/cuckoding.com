@@ -32,6 +32,9 @@ normalized account observation/time, executable identity, catalog entries/source
 fetched time and the last inspection outcome. No email, plan details, raw frame,
 credential or auth URL is copied into Cuckoding tables/events. A successful
 catalog replaces the snapshot; a failed refresh keeps the last entries as stale.
+R020f requests the full runtime list and stores its boolean `hidden` picker flag
+per model. Older rows may omit it; no migration or binding rewrite is needed.
+Hidden entries remain selectable and are labeled additional, not access-verified.
 Freshness is derived from the stored timestamp (24 hours), never an in-memory
 clock alone. Signed-out/unsupported account observations clear unusable entries;
 a changed executable identity clears the connection projection. R020c login/logout

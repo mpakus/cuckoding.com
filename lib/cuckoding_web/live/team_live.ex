@@ -306,7 +306,7 @@ defmodule CuckodingWeb.TeamLive do
                       value={model["id"]}
                       selected={role["model_id"] == model["id"]}
                     >
-                      {model["name"] || model["id"]}
+                      {model["name"] || model["id"]}{if model["hidden"], do: " · additional"}
                     </option>
                   </select>
                 </div>

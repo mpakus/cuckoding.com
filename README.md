@@ -15,7 +15,10 @@ attention items and logs.
 **Local preview, 2026-10-08.** The tray shell, authenticated browser, SQLite
 commands/events, tool discovery and Codex setup work. **Agents** provides
 consented version/profile checks, managed ChatGPT sign-in/out, a cached model
-catalog and a fixed model-access diagnostic. Profile confirmations stay checked
+catalog and a fixed model-access diagnostic. Catalog refresh fetches all models
+reported by Codex, including entries hidden from its default picker; additional
+models can be selected in Agents and Team. Availability is still checked separately.
+Profile confirmations stay checked
 through live updates and reset on submission or setup changes. **Team** saves the four default
 roles plus custom roles, Codex/model assignments and instructions in immutable
 revisions. Existing Arenas and Tabulae can explicitly adopt a newer saved team;
@@ -69,7 +72,8 @@ prerequisites, verified accepted Markdown, declared checks and last Git observat
 It shows missing or outdated preparation and links to settings. Refresh after
 changes; the preview grants no execution and starts no battle.
 
-Real Codex `0.146.0` login start/cancel, signed-out inspection and restricted
+Real Codex `0.146.0` login start/cancel, signed-out inspection, a signed-in full
+catalog fetch (six models for the observed client/profile) and restricted
 configuration/thread preflight passed. Successful model responses use fixtures;
 human-completed login, real responses and repository execution remain open.
 Dependency scheduling, execution grants and autonomous
@@ -77,7 +81,8 @@ battles remain unimplemented. Registration alone does not validate Git; an expli
 distinguishes missing, unborn and committed standalone repositories.
 The product story above remains the target, not a shipped capability list.
 
-Evidence: [Profile checkbox fix](worklog/2026-10-08-R020e-profile-checkboxes.md),
+Evidence: [Full model catalog](worklog/2026-10-08-R020f-full-model-catalog.md),
+[Profile checkbox fix](worklog/2026-10-08-R020e-profile-checkboxes.md),
 [Worktree inspection worklog](worklog/2026-10-08-R050c-worktree-inspection.md),
 [Owned worktree worklog](worklog/2026-10-08-R050b-owned-worktree.md),
 [Battle preview worklog](worklog/2026-10-08-R050a-battle-preview.md),

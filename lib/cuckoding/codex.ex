@@ -401,7 +401,7 @@ defmodule Cuckoding.Codex do
         "models",
         Enum.map(
           models,
-          &Map.take(&1, ~w(id model name efforts default_effort input_modalities default))
+          &Map.take(&1, ~w(id model name efforts default_effort input_modalities default hidden))
         )
       )
     else
@@ -412,17 +412,20 @@ defmodule Cuckoding.Codex do
   defp normalize_models(result, _),
     do: Map.merge(result, %{"catalog_status" => "failed", "catalog_error" => "invalid_catalog"})
 
-  defp valid_model?(%{
-         "id" => id,
-         "model" => model,
-         "name" => name,
-         "efforts" => efforts,
-         "default_effort" => default,
-         "input_modalities" => modalities,
-         "default" => selected
-       }) do
+  defp valid_model?(
+         %{
+           "id" => id,
+           "model" => model,
+           "name" => name,
+           "efforts" => efforts,
+           "default_effort" => default,
+           "input_modalities" => modalities,
+           "default" => selected
+         } = row
+       ) do
     identifier?(id) and identifier?(model) and label?(name) and
-      efforts?(efforts, default) and modalities?(modalities) and is_boolean(selected)
+      efforts?(efforts, default) and modalities?(modalities) and is_boolean(selected) and
+      is_boolean(Map.get(row, "hidden", false))
   end
 
   defp valid_model?(_), do: false

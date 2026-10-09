@@ -16,6 +16,7 @@ and full-story gates remain open. Historical test counts do not establish proof.
 | R020c | Consent/invalidation, official URL validation and session redirect, matching completion, profile exclusion, cancel/cleanup, uncertain restart, real login start/cancel and packaged UI |
 | R020d | Usage consent, fresh identity/catalog binding, effective grant preflight, model/thread/turn matching, early completion, tool refusal, cancellation/no replay, closed receipts/canaries, reconnect UI and packaged smoke; real signed-in responses remain separate |
 | R020e | Profile checkbox persistence through clock/PubSub, unchecking, setup/submission/reconnect reset, stale form/revision and expired-session refusal, packaged mouse/keyboard proof without provider actions |
+| R020f | Full-list flag on every page, visible/hidden entries, malformed visibility, retained old/stale catalogs, all Agents/Team options, shared diagnostic/planning preflight and real read-only refresh |
 | R020 | Adapter parsing/cancellation/canaries, model-cache persistence/failure, real login + isolated execution across two workspaces |
 | R030a | Seed/immutable history, command replay, competing revisions, bounded roles, confirmed removal, stale/missing/drifted bindings, expired sessions, draft preservation/browser revision guard, fresh/prior-schema package smoke |
 | R030b | Confirmed scoped adoption, stale/default revision guards, active-plan exclusion, command replay/atomic events, immutable past receipts/drafts, component session expiry, preserved forms and prior-schema/restart package proof |

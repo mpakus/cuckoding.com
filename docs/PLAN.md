@@ -131,6 +131,10 @@ the real-provider gate.
   stale forms and expired sessions; verify the rebuilt browser surface. See
   [task](../tasks/R020e-profile-checkboxes.md) and
   [evidence](../worklog/2026-10-08-R020e-profile-checkboxes.md).
+- [x] R020f: fetch the full paginated agent model list, retain validated picker
+  visibility, and expose additional entries in Agents/Team without inferred access.
+  See [task](../tasks/R020f-full-model-catalog.md) and
+  [evidence](../worklog/2026-10-08-R020f-full-model-catalog.md).
 - [ ] Prove a read-only turn and a permitted worktree-writing turn in isolated
   workspaces; normalize public activity, outcomes and redacted logs.
 - [ ] Add task/process identity, cancellation, clean environment, path policy,

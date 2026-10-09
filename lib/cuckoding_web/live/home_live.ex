@@ -540,11 +540,12 @@ defmodule CuckodingWeb.HomeLive do
               <p class="fine-print">
                 Source: {@workspace.connection["source"]} · Fetched: {@workspace.connection[
                   "fetched_at"
-                ]}. Catalog metadata is not an entitlement check.
+                ]}. Refresh also fetches models hidden from the agent’s default picker. Catalog metadata is not an entitlement check.
               </p>
               <ul class="tool-list">
                 <li :for={model <- @workspace.connection["models"]}>
-                  <span>{model["name"]} <small :if={model["default"]}>Runtime default</small></span>
+                  <span>{model["name"]} <small :if={model["default"]}>Runtime default</small>
+                  <small :if={model["hidden"]}>Additional model</small></span>
                   <code>{model["model"]}</code>
                   <span class="fine-print">Effort: {Enum.join(model["efforts"], ", ")} · Inputs: {Enum.join(
                     model["input_modalities"],
@@ -578,7 +579,7 @@ defmodule CuckodingWeb.HomeLive do
                   value={model["id"]}
                   selected={@model_id == model["id"]}
                 >
-                  {model["name"]} · {model["model"]}
+                  {model["name"]} · {model["model"]}{if model["hidden"], do: " · additional"}
                 </option>
               </select>
               <p class="fine-print">

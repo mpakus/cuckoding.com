@@ -231,7 +231,8 @@ fn model(row: &Value) -> Result<Value> {
     }
     Ok(
         json!({"id":id,"model":identifier(&row["model"])?,"name":name,"efforts":efforts,
-        "default_effort":default,"input_modalities":modalities,"default":row["isDefault"].as_bool().ok_or("invalid_catalog")?}),
+        "default_effort":default,"input_modalities":modalities,"default":row["isDefault"].as_bool().ok_or("invalid_catalog")?,
+        "hidden":row["hidden"].as_bool().ok_or("invalid_catalog")?}),
     )
 }
 
@@ -243,16 +244,13 @@ fn catalog(rpc: &mut Rpc) -> Result<Vec<Value>> {
     for _ in 0..4 {
         let result = rpc.request(
             "model/list",
-            json!({"limit":32,"includeHidden":false,"cursor":cursor}),
+            json!({"limit":32,"includeHidden":true,"cursor":cursor}),
         )?;
         for row in result["data"]
             .as_array()
             .filter(|r| r.len() <= 32)
             .ok_or("invalid_catalog")?
         {
-            if row["hidden"] != false {
-                return Err("invalid_catalog");
-            }
             let entry = model(row)?;
             if !ids.insert(entry["id"].as_str().unwrap().to_owned()) {
                 return Err("invalid_catalog");
@@ -723,6 +721,7 @@ done
                 assert!(seen);
                 assert_eq!(result["authorization"], "chatgpt");
                 assert_eq!(result["models"].as_array().unwrap().len(), 1);
+                assert_eq!(result["models"][0]["hidden"], false);
             } else {
                 assert!(!seen);
                 assert_eq!(result["authorization"], "not_connected");
@@ -818,6 +817,10 @@ test "$CODEX_HOME" = "$PWD" || exit 3
 test "$1" = app-server || exit 4
 while IFS= read -r line; do
   case "$line" in
+    *'"method":"model/list"'*)
+      case "$line" in *'"includeHidden":true'*) : ;; *) exit 8 ;; esac ;;
+  esac
+  case "$line" in
     *'"method":"initialize"'*) printf '%s\n' '{init}' ;;
     *'"method":"config/read"'*) printf '%s\n' '{config}' ;;
     *'"method":"account/read"'*) printf '%s\n' '{account}' ;;
@@ -851,11 +854,28 @@ done
             json!({"type":"chatgpt","email":"fixture-secret","planType":"fixture-secret"}),
             json!([sample()]),
         );
+        let mut additional = sample();
+        additional["id"] = json!("additional-model");
+        additional["model"] = json!("additional-model");
+        additional["hidden"] = json!(true);
+        additional["isDefault"] = json!(false);
+        let script = fs::read_to_string(&path).unwrap();
+        fs::write(
+            &path,
+            script.replace(
+                r#""data":[],"nextCursor":null"#,
+                &format!(r#""data":[{additional}],"nextCursor":null"#),
+            ),
+        )
+        .unwrap();
         let result = check(&path, &dir);
         assert_eq!(result["status"], "checked");
         assert_eq!(result["authorization"], "chatgpt");
         assert_eq!(result["catalog_status"], "fresh");
-        assert_eq!(result["models"].as_array().unwrap().len(), 1);
+        assert_eq!(result["models"].as_array().unwrap().len(), 2);
+        assert_eq!(result["models"][0]["hidden"], false);
+        assert_eq!(result["models"][1]["hidden"], true);
+        assert_eq!(result["models"][1]["model"], "additional-model");
         assert_eq!(result["models"][0]["efforts"], json!(["medium"]));
         assert!(!result.to_string().contains("fixture-secret"));
         fs::remove_dir_all(dir).unwrap();
@@ -906,7 +926,10 @@ done
 
     #[test]
     fn malformed_models_preserve_auth_and_never_publish_partial_catalogs() {
+        let mut malformed_visibility = sample();
+        malformed_visibility["hidden"] = json!("false");
         for rows in [
+            json!([malformed_visibility]),
             json!([{"id":"fixture-secret"}]),
             json!([sample(), sample()]),
             json!([{"hidden":true}]),

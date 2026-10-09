@@ -53,7 +53,10 @@ operations. A fresh profile correctly reports Not signed in. It does not adopt
 personal Codex credentials or launch a turn.
 A successful catalog shows source, fetched time, IDs, effort choices and input
 modalities; after 24 hours or a failed refresh it is stale. A catalog is not
-proof that the account can run a model. Inspection expires after ten seconds,
+proof that the account can run a model. The full agent list includes entries hidden
+from Codex’s default picker, labeled **additional** in Agents and Team. After
+upgrading from a three-model catalog, confirm **Check Codex connection** to refresh;
+no reauthorization or inference is required. Inspection expires after ten seconds,
 can be cancelled and does not retry automatically after interruption.
 
 **Sign in with ChatGPT** needs a separate confirmation to use the private profile.
