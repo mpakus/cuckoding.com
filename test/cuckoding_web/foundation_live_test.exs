@@ -147,6 +147,102 @@ defmodule CuckodingWeb.FoundationLiveTest do
     assert has_element?(view, "#codex-models[phx-mounted*=ignore_attrs]")
   end
 
+  test "profile checkboxes survive clock and unrelated updates and can be unchecked", %{
+    conn: conn
+  } do
+    {:ok, _} = Foundation.check_codex(Ecto.UUID.generate(), 0, "/bin/sh", true)
+    {:ok, claim} = Foundation.claim()
+    Foundation.finish(claim, %{"status" => "supported", "version" => "0.146.0"})
+    {:ok, view, _} = conn |> sign_in() |> live("/settings")
+
+    for {form_id, field} <- [
+          {"codex-login", :auth_confirmed},
+          {"codex-logout", :auth_confirmed},
+          {"connection-check", :profile_confirmed}
+        ] do
+      view |> form("##{form_id}", %{field => "true"}) |> render_change()
+      send(view.pid, :clock)
+      Foundation.broadcast()
+      assert has_element?(view, "##{form_id} input[type=checkbox][checked]")
+      view |> form("##{form_id}") |> render_change(%{field => nil})
+      send(view.pid, :clock)
+      refute has_element?(view, "##{form_id} input[type=checkbox][checked]")
+    end
+
+    refute Foundation.pending?()
+  end
+
+  test "profile consent resets on setup changes, rejects recovered forms and is session guarded",
+       %{conn: conn} do
+    {:ok, _} = Foundation.check_codex(Ecto.UUID.generate(), 0, "/bin/sh", true)
+    {:ok, claim} = Foundation.claim()
+    Foundation.finish(claim, %{"status" => "supported", "version" => "0.146.0"})
+    signed = sign_in(conn)
+    {:ok, view, _} = live(signed, "/settings")
+
+    forms = [
+      {"codex-login", :auth_confirmed},
+      {"codex-logout", :auth_confirmed},
+      {"connection-check", :profile_confirmed}
+    ]
+
+    for {id, field} <- forms, do: view |> form("##{id}", %{field => "true"}) |> render_change()
+    {:ok, _} = Foundation.check_codex(Ecto.UUID.generate(), 1, "/bin/sh", true)
+    {:ok, claim} = Foundation.claim()
+    Foundation.finish(claim, %{"status" => "supported", "version" => "0.146.0"})
+
+    for {id, field} <- forms do
+      refute has_element?(view, "##{id} input[type=checkbox][checked]")
+      view |> form("##{id}", %{field => "true"}) |> render_change(%{"revision" => "1"})
+      refute has_element?(view, "##{id} input[type=checkbox][checked]")
+      view |> form("##{id}", %{field => "true"}) |> render_submit(%{"revision" => "1"})
+      refute Foundation.pending?()
+
+      view
+      |> form("##{id}", %{field => "true"})
+      |> render_change(%{"consent_key" => Ecto.UUID.generate()})
+
+      refute has_element?(view, "##{id} input[type=checkbox][checked]")
+
+      view
+      |> form("##{id}", %{field => "true"})
+      |> render_submit(%{"consent_key" => Ecto.UUID.generate()})
+
+      refute Foundation.pending?()
+    end
+
+    view |> form("#codex-login", auth_confirmed: "true") |> render_change()
+    {:ok, again, _} = live(signed, "/settings")
+    refute has_element?(again, "#codex-login input[type=checkbox][checked]")
+    Repo.update_all(BrowserToken, set: [expires_at: 0])
+    view |> form("#codex-login", auth_confirmed: "true") |> render_submit()
+    assert_redirect(view, "/locked")
+    refute Foundation.pending?()
+  end
+
+  test "each profile action consumes consent without authorizing another action", %{conn: conn} do
+    {:ok, _} = Foundation.check_codex(Ecto.UUID.generate(), 0, "/bin/sh", true)
+    {:ok, claim} = Foundation.claim()
+    Foundation.finish(claim, %{"status" => "supported", "version" => "0.146.0"})
+    {:ok, view, _} = conn |> sign_in() |> live("/settings")
+
+    for {id, field, kind} <- [
+          {"codex-login", :auth_confirmed, "login_codex"},
+          {"codex-logout", :auth_confirmed, "logout_codex"},
+          {"connection-check", :profile_confirmed, "inspect_codex"}
+        ] do
+      view |> form("##{id}", %{field => "true"}) |> render_change()
+      view |> form("##{id}") |> render_submit()
+      command = Foundation.pending_probe(kind)
+      assert command
+      refute has_element?(view, "##{id} input[type=checkbox][checked]")
+      Foundation.cancel_probe(command.id)
+      render(view)
+      view |> form("##{id}") |> render_submit()
+      refute Foundation.pending?()
+    end
+  end
+
   test "model selection resets usage consent and completion survives reconnect", %{conn: conn} do
     {:ok, _} = Foundation.check_codex(Ecto.UUID.generate(), 0, "/bin/sh", true)
     {:ok, claim} = Foundation.claim()

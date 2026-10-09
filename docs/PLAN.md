@@ -126,6 +126,11 @@ the real-provider gate.
   binding, restrictive scratch permissions, matching public completion, cancellation
   and no automatic replay. Real unsigned config/thread preflight passed; successful
   responses use protocol fixtures. See [R020d evidence](../worklog/2026-10-07-R020d-model-access-check.md).
+- [x] R020e: preserve profile consent through clock/unrelated updates, support
+  deliberate unchecking, and reset on submission/setup changes. Reject recovered
+  stale forms and expired sessions; verify the rebuilt browser surface. See
+  [task](../tasks/R020e-profile-checkboxes.md) and
+  [evidence](../worklog/2026-10-08-R020e-profile-checkboxes.md).
 - [ ] Prove a read-only turn and a permitted worktree-writing turn in isolated
   workspaces; normalize public activity, outcomes and redacted logs.
 - [ ] Add task/process identity, cancellation, clean environment, path policy,

@@ -25,6 +25,7 @@ defmodule CuckodingWeb.HomeLive do
      |> assign(:codex_path, nil)
      |> assign(:probe_error, nil)
      |> assign(:connection_error, nil)
+     |> assign(:profile_consents, %{})
      |> assign(:auth_error, nil)
      |> assign(:model_id, "")
      |> assign(:model_error, nil)
@@ -87,11 +88,24 @@ defmodule CuckodingWeb.HomeLive do
     {:noreply, reload(socket)}
   end
 
+  def handle_event("edit_profile", %{"operation" => operation} = params, socket)
+      when operation in ~w(login logout inspect) do
+    field = if operation == "inspect", do: "profile_confirmed", else: "auth_confirmed"
+
+    consents =
+      Map.put(socket.assigns.profile_consents, operation, profile_consent?(socket, params, field))
+
+    {:noreply, assign(socket, :profile_consents, consents)}
+  end
+
   def handle_event("inspect_codex", params, socket) do
+    confirmed = profile_consent?(socket, params, "profile_confirmed")
+    socket = assign(socket, :profile_consents, %{})
+
     case Foundation.inspect_codex(
            socket.assigns.command_key,
            socket.assigns.workspace.revision,
-           params["profile_confirmed"] == "true"
+           confirmed
          ) do
       {:ok, command} ->
         error =
@@ -116,13 +130,15 @@ defmodule CuckodingWeb.HomeLive do
 
   def handle_event("authorize_codex", %{"operation" => operation} = params, socket)
       when operation in ["login", "logout"] do
+    confirmed = profile_consent?(socket, params, "auth_confirmed")
+    socket = assign(socket, :profile_consents, %{})
     operation = if operation == "login", do: :login, else: :logout
 
     case Foundation.authorize_codex(
            socket.assigns.command_key,
            socket.assigns.workspace.revision,
            operation,
-           params["auth_confirmed"] == "true"
+           confirmed
          ) do
       {:ok, command} ->
         error =
@@ -200,12 +216,24 @@ defmodule CuckodingWeb.HomeLive do
      )}
   end
 
+  defp profile_consent?(socket, params, field) do
+    params[field] == "true" and params["consent_key"] == socket.assigns.command_key and
+      params["revision"] == to_string(socket.assigns.workspace.revision)
+  end
+
   defp reload(socket) do
     auth = Foundation.pending_probe(["login_codex", "logout_codex"])
     workspace = Foundation.workspace()
     previous = socket.assigns[:workspace]
 
     socket
+    |> assign(
+      :profile_consents,
+      if(previous && previous.revision == workspace.revision,
+        do: socket.assigns.profile_consents,
+        else: %{}
+      )
+    )
     |> assign(
       :model_confirmed,
       socket.assigns.model_confirmed and not is_nil(previous) and
@@ -365,10 +393,13 @@ defmodule CuckodingWeb.HomeLive do
           </p>
           <p class="fine-print">Verified executable: <code>{@workspace.codex["path"]}</code></p>
           <p :if={@auth_error} class="notice" role="alert">{@auth_error}</p>
-          <form id="codex-login" phx-submit="authorize_codex">
+          <form id="codex-login" phx-change="edit_profile" phx-submit="authorize_codex">
             <input type="hidden" name="operation" value="login" />
+            <input type="hidden" name="consent_key" value={@command_key} />
+            <input type="hidden" name="revision" value={@workspace.revision} />
             <label class="confirm-executable"><input
               id={"login-consent-#{@command_key}"}
+              checked={@profile_consents["login"] == true}
               type="checkbox"
               name="auth_confirmed"
               value="true"
@@ -423,10 +454,13 @@ defmodule CuckodingWeb.HomeLive do
               This disconnects Cuckoding's Codex profile and clears its saved model list.
               Personal Codex sign-ins stay separate. No roles or battles are enabled yet.
             </p>
-            <form id="codex-logout" phx-submit="authorize_codex">
+            <form id="codex-logout" phx-change="edit_profile" phx-submit="authorize_codex">
               <input type="hidden" name="operation" value="logout" />
+              <input type="hidden" name="consent_key" value={@command_key} />
+              <input type="hidden" name="revision" value={@workspace.revision} />
               <label class="confirm-executable"><input
                 id={"logout-consent-#{@command_key}"}
+                checked={@profile_consents["logout"] == true}
                 type="checkbox"
                 name="auth_confirmed"
                 value="true"
@@ -435,9 +469,13 @@ defmodule CuckodingWeb.HomeLive do
               <button class="button" disabled={@pending} phx-disable-with="Signing out…">Sign out of Codex</button>
             </form>
           </details>
-          <form id="connection-check" phx-submit="inspect_codex">
+          <form id="connection-check" phx-change="edit_profile" phx-submit="inspect_codex">
+            <input type="hidden" name="operation" value="inspect" />
+            <input type="hidden" name="consent_key" value={@command_key} />
+            <input type="hidden" name="revision" value={@workspace.revision} />
             <label class="confirm-executable"><input
               id={"profile-consent-#{@command_key}"}
+              checked={@profile_consents["inspect"] == true}
               name="profile_confirmed"
               type="checkbox"
               value="true"

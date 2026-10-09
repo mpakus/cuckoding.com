@@ -70,6 +70,10 @@ before trying again. Interrupted authentication never replays automatically.
 **Sign out of this private profile** has its own confirmation and affects only this
 app-owned profile. Both actions immediately clear old account/catalog observations.
 Setup operations serialize while authentication or a model check is active.
+Sign-in, sign-out and connection confirmations stay checked through clock updates
+and unrelated events. Uncheck to withdraw them; submission, setup changes or a new
+page session clear them. Recovered forms cannot reuse an earlier form key/revision.
+These temporary selections never become stored execution grants.
 
 With a fresh signed-in catalog, **Try a model** offers **Check model access**.
 Select a model and confirm possible provider usage. This sends one fixed prompt,

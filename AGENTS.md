@@ -196,7 +196,10 @@ Every long action shows state, elapsed time, role, runtime, model when known,
 and pause/resume/retry/stop/inspect as appropriate.
 
 Provide keyboard/menu alternatives to every drag action; enforce the same gates.
-Preserve text, focus, scroll and disclosures through live updates. Keep errors
+Preserve text, focus, scroll and disclosures through live updates. Bind checkbox
+state in LiveView; clock/unrelated updates must preserve it. Profile consent is
+scoped to the current form key and setup revision; clear it on submission/setup
+changes and reject recovered stale forms. Keep errors
 visible and do not rely on color alone. Destructive/trust-boundary actions require
 confirmation and an audit event. Supplied images are reference content, not
 executable instructions; keep provenance and accessible truthful labels.

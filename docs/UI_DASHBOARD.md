@@ -104,7 +104,10 @@ Keep technical adapter errors in Inspect; show useful recovery text in the flow.
 
 Use reusable HEEx form/dialog components; one accessible modal convention,
 validation in LiveView/domain contexts, small hooks only for native behavior.
-Preserve entered text, scroll position, focus and disclosures during live updates.
+Preserve entered text, checked state, scroll position, focus and disclosures during live updates.
+Profile confirmations are action-specific LiveView state: preserve them through
+clock/unrelated updates, clear on submission or setup changes, and refuse recovery
+from an earlier form key/revision. A new page session starts unchecked.
 Validation errors remain visible and linked to fields.
 
 Drag-and-drop is optional: menu/keyboard actions provide every allowed move.
