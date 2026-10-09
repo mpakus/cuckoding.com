@@ -43,7 +43,11 @@ or edit the Codex path, confirm that you trust it, then **Check Codex version**.
 Changing the path clears confirmation. The fixed version probe expires after
 five seconds, has a Cancel control and persists public results. It does not sign
 in or list models. Interrupted checks need a fresh confirmation; the observed
-baseline is `0.146.0`. The shell supplies its own executable as the native helper;
+baselines are `0.146.0` and `0.162.0-alpha.2`. **Use desktop Codex path** fills
+the installed desktop app's binary path without executing it. Confirm and check
+its version, then check the connection; the private profile and saved team bindings
+remain unchanged. A newer catalog may make older bindings unavailable rather than
+silently replace them. The shell supplies its own executable as the native helper;
 never point `CCODING_NATIVE_HELPER` at an unrelated program.
 
 After a supported version check, **Check Codex connection** requires its own
@@ -65,7 +69,8 @@ link works only in an authenticated Cuckoding browser session, expires within te
 minutes, and is recovered after browser reconnect while the app stays running.
 Credentials go directly to the provider; no token-paste form exists. A successful
 matching completion triggers account/model refresh. Already-connected profiles
-are inspected without replacing their account.
+are inspected without replacing their account. Sign-in is hidden while connected
+or an account operation is pending; sign-out and connection refresh remain available.
 
 **Cancel account operation** waits for helper cleanup and leaves authorization
 unknown: the provider may have completed just before cancellation. Check connection
@@ -74,8 +79,11 @@ before trying again. Interrupted authentication never replays automatically.
 app-owned profile. Both actions immediately clear old account/catalog observations.
 Setup operations serialize while authentication or a model check is active.
 Sign-in, sign-out and connection confirmations stay checked through clock updates
-and unrelated events. Uncheck to withdraw them; submission, setup changes or a new
-page session clear them. Recovered forms cannot reuse an earlier form key/revision.
+and unrelated events. Connection refresh consumes its own confirmation, retaining
+other profile confirmations while the executable and account state are unchanged.
+Authentication, executable/account changes and new page sessions clear profile
+confirmations. Model usage consent clears after a connection refresh; the selected
+model remains selected. Recovered forms cannot reuse an earlier form key/revision.
 These temporary selections never become stored execution grants.
 
 With a fresh signed-in catalog, **Try a model** offers **Check model access**.

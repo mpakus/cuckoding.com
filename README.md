@@ -12,14 +12,17 @@ attention items and logs.
 
 ## Current state
 
-**Local preview, 2026-10-08.** The tray shell, authenticated browser, SQLite
+**Local preview, 2026-10-09.** The tray shell, authenticated browser, SQLite
 commands/events, tool discovery and Codex setup work. **Agents** provides
 consented version/profile checks, managed ChatGPT sign-in/out, a cached model
 catalog and a fixed model-access diagnostic. Catalog refresh fetches all models
 reported by Codex, including entries hidden from its default picker; additional
 models can be selected in Agents and Team. Availability is still checked separately.
-Profile confirmations stay checked
-through live updates and reset on submission or setup changes. **Team** saves the four default
+Connected profiles show sign-out instead of sign-in. A connection refresh consumes
+its own confirmation and model-usage consent, preserving unrelated confirmations
+and the selected model. Executable/account changes clear affected confirmations.
+**Use desktop Codex path** selects the desktop runtime for a separate version check;
+it never silently changes the active executable. **Team** saves the four default
 roles plus custom roles, Codex/model assignments and instructions in immutable
 revisions. Existing Arenas and Tabulae can explicitly adopt a newer saved team;
 previous requests and draft history stay unchanged. Drafts can remain unassigned; stale models are shown without silently
@@ -74,14 +77,19 @@ changes; the preview grants no execution and starts no battle.
 
 Real Codex `0.146.0` login start/cancel, signed-out inspection, a signed-in full
 catalog fetch (six models for the observed client/profile) and restricted
-configuration/thread preflight passed. Successful model responses use fixtures;
+configuration/thread preflight passed. R020g also verifies the desktop runtime
+`0.162.0-alpha.2`: the same private profile returns ten models, including GPT-6.1 Sol,
+GPT-6 Astra/Sol/Luna and GPT-5.6 Terra. The standalone 0.146.0 catalog is older;
+refreshing that executable cannot manufacture the newer client's list.
+Successful model responses use fixtures;
 human-completed login, real responses and repository execution remain open.
 Dependency scheduling, execution grants and autonomous
 battles remain unimplemented. Registration alone does not validate Git; an explicit inspection
 distinguishes missing, unborn and committed standalone repositories.
 The product story above remains the target, not a shipped capability list.
 
-Evidence: [Full model catalog](worklog/2026-10-08-R020f-full-model-catalog.md),
+Evidence: [Connection state and desktop runtime](worklog/2026-10-09-R020g-codex-setup-state.md),
+[Full model catalog](worklog/2026-10-08-R020f-full-model-catalog.md),
 [Profile checkbox fix](worklog/2026-10-08-R020e-profile-checkboxes.md),
 [Worktree inspection worklog](worklog/2026-10-08-R050c-worktree-inspection.md),
 [Owned worktree worklog](worklog/2026-10-08-R050b-owned-worktree.md),

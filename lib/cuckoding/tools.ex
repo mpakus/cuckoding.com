@@ -10,6 +10,16 @@ defmodule Cuckoding.Tools do
     {"hermes", ["hermes"]}
   ]
 
+  def desktop_codex do
+    Enum.find(
+      [
+        "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
+        "/Applications/Codex.app/Contents/Resources/codex"
+      ],
+      &executable?/1
+    )
+  end
+
   def discover(paths \\ directories()) do
     Map.new(@names, fn {key, names} ->
       candidates = for directory <- paths, name <- names, do: Path.join(directory, name)

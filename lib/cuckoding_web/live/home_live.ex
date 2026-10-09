@@ -23,6 +23,7 @@ defmodule CuckodingWeb.HomeLive do
      |> assign(:tools, @tools)
      |> assign(:command_key, Ecto.UUID.generate())
      |> assign(:codex_path, nil)
+     |> assign(:desktop_codex_path, Cuckoding.Tools.desktop_codex())
      |> assign(:probe_error, nil)
      |> assign(:connection_error, nil)
      |> assign(:profile_consents, %{})
@@ -52,6 +53,10 @@ defmodule CuckodingWeb.HomeLive do
        codex_path: params["path"],
        confirmed: params["path"] == previous and params["confirmed"] == "true"
      )}
+  end
+
+  def handle_event("choose_desktop_codex", _, socket) do
+    {:noreply, assign(socket, codex_path: Cuckoding.Tools.desktop_codex(), confirmed: false)}
   end
 
   def handle_event("check_codex", params, socket) do
@@ -100,7 +105,9 @@ defmodule CuckodingWeb.HomeLive do
 
   def handle_event("inspect_codex", params, socket) do
     confirmed = profile_consent?(socket, params, "profile_confirmed")
-    socket = assign(socket, :profile_consents, %{})
+
+    socket =
+      assign(socket, :profile_consents, Map.delete(socket.assigns.profile_consents, "inspect"))
 
     case Foundation.inspect_codex(
            socket.assigns.command_key,
@@ -229,7 +236,9 @@ defmodule CuckodingWeb.HomeLive do
     socket
     |> assign(
       :profile_consents,
-      if(previous && previous.revision == workspace.revision,
+      if(
+        previous && previous.codex == workspace.codex &&
+          previous.connection["authorization"] == workspace.connection["authorization"],
         do: socket.assigns.profile_consents,
         else: %{}
       )
@@ -346,6 +355,17 @@ defmodule CuckodingWeb.HomeLive do
             This runs the selected program with <code>--version</code>
             on your Mac. Only select an executable you trust.
           </p>
+          <button
+            :if={@desktop_codex_path}
+            type="button"
+            class="button"
+            phx-click="choose_desktop_codex"
+            disabled={@pending}
+          >Use desktop Codex path</button>
+          <p :if={@desktop_codex_path} class="fine-print">
+            Selects the desktop app's bundled Codex. Check its version below to apply this choice;
+            Cuckoding keeps its private sign-in and your saved team bindings.
+          </p>
           <label class="confirm-executable"><input
             name="confirmed"
             type="checkbox"
@@ -393,7 +413,12 @@ defmodule CuckodingWeb.HomeLive do
           </p>
           <p class="fine-print">Verified executable: <code>{@workspace.codex["path"]}</code></p>
           <p :if={@auth_error} class="notice" role="alert">{@auth_error}</p>
-          <form id="codex-login" phx-change="edit_profile" phx-submit="authorize_codex">
+          <form
+            :if={@workspace.connection["authorization"] != "chatgpt" && !@auth_command}
+            id="codex-login"
+            phx-change="edit_profile"
+            phx-submit="authorize_codex"
+          >
             <input type="hidden" name="operation" value="login" />
             <input type="hidden" name="consent_key" value={@command_key} />
             <input type="hidden" name="revision" value={@workspace.revision} />
@@ -484,6 +509,10 @@ defmodule CuckodingWeb.HomeLive do
             <p :if={@connection_error} role="alert" class="notice">{@connection_error}</p>
             <button class="button primary" disabled={@pending} phx-disable-with="Checking…">Check Codex connection</button>
           </form>
+          <p class="fine-print">
+            Each confirmation is for one action and clears when used. Refreshing the connection
+            also clears model-check consent; your selected model stays selected.
+          </p>
           <div :if={@connection_check} role="status" class="probe-progress">
             <p>
               Codex · connection setup · {@connection_check.state} · {max(
@@ -540,7 +569,9 @@ defmodule CuckodingWeb.HomeLive do
               <p class="fine-print">
                 Source: {@workspace.connection["source"]} · Fetched: {@workspace.connection[
                   "fetched_at"
-                ]}. Refresh also fetches models hidden from the agent’s default picker. Catalog metadata is not an entitlement check.
+                ]}. Refresh also fetches models hidden from the agent’s default picker.
+                This list comes from the verified executable above; an older CLI can return fewer models than the desktop app.
+                Catalog metadata is not an entitlement check.
               </p>
               <ul class="tool-list">
                 <li :for={model <- @workspace.connection["models"]}>
@@ -738,10 +769,10 @@ defmodule CuckodingWeb.HomeLive do
   defp model_check_status(_),
     do: "Model access was not verified. Check the connection and try again."
 
-  defp codex_status("supported"), do: "Version matches the verified Codex baseline."
+  defp codex_status("supported"), do: "Version matches a verified Codex baseline."
 
   defp codex_status("unsupported"),
-    do: "This version has not been verified. The current baseline is 0.146.0."
+    do: "This version has not been verified. Verified versions: 0.146.0 and 0.162.0-alpha.2."
 
   defp codex_status("timeout"),
     do: "The version check timed out. Check the executable and try again."

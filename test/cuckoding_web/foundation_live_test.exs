@@ -145,6 +145,19 @@ defmodule CuckodingWeb.FoundationLiveTest do
     assert {:ok, view, _} = live(signed, "/settings")
     assert has_element?(view, "#codex-models summary", "1 cached models · stale")
     assert has_element?(view, "#codex-models[phx-mounted*=ignore_attrs]")
+    refute has_element?(view, "#codex-login")
+    assert has_element?(view, "#codex-logout button", "Sign out of Codex")
+  end
+
+  test "choosing desktop Codex changes only the editable path and clears trust", %{conn: conn} do
+    {:ok, view, _} = conn |> sign_in() |> live("/settings")
+    view |> form("#codex-check", path: "/bin/sh") |> render_change()
+    view |> form("#codex-check", path: "/bin/sh", confirmed: "true") |> render_change()
+    render_click(view, "choose_desktop_codex")
+    refute has_element?(view, "input[name='confirmed'][checked]")
+    assert has_element?(view, "#codex-path[value='#{Cuckoding.Tools.desktop_codex() || ""}']")
+    refute Foundation.pending?()
+    assert Foundation.workspace().codex == %{}
   end
 
   test "agent and team selectors expose every returned model including additional entries", %{
@@ -324,7 +337,13 @@ defmodule CuckodingWeb.FoundationLiveTest do
     view |> form("#model-check", model_id: "model-a") |> render_change()
     view |> form("#model-check", model_id: "model-a", model_confirmed: "true") |> render_change()
     assert has_element?(view, "input[name='model_confirmed'][checked]")
-    {:ok, _} = Foundation.inspect_codex(Ecto.UUID.generate(), 2, true)
+    view |> form("#codex-check", path: "/bin/sh", confirmed: "true") |> render_change()
+    view |> form("#codex-logout", auth_confirmed: "true") |> render_change()
+    view |> form("#connection-check", profile_confirmed: "true") |> render_change()
+    view |> form("#connection-check") |> render_submit()
+    refute has_element?(view, "#connection-check input[type=checkbox][checked]")
+    assert has_element?(view, "#codex-logout input[type=checkbox][checked]")
+    assert has_element?(view, "input[name='confirmed'][checked]")
     {:ok, refresh} = Foundation.claim()
 
     Foundation.finish(refresh, %{
@@ -335,6 +354,9 @@ defmodule CuckodingWeb.FoundationLiveTest do
     })
 
     refute has_element?(view, "input[name='model_confirmed'][checked]")
+    assert has_element?(view, "#codex-logout input[type=checkbox][checked]")
+    assert has_element?(view, "input[name='confirmed'][checked]")
+    refute has_element?(view, "#codex-login")
     assert has_element?(view, "#model-id option[value='model-a'][selected]")
     view |> form("#model-check", model_id: "model-a", model_confirmed: "true") |> render_change()
     view |> form("#model-check", model_id: "model-b", model_confirmed: "true") |> render_change()

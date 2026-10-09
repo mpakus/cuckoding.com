@@ -59,12 +59,17 @@ pub(crate) fn private_directory(path: &Path) -> io::Result<()> {
 fn version(bytes: &[u8]) -> Option<&str> {
     let text = std::str::from_utf8(bytes).ok()?;
     let version = text.strip_prefix("codex-cli ")?.strip_suffix('\n')?;
-    let parts: Vec<_> = version.split('.').collect();
-    (parts.len() == 3
-        && parts
-            .iter()
-            .all(|p| !p.is_empty() && p.len() <= 5 && p.bytes().all(|b| b.is_ascii_digit())))
-    .then_some(version)
+    let numeric = |p: &str| !p.is_empty() && p.len() <= 5 && p.bytes().all(|b| b.is_ascii_digit());
+    let base = if let Some((base, alpha)) = version.split_once("-alpha.") {
+        if !numeric(alpha) {
+            return None;
+        }
+        base
+    } else {
+        version
+    };
+    let parts: Vec<_> = base.split('.').collect();
+    (parts.len() == 3 && parts.iter().all(|p| numeric(p))).then_some(version)
 }
 
 fn run(path: &Path, directory: &Path, cancel: Receiver<()>, limit: Duration) -> io::Result<Value> {
@@ -190,6 +195,24 @@ mod tests {
         fs::write(&program, format!("#!/bin/sh\n{body}\n")).unwrap();
         fs::set_permissions(&program, fs::Permissions::from_mode(0o700)).unwrap();
         (directory, program)
+    }
+
+    #[test]
+    fn version_accepts_bounded_alpha_versions_without_extra_text() {
+        assert_eq!(
+            version(b"codex-cli 0.162.0-alpha.2\n"),
+            Some("0.162.0-alpha.2")
+        );
+        for invalid in [
+            "0.162.0-alpha.",
+            "0.162.0-alpha.123456",
+            "0.162.0-alpha.2.1",
+            "0.162.0-alpha.2 trailing",
+            "0.162.0-alpha.2\n",
+            "0.162.0-beta.2",
+        ] {
+            assert_eq!(version(format!("codex-cli {invalid}\n").as_bytes()), None);
+        }
     }
 
     #[test]

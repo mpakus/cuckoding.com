@@ -41,7 +41,10 @@ defmodule Cuckoding.CodexTest do
                ~s({"status":"observed","version":"0.146.0","pid":123,"raw":"fixture-secret"})
              )
 
-    for version <- ["0.145.0", "0.147.0", "1.0.0"] do
+    assert %{"status" => "supported", "version" => "0.162.0-alpha.2"} =
+             Codex.normalize(~s({"status":"observed","version":"0.162.0-alpha.2"}))
+
+    for version <- ["0.145.0", "0.147.0", "1.0.0", "0.162.0-alpha.3", "0.162.0"] do
       assert %{"status" => "unsupported"} =
                Codex.normalize(Jason.encode!(%{status: "observed", version: version}))
     end
@@ -51,6 +54,8 @@ defmodule Cuckoding.CodexTest do
           "[]",
           String.duplicate("x", 1025),
           ~s({"status":"observed","version":"fixture-secret"}),
+          ~s({"status":"observed","version":"0.162.0-alpha.2 trailing"}),
+          ~s({"status":"observed","version":"0.162.0-alpha.999999"}),
           ~s({"status":"observed","version":null}),
           ~s({"status":"fixture-secret"})
         ] do

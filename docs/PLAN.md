@@ -135,6 +135,11 @@ the real-provider gate.
   visibility, and expose additional entries in Agents/Team without inferred access.
   See [task](../tasks/R020f-full-model-catalog.md) and
   [evidence](../worklog/2026-10-08-R020f-full-model-catalog.md).
+- [x] R020g: scope connection confirmation resets, hide sign-in while connected,
+  and offer an explicit desktop-runtime path choice. Verify the 0.162.0-alpha.2
+  account notification and ten-model catalog separately from old 0.146.0.
+  See [task](../tasks/R020g-codex-setup-state.md) and
+  [evidence](../worklog/2026-10-09-R020g-codex-setup-state.md).
 - [ ] Prove a read-only turn and a permitted worktree-writing turn in isolated
   workspaces; normalize public activity, outcomes and redacted logs.
 - [ ] Add task/process identity, cancellation, clean environment, path policy,

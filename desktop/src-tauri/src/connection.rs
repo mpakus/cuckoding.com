@@ -70,6 +70,7 @@ struct Rpc {
     wall_deadline: SystemTime,
     sequence: u32,
     auth_changes: bool,
+    account_reading: bool,
     completion: Option<(String, bool)>,
     capture: bool,
     pending: VecDeque<Value>,
@@ -133,10 +134,9 @@ impl Rpc {
                         // while fetching a catalog invalidates the observation as well.
                         if message.get("id").is_some()
                             || (!self.auth_changes
-                                && matches!(
-                                    message["method"].as_str(),
-                                    Some("account/updated" | "account/login/completed")
-                                ))
+                                && (message["method"] == "account/login/completed"
+                                    || (message["method"] == "account/updated"
+                                        && !self.account_reading)))
                         {
                             return Err("unexpected_message");
                         }
@@ -291,7 +291,11 @@ fn initialize(rpc: &mut Rpc, directory: &Path, experimental: bool) -> Result<Val
 }
 
 fn account(rpc: &mut Rpc) -> Result<Value> {
-    let account = rpc.request("account/read", json!({"refreshToken":false}))?;
+    // Newer runtimes announce account state before returning the authoritative snapshot.
+    rpc.account_reading = true;
+    let result = rpc.request("account/read", json!({"refreshToken":false}));
+    rpc.account_reading = false;
+    let account = result?;
     if !account["requiresOpenaiAuth"].is_boolean() {
         return Err("invalid_output");
     }
@@ -520,6 +524,7 @@ fn run_operation(
         wall_deadline: SystemTime::now() + limit,
         sequence: 0,
         auth_changes: false,
+        account_reading: false,
         completion: None,
         capture: false,
         pending: VecDeque::new(),
@@ -879,6 +884,43 @@ done
         assert_eq!(result["models"][0]["efforts"], json!(["medium"]));
         assert!(!result.to_string().contains("fixture-secret"));
         fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn account_updates_are_allowed_only_before_the_account_snapshot() {
+        for (method, notification, field, expected) in [
+            ("account/read", "account/updated", "catalog_status", "fresh"),
+            ("model/list", "account/updated", "catalog_status", "failed"),
+            (
+                "account/read",
+                "account/login/completed",
+                "status",
+                "unexpected_message",
+            ),
+        ] {
+            let (dir, path) = fixture(json!({"type":"chatgpt"}), json!([sample()]));
+            let script = fs::read_to_string(&path).unwrap();
+            let pattern = format!("*'\"method\":\"{method}\"'*) printf");
+            assert!(script.contains(&pattern));
+            let announcement = json!({"method":notification,"params":{"authMode":"chatgpt","secret":"fixture-secret"}});
+            fs::write(
+                &path,
+                script.replace(
+                    &pattern,
+                    &format!(
+                        "*'\"method\":\"{method}\"'*) printf '%s\\n' '{announcement}'; printf"
+                    ),
+                ),
+            )
+            .unwrap();
+            let result = check(&path, &dir);
+            assert_eq!(result[field], expected);
+            assert!(!result.to_string().contains("fixture-secret"));
+            if expected != "fresh" {
+                assert!(result["models"].is_null());
+            }
+            fs::remove_dir_all(dir).unwrap();
+        }
     }
 
     #[test]

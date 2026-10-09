@@ -2,8 +2,8 @@
 
 Status: R020a–d implement Codex version readiness, private-profile status,
 validated catalog caching, managed ChatGPT login/logout, a fixed model diagnostic
-and R040e/f brief/document-snapshot planning. Codex `0.146.0` is
-the observed baseline; other versions remain unverified. Human-completed login,
+and R040e/f brief/document-snapshot planning. Codex `0.146.0` and
+`0.162.0-alpha.2` are explicit version baselines; other versions remain unverified. Human-completed login,
 signed-in real-model acceptance and repository turns remain open. Claude Code, Codex,
 Cursor and Hermes are requested targets;
 each needs current official documentation and real installed-version evidence.
@@ -42,7 +42,7 @@ is actually required.
 
 | Target | Rebuild status | Evidence needed before enabling execution |
 | --- | --- | --- |
-| Codex | Version, signed-out status, login start/cancel and restrictive thread preflight verified on 0.146.0; successful model diagnostic uses fixtures | Human-completed login, real responses, repository grants/turns and cancellation |
+| Codex | 0.146.0 version, signed-out status, login start/cancel and restrictive thread preflight; 0.162.0-alpha.2 private-account/catalog refresh and effective-config preflight; successful model diagnostic uses fixtures | Human-completed login, real responses, repository grants/turns and cancellation |
 | Claude Code | Pending | Current official interface, safe reusable authorization, models/default behavior and permission boundary |
 | Cursor | Pending | Current official CLI identity, profile/history behavior, model discovery and project config isolation |
 | Hermes | Pending | Confirm intended runtime/distribution, supported headless interface, authorization, model catalog and enforceable grants |
@@ -70,7 +70,10 @@ R020b adds `inspect_connection/3`: initialize → effective config check → acc
 → model/list only for a reported managed ChatGPT account. The helper forces file
 credential storage and the OpenAI provider; rejects an unexpected profile,
 unsupported effective config, linked/special profile files, server requests and
-mid-inspection account changes. Profile inspection is metadata-only and capped
+account changes after the authoritative account snapshot. R020g permits an
+`account/updated` notification only while waiting for `account/read`, as observed
+on 0.162.0-alpha.2; unsolicited login completion and server requests still fail.
+Profile inspection is metadata-only and capped
 at 32,768 entries (the observed bundled-plugin cache alone exceeded 7,000). This is host-process hygiene, not a sandbox or an MDM bypass.
 
 Stdio has 64 KiB frame / 512 KiB cumulative limits, bounded channel buffering,
@@ -115,7 +118,12 @@ stores only a closed 1 KiB public receipt. Provider usage may precede cancellati
 Real acceptance so far: installed Codex initialized a fresh profile, returned
 not_connected, and started/cancelled browser login without an auth file. R020f also verified a read-only full catalog fetch from the existing signed-in
 private profile: six entries, three hidden from the default picker. The returned
-set depends on the installed client and account; no additional model IDs are
+set depends on the installed client and account. R020g observed ten entries from
+desktop 0.162.0-alpha.2 with the same private sign-in, including GPT-6.1 Sol and
+GPT-6 Astra/Sol/Luna; Terra is advertised as GPT-5.6 Terra. The selected standalone
+0.146.0 returned six even with hidden models included. The UI offers an explicit
+desktop path choice followed by the ordinary consented version/connection checks;
+no selected runtime or saved model binding is silently replaced. No model IDs are
 invented or borrowed from another client. Login completion itself was not driven
 by that check. Human-completed login acceptance, revoked
 access, concurrent session reuse, physical sleep recovery and real scoped turns

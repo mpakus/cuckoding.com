@@ -166,7 +166,11 @@ Do not restore the old implementation or treat historical tests as current proof
   probes and connection inspections require a new consented command; never replay
   them as metadata discovery. The fixed app-server inspection permits only
   initialize/config-read/account-read/model-list, keeps raw frames and account
-  identifiers out of Cuckoding storage, and rejects unsafe profiles. Retain the
+  identifiers out of Cuckoding storage, and rejects unsafe profiles. Keep the
+  explicitly selected executable: desktop and standalone Codex can advertise
+  different catalogs. Verified versions are 0.146.0 and 0.162.0-alpha.2. Allow
+  `account/updated` during authoritative `account/read` only; unsolicited login
+  completion, server requests and later account drift remain refused. Retain the
   last catalog as stale after inspection failure; age it out after 24 hours.
   Fetch the full bounded agent catalog, including entries hidden from its default
   picker. Validate/preserve that flag and expose additional models without
@@ -201,8 +205,12 @@ and pause/resume/retry/stop/inspect as appropriate.
 Provide keyboard/menu alternatives to every drag action; enforce the same gates.
 Preserve text, focus, scroll and disclosures through live updates. Bind checkbox
 state in LiveView; clock/unrelated updates must preserve it. Profile consent is
-scoped to the current form key and setup revision; clear it on submission/setup
-changes and reject recovered stale forms. Keep errors
+scoped to the current form key and setup revision; consume the submitted action,
+preserve unrelated confirmations across catalog refresh, and clear profile
+confirmations on executable/account changes or authentication. A fresh connection
+clears model usage consent while preserving the selected model. Reject recovered
+stale forms. Hide sign-in when connected; retain sign-out/refresh. Choosing the
+desktop path is metadata-only until a consented version check. Keep errors
 visible and do not rely on color alone. Destructive/trust-boundary actions require
 confirmation and an audit event. Supplied images are reference content, not
 executable instructions; keep provenance and accessible truthful labels.
