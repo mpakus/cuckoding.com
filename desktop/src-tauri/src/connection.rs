@@ -748,7 +748,7 @@ done
                 &path,
                 &dir,
                 cancel,
-                Duration::from_millis(250),
+                Duration::from_secs(3),
                 Operation::Login,
                 |_| Ok(()),
             )
@@ -953,12 +953,16 @@ done
             .unwrap();
             let (sender, cancel) = mpsc::channel();
             if cancelled {
+                let ready = dir.join("child");
                 thread::spawn(move || {
-                    thread::sleep(Duration::from_millis(100));
-                    sender.send(()).unwrap();
+                    let deadline = Instant::now() + Duration::from_secs(2);
+                    while !ready.exists() && Instant::now() < deadline {
+                        thread::sleep(Duration::from_millis(10));
+                    }
+                    let _ = sender.send(());
                 });
             }
-            let result = run(&path, &dir, cancel, Duration::from_millis(250)).unwrap();
+            let result = run(&path, &dir, cancel, Duration::from_secs(3)).unwrap();
             assert_eq!(
                 result["status"],
                 if cancelled { "cancelled" } else { "timeout" }

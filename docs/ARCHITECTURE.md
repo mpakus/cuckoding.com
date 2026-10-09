@@ -2,7 +2,7 @@
 
 ## Implemented boundary · reviewed 2026-10-08
 
-Cuckoding currently delivers authenticated setup, draft planning and consented worktree preparation. It does
+Cuckoding currently delivers authenticated setup, draft planning and consented worktree preparation and read-only inspection. It does
 **not** yet run battles, worktree task attempts, review loops or parallel workers.
 The later sections describe the target architecture, not additional shipped code.
 
@@ -80,6 +80,12 @@ native helper creates a private owner record and a detached locked worktree.
 Worktree attempts have separate retrieval so they cannot replace the last baseline
 observation or turn Battle preview into an action. Completion binds the native
 key/HEAD/path and refuses expired claims. No new table, runner or dependency.
+
+R050c adds `inspect_worktree_arena_git` to the same ledger/dispatcher. Its frozen
+input is a completed preparation receipt, never a browser-supplied checkout path.
+The native inspection validates ownership/linked metadata, then reads bounded
+index entries and raw blobs/files. No process, schema or provider grant is added;
+results remain separate from source Git observations and Battle preview.
 
 Audit consequences: preserve these domain/host boundaries; extend execution
 evidence before adding battles. The eight-migration schema has no

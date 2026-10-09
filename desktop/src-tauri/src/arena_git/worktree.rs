@@ -1,5 +1,7 @@
 //! Consented detached checkout; failures retain ownership and any partial Git effects.
+mod inspection;
 use super::*;
+pub(super) use inspection::inspect;
 use std::{collections::HashSet, os::unix::fs::DirBuilderExt};
 
 const TREE_LIMIT: usize = 1_048_576;
@@ -38,7 +40,14 @@ fn configuration(git: &Git<'_>) -> Result<Vec<u8>> {
     Ok(bytes)
 }
 
-fn tree(git: &Git<'_>, head: &str) -> Result<()> {
+struct Entry {
+    mode: String,
+    oid: String,
+    path: String,
+    bytes: usize,
+}
+
+fn tree(git: &Git<'_>, head: &str) -> Result<Vec<Entry>> {
     let (code, listing) = git.command_bounded(
         &["ls-tree", "-r", "-l", "-z", head],
         true,
@@ -49,6 +58,7 @@ fn tree(git: &Git<'_>, head: &str) -> Result<()> {
     if code != 0 {
         return Err("invalid_repository");
     }
+    let mut entries = Vec::new();
     let mut names = HashSet::new();
     let mut total = 0u64;
     for record in listing.split(|b| *b == 0).filter(|r| !r.is_empty()) {
@@ -59,6 +69,8 @@ fn tree(git: &Git<'_>, head: &str) -> Result<()> {
         if fields.len() != 4
             || !["100644", "100755"].contains(&fields[0])
             || fields[1] != "blob"
+            || fields[2].len() != 40
+            || !fields[2].bytes().all(|b| b.is_ascii_hexdigit())
             || initial::paths(&json!([path])).is_err()
             || !names.insert(path.to_lowercase())
         {
@@ -69,8 +81,14 @@ fn tree(git: &Git<'_>, head: &str) -> Result<()> {
         if bytes > 8_388_608 || total > 67_108_864 || names.len() > 10_000 {
             return Err("tree_limit");
         }
+        entries.push(Entry {
+            mode: fields[0].into(),
+            oid: fields[2].into(),
+            path: path.into(),
+            bytes: bytes as usize,
+        });
     }
-    Ok(())
+    Ok(entries)
 }
 
 pub(super) fn run(git: &Git<'_>, extra: &str, device: u64, inode: u64) -> Result<Value> {

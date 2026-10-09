@@ -382,3 +382,19 @@ without replay. Partial directories and Git registrations remain. The UI shows
 the latest ten attempts; older receipts remain in SQLite. No auto-prune/delete or
 battle membership/grant is created. `ArenaGit.latest/1` excludes worktree attempts
 so a creation receipt never becomes the source repository's latest observation.
+
+## R050c worktree observations
+
+`inspect_worktree_arena_git` freezes an Arena-scoped completed preparation's key,
+HEAD, checkout path/device/inode in `payload.preparation`; `observation_id` points
+to that preparation. The source folder identity is frozen independently. Idempotent
+requests retain the original receipt; no schema change or mutable worktree projection.
+
+Closed results distinguish `worktree_unchanged`, `worktree_changed` and refused or
+interrupted observations. Unchanged/changed inspections complete successfully as
+observations, not task completion. Receipt fields must match the frozen preparation.
+Cancellation strips late observations; expired claims cannot publish success and
+are never replayed. Events carry only operation/status/elapsed/scoped IDs; neither
+file contents nor untracked names are persisted. The latest inspection accompanies
+each of the ten visible preparations; older commands/events remain in SQLite.
+`ArenaGit.latest/1` excludes both worktree operations.

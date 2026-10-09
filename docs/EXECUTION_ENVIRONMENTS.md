@@ -19,6 +19,11 @@ implement task admission; future Start must authorize ordinary attempt creation
 without adding per-task confirmation. Preparation allocates no runtime ports,
 provider session or power assertion. Actual wake/reconciliation remains R060.
 
+R050c uses that same native helper to inspect a retained preparation's ownership,
+locked detached registration, index and raw tracked bytes. It does not execute
+provider turns or project checks, modify files, or allocate runtime resources.
+Dated observations require fresh validation at future execution admission.
+
 The first runner is a supervised host process runner using Git worktrees.
 There are no containers, remote workers or claimed host sandbox boundaries.
 

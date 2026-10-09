@@ -133,3 +133,10 @@ progress names the user, system Git, no model, elapsed time and Cancel. The late
 ten retained attempts show status/paths after reconnect. Creation is explicitly
 separate from Start and from a current-integrity claim; partial effects require
 inspection and are never presented as rolled back.
+
+R050c adds **Inspect worktree** beside each completed preparation. It keeps keyboard
+focus during pending state using `aria-disabled` and a server-side busy guard.
+The result names its UTC time and conservative byte comparison; progress shows
+user/system Git/no model, elapsed time and Cancel. Reconnect retains the latest
+observation, while text explicitly requires a fresh check before use. No repair,
+delete or execution action is implied by either unchanged or changed results.

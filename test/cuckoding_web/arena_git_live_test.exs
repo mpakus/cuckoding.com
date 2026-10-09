@@ -134,4 +134,59 @@ defmodule CuckodingWeb.ArenaGitLiveTest do
     assert_redirect(again, "/locked")
     assert length(ArenaGit.worktrees(arena.id)) == 2
   end
+
+  test "worktree inspection is scoped, cancellable, durable and session guarded", %{conn: conn} do
+    arena = Cuckoding.DataCase.arena_fixture()
+    signed = sign_in(conn)
+    {:ok, _} = ArenaGit.request(Ecto.UUID.generate(), arena.id, "inspect")
+    {:ok, baseline} = Foundation.claim()
+    Foundation.finish(baseline, %{"status" => "existing", "head" => String.duplicate("a", 40)})
+    {:ok, _} = ArenaGit.request(Ecto.UUID.generate(), arena.id, "worktree", baseline.id, true)
+    {:ok, prepare} = Foundation.claim()
+
+    Foundation.finish(prepare, %{
+      "status" => "prepared",
+      "key" => prepare.id,
+      "head" => prepare.payload["head"],
+      "path" => prepare.payload["worktree_path"],
+      "device" => 1,
+      "inode" => 2
+    })
+
+    {:ok, view, _} = live(signed, "/arenas/#{arena.id}")
+    view |> element("button", "Inspect worktree") |> render_click()
+    {:ok, claim} = Foundation.claim()
+    assert claim.kind == "inspect_worktree_arena_git"
+    assert has_element?(view, "button[aria-disabled=true]:not([disabled])", "Inspect worktree")
+    assert has_element?(view, "#inspection-#{prepare.id}", "no model")
+    view |> element("button", "Inspect worktree") |> render_click()
+    assert ArenaGit.worktree_inspections(arena.id, [prepare])[prepare.id].id == claim.id
+    render_click(view, "cancel-worktree-inspection", %{"id" => Ecto.UUID.generate()})
+    assert Foundation.probe_active?(claim)
+
+    Foundation.finish(
+      claim,
+      Map.put(claim.payload["preparation"], "status", "worktree_unchanged")
+    )
+
+    assert has_element?(view, "#inspection-#{prepare.id}", "raw tracked bytes matched")
+    assert render(view) =~ "not permission to execute"
+    {:ok, again, _} = live(signed, "/arenas/#{arena.id}")
+    assert has_element?(again, "#inspection-#{prepare.id}", "raw tracked bytes matched")
+    again |> element("button", "Inspect worktree") |> render_click()
+    {:ok, cancel} = Foundation.claim()
+    again |> element("button", "Cancel inspection") |> render_click()
+    assert has_element?(again, "button[disabled]", "Cancel inspection")
+
+    Foundation.finish(
+      cancel,
+      Map.put(cancel.payload["preparation"], "status", "worktree_unchanged")
+    )
+
+    assert has_element?(again, "#inspection-#{prepare.id}", "without a usable observation")
+    Repo.update_all(BrowserToken, set: [expires_at: 0])
+    again |> element("button", "Inspect worktree") |> render_click()
+    assert_redirect(again, "/locked")
+    assert ArenaGit.worktree_inspections(arena.id, [prepare])[prepare.id].id == cancel.id
+  end
 end

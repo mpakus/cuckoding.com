@@ -34,7 +34,10 @@ after fresh confirmation. Working files remain unchanged; existing indexes/histo
 are refused. **Isolated worktrees** can prepare a locked, detached checkout from
 a freshly inspected commit after separate confirmation. Original staged/unsaved
 files stay unchanged. Attempts retain their location and receipt; uncertain partial
-work is preserved. This is repository preparation, with no agent/check execution.
+work is preserved. **Inspect worktree** verifies retained ownership/registration
+and compares index entries and raw tracked bytes, flagging extra files without
+reading their contents. Results are dated observations; Git checkout transformations
+can also report differences. Preparation/inspection grant no agent/check execution.
 See [Git setup limits](docs/DEVELOPMENT.md).
 
 **Ask Speculator** turns a typed brief and optional selected document snapshots
@@ -73,7 +76,8 @@ battles remain unimplemented. Registration alone does not validate Git; an expli
 distinguishes missing, unborn and committed standalone repositories.
 The product story above remains the target, not a shipped capability list.
 
-Evidence: [Owned worktree worklog](worklog/2026-10-08-R050b-owned-worktree.md),
+Evidence: [Worktree inspection worklog](worklog/2026-10-08-R050c-worktree-inspection.md),
+[Owned worktree worklog](worklog/2026-10-08-R050b-owned-worktree.md),
 [Battle preview worklog](worklog/2026-10-08-R050a-battle-preview.md),
 [Project checks worklog](worklog/2026-10-08-R040j-project-checks.md),
 [Accepted specifications worklog](worklog/2026-10-07-R040i-accepted-specifications.md),

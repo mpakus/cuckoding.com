@@ -69,6 +69,23 @@ defmodule CuckodingWeb.TabulaLive do
     {:noreply, git_result(socket, result)}
   end
 
+  def handle_event("inspect-worktree", _, %{assigns: %{setup_busy: true}} = socket),
+    do: {:noreply, socket}
+
+  def handle_event("inspect-worktree", %{"id" => id}, socket) do
+    result =
+      ArenaGit.request(socket.assigns.git_key, socket.assigns.arena.id, "inspect_worktree", id)
+
+    {:noreply, git_result(socket, result)}
+  end
+
+  def handle_event("cancel-worktree-inspection", %{"id" => id}, socket) do
+    if Enum.any?(Map.values(socket.assigns.worktree_inspections), &(&1 && &1.id == id)),
+      do: Foundation.cancel_probe(id)
+
+    {:noreply, refresh(socket)}
+  end
+
   def handle_event("cancel-worktree", %{"id" => id}, socket) do
     if Enum.any?(socket.assigns.worktrees, &(&1.id == id)), do: Foundation.cancel_probe(id)
     {:noreply, refresh(socket)}
@@ -204,13 +221,15 @@ defmodule CuckodingWeb.TabulaLive do
     board = socket.assigns.board
     editing = board != nil and socket.assigns.revision > 0
     git = ArenaGit.latest(socket.assigns.arena.id)
+    worktrees = ArenaGit.worktrees(socket.assigns.arena.id)
     paths = if git, do: git.payload["paths"] || [], else: []
 
     assign(socket,
       arena_team: TeamAssignments.assigned(socket.assigns.arena),
       board_team: if(board, do: TeamAssignments.assigned(board)),
       git: git,
-      worktrees: ArenaGit.worktrees(socket.assigns.arena.id),
+      worktrees: worktrees,
+      worktree_inspections: ArenaGit.worktree_inspections(socket.assigns.arena.id, worktrees),
       worktree_confirmed: current_worktree_consent?(socket, git),
       git_paths: socket.assigns.git_paths || Enum.join(paths, "\n"),
       setup_busy: Foundation.pending?(),
@@ -307,6 +326,64 @@ defmodule CuckodingWeb.TabulaLive do
   end
 
   defp git_active?(command), do: command && command.state in ~w(pending running cancelling)
+
+  defp inspection_message("worktree_unchanged"),
+    do:
+      "Ownership, locked detached commit, index entries and raw tracked bytes matched; no extra files observed."
+
+  defp inspection_message("worktree_changed"),
+    do:
+      "Files or index differ from the prepared commit. Your work is retained. Built-in Git checkout transformations can also cause differences."
+
+  defp inspection_message("worktree_mismatch"),
+    do:
+      "Ownership, folder identity or Git registration could not be verified. Nothing was changed or removed."
+
+  defp inspection_message(status)
+       when status in ~w(cancelled interrupted timeout cleanup_uncertain),
+       do:
+         "Inspection stopped without a usable observation. Inspect again when ready; nothing is retried automatically."
+
+  defp inspection_message(_),
+    do:
+      "Inspection could not verify this checkout within the supported configuration and limits. No files were changed."
+
+  defp worktree_inspection(assigns) do
+    ~H"""
+    <div id={"inspection-#{@preparation.id}"}>
+      <button
+        type="button"
+        class="button"
+        phx-click="inspect-worktree"
+        phx-value-id={@preparation.id}
+        aria-disabled={to_string(@busy)}
+      >Inspect worktree</button>
+      <div :if={@inspection} role="status">
+        <p>
+          Inspection · {@inspection.state} · {Calendar.strftime(
+            @inspection.updated_at,
+            "%Y-%m-%d %H:%M:%S UTC"
+          )}
+        </p>
+        <p :if={git_active?(@inspection)} class="fine-print">
+          User · system Git · no model · {max(0, DateTime.diff(@now, @inspection.updated_at))}s elapsed
+          · 15s native limit
+        </p>
+        <p :if={@inspection.result}>{inspection_message(@inspection.result)}</p>
+      </div>
+      <button
+        :if={git_active?(@inspection)}
+        type="button"
+        class="button"
+        phx-click="cancel-worktree-inspection"
+        phx-value-id={@inspection.id}
+        disabled={@inspection.state == "cancelling"}
+      >Cancel inspection</button>
+      <p class="fine-print">A dated observation, not permission to execute. Recheck before use;
+        files can change immediately. No filters run, and extra file contents are never read.</p>
+    </div>
+    """
+  end
 
   defp worktree_message(status)
        when status in ~w(worktree_incomplete worktree_exists cancelled interrupted timeout cleanup_uncertain),
@@ -614,6 +691,13 @@ defmodule CuckodingWeb.TabulaLive do
                 <p :if={command.payload["worktree_path"]}>
                   Retained location: <code>{command.payload["worktree_path"]}</code>
                 </p>
+                <.worktree_inspection
+                  :if={command.state == "completed" && command.result == "prepared"}
+                  preparation={command}
+                  inspection={@worktree_inspections[command.id]}
+                  now={@now}
+                  busy={@setup_busy}
+                />
               </li>
             </ul>
             <p :if={@worktrees != []} class="fine-print">

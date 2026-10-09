@@ -52,7 +52,7 @@ pub(super) fn paths(value: &Value) -> Result<Vec<&str>> {
     Ok(paths)
 }
 
-fn open_at(directory: &File, name: &str, flags: i32) -> Result<File> {
+pub(super) fn open_at(directory: &File, name: &str, flags: i32) -> Result<File> {
     let name = CString::new(name).map_err(|_| "invalid_selection")?;
     let fd = unsafe {
         libc::openat(
@@ -71,7 +71,13 @@ fn open_at(directory: &File, name: &str, flags: i32) -> Result<File> {
 
 fn read_file(git: &Git<'_>, path: &str, limit: u64) -> Result<(Value, Vec<u8>)> {
     git.active()?;
-    let mut directory = git.directory.try_clone().map_err(|_| "unsafe_file")?;
+    let result = read_at(&git.directory, path, limit)?;
+    git.active()?;
+    Ok(result)
+}
+
+pub(super) fn read_at(root: &File, path: &str, limit: u64) -> Result<(Value, Vec<u8>)> {
+    let mut directory = root.try_clone().map_err(|_| "unsafe_file")?;
     let parts: Vec<_> = path.split('/').collect();
     for part in &parts[..parts.len() - 1] {
         directory = open_at(&directory, part, libc::O_RDONLY | libc::O_DIRECTORY)?;
@@ -90,7 +96,6 @@ fn read_file(git: &Git<'_>, path: &str, limit: u64) -> Result<(Value, Vec<u8>)> 
         .read_to_end(&mut bytes)
         .map_err(|_| "unsafe_file")?;
     let after = file.metadata().map_err(|_| "unsafe_file")?;
-    git.active()?;
     if bytes.len() as u64 != before.len()
         || before.len() != after.len()
         || before.mtime_nsec() != after.mtime_nsec()

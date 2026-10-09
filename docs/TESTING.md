@@ -33,6 +33,7 @@ and full-story gates remain open. Historical test counts do not establish proof.
 | R050 | Structured decisions, stale/foreign proposal refusal, review return, exact-head/criteria/check binding, local integration |
 | R050a | Read-only scoped preview, current acceptance/artifact/prerequisite validation, assigned-team/catalog drift, dated Git observations, exact checks, no effects, stale/expiry/refresh and authenticated packaged UI |
 | R050b | Fresh scoped HEAD consent, unchanged source/index, detached locked ownership, unsafe tree/filter/path bounds, cancellation/expiry/no replay, receipt binding, session/recovered form guards, packaged real Git and restart |
+| R050c | Preparation/scope binding, ownership/linked metadata refusal, raw byte/mode/index checks including hidden flags, unchanged files/index/marker, extra-file canaries, expired/cancelled claims without replay, session controls, packaged real Git/restart |
 | R060 | Launch/integration crash windows, restart, cleanup/PID reuse, budgets, provider failure, sleep-gap accounting |
 | R070 | Concurrent task/port claims, fairness, prerequisite bases, stale reviews, conflicting integration and recovery |
 | R080 | LiveView reconnect, keyboard/focus/input preservation, narrow viewport, logs pagination/tail, timed setup |

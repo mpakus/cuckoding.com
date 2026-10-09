@@ -350,11 +350,19 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
         "commit",
         "documents",
         "worktree",
+        "inspect_worktree",
     ]
     .contains(&operation.as_str())
         || extra.len()
             != usize::from(
-                ["preview", "commit", "documents", "worktree"].contains(&operation.as_str()),
+                [
+                    "preview",
+                    "commit",
+                    "documents",
+                    "worktree",
+                    "inspect_worktree",
+                ]
+                .contains(&operation.as_str()),
             )
         || path.len() > 4096
         || path.chars().any(char::is_control)
@@ -389,6 +397,9 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
         let result = initial::documents(&git, &extra[0])?;
         git.identity(device, inode)?;
         return Ok(result);
+    }
+    if operation == "inspect_worktree" {
+        return worktree::inspect(&git, &extra[0], device, inode);
     }
     if operation == "worktree" {
         return worktree::run(&git, &extra[0], device, inode);
@@ -1000,6 +1011,234 @@ mod tests {
         );
     }
 
+    fn inspection_request(args: &[String], receipt: &Value) -> Vec<String> {
+        let mut request = args.to_vec();
+        request.push(receipt.to_string());
+        request
+    }
+
+    fn inspection_fixture() -> (PathBuf, PathBuf, Vec<String>, Value) {
+        let (root, home, args) = fixture();
+        operation(&args, "init").unwrap();
+        fs::create_dir(root.join("docs")).unwrap();
+        fs::write(root.join("docs/plan.txt"), "committed\n").unwrap();
+        commit_fixture(&root, &home);
+        let head = operation(&args, "inspect").unwrap()["head"].clone();
+        let prepared = operation(&worktree_request(&args, &head), "worktree").unwrap();
+        (root, home, inspection_request(&args, &prepared), prepared)
+    }
+
+    #[test]
+    fn worktree_inspection_detects_hidden_working_and_staged_changes_without_writes() {
+        let (root, home, request, prepared) = inspection_fixture();
+        let checkout = Path::new(prepared["path"].as_str().unwrap());
+        let pointer = fs::read_to_string(checkout.join(".git")).unwrap();
+        let admin = Path::new(pointer.trim().strip_prefix("gitdir: ").unwrap());
+        let source_index = fs::read(root.join(".git/index")).unwrap();
+        let owner = fs::read(checkout.parent().unwrap().join("owner.json")).unwrap();
+        let index = fs::read(admin.join("index")).unwrap();
+        assert_eq!(
+            operation(&request, "inspect_worktree").unwrap()["status"],
+            "worktree_unchanged"
+        );
+        assert_eq!(fs::read(admin.join("index")).unwrap(), index);
+        let git_dir = format!("--git-dir={}", admin.display());
+        let work_tree = format!("--work-tree={}", checkout.display());
+        for flag in ["--assume-unchanged", "--skip-worktree"] {
+            assert_eq!(
+                git(
+                    &root,
+                    &home,
+                    &[&git_dir, &work_tree, "update-index", flag, "docs/plan.txt"]
+                )
+                .0,
+                0
+            );
+            fs::write(checkout.join("docs/plan.txt"), "modified!\n").unwrap();
+            assert_eq!(
+                operation(&request, "inspect_worktree").unwrap()["status"],
+                "worktree_changed"
+            );
+            fs::write(checkout.join("docs/plan.txt"), "committed\n").unwrap();
+            let clear = format!("--no-{}", flag.trim_start_matches("--"));
+            assert_eq!(
+                git(
+                    &root,
+                    &home,
+                    &[
+                        &git_dir,
+                        &work_tree,
+                        "update-index",
+                        &clear,
+                        "docs/plan.txt"
+                    ]
+                )
+                .0,
+                0
+            );
+        }
+        fs::write(checkout.join("docs/plan.txt"), "staged\n").unwrap();
+        assert_eq!(
+            git(
+                &root,
+                &home,
+                &[&git_dir, &work_tree, "add", "docs/plan.txt"]
+            )
+            .0,
+            0
+        );
+        fs::write(checkout.join("docs/plan.txt"), "committed\n").unwrap();
+        let staged = fs::read(admin.join("index")).unwrap();
+        assert_eq!(
+            operation(&request, "inspect_worktree").unwrap()["status"],
+            "worktree_changed"
+        );
+        assert_eq!(fs::read(admin.join("index")).unwrap(), staged);
+        assert_eq!(fs::read(root.join(".git/index")).unwrap(), source_index);
+        assert_eq!(
+            fs::read(checkout.parent().unwrap().join("owner.json")).unwrap(),
+            owner
+        );
+        assert_eq!(
+            fs::read(checkout.join("docs/plan.txt")).unwrap(),
+            b"committed\n"
+        );
+        fs::remove_dir_all(root.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn worktree_inspection_refuses_missing_foreign_and_tampered_ownership() {
+        for change in [
+            "marker",
+            "pointer",
+            "lock",
+            "head",
+            "commondir",
+            "backlink",
+            "checkout",
+            "index-link",
+            "marker-link",
+            "filter",
+        ] {
+            let (root, home, request, prepared) = inspection_fixture();
+            let checkout = Path::new(prepared["path"].as_str().unwrap());
+            let pointer = fs::read_to_string(checkout.join(".git")).unwrap();
+            let admin = Path::new(pointer.trim().strip_prefix("gitdir: ").unwrap());
+            let canary = home.join("outside");
+            fs::write(&canary, "DO_NOT_READ_OR_MODIFY").unwrap();
+            match change {
+                "marker" => fs::write(checkout.parent().unwrap().join("owner.json"), "{}").unwrap(),
+                "pointer" => fs::write(
+                    checkout.join(".git"),
+                    format!("gitdir: {}\n", home.display()),
+                )
+                .unwrap(),
+                "lock" => fs::remove_file(admin.join("locked")).unwrap(),
+                "head" => fs::write(admin.join("HEAD"), "ref: refs/heads/main\n").unwrap(),
+                "commondir" => {
+                    fs::write(admin.join("commondir"), format!("{}\n", home.display())).unwrap()
+                }
+                "backlink" => fs::write(admin.join("gitdir"), "foreign\n").unwrap(),
+                "checkout" => {
+                    fs::rename(checkout, checkout.with_file_name("retained")).unwrap();
+                    fs::create_dir(checkout).unwrap();
+                }
+                "index-link" => {
+                    fs::remove_file(admin.join("index")).unwrap();
+                    std::os::unix::fs::symlink(&canary, admin.join("index")).unwrap();
+                }
+                "marker-link" => {
+                    let marker = checkout.parent().unwrap().join("owner.json");
+                    fs::remove_file(&marker).unwrap();
+                    fs::hard_link(&canary, marker).unwrap();
+                }
+                "filter" => {
+                    assert_eq!(
+                        git(
+                            &root,
+                            &home,
+                            &["config", "filter.test.clean", "touch FILTER_RAN"]
+                        )
+                        .0,
+                        0
+                    );
+                }
+                _ => unreachable!(),
+            }
+            assert!(operation(&request, "inspect_worktree").is_err(), "{change}");
+            assert_eq!(fs::read(&canary).unwrap(), b"DO_NOT_READ_OR_MODIFY");
+            assert!(!root.join("FILTER_RAN").exists());
+            assert!(checkout.parent().unwrap().join("owner.json").exists());
+            fs::remove_dir_all(root.parent().unwrap()).unwrap();
+        }
+    }
+
+    #[test]
+    fn worktree_inspection_reports_checkout_transformations_as_raw_differences() {
+        let (root, home, args) = fixture();
+        operation(&args, "init").unwrap();
+        fs::write(root.join(".gitattributes"), "*.txt text eol=crlf\n").unwrap();
+        fs::write(root.join("plan.txt"), "line\n").unwrap();
+        commit_fixture(&root, &home);
+        let head = operation(&args, "inspect").unwrap()["head"].clone();
+        let prepared = operation(&worktree_request(&args, &head), "worktree").unwrap();
+        let request = inspection_request(&args, &prepared);
+        assert_eq!(
+            operation(&request, "inspect_worktree").unwrap()["status"],
+            "worktree_changed"
+        );
+        assert_eq!(
+            fs::read(Path::new(prepared["path"].as_str().unwrap()).join("plan.txt")).unwrap(),
+            b"line\r\n"
+        );
+        fs::remove_dir_all(root.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn worktree_inspection_flags_extra_files_links_modes_and_cancellation() {
+        for change in ["extra", "missing", "link", "parent-link", "mode", "fifo"] {
+            let (root, home, request, prepared) = inspection_fixture();
+            let checkout = Path::new(prepared["path"].as_str().unwrap());
+            let file = checkout.join("docs/plan.txt");
+            match change {
+                "extra" => fs::write(checkout.join(".env"), "UNTRACKED_CANARY").unwrap(),
+                "missing" => fs::remove_file(&file).unwrap(),
+                "link" => {
+                    fs::remove_file(&file).unwrap();
+                    std::os::unix::fs::symlink(root.join("docs/plan.txt"), &file).unwrap();
+                }
+                "parent-link" => {
+                    fs::remove_dir_all(checkout.join("docs")).unwrap();
+                    std::os::unix::fs::symlink(root.join("docs"), checkout.join("docs")).unwrap();
+                }
+                "mode" => fs::set_permissions(&file, fs::Permissions::from_mode(0o755)).unwrap(),
+                "fifo" => {
+                    let path =
+                        std::ffi::CString::new(checkout.join("extra").to_str().unwrap()).unwrap();
+                    assert_eq!(unsafe { libc::mkfifo(path.as_ptr(), 0o600) }, 0);
+                }
+                _ => unreachable!(),
+            }
+            assert_eq!(
+                operation(&request, "inspect_worktree").unwrap()["status"],
+                "worktree_changed",
+                "{change}"
+            );
+            let mut cancelled = request.clone();
+            cancelled[0] = "inspect_worktree".into();
+            let (sender, receiver) = mpsc::channel();
+            sender.send(()).unwrap();
+            assert_eq!(
+                run(&cancelled, receiver, Duration::from_secs(15)),
+                Err("cancelled")
+            );
+            let (_, receiver) = mpsc::channel();
+            assert_eq!(run(&cancelled, receiver, Duration::ZERO), Err("timeout"));
+            assert!(home.join("worktrees").exists());
+            fs::remove_dir_all(root.parent().unwrap()).unwrap();
+        }
+    }
+
     #[test]
     fn worktree_uses_exact_commit_preserves_dirty_index_and_disables_hooks() {
         let (root, home, args) = fixture();
@@ -1030,6 +1269,10 @@ mod tests {
         let receipt = operation(&request, "worktree").unwrap();
         assert_eq!(receipt["status"], "prepared");
         assert_eq!(receipt["head"], head);
+        assert_eq!(
+            operation(&inspection_request(&args, &receipt), "inspect_worktree").unwrap()["status"],
+            "worktree_unchanged"
+        );
         let checkout = Path::new(receipt["path"].as_str().unwrap());
         assert_eq!(
             fs::read(checkout.join("file-000.txt")).unwrap(),

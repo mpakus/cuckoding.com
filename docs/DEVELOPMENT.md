@@ -10,7 +10,7 @@ R040h adds proposed prerequisites and per-task selected-snapshot citations.
 R040i adds accepted private Markdown specifications with revision and hash checks.
 R040j adds revisioned, confirmed Arena check declarations; execution remains unavailable.
 R050a adds a read-only Battle preview for saved preparation and missing setup.
-R050b adds consented isolated Git worktree preparation.
+R050b adds consented isolated Git worktree preparation; R050c adds retained worktree inspection.
 Human-completed real-account/model acceptance and repository
 execution remain R020 work. The previous source
 reset remains intentional; do not restore the deleted implementation wholesale.
@@ -160,6 +160,15 @@ Git worktree registration. Do not delete/reset/prune uncertain or dirty work to
 retry; the app neither removes it nor replays a lost command. A new preparation
 requires new consent and a new destination. Creation receipts persist across
 restart but do not certify current contents. Future execution must revalidate them.
+
+Choose **Inspect worktree** beside a completed preparation. The app checks its
+private ownership, directory identity, locked detached commit, index entries and
+raw tracked bytes. Extra files (including ignored files) are flagged without
+reading their contents. Nothing is staged, reset or removed. Git CRLF or other
+built-in checkout transformations can report differences. Missing/changed ownership
+fails verification; retain the checkout and inspect manually. Results show their
+UTC time, survive reconnect/restart and grant no execution. Cancel waits for native
+cleanup; interrupted inspections need a new explicit request and never replay.
 
 The shell starts a bundled OTP release with a private HOME, clean environment,
 exclusive data lock and an ephemeral IPv4 loopback port. It owns the one-time

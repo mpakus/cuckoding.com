@@ -306,3 +306,14 @@ running/cancelling commands become interrupted without replay. A mismatched
 key/HEAD/path or late result cannot publish success. Original checkout changes
 stay outside the new worktree. This optional setup action neither freezes a battle
 nor authorizes agents/checks; the read-only Battle preview stays read-only.
+
+## Retained worktree inspection (R050c)
+
+Completed preparation → **Inspect worktree** → durable preparation-bound command →
+verify ownership/registration → compare index and raw tracked bytes → dated result.
+Extra files are flagged without reading their contents. No checkbox is needed for
+this non-mutating local inspection. Pending/running/cancelling and interruption
+follow the existing Git ledger; explicit inspection can be requested again with a
+new command, while replaying an old key returns its original result. Unchanged,
+changed and unverifiable are observations, never admission or execution authority.
+Source Git observations and the read-only Battle preview remain separate.

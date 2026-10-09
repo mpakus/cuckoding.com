@@ -228,12 +228,16 @@ mod tests {
             let (dir, path) = fixture("trap '' TERM\nsleep 30 &\necho $! > child\nwait");
             let (sender, receiver) = mpsc::channel();
             if cancel {
+                let ready = dir.join("child");
                 thread::spawn(move || {
-                    thread::sleep(Duration::from_millis(100));
-                    sender.send(()).unwrap();
+                    let deadline = Instant::now() + Duration::from_secs(2);
+                    while !ready.exists() && Instant::now() < deadline {
+                        thread::sleep(Duration::from_millis(10));
+                    }
+                    let _ = sender.send(());
                 });
             }
-            let result = run(&path, &dir, receiver, Duration::from_millis(250)).unwrap();
+            let result = run(&path, &dir, receiver, Duration::from_secs(3)).unwrap();
             assert_eq!(
                 result["status"],
                 if cancel { "cancelled" } else { "timeout" }

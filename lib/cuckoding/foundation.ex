@@ -14,7 +14,8 @@ defmodule Cuckoding.Foundation do
                        "init_arena_git",
                        "preview_arena_git",
                        "commit_arena_git",
-                       "worktree_arena_git"
+                       "worktree_arena_git",
+                       "inspect_worktree_arena_git"
                      ]
 
   def workspace, do: Repo.get!(Workspace, 1)
@@ -101,7 +102,8 @@ defmodule Cuckoding.Foundation do
     Repo.exists?(
       from c in Command,
         where: c.id == ^claim.id and c.state == "running" and c.attempts == ^claim.attempts,
-        where: c.kind != "worktree_arena_git" or c.lease_until > ^now
+        where:
+          c.kind not in ~w(worktree_arena_git inspect_worktree_arena_git) or c.lease_until > ^now
     )
   end
 
@@ -147,7 +149,8 @@ defmodule Cuckoding.Foundation do
               "init_arena_git",
               "preview_arena_git",
               "commit_arena_git",
-              "worktree_arena_git"
+              "worktree_arena_git",
+              "inspect_worktree_arena_git"
             ] and
               state in ["pending", "running"] do
     Repo.update!(
@@ -350,7 +353,8 @@ defmodule Cuckoding.Foundation do
                  "init_arena_git",
                  "preview_arena_git",
                  "commit_arena_git",
-                 "worktree_arena_git"
+                 "worktree_arena_git",
+                 "inspect_worktree_arena_git"
                ] and
                  state in ["running", "cancelling"] ->
             failed =
@@ -403,7 +407,7 @@ defmodule Cuckoding.Foundation do
   end
 
   defp lease_duration(kind)
-       when kind in ~w(inspect_arena_git init_arena_git preview_arena_git commit_arena_git worktree_arena_git),
+       when kind in ~w(inspect_arena_git init_arena_git preview_arena_git commit_arena_git worktree_arena_git inspect_worktree_arena_git),
        do: 25_000
 
   defp lease_duration("login_codex"), do: 630_000
@@ -424,7 +428,7 @@ defmodule Cuckoding.Foundation do
     do: Cuckoding.Planning.finish(claim, result)
 
   def finish(%Command{kind: kind} = claim, result)
-      when kind in ~w(inspect_arena_git init_arena_git preview_arena_git commit_arena_git worktree_arena_git),
+      when kind in ~w(inspect_arena_git init_arena_git preview_arena_git commit_arena_git worktree_arena_git inspect_worktree_arena_git),
       do: Cuckoding.ArenaGit.finish(claim, result)
 
   def finish(%Command{kind: "choose_arena_folder"} = claim, result),
@@ -595,7 +599,7 @@ defmodule Cuckoding.Foundation do
   end
 
   defp prefix(kind)
-       when kind in ~w(inspect_arena_git init_arena_git preview_arena_git commit_arena_git worktree_arena_git),
+       when kind in ~w(inspect_arena_git init_arena_git preview_arena_git commit_arena_git worktree_arena_git inspect_worktree_arena_git),
        do: "arena_git."
 
   defp prefix("preview_documents"), do: "documents."

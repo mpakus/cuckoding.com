@@ -273,6 +273,142 @@ defmodule Cuckoding.ArenaGitTest do
              Foundation.finish(claim, %{"status" => "cleanup_uncertain"})
   end
 
+  test "worktree inspections freeze only this Arena's completed receipt and remain separate from baseline" do
+    arena = arena_fixture()
+    prepared = prepared_worktree(arena)
+    baseline = ArenaGit.latest(arena.id)
+    key = Ecto.UUID.generate()
+    assert {:ok, pending} = ArenaGit.request(key, arena.id, "inspect_worktree", prepared.id)
+    assert {:ok, ^pending} = ArenaGit.request(key, arena.id, "inspect_worktree", prepared.id)
+
+    assert pending.payload["preparation"] ==
+             Map.take(prepared.payload["observation"], ~w(key head path device inode))
+
+    assert {:ok, %{result: "setup_busy"}} =
+             ArenaGit.request(Ecto.UUID.generate(), arena.id, "inspect")
+
+    {:ok, claim} = Foundation.claim()
+    assert Foundation.probe_active?(claim)
+
+    result =
+      Map.merge(claim.payload["preparation"], %{
+        "status" => "worktree_unchanged",
+        "raw" => "INSPECTION_CANARY"
+      })
+
+    assert {:ok, done} = Foundation.finish(claim, result)
+    assert done.state == "completed"
+    assert {:ok, ^done} = ArenaGit.request(key, arena.id, "inspect_worktree", prepared.id)
+    assert ArenaGit.worktree_inspections(arena.id, [prepared])[prepared.id].id == done.id
+    assert ArenaGit.worktree_inspections(arena_fixture().id, [prepared])[prepared.id] == nil
+
+    # The separate ordinary inspection above is rejected; the worktree inspection is never the baseline.
+    refute ArenaGit.latest(arena.id).id in [prepared.id, done.id]
+    assert baseline.kind == "inspect_arena_git"
+    refute inspect(Repo.all(Command)) =~ "INSPECTION_CANARY"
+    assert Repo.get!(Command, prepared.id) == prepared
+
+    assert Repo.aggregate(
+             from(e in Event,
+               where: e.command_id == ^done.id and e.kind == "arena_git.completed"
+             ),
+             :count
+           ) == 1
+
+    for id <- [baseline.id, Ecto.UUID.generate()] do
+      assert {:ok, %{state: "rejected", result: "recheck_required"}} =
+               ArenaGit.request(Ecto.UUID.generate(), arena.id, "inspect_worktree", id)
+    end
+
+    assert {:ok, %{state: "rejected", result: "recheck_required"}} =
+             ArenaGit.request(
+               Ecto.UUID.generate(),
+               arena_fixture().id,
+               "inspect_worktree",
+               prepared.id
+             )
+
+    assert {:error, "confirmation_required"} =
+             ArenaGit.request(Ecto.UUID.generate(), arena.id, "inspect_worktree", "bad")
+  end
+
+  test "inspection refuses foreign and malformed receipts and preserves changed observations" do
+    arena = arena_fixture()
+    prepared = prepared_worktree(arena)
+
+    for {field, value} <- [
+          {"key", Ecto.UUID.generate()},
+          {"head", String.duplicate("b", 40)},
+          {"path", "/foreign"},
+          {"device", 9},
+          {"inode", 9}
+        ] do
+      {:ok, _} = ArenaGit.request(Ecto.UUID.generate(), arena.id, "inspect_worktree", prepared.id)
+      {:ok, claim} = Foundation.claim()
+
+      result =
+        claim.payload["preparation"]
+        |> Map.put("status", "worktree_unchanged")
+        |> Map.put(field, value)
+
+      assert {:ok, %{state: "failed", result: "recheck_required"}} =
+               Foundation.finish(claim, result)
+    end
+
+    assert LocalGit.normalize(%{"status" => "worktree_unchanged"}) == %{
+             "status" => "invalid_repository"
+           }
+
+    {:ok, _} = ArenaGit.request(Ecto.UUID.generate(), arena.id, "inspect_worktree", prepared.id)
+    {:ok, claim} = Foundation.claim()
+
+    assert {:ok, %{state: "completed", result: "worktree_changed"}} =
+             Foundation.finish(
+               claim,
+               Map.put(claim.payload["preparation"], "status", "worktree_changed")
+             )
+
+    assert ArenaGit.latest(arena.id).kind == "inspect_arena_git"
+  end
+
+  test "inspection cancellation and expiry retain receipt history without accepting late observations" do
+    arena = arena_fixture()
+    prepared = prepared_worktree(arena)
+
+    {:ok, pending} =
+      ArenaGit.request(Ecto.UUID.generate(), arena.id, "inspect_worktree", prepared.id)
+
+    Foundation.cancel_probe(pending.id)
+    assert {:ok, nil} = Foundation.claim()
+    {:ok, _} = ArenaGit.request(Ecto.UUID.generate(), arena.id, "inspect_worktree", prepared.id)
+    {:ok, claim} = Foundation.claim()
+    Foundation.cancel_probe(claim.id)
+    assert Foundation.pending?()
+
+    assert {:ok, %{state: "cancelled"}} =
+             Foundation.finish(
+               claim,
+               Map.put(claim.payload["preparation"], "status", "worktree_unchanged")
+             )
+
+    {:ok, _} = ArenaGit.request(Ecto.UUID.generate(), arena.id, "inspect_worktree", prepared.id)
+    {:ok, expired} = Foundation.claim(1000)
+    refute Foundation.probe_active?(expired)
+    assert {:error, :lost_claim} = Foundation.finish(expired, %{"status" => "worktree_unchanged"})
+    assert {:ok, %{result: "interrupted"}} = Foundation.claim(3_601_000)
+    assert {:ok, nil} = Foundation.claim(3_602_000)
+    assert {:error, :lost_claim} = Foundation.finish(expired, %{"status" => "worktree_unchanged"})
+    assert Repo.get!(Command, prepared.id) == prepared
+  end
+
+  defp prepared_worktree(arena) do
+    observed = inspect_head(arena)
+    {:ok, _} = ArenaGit.request(Ecto.UUID.generate(), arena.id, "worktree", observed.id, true)
+    {:ok, claim} = Foundation.claim()
+    {:ok, prepared} = Foundation.finish(claim, worktree_receipt(claim))
+    prepared
+  end
+
   defp inspect_head(arena) do
     {:ok, _} = ArenaGit.request(Ecto.UUID.generate(), arena.id, "inspect")
     {:ok, claim} = Foundation.claim()

@@ -7,7 +7,7 @@ auditability and verification, not weaken them. The 2026-10-06 user reset replac
 the previous product direction. R010 implements the local foundation; provider
 execution and battles remain the R020–R100 roadmap.
 The current implemented boundary is setup, draft planning and consented isolated
-worktree preparation, summarized with
+worktree preparation/inspection, summarized with
 source owners in [Architecture](docs/ARCHITECTURE.md). [Plan](docs/PLAN.md) owns
 remaining acceptance, not this file. Human-completed real-account/model checks,
 repository execution and autonomous battles remain open.
@@ -74,6 +74,13 @@ Preserve these implemented contracts:
   Creation receipts never grant execution or prove current checkout integrity.
   Keep this setup utility separate from read-only Battle preview; future Start
   still owns ordinary worktree admission under its single bounded authorization.
+
+- Worktree inspection binds a completed preparation and revalidates ownership,
+  directory identity, detached locked registration, index entries and raw tracked
+  bytes. Extra files are flagged without reading their contents. Do not trust Git
+  index flags as cleanliness proof. Built-in checkout transformations can report
+  differences. Keep observations dated, retain uncertain state, reject late/foreign
+  receipts and never use inspection as a grant or future-integrity guarantee.
 
 ## Mission and product contract
 

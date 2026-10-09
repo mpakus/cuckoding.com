@@ -341,3 +341,30 @@ and Git identities and owned processes. Worktrees share Git metadata; the host
 runner and cooperative directory lock are not a sandbox against another process
 running as the same user. Concurrent noncooperating filesystem/config mutation
 can leave an uncertain result and must never be treated as clean execution proof.
+
+## R050c retained checkout inspection
+
+Inspection accepts only a completed preparation in the selected Arena. The host
+freezes its key/HEAD/path/device/inode before launch. Native code derives the UUID
+location, validates private parents and exact owner JSON, pins the checkout, and
+requires its `.git` candidate to name one immediate child of this source's
+`.git/worktrees`. Descriptor-relative reads verify the backlink, `../..` common
+directory, UUID lock reason and detached exact HEAD. Foreign pointers are never
+used as Git roots. Missing/replaced/linked metadata fails closed.
+
+Fixed `ls-files --stage` reads only the validated index; fixed `cat-file --batch`
+reads raw committed blobs from the source object store. Neither calls filters,
+uses provider tools nor updates an index. Same R050b tree limits apply; the index
+is capped at 8 MiB and batch output at 65 MiB. Tracked file reads pin every path
+component, refuse links/special files and check read stability. They compare raw
+bytes and executable mode, independently of assume-unchanged/skip-worktree flags.
+A descriptor-relative bounded directory walk flags extra names (including ignored
+files and empty directories) without reading extra file contents. No names/bytes
+enter public receipts. Index/config/ownership are rechecked before reporting.
+
+Built-in Git transformations such as CRLF produce a conservative difference,
+even when ordinary Git status would be clean. The inspection never repairs,
+prunes, overwrites or resets anything. It is not an atomic filesystem snapshot:
+a same-user process may change data immediately or during observation. Execution
+must freshly admit and verify its own candidate; a receipt is never a sandbox,
+future-integrity guarantee, grant or permission to accept protected policy changes.
