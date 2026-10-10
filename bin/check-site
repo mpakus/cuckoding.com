@@ -65,7 +65,7 @@ ET.parse(site / "assets/favicon.svg")
 assert (site / "assets/mark.svg").read_bytes() == (root / "desktop/mark.svg").read_bytes()
 assert (site / "assets/favicon.svg").read_bytes() == (root / "priv/static/favicon.svg").read_bytes()
 assert sum("data-parallax" in attrs for _, attrs in page.tags) == 4
-assert sum(attrs.get("class", "").startswith("character ") for _, attrs in page.tags) == 8
+assert sum(attrs.get("class", "").startswith("character ") for _, attrs in page.tags) == 7
 assert sum(attrs.get("class") == "scene-back" for _, attrs in page.tags) == 4
 assert "CCoding" not in (site / "index.html").read_text()
 assert not re.search(r"\bemperor\b", text)
@@ -75,9 +75,9 @@ for tag, attrs in page.tags:
         assert asset.stat().st_size < 6_000_000
         if attrs["data-motion"] != "depth":
             assert asset.read_bytes()[25] == 6, f"Foreground needs RGBA transparency: {asset}"
-        if attrs["data-motion"] not in ("sword", "morgenstern") and "arena-back" not in attrs["src"]:
+        if attrs.get("fetchpriority") != "high":
             assert attrs.get("loading") == "lazy"
-for id in ("arena-art", "banquet-art", "revel-art", "doom-art"):
+for id in ("arena-art", "hero-art", "revel-art", "doom-art"):
     assert any(attrs.get("id") == id and attrs.get("role") == "img" and attrs.get("aria-label") for _, attrs in page.tags)
 assert '"productName": "Cuckoding"' in (root / "desktop/src-tauri/tauri.conf.json").read_text()
 for file in site.rglob("*"):

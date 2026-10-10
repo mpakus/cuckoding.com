@@ -13,7 +13,11 @@ space, restrained borders, crisp type, monochrome surfaces and one accent color.
 Use text/icons alongside status colors. Monospace suits labels, IDs and logs;
 body text must stay comfortable to read.
 
-Start with a dark theme respecting accessible contrast and OS reduced motion.
+R018 uses near-black `#050807`, dark-green panels `#0b110e`, electric-green
+`#82ff52` focus/actions and off-white body text. Angular borders and a restrained
+sidebar gradient echo the public cybernetic Arena without decorative app artwork.
+Mobile form text is 16px; navigation remains one horizontal scrollable row.
+Respect accessible contrast and OS reduced motion.
 Avoid blinking cursors, decorative animation and dense analytics cards. Motion
 only clarifies a state change; controls remain usable without it.
 

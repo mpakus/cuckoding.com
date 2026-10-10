@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="12" fill="#eee9dd"/><title>Cuckoding — a little C with a devilish furcina tail</title>
-  <path d="M51 17C45 9 30 8 23 17C15 28 20 41 30 44C39 47 48 43 51 37" fill="none" stroke="#a83c29" stroke-width="8" stroke-linecap="round"/>
-  <path d="M31 44C46 51 33 61 21 55C10 49 18 39 10 34" fill="none" stroke="#a83c29" stroke-width="3.5" stroke-linecap="round"/>
-  <path d="M10 35C5 34 3 29 5 23L10 28L15 23C18 29 15 34 10 35Z" fill="#a83c29"/>
-  <path d="m25 14 1-10 9 8m6 0 9-7-1 12" fill="#a83c29"/>
+  <rect width="64" height="64" rx="12" fill="#050807"/><title>Cuckoding — a little C with a devilish furcina tail</title>
+  <path d="M51 17C45 9 30 8 23 17C15 28 20 41 30 44C39 47 48 43 51 37" fill="none" stroke="#82ff52" stroke-width="8" stroke-linecap="round"/>
+  <path d="M31 44C46 51 33 61 21 55C10 49 18 39 10 34" fill="none" stroke="#82ff52" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="M10 35C5 34 3 29 5 23L10 28L15 23C18 29 15 34 10 35Z" fill="#82ff52"/>
+  <path d="m25 14 1-10 9 8m6 0 9-7-1 12" fill="#82ff52"/>
   <path d="m37 23 5-2" fill="none" stroke="#242820" stroke-width="3" stroke-linecap="round"/>
 </svg>

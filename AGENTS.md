@@ -213,6 +213,9 @@ legacy redirects must not bypass browser session checks.
 
 Honor [the UI contract](docs/UI_DASHBOARD.md): slim sidebar, one/two primary
 regions, modern mouse-friendly TUI appearance, no decorative dashboard clutter.
+Use the shared near-black/electric-green palette (`#050807` / `#82ff52`), restrained
+HUD borders and readable system type. Keep cinematic artwork on the public site;
+internal forms retain the one/two-region layout and visible keyboard focus.
 Every long action shows state, elapsed time, role, runtime, model when known,
 and pause/resume/retry/stop/inspect as appropriate.
 

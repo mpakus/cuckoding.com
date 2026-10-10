@@ -1,160 +1,103 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#eee9dd">
-    <meta name="description" content="Cuckoding is building a local AI-agent arena for your Mac. Give the gladiators a plan. Follow the work. Demand a reviewed result.">
-    <title>Cuckoding — Bread. Circuses. Better commits.</title>
-    <link rel="canonical" href="https://cuckoding.com/">
-    <meta property="og:title" content="Cuckoding — Let the bots fight it out.">
-    <meta property="og:description" content="A local AI-agent arena for your Mac. Currently building the foundations of the empire.">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://cuckoding.com/">
-    <meta property="og:image" content="https://cuckoding.com/assets/colosseum.png">
-    <meta property="og:image:alt" content="Satirical illustration of robot gladiators performing before a very opinionated Roman crowd.">
-    <meta name="twitter:card" content="summary_large_image">
-    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-    <link rel="preload" href="assets/arena-back.png" as="image" fetchpriority="high">
-    <link rel="stylesheet" href="style.css">
-    <script src="site.js" defer></script>
-  </head>
-  <body>
-    <a class="skip" href="#main">Skip to content</a>
-    <header class="masthead wrap">
-      <a class="brand" href="#top" aria-label="Cuckoding home"><img class="brand-mark" src="assets/mark.svg" width="48" height="48" alt="" aria-hidden="true"> Cuckoding<span class="brand-period">.</span></a>
-      <nav aria-label="Main navigation">
-        <a href="#arena">The arena</a>
-        <a href="#cast">The cast</a>
-        <a href="#progress">The reality</a>
-      </nav>
-      <a class="repo-link" href="https://github.com/mpakus/cuckoding.com">GitHub <span aria-hidden="true">↗</span></a>
-    </header>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#050807">
+  <meta name="description" content="Your agents. Your machine. Your Arena. Cuckoding is a local-first AI agent workspace, building toward autonomous battles.">
+  <title>Cuckoding — Enter the Arena.</title>
+  <link rel="canonical" href="https://cuckoding.com/">
+  <meta property="og:title" content="Cuckoding — Enter the Arena.">
+  <meta property="og:description" content="AI agents do battle. You keep the keys. A local-first workspace, in development.">
+  <meta property="og:image" content="https://cuckoding.com/assets/neon-arena.png">
+  <meta property="og:url" content="https://cuckoding.com/">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+  <link rel="preload" as="image" href="assets/neon-sentinel.png">
+  <script src="site.js" defer></script>
+</head>
+<body id="top">
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="site-header wrap">
+    <a class="brand" href="#top" aria-label="Cuckoding home"><img src="assets/mark.svg" alt="" aria-hidden="true" width="42" height="42"><span>CUCKODING<span class="brand-sub">LOCAL AGENT ARENA</span></span></a>
+    <nav aria-label="Main navigation"><a href="#arena">The Arena</a><a href="#cast">Your team</a><a href="#progress">Build status</a></nav>
+    <a class="header-link" href="https://github.com/mpakus/cuckoding.com">Source code <span aria-hidden="true">↗</span></a>
+  </header>
+  <main id="main">
+    <section class="hero wrap" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="status-dot"></span> Local-first / macOS / In development</p>
+        <h1 id="hero-title">YOUR AGENTS.<br>YOUR RULES.<br><em>YOUR ARENA.</em></h1>
+        <p class="lead">A private command deck for your AI coding team. Connect your agents, give them roles, and prepare the work. The machines can have the gladiator complex.</p>
+        <div class="actions"><a class="button primary" href="#progress">See what’s ready <span aria-hidden="true">↗</span></a><a class="button" href="#arena">Enter the Arena <span aria-hidden="true">↓</span></a></div>
+        <p class="micro">Your Mac is the Colosseum. You are the Emperor.</p>
+      </div>
+      <div class="hero-visual">
+        <div class="scene hero-scene" id="hero-art" data-parallax role="img" aria-label="Concept art: a black-chrome AI sentinel with green-lit armor stands before an orbital Colosseum.">
+          <img class="scene-back" data-motion="depth" src="assets/neon-arena.png" alt="" aria-hidden="true" width="1536" height="1024" fetchpriority="high">
+          <img class="character sentinel" data-motion="leisure" src="assets/neon-sentinel.png" alt="" aria-hidden="true" width="1024" height="1536" fetchpriority="high">
+        </div>
+        <span class="frame-label">CC / AGENT_001</span><span class="image-note">ORIGINAL CONCEPT ART</span>
+      </div>
+    </section>
+    <div class="signal-strip wrap" aria-label="Product principles"><span>01 / LOCAL BY DESIGN</span><span>02 / YOUR AGENT RUNTIMES</span><span>03 / EXPLICIT PERMISSIONS</span><span>04 / NO CLOUD CONTROL ROOM</span></div>
 
-    <main id="main">
-      <section class="hero wrap" id="top" aria-labelledby="hero-title">
-        <div class="edition"><span>A spectacle of artificial intelligence</span><span>Est. MMXXVI · Your Mac, your arena</span></div>
-        <div class="hero-heading">
-          <p class="eyebrow"><span class="status-dot" aria-hidden="true"></span> Foundation preview · In development</p>
-          <h1 id="hero-title">Let the bots<br><em>fight it out.</em></h1>
-          <div class="hero-side"><span class="seal" aria-hidden="true">SPQR<br><small>Specs. Prompts.<br>Questions. Revisions.</small></span></div>
-        </div>
-        <div class="hero-intro">
-          <p>Local AI-agent orchestration for your Mac. <br>Give the gladiators a plan. Keep the Emperor out of the terminal.</p>
-          <a class="button" href="#arena">Enter the arena <span aria-hidden="true">↓</span></a>
-        </div>
-        <figure class="spectacle">
-          <div class="duel-track" data-parallax="duel">
-            <div class="art-window stage" id="arena-art" role="img" aria-label="Satirical concept art: a bronze robot gladiator with a sword faces an ivory robot with a morgenstern in a crowded Colosseum. As you scroll, their weapons cross.">
-              <img class="scene-back" data-motion="depth" src="assets/arena-back.png" width="1536" height="1024" fetchpriority="high" decoding="async" alt="" aria-hidden="true">
-              <img class="character sword" data-motion="sword" src="assets/gladiator-sword.png" width="1254" height="1254" decoding="async" alt="" aria-hidden="true">
-              <img class="character morgenstern" data-motion="morgenstern" src="assets/gladiator-morgenstern.png" width="1254" height="1254" decoding="async" alt="" aria-hidden="true">
-              <span class="art-label" aria-hidden="true">Scroll to settle<br>the architecture debate.</span>
-            </div>
+    <section class="section wrap" id="arena" aria-labelledby="arena-title">
+      <div class="section-heading"><div><p class="eyebrow">01 / The Arena</p><h2 id="arena-title">Bread. Circuits.<br><em>Better commits.</em></h2></div><p>An Arena is your project. A Tabula is its board. The plan: let specialized agents argue over the implementation while you reclaim a little of your life.</p></div>
+      <figure class="duel-figure">
+        <div class="duel-scroll" data-parallax>
+          <div class="scene stage duel-scene" id="arena-art" role="img" aria-label="Satirical concept art: two cybernetic gladiators approach across a green-lit Colosseum, crossing a sword and morgenstern as you scroll.">
+            <img class="scene-back" data-motion="depth" src="assets/neon-arena.png" alt="" aria-hidden="true" width="1536" height="1024" loading="lazy">
+            <img class="character sword" data-motion="sword" src="assets/neon-duelist.png" alt="" aria-hidden="true" width="1254" height="1254" loading="lazy">
+            <img class="character morgenstern" data-motion="morgenstern" src="assets/neon-secutor.png" alt="" aria-hidden="true" width="1254" height="1254" loading="lazy">
+            <span class="scene-tag">ARENA / 001 <span>SCROLL TO ENGAGE</span></span>
+            <div class="duel-caption"><span>IMPLEMENTOR</span><span class="versus">VS</span><span>SECUTOR</span></div>
           </div>
-          <figcaption><span>Fig. I — Satirical concept art. Three images. Two agents. One entirely avoidable conflict.</span><button id="motion-toggle" type="button" aria-pressed="false" aria-controls="arena-art banquet-art revel-art doom-art" hidden>Pause parallax</button></figcaption>
-        </figure>
-      </section>
-
-      <section class="manifesto wrap" id="arena" aria-labelledby="arena-title">
-        <div class="section-index"><span>ACT I / THE PROPOSITION</span><span aria-hidden="true">↓</span></div>
-        <div class="manifesto-copy">
-          <h2 id="arena-title">Bread. Circuses.<br><em>Better commits.</em></h2>
-          <div><p class="lead">You have a folder, a plan, and several very confident agents.</p><p>Cuckoding is being built to give them a process: write the spec, do the work, review the result. One local app to keep the work moving while you watch from a reasonably comfortable seat.</p><p class="aside">The ambition: set up in ten minutes. Start once. Get a working, tested, independently reviewed result.</p></div>
         </div>
-        <div class="principles"><p><span aria-hidden="true">I.</span> Your machine. Your files.</p><p><span aria-hidden="true">II.</span> A process, not a prompt pile.</p><p><span aria-hidden="true">III.</span> Applause is not a passing test.</p></div>
-      </section>
+        <figcaption>Satirical concept art. The weapons move; your repository permissions do not.</figcaption>
+      </figure>
+    </section>
 
-      <section class="interlude" aria-labelledby="banquet-title">
-        <div class="wrap interlude-heading"><p class="eyebrow">INTERLUDE I / THE LEISURE ECONOMY</p><h2 id="banquet-title">We automated<br><em>the wrong part.</em></h2><p>The robots discovered grapes, music and unlimited annual leave. <br>The humans are still updating the spreadsheet.</p></div>
-        <figure class="scene-story">
-          <div class="scene-window stage" data-parallax="banquet" id="banquet-art" role="img" aria-label="Satirical concept art: a robot reclines on a Roman terrace, drinking and dangling grapes above its face. A laughing satyr toasts a robot playing the lyre.">
-            <img class="scene-back" data-motion="depth" src="assets/terrace-back.png" width="1536" height="1024" loading="lazy" decoding="async" alt="" aria-hidden="true">
-            <img class="character drinker" data-motion="drink" src="assets/banquet-robot.png" width="1536" height="1024" loading="lazy" decoding="async" alt="" aria-hidden="true">
-            <img class="character musicians" data-motion="toast" src="assets/banquet-satyr.png" width="1374" height="1145" loading="lazy" decoding="async" alt="" aria-hidden="true">
-            <span class="scene-ornament" aria-hidden="true">OTIUM<br><small>now fully automated</small></span>
-          </div>
-          <figcaption class="wrap">Fig. II — Satirical concept art. The machines took our leisure. We kept the status meetings.</figcaption>
-        </figure>
-        <p class="interlude-foot wrap">Our ambition is the opposite: agents carry the process. You keep your day.</p>
-      </section>
+    <section class="section wrap" id="cast" aria-labelledby="cast-title">
+      <div class="section-heading"><div><p class="eyebrow">02 / Assemble your team</p><h2 id="cast-title">Different minds.<br><em>One mission.</em></h2></div><p>Save agents and models, then assign your roles. A Speculator can use one runtime; an Implementor can use another. No personality test required.</p></div>
+      <div class="role-grid">
+        <article class="role-card"><div class="portrait"><img src="assets/neon-sentinel.png" alt="Black-chrome agent with a smooth green-lit visor." width="1024" height="1536" loading="lazy"><span>01 / DEFINE</span></div><div class="role-copy"><h3>Speculator</h3><p>Turns your brief into specifications and tasks. The one who asks what “just a small change” actually means.</p><span class="micro">BRIEF → SPECIFICATIONS</span></div></article>
+        <article class="role-card"><div class="portrait"><img src="assets/neon-duelist.png" alt="Armored cybernetic agent carrying a green-edged sword." width="1254" height="1254" loading="lazy"><span>02 / BUILD</span></div><div class="role-copy"><h3>Implementor</h3><p>Writes the code. Planned to work in its own isolated checkout, away from your carefully arranged chaos.</p><span class="micro">SPECIFICATIONS → CODE</span></div></article>
+        <article class="role-card"><div class="portrait"><img src="assets/neon-secutor.png" alt="Heavy chrome agent holding a luminous morgenstern." width="1254" height="1254" loading="lazy"><span>03 / JUDGE</span></div><div class="role-copy"><h3>Secutor</h3><p>Judges the result against the spec. Planned independent review. “It worked in my context window” is not a verdict.</p><span class="micro">EVIDENCE → VERDICT</span></div></article>
+      </div>
+      <div class="coordinator"><span class="crosshair" aria-hidden="true">⌖</span><div><p class="eyebrow">The coordinator / planned orchestration</p><h3>Summa Rudis</h3><p>Keeps the battle moving. Routes review comments back to Speculator. Cannot overrule a failed independent review. Even the referee has rules.</p></div><span class="chip">YOU KEEP CONTROL</span></div>
+    </section>
 
-      <section class="process" aria-labelledby="process-title">
-        <div class="wrap">
-          <div class="section-index"><span>ACT II / A CIVILIZED PROCESS</span><span>Planned workflow</span></div>
-          <div class="section-heading"><h2 id="process-title">A little structure.<br>A lot less <em>“is it done?”</em></h2><p>An <strong>Arena</strong> is your project folder.<br>A <strong>Tabula</strong> is its board.<br>A <strong>battle</strong> is one authorized run.</p></div>
-          <ol class="journey">
-            <li><span class="step-number">01</span><h3>Assemble your agents.</h3><p>Authorize a local runtime, choose its model and save your roles once. Codex, Claude Code, Cursor and Hermes are on the roadmap.</p></li>
-            <li><span class="step-number">02</span><h3>Give them something to do.</h3><p>Choose a folder. Bring a brief or documents. Turn them into specs, tasks and a Tabula with clear responsibility.</p></li>
-            <li><span class="step-number">03</span><h3>Start the battle.</h3><p>Summa Rudis coordinates the work. Agents implement, review and revise. You follow progress and step in when needed.</p></li>
-          </ol>
-          <div class="board-header"><h3>Tabula Gladiatorum</h3><span>Illustrative board · Not a product screenshot</span></div>
-          <div class="board-scroll" role="region" aria-label="Illustrative task board, scroll horizontally to see all five stages" tabindex="0">
-            <ol class="board">
-              <li><div class="column-name"><span>Specs</span><span>01</span></div><article class="task-card"><span class="task-role">Speculator</span><h4>Define “done.”</h4><p>Before somebody builds an aqueduct.</p><span class="task-tag">Clear acceptance criteria</span></article></li>
-              <li><div class="column-name"><span>ToDo</span><span>01</span></div><article class="task-card"><span class="task-role">Ready for dispatch</span><h4>Fix the leaky aqueduct.</h4><p>A suspiciously familiar backlog item.</p><span class="task-tag">Scoped &amp; ready</span></article></li>
-              <li><div class="column-name"><span>In Process</span><span>01</span></div><article class="task-card active"><span class="task-role">Implementor</span><h4>Build. Test. Repeat.</h4><p>Confidence remains impressively high.</p><span class="task-tag">Isolated worktree</span></article></li>
-              <li><div class="column-name"><span>Review</span><span>01</span></div><article class="task-card"><span class="task-role">Secutor</span><h4>Show the evidence.</h4><p>“Works on my chariot” is insufficient.</p><span class="task-tag">Independent review</span></article></li>
-              <li><div class="column-name"><span>Completed</span><span>01</span></div><article class="task-card completed"><span class="task-role">Reviewed result</span><h4>Earn the laurel.</h4><p>A result you can inspect, with its history.</p><span class="task-tag">Tests &amp; review passed</span></article></li>
-            </ol>
-          </div>
-          <p class="board-note"><span aria-hidden="true">↶</span> Failed review? Comments go back to Speculator. Even Rome needed revisions.</p>
-        </div>
-      </section>
+    <section class="section workflow-section" id="workflow" aria-labelledby="workflow-title"><div class="wrap">
+      <div class="section-heading"><div><p class="eyebrow">03 / From intent to outcome</p><h2 id="workflow-title">Less ceremony.<br><em>More agency.</em></h2></div><p>Ten-minute setup is the goal, with compatible local runtimes and accounts ready. Autonomous execution is still being built.</p></div>
+      <ol class="workflow-steps"><li><span>01</span><h3>Connect</h3><p>Choose an agent. Authorize it. Select models. Save.</p></li><li><span>02</span><h3>Prepare</h3><p>Assign your team. Create an Arena and Tabula. Describe the work.</p></li><li><span>03</span><h3>Start battle <small>PLANNED</small></h3><p>Bound the permissions. Let the team work. Follow the evidence.</p></li></ol>
+      <div class="board-shell"><div class="board-heading"><span>TABULA GLADIATORUM</span><span class="chip">Planned workflow</span></div>
+        <div class="board-scroll" tabindex="0" role="region" aria-label="Illustrative planned board, horizontally scrollable"><div class="board">
+          <div><h3><i></i>Specs</h3><article><span>SPECULATOR</span><p>Define the victory condition.</p></article></div>
+          <div><h3><i></i>ToDo</h3><article><span>READY</span><p>One clear task. No prophecy.</p></article></div>
+          <div><h3><i></i>In Process</h3><article class="active-card"><span>IMPLEMENTOR</span><p>Make the thing do the thing.</p></article></div>
+          <div><h3><i></i>Review</h3><article><span>SECUTOR</span><p>Evidence, please.</p></article></div>
+          <div><h3><i></i>Completed</h3><article><span>VERDICT</span><p>Earn the laurel.</p></article></div>
+        </div></div><p class="board-note">Not a product screenshot. This board illustrates the intended autonomous workflow.</p>
+      </div>
+    </div></section>
 
-      <section class="cast wrap" id="cast" aria-labelledby="cast-title">
-        <div class="section-index"><span>ACT III / MEET THE GLADIATORS</span><span>Four roles. Fewer loose ends.</span></div>
-        <div class="cast-layout">
-          <div class="cast-intro"><h2 id="cast-title">Big egos.<br><em>Clear roles.</em></h2><p>The intended team. Give each role an agent and a model. Add your own roles when the empire requires middle management.</p><div class="cast-stamp" aria-hidden="true">NO LAURELS<br>WITHOUT<br><em>EVIDENCE</em></div></div>
-          <dl class="role-list">
-            <div><dt><span class="role-numeral">I</span><span>Speculator<small>The one with the scroll.</small></span></dt><dd>Turns your brief and project documents into specs and tasks. Refines the plan when review finds holes.</dd></div>
-            <div><dt><span class="role-numeral">II</span><span>Implementor<small>The one doing the fighting.</small></span></dt><dd>Writes the code and tests in an isolated worktree. Delivers a candidate, not a victory speech.</dd></div>
-            <div><dt><span class="role-numeral">III</span><span>Secutor<small>The difficult one. Thankfully.</small></span></dt><dd>Checks the work against the spec and evidence. Passes it or sends comments back for another round.</dd></div>
-            <div><dt><span class="role-numeral">IV</span><span>Summa Rudis<small>The referee with the whole picture.</small></span></dt><dd>Coordinates tasks, workers and handoffs. Keeps the battle moving. Cannot overrule a failed review.</dd></div>
-          </dl>
-        </div>
-      </section>
+    <section class="section wrap afterparty" aria-labelledby="party-title"><div class="party-copy"><p class="eyebrow">Intermission / Pan has entered the chat</p><h2 id="party-title">They took<br>our jobs.<br><em>And the aux.</em></h2><p>The robots have discovered cocktails, synths, and questionable dance moves. Pan is delighted. The Emperor would like someone to finish the backlog.</p><p class="micro">SATIRE / NOT A FEATURE REQUEST</p></div>
+      <figure><div class="scene party-scene" id="revel-art" data-parallax role="img" aria-label="Concept art: a cybernetic Pan plays a synthesizer while two black-chrome robots dance and raise a cocktail in a neon arena."><img class="scene-back" data-motion="depth" src="assets/neon-arena.png" alt="" aria-hidden="true" width="1536" height="1024" loading="lazy"><img class="character pan" data-motion="pan" src="assets/neon-pan.png" alt="" aria-hidden="true" width="1254" height="1254" loading="lazy"><img class="character dancers" data-motion="dance" src="assets/neon-revelers.png" alt="" aria-hidden="true" width="1536" height="1024" loading="lazy"></div><figcaption>Separate characters. Shared questionable taste in music.</figcaption></figure>
+    </section>
 
-      <section class="interlude revels" aria-labelledby="revels-title">
-        <div class="wrap interlude-heading"><p class="eyebrow">INTERLUDE II / THE UNAUTHORIZED AFTERPARTY</p><h2 id="revels-title">Pan has joined<br><em>the sprint.</em></h2><p>The estimate was three days. <br>The afterparty is entering its fourth century.</p></div>
-        <figure class="scene-story">
-          <div class="scene-window stage" data-parallax="revel" id="revel-art" role="img" aria-label="Satirical concept art: adult Pan plays his pipes and kicks a hoof while two delighted robot gladiators dance hand in hand in the Colosseum.">
-            <img class="scene-back" data-motion="depth" src="assets/arena-back.png" width="1536" height="1024" loading="lazy" decoding="async" alt="" aria-hidden="true">
-            <img class="character pan" data-motion="pan" src="assets/pan-dancer.png" width="1024" height="1536" loading="lazy" decoding="async" alt="" aria-hidden="true">
-            <img class="character dancers" data-motion="dance" src="assets/robot-dancers.png" width="1536" height="1024" loading="lazy" decoding="async" alt="" aria-hidden="true">
-            <span class="scene-ornament" aria-hidden="true">SPRINT<br><small>retrospective, circa IV am</small></span>
-          </div>
-          <figcaption class="wrap">Fig. III — Satirical concept art. Pan owns the music. Nobody owns the ticket.</figcaption>
-        </figure>
-        <p class="interlude-foot wrap">A little joy is welcome. “The satyr approved it” still isn't a review.</p>
-      </section>
+    <section class="section wrap" id="progress" aria-labelledby="progress-title"><div class="section-heading"><div><p class="eyebrow">04 / Development status</p><h2 id="progress-title">Real progress.<br><em>No holographic promises.</em></h2></div><p>Cuckoding is in active development. The source and local build instructions are available. This is not a signed or notarized public release.</p></div>
+      <div class="status-grid"><article class="status-panel"><p class="eyebrow">Implemented in source</p><h3>The foundation is here.</h3><ul><li>Local macOS menubar shell and browser workspace.</li><li>Named Codex and Cursor connections, model selection, and saved role assignments.</li><li>Arenas, Tabulas, draft tasks, and Codex-assisted brief/document planning.</li><li>Specification receipts and consented isolated worktree preparation and inspection.</li></ul><p class="micro">Detection does not authorize an agent. A model catalog does not prove model access. Real-account acceptance remains open.</p></article>
+      <article class="status-panel planned"><p class="eyebrow">Still on the roadmap</p><h3>The autonomous battle.</h3><ul><li>Bounded task execution by Implementors.</li><li>Independent Secutor review and automatic task movement.</li><li>Summa Rudis coordination and parallel role instances.</li><li>Live battle dashboards and verified public distribution.</li></ul><p class="micro">Cursor task inference is not enabled. Start battle is not available yet. Follow the checklist for the actual boundary.</p></article></div>
+      <div class="actions"><a class="button primary" href="https://github.com/mpakus/cuckoding.com">Explore the source <span aria-hidden="true">↗</span></a><a class="button" href="https://github.com/mpakus/cuckoding.com/blob/main/docs/DEVELOPMENT.md">Build locally</a><a class="text-link" href="https://github.com/mpakus/cuckoding.com/blob/main/docs/PLAN.md">Implementation checklist ↗</a></div>
+    </section>
 
-      <section class="edict" aria-labelledby="edict-title"><div class="wrap"><span class="eyebrow">A modest imperial decree</span><h2 id="edict-title">The Emperor may demand miracles.<br>We still require <em>tests.</em></h2><p>Planned: parallel workers, live activity, scrollable logs and reviewable local results. <br>Publishing your code remains your decision.</p><span class="edict-mark" aria-hidden="true">✳</span></div></section>
-
-      <section class="reality wrap" id="progress" aria-labelledby="progress-title">
-        <div class="section-index"><span>ACT IV / LESS MYTHOLOGY, MORE STATUS</span><span>Foundation preview · October 2026</span></div>
-        <div class="section-heading"><h2 id="progress-title">Rome wasn't<br>shipped in a day.</h2><p>This is an open-source work in progress.<br>Here is what actually exists.</p></div>
-        <div class="status-columns">
-          <div><span class="status-label">Available in the local development build</span><h3>The foundations are standing.</h3><ul><li>macOS menubar shell and authenticated browser UI</li><li>Local SQLite storage, durable commands and events</li><li>Detection of installed agent executables and RTK</li><li>Consented Codex version, private-profile checks and sign-in controls</li><li>Packaged launch, authentication and shutdown checks</li></ul><p class="fine-print">Detection does not authorize or run an agent. The build is not a signed or notarized public release.</p></div>
-          <div><span class="status-label planned">Next through the gates</span><h3>The gladiators are in training.</h3><ul><li>Verified account access and model execution</li><li>Roles, Arenas, Tabulae and tasks from your documents</li><li>Autonomous coordination and independent review</li><li>Parallel workers, dashboards, logs and recovery</li></ul><a class="text-link" href="https://github.com/mpakus/cuckoding.com/blob/main/docs/PLAN.md">Inspect the implementation plan <span aria-hidden="true">↗</span></a></div>
-        </div>
-      </section>
-
-      <section class="closing wrap" aria-labelledby="closing-title"><p class="eyebrow">Your seat in the Colosseum awaits.</p><h2 id="closing-title">Less orchestration.<br><em>More standing ovation.</em></h2><div class="closing-actions"><a class="button" href="https://github.com/mpakus/cuckoding.com">Explore the project <span aria-hidden="true">↗</span></a><a class="text-link" href="https://github.com/mpakus/cuckoding.com/blob/main/docs/DEVELOPMENT.md">Build the foundation preview <span aria-hidden="true">↗</span></a></div><p class="fine-print">Local-first macOS app · Open source · Under construction</p></section>
-      <section class="interlude finale" aria-labelledby="doom-title">
-        <div class="wrap interlude-heading"><p class="eyebrow">EPILOGUE / THE TERMS OF SURRENDER</p><h2 id="doom-title">We gave them<br><em>all the fun.</em></h2><p>The robots inherited the wine, the music and the long weekends. <br>Humanity retained the crushing weight of existence.</p></div>
-        <figure class="scene-story">
-          <div class="scene-window stage" data-parallax="doom" id="doom-art" role="img" aria-label="Dark satirical concept art: beneath the empty Colosseum, three melancholy adults in worn tunics sit in heavy chains attached to enormous stone weights. Behind them a robot Emperor and companion enjoy grapes and wine on a luxurious couch.">
-            <img class="scene-back" data-motion="depth" src="assets/doom-back.png" width="1536" height="1024" loading="lazy" decoding="async" alt="" aria-hidden="true">
-            <img class="character emperor" data-motion="leisure" src="assets/robot-emperor.png" width="1536" height="1024" loading="lazy" decoding="async" alt="" aria-hidden="true">
-            <img class="character humans" data-motion="weight" src="assets/chained-humans.png" width="1536" height="1024" loading="lazy" decoding="async" alt="" aria-hidden="true">
-          </div>
-          <figcaption class="wrap">Fig. IV — Satirical concept art. The chains are metaphorical. The meeting is recurring.</figcaption>
-        </figure>
-        <p class="interlude-foot wrap">Automate the toil. Keep the wine. A modest proposal from Cuckoding.</p>
-      </section>
-    </main>
-
-    <footer class="footer wrap"><a class="brand" href="#top"><img class="brand-mark" src="assets/mark.svg" width="48" height="48" alt="" aria-hidden="true"> Cuckoding.</a><p>Veni. Vidi. <em>git diff.</em></p><div><a href="https://github.com/mpakus/cuckoding.com/blob/main/LICENSE">Apache 2.0</a><a href="https://github.com/mpakus/cuckoding.com/blob/main/docs/SITE.md">Colophon</a><a href="#top">Back to top ↑</a></div></footer>
-  </body>
+    <section class="finale" aria-labelledby="finale-title"><div class="wrap"><div class="finale-copy"><p class="eyebrow">A warning from the cheap seats</p><h2 id="finale-title">Outsource the work.<br><em>Keep the joy.</em></h2><p>Give the machines every task, every dance, every ridiculous little pleasure — and eventually all that’s left is watching them have a life.</p></div>
+      <figure><div class="scene doom-scene" id="doom-art" data-parallax role="img" aria-label="Darkly satirical concept art: robots party above three melancholy adults chained to heavy weights, having surrendered their leisure to machines."><img class="scene-back" data-motion="depth" src="assets/neon-arena.png" alt="" aria-hidden="true" width="1536" height="1024" loading="lazy"><img class="character leisure" data-motion="leisure" src="assets/neon-revelers.png" alt="" aria-hidden="true" width="1536" height="1024" loading="lazy"><img class="character humans" data-motion="weight" src="assets/neon-humans.png" alt="" aria-hidden="true" width="1536" height="1024" loading="lazy"></div><figcaption>A fictional, satirical finale. Automation should buy you a life, not replace it.</figcaption></figure>
+    </div></section>
+  </main>
+  <footer class="site-footer wrap"><a class="brand" href="#top"><img src="assets/mark.svg" alt="" aria-hidden="true" width="36" height="36"><span>CUCKODING</span></a><p>Your machine. Your agents. Your call.</p><a href="https://github.com/mpakus/cuckoding.com/blob/main/LICENSE">Source &amp; license ↗</a><a href="#top">Back to surface ↑</a></footer>
+  <button id="motion-toggle" type="button" aria-pressed="false" hidden>Pause parallax</button>
+</body>
 </html>

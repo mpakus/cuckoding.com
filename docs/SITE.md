@@ -6,29 +6,34 @@ third-party fonts, analytics or client-side routing is required.
 
 ## Design and content
 
-The site is a satirical Roman playbill: parchment, dark ink, vermilion, system
-serif headings, robot gladiators and a hungry, angry, laughing crowd. The image
-is explicitly concept art; the sample Tabula is explicitly illustrative.
+R018 replaces the parchment playbill with an original cybernetic Arena: near-black
+`#050807`, electric green `#82ff52`, black chrome, orbital architecture and quiet
+HUD framing. Bold system sans headings and monospace labels need no font network
+requests. The Roman vocabulary and satire remain. The internal app shares the
+palette, sharp panels, green focus/selection and navigation treatment, without
+bringing cinematic decoration into forms.
 
-Four scenes each combine a background with two independent transparent character
-images: the scroll-driven sword/morgenstern clash, the drinking robot and satyr
-musicians, Pan and dancing robots, then chained melancholy people beneath robot
-leisure. The duel stays in view while the weapons approach and cross. Other
-characters bob, tilt or sink with scroll position; text stays still. The same
-Arena backdrop returns for the afterparty, with a quieter color treatment.
+Four scenes use independent layers: a sentinel hero, a sticky sword/morgenstern
+duel, cybernetic Pan and dancing robots, then chained melancholy humans beneath
+robot leisure. Six transparent assets form seven foreground instances over a
+reused arena backdrop. Static role cards reuse the artwork. The hero is eager;
+below-fold scenes/cards are lazy. Original PNGs are retained without pixel edits.
+The artwork and board are explicitly illustrative, never evidence of shipped UI.
 
 Transforms are bounded, use one coalesced animation frame per scroll/resize, and
-never run an idle animation loop. The fixed native button pauses/resumes every
-layer and remembers the choice when storage is available. OS reduced motion takes
-precedence, including changes while open. Denied storage is harmless. Without
-JavaScript, all scenes, anchors and the keyboard-scrollable board remain usable;
-the hidden motion control does not advertise an unavailable action.
+never run an idle animation loop. A fixed native button pauses every layer and
+remembers the choice when storage works. OS reduced motion takes precedence,
+including live changes, and removes the extended sticky scene. Without JavaScript,
+content, anchors and the keyboard-scrollable board remain usable; the unavailable
+motion control stays hidden. No flashing, autoplay, or animated text.
 
-The status section mirrors R010/R020a/b: local shell/browser, durable storage, tool
-detection and explicitly consented Codex version/private-profile checks. Real
-provider sign-in, model access, roles, boards and autonomous battles remain planned. Ten-minute setup is an ambition, not measured acceptance. There is
-no download CTA or claim of a signed/notarized release. Keep those boundaries
-current when future implementation is integrated.
+Status copy reflects implemented named Codex/Cursor connections, model selection,
+Team bindings, Arenas/Tabulas/draft planning, and isolated worktree preparation and
+inspection. Codex planning uses the scoped provider path; Cursor inference is not
+enabled. Model listings do not prove access. Real-account acceptance, repository
+execution, independent review, automatic task movement and autonomous battle
+coordination remain open. Ten-minute setup is a target, not measured acceptance.
+There is no public download claim or signed/notarized release claim.
 
 ## Preview and checks
 
@@ -77,5 +82,5 @@ ICNS chunks are sorted for reproducible exports. Display renaming does not migra
 private data paths or alter internal protocol/environment identifiers.
 
 [Artwork](ARTWORK.md) records the layer map, original prompts and provenance.
-The old flattened Colosseum illustration remains only in social metadata, where
-a static preview is required; all four visible scenes are separate image layers.
+The current arena supplies the static social preview. Superseded painted assets
+are retained in Git history, not shipped in the Pages directory.

@@ -127,13 +127,18 @@ development build, not a signed/notarized public release.
 
 ## Public site
 
-The Roman robot-gladiator site lives in [site/](site/index.html): original
-C/furcina branding, a sword-and-morgenstern duel, robot banquets and dancing
-Pan, ending with melancholy humans who outsourced their leisure. Each scene
-has a separate background and two character layers, with scroll motion, pause
-and reduced-motion controls. Preview it with `rtk proxy python3 -m http.server 4387 --bind 127.0.0.1
---directory site`. [Site documentation](docs/SITE.md) covers checks, artwork and
-the prepared GitHub Pages workflow. This change is local; it has not been deployed.
+The black-and-electric-green cybernetic Arena lives in [site/](site/index.html):
+original chrome agents, an orbital Colosseum, a sword-and-morgenstern duel,
+dancing Pan and robots, ending with melancholy humans who outsourced their joy.
+Four scenes have independent background/character layers with scroll motion,
+pause and reduced-motion controls. The internal app shares the dark panels,
+green accents and restrained command-deck styling. The C/furcina logo is retained
+in green across web and native icons. [Artwork and prompts](docs/ARTWORK.md).
+
+Preview with `rtk proxy python3 -m http.server 4387 --bind 127.0.0.1 --directory site`.
+[Site documentation](docs/SITE.md) covers checks and GitHub Pages. Public copy
+separates implemented setup/planning from autonomous battles still on the roadmap.
+This redesign is local; it has not been deployed.
 
 ## Start here
 

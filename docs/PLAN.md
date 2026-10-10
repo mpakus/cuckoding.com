@@ -100,6 +100,14 @@ Depends on R010. User-requested addition; does not block the app's R020 sequence
 - [x] Verify responsive, motion and native packaging gates; see
   [R017 evidence](../worklog/2026-10-07-R017-layered-cuckoding.md).
 
+## R018 — Cybernetic Arena visual direction
+
+- [x] Black/electric-green site with original chrome cyborgs and orbital Arena.
+- [x] Four layered scenes: sentinel, crossing weapons, Pan/robot dance, melancholy finale.
+- [x] Coordinated internal app surfaces, navigation, controls and synchronized green brand assets.
+- [x] Truthful shipped/planned copy, prompt provenance, responsive and motion fallbacks.
+- Verification and local build evidence: [R018 worklog](../worklog/2026-10-10-R018-neon-arena-design.md).
+
 ## R020 — One real agent and durable models
 
 Depends on R010. Start with one of the user's installed supported runtimes

@@ -9,7 +9,7 @@ function browser({ reduced = false, saved = null, denied = false } = {}) {
   const events = {};
   const frames = [];
   const attributes = {};
-  const motions = [["depth", "sword", "morgenstern"], ["depth", "drink", "toast"], ["depth", "pan", "dance"], ["depth", "leisure", "weight"]];
+  const motions = [["depth", "sword", "morgenstern"], ["depth", "leisure"], ["depth", "pan", "dance"], ["depth", "leisure", "weight"]];
   const layers = motions.map(names => names.map(motion => ({ dataset: { motion }, style: {} })));
   const styles = layers.map(scene => scene[0].style);
   const bounds = [{ top: 100, height: 1200, width: 1000 }, { top: 1100, height: 600, width: 1000 }, { top: 2100, height: 500, width: 1000 }, { top: 3100, height: 500, width: 1000 }];
@@ -110,8 +110,8 @@ test("each character moves independently, including the darker finale", () => {
   assert.match(ui.layers[0][1].style.transform, /^translate3d\(0px/);
   for (let index = 1; index < 4; index++) ui.bounds({ top: 50, height: 600, width: 1000 }, index);
   ui.events.scroll(); ui.flush();
-  for (const scene of ui.layers.slice(1)) assert.notEqual(scene[1].style.transform, scene[2].style.transform);
+  for (const scene of ui.layers.slice(2)) assert.notEqual(scene[1].style.transform, scene[2].style.transform);
   assert.match(ui.layers[3][1].style.transform, /, -[0-9.]+px/);
   assert.match(ui.layers[3][2].style.transform, /, [0-9.]+px/);
-  assert.equal(ui.layers.flat().length, 12);
+  assert.equal(ui.layers.flat().length, 11);
 });

@@ -8,9 +8,9 @@ from pathlib import Path
 import sys
 source = Path('desktop/mark.svg').read_text()
 stage = Path(sys.argv[1])
-tile = source.replace('<title>', '<rect width="64" height="64" rx="12" fill="#eee9dd"/><title>', 1)
+tile = source.replace('<title>', '<rect width="64" height="64" rx="12" fill="#050807"/><title>', 1)
 (stage / 'tile.svg').write_text(tile)
-(stage / 'tray.svg').write_text(source.replace('#a83c29', '#000000').replace('#242820', '#000000'))
+(stage / 'tray.svg').write_text(source.replace('#82ff52', '#000000').replace('#242820', '#000000'))
 Path('site/assets/mark.svg').write_text(source)
 Path('site/assets/favicon.svg').write_text(tile)
 Path('priv/static/favicon.svg').write_text(tile)

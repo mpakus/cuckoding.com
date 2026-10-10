@@ -1,91 +1,71 @@
-# Layered Roman satire
+# Cybernetic Arena artwork
 
-R017 assets generated with the built-in imagegen tool on 2026-10-07. Each scene
-uses an independent opaque background and two transparent foreground PNGs.
-All eight character images have real alpha (44–72% transparent or near-transparent pixels).
-The original generated pixels are retained; CSS alone composes and moves them.
-No asset is a product screenshot, historical depiction or evidence of agent support.
+R018 originals generated with the built-in imagegen tool on 2026-10-10. The five
+user-supplied images informed palette, material and composition only. No reference
+pixels, watermarks, franchise characters or third-party artwork were copied.
+All six foreground assets have real alpha; the arena is opaque. Original generated
+PNG pixels are retained, composed and animated only in CSS/JavaScript. These are
+fictional satirical illustrations, not product screenshots or provider evidence.
 
-| Scene | Background | Foregrounds |
+| Scene | Background | Independent foregrounds |
 | --- | --- | --- |
-| Arena duel | arena-back.png | gladiator-sword.png, gladiator-morgenstern.png |
-| Banquet | terrace-back.png | banquet-robot.png, banquet-satyr.png |
-| Pan's dance | arena-back.png | pan-dancer.png, robot-dancers.png |
-| Melancholy finale | doom-back.png | robot-emperor.png, chained-humans.png |
+| Hero | neon-arena.png | neon-sentinel.png |
+| Duel | neon-arena.png | neon-duelist.png, neon-secutor.png |
+| Afterparty | neon-arena.png | neon-pan.png, neon-revelers.png |
+| Finale | neon-arena.png | neon-revelers.png, neon-humans.png |
 
-Files live in `site/assets/`. The original R015 Colosseum remains only as the
-static social preview. R016's flattened banquet/revels are replaced; source assets
-and their exact prompts remain in Git history at `5d80ea4`. They supplied style
-references, never new requirements. No third-party artwork was copied.
+Files live in `site/assets/`; static role-card crops reuse these originals. The
+arena also supplies the social preview. Six foregrounds are reused in seven scene
+instances, each covered by pause and reduced motion. Assets stay below 6 MB each;
+only the hero loads eagerly. Prior Roman painted assets and exact prompts remain
+recoverable in Git history before R018 (main `738f8ee`). Unused assets are removed
+from the Pages payload.
 
-The original vector mark, `desktop/mark.svg`, is a cheeky C with horns, a wink
-and one curling sperm/devil tail ending in a two-pronged furcina. It is authored
-as SVG, then exported with `bin/brand-icons`; it is not an AI raster trace.
+`desktop/mark.svg` remains the original hand-authored C/furcina devil-tail logo.
+R018 changes its accent to electric green and its icon tile to near-black, without
+changing the silhouette. `bin/brand-icons` synchronizes site/app/native consumers
+and normalizes ICNS chunk ordering for repeatable output.
 
-## Final image-generation prompts
+## Final generation prompts
 
-### arena-back.png
+### neon-arena.png
 
-Reference: R015/R016 `colosseum.png`. Transparent background: no.
+New original generation. Transparent background: no.
 
-Use case: precise-object-edit. Create a 1536x1024 BACKGROUND PLATE from the reference. Keep the immense Roman Colosseum, curved ranks of arches, distant cheering spectators, red awnings and banners. Remove ALL foreground robots, foreground spectators, furniture and Emperor: the entire lower 60 percent must be clear sunlit sandy arena floor, extending to the bottom edge, ready to composite separate large gladiators. Eye-level low arena camera, level horizon around top third. No hero figures, no weapons. Match the reference's fine ink linework and rich chalky gouache, vintage European illustrated Roman history-book plate, warm ivory limestone, charcoal olive shadows, vermilion cloth, muted bronze. Satirical concept illustration, no text, logos or watermark.
+Use case: stylized-concept. Asset: wide cinematic BACKGROUND PLATE for the Cuckoding cybernetic gladiator website. An immense futuristic circular Colosseum in space, black obsidian architecture with fine electric acid-green light seams, distant tiers of anonymous spectators, a huge luminous emerald circular gate centered above a glossy dark synthwave grid floor. Low eye-level camera, level horizon at upper third. Lower half EMPTY and calm for separate character sprites. Palette ONLY near-black, charcoal, chrome silver, electric green #82ff52, very subtle emerald haze. High-end sci-fi 3D concept art, hard-surface precision, restrained atmosphere, dramatic contrast. Wide 1536x1024 composition, no foreground figures, no weapons, no typography, no UI, no logos, no watermark. Original design, not franchise imagery.
 
-### terrace-back.png
+### neon-sentinel.png
 
-Reference: R015/R016 `robot-banquet.png`. Transparent background: no.
+New original generation. Transparent background: yes.
 
-Use case: precise-object-edit. Create a 1536x1024 BACKGROUND PLATE from reference. Preserve Roman terrace architecture, left columns, red curtains, ivy, distant Colosseum and warm afternoon light. Remove ALL people, robots, satyrs, foreground couches, tables and food. Lower half is empty elegant limestone terrace floor extending to bottom, ready for separate characters and couches. Match the reference's fine ink linework and rich chalky gouache, vintage European illustrated Roman history-book plate, warm ivory limestone, charcoal olive shadows, vermilion cloth, muted bronze. Satirical concept illustration, no text, logos or watermark.
+Use case: stylized-concept. Asset: original transparent cutout hero cyborg for Cuckoding, portrait 1024x1536. A single powerful humanoid AI agent, chest-up with both shoulders and head fully inside frame. Polished black chrome armor, aerodynamic faceless glass visor, delicate acid-green luminous seams tracing jaw and helmet, circular earpieces, brushed titanium shoulder plates. Front-facing with slight three-quarter turn left. Elegant retro-futurist electronic musician meets cybernetic gladiator, immaculate hard-surface product-render detail, obsidian and mirror silver with electric green #82ff52 accents ONLY. Dramatic green rim light, reflective white highlights, no red/purple/blue. Subject fills frame but no crop of head or shoulders. REAL transparent background, no backdrop, floor, glow rectangle, text, lettering, logos, watermark. Original silhouette, not an existing character.
 
-### doom-back.png
+### neon-duelist.png
 
-Reference: R015/R016 `colosseum.png`. Transparent background: no.
+New original generation. Transparent background: yes.
 
-Use case: illustration-story. Create a 1536x1024 BACKGROUND PLATE for a melancholy satirical final Roman scene. Same vast Colosseum, now evening after the festivities. Empty arena floor in foreground, deserted tiers, slumped red banners, fading braziers, atmospheric leaden blue-grey sky with thin cold sunset. Distant luxurious imperial balcony lit with warm gold suggesting a party just out of view. Lower half completely clear to composite separate characters. No people or robots in this background plate. Match the reference's fine ink linework and rich chalky gouache, vintage European illustrated Roman history-book plate, warm ivory limestone, charcoal olive shadows, vermilion cloth, muted bronze. Satirical concept illustration, no text, logos or watermark.
+Use case: stylized-concept. Asset: single FULL-BODY original cybernetic gladiator sprite on REAL transparent background, square 1024x1024, entire weapon and boots visible. Matte charcoal and black chrome armor with acid-green illuminated seams, angular smooth helmet/black visor, slim cape of dark technical fabric. Enters from LEFT facing RIGHT, athletic theatrical combat lunge. Holds a long straight luminous green-edged SWORD in both hands; hilt at lower center, blade extends diagonally UP-RIGHT toward upper right, fully inside image. Body mainly left half, sword in right half, minimal transparent margin. High-end cinematic hard-surface sci-fi 3D art matching black/green retrowave arena, precise titanium details and dramatic green rim light. No ground, background, additional figures, gore, text, logos or watermark. Original design, not franchise imagery.
 
-### gladiator-sword.png
+### neon-secutor.png
 
-Reference: R015/R016 `colosseum.png`. Transparent background: yes.
+New original generation. Transparent background: yes.
 
-Use case: illustration-story. A single isolated robot-gladiator SPRITE on REAL transparent background, square 1024x1024. Based on the reference's bronze monitor-faced robot, broad comical Roman armor, little vermilion cape, absurdly confident smiling screen-face. FULL BODY boots to helmet entirely visible, no floor, no background, no additional figures. Faces RIGHT, lunging in from the LEFT. Holds a long straight steel gladiator sword with BOTH HANDS: hands near lower-center of sprite, blade extends diagonally UP and RIGHT to upper-right region. Blade must be clear and straight, reaching far ahead of robot; its tip fully inside canvas. This will cross another opponent's mace diagonally at the center of a webpage. Robot body predominantly in left half, weapon occupies right half, all bounds within image and only a slim transparent margin. No shields blocking sword. Match the reference's fine ink linework and rich chalky gouache, vintage European illustrated Roman history-book plate, warm ivory limestone, charcoal olive shadows, vermilion cloth, muted bronze. Satirical concept illustration, no text, logos or watermark.
+Use case: stylized-concept. Asset: single FULL-BODY original cybernetic gladiator sprite on REAL transparent background, square 1024x1024, all feet and weapon fully visible. Heavy brushed titanium and obsidian armor, angular hornlike helmet fins and black glass visor with thin green slit, acid-green illuminated mechanical joints. Enters from RIGHT facing LEFT in athletic theatrical combat lunge. Holds a MORGENSTERN: long rigid dark shaft with glowing green-spiked metal ball at the tip, not a chain flail. Hands lower center, shaft extends diagonally UP-LEFT so it can cross another sprite's sword. Body mainly right half, weapon left half, minimal transparent margin. Cinematic hard-surface sci-fi 3D detail, reflective silver/black, green #82ff52 rim light, no other colors. No ground, backdrop, other figures, gore, text, logos, watermark. Original character.
 
-### gladiator-morgenstern.png
+### neon-humans.png
 
-Reference: R015/R016 `colosseum.png`. Transparent background: yes.
+New original generation. Transparent background: yes.
 
-Use case: illustration-story. A single isolated robot-gladiator SPRITE on REAL transparent background, square 1024x1024. Based on the reference's ivory crested robot, red Roman plume, expressive annoyed black faceplate, elegant mechanical Roman armor and little vermilion cape. FULL BODY boots to plume entirely visible, no floor/background/additional figures. Faces LEFT, lunging in from the RIGHT. Holds a MORGENSTERN: a long rigid dark shaft with a bronze spiked ball at its end (a morningstar mace, not a flail). Hands near lower-center, shaft extends diagonally UP and LEFT to upper-left region, entire spiked ball within canvas. It must be positioned to cross another opponent's straight sword when moving together. Robot body predominantly in right half, weapon occupies left half, only a slim transparent margin. Funny theatrical non-gory combat. Match the reference's fine ink linework and rich chalky gouache, vintage European illustrated Roman history-book plate, warm ivory limestone, charcoal olive shadows, vermilion cloth, muted bronze. Satirical concept illustration, no text, logos or watermark.
+Use case: stylized-concept. Asset: independent foreground group for Cuckoding satirical website finale, REAL transparent background, wide 1536x1024. Three melancholy ADULT humans in modest charcoal futuristic jumpsuits sit on low black metal blocks. One exhausted person rests head in hands, another gazes sadly upward, third slumps carrying an absurdly large dark spherical weight; oversize metallic chains with faint electric-green glowing links connect wrists to weights, a symbolic burden of outsourcing all pleasure to AI. Dignified expressive faces, no injuries, no gore, no nudity, no children. Complete people, chains and weights entirely in frame with narrow transparent margin; no ground, background, robot, words, UI, logo or watermark. High-end cinematic 3D sci-fi concept illustration, obsidian/chrome and restrained green rim lighting matching neon cybernetic gladiators. Tragicomic mood, detailed believable humans, dark matte materials.
 
-### banquet-robot.png
+### neon-pan.png
 
-Reference: R015/R016 `robot-banquet.png`. Transparent background: yes.
+New original generation. Transparent background: yes.
 
-Use case: illustration-story. Transparent-background foreground cutout, landscape square-ish sprite. ONE absurdly happy bronze monitor-faced robot in a laurel wreath, reclining on a red Roman chaise longue with gold feet. Robot tilts its goblet toward its smiling open faceplate as if drinking wine and dangles a big bunch of grapes over its head; wearing little imperial cape. Include couch, one bowl of grapes at feet, no floor or backdrop or other figures. Face turned slightly right, relaxed funny pose. This sprite will float above an independently scrolling Roman terrace. Same sophisticated hand-painted vintage European editorial plate as reference: fine ink linework, rich chalky gouache, subtle printing texture, ivory, warm bronze, charcoal olive and vermilion, precise expressive faces. No text or logos, no watermark. Full subjects and all props inside canvas with small clear margin. Satirical non-gory concept art. All humans/satyrs are adults, clothed.
+Use case: stylized-concept. Original satirical foreground sprite on REAL transparent background, square 1024x1024. One joyful ADULT cybernetic Pan/satyr, human face with dark beard, curved metallic horns, mechanical goat legs and hooves, fully clothed in modest black technical tunic. A small silver synthesizer is strapped across his body; fingers play keys as he kicks a hoof in a playful dance, leaning right. Entire body horns to feet and instrument visible. Obsidian and brushed chrome materials, electric green #82ff52 illuminated seams, high-end cinematic sci-fi 3D concept art, funny but polished. No background, ground, other figures, text, logos, watermark, gore or nudity. Strong green rim light, no pink/blue/red, realistic material precision.
 
-### banquet-satyr.png
+### neon-revelers.png
 
-Reference: R015/R016 `robot-banquet.png`. Transparent background: yes.
+New original generation. Transparent background: yes.
 
-Use case: illustration-story. Transparent-background foreground cutout. ONE jovial ADULT satyr with beard, little horns and goat legs, in a modest linen tunic, raising a goblet in a toast and laughing. He sits next to ONE scrappy dark steel robot playing a little lyre with exaggerated passion, head tilted back. Include their two low Roman stools, no architecture, no other people, no floor. This is a separate foreground sprite in a robot banquet. Full bodies and feet visible. Same sophisticated hand-painted vintage European editorial plate as reference: fine ink linework, rich chalky gouache, subtle printing texture, ivory, warm bronze, charcoal olive and vermilion, precise expressive faces. No text or logos, no watermark. Full subjects and all props inside canvas with small clear margin. Satirical non-gory concept art. All humans/satyrs are adults, clothed.
-
-### pan-dancer.png
-
-Reference: R015/R016 `pan-revels.png`. Transparent background: yes.
-
-Use case: illustration-story. Single foreground character cutout on REAL transparent background. Jovial ADULT Pan with curved horns, full beard and goat legs, wearing a modest short linen tunic. Plays panpipes with cheeks puffed, one knee raised high in a ridiculous joyful dancing step, body leaning slightly toward RIGHT. Complete figure horns to both hooves with room around limbs, no floor, no other subjects, no backdrop. Same sophisticated hand-painted vintage European editorial plate as reference: fine ink linework, rich chalky gouache, subtle printing texture, ivory, warm bronze, charcoal olive and vermilion, precise expressive faces. No text or logos, no watermark. Full subjects and all props inside canvas with small clear margin. Satirical non-gory concept art. All humans/satyrs are adults, clothed.
-
-### robot-dancers.png
-
-Reference: R015/R016 `pan-revels.png`. Transparent background: yes.
-
-Use case: illustration-story. Foreground cutout on REAL transparent background. Two deliriously happy Roman robot gladiators dance together: one bronze monitor-faced robot and one ivory crested robot, holding hands, one stepping high while the other bows theatrically. Red cloth fluttering, clear silly poses, metal knees raised, joyful face displays, facing toward LEFT a little. Full bodies with all feet and crests visible. No floor, background or additional figures. Same sophisticated hand-painted vintage European editorial plate as reference: fine ink linework, rich chalky gouache, subtle printing texture, ivory, warm bronze, charcoal olive and vermilion, precise expressive faces. No text or logos, no watermark. Full subjects and all props inside canvas with small clear margin. Satirical non-gory concept art. All humans/satyrs are adults, clothed.
-
-### chained-humans.png
-
-Reference: R015/R016 `robot-banquet.png`. Transparent background: yes.
-
-Use case: illustration-story. Wide foreground cutout on REAL transparent background. Darkly satirical, melancholy illustration of THREE ordinary ADULT Roman people who have outsourced all pleasure to robots. A tired man sits on a low stone head in hands; an exhausted woman stares sadly ahead with slack shoulders; a third weary adult stoops under a huge stone sphere chained to their wrists. All wear plain modest worn tunics. Heavy exaggerated iron chains connect their wrists and ankle shackles to three absurd stone weights; symbolic weight of doom, no writing. Bodies and expressive sad faces dignified, not caricatures of any race. A dropped theatrical comedy mask and wilted laurel on ground next to their feet. Complete figures, chains and weights fully visible; no architecture or painted ground, just transparent cutout. No gore, injury, nudity, torturer, sexual context or children. Cooler muted limestone/grey/olive tones, unlike the warm happy robots. Same sophisticated hand-painted vintage European editorial plate as reference: fine ink linework, rich chalky gouache, subtle printing texture, ivory, warm bronze, charcoal olive and vermilion, precise expressive faces. No text or logos, no watermark. Full subjects and all props inside canvas with small clear margin. Satirical non-gory concept art. All humans/satyrs are adults, clothed.
-
-### robot-emperor.png
-
-Reference: R015/R016 `robot-banquet.png`. Transparent background: yes.
-
-Use case: illustration-story. Separate foreground cutout on REAL transparent background. TWO hilariously complacent robots have inherited humanity's leisure: a bronze monitor-faced robot Emperor lounges on a luxurious Roman couch in purple and vermilion robes and a golden laurel crown, smiling smugly, raising a goblet; an ivory robot companion reclines beside it, dangling grapes above its own delighted face. Include rich red/gold couch, small platter of grapes, no floor, no architecture, no humans or other figures. FULL couch and figures visible. Warm golden light on polished bronze. This will contrast with a separate foreground group of sad shackled Roman humans in the final scene. Same sophisticated hand-painted vintage European editorial plate as reference: fine ink linework, rich chalky gouache, subtle printing texture, ivory, warm bronze, charcoal olive and vermilion, precise expressive faces. No text or logos, no watermark. Full subjects and all props inside canvas with small clear margin. Satirical non-gory concept art. All humans/satyrs are adults, clothed.
+Use case: stylized-concept. Original satirical foreground sprite on REAL transparent background, landscape 1536x1024. Two delighted cybernetic robots dancing together at the Colosseum afterparty. Elegant black-chrome faceless helmets and silver armor with thin electric-green illuminated seams; one raises a green glowing cocktail goblet, the other performs a ridiculous exaggerated disco pose with one arm up and bent robotic knee. Full bodies and all feet and hands visible, figures facing a little left, no floor or background or other people. Playful relaxed robotic body language, not combat. High-end cinematic sci-fi 3D concept art, obsidian chrome silver acid-green #82ff52 ONLY, precise materials, green rim light. No typography, logos, watermark, gore or licensed characters.

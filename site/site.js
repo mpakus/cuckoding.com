@@ -29,8 +29,6 @@
             case "depth": y = (progress * 2 - 1) * size.height * 0.055; break;
             case "sword": x = -approach; angle = -approach / size.width * 8; break;
             case "morgenstern": x = approach; angle = approach / size.width * 8; break;
-            case "drink": angle = wave * 3; y = -progress * size.height * 0.025; break;
-            case "toast": angle = -wave * 2; y = wave * size.height * 0.012; break;
             case "pan": angle = wave * 6; y = -Math.abs(wave) * size.height * 0.035; break;
             case "dance": angle = -wave * 4; y = -Math.abs(wave) * size.height * 0.022; break;
             case "leisure": y = -progress * size.height * 0.04; break;
