@@ -51,6 +51,11 @@ Build with `rtk proxy bin/dev.build`, then open
 `desktop/src-tauri/target/release/bundle/macos/Cuckoding.app`. Return through the
 **C icon menu → Open Cuckoding**. This is a local development build, not a
 notarized public release. [Build prerequisites and checks](docs/DEVELOPMENT.md).
+Quit the old app before opening a rebuilt bundle. `CCoding.app` is obsolete;
+the current app has separate **Arenas**, **Agents** and **Team** pages. For an
+existing test workspace, use its **Open Cuckoding Test.command** launcher to retain
+the same saved agents, models and roles. Opening the bundle directly uses the
+default workspace, which may contain different data.
 
 ## UI development
 

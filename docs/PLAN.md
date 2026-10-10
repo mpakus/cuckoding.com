@@ -110,6 +110,9 @@ Run foundation/migration/security/shell checks and record the actual build.
 - [x] Explain an already-running source server and retain exclusive data ownership.
 - [x] Remove Tidewave at the user's request; verify absent MCP/toolbar and strict
   application CSP. See [removal evidence](../tasks/R011b-remove-tidewave.md).
+- [x] Restore the current packaged app with its saved test workspace after an
+  obsolete foundation bundle was opened. Retain separate Agents/Team/Arenas and
+  cover these routes in packaged smoke. See [R011c](../tasks/R011c-current-app-launch.md).
 
 The original [R011 installation record](../tasks/R011-tidewave-dev.md) is historical.
 

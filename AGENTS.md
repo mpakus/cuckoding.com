@@ -118,6 +118,13 @@ working Start button. [Plan](docs/PLAN.md#next-delivery-order--simple-arena) giv
 the immediate delivery order; [D022](docs/DECISIONS.md#d022--simple-arena) records
 the boundary change.
 
+Arena simplification must preserve the separate `/agents` roster/add wizard and
+`/team` role/agent/model editor. Do not replace them with discovery-only setup.
+When controls seem missing, verify the running bundle and data root first:
+obsolete `CCoding.app` is not the current `Cuckoding.app`. Preserve saved test
+workspace launchers and their data selection when rebuilding; a source change
+or successful smoke test does not update an already-running app.
+
 **Speculator** writes specs/tasks; **Implementor** implements; **Secutor** judges
 completion; **Summa Rudis** coordinates the process. Parallel role instances use
 separate worktrees/sessions. Review comments return to Speculator. Phoenix

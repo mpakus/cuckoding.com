@@ -223,10 +223,17 @@ impl Service {
             stream.take(65_536).read_to_string(&mut response)?;
             Ok(response)
         };
-        if !fetch("/agents", "")?.starts_with("HTTP/1.1 302 ")
-            || !fetch("/settings", "")?.starts_with("HTTP/1.1 302 ")
-        {
-            return Err("unauthorized browser was not redirected".into());
+        let pages = [
+            ("/agents", "Add agent"),
+            ("/agents/new", "Choose Agent"),
+            ("/team", "Add role"),
+            ("/arenas", "Give your team an Arena."),
+            ("/settings", "WORKSPACE SETTINGS"),
+        ];
+        for (route, _) in pages {
+            if !fetch(route, "")?.starts_with("HTTP/1.1 302 ") {
+                return Err(format!("unauthorized browser was not redirected: {route}").into());
+            }
         }
         let url = self.open_url("/agents")?;
         let (_, query) = url.split_once("/open?").ok_or("invalid handoff URL")?;
@@ -245,13 +252,11 @@ impl Service {
         }
         let cookie = cookie.split(';').next().ok_or("invalid browser cookie")?;
         let headers = format!("Cookie: {cookie}\r\n");
-        let page = fetch("/agents", &headers)?;
-        if !page.starts_with("HTTP/1.1 200 ") || !page.contains("Build your roster.") {
-            return Err("authenticated browser page unavailable".into());
-        }
-        let settings = fetch("/settings", &headers)?;
-        if !settings.starts_with("HTTP/1.1 200 ") || !settings.contains("WORKSPACE SETTINGS") {
-            return Err("workspace settings page unavailable".into());
+        for (route, content) in pages {
+            let page = fetch(route, &headers)?;
+            if !page.starts_with("HTTP/1.1 200 ") || !page.contains(content) {
+                return Err(format!("packaged browser page unavailable: {route}").into());
+            }
         }
         if !fetch(&path, "")?.starts_with("HTTP/1.1 401 ") {
             return Err("handoff replay accepted".into());

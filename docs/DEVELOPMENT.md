@@ -45,6 +45,27 @@ release and listener. No dock window or embedded web frontend is created.
 This build is not notarized or public-release certified. Clean-machine, signing,
 update and physical sleep/wake acceptance remain R060/R100.
 
+### If Arenas or agent/role setup seems missing
+
+An **Agents & roles** discovery-only screen, an **Arenas · NEXT** label or the
+old **CCODING** wordmark identifies the obsolete foundation UI. Verify the running
+executable and its data root before changing product code. The current bundle is
+`Cuckoding.app`, not the retained old `CCoding.app`. Arena simplification preserves
+`/agents` (Add agent and the four-step wizard), `/team` (Add role and independent
+agent/model assignments), and `/arenas`.
+
+Stop the verified old instance, preserve its database, and launch the selected
+current bundle. Keep an existing **Open Cuckoding Test.command** launcher's
+`CCODING_DATA_DIR` unchanged when updating its bundle path; direct bundle launch
+uses the default workspace instead. Do not merge/reset those databases to recover
+apparently missing setup. Retired generated bundles may be moved out of the launch
+directory with a `.retired` suffix; never remove their data. See
+[R011c recovery evidence](../tasks/R011c-current-app-launch.md).
+
+After restart, verify the actual browser and listener, not just source or build
+success. The packaged smoke now checks session protection and authenticated
+availability of Agents, Add agent, Team/Add role, Arenas and Settings.
+
 In **Agents**, choose **Add agent** or **Edit** beside an existing connection,
 then follow the four steps:
 
