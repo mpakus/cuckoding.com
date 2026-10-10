@@ -3,6 +3,21 @@ defmodule CuckodingWeb.FoundationLiveTest do
   import Phoenix.LiveViewTest
   alias Cuckoding.{BrowserToken, Foundation, Repo, ShellAuth}
 
+  test "development tools and their CSP exceptions are absent", %{conn: conn} do
+    refute Code.ensure_loaded?(Tidewave)
+    refute Code.ensure_loaded?(Phoenix.LiveReloader)
+    assert conn |> get("/tidewave/mcp") |> response(404)
+    assert conn |> get("/phoenix/live_reload/frame") |> response(404)
+    response = conn |> sign_in() |> get("/")
+    html = html_response(response, 200)
+    refute html =~ "toolbar.js"
+    refute html =~ "/phoenix/live_reload/frame"
+    [csp] = get_resp_header(response, "content-security-policy")
+    refute csp =~ "tidewave.ai"
+    refute csp =~ "unsafe-"
+    assert csp =~ "frame-ancestors 'none'"
+  end
+
   test "foreign hosts, origins, ports and shell callers are rejected", %{conn: conn} do
     assert conn |> Map.put(:host, "evil.test") |> get("/") |> response(403)
     assert conn |> Map.put(:port, 9000) |> get("/") |> response(403)

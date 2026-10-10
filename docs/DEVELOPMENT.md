@@ -192,6 +192,48 @@ stripping is disabled for the verified LINKEDIT alignment failure described in
 [rust-lang/rust#157750](https://github.com/rust-lang/rust/issues/157750).
 These build-tool workarounds do not disable Gatekeeper or signature verification.
 
+## UI development with Tidewave
+
+After the first `rtk proxy bin/dev.build`, run:
+
+```sh
+rtk proxy bin/dev.server
+```
+
+This opens an authenticated source-development app at `http://127.0.0.1:4000`.
+Use the Tidewave toolbar on the page for UI development. HEEx source annotations,
+Phoenix code/live reload and Tailwind/esbuild watchers are enabled. Changes to
+dependencies, endpoint plugs or configuration require a restart. This serves the
+Phoenix application; the separate static `site/` preview keeps its existing workflow.
+
+For an MCP client, use the streamable HTTP endpoint
+`http://127.0.0.1:4000/tidewave/mcp`. Tidewave IDE can also connect to this app;
+its separate installation/account setup follows the
+[official instructions](https://hexdocs.pm/tidewave/installation.html).
+No global client configuration or provider credentials are installed by this change.
+
+The launcher resolves the pinned local tools, performs the same one-use bootstrap
+and browser handoff as the tray shell, and maintains its heartbeat. It reuses the
+built native helper but owns separate data at `.ccoding/ui-dev/`; existing app
+databases and agent profiles are not imported. Only one source server can own this
+root. `--port 4001` selects another port; `--port 0` chooses an ephemeral port.
+`--no-open` suppresses browser launch. Ctrl-C stops the owned server and watchers,
+retaining development data. Restart the launcher to reopen an expired browser session.
+
+Tidewave 0.9.1 and Phoenix LiveReload 1.7.0 are development-only dependencies.
+Tidewave is a trusted developer tool with runtime evaluation, code and database
+access, not an app agent grant or sandbox. Keep this loopback endpoint private;
+do not tunnel it or use production data. The toolbar loads code from `tidewave.ai`;
+development CSP allows its script/connection and evaluation requirements. Only the
+reload iframe permits inline script. Production/test endpoints retain the normal
+CSP and contain no Tidewave or LiveReload routes. See [Security](SECURITY.md).
+
+Verify the developer integration (no browser or provider usage):
+
+```sh
+rtk proxy env CCODING_DEV_PARENT_CANARY=must-not-reach-child bin/dev.server --smoke --port 0
+```
+
 ## Quality and bundled smoke
 
 ```sh

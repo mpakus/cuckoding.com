@@ -207,6 +207,14 @@ Do not restore the old implementation or treat historical tests as current proof
 
 ## UI
 
+For source UI development use `rtk proxy bin/dev.server` after building the native
+helper. Tidewave and LiveReload must remain dev-only; never add them to packaged
+releases or enable their CSP exceptions in test/prod. The launcher retains the
+normal bootstrap/session/heartbeat with separate `.ccoding/ui-dev/` data. Tidewave
+is trusted developer code/database access, not an app-provider execution grant;
+keep it loopback-only and never tunnel it or load real app profiles for UI tests.
+See [Development](docs/DEVELOPMENT.md#ui-development-with-tidewave).
+
 Use Phoenix LiveView, HEEx and Tailwind. Keep one reusable accessible dialog
 convention; validation lives in domain contexts/LiveView and small hooks cover
 native browser behavior. No second frontend framework.

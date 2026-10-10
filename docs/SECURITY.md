@@ -169,6 +169,29 @@ The host is not an adversarial same-user sandbox: another process with the
 user's filesystem rights can inspect app-owned data. No provider credentials,
 agent grants, external publication or remote listener exist in R010.
 
+## Source-development tools (R011)
+
+`bin/dev.server` explicitly launches `MIX_ENV=dev` with an allowlisted environment,
+private HOME and `.ccoding/ui-dev/` database/profiles. It reuses installed Mix
+archives as executable build tools, not personal Mix/Hex configuration. The normal
+bootstrap, one-use browser handoff, session checks and shell heartbeat remain in
+place. A cooperative data lock prevents a second source server on this root.
+
+Tidewave 0.9.1 is intentionally trusted developer access: its MCP endpoint can
+evaluate runtime code and query the development database without a product-browser
+session. This is not the restricted agent adapter and must never be exposed by a
+tunnel, proxy or non-loopback binding. Boundary's host/origin/cross-site checks
+run before Tidewave; Tidewave also requires a local peer. The private environment
+does not sandbox the developer process or prevent it reading host files.
+
+The toolbar loads JavaScript from `https://tidewave.ai`; Tidewave adjusts the dev
+CSP for that origin and runtime evaluation, and removes framing restrictions.
+The Phoenix reload iframe alone permits inline scripts. All these mounts and
+exceptions are compiled only in dev; test/prod retain the ordinary CSP. Development
+screenshots/recordings (`tmp/tidewave/`) and the UI data root are ignored by Git.
+No provider usage, global MCP client configuration or production-data adoption is
+part of installing the tool. Do not put credentials in developer prompts/logs.
+
 ## R020 inspection and authorization boundary
 
 The bundled helper exposes fixed inspection/login/logout operations, not a

@@ -70,6 +70,14 @@ Acceptance: launch from the tray, see one browser screen, reject unauthorized/
 replayed access, reconnect without data loss, Quit cleans only owned processes.
 Run foundation/migration/security/shell checks and record the actual build.
 
+## R011 — Tidewave UI development
+
+- [x] Add development-only Tidewave, HEEx annotations and Phoenix/asset reload.
+- [x] Launch a source server with isolated data and the existing shell/session contract.
+- [x] Check MCP, toolbar injection, reload, origin refusal and test/release exclusion.
+- [x] Document developer access and launch instructions; see
+  [task and evidence](../tasks/R011-tidewave-dev.md).
+
 ## R015 — Satirical Coliseum public site
 
 Depends on R010. User-requested addition; does not block the app's R020 sequence.

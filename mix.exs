@@ -9,6 +9,7 @@ defmodule Cuckoding.MixProject do
       elixirc_paths: if(Mix.env() == :test, do: ["lib", "test/support"], else: ["lib"]),
       start_permanent: Mix.env() == :prod,
       compilers: [:phoenix_live_view] ++ Mix.compilers(),
+      listeners: [Phoenix.CodeReloader],
       deps: deps(),
       aliases: aliases()
     ]
@@ -25,6 +26,8 @@ defmodule Cuckoding.MixProject do
       {:ecto_sqlite3, "~> 0.24"},
       {:phoenix_html, "~> 4.3"},
       {:phoenix_live_view, "~> 1.2.0"},
+      {:phoenix_live_reload, "~> 1.6", only: :dev},
+      {:tidewave, "~> 0.9.1", only: :dev},
       {:lazy_html, "~> 0.1", only: :test},
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
       {:tailwind, "~> 0.5", runtime: Mix.env() == :dev},

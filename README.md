@@ -131,6 +131,15 @@ The agent wizard keeps **Next: Select models** visible on step 2. Once the accou
 is connected, you can continue even if its catalog needs another refresh. Step 3
 offers **Refresh models**; selecting/reviewing/saving still needs a fresh list.
 
+## UI development
+
+After building the native helper with `rtk proxy bin/dev.build`, run
+`rtk proxy bin/dev.server` to open the source app at `http://127.0.0.1:4000`.
+Tidewave's toolbar, MCP (`/tidewave/mcp`), HEEx annotations and live asset/code
+reload are development-only. The launcher uses separate `.ccoding/ui-dev/` data
+and stops with Ctrl-C. Tidewave has trusted developer access to code and this
+database; keep the endpoint local. See [setup and checks](docs/DEVELOPMENT.md#ui-development-with-tidewave).
+
 ## Public site
 
 The black-and-electric-green cybernetic Arena lives in [site/](site/index.html):

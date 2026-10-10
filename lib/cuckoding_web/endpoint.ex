@@ -17,6 +17,23 @@ defmodule CuckodingWeb.Endpoint do
 
   plug CuckodingWeb.Boundary
 
+  if Mix.env() == :dev do
+    plug Tidewave
+    socket "/phoenix/live_reload/socket", Phoenix.LiveReloader.Socket
+    plug :live_reload_csp
+    plug Phoenix.LiveReloader
+    plug Phoenix.CodeReloader
+
+    # Phoenix's development-only reload iframe contains its own inline script.
+    defp live_reload_csp(%{path_info: ["phoenix", "live_reload", "frame" | _]} = conn, _) do
+      Plug.Conn.update_resp_header(conn, "content-security-policy", "", fn csp ->
+        String.replace(csp, "script-src 'self'", "script-src 'self' 'unsafe-inline'")
+      end)
+    end
+
+    defp live_reload_csp(conn, _), do: conn
+  end
+
   plug Plug.Static,
     at: "/",
     from: :cuckoding,
