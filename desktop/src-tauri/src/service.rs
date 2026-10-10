@@ -192,8 +192,8 @@ impl Service {
             return Err("invalid handoff".into());
         }
         let view = match view {
+            "/agents" => "%2Fagents",
             "/settings" => "%2Fsettings",
-            "/about" => "%2Fabout",
             _ => "%2F",
         };
         Ok(format!(
@@ -223,14 +223,16 @@ impl Service {
             stream.take(65_536).read_to_string(&mut response)?;
             Ok(response)
         };
-        if !fetch("/settings", "")?.starts_with("HTTP/1.1 302 ") {
+        if !fetch("/agents", "")?.starts_with("HTTP/1.1 302 ")
+            || !fetch("/settings", "")?.starts_with("HTTP/1.1 302 ")
+        {
             return Err("unauthorized browser was not redirected".into());
         }
-        let url = self.open_url("/settings")?;
+        let url = self.open_url("/agents")?;
         let (_, query) = url.split_once("/open?").ok_or("invalid handoff URL")?;
         let path = format!("/open?{query}");
         let response = fetch(&path, "")?;
-        if !response.starts_with("HTTP/1.1 302 ") {
+        if !response.starts_with("HTTP/1.1 302 ") || !response.contains("location: /agents\r\n") {
             return Err("handoff was not accepted".into());
         }
         let cookie = response
@@ -243,14 +245,18 @@ impl Service {
         }
         let cookie = cookie.split(';').next().ok_or("invalid browser cookie")?;
         let headers = format!("Cookie: {cookie}\r\n");
-        let page = fetch("/settings", &headers)?;
+        let page = fetch("/agents", &headers)?;
         if !page.starts_with("HTTP/1.1 200 ") || !page.contains("Build your roster.") {
             return Err("authenticated browser page unavailable".into());
+        }
+        let settings = fetch("/settings", &headers)?;
+        if !settings.starts_with("HTTP/1.1 200 ") || !settings.contains("WORKSPACE SETTINGS") {
+            return Err("workspace settings page unavailable".into());
         }
         if !fetch(&path, "")?.starts_with("HTTP/1.1 401 ") {
             return Err("handoff replay accepted".into());
         }
-        if !fetch("/settings", &(headers + "Origin: https://evil.test\r\n"))?
+        if !fetch("/agents", &(headers + "Origin: https://evil.test\r\n"))?
             .starts_with("HTTP/1.1 403 ")
         {
             return Err("foreign origin accepted".into());

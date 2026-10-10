@@ -25,18 +25,20 @@ defmodule CuckodingWeb.Router do
     get "/locked", SessionController, :locked, log: false
     get "/codex/login/:id", SessionController, :codex_login, log: false
     get "/specifications/:id/download", SessionController, :specification, log: false
+    get "/about", SessionController, :legacy_settings, log: false
+    get "/settings/:id", SessionController, :legacy_agent, log: false
 
     live_session :authenticated, on_mount: CuckodingWeb.SessionAuth do
       live "/", HomeLive, :home
-      live "/settings", AgentsLive, :settings
-      live "/settings/:id", HomeLive, :settings
+      live "/agents", AgentsLive, :agents
+      live "/agents/:id", HomeLive, :agents
       live "/team", TeamLive, :team
       live "/arenas", ArenaLive, :arenas
       live "/arenas/:arena_id", TabulaLive, :index
       live "/arenas/:arena_id/checks", ProjectChecksLive, :checks
       live "/arenas/:arena_id/tabulae/:id", TabulaLive, :show
       live "/arenas/:arena_id/tabulae/:id/battle", BattlePreviewLive, :preview
-      live "/about", HomeLive, :about
+      live "/settings", HomeLive, :settings
     end
   end
 end

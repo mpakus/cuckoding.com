@@ -33,8 +33,8 @@ rtk proxy open desktop/src-tauri/target/release/bundle/macos/Cuckoding.app
 ```
 
 Launching the app opens the browser. Choose **Open Cuckoding** from its **C/furcina** menu
-bar item to return later. **Settings** opens the Agents
-roster; **About Cuckoding** opens workspace details; **Quit** stops the owned
+bar item to return later. **Agents** opens the roster at `/agents`.
+**Settings** and **About Cuckoding** open workspace settings at `/settings`; **Quit** stops the owned
 release and listener. No dock window or embedded web frontend is created.
 This build is not notarized or public-release certified. Clean-machine, signing,
 update and physical sleep/wake acceptance remain R060/R100.

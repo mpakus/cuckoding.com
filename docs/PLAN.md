@@ -402,3 +402,12 @@ See [task](../tasks/R020i-multiple-agents.md) and
 
 Real Cursor login completion/account catalog and inference remain in R090;
 fixture Grok entries do not establish model availability.
+
+## R020j · Navigation routes
+
+- [x] Agents `/agents`, wizard `/agents/:id`, Settings `/settings`; sidebar and tray aligned.
+- [x] Legacy redirects and canonical shell handoffs preserve session/origin protection.
+- [x] Regression checks, packaged build/smoke, running artifact and local main integration.
+
+See [task](../tasks/R020j-navigation-routes.md) and
+[worklog](../worklog/2026-10-10-R020j-navigation-routes.md).

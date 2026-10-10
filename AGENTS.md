@@ -207,6 +207,10 @@ Use Phoenix LiveView, HEEx and Tailwind. Keep one reusable accessible dialog
 convention; validation lives in domain contexts/LiveView and small hooks cover
 native browser behavior. No second frontend framework.
 
+Canonical navigation routes are `/agents` for the roster/wizards and `/settings`
+for workspace settings. Keep sidebar, cross-links and tray handoffs consistent;
+legacy redirects must not bypass browser session checks.
+
 Honor [the UI contract](docs/UI_DASHBOARD.md): slim sidebar, one/two primary
 regions, modern mouse-friendly TUI appearance, no decorative dashboard clutter.
 Every long action shows state, elapsed time, role, runtime, model when known,

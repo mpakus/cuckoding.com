@@ -5,7 +5,12 @@ defmodule CuckodingWeb.SessionController do
   def open(conn, %{"token" => token} = params) do
     case ShellAuth.exchange(token) do
       {:ok, session} ->
-        path = if params["view"] in ["/settings", "/about"], do: params["view"], else: "/"
+        path =
+          case params["view"] do
+            "/agents" -> "/agents"
+            path when path in ["/settings", "/about"] -> "/settings"
+            _ -> "/"
+          end
 
         conn
         |> configure_session(renew: true)
@@ -22,6 +27,9 @@ defmodule CuckodingWeb.SessionController do
   end
 
   def open(conn, _), do: conn |> put_status(401) |> text("Open Cuckoding from its menu bar icon.")
+
+  def legacy_settings(conn, _), do: redirect(conn, to: ~p"/settings")
+  def legacy_agent(conn, %{"id" => id}), do: redirect(conn, to: ~p"/agents/#{id}")
 
   # The provider URL never enters LiveView assigns, request params or persistent state.
   def codex_login(conn, %{"id" => id}) do

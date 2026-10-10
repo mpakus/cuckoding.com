@@ -41,7 +41,7 @@ defmodule CuckodingWeb.HomeLive do
      |> reload()
      |> then(fn socket ->
        if agent_id != "new" and is_nil(agent),
-         do: redirect(socket, to: ~p"/settings"),
+         do: redirect(socket, to: ~p"/agents"),
          else: socket
      end)}
   end
@@ -92,7 +92,7 @@ defmodule CuckodingWeb.HomeLive do
            ) do
         {:ok, %{state: "pending"} = command} ->
           {:noreply,
-           push_navigate(socket, to: ~p"/settings/#{Foundation.agent_id(command.payload)}")}
+           push_navigate(socket, to: ~p"/agents/#{Foundation.agent_id(command.payload)}")}
 
         _ ->
           {:noreply,
@@ -374,18 +374,18 @@ defmodule CuckodingWeb.HomeLive do
           <li><b>04</b><span>Tabula</span></li>
           <li><b>05</b><span>Battle</span></li>
         </ol>
-        <.link navigate={~p"/settings"} class="button primary">Check your setup
+        <.link navigate={~p"/agents"} class="button primary">Check your setup
         <span aria-hidden="true">↗</span></.link>
         <.link navigate={~p"/team"} class="button">Choose your team</.link>
         <p class="fine-print">Start with a check of the tools installed on this Mac.</p>
       </section>
 
       <section
-        :if={@live_action == :settings}
+        :if={@live_action == :agents}
         class="panel codex-setup agent-wizard"
         aria-labelledby="wizard-title"
       >
-        <.link navigate={~p"/settings"} class="text-link">← All agents</.link>
+        <.link navigate={~p"/agents"} class="text-link">← All agents</.link>
         <p class="eyebrow">{if @new_agent, do: "NEW AGENT", else: @agent_name}</p>
         <ol class="steps wizard-steps" aria-label="Connect an agent">
           <li
@@ -679,7 +679,7 @@ defmodule CuckodingWeb.HomeLive do
           }> Provider usage may already have occurred.</span>
         </p>
       </section>
-      <section :if={@live_action == :about} class="panel" aria-labelledby="about-title">
+      <section :if={@live_action == :settings} class="panel" aria-labelledby="about-title">
         <p class="eyebrow">WORKSPACE SETTINGS</p><h2 id="about-title">Local by design.</h2>
         <dl class="facts">
           <div>
@@ -724,8 +724,8 @@ defmodule CuckodingWeb.HomeLive do
   defp version_status("cursor", _), do: "Check Cursor CLI version. Supported: 2026.09.15-d2fe57e."
   defp version_status(_, status), do: codex_status(status)
   defp title(:home), do: "Tabula Gladiatorum"
-  defp title(:settings), do: "Agents"
-  defp title(:about), do: "Settings"
+  defp title(:agents), do: "Agents"
+  defp title(:settings), do: "Settings"
   defp operation_label("probe_cursor"), do: "Checking Cursor version"
   defp operation_label("inspect_cursor"), do: "Refreshing Cursor connection"
   defp operation_label("login_cursor"), do: "Signing in to Cursor"

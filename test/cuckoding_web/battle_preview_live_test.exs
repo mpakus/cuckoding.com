@@ -19,7 +19,7 @@ defmodule CuckodingWeb.BattlePreviewLiveTest do
     refute has_element?(view, "#refresh-preview[phx-disable-with]")
     assert has_element?(view, "#preview-checks", "No checks declared")
     assert has_element?(view, "#preview-team[phx-mounted*=ignore_attrs]")
-    assert has_element?(view, "#preview-team a[href='/settings']", "Agents")
+    assert has_element?(view, "#preview-team a[href='/agents']", "Agents")
     assert has_element?(view, "#preview-tasks[phx-mounted*=ignore_attrs]")
     assert {Repo.all(Command), Repo.all(Event)} == before
     refute has_element?(view, "button", "Start battle")

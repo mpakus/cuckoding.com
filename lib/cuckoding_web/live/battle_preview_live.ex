@@ -145,7 +145,7 @@ defmodule CuckodingWeb.BattlePreviewLive do
             This is the Tabula's saved team. Changing defaults alone does not replace it.
           </p>
           <.link navigate={~p"/team"} class="text-link">Edit default team ↗</.link>
-          <.link navigate={~p"/settings"} class="text-link">Agents ↗</.link>
+          <.link navigate={~p"/agents"} class="text-link">Agents ↗</.link>
           <.link
             navigate={~p"/arenas/#{@preview.arena.id}/tabulae/#{@preview.board.id}"}
             class="text-link"

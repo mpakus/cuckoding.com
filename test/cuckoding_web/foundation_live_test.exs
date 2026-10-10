@@ -25,12 +25,46 @@ defmodule CuckodingWeb.FoundationLiveTest do
     assert get_session(opened, :session_id)
   end
 
+  test "Agents and Settings routes match their navigation and preserve old bookmarks", %{
+    conn: conn
+  } do
+    signed = sign_in(conn)
+
+    for {path, title} <- [{"/agents", "Agents"}, {"/settings", "Settings"}] do
+      assert {:error, {:redirect, %{to: "/locked"}}} = live(conn, path)
+      {:ok, view, _} = live(signed, path)
+      assert has_element?(view, "h1", title)
+      assert has_element?(view, "nav a[href='#{path}'][aria-current='page']", title)
+      assert has_element?(view, "nav a[href='/agents']", "Agents")
+      assert has_element?(view, "nav a[href='/settings']", "Settings")
+      refute has_element?(view, "nav a[href='/about']")
+    end
+
+    {:ok, wizard, _} = live(signed, "/agents/new")
+    assert has_element?(wizard, "nav a[href='/agents'][aria-current='page']", "Agents")
+    assert redirected_to(get(signed, "/about")) == "/settings"
+    assert redirected_to(get(signed, "/settings/codex")) == "/agents/codex"
+  end
+
+  test "tray handoffs open only canonical local destinations", %{conn: conn} do
+    for {view, destination} <- [
+          {"/agents", "/agents"},
+          {"/settings", "/settings"},
+          {"/about", "/settings"},
+          {"//evil.test/agents", "/"},
+          {"/agents?redirect=https://evil.test", "/"}
+        ] do
+      opened = get(conn, "/open", token: ShellAuth.handoff(), view: view)
+      assert redirected_to(opened) == destination
+    end
+  end
+
   test "wizard has four steps, requires a live form and preserves the chosen executable", %{
     conn: conn
   } do
-    assert {:error, {:redirect, %{to: "/locked"}}} = live(conn, "/settings")
+    assert {:error, {:redirect, %{to: "/locked"}}} = live(conn, "/agents")
     signed = sign_in(conn)
-    {:ok, view, _} = live(signed, "/settings/codex")
+    {:ok, view, _} = live(signed, "/agents/codex")
     assert has_element?(view, ".wizard-steps li", "Choose Agent")
     assert has_element?(view, ".wizard-steps li", "Connect and Authorize")
     assert has_element?(view, ".wizard-steps li", "Select models")
@@ -51,17 +85,17 @@ defmodule CuckodingWeb.FoundationLiveTest do
     {:ok, probe} = Foundation.claim()
     Foundation.finish(probe, %{"status" => "supported", "version" => "0.146.0"})
     assert has_element?(view, "#wizard-connect")
-    assert {:ok, again, _} = live(signed, "/settings/codex")
+    assert {:ok, again, _} = live(signed, "/agents/codex")
     assert has_element?(again, "#wizard-connect")
   end
 
   test "expired authority cannot submit or receive live updates", %{conn: conn} do
-    {:ok, view, _} = conn |> sign_in() |> live("/settings/codex")
+    {:ok, view, _} = conn |> sign_in() |> live("/agents/codex")
     Repo.update_all(BrowserToken, set: [expires_at: 0])
     view |> form("#codex-check", path: "/bin/sh") |> render_submit()
     assert_redirect(view, "/locked")
     refute Foundation.pending?()
-    {:ok, view, _} = conn |> sign_in() |> live("/settings/codex")
+    {:ok, view, _} = conn |> sign_in() |> live("/agents/codex")
     Repo.update_all(BrowserToken, set: [expires_at: 0])
     Foundation.broadcast()
     assert_redirect(view, "/locked")
@@ -71,7 +105,7 @@ defmodule CuckodingWeb.FoundationLiveTest do
     {:ok, view, html} = conn |> sign_in() |> live("/")
     assert has_element?(view, "a[href='#main']", "Skip to content")
     assert html =~ "Foundation preview"
-    assert has_element?(view, "a[href='/settings']", "Check your setup")
+    assert has_element?(view, "a[href='/agents']", "Check your setup")
     refute html =~ "Start battle"
   end
 
@@ -83,7 +117,7 @@ defmodule CuckodingWeb.FoundationLiveTest do
     |> Ecto.Changeset.change(codex: Map.put(workspace.codex, "path", "/missing/codex"))
     |> Repo.update!()
 
-    {:ok, view, _} = conn |> sign_in() |> live("/settings/codex")
+    {:ok, view, _} = conn |> sign_in() |> live("/agents/codex")
     assert has_element?(view, "#wizard-choose")
     refute has_element?(view, "#wizard-connect")
   end
@@ -91,7 +125,7 @@ defmodule CuckodingWeb.FoundationLiveTest do
   test "desktop executable choice is metadata only and pending probes can be cancelled", %{
     conn: conn
   } do
-    {:ok, view, _} = conn |> sign_in() |> live("/settings/codex")
+    {:ok, view, _} = conn |> sign_in() |> live("/agents/codex")
     render_click(view, "choose_desktop_codex")
     assert has_element?(view, "#codex-path[value='#{Cuckoding.Tools.desktop_codex() || ""}']")
     refute Foundation.pending?()
@@ -105,7 +139,7 @@ defmodule CuckodingWeb.FoundationLiveTest do
     conn: conn
   } do
     version()
-    {:ok, view, _} = conn |> sign_in() |> live("/settings/codex")
+    {:ok, view, _} = conn |> sign_in() |> live("/agents/codex")
     assert has_element?(view, "#codex-login")
     view |> form("#connection-check") |> render_submit()
     {:ok, claim} = Foundation.claim()
@@ -123,7 +157,7 @@ defmodule CuckodingWeb.FoundationLiveTest do
   test "all advertised models can be selected, preserved, saved and used by Team", %{conn: conn} do
     connect()
     signed = sign_in(conn)
-    {:ok, view, _} = live(signed, "/settings/codex")
+    {:ok, view, _} = live(signed, "/agents/codex")
     for n <- 1..7, do: assert(has_element?(view, "#model-selection input[value='model-#{n}']"))
     assert render(view) =~ "additional model"
     view |> form("#model-selection", model_ids: ["model-1", "model-7"]) |> render_change()
@@ -141,7 +175,7 @@ defmodule CuckodingWeb.FoundationLiveTest do
     view |> form("#save-models") |> render_submit()
     assert Foundation.saved_agent_models().payload["model_ids"] == ["model-7"]
     assert has_element?(view, "#wizard-save", "Your agent is saved")
-    assert {:ok, again, _} = live(signed, "/settings/codex")
+    assert {:ok, again, _} = live(signed, "/agents/codex")
     assert has_element?(again, "#wizard-save", "Model 7")
     {:ok, team, _} = live(signed, "/team")
     team |> form("#team-form", roles: %{"speculator" => %{"agent" => "codex"}}) |> render_change()
@@ -154,7 +188,7 @@ defmodule CuckodingWeb.FoundationLiveTest do
        %{conn: conn} do
     connect()
     signed = sign_in(conn)
-    {:ok, view, _} = live(signed, "/settings/codex")
+    {:ok, view, _} = live(signed, "/agents/codex")
     view |> form("#model-selection", model_ids: ["model-1"]) |> render_change()
     view |> form("#model-check", model_id: "model-1") |> render_change()
     view |> form("#model-check", model_id: "model-1", model_confirmed: "true") |> render_change()
@@ -177,7 +211,7 @@ defmodule CuckodingWeb.FoundationLiveTest do
   } do
     connect()
     signed = sign_in(conn)
-    {:ok, view, _} = live(signed, "/settings/codex")
+    {:ok, view, _} = live(signed, "/agents/codex")
     view |> form("#model-check", model_id: "model-1") |> render_submit()
     refute Foundation.pending?()
 
@@ -201,7 +235,7 @@ defmodule CuckodingWeb.FoundationLiveTest do
     })
 
     assert has_element?(view, "#model-check-result", "Model responded")
-    assert {:ok, again, _} = live(signed, "/settings/codex")
+    assert {:ok, again, _} = live(signed, "/agents/codex")
     assert has_element?(again, "#model-check-result", "Model responded")
     again |> form("#model-check", model_id: "model-1", model_confirmed: "true") |> render_submit()
     {:ok, claim} = Foundation.claim()
@@ -218,7 +252,7 @@ defmodule CuckodingWeb.FoundationLiveTest do
     Cuckoding.Codex.init_login_links()
     version()
     signed = sign_in(conn)
-    {:ok, view, _} = live(signed, "/settings/codex")
+    {:ok, view, _} = live(signed, "/agents/codex")
     view |> form("#codex-login") |> render_submit()
     {:ok, claim} = Foundation.claim()
     assert :ok = Foundation.login_waiting(claim)
@@ -228,7 +262,7 @@ defmodule CuckodingWeb.FoundationLiveTest do
     local = "/codex/login/" <> claim.id
     assert has_element?(view, "a[href='#{local}'][rel='noopener noreferrer']")
     refute render(view) =~ "fixture-link-canary"
-    assert {:ok, reconnected, _} = live(signed, "/settings/codex")
+    assert {:ok, reconnected, _} = live(signed, "/agents/codex")
     assert has_element?(reconnected, "a[href='#{local}']")
     assert get(conn, local) |> response(401)
     assert get(signed, "/codex/login/invalid") |> response(410)

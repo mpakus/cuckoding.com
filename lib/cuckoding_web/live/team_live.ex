@@ -246,7 +246,7 @@ defmodule CuckodingWeb.TeamLive do
           Saving starts no agent. Execution slots and permissions are not enabled in this preview. Custom roles stay planning-only and read-only.
         </p>
         <p class="fine-print">
-          <.link navigate={~p"/settings"} class="text-link">Manage agents and model checks ↗</.link>
+          <.link navigate={~p"/agents"} class="text-link">Manage agents and model checks ↗</.link>
         </p>
         <p :if={@message} role="status" class="team-message">{@message}</p>
         <p :if={@error} id="team-error" role="alert" class="notice">{@error}</p>

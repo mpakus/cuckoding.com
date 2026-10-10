@@ -9,10 +9,10 @@ defmodule CuckodingWeb.AgentsLiveTest do
     {:ok, probe} = Foundation.claim()
     Foundation.finish(probe, %{"status" => "supported", "version" => "0.146.0"})
     signed = sign_in(conn)
-    {:ok, roster, _} = live(signed, "/settings")
+    {:ok, roster, _} = live(signed, "/agents")
     assert has_element?(roster, "#agent-codex", "Codex")
-    assert has_element?(roster, "a[href='/settings/new']", "Add agent")
-    {:ok, view, _} = live(signed, "/settings/new")
+    assert has_element?(roster, "a[href='/agents/new']", "Add agent")
+    {:ok, view, _} = live(signed, "/agents/new")
 
     view
     |> form("#codex-check", name: "Planner", agent: "cursor", path: "/bin/sh")
@@ -27,7 +27,7 @@ defmodule CuckodingWeb.AgentsLiveTest do
       |> render_submit()
 
     [_, cursor] = Agents.list()
-    {:ok, wizard, _} = follow_redirect(result, signed, "/settings/#{cursor.id}")
+    {:ok, wizard, _} = follow_redirect(result, signed, "/agents/#{cursor.id}")
     {:ok, claim} = Foundation.claim()
     Foundation.finish(claim, %{"status" => "supported", "version" => "2026.09.15-d2fe57e"})
     assert has_element?(wizard, "#codex-login button", "Sign in with Cursor")
@@ -84,7 +84,7 @@ defmodule CuckodingWeb.AgentsLiveTest do
     {:ok, claim} = Foundation.claim()
     Foundation.finish(claim, %{"status" => "supported", "version" => "2026.09.15-d2fe57e"})
     signed = sign_in(conn)
-    {:ok, view, _} = live(signed, "/settings/#{id}")
+    {:ok, view, _} = live(signed, "/agents/#{id}")
     view |> form("#codex-login") |> render_submit()
     {:ok, claim} = Foundation.claim()
     Foundation.login_waiting(claim)
@@ -95,7 +95,7 @@ defmodule CuckodingWeb.AgentsLiveTest do
     refute render(view) =~ "private-fixture"
     assert redirected_to(get(signed, "/codex/login/#{claim.id}")) == url
     assert get(conn, "/codex/login/#{claim.id}") |> response(401)
-    {:ok, other, _} = live(signed, "/settings/codex")
+    {:ok, other, _} = live(signed, "/agents/codex")
     refute has_element?(other, "#agent-progress")
     Foundation.cancel_probe(claim.id)
     assert get(signed, "/codex/login/#{claim.id}") |> response(410)

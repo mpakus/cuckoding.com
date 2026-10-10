@@ -13,8 +13,8 @@ attention items and logs.
 ## Current state
 
 **Local preview, 2026-10-10.** The tray shell, authenticated browser, SQLite
-commands/events, tool discovery and agent setup work. **Agents** lists your named
-connections. Choose **Add agent** or **Edit**, then follow **Choose Agent → Connect and Authorize → Select models → Save**.
+commands/events, tool discovery and agent setup work. **Agents** (`/agents`) lists
+your named connections; **Settings** (`/settings`) shows workspace settings. Choose **Add agent** or **Edit**, then follow **Choose Agent → Connect and Authorize → Select models → Save**.
 Add multiple Codex or Cursor connections, each with a separate private profile.
 Cursor setup implements sign-in/out and account model discovery; real signed-in
 catalog acceptance still needs a user-completed Cursor login. Cursor model

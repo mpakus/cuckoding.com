@@ -29,13 +29,13 @@ defmodule CuckodingWeb.AgentsLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.workspace active={:settings} title="Agents" flash={@flash}>
+    <Layouts.workspace active={:agents} title="Agents" flash={@flash}>
       <section class="panel" aria-labelledby="agents-title">
         <p class="eyebrow">01 / YOUR AGENTS</p>
         <h2 id="agents-title">Build your roster.</h2>
         <p>Connect as many agents as you need. Give each role its own agent and model in Team.</p>
         <div class="team-actions">
-          <.link navigate={~p"/settings/new"} class="button primary">Add agent</.link>
+          <.link navigate={~p"/agents/new"} class="button primary">Add agent</.link>
           <.link navigate={~p"/team"} class="button">Choose team roles</.link>
         </div>
         <p :if={@agents == []} class="fine-print">No agents yet. Add your first connection.</p>
@@ -55,7 +55,7 @@ defmodule CuckodingWeb.AgentsLive do
               </p>
             </div>
             <.link
-              navigate={~p"/settings/#{agent.id}"}
+              navigate={~p"/agents/#{agent.id}"}
               class="button"
               aria-label={"Edit #{agent.name}"}
             >Edit</.link>

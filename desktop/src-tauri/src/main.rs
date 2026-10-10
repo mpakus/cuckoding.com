@@ -83,10 +83,11 @@ fn main() {
             let shared = Arc::new(Mutex::new(service));
             app.manage(shared.clone());
             let open = MenuItem::with_id(app, "open", "Open Cuckoding", true, None::<&str>)?;
+            let agents = MenuItem::with_id(app, "agents", "Agents", true, None::<&str>)?;
             let settings = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
             let about = MenuItem::with_id(app, "about", "About Cuckoding", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&open, &settings, &about, &quit])?;
+            let menu = Menu::with_items(app, &[&open, &agents, &settings, &about, &quit])?;
             TrayIconBuilder::new()
                 .icon(tauri::include_image!("icons/tray.png"))
                 .icon_as_template(true)
@@ -102,8 +103,8 @@ fn main() {
                             }
                             id => {
                                 let view = match id {
-                                    "settings" => "/settings",
-                                    "about" => "/about",
+                                    "agents" => "/agents",
+                                    "settings" | "about" => "/settings",
                                     _ => "/",
                                 };
                                 if let Ok(url) = service.open_url(view) {

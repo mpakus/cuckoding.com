@@ -33,9 +33,9 @@ defmodule CuckodingWeb.Layouts do
             <span aria-hidden="true">◇</span> Arenas
           </.link>
           <.link
-            navigate={~p"/settings"}
-            class={["nav-link", @active == :settings && "active"]}
-            aria-current={if @active == :settings, do: "page"}
+            navigate={~p"/agents"}
+            class={["nav-link", @active == :agents && "active"]}
+            aria-current={if @active == :agents, do: "page"}
           ><span aria-hidden="true">⌘</span> Agents</.link>
           <.link
             navigate={~p"/team"}
@@ -43,9 +43,9 @@ defmodule CuckodingWeb.Layouts do
             aria-current={if @active == :team, do: "page"}
           ><span aria-hidden="true">♧</span> Team</.link>
           <.link
-            navigate={~p"/about"}
-            class={["nav-link", @active == :about && "active"]}
-            aria-current={if @active == :about, do: "page"}
+            navigate={~p"/settings"}
+            class={["nav-link", @active == :settings && "active"]}
+            aria-current={if @active == :settings, do: "page"}
           ><span aria-hidden="true">⚙</span> Settings</.link>
         </nav>
         <div class="sidebar-foot">
