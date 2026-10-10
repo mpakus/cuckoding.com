@@ -152,12 +152,12 @@ defmodule CuckodingWeb.HomeLive do
 
     allowed =
       step == 1 or (step == 2 and socket.assigns.workspace.codex["status"] == "supported") or
-        (step == 3 and socket.assigns.catalog.status == :available)
+        (step == 3 and socket.assigns.catalog.status in [:available, :catalog_stale])
 
     if allowed and not socket.assigns.pending do
       {:noreply, assign(socket, step: step, review: nil, error: nil)}
     else
-      {:noreply, assign(socket, error: "Connect Codex and refresh its model list first.")}
+      {:noreply, assign(socket, error: "Finish connecting this agent before continuing.")}
     end
   end
 
@@ -495,13 +495,6 @@ defmodule CuckodingWeb.HomeLive do
               else: "Cursor"}</button>
           </form>
           <div :if={@workspace.connection["authorization"] in ~w(chatgpt cursor)}>
-            <button
-              :if={@catalog.status == :available}
-              class="button primary"
-              phx-click="step"
-              phx-value-step="3"
-              disabled={@pending}
-            >Select models</button>
             <details id="sign-out" phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
               <summary>Disconnect {Agents.label(@agent_kind)}</summary>
               <form id="codex-logout" phx-submit="authorize_codex">
@@ -514,7 +507,30 @@ defmodule CuckodingWeb.HomeLive do
               </form>
             </details>
           </div>
-          <button class="button" phx-click="step" phx-value-step="1" disabled={@pending}>Back</button>
+          <p :if={@catalog.status == :catalog_stale} class="fine-print" role="status">
+            Your account is connected, but its model list is unavailable or out of date.
+            Continue to select models and refresh the list.
+          </p>
+          <div class="team-actions">
+            <button class="button" phx-click="step" phx-value-step="1" disabled={@pending}>Back</button>
+            <button
+              id="connect-next"
+              class="button primary"
+              phx-click="step"
+              phx-value-step="3"
+              disabled={@pending || @catalog.status not in [:available, :catalog_stale]}
+              aria-describedby={
+                if @catalog.status not in [:available, :catalog_stale], do: "connect-next-hint"
+              }
+            >Next: Select models</button>
+          </div>
+          <p
+            :if={@catalog.status not in [:available, :catalog_stale]}
+            id="connect-next-hint"
+            class="fine-print"
+          >
+            Connect your account above to continue.
+          </p>
         </div>
 
         <div :if={@step == 3} id="wizard-models">
@@ -525,9 +541,18 @@ defmodule CuckodingWeb.HomeLive do
               @workspace.connection
             )}. Availability comes from the agent; a catalog does not prove model access.
           </p>
-          <p :if={@catalog.status != :available} class="notice" role="status">
-            Refresh your connection before continuing.
-          </p>
+          <div :if={@catalog.status != :available || @catalog.models == []}>
+            <p class="notice" role="status">
+              No current model list is available. Refresh models before selecting or saving them.
+            </p>
+            <form id="models-refresh" phx-submit="inspect_codex">
+              <.form_scope key={@command_key} revision={@workspace.revision} />
+              <p class="fine-print">
+                Check your account and fetch models from {Agents.label(@agent_kind)}. No model usage.
+              </p>
+              <button class="button primary" disabled={@pending}>Refresh models</button>
+            </form>
+          </div>
           <form id="model-selection" phx-change="select_models" phx-submit="review_models">
             <.form_scope key={@command_key} revision={@workspace.revision} />
             <input type="hidden" name="model_ids[]" value="" />
@@ -551,7 +576,10 @@ defmodule CuckodingWeb.HomeLive do
                 phx-value-step="2"
                 disabled={@pending}
               >Back</button>
-              <button class="button primary" disabled={@pending || @catalog.status != :available}>Review selection</button>
+              <button
+                class="button primary"
+                disabled={@pending || @catalog.status != :available || @selected_ids == []}
+              >Review selection</button>
             </div>
           </form>
           <p :if={@agent_kind == "cursor"} class="fine-print">

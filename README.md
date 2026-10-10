@@ -125,6 +125,10 @@ use the **C icon menu → Open Cuckoding** to return later. See [Development](do
 for prerequisites, quality commands and data isolation. This is a local
 development build, not a signed/notarized public release.
 
+The agent wizard keeps **Next: Select models** visible on step 2. Once the account
+is connected, you can continue even if its catalog needs another refresh. Step 3
+offers **Refresh models**; selecting/reviewing/saving still needs a fresh list.
+
 ## Public site
 
 The black-and-electric-green cybernetic Arena lives in [site/](site/index.html):

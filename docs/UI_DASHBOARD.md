@@ -161,3 +161,13 @@ R020j aligns URLs with navigation: **Agents** uses `/agents` and **Settings** us
 `/settings`. Wizard pages stay under `/agents/:id`. Old `/about` and
 `/settings/:id` bookmarks redirect to the corresponding canonical pages. Tray
 shortcuts use the same routes; all destination pages require a live session.
+
+## Agent wizard navigation (R020k)
+
+Step 2 groups Back and **Next: Select models** as persistent navigation. Next is
+disabled with account guidance before connection and during active setup. A
+connected account with failed/expired catalog observations may still open step 3;
+show the unavailable list and **Refresh models** there. Refresh uses the same
+scoped, revision-guarded inspection command as step 2. Keep model choices through
+Back/Next and live updates. Only a fresh catalog allows selection/review/save;
+navigation alone launches no runtime and grants no authority.

@@ -103,6 +103,84 @@ defmodule CuckodingWeb.AgentsLiveTest do
     assert Repo.get!(Cuckoding.Command, claim.id).state == "cancelled"
   end
 
+  for kind <- ~w(codex cursor) do
+    test "#{kind} keeps Next visible and recovers a failed catalog on the models step", %{
+      conn: conn
+    } do
+      kind = unquote(kind)
+      authorization = if kind == "codex", do: "chatgpt", else: "cursor"
+      version = if kind == "codex", do: "0.146.0", else: "2026.09.15-d2fe57e"
+      {:ok, command} = Agents.add_and_probe(Ecto.UUID.generate(), 0, "Planner", kind, "/bin/sh")
+      id = command.payload["agent_id"]
+      {:ok, claim} = Foundation.claim()
+      Foundation.finish(claim, %{"status" => "supported", "version" => version})
+      {:ok, view, _} = conn |> sign_in() |> live("/agents/#{id}")
+      assert has_element?(view, "#connect-next[disabled]", "Next: Select models")
+      assert has_element?(view, "#connect-next-hint", "Connect your account")
+      render_click(view, "step", %{"step" => "3"})
+      assert has_element?(view, "#wizard-connect")
+      refute has_element?(view, "#wizard-models")
+
+      view |> form("#connection-check") |> render_submit()
+      assert has_element?(view, "#connect-next[disabled]")
+      {:ok, claim} = Foundation.claim()
+
+      Foundation.finish(claim, %{
+        "status" => "checked",
+        "authorization" => authorization,
+        "catalog_status" => "failed"
+      })
+
+      assert has_element?(view, "#wizard-connect", "model list is unavailable or out of date")
+      assert has_element?(view, "#connect-next:not([disabled])")
+      commands = Repo.aggregate(Cuckoding.Command, :count)
+      view |> element("#connect-next") |> render_click()
+      assert has_element?(view, "#wizard-models")
+      assert Repo.aggregate(Cuckoding.Command, :count) == commands
+      assert has_element?(view, "#model-selection fieldset[disabled]")
+      assert has_element?(view, "#model-selection button[disabled]", "Review selection")
+      render_submit(view, "review_models", %{"model_ids" => ["invented-model"]})
+      refute has_element?(view, "#wizard-save")
+      send(view.pid, :clock)
+      assert has_element?(view, "#wizard-models")
+
+      view |> form("#models-refresh") |> render_submit(%{"consent_key" => "recovered"})
+      refute Foundation.pending?()
+      view |> form("#models-refresh") |> render_submit()
+      assert has_element?(view, "#models-refresh button[disabled]")
+      {:ok, claim} = Foundation.claim()
+      assert claim.kind == "inspect_#{kind}"
+      assert claim.payload["agent_id"] == id
+
+      Foundation.finish(claim, %{
+        "status" => "checked",
+        "authorization" => authorization,
+        "catalog_status" => "fresh",
+        "models" => [model("fixture-model")]
+      })
+
+      refute has_element?(view, "#models-refresh")
+      assert has_element?(view, "#model-selection input[value=fixture-model]")
+      view |> form("#model-selection", model_ids: ["fixture-model"]) |> render_change()
+      view |> element("#wizard-models button", "Back") |> render_click()
+      view |> element("#connect-next") |> render_click()
+      assert has_element?(view, "#model-selection input[value=fixture-model][checked]")
+      view |> form("#model-selection", model_ids: ["fixture-model"]) |> render_submit()
+      view |> form("#save-models") |> render_submit()
+      assert Foundation.saved_agent_models(id).payload["model_ids"] == ["fixture-model"]
+      refute Foundation.pending?()
+    end
+  end
+
   defp model(id),
-    do: %{"id" => id, "model" => id, "name" => id, "default" => true, "hidden" => false}
+    do: %{
+      "id" => id,
+      "model" => id,
+      "name" => id,
+      "default" => true,
+      "hidden" => false,
+      "efforts" => ["low"],
+      "default_effort" => "low",
+      "input_modalities" => ["text"]
+    }
 end

@@ -54,7 +54,12 @@ then follow the four steps:
    Continue at Cursor**; its verified CLI baseline is `2026.09.15-d2fe57e`. Connected profiles offer refresh and
    **Disconnect → Sign out** for the selected agent. Each named button explicitly authorizes
    its action; no repeated setup confirmation checkboxes are needed.
-3. **Select models.** Check the models you want available for new Team assignments,
+   **Next: Select models** stays visible. It becomes available after account
+   connection, even if the model list is stale or a refresh failed. An active
+   setup operation temporarily disables navigation.
+3. **Select models.** If the catalog is missing or stale, choose **Refresh models**
+   here to check the account and fetch the list without inference. Selections and
+   Save remain unavailable until the catalog is fresh. Check the models you want available for new Team assignments,
    including additional models hidden in Codex's own picker. Selections survive
    Back and live updates. Codex’s **Test a model (optional)** sends one fixed prompt only
    after usage consent, with the lowest advertised effort, restrictive empty-scratch

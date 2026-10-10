@@ -419,3 +419,10 @@ fixture Grok entries do not establish model availability.
 
 See [task](../tasks/R020j-navigation-routes.md) and
 [worklog](../worklog/2026-10-10-R020j-navigation-routes.md).
+
+## R020k — Explicit connection wizard Next
+
+- [x] Always show step-2 Next with Back and clear unavailable-state guidance.
+- [x] Connected Codex/Cursor users can inspect/retry stale catalogs on step 3.
+- [x] Preserve pending/version/account gates, fresh-catalog saves and model choices.
+- Evidence: [R020k worklog](../worklog/2026-10-10-R020k-wizard-next.md).
