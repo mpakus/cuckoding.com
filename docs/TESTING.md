@@ -122,3 +122,10 @@ Migration acceptance uses an integrity-checked SQLite backup of the eight-versio
 DB, runs the ninth Ecto migration on a copy and compares every previous table.
 Real Cursor login completion/catalog tests require the user to finish authorization;
 fixture Grok models are not evidence of account availability.
+
+R020l catalog regression covers 256/512 Cursor entries through native parsing and
+Elixir normalization, rejects overflow/late duplicates/incomplete lists, and saves
+all 512 fixture choices through LiveView into Team. Actual packaged inspection
+retained 256 entries (including 22 Grok variants) across app restart; see the
+[R020l worklog](../worklog/2026-10-10-R020l-cursor-catalog.md). This verifies model
+metadata discovery, not inference entitlement or repository execution.

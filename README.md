@@ -16,9 +16,10 @@ attention items and logs.
 commands/events, tool discovery and agent setup work. **Agents** (`/agents`) lists
 your named connections; **Settings** (`/settings`) shows workspace settings. Choose **Add agent** or **Edit**, then follow **Choose Agent → Connect and Authorize → Select models → Save**.
 Add multiple Codex or Cursor connections, each with a separate private profile.
-Cursor setup implements sign-in/out and account model discovery; real signed-in
-catalog acceptance still needs a user-completed Cursor login. Cursor model
-tests and planning/execution remain unavailable. Claude Code and Hermes remain
+Cursor setup implements sign-in/out and account model discovery. Its catalog and
+saved selection support up to 512 entries, including advertised effort/speed
+variants; R020l verifies 256 real Cursor entries. Cursor model tests and
+planning/execution remain unavailable. Claude Code and Hermes remain
 coming soon. Executable details and
 an optional usage-confirmed model test are collapsed. Sign-in disappears while
 connected; sign-out and refresh remain available. All models returned by the
@@ -97,7 +98,8 @@ battles remain unimplemented. Registration alone does not validate Git; an expli
 distinguishes missing, unborn and committed standalone repositories.
 The product story above remains the target, not a shipped capability list.
 
-Evidence: [Multiple agents](worklog/2026-10-10-R020i-multiple-agents.md),
+Evidence: [Cursor catalog fix](worklog/2026-10-10-R020l-cursor-catalog.md),
+[Multiple agents](worklog/2026-10-10-R020i-multiple-agents.md),
 [Agent wizard and model check](worklog/2026-10-10-R020h-agent-wizard.md),
 [Connection state and desktop runtime](worklog/2026-10-09-R020g-codex-setup-state.md),
 [Full model catalog](worklog/2026-10-08-R020f-full-model-catalog.md),

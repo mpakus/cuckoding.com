@@ -71,7 +71,7 @@ fn models(bytes: &[u8]) -> Result<Value> {
             footer = true;
             continue;
         }
-        if footer || rows.len() >= 128 {
+        if footer || rows.len() >= 512 {
             return Err("invalid_output");
         }
         let (line, default) = if let Some(row) = line.strip_suffix(" (current, default)") {
@@ -388,6 +388,29 @@ mod tests {
         assert!(login_url("https://cursor.com/loginDeepControl?uuid=fixture").is_some());
         assert!(login_url("https://cursor.com.evil.test/loginDeepControl").is_none());
         assert!(login_url("https://user@cursor.com/loginDeepControl").is_none());
+    }
+
+    #[test]
+    fn catalog_includes_variants_beyond_128_and_still_rejects_overflow_or_partial_output() {
+        let catalog = |count| {
+            let mut text = String::from("Available models\n\n");
+            for index in 0..count {
+                text.push_str(&format!("model-{index} - Model {index}\n"));
+            }
+            text.push_str(
+                "\nTip: use --model <id> (or /model <id> in interactive mode) to switch.\n",
+            );
+            text
+        };
+        for count in [256, 512] {
+            let rows = models(catalog(count).as_bytes()).unwrap();
+            assert_eq!(rows.as_array().unwrap().len(), count);
+            assert_eq!(rows[count - 1]["id"], format!("model-{}", count - 1));
+        }
+        assert!(models(catalog(513).as_bytes()).is_err());
+        let complete = catalog(256);
+        assert!(models(complete.split("Tip:").next().unwrap().as_bytes()).is_err());
+        assert!(models(complete.replace("model-255 -", "model-0 -").as_bytes()).is_err());
     }
 
     #[test]

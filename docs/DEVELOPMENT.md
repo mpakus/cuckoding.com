@@ -60,7 +60,9 @@ then follow the four steps:
 3. **Select models.** If the catalog is missing or stale, choose **Refresh models**
    here to check the account and fetch the list without inference. Selections and
    Save remain unavailable until the catalog is fresh. Check the models you want available for new Team assignments,
-   including additional models hidden in Codex's own picker. Selections survive
+   including additional models hidden in Codex's own picker. Cursor catalogs and saved
+   selections accept up to 512 entries, including separately advertised effort/speed
+   variants; the fixed CLI output remains bounded to 64 KiB. Selections survive
    Back and live updates. Codex’s **Test a model (optional)** sends one fixed prompt only
    after usage consent, with the lowest advertised effort, restrictive empty-scratch
    permissions and a two-minute limit. It grants no project access. Success accepts

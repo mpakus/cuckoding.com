@@ -168,3 +168,10 @@ reasoning/input capabilities are invented. Planning/model diagnostics return
 unsupported until a restrictive Cursor grant is verified. Model lists are obtained
 from the selected CLI/account, never hardcoded or borrowed from Codex. Real Codex
 model-response evidence from R020h remains recorded separately from new fixtures.
+
+R020l raises Cursor's catalog limit to 512 rows in both native parsing and Elixir
+normalization, with the unchanged 64 KiB stdout limit. The prior 128-row cap
+rejected the installed CLI's complete 256-entry catalog. Saved selections also
+accept up to 512 IDs, each checked against the current agent catalog. Duplicate,
+malformed, incomplete and over-limit lists remain failures; no partial list is
+published as fresh and no model IDs or capabilities are invented.

@@ -302,7 +302,7 @@ defmodule Cuckoding.Foundation do
   def save_agent_models(key, expected, connection_id, ids, agent_id \\ "codex") do
     with {:ok, id} <- Ecto.UUID.cast(key),
          true <- is_integer(expected) and expected >= 0,
-         true <- is_list(ids) and length(ids) in 1..128,
+         true <- is_list(ids) and length(ids) in 1..512,
          true <- Enum.all?(ids, &(is_binary(&1) and byte_size(&1) in 1..128)),
          true <- Enum.uniq(ids) == ids do
       request = %{

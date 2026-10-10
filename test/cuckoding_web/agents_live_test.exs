@@ -75,6 +75,52 @@ defmodule CuckodingWeb.AgentsLiveTest do
     refute has_element?(team, "#model-speculator option[value='grok-fixture']")
   end
 
+  test "Cursor's full variant catalog can be selected, saved and assigned to a role", %{
+    conn: conn
+  } do
+    {:ok, command} = Agents.add_and_probe(Ecto.UUID.generate(), 0, "Cursor", "cursor", "/bin/sh")
+    id = command.payload["agent_id"]
+    {:ok, claim} = Foundation.claim()
+    Foundation.finish(claim, %{"status" => "supported", "version" => "2026.09.15-d2fe57e"})
+    {:ok, view, _} = conn |> sign_in() |> live("/agents/#{id}")
+    view |> form("#connection-check") |> render_submit()
+    {:ok, claim} = Foundation.claim()
+    rows = for index <- 1..512, do: model("variant-#{index}")
+
+    receipt =
+      %{
+        "status" => "checked",
+        "authorization" => "cursor",
+        "catalog_status" => "fresh",
+        "models" => rows
+      }
+      |> Jason.encode!()
+      |> Cuckoding.Cursor.normalize_connection()
+
+    Foundation.finish(claim, receipt)
+    assert has_element?(view, "#model-selection input[value='variant-512']")
+    ids = Enum.map(rows, & &1["id"])
+    view |> form("#model-selection", model_ids: ids) |> render_submit()
+    view |> form("#save-models") |> render_submit()
+    assert Foundation.saved_agent_models(id).payload["model_ids"] == Enum.sort(ids)
+    assert length(Team.catalog(id).selectable_models) == 512
+
+    roles =
+      Team.editable(Team.current())
+      |> List.update_at(0, &Map.merge(&1, %{"agent" => id, "model_id" => "variant-512"}))
+
+    assert {:ok, _} = Team.save(Ecto.UUID.generate(), Team.current().id, roles)
+
+    assert {:error, :invalid_models} =
+             Foundation.save_agent_models(
+               Ecto.UUID.generate(),
+               Foundation.workspace().revision,
+               Agents.get(id).connection["command_id"],
+               ids ++ ["overflow"],
+               id
+             )
+  end
+
   test "Cursor sign-in URL stays behind the session and cannot cross into another agent", %{
     conn: conn
   } do

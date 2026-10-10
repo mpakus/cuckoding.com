@@ -390,7 +390,7 @@ is forced, browser auto-open, direnv and provider debug logging are disabled. Cr
 provider-managed; raw account JSON, identifiers, errors and login text are discarded.
 
 The native helper validates/locks the profile through owned process-group cleanup.
-Stdout is bounded to 64 KiB per fixed command, model rows to 128; stderr is discarded.
+Stdout is bounded to 64 KiB per fixed command, Cursor model rows to 512; stderr is discarded.
 Version has five seconds; inspection/logout fifteen; browser login ten minutes,
 with monotonic and wall deadlines. The CLI's plain `models` output has a pinned,
 strict parser; malformed/partial/duplicate lists never become fresh catalogs.
@@ -399,4 +399,5 @@ Cursor login links must be HTTPS `cursor.com/loginDeepControl`; Codex's separate
 allowlist remains unchanged. Links stay transient behind the authenticated redirect.
 The helper owns children, clears inherited secrets and avoids personal profiles;
 it is still a host process, not a filesystem sandbox. Cursor inference grants,
-real signed-in catalog/login completion and physical sleep acceptance remain separate.
+login completion/revocation and physical sleep acceptance remain separate.
+R020l verifies a real signed-in catalog; catalog metadata never proves inference access.

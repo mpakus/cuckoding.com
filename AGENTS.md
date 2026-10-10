@@ -183,6 +183,10 @@ Do not restore the old implementation or treat historical tests as current proof
   Fetch the full bounded agent catalog, including entries hidden from its default
   picker. Validate/preserve that flag and expose additional models without
   inventing IDs or inferring entitlement; older cached rows remain readable.
+  Cursor catalogs permit up to 512 rows within the fixed 64 KiB stdout limit;
+  retain every advertised variant. Saved selections permit up to 512 catalog-bound
+  IDs. Reject malformed/partial/duplicate/over-limit lists without publishing a
+  truncated fresh catalog.
   Login/logout invalidate account/catalog observations before launch and require
   separate consent. Serialize profile operations through the ledger and native
   lock; never replay interrupted authentication. Hold cancellation until helper

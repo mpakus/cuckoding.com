@@ -163,6 +163,8 @@ the real-provider gate.
   repository execution and broader R020 acceptance remain open.
   See [task](../tasks/R020h-agent-wizard.md) and
   [evidence](../worklog/2026-10-10-R020h-agent-wizard.md).
+- [x] R020l: accept Cursor catalogs and saved selections beyond 128 entries while
+  retaining bounded complete validation; see [catalog evidence](../worklog/2026-10-10-R020l-cursor-catalog.md).
 - [ ] Prove a read-only turn and a permitted worktree-writing turn in isolated
   workspaces; normalize public activity, outcomes and redacted logs.
 - [ ] Add task/process identity, cancellation, clean environment, path policy,

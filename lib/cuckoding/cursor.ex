@@ -98,7 +98,7 @@ defmodule Cuckoding.Cursor do
 
   defp valid_models?(rows),
     do:
-      is_list(rows) and length(rows) <= 128 and Enum.all?(rows, &valid_model?/1) and
+      is_list(rows) and length(rows) <= 512 and Enum.all?(rows, &valid_model?/1) and
         Enum.uniq_by(rows, & &1["id"]) == rows
 
   defp valid_model?(%{
