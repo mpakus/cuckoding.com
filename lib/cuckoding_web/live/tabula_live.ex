@@ -6,7 +6,13 @@ defmodule CuckodingWeb.TabulaLive do
   @impl true
   def mount(params, _, socket) do
     arena = Tabulae.arena(params["arena_id"])
-    board = if arena, do: Tabulae.get(arena.id, params["id"])
+
+    board =
+      if arena do
+        if params["id"],
+          do: Tabulae.get(arena.id, params["id"]),
+          else: List.first(Tabulae.list(arena.id))
+      end
 
     if arena && (is_nil(params["id"]) || board) do
       if connected?(socket) do
@@ -579,249 +585,22 @@ defmodule CuckodingWeb.TabulaLive do
     ~H"""
     <Layouts.workspace active={:arenas} title={@arena.name} flash={@flash}>
       <section class="panel" aria-labelledby="tabula-title">
-        <p class="eyebrow">04 / TABULA</p>
-        <h2 id="tabula-title">{if @board, do: @board.name, else: "Plan your next battle."}</h2>
-        <.link :if={@board} navigate={~p"/arenas/#{@arena.id}"}>Arena settings</.link>
-        <.link navigate={~p"/arenas/#{@arena.id}/checks"} class="text-link">Project checks ↗</.link>
-        <.link
-          :if={@board}
-          navigate={~p"/arenas/#{@arena.id}/tabulae/#{@board.id}/battle"}
-          class="text-link"
-        >Battle preview ↗</.link>
-        <.live_component
-          module={CuckodingWeb.TeamAdoptionComponent}
-          id="scope-team"
-          session_id={@session_id}
-          scope={@board || @arena}
-          revision={if @board, do: @board_team.id, else: @arena_team.id}
-          now={@now}
-        />
-        <.live_component
-          :if={@board}
-          module={CuckodingWeb.PlanningComponent}
-          id="planning"
-          session_id={@session_id}
-          board={@board}
-          now={@now}
-          busy={@setup_busy}
-        />
-        <details
-          id="arena-git"
-          class="git-setup"
-          phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
-        >
-          <summary>Repository setup · {if @git, do: @git.state, else: "not inspected"}</summary>
-          <p class="arena-path">{@arena.path}</p>
-          <p class="fine-print">
-            Inspect local Git metadata. This grants no agent access and does not stage, commit or contact a remote.
-          </p>
-          <p :if={@git_error} role="alert" class="notice">{@git_error}</p>
-          <p :if={@git && !git_active?(@git)} role="status">{git_message(@git.result)}</p>
-          <p :if={@git && @git.payload["observation"]} class="fine-print">
-            Observed {Calendar.strftime(@git.updated_at, "%Y-%m-%d %H:%M:%S UTC")}
-            <code :if={@git.payload["observation"]["head"]}>HEAD {@git.payload["observation"]["head"]}</code>
-          </p>
-          <div :if={git_active?(@git)} role="status" class="notice">
-            <p>Git setup · {@git.state} · {max(0, DateTime.diff(@now, @git.inserted_at))}s</p>
-            <p class="fine-print">
-              Owner: you · system Git · no agent or model · 15-second operation limit
-            </p>
-            <button
-              type="button"
-              class="button"
-              phx-click="cancel-git"
-              disabled={@git.state == "cancelling"}
-            >Cancel Git operation</button>
-          </div>
-          <div class="team-actions">
-            <button type="button" class="button" phx-click="inspect-git" disabled={@setup_busy}>Inspect Git</button>
-          </div>
-          <details id="worktree-setup" phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
-            <summary>Isolated worktrees</summary>
-            <p class="fine-print">
-              Prepare committed files in a private detached checkout. Unsaved, staged and
-              untracked changes stay in your original folder. This adds locked Git worktree
-              metadata to the repository. It runs no agents or project checks and does not start a battle.
-            </p>
-            <.form
-              :if={ArenaGit.can_prepare?(@git, @now)}
-              for={%{}}
-              id="worktree-form"
-              phx-change="worktree-change"
-              phx-submit="prepare-worktree"
-            >
-              <input type="hidden" name="observation_id" value={@git.id} />
-              <input type="hidden" name="key" value={@git_key} />
-              <p>Commit: <code>{@git.payload["observation"]["head"]}</code></p>
-              <p>Checkout: <code>{ArenaGit.worktree_path(@git_key)}</code></p>
-              <p class="fine-print">Up to 10,000 regular files, 8 MiB each / 64 MiB total;
-                1 MiB of tree metadata. Links, submodules, Git filters and known credential paths are refused.
-                Partial effects are retained for inspection.</p>
-              <label class="confirm-executable">
-                <input type="checkbox" name="confirmed" value="true" checked={@worktree_confirmed} />
-                Create this isolated checkout from the displayed commit and retain its Git registration.
-              </label>
-              <button class="button" aria-disabled={to_string(@setup_busy)}>Prepare worktree</button>
-            </.form>
-            <p :if={!ArenaGit.can_prepare?(@git, @now)}>
-              Inspect Git to confirm a current committed baseline before preparing a worktree.
-            </p>
-            <ul id="worktree-receipts" class="git-files">
-              <li :for={command <- @worktrees} id={"worktree-#{command.id}"}>
-                <strong>{command.state}</strong>
-                · {Calendar.strftime(command.inserted_at, "%Y-%m-%d %H:%M UTC")}
-                <p :if={git_active?(command)} role="status">
-                  User · system Git · no model · {max(0, DateTime.diff(@now, command.updated_at))}s elapsed
-                  · 15s native limit
-                </p>
-                <button
-                  :if={git_active?(command)}
-                  type="button"
-                  class="button"
-                  phx-click="cancel-worktree"
-                  phx-value-id={command.id}
-                  disabled={command.state == "cancelling"}
-                >
-                  {if command.state == "cancelling",
-                    do: "Waiting for cleanup…",
-                    else: "Cancel preparation"}
-                </button>
-                <p :if={command.result} role="status">{worktree_message(command.result)}</p>
-                <p :if={command.payload["head"]}>Commit: <code>{command.payload["head"]}</code></p>
-                <p :if={command.payload["worktree_path"]}>
-                  Retained location: <code>{command.payload["worktree_path"]}</code>
-                </p>
-                <.worktree_inspection
-                  :if={command.state == "completed" && command.result == "prepared"}
-                  preparation={command}
-                  inspection={@worktree_inspections[command.id]}
-                  now={@now}
-                  busy={@setup_busy}
-                />
-              </li>
-            </ul>
-            <p :if={@worktrees != []} class="fine-print">
-              Latest 10 attempts. Older receipts remain in local storage.
-              A creation receipt does not verify the checkout's current contents. Worktrees share Git metadata;
-              they are not a security sandbox.
-            </p>
-          </details>
-          <.form
-            :if={ArenaGit.can_initialize?(@git, @now)}
-            for={%{}}
-            id="git-init-form"
-            phx-change="git-change"
-            phx-submit="init-git"
-          >
-            <input type="hidden" name="observation_id" value={@git.id} />
-            <label class="confirm-executable">
-              <input
-                type="checkbox"
-                name="confirmed"
-                value="true"
-                checked={@init_confirmed && @confirmed_observation == @git.id}
-              />
-              Create .git in this folder with an empty main branch. Keep all existing files; do not make a commit.
-            </label>
-            <button type="submit" class="button" disabled={@setup_busy} phx-disable-with="Starting…">Initialize Git</button>
-          </.form>
-          <.form
-            :if={@git && @git.state == "completed" && @git.result in ~w(unborn initialized previewed)}
-            for={%{}}
-            id="git-preview-form"
-            class="role-fields"
-            phx-change="commit-paths-change"
-            phx-submit="preview-git"
-          >
-            <label for="git-paths">Files for the initial commit · one relative path per line</label>
-            <textarea
-              id="git-paths"
-              name="paths"
-              rows="3"
-              maxlength="4000"
-              aria-describedby="git-paths-help"
-            >{@git_paths}</textarea>
-            <p id="git-paths-help" class="fine-print">
-              For example: docs/plan.md. Leave empty for an empty baseline. Up to 16 files,
-              1 MiB each / 8 MiB total. No folders, links or known credential paths.
-              Preview reads only these files; no file contents are saved in Cuckoding.
-            </p>
-            <button class="button" disabled={@setup_busy} phx-disable-with="Reading…">Preview initial commit</button>
-          </.form>
-          <div :if={@git && @git.result == "previewed"} id="git-preview">
-            <p>
-              <strong>Initial commit · {length(@git.payload["observation"]["preview"]["files"])} {if length(
-                                                                                                       @git.payload[
-                                                                                                         "observation"
-                                                                                                       ][
-                                                                                                         "preview"
-                                                                                                       ][
-                                                                                                         "files"
-                                                                                                       ]
-                                                                                                     ) ==
-                                                                                                       1,
-                                                                                                     do:
-                                                                                                       "file",
-                                                                                                     else:
-                                                                                                       "files"}</strong>
-            </p>
-            <p class="fine-print">
-              Branch: {@git.payload["observation"]["preview"]["branch"]}<br />
-              Author / committer: Cuckoding &lt;local@cuckoding.invalid&gt;<br />
-              Message: Initialize Arena with Cuckoding
-            </p>
-            <p :if={@git.payload["observation"]["preview"]["files"] == []}>
-              Empty baseline · no working files will be included.
-            </p>
-            <ul class="git-files">
-              <li :for={
-                {file, index} <- Enum.with_index(@git.payload["observation"]["preview"]["files"])
-              }>
-                <code>{file["path"]}</code>
-                · {file["bytes"]} bytes · {if file["mode"] == "100755",
-                  do: "executable",
-                  else: "regular"}
-                <details
-                  id={"git-hash-#{@git.id}-#{index}"}
-                  phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
-                >
-                  <summary>SHA-256</summary><code>{file["sha256"]}</code>
-                </details>
-              </li>
-            </ul>
-            <p class="fine-print">
-              Commit exact bytes without Git filters, hooks or signing. Explicit file selection
-              also includes ignored files. Files on disk stay unchanged. Nothing is pushed.
-              Interrupted work can leave objects or staged files for inspection.
-            </p>
-            <.form
-              :if={ArenaGit.can_commit?(@git, @now)}
-              for={%{}}
-              id="git-commit-form"
-              phx-change="commit-change"
-              phx-submit="commit-git"
-            >
-              <input type="hidden" name="observation_id" value={@git.id} />
-              <label class="confirm-executable">
-                <input
-                  type="checkbox"
-                  name="commit_confirmed"
-                  value="true"
-                  checked={@commit_confirmed && @confirmed_preview == @git.id}
-                />
-                I reviewed this snapshot and authorize the first local commit, including only these files.
-              </label>
-              <button class="button" disabled={@setup_busy} phx-disable-with="Committing…">Create initial commit</button>
-            </.form>
-            <p :if={!ArenaGit.can_commit?(@git, @now)} role="status">
-              Preview expired. Preview again before confirming.
-            </p>
-          </div>
-        </details>
-        <p>
-          Draft work locally. In Process, Review and Completed unlock with future battle execution.
-        </p>
-        <div class="team-actions" aria-label="Tabulae">
+        <p class="eyebrow">ARENA · PROJECT</p>
+        <h2 id="tabula-title">
+          {if @board, do: @board.name, else: "Your board is ready to create."}
+        </h2>
+        <p class="fine-print arena-path">{@arena.path}</p>
+        <div :if={@board} class="team-actions" aria-label="Arena actions">
+          <button
+            id="arena-start"
+            type="button"
+            class="button"
+            disabled
+            aria-describedby="arena-start-help"
+          >Start</button>
+          <span id="arena-start-help" class="fine-print">Planning is available. Agent execution and automatic review are not available yet.</span>
+        </div>
+        <div :if={length(@boards) > 1} class="team-actions" aria-label="Tabulae">
           <.link
             :for={board <- @boards}
             navigate={~p"/arenas/#{@arena.id}/tabulae/#{board.id}"}
@@ -829,34 +608,306 @@ defmodule CuckodingWeb.TabulaLive do
             aria-current={if @board && @board.id == board.id, do: "page"}
           >{board.name}</.link>
         </div>
+        <.live_component
+          :if={@board}
+          module={CuckodingWeb.PlanningComponent}
+          id="planning"
+          session_id={@session_id}
+          board={@board}
+          empty={@tasks == []}
+          now={@now}
+          busy={@setup_busy}
+        />
+        <p
+          :if={
+            git_active?(@git) || Enum.any?(@worktrees, &git_active?/1) ||
+              Enum.any?(Map.values(@worktree_inspections), &git_active?/1)
+          }
+          role="status"
+          class="notice"
+        >
+          A repository operation is active. Open Advanced → Repository setup for progress and Cancel.
+        </p>
         <details
-          id="create-tabula"
+          id="arena-advanced"
           open={is_nil(@board)}
           phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
         >
-          <summary>Create a Tabula</summary>
-          <.form
-            for={%{}}
-            id="tabula-form"
-            phx-change="board-change"
-            phx-submit="create"
-            class="role-fields"
+          <summary>Advanced · team, repository and boards</summary>
+          <.link navigate={~p"/arenas/#{@arena.id}/checks"} class="text-link">Project checks ↗</.link>
+          <.link
+            :if={@board}
+            navigate={~p"/arenas/#{@arena.id}/tabulae/#{@board.id}/battle"}
+            class="text-link"
+          >Battle preview · read only ↗</.link>
+          <.live_component
+            module={CuckodingWeb.TeamAdoptionComponent}
+            id="scope-team"
+            session_id={@session_id}
+            scope={@board || @arena}
+            revision={if @board, do: @board_team.id, else: @arena_team.id}
+            now={@now}
+          />
+          <.live_component
+            :if={@board}
+            module={CuckodingWeb.TeamAdoptionComponent}
+            id="arena-team"
+            session_id={@session_id}
+            scope={@arena}
+            revision={@arena_team.id}
+            now={@now}
+          />
+          <details
+            id="arena-git"
+            class="git-setup"
+            phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
           >
-            <label for="tabula-name">Tabula name</label>
-            <input
-              id="tabula-name"
-              name="name"
-              type="text"
-              value={@board_name}
-              maxlength="80"
-              required
-            />
+            <summary>Repository setup · {if @git, do: @git.state, else: "not inspected"}</summary>
+            <p class="arena-path">{@arena.path}</p>
             <p class="fine-print">
-              Inherits Arena team revision {@arena_team.id}. No agent access is granted.
+              Inspect local Git metadata. This grants no agent access and does not stage, commit or contact a remote.
             </p>
-            <p :if={@board_error} role="alert" class="notice">{@board_error}</p>
-            <button type="submit" class="button" phx-disable-with="Creating…">Create Tabula</button>
-          </.form>
+            <p :if={@git_error} role="alert" class="notice">{@git_error}</p>
+            <p :if={@git && !git_active?(@git)} role="status">{git_message(@git.result)}</p>
+            <p :if={@git && @git.payload["observation"]} class="fine-print">
+              Observed {Calendar.strftime(@git.updated_at, "%Y-%m-%d %H:%M:%S UTC")}
+              <code :if={@git.payload["observation"]["head"]}>HEAD {@git.payload["observation"][
+                "head"
+              ]}</code>
+            </p>
+            <div :if={git_active?(@git)} role="status" class="notice">
+              <p>Git setup · {@git.state} · {max(0, DateTime.diff(@now, @git.inserted_at))}s</p>
+              <p class="fine-print">
+                Owner: you · system Git · no agent or model · 15-second operation limit
+              </p>
+              <button
+                type="button"
+                class="button"
+                phx-click="cancel-git"
+                disabled={@git.state == "cancelling"}
+              >Cancel Git operation</button>
+            </div>
+            <div class="team-actions">
+              <button type="button" class="button" phx-click="inspect-git" disabled={@setup_busy}>Inspect Git</button>
+            </div>
+            <details id="worktree-setup" phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
+              <summary>Isolated worktrees</summary>
+              <p class="fine-print">
+                Prepare committed files in a private detached checkout. Unsaved, staged and
+                untracked changes stay in your original folder. This adds locked Git worktree
+                metadata to the repository. It runs no agents or project checks and does not start a battle.
+              </p>
+              <.form
+                :if={ArenaGit.can_prepare?(@git, @now)}
+                for={%{}}
+                id="worktree-form"
+                phx-change="worktree-change"
+                phx-submit="prepare-worktree"
+              >
+                <input type="hidden" name="observation_id" value={@git.id} />
+                <input type="hidden" name="key" value={@git_key} />
+                <p>Commit: <code>{@git.payload["observation"]["head"]}</code></p>
+                <p>Checkout: <code>{ArenaGit.worktree_path(@git_key)}</code></p>
+                <p class="fine-print">Up to 10,000 regular files, 8 MiB each / 64 MiB total;
+                  1 MiB of tree metadata. Links, submodules, Git filters and known credential paths are refused.
+                  Partial effects are retained for inspection.</p>
+                <label class="confirm-executable">
+                  <input type="checkbox" name="confirmed" value="true" checked={@worktree_confirmed} />
+                  Create this isolated checkout from the displayed commit and retain its Git registration.
+                </label>
+                <button class="button" aria-disabled={to_string(@setup_busy)}>Prepare worktree</button>
+              </.form>
+              <p :if={!ArenaGit.can_prepare?(@git, @now)}>
+                Inspect Git to confirm a current committed baseline before preparing a worktree.
+              </p>
+              <ul id="worktree-receipts" class="git-files">
+                <li :for={command <- @worktrees} id={"worktree-#{command.id}"}>
+                  <strong>{command.state}</strong>
+                  · {Calendar.strftime(command.inserted_at, "%Y-%m-%d %H:%M UTC")}
+                  <p :if={git_active?(command)} role="status">
+                    User · system Git · no model · {max(0, DateTime.diff(@now, command.updated_at))}s elapsed
+                    · 15s native limit
+                  </p>
+                  <button
+                    :if={git_active?(command)}
+                    type="button"
+                    class="button"
+                    phx-click="cancel-worktree"
+                    phx-value-id={command.id}
+                    disabled={command.state == "cancelling"}
+                  >
+                    {if command.state == "cancelling",
+                      do: "Waiting for cleanup…",
+                      else: "Cancel preparation"}
+                  </button>
+                  <p :if={command.result} role="status">{worktree_message(command.result)}</p>
+                  <p :if={command.payload["head"]}>Commit: <code>{command.payload["head"]}</code></p>
+                  <p :if={command.payload["worktree_path"]}>
+                    Retained location: <code>{command.payload["worktree_path"]}</code>
+                  </p>
+                  <.worktree_inspection
+                    :if={command.state == "completed" && command.result == "prepared"}
+                    preparation={command}
+                    inspection={@worktree_inspections[command.id]}
+                    now={@now}
+                    busy={@setup_busy}
+                  />
+                </li>
+              </ul>
+              <p :if={@worktrees != []} class="fine-print">
+                Latest 10 attempts. Older receipts remain in local storage.
+                A creation receipt does not verify the checkout's current contents. Worktrees share Git metadata;
+                they are not a security sandbox.
+              </p>
+            </details>
+            <.form
+              :if={ArenaGit.can_initialize?(@git, @now)}
+              for={%{}}
+              id="git-init-form"
+              phx-change="git-change"
+              phx-submit="init-git"
+            >
+              <input type="hidden" name="observation_id" value={@git.id} />
+              <label class="confirm-executable">
+                <input
+                  type="checkbox"
+                  name="confirmed"
+                  value="true"
+                  checked={@init_confirmed && @confirmed_observation == @git.id}
+                />
+                Create .git in this folder with an empty main branch. Keep all existing files; do not make a commit.
+              </label>
+              <button
+                type="submit"
+                class="button"
+                disabled={@setup_busy}
+                phx-disable-with="Starting…"
+              >Initialize Git</button>
+            </.form>
+            <.form
+              :if={
+                @git && @git.state == "completed" && @git.result in ~w(unborn initialized previewed)
+              }
+              for={%{}}
+              id="git-preview-form"
+              class="role-fields"
+              phx-change="commit-paths-change"
+              phx-submit="preview-git"
+            >
+              <label for="git-paths">Files for the initial commit · one relative path per line</label>
+              <textarea
+                id="git-paths"
+                name="paths"
+                rows="3"
+                maxlength="4000"
+                aria-describedby="git-paths-help"
+              >{@git_paths}</textarea>
+              <p id="git-paths-help" class="fine-print">
+                For example: docs/plan.md. Leave empty for an empty baseline. Up to 16 files,
+                1 MiB each / 8 MiB total. No folders, links or known credential paths.
+                Preview reads only these files; no file contents are saved in Cuckoding.
+              </p>
+              <button class="button" disabled={@setup_busy} phx-disable-with="Reading…">Preview initial commit</button>
+            </.form>
+            <div :if={@git && @git.result == "previewed"} id="git-preview">
+              <p>
+                <strong>Initial commit · {length(@git.payload["observation"]["preview"]["files"])} {if length(
+                                                                                                         @git.payload[
+                                                                                                           "observation"
+                                                                                                         ][
+                                                                                                           "preview"
+                                                                                                         ][
+                                                                                                           "files"
+                                                                                                         ]
+                                                                                                       ) ==
+                                                                                                         1,
+                                                                                                       do:
+                                                                                                         "file",
+                                                                                                       else:
+                                                                                                         "files"}</strong>
+              </p>
+              <p class="fine-print">
+                Branch: {@git.payload["observation"]["preview"]["branch"]}<br />
+                Author / committer: Cuckoding &lt;local@cuckoding.invalid&gt;<br />
+                Message: Initialize Arena with Cuckoding
+              </p>
+              <p :if={@git.payload["observation"]["preview"]["files"] == []}>
+                Empty baseline · no working files will be included.
+              </p>
+              <ul class="git-files">
+                <li :for={
+                  {file, index} <- Enum.with_index(@git.payload["observation"]["preview"]["files"])
+                }>
+                  <code>{file["path"]}</code>
+                  · {file["bytes"]} bytes · {if file["mode"] == "100755",
+                    do: "executable",
+                    else: "regular"}
+                  <details
+                    id={"git-hash-#{@git.id}-#{index}"}
+                    phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
+                  >
+                    <summary>SHA-256</summary><code>{file["sha256"]}</code>
+                  </details>
+                </li>
+              </ul>
+              <p class="fine-print">
+                Commit exact bytes without Git filters, hooks or signing. Explicit file selection
+                also includes ignored files. Files on disk stay unchanged. Nothing is pushed.
+                Interrupted work can leave objects or staged files for inspection.
+              </p>
+              <.form
+                :if={ArenaGit.can_commit?(@git, @now)}
+                for={%{}}
+                id="git-commit-form"
+                phx-change="commit-change"
+                phx-submit="commit-git"
+              >
+                <input type="hidden" name="observation_id" value={@git.id} />
+                <label class="confirm-executable">
+                  <input
+                    type="checkbox"
+                    name="commit_confirmed"
+                    value="true"
+                    checked={@commit_confirmed && @confirmed_preview == @git.id}
+                  />
+                  I reviewed this snapshot and authorize the first local commit, including only these files.
+                </label>
+                <button class="button" disabled={@setup_busy} phx-disable-with="Committing…">Create initial commit</button>
+              </.form>
+              <p :if={!ArenaGit.can_commit?(@git, @now)} role="status">
+                Preview expired. Preview again before confirming.
+              </p>
+            </div>
+          </details>
+          <details
+            id="create-tabula"
+            open={is_nil(@board)}
+            phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
+          >
+            <summary>{if @board, do: "Add another board", else: "Create your board"}</summary>
+            <.form
+              for={%{}}
+              id="tabula-form"
+              phx-change="board-change"
+              phx-submit="create"
+              class="role-fields"
+            >
+              <label for="tabula-name">Tabula name</label>
+              <input
+                id="tabula-name"
+                name="name"
+                type="text"
+                value={@board_name}
+                maxlength="80"
+                required
+              />
+              <p class="fine-print">
+                Inherits Arena team revision {@arena_team.id}. No agent access is granted.
+              </p>
+              <p :if={@board_error} role="alert" class="notice">{@board_error}</p>
+              <button type="submit" class="button" phx-disable-with="Creating…">Create Tabula</button>
+            </.form>
+          </details>
         </details>
         <p :if={@error && is_nil(@board)} role="alert" class="notice">{@error}</p>
         <p :if={@message} role="status">{@message}</p>
@@ -902,8 +953,10 @@ defmodule CuckodingWeb.TabulaLive do
                 <button
                   type="button"
                   class="button"
-                  phx-click="edit"
-                  phx-value-id={task.id}
+                  phx-click={
+                    Phoenix.LiveView.JS.set_attribute({"open", ""}, to: "#draft-editor")
+                    |> Phoenix.LiveView.JS.push("edit", value: %{id: task.id})
+                  }
                   aria-label={"Edit #{task.title}"}
                 >Edit task</button>
               </article>
@@ -915,118 +968,129 @@ defmodule CuckodingWeb.TabulaLive do
         </p>
       </section>
       <section :if={@board} class="panel" aria-labelledby="draft-title">
-        <h2 id="draft-title">
-          {if @revision == 0, do: "New task", else: "Edit task · revision #{@revision}"}
-        </h2>
-        <button type="button" class="button" phx-click="edit" phx-value-id="new">New draft</button>
-        <div :if={@pending_edit} role="alert" class="notice">
-          <p>Discard your unsaved edits and open the selected draft?</p>
-          <button type="button" class="button" phx-click="keep">Keep editing</button>
-          <button type="button" class="button" phx-click="discard">Discard unsaved edits</button>
-        </div>
-        <.form
-          for={%{}}
-          id="draft-form"
-          phx-change="change"
-          phx-submit="save"
-          class="role-fields"
-          aria-describedby={if @error, do: "draft-error"}
-        >
-          <input name="task_id" type="hidden" value={@task_id} />
-          <input name="revision" type="hidden" value={@revision} />
-          <input name="tabula_id" type="hidden" value={@board.id} />
-          <label for="draft-title-input">Task title</label>
-          <input
-            id="draft-title-input"
-            type="text"
-            name="title"
-            value={@content["title"]}
-            maxlength="120"
-            required
-          />
-          <label for="draft-description">Description</label>
-          <textarea id="draft-description" name="description" rows="5" maxlength="8000">{@content["description"]}</textarea>
-          <label for="draft-criteria">Acceptance criteria</label>
-          <textarea id="draft-criteria" name="criteria" rows="4" maxlength="4000">{@content["criteria"]}</textarea>
-          <label for="draft-column">Column</label>
-          <select id="draft-column" name="column">
-            <option value="specs" selected={@content["column"] == "specs"}>
-              Specs · refine the task
-            </option>
-            <option value="todo" selected={@content["column"] == "todo"}>ToDo · planned work</option>
-          </select>
-          <fieldset id="draft-prerequisites" aria-describedby="prerequisites-help">
-            <legend>Prerequisites</legend>
-            <p id="prerequisites-help" class="fine-print">
-              Choose up to 16 tasks that must come first. This records a plan; it does not start work.
-            </p>
-            <input type="hidden" name="depends_on[]" value="" />
-            <label :for={task <- Enum.reject(@tasks, &(&1.id == @task_id))} class="confirm-executable">
-              <input
-                id={"depends-on-#{task.id}"}
-                type="checkbox"
-                name="depends_on[]"
-                value={task.id}
-                checked={task.id in @content["depends_on"]}
-              />
-              {dependency_label(@tasks, task.id)}
-            </label>
-            <p :if={!Enum.any?(@tasks, &(&1.id != @task_id))} class="fine-print">
-              Save another task to add a prerequisite.
-            </p>
-          </fieldset>
-          <p class="fine-print">
-            ToDo needs a description and criteria. These are database drafts; project files stay untouched.
-          </p>
-          <p :if={@error} id="draft-error" role="alert" class="notice">{@error}</p>
-          <button id="draft-save" type="submit" class="button primary" phx-disable-with="Saving…">Save task</button>
-        </.form>
-        <.live_component
-          :if={@revision > 0}
-          module={CuckodingWeb.SpecificationComponent}
-          id="task-specifications"
-          session_id={@session_id}
-          board={@board}
-          task_id={@task_id}
-          revision={@revision}
-          dirty={@dirty || !@form_matches}
-          now={@now}
-        />
-        <details
-          :if={@source}
-          id="draft-source"
-          phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
-        >
-          <summary>Original proposal sources</summary>
-          <p class="fine-print">
-            Proposal {@source.plan_id} · suggestion {@source.index + 1}.
-            These snapshots describe the original import, not later draft edits or live files.
-          </p>
-          <p :if={@source.documents == []} class="fine-print">No task-specific document citations.</p>
-          <CuckodingWeb.PlanningComponent.documents
-            id="draft-source-document"
-            files={@source.documents}
-          />
-        </details>
-        <details
-          :if={@history != []}
-          id="draft-history"
-          phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
-        >
-          <summary>Saved history · latest five revisions</summary>
-          <article :for={revision <- @history} class="team-role">
-            <h3>Revision {revision.revision} · {revision.content["column"]}</h3>
-            <p class="fine-print">{Calendar.strftime(revision.inserted_at, "%Y-%m-%d %H:%M UTC")}</p>
-            <h4>{revision.content["title"]}</h4>
-            <p class="draft-copy">{revision.content["description"]}</p>
-            <p class="draft-copy">{revision.content["criteria"]}</p>
+        <details id="draft-editor" phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
+          <summary id="draft-title">
+            {if @revision == 0, do: "Add a task manually", else: "Edit task · revision #{@revision}"}
+          </summary>
+          <button type="button" class="button" phx-click="edit" phx-value-id="new">New draft</button>
+          <div :if={@pending_edit} role="alert" class="notice">
+            <p>Discard your unsaved edits and open the selected draft?</p>
+            <button type="button" class="button" phx-click="keep">Keep editing</button>
+            <button type="button" class="button" phx-click="discard">Discard unsaved edits</button>
+          </div>
+          <.form
+            for={%{}}
+            id="draft-form"
+            phx-change="change"
+            phx-submit="save"
+            class="role-fields"
+            aria-describedby={if @error, do: "draft-error"}
+          >
+            <input name="task_id" type="hidden" value={@task_id} />
+            <input name="revision" type="hidden" value={@revision} />
+            <input name="tabula_id" type="hidden" value={@board.id} />
+            <label for="draft-title-input">Task title</label>
+            <input
+              id="draft-title-input"
+              type="text"
+              name="title"
+              value={@content["title"]}
+              maxlength="120"
+              required
+            />
+            <label for="draft-description">Description</label>
+            <textarea id="draft-description" name="description" rows="5" maxlength="8000">{@content["description"]}</textarea>
+            <label for="draft-criteria">Acceptance criteria</label>
+            <textarea id="draft-criteria" name="criteria" rows="4" maxlength="4000">{@content["criteria"]}</textarea>
+            <label for="draft-column">Column</label>
+            <select id="draft-column" name="column">
+              <option value="specs" selected={@content["column"] == "specs"}>
+                Specs · refine the task
+              </option>
+              <option value="todo" selected={@content["column"] == "todo"}>
+                ToDo · planned work
+              </option>
+            </select>
+            <fieldset id="draft-prerequisites" aria-describedby="prerequisites-help">
+              <legend>Prerequisites</legend>
+              <p id="prerequisites-help" class="fine-print">
+                Choose up to 16 tasks that must come first. This records a plan; it does not start work.
+              </p>
+              <input type="hidden" name="depends_on[]" value="" />
+              <label
+                :for={task <- Enum.reject(@tasks, &(&1.id == @task_id))}
+                class="confirm-executable"
+              >
+                <input
+                  id={"depends-on-#{task.id}"}
+                  type="checkbox"
+                  name="depends_on[]"
+                  value={task.id}
+                  checked={task.id in @content["depends_on"]}
+                />
+                {dependency_label(@tasks, task.id)}
+              </label>
+              <p :if={!Enum.any?(@tasks, &(&1.id != @task_id))} class="fine-print">
+                Save another task to add a prerequisite.
+              </p>
+            </fieldset>
             <p class="fine-print">
-              Prerequisites (current task names): {case Map.get(revision.content, "depends_on", []) do
-                [] -> "None"
-                ids -> Enum.map_join(ids, "; ", &dependency_label(@tasks, &1))
-              end}
+              ToDo needs a description and criteria. These are database drafts; project files stay untouched.
             </p>
-          </article>
+            <p :if={@error} id="draft-error" role="alert" class="notice">{@error}</p>
+            <button id="draft-save" type="submit" class="button primary" phx-disable-with="Saving…">Save task</button>
+          </.form>
+          <.live_component
+            :if={@revision > 0}
+            module={CuckodingWeb.SpecificationComponent}
+            id="task-specifications"
+            session_id={@session_id}
+            board={@board}
+            task_id={@task_id}
+            revision={@revision}
+            dirty={@dirty || !@form_matches}
+            now={@now}
+          />
+          <details
+            :if={@source}
+            id="draft-source"
+            phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
+          >
+            <summary>Original proposal sources</summary>
+            <p class="fine-print">
+              Proposal {@source.plan_id} · suggestion {@source.index + 1}.
+              These snapshots describe the original import, not later draft edits or live files.
+            </p>
+            <p :if={@source.documents == []} class="fine-print">
+              No task-specific document citations.
+            </p>
+            <CuckodingWeb.PlanningComponent.documents
+              id="draft-source-document"
+              files={@source.documents}
+            />
+          </details>
+          <details
+            :if={@history != []}
+            id="draft-history"
+            phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
+          >
+            <summary>Saved history · latest five revisions</summary>
+            <article :for={revision <- @history} class="team-role">
+              <h3>Revision {revision.revision} · {revision.content["column"]}</h3>
+              <p class="fine-print">
+                {Calendar.strftime(revision.inserted_at, "%Y-%m-%d %H:%M UTC")}
+              </p>
+              <h4>{revision.content["title"]}</h4>
+              <p class="draft-copy">{revision.content["description"]}</p>
+              <p class="draft-copy">{revision.content["criteria"]}</p>
+              <p class="fine-print">
+                Prerequisites (current task names): {case Map.get(revision.content, "depends_on", []) do
+                  [] -> "None"
+                  ids -> Enum.map_join(ids, "; ", &dependency_label(@tasks, &1))
+                end}
+              </p>
+            </article>
+          </details>
         </details>
       </section>
     </Layouts.workspace>

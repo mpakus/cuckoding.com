@@ -366,18 +366,20 @@ defmodule CuckodingWeb.HomeLive do
       <section :if={@live_action == :home} class="panel welcome" aria-labelledby="welcome-title">
         <p class="eyebrow">01 / GET READY</p>
         <h2 id="welcome-title">Build your team.</h2>
-        <p>Connect your agents, choose their roles, then give them an Arena.</p>
+        <p>Set up agents and roles once, then add a folder for each Arena.</p>
         <ol class="steps" aria-label="Setup journey">
           <li class="current"><b>01</b><span>Agents</span></li>
           <li><b>02</b><span>Team</span></li>
           <li><b>03</b><span>Arena</span></li>
-          <li><b>04</b><span>Tabula</span></li>
-          <li><b>05</b><span>Battle</span></li>
+          <li><b>04</b><span>Create tasks</span></li>
+          <li><b>05</b><span>Start</span></li>
         </ol>
         <.link navigate={~p"/agents"} class="button primary">Check your setup
         <span aria-hidden="true">↗</span></.link>
         <.link navigate={~p"/team"} class="button">Choose your team</.link>
-        <p class="fine-print">Start with a check of the tools installed on this Mac.</p>
+        <p class="fine-print">
+          Arena boards are created automatically. Task planning is available; autonomous Start is still in development.
+        </p>
       </section>
 
       <section

@@ -208,6 +208,22 @@ Arena adoption affects only subsequently created Tabulae. Tabula adoption affect
 new planning consent/snapshots; creation references, earlier requests and draft
 history remain unchanged. The UI shows the last five adoptions; all remain stored.
 
+## Simple Arena records (D022)
+
+R002's default board uses the existing `tabulae`, `create_tabula` command and
+`tabula.created` event in the Arena registration transaction. Retrying registration
+returns the same Arena/board; board/event failure rolls everything back. Existing
+Arenas are not backfilled on page reads and existing boards/history stay intact.
+There is no migration in this slice.
+
+Future folder analysis must retain root identity, versioned read policy/limits,
+frozen eligible-file text/hash manifest, skipped/truncated entries and the scoped
+provider/team snapshot. Automatic imports need proposal/index receipts, dependency
+mapping, revision guards and an atomic batch; retries/reconnects cannot duplicate
+cards or overwrite edits. New battle snapshots/attempt/review records remain
+separate from planning read intent and model observations. These are requirements,
+not tables already implemented; retain old selected-file and import receipts.
+
 ## Target records (not the current schema)
 
 | Record | Durable fields / invariant |

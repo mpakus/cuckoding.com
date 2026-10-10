@@ -1,6 +1,6 @@
 # Architecture
 
-## Implemented boundary · reviewed 2026-10-08
+## Implemented boundary · reviewed 2026-10-10
 
 Cuckoding currently delivers authenticated setup, draft planning and consented worktree preparation and read-only inspection. It does
 **not** yet run battles, worktree task attempts, review loops or parallel workers.
@@ -100,6 +100,24 @@ not a new dispatcher worker. Team filters new pickers against saved ID/model pai
 while validating historical bindings against the complete catalog. No new schema,
 runtime abstraction or dependency is introduced for R020h.
 
+## Simple Arena boundary (D022)
+
+R002 creates a default Tabula in the same registration transaction as its Arena,
+using Tabulae's existing command/event writer. The registration key owns replay;
+board failure rolls back registration and both events. Broadcast follows commit.
+No schema, filesystem grant, worker or dependency is added. The Arena route reads
+its first existing board; a GET never creates one. Explicit board URLs retain
+selection. Advanced preserves separate Arena and board team adoptions and their
+revision guards; planning and the optional task editor reuse existing components.
+
+Next, extend PlanningDocuments with a versioned bounded folder inventory/snapshot
+contract, then Planning/Tabulae with automatic validated batch import. Existing
+source receipts and user edits remain authoritative. Future Start adds durable
+battle admission/attempt/review evidence, reusing the native ownership boundary.
+Removing visible setup steps does not remove host validation or make LiveView a
+workflow owner. [Plan](PLAN.md#next-delivery-order--simple-arena) separates these
+unfinished capabilities from the implemented UI simplification.
+
 ## Target components
 
 ```mermaid
@@ -180,6 +198,6 @@ new connections own their version/account/catalog fields. Foundation freezes IDs
 in commands and updates only that projection plus the global setup revision.
 Model-selection commands are retrieved per connection. Team/Planning/Battle preview
 resolve the assigned connection; Codex planning uses its exact profile. Cursor
-setup uses fixed native CLI operations and cannot infer or plan. Settings is a
+setup uses fixed native CLI operations and cannot infer or plan. Agents is a
 roster plus one existing four-step wizard per connection. The dispatcher remains
 serialized. See [D021](DECISIONS.md#d021--named-local-agent-connections).

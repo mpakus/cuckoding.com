@@ -1,6 +1,7 @@
 defmodule Cuckoding.ArenasTest do
   use Cuckoding.DataCase
-  alias Cuckoding.{Arena, Arenas, Command, Event, Foundation, NativeHelper, Team}
+  alias Cuckoding.{Arena, Arenas, Command, Event, Foundation, NativeHelper, Tabula, Tabulae, Team}
+  alias Ecto.Adapters.SQL
 
   setup do
     root = "/private/tmp/cuckoding-arena-#{Ecto.UUID.generate()}"
@@ -48,6 +49,14 @@ defmodule Cuckoding.ArenasTest do
     assert {:error, :key_conflict} = Arenas.register(key, choice.id, "Other", true)
     assert arena.team_revision_id == 1
     assert arena.git_entry == "absent"
+    assert [board] = Tabulae.list(arena.id)
+    assert board.team_revision_id == arena.team_revision_id
+
+    assert Enum.map(board.definition["columns"], & &1["key"]) ==
+             ~w(specs todo in_process review completed)
+
+    assert Repo.get!(Command, board.command_id).state == "completed"
+    assert Enum.any?(Repo.all(Event), &(&1.kind == "tabula.created"))
 
     assert hd(Arenas.list()).team_revision.definition["roles"] |> hd() |> Map.fetch!("name") ==
              "Speculator"
@@ -59,6 +68,31 @@ defmodule Cuckoding.ArenasTest do
     assert Repo.aggregate(Arena, :count) == 1
     refute Foundation.pending?()
     assert {:ok, nil} = Foundation.claim()
+  end
+
+  test "a default board failure rolls back registration and both events", %{root: root} do
+    folder = Path.join(root, "atomic")
+    File.mkdir!(folder)
+    choice = select(folder)
+    key = Ecto.UUID.generate()
+    events = Repo.aggregate(Event, :count)
+
+    SQL.query!(
+      Repo,
+      "CREATE TEMP TRIGGER reject_board_event BEFORE INSERT ON events WHEN NEW.kind = 'tabula.created' BEGIN SELECT RAISE(ABORT, 'fixture failure'); END",
+      []
+    )
+
+    assert_raise Exqlite.Error, fn -> Arenas.register(key, choice.id, "Atomic", true) end
+    SQL.query!(Repo, "DROP TRIGGER reject_board_event", [])
+
+    assert Repo.aggregate(Arena, :count) == 0
+    assert Repo.aggregate(Tabula, :count) == 0
+    assert Repo.aggregate(Event, :count) == events
+    refute Repo.get(Command, key)
+    assert File.ls!(folder) == []
+    assert {:ok, arena} = Arenas.register(key, choice.id, "Atomic", true)
+    assert [_] = Tabulae.list(arena.id)
   end
 
   test "empty, document, unborn, regular and linked Git metadata remain unverified", %{root: root} do

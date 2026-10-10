@@ -1,7 +1,7 @@
 defmodule Cuckoding.Arenas do
   @moduledoc "Local folder registration; no Git writes, content scans or execution grants."
   import Ecto.Query
-  alias Cuckoding.{Arena, Command, Foundation, Repo, Team, TeamRevision}
+  alias Cuckoding.{Arena, Command, Foundation, Repo, Tabulae, Team, TeamRevision}
 
   def list,
     do: Repo.all(from a in Arena, order_by: [desc: a.inserted_at], preload: :team_revision)
@@ -158,6 +158,8 @@ defmodule Cuckoding.Arenas do
           %{"arena_id" => arena.id, "team_revision" => choice.expected_revision},
           id
         )
+
+        Tabulae.create_default!(arena)
 
       _ ->
         Foundation.record("arena.rejected", %{"reason" => reason}, id)

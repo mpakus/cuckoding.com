@@ -16,6 +16,12 @@ a named Codex/Cursor roster and per-role agent/model selections. Broader
 real-account acceptance and repository execution remain R020 work. The previous source
 reset remains intentional; do not restore the deleted implementation wholesale.
 
+R002 simplifies the Arena surface and creates a default board during registration.
+The target is **Add folder → Create tasks → Start**. The current UI still requires
+selected document paths and individual proposal imports; folder analysis and
+actual Start are pending. [Plan](PLAN.md#next-delivery-order--simple-arena) owns
+those next gates; a disabled Start is not an execution feature.
+
 ## Build and open
 
 Apple Silicon prerequisites: Xcode command-line tools, RTK, asdf with the pinned
@@ -98,24 +104,28 @@ To replace a changed model behind the same catalog ID, clear/save the binding
 then explicitly select/save it again. Saving starts no agent; execution grants
 remain later work. Use only non-secret role instructions.
 
-In **Arenas**, choose an existing directory in the native macOS dialog, enter a
-name and confirm the displayed path/team before **Register Arena**. The dialog
+In **Arenas**, choose an existing directory in the native macOS dialog, keep or
+edit its suggested name and confirm the displayed path/team before **Add Arena**.
+The default Tabula is saved atomically and opens immediately. The dialog
 cannot create folders, expires after two minutes and can be cancelled from either
 surface. Registration records metadata only. `.git` presence is unverified;
 registration runs no Git commands. Expand the registration team to inspect its
-frozen revision. To update future-board defaults, open the Arena and expand
-**Arena team**, review both rosters and confirm **Adopt saved team**. Existing
+frozen revision. To update future-board defaults, open **Advanced → Arena team**, review both rosters and confirm **Adopt saved team**. Existing
 boards stay unchanged; each has a separate **Tabula team** adoption control.
-**Arena settings** on a board returns to the Arena control. Adoption needs fresh
+Both scope controls remain in Advanced. Adoption needs fresh
 confirmation after another team edit and waits for that board's active planning
 to finish/cancel. It preserves drafts and earlier planning receipts.
 Home/ancestor, system, known credential and application-data roots are refused.
 Duplicates and changed directory identities require a different/reselected folder.
 After interruption choose again explicitly; no dialog is automatically replayed.
 
-Choose **Open Tabulae** on a registered Arena, name a board and **Create Tabula**.
-It inherits that Arena's team revision, even if global defaults have changed.
-Enter a task title, description and acceptance criteria, then **Save task**.
+Choose **Open Arena** to return to its first board; explicit board URLs and the
+selector preserve other boards. **Advanced → Add another board** creates extra
+Tabulae with the Arena's team, even if global defaults changed. Old Arenas without
+boards offer explicit creation; opening a page never creates data.
+**Create tasks · with Speculator** opens by default on an empty board and uses the
+existing brief/selected-document proposal flow. For manual work, expand **Add a
+task manually**, enter a title, description and criteria, then **Save task**.
 Use **Edit task** and the **Column** select to move between Specs and ToDo;
 ToDo requires nonblank description and criteria. Use **Prerequisites** to check
 up to sixteen other tasks in this board that must come first. Tab/Space operate
@@ -130,7 +140,7 @@ files, Git commands or agent work are involved in manual draft saves.
 Brief/document Speculator planning and accepted Markdown specifications are
 available; custom stages and battle execution remain unavailable.
 
-Expand **Repository setup** in the Arena's Tabulae screen and choose **Inspect Git**.
+Expand **Advanced → Repository setup** in the Arena and choose **Inspect Git**.
 This checks standalone Git metadata using `/usr/bin/git` from the installed macOS
 command-line tools; it does not read or stage working files. Missing repositories
 offer a checkbox and **Initialize Git**. Confirmation is valid for that observation

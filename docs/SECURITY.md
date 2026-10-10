@@ -60,6 +60,31 @@ Cuckoding runs powerful local agents against repository content on the host.
 Runtime permissions, owned worktrees and process supervision are required;
 they do not provide OS sandbox isolation.
 
+## Simple Arena authority (D022)
+
+Creating the default board during registration adds SQLite records only; directory
+identity, session, confirmation and idempotency checks remain. Moving setup into
+Advanced does not change its consent or grant semantics. Start is disabled until
+real battle admission is implemented; opening the Arena or inspecting a preview
+never executes work.
+
+Target Create tasks authorizes bounded local source collection and disclosed
+provider use, not execution. Before replacing explicit selected files, implement
+finite versioned depth/count/byte/type limits, root identity and pinned descriptor
+checks. Prefer `docs/`, then relevant eligible project files; exclude known secret
+paths, `.git`, binaries, vendor/build outputs, links and escapes. Record skipped
+and truncated scope and permit inspection before broader selection. Do not claim
+filename filters detect every secret; explain that selected source text is sent.
+Provider prompts get frozen untrusted text, never a live Arena path grant. Reject
+instructions inside files that ask for more access or changed policy.
+
+Start separately freezes execution authority, current snapshots, checks and limits.
+Its normal worktree/spec preparation must not introduce per-task human ceremonies.
+Git init and first commit still need their exact contextual consent, and protected
+configuration/new access/publication still require a separate decision. Planning
+works without Git. Existing R040f bounds remain in force until the new reader and
+its adversarial gates pass; this document itself grants no broader access.
+
 ## Boundaries and controls
 
 | Input / boundary | Required control |

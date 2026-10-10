@@ -1,153 +1,112 @@
 # Interface contract
 
-Minimal, futuristic and modern; TUI-inspired but fully mouse-friendly.
-Use Phoenix LiveView, HEEx and Tailwind. No terminal emulator, second frontend
-framework or decorative control-room graphics.
+**Add folder → Create tasks → Start.** One Arena page becomes its working dashboard;
+agent/model/role setup is saved once. Phoenix LiveView, HEEx and Tailwind remain
+the stack. [Flow](FLOW.md) owns transitions/authority; [Plan](PLAN.md) tracks delivery.
 
 ## Visual structure
 
-A slim sidebar and one main working surface. Each view shows **one or two primary
-objects**: a list/board plus an optional inspector. “One or two” means content
-regions, not two tasks; a Tabula still shows all its columns. Use generous empty
-space, restrained borders, crisp type, monochrome surfaces and one accent color.
-Use text/icons alongside status colors. Monospace suits labels, IDs and logs;
-body text must stay comfortable to read.
-
-R018 uses near-black `#050807`, dark-green panels `#0b110e`, electric-green
-`#82ff52` focus/actions and off-white body text. Angular borders and a restrained
-sidebar gradient echo the public cybernetic Arena without decorative app artwork.
-Mobile form text is 16px; navigation remains one horizontal scrollable row.
-Respect accessible contrast and OS reduced motion.
-Avoid blinking cursors, decorative animation and dense analytics cards. Motion
-only clarifies a state change; controls remain usable without it.
+A slim sidebar and one or two primary regions: the board and an optional inspector.
+A Tabula still shows every column; the region limit is not a card limit. Keep the
+black/green, futuristic mouse-friendly TUI: near-black `#050807`, dark-green panels
+`#0b110e`, electric-green `#82ff52` focus/actions and off-white readable body text.
+Use crisp borders, generous space and monospace labels/logs. No decorative control
+room, blinking cursor, terminal emulator, extra framework or analytics clutter.
+Motion clarifies changes and respects reduced motion. Status includes text/icons.
+Mobile form text is at least 16px; sidebar navigation becomes one scrollable row.
 
 Sidebar: **Tabula Gladiatorum**, **Arenas**, **Agents**, **Team**, **Settings**.
+Explain names initially: Arena · project, Tabula · board, Summa Rudis · coordinator,
+Secutor · completion review. No competing start screen or separate Agent Floor.
 
-R040a enables Arenas with two regions: folder selection/confirmation and registered
-projects. Show the canonical path, unverified Git-entry observation and expandable
-frozen team before registration. Native selection shows elapsed time and Cancel;
-no agent/model is involved. Preserve name, errors and expanded roles through updates.
-The project dashboard below remains future work.
-No separate Agent Floor, knowledge graph or competing start screen.
+## Arena states
 
-R040b adds an Arena-scoped board selector, collapsed board creation and two primary
-regions: a horizontally scrollable five-column Tabula and a manual task editor.
-Each stage names its inherited role; unavailable delivery stages say so in text.
-Cards show draft revision and no active agent. The labelled Column select provides
-Specs/ToDo movement without dragging; errors stay beside Save. Dirty edits survive
-live updates, discard is confirmed inline, and recovered forms cannot target a
-different task. Saved history is collapsed and limited to the latest five revisions.
-
-R040c places **Repository setup** inside the board region as a native disclosure.
-Inspect Git shows a durable dated status, validated HEAD when available, and
-elapsed time/Cancel while active. A recent missing result reveals a separately
-confirmed Initialize Git form that names the path and exact `.git` effect. Keep
-the checkbox bound to its observation through reconnect and reject stale consent.
-No agent or model is involved. Git problems must not block the manual task editor.
-
-R040d extends that disclosure with one relative path per line and a separate
-preview/commit form. Blank input explicitly means an empty baseline. Render exact
-paths, sizes, modes, collapsible hashes, branch, fixed author/message and distinct
-confirmation. Preserve edited paths across updates; recovered/stale consent cannot
-commit another selection. No drag/file browser or per-file content viewer is needed.
-
-## Screens
-
-| Screen | Primary content | Main action |
+| State | Main surface | Primary action |
 | --- | --- | --- |
-| First launch | One setup card with Agents → Team → Arena → Tabula → Describe | Continue |
-| Agents | Four-step agent wizard, one step at a time | Continue / authorize / select / save |
-| Team | One role editor with collapsed history | Save team |
-| Arena creation | Name + native folder chooser; Git status and mutation preview | Create Arena |
-| Tabula setup | Default columns and role assignments; collapsed optional settings | Create Tabula |
-| Describe | Brief/file selection; proposed spec/task list | Create tasks |
-| Global Tabula Gladiatorum | Arena summary list; expandable current worker/activity detail | Open Arena |
-| Arena Tabula Gladiatorum | Arena progress/team strip and selected Tabula board | Start battle / Pause |
-| Task inspector | Spec, candidate, review comments and attempt history | Contextual resume/retry/inspect |
-| Logs | Scrollable, paginated public activity and redacted output | Follow tail / open log file |
+| Add folder | Native chooser, suggested folder name and saved-team summary | Add Arena |
+| Empty Arena | Short optional brief, source summary, empty default board | Create tasks |
+| Analyzing | Phase, elapsed time, Speculator/runtime/model, source scope | Cancel |
+| Tasks ready | Editable cards, compact team/progress and Start scope | Start |
+| Running | Same board with automatic moves and current workers | Pause; Stop available |
+| Needs attention | Concrete blocker, what was tried, smallest repair | Resolve / Resume |
+| Completed | Reviewed local result, criteria and evidence | Inspect result |
 
-Show plain explanations beside unfamiliar names initially: “Arena · project”,
-“Tabula · board”, “Summa Rudis · coordinator”, “Secutor · final review”.
-The Arena dashboard contains the selected Tabula, avoiding an extra navigation
-hop to see tasks. A Tabula selector supports multiple saved boards.
+Adding the folder defaults its name and creates the five-column board with its
+inherited team. Navigate straight to `/arenas/:id`; registration performs no
+content read, Git mutation or agent launch. Do not require another board creation.
+Existing Tabula deep links remain usable. Never create a board from a GET/mount.
+Existing Arenas with no boards need one explicit Create board recovery action;
+existing multiple boards keep their selection/URLs and are not merged or deleted.
 
-The current Team screen uses native disclosures, labelled text fields/selects,
-one Save action and explicit saved-role removal confirmation. Four responsibilities
-cannot be removed; names and instructions can change. New model choices come from
-the saved wizard choices intersected with the fresh verified Codex catalog.
-Legacy unsaved selections use the full catalog. Saved stale/missing/changed bindings stay visible.
-It shows catalog availability separately from a passing diagnostic and never claims
-execution is enabled. Errors and dirty drafts survive live updates; stale saves
-are rejected, Reload saved asks before discarding edits, and saved state survives
-reconnect. The form retains its original revision guard during browser recovery.
-History is read-only and limited to the latest five entries on screen.
+Create tasks explains that Speculator analyzes `docs/` and relevant eligible files
+within a bounded source policy. A short brief is optional when sources are useful;
+an empty folder needs a brief. Show read/provider-use scope before dispatch, then
+sources and skipped/truncated entries in Inspect. The target needs no pasted path
+list or per-suggestion import. Preserve manual editing and source provenance.
 
-## Live activity
+Start is the canonical visible label. Run/Fight are not separate modes. Its compact
+summary names scope/team/limits; contextual Git or permission requirements appear
+inline when necessary. Routine preparation is automatic after authorization.
+Do not require visiting Battle preview, accepting every spec or preparing each
+worktree manually. Keep unavailable behavior explicit, with explanatory text next
+to a disabled Start until the execution path is implemented.
 
-Every active row/card shows task, current role/worker, agent, requested model
-(and actual model if reported), public activity, state, elapsed active/wall time
-and a safe control. A cloned worker has a distinct label such as Implementor 2.
-Show waiting reasons and last activity time. A running spinner alone is insufficient.
+Advanced contains additional boards, custom roles/columns, scoped team adoption,
+repository setup, project check declarations and retained worktree inspection.
+Existing confirmations, audit/history and stale-form guards still apply there.
+Do not collapse an active operation into an invisible state; show progress/cancel
+and a link to its details. Optional advanced controls must not occupy the normal
+empty-state checklist. The board selector is unnecessary when only one exists.
 
-Progress is completed/total authorized tasks, active count, blocked/skipped count
-and criteria status; never an invented percent of model thinking. Scope changes
-update the denominator visibly. The global and Arena dashboards derive from the
-same committed records. Closing/reopening the browser loses no progress.
+## Task and activity inspector
 
-Logs open in the inspector or a dedicated view with follow-tail off when the
-user scrolls upward, keyboard navigation, loading older chunks and “Open log
-file” for a real authorized redacted file. Show timestamp, role and attempt
-filters. Preserve full available evidence separately from bounded UI windows;
-record truncation rather than imply unbounded retention.
+Clicking a card opens its spec, criteria, original sources, candidate, review
+comments and attempts. Editing and manual column movement use the same domain
+gates as automated moves; dragging into Completed can never forge a review.
+Keep manual draft creation available as a secondary action.
+
+Active cards show task, role/worker, agent, requested model (actual when reported),
+public activity, elapsed time, waiting reason and relevant controls. Parallel
+instances have distinct labels, such as Implementor 2. No private chain-of-thought.
+Progress uses completed/authorized tasks, active/blocked counts and criteria,
+never an invented percent of model thinking. Scope changes alter the denominator
+visibly. Global and Arena Tabula Gladiatorum use the same committed records.
+
+Logs open in Inspect with pagination, keyboard access and optional follow-tail;
+scrolling up stops following. Link only to actual authorized redacted log files.
+Expose timestamp/role/attempt filters and truncation. Browser reconnect retains
+progress and available evidence; a spinner alone is not sufficient activity.
 
 ## Interaction rules
 
-One obvious primary action per state. Start battle previews the saved bindings,
-scope and finite limits once. Routine work then progresses autonomously. Genuine
-attention items state what failed, what the team tried and what input is needed.
-Keep technical adapter errors in Inspect; show useful recovery text in the flow.
+One obvious primary action per state. Useful errors stay visible beside the
+relevant control; technical adapter details belong in Inspect. Genuine attention
+states explain the needed input. Use existing accessible HEEx forms/dialogs,
+LiveView/domain validation and small hooks only for native browser behavior.
+Preserve text, focus, scroll, checked state and disclosures through live updates.
+Provide keyboard/menu alternatives to every drag action, focus return, adequate
+targets, non-color status and quiet screen-reader announcements.
 
-Use reusable HEEx form/dialog components; one accessible modal convention,
-validation in LiveView/domain contexts, small hooks only for native behavior.
-Preserve entered text, checked state, scroll position, focus and disclosures during live updates.
-Profile confirmations are action-specific LiveView state: preserve them through
-clock/unrelated updates, clear on submission or setup changes, and refuse recovery
-from an earlier form key/revision. A new page session starts unchecked.
-Validation errors remain visible and linked to fields.
+Profile confirmations remain action-specific and revision-guarded: consume the
+submitted action, retain unrelated selections, reject stale recovery and clear
+profile consent on executable/account changes. Fresh connection inspection clears
+model-usage consent while preserving selected models. Hide sign-in when connected.
+Team is one revisioned role editor; stale bindings stay visible and never silently
+fall back. Saving settings does not grant execution.
 
-Drag-and-drop is optional: menu/keyboard actions provide every allowed move.
-Manual column moves invoke the same gates as automated moves; dragging into
-Completed cannot forge a review. Provide focus return, clear focus rings,
-screen-reader labels, live announcements without event spam, adequate targets
-and horizontal board scrolling on narrow widths. No color-only status.
+## Incremental delivery
 
-R040e adds one **Ask Speculator** disclosure above the board. Show the frozen
-role/model/team, a brief textarea and explicit provider-usage consent. Preserve
-brief, focus and disclosure state through live updates; clear consent if setup
-changes. Requests show state, elapsed time, owner/runtime/model and Cancel while
-active. Each validated suggestion has one **Add to Specs** button, replaced by
-**Added to Specs** after import. Keep unrelated unsaved manual drafts intact.
-Show source brief/snapshots and the five recent requests (active first) after
-reconnect. R040f nests an optional local document preview: explicit relative paths,
-read state, exact expandable text/hash and separate provider consent. Changing
-selection clears consent; **Use brief only** omits snapshots. Reconnect retains
-evidence but requires explicit snapshot selection. Describe these as proposals
-with no live Arena access, tools, accepted specs or delivery work.
+R002 creates a default board with each new Arena, suggests its folder name and
+opens the board immediately. Existing Arena routes read their first board without
+creating records. Planning opens on empty boards; repository/team/extra-board
+controls are under Advanced and manual editing is an optional disclosure.
+The application retains its consented brief/selected-document Speculator flow
+and individual proposal imports. Folder-wide analysis, automatic
+card creation and actual Start remain pending. Early UI simplification must label
+these limits accurately; it cannot relabel a proposal request as completed task
+creation. [Development](DEVELOPMENT.md) describes available operations.
 
-R050b places **Isolated worktrees** inside Repository setup. The consent form
-shows exact commit and destination and expires with its five-minute Git observation.
-Changes clear stale consent. Native disclosures remain open across live updates;
-progress names the user, system Git, no model, elapsed time and Cancel. The latest
-ten retained attempts show status/paths after reconnect. Creation is explicitly
-separate from Start and from a current-integrity claim; partial effects require
-inspection and are never presented as rolled back.
-
-R050c adds **Inspect worktree** beside each completed preparation. It keeps keyboard
-focus during pending state using `aria-disabled` and a server-side busy guard.
-The result names its UTC time and conservative byte comparison; progress shows
-user/system Git/no model, elapsed time and Cancel. Reconnect retains the latest
-observation, while text explicitly requires a fresh check before use. No repair,
-delete or execution action is implied by either unchanged or changed results.
+## Agent wizard and routes
 
 R020i makes `/agents` the agent roster, with one **Add agent** action and an
 **Edit** link per named connection. `/agents/new` and `/agents/<ID>` use the

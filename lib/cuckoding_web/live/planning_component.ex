@@ -198,9 +198,14 @@ defmodule CuckodingWeb.PlanningComponent do
     <details
       id="brief-planning"
       class="git-setup"
+      open={@empty}
       phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
     >
-      <summary>Ask Speculator · brief and documents</summary>
+      <summary>Create tasks · with Speculator</summary>
+      <p>Describe the work to get task suggestions. You can also attach selected documents below.</p>
+      <p class="fine-print">
+        This preview still needs selected file paths and an Add to Specs action for each suggestion. Automatic folder analysis and card creation are coming next.
+      </p>
       <p class="fine-print">
         {@setup.role["name"]} · {Cuckoding.Agents.display(@setup.role["agent"])} · {if @setup.payload,
           do: @setup.payload["model"],
@@ -208,7 +213,7 @@ defmodule CuckodingWeb.PlanningComponent do
       </p>
       <p :if={!@setup.token && is_nil(@preview_id)} class="notice">
         Planning currently requires a Speculator assigned to a connected Codex agent and model. Cursor can be assigned in Team; its planning support is not enabled yet.
-        After saving a model on Team, open Tabula team above to adopt that saved revision.
+        After saving a model on Team, open Advanced → Tabula team to adopt that saved revision.
       </p>
       <details id="planning-documents" phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
         <summary>Optional documents · preview locally</summary>
@@ -321,7 +326,7 @@ defmodule CuckodingWeb.PlanningComponent do
         <p :if={@message} role="status">{@message}</p>
         <button
           type="submit"
-          class="button"
+          class="button primary"
           disabled={!@setup.token || @busy}
           phx-disable-with="Starting…"
         >Generate proposals</button>

@@ -90,6 +90,17 @@ defmodule Cuckoding.Tabulae do
     end
   end
 
+  # Registration owns the transaction, replay key and post-commit broadcast.
+  def create_default!(%Arena{id: arena_id}) do
+    true = Repo.in_transaction?()
+
+    %Command{state: "completed"} =
+      persist(Ecto.UUID.generate(), "create_tabula", 0, %{
+        "arena_id" => arena_id,
+        "name" => "Tabula"
+      })
+  end
+
   def save(key, arena_id, tabula_id, task_id, expected, attrs) do
     with {:ok, key} <- Ecto.UUID.cast(key),
          {:ok, arena_id} <- Ecto.UUID.cast(arena_id),

@@ -85,3 +85,21 @@ checks, final compression counts and results. Documentation validation does not
 prove implementation, runtime support, ten-minute setup or packaged-app behavior.
 This reset preserves the user's original deletions and leaves application work
 at R010. No commit or remote publication is implied.
+
+## 2026-10-10 · Simple Arena follow-up
+
+The original story still requires reusable agent/model roles, default/custom boards,
+Summa Rudis coordination, independent Secutor review, parallel workers and both
+dashboards. The user's clarification changes the normal path to **Add folder →
+Create tasks → Start**. Separate Tabula setup, Describe/import ceremonies and
+worktree preparation should not be mandatory screens.
+
+Current source exposed those steps across ArenaLive, TabulaLive and
+PlanningComponent. R002 implements the first UI slice: automatic board registration,
+direct Arena opening, prominent planning and Advanced technical controls. It does
+not implement folder analysis, batch card creation or battle execution. README,
+AGENTS, Product, Flow, UI, D022, Plan and verification now state that distinction.
+Repeated historical screen-by-screen instructions were removed from Flow/UI;
+Development, data/security contracts and original task/worklogs retain evidence.
+The next implementation order is R040l → R040m → provider execution → R050d/e.
+See [R002 evidence](../worklog/2026-10-10-R002-simple-arena-contract.md).

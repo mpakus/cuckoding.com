@@ -38,6 +38,7 @@ defmodule CuckodingWeb.ArenaLiveTest do
     {:ok, claim} = Foundation.claim()
     Foundation.finish(claim, %{"status" => "selected", "path" => root})
     assert has_element?(view, "#arena-form")
+    assert has_element?(view, "#arena-name[value='#{Path.basename(root)}']")
     assert render(view) =~ "No .git entry"
     view |> form("#arena-form", name: "My project") |> render_submit()
     assert render(view) =~ "confirm the displayed folder"
@@ -47,9 +48,13 @@ defmodule CuckodingWeb.ArenaLiveTest do
     Team.save(Ecto.UUID.generate(), 1, Team.editable(Team.current()))
     assert has_element?(view, "#preview-team", "revision 1")
     assert has_element?(view, "#preview-team[phx-mounted*=ignore_attrs]")
-    view |> form("#arena-form", confirmed: "true") |> render_submit()
-    assert render(view) =~ "My project registered locally"
-    refute has_element?(view, "#arena-form")
+    result = view |> form("#arena-form", confirmed: "true") |> render_submit()
+    {:ok, board_view, _} = follow_redirect(result, signed)
+    assert has_element?(board_view, "#tabula-board")
+    assert has_element?(board_view, "#brief-planning[open]")
+    refute has_element?(board_view, "#arena-advanced[open]")
+    assert has_element?(board_view, "#arena-start[disabled]", "Start")
+    assert has_element?(board_view, "#arena-start-help", "not available yet")
     assert {:ok, again, _} = live(signed, "/arenas")
     assert render(again) =~ "My project"
     assert hd(Arenas.list()).team_revision_id == 1

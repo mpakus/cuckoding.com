@@ -8,8 +8,8 @@ Current R020i provides a roster of named Codex and Cursor connections. Each uses
 an independent app-owned profile, observed account status, bounded catalog and
 saved model selection. Existing Codex profiles and immutable Team bindings keep
 their original identity. Codex's fixed model diagnostic has real GPT-6.1-Sol
-response evidence from R020h; Cursor supports setup only, with real signed-in
-catalog acceptance still pending. Repository execution remains unavailable.
+response evidence from R020h; Cursor supports setup only, with a real 256-entry
+catalog recorded in [R020l](../tasks/R020l-cursor-catalog.md). Repository execution remains unavailable.
 Login/logout invalidate only that connection's observations before launch.
 
 Login uses a ten-minute managed browser flow. A validated official HTTPS URL is
@@ -49,6 +49,10 @@ Open **Agents** to see saved connections, then **Add agent**:
 4. **Save** — retain an audited selection for this connection. Then **Team** lets
    each role choose its own agent and one of that agent's saved models. A model
    from another connection cannot be submitted as a substitute.
+
+After this reusable setup, the target project path is **Add folder → Create tasks
+→ Start**. Arena's default board inherits the saved team; ordinary cards never
+ask for another agent/model assignment. Summa Rudis and Secutor remain distinct.
 
 New Arenas inherit the default Team. Existing scoped adoptions and historical
 bindings do not change when another agent is added. Codex planning uses the exact

@@ -8,6 +8,9 @@ and full-story gates remain open. Historical test counts do not establish proof.
 
 | Slice | Smallest required evidence |
 | --- | --- |
+| R002 / R040k | Registration/default-board atomic rollback and replay, frozen team, unchanged folder, immediate navigation, existing/empty/multiple boards without GET writes, Advanced and draft disclosure keyboard behavior, live form preservation, honest disabled Start and responsive rendering |
+| R040l/m | Bounded folder inventory/snapshots, excluded/link/secret canaries, limits/truncation/identity drift, empty-folder brief, automatic graph import, duplicate/late results, rollback/restart and reanalysis preserving user edits |
+| R050d/e | One bounded Start, contextual admission/Git consent, automatic worktree preparation and card movement, forced independent review return through Speculator, exact-candidate evidence and no routine per-task prompts |
 | R010 | Clean migration + prior-data isolation, event/command idempotency, shell authentication/replay/loopback, graceful Quit |
 | R015 | Static links/assets/scope, motion and denied-storage behavior, desktop/narrow/keyboard inspection; [commands](SITE.md#preview-and-checks) |
 | R017 | Brand export reproducibility, four three-layer scenes, alpha, crossing weapons, all-layer pause/reduced motion, desktop/narrow rendering and renamed bundle smoke |
@@ -58,10 +61,15 @@ scripts that are absent; Development owns the exact runnable quality commands.
   and catalog. Repeat provider acceptance for every advertised adapter.
 - [ ] Save Speculator, Implementor, Secutor and Summa Rudis; add a named role with
   its own agent/model and explicit grant.
-- [ ] Create empty and existing-document Arenas; decline Git init once and prove
-  no mutation, then consent and inspect the baseline commit.
-- [ ] Create default Tabula, add a custom column/role, generate tasks from brief
-  and docs, inspect criteria and edit before starting.
+- [ ] Add empty and existing-document folders; each opens its default board and
+  saved team without separate board setup. Reopening creates no duplicate board.
+- [ ] Create tasks from `docs/` and eligible folder files without a manual path
+  list or individual imports; inspect sources/criteria, edit, then reanalyze without
+  overwriting those edits. Empty folders accept a brief. No Git prerequisite.
+- [ ] Start from the same Arena; decline contextual Git initialization and prove
+  no mutation or lost planning, then consent to the exact necessary baseline.
+- [ ] Separately exercise Advanced custom columns/roles without making them part
+  of the normal first-project path. They cannot bypass independent review.
 - [ ] Start once; observe Summa Rudis dispatch and Secutor return comments;
   Speculator revises and Implementor repairs without routine approval prompts.
 - [ ] Run two independent workers simultaneously and a dependent task afterward;

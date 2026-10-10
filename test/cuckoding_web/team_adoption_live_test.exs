@@ -71,7 +71,7 @@ defmodule CuckodingWeb.TeamAdoptionLiveTest do
     team = next_team("Arena planner")
     signed = sign_in(conn)
     {:ok, settings, _} = live(signed, "/arenas/#{arena.id}")
-    settings |> form("#scope-team-form", confirmed: "true") |> render_submit()
+    settings |> form("#arena-team-form", confirmed: "true") |> render_submit()
     assert has_element?(settings, "#tabula-form", "Inherits Arena team revision #{team.id}")
     result = settings |> form("#tabula-form", name: "New board") |> render_submit()
     {:ok, new_view, _} = follow_redirect(result, signed)

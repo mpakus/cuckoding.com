@@ -27,6 +27,13 @@ Dated observations require fresh validation at future execution admission.
 The first runner is a supervised host process runner using Git worktrees.
 There are no containers, remote workers or claimed host sandbox boundaries.
 
+The target Arena exposes one **Start** action. Ordinary owned worktree creation,
+fresh inspection and stage dispatch belong to that bounded battle authority;
+users should not prepare every checkout manually. Current preparation/inspection
+utilities remain in Advanced and do not authorize a battle. Folder analysis is
+read-only planning and requires neither Git initialization nor an execution grant.
+See [D022](DECISIONS.md#d022--simple-arena) and [Flow](FLOW.md).
+
 ## Owned execution
 
 Each task attempt has a recorded worktree/branch/base, run directory, generated

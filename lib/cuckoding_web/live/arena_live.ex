@@ -10,11 +10,13 @@ defmodule CuckodingWeb.ArenaLive do
       Process.send_after(self(), :tick, 1_000)
     end
 
+    choice = Arenas.selection()
+
     {:ok,
      socket
      |> assign(
-       choice: Arenas.selection(),
-       name: "",
+       choice: choice,
+       name: suggested_name(choice),
        confirmed: false,
        error: nil,
        message: nil,
@@ -29,7 +31,7 @@ defmodule CuckodingWeb.ArenaLive do
       {:ok, command} ->
         {:noreply,
          socket
-         |> assign(choice: command, confirmed: false, error: nil, message: nil)
+         |> assign(choice: command, name: "", confirmed: false, error: nil, message: nil)
          |> refresh()}
 
       _ ->
@@ -60,16 +62,7 @@ defmodule CuckodingWeb.ArenaLive do
 
     case result do
       {:ok, arena} ->
-        {:noreply,
-         socket
-         |> assign(
-           message: "#{arena.name} registered locally.",
-           error: nil,
-           confirmed: false,
-           name: "",
-           key: Ecto.UUID.generate()
-         )
-         |> refresh()}
+        {:noreply, push_navigate(socket, to: ~p"/arenas/#{arena.id}")}
 
       {:error, reason} ->
         {:noreply, assign(socket, key: Ecto.UUID.generate(), error: message(reason))}
@@ -94,12 +87,24 @@ defmodule CuckodingWeb.ArenaLive do
     assign(socket,
       arenas: arenas,
       choice: choice,
+      name: selection_name(choice, socket.assigns.choice, socket.assigns.name),
       busy: Foundation.pending?(),
       now: DateTime.utc_now(),
       preview: selected && not Enum.any?(arenas, &(&1.selection_id == choice.id)),
       inherited: if(selected, do: Arenas.team(choice))
     )
   end
+
+  defp selection_name(%{state: "completed"} = choice, %{state: previous}, "")
+       when previous != "completed",
+       do: suggested_name(choice)
+
+  defp selection_name(_, _, name), do: name
+
+  defp suggested_name(%{result: "selected", payload: %{"folder" => %{"path" => path}}}),
+    do: path |> Path.basename() |> String.slice(0, 80)
+
+  defp suggested_name(_), do: ""
 
   defp input(socket, %{"name" => name} = params)
        when is_binary(name) and byte_size(name) <= 320 do
@@ -152,11 +157,11 @@ defmodule CuckodingWeb.ArenaLive do
     ~H"""
     <Layouts.workspace active={:arenas} title="Arenas" flash={@flash}>
       <section class="panel" aria-labelledby="arena-title">
-        <p class="eyebrow">03 / YOUR PROJECTS</p>
+        <p class="eyebrow">YOUR PROJECTS</p>
         <h2 id="arena-title">Give your team an Arena.</h2>
-        <p>Choose a local folder, then register it with a saved team.</p>
+        <p>Add a folder. Your saved team and a default board come with it.</p>
         <p class="fine-print">
-          Registration leaves files untouched. Create Tabulae and draft tasks after registration.
+          Empty folders and existing projects are welcome. Adding an Arena leaves files untouched.
         </p>
         <p :if={@message} role="status" class="team-message">{@message}</p>
         <p :if={@error} role="alert" class="notice">{@error}</p>
@@ -209,19 +214,19 @@ defmodule CuckodingWeb.ArenaLive do
           <.team revision={@inherited} id="preview-team" />
           <label class="confirm-executable">
             <input type="checkbox" name="confirmed" value="true" checked={@confirmed} />
-            Register this folder with team revision {@inherited.id}. This grants no agent access.
+            Use this folder and saved team for the Arena. This grants no agent access.
           </label>
-          <button class="button primary" type="submit" phx-disable-with="Registering…">Register Arena</button>
+          <button class="button primary" type="submit" phx-disable-with="Adding…">Add Arena</button>
         </.form>
       </section>
       <section class="panel" aria-labelledby="saved-arenas">
-        <h2 id="saved-arenas">Registered Arenas · {length(@arenas)}</h2>
+        <h2 id="saved-arenas">Your Arenas · {length(@arenas)}</h2>
         <p :if={@arenas == []} class="subtle">
           Your first Arena starts with a folder. Empty folders and existing projects are welcome.
         </p>
         <article :for={arena <- @arenas} id={"arena-#{arena.id}"} class="team-role">
           <h3>{arena.name}</h3>
-          <.link navigate={~p"/arenas/#{arena.id}"} class="button">Open Tabulae</.link>
+          <.link navigate={~p"/arenas/#{arena.id}"} class="button">Open Arena</.link>
           <p class="arena-path">{arena.path}</p>
           <p class="fine-print">{git_label(arena.git_entry)} · observed at registration</p>
           <.team revision={arena.team_revision} id={"arena-team-#{arena.id}"} />
@@ -242,7 +247,7 @@ defmodule CuckodingWeb.ArenaLive do
     <details id={@id} class="activity" phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
       <summary>Registration team · revision {@revision.id}</summary>
       <p class="fine-print">
-        Frozen at folder selection. Open Tabulae to inspect or explicitly adopt a newer team for future boards. No execution grants.
+        Frozen at folder selection. Open Arena → Advanced to inspect or adopt a newer team for future boards. No execution grants.
       </p>
       <dl class="team-history">
         <div :for={role <- @revision.definition["roles"]}>

@@ -1,7 +1,8 @@
 # Product contract
 
-Status: rebuild specification, 2026-10-06. All application capabilities below
-are targets until the [implementation checklist](PLAN.md) records fresh evidence.
+Updated 2026-10-10 from the original user story and the Arena simplification.
+This is the target experience. The [implementation checklist](PLAN.md) distinguishes
+available setup/planning from unfinished folder analysis and battle execution.
 
 ## The story
 
@@ -21,20 +22,24 @@ status text, a narrow sidebar and one or two primary content regions.
 3. **Choose the team.** Use Speculator, Implementor and Secutor, or add named
    roles. Each role selects a saved agent and model. Also assign **Summa Rudis**,
    the coordinator. Save this default team once; Arenas inherit it.
-4. **Create an Arena.** Choose a local folder, empty or containing documents/code.
-   Inspect it first. If Git is absent, explicitly ask before initializing it.
-   An initial commit is a separate disclosed Git mutation; preview its files.
-5. **Create a Tabula.** Start with Specs, ToDo, In Process, Review, Completed.
-   Assign roles to working columns. Add or rename columns without bypassing
-   review, completion or permission rules.
-6. **Describe the work.** Ask a selected role, usually Speculator, to create
-   specifications and tasks from a description, selected files or a folder such
-   as `docs/`. Show the resulting tasks and sources; permit edits before starting.
-7. **Start battle.** From the Arena's selected Tabula, press one button.
-   Summa Rudis coordinates the saved team, dispatches eligible work and handles
-   review returns. Tasks move automatically until completed, stopped or blocked.
-   Routine coding, reviews, corrections and bounded recovery require no further
-   user approval inside the authorized scope.
+4. **Add a folder.** An Arena is one local folder, empty or containing docs/code.
+   Default its name from the folder and inherit the saved team. Adding a folder
+   does not launch agents or alter project files.
+5. **Use the default Tabula.** Create Specs, ToDo, In Process, Review, Completed
+   automatically with the saved roles. Creating/naming a board is not a required
+   user step. Additional boards, custom columns and role overrides remain available
+   through advanced settings.
+6. **Create tasks.** Ask the assigned Speculator to analyze `docs/` first and the
+   relevant files in the folder, with an optional brief. Show the folder scope and
+   provider usage at the action. The host reads bounded eligible files, freezes
+   sources, validates the proposals and creates cards automatically. No manual
+   path list or per-card import is required. Tasks remain editable before Start.
+7. **Start.** Press one execution button on the same Arena page. Summa Rudis
+   coordinates the saved team and automatic card movement through work, review
+   and correction until completion, stop or a genuine blocker. Ordinary task
+   assignment, spec preparation, coding, reviews and bounded retries need no
+   further approval. Git initialization asks first only when needed; initial
+   commit scope is disclosed separately. Planning is usable without Git.
 8. **Watch Tabula Gladiatorum.** The global dashboard covers every Arena; an Arena
    dashboard focuses on its Tabulae and workers. Show role, agent, model, task,
    public activity, elapsed time, progress and controls. Logs open on demand.
@@ -46,7 +51,7 @@ status text, a narrow sidebar and one or two primary content regions.
 | Term | Meaning |
 | --- | --- |
 | Cuckoding / CC | Product / short product name |
-| Arena | Project: one selected local repository and its settings |
+| Arena | Project: one selected local folder and its settings |
 | Tabula | A Kanban board belonging to an Arena |
 | Battle | One authorized execution of a Tabula's task set |
 | Tabula Gladiatorum | Dashboard, globally or filtered to one Arena |
@@ -77,14 +82,40 @@ proposal and applies the actual transition. The same agent/model may fill all
 four roles, but review uses an independent session and evidence. Separate models
 are an option, not an onboarding requirement.
 
+## The simple Arena contract
+
+**Add folder → Create tasks → Start** is the normal path after one-time Agents and
+Team setup. **Start** is the single execution label; Run/Fight/Start battle describe
+the same battle, not extra buttons or modes. The Arena page itself is its dashboard.
+
+One primary region is the board. A compact top area shows folder, goal and current
+action; task details and logs open in one optional inspector. Before tasks exist,
+show a brief field and Create tasks. After valid tasks exist, show Start. During
+work, show current activity and Pause/Stop. Settings and evidence are disclosed
+when requested or when an actual blocker needs a decision.
+
+Do not require a separate Tabula wizard, Battle preview page, manually imported
+cards, accepted-spec ceremony, prepared worktree or repeated agent assignments.
+Keep their useful evidence/controls in Advanced or Inspect. Existing records and
+custom boards must remain accessible; simplifying navigation never discards them.
+If existing Arenas contain several boards, remember the selected one or ask once;
+never silently run all boards.
+
+Folder analysis is bounded reading, not permission to execute repository code.
+Skipped/unsupported files and truncation are visible. An empty folder needs a
+brief; contradictory or insufficient material gets one useful clarification.
+Changed scope or provider selection requires fresh planning intent. Re-analysis
+adds a new proposal revision and never overwrites user edits or creates duplicate
+cards on retries. [Flow](FLOW.md) owns the detailed state/authority contract.
+
 ## Setup target
 
-Measure **first launch → ready to Start battle in ten minutes** for a user with
+Measure **first launch → ready to Start in ten minutes** for a user with
 one supported runtime installed and an eligible provider account. The release
 gate also measures the full path when a runtime must be installed; report those
 times separately rather than hiding downloads or provider login delays.
 
-The guided path is Agents → Team → Arena → Tabula → Describe → Start battle.
+Set up Agents → Team once. Each project then uses Add folder → Create tasks → Start.
 It needs no YAML edits, database setup, terminal orchestration, custom plugin
 selection or per-task agent assignment. One connected runtime can serve all
 roles. Defaults include the board, role instructions and finite execution limits;
@@ -114,7 +145,7 @@ No vector database or external indexing service is needed for the described flow
 ## Success measures
 
 - Timed ten-minute setup with the prerequisites stated above.
-- One Start battle reaches verified local completion without ordinary task-level
+- One Start reaches verified local completion without ordinary task-level
   assignment/approval, including at least one review correction.
 - At least two independent tasks execute concurrently without duplicate claims
   or lost changes; dependent tasks see their completed prerequisites.

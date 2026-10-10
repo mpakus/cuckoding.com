@@ -9,6 +9,35 @@ defmodule CuckodingWeb.TabulaLiveTest do
     %{arena: arena, board: board, path: "/arenas/#{arena.id}/tabulae/#{board.id}"}
   end
 
+  test "Arena opens its existing board without creating another or changing drafts", %{
+    conn: conn,
+    arena: arena,
+    board: board
+  } do
+    signed = sign_in(conn)
+    {:ok, view, _} = live(signed, "/arenas/#{arena.id}")
+    assert has_element?(view, "#tabula-board")
+    assert has_element?(view, "#arena-advanced #scope-team")
+    assert has_element?(view, "#arena-advanced #arena-team")
+    assert has_element?(view, "#arena-advanced #arena-git")
+    refute has_element?(view, "#arena-advanced[open]")
+    refute has_element?(view, "#draft-editor[open]")
+    refute has_element?(view, "[aria-label=Tabulae]")
+    view |> form("#draft-form", title: "Unsaved") |> render_change()
+    Foundation.broadcast()
+    assert has_element?(view, "#draft-title-input[value=Unsaved]")
+    assert {:ok, _, _} = live(signed, "/arenas/#{arena.id}")
+    assert [^board] = Tabulae.list(arena.id)
+  end
+
+  test "old Arena without a board offers explicit creation without a GET mutation", %{conn: conn} do
+    arena = Cuckoding.DataCase.arena_fixture()
+    {:ok, view, _} = conn |> sign_in() |> live("/arenas/#{arena.id}")
+    assert has_element?(view, "#arena-advanced[open] #tabula-form")
+    refute has_element?(view, "#tabula-board")
+    assert Tabulae.list(arena.id) == []
+  end
+
   test "create a board, save a draft, move it, inspect history and reconnect", %{
     conn: conn,
     arena: arena

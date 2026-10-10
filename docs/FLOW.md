@@ -1,232 +1,116 @@
 # Workflow contract
 
-This is the single vocabulary for the rebuild. Configuration is saved in the UI;
-files and model output are proposals, never executable policy.
+The normal Arena journey is **Add folder → Create tasks → Start**. Agents and
+Team are reusable setup, not steps repeated for each project or card.
+[Product](PRODUCT.md) owns the story; [UI](UI_DASHBOARD.md) owns the screens.
+The autonomous flow below is the target. Current planning and setup operations
+are described in [Development](DEVELOPMENT.md); Start is not implemented.
 
-## Setup and snapshots
+## Add folder
 
-Agents setup is Choose Agent → Connect and Authorize → Select models → Save.
-Saved model choices constrain new role assignments, not existing bindings.
-Version/profile actions remain explicit; inference is an optional usage-consented test.
-Authorization and model catalogs are global. A default team assigns Speculator,
-Implementor, Secutor and Summa Rudis to saved agents/models. A new Arena copies
-that team; a new Tabula copies the Arena defaults. Edits affect future battles.
-Applying different roles, schedules or grants to an existing Tabula is explicit
-and audited; active battles retain immutable snapshots.
+Use the native folder chooser, default the Arena name from the folder and inherit
+the saved team. Registration creates the default Tabula with Specs, ToDo,
+In Process, Review and Completed. Open that board immediately. Creating another
+board, changing roles/columns and adopting a newer team belong in Advanced.
+Existing boards, drafts and immutable team revisions remain intact.
 
-Arena registration only inspects/registers the selected folder. Confirm Git
-initialization before doing it. If there is no commit, preview and separately
-authorize a minimal baseline commit; never auto-add all documents or secrets.
-An Arena/Tabula can be saved before it is runnable. Start names any missing
-agent/model, baseline, grant or check instead of silently changing settings.
+Registration reads directory metadata only. It starts no agent or Git mutation.
+Folder analysis and drafting must work without Git. If execution later needs Git
+initialization or an initial commit, show the exact effect and required consent
+in the Arena; declining leaves the folder, tasks and planning usable.
 
-R030a implements the global default team. Required responsibilities keep
-stable IDs even when renamed; Summa Rudis remains distinct. Custom roles default
-to planning-only/read-only and have no executable slots. Saved bindings survive
-account/catalog changes visibly; a new binding requires current verified metadata.
-Saving is versioned and audited, never a start command. Removal of saved custom
-roles requires confirmation and retains history.
+## Create tasks
 
-R040a adds **Choose folder → preview path/team → confirm → Register Arena**.
-The native dialog accepts one existing directory and cannot create folders.
-Registration freezes the team revision shown at selection, permits unassigned
-drafts and leaves all project files untouched. Later default-team changes do not
-rewrite it. Git-entry presence is labeled unverified; execution grants remain
-subsequent work. Cancel or interrupted selection requires a new
-explicit choice; it never starts planning or a battle.
+The user asks the saved Speculator to analyze the folder, optionally adding a
+brief. Inspect `docs/` first, then relevant eligible project files. No manual path
+list or separate import button per task is required in the completed flow.
 
-R040c adds **Open Tabulae → Repository setup → Inspect Git**. A missing result
-offers a separate confirmation to initialize `.git` on `main`, with no templates,
-staging or commit. Consent binds the latest observation and expires after five
-minutes; changed identity or newly appeared metadata refuses initialization.
-Unborn means no HEAD commit; existing means a validated HEAD commit, not clean
-files or execution readiness. Cancel waits for native cleanup; interruption or
-uncertain cleanup requires a fresh inspection and never automatically retries.
-Manual drafts remain usable when Git is unavailable or the layout is unsupported.
+The action explains its bounded read scope and provider usage. The host inventories
+and snapshots eligible sources, records paths/hashes and skipped/truncated entries,
+then sends frozen untrusted text to the planning runtime. Files never become policy
+or grant tools, live filesystem access or execution. Exact policy/limits must be
+versioned and tested before replacing the current selected-document reader.
+An empty folder requires a brief; insufficient or conflicting sources prompt a
+useful clarification. Show progress and Cancel; retain evidence across reconnects.
 
-R040d adds **relative file paths → Preview initial commit → confirm exact preview
-→ Create initial commit** for unborn repositories with no refs/index. Blank paths
-mean an empty baseline. Show each path, byte size, mode and expandable SHA-256 plus
-branch, fixed author and message. Consent expires in five minutes and is invalidated
-by changed selection, bytes, mode, repository or branch. No bulk add is implicit.
-A commit receipt persists its head/tree; interrupted publication may leave staged
-files/objects and needs inspection, never automatic rollback or replay.
+Validate the response, criteria, citation scope and acyclic dependencies before
+creating cards automatically. Persist the proposal-to-card receipts and events
+atomically, once per source suggestion. Reanalysis preserves user edits and
+running/completed history; new work remains visibly distinguishable. Model text
+cannot approve check commands or broaden authority. Users may edit cards but do
+not have to accept/import each one or produce a private Markdown artifact manually.
 
-R030b adds **Arena settings or Tabula team → review current/proposed rosters →
-confirm → Adopt saved team**. The latest saved default is an explicit choice;
-changing Team alone never propagates. Arena adoption changes inheritance for new
-boards; an existing board needs its own adoption. Preview includes role removals,
-models and full instructions. Stale scope/default revisions require fresh consent.
-A board cannot change team during pending/running/cancelling planning. Earlier
-proposals and task drafts remain usable; new planning consent binds the adopted
-revision. Per-scope role editing and grants remain open.
+## Start
 
-## Project checks
+**Start** is the one visible execution action; Run, Fight and Start battle mean
+the same battle, not additional modes. Keep the user on the same Arena board.
+Show one compact scope summary beside it: task membership/goal, saved team/models,
+local completion boundary, approved checks and finite limits. Contextual missing
+requirements explain the smallest repair. Do not send the user through separate
+Describe, Battle preview, accepted-spec or manual worktree setup ceremonies.
 
-R040j adds **Arena → Project checks → Add check → Review changes → confirm → Save
-checks**. Enter an executable name and one nonempty literal argument per line;
-spaces/quotes stay in that argument. An entirely blank argument field means no
-arguments. Choose a relative directory (`.` for worktree root) and timeout. The
-preview shows the exact executable/argument array. Removals are staged in the
-draft and require the same review/confirmation, including removal of every check.
+The explicit Start action freezes bounded local authority after fresh admission.
+It is separate from Create tasks' read/provider-use intent. Prepare and verify
+owned worktrees under that authority. Manual pre-battle spec acceptance and
+worktree tools remain optional inspection/setup utilities. Ordinary spec refinement,
+implementation, checks and review need no repeated human approval after Start.
+Protected policy changes, newly requested access and remote publication remain
+separate decisions. Until execution exists, explain its absence beside a disabled
+Start control; do not turn a preview into a pretend successful run.
 
-Saving creates an immutable Arena revision, starts nothing and grants no access.
-Live updates preserve draft text/errors, clear stale approval and show newer saved
-revisions. **Reload saved checks** asks before discarding edits; recovered forms
-from another Arena/revision remain blocked until reload. Historical definitions
-survive edits/restart. Future Start must bind the selected revision and separately
-validate executable, worktree and grants. No task or agent proposal can add an
-approved command, and an empty check list is never proof that checks passed.
+New unrelated tasks wait for the next battle. In-scope task splits/repairs retain
+original criteria and lineage, require host validation and consume the original
+lifetime task budget. Team, workflow and check changes affect future work; never
+substitute a runtime/model or rewrite the running snapshot silently.
 
-## Planning
-
-Target: **Create tasks** launches the selected planning-capable role read-only, with a
-bounded brief and explicitly selected, canonicalized Arena files. The agent
-proposes a versioned Markdown spec and tasks: stable IDs, description, source
-references, acceptance criteria, dependencies and suggested checks. Phoenix
-validates bounds, paths, duplicate IDs and dependency cycles before persisting.
-
-The user sees and can edit the result; planning starts no delivery worker.
-Accepted specs move tasks from Specs to ToDo. A task in Specs at battle start is
-prepared automatically within the approved brief. Generated shell commands
-remain proposals; only previously approved checks may execute.
-
-Start battle shows the goal/spec revision, task membership, team/model bindings,
-local completion choice, check commands, concurrency and finite limits. One
-confirmation records the authorization and starts work. No per-task approvals
-are required for ordinary work. Adding unrelated tasks after Start leaves them
-for the next battle. In-scope task splits/repairs may be proposed by Speculator,
-checked by Secutor and imported by the host within the original criteria and
-lifetime task limit; running/completed task history is never rewritten.
-
-## Default Tabula
-
-R040b implements **Open Tabulae → Create Tabula → Save task** for manual planning.
-Each board freezes the Arena team and the five default stage keys. Tasks retain
-title, description, criteria and immutable revision history. The Column select
-moves between Specs and ToDo; ToDo requires description and criteria. This is
-draft readiness only, not a validated spec or execution authorization. Delivery
-columns reject manual moves until battle execution exists. Stale editors keep
-their text and require explicitly loading a current draft; history is never
-rewritten. Custom columns remain open; R040f supplies
-selected document snapshots and R040h binds per-task source references below.
-
-R040g adds **Edit task → Prerequisites → Save task**. Select up to sixteen other
-tasks in the same Tabula; self-links, missing/foreign tasks and cycles are refused
-on save against the latest graph. Native checkboxes work with the keyboard.
-Cards show prerequisite titles/short IDs; revision history retains the exact IDs
-and labels them using current titles. Unsaved selections survive live updates.
-Legacy proposals start without prerequisites. These are planning links;
-ToDo does not wait for completion yet because battle scheduling is not implemented.
-
-R040h proposals list prerequisite suggestions first and cite only selected
-document snapshots. Expand citations to inspect exact text/hash, then **Add to
-Specs** in prerequisite order. Out-of-order imports are refused; they do not
-silently import other suggestions. Dependent tasks receive the prerequisite UUIDs
-without replacing earlier edits. **Original proposal sources** in the task editor
-retains citations after edits/reconnect. Citations are references to inspect, not
-a correctness verdict or live-file observation. Old proposals retain v1 behavior.
-
-R040i adds **Edit saved task → Accepted specifications → Preview specification →
-review exact Markdown → confirm → Accept specification**. Save unsaved edits first.
-Acceptance freezes the task, prerequisite revisions and original citations in
-private app storage, then moves the unchanged task to ToDo. It starts no agent.
-**Reload task** loads the resulting revision and asks before discarding unsaved
-edits. **Download Markdown** verifies retained bytes/hash through the authenticated
-session. Later task/prerequisite revisions mark the acceptance historical. Missing
-or modified files require a new preview/acceptance; old artifacts are preserved.
-Manual ToDo moves remain draft planning and do not imply acceptance. This is an
-optional pre-battle planning action; future Start authority still covers ordinary
-in-scope specification preparation without repeated post-Start prompts.
+## Automatic card movement
 
 | Column / stable key | Assigned role | Exit condition |
 | --- | --- | --- |
 | Specs / `specs` | Speculator | Valid spec, criteria and dependencies |
-| ToDo / `todo` | Summa Rudis coordinates this queue | Dependencies complete, grants valid, capacity available |
+| ToDo / `todo` | Summa Rudis coordinates the queue | Dependencies integrated, grants valid, capacity available |
 | In Process / `in_process` | Implementor | Candidate revision and verification evidence |
-| Review / `review` | Secutor | Pass with evidence, return comments, or block |
-| Completed / `completed` | System applies the validated Secutor result | Reviewed local integration and required checks passed |
+| Review / `review` | Secutor | Independent pass with evidence, comments or blocker |
+| Completed / `completed` | Host validates the Secutor result | Reviewed local integration and required checks passed |
 
 ```mermaid
 flowchart LR
   Specs --> ToDo --> Work["In Process"] --> Review
   Review -->|comments| Specs
   Review -->|pass + validated integration| Completed
-  Rudis["Summa Rudis"] -.coordinates.-> ToDo
-  Rudis -.routes decisions.-> Review
+  Rudis["Summa Rudis · coordinator"] -.dispatches.-> ToDo
+  Rudis -.routes findings.-> Review
 ```
 
-A returned task carries the candidate, spec revision, findings and failed check
-receipts back to Speculator, then Implementor. It cannot jump straight back to
-coding while leaving ambiguous intent unresolved.
+Summa Rudis coordinates tasks and resolves process questions; Secutor judges
+completion independently. A rejected candidate returns with spec revision,
+findings and failed-check receipts to Speculator, then Implementor. The user does
+not drag cards to keep ordinary work moving. No coordinator or manual move can
+override a failed review or turn an unreviewed candidate into Completed.
 
-Users can insert ordered role steps before implementation, before review, or
-after review but before Completed; ToDo can remain an idle queue. Each added
-working step needs a role, declared outputs, grant and exit result. Write-capable
-steps must precede a mandatory final Secutor review. After-review steps are
-read-only or route back through review if they change the candidate. Renaming
-a column changes only its label. Reordering or adding steps publishes a new
-workflow revision; no arbitrary conditional graph editor is required.
+Custom ordered role steps remain available in Advanced. Writing stages must
+precede final Secutor review; a later stage that changes the candidate requires
+another review. Renaming changes the label only. Publish new workflow revisions
+without rewriting active battles; no general conditional graph editor is needed.
 
-R040e implements **Ask Speculator → type brief → confirm provider usage → Generate
-proposals → review → Add to Specs**. It snapshots the board's currently assigned required Speculator
-and the catalog's default effort, without per-task assignment or model fallback.
-A fresh supported executable/account/catalog is required; changed observations
-invalidate old consent. Saving a new global team never changes this board.
-
-The brief is at most 8,000 UTF-8 bytes. One ephemeral, two-minute turn uses empty
-scratch read-only permissions with tools disabled; no live Arena access is granted.
-Its response must contain a summary (2,000 bytes) and one to six unique tasks,
-each with title (120 bytes), description (4,000 bytes) and criteria (2,000 bytes).
-The fixed output schema guides the provider; host validation remains authoritative.
-Suggestions are untrusted text, not commands. Import is explicit, scoped and
-idempotent; it creates a Specs draft with source-request/index provenance.
-Cancellation waits for owned cleanup, preserves the brief and rejects late results.
-Expired running claims become interrupted once and never silently repeat usage.
-R040g/h add dependencies; R040i adds accepted Markdown artifacts. Battle workers remain open.
-
-R040f adds **Optional documents → enter relative paths → Preview documents →
-review exact snapshots → confirm provider usage → Generate proposals**. Local
-preview reads up to four `.md`/`.txt` files (4,096 bytes each, 12,000 total), saves
-text/hash evidence and invokes no model or Git command. Provider consent selects
-that exact snapshot, not future file contents. Preview selection expires after
-five minutes; re-preview or choose **Use brief only**. Changing selection clears
-consent without erasing the brief or draft editor. Reconnect retains the preview
-and previous planning sources but requires **Use these snapshots** to select it
-again. Imported drafts retain source-set provenance through their proposal;
-R040h adds per-task citation scope checks and R040i adds accepted Markdown specs.
-
-## Summa Rudis control loop
-
-R050a implements **Tabula → Battle preview → Refresh preview** as a read-only
-preparation view. It shows every saved task with its revision, acceptance/artifact
-status and current prerequisites; the assigned team (including planning-only
-custom roles); exact saved check argv/directories/timeouts; and the latest dated
-Git receipt. Defaults are never silently adopted. Saved ToDo placement without
-an acceptance receipt remains a draft. Missing/changed Markdown and prerequisite
-edits are visible, with links to the relevant setup screens.
-
-Updates or one minute of elapsed preview time mark the display stale. Refresh
-re-reads evidence without launching Git, checks or providers. This is not Start,
-membership selection, admission, a frozen snapshot or completion evidence.
-Specification acceptance remains optional planning; future Start still authorizes
-ordinary in-scope Speculator preparation. The control loop below remains a target.
+## Durable coordination
 
 1. Read committed battle state, eligible tasks, public reports and remaining
-   limits. Invoke the coordinator only for a decision/event, not a busy polling
-   conversation.
-2. Request a closed proposal: dispatch eligible task, route findings, request
-   in-scope replanning, wait with reason, request clarification, or propose finish.
-3. Host validation binds proposal to battle/revision, task membership, role,
-   current spec/candidate, grants, dependencies, capacity and idempotency key.
-4. Persist accepted command, projection and event atomically. Dispatch through
-   supervised workers; publish the committed event to LiveView.
-5. Reject stale/foreign/invalid proposals without side effects. A bounded
-   correction turn may fix schema mistakes; it cannot reset budgets.
+   limits. Invoke Summa Rudis for a decision/event, not a busy polling conversation.
+2. Request a closed proposal: dispatch, route findings, request in-scope replanning,
+   wait with a reason, request clarification or propose finish.
+3. Phoenix validates battle/revision, membership, role, spec/candidate, grants,
+   prerequisites, capacity and idempotency key.
+4. Commit the command, projection and event together before supervised dispatch
+   and LiveView notification. Cards and both dashboards reflect those records.
+5. Reject stale/foreign/invalid proposals without side effects. A bounded correction
+   turn cannot reset budgets or create new authority.
 
-Phoenix owns leases and scheduling mechanics. Summa Rudis owns coordination
-judgment. Summa Rudis is a distinct selected role, not a hidden Speculator turn.
-No model receives direct SQL or privileged host APIs.
+Phoenix owns scheduling mechanics and leases. SQLite owns workflow state.
+Summa Rudis is a distinct saved role, not a hidden Speculator turn. Models never
+receive direct SQL or privileged host APIs. Project check definitions require
+explicit user-authored revisions and consent; proposals cannot activate policy.
+An empty check list never proves that checks passed.
 
 ## States and controls
 
@@ -298,7 +182,7 @@ Dependents use that integrated head. The whole battle completes only when every
 required criterion is met, no required tasks remain blocked/skipped/cancelled,
 final checks pass on the final head, and Secutor records a final independent
 review. Summa Rudis summarizes the result; the host records completion. Local
-integration is part of Start battle authority; user-branch merge/push is separate.
+integration is part of Start authority; user-branch merge/push is separate.
 
 ## Worktree preparation (R050b)
 

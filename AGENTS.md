@@ -94,8 +94,29 @@ Preserve these implemented contracts:
 
 Build a local-first macOS menubar application opening a minimal Phoenix LiveView
 UI in the default browser. Setup should take ten minutes with stated runtime/
-account prerequisites. Users save agents/models and roles once, create an Arena
-and Tabula, describe work, then Start battle.
+account prerequisites. Users save agents/models and roles once. The 2026-10-10
+Arena clarification makes the normal project flow **Add folder → Create tasks →
+Start**. It supersedes a mandatory Tabula/Describe/setup wizard sequence.
+
+Adding a folder uses the saved team and creates the default Tabula automatically.
+Create tasks asks Speculator to analyze `docs/` and relevant eligible project files
+with an optional brief, then creates validated cards without per-card imports.
+Start is one execution button on that same board. Summa Rudis coordinates agents
+and automatic card movement; Secutor independently judges completion and sends
+review findings through Speculator. Keep custom boards/roles, check declarations,
+Git/worktree details, revisions and logs in contextual Advanced/Inspect controls.
+Do not require these as routine setup screens or repeat approvals per task.
+
+R002 implements atomic default-board creation, immediate Arena navigation and
+Advanced disclosures. Folder-wide analysis, automatic task creation and battle
+execution remain target contracts, not shipped capabilities. Preserve current
+scoped reads/consents until their replacement is implemented and verified. Folder
+analysis needs a bounded read grant; Start owns a separate bounded execution grant.
+Ask before Git initialization or initial-commit mutations, only when needed;
+no Git setup is required just to analyze docs. Do not substitute a preview for a
+working Start button. [Plan](docs/PLAN.md#next-delivery-order--simple-arena) gives
+the immediate delivery order; [D022](docs/DECISIONS.md#d022--simple-arena) records
+the boundary change.
 
 **Speculator** writes specs/tasks; **Implementor** implements; **Secutor** judges
 completion; **Summa Rudis** coordinates the process. Parallel role instances use

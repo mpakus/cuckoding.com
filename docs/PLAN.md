@@ -30,6 +30,39 @@ for those files and worklogs; do not generate a folder of empty task templates.
 Every application slice includes its LiveView surface, durable events, focused
 regression checks and documentation update. R080 is cross-screen polish, not the first UI.
 
+## Next delivery order · Simple Arena
+
+The 2026-10-10 simplification takes priority over adding more setup screens.
+Normal use is **Add folder → Create tasks → Start**; saved Agents/Team are reused.
+The numbered story below is capability coverage, not eight mandatory screens.
+
+- [x] **R002 / R040k — Simple Arena surface:** align docs, add the default board
+  atomically with a new Arena, suggest its folder name and open it immediately.
+  Keep existing boards and dirty drafts. Move technical setup/additional boards
+  to Advanced, make planning prominent and explain unavailable Start inline.
+- [ ] **R040l — Analyze folder:** bounded host inventory of `docs/` and relevant
+  eligible files, versioned finite limits/exclusions, pinned source snapshots,
+  clear read/provider-use intent, progress/cancel and useful empty-source guidance.
+  No live Arena access for the planning provider and no Git prerequisite.
+- [ ] **R040m — Create cards automatically:** validate and atomically import the
+  proposal graph with sources and stable receipts; survive duplicate results and
+  restart without duplicates or overwriting user edits. Keep legacy imports readable.
+- [ ] **R020 remaining execution gates:** prove the selected provider's actual
+  task grant, tool/output validation, cancellation and two-workspace isolation.
+  Catalog/setup acceptance alone does not enable an Implementor.
+- [ ] **R050d — One Start:** durable bounded battle authorization and fresh admission
+  from the Arena, contextual Git/first-commit consent only when necessary, automatic
+  owned worktree preparation. No separate mandatory preview/spec-acceptance wizard.
+- [ ] **R050e — Work and review loop:** Summa Rudis dispatch, Speculator refinement,
+  Implementor candidate, independent Secutor verdict, automatic persisted card
+  moves and bounded correction through Speculator; reviewed local integration.
+- [ ] **R060 / R070 / R080:** complete recovery, parallel workers, both dashboards
+  and timed ten-minute acceptance. Usable Arena UI ships with each earlier slice.
+
+[R002 evidence](../tasks/R002-simple-arena-contract.md) records the delivered UI
+and automatic-board slice. All later capabilities remain unchecked; the simplified
+screen does not imply a working Start or folder scan.
+
 ## Sequence and dependencies
 
 `R010 → R020 → R030 → R040 → R050 → R060 → R070 → R080 → R090 → R100`
@@ -270,9 +303,10 @@ Depends on R030.
   See [task](../tasks/R040i-accepted-specifications.md) and
   [evidence](../worklog/2026-10-07-R040i-accepted-specifications.md).
 
-Acceptance: create an Arena from an empty folder and one from existing docs;
-decline Git initialization without mutation; generate usable tasks with citations;
-custom columns cannot bypass review; planning creates no coding processes.
+Acceptance: add an empty folder and one with docs; get a default board immediately.
+Create tasks analyzes eligible sources and persists usable cards/citations without
+manual paths or per-card imports. Reanalysis preserves edits. Declining Git setup
+leaves planning usable and files unchanged; custom columns cannot bypass review.
 
 ## R050 — First autonomous battle
 
@@ -292,7 +326,7 @@ Depends on R040. This is the first end-to-end product milestone.
   index and raw tracked bytes; preserve files and reject unsafe/foreign/late results.
   Dated observations never grant execution. See [task](../tasks/R050c-worktree-inspection.md)
   and [evidence](../worklog/2026-10-08-R050c-worktree-inspection.md).
-- [ ] Implement one Start battle authorization for goal/spec, task membership,
+- [ ] Implement one Start authorization for goal/spec, task membership,
   team, model, policy, base revision, check commands and cumulative limits.
 - [ ] Give Summa Rudis a closed decision contract; host-validate/persist decisions
   and route every launch through common admission.
@@ -353,7 +387,8 @@ No lost code, duplicate claims, stale review acceptance or premature Completed.
 
 ## R080 — Tabula Gladiatorum and ten-minute experience
 
-Depends on R070; earlier slices already provide functional UI.
+Depends on R070 for final acceptance. R040k and each execution slice deliver their
+usable Arena surface first; basic flow simplification must not wait for R080.
 
 - [ ] Global dashboard: Arena summaries, active workers, progress and attention.
 - [ ] Arena dashboard: selected Tabula, team/progress and worker details using the
@@ -432,8 +467,9 @@ Use `rtk rg`, existing project skills and scoped Markdown files now.
 See [task](../tasks/R020i-multiple-agents.md) and
 [worklog](../worklog/2026-10-10-R020i-multiple-agents.md).
 
-Real Cursor login completion/account catalog and inference remain in R090;
-fixture Grok entries do not establish model availability.
+R020l subsequently verified the real signed-in Cursor catalog. Cursor inference
+and full mixed-runtime/restart/parallel acceptance remain in R090; fixture Grok
+entries alone do not establish model availability.
 
 ## R020j · Navigation routes
 
