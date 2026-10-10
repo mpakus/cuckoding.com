@@ -33,7 +33,27 @@ defmodule Cuckoding.Team do
           :version_required
       end
 
-    %{status: status, models: connection["models"] || [], check: connection["model_check"] || %{}}
+    models = connection["models"] || []
+    saved = Foundation.saved_agent_models()
+
+    selectable =
+      if saved do
+        Enum.filter(models, fn model ->
+          Enum.any?(
+            saved.payload["models"],
+            &(&1["id"] == model["id"] and &1["model"] == model["model"])
+          )
+        end)
+      else
+        models
+      end
+
+    %{
+      status: status,
+      models: models,
+      selectable_models: selectable,
+      check: connection["model_check"] || %{}
+    }
   end
 
   defp catalog_status(connection, identity) do
@@ -167,7 +187,7 @@ defmodule Cuckoding.Team do
   defp resolve_bindings(roles, previous, catalog) do
     Enum.reduce_while(roles, {:ok, []}, fn role, {:ok, acc} ->
       old = Enum.find(previous, &(&1["id"] == role["id"]))
-      model = Enum.find(catalog.models, &(&1["id"] == role["model_id"]))
+      model = Enum.find(catalog.selectable_models, &(&1["id"] == role["model_id"]))
 
       cond do
         role["model_id"] == "" ->

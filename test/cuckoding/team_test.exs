@@ -155,6 +155,46 @@ defmodule Cuckoding.TeamTest do
     assert Team.catalog().status == :version_required
   end
 
+  test "saved model choices restrict new roles without rewriting existing bindings" do
+    connect()
+
+    roles =
+      Team.editable(Team.current())
+      |> put_in([Access.at(0), "agent"], "codex")
+      |> put_in([Access.at(0), "model_id"], "catalog-id")
+
+    {:ok, team} = Team.save(Ecto.UUID.generate(), 1, roles)
+
+    alternative =
+      Team.catalog().models |> hd() |> Map.merge(%{"id" => "alternative", "model" => "another"})
+
+    alter_connection(&Map.update!(&1, "models", fn models -> models ++ [alternative] end))
+    workspace = Foundation.workspace()
+
+    {:ok, _} =
+      Foundation.save_agent_models(
+        Ecto.UUID.generate(),
+        workspace.revision,
+        workspace.connection["command_id"],
+        ["alternative"]
+      )
+
+    assert Enum.map(Team.catalog().selectable_models, & &1["id"]) == ["alternative"]
+    assert {:ok, preserved} = Team.save(Ecto.UUID.generate(), team.id, roles)
+    assert hd(preserved.definition["roles"])["model"] == "wire-model"
+
+    changed =
+      roles
+      |> put_in([Access.at(1), "agent"], "codex")
+      |> put_in([Access.at(1), "model_id"], "catalog-id")
+
+    assert {:error, "model_refresh_required"} =
+             Team.save(Ecto.UUID.generate(), preserved.id, changed)
+
+    alter_connection(&put_in(&1, ["models", Access.at(1), "model"], "drifted"))
+    assert Team.catalog().selectable_models == []
+  end
+
   defp connect do
     {:ok, _} = Foundation.check_codex(Ecto.UUID.generate(), 0, "/bin/sh", true)
     {:ok, claim} = Foundation.claim()

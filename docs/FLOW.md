@@ -5,6 +5,9 @@ files and model output are proposals, never executable policy.
 
 ## Setup and snapshots
 
+Agents setup is Choose Agent → Connect and Authorize → Select models → Save.
+Saved model choices constrain new role assignments, not existing bindings.
+Version/profile actions remain explicit; inference is an optional usage-consented test.
 Authorization and model catalogs are global. A default team assigns Speculator,
 Implementor, Secutor and Summa Rudis to saved agents/models. A new Arena copies
 that team; a new Tabula copies the Arena defaults. Edits affect future battles.

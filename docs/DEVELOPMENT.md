@@ -11,8 +11,8 @@ R040i adds accepted private Markdown specifications with revision and hash check
 R040j adds revisioned, confirmed Arena check declarations; execution remains unavailable.
 R050a adds a read-only Battle preview for saved preparation and missing setup.
 R050b adds consented isolated Git worktree preparation; R050c adds retained worktree inspection.
-Human-completed real-account/model acceptance and repository
-execution remain R020 work. The previous source
+R020h fixes real model-check notices and simplifies saved agent setup. Broader
+real-account acceptance and repository execution remain R020 work. The previous source
 reset remains intentional; do not restore the deleted implementation wholesale.
 
 ## Build and open
@@ -32,72 +32,51 @@ rtk proxy open desktop/src-tauri/target/release/bundle/macos/Cuckoding.app
 ```
 
 Launching the app opens the browser. Choose **Open Cuckoding** from its **C/furcina** menu
-bar item to return later. **Settings** opens tool
-discovery; **About Cuckoding** opens workspace details; **Quit** stops the owned
+bar item to return later. **Settings** opens the Agents
+wizard; **About Cuckoding** opens workspace details; **Quit** stops the owned
 release and listener. No dock window or embedded web frontend is created.
 This build is not notarized or public-release certified. Clean-machine, signing,
 update and physical sleep/wake acceptance remain R060/R100.
 
-In **Agents**, Check setup discovers paths without running them. Choose
-or edit the Codex path, confirm that you trust it, then **Check Codex version**.
-Changing the path clears confirmation. The fixed version probe expires after
-five seconds, has a Cancel control and persists public results. It does not sign
-in or list models. Interrupted checks need a fresh confirmation; the observed
-baselines are `0.146.0` and `0.162.0-alpha.2`. **Use desktop Codex path** fills
-the installed desktop app's binary path without executing it. Confirm and check
-its version, then check the connection; the private profile and saved team bindings
-remain unchanged. A newer catalog may make older bindings unavailable rather than
-silently replace them. The shell supplies its own executable as the native helper;
-never point `CCODING_NATIVE_HELPER` at an unrelated program.
+In **Agents**, follow the four steps:
 
-After a supported version check, **Check Codex connection** requires its own
-confirmation. It uses the displayed verified executable with Cuckoding's private
-`agents/codex` profile, a clean environment and fixed read-only account/catalog
-operations. A fresh profile correctly reports Not signed in. It does not adopt
-personal Codex credentials or launch a turn.
-A successful catalog shows source, fetched time, IDs, effort choices and input
-modalities; after 24 hours or a failed refresh it is stale. A catalog is not
-proof that the account can run a model. The full agent list includes entries hidden
-from Codex’s default picker, labeled **additional** in Agents and Team. After
-upgrading from a three-model catalog, confirm **Check Codex connection** to refresh;
-no reauthorization or inference is required. Inspection expires after ten seconds,
-can be cancelled and does not retry automatically after interruption.
+1. **Choose Agent.** Codex is supported; Claude Code, Cursor and Hermes are coming
+   soon. **Executable details** allows a path override or **Use desktop Codex**.
+   **Continue with Codex** explicitly runs that program's fixed `--version` check.
+   Supported baselines are `0.146.0`, `0.162.0-alpha.2` and `0.162.0-alpha.17.2`. The desktop and standalone
+   executables can advertise different models; no executable is silently replaced.
+2. **Connect and Authorize.** **Refresh connection** checks Cuckoding's private
+   `agents/codex` profile and fetches the full bounded catalog without inference.
+   **Sign in with ChatGPT → Continue at OpenAI** starts private-profile authorization;
+   complete the provider page yourself. Connected profiles offer refresh and
+   **Disconnect Codex → Sign out of Codex**. Each named button explicitly authorizes
+   its action; no repeated setup confirmation checkboxes are needed.
+3. **Select models.** Check the models you want available for new Team assignments,
+   including additional models hidden in Codex's own picker. Selections survive
+   Back and live updates. **Test a model (optional)** sends one fixed prompt only
+   after usage consent, with the lowest advertised effort, restrictive empty-scratch
+   permissions and a two-minute limit. It grants no project access. Success accepts
+   only the matching `CC_READY` response. Informational warning/deprecation notices
+   are ignored without retaining their text; account drift, server requests, tools,
+   unknown events and foreign completions are still refused.
+4. **Save.** Review the selected models, then save their IDs/resolved models in
+   SQLite. New Team pickers use this selection; existing bindings remain unchanged.
+   Saving runs no model and survives restart. Changed setup invalidates a reviewed
+   save; go Back and review again. Older workspaces without a saved selection still
+   expose their full catalog until their first wizard Save.
 
-**Sign in with ChatGPT** needs a separate confirmation to use the private profile.
-Choose **Continue on OpenAI** and complete the provider page yourself. The local
-link works only in an authenticated Cuckoding browser session, expires within ten
-minutes, and is recovered after browser reconnect while the app stays running.
-Credentials go directly to the provider; no token-paste form exists. A successful
-matching completion triggers account/model refresh. Already-connected profiles
-are inspected without replacing their account. Sign-in is hidden while connected
-or an account operation is pending; sign-out and connection refresh remain available.
-
-**Cancel account operation** waits for helper cleanup and leaves authorization
-unknown: the provider may have completed just before cancellation. Check connection
-before trying again. Interrupted authentication never replays automatically.
-**Sign out of this private profile** has its own confirmation and affects only this
-app-owned profile. Both actions immediately clear old account/catalog observations.
-Setup operations serialize while authentication or a model check is active.
-Sign-in, sign-out and connection confirmations stay checked through clock updates
-and unrelated events. Connection refresh consumes its own confirmation, retaining
-other profile confirmations while the executable and account state are unchanged.
-Authentication, executable/account changes and new page sessions clear profile
-confirmations. Model usage consent clears after a connection refresh; the selected
-model remains selected. Recovered forms cannot reuse an earlier form key/revision.
-These temporary selections never become stored execution grants.
-
-With a fresh signed-in catalog, **Try a model** offers **Check model access**.
-Select a model and confirm possible provider usage. This sends one fixed prompt,
-with the lowest advertised effort, restricted private scratch permissions and a
-two-minute limit. It accepts only a matching completed acknowledgement and shows
-requested/runtime model, timestamp and measured duration. **Cancel model check**
-waits for cleanup; provider usage may already have occurred. A failed/interrupted
-check requires fresh consent and never automatically retries. No repository task
-or arbitrary prompt is available. Connection refresh clears the current result.
+The wizard resumes from saved setup. Executable paths are discovered from metadata
+only. The catalog becomes stale after 24 hours or failed refresh. Personal Codex
+credentials are never adopted. Login URLs remain transient behind a session-protected
+redirect. Cancel waits for authentication/model helper cleanup; provider usage may
+already have occurred. Interrupted actions never retry automatically. Fresh connection
+observations clear optional test consent but preserve model choices. Form keys and
+setup revisions reject recovered stale actions. The shell supplies the native helper;
+never point `CCODING_NATIVE_HELPER` at an unrelated executable.
 
 Open **Team** to rename the four default roles, edit instructions or add up to
 eight custom roles. Leave assignments empty to save a draft; choose Codex and a
-model from its current catalog to bind one. Save creates an immutable revision;
+model from its saved wizard selection (or full legacy catalog) to bind one. Save creates an immutable revision;
 expand **Recent saved revisions** to inspect the latest five. Removing a saved
 custom role needs confirmation. A stale editor keeps its draft and refuses to
 overwrite a newer revision; **Reload saved** asks before discarding edits.

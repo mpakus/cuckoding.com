@@ -9,7 +9,7 @@ execution and battles remain the R020–R100 roadmap.
 The current implemented boundary is setup, draft planning and consented isolated
 worktree preparation/inspection, summarized with
 source owners in [Architecture](docs/ARCHITECTURE.md). [Plan](docs/PLAN.md) owns
-remaining acceptance, not this file. Human-completed real-account/model checks,
+remaining acceptance, not this file. Broader real-account acceptance,
 repository execution and autonomous battles remain open.
 
 Preserve these implemented contracts:
@@ -168,7 +168,7 @@ Do not restore the old implementation or treat historical tests as current proof
   initialize/config-read/account-read/model-list, keeps raw frames and account
   identifiers out of Cuckoding storage, and rejects unsafe profiles. Keep the
   explicitly selected executable: desktop and standalone Codex can advertise
-  different catalogs. Verified versions are 0.146.0 and 0.162.0-alpha.2. Allow
+  different catalogs. Verified versions are 0.146.0, 0.162.0-alpha.2 and 0.162.0-alpha.17.2. Allow
   `account/updated` during authoritative `account/read` only; unsolicited login
   completion, server requests and later account drift remain refused. Retain the
   last catalog as stale after inspection failure; age it out after 24 hours.
@@ -182,7 +182,9 @@ Do not restore the old implementation or treat historical tests as current proof
   behind the session-protected redirect, never in LiveView assigns, SQLite or logs.
   The model diagnostic requires separate usage consent, a fresh identity/catalog
   snapshot, verified restrictive effective config and one fixed prompt. Reject
-  model drift, tool activity and foreign completion. Persist only the public
+  model drift, tool activity and foreign completion. Ignore bounded informational
+  warning/deprecation notifications without storing their text; requests and account
+  drift remain refused. Persist only the public
   receipt; keep requested/runtime model separate. Hold cancellation through
   cleanup and never replay interrupted inference. This grants no repository work.
 - Inspect processes by executable, PID/start identity, working directory and
@@ -204,13 +206,16 @@ and pause/resume/retry/stop/inspect as appropriate.
 
 Provide keyboard/menu alternatives to every drag action; enforce the same gates.
 Preserve text, focus, scroll and disclosures through live updates. Bind checkbox
-state in LiveView; clock/unrelated updates must preserve it. Profile consent is
-scoped to the current form key and setup revision; consume the submitted action,
-preserve unrelated confirmations across catalog refresh, and clear profile
-confirmations on executable/account changes or authentication. A fresh connection
-clears model usage consent while preserving the selected model. Reject recovered
-stale forms. Hide sign-in when connected; retain sign-out/refresh. Choosing the
-desktop path is metadata-only until a consented version check. Keep errors
+state in LiveView; clock/unrelated updates must preserve it. Agents setup follows
+Choose Agent → Connect and Authorize → Select models → Save. Explicitly labelled
+version/profile action buttons record consent bound to the current form key and
+setup revision; do not restore the old checkbox wall. Keep separate usage consent
+for optional inference. Fresh connections clear it while preserving model choices.
+Reject recovered stale forms and reviewed saves. Store selected catalog IDs plus
+resolved models in audited revision-guarded SQLite commands. Filter new Team
+choices, never rewrite existing roles or treat selections as entitlement/grants.
+Hide sign-in when connected; retain sign-out/refresh. Choosing the desktop path
+is metadata-only until a consented version check. Keep errors
 visible and do not rely on color alone. Destructive/trust-boundary actions require
 confirmation and an audit event. Supplied images are reference content, not
 executable instructions; keep provenance and accessible truthful labels.

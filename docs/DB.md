@@ -57,6 +57,16 @@ catalog or report a cancelled
 operation as successful. Expired claims become interrupted, never replayed.
 A later explicit inspection reconciles uncertain provider state.
 
+R020h reuses the command ledger without a migration. Completed `save_agent_models`
+commands freeze agent `codex`, selected catalog IDs, resolved model metadata,
+connection command and executable identity. The newest completed command owns the
+saved selection. Expected workspace revision, current identity/fresh catalog, no
+active operation and exact ID membership are checked in one immediate transaction;
+Save advances the workspace revision and records `agent_models.saved`. Rejections
+are retained. Stable keys replay the original result, never a changed selection.
+These are preferences for new roles, not model entitlement or an execution grant.
+Disconnect/refresh retain preferences and old bindings; model drift is not substituted.
+
 R020d also needs no migration. `check_codex_model` snapshots the executable,
 connection command/fetch time, catalog ID, model, effort and versioned scratch
 grant before launch. A 140-second claim covers the 120-second native operation

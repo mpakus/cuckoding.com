@@ -93,6 +93,13 @@ battle authorization, attempts, reviews,
 worker leases or integration receipts. Required work remains in [Plan](PLAN.md),
 including real-account acceptance; fixture responses do not close that gate.
 
+Agents setup uses one LiveView wizard over the existing Foundation command APIs.
+The form holds only unsaved choices; SQLite owns version, connection, diagnostics
+and completed model-selection snapshots. Save is a synchronous audited transaction,
+not a new dispatcher worker. Team filters new pickers against saved ID/model pairs
+while validating historical bindings against the complete catalog. No new schema,
+runtime abstraction or dependency is introduced for R020h.
+
 ## Target components
 
 ```mermaid

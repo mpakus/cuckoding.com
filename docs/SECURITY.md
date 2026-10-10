@@ -198,6 +198,14 @@ managed policy compatibility and physical sleep still require later acceptance.
 Account status is an observation, not proof of token validity or model access.
 Catalog fixtures do not satisfy the real-provider authorization gate.
 
+R020h's wizard buttons explicitly authorize one named version/profile operation;
+server-owned form keys and setup revisions reject stale submissions. Model usage
+still has separate consent. Saving model choices only writes public metadata and
+cannot grant execution or silently replace existing role bindings. The restricted
+turn parser tolerates bounded `warning` and `deprecationNotice` notifications without
+storing their text. The transport still refuses server requests and account drift;
+tool activity, model substitution and foreign completions remain failures.
+
 R020d's separate model diagnostic records explicit usage consent and a fresh
 executable/account/catalog snapshot. Its fixed ephemeral thread must report the
 requested model and validated permission profile before inference. The named

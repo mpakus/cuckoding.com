@@ -52,7 +52,7 @@ commit another selection. No drag/file browser or per-file content viewer is nee
 | Screen | Primary content | Main action |
 | --- | --- | --- |
 | First launch | One setup card with Agents → Team → Arena → Tabula → Describe | Continue |
-| Agents | Connection list and provider setup | Authorize / check model |
+| Agents | Four-step agent wizard, one step at a time | Continue / authorize / select / save |
 | Team | One role editor with collapsed history | Save team |
 | Arena creation | Name + native folder chooser; Git status and mutation preview | Create Arena |
 | Tabula setup | Default columns and role assignments; collapsed optional settings | Create Tabula |
@@ -70,7 +70,8 @@ hop to see tasks. A Tabula selector supports multiple saved boards.
 The current Team screen uses native disclosures, labelled text fields/selects,
 one Save action and explicit saved-role removal confirmation. Four responsibilities
 cannot be removed; names and instructions can change. New model choices come from
-the fresh verified Codex catalog. Saved stale/missing/changed bindings stay visible.
+the saved wizard choices intersected with the fresh verified Codex catalog.
+Legacy unsaved selections use the full catalog. Saved stale/missing/changed bindings stay visible.
 It shows catalog availability separately from a passing diagnostic and never claims
 execution is enabled. Errors and dirty drafts survive live updates; stale saves
 are rejected, Reload saved asks before discarding edits, and saved state survives

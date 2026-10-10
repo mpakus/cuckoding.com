@@ -235,6 +235,107 @@ defmodule Cuckoding.Foundation do
     end)
   end
 
+  def saved_agent_models do
+    Repo.one(
+      from c in Command,
+        where: c.kind == "save_agent_models" and c.state == "completed",
+        order_by: [desc: c.inserted_at],
+        limit: 1
+    )
+  end
+
+  def save_agent_models(key, expected, connection_id, ids) do
+    with {:ok, id} <- Ecto.UUID.cast(key),
+         true <- is_integer(expected) and expected >= 0,
+         true <- is_list(ids) and length(ids) in 1..128,
+         true <- Enum.all?(ids, &(is_binary(&1) and byte_size(&1) in 1..128)),
+         true <- Enum.uniq(ids) == ids do
+      request = %{
+        "agent" => "codex",
+        "connection_command_id" => connection_id,
+        "model_ids" => Enum.sort(ids)
+      }
+
+      result =
+        Repo.transaction(
+          fn -> find_or_save_models(id, expected, request) end,
+          mode: :immediate
+        )
+
+      if match?({:ok, _}, result), do: broadcast()
+      result
+    else
+      _ -> {:error, :invalid_models}
+    end
+  end
+
+  defp find_or_save_models(id, expected, request) do
+    case Repo.get(Command, id) do
+      nil ->
+        save_models(id, expected, request)
+
+      %Command{kind: "save_agent_models", expected_revision: ^expected} = previous ->
+        if Map.take(previous.payload, Map.keys(request)) == request,
+          do: previous,
+          else: Repo.rollback(:key_conflict)
+
+      _ ->
+        Repo.rollback(:key_conflict)
+    end
+  end
+
+  defp selection_current?(connection, request, models) do
+    connection["command_id"] == request["connection_command_id"] and
+      connection["status"] == "checked" and connection["authorization"] == "chatgpt" and
+      catalog_status(connection) == "fresh" and
+      verified_executable() == {:ok, connection["identity"]} and
+      length(models) == length(request["model_ids"])
+  end
+
+  defp save_models(id, expected, request) do
+    workspace = workspace()
+    connection = workspace.connection
+    models = Enum.filter(connection["models"] || [], &(&1["id"] in request["model_ids"]))
+
+    reason =
+      cond do
+        workspace.revision != expected ->
+          "stale_revision"
+
+        pending?() ->
+          "profile_busy"
+
+        not selection_current?(connection, request, models) ->
+          "model_refresh_required"
+
+        true ->
+          nil
+      end
+
+    command =
+      Repo.insert!(%Command{
+        id: id,
+        kind: "save_agent_models",
+        expected_revision: expected,
+        payload:
+          if(reason,
+            do: request,
+            else: Map.merge(request, %{"models" => models, "identity" => connection["identity"]})
+          ),
+        state: if(reason, do: "rejected", else: "completed"),
+        result: reason
+      })
+
+    if reason do
+      record("agent_models.rejected", %{"reason" => reason}, id)
+    else
+      Repo.update!(Ecto.Changeset.change(workspace, revision: expected + 1))
+      record("agent_models.saved", %{"agent" => "codex", "model_count" => length(models)}, id)
+    end
+
+    command
+  end
+
   def discover(key, expected_revision) do
     command(key, expected_revision, "discover_tools", %{})
   end

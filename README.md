@@ -12,17 +12,19 @@ attention items and logs.
 
 ## Current state
 
-**Local preview, 2026-10-09.** The tray shell, authenticated browser, SQLite
-commands/events, tool discovery and Codex setup work. **Agents** provides
-consented version/profile checks, managed ChatGPT sign-in/out, a cached model
-catalog and a fixed model-access diagnostic. Catalog refresh fetches all models
-reported by Codex, including entries hidden from its default picker; additional
-models can be selected in Agents and Team. Availability is still checked separately.
-Connected profiles show sign-out instead of sign-in. A connection refresh consumes
-its own confirmation and model-usage consent, preserving unrelated confirmations
-and the selected model. Executable/account changes clear affected confirmations.
-**Use desktop Codex path** selects the desktop runtime for a separate version check;
-it never silently changes the active executable. **Team** saves the four default
+**Local preview, 2026-10-10.** The tray shell, authenticated browser, SQLite
+commands/events, tool discovery and Codex setup work. **Agents** now guides you
+through **Choose Agent → Connect and Authorize → Select models → Save**.
+Codex is supported; other agents are marked coming soon. Executable details and
+an optional usage-confirmed model test are collapsed. Sign-in disappears while
+connected; sign-out and refresh remain available. All models returned by the
+selected runtime are offered, including additional entries. Save remembers your
+choices for new Team assignments; existing role bindings remain unchanged.
+The version-check, sign-in and refresh buttons explicitly authorize their named
+operations, without repeated setup checkboxes. Model selections survive live
+updates; stale forms and reviewed saves are rejected. A refresh clears optional
+test consent. Catalog metadata is separate from model access and execution grants.
+**Team** saves the four default
 roles plus custom roles, Codex/model assignments and instructions in immutable
 revisions. Existing Arenas and Tabulae can explicitly adopt a newer saved team;
 previous requests and draft history stay unchanged. Drafts can remain unassigned; stale models are shown without silently
@@ -81,14 +83,18 @@ configuration/thread preflight passed. R020g also verifies the desktop runtime
 `0.162.0-alpha.2`: the same private profile returns ten models, including GPT-6.1 Sol,
 GPT-6 Astra/Sol/Luna and GPT-5.6 Terra. The standalone 0.146.0 catalog is older;
 refreshing that executable cannot manufacture the newer client's list.
-Successful model responses use fixtures;
-human-completed login, real responses and repository execution remain open.
+R020h also verifies the updated desktop `0.162.0-alpha.17.2`, including a real
+GPT-6.1 Sol diagnostic response through the packaged helper and browser, and fixes the adapter
+rejecting informational warning/deprecation notices. End-to-end packaged evidence
+is recorded in its worklog. Repository execution and broader provider acceptance
+remain open.
 Dependency scheduling, execution grants and autonomous
 battles remain unimplemented. Registration alone does not validate Git; an explicit inspection
 distinguishes missing, unborn and committed standalone repositories.
 The product story above remains the target, not a shipped capability list.
 
-Evidence: [Connection state and desktop runtime](worklog/2026-10-09-R020g-codex-setup-state.md),
+Evidence: [Agent wizard and model check](worklog/2026-10-10-R020h-agent-wizard.md),
+[Connection state and desktop runtime](worklog/2026-10-09-R020g-codex-setup-state.md),
 [Full model catalog](worklog/2026-10-08-R020f-full-model-catalog.md),
 [Profile checkbox fix](worklog/2026-10-08-R020e-profile-checkboxes.md),
 [Worktree inspection worklog](worklog/2026-10-08-R050c-worktree-inspection.md),

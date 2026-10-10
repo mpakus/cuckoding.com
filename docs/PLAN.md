@@ -140,6 +140,12 @@ the real-provider gate.
   account notification and ten-model catalog separately from old 0.146.0.
   See [task](../tasks/R020g-codex-setup-state.md) and
   [evidence](../worklog/2026-10-09-R020g-codex-setup-state.md).
+- [x] R020h: four-step Agents wizard, audited saved model selection for new Team
+  bindings, optional diagnostics and compatibility with real runtime notices.
+  Verified desktop 0.162.0-alpha.17.2 and a real GPT-6.1 Sol browser diagnostic;
+  repository execution and broader R020 acceptance remain open.
+  See [task](../tasks/R020h-agent-wizard.md) and
+  [evidence](../worklog/2026-10-10-R020h-agent-wizard.md).
 - [ ] Prove a read-only turn and a permitted worktree-writing turn in isolated
   workspaces; normalize public activity, outcomes and redacted logs.
 - [ ] Add task/process identity, cancellation, clean environment, path policy,

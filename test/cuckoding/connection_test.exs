@@ -198,6 +198,75 @@ defmodule Cuckoding.ConnectionTest do
     assert Foundation.catalog_status(%{"catalog_status" => "stale"}, time) == "stale"
   end
 
+  test "saved model choices are durable, scoped, atomic and idempotent without provider usage", %{
+    path: path
+  } do
+    ready(path)
+    Foundation.finish(inspect_profile(), catalog())
+    workspace = Foundation.workspace()
+    key = Ecto.UUID.generate()
+
+    assert {:ok, saved} =
+             Foundation.save_agent_models(
+               key,
+               workspace.revision,
+               workspace.connection["command_id"],
+               ["test-model"]
+             )
+
+    assert saved.state == "completed"
+    assert Foundation.saved_agent_models() == saved
+    assert saved.payload["models"] == workspace.connection["models"]
+    assert Foundation.workspace().revision == workspace.revision + 1
+
+    assert {:ok, ^saved} =
+             Foundation.save_agent_models(
+               key,
+               workspace.revision,
+               workspace.connection["command_id"],
+               ["test-model"]
+             )
+
+    assert {:error, :key_conflict} =
+             Foundation.save_agent_models(key, workspace.revision, "foreign", ["test-model"])
+
+    assert {:ok, nil} = Foundation.claim()
+    assert hd(Foundation.events()).kind == "agent_models.saved"
+
+    for ids <- [[], ["test-model", "test-model"], [%{}], "test-model"] do
+      assert {:error, :invalid_models} =
+               Foundation.save_agent_models(
+                 Ecto.UUID.generate(),
+                 3,
+                 workspace.connection["command_id"],
+                 ids
+               )
+    end
+
+    for {expected, connection, ids, reason} <- [
+          {2, workspace.connection["command_id"], ["test-model"], "stale_revision"},
+          {3, "foreign", ["test-model"], "model_refresh_required"},
+          {3, workspace.connection["command_id"], ["invented"], "model_refresh_required"}
+        ] do
+      assert {:ok, %{state: "rejected", result: ^reason}} =
+               Foundation.save_agent_models(Ecto.UUID.generate(), expected, connection, ids)
+    end
+
+    assert Foundation.saved_agent_models() == saved
+    Foundation.finish(inspect_profile(), %{"status" => "timeout"})
+    workspace = Foundation.workspace()
+
+    assert {:ok, %{state: "rejected", result: "model_refresh_required"}} =
+             Foundation.save_agent_models(
+               Ecto.UUID.generate(),
+               workspace.revision,
+               workspace.connection["command_id"],
+               ["test-model"]
+             )
+
+    assert Foundation.saved_agent_models() == saved
+  end
+
   test "private profile is stable and rejects redirected storage", %{root: root} do
     previous = Application.get_env(:cuckoding, :data_dir)
     Application.put_env(:cuckoding, :data_dir, Path.join(root, "app"))

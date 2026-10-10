@@ -342,7 +342,10 @@ fn completion(rpc: &mut Rpc, thread: &str, turn: &str) -> Result<String> {
             | "thread/tokenUsage/updated"
             | "thread/started"
             | "account/rateLimits/updated"
-            | "serverRequest/resolved" => {}
+            | "serverRequest/resolved"
+            // Informational notices carry no authority; never retain their free-form text.
+            | "warning"
+            | "deprecationNotice" => {}
             _ if method.starts_with("item/reasoning") || method == "item/agentMessage/delta" => {}
             _ => return Err("unexpected_message"),
         }
@@ -428,6 +431,13 @@ while IFS= read -r line; do
   *'"method":"turn/start"'*)
    printf '%s' "$line" > "$CODEX_HOME/turn-request"
    echo started > "$CODEX_HOME/turn-started"
+   if test '{mode}' = success; then
+    printf '%s\n' '{{"method":"warning","params":{{"message":"fixture-secret"}}}}'
+    printf '%s\n' '{{"method":"deprecationNotice","params":{{"summary":"fixture-secret"}}}}'
+   fi
+   if test '{mode}' = unknown; then printf '%s\n' '{{"method":"unrecognized/operation","params":{{}}}}'; fi
+   if test '{mode}' = request; then printf '%s\n' '{{"id":90,"method":"warning","params":{{}}}}'; fi
+   if test '{mode}' = drift; then printf '%s\n' '{{"method":"account/updated","params":{{}}}}'; fi
    if test '{mode}' != wait; then printf '%s\n' '{completed}'; fi
    result='{{"turn":{{"id":"{TURN}","status":"inProgress","items":[]}}}}' ;;
   *'"method":"turn/interrupt"'*) echo interrupted > "$CODEX_HOME/interrupted"; result='{{}}' ;;
@@ -599,6 +609,9 @@ done
             ("model", "model_mismatch", false),
             ("tool", "unexpected_tool", true),
             ("foreign", "unexpected_message", true),
+            ("unknown", "unexpected_message", true),
+            ("request", "unexpected_message", true),
+            ("drift", "unexpected_message", true),
             ("text", "invalid_response", true),
             ("wait", "timeout", true),
         ] {
@@ -608,7 +621,11 @@ done
                 &path,
                 &dir,
                 cancel,
-                Duration::from_millis(400),
+                if mode == "wait" {
+                    Duration::from_millis(400)
+                } else {
+                    Duration::from_secs(2)
+                },
                 Operation::Check {
                     scratch: &scratch,
                     model: "test-model",
@@ -619,7 +636,10 @@ done
             .unwrap();
             assert_eq!(result["status"], status, "{mode}");
             assert_eq!(dir.join("turn-started").exists(), launched);
-            assert_eq!(dir.join("interrupted").exists(), launched);
+            assert_eq!(
+                dir.join("interrupted").exists(),
+                launched && !matches!(mode, "request" | "drift")
+            );
             assert!(!result.to_string().contains("fixture-secret"));
             assert!(profile_lock(&dir).is_ok());
             fs::remove_dir_all(dir).unwrap();

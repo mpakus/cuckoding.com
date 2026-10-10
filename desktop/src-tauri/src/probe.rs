@@ -61,7 +61,8 @@ fn version(bytes: &[u8]) -> Option<&str> {
     let version = text.strip_prefix("codex-cli ")?.strip_suffix('\n')?;
     let numeric = |p: &str| !p.is_empty() && p.len() <= 5 && p.bytes().all(|b| b.is_ascii_digit());
     let base = if let Some((base, alpha)) = version.split_once("-alpha.") {
-        if !numeric(alpha) {
+        let parts: Vec<_> = alpha.split('.').collect();
+        if parts.len() > 2 || !parts.iter().all(|p| numeric(p)) {
             return None;
         }
         base
@@ -203,10 +204,15 @@ mod tests {
             version(b"codex-cli 0.162.0-alpha.2\n"),
             Some("0.162.0-alpha.2")
         );
+        assert_eq!(
+            version(b"codex-cli 0.162.0-alpha.17.2\n"),
+            Some("0.162.0-alpha.17.2")
+        );
         for invalid in [
             "0.162.0-alpha.",
             "0.162.0-alpha.123456",
-            "0.162.0-alpha.2.1",
+            "0.162.0-alpha.2.1.3",
+            "0.162.0-alpha.17.",
             "0.162.0-alpha.2 trailing",
             "0.162.0-alpha.2\n",
             "0.162.0-beta.2",

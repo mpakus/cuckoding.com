@@ -44,7 +44,17 @@ defmodule Cuckoding.CodexTest do
     assert %{"status" => "supported", "version" => "0.162.0-alpha.2"} =
              Codex.normalize(~s({"status":"observed","version":"0.162.0-alpha.2"}))
 
-    for version <- ["0.145.0", "0.147.0", "1.0.0", "0.162.0-alpha.3", "0.162.0"] do
+    assert %{"status" => "supported", "version" => "0.162.0-alpha.17.2"} =
+             Codex.normalize(~s({"status":"observed","version":"0.162.0-alpha.17.2"}))
+
+    for version <- [
+          "0.162.0-alpha.17.3",
+          "0.145.0",
+          "0.147.0",
+          "1.0.0",
+          "0.162.0-alpha.3",
+          "0.162.0"
+        ] do
       assert %{"status" => "unsupported"} =
                Codex.normalize(Jason.encode!(%{status: "observed", version: version}))
     end

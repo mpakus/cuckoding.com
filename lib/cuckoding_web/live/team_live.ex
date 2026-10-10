@@ -178,7 +178,7 @@ defmodule CuckodingWeb.TeamLive do
   end
 
   defp model_options(role, catalog) do
-    models = if catalog.status == :available, do: catalog.models, else: []
+    models = if catalog.status == :available, do: catalog.selectable_models, else: []
 
     if role["model_id"] != "" and not Enum.any?(models, &(&1["id"] == role["model_id"])) do
       [%{"id" => role["model_id"], "name" => role["model_id"] <> " · saved binding"} | models]

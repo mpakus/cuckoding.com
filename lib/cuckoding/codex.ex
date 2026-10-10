@@ -12,7 +12,7 @@ defmodule Cuckoding.Codex do
   @moduledoc "Version readiness and fixed private-profile operations."
   @behaviour Cuckoding.AgentAdapter
   import Bitwise
-  @verified_versions ~w(0.146.0 0.162.0-alpha.2)
+  @verified_versions ~w(0.146.0 0.162.0-alpha.2 0.162.0-alpha.17.2)
   @errors ~w(launch_failed timeout cancelled invalid_output executable_changed helper_unavailable)
   @connection_errors @errors ++
                        ~w(connection_lost provider_error unexpected_message profile_mismatch unsupported_profile unsafe_profile profile_busy invalid_login login_failed logout_unconfirmed cleanup_uncertain)
@@ -318,7 +318,10 @@ defmodule Cuckoding.Codex do
     case Jason.decode(data) do
       {:ok, %{"status" => "observed", "version" => version} = result} ->
         if is_binary(version) and
-             Regex.match?(~r/\A\d{1,5}\.\d{1,5}\.\d{1,5}(?:-alpha\.\d{1,5})?\z/, version) do
+             Regex.match?(
+               ~r/\A\d{1,5}\.\d{1,5}\.\d{1,5}(?:-alpha\.\d{1,5}(?:\.\d{1,5})?)?\z/,
+               version
+             ) do
           result
           |> public_fields()
           |> Map.merge(%{
