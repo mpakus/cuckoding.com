@@ -42,15 +42,20 @@ Preserve these implemented contracts:
   provider consent. Freeze the scoped preview in the planning request; reject
   expired/foreign snapshots. Never grant the provider Arena file access or treat
   document text as policy. See [Security](docs/SECURITY.md) and [Data](docs/DB.md).
+- R040l adds the explicit `folder-documents-v1` local read: docs-first eligible
+  text/source snapshots, 2,000 entries, six directory levels, 16 files, 16 KiB each
+  and 64 KiB total. Preserve pinned descriptors, exclusions, skip/limit counts and
+  exact untruncated snapshots. Empty folders need a brief; sending snapshots still
+  requires separate provider consent. No Git prerequisite or live Arena grant.
 - Planning uses the assigned Speculator and fresh connection/model snapshot,
   stdin text and the existing no-tools empty-scratch grant. Import validated
   proposals into Specs once with source-command/index provenance. Cancellation
   and expired claims cannot replay usage or accept late text/results.
-- New planning uses `brief-plan-v2`: distinct prerequisite indices refer only to
+- New planning uses `brief-plan-v3` with up to 16 source snapshots: distinct prerequisite indices refer only to
   earlier suggestions; citation indices refer only to snapshots frozen in that
   request. Reject downgrade/malformed references before storage. Resolve imports
-  through same-board receipts and preserve earlier user edits. Keep v1 receipts
-  readable without inferring links. A scoped citation is not proof of its truth.
+  through same-board receipts and preserve earlier user edits. Keep v1/v2 receipts
+  readable with their original bounds; never infer missing links. A scoped citation is not proof of its truth.
 - Accepted specifications freeze a saved draft, prerequisite revisions and original
   citations in `accept_spec` before writing private Markdown. Verify bytes/hash and
   current revisions before acceptance/ToDo/history/event commit together. Never
@@ -108,10 +113,10 @@ Git/worktree details, revisions and logs in contextual Advanced/Inspect controls
 Do not require these as routine setup screens or repeat approvals per task.
 
 R002 implements atomic default-board creation, immediate Arena navigation and
-Advanced disclosures. Folder-wide analysis, automatic task creation and battle
-execution remain target contracts, not shipped capabilities. Preserve current
-scoped reads/consents until their replacement is implemented and verified. Folder
-analysis needs a bounded read grant; Start owns a separate bounded execution grant.
+Advanced disclosures. R040l adds bounded folder snapshots and consented Speculator
+analysis; automatic card creation and battle execution remain target contracts.
+Preserve scoped reads/consents. Folder analysis needs a bounded read grant;
+Start owns a separate bounded execution grant.
 Ask before Git initialization or initial-commit mutations, only when needed;
 no Git setup is required just to analyze docs. Do not substitute a preview for a
 working Start button. [Plan](docs/PLAN.md#next-delivery-order--simple-arena) gives

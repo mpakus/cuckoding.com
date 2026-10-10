@@ -40,10 +40,12 @@ The numbered story below is capability coverage, not eight mandatory screens.
   atomically with a new Arena, suggest its folder name and open it immediately.
   Keep existing boards and dirty drafts. Move technical setup/additional boards
   to Advanced, make planning prominent and explain unavailable Start inline.
-- [ ] **R040l — Analyze folder:** bounded host inventory of `docs/` and relevant
+- [x] **R040l — Analyze folder:** bounded host inventory of `docs/` and relevant
   eligible files, versioned finite limits/exclusions, pinned source snapshots,
   clear read/provider-use intent, progress/cancel and useful empty-source guidance.
   No live Arena access for the planning provider and no Git prerequisite.
+  Delivered as **Read project folder**, retained source preview and separately
+  consented Speculator planning. [Task and evidence](../tasks/R040l-folder-planning.md).
 - [ ] **R040m — Create cards automatically:** validate and atomically import the
   proposal graph with sources and stable receipts; survive duplicate results and
   restart without duplicates or overwriting user edits. Keep legacy imports readable.
@@ -60,8 +62,8 @@ The numbered story below is capability coverage, not eight mandatory screens.
   and timed ten-minute acceptance. Usable Arena UI ships with each earlier slice.
 
 [R002 evidence](../tasks/R002-simple-arena-contract.md) records the delivered UI
-and automatic-board slice. All later capabilities remain unchecked; the simplified
-screen does not imply a working Start or folder scan.
+and automatic-board slice. R040l adds bounded source reading; automatic card creation
+and Start remain unchecked. The simplified screen does not imply a working battle.
 
 ## Sequence and dependencies
 

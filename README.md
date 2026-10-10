@@ -32,7 +32,7 @@ board after registration and keeps technical setup in Advanced.
 | Multiple named Codex/Cursor connections, model discovery and saved choices | Additional runtimes; Cursor inference/planning |
 | Saved agent/model assignments for Speculator, Implementor, Secutor and Summa Rudis | Execution grants and real mixed-runtime battles |
 | Folder registration with an automatic default board, direct Arena opening, Advanced setup and editable drafts | Folder-to-tasks automation |
-| Codex brief planning, up to four explicitly selected `.md`/`.txt` snapshots, individual proposal imports | Folder-wide `docs/`/project analysis and automatic validated task creation |
+| Codex planning from a brief or bounded folder snapshots (`docs/` first), source citations and individual proposal imports | Automatic validated task creation from the proposal graph |
 | Git setup, accepted specification artifacts, check declarations and isolated worktree preparation/inspection | One Start, automatic dispatch/card movement, independent review and local completion |
 
 Agents uses `/agents`; Settings uses `/settings`. Agent setup follows
@@ -41,7 +41,11 @@ role independently: for example Cursor/Grok for Speculator and Codex/GPT for
 Implementor, once those runtime capabilities are supported. Saving a binding is
 not execution permission. A catalog is separate from model access.
 
-The current screens still expose manual planning/setup steps. See
+Use **Create tasks → Read project folder** to preview up to 16 eligible text/source
+files (16 KiB each, 64 KiB total), then confirm sending them to Speculator.
+A brief is optional with sources; empty folders need one. The preview reports
+excluded files and limits. Agents and Team keep their existing setup controls.
+The current screens still require **Add to Specs** for each suggestion. See
 [Development](docs/DEVELOPMENT.md) for how this build works and
 [the prioritized implementation checklist](docs/PLAN.md#next-delivery-order--simple-arena)
 for closing that gap. Historical source/provider evidence is linked from the plan;

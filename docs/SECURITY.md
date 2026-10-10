@@ -82,8 +82,8 @@ Start separately freezes execution authority, current snapshots, checks and limi
 Its normal worktree/spec preparation must not introduce per-task human ceremonies.
 Git init and first commit still need their exact contextual consent, and protected
 configuration/new access/publication still require a separate decision. Planning
-works without Git. Existing R040f bounds remain in force until the new reader and
-its adversarial gates pass; this document itself grants no broader access.
+works without Git. R040l now implements the bounded folder reader described below;
+the narrower R040f manual-selection bounds remain unchanged.
 
 ## Boundaries and controls
 
@@ -279,6 +279,33 @@ proposal text are retained locally and sent to the selected provider with consen
 this is not a general-purpose secret scanner. Fixtures prove protocol handling,
 not real-provider compliance with the grant.
 
+
+## Folder planning snapshots (R040l)
+
+**Read project folder** authorizes the `folder-documents-v1` local read only. It
+revalidates the registered root, enumerates through pinned directory descriptors
+and reuses the no-follow/nonblocking single-link regular-file reader. Limits:
+2,000 entries, six nested directory levels, 16 files, 16,384 bytes per file and
+65,536 bytes total; invalid UTF-8/control text also consumes the read budget.
+The native 15-second deadline, cancellation and 25-second ledger claim remain.
+Files are never truncated. Skips have bounded reason counts; partial coverage and
+empty sources are explicit. No Git/config command is run or inferred from files.
+
+Within the bounded inventory, `docs/` sorts first. Eligible suffixes are `md txt
+ex exs rs js jsx ts tsx py rb go swift java kt c h cpp hpp css html heex sql json
+toml yaml yml`. Existing unsafe relative-path rules still apply. Every dot-prefixed
+component and `secret*`, `credential*`, `token*` is excluded, as are `node_modules`,
+`deps`, `_build`, `target`, `build`, `dist`, `vendor`, `coverage`, `venv` and
+`__pycache__`. Symlinks, hardlinks and special files are skipped without contents.
+These filename rules are not a secret scanner; users inspect exact snapshots
+before separate provider-use consent.
+
+The same scoped preview command retains exact text/hash snapshots locally. Empty,
+cancelled, expired or foreign previews never bypass brief/consent checks. New
+`brief-plan-v3` allows 16 frozen source indices and bounded 512 KiB encoded stdin
+for the helper; old v1/v2 contracts keep their limits. The provider receives
+untrusted snapshot text, not the Arena path, filesystem access or new tools.
+The existing no-tools scratch grant, output bounds and completion checks stay.
 
 ## Selected planning documents (R040f)
 

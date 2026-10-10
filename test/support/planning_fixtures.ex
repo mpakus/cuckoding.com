@@ -113,6 +113,18 @@ defmodule Cuckoding.PlanningFixtures do
     claim
   end
 
+  def folder_receipt(files \\ nil) do
+    files = files || for n <- 0..15, do: hd(document_receipt("docs/#{n}.md")["files"])
+
+    %{
+      "status" => "previewed",
+      "policy" => "folder-documents-v1",
+      "files" => files,
+      "scan" => %{"visited" => length(files), "skipped" => %{}, "limited" => false},
+      "elapsed_ms" => 12
+    }
+  end
+
   def linked_planning_receipt(id) do
     task = hd(planning_receipt(id)["proposal"]["tasks"])
 

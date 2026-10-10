@@ -1,7 +1,9 @@
 //! Fixed local Git operations. Repository text never supplies argv or authority.
+mod documents;
 mod initial;
 mod worktree;
 use crate::probe::{exited, private_directory, Group};
+pub(crate) use documents::valid_files as valid_folder_documents;
 pub(crate) use initial::valid_documents;
 use serde_json::{json, Value};
 use std::{
@@ -349,6 +351,7 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
         "preview",
         "commit",
         "documents",
+        "scan_documents",
         "worktree",
         "inspect_worktree",
     ]
@@ -359,6 +362,7 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
                     "preview",
                     "commit",
                     "documents",
+                    "scan_documents",
                     "worktree",
                     "inspect_worktree",
                 ]
@@ -390,6 +394,11 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
     let device = device.parse().map_err(|_| "invalid_request")?;
     let inode = inode.parse().map_err(|_| "invalid_request")?;
     git.identity(device, inode)?;
+    if operation == "scan_documents" {
+        let result = documents::scan(&git, &extra[0])?;
+        git.identity(device, inode)?;
+        return Ok(result);
+    }
     if ["preview", "commit"].contains(&operation.as_str()) {
         return initial::run(&git, operation, &extra[0], device, inode);
     }
@@ -550,6 +559,102 @@ mod tests {
         changed[3] = "0".into();
         changed.push(json!({"paths":["docs/plan.md"]}).to_string());
         assert_eq!(operation(&changed, "documents"), Err("folder_changed"));
+        fs::remove_dir_all(root.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn folder_snapshots_prioritize_docs_and_exclude_unsafe_or_generated_sources() {
+        use std::os::unix::fs::symlink;
+        let (root, home, mut args) = fixture();
+        for name in ["docs", "lib", ".private", "node_modules", "secrets"] {
+            fs::create_dir(root.join(name)).unwrap();
+        }
+        fs::write(root.join("docs/plan.md"), "# Plan\nDescribe work").unwrap();
+        fs::write(root.join("README.md"), "Overview").unwrap();
+        fs::write(root.join("lib/app.ex"), "defmodule App do\nend").unwrap();
+        for name in [
+            ".private/hidden.md",
+            "node_modules/dependency.js",
+            "secrets/passwords.txt",
+            ".env",
+        ] {
+            fs::write(root.join(name), "excluded-canary").unwrap();
+        }
+        fs::write(home.join("outside.md"), "outside-canary").unwrap();
+        symlink(&home, root.join("linked")).unwrap();
+        symlink(home.join("outside.md"), root.join("linked.md")).unwrap();
+        fs::hard_link(home.join("outside.md"), root.join("hard.md")).unwrap();
+        let fifo = std::ffi::CString::new(root.join("pipe.txt").to_str().unwrap()).unwrap();
+        assert_eq!(unsafe { libc::mkfifo(fifo.as_ptr(), 0o600) }, 0);
+        fs::write(root.join("bad.txt"), b"bad\0text").unwrap();
+        fs::write(root.join("utf8.txt"), [255]).unwrap();
+        fs::write(root.join("image.png"), "unsupported").unwrap();
+        fs::write(root.join("large.md"), "x".repeat(16_385)).unwrap();
+        args.push(json!({"policy":"folder-documents-v1"}).to_string());
+        let receipt = operation(&args, "scan_documents").unwrap();
+        assert!(valid_folder_documents(&receipt["files"]));
+        let names: Vec<_> = receipt["files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|f| f["path"].as_str().unwrap())
+            .collect();
+        assert_eq!(names, ["docs/plan.md", "README.md", "lib/app.ex"]);
+        assert!(!receipt.to_string().contains("canary"));
+        assert_eq!(receipt["scan"]["skipped"]["unsafe"], 4);
+        assert_eq!(receipt["scan"]["skipped"]["invalid_text"], 2);
+        assert_eq!(receipt["scan"]["limited"], true);
+        assert!(!root.join(".git").exists());
+        args[3] = "0".into();
+        assert_eq!(operation(&args, "scan_documents"), Err("folder_changed"));
+        fs::remove_dir_all(root.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn folder_snapshot_limits_empty_folders_and_interruption_are_explicit() {
+        let (root, _home, mut args) = fixture();
+        args.push(json!({"policy":"folder-documents-v1"}).to_string());
+        let empty = operation(&args, "scan_documents").unwrap();
+        assert_eq!(empty["files"], json!([]));
+        assert_eq!(empty["scan"]["limited"], false);
+        let nested = root.join("a/b/c/d/e/f");
+        fs::create_dir_all(nested.join("g")).unwrap();
+        fs::write(nested.join("included.md"), "six levels").unwrap();
+        fs::write(nested.join("g/excluded.md"), "DEPTH_CANARY").unwrap();
+        let receipt = operation(&args, "scan_documents").unwrap();
+        assert_eq!(receipt["files"].as_array().unwrap().len(), 1);
+        assert_eq!(receipt["scan"]["skipped"]["limit"], 1);
+        assert_eq!(receipt["scan"]["limited"], true);
+        assert!(!receipt.to_string().contains("DEPTH_CANARY"));
+        fs::remove_dir_all(root.join("a")).unwrap();
+        for n in 0..17 {
+            fs::write(root.join(format!("{n:02}.txt")), "x").unwrap();
+        }
+        let receipt = operation(&args, "scan_documents").unwrap();
+        assert_eq!(receipt["files"].as_array().unwrap().len(), 16);
+        assert_eq!(receipt["scan"]["skipped"]["limit"], 1);
+        for n in 0..17 {
+            fs::write(root.join(format!("{n:02}.txt")), "x".repeat(16_384)).unwrap();
+        }
+        let receipt = operation(&args, "scan_documents").unwrap();
+        assert_eq!(receipt["files"].as_array().unwrap().len(), 4);
+        for n in 17..2_100 {
+            fs::write(root.join(format!("{n:04}.txt")), "x").unwrap();
+        }
+        let receipt = operation(&args, "scan_documents").unwrap();
+        assert_eq!(receipt["scan"]["visited"], 2_000);
+        assert_eq!(receipt["scan"]["limited"], true);
+        let (sender, cancel) = mpsc::channel();
+        sender.send(()).unwrap();
+        args[0] = "scan_documents".into();
+        assert_eq!(
+            run(&args, cancel, Duration::from_secs(10)),
+            Err("cancelled")
+        );
+        let (_sender, cancel) = mpsc::channel();
+        assert_eq!(run(&args, cancel, Duration::ZERO), Err("timeout"));
+        *args.last_mut().unwrap() = json!({"policy":"unknown"}).to_string();
+        assert_eq!(operation(&args, "scan_documents"), Err("invalid_selection"));
         fs::remove_dir_all(root.parent().unwrap()).unwrap();
     }
 

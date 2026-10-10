@@ -107,11 +107,13 @@ pub(super) fn valid_request(request: &Value) -> bool {
     }) && (request.get("contract").is_none()
         || matches!(
             request["contract"].as_str(),
-            Some("brief-plan-v1" | "brief-plan-v2")
+            Some("brief-plan-v1" | "brief-plan-v2" | "brief-plan-v3")
         ))
         && (request.get("documents").is_none()
             || request["documents"] == json!([])
-            || crate::arena_git::valid_documents(&request["documents"]))
+            || crate::arena_git::valid_documents(&request["documents"])
+            || (request["contract"] == "brief-plan-v3"
+                && crate::arena_git::valid_folder_documents(&request["documents"])))
         && request["request_id"].as_str().is_some_and(|id| {
             id.len() == 36
                 && id.bytes().enumerate().all(|(i, b)| {
@@ -130,7 +132,7 @@ pub(super) fn valid_request(request: &Value) -> bool {
             .is_some_and(|s| s.len() <= 8_000)
 }
 
-fn proposal_schema(linked: bool) -> Value {
+fn proposal_schema(linked: bool, source_limit: usize) -> Value {
     let text = |max| json!({"type":"string", "minLength":1, "maxLength":max});
     let mut schema = json!({"type":"object", "additionalProperties":false, "required":["summary","tasks"],
         "properties":{"summary":text(2000), "tasks":{"type":"array", "minItems":1, "maxItems":6,
@@ -140,7 +142,10 @@ fn proposal_schema(linked: bool) -> Value {
     if linked {
         let task = &mut schema["properties"]["tasks"]["items"];
         task["required"] = json!(["title", "description", "criteria", "depends_on", "sources"]);
-        for (field, max_items, maximum) in [("depends_on", 5, 4), ("sources", 4, 3)] {
+        for (field, max_items, maximum) in [
+            ("depends_on", 5, 4),
+            ("sources", source_limit, source_limit - 1),
+        ] {
             task["properties"][field] = json!({"type":"array", "maxItems":max_items,
                 "items":{"type":"integer", "minimum":0, "maximum":maximum}});
         }
@@ -197,7 +202,7 @@ pub(super) fn check(
             if let Some(documents) = request.get("documents") {
                 input["document_snapshots"] = documents.clone();
             }
-            if request["contract"] == "brief-plan-v2" {
+            if matches!(request["contract"].as_str(), Some("brief-plan-v2" | "brief-plan-v3")) {
                 input["reference_contract"] = json!("List tasks in prerequisite-first order. depends_on contains distinct zero-based indices of earlier tasks in this proposal only. sources contains distinct zero-based indices of the selected document_snapshots that support this task. Use empty arrays when none. References identify evidence, not permission or proof of implementation.");
             }
             input.to_string()
@@ -206,7 +211,17 @@ pub(super) fn check(
     let mut params = json!({"threadId":thread_id,
         "input":[{"type":"text","text":prompt}], "model":model, "effort":effort});
     if let Some(request) = planning {
-        params["outputSchema"] = proposal_schema(request["contract"] == "brief-plan-v2");
+        params["outputSchema"] = proposal_schema(
+            matches!(
+                request["contract"].as_str(),
+                Some("brief-plan-v2" | "brief-plan-v3")
+            ),
+            if request["contract"] == "brief-plan-v3" {
+                16
+            } else {
+                4
+            },
+        );
     }
     let start = rpc.request("turn/start", params)?;
     let turn_id = identifier(&start["turn"]["id"])
@@ -493,7 +508,7 @@ done
                 assert_eq!(result["proposal"]["tasks"].as_array().unwrap().len(), 1);
                 let turn: Value =
                     serde_json::from_slice(&fs::read(dir.join("turn-request")).unwrap()).unwrap();
-                assert_eq!(turn["params"]["outputSchema"], proposal_schema(false));
+                assert_eq!(turn["params"]["outputSchema"], proposal_schema(false, 4));
                 let input: Value =
                     serde_json::from_str(turn["params"]["input"][0]["text"].as_str().unwrap())
                         .unwrap();
@@ -549,7 +564,7 @@ done
         assert_eq!(result["proposal"]["tasks"][1]["depends_on"], json!([0]));
         let turn: Value =
             serde_json::from_slice(&fs::read(dir.join("turn-request")).unwrap()).unwrap();
-        assert_eq!(turn["params"]["outputSchema"], proposal_schema(true));
+        assert_eq!(turn["params"]["outputSchema"], proposal_schema(true, 4));
         let task = &turn["params"]["outputSchema"]["properties"]["tasks"]["items"];
         assert_eq!(task["required"].as_array().unwrap().len(), 5);
         assert_eq!(task["properties"]["depends_on"]["maxItems"], 5);
@@ -566,6 +581,45 @@ done
         assert_eq!(thread["params"]["permissions"], PROFILE);
         assert_eq!(thread["params"]["environments"], json!([]));
         assert!(profile_lock(&dir).is_ok());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn folder_plan_accepts_sixteen_snapshots_only_under_v3_and_keeps_the_scratch_grant() {
+        use sha2::{Digest, Sha256};
+        let (dir, path, scratch) = model_fixture("linked_plan");
+        let text = "x".repeat(4096);
+        let files: Vec<_> = (0..16).map(|n| json!({"path":format!("lib/{n}.ex"),
+            "text":text,"bytes":text.len(),"sha256":format!("{:x}",Sha256::digest(text.as_bytes()))})).collect();
+        let mut request = json!({"request_id":TURN,"brief":"Analyze sources","instructions":"",
+            "contract":"brief-plan-v3","documents":files});
+        assert!(valid_request(&request));
+        assert!(request.to_string().len() > 65_536);
+        request["contract"] = json!("brief-plan-v2");
+        assert!(!valid_request(&request));
+        request["contract"] = json!("brief-plan-v3");
+        let (_sender, cancel) = mpsc::channel();
+        let result = run_operation(
+            &path,
+            &dir,
+            cancel,
+            Duration::from_secs(2),
+            Operation::Plan {
+                scratch: &scratch,
+                model: "test-model",
+                effort: "low",
+                request: &request,
+            },
+            |_| Ok(()),
+        )
+        .unwrap();
+        assert_eq!(result["grant"], "scratch-read-only-v1");
+        let turn: Value =
+            serde_json::from_slice(&fs::read(dir.join("turn-request")).unwrap()).unwrap();
+        assert_eq!(turn["params"]["outputSchema"], proposal_schema(true, 16));
+        let input: Value =
+            serde_json::from_str(turn["params"]["input"][0]["text"].as_str().unwrap()).unwrap();
+        assert_eq!(input["document_snapshots"], request["documents"]);
         fs::remove_dir_all(dir).unwrap();
     }
 

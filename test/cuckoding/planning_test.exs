@@ -185,7 +185,7 @@ defmodule Cuckoding.PlanningTest do
   test "linked proposals import in order and retain citations without overwriting edited prerequisites",
        %{board: board} do
     claim = document_plan_fixture(board)
-    assert claim.payload["contract"] == "brief-plan-v2"
+    assert claim.payload["contract"] == "brief-plan-v3"
     {:ok, plan} = Foundation.finish(claim, linked_planning_receipt(claim.id))
     assert plan.state == "completed"
     event = Repo.get_by!(Event, command_id: plan.id, kind: "planning.completed")
@@ -243,7 +243,7 @@ defmodule Cuckoding.PlanningTest do
 
     for {field, values} <- [
           {"depends_on", [[0], [1], [-1], ["0"], nil, %{}, [0, 0], [0.0]]},
-          {"sources", [[0], [4], [-1], ["docs/plan.md"], nil, %{}, [0, 0], [0.0]]}
+          {"sources", [[0], [16], [-1], ["docs/plan.md"], nil, %{}, [0, 0], [0.0]]}
         ],
         bad <- values do
       {:ok, _} = request(board)
@@ -324,7 +324,7 @@ defmodule Cuckoding.PlanningTest do
     assert Repo.get!(Command, saved.id) == saved
   end
 
-  test "six ordered tasks can cite four snapshot indices while larger sets fail closed" do
+  test "six ordered tasks can cite sixteen snapshot indices while larger sets fail closed" do
     receipt = planning_receipt(Ecto.UUID.generate())
     task = hd(receipt["proposal"]["tasks"])
 
@@ -333,7 +333,7 @@ defmodule Cuckoding.PlanningTest do
         Map.merge(task, %{
           "title" => "Task #{index}",
           "depends_on" => Enum.take([0, 1, 2, 3, 4], index),
-          "sources" => [0, 1, 2, 3]
+          "sources" => Enum.to_list(0..15)
         })
       end
 
@@ -343,7 +343,7 @@ defmodule Cuckoding.PlanningTest do
     for bad <- [
           tasks ++ [Map.put(task, "title", "Seventh")],
           List.replace_at(tasks, 5, Map.put(List.last(tasks), "depends_on", [0, 1, 2, 3, 4, 5])),
-          List.replace_at(tasks, 5, Map.put(List.last(tasks), "sources", [0, 1, 2, 3, 4]))
+          List.replace_at(tasks, 5, Map.put(List.last(tasks), "sources", Enum.to_list(0..16)))
         ] do
       assert Planning.normalize(Jason.encode!(put_in(receipt, ["proposal", "tasks"], bad)))[
                "status"

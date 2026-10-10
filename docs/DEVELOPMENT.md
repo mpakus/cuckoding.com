@@ -17,9 +17,9 @@ real-account acceptance and repository execution remain R020 work. The previous 
 reset remains intentional; do not restore the deleted implementation wholesale.
 
 R002 simplifies the Arena surface and creates a default board during registration.
-The target is **Add folder → Create tasks → Start**. The current UI still requires
-selected document paths and individual proposal imports; folder analysis and
-actual Start are pending. [Plan](PLAN.md#next-delivery-order--simple-arena) owns
+The target is **Add folder → Create tasks → Start**. R040l adds bounded folder
+snapshots and consented Speculator analysis. Individual proposal imports and
+actual Start are still pending simplification/implementation. [Plan](PLAN.md#next-delivery-order--simple-arena) owns
 those next gates; a disabled Start is not an execution feature.
 
 ## Build and open
@@ -145,7 +145,7 @@ selector preserve other boards. **Advanced → Add another board** creates extra
 Tabulae with the Arena's team, even if global defaults changed. Old Arenas without
 boards offer explicit creation; opening a page never creates data.
 **Create tasks · with Speculator** opens by default on an empty board and uses the
-existing brief/selected-document proposal flow. For manual work, expand **Add a
+brief/folder-snapshot proposal flow described below. For manual work, expand **Add a
 task manually**, enter a title, description and criteria, then **Save task**.
 Use **Edit task** and the **Column** select to move between Specs and ToDo;
 ToDo requires nonblank description and criteria. Use **Prerequisites** to check
@@ -321,16 +321,27 @@ user should need an Elixir/Rust toolchain to run the bundle.
 Reintroduce CI only with real scripts/checks; no pipeline should point to removed
 files or publish documentation claims as a working release.
 
-## Planning preview (R040e/f)
+## Planning preview (R040e/f/l)
 
 Save a Codex/model binding for Speculator, then create an Arena and Tabula or
-explicitly adopt the saved revision under **Tabula team** on an existing board. On the board open **Ask Speculator**, enter a brief, confirm
-provider usage and **Generate proposals**. Review suggestions and **Add to Specs**
+explicitly adopt the saved revision under **Tabula team** on an existing board.
+Open **Create tasks · with Speculator**. Enter a brief or **Read project folder**,
+review the local snapshots, confirm provider usage and **Generate proposals**.
+A brief is optional with nonempty sources. Review suggestions and **Add to Specs**
 individually. Existing boards do not inherit later default-team edits. Refresh a
 stale catalog in Agents before confirming again. Without document selection no
 project files are read.
 
-For documents, expand **Optional documents**, enter up to four explicit relative
+**Read project folder** visits `docs/` first, then eligible text/source files.
+The versioned policy stops at 2,000 entries, six directory levels, 16 files,
+16 KiB per file and 64 KiB total. It excludes hidden/generated/known credential
+paths, links and special files. Files are never truncated: skipped counts and
+partial scope are visible. Empty folders need a brief. Exact text is saved locally;
+filename filters do not detect every secret, so review before sending it.
+No Git repository is needed and no provider runs during the read. Cancel waits
+for native cleanup. Interrupted reads require an explicit new request.
+
+For a narrower selection, expand **Choose specific documents instead**, enter up to four explicit relative
 `.md`/`.txt` paths and **Preview documents**. Review each expandable exact text
 and SHA-256 before provider consent. Limits: 4,096 bytes each, 12,000 total, five
 minutes to select/send. This reads locally without launching Codex or modifying

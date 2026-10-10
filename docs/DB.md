@@ -216,9 +216,17 @@ returns the same Arena/board; board/event failure rolls everything back. Existin
 Arenas are not backfilled on page reads and existing boards/history stay intact.
 There is no migration in this slice.
 
-Future folder analysis must retain root identity, versioned read policy/limits,
-frozen eligible-file text/hash manifest, skipped/truncated entries and the scoped
-provider/team snapshot. Automatic imports need proposal/index receipts, dependency
+R040l retains root identity, `folder-documents-v1`, exact eligible text/hash snapshots
+and bounded visited/skipped/limited counts in `preview_documents`. Folder requests
+freeze `policy` instead of manual `paths`; neither form can reuse the other's key
+or completion. No migration: nine schema versions remain. Five-minute scope/expiry,
+claim/cancellation and content-free `documents.*` events reuse the existing path.
+`brief-plan-v3` freezes up to 16 source snapshots (16 KiB each, 64 KiB total), with
+source indices 0–15; v1/v2 receipts retain their earlier bounds. A missing brief
+with valid nonempty snapshots is stored as a fixed analysis instruction. Empty
+snapshots still require a brief. No folder path is added to the provider request.
+
+Automatic imports need proposal/index receipts, dependency
 mapping, revision guards and an atomic batch; retries/reconnects cannot duplicate
 cards or overwrite edits. New battle snapshots/attempt/review records remain
 separate from planning read intent and model observations. These are requirements,

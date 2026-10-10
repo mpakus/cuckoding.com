@@ -128,4 +128,104 @@ defmodule Cuckoding.PlanningDocumentsTest do
     assert {:ok, nil} = Foundation.claim(26_002)
     assert {:error, :lost_claim} = Foundation.finish(claim, document_receipt())
   end
+
+  test "folder snapshots freeze source policy and 16 citations without live access", %{
+    board: board
+  } do
+    key = Ecto.UUID.generate()
+    {:ok, command} = PlanningDocuments.scan(key, board.arena_id, board.id)
+    assert {:ok, ^command} = PlanningDocuments.scan(key, board.arena_id, board.id)
+    assert {:error, :key_conflict} = preview(board, ["docs/plan.md"], key)
+    {:ok, claim} = Foundation.claim()
+    {:ok, saved} = Foundation.finish(claim, folder_receipt())
+    assert saved.result == "previewed"
+    assert {:ok, files} = PlanningDocuments.selected(board, command.id)
+    assert length(files) == 16
+    setup = Planning.setup(board, command.id)
+
+    assert {:ok, plan} =
+             Planning.request(
+               Ecto.UUID.generate(),
+               board.arena_id,
+               board.id,
+               "",
+               setup.token,
+               true,
+               command.id
+             )
+
+    assert plan.payload["contract"] == "brief-plan-v3"
+    assert plan.payload["documents"] == files
+    refute plan.payload["path"]
+    {:ok, claim} = Foundation.claim()
+
+    receipt =
+      put_in(planning_receipt(plan.id), ["proposal", "tasks", Access.at(0), "sources"], [15])
+
+    {:ok, finished} = Foundation.finish(claim, receipt)
+    assert finished.state == "completed"
+    assert Planning.sources(finished, 0) == [List.last(files)]
+    legacy = %{finished | payload: Map.put(finished.payload, "contract", "brief-plan-v2")}
+    assert Planning.proposal(legacy) == nil
+
+    assert {:ok, _} =
+             Tabulae.import_proposal(Ecto.UUID.generate(), board.arena_id, board.id, plan.id, 0)
+
+    refute inspect(Repo.all(Event)) =~ "Selected plan"
+    refute inspect(Repo.all(Event)) =~ "docs/15.md"
+  end
+
+  test "folder policy does not widen manual selection or accept unsafe and excessive receipts", %{
+    board: board
+  } do
+    for receipt <- [
+          folder_receipt([hd(document_receipt(".private/read.md")["files"])]),
+          folder_receipt([hd(document_receipt("secrets/plan.md")["files"])]),
+          folder_receipt([hd(document_receipt("node_modules/file.js")["files"])]),
+          folder_receipt([
+            hd(document_receipt("lib/file.ex", String.duplicate("x", 16_385))["files"])
+          ]),
+          folder_receipt(
+            for n <- 1..5,
+                do: hd(document_receipt("#{n}.txt", String.duplicate("x", 16_384))["files"])
+          ),
+          put_in(folder_receipt(), ["scan", "visited"], 2_001),
+          put_in(folder_receipt(), ["scan", "skipped"], %{"arbitrary text" => 1}),
+          put_in(folder_receipt(), ["files", Access.at(0), "sha256"], "forged")
+        ] do
+      assert PlanningDocuments.normalize(receipt) == %{"status" => "invalid_documents"}
+    end
+
+    {:ok, _} = preview(board)
+    {:ok, claim} = Foundation.claim()
+    assert {:ok, %{result: "invalid_documents"}} = Foundation.finish(claim, folder_receipt())
+    {:ok, _} = PlanningDocuments.scan(Ecto.UUID.generate(), board.arena_id, board.id)
+    {:ok, claim} = Foundation.claim()
+    assert {:ok, %{result: "invalid_documents"}} = Foundation.finish(claim, document_receipt())
+  end
+
+  test "empty scans require a brief and cancelled scans retain no late sources", %{board: board} do
+    {:ok, command} = PlanningDocuments.scan(Ecto.UUID.generate(), board.arena_id, board.id)
+    {:ok, claim} = Foundation.claim()
+    assert {:ok, %{state: "completed"}} = Foundation.finish(claim, folder_receipt([]))
+    setup = Planning.setup(board, command.id)
+
+    assert {:error, "planning_confirmation_required"} =
+             Planning.request(
+               Ecto.UUID.generate(),
+               board.arena_id,
+               board.id,
+               "",
+               setup.token,
+               true,
+               command.id
+             )
+
+    assert {:ok, []} = PlanningDocuments.selected(board, command.id)
+    {:ok, command} = PlanningDocuments.scan(Ecto.UUID.generate(), board.arena_id, board.id)
+    {:ok, claim} = Foundation.claim()
+    Foundation.cancel_probe(command.id)
+    assert {:ok, %{state: "cancelled"} = saved} = Foundation.finish(claim, folder_receipt())
+    refute saved.payload["observation"]["files"]
+  end
 end

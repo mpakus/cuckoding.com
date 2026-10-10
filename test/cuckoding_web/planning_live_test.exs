@@ -120,6 +120,62 @@ defmodule CuckodingWeb.PlanningLiveTest do
     assert Cuckoding.PlanningDocuments.latest(board.id) == nil
   end
 
+  test "folder read keeps drafts, reports limits, and sends snapshots only after consent", %{
+    conn: conn,
+    board: board
+  } do
+    signed = sign_in(conn)
+    path = "/arenas/#{board.arena_id}/tabulae/#{board.id}"
+    {:ok, view, _} = live(signed, path)
+    view |> form("#draft-form", title: "Keep draft") |> render_change()
+    view |> element("button", "Read project folder") |> render_click()
+    assert Planning.history(board.id) == []
+    assert has_element?(view, "#document-preview button", "Cancel preview")
+    {:ok, claim} = Foundation.claim()
+
+    receipt =
+      folder_receipt()
+      |> put_in(["scan", "visited"], 18)
+      |> put_in(["scan", "limited"], true)
+      |> put_in(["scan", "skipped"], %{"limit" => 2})
+
+    Foundation.finish(claim, receipt)
+    assert has_element?(view, "#folder-scan-summary", "16 source snapshots")
+    assert has_element?(view, "#folder-scan-summary", "partial view")
+    assert has_element?(view, "#draft-title-input[value='Keep draft']")
+    refute has_element?(view, "#planning-form input[name=confirmed][checked]")
+    view |> form("#planning-form", brief: "", confirmed: "true") |> render_submit()
+    assert length(hd(Planning.history(board.id)).payload["documents"]) == 16
+    {:ok, again, _} = live(signed, path)
+    assert has_element?(again, "#folder-scan-summary", "16 source snapshots")
+    assert has_element?(again, "#document-selection", "Brief only")
+  end
+
+  test "folder snapshots stay ready when the provider setup is unavailable", %{
+    conn: conn,
+    board: board
+  } do
+    Foundation.workspace()
+    |> Ecto.Changeset.change(connection: %{})
+    |> Cuckoding.Repo.update!()
+
+    assert Planning.setup(board).token == nil
+    {:ok, view, _} = conn |> sign_in() |> live("/arenas/#{board.arena_id}/tabulae/#{board.id}")
+    view |> element("button", "Read project folder") |> render_click()
+    {:ok, claim} = Foundation.claim()
+    Foundation.finish(claim, folder_receipt())
+    assert view |> element("#document-selection") |> render() =~ "Snapshots are ready locally"
+    assert has_element?(view, "#planning-form button[disabled]", "Generate proposals")
+  end
+
+  test "expired component sessions cannot scan the folder", %{conn: conn, board: board} do
+    {:ok, view, _} = conn |> sign_in() |> live("/arenas/#{board.arena_id}/tabulae/#{board.id}")
+    Cuckoding.Repo.update_all(Cuckoding.BrowserToken, set: [expires_at: 0])
+    view |> element("button", "Read project folder") |> render_click()
+    assert_redirect(view, "/locked")
+    assert Cuckoding.PlanningDocuments.latest(board.id) == nil
+  end
+
   test "linked suggestions show source snapshots, gate imports and retain original provenance", %{
     conn: conn,
     board: board

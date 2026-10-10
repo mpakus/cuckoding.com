@@ -42,7 +42,7 @@ defmodule Cuckoding.Planning do
           "arena_id" => board.arena_id,
           "tabula_id" => board.id,
           "grant" => "scratch-read-only-v1",
-          "contract" => "brief-plan-v2",
+          "contract" => "brief-plan-v3",
           "document_preview_id" => preview_id,
           "documents" => elem(documents, 1)
         })
@@ -62,7 +62,7 @@ defmodule Cuckoding.Planning do
     with {:ok, key} <- Ecto.UUID.cast(key),
          {:ok, arena_id} <- Ecto.UUID.cast(arena_id),
          %{} = board <- Tabulae.get(arena_id, tabula_id),
-         true <- text?(brief, 8_000),
+         {:ok, brief} <- planning_brief(brief, board, preview_id),
          true <- confirmed == true and is_binary(token) and byte_size(token) == 64 do
       input = %{
         "arena_id" => arena_id,
@@ -77,6 +77,22 @@ defmodule Cuckoding.Planning do
       _ -> {:error, "planning_confirmation_required"}
     end
   end
+
+  defp planning_brief(brief, board, preview_id) when is_binary(brief) do
+    cond do
+      text?(brief, 8_000) ->
+        {:ok, brief}
+
+      byte_size(brief) <= 8_000 and String.trim(brief) == "" and
+          match?({:ok, [_ | _]}, PlanningDocuments.selected(board, preview_id)) ->
+        {:ok, "Analyze the supplied project snapshots and propose the next actionable tasks."}
+
+      true ->
+        {:error, "planning_confirmation_required"}
+    end
+  end
+
+  defp planning_brief(_, _, _), do: {:error, "planning_confirmation_required"}
 
   defp enqueue(key, board, input) do
     case Repo.get(Command, key) do
@@ -271,11 +287,16 @@ defmodule Cuckoding.Planning do
       case payload["contract"] do
         "brief-plan-v1" -> 3
         "brief-plan-v2" -> 5
+        "brief-plan-v3" -> 5
         _ -> 0
       end
 
     Enum.all?(proposal["tasks"], fn task ->
       map_size(task) == size and
+        indexes?(
+          Map.get(task, "sources", []),
+          if(payload["contract"] == "brief-plan-v3", do: 16, else: 4)
+        ) and
         indexes?(Map.get(task, "sources", []), length(payload["documents"] || []))
     end)
   end
@@ -296,7 +317,7 @@ defmodule Cuckoding.Planning do
        do:
          (map_size(task) == 3 or
             (map_size(task) == 5 and indexes?(task["depends_on"], index) and
-               indexes?(task["sources"], 4))) and
+               indexes?(task["sources"], 16))) and
            text?(title, 120) and not String.contains?(title, ["\n", "\t"]) and
            text?(description, 4_000) and text?(criteria, 2_000)
 

@@ -100,9 +100,11 @@ R002 creates a default board with each new Arena, suggests its folder name and
 opens the board immediately. Existing Arena routes read their first board without
 creating records. Planning opens on empty boards; repository/team/extra-board
 controls are under Advanced and manual editing is an optional disclosure.
-The application retains its consented brief/selected-document Speculator flow
-and individual proposal imports. Folder-wide analysis, automatic
-card creation and actual Start remain pending. Early UI simplification must label
+R040l adds **Read project folder**, exact source disclosures, skipped/limit counts,
+local progress/cancel and an optional brief with nonempty sources. It retains
+manual document selection and separately consented Speculator planning.
+Individual proposal imports remain; automatic card creation and actual Start are
+pending. Early UI simplification must label
 these limits accurately; it cannot relabel a proposal request as completed task
 creation. [Development](DEVELOPMENT.md) describes available operations.
 

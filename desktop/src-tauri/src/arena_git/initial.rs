@@ -9,7 +9,7 @@ use std::{
 const FILE_LIMIT: u64 = 1_048_576;
 const TOTAL_LIMIT: usize = 8_388_608;
 
-fn digest(bytes: &[u8]) -> String {
+pub(super) fn digest(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
 

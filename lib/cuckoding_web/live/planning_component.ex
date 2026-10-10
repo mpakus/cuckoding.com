@@ -29,6 +29,11 @@ defmodule CuckodingWeb.PlanningComponent do
 
     assign(socket,
       setup: setup,
+      documents_ready:
+        match?(
+          {:ok, _},
+          PlanningDocuments.selected(socket.assigns.board, socket.assigns.preview_id)
+        ),
       preview: PlanningDocuments.latest(socket.assigns.board.id),
       plans: Planning.history(socket.assigns.board.id),
       imported: Tabulae.imported(socket.assigns.board.id),
@@ -38,6 +43,20 @@ defmodule CuckodingWeb.PlanningComponent do
 
   @impl true
   def handle_event("change", params, socket), do: {:noreply, input(socket, params)}
+
+  def handle_event("scan-folder", _, socket) do
+    a = socket.assigns
+    outcome = PlanningDocuments.scan(a.key, a.board.arena_id, a.board.id)
+
+    socket =
+      case outcome do
+        {:ok, %{state: "pending", id: id}} -> assign(socket, :preview_id, id)
+        _ -> socket
+      end
+
+    {:noreply,
+     socket |> result(outcome) |> assign(confirmed: false, consent_token: nil) |> refresh()}
+  end
 
   def handle_event("document-paths", %{"paths" => paths}, socket)
       when is_binary(paths) and byte_size(paths) <= 4_000 do
@@ -155,7 +174,8 @@ defmodule CuckodingWeb.PlanningComponent do
   defp active?(command), do: command.state in ~w(pending running cancelling)
 
   defp message("planning_confirmation_required"),
-    do: "Enter a brief of up to 8,000 bytes and confirm provider usage."
+    do:
+      "Add a brief or read project sources, then confirm provider usage. Briefs allow up to 8,000 bytes."
 
   defp message("planning_setup_changed"),
     do:
@@ -202,10 +222,19 @@ defmodule CuckodingWeb.PlanningComponent do
       phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
     >
       <summary>Create tasks · with Speculator</summary>
-      <p>Describe the work to get task suggestions. You can also attach selected documents below.</p>
+      <p>Read the project sources or describe the work, then ask Speculator for task suggestions.</p>
       <p class="fine-print">
-        This preview still needs selected file paths and an Add to Specs action for each suggestion. Automatic folder analysis and card creation are coming next.
+        Read docs/ first, then eligible text and source files. Up to 16 files, 16 KiB each and 64 KiB total; hidden, generated and known credential paths are excluded. No Git or agent runs during this local read. Review sources before sending private text.
       </p>
+      <button
+        type="button"
+        class="button"
+        phx-click="scan-folder"
+        phx-target={@myself}
+        disabled={@busy}
+      >
+        Read project folder
+      </button>
       <p class="fine-print">
         {@setup.role["name"]} · {Cuckoding.Agents.display(@setup.role["agent"])} · {if @setup.payload,
           do: @setup.payload["model"],
@@ -216,7 +245,7 @@ defmodule CuckodingWeb.PlanningComponent do
         After saving a model on Team, open Advanced → Tabula team to adopt that saved revision.
       </p>
       <details id="planning-documents" phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
-        <summary>Optional documents · preview locally</summary>
+        <summary>Choose specific documents instead</summary>
         <p class="fine-print">
           Enter up to four Arena-relative .md/.txt paths, one per line. Each file may contain
           4,096 bytes; 12,000 bytes total. Preview saves the exact text in local history.
@@ -241,42 +270,58 @@ defmodule CuckodingWeb.PlanningComponent do
           >{@document_paths}</textarea>
           <button type="submit" class="button" disabled={@busy} phx-disable-with="Reading…">Preview documents</button>
         </.form>
-        <article :if={@preview} id="document-preview" class="team-role">
-          <h3>Local document preview · {@preview.state}</h3>
-          <p class="fine-print">
-            Owner: you · local reader · no agent/model · {Calendar.strftime(
-              @preview.inserted_at,
-              "%Y-%m-%d %H:%M UTC"
-            )} · {if active?(@preview),
-              do: max(0, DateTime.diff(@now, @preview.inserted_at)),
-              else: max(0, DateTime.diff(@preview.updated_at, @preview.inserted_at))}s
-          </p>
-          <button
-            :if={active?(@preview)}
-            type="button"
-            class="button"
-            phx-click="cancel"
-            phx-target={@myself}
-            phx-value-id={@preview.id}
-            disabled={@preview.state == "cancelling"}
-          >Cancel preview</button>
-          <p :if={!active?(@preview)} role="status">{message(@preview.result)}</p>
-          <.documents
-            id={"preview-documents-#{@preview.id}"}
-            files={get_in(@preview.payload, ["observation", "files"]) || []}
-          />
-          <button
-            :if={@preview.state == "completed" && @preview_id != @preview.id}
-            type="button"
-            class="button"
-            phx-click="use-documents"
-            phx-target={@myself}
-            disabled={!match?({:ok, _}, PlanningDocuments.selected(@board, @preview.id))}
-          >
-            Use these snapshots
-          </button>
-        </article>
       </details>
+      <article :if={@preview} id="document-preview" class="team-role">
+        <h3>Local document preview · {@preview.state}</h3>
+        <p class="fine-print">
+          Owner: you · local reader · no agent/model · {Calendar.strftime(
+            @preview.inserted_at,
+            "%Y-%m-%d %H:%M UTC"
+          )} · {if active?(@preview),
+            do: max(0, DateTime.diff(@now, @preview.inserted_at)),
+            else: max(0, DateTime.diff(@preview.updated_at, @preview.inserted_at))}s
+        </p>
+        <button
+          :if={active?(@preview)}
+          type="button"
+          class="button"
+          phx-click="cancel"
+          phx-target={@myself}
+          phx-value-id={@preview.id}
+          disabled={@preview.state == "cancelling"}
+        >Cancel preview</button>
+        <p :if={!active?(@preview)} role="status">{message(@preview.result)}</p>
+        <div :if={scan = get_in(@preview.payload, ["observation", "scan"])} id="folder-scan-summary">
+          <p class="fine-print">
+            {length(get_in(@preview.payload, ["observation", "files"]) || [])} source snapshots · {scan[
+              "visited"
+            ]} entries inspected · policy {@preview.payload["policy"]}
+          </p>
+          <p :if={scan["limited"]} class="notice">
+            Some sources exceeded the read limits. This is a partial view of the project; narrow the scope with specific documents if needed.
+          </p>
+          <p :for={{reason, count} <- Enum.sort(scan["skipped"])} class="fine-print">
+            Skipped: {String.replace(reason, "_", " ")} · {count}
+          </p>
+          <p :if={get_in(@preview.payload, ["observation", "files"]) == []} class="notice">
+            No eligible source text was found. Describe the work below to plan from a brief.
+          </p>
+        </div>
+        <.documents
+          id={"preview-documents-#{@preview.id}"}
+          files={get_in(@preview.payload, ["observation", "files"]) || []}
+        />
+        <button
+          :if={@preview.state == "completed" && @preview_id != @preview.id}
+          type="button"
+          class="button"
+          phx-click="use-documents"
+          phx-target={@myself}
+          disabled={!match?({:ok, _}, PlanningDocuments.selected(@board, @preview.id))}
+        >
+          Use these snapshots
+        </button>
+      </article>
       <p id="document-selection" class="fine-print">
         {cond do
           is_nil(@preview_id) ->
@@ -284,6 +329,9 @@ defmodule CuckodingWeb.PlanningComponent do
 
           @setup.token ->
             "Selected document snapshots will be sent with the brief. Preview expires after five minutes."
+
+          @documents_ready ->
+            "Snapshots are ready locally. Check the Speculator connection before sending."
 
           true ->
             "Selected snapshot is pending, expired or unavailable. Preview again or use the brief only."
@@ -305,8 +353,8 @@ defmodule CuckodingWeb.PlanningComponent do
         phx-target={@myself}
       >
         <input type="hidden" name="setup_token" value={@setup.token || ""} />
-        <label for="planning-brief">Describe the work · up to 8,000 bytes</label>
-        <textarea id="planning-brief" name="brief" rows="5" maxlength="8000" required>{@brief}</textarea>
+        <label for="planning-brief">Describe the work · optional with source snapshots · up to 8,000 bytes</label>
+        <textarea id="planning-brief" name="brief" rows="5" maxlength="8000">{@brief}</textarea>
         <label class="confirm-executable">
           <input
             type="checkbox"
@@ -320,7 +368,7 @@ defmodule CuckodingWeb.PlanningComponent do
           )}. This may use my account allowance.
         </label>
         <p class="fine-print">
-          One turn, no tools or project-file access. Up to six suggestions; adding a draft does not start a battle.
+          One turn, no tools or live project-file access. Up to six suggestions; use Add to Specs for each. Automatic card creation is next; adding a draft does not start a battle.
         </p>
         <p :if={@error} id="planning-error" role="alert" class="notice">{@error}</p>
         <p :if={@message} role="status">{@message}</p>

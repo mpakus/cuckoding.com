@@ -19,7 +19,7 @@ release process group and private storage lock.
 | `Team`, `TeamAssignments` | Immutable default revisions and confirmed scoped adoptions; no provider launch or permission grant |
 | `Arenas`, native `folder.rs` | Native folder selection and confirmed directory identity; registration reads metadata only |
 | `Tabulae` | Immutable default boards, revisioned Specs/ToDo drafts, acyclic prerequisites and proposal import provenance; delivery columns stay locked |
-| `Planning`, `PlanningDocuments` | Freeze team/model/brief and optional selected text snapshots in commands; validate proposals before explicit draft import |
+| `Planning`, `PlanningDocuments`, native `arena_git/documents.rs` | Freeze team/model/brief and optional manual/folder text snapshots in commands; bounded descriptor-relative source collection, then validate proposals before explicit draft import |
 | `ProjectChecks` | Immutable Arena check declarations, explicit preview/consent and atomic command/revision/event saves; no executable resolution, filesystem access or execution |
 | `BattlePreview` | Read-only aggregation of scoped saved preparation and verified spec artifacts; no durable battle state or launch authority |
 | `Specifications`, `Storage` | Freeze accepted draft/prerequisite revisions, write private Markdown, verify artifact hash and atomically commit acceptance/history/ToDo; no execution authority |
@@ -46,7 +46,8 @@ the immediate transaction before projection/history/event writes. No new table,
 worker or scheduler is needed. The graph is loaded per save; query reachable
 edges if board size makes this too costly.
 
-R040h versions new proposals as `brief-plan-v2`. Task references use earlier
+R040h introduced `brief-plan-v2`; R040l uses `brief-plan-v3` for up to 16 sources.
+Task references use earlier
 proposal indices; citations use frozen document indices. Elixir binds both to
 the saved contract/request before persistence. Tabulae resolves prerequisite
 indices through completed same-board import receipts in the existing transaction.
@@ -110,8 +111,14 @@ its first existing board; a GET never creates one. Explicit board URLs retain
 selection. Advanced preserves separate Arena and board team adoptions and their
 revision guards; planning and the optional task editor reuse existing components.
 
-Next, extend PlanningDocuments with a versioned bounded folder inventory/snapshot
-contract, then Planning/Tabulae with automatic validated batch import. Existing
+R040l extends PlanningDocuments with `folder-documents-v1`: bounded docs-first
+inventory and exact source snapshots using the same command, claim and cancellation
+path. Native directory enumeration and file reads stay relative to pinned descriptors;
+no Git or provider runs during preview. The v3 planning request carries at most
+64 KiB of source text on bounded stdin and keeps the same no-tools scratch grant.
+Existing v1/v2 receipts retain their original validation. No migration is required.
+
+Next, extend Planning/Tabulae with automatic validated batch import. Existing
 source receipts and user edits remain authoritative. Future Start adds durable
 battle admission/attempt/review evidence, reusing the native ownership boundary.
 Removing visible setup steps does not remove host validation or make LiveView a
