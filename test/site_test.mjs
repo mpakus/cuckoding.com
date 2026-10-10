@@ -9,7 +9,8 @@ function browser({ reduced = false, saved = null, denied = false } = {}) {
   const events = {};
   const frames = [];
   const attributes = {};
-  const motions = [["depth", "sword", "morgenstern"], ["depth", "leisure"], ["depth", "pan", "dance"], ["depth", "leisure", "weight"]];
+  const root = { dataset: {} };
+  const motions = [["depth", "sword", "morgenstern"], ["vault", "emissary"], ["depth", "pan", "dance"], ["depth", "leisure", "weight"]];
   const layers = motions.map(names => names.map(motion => ({ dataset: { motion }, style: {} })));
   const styles = layers.map(scene => scene[0].style);
   const bounds = [{ top: 100, height: 1200, width: 1000 }, { top: 1100, height: 600, width: 1000 }, { top: 2100, height: 500, width: 1000 }, { top: 3100, height: 500, width: 1000 }];
@@ -29,13 +30,13 @@ function browser({ reduced = false, saved = null, denied = false } = {}) {
     setItem: (_, value) => { if (denied) throw new Error("Denied"); saved = value; },
   };
   runInNewContext(source, {
-    document: { querySelector: selector => nodes[selector], querySelectorAll: () => scenes },
+    document: { documentElement: root, querySelector: selector => nodes[selector], querySelectorAll: () => scenes },
     window: { matchMedia: () => media, addEventListener: (name, callback) => events[name] = callback },
     innerHeight: 800,
     localStorage: storage,
     requestAnimationFrame: callback => frames.push(callback),
   });
-  return { layers, events, frames, toggle, media, attributes, get offset() { return offsets()[0]; }, get offsets() { return offsets(); }, get saved() { return saved; }, bounds: (value, index = 0) => bounds[index] = value, flush: () => frames.splice(0).forEach(callback => callback()) };
+  return { root, layers, events, frames, toggle, media, attributes, get offset() { return offsets()[0]; }, get offsets() { return offsets(); }, get saved() { return saved; }, bounds: (value, index = 0) => bounds[index] = value, flush: () => frames.splice(0).forEach(callback => callback()) };
 }
 
 test("parallax responds to scroll, coalesces frames and stays inside image overscan", () => {
@@ -114,4 +115,30 @@ test("each character moves independently, including the darker finale", () => {
   assert.match(ui.layers[3][1].style.transform, /, -[0-9.]+px/);
   assert.match(ui.layers[3][2].style.transform, /, [0-9.]+px/);
   assert.equal(ui.layers.flat().length, 11);
+});
+
+test("hero camera has bounded depth, reverses with scrolling and pauses without collapsing the page", () => {
+  const ui = browser();
+  const [vault, emissary] = ui.layers[1];
+  assert.equal(ui.root.dataset.motion, "enabled");
+  const initial = emissary.style.transform;
+  ui.bounds({ top: -400, height: 1400, width: 1000 }, 1);
+  ui.events.scroll(); ui.flush();
+  assert.match(emissary.style.transform, /scale\(1.21\)/);
+  assert.notEqual(vault.style.transform, emissary.style.transform);
+  ui.bounds({ top: -5000, height: 1400, width: 1000 }, 1);
+  ui.events.scroll(); ui.flush();
+  assert.match(emissary.style.transform, /scale\(1.42\)/);
+  ui.bounds({ top: 0, height: 1400, width: 1000 }, 1);
+  ui.events.scroll(); ui.flush();
+  assert.equal(emissary.style.transform, initial);
+  ui.events.click();
+  assert.equal(ui.root.dataset.motion, "enabled", "Pause does not move the page by collapsing sticky sections");
+  assert.equal(emissary.style.transform, initial);
+  ui.media.matches = true; ui.events.media();
+  assert.equal(ui.root.dataset.motion, "reduced");
+  ui.bounds({ top: -100, height: 600, width: 1000 }, 1);
+  ui.media.matches = false; ui.events.media();
+  ui.events.click();
+  assert.match(emissary.style.transform, /scale\(1.42\)/, "A short frame still produces a finite, bounded pose");
 });

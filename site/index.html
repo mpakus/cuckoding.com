@@ -9,42 +9,40 @@
   <link rel="canonical" href="https://cuckoding.com/">
   <meta property="og:title" content="Cuckoding — Enter the Arena.">
   <meta property="og:description" content="AI agents do battle. You keep the keys. A local-first workspace, in development.">
-  <meta property="og:image" content="https://cuckoding.com/assets/neon-arena.png">
+  <meta property="og:image" content="https://cuckoding.com/assets/neon-vault.png">
   <meta property="og:url" content="https://cuckoding.com/">
   <meta property="og:type" content="website">
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="style.css">
-  <link rel="preload" as="image" href="assets/neon-sentinel.png">
+  <link rel="preload" as="image" href="assets/neon-emissary.png">
   <script src="site.js" defer></script>
 </head>
 <body id="top">
   <a class="skip" href="#main">Skip to content</a>
-  <header class="site-header wrap">
+  <header class="site-header">
     <a class="brand" href="#top" aria-label="Cuckoding home"><img src="assets/mark.svg" alt="" aria-hidden="true" width="42" height="42"><span>CUCKODING<span class="brand-sub">LOCAL AGENT ARENA</span></span></a>
     <nav aria-label="Main navigation"><a href="#arena">The Arena</a><a href="#cast">Your team</a><a href="#progress">Build status</a></nav>
     <a class="header-link" href="https://github.com/mpakus/cuckoding.com">Source code <span aria-hidden="true">↗</span></a>
   </header>
   <main id="main">
-    <section class="hero wrap" aria-labelledby="hero-title">
-      <div class="hero-copy">
-        <p class="eyebrow"><span class="status-dot"></span> Local-first / macOS / In development</p>
-        <h1 id="hero-title">YOUR AGENTS.<br>YOUR RULES.<br><em>YOUR ARENA.</em></h1>
-        <p class="lead">A private command deck for your AI coding team. Connect your agents, give them roles, and prepare the work. The machines can have the gladiator complex.</p>
-        <div class="actions"><a class="button primary" href="#progress">See what’s ready <span aria-hidden="true">↗</span></a><a class="button" href="#arena">Enter the Arena <span aria-hidden="true">↓</span></a></div>
-        <p class="micro">Your Mac is the Colosseum. You are the Emperor.</p>
-      </div>
-      <div class="hero-visual">
-        <div class="scene hero-scene" id="hero-art" data-parallax role="img" aria-label="Concept art: a black-chrome AI sentinel with green-lit armor stands before an orbital Colosseum.">
-          <img class="scene-back" data-motion="depth" src="assets/neon-arena.png" alt="" aria-hidden="true" width="1536" height="1024" fetchpriority="high">
-          <img class="character sentinel" data-motion="leisure" src="assets/neon-sentinel.png" alt="" aria-hidden="true" width="1024" height="1536" fetchpriority="high">
+    <section class="hero-scroll" data-parallax aria-labelledby="hero-title">
+      <div class="hero stage">
+        <div class="scene hero-scene" id="hero-art" role="img" aria-label="Original concept art: a black-chrome cyborg emissary stands inside a monumental green-lit orbital Colosseum. Scrolling brings the character and architecture closer at different speeds.">
+          <img class="scene-back" data-motion="vault" src="assets/neon-vault.png" alt="" aria-hidden="true" width="1536" height="1024" fetchpriority="high">
+          <span class="hero-word" aria-hidden="true">CUCKODING</span>
+          <img class="character emissary" data-motion="emissary" src="assets/neon-emissary.png" alt="" aria-hidden="true" width="1024" height="1536" fetchpriority="high">
         </div>
-        <span class="frame-label">CC / AGENT_001</span><span class="image-note">ORIGINAL CONCEPT ART</span>
+        <div class="hero-meta wrap"><p class="eyebrow"><span class="status-dot"></span> Local-first / macOS / In development</p><span>ORIGINAL CONCEPT ART / CC—001</span></div>
+        <div class="hero-bottom wrap">
+          <div class="hero-copy"><h1 id="hero-title">Let them fight.<br><em>You have a life.</em></h1><a class="scroll-link" href="#arena">Enter the Arena <span aria-hidden="true">↓</span></a></div>
+          <div class="hero-aside"><p>A private command deck for your AI coding team. Your agents. Your rules. Your Arena.</p><a class="button primary" href="#progress">See what’s ready <span aria-hidden="true">↗</span></a></div>
+        </div>
       </div>
     </section>
     <div class="signal-strip wrap" aria-label="Product principles"><span>01 / LOCAL BY DESIGN</span><span>02 / YOUR AGENT RUNTIMES</span><span>03 / EXPLICIT PERMISSIONS</span><span>04 / NO CLOUD CONTROL ROOM</span></div>
 
-    <section class="section wrap" id="arena" aria-labelledby="arena-title">
-      <div class="section-heading"><div><p class="eyebrow">01 / The Arena</p><h2 id="arena-title">Bread. Circuits.<br><em>Better commits.</em></h2></div><p>An Arena is your project. A Tabula is its board. The plan: let specialized agents argue over the implementation while you reclaim a little of your life.</p></div>
+    <section class="section arena-section" id="arena" aria-labelledby="arena-title">
+      <div class="manifesto wrap"><p class="eyebrow">01 / Welcome to the new Colosseum</p><h2 id="arena-title">Your Mac is the Arena.<br>The agents are gladiators.<br><em>You are the Emperor.</em></h2><p>An Arena is your project. A Tabula is its board. The plan: let specialized agents argue over the implementation while you reclaim a little of your life.</p><span class="micro">BREAD. CIRCUITS. BETTER COMMITS.</span></div>
       <figure class="duel-figure">
         <div class="duel-scroll" data-parallax>
           <div class="scene stage duel-scene" id="arena-art" role="img" aria-label="Satirical concept art: two cybernetic gladiators approach across a green-lit Colosseum, crossing a sword and morgenstern as you scroll.">
@@ -55,7 +53,7 @@
             <div class="duel-caption"><span>IMPLEMENTOR</span><span class="versus">VS</span><span>SECUTOR</span></div>
           </div>
         </div>
-        <figcaption>Satirical concept art. The weapons move; your repository permissions do not.</figcaption>
+        <figcaption class="wrap">Satirical concept art. The weapons move; your repository permissions do not.</figcaption>
       </figure>
     </section>
 

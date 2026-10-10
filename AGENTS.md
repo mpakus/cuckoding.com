@@ -246,7 +246,12 @@ consumers with `rtk proxy bin/brand-icons` after edits and verify repeat hashes.
 The public GitHub Pages site lives in `site/`, separate from the application.
 Use native HTML/CSS/JS; retain satirical artwork provenance, accessible navigation,
 no-JavaScript content and OS/user motion controls. Illustrated scenes use independent
-background/character layers; keep every layer covered by pause and reduced motion. Never describe planned features
+background/character layers; keep every layer covered by pause and reduced motion.
+R019 cinematic pinning is progressive enhancement: no-JS/reduced-motion content
+stays in normal flow, user pause preserves page height, and readable copy/controls
+never receive parallax transforms. Reference sites inspire composition only;
+retain original local artwork and record prompts in `docs/ARTWORK.md`.
+Never describe planned features
 or concept boards as available product behavior. Only `site/` may be published;
 local merge is not permission to push/deploy. Follow [Site](docs/SITE.md), run
 `rtk proxy python3 bin/check-site` and `rtk proxy node --test test/site_test.mjs`,

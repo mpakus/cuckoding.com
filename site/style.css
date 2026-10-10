@@ -9,14 +9,14 @@
 }
 @layer base {
   :root { color-scheme:dark; --bg:#050807; --panel:#0b110e; --line:#294332; --green:#82ff52; --text:#eef4ef; --muted:#a4b5a9; --mono:ui-monospace,SFMono-Regular,Consolas,monospace; }
-  html { scroll-behavior:smooth; scroll-padding-top:28px; }
+  html { scroll-behavior:smooth; scroll-padding-top:120px; }
   body { background:var(--bg); color:var(--text); font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
   a { color:inherit; text-decoration:none; }
   a:hover { color:var(--green); }
   :focus-visible { outline:2px solid var(--green); outline-offset:5px; }
   ::selection { background:var(--green); color:var(--bg); }
   h1,h2,h3 { line-height:1.05; letter-spacing:-.05em; text-wrap:balance; }
-  h1 { font-size:clamp(46px,5.2vw,82px); font-weight:800; letter-spacing:-.065em; }
+  h1 { font-size:clamp(42px,4.7vw,76px); font-weight:600; letter-spacing:-.065em; }
   h2 { font-size:clamp(36px,4.1vw,62px); font-weight:650; }
   h3 { font-size:25px; font-weight:600; letter-spacing:-.03em; }
   em { font-style:normal; color:var(--green); }
@@ -30,24 +30,32 @@
   .skip:focus { top:12px; }
 }
 @layer layout {
-  .site-header { display:flex; align-items:center; gap:36px; min-height:100px; border-bottom:1px solid var(--line); }
+  .site-header { position:fixed; inset:18px 0 auto; z-index:10; width:min(1100px,calc(100% - 48px)); margin-inline:auto; display:flex; align-items:center; gap:36px; min-height:72px; padding:10px 24px; border:1px solid #82ff522e; border-radius:12px; background:#050807ed; }
   .brand { display:flex; align-items:center; gap:12px; font:750 16px/1.3 var(--mono); letter-spacing:.07em; flex:none; }
   .brand-sub { display:block; color:var(--muted); font:9px/1.4 var(--mono); letter-spacing:.16em; margin-top:4px; }
   nav { display:flex; justify-content:center; gap:30px; margin-left:auto; font:12px var(--mono); }
   nav a,.header-link { padding:14px 0; }
   .header-link { font:12px var(--mono); border-left:1px solid var(--line); padding-left:30px; }
-  .hero { display:grid; grid-template-columns:1.1fr 1fr; gap:24px; align-items:center; padding-top:32px; padding-bottom:42px; }
-  .hero-copy { z-index:1; padding:40px 0; }
-  .lead { max-width:460px; color:var(--muted); margin-top:28px; font-size:16px; }
-  .hero .micro { margin-top:22px; }
-  .hero-visual { position:relative; min-width:0; border:1px solid var(--line); background:var(--panel); clip-path:polygon(24px 0,100% 0,100% calc(100% - 24px),calc(100% - 24px) 100%,0 100%,0 24px); }
+  .hero-scroll { position:relative; }
+  .hero.stage { position:relative; top:0; height:100svh; min-height:720px; max-height:none; border:0; }
+  .hero-bottom { position:absolute; inset:auto 0 72px; z-index:1; display:flex; align-items:flex-end; justify-content:space-between; gap:40px; }
+  .hero-aside { max-width:275px; font-size:14px; }
+  .hero-aside .button { margin-top:24px; }
+  .hero-meta { position:absolute; inset:130px 0 auto; display:flex; justify-content:space-between; gap:24px; font:9px var(--mono); color:var(--muted); }
+  .hero-meta .eyebrow { margin:0; }
+  .scroll-link { display:inline-flex; gap:44px; align-items:center; margin-top:28px; font:11px var(--mono); text-transform:uppercase; letter-spacing:.09em; padding-block:10px; }
+  .scroll-link span { font-size:22px; color:var(--green); }
   .signal-strip { display:grid; grid-template-columns:repeat(4,1fr); border-block:1px solid var(--line); color:var(--muted); font:10px/1.6 var(--mono); letter-spacing:.08em; }
   .signal-strip span { padding:22px 12px; text-align:center; }
   .signal-strip span+span { border-left:1px solid var(--line); }
-  .section { padding-block:100px; }
+  .section { padding-block:120px; }
+  .manifesto { text-align:center; padding-block:50px 100px; }
+  .manifesto h2 { font-size:clamp(38px,5.2vw,80px); font-weight:500; line-height:1.12; }
+  .manifesto>p:not(.eyebrow) { max-width:560px; margin:32px auto; color:var(--muted); }
+  .arena-section { padding-bottom:0; }
   .section-heading { display:grid; grid-template-columns:1.2fr 1fr; align-items:end; gap:60px; margin-bottom:44px; }
   .section-heading>p { color:var(--muted); max-width:460px; }
-  .role-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:22px; }
+  .role-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:36px; padding-top:30px; }
   .workflow-section { border-block:1px solid var(--line); background:linear-gradient(180deg,#0b140d,var(--bg)); }
   .workflow-steps { list-style:none; display:grid; grid-template-columns:repeat(3,1fr); gap:36px; padding:0; margin:0 0 52px; }
   .afterparty { display:grid; grid-template-columns:1fr 1.7fr; align-items:center; gap:46px; }
@@ -69,29 +77,33 @@
   .scene { position:relative; isolation:isolate; overflow:hidden; background:#020805; }
   .scene-back { position:absolute; width:100%; height:100%; object-fit:cover; inset:0; z-index:-2; opacity:.68; transform:scale(1.13); }
   .character { position:absolute; object-fit:contain; pointer-events:none; }
-  .hero-scene { height:610px; }
-  .hero-scene .scene-back { opacity:.4; }
-  .hero-scene::after { content:""; position:absolute; inset:0; pointer-events:none; background:linear-gradient(0deg,#050807,transparent 30%); }
-  .sentinel { height:106%; max-width:none; width:100%; left:0; bottom:-7%; object-fit:cover; object-position:50% 10%; }
-  .frame-label,.image-note { position:absolute; font:10px var(--mono); letter-spacing:.12em; z-index:2; }
-  .frame-label { top:22px; left:22px; color:var(--green); }
-  .image-note { bottom:24px; right:24px; color:var(--muted); }
-  .duel-scroll { height:130vh; min-height:850px; }
-  .stage { position:sticky; top:24px; height:min(74vw,700px); max-height:calc(100vh - 48px); min-height:300px; border:1px solid var(--line); }
+  .hero-scene { position:absolute; inset:0; height:100%; }
+  .hero-scene .scene-back { opacity:.65; }
+  .hero-scene::after { content:""; position:absolute; inset:0; pointer-events:none; background:linear-gradient(0deg,#050807 0%,#050807aa 12%,transparent 55%); }
+  .hero-word { position:absolute; top:22%; width:100%; text-align:center; font-size:clamp(80px,16.1vw,280px); font-weight:750; line-height:1; letter-spacing:-.075em; color:#82ff5250; }
+  .emissary { width:64%; height:94%; max-width:none; left:18%; bottom:-9%; object-fit:contain; transform-origin:50% 0%; }
+  .duel-scroll { position:relative; }
+  .duel-scene { position:relative; top:0; height:min(80vw,900px); min-height:300px; }
+  html[data-motion="enabled"] .hero-scroll { height:185svh; }
+  html[data-motion="enabled"] .hero.stage { position:sticky; }
+  html[data-motion="enabled"] .duel-scroll { height:155svh; min-height:900px; }
+  html[data-motion="enabled"] .duel-scene { position:sticky; top:0; height:100svh; min-height:560px; }
   .sword,.morgenstern { width:66%; height:98%; bottom:0; max-width:none; }
   .sword { left:-4%; }
   .morgenstern { right:-4%; }
-  .scene-tag { position:absolute; inset:24px 24px auto; display:flex; justify-content:space-between; color:var(--green); font:10px var(--mono); letter-spacing:.12em; }
+  .scene-tag { position:absolute; inset:112px 40px auto; display:flex; justify-content:space-between; color:var(--green); font:10px var(--mono); letter-spacing:.12em; }
   .scene-tag span { color:var(--muted); }
-  .duel-caption { position:absolute; inset:auto 24px 20px; display:flex; justify-content:space-between; align-items:center; font:11px var(--mono); letter-spacing:.12em; }
+  .duel-caption { position:absolute; inset:auto 40px 80px; display:flex; justify-content:space-between; align-items:center; font:11px var(--mono); letter-spacing:.12em; }
   .duel-caption span { background:#050807d9; padding:8px 12px; }
   .duel-caption .versus { color:var(--green); }
-  .role-card { border:1px solid var(--line); background:var(--panel); min-width:0; }
-  .portrait { height:290px; position:relative; overflow:hidden; background:radial-gradient(ellipse at 50% 100%,#254827,transparent 70%); border-bottom:1px solid var(--line); }
+  .role-card { border-top:1px solid var(--line); min-width:0; }
+  .role-card:nth-child(2) { margin-top:70px; }
+  .role-card:nth-child(3) { margin-top:140px; }
+  .portrait { height:350px; position:relative; overflow:hidden; background:radial-gradient(ellipse at 50% 100%,#254827,transparent 70%); border-bottom:1px solid var(--line); }
   .portrait img { width:100%; height:100%; object-fit:contain; object-position:center top; }
   .role-card:first-child .portrait img { object-fit:cover; object-position:50% 17%; }
   .portrait>span { position:absolute; left:16px; top:16px; background:#050807d9; color:var(--green); padding:5px 8px; font:10px var(--mono); }
-  .role-copy { padding:28px; }
+  .role-copy { padding:28px 0; }
   .role-copy p { color:var(--muted); font-size:14px; margin:18px 0 24px; }
   .role-copy .micro { color:var(--green); }
   .coordinator { display:flex; align-items:center; gap:26px; border:1px solid var(--line); margin-top:22px; padding:28px; background:linear-gradient(110deg,#152416,#09100b); }
@@ -136,16 +148,14 @@
   #motion-toggle:disabled { cursor:default; color:var(--muted); }
 }
 @layer responsive {
-  @media (min-width:1700px) { .hero { padding-block:60px; } }
   @media (max-width:1000px) {
     .wrap { width:calc(100% - 48px); }
     .site-header { gap:20px; }
     nav { gap:18px; }
     .header-link { display:none; }
-    .hero { gap:0; }
-    .hero-scene { height:560px; }
+    .hero-aside { max-width:220px; font-size:13px; }
     .section-heading { gap:36px; }
-    .role-copy { padding:22px; }
+    .role-copy { padding:22px 0; }
     .portrait { height:230px; }
     .coordinator .chip { display:none; }
     .afterparty { gap:24px; }
@@ -154,34 +164,49 @@
   }
   @media (max-width:700px) {
     .wrap { width:calc(100% - 40px); }
-    .site-header { flex-wrap:wrap; min-height:0; padding-block:20px 12px; gap:12px; }
+    html { scroll-padding-top:145px; }
+    .site-header { inset:10px 0 auto; width:calc(100% - 24px); flex-wrap:wrap; min-height:0; padding:12px 16px; gap:8px; }
     .brand { font-size:14px; }
-    nav { width:100%; margin:0; justify-content:flex-start; gap:26px; font-size:11px; }
-    .hero { grid-template-columns:1fr; padding-top:0; gap:10px; }
-    .hero-copy { padding:34px 0 20px; }
-    h1 { font-size:clamp(42px,10.8vw,68px); }
+    .site-header .brand img { width:28px; height:28px; }
+    .brand-sub { display:none; }
+    nav { width:100%; margin:0; justify-content:space-between; gap:12px; font-size:10px; }
+    nav a { display:inline-flex; align-items:center; min-height:44px; padding:8px 0; }
+    .hero.stage { min-height:850px; }
+    .hero-meta { top:137px; }
+    .hero-meta>span { display:none; }
+    .hero-bottom { bottom:36px; flex-direction:column; align-items:flex-start; gap:14px; }
+    .hero-aside { max-width:330px; font-size:13px; }
+    .hero-aside .button { margin-top:16px; }
+    .scroll-link { margin-top:12px; padding-block:5px; }
+    h1 { font-size:clamp(38px,10vw,65px); }
     .eyebrow { font-size:10px; letter-spacing:.08em; }
-    .lead { font-size:15px; margin-top:24px; }
     .actions { gap:10px; }
     .button { padding:12px 16px; gap:14px; font-size:11px; }
-    .hero-scene { height:440px; }
-    .sentinel { object-fit:contain; height:115%; bottom:-15%; }
+    .hero-word { top:25%; }
+    .emissary { width:100%; height:66%; left:0; bottom:14%; transform-origin:50% 0%; }
+    .hero-scene::after { background:linear-gradient(0deg,#050807 0%,#050807f0 30%,transparent 70%); }
+    html[data-motion="enabled"] .hero-scroll { height:165svh; min-height:1150px; }
     .signal-strip { grid-template-columns:1fr 1fr; font-size:9px; }
     .signal-strip span { padding:16px 8px; }
     .signal-strip span:nth-child(3) { border-left:0; border-top:1px solid var(--line); }
     .signal-strip span:nth-child(4) { border-top:1px solid var(--line); }
     .section { padding-block:64px; }
+    .arena-section { padding-bottom:0; }
+    .manifesto { padding-block:15px 60px; }
+    .manifesto h2 { font-size:clamp(32px,8.4vw,50px); }
     .section-heading { grid-template-columns:1fr; gap:24px; margin-bottom:30px; }
     .section-heading>p { font-size:15px; }
-    .duel-scroll { height:100vh; min-height:600px; }
-    .stage { top:20px; height:470px; min-height:300px; max-height:calc(100svh - 40px); }
+    .duel-scene { height:550px; }
+    html[data-motion="enabled"] .duel-scroll { height:135svh; min-height:900px; }
+    html[data-motion="enabled"] .duel-scene { height:85svh; min-height:550px; }
     .sword,.morgenstern { width:80%; height:85%; bottom:5%; }
     .sword { left:-12%; }
     .morgenstern { right:-12%; }
-    .scene-tag { inset:18px 14px auto; font-size:8px; }
-    .duel-caption { inset:auto 10px 16px; font-size:8px; gap:8px; letter-spacing:0; }
+    .scene-tag { inset:130px 14px auto; font-size:8px; }
+    .duel-caption { inset:auto 10px 72px; font-size:8px; gap:8px; letter-spacing:0; }
     .duel-caption span { padding:6px; }
     .role-grid { grid-template-columns:1fr; }
+    .role-card:nth-child(n) { margin-top:0; }
     .portrait { height:310px; }
     .role-card:first-child .portrait img { object-position:50% 20%; }
     .coordinator { gap:16px; padding:24px; align-items:flex-start; }
@@ -204,7 +229,7 @@
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior:auto; }
     *,*::before,*::after { animation:none!important; transition:none!important; }
-    .duel-scroll { height:auto; min-height:0; }
-    .stage { position:relative; top:0; }
+    html[data-motion="enabled"] .hero-scroll,html[data-motion="enabled"] .duel-scroll { height:auto; min-height:0; }
+    html[data-motion="enabled"] .stage { position:relative; top:0; }
   }
 }

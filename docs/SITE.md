@@ -13,17 +13,29 @@ requests. The Roman vocabulary and satire remain. The internal app shares the
 palette, sharp panels, green focus/selection and navigation treatment, without
 bringing cinematic decoration into forms.
 
-Four scenes use independent layers: a sentinel hero, a sticky sword/morgenstern
+R019 draws composition and scroll pacing from the user-requested
+[1367 Studio](https://www.1367studio.com/) reference, visually inspected on
+2026-10-10: a full-viewport portrait, scrolling camera approach, floating navigation
+and spacious editorial sections. Its assets, code, copy and fonts are not reused.
+Cuckoding uses original black/green emissary and orbital-vault artwork, oversized
+background lettering, a full-width duel and staggered role portraits. Readable
+copy and controls remain stationary within their sections.
+
+Four scenes use independent layers: an emissary hero, a sticky sword/morgenstern
 duel, cybernetic Pan and dancing robots, then chained melancholy humans beneath
-robot leisure. Six transparent assets form seven foreground instances over a
-reused arena backdrop. Static role cards reuse the artwork. The hero is eager;
+robot leisure. Seven foreground instances use two background plates. Static role
+cards reuse the earlier sentinel and gladiators. The hero is eager;
 below-fold scenes/cards are lazy. Original PNGs are retained without pixel edits.
 The artwork and board are explicitly illustrative, never evidence of shipped UI.
 
 Transforms are bounded, use one coalesced animation frame per scroll/resize, and
 never run an idle animation loop. A fixed native button pauses every layer and
 remembers the choice when storage works. OS reduced motion takes precedence,
-including live changes, and removes the extended sticky scene. Without JavaScript,
+including live changes, and removes the extended sticky scenes. The camera scales
+the emissary up to 1.42 and the vault up to 1.28, reversing directly with native
+scrolling. Sticky distance is shorter on narrow screens. User pause resets every
+layer without changing page height; extended sticky geometry is enabled only
+after JavaScript initializes and the system allows motion. Without JavaScript,
 content, anchors and the keyboard-scrollable board remain usable; the unavailable
 motion control stays hidden. No flashing, autoplay, or animated text.
 
@@ -50,7 +62,8 @@ Open `http://127.0.0.1:4387/`. Check desktop and narrow views, all section links
 horizontal board scrolling, visible keyboard focus, parallax/pause/reload, and
 reduced motion. The structural check validates published assets, local anchors,
 scope/provenance labels and workflow boundary. The Node tests exercise bounded
-motion, frame coalescing, pause persistence, system preference changes and denied
+motion, reversible bounded camera depth, stable pause geometry, frame coalescing,
+pause persistence, system preference changes and denied
 storage without adding a browser-testing dependency.
 
 ## GitHub Pages deployment
@@ -82,5 +95,5 @@ ICNS chunks are sorted for reproducible exports. Display renaming does not migra
 private data paths or alter internal protocol/environment identifiers.
 
 [Artwork](ARTWORK.md) records the layer map, original prompts and provenance.
-The current arena supplies the static social preview. Superseded painted assets
+The current vault supplies the static social preview. Superseded painted assets
 are retained in Git history, not shipped in the Pages directory.

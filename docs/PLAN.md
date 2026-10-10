@@ -108,6 +108,13 @@ Depends on R010. User-requested addition; does not block the app's R020 sequence
 - [x] Truthful shipped/planned copy, prompt provenance, responsive and motion fallbacks.
 - Verification and local build evidence: [R018 worklog](../worklog/2026-10-10-R018-neon-arena-design.md).
 
+## R019 — Cinematic Arena scrolling
+
+- [x] Adapt the requested 1367 Studio portrait/camera/editorial pacing with original black/green artwork.
+- [x] Add an emissary and orbital-vault plate; preserve layered satire and truthful public claims.
+- [x] Bound reversible camera depth; keep pause, reduced motion, native scrolling and no-JS content.
+- [x] Verify desktop/narrow rendering and motion checks; record [R019 evidence](../worklog/2026-10-10-R019-cinematic-parallax.md).
+
 ## R020 — One real agent and durable models
 
 Depends on R010. Start with one of the user's installed supported runtimes

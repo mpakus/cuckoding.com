@@ -135,7 +135,10 @@ The black-and-electric-green cybernetic Arena lives in [site/](site/index.html):
 original chrome agents, an orbital Colosseum, a sword-and-morgenstern duel,
 dancing Pan and robots, ending with melancholy humans who outsourced their joy.
 Four scenes have independent background/character layers with scroll motion,
-pause and reduced-motion controls. The internal app shares the dark panels,
+pause and reduced-motion controls. The site opens with a full-screen cyborg and
+scroll-driven camera approach, followed by spacious editorial sections and a
+full-width duel, inspired by the requested 1367 Studio reference. All artwork is
+our own; [design and motion details](docs/SITE.md). The internal app shares the dark panels,
 green accents and restrained command-deck styling. The C/furcina logo is retained
 in green across web and native icons. [Artwork and prompts](docs/ARTWORK.md).
 

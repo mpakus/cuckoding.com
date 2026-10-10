@@ -3,21 +3,26 @@
 R018 originals generated with the built-in imagegen tool on 2026-10-10. The five
 user-supplied images informed palette, material and composition only. No reference
 pixels, watermarks, franchise characters or third-party artwork were copied.
-All six foreground assets have real alpha; the arena is opaque. Original generated
+R019 adds two originals on the same date: a black-chrome emissary with real alpha
+and an opaque orbital vault. The requested [1367 Studio](https://www.1367studio.com/)
+reference informed viewport composition and camera pacing only; none of its
+assets or source were copied. All seven foreground assets have real alpha; both
+backgrounds are opaque. Original generated
 PNG pixels are retained, composed and animated only in CSS/JavaScript. These are
 fictional satirical illustrations, not product screenshots or provider evidence.
 
 | Scene | Background | Independent foregrounds |
 | --- | --- | --- |
-| Hero | neon-arena.png | neon-sentinel.png |
+| Hero | neon-vault.png | neon-emissary.png |
 | Duel | neon-arena.png | neon-duelist.png, neon-secutor.png |
 | Afterparty | neon-arena.png | neon-pan.png, neon-revelers.png |
 | Finale | neon-arena.png | neon-revelers.png, neon-humans.png |
 
 Files live in `site/assets/`; static role-card crops reuse these originals. The
-arena also supplies the social preview. Six foregrounds are reused in seven scene
+vault also supplies the social preview. Six foregrounds are reused in seven scene
 instances, each covered by pause and reduced motion. Assets stay below 6 MB each;
-only the hero loads eagerly. Prior Roman painted assets and exact prompts remain
+only the hero loads eagerly. `neon-sentinel.png` remains in the Speculator portrait.
+Prior Roman painted assets and exact prompts remain
 recoverable in Git history before R018 (main `738f8ee`). Unused assets are removed
 from the Pages payload.
 
@@ -27,6 +32,21 @@ changing the silhouette. `bin/brand-icons` synchronizes site/app/native consumer
 and normalizes ICNS chunk ordering for repeatable output.
 
 ## Final generation prompts
+
+### neon-emissary.png
+
+New original generation (R019, built-in imagegen). Transparent background: yes.
+Saved in `site/assets/neon-emissary.png`.
+
+Use case: stylized-concept. Create an original cinematic sci-fi cyborg character CUTOUT for a website hero. Portrait 1024x1536. A single elegant humanoid machine from upper thighs upward, standing with relaxed arms, body facing slightly right and head turned nearly toward camera. Broad sculpted black obsidian shoulders, long charcoal technical cloak, exquisite polished titanium armor details, smooth opaque wraparound BLACK GLASS helmet visor with razor-thin ACID GREEN luminous horizontal line. Subtle green circuit light tracing the neck, ears and wrists. Powerful mysterious presence, retro-futurist electronic music culture meets cybernetic Roman gladiator. All head and shoulders entirely visible, narrow transparent margin, dark legs may reach bottom edge. Photoreal high-end hard-surface 3D render, intense green rimlight from behind and soft silver frontal studio reflections. Palette exclusively near-black, chrome silver and electric green #82ff52. REAL transparent background; no backdrop, arena, ground, lettering, logos, UI, weapons or watermark. Original character and silhouette, not a franchise character.
+
+### neon-vault.png
+
+New original generation (R019, built-in imagegen). Transparent background: no.
+Saved in `site/assets/neon-vault.png`.
+
+Use case: stylized-concept. Original cinematic BACKGROUND PLATE for black-and-green sci-fi AI agent website, wide 1536x1024. Inside a vast orbital Colosseum entrance chamber: concentric monumental black-metal arches form a circular aperture centered in the image. A thin brilliant acid-green ring at the far end casts misty green rays into almost black space. Geometric black chrome fluted pillars on each side, subtle curved terraces suggest a futuristic Roman arena. Perfectly centered symmetrical composition, low horizon, glossy dark floor with thin restrained green perspective lines. Calm dark foreground with NO CHARACTERS, reserved for a separate cyborg cutout. Upper center richly detailed but subdued; corners nearly black. Film-production-level hard-surface architecture, elegant minimalist retro-futurism, volumetric haze restrained, palette only obsidian black, charcoal, electric green #82ff52 and small silver accents. No text, symbols, logos, UI, figures, watermark. Original architecture.
+
 
 ### neon-arena.png
 
