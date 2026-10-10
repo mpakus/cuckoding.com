@@ -214,6 +214,9 @@ normal bootstrap/session/heartbeat with separate `.ccoding/ui-dev/` data. Tidewa
 is trusted developer code/database access, not an app-provider execution grant;
 keep it loopback-only and never tunnel it or load real app profiles for UI tests.
 See [Development](docs/DEVELOPMENT.md#ui-development-with-tidewave).
+If the developer data lock is held, identify the existing owner; never unlink or
+steal it. When handing terminal startup back to the user, stop only your verified
+preview instance and confirm cleanup rather than leaving a competing launcher.
 
 Use Phoenix LiveView, HEEx and Tailwind. Keep one reusable accessible dialog
 convention; validation lives in domain contexts/LiveView and small hooks cover

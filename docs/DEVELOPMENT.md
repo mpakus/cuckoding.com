@@ -220,6 +220,14 @@ root. `--port 4001` selects another port; `--port 0` chooses an ephemeral port.
 `--no-open` suppresses browser launch. Ctrl-C stops the owned server and watchers,
 retaining development data. Restart the launcher to reopen an expired browser session.
 
+**Already running:** a second launcher now explains that the existing server owns
+this checkout's data. The older `[Errno 35] Resource temporarily unavailable` meant
+the same lock contention. Use the existing browser tab, or press Ctrl-C in its
+launcher terminal before running the command again. Changing `--port` does not
+create a second data root. Never delete `shell.lock`: the OS releases its lock when
+the owner exits, and the retained file is safe to reuse. If an assistant started
+the preview, have it stop that owned instance before handing startup back to you.
+
 Tidewave 0.9.1 and Phoenix LiveReload 1.7.0 are development-only dependencies.
 Tidewave is a trusted developer tool with runtime evaluation, code and database
 access, not an app agent grant or sandbox. Keep this loopback endpoint private;

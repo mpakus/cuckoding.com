@@ -100,6 +100,10 @@ perform the journey; a developer clicking a fixture is not ten-minute acceptance
 
 ## Tidewave source development (R011)
 
+`rtk proxy python3 test/dev_server_test.py` checks real nonblocking lock contention
+in a temporary checkout, the actionable message, preserved data/lock identity and
+reuse after the owner releases it. It starts no Phoenix/native/provider process.
+
 After `rtk proxy bin/dev.build`, stop any source developer server and run:
 
 ```sh

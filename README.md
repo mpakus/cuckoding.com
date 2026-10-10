@@ -137,7 +137,9 @@ After building the native helper with `rtk proxy bin/dev.build`, run
 `rtk proxy bin/dev.server` to open the source app at `http://127.0.0.1:4000`.
 Tidewave's toolbar, MCP (`/tidewave/mcp`), HEEx annotations and live asset/code
 reload are development-only. The launcher uses separate `.ccoding/ui-dev/` data
-and stops with Ctrl-C. Tidewave has trusted developer access to code and this
+and stops with Ctrl-C. If it reports **already running**, use the existing browser
+tab or stop that launcher before starting another; do not delete its lock file.
+Tidewave has trusted developer access to code and this
 database; keep the endpoint local. See [setup and checks](docs/DEVELOPMENT.md#ui-development-with-tidewave).
 
 ## Public site
