@@ -320,3 +320,13 @@ follow the existing Git ledger; explicit inspection can be requested again with 
 new command, while replaying an old key returns its original result. Unchanged,
 changed and unverifiable are observations, never admission or execution authority.
 Source Git observations and the read-only Battle preview remain separate.
+
+## Multiple agent setup (R020i)
+
+Agents roster → Add agent → name + runtime → Connect and Authorize → Select
+models → Save. Edit opens the same wizard for one connection; all other profiles
+and choices remain intact. Team chooses a connection independently for each role,
+then shows only that connection's saved model choices. Changing the agent clears
+that role's unsaved model choice. Saving a new default team does not alter any
+Arena/Tabula's existing revision. Codex planning follows the assigned connection;
+a Cursor Speculator is a saved configuration with planning currently unavailable.

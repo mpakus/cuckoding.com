@@ -1,6 +1,6 @@
 defmodule CuckodingWeb.TeamLive do
   use CuckodingWeb, :live_view
-  alias Cuckoding.Team
+  alias Cuckoding.{Agents, Team}
   alias CuckodingWeb.Layouts
 
   @impl true
@@ -92,7 +92,12 @@ defmodule CuckodingWeb.TeamLive do
   def handle_info(:updated, socket) do
     if socket.assigns.dirty do
       {:noreply,
-       assign(socket, latest: Team.current(), catalog: Team.catalog(), history: Team.history())}
+       assign(socket,
+         latest: Team.current(),
+         catalog: Team.catalog(),
+         agents: Agents.list(),
+         history: Team.history()
+       )}
     else
       {:noreply, load_saved(socket)}
     end
@@ -107,6 +112,7 @@ defmodule CuckodingWeb.TeamLive do
       latest: team,
       roles: Team.editable(team),
       catalog: Team.catalog(),
+      agents: Agents.list(),
       history: Team.history(),
       key: Ecto.UUID.generate(),
       dirty: false,
@@ -178,7 +184,8 @@ defmodule CuckodingWeb.TeamLive do
   end
 
   defp model_options(role, catalog) do
-    models = if catalog.status == :available, do: catalog.selectable_models, else: []
+    selected = Map.get(catalog.agents, role["agent"], %{status: :connection_required})
+    models = if selected.status == :available, do: selected.selectable_models, else: []
 
     if role["model_id"] != "" and not Enum.any?(models, &(&1["id"] == role["model_id"])) do
       [%{"id" => role["model_id"], "name" => role["model_id"] <> " · saved binding"} | models]
@@ -199,9 +206,9 @@ defmodule CuckodingWeb.TeamLive do
   end
 
   defp status_label(:unassigned), do: "Unassigned draft"
-  defp status_label(:version_required), do: "Check Codex version"
+  defp status_label(:version_required), do: "Check agent version"
   defp status_label(:connection_required), do: "Refresh connection"
-  defp status_label(:sign_in_required), do: "Sign in to Codex"
+  defp status_label(:sign_in_required), do: "Sign in to agent"
   defp status_label(:catalog_stale), do: "Refresh model catalog"
   defp status_label(:model_missing), do: "Saved model missing from catalog"
   defp status_label(:model_changed), do: "Saved model changed · reassign explicitly"
@@ -221,7 +228,7 @@ defmodule CuckodingWeb.TeamLive do
     do: "Confirm removal of saved custom roles before saving."
 
   defp error_message("model_refresh_required"),
-    do: "This new binding needs a current Codex connection and model catalog. Your draft is kept."
+    do: "This new binding needs a current agent connection and model catalog. Your draft is kept."
 
   defp error_message(_),
     do:
@@ -234,7 +241,7 @@ defmodule CuckodingWeb.TeamLive do
       <section class="panel team-editor" aria-labelledby="team-title">
         <p class="eyebrow">02 / DEFAULT TEAM · REVISION {@base.id}</p>
         <h2 id="team-title">Cast your roles.</h2>
-        <p>Give each role a name, instructions and a model. Unassigned drafts are welcome.</p>
+        <p>Give each role a name, instructions, agent and model. Unassigned drafts are welcome.</p>
         <p class="fine-print">
           Saving starts no agent. Execution slots and permissions are not enabled in this preview. Custom roles stay planning-only and read-only.
         </p>
@@ -288,8 +295,12 @@ defmodule CuckodingWeb.TeamLive do
                   <label for={"agent-#{role["id"]}"}>Agent</label>
                   <select id={"agent-#{role["id"]}"} name={"roles[#{role["id"]}][agent]"}>
                     <option value="" selected={role["agent"] == ""}>Unassigned</option>
-                    <option value="codex" selected={role["agent"] == "codex"}>
-                      Codex · private connection
+                    <option
+                      :for={agent <- @agents}
+                      value={agent.id}
+                      selected={role["agent"] == agent.id}
+                    >
+                      {agent.name} · {Agents.label(agent.kind)}
                     </option>
                   </select>
                 </div>
@@ -368,7 +379,7 @@ defmodule CuckodingWeb.TeamLive do
                 <dd>
                   {if role["model"] == "",
                     do: "Unassigned draft",
-                    else: "#{role["agent"]} · #{role["model"]}"}
+                    else: "#{Agents.display(role["agent"])} · #{role["model"]}"}
                   <p>{role["instructions"]}</p>
                 </dd>
               </div>

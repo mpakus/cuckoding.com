@@ -46,9 +46,9 @@ defmodule CuckodingWeb.BattlePreviewLive do
   defp label(:artifact_unavailable), do: "Accepted Markdown missing or changed"
   defp label(:accepted), do: "Accepted Markdown verified"
   defp label(:unassigned), do: "Choose an agent and model"
-  defp label(:version_required), do: "Check Codex version"
+  defp label(:version_required), do: "Check agent version"
   defp label(:connection_required), do: "Refresh connection"
-  defp label(:sign_in_required), do: "Sign in to Codex"
+  defp label(:sign_in_required), do: "Sign in to agent"
   defp label(:catalog_stale), do: "Refresh model catalog"
   defp label(:model_missing), do: "Saved model missing from catalog"
   defp label(:model_changed), do: "Saved model changed · reassign explicitly"
@@ -125,16 +125,17 @@ defmodule CuckodingWeb.BattlePreviewLive do
             <h3>{role.definition["name"]}</h3>
             <p>{label(role.status)}</p>
             <p class="arena-path">
-              {if role.definition["agent"] == "", do: "No agent", else: role.definition["agent"]} · {if role.definition[
-                                                                                                          "model"
-                                                                                                        ] ==
-                                                                                                          "",
-                                                                                                        do:
-                                                                                                          "No model",
-                                                                                                        else:
-                                                                                                          role.definition[
-                                                                                                            "model"
-                                                                                                          ]}
+              {if role.definition["agent"] == "",
+                do: "No agent",
+                else: Cuckoding.Agents.display(role.definition["agent"])} · {if role.definition[
+                                                                                  "model"
+                                                                                ] ==
+                                                                                  "",
+                                                                                do: "No model",
+                                                                                else:
+                                                                                  role.definition[
+                                                                                    "model"
+                                                                                  ]}
             </p>
             <p :if={!role.required} class="fine-print">
               Custom role · planning only; no execution slot or grant.

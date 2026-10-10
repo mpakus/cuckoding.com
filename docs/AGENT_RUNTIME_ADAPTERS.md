@@ -1,12 +1,12 @@
 # Runtime adapters
 
-Status: R020a–d implement Codex version readiness, private-profile status,
-validated catalog caching, managed ChatGPT login/logout, a fixed model diagnostic
-and R040e/f brief/document-snapshot planning. Codex `0.146.0` and
-`0.162.0-alpha.2` are explicit version baselines; other versions remain unverified. Human-completed login,
-signed-in real-model acceptance and repository turns remain open. Claude Code, Codex,
-Cursor and Hermes are requested targets;
-each needs current official documentation and real installed-version evidence.
+Status: R020i adds named Codex/Cursor setup connections and per-role bindings.
+Codex supports version/account/catalog checks, ChatGPT login/logout, a fixed
+model diagnostic and R040e/f brief/document-snapshot planning. Its verified
+baselines are `0.146.0`, `0.162.0-alpha.2` and `0.162.0-alpha.17.2`; R020h records an actual GPT-6.1-Sol
+diagnostic response. Cursor `2026.09.15-d2fe57e` supports fixed setup operations
+only. Human-completed Cursor login/catalog acceptance, repository turns and
+additional provider adapters remain open.
 
 ## One replaceable boundary
 
@@ -42,9 +42,9 @@ is actually required.
 
 | Target | Rebuild status | Evidence needed before enabling execution |
 | --- | --- | --- |
-| Codex | 0.146.0 version, signed-out status, login start/cancel and restrictive thread preflight; 0.162.0-alpha.2 private-account/catalog refresh and effective-config preflight; successful model diagnostic uses fixtures | Human-completed login, real responses, repository grants/turns and cancellation |
+| Codex | Version/status/login/catalog/preflight fixtures and native checks; R020h real private-account GPT-6.1-Sol diagnostic on 0.162.0-alpha.17.2 | Repository grants/turns, execution cancellation and remaining R090 matrix |
 | Claude Code | Pending | Current official interface, safe reusable authorization, models/default behavior and permission boundary |
-| Cursor | Pending | Current official CLI identity, profile/history behavior, model discovery and project config isolation |
+| Cursor | R020i named private-profile setup on 2026.09.15-d2fe57e; fixed status/models/login/logout, no inference | Human-completed private login, actual account catalog, model inference and project config isolation |
 | Hermes | Pending | Confirm intended runtime/distribution, supported headless interface, authorization, model catalog and enforceable grants |
 | Additional runtime | Deferred until requested | Same conformance contract; a saved name/path alone does not enable execution |
 
@@ -54,7 +54,7 @@ If Hermes refers to a different distribution than the adapter implementor finds,
 resolve that identity before installing/launching it. This planning reset installs
 no providers or plugins.
 
-The version adapter callback is `probe/3`. Its native helper runs only
+For Codex, the version adapter callback is `probe/3`. Its native helper runs only
 `--version`, with a five-second deadline, 128-byte provider-output ceiling and
 1 KiB host response ceiling. HOME, CODEX_HOME, TMPDIR and working directory point
 to a new private app scratch directory; stderr is discarded and only validated
@@ -160,3 +160,11 @@ task indices and selected-document indices; Elixir validates ordering and reques
 scope before persistence. Saved v1 requests use the original schema and receipts
 remain unchanged. Runtime permissions, model matching and cancellation are unchanged;
 v2 successful responses currently have fixture evidence only.
+
+R020i adds the Cursor setup adapter and multiple Codex connections. The existing
+bounded native-helper transport is reused; Cursor owns its authorization files.
+Cursor model metadata includes only IDs, display names and default flags; no
+reasoning/input capabilities are invented. Planning/model diagnostics return
+unsupported until a restrictive Cursor grant is verified. Model lists are obtained
+from the selected CLI/account, never hardcoded or borrowed from Codex. Real Codex
+model-response evidence from R020h remains recorded separately from new fixtures.

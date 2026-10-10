@@ -202,12 +202,12 @@ defmodule CuckodingWeb.PlanningComponent do
     >
       <summary>Ask Speculator · brief and documents</summary>
       <p class="fine-print">
-        {@setup.role["name"]} · Codex · {if @setup.payload,
+        {@setup.role["name"]} · {Cuckoding.Agents.display(@setup.role["agent"])} · {if @setup.payload,
           do: @setup.payload["model"],
           else: "model unavailable"} · saved team {@setup.team_id}
       </p>
       <p :if={!@setup.token && is_nil(@preview_id)} class="notice">
-        This Tabula needs a saved Speculator with an available Codex model. Check Agents.
+        Planning currently requires a Speculator assigned to a connected Codex agent and model. Cursor can be assigned in Team; its planning support is not enabled yet.
         After saving a model on Team, open Tabula team above to adopt that saved revision.
       </p>
       <details id="planning-documents" phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
@@ -310,7 +310,9 @@ defmodule CuckodingWeb.PlanningComponent do
             checked={@confirmed}
             disabled={!@setup.token || @busy}
           />
-          Send this brief, selected document snapshots and the saved Speculator instructions to Codex. This may use my account allowance.
+          Send this brief, selected document snapshots and the saved Speculator instructions to {Cuckoding.Agents.display(
+            @setup.role["agent"]
+          )}. This may use my account allowance.
         </label>
         <p class="fine-print">
           One turn, no tools or project-file access. Up to six suggestions; adding a draft does not start a battle.

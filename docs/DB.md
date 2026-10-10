@@ -43,9 +43,8 @@ invalidate account-dependent observations when intent is enqueued, before launch
 `inspect_codex` uses the same idempotent command ledger, a 20-second claim and
 bounded helper execution. Expired inspections are interrupted, never replayed.
 Cancellation prevents late completion. Events contain outcome/count/timing only;
-full validated model metadata belongs in the connection projection. The single
-Codex profile is `agents/codex` beneath the private rebuild root; Codex owns its
-contents. Named/multiple profiles are not enabled.
+full validated model metadata belongs in the connection projection. The legacy Codex profile remains `agents/codex` beneath the private rebuild root;
+Codex owns its contents. R020i adds independent named profiles, described below.
 
 R020c reuses these tables without a migration. `login_codex` / `logout_codex` use
 630-/20-second claims and exclude other setup commands while pending, running or
@@ -411,3 +410,22 @@ are never replayed. Events carry only operation/status/elapsed/scoped IDs; neith
 file contents nor untracked names are persisted. The latest inspection accompanies
 each of the ten visible preparations; older commands/events remain in SQLite.
 `ArenaGit.latest/1` excludes both worktree operations.
+
+## R020i named connections
+
+The additive ninth migration creates `agent_connections`: UUID, display name,
+runtime kind (`codex`/`cursor`), version-readiness JSON (`codex`, retaining the
+existing projection field name), connection/catalog JSON and timestamps. It does
+not move or rewrite any existing record/profile. The legacy `codex` ID continues
+to resolve Workspace; new IDs resolve this table. Private profiles derive only
+from validated IDs as `agents/<UUID>`.
+
+`agent.added` and the initial version command commit together. Commands freeze
+`payload.agent_id`; omitted IDs mean the legacy connection only. Model-selection
+receipts use `payload.agent` as connection ID. Selection Save validates the
+current connection receipt and model IDs atomically. New connections expose no
+Team model choices until Save; legacy connections retain their earlier behavior.
+Team revisions store connection IDs in the existing `agent` field and remain
+immutable. No migration substitutes a model, account or runtime. Profile setup
+still uses the global revision/serialized dispatcher; only the selected projection
+changes. Expired setup claims cannot publish late completion or replay effects.

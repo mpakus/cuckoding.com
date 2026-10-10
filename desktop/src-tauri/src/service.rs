@@ -244,7 +244,7 @@ impl Service {
         let cookie = cookie.split(';').next().ok_or("invalid browser cookie")?;
         let headers = format!("Cookie: {cookie}\r\n");
         let page = fetch("/settings", &headers)?;
-        if !page.starts_with("HTTP/1.1 200 ") || !page.contains("Choose your agent.") {
+        if !page.starts_with("HTTP/1.1 200 ") || !page.contains("Build your roster.") {
             return Err("authenticated browser page unavailable".into());
         }
         if !fetch(&path, "")?.starts_with("HTTP/1.1 401 ") {

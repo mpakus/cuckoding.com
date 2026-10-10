@@ -1,5 +1,6 @@
 mod arena_git;
 mod connection;
+mod cursor;
 mod folder;
 mod probe;
 mod service;
@@ -28,6 +29,16 @@ fn main() {
     }
     if args.as_slice() == ["--choose-arena-folder"] {
         folder::main();
+        return;
+    }
+    if let Some(operation) = args.first().and_then(|arg| match arg.as_str() {
+        "--probe-cursor" => Some(cursor::Operation::Probe),
+        "--inspect-cursor" => Some(cursor::Operation::Inspect),
+        "--login-cursor" => Some(cursor::Operation::Login),
+        "--logout-cursor" => Some(cursor::Operation::Logout),
+        _ => None,
+    }) {
+        cursor::main(&args[1..], operation);
         return;
     }
     if args.first().is_some_and(|arg| arg == "--probe-codex") {

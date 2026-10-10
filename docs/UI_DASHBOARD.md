@@ -144,3 +144,11 @@ The result names its UTC time and conservative byte comparison; progress shows
 user/system Git/no model, elapsed time and Cancel. Reconnect retains the latest
 observation, while text explicitly requires a fresh check before use. No repair,
 delete or execution action is implied by either unchanged or changed results.
+
+R020i makes `/settings` the agent roster, with one **Add agent** action and an
+**Edit** link per named connection. `/settings/new` and `/settings/<ID>` use the
+four-step wizard. New connections choose Codex or Cursor and a display name.
+Team's agent selector lists those names and filters each role's model selector
+independently. Changing an agent clears that role's unsaved model choice. Cursor
+setup is available; tests/planning remain explicitly unavailable. Existing Codex
+profiles and immutable assignments are preserved. No single global agent selector.

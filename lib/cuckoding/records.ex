@@ -11,6 +11,19 @@ defmodule Cuckoding.Workspace do
   end
 end
 
+defmodule Cuckoding.AgentConnection do
+  @moduledoc false
+  use Ecto.Schema
+  @primary_key {:id, :binary_id, autogenerate: false}
+  schema "agent_connections" do
+    field :name, :string
+    field :kind, :string
+    field :codex, :map, default: %{}
+    field :connection, :map, default: %{}
+    timestamps(type: :utc_datetime_usec)
+  end
+end
+
 defmodule Cuckoding.Command do
   @moduledoc false
   use Ecto.Schema

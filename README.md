@@ -13,9 +13,13 @@ attention items and logs.
 ## Current state
 
 **Local preview, 2026-10-10.** The tray shell, authenticated browser, SQLite
-commands/events, tool discovery and Codex setup work. **Agents** now guides you
-through **Choose Agent → Connect and Authorize → Select models → Save**.
-Codex is supported; other agents are marked coming soon. Executable details and
+commands/events, tool discovery and agent setup work. **Agents** lists your named
+connections. Choose **Add agent** or **Edit**, then follow **Choose Agent → Connect and Authorize → Select models → Save**.
+Add multiple Codex or Cursor connections, each with a separate private profile.
+Cursor setup implements sign-in/out and account model discovery; real signed-in
+catalog acceptance still needs a user-completed Cursor login. Cursor model
+tests and planning/execution remain unavailable. Claude Code and Hermes remain
+coming soon. Executable details and
 an optional usage-confirmed model test are collapsed. Sign-in disappears while
 connected; sign-out and refresh remain available. All models returned by the
 selected runtime are offered, including additional entries. Save remembers your
@@ -25,7 +29,7 @@ operations, without repeated setup checkboxes. Model selections survive live
 updates; stale forms and reviewed saves are rejected. A refresh clears optional
 test consent. Catalog metadata is separate from model access and execution grants.
 **Team** saves the four default
-roles plus custom roles, Codex/model assignments and instructions in immutable
+roles plus custom roles, per-role agent/model assignments and instructions in immutable
 revisions. Existing Arenas and Tabulae can explicitly adopt a newer saved team;
 previous requests and draft history stay unchanged. Drafts can remain unassigned; stale models are shown without silently
 replacing them. Saving a team starts no agent and grants no execution permission.
@@ -93,7 +97,8 @@ battles remain unimplemented. Registration alone does not validate Git; an expli
 distinguishes missing, unborn and committed standalone repositories.
 The product story above remains the target, not a shipped capability list.
 
-Evidence: [Agent wizard and model check](worklog/2026-10-10-R020h-agent-wizard.md),
+Evidence: [Multiple agents](worklog/2026-10-10-R020i-multiple-agents.md),
+[Agent wizard and model check](worklog/2026-10-10-R020h-agent-wizard.md),
 [Connection state and desktop runtime](worklog/2026-10-09-R020g-codex-setup-state.md),
 [Full model catalog](worklog/2026-10-08-R020f-full-model-catalog.md),
 [Profile checkbox fix](worklog/2026-10-08-R020e-profile-checkboxes.md),

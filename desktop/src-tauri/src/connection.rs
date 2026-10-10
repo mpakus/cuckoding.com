@@ -38,14 +38,14 @@ pub enum Operation<'a> {
     },
 }
 
-struct ProfileLock(File);
+pub(crate) struct ProfileLock(File);
 impl Drop for ProfileLock {
     fn drop(&mut self) {
         unsafe { libc::flock(self.0.as_raw_fd(), libc::LOCK_UN) };
     }
 }
 
-fn profile_lock(directory: &Path) -> Result<ProfileLock> {
+pub(crate) fn profile_lock(directory: &Path) -> Result<ProfileLock> {
     profile(directory)?;
     let file = OpenOptions::new()
         .create(true)

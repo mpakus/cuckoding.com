@@ -1,8 +1,8 @@
 defmodule Cuckoding.Foundation do
   @moduledoc "Idempotent setup commands and their committed public event stream."
   import Ecto.Query
-  alias Cuckoding.{Codex, Command, Event, Repo, Workspace}
-  @auth_kinds ~w(login_codex logout_codex)
+  alias Cuckoding.{Agents, Codex, Command, Event, Repo, Workspace}
+  @auth_kinds ~w(login_codex logout_codex login_cursor logout_cursor)
   @exclusive_kinds @auth_kinds ++
                      [
                        "plan_tabula",
@@ -19,6 +19,24 @@ defmodule Cuckoding.Foundation do
                      ]
 
   def workspace, do: Repo.get!(Workspace, 1)
+  def workspace("codex"), do: workspace()
+
+  def workspace(id) do
+    agent = Agents.get(id)
+
+    %{
+      workspace()
+      | codex: if(agent, do: agent.codex, else: %{}),
+        connection: if(agent, do: agent.connection, else: %{})
+    }
+  end
+
+  def agent_id(payload), do: payload["agent_id"] || "codex"
+  def executable_identity(payload), do: Map.drop(payload, ["agent_id"])
+  defp scoped(payload, "codex"), do: payload
+  defp scoped(payload, id), do: Map.put(payload, "agent_id", id)
+  defp project(id, fields), do: Agents.project(id, fields)
+
   def catalog_status(connection, now \\ DateTime.utc_now())
 
   def catalog_status(%{"catalog_status" => "fresh", "fetched_at" => fetched}, now)
@@ -37,28 +55,43 @@ defmodule Cuckoding.Foundation do
   def pending?,
     do: Repo.exists?(from c in Command, where: c.state in ["pending", "running", "cancelling"])
 
-  def pending_probe(kind \\ "probe_codex") do
+  def pending_probe(kind \\ "probe_codex", agent_id \\ nil) do
     kinds = List.wrap(kind)
 
+    query =
+      if agent_id,
+        do:
+          from(c in Command,
+            where:
+              fragment("coalesce(json_extract(?, '$.agent_id'), 'codex')", c.payload) == ^agent_id
+          ),
+        else: Command
+
     Repo.one(
-      from c in Command,
+      from c in query,
         where: c.kind in ^kinds and c.state in ["pending", "running", "cancelling"],
         order_by: c.inserted_at,
         limit: 1
     )
   end
 
-  def last_probe(kind \\ "probe_codex") do
+  def last_probe(kind \\ "probe_codex", agent_id \\ nil) do
     kinds = List.wrap(kind)
 
-    Repo.one(
-      from c in Command, where: c.kind in ^kinds, order_by: [desc: c.inserted_at], limit: 1
-    )
+    query =
+      if agent_id,
+        do:
+          from(c in Command,
+            where:
+              fragment("coalesce(json_extract(?, '$.agent_id'), 'codex')", c.payload) == ^agent_id
+          ),
+        else: Command
+
+    Repo.one(from c in query, where: c.kind in ^kinds, order_by: [desc: c.inserted_at], limit: 1)
   end
 
-  def login_link(
-        %Command{kind: "login_codex", state: "running", result: "awaiting_login"} = command
-      ) do
+  def login_link(%Command{kind: kind, state: "running", result: "awaiting_login"} = command)
+      when kind in ~w(login_codex login_cursor) do
     if probe_active?(command), do: Codex.login_link(command.id)
   end
 
@@ -86,7 +119,7 @@ defmodule Cuckoding.Foundation do
   defp mark_login_waiting(claim) do
     current = Repo.get!(Command, claim.id)
 
-    if current.kind != "login_codex" or not probe_active?(claim) or
+    if current.kind not in ~w(login_codex login_cursor) or not probe_active?(claim) or
          workspace().revision != claim.expected_revision,
        do: Repo.rollback(:lost_claim)
 
@@ -107,10 +140,14 @@ defmodule Cuckoding.Foundation do
     )
   end
 
-  def check_codex(key, expected, path, confirmed) do
+  def check_codex(key, expected, path, confirmed, agent_id \\ "codex") do
     with true <- confirmed == true,
          {:ok, identity} <- Codex.executable(path) do
-      command(key, expected, "probe_codex", identity)
+      kind = Agents.kind(agent_id)
+
+      if kind in ~w(codex cursor),
+        do: command(key, expected, "probe_#{kind}", scoped(identity, agent_id)),
+        else: {:error, :invalid_agent}
     else
       false -> {:error, :confirmation_required}
       error -> error
@@ -137,6 +174,10 @@ defmodule Cuckoding.Foundation do
   defp cancel_command(%Command{kind: kind, state: state} = command)
        when kind in [
               "probe_codex",
+              "probe_cursor",
+              "inspect_cursor",
+              "login_cursor",
+              "logout_cursor",
               "inspect_codex",
               "login_codex",
               "logout_codex",
@@ -162,28 +203,32 @@ defmodule Cuckoding.Foundation do
 
   defp cancel_command(_), do: :ok
 
-  def inspect_codex(key, expected, confirmed) do
-    profile_command(key, expected, confirmed, "inspect_codex")
+  def inspect_codex(key, expected, confirmed, agent_id \\ "codex") do
+    profile_command(key, expected, confirmed, "inspect_#{Agents.kind(agent_id)}", agent_id)
   end
 
-  def authorize_codex(key, expected, operation, confirmed) when operation in [:login, :logout] do
-    profile_command(key, expected, confirmed, "#{operation}_codex")
+  def authorize_codex(key, expected, operation, confirmed, agent_id \\ "codex")
+      when operation in [:login, :logout] do
+    profile_command(key, expected, confirmed, "#{operation}_#{Agents.kind(agent_id)}", agent_id)
   end
 
-  defp profile_command(key, expected, confirmed, kind) do
+  defp profile_command(key, expected, confirmed, kind, agent_id) do
     with true <- confirmed == true,
-         {:ok, identity} <- verified_executable() do
-      command(key, expected, kind, identity)
+         {:ok, identity} <- verified_executable(agent_id) do
+      command(key, expected, kind, scoped(identity, agent_id))
     else
       false -> {:error, :confirmation_required}
       error -> error
     end
   end
 
-  def verified_executable do
-    with %{"status" => "supported", "command_id" => id, "path" => path} <- workspace().codex,
-         %Command{kind: "probe_codex", state: "completed", payload: identity} <-
+  def verified_executable(agent_id \\ "codex") do
+    with %{"status" => "supported", "command_id" => id, "path" => path} <-
+           workspace(agent_id).codex,
+         %Command{kind: kind, state: "completed", payload: payload} <-
            Repo.get(Command, id),
+         true <- kind == "probe_#{Agents.kind(agent_id)}" and agent_id(payload) == agent_id,
+         identity = executable_identity(payload),
          {:ok, ^identity} <- Codex.executable(path) do
       {:ok, identity}
     else
@@ -191,26 +236,34 @@ defmodule Cuckoding.Foundation do
     end
   end
 
-  def check_model(key, expected, model_id, confirmed) do
-    connection = workspace().connection
+  def check_model(key, expected, model_id, confirmed, agent_id \\ "codex") do
+    connection = workspace(agent_id).connection
 
-    with true <- confirmed == true,
-         {:ok, identity} <- verified_executable(),
+    with true <- confirmed == true and Agents.kind(agent_id) == "codex",
+         {:ok, identity} <- verified_executable(agent_id),
          %{} = model <- Enum.find(connection["models"] || [], &(&1["id"] == model_id)) do
       # The least advertised effort is enough for the fixed diagnostic response.
       effort =
         Enum.find(~w(none minimal low medium high xhigh max), &(&1 in model["efforts"])) ||
           model["default_effort"]
 
-      command(key, expected, "check_codex_model", %{
-        "identity" => identity,
-        "model_id" => model_id,
-        "model" => model["model"],
-        "effort" => effort,
-        "connection_command_id" => connection["command_id"],
-        "fetched_at" => connection["fetched_at"],
-        "grant" => "scratch-read-only-v1"
-      })
+      command(
+        key,
+        expected,
+        "check_codex_model",
+        scoped(
+          %{
+            "identity" => identity,
+            "model_id" => model_id,
+            "model" => model["model"],
+            "effort" => effort,
+            "connection_command_id" => connection["command_id"],
+            "fetched_at" => connection["fetched_at"],
+            "grant" => "scratch-read-only-v1"
+          },
+          agent_id
+        )
+      )
     else
       false -> {:error, :confirmation_required}
       {:error, _} = error -> error
@@ -219,9 +272,10 @@ defmodule Cuckoding.Foundation do
   end
 
   def model_check_current?(payload) do
-    connection = workspace().connection
+    connection = workspace(agent_id(payload)).connection
 
-    connection["status"] == "checked" and connection["authorization"] == "chatgpt" and
+    Agents.kind(agent_id(payload)) == "codex" and connection["status"] == "checked" and
+      connection["authorization"] == "chatgpt" and
       catalog_status(connection) == "fresh" and connection["identity"] == payload["identity"] and
       connection["command_id"] == payload["connection_command_id"] and
       connection["fetched_at"] == payload["fetched_at"] and
@@ -235,23 +289,24 @@ defmodule Cuckoding.Foundation do
     end)
   end
 
-  def saved_agent_models do
+  def saved_agent_models(agent_id \\ "codex") do
     Repo.one(
       from c in Command,
         where: c.kind == "save_agent_models" and c.state == "completed",
+        where: fragment("json_extract(?, '$.agent')", c.payload) == ^agent_id,
         order_by: [desc: c.inserted_at],
         limit: 1
     )
   end
 
-  def save_agent_models(key, expected, connection_id, ids) do
+  def save_agent_models(key, expected, connection_id, ids, agent_id \\ "codex") do
     with {:ok, id} <- Ecto.UUID.cast(key),
          true <- is_integer(expected) and expected >= 0,
          true <- is_list(ids) and length(ids) in 1..128,
          true <- Enum.all?(ids, &(is_binary(&1) and byte_size(&1) in 1..128)),
          true <- Enum.uniq(ids) == ids do
       request = %{
-        "agent" => "codex",
+        "agent" => agent_id,
         "connection_command_id" => connection_id,
         "model_ids" => Enum.sort(ids)
       }
@@ -286,15 +341,15 @@ defmodule Cuckoding.Foundation do
 
   defp selection_current?(connection, request, models) do
     connection["command_id"] == request["connection_command_id"] and
-      connection["status"] == "checked" and connection["authorization"] == "chatgpt" and
+      connection["status"] == "checked" and connection["authorization"] in ~w(chatgpt cursor) and
       catalog_status(connection) == "fresh" and
-      verified_executable() == {:ok, connection["identity"]} and
+      verified_executable(request["agent"]) == {:ok, connection["identity"]} and
       length(models) == length(request["model_ids"])
   end
 
   defp save_models(id, expected, request) do
     workspace = workspace()
-    connection = workspace.connection
+    connection = workspace(request["agent"]).connection
     models = Enum.filter(connection["models"] || [], &(&1["id"] in request["model_ids"]))
 
     reason =
@@ -330,7 +385,12 @@ defmodule Cuckoding.Foundation do
       record("agent_models.rejected", %{"reason" => reason}, id)
     else
       Repo.update!(Ecto.Changeset.change(workspace, revision: expected + 1))
-      record("agent_models.saved", %{"agent" => "codex", "model_count" => length(models)}, id)
+
+      record(
+        "agent_models.saved",
+        %{"agent" => request["agent"], "model_count" => length(models)},
+        id
+      )
     end
 
     command
@@ -381,26 +441,28 @@ defmodule Cuckoding.Foundation do
     record(prefix(kind) <> state, %{}, id)
 
     if state == "pending" and kind in @auth_kinds do
-      Repo.update!(
-        Ecto.Changeset.change(workspace(),
+      fields =
+        project(agent_id(payload),
           connection: %{
             "status" => "needs_recheck",
             "authorization" => "unknown",
             "models" => [],
             "catalog_status" => "not_requested",
             "command_id" => id,
-            "identity" => payload
+            "identity" => executable_identity(payload)
           }
         )
-      )
+
+      if fields != [], do: Repo.update!(Ecto.Changeset.change(workspace(), fields))
     end
 
     if state == "pending" and kind == "check_codex_model" do
-      Repo.update!(
-        Ecto.Changeset.change(workspace(),
-          connection: Map.delete(workspace().connection, "model_check")
+      fields =
+        project(agent_id(payload),
+          connection: Map.delete(workspace(agent_id(payload)).connection, "model_check")
         )
-      )
+
+      if fields != [], do: Repo.update!(Ecto.Changeset.change(workspace(), fields))
     end
 
     command
@@ -442,6 +504,10 @@ defmodule Cuckoding.Foundation do
           %{kind: kind, state: state} = command
           when kind in [
                  "probe_codex",
+                 "probe_cursor",
+                 "inspect_cursor",
+                 "login_cursor",
+                 "logout_cursor",
                  "inspect_codex",
                  "login_codex",
                  "logout_codex",
@@ -511,12 +577,15 @@ defmodule Cuckoding.Foundation do
        when kind in ~w(inspect_arena_git init_arena_git preview_arena_git commit_arena_git worktree_arena_git inspect_worktree_arena_git),
        do: 25_000
 
-  defp lease_duration("login_codex"), do: 630_000
+  defp lease_duration(kind) when kind in ~w(login_codex login_cursor), do: 630_000
   defp lease_duration("choose_arena_folder"), do: 135_000
   defp lease_duration("preview_documents"), do: 25_000
   defp lease_duration("plan_tabula"), do: 140_000
   defp lease_duration("check_codex_model"), do: 140_000
-  defp lease_duration(kind) when kind in ["inspect_codex", "logout_codex"], do: 20_000
+
+  defp lease_duration(kind)
+       when kind in ~w(inspect_codex logout_codex inspect_cursor logout_cursor), do: 20_000
+
   defp lease_duration(_), do: 10_000
 
   def finish(%Command{kind: "preview_documents"} = claim, result),
@@ -541,7 +610,8 @@ defmodule Cuckoding.Foundation do
         fn ->
           current = Repo.get!(Command, claim.id)
 
-          unless current.state in ["running", "cancelling"] and current.attempts == claim.attempts do
+          unless current.state in ["running", "cancelling"] and current.attempts == claim.attempts and
+                   live_setup_claim?(current) do
             Repo.rollback(:lost_claim)
           end
 
@@ -569,6 +639,11 @@ defmodule Cuckoding.Foundation do
     if match?({:ok, _}, result), do: broadcast()
     result
   end
+
+  defp live_setup_claim?(%{kind: "discover_tools"}), do: true
+
+  defp live_setup_claim?(command),
+    do: is_integer(command.lease_until) and command.lease_until > System.system_time(:millisecond)
 
   defp complete_command(current, claim, workspace, tools) do
     cancelled = current.state == "cancelling"
@@ -608,7 +683,7 @@ defmodule Cuckoding.Foundation do
      %{"found" => Enum.count(tools, fn {_, value} -> value["status"] == "found" end)}}
   end
 
-  defp projection(%{kind: "probe_codex"} = claim, result) do
+  defp projection(%{kind: kind} = claim, result) when kind in ~w(probe_codex probe_cursor) do
     result = Map.take(result, ~w(status version pid spawned_at_ms elapsed_ms))
 
     public =
@@ -620,9 +695,10 @@ defmodule Cuckoding.Foundation do
       })
 
     fields =
-      if workspace().connection["identity"] == claim.payload, do: [], else: [connection: %{}]
+      if workspace(agent_id(claim.payload)).connection["identity"] ==
+           executable_identity(claim.payload), do: [], else: [connection: %{}]
 
-    {[{:codex, public} | fields],
+    {project(agent_id(claim.payload), [{:codex, public} | fields]),
      Map.take(public, ~w(status version pid spawned_at_ms elapsed_ms))}
   end
 
@@ -645,25 +721,29 @@ defmodule Cuckoding.Foundation do
         "command_id" => claim.id
       })
 
-    {[connection: Map.put(workspace().connection, "model_check", public)], public}
+    {project(agent_id(claim.payload),
+       connection: Map.put(workspace(agent_id(claim.payload)).connection, "model_check", public)
+     ), public}
   end
 
   defp projection(%{kind: kind} = claim, result)
-       when kind in ["inspect_codex", "login_codex", "logout_codex"] do
-    result = result |> Jason.encode!() |> Codex.normalize_connection()
+       when kind in ~w(inspect_codex login_codex logout_codex inspect_cursor login_cursor logout_cursor) do
+    adapter = Agents.adapter(Agents.kind(agent_id(claim.payload)))
+    result = result |> Jason.encode!() |> adapter.normalize_connection()
     now = DateTime.to_iso8601(DateTime.utc_now())
-    previous = Map.delete(workspace().connection, "model_check")
+    previous = Map.delete(workspace(agent_id(claim.payload)).connection, "model_check")
 
     previous =
-      if kind == "inspect_codex" and previous["identity"] == claim.payload,
-        do: previous,
-        else: %{}
+      if kind in ~w(inspect_codex inspect_cursor) and
+           previous["identity"] == executable_identity(claim.payload),
+         do: previous,
+         else: %{}
 
     public =
       Map.merge(
         previous,
         Map.merge(result, %{
-          "identity" => claim.payload,
+          "identity" => executable_identity(claim.payload),
           "checked_at" => now,
           "command_id" => claim.id
         })
@@ -674,7 +754,11 @@ defmodule Cuckoding.Foundation do
         result["catalog_status"] == "fresh" ->
           Map.merge(public, %{
             "fetched_at" => now,
-            "source" => "codex-app-server/model/list",
+            "source" =>
+              if(Agents.kind(agent_id(claim.payload)) == "cursor",
+                do: "cursor-cli/models",
+                else: "codex-app-server/model/list"
+              ),
             "catalog_error" => nil
           })
 
@@ -696,7 +780,9 @@ defmodule Cuckoding.Foundation do
         else: public
 
     data = Map.take(result, ~w(status authorization catalog_status pid spawned_at_ms elapsed_ms))
-    {[connection: public], Map.put(data, "model_count", length(result["models"] || []))}
+
+    {project(agent_id(claim.payload), connection: public),
+     Map.put(data, "model_count", length(result["models"] || []))}
   end
 
   defp prefix(kind)
@@ -707,6 +793,10 @@ defmodule Cuckoding.Foundation do
   defp prefix("accept_spec"), do: "spec."
   defp prefix("discover_tools"), do: "discovery."
   defp prefix("choose_arena_folder"), do: "arena_folder."
+  defp prefix("probe_cursor"), do: "cursor."
+  defp prefix("inspect_cursor"), do: "connection."
+  defp prefix("login_cursor"), do: "login."
+  defp prefix("logout_cursor"), do: "logout."
   defp prefix("probe_codex"), do: "codex."
   defp prefix("inspect_codex"), do: "connection."
   defp prefix("login_codex"), do: "login."

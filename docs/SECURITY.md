@@ -376,3 +376,27 @@ prunes, overwrites or resets anything. It is not an atomic filesystem snapshot:
 a same-user process may change data immediately or during observation. Execution
 must freshly admit and verify its own candidate; a receipt is never a sandbox,
 future-integrity guarantee, grant or permission to accept protected policy changes.
+
+## Named profiles and Cursor setup (R020i)
+
+Connection UUIDs are server-owned; profile paths derive only from those IDs.
+The legacy `codex` profile remains in place. Commands, results and model choices
+bind the exact connection; foreign catalog receipts/stale forms cannot alter it.
+Cursor setup supports pinned CLI `2026.09.15-d2fe57e` with fixed `--version`,
+`status --format json`, `models`, `login` and `logout` operations only. It cannot
+send prompts or launch tools. Inherited environment is cleared; HOME, data/config
+and temporary directories stay in the private profile. File credential storage
+is forced, browser auto-open, direnv and provider debug logging are disabled. Credentials remain
+provider-managed; raw account JSON, identifiers, errors and login text are discarded.
+
+The native helper validates/locks the profile through owned process-group cleanup.
+Stdout is bounded to 64 KiB per fixed command, model rows to 128; stderr is discarded.
+Version has five seconds; inspection/logout fifteen; browser login ten minutes,
+with monotonic and wall deadlines. The CLI's plain `models` output has a pinned,
+strict parser; malformed/partial/duplicate lists never become fresh catalogs.
+Unknown formats require adapter updates. No shell, PTY or arbitrary CLI is exposed.
+Cursor login links must be HTTPS `cursor.com/loginDeepControl`; Codex's separate
+allowlist remains unchanged. Links stay transient behind the authenticated redirect.
+The helper owns children, clears inherited secrets and avoids personal profiles;
+it is still a host process, not a filesystem sandbox. Cursor inference grants,
+real signed-in catalog/login completion and physical sleep acceptance remain separate.

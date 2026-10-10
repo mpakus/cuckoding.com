@@ -112,3 +112,13 @@ results, fixture versus real-provider evidence, screenshots when UI changes,
 skipped checks and the next action. Distinguish working tree, commit, remote
 publication, native build and actually running artifact. A build does not prove
 provider acceptance; passing unit tests do not prove sleep/cleanup on macOS.
+
+R020i focused checks cover named profile/catalog/selection isolation, independent
+mixed-role pickers, foreign catalog receipts, stale forms, Cursor login URL scope,
+per-connection planning, unsupported Cursor planning, cancellation and expired setup
+claims. Native Cursor fixtures cover file-only credentials, environment canaries,
+bounded complete model parsing, redaction, signout verification and group cleanup.
+Migration acceptance uses an integrity-checked SQLite backup of the eight-version
+DB, runs the ninth Ecto migration on a copy and compares every previous table.
+Real Cursor login completion/catalog tests require the user to finish authorization;
+fixture Grok models are not evidence of account availability.

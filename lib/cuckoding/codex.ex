@@ -24,8 +24,8 @@ defmodule Cuckoding.Codex do
   def init_login_links, do: :ets.new(:cuckoding_login_link, [:named_table, :protected, :set])
   def clear_login_link, do: :ets.delete_all_objects(:cuckoding_login_link)
 
-  def put_login_link(id, url) do
-    if valid_login_url?(url) do
+  def put_login_link(id, url, kind \\ "codex") do
+    if valid_login_url?(url, kind) do
       :ets.insert(:cuckoding_login_link, {id, url, System.system_time(:second) + 600})
     end
   end
@@ -39,16 +39,28 @@ defmodule Cuckoding.Codex do
     ArgumentError -> nil
   end
 
-  def valid_login_url?(url) when is_binary(url) and byte_size(url) in 1..8192 do
+  def valid_login_url?(url, kind \\ "codex")
+
+  def valid_login_url?(url, kind) when is_binary(url) and byte_size(url) in 1..8192 do
     uri = URI.parse(url)
 
-    uri.scheme == "https" and uri.host in ["auth.openai.com", "chatgpt.com"] and
-      uri.port == 443 and is_nil(uri.userinfo) and is_nil(uri.fragment) and
-      uri.path in ["/oauth/authorize", "/auth/authorize"] and
-      not Regex.match?(~r/[\x00-\x20\x7f\\\\]/, url)
+    login_provider?(uri, kind) and uri.scheme == "https" and uri.port == 443 and
+      is_nil(uri.userinfo) and
+      is_nil(uri.fragment) and
+      not Regex.match?(~r/[\x00-\x20\x7f\\]/, url)
   end
 
-  def valid_login_url?(_), do: false
+  def valid_login_url?(_, _), do: false
+
+  defp login_provider?(uri, "codex"),
+    do:
+      uri.host in ["auth.openai.com", "chatgpt.com"] and
+        uri.path in ["/oauth/authorize", "/auth/authorize"]
+
+  defp login_provider?(uri, "cursor"),
+    do: uri.host == "cursor.com" and uri.path == "/loginDeepControl"
+
+  defp login_provider?(_, _), do: false
 
   # Metadata only; never execute a path while editing or discovering it.
   # sobelow_skip ["Traversal.FileModule"]
@@ -139,16 +151,16 @@ defmodule Cuckoding.Codex do
     )
   end
 
-  defp observe(
-         identity,
-         directory,
-         active?,
-         operation,
-         normalize,
-         limit,
-         timeout,
-         options \\ []
-       ) do
+  def observe(
+        identity,
+        directory,
+        active?,
+        operation,
+        normalize,
+        limit,
+        timeout,
+        options \\ []
+      ) do
     helper = Application.get_env(:cuckoding, :native_helper)
 
     cond do
@@ -192,6 +204,7 @@ defmodule Cuckoding.Codex do
           port,
           %{
             normalize: normalize,
+            login_kind: Keyword.get(options, :login_kind, "codex"),
             buffer: "",
             bytes: 0,
             result: nil,
@@ -281,7 +294,8 @@ defmodule Cuckoding.Codex do
   defp auth_frame(%{result: nil} = state, line, progress) do
     case Jason.decode(line) do
       {:ok, %{"status" => "awaiting_login", "auth_url" => url}} ->
-        if is_function(progress) and not state.prompted and valid_login_url?(url) do
+        if is_function(progress) and not state.prompted and
+             valid_login_url?(url, state.login_kind) do
           publish_progress(state, url, progress)
           {:ok, %{state | prompted: true}}
         else
@@ -454,7 +468,7 @@ defmodule Cuckoding.Codex do
       is_binary(value) and byte_size(value) in 1..128 and
         Regex.match?(~r/\A[a-zA-Z0-9._\/-]+\z/, value)
 
-  defp public_fields(result) do
+  def public_fields(result) do
     for key <- ~w(pid spawned_at_ms elapsed_ms),
         value = result[key],
         is_integer(value) and value >= 0 and value < 10_000_000_000_000,

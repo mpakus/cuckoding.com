@@ -11,7 +11,8 @@ R040i adds accepted private Markdown specifications with revision and hash check
 R040j adds revisioned, confirmed Arena check declarations; execution remains unavailable.
 R050a adds a read-only Battle preview for saved preparation and missing setup.
 R050b adds consented isolated Git worktree preparation; R050c adds retained worktree inspection.
-R020h fixes real model-check notices and simplifies saved agent setup. Broader
+R020h fixes real model-check notices and simplifies saved agent setup. R020i adds
+a named Codex/Cursor roster and per-role agent/model selections. Broader
 real-account acceptance and repository execution remain R020 work. The previous source
 reset remains intentional; do not restore the deleted implementation wholesale.
 
@@ -33,27 +34,29 @@ rtk proxy open desktop/src-tauri/target/release/bundle/macos/Cuckoding.app
 
 Launching the app opens the browser. Choose **Open Cuckoding** from its **C/furcina** menu
 bar item to return later. **Settings** opens the Agents
-wizard; **About Cuckoding** opens workspace details; **Quit** stops the owned
+roster; **About Cuckoding** opens workspace details; **Quit** stops the owned
 release and listener. No dock window or embedded web frontend is created.
 This build is not notarized or public-release certified. Clean-machine, signing,
 update and physical sleep/wake acceptance remain R060/R100.
 
-In **Agents**, follow the four steps:
+In **Agents**, choose **Add agent** or **Edit** beside an existing connection,
+then follow the four steps:
 
-1. **Choose Agent.** Codex is supported; Claude Code, Cursor and Hermes are coming
-   soon. **Executable details** allows a path override or **Use desktop Codex**.
-   **Continue with Codex** explicitly runs that program's fixed `--version` check.
-   Supported baselines are `0.146.0`, `0.162.0-alpha.2` and `0.162.0-alpha.17.2`. The desktop and standalone
+1. **Choose Agent.** Enter a connection name and choose Codex or Cursor. Add
+   multiple connections as needed; Claude Code and Hermes remain coming soon. **Executable details** allows a path override or **Use desktop Codex**.
+   **Continue with Codex/Cursor** explicitly runs that program's fixed `--version` check.
+   Supported Codex baselines are `0.146.0`, `0.162.0-alpha.2` and `0.162.0-alpha.17.2`. The desktop and standalone
    executables can advertise different models; no executable is silently replaced.
 2. **Connect and Authorize.** **Refresh connection** checks Cuckoding's private
-   `agents/codex` profile and fetches the full bounded catalog without inference.
+   profile (`agents/<UUID>` for new connections; `agents/codex` for the legacy one) and fetches the full bounded catalog without inference.
    **Sign in with ChatGPT → Continue at OpenAI** starts private-profile authorization;
-   complete the provider page yourself. Connected profiles offer refresh and
-   **Disconnect Codex → Sign out of Codex**. Each named button explicitly authorizes
+   complete the provider page yourself. Cursor uses **Sign in with Cursor →
+   Continue at Cursor**; its verified CLI baseline is `2026.09.15-d2fe57e`. Connected profiles offer refresh and
+   **Disconnect → Sign out** for the selected agent. Each named button explicitly authorizes
    its action; no repeated setup confirmation checkboxes are needed.
 3. **Select models.** Check the models you want available for new Team assignments,
    including additional models hidden in Codex's own picker. Selections survive
-   Back and live updates. **Test a model (optional)** sends one fixed prompt only
+   Back and live updates. Codex’s **Test a model (optional)** sends one fixed prompt only
    after usage consent, with the lowest advertised effort, restrictive empty-scratch
    permissions and a two-minute limit. It grants no project access. Success accepts
    only the matching `CC_READY` response. Informational warning/deprecation notices
@@ -75,8 +78,11 @@ setup revisions reject recovered stale actions. The shell supplies the native he
 never point `CCODING_NATIVE_HELPER` at an unrelated executable.
 
 Open **Team** to rename the four default roles, edit instructions or add up to
-eight custom roles. Leave assignments empty to save a draft; choose Codex and a
-model from its saved wizard selection (or full legacy catalog) to bind one. Save creates an immutable revision;
+eight custom roles. Leave assignments empty to save a draft; choose a named agent
+and a model from that agent’s saved wizard selection (or full legacy Codex catalog).
+For example, Speculator can save a Cursor/Grok binding when Cursor advertises that
+model, while Implementor uses a Codex/GPT binding. Cursor model tests and planning
+remain unavailable; no Codex fallback is used. Save creates an immutable revision;
 expand **Recent saved revisions** to inspect the latest five. Removing a saved
 custom role needs confirmation. A stale editor keeps its draft and refuses to
 overwrite a newer revision; **Reload saved** asks before discarding edits.
@@ -328,3 +334,10 @@ and the independent review loop remain the next execution work; accepting specs
 beforehand stays optional. The schema is unchanged at eight migrations.
 
 Focused checks: `rtk mix test test/cuckoding/battle_preview_test.exs test/cuckoding_web/battle_preview_live_test.exs`.
+
+R020i's ninth migration preserves the legacy connection and all earlier records.
+Back up and verify prior-schema copies before upgrading. An older eight-migration
+build refuses the migrated root; use the backup for rollback, never erase new data.
+Focused checks: `rtk mix test test/cuckoding/agents_test.exs test/cuckoding/cursor_test.exs
+test/cuckoding_web/agents_live_test.exs`; native Cursor conformance:
+`rtk cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked cursor`.

@@ -4,13 +4,13 @@ Target experience: connect once, choose models/roles once, reuse across Arenas.
 Runtime discovery, version compatibility, authorization and model availability
 are separate statuses. None implies the others.
 
-Current R020a–d preview implements version/identity checks, private-profile
-inspection, managed ChatGPT browser login/logout and validated catalog caching
-with 24-hour freshness. Real Codex login start/cancel and signed-out inspection
-are verified. A separately consented fixed model diagnostic is implemented;
-real responses after human-completed login and repository turns remain open.
-Login/logout clear previous observations before launch. The single profile can
-be signed out and then signed in; named connections/roles remain planned.
+Current R020i provides a roster of named Codex and Cursor connections. Each uses
+an independent app-owned profile, observed account status, bounded catalog and
+saved model selection. Existing Codex profiles and immutable Team bindings keep
+their original identity. Codex's fixed model diagnostic has real GPT-6.1-Sol
+response evidence from R020h; Cursor supports setup only, with real signed-in
+catalog acceptance still pending. Repository execution remains unavailable.
+Login/logout invalidate only that connection's observations before launch.
 
 Login uses a ten-minute managed browser flow. A validated official HTTPS URL is
 held only in dispatcher-owned memory; the UI carries a local command link whose
@@ -35,23 +35,25 @@ current diagnostic result, retaining its audit history.
 
 ## User flow
 
-1. **Add agent** suggests known installed runtimes and an editable absolute path.
-   Discovery checks known paths/file metadata; it does not execute candidates,
-   scan the home directory or read credentials.
-2. A fixed adapter version probe verifies compatibility, then **Authorize** opens
-   the provider-supported login for an app-owned profile. Show progress and a
-   copyable instruction only when the provider needs it. Never ask users to paste
-   credentials into Cuckoding forms.
-3. Probe authorization with that same profile and launch configuration. A login
-   status result must be followed by an isolated real-session check in adapter
-   acceptance; historical status alone cannot prove work will launch.
-4. On success, fetch and normalize available model IDs, labels and supported
-   options. Store the catalog in SQLite with source, scope and timestamp.
-5. Save a human-readable agent name; role forms choose this connection and model.
-   Different roles may select different models using the same authorization.
-   Choose the three delivery roles and the distinct Summa Rudis coordinator.
-6. New Arenas inherit the default team. Starting work checks each distinct
-   connection once and shows a targeted reconnect action when necessary.
+Open **Agents** to see saved connections, then **Add agent**:
+
+1. **Choose Agent** — name the connection, select Codex or Cursor, and verify its
+   executable. Known-location discovery reads metadata only. Additional providers
+   remain disabled until their adapters are implemented.
+2. **Connect and Authorize** — check or sign in to that private profile. Once
+   connected, show refresh/sign-out and hide sign-in. URLs use the protected
+   browser redirect; credentials never enter Cuckoding forms.
+3. **Select models** — choose from that agent's fresh catalog, including additional
+   Codex entries. Never invent model IDs or infer entitlement from a catalog.
+   Codex also offers the separately consented optional diagnostic.
+4. **Save** — retain an audited selection for this connection. Then **Team** lets
+   each role choose its own agent and one of that agent's saved models. A model
+   from another connection cannot be submitted as a substitute.
+
+New Arenas inherit the default Team. Existing scoped adoptions and historical
+bindings do not change when another agent is added. Codex planning uses the exact
+assigned connection; Cursor planning reports unavailable until its execution
+boundary is implemented. Saving a mixed team grants no execution permission.
 
 The normal path does not reassign agents per task or ask for another login on
 each app launch. Provider expiry/revocation remains authoritative; there is no
@@ -66,9 +68,9 @@ Keep a last-good catalog on temporary failure, mark it stale and show the last
 successful refresh time. A catalog error does not turn a valid login into a
 failed login.
 
-Offer a runtime default only if the adapter supports it. Manual model IDs are an
-advanced fallback with format and availability validation; label them unverified
-until checked. Never invent a catalog or silently substitute another model.
+Offer a runtime default only if the adapter supports it. The current UI accepts
+only validated catalog entries; manual model IDs are unavailable. Never invent a
+catalog or silently substitute another model.
 A missing/removed selected model blocks the affected role with an explicit
 selection action. Retain requested and provider-reported actual models separately.
 
@@ -80,9 +82,9 @@ unsupported discovery honestly. Do not persist raw provider payloads/errors.
 
 App-owned profiles contain provider-managed state; Cuckoding stores references,
 not credentials. Shared authorization may also share provider-managed history;
-explain this and support separate profiles. Task instructions and permission
-settings stay attempt-owned. Disconnect shows all affected roles/Arenas, requires
-confirmation, logs out only that profile and blocks future launches. It does not
+named connections therefore use separate profiles. Task instructions and permission
+settings stay attempt-owned. Disconnect requires confirmation, logs out only that
+profile and blocks future launches. An affected-role/Arena preview is still planned. It does not
 silently erase work or revoke unrelated personal sign-ins.
 
 For each runtime, verify fresh login, two Arenas, different models, concurrent

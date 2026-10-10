@@ -23,15 +23,16 @@ defmodule Cuckoding.Planning do
     documents = PlanningDocuments.selected(board, preview_id)
     team = TeamAssignments.assigned(board)
     role = Enum.find(team.definition["roles"], &(&1["id"] == "speculator"))
-    catalog = Team.catalog()
+    catalog = Team.catalog(role["agent"])
 
-    if match?({:ok, _}, documents) and role["agent"] == "codex" and
+    if match?({:ok, _}, documents) and Cuckoding.Agents.kind(role["agent"]) == "codex" and
          Team.binding_status(role, catalog) in [:untested, :check_passed] do
       model = Enum.find(catalog.models, &(&1["id"] == role["model_id"]))
-      connection = Foundation.workspace().connection
+      connection = Foundation.workspace(role["agent"]).connection
 
       payload =
         Map.merge(Map.take(connection, ~w(identity fetched_at)), %{
+          "agent_id" => role["agent"],
           "connection_command_id" => connection["command_id"],
           "model_id" => model["id"],
           "model" => model["model"],
@@ -126,7 +127,7 @@ defmodule Cuckoding.Planning do
     if Foundation.model_check_current?(payload) do
       Codex.plan(
         payload["identity"],
-        Storage.codex_profile!(),
+        Storage.codex_profile!(Foundation.agent_id(payload)),
         Storage.probe_directory!(command.id, command.attempts),
         Map.merge(Map.take(payload, ~w(model effort brief documents contract)), %{
           "request_id" => command.id,
@@ -208,7 +209,8 @@ defmodule Cuckoding.Planning do
       result["observed_model"] == claim.payload["model"] and
       result["effort"] == claim.payload["effort"] and
       Foundation.model_check_current?(claim.payload) and
-      Foundation.verified_executable() == {:ok, claim.payload["identity"]}
+      Foundation.verified_executable(Foundation.agent_id(claim.payload)) ==
+        {:ok, claim.payload["identity"]}
   end
 
   def normalize(bytes) when is_binary(bytes) and byte_size(bytes) <= 65_536 do

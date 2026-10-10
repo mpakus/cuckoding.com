@@ -71,6 +71,9 @@ defmodule CuckodingWeb.TeamLiveTest do
   end
 
   test "native form unused-field markers do not reject agent selection", %{conn: conn} do
+    {:ok, _} = Foundation.check_codex(Ecto.UUID.generate(), 0, "/bin/sh", true)
+    {:ok, claim} = Foundation.claim()
+    Foundation.finish(claim, %{"status" => "supported", "version" => "0.146.0"})
     {:ok, view, _} = conn |> sign_in() |> live("/team")
 
     render_change(view, "change", %{

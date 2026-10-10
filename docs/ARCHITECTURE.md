@@ -13,7 +13,7 @@ release process group and private storage lock.
 
 | Current source | Responsibility and durable owner |
 | --- | --- |
-| `Foundation`, `Dispatcher`, `records.ex` | Idempotent commands, expiring claims, append-only events and setup projections in SQLite; one synchronous dispatcher executes bounded external operations |
+| `Agents`, `Foundation`, `Dispatcher`, `records.ex` | Idempotent commands, expiring claims, append-only events and setup projections in SQLite; one synchronous dispatcher executes bounded external operations |
 | `ShellAuth`, web session guard | One-time shell/browser handoff and expiring DB sessions; stateful components must guard their own events |
 | `Codex`, native `connection.rs` / `model_check.rs` | Private-profile authorization, model catalog, fixed diagnostic and structured no-tools planning; SQLite retains only normalized public receipts |
 | `Team`, `TeamAssignments` | Immutable default revisions and confirmed scoped adoptions; no provider launch or permission grant |
@@ -88,7 +88,7 @@ index entries and raw blobs/files. No process, schema or provider grant is added
 results remain separate from source Git observations and Battle preview.
 
 Audit consequences: preserve these domain/host boundaries; extend execution
-evidence before adding battles. The eight-migration schema has no
+evidence before adding battles. The nine-migration schema has no
 battle authorization, attempts, reviews,
 worker leases or integration receipts. Required work remains in [Plan](PLAN.md),
 including real-account acceptance; fixture responses do not close that gate.
@@ -173,3 +173,13 @@ Markdown specifications and evidence live on disk with hashes/ownership in
 SQLite. Basic scoped file reading and `rg` are sufficient; advanced knowledge
 services are deferred. See [data](DB.md), [security](SECURITY.md) and
 [workflow](FLOW.md) for the authoritative constraints.
+
+R020i adds `agent_connections` for independently named UUID connections. The
+legacy `codex` connection still reads/writes Workspace and its original profile;
+new connections own their version/account/catalog fields. Foundation freezes IDs
+in commands and updates only that projection plus the global setup revision.
+Model-selection commands are retrieved per connection. Team/Planning/Battle preview
+resolve the assigned connection; Codex planning uses its exact profile. Cursor
+setup uses fixed native CLI operations and cannot infer or plan. Settings is a
+roster plus one existing four-step wizard per connection. The dispatcher remains
+serialized. See [D021](DECISIONS.md#d021--named-local-agent-connections).

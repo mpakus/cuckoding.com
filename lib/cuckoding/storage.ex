@@ -59,10 +59,13 @@ defmodule Cuckoding.Storage do
 
   # Stable provider-owned profile; only metadata is inspected by Cuckoding.
   # sobelow_skip ["Traversal.FileModule"]
-  def codex_profile! do
+  def codex_profile!(id \\ "codex") do
+    unless id == "codex" or match?({:ok, _}, Ecto.UUID.cast(id)),
+      do: raise("invalid agent profile")
+
     root = Application.fetch_env!(:cuckoding, :data_dir)
     prepare!(root)
-    path = Path.join([root, "agents", "codex"])
+    path = Path.join([root, "agents", id])
     reject_symlinks!(path)
     File.mkdir_p!(path)
     File.chmod!(Path.dirname(path), 0o700)

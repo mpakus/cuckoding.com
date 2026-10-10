@@ -1,7 +1,7 @@
 defmodule Cuckoding.Team do
   @moduledoc "Revisioned default-team configuration. Saving never authorizes execution."
   import Ecto.Query
-  alias Cuckoding.{Command, Foundation, Repo, TeamRevision}
+  alias Cuckoding.{Agents, Command, Foundation, Repo, TeamRevision}
 
   @required ~w(speculator implementor secutor summa_rudis)
   @fields ~w(id name instructions agent model_id)
@@ -22,10 +22,20 @@ defmodule Cuckoding.Team do
   end
 
   def catalog do
-    connection = Foundation.workspace().connection
+    catalogs =
+      Map.new(
+        [Agents.get("codex") | Enum.reject(Agents.list(), &(&1.id == "codex"))],
+        &{&1.id, catalog(&1.id)}
+      )
+
+    Map.put(catalogs["codex"], :agents, catalogs)
+  end
+
+  def catalog(agent_id) do
+    connection = Foundation.workspace(agent_id).connection
 
     status =
-      case Foundation.verified_executable() do
+      case Foundation.verified_executable(agent_id) do
         {:ok, identity} ->
           catalog_status(connection, identity)
 
@@ -34,7 +44,7 @@ defmodule Cuckoding.Team do
       end
 
     models = connection["models"] || []
-    saved = Foundation.saved_agent_models()
+    saved = Foundation.saved_agent_models(agent_id)
 
     selectable =
       if saved do
@@ -45,7 +55,7 @@ defmodule Cuckoding.Team do
           )
         end)
       else
-        models
+        if agent_id == "codex", do: models, else: []
       end
 
     %{
@@ -60,7 +70,7 @@ defmodule Cuckoding.Team do
     cond do
       connection["identity"] != identity -> :version_required
       connection["status"] != "checked" -> :connection_required
-      connection["authorization"] != "chatgpt" -> :sign_in_required
+      connection["authorization"] not in ~w(chatgpt cursor) -> :sign_in_required
       Foundation.catalog_status(connection) != "fresh" -> :catalog_stale
       true -> :available
     end
@@ -68,6 +78,11 @@ defmodule Cuckoding.Team do
 
   def binding_status(%{"agent" => ""}, _), do: :unassigned
   def binding_status(%{"model_id" => ""}, _), do: :unassigned
+
+  def binding_status(role, %{agents: catalogs}) do
+    binding_status(role, Map.get(catalogs, role["agent"], %{status: :connection_required}))
+  end
+
   def binding_status(_, %{status: status}) when status != :available, do: status
 
   def binding_status(role, catalog) do
@@ -187,16 +202,26 @@ defmodule Cuckoding.Team do
   defp resolve_bindings(roles, previous, catalog) do
     Enum.reduce_while(roles, {:ok, []}, fn role, {:ok, acc} ->
       old = Enum.find(previous, &(&1["id"] == role["id"]))
-      model = Enum.find(catalog.selectable_models, &(&1["id"] == role["model_id"]))
+
+      selected =
+        Map.get(catalog.agents, role["agent"], %{
+          status: :connection_required,
+          selectable_models: []
+        })
+
+      model = Enum.find(selected.selectable_models, &(&1["id"] == role["model_id"]))
 
       cond do
+        role["agent"] != "" and is_nil(Agents.get(role["agent"])) ->
+          {:halt, {:error, "model_refresh_required"}}
+
         role["model_id"] == "" ->
           {:cont, {:ok, acc ++ [Map.put(role, "model", "")]}}
 
         old && Map.take(old, ~w(agent model_id)) == Map.take(role, ~w(agent model_id)) ->
           {:cont, {:ok, acc ++ [Map.put(role, "model", old["model"])]}}
 
-        catalog.status == :available and model != nil ->
+        selected.status == :available and model != nil ->
           {:cont, {:ok, acc ++ [Map.put(role, "model", model["model"])]}}
 
         true ->
@@ -228,11 +253,13 @@ defmodule Cuckoding.Team do
       (role["id"] in @required or match?({:ok, _}, Ecto.UUID.cast(role["id"]))) and
       valid_text?(role["name"], 1, 60, false) and
       valid_text?(role["instructions"], 0, 2_000, true) and
-      role["agent"] in ["", "codex"] and valid_text?(role["model_id"], 0, 200, false) and
+      valid_agent_id?(role["agent"]) and
+      valid_text?(role["model_id"], 0, 200, false) and
       (role["agent"] != "" or role["model_id"] == "")
   end
 
   defp valid_role?(_), do: false
+  defp valid_agent_id?(id), do: id in ["", "codex"] or match?({:ok, _}, Ecto.UUID.cast(id))
 
   defp valid_text?(value, min, max, multiline) when is_binary(value) do
     String.valid?(value) and String.length(value) in min..max and

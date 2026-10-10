@@ -1,53 +1,110 @@
 defmodule CuckodingWeb.HomeLive do
   use CuckodingWeb, :live_view
-  alias Cuckoding.{Foundation, Team}
+  alias Cuckoding.{Agents, Foundation, Team}
   alias CuckodingWeb.Layouts
 
-  @operations ~w(probe_codex inspect_codex login_codex logout_codex check_codex_model)
+  @operations ~w(probe_codex inspect_codex login_codex logout_codex check_codex_model probe_cursor inspect_cursor login_cursor logout_cursor)
 
   @impl true
-  def mount(_params, _session, socket) do
+  def mount(params, _session, socket) do
     if connected?(socket) do
       Phoenix.PubSub.subscribe(Cuckoding.PubSub, "foundation")
       Process.send_after(self(), :clock, 1_000)
     end
 
-    workspace = Foundation.workspace()
-    saved = Foundation.saved_agent_models()
-    catalog = Team.catalog()
+    agent_id = params["id"] || "codex"
+    agent = Agents.get(agent_id)
+    kind = if(agent, do: agent.kind, else: "codex")
+    workspace = Foundation.workspace(agent_id)
+    saved = Foundation.saved_agent_models(agent_id)
+    catalog = Team.catalog(agent_id)
 
     {:ok,
      socket
      |> assign(
-       step: initial_step(saved, catalog, workspace),
+       agent_id: agent_id,
+       agent_kind: kind,
+       agent_name: if(agent, do: agent.name, else: ""),
+       new_agent: agent_id == "new",
+       step: initial_step(saved, catalog, agent_id),
        command_key: Ecto.UUID.generate(),
        error: nil,
-       awaiting: nil,
+       awaiting: pending_id(agent_id),
        review: nil,
        saved: saved,
        selected_ids: if(saved, do: saved.payload["model_ids"], else: []),
        model_id: "",
        model_confirmed: false,
-       codex_path:
-         workspace.codex["path"] || Cuckoding.Tools.desktop_codex() ||
-           get_in(Cuckoding.Tools.discover(), ["codex", "path"]) || "",
+       codex_path: workspace.codex["path"] || default_path(kind),
        desktop_codex_path: Cuckoding.Tools.desktop_codex()
      )
-     |> reload()}
+     |> reload()
+     |> then(fn socket ->
+       if agent_id != "new" and is_nil(agent),
+         do: redirect(socket, to: ~p"/settings"),
+         else: socket
+     end)}
   end
 
+  defp pending_id(id) do
+    case Foundation.pending_probe(@operations, id) do
+      %{id: id} -> id
+      _ -> nil
+    end
+  end
+
+  defp initial_step(_, _, "new"), do: 1
   defp initial_step(saved, _, _) when not is_nil(saved), do: 4
   defp initial_step(_, %{status: :available}, _), do: 3
 
-  defp initial_step(_, _, _),
-    do: if(match?({:ok, _}, Foundation.verified_executable()), do: 2, else: 1)
+  defp initial_step(_, _, id),
+    do: if(match?({:ok, _}, Foundation.verified_executable(id)), do: 2, else: 1)
 
   @impl true
-  def handle_event("edit_codex", params, socket),
-    do: {:noreply, assign(socket, codex_path: params["path"], error: nil)}
+  def handle_event("edit_codex", params, socket) do
+    kind =
+      if socket.assigns.new_agent and params["agent"] in ~w(codex cursor),
+        do: params["agent"],
+        else: socket.assigns.agent_kind
+
+    path = if kind != socket.assigns.agent_kind, do: default_path(kind), else: params["path"]
+
+    {:noreply,
+     assign(socket,
+       codex_path: path,
+       agent_kind: kind,
+       agent_name: params["name"] || socket.assigns.agent_name,
+       error: nil
+     )}
+  end
 
   def handle_event("choose_desktop_codex", _, socket),
     do: {:noreply, assign(socket, codex_path: Cuckoding.Tools.desktop_codex() || "", error: nil)}
+
+  def handle_event("check_codex", params, %{assigns: %{new_agent: true}} = socket) do
+    if current_form?(socket, params) do
+      case Agents.add_and_probe(
+             socket.assigns.command_key,
+             socket.assigns.workspace.revision,
+             params["name"],
+             params["agent"],
+             params["path"]
+           ) do
+        {:ok, %{state: "pending"} = command} ->
+          {:noreply,
+           push_navigate(socket, to: ~p"/settings/#{Foundation.agent_id(command.payload)}")}
+
+        _ ->
+          {:noreply,
+           assign(socket,
+             error: "Enter a name and a trusted executable. Wait for any active setup to finish."
+           )}
+      end
+    else
+      {:noreply,
+       assign(socket, error: "This form is out of date. Review the connection and try again.")}
+    end
+  end
 
   def handle_event("check_codex", params, socket) do
     submit(socket, params, fn ->
@@ -55,7 +112,8 @@ defmodule CuckodingWeb.HomeLive do
         socket.assigns.command_key,
         socket.assigns.workspace.revision,
         params["path"],
-        true
+        true,
+        socket.assigns.agent_id
       )
     end)
   end
@@ -65,7 +123,8 @@ defmodule CuckodingWeb.HomeLive do
       Foundation.inspect_codex(
         socket.assigns.command_key,
         socket.assigns.workspace.revision,
-        true
+        true,
+        socket.assigns.agent_id
       )
     end)
   end
@@ -77,7 +136,8 @@ defmodule CuckodingWeb.HomeLive do
         socket.assigns.command_key,
         socket.assigns.workspace.revision,
         if(operation == "login", do: :login, else: :logout),
-        true
+        true,
+        socket.assigns.agent_id
       )
     end)
   end
@@ -142,7 +202,8 @@ defmodule CuckodingWeb.HomeLive do
              socket.assigns.command_key,
              review.revision,
              review.connection_id,
-             socket.assigns.selected_ids
+             socket.assigns.selected_ids,
+             socket.assigns.agent_id
            ) do
         {:ok, %{state: "completed"}} ->
           {:noreply, socket |> assign(review: nil, error: nil) |> reload()}
@@ -174,7 +235,8 @@ defmodule CuckodingWeb.HomeLive do
           socket.assigns.command_key,
           socket.assigns.workspace.revision,
           params["model_id"],
-          true
+          true,
+          socket.assigns.agent_id
         )
       end)
     else
@@ -235,16 +297,16 @@ defmodule CuckodingWeb.HomeLive do
   end
 
   defp reload(socket) do
-    workspace = Foundation.workspace()
+    workspace = Foundation.workspace(socket.assigns.agent_id)
     previous = socket.assigns[:workspace]
 
     changed =
       previous &&
         (previous.revision != workspace.revision or previous.connection != workspace.connection)
 
-    operation = Foundation.pending_probe(@operations)
-    last = Foundation.last_probe(@operations)
-    catalog = Team.catalog()
+    operation = Foundation.pending_probe(@operations, socket.assigns.agent_id)
+    last = Foundation.last_probe(@operations, socket.assigns.agent_id)
+    catalog = Team.catalog(socket.assigns.agent_id)
 
     assign(socket,
       workspace: workspace,
@@ -253,7 +315,7 @@ defmodule CuckodingWeb.HomeLive do
       last_operation: last,
       events: Foundation.events(),
       catalog: catalog,
-      saved: Foundation.saved_agent_models(),
+      saved: Foundation.saved_agent_models(socket.assigns.agent_id),
       step: next_step(socket, last, workspace, catalog),
       awaiting:
         if(last && last.state not in ~w(pending running cancelling),
@@ -271,10 +333,18 @@ defmodule CuckodingWeb.HomeLive do
     case last do
       %{id: id, state: "completed", kind: kind} when id == socket.assigns.awaiting ->
         case {kind, workspace.codex["status"], catalog.status} do
-          {"probe_codex", "supported", _} -> 2
-          {kind, _, :available} when kind in ~w(inspect_codex login_codex) -> 3
-          {"logout_codex", _, _} -> 2
-          _ -> socket.assigns.step
+          {kind, "supported", _} when kind in ~w(probe_codex probe_cursor) ->
+            2
+
+          {kind, _, :available}
+          when kind in ~w(inspect_codex login_codex inspect_cursor login_cursor) ->
+            3
+
+          {kind, _, _} when kind in ~w(logout_codex logout_cursor) ->
+            2
+
+          _ ->
+            socket.assigns.step
         end
 
       _ ->
@@ -315,7 +385,8 @@ defmodule CuckodingWeb.HomeLive do
         class="panel codex-setup agent-wizard"
         aria-labelledby="wizard-title"
       >
-        <p class="eyebrow">YOUR AGENT / YOUR MAC</p>
+        <.link navigate={~p"/settings"} class="text-link">← All agents</.link>
+        <p class="eyebrow">{if @new_agent, do: "NEW AGENT", else: @agent_name}</p>
         <ol class="steps wizard-steps" aria-label="Connect an agent">
           <li
             :for={
@@ -336,14 +407,24 @@ defmodule CuckodingWeb.HomeLive do
 
         <div :if={@step == 1} id="wizard-choose">
           <h2 id="wizard-title">Choose your agent.</h2>
-          <p class="subtle">Codex is ready to connect. More agents are on the way.</p>
+          <p class="subtle">Each connection has its own account and saved models.</p>
           <form id="codex-check" phx-change="edit_codex" phx-submit="check_codex">
             <.form_scope key={@command_key} revision={@workspace.revision} />
+            <label :if={@new_agent} for="agent-name">Connection name</label>
+            <input
+              :if={@new_agent}
+              id="agent-name"
+              name="name"
+              value={@agent_name}
+              maxlength="60"
+              required
+              placeholder="e.g. Cursor for planning"
+            />
             <label for="agent-choice">Agent</label>
-            <select id="agent-choice" name="agent">
-              <option value="codex">Codex</option>
+            <select id="agent-choice" name="agent" disabled={!@new_agent}>
+              <option value="codex" selected={@agent_kind == "codex"}>Codex</option>
+              <option value="cursor" selected={@agent_kind == "cursor"}>Cursor</option>
               <option disabled>Claude Code — coming soon</option>
-              <option disabled>Cursor — coming soon</option>
               <option disabled>Hermes — coming soon</option>
             </select>
             <details
@@ -351,7 +432,7 @@ defmodule CuckodingWeb.HomeLive do
               phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
             >
               <summary>Executable details</summary>
-              <label for="codex-path">Codex executable</label>
+              <label for="codex-path">{Agents.label(@agent_kind)} executable</label>
               <input
                 id="codex-path"
                 type="text"
@@ -361,34 +442,38 @@ defmodule CuckodingWeb.HomeLive do
                 autocomplete="off"
               />
               <button
-                :if={@desktop_codex_path}
+                :if={@agent_kind == "codex" && @desktop_codex_path}
                 type="button"
                 class="button"
                 phx-click="choose_desktop_codex"
               >Use desktop Codex</button>
-              <p class="fine-print">The desktop app and standalone CLI can offer different models.</p>
+              <p :if={@agent_kind == "codex"} class="fine-print">
+                The desktop app and standalone CLI can offer different models.
+              </p>
             </details>
             <p class="fine-print">
               Continue runs this executable with <code>--version</code>
               on your Mac. Only continue with an executable you trust.
             </p>
-            <button class="button primary" disabled={@pending}>Continue with Codex</button>
+            <button class="button primary" disabled={@pending}>Continue with {Agents.label(
+              @agent_kind
+            )}</button>
           </form>
           <p :if={@workspace.codex["status"]} class="fine-print" role="status">
-            {codex_status(@workspace.codex["status"])}
+            {version_status(@agent_kind, @workspace.codex["status"])}
           </p>
         </div>
 
         <div :if={@step == 2} id="wizard-connect">
           <h2 id="wizard-title">Connect and authorize.</h2>
-          <p class="subtle">Connect your account to Cuckoding's private Codex profile.</p>
+          <p class="subtle">Connect your account to this agent's private profile.</p>
           <p :if={@workspace.connection["status"]} id="connection-result" role="status">
             {connection_status(@workspace.connection)}
           </p>
           <form id="connection-check" phx-submit="inspect_codex">
             <.form_scope key={@command_key} revision={@workspace.revision} />
             <p class="fine-print">
-              Check account status and fetch the models offered by your selected Codex. No model usage.
+              Check account status and fetch the models offered by {Agents.label(@agent_kind)}. No model usage.
             </p>
             <button
               class={"button " <> if(@catalog.status == :available, do: "", else: "primary")}
@@ -396,18 +481,20 @@ defmodule CuckodingWeb.HomeLive do
             >Refresh connection</button>
           </form>
           <form
-            :if={@workspace.connection["authorization"] != "chatgpt"}
+            :if={@workspace.connection["authorization"] not in ~w(chatgpt cursor)}
             id="codex-login"
             phx-submit="authorize_codex"
           >
             <.form_scope key={@command_key} revision={@workspace.revision} />
             <input type="hidden" name="operation" value="login" />
             <p class="fine-print">
-              Sign in opens OpenAI authorization using this executable. Your personal Codex profile stays separate.
+              Sign in opens {Agents.label(@agent_kind)} authorization using this executable. Your personal profile stays separate.
             </p>
-            <button class="button primary" disabled={@pending}>Sign in with ChatGPT</button>
+            <button class="button primary" disabled={@pending}>Sign in with {if @agent_kind == "codex",
+              do: "ChatGPT",
+              else: "Cursor"}</button>
           </form>
-          <div :if={@workspace.connection["authorization"] == "chatgpt"}>
+          <div :if={@workspace.connection["authorization"] in ~w(chatgpt cursor)}>
             <button
               :if={@catalog.status == :available}
               class="button primary"
@@ -416,14 +503,14 @@ defmodule CuckodingWeb.HomeLive do
               disabled={@pending}
             >Select models</button>
             <details id="sign-out" phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
-              <summary>Disconnect Codex</summary>
+              <summary>Disconnect {Agents.label(@agent_kind)}</summary>
               <form id="codex-logout" phx-submit="authorize_codex">
                 <.form_scope key={@command_key} revision={@workspace.revision} />
                 <input type="hidden" name="operation" value="logout" />
                 <p class="fine-print">
                   Sign out disconnects this private profile and clears its cached catalog. Saved roles stay unchanged.
                 </p>
-                <button class="button" disabled={@pending}>Sign out of Codex</button>
+                <button class="button" disabled={@pending}>Sign out of {Agents.label(@agent_kind)}</button>
               </form>
             </details>
           </div>
@@ -434,7 +521,7 @@ defmodule CuckodingWeb.HomeLive do
           <h2 id="wizard-title">Select your models.</h2>
           <p class="subtle">Choose which models to use when building your team.</p>
           <p class="fine-print">
-            {length(@catalog.models)} models from Codex · {Foundation.catalog_status(
+            {length(@catalog.models)} models from {Agents.label(@agent_kind)} · {Foundation.catalog_status(
               @workspace.connection
             )}. Availability comes from the agent; a catalog does not prove model access.
           </p>
@@ -467,7 +554,14 @@ defmodule CuckodingWeb.HomeLive do
               <button class="button primary" disabled={@pending || @catalog.status != :available}>Review selection</button>
             </div>
           </form>
-          <details id="model-diagnostic" phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
+          <p :if={@agent_kind == "cursor"} class="fine-print">
+            Cursor model selection is available. Model tests and task execution are not enabled yet.
+          </p>
+          <details
+            :if={@agent_kind == "codex"}
+            id="model-diagnostic"
+            phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
+          >
             <summary>Test a model (optional)</summary>
             <form id="model-check" phx-change="edit_model" phx-submit="check_model">
               <.form_scope key={@command_key} revision={@workspace.revision} />
@@ -533,7 +627,7 @@ defmodule CuckodingWeb.HomeLive do
             These are your choices for new Team assignments. Existing roles keep their saved models.
           </p>
           <p :if={!@review && @catalog.status != :available} class="notice" role="status">
-            Your choices are saved. Reconnect Codex before assigning models to new roles.
+            Your choices are saved. Reconnect this agent before assigning models to new roles.
           </p>
           <div class="team-actions">
             <button
@@ -556,7 +650,9 @@ defmodule CuckodingWeb.HomeLive do
             {operation_label(@operation.kind)} · {DateTime.diff(@now, @operation.updated_at)} seconds
           </p>
           <p class="fine-print">
-            Setup · Codex<span :if={@operation.payload["model"]}> · {@operation.payload["model"]}</span>
+            Setup · {Agents.label(@agent_kind)}<span :if={@operation.payload["model"]}> · {@operation.payload[
+              "model"
+            ]}</span>
             · {@operation.state}
           </p>
           <.link
@@ -565,7 +661,7 @@ defmodule CuckodingWeb.HomeLive do
             target="_blank"
             rel="noopener noreferrer"
             class="button primary"
-          >Continue at OpenAI</.link>
+          >Continue at {if @agent_kind == "codex", do: "OpenAI", else: "Cursor"}</.link>
           <button
             class="button"
             phx-click="cancel_probe"
@@ -618,9 +714,22 @@ defmodule CuckodingWeb.HomeLive do
     """
   end
 
+  defp default_path("codex"),
+    do:
+      Cuckoding.Tools.desktop_codex() || get_in(Cuckoding.Tools.discover(), ["codex", "path"]) ||
+        ""
+
+  defp default_path(kind), do: get_in(Cuckoding.Tools.discover(), [kind, "path"]) || ""
+  defp version_status("cursor", "supported"), do: "Verified Cursor CLI version."
+  defp version_status("cursor", _), do: "Check Cursor CLI version. Supported: 2026.09.15-d2fe57e."
+  defp version_status(_, status), do: codex_status(status)
   defp title(:home), do: "Tabula Gladiatorum"
   defp title(:settings), do: "Agents"
   defp title(:about), do: "Settings"
+  defp operation_label("probe_cursor"), do: "Checking Cursor version"
+  defp operation_label("inspect_cursor"), do: "Refreshing Cursor connection"
+  defp operation_label("login_cursor"), do: "Signing in to Cursor"
+  defp operation_label("logout_cursor"), do: "Signing out of Cursor"
   defp operation_label("probe_codex"), do: "Checking Codex version"
   defp operation_label("inspect_codex"), do: "Refreshing Codex connection"
   defp operation_label("login_codex"), do: "Signing in to Codex"
@@ -699,8 +808,11 @@ defmodule CuckodingWeb.HomeLive do
   defp codex_status(_),
     do: "The version check could not start. Check the executable and try again."
 
+  defp connection_status(%{"status" => "checked", "authorization" => "cursor"}),
+    do: "Cursor account connected. Models come from this account’s catalog."
+
   defp connection_status(%{"status" => "checked", "authorization" => "not_connected"}),
-    do: "Not signed in to Cuckoding's private Codex profile."
+    do: "Not signed in to this private profile."
 
   defp connection_status(%{"status" => "checked", "authorization" => "chatgpt"}),
     do: "Codex reported a ChatGPT account in this profile. Model checks are recorded separately."

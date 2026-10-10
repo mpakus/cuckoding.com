@@ -6,7 +6,7 @@ These rules apply repository-wide. More specific rules may strengthen safety,
 auditability and verification, not weaken them. The 2026-10-06 user reset replaces
 the previous product direction. R010 implements the local foundation; provider
 execution and battles remain the R020–R100 roadmap.
-The current implemented boundary is setup, draft planning and consented isolated
+The current implemented boundary includes multiple named Codex/Cursor setup connections, draft planning and consented isolated
 worktree preparation/inspection, summarized with
 source owners in [Architecture](docs/ARCHITECTURE.md). [Plan](docs/PLAN.md) owns
 remaining acceptance, not this file. Broader real-account acceptance,
@@ -16,6 +16,14 @@ Preserve these implemented contracts:
 
 - Supported versions, observed authorization, catalog freshness, model entitlement
   and execution grants are separate. Never substitute bindings silently.
+- Agents are named connections, not a singleton provider choice. Additional UUID
+  records and private `agents/<UUID>` profiles remain independent. Legacy `codex`
+  retains Workspace projections and `agents/codex`; do not rewrite its historical
+  commands or team bindings. Scope setup receipts, model selections and planning
+  to the exact connection ID, with no account/runtime/model fallback. Cursor setup
+  uses only fixed version/status/models/login/logout commands, file credentials,
+  empty inherited environment, disabled provider debug logging and transient provider-scoped login URLs. Cursor
+  inference/planning remains unsupported until its grant is verified.
 - Team revisions and scoped adoptions are immutable. Arena adoption affects new
   boards; Tabula adoption affects future planning only and waits for active
   planning. Guard both displayed scope/default revisions and retain old receipts.
@@ -164,7 +172,7 @@ Do not restore the old implementation or treat historical tests as current proof
   The native fixed `--version` probe uses a private scratch directory, empty
   inherited environment, bounded output and owned group cleanup. Interrupted
   probes and connection inspections require a new consented command; never replay
-  them as metadata discovery. The fixed app-server inspection permits only
+  them as metadata discovery. The fixed Codex app-server inspection permits only
   initialize/config-read/account-read/model-list, keeps raw frames and account
   identifiers out of Cuckoding storage, and rejects unsafe profiles. Keep the
   explicitly selected executable: desktop and standalone Codex can advertise

@@ -14,7 +14,7 @@ defmodule Cuckoding.Dispatcher do
   def handle_info(:updated, state), do: {:noreply, state}
   def handle_info({port, _}, state) when is_port(port), do: {:noreply, state}
 
-  # ponytail: setup is serialized; per-profile workers when multiple connections exist.
+  # shortcut: setup operations stay serialized; introduce workers with battle scheduling.
   def handle_info(:tick, state) do
     case Cuckoding.Foundation.claim() do
       {:ok, %{state: "running"} = command} ->
@@ -46,13 +46,17 @@ defmodule Cuckoding.Dispatcher do
        when kind in ~w(inspect_arena_git init_arena_git preview_arena_git commit_arena_git worktree_arena_git inspect_worktree_arena_git),
        do: Cuckoding.ArenaGit.execute(command)
 
-  defp execute(%{kind: "probe_codex"} = command) do
+  defp execute(%{kind: kind} = command) when kind in ~w(probe_codex probe_cursor) do
     if Cuckoding.Foundation.workspace().revision == command.expected_revision do
       directory = Cuckoding.Storage.probe_directory!(command.id, command.attempts)
 
-      Cuckoding.Codex.probe(command.payload, directory, fn ->
-        Cuckoding.Foundation.probe_active?(command)
-      end)
+      adapter(command).probe(
+        Cuckoding.Foundation.executable_identity(command.payload),
+        directory,
+        fn ->
+          Cuckoding.Foundation.probe_active?(command)
+        end
+      )
     else
       %{}
     end
@@ -60,13 +64,17 @@ defmodule Cuckoding.Dispatcher do
     _ -> %{"status" => "launch_failed"}
   end
 
-  defp execute(%{kind: "inspect_codex"} = command) do
+  defp execute(%{kind: kind} = command) when kind in ~w(inspect_codex inspect_cursor) do
     if Cuckoding.Foundation.workspace().revision == command.expected_revision do
-      directory = Cuckoding.Storage.codex_profile!()
+      directory = Cuckoding.Storage.codex_profile!(Cuckoding.Foundation.agent_id(command.payload))
 
-      Cuckoding.Codex.inspect_connection(command.payload, directory, fn ->
-        Cuckoding.Foundation.probe_active?(command)
-      end)
+      adapter(command).inspect_connection(
+        Cuckoding.Foundation.executable_identity(command.payload),
+        directory,
+        fn ->
+          Cuckoding.Foundation.probe_active?(command)
+        end
+      )
     else
       %{}
     end
@@ -74,12 +82,13 @@ defmodule Cuckoding.Dispatcher do
     _ -> %{"status" => "launch_failed"}
   end
 
-  defp execute(%{kind: kind} = command) when kind in ["login_codex", "logout_codex"] do
+  defp execute(%{kind: kind} = command)
+       when kind in ~w(login_codex logout_codex login_cursor logout_cursor) do
     if Cuckoding.Foundation.workspace().revision == command.expected_revision do
-      Cuckoding.Codex.authorize(
-        command.payload,
-        Cuckoding.Storage.codex_profile!(),
-        if(kind == "login_codex", do: :login, else: :logout),
+      adapter(command).authorize(
+        Cuckoding.Foundation.executable_identity(command.payload),
+        Cuckoding.Storage.codex_profile!(Cuckoding.Foundation.agent_id(command.payload)),
+        if(kind in ~w(login_codex login_cursor), do: :login, else: :logout),
         fn -> Cuckoding.Foundation.probe_active?(command) end,
         fn url -> publish_login_link(command, url) end
       )
@@ -95,7 +104,7 @@ defmodule Cuckoding.Dispatcher do
          Cuckoding.Foundation.model_check_current?(command.payload) do
       Cuckoding.Codex.check_model(
         command.payload["identity"],
-        Cuckoding.Storage.codex_profile!(),
+        Cuckoding.Storage.codex_profile!(Cuckoding.Foundation.agent_id(command.payload)),
         Cuckoding.Storage.probe_directory!(command.id, command.attempts),
         command.payload["model"],
         command.payload["effort"],
@@ -108,9 +117,20 @@ defmodule Cuckoding.Dispatcher do
     _ -> %{"status" => "launch_failed"}
   end
 
+  defp adapter(command),
+    do:
+      Cuckoding.Agents.adapter(
+        Cuckoding.Agents.kind(Cuckoding.Foundation.agent_id(command.payload))
+      )
+
   defp publish_login_link(command, url) do
     if Cuckoding.Foundation.login_waiting(command) == :ok do
-      Cuckoding.Codex.put_login_link(command.id, url)
+      Cuckoding.Codex.put_login_link(
+        command.id,
+        url,
+        Cuckoding.Agents.kind(Cuckoding.Foundation.agent_id(command.payload))
+      )
+
       Cuckoding.Foundation.broadcast()
     end
   end

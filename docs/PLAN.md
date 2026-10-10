@@ -387,3 +387,18 @@ No plugin marketplace, vector/indexing server, autonomous knowledge pipeline,
 remote/container workers, automatic push/PR/merge or
 analytics suite in these slices. Add only for a concrete later user need.
 Use `rtk rg`, existing project skills and scoped Markdown files now.
+
+## R020i · Multiple named agents
+
+- [x] Named Codex/Cursor roster, per-connection wizard/profile/catalog/selection.
+- [x] Mixed per-role bindings, scoped model pickers and exact Codex planning routing.
+- [x] Cursor fixed setup conformance; no inferred execution support.
+- [x] Prior-schema preservation, quality/build/native checks and browser roster check.
+  Full interactive wizard QA was interrupted by active browser use; LiveView regressions pass.
+- [x] Docs and local main integration; no publication.
+
+See [task](../tasks/R020i-multiple-agents.md) and
+[worklog](../worklog/2026-10-10-R020i-multiple-agents.md).
+
+Real Cursor login completion/account catalog and inference remain in R090;
+fixture Grok entries do not establish model availability.

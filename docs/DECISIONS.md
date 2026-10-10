@@ -28,6 +28,27 @@ not establish implementation or acceptance of this rebuild.
 | D019 | Prepare detached locked worktrees through the existing consented Git ledger | Freeze fresh HEAD and folder identity before a fixed native operation. Keep ownership outside checkout, reject unsafe checkout mechanisms and bounded tree violations, retain interrupted effects. This is a setup utility, not battle admission or execution authority; Battle preview stays read-only |
 | D020 | Inspect retained worktrees against their preparation receipt | Use the existing Git ledger to verify private ownership, detached locked registration, index entries and raw tracked bytes without mutation. Extra files are flagged without reading their contents. Built-in checkout transformations can report differences; this conservative dated observation is not execution authority or future cleanliness proof |
 
+| D021 | Save independent named agent connections; retain legacy Codex identity | UUID-scoped profiles, commands, catalogs and selected models let each role choose its own agent/model. Keep the original `codex` projection/profile and immutable bindings readable; never fall back across connections. Setup stays serialized. Cursor setup does not enable inference |
+
+## D021 · Named local agent connections
+
+Accepted 2026-10-10 for R020i.
+
+An agent is a saved connection, not a global provider choice. Additional connections
+have UUIDs, names, runtime kinds, version and account/catalog projections in SQLite.
+Commands freeze that ID; native profiles derive from it, never a browser path.
+The legacy `codex` ID keeps Workspace's existing projection and `agents/codex`
+profile so old commands and immutable team bindings remain valid without rewriting.
+The same domain API serves both. New role bindings retain the connection ID and
+resolved model. No fallback to a different account, runtime or model is permitted.
+
+The existing dispatcher remains globally serialized for bounded setup operations;
+separate records/profiles do not claim parallel execution. Saved model selections
+remain audited command snapshots, now scoped to connection ID. Cursor setup uses
+only fixed version/status/models/login/logout commands in an app-owned file-backed
+profile. Cursor inference/planning remains unavailable until its permission grant
+is verified; saving a mixed team never grants execution.
+
 The first release scope and deferred features are in [Product](PRODUCT.md).
 [Flow](FLOW.md) owns state, defaults and limits. Changes to settled boundaries
 must update this file before implementation and preserve the user-approved scope.
