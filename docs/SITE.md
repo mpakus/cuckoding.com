@@ -21,11 +21,18 @@ Cuckoding uses original black/green emissary and orbital-vault artwork, oversize
 background lettering, a full-width duel and staggered role portraits. Readable
 copy and controls remain stationary within their sections.
 
+R019a adds sci-fi gothic architecture and alternative fashion: pointed cathedral
+arches, studded leather, harness hardware, silver rings and ornamental chains.
+The fully clothed emissary, Pan and robot duo keep their poses and green accents;
+the treatment is non-explicit stage/club fashion. The existing finale keeps its
+separate satirical meaning. The built-in image editor revised our own originals.
+
 Four scenes use independent layers: an emissary hero, a sticky sword/morgenstern
 duel, cybernetic Pan and dancing robots, then chained melancholy humans beneath
 robot leisure. Seven foreground instances use two background plates. Static role
 cards reuse the earlier sentinel and gladiators. The hero is eager;
-below-fold scenes/cards are lazy. Original PNGs are retained without pixel edits.
+below-fold scenes/cards are lazy. Generated PNG outputs are retained without
+pixel post-processing; revision prompts and prior versions remain documented.
 The artwork and board are explicitly illustrative, never evidence of shipped UI.
 
 Transforms are bounded, use one coalesced animation frame per scroll/resize, and

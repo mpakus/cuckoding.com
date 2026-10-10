@@ -114,6 +114,8 @@ Depends on R010. User-requested addition; does not block the app's R020 sequence
 - [x] Add an emissary and orbital-vault plate; preserve layered satire and truthful public claims.
 - [x] Bound reversible camera depth; keep pause, reduced motion, native scrolling and no-JS content.
 - [x] Verify desktop/narrow rendering and motion checks; record [R019 evidence](../worklog/2026-10-10-R019-cinematic-parallax.md).
+- [x] R019a: gothic sci-fi hero/architecture and afterparty costumes; preserve
+  independent layers and verify [artwork evidence](../worklog/2026-10-10-R019a-goth-artwork.md).
 
 ## R020 — One real agent and durable models
 

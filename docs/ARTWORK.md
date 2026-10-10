@@ -7,8 +7,14 @@ R019 adds two originals on the same date: a black-chrome emissary with real alph
 and an opaque orbital vault. The requested [1367 Studio](https://www.1367studio.com/)
 reference informed viewport composition and camera pacing only; none of its
 assets or source were copied. All seven foreground assets have real alpha; both
-backgrounds are opaque. Original generated
-PNG pixels are retained, composed and animated only in CSS/JavaScript. These are
+backgrounds are opaque. R019a revises the emissary, vault, Pan and revelers with
+the built-in image editor using only those existing original images as inputs.
+The gothic direction uses fully clothed leather/harness stage fashion, ornamental
+chains, spikes and cathedral architecture. Poses, dimensions and real foreground
+alpha are preserved. Earlier versions remain in Git at `1b1f623`; the existing
+filenames now serve the revised art in all scenes, including the finale's robots.
+Tool-generated PNG outputs are retained without pixel post-processing and
+composed/animated in CSS/JavaScript. These are
 fictional satirical illustrations, not product screenshots or provider evidence.
 
 | Scene | Background | Independent foregrounds |
@@ -31,7 +37,37 @@ R018 changes its accent to electric green and its icon tile to near-black, witho
 changing the silhouette. `bin/brand-icons` synchronizes site/app/native consumers
 and normalizes ICNS chunk ordering for repeatable output.
 
-## Final generation prompts
+## Current revision prompts — R019a
+
+Edited with built-in imagegen on 2026-10-10. Each input was the same-named original
+from `site/assets/` at `1b1f623`; each final output replaces that local file.
+No external reference artwork was supplied to the editor.
+
+### neon-emissary.png edit
+
+Transparent background: yes. Final file: `site/assets/neon-emissary.png`.
+
+Use case: style-transfer. Edit the supplied original cyborg hero into a striking SCI-FI GOTH fashion editorial. Keep the same single helmeted robot, portrait 1024x1536 composition, upright three-quarter pose, head/shoulders/framing and electric-green visor. Replace the Roman drape and much of the torso costume with a tailored glossy black leather high-collar coat, broad geometric harness straps worn OVER opaque armor, polished silver O-ring fasteners and buckles, ornamental chest chains, small spike shoulder accents and elegant gothic metal filigree. Strong black leather versus polished chrome contrast, acid-green rimlight and a few emerald illuminated circuit seams. Fashion-forward dark underground club aesthetic, commanding and theatrical, completely clothed; no nudity, no sexual activity, no restraint scene. Keep the original faceless helmet and professional cinematic detail, no text or logos. Preserve REAL transparent background and clean alpha around the whole figure; no painted background, floor or atmospheric rectangle. Original fictional design.
+
+### neon-vault.png edit
+
+Transparent background: no. Final file: `site/assets/neon-vault.png`.
+
+Use case: style-transfer. Edit this original black-green orbital Colosseum background into a SCI-FI GOTH cathedral arena. Keep its centered symmetrical perspective, circular green portal, empty foreground floor, landscape 1536x1024 framing and dark palette. Add soaring pointed gothic arches around the central portal, intricate black-metal rib vaulting, slender spired buttresses and green-lit stained-glass-like geometric tracery. A few large ornamental suspended steel chains at the far left and right edges belong to the architecture, not people. Black obsidian, aged silver and acid-green illumination only. Majestic underground futuristic cathedral mood, elegant chrome details and thin green volumetric light. Keep the central foreground EMPTY for a separate character layer. No figures, no words, symbols, logos or watermarks. Photoreal cinematic hard-surface concept art, same restrained darkness and strong readable depth.
+
+### neon-pan.png edit
+
+Transparent background: yes. Final file: `site/assets/neon-pan.png`.
+
+Use case: style-transfer. Edit this original joyful ADULT cybernetic Pan musician into a SCI-FI GOTH stage performer. Preserve his recognizable mature smiling bearded face, curved metal horns, mechanical goat legs, hoof-kick pose, complete body and synthesizer, square framing. Dress him in a fitted opaque black leather stage tunic and sculptural harness straps with silver rings/buckles worn OVER the tunic; add a studded high collar, short pointed shoulder armor, ornamental waist chains and dark gothic eyeliner. Elegant theatrical goth club fashion, playful charismatic musician, no nudity or sexual activity or restraint scene. Black chrome and glossy leather with bright acid-green instrument lights and rimlight ONLY. Keep both hands correctly playing the keyboard. All horns, hooves and instrument fully in frame. Preserve REAL transparent alpha background with no backdrop, floor, text, logos or watermark. High-end cinematic 3D detail matching the original.
+
+### neon-revelers.png edit
+
+Transparent background: yes. Final file: `site/assets/neon-revelers.png`.
+
+Use case: style-transfer. Edit these two original dancing helmeted robots into a stylish SCI-FI GOTH afterparty duo. Preserve exactly two clearly robotic figures, existing disco poses, raised green cocktail, full bodies and helmets, and wide 1536x1024 composition. Add futuristic goth couture: one wears an opaque fitted black glossy leather bodysuit under a sculptural corset-like armored vest, geometric chest harness straps and a silver-ring collar; the other a tailored black leather jacket with pointed shoulders, metal buckles, wide harness straps and decorative waist chains. Both wear chunky futuristic platform boots. All garments opaque and fully covering, fashion editorial only, no nudity, sexual activity or restraint scene. Keep humorous exuberant party body language. Use obsidian black, silver chrome, acid-green #82ff52 seam lights; no other bright colors. Preserve REAL transparent background, no ground or backdrop or atmospheric rectangle. No text, logos or watermarks. Polished original cinematic sci-fi art.
+
+## Original generation prompts (before R019a edits)
 
 ### neon-emissary.png
 
