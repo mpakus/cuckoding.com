@@ -138,6 +138,7 @@ original chrome agents, an orbital Colosseum, a sword-and-morgenstern duel,
 dancing Pan and robots, ending with melancholy humans who outsourced their joy.
 The artwork combines gothic cathedral architecture with sci-fi leather, harness
 hardware, spikes and ornamental chains in non-explicit stage/club fashion.
+The Arena crowd wears leather harnesses, studded collars and chrome cuffs.
 Four scenes have independent background/character layers with scroll motion,
 pause and reduced-motion controls. The site opens with a full-screen cyborg and
 scroll-driven camera approach, followed by spacious editorial sections and a

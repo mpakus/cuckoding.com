@@ -257,6 +257,8 @@ never receive parallax transforms. Reference sites inspire composition only;
 retain original local artwork and record prompts in `docs/ARTWORK.md`.
 R019a adds gothic sci-fi architecture and leather/harness stage fashion; preserve
 the fully clothed characters, green palette and independent transparent layers.
+R019b extends that fashion to the Arena spectators; keep them in the stands and
+the background floor clear for independently moving foreground characters.
 Never describe planned features
 or concept boards as available product behavior. Only `site/` may be published;
 local merge is not permission to push/deploy. Follow [Site](docs/SITE.md), run

@@ -13,6 +13,9 @@ The gothic direction uses fully clothed leather/harness stage fashion, ornamenta
 chains, spikes and cathedral architecture. Poses, dimensions and real foreground
 alpha are preserved. Earlier versions remain in Git at `1b1f623`; the existing
 filenames now serve the revised art in all scenes, including the finale's robots.
+R019b revises `neon-arena.png` with more readable adult spectators in black leather,
+ring harnesses, studded collars, cuffs and decorative chains. The architecture,
+portal and empty floor remain the background for three independently layered scenes.
 Tool-generated PNG outputs are retained without pixel post-processing and
 composed/animated in CSS/JavaScript. These are
 fictional satirical illustrations, not product screenshots or provider evidence.
@@ -37,7 +40,15 @@ R018 changes its accent to electric green and its icon tile to near-black, witho
 changing the silhouette. `bin/brand-icons` synchronizes site/app/native consumers
 and normalizes ICNS chunk ordering for repeatable output.
 
-## Current revision prompts — R019a
+## Arena spectator edit — R019b
+
+Edited with built-in imagegen on 2026-10-10. Input: `site/assets/neon-arena.png`
+at `462eb9d`; output replaces the same file. Opaque 1536×1024 PNG, no pixel
+post-processing. The prior version remains in Git. Exact prompt:
+
+Use case: precise-object-edit. Edit target: the supplied original site/assets/neon-arena.png. Keep this exact wide 1536x1024 black-and-electric-green orbital Colosseum background plate, centered emerald portal, planets, tiered stands, perspective, green grid reflections and completely EMPTY lower-half arena floor. Change the spectators' fashion: make the nearest adult crowd along the left and right LOWER STAND RAILINGS more readable, with varied expressive ADULT men and women wearing striking sci-fi gothic clubwear. Add opaque tailored black leather clothing under broad geometric chest harnesses, chrome O-ring hardware, buckled corset-style armor over shirts, studded chokers, spiked shoulder details, substantial wrist cuffs as fashion bracelets, decorative waist chains, and tall black boots. Some spectators cheer or lean over the rail, others fold their arms, keeping the playful gladiator-audience mood. Harnesses and chains are costume accessories only; nobody tied up. All people fully clothed, non-explicit fashion editorial: no nudity, exposed intimate body parts, sexual acts, erotic poses, suffering, weapons or children. Use green rimlight to reveal silver buckles and black leather. Keep people confined to existing spectator terraces, including the front row above the floor; no people or new props in the central foreground, do not obscure the portal. Preserve the architecture and composition as closely as possible. Black, charcoal, silver chrome and acid-green only. Original cinematic sci-fi concept art, crisp coherent details. No text, logos or watermark. Opaque background.
+
+## Character and vault revision prompts — R019a
 
 Edited with built-in imagegen on 2026-10-10. Each input was the same-named original
 from `site/assets/` at `1b1f623`; each final output replaces that local file.

@@ -117,6 +117,9 @@ Depends on R010. User-requested addition; does not block the app's R020 sequence
 - [x] R019a: gothic sci-fi hero/architecture and afterparty costumes; preserve
   independent layers and verify [artwork evidence](../worklog/2026-10-10-R019a-goth-artwork.md).
 
+- [x] R019b: extend gothic harness/collar/cuff fashion to Arena spectators while
+  retaining the empty floor and scene layers; see [crowd artwork evidence](../worklog/2026-10-10-R019b-arena-crowd.md).
+
 ## R020 — One real agent and durable models
 
 Depends on R010. Start with one of the user's installed supported runtimes

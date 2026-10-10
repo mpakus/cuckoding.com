@@ -26,6 +26,9 @@ arches, studded leather, harness hardware, silver rings and ornamental chains.
 The fully clothed emissary, Pan and robot duo keep their poses and green accents;
 the treatment is non-explicit stage/club fashion. The existing finale keeps its
 separate satirical meaning. The built-in image editor revised our own originals.
+R019b brings the Arena spectators closer into view, with adult crowds in leather
+harnesses, studded collars, chrome cuffs and decorative chains. They remain in
+the stands, leaving the floor clear for independent foreground characters.
 
 Four scenes use independent layers: an emissary hero, a sticky sword/morgenstern
 duel, cybernetic Pan and dancing robots, then chained melancholy humans beneath
