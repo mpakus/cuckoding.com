@@ -27,7 +27,6 @@ defmodule Cuckoding.MixProject do
       {:phoenix_html, "~> 4.3"},
       {:phoenix_live_view, "~> 1.2.0"},
       {:phoenix_live_reload, "~> 1.6", only: :dev},
-      {:tidewave, "~> 0.9.1", only: :dev},
       {:lazy_html, "~> 0.1", only: :test},
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
       {:tailwind, "~> 0.5", runtime: Mix.env() == :dev},

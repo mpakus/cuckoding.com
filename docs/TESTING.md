@@ -98,7 +98,7 @@ perform the journey; a developer clicking a fixture is not ten-minute acceptance
 - Prior DB copies survive failed migration; integrity/foreign keys and restored
   hashes are checked. No test reads/modifies a live user's database.
 
-## Tidewave source development (R011)
+## Source development (R011)
 
 `rtk proxy python3 test/dev_server_test.py` checks real nonblocking lock contention
 in a temporary checkout, the actionable message, preserved data/lock identity and
@@ -107,18 +107,16 @@ reuse after the owner releases it. It starts no Phoenix/native/provider process.
 After `rtk proxy bin/dev.build`, stop any source developer server and run:
 
 ```sh
-rtk proxy env CCODING_DEV_PARENT_CANARY=must-not-reach-child bin/dev.server --smoke --port 0
+rtk proxy bin/dev.server --smoke --port 0
 ```
 
-This exercises the real bootstrap, session handoff/replay rejection, MCP initialize
-and tool discovery/evaluation, inherited-environment canary exclusion, toolbar and
-HEEx/reload injection, CSP scope and foreign-origin/Host/cross-site refusal. It uses
-only `.ccoding/ui-dev/`, runs no provider, then gracefully shuts down. Existing
-developer data is retained. `foundation_live_test.exs` verifies absent dev routes,
-dependencies and CSP exceptions in test. Build the production bundle and run
-`bin/smoke`; inspect the release library list to ensure Tidewave/LiveReload are
-excluded. Verify the toolbar in a browser separately; HTTP injection is not proof
-of external toolbar download, account setup or an interactive Tidewave session.
+This exercises real bootstrap, session handoff/replay rejection, HEEx/reload
+injection, strict application CSP, same-origin reload-frame CSP and foreign
+Host/origin/cross-site refusal. Removed Tidewave routes must return 404 and pages
+must contain no toolbar or Tidewave assets. It uses only `.ccoding/ui-dev/`, runs
+no provider and gracefully shuts down, retaining data. The foundation ExUnit test
+checks absent development dependencies/routes/CSP exceptions in test. Browser
+rendering remains separate from HTTP/header checks.
 
 ## Documentation-only gate
 

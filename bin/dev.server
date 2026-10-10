@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Source UI server: private dev data, real shell handshake, Tidewave and reload."""
+"""Source UI server: private dev data, real shell handshake and Phoenix live reload."""
 import argparse
 import fcntl
 import http.client
@@ -53,25 +53,13 @@ def smoke(port, shell):
         finally:
             conn.close()
 
-    def rpc(method, params):
-        status, _, body = fetch("POST", "/tidewave/mcp", json.dumps({
-            "jsonrpc": "2.0", "id": 1, "method": method, "params": params
-        }), {"content-type": "application/json"})
-        assert status == 200, body
-        return json.loads(body)["result"]
-
-    info = rpc("initialize", {"protocolVersion": "2025-03-26", "capabilities": {},
-                              "clientInfo": {"name": "cuckoding-dev-smoke", "version": "1"}})
-    assert info["serverInfo"]["name"] == "Tidewave MCP Server"
-    assert any(t["name"] == "project_eval" for t in rpc("tools/list", {})["tools"])
-    result = rpc("tools/call", {"name": "project_eval", "arguments": {
-        "code": 'System.get_env("CCODING_DEV_PARENT_CANARY") == nil and Mix.env() == :dev'
-    }})
-    assert not result.get("isError") and result["content"][0]["text"] == "true"
+    for path in ("/tidewave/mcp", "/tidewave/config", "/tidewave/connect"):
+        assert fetch("GET", path)[0] == 404
+    assert fetch("POST", "/tidewave/mcp")[0] == 404
     assert fetch("GET", "/")[0] == 302
     for headers in ({"origin": "https://foreign.invalid"}, {"host": "foreign.invalid"},
                     {"sec-fetch-site": "cross-site"}):
-        assert fetch("POST", "/tidewave/mcp", headers=headers)[0] == 403
+        assert fetch("GET", "/", headers=headers)[0] == 403
     handoff = request(port, "/shell/open", shell)["token"]
     status, headers, _ = fetch("GET", "/open?token=" + handoff)
     assert status == 302
@@ -79,13 +67,18 @@ def smoke(port, shell):
     assert fetch("GET", "/open?token=" + handoff)[0] == 401
     status, headers, html = fetch("GET", "/", headers={"cookie": cookie})
     assert status == 200 and "Tabula Gladiatorum" in html
-    assert "https://tidewave.ai/tc/toolbar.js" in html
+    assert "tidewave" not in html.lower()
     assert "/phoenix/live_reload/frame" in html and "data-phx-loc" in html
-    assert "https://tidewave.ai" in headers["content-security-policy"]
-    assert "'unsafe-inline'" not in headers["content-security-policy"]
+    assert "tidewave" not in headers["content-security-policy"]
+    assert "unsafe-" not in headers["content-security-policy"]
+    assert "frame-ancestors 'none'" in headers["content-security-policy"]
+    assert headers["x-frame-options"] == "DENY"
     status, headers, _ = fetch("GET", "/phoenix/live_reload/frame")
     assert status == 200 and "'unsafe-inline'" in headers["content-security-policy"]
-    print("Development smoke passed: MCP, isolated environment, session, toolbar, reload, origins.", flush=True)
+    assert "frame-ancestors 'self'" in headers["content-security-policy"]
+    assert headers["x-frame-options"] == "SAMEORIGIN"
+    assert "unsafe-eval" not in headers["content-security-policy"]
+    print("Development smoke passed: session, reload, origins, strict app CSP and no Tidewave.", flush=True)
 
 
 def main():
@@ -180,7 +173,6 @@ def main():
             return
         shell = request(port, "/shell/bootstrap", bootstrap)["token"]
         print(f"Cuckoding UI development: http://127.0.0.1:{port}", flush=True)
-        print(f"Tidewave MCP: http://127.0.0.1:{port}/tidewave/mcp", flush=True)
         print("Press Ctrl-C to stop. Development data stays in .ccoding/ui-dev.", flush=True)
         if args.smoke:
             smoke(port, shell)

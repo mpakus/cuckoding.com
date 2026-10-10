@@ -208,12 +208,12 @@ Do not restore the old implementation or treat historical tests as current proof
 ## UI
 
 For source UI development use `rtk proxy bin/dev.server` after building the native
-helper. Tidewave and LiveReload must remain dev-only; never add them to packaged
-releases or enable their CSP exceptions in test/prod. The launcher retains the
-normal bootstrap/session/heartbeat with separate `.ccoding/ui-dev/` data. Tidewave
-is trusted developer code/database access, not an app-provider execution grant;
-keep it loopback-only and never tunnel it or load real app profiles for UI tests.
-See [Development](docs/DEVELOPMENT.md#ui-development-with-tidewave).
+helper. Phoenix LiveReload and its iframe CSP exception must remain dev-only.
+The launcher retains the normal bootstrap/session/heartbeat with separate
+`.ccoding/ui-dev/` data. Keep it loopback-only and do not import real app profiles
+for UI tests. Tidewave was removed; do not restore its MCP/toolbar or broad CSP
+exceptions without a new user request.
+See [Development](docs/DEVELOPMENT.md#ui-development).
 If the developer data lock is held, identify the existing owner; never unlink or
 steal it. When handing terminal startup back to the user, stop only your verified
 preview instance and confirm cleanup rather than leaving a competing launcher.

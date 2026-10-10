@@ -70,13 +70,15 @@ Acceptance: launch from the tray, see one browser screen, reject unauthorized/
 replayed access, reconnect without data loss, Quit cleans only owned processes.
 Run foundation/migration/security/shell checks and record the actual build.
 
-## R011 — Tidewave UI development
+## R011 — Source UI development
 
-- [x] Add development-only Tidewave, HEEx annotations and Phoenix/asset reload.
 - [x] Launch a source server with isolated data and the existing shell/session contract.
-- [x] Check MCP, toolbar injection, reload, origin refusal and test/release exclusion.
-- [x] Document developer access and launch instructions; see
-  [task and evidence](../tasks/R011-tidewave-dev.md).
+- [x] Enable HEEx annotations and standard Phoenix/asset reload in development.
+- [x] Explain an already-running source server and retain exclusive data ownership.
+- [x] Remove Tidewave at the user's request; verify absent MCP/toolbar and strict
+  application CSP. See [removal evidence](../tasks/R011b-remove-tidewave.md).
+
+The original [R011 installation record](../tasks/R011-tidewave-dev.md) is historical.
 
 ## R015 — Satirical Coliseum public site
 
