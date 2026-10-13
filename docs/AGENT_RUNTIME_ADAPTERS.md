@@ -5,8 +5,8 @@ Codex supports version/account/catalog checks, ChatGPT login/logout, a fixed
 model diagnostic and R040e/f brief/document-snapshot planning. Its verified
 baselines are `0.146.0`, `0.162.0-alpha.2` and `0.162.0-alpha.17.2`; R020h records an actual GPT-6.1-Sol
 diagnostic response. Cursor `2026.09.15-d2fe57e` supports fixed setup operations
-only. Human-completed Cursor login/catalog acceptance, repository turns and
-additional provider adapters remain open.
+and R020p bounded ACP role turns. Initial planning, real mixed-runtime Arena
+acceptance and additional provider adapters remain open.
 
 R020m adds `check_isolation/3` as an optional Codex diagnostic on
 `0.162.0-alpha.17.2`. It invokes fixed sandbox commands with two synthetic
@@ -51,7 +51,7 @@ is actually required.
 | --- | --- | --- |
 | Codex | Setup/model diagnostics, R020o synthetic host read/edit proof, R050e bounded sequential Arena implementation | Live two-task battle, broader model/runtime coverage, general toolchain checks, interruption and remaining R090 matrix |
 | Claude Code | Pending | Current official interface, safe reusable authorization, models/default behavior and permission boundary |
-| Cursor | R020i named private-profile setup on 2026.09.15-d2fe57e; fixed status/models/login/logout, no inference | Human-completed private login, actual account catalog, model inference and project config isolation |
+| Cursor | Named setup and R020p bounded ACP task turns on 2026.09.15-d2fe57e | Synthetic usage acceptance, real mixed-runtime Arena, initial planning and full recovery |
 | Hermes | Pending | Confirm intended runtime/distribution, supported headless interface, authorization, model catalog and enforceable grants |
 | Additional runtime | Deferred until requested | Same conformance contract; a saved name/path alone does not enable execution |
 
@@ -203,7 +203,7 @@ journal. No interrupted write is replayed. Normalized receipts contain tool kind
 call ID, status and hash, not content or raw provider messages. Role reports are
 `completed`, `changes_requested` or `blocked`; none directly completes a card.
 The battle host must freeze authority and validate exact candidate/review evidence.
-Cursor returns unsupported; no fallback runtime is selected.
+R020p adds the separate Cursor transport below; no fallback runtime is selected.
 
 After an initial read-only wording refusal, the separately authorized
 GPT-6.1 Sol/c2 write fixture passed on 2026-10-13: read_file followed by edit_file,
@@ -212,3 +212,40 @@ after completion. Runtime scratch permissions were unchanged. This synthetic
 workspace-shaped fixture does not prove independent Secutor review, crash/sleep
 recovery, other runtimes/models or full Arena execution.
 See [R020o evidence](../worklog/2026-10-13-R020o-task-tool-routing.md#approved-write-follow-up).
+
+## R020p Cursor task transport
+
+`Cursor.run_task` selects the fixed native `--run-cursor-task` helper. The verified
+version is `2026.09.15-d2fe57e`. ACP receives no filesystem or terminal client
+capability and no MCP servers. Its cwd, configuration and data are private to the
+attempt; credentials stay in that exact connection's existing private HOME.
+Environment is empty except the fixed allowlist; project configuration, provider
+debug logging and automatic browser opening are disabled.
+
+The generated config includes the required editor field and valid sandbox network
+mode `user_config_only` with an empty allowlist. Cursor silently replaces invalid
+configurations with defaults, so checking a written file alone is insufficient:
+the adapter validates effective persisted permissions after session creation,
+mode selection and every prompt. Native Read/Write/Shell/MCP/Web operations are
+denied; any native tool notification or callback aborts the attempt. This is a
+runtime permission boundary, not an OS sandbox around the provider process.
+
+The exact CLI alias is passed unchanged. A unique fresh catalog display name must
+match Cursor's resolved selection; the CLI may omit only the exact default reasoning
+label advertised by `cursor/list_available_models`. Speed labels remain significant.
+The resolved base model and full parameters must match ACP configOptions. This preserves variants such as Grok Extra High Fast without
+inventing a mapping. Public receipts keep the verified alias, runtime model and
+parameters separately. Unsupported/ambiguous mappings fail closed.
+
+ACP text is accepted only as a bounded JSON host operation or final public role
+report. Reuse `host-task-tools-v1` validation, byte/call limits, compare-before-write
+and durable effect journals. Read-only roles cannot edit. Each role stage allows
+at most 64 host operations / 65 model prompts within five minutes, without replay.
+Reject foreign sessions, configuration drift, native callbacks and malformed or
+oversized messages. Thought chunks are discarded. Runtime session databases are
+private transient files removed after owned group cleanup; abrupt process death
+can leave these files, an explicit R060 recovery/privacy gate.
+
+Initial planning/model diagnostics remain unsupported for Cursor. Existing native
+command checks require Codex; a Cursor Implementor with declared commands is
+blocked before Start. [Evidence](../worklog/2026-10-13-R020p-cursor-task-execution.md).

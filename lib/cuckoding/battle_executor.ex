@@ -6,6 +6,7 @@ defmodule Cuckoding.BattleExecutor do
     BattleChecks,
     Battles,
     Codex,
+    Cursor,
     Foundation,
     LocalGit,
     Storage,
@@ -214,7 +215,7 @@ defmodule Cuckoding.BattleExecutor do
 
   defp provider_turn(attempt, preparation, active?, adapters) do
     role = attempt.request["role"]
-    provider = Keyword.get(adapters, :provider, Codex)
+    provider = Keyword.get(adapters, :provider, provider_for(role["kind"]))
 
     request = %{
       "request_id" => attempt.id,
@@ -237,6 +238,9 @@ defmodule Cuckoding.BattleExecutor do
     |> Jason.encode!()
     |> TaskTurn.normalize()
   end
+
+  def provider_for("codex"), do: Codex
+  def provider_for("cursor"), do: Cursor
 
   defp prompt(attempt) do
     request = attempt.request
@@ -389,6 +393,7 @@ defmodule Cuckoding.BattleExecutor do
 
     receipt["request_id"] == attempt.id and receipt["requested_model"] == role["model"] and
       receipt["observed_model"] == role["model"] and receipt["effort"] == role["effort"] and
+      receipt["transport"] == if(role["kind"] == "cursor", do: "cursor-acp-v1", else: nil) and
       receipt["access"] == if(attempt.stage == "implementor", do: "write", else: "read") and
       binding_current?(role)
   end
@@ -396,7 +401,7 @@ defmodule Cuckoding.BattleExecutor do
   defp binding_current?(role),
     do:
       Foundation.verified_executable(role["agent_id"]) == {:ok, role["identity"]} and
-        Foundation.model_check_current?(role)
+        Foundation.task_binding_current?(role)
 
   defp failed_receipt(%{"status" => status} = result),
     do:

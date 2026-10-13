@@ -542,3 +542,27 @@ are allowed. Existing candidate refs cannot be overwritten. A retained publicati
 intent without a completed receipt is uncertain and cannot be replayed. Live
 verification is a dated observation; same-user hostile races are outside host
 isolation guarantees and review/integration still require fresh checks.
+
+## Cursor task execution (R020p)
+
+The setup helper remains fixed-command only. A separate task entrypoint verifies
+version, account and complete catalog, then launches ACP with the selected alias,
+empty cwd and per-attempt config/data. Credentials stay in the named private HOME.
+No real home, Arena path, personal profile or inherited environment reaches ACP.
+The model sees task data and bounded host-service file results only.
+
+A schema-valid generated profile denies all native read/write/shell/MCP/web tools.
+Verify it after startup and before/after prompts: this Cursor version silently
+resets invalid config to defaults. Ask mode and all resolved model parameters
+must match authoritative ACP options. Unknown native requests or tool updates
+abort; model text is a proposal to the existing descriptor-bound file service.
+Request alias and runtime model/parameters have separate receipt fields.
+This is provider-enforced tool restriction, not an OS sandbox around Cursor.
+
+Normal timeout/cancel/error/success kills the owned group, removes provider session
+stores and retains public host effects only. Thought frames are discarded, never
+shown or written to app receipts. Hard process death can leave private provider
+session stores under an interrupted attempt; verified recovery cleanup remains
+open. Do not classify those files as public logs, export them, or replay the turn.
+Fixture and synthetic account evidence must stay separate from full battle,
+sleep/crash, and same-user hostile-process acceptance.

@@ -74,6 +74,12 @@ The numbered story below is capability coverage, not eight mandatory screens.
   independent task/final review remains mandatory. Optional configured commands
   still gate completion; no command execution or pass is inferred from an empty list.
   [Task](../tasks/R050f-task-verification.md) · [evidence](../worklog/2026-10-13-R050f-task-verification.md).
+- [x] **R020p — Cursor role execution implementation:** exact selected native model
+  variant, restrictive ACP profile and existing host file tools; mixed teams
+  without substitution and actionable Start blockers. Fixture tests and native
+  metadata preflights pass. [Task](../tasks/R020p-cursor-task-execution.md).
+- [ ] **R020p / R090 live acceptance:** consented Cursor read/edit/permission-denial
+  sessions and a real mixed-provider battle. Metadata preflights do not prove inference.
 - [ ] **R060 / R070 / R080:** complete recovery, parallel workers, both dashboards
   and timed ten-minute acceptance. Usable Arena UI ships with each earlier slice.
 

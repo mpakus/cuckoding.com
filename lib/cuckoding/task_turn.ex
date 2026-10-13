@@ -28,7 +28,8 @@ defmodule Cuckoding.TaskTurn do
     valid =
       result["grant"] == "host-task-tools-v1" and result["access"] in ~w(read write) and
         match?({:ok, _}, Ecto.UUID.cast(result["request_id"])) and
-        Enum.all?(~w(requested_model observed_model effort thread_id turn_id), &id?(result[&1])) and
+        Enum.all?(~w(requested_model observed_model thread_id turn_id), &id?(result[&1])) and
+        runtime?(result) and
         report?(result["report"]) and
         Enum.all?(Map.get(result, "tools", []), &(&1["status"] == "completed"))
 
@@ -36,11 +37,20 @@ defmodule Cuckoding.TaskTurn do
       do:
         result
         |> Map.take(
-          ~w(status request_id grant access requested_model observed_model effort thread_id turn_id report tools changes)
+          ~w(status request_id grant transport access requested_model observed_model effort runtime_model runtime_parameters thread_id turn_id report tools changes)
         )
         |> Map.merge(Codex.public_fields(result)),
       else: %{"status" => "invalid_output"}
   end
+
+  defp runtime?(%{"transport" => "cursor-acp-v1", "effort" => nil} = result) do
+    parameters = result["runtime_parameters"]
+
+    id?(result["runtime_model"]) and is_map(parameters) and map_size(parameters) <= 12 and
+      Enum.all?(parameters, fn {key, value} -> id?(key) and id?(value) end)
+  end
+
+  defp runtime?(result), do: is_nil(result["transport"]) and id?(result["effort"])
 
   defp tools?(tools) when is_list(tools) and length(tools) <= 64 do
     Enum.all?(tools, &tool?/1) and

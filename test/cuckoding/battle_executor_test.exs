@@ -2,12 +2,14 @@ defmodule Cuckoding.BattleExecutorTest do
   use Cuckoding.DataCase
 
   alias Cuckoding.{
+    Agents,
     ArenaGit,
     Arenas,
     BattleExecutor,
     BattleRunner,
     Battles,
     Codex,
+    Cursor,
     Foundation,
     ProjectChecks,
     Storage,
@@ -175,6 +177,9 @@ defmodule Cuckoding.BattleExecutorTest do
         "requested_model" => request["model"],
         "observed_model" => Process.get(:observed_model, request["model"]),
         "effort" => request["effort"],
+        "transport" => if(request["model"] == "cursor-test", do: "cursor-acp-v1"),
+        "runtime_model" => if(request["model"] == "cursor-test", do: "test"),
+        "runtime_parameters" => if(request["model"] == "cursor-test", do: %{"effort" => "xhigh"}),
         "grant" => "host-task-tools-v1",
         "access" => request["access"],
         "thread_id" => Ecto.UUID.generate(),
@@ -332,6 +337,97 @@ defmodule Cuckoding.BattleExecutorTest do
 
   defp until_stage(battle, stage) do
     if battle.stage == stage, do: battle, else: until_stage(elem(step(battle), 0), stage)
+  end
+
+  test "mixed Cursor and Codex roles retain exact bindings through review and completion", ctx do
+    assert BattleExecutor.provider_for("cursor") == Cursor
+    assert BattleExecutor.provider_for("codex") == Codex
+
+    {:ok, command} =
+      Agents.add_and_probe(
+        Ecto.UUID.generate(),
+        Foundation.workspace().revision,
+        "Cursor fixture",
+        "cursor",
+        "/bin/sh"
+      )
+
+    {:ok, claim} = Foundation.claim()
+
+    {:ok, _} =
+      Foundation.finish(claim, %{"status" => "supported", "version" => Cursor.task_version()})
+
+    id = command.payload["agent_id"]
+
+    {:ok, _} =
+      Foundation.inspect_codex(Ecto.UUID.generate(), Foundation.workspace().revision, true, id)
+
+    {:ok, claim} = Foundation.claim()
+
+    {:ok, _} =
+      Foundation.finish(claim, %{
+        "status" => "checked",
+        "authorization" => "cursor",
+        "catalog_status" => "fresh",
+        "models" => [
+          %{
+            "id" => "cursor-test",
+            "model" => "cursor-test",
+            "name" => "Cursor fixture model",
+            "default" => true,
+            "hidden" => false
+          }
+        ]
+      })
+
+    {:ok, _} =
+      Foundation.save_agent_models(
+        Ecto.UUID.generate(),
+        Foundation.workspace().revision,
+        Agents.get(id).connection["command_id"],
+        ["cursor-test"],
+        id
+      )
+
+    team = Team.current()
+
+    roles =
+      Enum.map(Team.editable(team), fn role ->
+        if role["id"] in ~w(implementor summa_rudis),
+          do: Map.merge(role, %{"agent" => id, "model_id" => "cursor-test"}),
+          else: role
+      end)
+
+    {:ok, team} = Team.save(Ecto.UUID.generate(), team.id, roles)
+    board = Tabulae.get(ctx.board.arena_id, ctx.board.id)
+
+    {:ok, _} =
+      TeamAssignments.adopt(
+        Ecto.UUID.generate(),
+        board.arena_id,
+        board.id,
+        TeamAssignments.assigned(board).id,
+        team.id,
+        true
+      )
+
+    {:ok, blocked} = Battles.preview(board.arena_id, board.id)
+    assert "check_runtime_required" in blocked.blockers
+    {:ok, _} = ProjectChecks.save(Ecto.UUID.generate(), board.arena_id, 1, [], true)
+    Process.put(:reject_first_review, true)
+    battle = board |> start() |> drive()
+    assert battle.state == "completed"
+    assert Enum.all?(Battles.tasks(battle.id), &(&1.review_round == 1))
+    assert Process.get(:check_calls, []) == []
+
+    for attempt <- Battles.attempts(battle.id), attempt.request["role"] do
+      role = attempt.request["role"]
+      cursor? = role["id"] in ~w(implementor summa_rudis)
+      assert role["agent_id"] == if(cursor?, do: id, else: "codex")
+
+      assert attempt.result["provider"]["requested_model"] ==
+               if(cursor?, do: "cursor-test", else: "test-model")
+    end
   end
 
   test "task checks need no command configuration, survive corrections and receive a final review",

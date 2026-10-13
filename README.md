@@ -30,11 +30,11 @@ listed below. Arena registration opens its default board; technical setup stays 
 | Available in the current code | Still to implement |
 | --- | --- |
 | Tray launch, authenticated browser and local SQLite state | Full timed ten-minute onboarding acceptance |
-| Multiple named Codex/Cursor connections, model discovery and saved choices | Additional runtimes; Cursor inference/planning |
-| Saved agent/model assignments for Speculator, Implementor, Secutor and Summa Rudis | Execution grants and real mixed-runtime battles |
+| Multiple named Codex/Cursor connections, model discovery and saved choices | Additional runtimes; Cursor initial planning |
+| Saved agent/model assignments for Speculator, Implementor, Secutor and Summa Rudis | Real mixed-runtime battle acceptance |
 | Folder registration with an automatic default board, direct Arena opening, Advanced setup and editable drafts | Custom columns and scoped role editing |
 | Codex planning from a brief or bounded folder snapshots (`docs/` first), automatically saved task cards, prerequisites and original source citations | Real-account planning acceptance across supported runtimes |
-| One bounded Start, sequential Codex dispatch, correction through Speculator, independent Secutor review and retained local battle branch | Real-account end-to-end acceptance, general toolchain checks, recovery and parallel workers |
+| One bounded Start, sequential Codex/Cursor dispatch, correction through Speculator, independent Secutor review and retained local battle branch | Real-account end-to-end acceptance, general toolchain checks, recovery and parallel workers |
 
 Agents uses `/agents`; Settings uses `/settings`. Agent setup follows
 **Choose Agent → Connect and Authorize → Select models → Save**. Team assigns each
@@ -54,15 +54,16 @@ excluded files and limits. Agents and Team keep their existing setup controls.
 Press **Create tasks** to save up to six validated cards in Specs automatically.
 Each keeps its prerequisites and source receipts; existing edits stay unchanged.
 Older requests retain their individual **Add to Specs** controls. **Start** freezes
-the default board, task criteria/checks, four Codex roles, model bindings and limits:
+the default board, task criteria/checks, four assigned Codex/Cursor roles, model bindings and limits:
 20 tasks, three review returns per task, 200 role turns and two hours. A committed
-Git source and verified Codex `0.162.0-alpha.17.2` task runtime are required.
+Git source, fresh model catalogs and verified task runtimes are required: Codex
+`0.162.0-alpha.17.2` or Cursor `2026.09.15-d2fe57e`.
 Secutor reviews the checks described in every task and the combined result.
 Missing required runtime/test evidence blocks completion; code inspection never
 proves tests ran. **Advanced → Extra command checks (optional)** adds explicit
 commands when needed; once configured, all must pass. Without them, no command
 tests run and no passing command receipt is invented. Extra commands currently
-support native system commands that run in one process;
+require a Codex Implementor and support native system commands that run in one process;
 Mix/npm pipelines and other subprocess toolchains are not supported. Stop waits
 for cleanup. Restart or uncertain effects require inspection; no automatic replay.
 New Start uses the current original committed source and retains previous result
@@ -89,6 +90,13 @@ R020n adds bounded Codex host file-tool turns, now used by R050e battle admissio
 and independent review. R020o fixes Codex tool routing;
 a consented GPT-6.1 Sol fixture verified host read and hash-guarded edit, exact
 final bytes and normal process cleanup. Full battle acceptance remains open.
+R020p adds Cursor role execution with the same bounded host file operations.
+It verifies the exact saved model variant, keeps native Cursor tools denied, and
+routes each role to its assigned connection. A blocked Start now names the affected
+roles and links directly to their agent setup. Cursor initial planning remains
+unsupported. Protocol fixtures and real model-selection preflights pass; live
+Cursor read/edit/denial acceptance is still pending usage approval.
+[Cursor execution evidence](worklog/2026-10-13-R020p-cursor-task-execution.md).
 
 R050d1 captures exact task edits into retained application-owned Git candidates.
 R050e integrates only reviewed candidates into `ccoding/battles/<UUID>` and

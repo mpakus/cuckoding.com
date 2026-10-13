@@ -44,6 +44,32 @@ defmodule Cuckoding.TaskTurnTest do
     end
   end
 
+  test "Cursor keeps the requested alias and native base model parameters separately" do
+    result =
+      receipt()
+      |> Map.merge(%{
+        "transport" => "cursor-acp-v1",
+        "effort" => nil,
+        "runtime_model" => "grok-4.6",
+        "runtime_parameters" => %{"effort" => "xhigh", "fast" => "true"}
+      })
+
+    assert TaskTurn.normalize(Jason.encode!(result)) == result
+
+    for invalid <- [
+          Map.delete(result, "runtime_model"),
+          Map.delete(result, "runtime_parameters"),
+          Map.put(result, "transport", "unknown"),
+          Map.put(result, "runtime_parameters", %{"raw" => "private account data"})
+        ] do
+      assert TaskTurn.normalize(Jason.encode!(invalid)) == %{"status" => "invalid_output"}
+    end
+
+    assert Cuckoding.Cursor.run_task(%{}, "unused", "unused", %{}, fn -> false end) == %{
+             "status" => "cancelled"
+           }
+  end
+
   test "cancelled turns retain normalized effects but no successful report" do
     result =
       receipt() |> Map.put("status", "cancelled") |> Jason.encode!() |> TaskTurn.normalize()

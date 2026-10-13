@@ -139,6 +139,23 @@ defmodule CuckodingWeb.BattleLiveTest do
     assert hd(battle.snapshot["tasks"])["criteria"] == ctx.attrs["criteria"]
   end
 
+  test "blocked Start shows the exact connection and refuses execution", ctx do
+    workspace = Foundation.workspace()
+
+    Repo.update!(
+      Ecto.Changeset.change(workspace,
+        connection: Map.put(workspace.connection, "fetched_at", "2000-01-01T00:00:00Z")
+      )
+    )
+
+    {:ok, view, _} = ctx.conn |> sign_in() |> live(ctx.path)
+    assert has_element?(view, "#arena-start:not([disabled])", "Check Start readiness")
+    assert has_element?(view, "a[href='/agents/codex']")
+    view |> form("#battle-start-form") |> render_submit()
+    assert has_element?(view, "#battle-blockers", "Refresh the assigned agent")
+    assert Battles.latest(ctx.arena.id, ctx.board.id) == nil
+  end
+
   test "stale and recovered Start forms cannot reuse old authorization", ctx do
     %{conn: conn, path: path, arena: arena, board: board, task: task, attrs: attrs} = ctx
     signed = sign_in(conn)
@@ -328,7 +345,8 @@ defmodule CuckodingWeb.BattleLiveTest do
              "Shorten descriptions, criteria or check arguments"
            )
 
-    assert has_element?(view, "#arena-start[disabled]")
+    refute has_element?(view, "#arena-start[disabled]")
+    assert has_element?(view, "#arena-start", "Check Start readiness")
     Foundation.broadcast()
     view |> form("#battle-start-form") |> render_submit()
     battle = Battles.latest(arena.id, board.id)

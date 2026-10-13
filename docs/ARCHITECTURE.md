@@ -3,7 +3,7 @@
 ## Implemented boundary · reviewed 2026-10-13
 
 Cuckoding delivers authenticated setup, planning, isolated task turns and the
-first sequential Codex battle loop. Product parallel workers and full recovery
+sequential Codex/Cursor battle loop. Product parallel workers and full recovery
 remain unfinished.
 The later sections describe the target architecture, not additional shipped code.
 
@@ -245,3 +245,9 @@ candidate capture/verification, reusing raw worktree inspection. Private indexes
 and UUID-scoped refs retain candidate commits without changing user/task HEAD.
 The future battle coordinator must supply bounded authority and bind independent
 review to these receipts; the primitives do not create workflow completion.
+
+R020p routes each battle role through its frozen provider kind. Cursor ACP lives
+in `desktop/src-tauri/src/cursor/task.rs` and reuses the native task file service;
+no second workflow engine, database migration or dependency is introduced.
+The [adapter contract](AGENT_RUNTIME_ADAPTERS.md#r020p-cursor-task-transport) owns
+model mapping, runtime permissions and transient provider-state limitations.

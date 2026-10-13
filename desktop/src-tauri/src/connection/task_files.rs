@@ -107,7 +107,7 @@ fn read(directory: &File, name: &str) -> Result<Option<(fs::Metadata, Vec<u8>)>>
     Ok(Some((before, bytes)))
 }
 
-pub(super) struct Files {
+pub(crate) struct Files {
     root: File,
     path: PathBuf,
     device: u64,
@@ -399,7 +399,7 @@ impl Files {
     }
 }
 
-pub(super) fn tools(writing: bool) -> Value {
+pub(crate) fn tools(writing: bool) -> Value {
     let mut tools = vec![
         json!({"name":"list_files","description":"List eligible entries in one workspace directory. Empty path lists the root. Hidden, protected and credential paths are excluded.","inputSchema":{"type":"object","additionalProperties":false,"required":["path"],"properties":{"path":{"type":"string"}}}}),
         json!({"name":"read_file","description":"Read one eligible UTF-8 workspace file up to 32 KiB and return its SHA-256.","inputSchema":{"type":"object","additionalProperties":false,"required":["path"],"properties":{"path":{"type":"string"}}}}),
@@ -415,7 +415,7 @@ pub(super) fn tools(writing: bool) -> Value {
 }
 
 #[cfg(test)]
-pub(super) mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::os::unix::fs::{symlink, PermissionsExt};
     use std::sync::atomic::{AtomicUsize, Ordering};

@@ -18,6 +18,7 @@ use std::{
 };
 
 type Result<T> = std::result::Result<T, &'static str>;
+pub(crate) mod task;
 #[derive(Clone, Copy, PartialEq)]
 pub enum Operation {
     Probe,

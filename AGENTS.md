@@ -6,7 +6,7 @@ These rules apply repository-wide. More specific rules may strengthen safety,
 auditability and verification, not weaken them. The 2026-10-06 user reset replaces
 the previous product direction. The implemented boundary includes named
 Codex/Cursor setup, draft planning, owned worktrees and the first bounded
-sequential Codex Arena loop. [Architecture](docs/ARCHITECTURE.md) names source
+sequential Codex/Cursor Arena loop. [Architecture](docs/ARCHITECTURE.md) names source
 owners; [Plan](docs/PLAN.md) owns remaining acceptance. General toolchain checks,
 full recovery, parallel workers, remaining providers and real-account battle
 acceptance remain open.
@@ -22,7 +22,7 @@ Preserve these implemented contracts:
   to the exact connection ID, with no account/runtime/model fallback. Cursor setup
   uses only fixed version/status/models/login/logout commands, file credentials,
   empty inherited environment, disabled provider debug logging and transient provider-scoped login URLs. Cursor
-  inference/planning remains unsupported until its grant is verified.
+  initial planning remains unsupported; task execution uses the R020p grant below.
 - Team revisions and scoped adoptions are immutable. Arena adoption affects new
   boards; Tabula adoption affects future planning only and waits for active
   planning. Guard both displayed scope/default revisions and retain old receipts.
@@ -114,6 +114,21 @@ consented GPT-6.1 Sol synthetic read/edit success with verified final bytes and
 normal child cleanup. This is not real Arena, independent review, crash/sleep
 or cross-provider acceptance; preserve those remaining gates.
 
+R020p adds Cursor `2026.09.15-d2fe57e` task execution through ACP in an empty
+private workspace. Use the exact CLI catalog alias; verify Cursor's generated
+base model and every parameter against ACP, without guessing alias syntax or
+accepting a default. Keep public requested alias, runtime model and parameters
+separate. The generated schema-valid configuration must retain deny rules for
+native read/write/shell/MCP/web tools, ask mode and restricted sandbox settings
+before every prompt. Reject native callbacks, tool activity and model/config drift.
+Only validated JSON proposals reach the existing host list/read/edit service.
+Retain effect receipts; remove private runtime session stores after owned cleanup.
+Never persist provider thought frames in Cuckoding receipts or UI. Hard-kill
+cleanup of interrupted provider session stores remains a recovery gate.
+No Cursor fallback to Codex. Command checks still require a Codex Implementor;
+Cursor initial task generation and general shell/toolchain execution remain open.
+Use synthetic provider acceptance separately from fixture or full Arena evidence.
+
 R050d1 host candidate capture accepts only bounded task-tool path/hash pairs in a
 verified owned checkout. Preserve the original source and task HEAD/index, verify
 all other tracked bytes and modes, reject extras/protected paths, and retain
@@ -123,7 +138,7 @@ nor independent review; future integration must bind exact criteria/check eviden
 
 ## R050e / R050f execution boundary
 
-The initial sequential Codex Arena loop is implemented in `Battles`,
+The sequential Codex/Cursor Arena loop is implemented in `Battles`,
 `BattleRunner`, `BattleExecutor` and native battle Git/check helpers. Start freezes
 membership/criteria/team/check revisions and finite limits; admission binds the
 current committed source and exact executables. Battle/task snapshots and attempt
@@ -184,7 +199,7 @@ Do not require these as routine setup screens or repeat approvals per task.
 R002 implements atomic default-board creation, immediate Arena navigation and
 Advanced disclosures. R040l adds bounded folder snapshots and consented Speculator
 analysis; R040m creates the validated cards automatically. R050e adds the first
-bounded sequential Codex battle; general toolchain checks and real-account battle
+bounded sequential Codex/Cursor battle; general toolchain checks and real-account battle
 acceptance remain open.
 Preserve scoped reads/consents. Folder analysis needs a bounded read grant;
 Start owns a separate bounded execution grant.

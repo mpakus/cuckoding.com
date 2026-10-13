@@ -389,7 +389,7 @@ defmodule CuckodingWeb.HomeLive do
         <span aria-hidden="true">↗</span></.link>
         <.link navigate={~p"/team"} class="button">Choose your team</.link>
         <p id="home-battle-scope" class="fine-print">
-          Arena boards are created automatically. Start runs a bounded Codex team one task at a time:
+          Arena boards are created automatically. Start runs your assigned team one task at a time:
           up to 20 tasks, three review rounds per task and two hours. Final checks and an independent
           Secutor review gate local completion; a failed final review needs attention.
         </p>
@@ -603,7 +603,7 @@ defmodule CuckodingWeb.HomeLive do
             </div>
           </form>
           <p :if={@agent_kind == "cursor"} class="fine-print">
-            Cursor model selection is available. Model tests and task execution are not enabled yet.
+            Cursor can run assigned roles after Start. Initial task planning and optional model tests still require Codex.
           </p>
           <details
             :if={@agent_kind == "codex"}
@@ -659,7 +659,7 @@ defmodule CuckodingWeb.HomeLive do
             {if @review, do: "Save your agent.", else: "Your agent is saved."}
           </h2>
           <p class="subtle">
-            Codex · {length(
+            {Agents.label(@agent_kind)} · {length(
               if @review, do: @review.models, else: (@saved && @saved.payload["models"]) || []
             )} selected models
           </p>

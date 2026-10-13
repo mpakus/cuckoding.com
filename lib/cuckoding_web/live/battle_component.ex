@@ -114,13 +114,17 @@ defmodule CuckodingWeb.BattleComponent do
   defp message(reason)
        when reason in ~w(check_runtime_version_required task_runtime_version_required),
        do:
-         "The Implementor needs the verified Codex version for isolated task execution. Recheck that connection in Agents."
+         "Every assigned Codex connection needs version 0.162.0-alpha.17.2 for task execution. Recheck the connection in Agents."
+
+  defp message("check_runtime_required"),
+    do:
+      "Extra command checks currently require a Codex Implementor. Cursor can implement and review task criteria, but cannot run these commands yet."
 
   defp message("agent_unassigned"),
     do: "Assign an agent and model to all four roles in Team, then adopt that team in Advanced."
 
   defp message("unsupported_provider"),
-    do: "This first Arena loop requires Codex for every assigned role."
+    do: "This agent does not support Arena execution yet. Codex and Cursor are supported."
 
   defp message("model_unavailable"),
     do: "A saved model is unavailable. Refresh its agent and explicitly update the assigned team."
@@ -269,7 +273,7 @@ defmodule CuckodingWeb.BattleComponent do
         <p class="fine-print">
           {role_name(if(@attempt, do: @attempt.role))} · {if @binding,
             do: "#{@binding["kind"]} · requested model #{@binding["model"]}",
-            else: "local host"} · {battle_elapsed(@battle, @now)}s elapsed · {@battle.turns_used} agent turns used
+            else: "local host"} · {battle_elapsed(@battle, @now)}s elapsed · {@battle.turns_used} role stages used
         </p>
         <p :if={@battle.state == "stopping"} role="status">
           Stopping · waiting for owned worker cleanup. Changes and receipts are retained.
@@ -350,7 +354,7 @@ defmodule CuckodingWeb.BattleComponent do
           <p class="fine-print">
             {length(@preview.tasks)} tasks · one worker at a time · up to {@preview.limits["tasks"]} tasks, {@preview.limits[
               "review_rounds"
-            ]} review rounds per task, {@preview.limits["turns"]} agent turns and {@preview.limits[
+            ]} review rounds per task, {@preview.limits["turns"]} role stages and {@preview.limits[
               "wall_seconds"
             ]}s total ({div(@preview.limits["wall_seconds"], 3600)} hours).
           </p>
@@ -397,10 +401,25 @@ defmodule CuckodingWeb.BattleComponent do
             <li :for={reason <- @preview.blockers}>{message(reason)}</li>
           </ul>
           <div :if={@preview.blockers != []} class="team-actions">
-            <.link navigate={~p"/agents"} class="text-link">Agents ↗</.link>
-            <.link navigate={~p"/team"} class="text-link">Team ↗</.link>
+            <p :for={role <- Enum.filter(@preview.team, &(&1["status"] != "ready"))}>
+              {role["name"]}: {message(role["status"])}
+              <.link
+                :if={role["agent_id"]}
+                navigate={~p"/agents/#{role["agent_id"]}"}
+                class="text-link"
+              >
+                Open {role["agent_name"] || role["kind"]} ↗
+              </.link>
+            </p>
+            <a
+              href="#arena-advanced"
+              phx-click={Phoenix.LiveView.JS.set_attribute({"open", ""}, to: "#arena-advanced")}
+              class="text-link"
+            >This board's team · Advanced ↓</a>
             <.link
-              :if={"check_timeout_limit" in @preview.blockers}
+              :if={
+                Enum.any?(~w(check_timeout_limit check_runtime_required), &(&1 in @preview.blockers))
+              }
               navigate={~p"/arenas/#{@board.arena_id}/checks"}
               class="text-link"
             >Extra command checks ↗</.link>
@@ -419,10 +438,11 @@ defmodule CuckodingWeb.BattleComponent do
               id="arena-start"
               class="button primary"
               type="submit"
-              disabled={@preview.blockers != []}
-              aria-describedby="arena-start-help"
+              aria-describedby={
+                if @preview.blockers == [], do: "arena-start-help", else: "battle-blockers"
+              }
               phx-disable-with="Starting…"
-            >Start</button>
+            >{if @preview.blockers == [], do: "Start", else: "Check Start readiness"}</button>
           </.form>
         </div>
       </div>

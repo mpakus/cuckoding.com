@@ -66,6 +66,10 @@ fn main() {
         connection::plan_main(&args[1..]);
         return;
     }
+    if args.first().is_some_and(|arg| arg == "--run-cursor-task") {
+        cursor::task::main(&args[1..]);
+        return;
+    }
     if args.first().is_some_and(|arg| arg == "--run-codex-task") {
         connection::task_main(&args[1..]);
         return;

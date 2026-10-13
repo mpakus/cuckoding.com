@@ -53,11 +53,12 @@ loop. Commands remain optional Advanced settings, not generated executable polic
 
 ## Initial supported scope
 
-Default columns and the four required roles, all bound to named Codex connections.
+Default columns and the four required roles, bound independently to named Codex or Cursor connections.
 A fresh catalog and exact selected executable/model remain required at each role
-turn. The Implementor connection supplies the verified `0.162.0-alpha.17.2`
-task runtime and optional check sandbox. No fallback or implicit account/model substitution occurs.
-At most 20 tasks, three review returns per task, 200 role turns and two wall-clock
+turn. Every Codex role needs `0.162.0-alpha.17.2`; Cursor roles need
+`2026.09.15-d2fe57e` and the verified `cursor-acp-v1` grant. Extra command checks
+still require the Codex Implementor runtime. No fallback or implicit account/model substitution occurs.
+At most 20 tasks, three review returns per task, 200 role stages and two wall-clock
 hours; each stage expires after at most 15 minutes. Prompt preflight reserves
 worst-case public summaries and check metadata without truncating frozen criteria.
 
@@ -102,3 +103,19 @@ Git preservation, sandbox behavior and process lifetime. These do not substitute
 for a live signed-in two-task battle. Pause/resume/skip, full restart/sleep
 reconciliation, parallel tasks, custom stages, general toolchain checks and the
 remaining providers stay open in [Plan](PLAN.md). No additional dependency is added.
+
+## Cursor role turns (R020p)
+
+The native adapter runs ACP in an empty owned directory and denies native tools.
+Model JSON may request only the existing bounded host file operations. The exact
+CLI alias comes from the current catalog; Cursor resolves its own base model and
+parameters, which must match the ACP session before and after prompts. Both are
+retained in the public receipt. No alias rewriting or default-model fallback.
+One role stage is capped at five minutes, 64 host operations and 65 model prompts;
+these prompts may consume provider allowance. Stop/timeout retain existing edits
+and terminate the owned group. No failed stage is automatically replayed.
+Cursor can fill any battle role; initial Create tasks still requires Codex.
+Runtime session files are private and removed after cleanup; hard process death
+can leave them for recovery. Raw thought frames never enter application receipts.
+Protocol fixtures and real metadata-only model selection checks pass. Live Cursor
+read/edit/denial and mixed-battle acceptance remain open; see the R020p worklog.

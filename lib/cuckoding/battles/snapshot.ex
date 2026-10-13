@@ -4,6 +4,7 @@ defmodule Cuckoding.Battles.Snapshot do
     Agents,
     Codex,
     Command,
+    Cursor,
     Foundation,
     ProjectChecks,
     Repo,
@@ -50,12 +51,9 @@ defmodule Cuckoding.Battles.Snapshot do
       )
       |> block(check_limits?(checks.definition["checks"]), "check_timeout_limit")
       |> block(
-        Enum.any?(
-          roles,
-          &(&1["id"] == "implementor" and &1["kind"] == "codex" and
-              &1["version"] != Codex.isolation_version())
-        ),
-        "task_runtime_version_required"
+        checks.definition["checks"] != [] and
+          not Enum.any?(roles, &(&1["id"] == "implementor" and &1["kind"] == "codex")),
+        "check_runtime_required"
       )
       |> Kernel.++(roles |> Enum.map(& &1["status"]) |> Enum.reject(&(&1 == "ready")))
       |> Enum.uniq()
@@ -183,6 +181,7 @@ defmodule Cuckoding.Battles.Snapshot do
 
     Map.merge(Map.take(role, ~w(id name instructions)), %{
       "agent_id" => role["agent"],
+      "agent_name" => Map.get(agent, :name),
       "kind" => agent.kind,
       "model_id" => role["model_id"],
       "model" => role["model"],
@@ -195,30 +194,62 @@ defmodule Cuckoding.Battles.Snapshot do
     })
   end
 
+  defp binding_status(_, %{id: nil}, _, _), do: "agent_unassigned"
+  defp binding_status(%{"model_id" => ""}, _, _, _), do: "agent_unassigned"
+
   defp binding_status(role, agent, probe, model) do
     cond do
-      is_nil(agent.id) or role["model_id"] == "" -> "agent_unassigned"
-      agent.kind != "codex" -> "unsupported_provider"
-      not valid_probe?(probe, agent) -> "version_required"
-      not connected?(agent.connection) -> "connection_required"
-      Foundation.catalog_status(agent.connection) != "fresh" -> "catalog_stale"
-      not valid_model?(role, model) -> "model_unavailable"
-      true -> "ready"
+      agent.kind not in ~w(codex cursor) ->
+        "unsupported_provider"
+
+      not valid_probe?(probe, agent) ->
+        "version_required"
+
+      runtime_status(agent) != "ready" ->
+        runtime_status(agent)
+
+      not connected?(agent) ->
+        "connection_required"
+
+      Foundation.catalog_status(agent.connection) != "fresh" ->
+        "catalog_stale"
+
+      not valid_model?(role, model, agent.kind) ->
+        "model_unavailable"
+
+      true ->
+        "ready"
     end
   end
 
-  defp valid_probe?(%Command{kind: "probe_codex", state: "completed"} = probe, agent),
+  defp runtime_status(%{kind: "cursor", codex: observation}),
+    do: if(observation["version"] == Cursor.task_version(), do: "ready", else: "version_required")
+
+  defp runtime_status(%{kind: "codex", codex: observation}),
     do:
-      agent.codex["status"] == "supported" and Foundation.agent_id(probe.payload) == agent.id and
+      if(observation["version"] == Codex.isolation_version(),
+        do: "ready",
+        else: "task_runtime_version_required"
+      )
+
+  defp valid_probe?(%Command{state: "completed"} = probe, agent),
+    do:
+      probe.kind == "probe_#{agent.kind}" and agent.codex["status"] == "supported" and
+        Foundation.agent_id(probe.payload) == agent.id and
         agent.connection["identity"] == Foundation.executable_identity(probe.payload)
 
   defp valid_probe?(_, _), do: false
 
-  defp connected?(connection),
-    do: connection["status"] == "checked" and connection["authorization"] == "chatgpt"
+  defp connected?(agent),
+    do:
+      agent.connection["status"] == "checked" and
+        agent.connection["authorization"] ==
+          if(agent.kind == "cursor", do: "cursor", else: "chatgpt")
 
-  defp valid_model?(_, nil), do: false
+  defp valid_model?(_, nil, _), do: false
 
-  defp valid_model?(role, model),
+  defp valid_model?(role, model, "cursor"), do: role["model"] == model["model"]
+
+  defp valid_model?(role, model, "codex"),
     do: role["model"] == model["model"] and model["default_effort"] in (model["efforts"] || [])
 end

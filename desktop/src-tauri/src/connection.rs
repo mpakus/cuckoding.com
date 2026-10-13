@@ -14,8 +14,8 @@ use std::{
 };
 
 mod model_check;
-mod task_files;
-mod task_turn;
+pub(crate) mod task_files;
+pub(crate) mod task_turn;
 pub(crate) use task_files::valid_path as valid_task_path;
 
 type Result<T> = std::result::Result<T, &'static str>;

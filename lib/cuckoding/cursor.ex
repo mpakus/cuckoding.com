@@ -1,8 +1,9 @@
 defmodule Cuckoding.Cursor do
-  @moduledoc "Fixed Cursor setup operations; inference grants are not implemented."
+  @moduledoc "Private Cursor setup and bounded host-mediated task operations."
   @behaviour Cuckoding.AgentAdapter
   alias Cuckoding.Codex
   @version "2026.09.15-d2fe57e"
+  def task_version, do: @version
 
   @impl true
   def probe(identity, directory, active?) do
@@ -45,7 +46,27 @@ defmodule Cuckoding.Cursor do
   def plan(_, _, _, _, _), do: %{"status" => "unsupported_grant"}
 
   @impl true
-  def run_task(_, _, _, _, _), do: %{"status" => "unsupported_grant"}
+  def run_task(identity, profile, scratch, request, active?) do
+    if active?.() do
+      Codex.observe(
+        identity,
+        profile,
+        active?,
+        "--run-cursor-task",
+        &Cuckoding.TaskTurn.normalize/1,
+        65_536,
+        305_000,
+        progress: :no_progress,
+        args: [scratch, request["model"]],
+        input:
+          Jason.encode!(
+            Map.take(request, ~w(request_id contract access workspace prompt instructions))
+          ) <> "\n"
+      )
+    else
+      %{"status" => "cancelled"}
+    end
+  end
 
   def normalize(bytes) when is_binary(bytes) and byte_size(bytes) <= 1024 do
     case Jason.decode(bytes) do

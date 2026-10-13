@@ -196,3 +196,15 @@ all 512 fixture choices through LiveView into Team. Actual packaged inspection
 retained 256 entries (including 22 Grok variants) across app restart; see the
 [R020l worklog](../worklog/2026-10-10-R020l-cursor-catalog.md). This verifies model
 metadata discovery, not inference entitlement or repository execution.
+
+
+R020p native protocol fixtures cover Cursor alias/default-label resolution,
+parameter drift, explicit-selection and permission requirements, foreign frames,
+native tool refusal, protected paths, read-only edits, output limits, cancellation,
+timeout, retained effects and owned group cleanup. Mixed-team executor tests retain
+Cursor Implementor/Summa Rudis and Codex Speculator/Secutor through correction and
+final completion. These fixtures do not prove real-account inference.
+`real_cursor_preflight` is an ignored no-prompt metadata check;
+`real_cursor_task` requires explicit `one-fixture-session` usage consent and an
+app-owned profile. Select exactly one synthetic read, write or denial canary.
+The five-minute fixture writes its public receipt under that app's probes directory.

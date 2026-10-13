@@ -53,6 +53,7 @@ defmodule CuckodingWeb.AgentsLiveTest do
     assert has_element?(wizard, "#model-selection input[value='grok-fixture'][checked]")
     wizard |> form("#model-selection", model_ids: ["grok-fixture"]) |> render_submit()
     wizard |> form("#save-models") |> render_submit()
+    assert has_element?(wizard, "#wizard-save .subtle", "Cursor · 1 selected models")
     assert Foundation.saved_agent_models(cursor.id).payload["model_ids"] == ["grok-fixture"]
     assert Foundation.saved_agent_models() == nil
     assert has_element?(roster, "#agent-#{cursor.id}", "1 selected models")

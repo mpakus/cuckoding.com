@@ -22,7 +22,7 @@ reset remains intentional; do not restore the deleted implementation wholesale.
 R002 simplifies the Arena surface and creates a default board during registration.
 The target is **Add folder → Create tasks → Start**. R040l adds bounded folder
 snapshots and consented Speculator analysis. R040m saves the validated task graph
-automatically. R050e adds a bounded sequential Codex Start loop; see
+automatically. R050e adds a bounded sequential Codex/Cursor Start loop (R020p); see
 [Arena loop](ARENA_LOOP.md) for exact prerequisites and limits.
 [Plan](PLAN.md#next-delivery-order--simple-arena) owns the remaining beta gates.
 

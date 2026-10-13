@@ -536,7 +536,8 @@ defmodule Cuckoding.Battles do
       "access" => if(attempt.stage == "implementor", do: "write", else: "read")
     }
 
-    Map.take(provider, Map.keys(expected)) == expected
+    Map.take(provider, Map.keys(expected)) == expected and
+      provider["transport"] == if(role["kind"] == "cursor", do: "cursor-acp-v1", else: nil)
   end
 
   defp fresh_session?(attempt, provider) do

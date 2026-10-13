@@ -2,7 +2,7 @@
 use super::*;
 use task_files::Files;
 
-pub(super) fn valid_request(request: &Value) -> bool {
+pub(crate) fn valid_request(request: &Value) -> bool {
     request.as_object().is_some_and(|m| m.len() == 6)
         && request["contract"] == "host-task-tools-v1"
         && matches!(request["access"].as_str(), Some("read" | "write"))

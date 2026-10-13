@@ -322,6 +322,31 @@ defmodule Cuckoding.Foundation do
       model_available?(connection, payload)
   end
 
+  def task_binding_current?(%{"kind" => "cursor"} = payload) do
+    agent = workspace(agent_id(payload))
+    connection = agent.connection
+
+    expected = %{
+      "status" => "checked",
+      "authorization" => "cursor",
+      "identity" => payload["identity"],
+      "command_id" => payload["connection_command_id"],
+      "fetched_at" => payload["fetched_at"]
+    }
+
+    Agents.kind(agent_id(payload)) == "cursor" and
+      agent.codex["version"] == Cuckoding.Cursor.task_version() and
+      Map.take(connection, Map.keys(expected)) == expected and
+      catalog_status(connection) == "fresh" and is_nil(payload["effort"]) and
+      Enum.any?(
+        connection["models"] || [],
+        &(&1["id"] == payload["model_id"] and &1["model"] == payload["model"])
+      )
+  end
+
+  def task_binding_current?(%{"kind" => "codex"} = payload), do: model_check_current?(payload)
+  def task_binding_current?(_), do: false
+
   defp model_available?(connection, payload) do
     Enum.any?(connection["models"] || [], fn model ->
       model["id"] == payload["model_id"] and model["model"] == payload["model"] and
