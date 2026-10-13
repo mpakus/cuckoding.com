@@ -502,3 +502,9 @@ See [task](../tasks/R020j-navigation-routes.md) and
 - [x] Connected Codex/Cursor users can inspect/retry stale catalogs on step 3.
 - [x] Preserve pending/version/account gates, fresh-catalog saves and model choices.
 - Evidence: [R020k worklog](../worklog/2026-10-10-R020k-wizard-next.md).
+
+## R101 — Dependency security maintenance
+
+- [x] Upgrade Decimal beyond CVE-2026-97853 affected versions; retain compatible
+  Ecto/SQLite constraints and verify quality/production compilation.
+  [Evidence](../worklog/2026-10-13-R101-decimal-security.md).

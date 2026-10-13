@@ -325,6 +325,9 @@ and inspect desktop/narrow rendering for site changes.
 
 ## Database and verification
 
+Keep the locked Decimal dependency at 3.1.2 or newer (R101, CVE-2026-97853);
+integer-based accounting remains unchanged.
+
 SQLite uses WAL, foreign keys, busy timeout and short transactions. Keep immutable
 historical facts in events/attempts and current projections separate. Released
 migrations are forward-only and tested against prior-schema copies with verified

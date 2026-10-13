@@ -117,3 +117,6 @@ Local execution uses runtime permissions; the host runner is not a sandbox.
 
 Use RTK for every repository shell command and Ponytail in full mode.
 Search with `rtk rg`; no indexing service is required.
+
+Dependency maintenance: R101 updates Decimal to 3.2.0, resolving
+CVE-2026-97853. See [verification](worklog/2026-10-13-R101-decimal-security.md).
