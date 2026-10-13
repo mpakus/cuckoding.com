@@ -132,7 +132,11 @@ defmodule Cuckoding.Battles.Snapshot do
       "stdout_bytes" => 65_536,
       "pid" => 9_999_999_999_999,
       "spawned_at_ms" => 9_999_999_999_999,
-      "elapsed_ms" => 310_000
+      "elapsed_ms" => 310_000,
+      "cleanup_verified" => false,
+      "child_pid" => 9_999_999_999_999,
+      "child_start_seconds" => 9_999_999_999_999,
+      "child_start_microseconds" => 999_999
     }
 
   defp prompt_fits?(input, metadata),
