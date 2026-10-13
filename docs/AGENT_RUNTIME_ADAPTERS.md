@@ -205,7 +205,10 @@ call ID, status and hash, not content or raw provider messages. Role reports are
 The battle host must freeze authority and validate exact candidate/review evidence.
 Cursor returns unsupported; no fallback runtime is selected.
 
-The real GPT-6.1 Sol/c2 fixture verified read_file after the routing fix. The
-write fixture stopped with a blocked role report interpreting runtime read-only
-permissions as host-tool denial. Updated grant wording needs a separately
-authorized retry; neither fixture proves full Arena execution.
+After an initial read-only wording refusal, the separately authorized
+GPT-6.1 Sol/c2 write fixture passed on 2026-10-13: read_file followed by edit_file,
+exact expected bytes and hashes, and both Codex/Code Mode child identities gone
+after completion. Runtime scratch permissions were unchanged. This synthetic
+workspace-shaped fixture does not prove independent Secutor review, crash/sleep
+recovery, other runtimes/models or full Arena execution.
+See [R020o evidence](../worklog/2026-10-13-R020o-task-tool-routing.md#approved-write-follow-up).

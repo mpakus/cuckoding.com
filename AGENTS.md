@@ -110,7 +110,10 @@ State the host-service read/write grant separately from runtime scratch access;
 never widen filesystem permissions to fix a model misunderstanding. Read-only
 roles cannot edit. A transport
 report never grants battle authority or marks a card Completed; R050 must own
-that binding. Do not add a new mandatory setup diagnostic.
+that binding. Do not add a new mandatory setup diagnostic. R020o has one
+consented GPT-6.1 Sol synthetic read/edit success with verified final bytes and
+normal child cleanup. This is not real Arena, independent review, crash/sleep
+or cross-provider acceptance; preserve those remaining gates.
 
 R050d1 host candidate capture accepts only bounded task-tool path/hash pairs in a
 verified owned checkout. Preserve the original source and task HEAD/index, verify

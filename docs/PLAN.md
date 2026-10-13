@@ -229,7 +229,8 @@ the real-provider gate.
 - [x] R020n: implement bounded Codex dynamic file-tool transport, exact scoped
   requests, protected paths, compare-before-write and interruption receipts.
   [Task/evidence](../tasks/R020n-task-tools.md). R020o restores task-only Code Mode
-  routing; a real read succeeded, write acceptance remains open. Real-account acceptance and
+  routing; a consented GPT-6.1 Sol synthetic read/edit and normal cleanup passed.
+  Broader real-account acceptance and
   Start integration remain separate gates.
 - [ ] Prove a read-only turn and a permitted worktree-writing turn in isolated
   workspaces; normalize public activity, outcomes and redacted logs.

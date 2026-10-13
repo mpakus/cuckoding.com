@@ -1,6 +1,7 @@
 # R020o — Codex task-tool routing
 
-Status: routing implemented and locally verified 2026-10-13; real write acceptance pending. Branch: `fix/R020o-task-tool-routing`.
+Status: routing and one real synthetic read/edit verified 2026-10-13. Initial
+branch: `fix/R020o-task-tool-routing`; evidence follow-up: `fix/R020o-write-acceptance`.
 
 The approved read fixture reached GPT-6.1 Sol but returned blocked because Code
 Mode's host was disabled. Restore the runtime's routing layer without enabling
@@ -17,7 +18,11 @@ shell, imports, filesystem/network APIs or arbitrary host tools.
 
 [Evidence](../worklog/2026-10-13-R020o-task-tool-routing.md).
 
-The approved write fixture was exercised and read successfully, but returned a
-blocked report before editing. The clarified host-grant wording awaits one more
-explicitly authorized real write test. This is an open acceptance gate, not a
-passed write result. Start remains disabled.
+The first approved write fixture read successfully but returned blocked before
+editing. After clarifying the host grant, the user authorized one additional
+five-minute test. It passed in 10.88 seconds with exact read/edit hashes and final
+bytes. Codex and its separate Code Mode process both exited; all 11 durable app
+tables were unchanged. No Arena or personal profile was accessed.
+
+Full battle, independent review and crash/sleep acceptance remain open. Start
+remains disabled. This evidence update changes no product code or permissions.
