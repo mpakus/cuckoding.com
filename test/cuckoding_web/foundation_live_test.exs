@@ -121,6 +121,13 @@ defmodule CuckodingWeb.FoundationLiveTest do
     assert has_element?(view, "a[href='#main']", "Skip to content")
     assert html =~ "Foundation preview"
     assert has_element?(view, "a[href='/agents']", "Check your setup")
+    assert has_element?(view, "a[href='/arenas']", "Open Arenas")
+    assert has_element?(view, "#home-battle-scope", "one task at a time")
+    assert has_element?(view, "#home-battle-scope", "20 tasks")
+    assert has_element?(view, "#home-battle-scope", "three review rounds")
+    assert has_element?(view, "#home-battle-scope", "two hours")
+    assert has_element?(view, "#home-check-scope", "Mix/npm pipelines are not yet supported")
+    refute html =~ "autonomous Start is still in development"
     refute html =~ "Start battle"
   end
 

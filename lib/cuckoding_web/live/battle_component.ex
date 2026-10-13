@@ -88,6 +88,10 @@ defmodule CuckodingWeb.BattleComponent do
   defp message("task_limit"),
     do: "This board exceeds the battle's task limit. Use a smaller board."
 
+  defp message("prompt_scope_too_large"),
+    do:
+      "The saved task and team instructions exceed the bounded prompt size. Shorten the descriptions or role instructions, or use a smaller board, then review Start again."
+
   defp message("incomplete_task"),
     do: "Save a description and acceptance criteria for every task."
 
@@ -135,6 +139,10 @@ defmodule CuckodingWeb.BattleComponent do
   defp message("cleanup_required"),
     do:
       "Worker cleanup is uncertain. Inspect the retained attempt before any new execution; Stop cannot claim cleanup is complete."
+
+  defp message("final_review_changes_requested"),
+    do:
+      "The final Secutor review requested changes. This battle needs attention; the local result and review evidence are retained, and completion has not been granted."
 
   defp message(reason),
     do:
@@ -339,7 +347,12 @@ defmodule CuckodingWeb.BattleComponent do
               "review_rounds"
             ]} review rounds per task, {@preview.limits["turns"]} agent turns and {@preview.limits[
               "wall_seconds"
-            ]}s total.
+            ]}s total ({div(@preview.limits["wall_seconds"], 3600)} hours).
+          </p>
+          <p id="battle-check-scope" class="fine-print">
+            Declared checks run as single-process commands only; subprocess spawning is unavailable.
+            Mix/npm pipelines are not yet supported. Final checks and independent final Secutor review
+            must pass before completion; a failed final review needs attention.
           </p>
           <p id="battle-start-team" class="fine-print">
             {Enum.map_join(@preview.team, " · ", fn role ->

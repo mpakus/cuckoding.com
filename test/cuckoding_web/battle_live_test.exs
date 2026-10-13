@@ -110,6 +110,8 @@ defmodule CuckodingWeb.BattleLiveTest do
     assert has_element?(view, "#battle-start-details", "test-model")
     assert has_element?(view, "#battle-start-details", "git")
     assert has_element?(view, "#arena-start-help", "original checkout")
+    assert has_element?(view, "#battle-check-scope", "single-process commands only")
+    assert has_element?(view, "#battle-check-scope", "Mix/npm pipelines are not yet supported")
     view |> form("#battle-start-form") |> render_submit()
     battle = Battles.latest(arena.id, board.id)
     assert battle.state == "running"
@@ -294,6 +296,33 @@ defmodule CuckodingWeb.BattleLiveTest do
     assert has_element?(view, "#battle-attempt-#{attempt.id}", "check-fixture")
     assert has_element?(view, "#battle-attempt-#{attempt.id}", String.duplicate("a", 40))
     refute render(view) =~ "PRIVATE-RAW-CANARY"
+  end
+
+  test "oversized scope and failed final review offer concrete attention guidance", ctx do
+    %{conn: conn, path: path, arena: arena, board: board} = ctx
+    {:ok, view, _} = conn |> sign_in() |> live(path)
+    {:ok, preview} = Battles.preview(arena.id, board.id)
+
+    Phoenix.LiveView.send_update(view.pid, CuckodingWeb.BattleComponent,
+      id: "arena-battle",
+      preview: %{preview | blockers: ["prompt_scope_too_large"]}
+    )
+
+    assert has_element?(view, "#battle-blockers", "Shorten the descriptions or role instructions")
+    assert has_element?(view, "#arena-start[disabled]")
+    Foundation.broadcast()
+    view |> form("#battle-start-form") |> render_submit()
+    battle = Battles.latest(arena.id, board.id)
+
+    battle
+    |> Ecto.Changeset.change(state: "needs_attention", reason: "final_review_changes_requested")
+    |> Repo.update!()
+
+    Foundation.broadcast()
+    assert has_element?(view, "#battle-activity", "final Secutor review requested changes")
+    assert has_element?(view, "#battle-activity", "completion has not been granted")
+    refute has_element?(view, "#battle-result")
+    refute has_element?(view, "#battle-start-form")
   end
 
   defp start_params(view) do

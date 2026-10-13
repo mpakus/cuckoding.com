@@ -388,9 +388,16 @@ defmodule CuckodingWeb.HomeLive do
         <.link navigate={~p"/agents"} class="button primary">Check your setup
         <span aria-hidden="true">↗</span></.link>
         <.link navigate={~p"/team"} class="button">Choose your team</.link>
-        <p class="fine-print">
-          Arena boards are created automatically. Task planning is available; autonomous Start is still in development.
+        <p id="home-battle-scope" class="fine-print">
+          Arena boards are created automatically. Start runs a bounded Codex team one task at a time:
+          up to 20 tasks, three review rounds per task and two hours. Final checks and an independent
+          Secutor review gate local completion; a failed final review needs attention.
         </p>
+        <p id="home-check-scope" class="fine-print">
+          Project checks currently support single-process commands only. They cannot spawn subprocesses;
+          Mix/npm pipelines are not yet supported. Start creates a local result branch; merging or publishing it is separate.
+        </p>
+        <.link navigate={~p"/arenas"} class="text-link">Open Arenas ↗</.link>
       </section>
 
       <section
@@ -723,7 +730,7 @@ defmodule CuckodingWeb.HomeLive do
           </div>
           <p class="fine-print">
             A dated sandbox check does not authorize tasks or prove model-tool isolation.
-            Autonomous Start is still in development.
+            Start on an Arena records its separate bounded execution authority; this diagnostic is optional.
           </p>
         </details>
 

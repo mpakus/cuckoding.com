@@ -41,7 +41,7 @@ defmodule CuckodingWeb.BattlePreviewLive do
 
   def handle_info(:session_expired, socket), do: {:noreply, redirect(socket, to: "/locked")}
 
-  defp label(:unaccepted), do: "Specification needed"
+  defp label(:unaccepted), do: "No accepted Markdown snapshot · optional"
   defp label(:outdated), do: "Prerequisite changed · specification outdated"
   defp label(:artifact_unavailable), do: "Accepted Markdown missing or changed"
   defp label(:accepted), do: "Accepted Markdown verified"
@@ -52,9 +52,12 @@ defmodule CuckodingWeb.BattlePreviewLive do
   defp label(:catalog_stale), do: "Refresh model catalog"
   defp label(:model_missing), do: "Saved model missing from catalog"
   defp label(:model_changed), do: "Saved model changed · reassign explicitly"
-  defp label(:check_passed), do: "Model diagnostic passed · repository grant unverified"
+
+  defp label(:check_passed),
+    do: "Model diagnostic passed · this check grants no execution authority"
+
   defp label(:untested), do: "Catalog binding available · model access untested"
-  defp label(:not_inspected), do: "Inspect Git in Repository setup"
+  defp label(:not_inspected), do: "No saved Git inspection"
   defp label(:busy), do: "Git operation active · inspect or cancel in Repository setup"
   defp label(:failed), do: "Last Git operation did not confirm a baseline · inspect again"
   defp label(:expired), do: "Git observation expired · inspect again"
@@ -71,8 +74,9 @@ defmodule CuckodingWeb.BattlePreviewLive do
       <section class="panel" aria-labelledby="battle-preview-title">
         <p class="eyebrow">BATTLE PREVIEW · {@preview.board.name}</p>
         <h2 id="battle-preview-title">Inspect the preparation.</h2>
-        <p id="execution-unavailable" class="notice">
-          Battle execution is not available yet. Review preparation here; no work will start.
+        <p id="preview-authority" class="notice">
+          This preview is read-only. Start on the Arena board records separate execution authority
+          for the sequential Codex loop; viewing this page starts no work.
         </p>
         <p class="fine-print">
           This reads saved settings and verifies accepted Markdown. It starts no agent,
@@ -83,8 +87,13 @@ defmodule CuckodingWeb.BattlePreviewLive do
           <.link
             navigate={~p"/arenas/#{@preview.arena.id}/tabulae/#{@preview.board.id}"}
             class="text-link"
-          >Back to Tabula ↗</.link>
+          >Back to Arena · Start and activity ↗</.link>
         </div>
+        <p id="preview-loop-scope" class="fine-print">
+          The first loop runs one task at a time, with up to 20 tasks, three review rounds per task
+          and two hours. Final checks and an independent final Secutor review must pass;
+          a failed final review needs attention. The result stays on an app-owned local branch.
+        </p>
         <p id="preview-time" class="fine-print">
           Observed {Calendar.strftime(@preview.checked_at, "%Y-%m-%d %H:%M:%S UTC")}
         </p>
@@ -161,7 +170,7 @@ defmodule CuckodingWeb.BattlePreviewLive do
           <p :if={@preview.tasks == []}>No saved tasks. Describe work or add a task on the Tabula.</p>
           <p class="fine-print">
             All saved tasks are shown; no battle membership is frozen. Specifications can be
-            accepted during planning. Future Start authority will also cover Speculator preparation.
+            accepted during planning. Start authority covers Speculator preparation without mandatory per-task acceptance.
             Prerequisites describe order, not completed work.
           </p>
           <article :for={task <- @preview.tasks} id={"preview-task-#{task.id}"} class="team-role">
@@ -211,7 +220,12 @@ defmodule CuckodingWeb.BattlePreviewLive do
             </p>
           </article>
           <p class="fine-print">
-            Declarations only. Executable identity, worktree paths and permissions have not been verified; no check result exists.
+            These saved declarations contain no check result. This preview does not verify executable
+            identity, worktree paths or execution permissions. Inspect activity on the Arena for retained execution receipts.
+          </p>
+          <p class="fine-print">
+            The initial execution grant supports single-process commands only, with no subprocess spawning.
+            Mix/npm pipelines are not yet supported. Start verifies each declared check before it can run.
           </p>
           <.link navigate={~p"/arenas/#{@preview.arena.id}/checks"} class="text-link">Edit project checks ↗</.link>
         </details>
