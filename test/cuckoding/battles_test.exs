@@ -442,4 +442,190 @@ defmodule Cuckoding.BattlesTest do
     refute Enum.any?(Battles.tasks(battle.id), &(&1.state == "completed"))
     assert {:error, :not_running} = Battles.claim_next(battle.id)
   end
+
+  test "Start refuses oversized Unicode task input without truncating the frozen criteria", %{
+    board: board,
+    first: first
+  } do
+    criteria = String.duplicate("🧭", 4000)
+    attrs = Map.put(Tabulae.content(first), "criteria", criteria)
+
+    {:ok, _} =
+      Tabulae.save(
+        Ecto.UUID.generate(),
+        board.arena_id,
+        board.id,
+        first.id,
+        first.revision,
+        attrs
+      )
+
+    {:ok, preview} = Battles.preview(board.arena_id, board.id)
+    assert "prompt_scope_too_large" in preview.blockers
+    assert Enum.find(preview.tasks, &(&1["id"] == first.id))["criteria"] == criteria
+
+    assert {:error, {:not_ready, reasons}} =
+             Battles.start(
+               Ecto.UUID.generate(),
+               board.arena_id,
+               board.id,
+               preview.fingerprint,
+               true
+             )
+
+    assert "prompt_scope_too_large" in reasons
+  end
+
+  test "Start bounds the final combined review independently of each individual task", %{
+    board: board
+  } do
+    for index <- 1..18, do: save_task(board, "Additional #{index}", [])
+
+    for task <- Tabulae.tasks(board.id) do
+      attrs = Map.put(Tabulae.content(task), "criteria", String.duplicate("a", 2000))
+
+      {:ok, _} =
+        Tabulae.save(
+          Ecto.UUID.generate(),
+          board.arena_id,
+          board.id,
+          task.id,
+          task.revision,
+          attrs
+        )
+    end
+
+    {:ok, preview} = Battles.preview(board.arena_id, board.id)
+    assert length(preview.tasks) == 20
+    assert preview.blockers == ["prompt_scope_too_large"]
+    assert Enum.all?(preview.tasks, &(byte_size(Jason.encode!(&1)) < 24_576))
+
+    assert {:error, {:not_ready, ["prompt_scope_too_large"]}} =
+             Battles.start(
+               Ecto.UUID.generate(),
+               board.arena_id,
+               board.id,
+               preview.fingerprint,
+               true
+             )
+  end
+
+  test "Start reserves literal check declarations and escaped public summary bytes", %{
+    board: board,
+    check: check
+  } do
+    large = Map.put(check, "arguments", List.duplicate(String.duplicate("\\", 256), 16))
+    {:ok, _} = ProjectChecks.save(Ecto.UUID.generate(), board.arena_id, 1, [large], true)
+    {:ok, preview} = Battles.preview(board.arena_id, board.id)
+    assert preview.blockers == ["prompt_scope_too_large"]
+    assert preview.checks == [large]
+  end
+
+  test "ordinary failed checks retain evidence and require Secutor rejection before bounded correction",
+       %{board: board, check: check} do
+    second_check = Map.merge(check, %{"id" => Ecto.UUID.generate(), "name" => "Second check"})
+
+    {:ok, _} =
+      ProjectChecks.save(Ecto.UUID.generate(), board.arena_id, 1, [check, second_check], true)
+
+    battle = start(board) |> until_stage("checks")
+    {:ok, attempt} = Battles.claim_next(battle.id)
+
+    failed = %{
+      "id" => check["id"],
+      "status" => "failed",
+      "exit_code" => 1,
+      "stdout_sha256" => String.duplicate("a", 64)
+    }
+
+    failed_result =
+      result(attempt, %{
+        "status" => "checks_failed",
+        "checks" => [failed],
+        "cleanup_verified" => true
+      })
+
+    assert {:error, :invalid_result} =
+             Battles.finish(
+               attempt.id,
+               attempt.claim_token,
+               Map.put(failed_result, "cleanup_verified", false)
+             )
+
+    assert {:ok, battle} = Battles.finish(attempt.id, attempt.claim_token, failed_result)
+    assert battle.state == "running"
+    assert battle.stage == "secutor"
+    assert Repo.get!(Attempt, attempt.id).result["checks"] == [failed]
+    {:ok, review} = Battles.claim_next(battle.id)
+    assert review.request["task_context"]["checks"] == [failed]
+
+    assert {:error, :invalid_result} =
+             Battles.finish(review.id, review.claim_token, result(review))
+
+    rejected =
+      result(review)
+      |> put_in(["provider", "report", "outcome"], "changes_requested")
+      |> Map.put("status", "changes_requested")
+
+    {:ok, battle} = Battles.finish(review.id, review.claim_token, rejected)
+    assert battle.stage == "prepare_worktree"
+    assert hd(Battles.tasks(battle.id)).review_round == 1
+    battle = until_stage(battle, "summary")
+    {battle, _} = step(battle)
+    assert battle.state == "completed"
+    assert Repo.get!(Attempt, attempt.id).result["status"] == "checks_failed"
+  end
+
+  test "final review cannot pass failed final checks and uncertain checks require attention", %{
+    board: board
+  } do
+    battle = start(board) |> until_stage("final_checks")
+    {:ok, attempt} = Battles.claim_next(battle.id)
+
+    failed =
+      result(attempt)["checks"] |> hd() |> Map.merge(%{"status" => "failed", "exit_code" => 2})
+
+    {:ok, battle} =
+      Battles.finish(
+        attempt.id,
+        attempt.claim_token,
+        result(attempt, %{
+          "status" => "checks_failed",
+          "checks" => [failed],
+          "cleanup_verified" => true
+        })
+      )
+
+    assert battle.stage == "final_secutor"
+    {:ok, review} = Battles.claim_next(battle.id)
+
+    assert {:error, :invalid_result} =
+             Battles.finish(review.id, review.claim_token, result(review))
+
+    rejected =
+      result(review)
+      |> put_in(["provider", "report", "outcome"], "changes_requested")
+      |> Map.put("status", "changes_requested")
+
+    {:ok, battle} = Battles.finish(review.id, review.claim_token, rejected)
+    assert battle.state == "needs_attention"
+    assert battle.reason == "final_review_changes_requested"
+    {:ok, _} = Battles.stop(battle.id)
+    battle = start(board) |> until_stage("checks")
+    {:ok, attempt} = Battles.claim_next(battle.id)
+
+    {:ok, battle} =
+      Battles.finish(
+        attempt.id,
+        attempt.claim_token,
+        result(attempt, %{
+          "status" => "failed",
+          "reason" => "cleanup_uncertain",
+          "cleanup_verified" => false
+        })
+      )
+
+    assert battle.state == "needs_attention"
+    assert {:error, :cleanup_required} = Battles.stop(battle.id)
+  end
 end

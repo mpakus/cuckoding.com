@@ -452,6 +452,13 @@ defmodule Cuckoding.Battles do
        do: candidate?(attempt, result) and checks?(attempt, result["checks"])
 
   defp valid_result?(
+         %Attempt{stage: stage} = attempt,
+         %{"status" => "checks_failed", "cleanup_verified" => true} = result
+       )
+       when stage in ~w(checks final_checks),
+       do: candidate?(attempt, result) and failed_checks?(attempt, result["checks"])
+
+  defp valid_result?(
          %Attempt{stage: "integrate"} = attempt,
          %{"status" => "integrated"} = result
        ),
@@ -480,9 +487,18 @@ defmodule Cuckoding.Battles do
 
   defp review_candidate?(%Attempt{stage: stage} = attempt, result)
        when stage in ~w(secutor final_secutor),
-       do: candidate?(attempt, result)
+       do: candidate?(attempt, result) and review_verdict?(attempt, result)
 
   defp review_candidate?(_, _), do: true
+
+  defp review_verdict?(attempt, %{"status" => "completed"}) do
+    context =
+      if(attempt.task_id, do: attempt.request["task_context"], else: attempt.request["context"])
+
+    checks?(attempt, context["checks"])
+  end
+
+  defp review_verdict?(_, _), do: true
 
   defp provider_identity?(attempt, provider) do
     role = attempt.request["role"]
@@ -518,6 +534,23 @@ defmodule Cuckoding.Battles do
   end
 
   defp checks?(_, _), do: false
+
+  defp failed_checks?(attempt, checks) when is_list(checks) and checks != [] do
+    declared = attempt.request["snapshot"]["checks"]
+
+    Enum.all?(checks, &is_map/1) and length(checks) <= length(declared) and
+      Enum.map(checks, & &1["id"]) ==
+        declared |> Enum.take(length(checks)) |> Enum.map(& &1["id"]) and
+      Enum.all?(Enum.drop(checks, -1), &(&1["status"] == "passed" and &1["exit_code"] == 0)) and
+      failed_check?(List.last(checks))
+  end
+
+  defp failed_checks?(_, _), do: false
+
+  defp failed_check?(%{"status" => "failed", "exit_code" => code}),
+    do: is_integer(code) and code in 1..255
+
+  defp failed_check?(_), do: false
 
   defp resolved_checks?(attempt, resolved) when is_list(resolved) do
     declared = attempt.request["snapshot"]["checks"]

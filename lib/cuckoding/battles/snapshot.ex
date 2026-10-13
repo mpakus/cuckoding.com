@@ -43,6 +43,7 @@ defmodule Cuckoding.Battles.Snapshot do
       |> block(length(tasks) > @limits["tasks"], "task_limit")
       |> block(Enum.any?(tasks, &incomplete?/1), "incomplete_task")
       |> block(not graph_valid?, "invalid_dependencies")
+      |> block(not prompt_scope?(tasks, checks.definition["checks"]), "prompt_scope_too_large")
       |> block(
         columns(board) != @columns or Enum.map(roles, & &1["id"]) != @roles,
         "unsupported_columns"
@@ -94,6 +95,50 @@ defmodule Cuckoding.Battles.Snapshot do
     do:
       Enum.any?(checks, &(&1["timeout_seconds"] > 300)) or
         Enum.sum(Enum.map(checks, & &1["timeout_seconds"])) > 600
+
+  # Public summaries are byte-bounded at 4,000; escaping can double each byte.
+  # Reserve the largest stage instruction and normalized check metadata without truncating input.
+  defp prompt_scope?(tasks, checks) do
+    common = %{
+      "contract" => "arena-stage-v1",
+      "stage" => "final_secutor",
+      "instruction" => String.duplicate("x", 2048),
+      "prior_public_summary" => String.duplicate("\n", 4000),
+      "review_findings" => nil,
+      "previous_implementation" => nil,
+      "candidate_sha" => String.duplicate("a", 40),
+      "host_checks" => Enum.map(checks, &maximum_check/1),
+      "declared_checks" => checks,
+      "review_round" => 3,
+      "local_result_reference" => "refs/heads/ccoding/battles/" <> String.duplicate("a", 36)
+    }
+
+    task_metadata =
+      Map.merge(common, %{
+        "review_findings" => String.duplicate("\n", 4000),
+        "previous_implementation" => String.duplicate("\n", 4000)
+      })
+
+    final = Enum.map(tasks, &Map.take(&1, ~w(id title criteria criteria_sha256)))
+    Enum.all?(tasks, &prompt_fits?(&1, task_metadata)) and prompt_fits?(final, common)
+  end
+
+  defp maximum_check(check),
+    do: %{
+      "id" => check["id"],
+      "status" => "passed",
+      "exit_code" => 255,
+      "stdout_sha256" => String.duplicate("a", 64),
+      "stdout_bytes" => 65_536,
+      "pid" => 9_999_999_999_999,
+      "spawned_at_ms" => 9_999_999_999_999,
+      "elapsed_ms" => 310_000
+    }
+
+  defp prompt_fits?(input, metadata),
+    do:
+      byte_size(Jason.encode!(input)) <= 24_576 and
+        byte_size(Jason.encode!(Map.put(metadata, "task", input))) <= 32_768
 
   defp task(task) do
     Tabulae.content(task)
