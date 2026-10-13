@@ -93,7 +93,7 @@ pub(super) fn run(
     }
     let mut receipt = json!({"status":"task_finished","request_id":request["request_id"],
         "requested_model":model,"observed_model":thread["model"],"effort":effort,"thread_id":thread_id,"turn_id":turn,
-        "grant":"host-task-tools-v1","access":request["access"],"tools":files.receipts});
+        "grant":"host-task-tools-v1","access":request["access"],"changes":files.changes(),"tools":files.receipts});
     match result {
         Ok(report) => receipt["report"] = report,
         Err(error) => receipt["status"] = json!(error),
@@ -364,6 +364,14 @@ done
             assert!(!root.join("outside.txt").exists());
             if matches!(mode, "success" | "read_success") {
                 assert_eq!(result["tools"].as_array().unwrap().len(), 1);
+                assert_eq!(
+                    result["changes"],
+                    if wrote {
+                        json!([{"path":"source.txt","sha256":task_files::digest(b"after")}])
+                    } else {
+                        json!([])
+                    }
+                );
                 assert_eq!(result["report"]["outcome"], "completed");
                 let start: Value =
                     serde_json::from_slice(&fs::read(profile.join("thread-request")).unwrap())
@@ -436,6 +444,10 @@ done
             assert_eq!(unsafe { libc::kill(pid, 0) }, -1);
             assert_eq!(unsafe { libc::kill(-pid, 0) }, -1);
             assert_eq!(result["tools"].as_array().unwrap().len(), 1);
+            assert_eq!(
+                result["changes"],
+                json!([{"path":"source.txt","sha256":task_files::digest(b"after")}])
+            );
             assert!(Files::new(&profile, &scratch, &request).is_err());
             fs::remove_dir_all(root).unwrap();
         }

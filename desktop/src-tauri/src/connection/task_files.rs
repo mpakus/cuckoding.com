@@ -2,6 +2,7 @@
 use super::*;
 use sha2::{Digest, Sha256};
 use std::{
+    collections::BTreeMap,
     ffi::{CStr, CString},
     fs,
     os::{
@@ -116,6 +117,7 @@ pub(super) struct Files {
     calls: HashSet<String>,
     bytes: usize,
     pub receipts: Vec<Value>,
+    changes: BTreeMap<String, String>,
 }
 
 impl Files {
@@ -179,6 +181,7 @@ impl Files {
             calls: HashSet::new(),
             bytes: 0,
             receipts: Vec::new(),
+            changes: BTreeMap::new(),
         })
     }
 
@@ -193,6 +196,14 @@ impl Files {
         } else {
             Ok(())
         }
+    }
+
+    pub fn changes(&self) -> Value {
+        json!(self
+            .changes
+            .iter()
+            .map(|(path, sha256)| json!({"path":path,"sha256":sha256}))
+            .collect::<Vec<_>>())
     }
 
     fn directory(&self, path: &str, create: bool) -> Result<File> {
@@ -237,11 +248,19 @@ impl Files {
         self.current()?;
         let public = match &result {
             Ok(value) => {
-                json!({"call_id":id,"tool":tool,"status":"completed","sha256":value.get("sha256")})
+                json!({"call_id":id,"tool":tool,"path":path,"status":"completed","sha256":value.get("sha256")})
             }
             Err(status) => json!({"call_id":id,"tool":tool,"status":status}),
         };
         self.record(public.clone())?;
+        if tool == "edit_file" {
+            if let Ok(value) = &result {
+                self.changes.insert(
+                    path.to_owned(),
+                    value["sha256"].as_str().ok_or("write_failed")?.to_owned(),
+                );
+            }
+        }
         self.receipts.push(public);
         result
     }
@@ -452,9 +471,23 @@ pub(super) mod tests {
                 &json!({"path":"lib/new.txt","expected_sha256":null,"text":"new"})
             )
             .is_ok());
+        assert!(files
+            .call(
+                "edit-again",
+                "edit_file",
+                &json!({"path":"source.txt","text":"final","expected_sha256":digest(b"after")})
+            )
+            .is_ok());
+        assert_eq!(
+            files.changes(),
+            json!([
+                {"path":"lib/new.txt","sha256":digest(b"new")},
+                {"path":"source.txt","sha256":digest(b"final")}
+            ])
+        );
         assert_eq!(
             fs::read_to_string(files.path.join("source.txt")).unwrap(),
-            "after"
+            "final"
         );
         let journal = fs::read_to_string(scratch.join("tool-receipts.jsonl")).unwrap();
         assert!(journal.contains("started") && journal.contains("completed"));
@@ -476,6 +509,7 @@ pub(super) mod tests {
             ),
             Err("invalid_tool")
         );
+        assert_eq!(files.changes(), json!([]));
         for (i, path) in [
             "../outside.txt",
             "/etc/passwd",

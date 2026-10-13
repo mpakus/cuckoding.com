@@ -2,14 +2,14 @@
 use super::*;
 use inspection::{files_match, index_matches, owned, Owned};
 
-fn hash(value: &Value, size: usize) -> Result<&str> {
+pub(super) fn hash(value: &Value, size: usize) -> Result<&str> {
     value
         .as_str()
         .filter(|v| v.len() == size && v.bytes().all(|b| b.is_ascii_hexdigit()))
         .ok_or("invalid_request")
 }
 
-fn success(
+pub(super) fn success(
     git: &Git<'_>,
     args: &[&str],
     input: Option<Vec<u8>>,
@@ -23,7 +23,7 @@ fn success(
     }
 }
 
-fn oid(bytes: Vec<u8>) -> Result<String> {
+pub(super) fn oid(bytes: Vec<u8>) -> Result<String> {
     let text = String::from_utf8(bytes).map_err(|_| "candidate_incomplete")?;
     let value = json!(text.trim());
     hash(&value, 40)
@@ -31,7 +31,7 @@ fn oid(bytes: Vec<u8>) -> Result<String> {
         .map_err(|_| "candidate_incomplete")
 }
 
-fn save(directory: &Path, name: &str, value: &Value) -> Result<()> {
+pub(super) fn save(directory: &Path, name: &str, value: &Value) -> Result<()> {
     let mut file = OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -47,7 +47,7 @@ fn save(directory: &Path, name: &str, value: &Value) -> Result<()> {
         .map_err(|_| "candidate_incomplete")
 }
 
-fn load(directory: &Path, name: &str) -> Result<Value> {
+pub(super) fn load(directory: &Path, name: &str) -> Result<Value> {
     private_directory(directory).map_err(|_| "candidate_mismatch")?;
     let directory = File::open(directory).map_err(|_| "candidate_mismatch")?;
     let (_, bytes) =

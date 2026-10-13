@@ -1,7 +1,9 @@
 //! Consented detached checkout; failures retain ownership and any partial Git effects.
+mod battle;
 mod candidate;
 mod inspection;
 use super::*;
+pub(super) use battle::run as battle;
 pub(super) use candidate::run as candidate;
 pub(super) use inspection::inspect;
 use std::{collections::HashSet, os::unix::fs::DirBuilderExt};
@@ -103,10 +105,25 @@ pub(super) fn run(git: &Git<'_>, extra: &str, device: u64, inode: u64) -> Result
     if head.len() != 40 || !head.bytes().all(|b| b.is_ascii_hexdigit()) {
         return Err("invalid_request");
     }
-    let observed = git.inspect()?;
-    if observed["status"] != "existing" || observed["head"] != head {
-        return Err("repository_changed");
-    }
+    prepare(git, key, head, device, inode, || {
+        let observed = git.inspect()?;
+        if observed["status"] == "existing" && observed["head"] == head {
+            Ok(())
+        } else {
+            Err("repository_changed")
+        }
+    })
+}
+
+fn prepare(
+    git: &Git<'_>,
+    key: &str,
+    head: &str,
+    device: u64,
+    inode: u64,
+    validate: impl Fn() -> Result<()>,
+) -> Result<Value> {
+    validate()?;
     let config = configuration(git)?;
     tree(git, head)?;
     let parent = git.home.join("worktrees");
@@ -139,7 +156,8 @@ pub(super) fn run(git: &Git<'_>, extra: &str, device: u64, inode: u64) -> Result
         .and_then(|f| f.sync_all())
         .map_err(|_| "worktree_incomplete")?;
     git.identity(device, inode)?;
-    if git.inspect()?["head"] != head || configuration(git)? != config {
+    validate()?;
+    if configuration(git)? != config {
         return Err("repository_changed");
     }
     // No branch creation, pruning, filters, hooks, submodules or remote transport.
@@ -173,15 +191,16 @@ pub(super) fn run(git: &Git<'_>, extra: &str, device: u64, inode: u64) -> Result
         return Err("worktree_incomplete");
     }
     git.identity(device, inode)?;
-    if configuration(git)? != config || git.inspect()?["head"] != head {
+    validate()?;
+    if configuration(git)? != config {
         return Err("repository_changed");
     }
     let metadata = fs::symlink_metadata(&checkout).map_err(|_| "worktree_incomplete")?;
     if !metadata.is_dir() || checkout.canonicalize().ok().as_deref() != Some(&checkout) {
         return Err("worktree_incomplete");
     }
-    Ok(
-        json!({"status":"prepared","key":key,"head":head,"path":path,
-        "device":metadata.dev(),"inode":metadata.ino()}),
-    )
+    let receipt = json!({"status":"prepared","key":key,"head":head,"path":path,
+        "device":metadata.dev(),"inode":metadata.ino()});
+    candidate::save(&owned, "receipt.json", &receipt).map_err(|_| "worktree_incomplete")?;
+    Ok(receipt)
 }

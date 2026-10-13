@@ -356,6 +356,10 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
         "inspect_worktree",
         "capture_candidate",
         "verify_candidate",
+        "create_battle",
+        "battle_worktree",
+        "integrate_candidate",
+        "verify_battle",
     ]
     .contains(&operation.as_str())
         || extra.len()
@@ -369,6 +373,10 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
                     "inspect_worktree",
                     "capture_candidate",
                     "verify_candidate",
+                    "create_battle",
+                    "battle_worktree",
+                    "integrate_candidate",
+                    "verify_battle",
                 ]
                 .contains(&operation.as_str()),
             )
@@ -413,6 +421,16 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
     }
     if operation == "inspect_worktree" {
         return worktree::inspect(&git, &extra[0], device, inode);
+    }
+    if [
+        "create_battle",
+        "battle_worktree",
+        "integrate_candidate",
+        "verify_battle",
+    ]
+    .contains(&operation.as_str())
+    {
+        return worktree::battle(&git, operation, &extra[0], device, inode);
     }
     if ["capture_candidate", "verify_candidate"].contains(&operation.as_str()) {
         return worktree::candidate(&git, operation, &extra[0], device, inode);
@@ -1141,6 +1159,220 @@ mod tests {
     }
 
     const CANDIDATE_KEY: &str = "00000000-0000-4000-8000-000000000051";
+
+    const BATTLE_KEY: &str = "00000000-0000-4000-8000-000000000070";
+
+    #[test]
+    fn battle_integrates_reviewed_candidates_and_bases_dependency_on_prior_result() {
+        let (root, home, request, prepared) = inspection_fixture();
+        let args = &request[..5];
+        fs::write(root.join("docs/plan.txt"), "USER_STAGED").unwrap();
+        assert_eq!(git(&root, &home, &["add", "docs/plan.txt"]).0, 0);
+        fs::write(root.join("docs/plan.txt"), "USER_WORKING").unwrap();
+        fs::write(root.join("untracked.txt"), "USER_UNTRACKED").unwrap();
+        let source_index = fs::read(root.join(".git/index")).unwrap();
+        let source_head = fs::read(root.join(".git/HEAD")).unwrap();
+        let source_ref = fs::read(root.join(".git/refs/heads/main")).unwrap();
+        let create = json!({"key":BATTLE_KEY,"head":prepared["head"]});
+        let mut battle = initial(args, "create_battle", create.clone()).unwrap();
+        assert_eq!(initial(args, "create_battle", create), Err("battle_exists"));
+        for n in [1, 2] {
+            let key = format!("00000000-0000-4000-8000-{:012}", 70 + n);
+            let task =
+                initial(args, "battle_worktree", json!({"key":key,"battle":battle})).unwrap();
+            let checkout = Path::new(task["path"].as_str().unwrap());
+            assert_eq!(task["head"], battle["head"]);
+            assert_eq!(
+                fs::read(checkout.join("docs/plan.txt")).unwrap(),
+                if n == 1 {
+                    b"committed\n".to_vec()
+                } else {
+                    b"result 1\n".to_vec()
+                }
+            );
+            let text = format!("result {n}\n");
+            fs::write(checkout.join("docs/plan.txt"), &text).unwrap();
+            let candidate_key = format!("00000000-0000-4000-8000-{:012}", 80 + n);
+            let candidate = initial(args, "capture_candidate", json!({"key":candidate_key,"preparation":task,"files":[{"path":"docs/plan.txt","sha256":initial::digest(text.as_bytes())}]})).unwrap();
+            let review_key = format!("00000000-0000-4000-8000-{:012}", 90 + n);
+            let review = initial(
+                args,
+                "battle_worktree",
+                json!({"key":review_key,"battle":battle,"preparation":task,"candidate":candidate}),
+            )
+            .unwrap();
+            assert_eq!(review["head"], candidate["candidate"]);
+            assert_eq!(
+                fs::read(Path::new(review["path"].as_str().unwrap()).join("docs/plan.txt"))
+                    .unwrap(),
+                text.as_bytes()
+            );
+            assert_eq!(
+                initial(args, "inspect_worktree", review).unwrap()["status"],
+                "worktree_unchanged"
+            );
+            let integration_key = format!("00000000-0000-4000-8000-{:012}", 100 + n);
+            let previous = battle.clone();
+            let integrate = json!({"key":integration_key,"battle":battle,"preparation":task,"candidate":candidate});
+            battle = initial(args, "integrate_candidate", integrate.clone()).unwrap();
+            assert_eq!(battle["head"], candidate["candidate"]);
+            assert_eq!(battle["previous_head"], previous["head"]);
+            assert_eq!(
+                initial(args, "verify_battle", json!({"battle":battle})).unwrap()["status"],
+                "battle_verified"
+            );
+            assert_eq!(
+                initial(args, "verify_battle", json!({"battle":previous})),
+                Err("battle_stale")
+            );
+            assert_eq!(
+                initial(args, "integrate_candidate", integrate),
+                Err("battle_stale")
+            );
+            assert_eq!(
+                initial(
+                    args,
+                    "battle_worktree",
+                    json!({"key":"00000000-0000-4000-8000-000000000111","battle":previous})
+                ),
+                Err("battle_stale")
+            );
+        }
+        assert_eq!(fs::read(root.join(".git/index")).unwrap(), source_index);
+        assert_eq!(fs::read(root.join(".git/HEAD")).unwrap(), source_head);
+        assert_eq!(
+            fs::read(root.join(".git/refs/heads/main")).unwrap(),
+            source_ref
+        );
+        assert_eq!(
+            fs::read(root.join("docs/plan.txt")).unwrap(),
+            b"USER_WORKING"
+        );
+        assert_eq!(
+            fs::read(root.join("untracked.txt")).unwrap(),
+            b"USER_UNTRACKED"
+        );
+        fs::remove_dir_all(root.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn battle_refuses_stale_foreign_partial_or_user_checked_out_refs_without_replay() {
+        for scenario in [
+            "lock",
+            "receipt",
+            "candidate",
+            "foreign",
+            "checked_out",
+            "cancelled",
+        ] {
+            let (root, home, request, prepared) = inspection_fixture();
+            let args = &request[..5];
+            let battle = initial(
+                args,
+                "create_battle",
+                json!({"key":BATTLE_KEY,"head":prepared["head"]}),
+            )
+            .unwrap();
+            let checkout = Path::new(prepared["path"].as_str().unwrap());
+            fs::write(checkout.join("docs/plan.txt"), "candidate").unwrap();
+            let candidate = operation(
+                &candidate_request(
+                    &request,
+                    &prepared,
+                    json!([{"path":"docs/plan.txt","sha256":initial::digest(b"candidate")}]),
+                ),
+                "capture_candidate",
+            )
+            .unwrap();
+            let integration_key = "00000000-0000-4000-8000-000000000080";
+            let mut integrate = json!({"key":integration_key,"battle":battle,"preparation":prepared,"candidate":candidate});
+            let directory = home.join(format!(
+                "battles/{BATTLE_KEY}/integration-{integration_key}"
+            ));
+            let reference = battle["reference"].as_str().unwrap();
+            match scenario {
+                "lock" => {
+                    let lock = root.join(format!(".git/{reference}.lock"));
+                    fs::write(&lock, "USER_LOCK").unwrap();
+                    assert_eq!(
+                        initial(args, "integrate_candidate", integrate.clone()),
+                        Err("battle_incomplete")
+                    );
+                    assert_eq!(fs::read(&lock).unwrap(), b"USER_LOCK");
+                    fs::remove_file(lock).unwrap();
+                    assert_eq!(
+                        initial(args, "integrate_candidate", integrate),
+                        Err("battle_exists")
+                    );
+                    assert!(directory.join("publication.json").exists());
+                    assert!(!directory.join("receipt.json").exists());
+                }
+                "receipt" => {
+                    let result = initial(args, "integrate_candidate", integrate.clone()).unwrap();
+                    fs::remove_file(directory.join("receipt.json")).unwrap();
+                    assert_eq!(
+                        initial(args, "verify_battle", json!({"battle":result})),
+                        Err("battle_mismatch")
+                    );
+                    assert_eq!(
+                        initial(args, "integrate_candidate", integrate),
+                        Err("battle_stale")
+                    );
+                    assert!(!directory.join("receipt.json").exists());
+                }
+                "candidate" => {
+                    fs::write(checkout.join("docs/plan.txt"), "changed after review").unwrap();
+                    assert_eq!(
+                        initial(args, "integrate_candidate", integrate),
+                        Err("candidate_mismatch")
+                    );
+                    assert!(!directory.exists());
+                }
+                "foreign" => {
+                    integrate["battle"]["head"] = candidate["candidate"].clone();
+                    assert_eq!(
+                        initial(args, "integrate_candidate", integrate),
+                        Err("battle_mismatch")
+                    );
+                }
+                "checked_out" => {
+                    fs::write(root.join(".git/HEAD"), format!("ref: {reference}\n")).unwrap();
+                    assert_eq!(
+                        initial(args, "integrate_candidate", integrate),
+                        Err("battle_mismatch")
+                    );
+                    assert_eq!(
+                        initial(args, "verify_battle", json!({"battle":battle})),
+                        Err("battle_mismatch")
+                    );
+                }
+                "cancelled" => {
+                    let mut command = args.to_vec();
+                    command[0] = "integrate_candidate".into();
+                    command.push(integrate.to_string());
+                    let (sender, receiver) = mpsc::channel();
+                    sender.send(()).unwrap();
+                    assert_eq!(
+                        run(&command, receiver, Duration::from_secs(15)),
+                        Err("cancelled")
+                    );
+                    assert!(!directory.exists());
+                }
+                _ => unreachable!(),
+            }
+            if scenario != "receipt" {
+                assert_eq!(
+                    git(&root, &home, &["rev-parse", reference]).1,
+                    format!("{}\n", battle["head"].as_str().unwrap()).as_bytes()
+                );
+            }
+            assert_eq!(
+                fs::read(root.join("docs/plan.txt")).unwrap(),
+                b"committed\n"
+            );
+            fs::remove_dir_all(root.parent().unwrap()).unwrap();
+        }
+    }
 
     fn candidate_request(request: &[String], prepared: &Value, files: Value) -> Vec<String> {
         let mut request = request[..5].to_vec();
