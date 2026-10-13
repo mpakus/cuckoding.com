@@ -63,7 +63,7 @@ defmodule Cuckoding.PlanningTest do
     assert {:ok, %{state: "rejected"}} = request(board, token: token)
   end
 
-  test "a public proposal survives reload and imports exactly once with scoped provenance", %{
+  test "a public proposal automatically creates cards once with scoped provenance", %{
     board: board
   } do
     {:ok, command} = request(board)
@@ -74,9 +74,12 @@ defmodule Cuckoding.PlanningTest do
     assert Planning.proposal(hd(Planning.history(board.id))) == result["proposal"]
     refute inspect(Repo.all(Command)) =~ "hidden-canary"
     refute inspect(Repo.all(Event)) =~ "Implement the brief"
-    assert Tabulae.tasks(board.id) == []
-    key = Ecto.UUID.generate()
-    assert {:ok, revision} = Tabulae.import_proposal(key, board.arena_id, board.id, command.id, 0)
+    assert length(Tabulae.tasks(board.id)) == 1
+    revision = imported_revision(board, command.id)
+    key = revision.command_id
+
+    assert {:error, :lost_claim} = Foundation.finish(claim, result)
+    assert {:ok, nil} = Foundation.claim()
 
     assert {:ok, ^revision} =
              Tabulae.import_proposal(key, board.arena_id, board.id, command.id, 0)
@@ -116,6 +119,14 @@ defmodule Cuckoding.PlanningTest do
              )
 
     assert Repo.aggregate(DraftTaskRevision, :count) == 2
+
+    # A newly consented analysis appends a graph; it cannot replace an edited card.
+    {:ok, next} = request(board)
+    {:ok, next_claim} = Foundation.claim()
+    {:ok, _} = Foundation.finish(next_claim, planning_receipt(next.id))
+    assert length(Tabulae.tasks(board.id)) == 2
+    assert hd(Tabulae.history(board.id, revision.task_id)).content["title"] == "User edited"
+    assert Repo.get!(Command, command.id) == saved
   end
 
   test "malformed and unbound proposals never persist or import", %{board: board} do
@@ -184,7 +195,7 @@ defmodule Cuckoding.PlanningTest do
 
   test "linked proposals import in order and retain citations without overwriting edited prerequisites",
        %{board: board} do
-    claim = document_plan_fixture(board)
+    claim = document_plan_fixture(board) |> legacy_plan_fixture()
     assert claim.payload["contract"] == "brief-plan-v3"
     {:ok, plan} = Foundation.finish(claim, linked_planning_receipt(claim.id))
     assert plan.state == "completed"
@@ -293,6 +304,7 @@ defmodule Cuckoding.PlanningTest do
   } do
     payload =
       Planning.setup(board).payload
+      |> Map.delete("card_creation")
       |> Map.put("contract", "brief-plan-v1")
       |> Map.put("brief", "Legacy brief")
 
@@ -352,7 +364,7 @@ defmodule Cuckoding.PlanningTest do
   end
 
   test "import failure rolls back linked drafts and source receipts together", %{board: board} do
-    claim = document_plan_fixture(board)
+    claim = document_plan_fixture(board) |> legacy_plan_fixture()
     {:ok, plan} = Foundation.finish(claim, linked_planning_receipt(claim.id))
     {:ok, _} = Tabulae.import_proposal(Ecto.UUID.generate(), board.arena_id, board.id, plan.id, 0)
     before = Tabulae.tasks(board.id)
@@ -373,5 +385,68 @@ defmodule Cuckoding.PlanningTest do
     assert Repo.get(Command, key) == nil
     assert map_size(Tabulae.imported(board.id)) == 1
     SQL.query!(Repo, "DROP TRIGGER reject_import", [])
+  end
+
+  test "automatic graph completion is atomic, durable and retains source receipts", %{
+    board: board
+  } do
+    claim = document_plan_fixture(board)
+    receipt = linked_planning_receipt(claim.id)
+    assert claim.payload["card_creation"] == "automatic-v1"
+    before_events = Repo.all(Event)
+
+    # Fail after the first card and receipt have been written inside the transaction.
+    SQL.query!(
+      Repo,
+      """
+      CREATE TEMP TRIGGER reject_second_card BEFORE INSERT ON events
+      WHEN NEW.kind = 'planning.task_imported' AND json_extract(NEW.data, '$.index') = 1
+      BEGIN SELECT RAISE(ABORT, 'fixture'); END
+      """,
+      []
+    )
+
+    assert_raise Exqlite.Error, fn -> Foundation.finish(claim, receipt) end
+    assert Repo.get!(Command, claim.id) == claim
+    assert Tabulae.tasks(board.id) == []
+    assert Tabulae.imported(board.id) == %{}
+    assert Repo.all(Event) == before_events
+    SQL.query!(Repo, "DROP TRIGGER reject_second_card", [])
+
+    {:ok, plan} = Foundation.finish(claim, receipt)
+    [first, second, third] = for i <- 0..2, do: imported_revision(board, plan.id, i)
+    assert first.content["depends_on"] == []
+    assert second.content["depends_on"] == [first.task_id]
+    assert third.content["depends_on"] == [first.task_id, second.task_id]
+    assert Enum.all?(Tabulae.tasks(board.id), &(&1.column == "specs"))
+    assert Tabulae.source(board.id, third.task_id).documents == plan.payload["documents"]
+
+    assert Repo.get_by!(Event, command_id: plan.id, kind: "planning.completed").data["task_count"] ==
+             3
+
+    receipts = Tabulae.imported(board.id)
+    assert {:error, :lost_claim} = Foundation.finish(claim, receipt)
+    assert {:ok, nil} = Foundation.claim()
+    assert Tabulae.imported(board.id) == receipts
+    assert Repo.get!(Command, plan.id) == plan
+  end
+
+  test "an expired lease cannot create cards even before reconciliation", %{board: board} do
+    {:ok, _} = request(board)
+    {:ok, claim} = Foundation.claim(1_000)
+    assert {:error, :lost_claim} = Foundation.finish(claim, planning_receipt(claim.id))
+    assert Tabulae.tasks(board.id) == []
+    assert {:ok, %{result: "interrupted"}} = Foundation.claim()
+    assert {:ok, nil} = Foundation.claim()
+  end
+
+  test "pre-upgrade consent cannot authorize automatic card creation", %{board: board} do
+    payload = Map.delete(Planning.setup(board).payload, "card_creation")
+    old_token = Base.encode16(:crypto.hash(:sha256, :erlang.term_to_binary(payload)))
+
+    assert {:ok, %{state: "rejected", result: "planning_setup_changed"}} =
+             request(board, token: old_token)
+
+    assert Tabulae.tasks(board.id) == []
   end
 end

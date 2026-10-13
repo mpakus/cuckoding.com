@@ -43,6 +43,7 @@ defmodule Cuckoding.Planning do
           "tabula_id" => board.id,
           "grant" => "scratch-read-only-v1",
           "contract" => "brief-plan-v3",
+          "card_creation" => "automatic-v1",
           "document_preview_id" => preview_id,
           "documents" => elem(documents, 1)
         })
@@ -162,10 +163,12 @@ defmodule Cuckoding.Planning do
     transaction(fn ->
       current = Repo.get!(Command, claim.id)
 
-      unless current.state in ~w(running cancelling) and current.attempts == claim.attempts,
-        do: Repo.rollback(:lost_claim)
+      unless current.state in ~w(running cancelling) and current.attempts == claim.attempts and
+               is_integer(current.lease_until) and
+               current.lease_until > System.system_time(:millisecond),
+             do: Repo.rollback(:lost_claim)
 
-      {state, result} = outcome(current, claim, result |> Jason.encode!() |> normalize())
+      {state, result} = outcome(current, current, result |> Jason.encode!() |> normalize())
 
       saved =
         Repo.update!(
@@ -178,6 +181,9 @@ defmodule Cuckoding.Planning do
         )
 
       tasks = get_in(result, ["proposal", "tasks"]) || []
+
+      if state == "completed" and current.payload["card_creation"] == "automatic-v1",
+        do: Tabulae.import_plan!(saved)
 
       Foundation.record(
         "planning.#{state}",

@@ -22,7 +22,7 @@ remote push, user-branch merge and release remain separate human actions.
 
 ## What works today
 
-**Local preview, 2026-10-10.** The flow above is the revised product target, not a
+**Local preview, 2026-10-13.** The flow above is the revised product target, not a
 claim that autonomous execution is available. The Arena UI now opens a default
 board after registration and keeps technical setup in Advanced.
 
@@ -31,8 +31,8 @@ board after registration and keeps technical setup in Advanced.
 | Tray launch, authenticated browser and local SQLite state | Full timed ten-minute onboarding acceptance |
 | Multiple named Codex/Cursor connections, model discovery and saved choices | Additional runtimes; Cursor inference/planning |
 | Saved agent/model assignments for Speculator, Implementor, Secutor and Summa Rudis | Execution grants and real mixed-runtime battles |
-| Folder registration with an automatic default board, direct Arena opening, Advanced setup and editable drafts | Folder-to-tasks automation |
-| Codex planning from a brief or bounded folder snapshots (`docs/` first), source citations and individual proposal imports | Automatic validated task creation from the proposal graph |
+| Folder registration with an automatic default board, direct Arena opening, Advanced setup and editable drafts | Custom columns and scoped role editing |
+| Codex planning from a brief or bounded folder snapshots (`docs/` first), automatically saved task cards, prerequisites and original source citations | Real-account planning acceptance across supported runtimes |
 | Git setup, accepted specification artifacts, check declarations and isolated worktree preparation/inspection | One Start, automatic dispatch/card movement, independent review and local completion |
 
 Agents uses `/agents`; Settings uses `/settings`. Agent setup follows
@@ -45,10 +45,13 @@ Use **Create tasks → Read project folder** to preview up to 16 eligible text/s
 files (16 KiB each, 64 KiB total), then confirm sending them to Speculator.
 A brief is optional with sources; empty folders need one. The preview reports
 excluded files and limits. Agents and Team keep their existing setup controls.
-The current screens still require **Add to Specs** for each suggestion. See
+Press **Create tasks** to save up to six validated cards in Specs automatically.
+Each keeps its prerequisites and source receipts; existing edits stay unchanged.
+Older requests retain their individual **Add to Specs** controls. Start is still
+unavailable. See
 [Development](docs/DEVELOPMENT.md) for how this build works and
 [the prioritized implementation checklist](docs/PLAN.md#next-delivery-order--simple-arena)
-for closing that gap. Historical source/provider evidence is linked from the plan;
+for the remaining execution work. Historical source/provider evidence is linked from the plan;
 fixture tests do not prove a working autonomous battle.
 
 Build with `rtk proxy bin/dev.build`, then open

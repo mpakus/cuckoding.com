@@ -23,13 +23,13 @@ in the Arena; declining leaves the folder, tasks and planning usable.
 
 The user asks the saved Speculator to analyze the folder, optionally adding a
 brief. Inspect `docs/` first, then relevant eligible project files. No manual path
-list or separate import button per task is required in the completed flow.
+list or separate import button per task is required for new requests.
 
 The action explains its bounded read scope and provider usage. The host inventories
 and snapshots eligible sources, records paths/hashes and skipped/truncated entries,
 then sends frozen untrusted text to the planning runtime. Files never become policy
 or grant tools, live filesystem access or execution. Exact policy/limits must be
-versioned and tested before replacing the current selected-document reader.
+versioned and tested. R040l implements the bounded folder reader alongside manual selection.
 An empty folder requires a brief; insufficient or conflicting sources prompt a
 useful clarification. Show progress and Cancel; retain evidence across reconnects.
 
@@ -39,6 +39,11 @@ atomically, once per source suggestion. Reanalysis preserves user edits and
 running/completed history; new work remains visibly distinguishable. Model text
 cannot approve check commands or broaden authority. Users may edit cards but do
 not have to accept/import each one or produce a private Markdown artifact manually.
+
+R040m implements this atomic card creation for newly consented planning requests.
+A new analysis adds its own graph and preserves existing cards; it does not merge
+similar tasks by inferred meaning. Legacy requests retain explicit imports.
+Cards are planning drafts, not accepted delivery or execution authorization.
 
 ## Start
 

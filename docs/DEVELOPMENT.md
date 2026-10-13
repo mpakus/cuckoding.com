@@ -18,8 +18,8 @@ reset remains intentional; do not restore the deleted implementation wholesale.
 
 R002 simplifies the Arena surface and creates a default board during registration.
 The target is **Add folder → Create tasks → Start**. R040l adds bounded folder
-snapshots and consented Speculator analysis. Individual proposal imports and
-actual Start are still pending simplification/implementation. [Plan](PLAN.md#next-delivery-order--simple-arena) owns
+snapshots and consented Speculator analysis. R040m saves the validated task graph
+automatically. Actual Start remains unimplemented. [Plan](PLAN.md#next-delivery-order--simple-arena) owns
 those next gates; a disabled Start is not an execution feature.
 
 ## Build and open
@@ -321,14 +321,15 @@ user should need an Elixir/Rust toolchain to run the bundle.
 Reintroduce CI only with real scripts/checks; no pipeline should point to removed
 files or publish documentation claims as a working release.
 
-## Planning preview (R040e/f/l)
+## Create tasks (R040e/f/l/m)
 
 Save a Codex/model binding for Speculator, then create an Arena and Tabula or
 explicitly adopt the saved revision under **Tabula team** on an existing board.
 Open **Create tasks · with Speculator**. Enter a brief or **Read project folder**,
-review the local snapshots, confirm provider usage and **Generate proposals**.
-A brief is optional with nonempty sources. Review suggestions and **Add to Specs**
-individually. Existing boards do not inherit later default-team edits. Refresh a
+review the local snapshots, confirm provider usage and **Create tasks**.
+A brief is optional with nonempty sources. One successful request atomically saves
+up to six editable cards in Specs, with their prerequisites and source receipts.
+Existing boards do not inherit later default-team edits. Refresh a
 stale catalog in Agents before confirming again. Without document selection no
 project files are read.
 
@@ -350,11 +351,13 @@ and requires **Use these snapshots** to select it again. Editing a project file
 does not change an existing snapshot; preview again to send new content. Imported
 drafts retain the proposal/source snapshot linkage.
 
-New suggestions list their prerequisites and cite selected snapshots by exact
-stored text/hash. Expand each citation and check its relevance, then add the
-prerequisite suggestions before their dependents. An out-of-order import leaves
-all drafts unchanged. Later imports keep links to already imported tasks without
-replacing user edits. Open an imported task and expand **Original proposal sources**
+New cards list their prerequisites and cite selected snapshots by exact
+stored text/hash. Expand each citation and check its relevance. Duplicate results
+and reconnects never create more cards. A separately consented analysis adds a new
+graph without replacing existing edits. Interrupted inference is never replayed.
+Old requests retain **Add to Specs** per suggestion, in prerequisite order;
+their partially imported graphs and edits remain intact.
+Open a created task and expand **Original proposal sources**
 to inspect its citations, including after app restart. These describe the original
 proposal; editing a task does not update or revalidate its source claims. Older
 proposals still import with no inferred prerequisite/citation fields.

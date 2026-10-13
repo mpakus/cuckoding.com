@@ -56,6 +56,12 @@ Preserve these implemented contracts:
   request. Reject downgrade/malformed references before storage. Resolve imports
   through same-board receipts and preserve earlier user edits. Keep v1/v2 receipts
   readable with their original bounds; never infer missing links. A scoped citation is not proof of its truth.
+- R040m freezes `card_creation: automatic-v1` in new planning consent. Commit the
+  validated completion, all Specs cards, resolved prerequisites and existing
+  proposal/index receipts/events in one immediate transaction. Reject expired or
+  lost claims before writes; never replay inference or import on page load.
+  Requests without this field retain explicit manual imports, including partial
+  imports and later edits. Reanalysis appends a new graph; it never replaces tasks.
 - Accepted specifications freeze a saved draft, prerequisite revisions and original
   citations in `accept_spec` before writing private Markdown. Verify bytes/hash and
   current revisions before acceptance/ToDo/history/event commit together. Never
@@ -114,7 +120,7 @@ Do not require these as routine setup screens or repeat approvals per task.
 
 R002 implements atomic default-board creation, immediate Arena navigation and
 Advanced disclosures. R040l adds bounded folder snapshots and consented Speculator
-analysis; automatic card creation and battle execution remain target contracts.
+analysis; R040m creates the validated cards automatically. Battle execution remains a target contract.
 Preserve scoped reads/consents. Folder analysis needs a bounded read grant;
 Start owns a separate bounded execution grant.
 Ask before Git initialization or initial-commit mutations, only when needed;

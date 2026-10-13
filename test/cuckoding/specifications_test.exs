@@ -219,8 +219,7 @@ defmodule Cuckoding.SpecificationsTest do
     {:ok, _} =
       Foundation.finish(claim, Cuckoding.PlanningFixtures.linked_planning_receipt(claim.id))
 
-    {:ok, first} =
-      Tabulae.import_proposal(Ecto.UUID.generate(), ctx.board.arena_id, ctx.board.id, claim.id, 0)
+    first = Cuckoding.PlanningFixtures.imported_revision(ctx.board, claim.id)
 
     task = hd(Tabulae.tasks(ctx.board.id))
 

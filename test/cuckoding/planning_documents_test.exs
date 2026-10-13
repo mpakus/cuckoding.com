@@ -72,8 +72,7 @@ defmodule Cuckoding.PlanningDocumentsTest do
                command.id
              )
 
-    assert {:ok, draft} =
-             Tabulae.import_proposal(Ecto.UUID.generate(), board.arena_id, board.id, plan.id, 0)
+    draft = imported_revision(board, plan.id)
 
     assert Repo.get!(Command, draft.command_id).payload["proposal_id"] == plan.id
     assert Repo.get!(Command, plan.id).payload["documents"] == files
@@ -168,8 +167,7 @@ defmodule Cuckoding.PlanningDocumentsTest do
     legacy = %{finished | payload: Map.put(finished.payload, "contract", "brief-plan-v2")}
     assert Planning.proposal(legacy) == nil
 
-    assert {:ok, _} =
-             Tabulae.import_proposal(Ecto.UUID.generate(), board.arena_id, board.id, plan.id, 0)
+    assert imported_revision(board, plan.id).content["column"] == "specs"
 
     refute inspect(Repo.all(Event)) =~ "Selected plan"
     refute inspect(Repo.all(Event)) =~ "docs/15.md"

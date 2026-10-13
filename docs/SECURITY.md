@@ -280,6 +280,16 @@ this is not a general-purpose secret scanner. Fixtures prove protocol handling,
 not real-provider compliance with the grant.
 
 
+## Automatic planning cards (R040m)
+
+New Create tasks consent includes a versioned automatic-card intent. The same
+closed proposal/model/source validation runs before any draft write; expired,
+cancelled or lost claims create no cards. Completion, the whole graph and its
+existing import receipts/events share one immediate SQLite transaction. Model
+text becomes Specs drafts only; it cannot authorize tools, policy or execution.
+Old consent tokens cannot authorize this new intent, and old requests never
+auto-import during reload or recovery. No new provider or filesystem capability.
+
 ## Folder planning snapshots (R040l)
 
 **Read project folder** authorizes the `folder-documents-v1` local read only. It

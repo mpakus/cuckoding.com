@@ -1,6 +1,6 @@
 # Architecture
 
-## Implemented boundary · reviewed 2026-10-10
+## Implemented boundary · reviewed 2026-10-13
 
 Cuckoding currently delivers authenticated setup, draft planning and consented worktree preparation and read-only inspection. It does
 **not** yet run battles, worktree task attempts, review loops or parallel workers.
@@ -19,7 +19,7 @@ release process group and private storage lock.
 | `Team`, `TeamAssignments` | Immutable default revisions and confirmed scoped adoptions; no provider launch or permission grant |
 | `Arenas`, native `folder.rs` | Native folder selection and confirmed directory identity; registration reads metadata only |
 | `Tabulae` | Immutable default boards, revisioned Specs/ToDo drafts, acyclic prerequisites and proposal import provenance; delivery columns stay locked |
-| `Planning`, `PlanningDocuments`, native `arena_git/documents.rs` | Freeze team/model/brief and optional manual/folder text snapshots in commands; bounded descriptor-relative source collection, then validate proposals before explicit draft import |
+| `Planning`, `PlanningDocuments`, native `arena_git/documents.rs` | Freeze team/model/brief and optional manual/folder text snapshots in commands; bounded descriptor-relative source collection, then validate proposals and atomically create draft cards |
 | `ProjectChecks` | Immutable Arena check declarations, explicit preview/consent and atomic command/revision/event saves; no executable resolution, filesystem access or execution |
 | `BattlePreview` | Read-only aggregation of scoped saved preparation and verified spec artifacts; no durable battle state or launch authority |
 | `Specifications`, `Storage` | Freeze accepted draft/prerequisite revisions, write private Markdown, verify artifact hash and atomically commit acceptance/history/ToDo; no execution authority |
@@ -118,8 +118,13 @@ no Git or provider runs during preview. The v3 planning request carries at most
 64 KiB of source text on bounded stdin and keeps the same no-tools scratch grant.
 Existing v1/v2 receipts retain their original validation. No migration is required.
 
-Next, extend Planning/Tabulae with automatic validated batch import. Existing
-source receipts and user edits remain authoritative. Future Start adds durable
+R040m freezes `card_creation: automatic-v1` in new requests and their consent
+fingerprint. Planning completion calls Tabulae's existing import writer inside
+the same immediate transaction: proposal, ordered graph, revisions, provenance
+and events commit together. Broadcast follows commit. Legacy requests keep manual
+imports; reconnect never imports or launches inference. Expired claims cannot
+publish cards. A new analysis appends new cards and retains user edits. No migration,
+worker or dependency is added. Future Start adds durable
 battle admission/attempt/review evidence, reusing the native ownership boundary.
 Removing visible setup steps does not remove host validation or make LiveView a
 workflow owner. [Plan](PLAN.md#next-delivery-order--simple-arena) separates these

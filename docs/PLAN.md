@@ -18,6 +18,8 @@ explicit accepted Markdown specifications. R040j adds confirmed Arena check decl
 R050a adds a read-only battle preparation preview; it does not implement Start.
 R050b adds consented detached worktree preparation with retained ownership receipts.
 R050c adds read-only inspection of retained ownership, index and raw file contents.
+R040l adds bounded folder sources; R040m creates validated task graphs automatically
+for newly consented planning requests, retaining legacy imports and edited cards.
 Dependency scheduling, check execution and execution grants remain open.
 R030b lets existing Arenas/Tabulae explicitly adopt a newer saved default team
 without rewriting earlier requests or drafts. Per-scope role editing remains open.
@@ -46,9 +48,11 @@ The numbered story below is capability coverage, not eight mandatory screens.
   No live Arena access for the planning provider and no Git prerequisite.
   Delivered as **Read project folder**, retained source preview and separately
   consented Speculator planning. [Task and evidence](../tasks/R040l-folder-planning.md).
-- [ ] **R040m — Create cards automatically:** validate and atomically import the
+- [x] **R040m — Create cards automatically:** validate and atomically import the
   proposal graph with sources and stable receipts; survive duplicate results and
   restart without duplicates or overwriting user edits. Keep legacy imports readable.
+  Delivered for new **Create tasks** requests; no execution grant or schema change.
+  [Task and evidence](../tasks/R040m-automatic-task-cards.md).
 - [ ] **R020 remaining execution gates:** prove the selected provider's actual
   task grant, tool/output validation, cancellation and two-workspace isolation.
   Catalog/setup acceptance alone does not enable an Implementor.
@@ -62,8 +66,8 @@ The numbered story below is capability coverage, not eight mandatory screens.
   and timed ten-minute acceptance. Usable Arena UI ships with each earlier slice.
 
 [R002 evidence](../tasks/R002-simple-arena-contract.md) records the delivered UI
-and automatic-board slice. R040l adds bounded source reading; automatic card creation
-and Start remain unchecked. The simplified screen does not imply a working battle.
+and automatic-board slice. R040l/m deliver bounded source reading and automatic
+card creation. Provider execution gates and Start are next; no battle runs yet.
 
 ## Sequence and dependencies
 
@@ -284,7 +288,8 @@ Depends on R030.
   acceptance criteria. R040b implements manual database drafts and criteria;
   R040e adds brief proposals and source-command provenance; R040f adds selected
   document snapshots; R040h validates per-task citation scope and proposed
-  prerequisites. R040i adds file-backed accepted specs; custom planning-role selection
+  prerequisites. R040l/m add bounded folder analysis and automatic graph creation.
+  R040i adds file-backed accepted specs; custom planning-role selection
   and battle-time spec preparation remain.
 - [x] R040g: select bounded same-board task prerequisites, reject cycles against
   the latest graph and retain dependency revisions without launching work. See

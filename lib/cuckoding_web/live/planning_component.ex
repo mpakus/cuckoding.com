@@ -222,7 +222,9 @@ defmodule CuckodingWeb.PlanningComponent do
       phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
     >
       <summary>Create tasks · with Speculator</summary>
-      <p>Read the project sources or describe the work, then ask Speculator for task suggestions.</p>
+      <p>
+        Read the project sources or describe the work. Speculator creates editable tasks on this board.
+      </p>
       <p class="fine-print">
         Read docs/ first, then eligible text and source files. Up to 16 files, 16 KiB each and 64 KiB total; hidden, generated and known credential paths are excluded. No Git or agent runs during this local read. Review sources before sending private text.
       </p>
@@ -368,7 +370,7 @@ defmodule CuckodingWeb.PlanningComponent do
           )}. This may use my account allowance.
         </label>
         <p class="fine-print">
-          One turn, no tools or live project-file access. Up to six suggestions; use Add to Specs for each. Automatic card creation is next; adding a draft does not start a battle.
+          One turn creates up to six validated cards in Specs, with their prerequisites and sources. Existing tasks stay unchanged. No tools, live project-file access or battle execution.
         </p>
         <p :if={@error} id="planning-error" role="alert" class="notice">{@error}</p>
         <p :if={@message} role="status">{@message}</p>
@@ -377,7 +379,7 @@ defmodule CuckodingWeb.PlanningComponent do
           class="button primary"
           disabled={!@setup.token || @busy}
           phx-disable-with="Starting…"
-        >Generate proposals</button>
+        >Create tasks</button>
       </.form>
       <p :if={@plans != []} class="fine-print">
         Recent planning requests · active first · retained locally
@@ -401,7 +403,11 @@ defmodule CuckodingWeb.PlanningComponent do
           phx-value-id={plan.id}
           disabled={plan.state == "cancelling"}
         >Cancel planning</button>
-        <p :if={!active?(plan)} role="status">{message(plan.result)}</p>
+        <p :if={!active?(plan)} role="status">
+          {if plan.result == "planned" && plan.payload["card_creation"] == "automatic-v1",
+            do: "Tasks created · edit them on the board. Start is not enabled yet.",
+            else: message(plan.result)}
+        </p>
         <details id={"brief-#{plan.id}"} phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
           <summary>Source brief · team {plan.payload["team_revision_id"]}</summary>
           <p class="draft-copy">{plan.payload["brief"]}</p>
@@ -418,7 +424,7 @@ defmodule CuckodingWeb.PlanningComponent do
             <p class="draft-copy">{task["description"]}</p>
             <p class="draft-copy">Acceptance criteria: {task["criteria"]}</p>
             <p :if={Map.get(task, "depends_on", []) != []} class="fine-print">
-              Add prerequisites first: {Enum.map_join(
+              Prerequisites: {Enum.map_join(
                 task["depends_on"],
                 "; ",
                 &Enum.at(proposal["tasks"], &1)["title"]
@@ -432,6 +438,7 @@ defmodule CuckodingWeb.PlanningComponent do
               />
             </div>
             <button
+              :if={plan.payload["card_creation"] != "automatic-v1"}
               type="button"
               class="button"
               phx-click="import"
@@ -444,6 +451,9 @@ defmodule CuckodingWeb.PlanningComponent do
                 do: "Added to Specs",
                 else: "Add to Specs"}
             </button>
+            <p :if={plan.payload["card_creation"] == "automatic-v1"} class="fine-print">
+              Created on the board
+            </p>
           </article>
         </div>
       </article>

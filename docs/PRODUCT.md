@@ -2,7 +2,7 @@
 
 Updated 2026-10-10 from the original user story and the Arena simplification.
 This is the target experience. The [implementation checklist](PLAN.md) distinguishes
-available setup/planning from unfinished folder analysis and battle execution.
+available setup, folder analysis and task creation from unfinished battle execution.
 
 ## The story
 

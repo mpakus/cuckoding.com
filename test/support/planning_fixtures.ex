@@ -73,6 +73,18 @@ defmodule Cuckoding.PlanningFixtures do
     }
   end
 
+  # Simulate a request consented before automatic card creation was introduced.
+  def legacy_plan_fixture(claim) do
+    claim
+    |> Ecto.Changeset.change(payload: Map.delete(claim.payload, "card_creation"))
+    |> Cuckoding.Repo.update!()
+  end
+
+  def imported_revision(board, plan_id, index \\ 0) do
+    task_id = Map.fetch!(Tabulae.imported(board.id), {plan_id, index})
+    Cuckoding.Repo.get_by!(Cuckoding.DraftTaskRevision, task_id: task_id, revision: 1)
+  end
+
   def document_receipt(path \\ "docs/plan.md", text \\ "# Selected plan\nBuild a small feature.") do
     %{
       "status" => "previewed",

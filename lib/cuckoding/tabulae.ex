@@ -150,6 +150,27 @@ defmodule Cuckoding.Tabulae do
     |> Map.new(&{{&1["proposal_id"], &1["index"]}, &1["task_id"]})
   end
 
+  # Planning.finish owns the completion transaction, claim and post-commit broadcast.
+  def import_plan!(%Command{kind: "plan_tabula", state: "completed"} = plan) do
+    true = Repo.in_transaction?()
+    %{"tasks" => tasks} = Planning.proposal(plan)
+
+    for {_task, index} <- Enum.with_index(tasks) do
+      key = Ecto.UUID.generate()
+
+      receipt =
+        persist(key, "import_plan_task", 0, %{
+          "arena_id" => plan.payload["arena_id"],
+          "tabula_id" => plan.payload["tabula_id"],
+          "task_id" => key,
+          "proposal_id" => plan.id,
+          "index" => index
+        })
+
+      unless receipt.state == "completed", do: Repo.rollback(receipt.result)
+    end
+  end
+
   def source(tabula_id, task_id) do
     imported =
       Repo.one(

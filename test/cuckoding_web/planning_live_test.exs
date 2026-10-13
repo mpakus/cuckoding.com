@@ -13,7 +13,7 @@ defmodule CuckodingWeb.PlanningLiveTest do
     assert Planning.history(board.id) == []
   end
 
-  test "brief consent, progress, durable proposals and import preserve unrelated draft text", %{
+  test "Create tasks saves cards automatically and preserves unrelated draft text on updates", %{
     conn: conn,
     board: board
   } do
@@ -21,6 +21,7 @@ defmodule CuckodingWeb.PlanningLiveTest do
     path = "/arenas/#{board.arena_id}/tabulae/#{board.id}"
     {:ok, view, _} = live(signed, path)
     assert has_element?(view, "#brief-planning[phx-mounted*=ignore_attrs]")
+    assert has_element?(view, "#planning-form button", "Create tasks")
     view |> form("#draft-form", title: "Unsaved manual task") |> render_change()
     view |> form("#planning-form", brief: "A small feature") |> render_submit()
     assert has_element?(view, "#planning-error", "confirm provider usage")
@@ -33,20 +34,17 @@ defmodule CuckodingWeb.PlanningLiveTest do
     Foundation.finish(claim, planning_receipt(command.id))
     assert has_element?(view, "#plan-#{command.id}", "A proposed task")
 
-    view
-    |> element("#plan-#{command.id} button", "Add to Specs")
-    |> render_click(%{"index" => %{}})
-
-    assert Tabulae.tasks(board.id) == []
-    view |> element("#plan-#{command.id} button", "Add to Specs") |> render_click()
+    refute has_element?(view, "#plan-#{command.id} button", "Add to Specs")
     task = hd(Tabulae.tasks(board.id))
     assert has_element?(view, "#column-specs #task-#{task.id}")
     assert has_element?(view, "#draft-title-input[value='Unsaved manual task']")
     assert has_element?(view, "#planning-brief", "A small feature")
-    assert has_element?(view, "#plan-#{command.id} button[disabled]", "Added to Specs")
+    assert has_element?(view, "#plan-#{command.id}", "Tasks created")
     {:ok, again, _} = live(signed, path)
     assert has_element?(again, "#plan-#{command.id}", "A proposed task")
-    assert has_element?(again, "#plan-#{command.id} button[disabled]", "Added to Specs")
+    assert has_element?(again, "#column-specs #task-#{task.id}")
+    assert has_element?(again, "#plan-#{command.id}", "Tasks created")
+    assert length(Tabulae.tasks(board.id)) == 1
   end
 
   test "changed connection clears consent while retaining the brief; cancellation remains visible",
@@ -165,7 +163,7 @@ defmodule CuckodingWeb.PlanningLiveTest do
     {:ok, claim} = Foundation.claim()
     Foundation.finish(claim, folder_receipt())
     assert view |> element("#document-selection") |> render() =~ "Snapshots are ready locally"
-    assert has_element?(view, "#planning-form button[disabled]", "Generate proposals")
+    assert has_element?(view, "#planning-form button[disabled]", "Create tasks")
   end
 
   test "expired component sessions cannot scan the folder", %{conn: conn, board: board} do
@@ -180,7 +178,7 @@ defmodule CuckodingWeb.PlanningLiveTest do
     conn: conn,
     board: board
   } do
-    claim = document_plan_fixture(board)
+    claim = document_plan_fixture(board) |> legacy_plan_fixture()
     {:ok, _} = Foundation.finish(claim, linked_planning_receipt(claim.id))
     path = "/arenas/#{board.arena_id}/tabulae/#{board.id}"
     signed = sign_in(conn)
@@ -190,7 +188,7 @@ defmodule CuckodingWeb.PlanningLiveTest do
     assert has_element?(
              view,
              "#proposal-#{claim.id}-1",
-             "Add prerequisites first: Specify response"
+             "Prerequisites: Specify response"
            )
 
     assert has_element?(view, "#proposal-sources-#{claim.id}-1-0 pre", "Selected plan")

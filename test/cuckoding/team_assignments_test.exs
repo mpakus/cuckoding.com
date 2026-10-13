@@ -84,8 +84,7 @@ defmodule Cuckoding.TeamAssignmentsTest do
     {:ok, claim} = Foundation.claim()
     {:ok, completed} = Foundation.finish(claim, planning_receipt(request.id))
 
-    {:ok, draft} =
-      Tabulae.import_proposal(Ecto.UUID.generate(), board.arena_id, board.id, request.id, 0)
+    draft = imported_revision(board, request.id)
 
     before = Tabulae.tasks(board.id)
     team = next_team("Updated planner")

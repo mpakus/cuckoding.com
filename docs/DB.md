@@ -226,11 +226,20 @@ source indices 0–15; v1/v2 receipts retain their earlier bounds. A missing bri
 with valid nonempty snapshots is stored as a fixed analysis instruction. Empty
 snapshots still require a brief. No folder path is added to the provider request.
 
-Automatic imports need proposal/index receipts, dependency
-mapping, revision guards and an atomic batch; retries/reconnects cannot duplicate
-cards or overwrite edits. New battle snapshots/attempt/review records remain
-separate from planning read intent and model observations. These are requirements,
-not tables already implemented; retain old selected-file and import receipts.
+R040m adds `card_creation: automatic-v1` to new planning payloads and their consent
+fingerprint. Successful completion creates every `import_plan_task` receipt in
+prerequisite order using the existing writer, inside the completion transaction.
+The stored proposal, cards, revision-one contents, source-command/index mapping
+and all events either commit together or roll back. Each card ID is its committed
+import command UUID. Duplicate completion loses its claim; page loads and restart
+only read those receipts. Failed persistence never replays provider usage.
+Expired claims cannot accept a late result, even before dispatcher reconciliation.
+Requests without the field keep the earlier manual-import semantics; partially
+imported requests and edited cards are unchanged. New consented analyses create
+separate graphs, with no inferred task matching or overwrites. No migration.
+
+New battle snapshots/attempt/review records remain requirements, separate from
+planning read intent and model observations; they are not implemented tables.
 
 ## Target records (not the current schema)
 

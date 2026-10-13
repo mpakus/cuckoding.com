@@ -126,6 +126,16 @@ no provider and gracefully shuts down, retaining data. The foundation ExUnit tes
 checks absent development dependencies/routes/CSP exceptions in test. Browser
 rendering remains separate from HTTP/header checks.
 
+## Automatic card evidence (R040m)
+
+R040m's focused planning checks cover whole-graph completion/event rollback,
+expired and duplicate results, pre-upgrade consent, legacy partial imports,
+reanalysis preserving edits, and live cards without per-suggestion buttons.
+Packaged fixture restart retains exact task/revision/command hashes and reconciles
+an expired running request without provider replay. See the
+[R040m evidence](../worklog/2026-10-13-R040m-automatic-task-cards.md).
+Fixture responses establish persistence/UI behavior, not real provider acceptance.
+
 ## Documentation-only gate
 
 Check local links/anchors and referenced files, coherent names/flow, honest status,
