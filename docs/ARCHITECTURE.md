@@ -228,3 +228,9 @@ tools (D024). This is a callable transport, not a battle scheduler or Start gran
 Host tools validate owned-workspace identities and retain local per-call effects;
 role reports remain bounded public data. R050 must bind these to durable battle
 authority, candidates and independent review before enabling Start.
+
+R050d1 extends `LocalGit` / native `arena_git/worktree/candidate.rs` with exact
+candidate capture/verification, reusing raw worktree inspection. Private indexes
+and UUID-scoped refs retain candidate commits without changing user/task HEAD.
+The future battle coordinator must supply bounded authority and bind independent
+review to these receipts; the primitives do not create workflow completion.

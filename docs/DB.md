@@ -471,3 +471,12 @@ Team revisions store connection IDs in the existing `agent` field and remain
 immutable. No migration substitutes a model, account or runtime. Profile setup
 still uses the global revision/serialized dispatcher; only the selected projection
 changes. Expired setup claims cannot publish late completion or replay effects.
+
+## Candidate artifact receipts (R050d1)
+
+No migration or battle table is introduced in this host prerequisite. Candidate
+receipts contain command/worktree UUIDs, base/candidate/tree OIDs and the SHA-256
+of the exact private intent. Normalization excludes raw output. The forthcoming
+battle command ledger must bind these to its frozen task/spec/attempt before
+dispatch; a receipt alone has no workflow authority. Private artifacts and refs
+are described in [Execution](EXECUTION_ENVIRONMENTS.md#retained-task-candidates-r050d1).

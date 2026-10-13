@@ -354,6 +354,8 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
         "scan_documents",
         "worktree",
         "inspect_worktree",
+        "capture_candidate",
+        "verify_candidate",
     ]
     .contains(&operation.as_str())
         || extra.len()
@@ -365,6 +367,8 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
                     "scan_documents",
                     "worktree",
                     "inspect_worktree",
+                    "capture_candidate",
+                    "verify_candidate",
                 ]
                 .contains(&operation.as_str()),
             )
@@ -409,6 +413,9 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
     }
     if operation == "inspect_worktree" {
         return worktree::inspect(&git, &extra[0], device, inode);
+    }
+    if ["capture_candidate", "verify_candidate"].contains(&operation.as_str()) {
+        return worktree::candidate(&git, operation, &extra[0], device, inode);
     }
     if operation == "worktree" {
         return worktree::run(&git, &extra[0], device, inode);
@@ -1131,6 +1138,203 @@ mod tests {
         let head = operation(&args, "inspect").unwrap()["head"].clone();
         let prepared = operation(&worktree_request(&args, &head), "worktree").unwrap();
         (root, home, inspection_request(&args, &prepared), prepared)
+    }
+
+    const CANDIDATE_KEY: &str = "00000000-0000-4000-8000-000000000051";
+
+    fn candidate_request(request: &[String], prepared: &Value, files: Value) -> Vec<String> {
+        let mut request = request[..5].to_vec();
+        request.push(json!({"key":CANDIDATE_KEY,"preparation":prepared,"files":files}).to_string());
+        request
+    }
+
+    #[test]
+    fn candidates_capture_exact_edits_without_touching_source_or_task_head() {
+        let (root, home, request, prepared) = inspection_fixture();
+        let checkout = Path::new(prepared["path"].as_str().unwrap());
+        let source_index = fs::read(root.join(".git/index")).unwrap();
+        let source_head = fs::read(root.join(".git/refs/heads/main")).unwrap();
+        // Existing user edits remain outside the candidate.
+        fs::write(root.join("docs/plan.txt"), "USER_UNCOMMITTED_CANARY").unwrap();
+        fs::write(checkout.join("docs/plan.txt"), "implemented\n").unwrap();
+        fs::write(checkout.join("new.txt"), "new\n").unwrap();
+        let manifest = json!([
+            {"path":"docs/plan.txt","sha256":initial::digest(b"implemented\n")},
+            {"path":"new.txt","sha256":initial::digest(b"new\n")}
+        ]);
+        let capture = candidate_request(&request, &prepared, manifest);
+        let result = operation(&capture, "capture_candidate").unwrap();
+        assert_eq!(result["status"], "candidate_captured");
+        assert_eq!(result["base"], prepared["head"]);
+        assert_eq!(fs::read(root.join(".git/index")).unwrap(), source_index);
+        assert_eq!(
+            fs::read(root.join(".git/refs/heads/main")).unwrap(),
+            source_head
+        );
+        assert_eq!(
+            fs::read(root.join("docs/plan.txt")).unwrap(),
+            b"USER_UNCOMMITTED_CANARY"
+        );
+        assert_eq!(
+            git(checkout, &home, &["rev-parse", "HEAD"]).1,
+            format!("{}\n", prepared["head"].as_str().unwrap()).as_bytes()
+        );
+        let candidate = result["candidate"].as_str().unwrap();
+        assert_eq!(
+            git(
+                &root,
+                &home,
+                &["show", &format!("{candidate}:docs/plan.txt")]
+            )
+            .1,
+            b"implemented\n"
+        );
+        assert_eq!(
+            git(&root, &home, &["show", &format!("{candidate}:new.txt")]).1,
+            b"new\n"
+        );
+        assert_eq!(
+            operation(&capture, "capture_candidate"),
+            Err("candidate_exists")
+        );
+        let mut verify = request[..5].to_vec();
+        verify.push(
+            json!({"key":CANDIDATE_KEY,"preparation":prepared,"candidate":result}).to_string(),
+        );
+        assert_eq!(
+            operation(&verify, "verify_candidate").unwrap()["status"],
+            "candidate_verified"
+        );
+        fs::write(checkout.join("new.txt"), "later edit").unwrap();
+        assert_eq!(
+            operation(&verify, "verify_candidate"),
+            Err("candidate_mismatch")
+        );
+        fs::write(checkout.join("new.txt"), "new\n").unwrap();
+        let mut foreign = result.clone();
+        foreign["candidate"] = prepared["head"].clone();
+        verify[5] =
+            json!({"key":CANDIDATE_KEY,"preparation":prepared,"candidate":foreign}).to_string();
+        assert_eq!(
+            operation(&verify, "verify_candidate"),
+            Err("candidate_mismatch")
+        );
+        fs::remove_dir_all(root.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn candidates_refuse_undeclared_policy_link_mode_and_stale_edits() {
+        for mode in [
+            "undeclared",
+            "extra",
+            "policy",
+            "stale",
+            "link",
+            "hardlink",
+            "mode",
+            "foreign",
+            "ref",
+            "interrupted",
+        ] {
+            let (root, home, request, mut prepared) = inspection_fixture();
+            let checkout = PathBuf::from(prepared["path"].as_str().unwrap());
+            fs::write(checkout.join("docs/plan.txt"), "changed").unwrap();
+            let mut files = json!([{"path":"docs/plan.txt","sha256":initial::digest(b"changed")}]);
+            match mode {
+                "undeclared" => files = json!([]),
+                "extra" => fs::write(checkout.join("extra.txt"), "unlisted").unwrap(),
+                "policy" => {
+                    fs::write(checkout.join("AGENTS.md"), "untrusted").unwrap();
+                    files = json!([{"path":"AGENTS.md","sha256":initial::digest(b"untrusted")}]);
+                }
+                "stale" => files[0]["sha256"] = json!(initial::digest(b"old")),
+                "link" | "hardlink" => {
+                    fs::write(home.join("private"), "private-canary").unwrap();
+                    fs::remove_file(checkout.join("docs/plan.txt")).unwrap();
+                    if mode == "link" {
+                        std::os::unix::fs::symlink(
+                            home.join("private"),
+                            checkout.join("docs/plan.txt"),
+                        )
+                        .unwrap();
+                    } else {
+                        fs::hard_link(home.join("private"), checkout.join("docs/plan.txt"))
+                            .unwrap();
+                    }
+                }
+                "mode" => fs::set_permissions(
+                    checkout.join("docs/plan.txt"),
+                    fs::Permissions::from_mode(0o755),
+                )
+                .unwrap(),
+                "foreign" => prepared["inode"] = json!(0),
+                "ref" => {
+                    assert_eq!(
+                        git(
+                            &root,
+                            &home,
+                            &[
+                                "update-ref",
+                                &format!("refs/ccoding/candidates/{CANDIDATE_KEY}"),
+                                prepared["head"].as_str().unwrap()
+                            ]
+                        )
+                        .0,
+                        0
+                    );
+                }
+                "interrupted" => {}
+                _ => unreachable!(),
+            }
+            let mut capture = candidate_request(&request, &prepared, files);
+            if mode == "interrupted" {
+                capture[0] = "capture_candidate".into();
+                let (sender, receiver) = mpsc::channel();
+                sender.send(()).unwrap();
+                assert_eq!(
+                    run(&capture, receiver, Duration::from_secs(10)),
+                    Err("cancelled")
+                );
+            } else {
+                assert!(operation(&capture, "capture_candidate").is_err(), "{mode}");
+            }
+            assert_eq!(
+                fs::read(root.join("docs/plan.txt")).unwrap(),
+                b"committed\n"
+            );
+            assert!(!checkout
+                .parent()
+                .unwrap()
+                .join(format!("candidate-{CANDIDATE_KEY}/receipt.json"))
+                .exists());
+            if ["link", "hardlink"].contains(&mode) {
+                assert_eq!(fs::read(home.join("private")).unwrap(), b"private-canary");
+            }
+            if mode == "ref" {
+                assert_eq!(
+                    git(
+                        &root,
+                        &home,
+                        &[
+                            "rev-parse",
+                            &format!("refs/ccoding/candidates/{CANDIDATE_KEY}")
+                        ]
+                    )
+                    .1,
+                    format!("{}\n", prepared["head"].as_str().unwrap()).as_bytes()
+                );
+                assert_eq!(
+                    operation(&capture, "capture_candidate"),
+                    Err("candidate_exists")
+                );
+                assert!(checkout
+                    .parent()
+                    .unwrap()
+                    .join(format!("candidate-{CANDIDATE_KEY}/publication.json"))
+                    .exists());
+            }
+            fs::remove_dir_all(root.parent().unwrap()).unwrap();
+        }
     }
 
     #[test]

@@ -2,10 +2,10 @@
 use super::*;
 use std::{collections::BTreeSet, ffi::CStr, path::PathBuf};
 
-struct Owned {
-    checkout: File,
-    admin: File,
-    index: PathBuf,
+pub(super) struct Owned {
+    pub(super) checkout: File,
+    pub(super) admin: File,
+    pub(super) index: PathBuf,
 }
 
 fn read(directory: &File, path: &str, limit: u64) -> Result<Vec<u8>> {
@@ -14,7 +14,7 @@ fn read(directory: &File, path: &str, limit: u64) -> Result<Vec<u8>> {
         .map_err(|_| "worktree_mismatch")
 }
 
-fn owned(git: &Git<'_>, request: &Value, device: u64, inode: u64) -> Result<Owned> {
+pub(super) fn owned(git: &Git<'_>, request: &Value, device: u64, inode: u64) -> Result<Owned> {
     let key = initial::uuid(&request["key"])?;
     let parent = git.home.join("worktrees").join(key);
     private_directory(&git.home.join("worktrees")).map_err(|_| "worktree_mismatch")?;
@@ -83,7 +83,7 @@ fn owned(git: &Git<'_>, request: &Value, device: u64, inode: u64) -> Result<Owne
     })
 }
 
-fn index_matches(git: &Git<'_>, owned: &Owned, entries: &[Entry]) -> Result<bool> {
+pub(super) fn index_matches(git: &Git<'_>, owned: &Owned, entries: &[Entry]) -> Result<bool> {
     let (code, bytes) = git.command_bounded(
         &["ls-files", "--stage", "-z"],
         true,
@@ -178,7 +178,7 @@ fn extra_files(git: &Git<'_>, root: &File, entries: &[Entry]) -> Result<bool> {
     Ok(false)
 }
 
-fn files_match(git: &Git<'_>, owned: &Owned, entries: &[Entry]) -> Result<bool> {
+pub(super) fn files_match(git: &Git<'_>, owned: &Owned, entries: &[Entry]) -> Result<bool> {
     let input = entries
         .iter()
         .map(|e| format!("{}\n", e.oid))

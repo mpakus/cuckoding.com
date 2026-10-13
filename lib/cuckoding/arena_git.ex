@@ -8,7 +8,7 @@ defmodule Cuckoding.LocalGit do
   @behaviour Cuckoding.GitAdapter
   alias Cuckoding.{GitPreview, NativeHelper}
 
-  @statuses ~w(missing unborn initialized cancelled timeout cleanup_uncertain unavailable invalid_request folder_changed git_unavailable invalid_repository metadata_limit nested_repository unsupported_layout unsafe_config repository_busy repository_changed recheck_required invalid_selection selection_limit unsafe_file preview_changed initial_only index_present commit_incomplete unsafe_tree tree_limit worktree_incomplete worktree_exists worktree_mismatch)
+  @statuses ~w(missing unborn initialized cancelled timeout cleanup_uncertain unavailable invalid_request folder_changed git_unavailable invalid_repository metadata_limit nested_repository unsupported_layout unsafe_config repository_busy repository_changed recheck_required invalid_selection selection_limit unsafe_file preview_changed initial_only index_present commit_incomplete unsafe_tree tree_limit worktree_incomplete worktree_exists worktree_mismatch candidate_incomplete candidate_exists candidate_mismatch)
 
   @impl true
   def run(command) do
@@ -48,6 +48,18 @@ defmodule Cuckoding.LocalGit do
   defp extra(%{payload: %{"operation" => "inspect_worktree", "preparation" => receipt}}),
     do: [Jason.encode!(receipt)]
 
+  defp extra(%{id: key, payload: %{"operation" => "capture_candidate"} = payload}),
+    do: [Jason.encode!(payload |> Map.take(~w(preparation files)) |> Map.put("key", key))]
+
+  defp extra(%{payload: %{"operation" => "verify_candidate"} = payload}),
+    do: [
+      Jason.encode!(
+        payload
+        |> Map.take(~w(preparation candidate))
+        |> Map.put("key", payload["candidate"]["key"])
+      )
+    ]
+
   defp extra(_), do: []
 
   defp decode(bytes) do
@@ -68,6 +80,15 @@ defmodule Cuckoding.LocalGit do
     if GitPreview.hash?(result["head"], 40) and GitPreview.hash?(result["tree"], 40) and
          match?({:ok, _}, Ecto.UUID.cast(result["preview_id"])),
        do: Map.take(result, ~w(status head tree preview_id)),
+       else: %{"status" => "invalid_repository"}
+  end
+
+  def normalize(%{"status" => status} = result)
+      when status in ~w(candidate_captured candidate_verified) do
+    if Enum.all?(~w(key worktree_key), &match?({:ok, _}, Ecto.UUID.cast(result[&1]))) and
+         Enum.all?(~w(base candidate tree), &GitPreview.hash?(result[&1], 40)) and
+         GitPreview.hash?(result["manifest_sha256"], 64),
+       do: Map.take(result, ~w(status key worktree_key base candidate tree manifest_sha256)),
        else: %{"status" => "invalid_repository"}
   end
 

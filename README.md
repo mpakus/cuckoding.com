@@ -69,6 +69,17 @@ existing test workspace, use its **Open Cuckoding Test.command** launcher to ret
 the same saved agents, models and roles. Opening the bundle directly uses the
 default workspace, which may contain different data.
 
+Dependency maintenance: R101 updates Decimal to 3.2.0, resolving
+CVE-2026-97853. See [verification](worklog/2026-10-13-R101-decimal-security.md).
+
+R020n adds bounded Codex host file-tool turns for the forthcoming execution loop.
+Start still requires durable battle admission and independent review; this
+transport alone does not enable running Arenas.
+
+R050d1 captures exact task edits into retained application-owned Git candidate
+references and verifies their live bytes for future review. It preserves the
+user's checkout and branch; capture does not enable Start or mark work complete.
+
 ## UI development
 
 After building the native helper with `rtk proxy bin/dev.build`, run
@@ -117,10 +128,3 @@ Local execution uses runtime permissions; the host runner is not a sandbox.
 
 Use RTK for every repository shell command and Ponytail in full mode.
 Search with `rtk rg`; no indexing service is required.
-
-Dependency maintenance: R101 updates Decimal to 3.2.0, resolving
-CVE-2026-97853. See [verification](worklog/2026-10-13-R101-decimal-security.md).
-
-R020n adds bounded Codex host file-tool turns for the forthcoming execution loop.
-Start still requires durable battle admission and independent review; this
-transport alone does not enable running Arenas.

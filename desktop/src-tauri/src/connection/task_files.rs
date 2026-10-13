@@ -18,7 +18,7 @@ pub(super) fn digest(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
 
-fn valid_path(path: &str, empty: bool) -> bool {
+pub(crate) fn valid_path(path: &str, empty: bool) -> bool {
     (empty && path.is_empty())
         || (!path.is_empty()
             && path.len() <= 240

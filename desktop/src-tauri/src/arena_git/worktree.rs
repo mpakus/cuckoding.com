@@ -1,6 +1,8 @@
 //! Consented detached checkout; failures retain ownership and any partial Git effects.
+mod candidate;
 mod inspection;
 use super::*;
+pub(super) use candidate::run as candidate;
 pub(super) use inspection::inspect;
 use std::{collections::HashSet, os::unix::fs::DirBuilderExt};
 

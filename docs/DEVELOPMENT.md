@@ -285,6 +285,10 @@ rtk proxy bin/smoke
 rtk git diff --check
 ```
 
+`bin/dev.build` refuses to replace a running or linked generated release or app
+bundle. After Quit it recreates `_build/prod/rel/cuckoding` and the generated app
+bundle so removed dependencies cannot remain in Mix/Tauri's overlaid resources. It never removes the selected application data root.
+
 `mix quality` runs formatting, compilation with warnings treated as errors,
 ExUnit, Credo, Sobelow and dependency audit. Sobelow's architecture-specific
 exceptions are documented in [Security](SECURITY.md). Its Elixir 1.20 warnings

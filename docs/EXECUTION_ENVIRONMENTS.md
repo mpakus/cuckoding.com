@@ -113,3 +113,23 @@ It supplies only a consented typed brief and frozen Speculator instructions, wit
 no project filesystem grant or worktree. It is a bounded structured turn, not the
 repository task runner described above. No successful real-account planning turn
 has yet been recorded; protocol fixtures do not establish provider enforcement.
+
+## Retained task candidates (R050d1)
+
+The fixed native Git service can capture at most 64 eligible task paths, 32 KiB
+each and 512 KiB total, with exact SHA-256 values supplied by the host. It reuses
+R050c ownership/registration validation and descriptor-relative reads. An isolated
+candidate index starts from the prepared base; raw blobs bypass filters. Unlisted
+tracked bytes, file modes and all extra entries are checked against the resulting
+tree. Hidden/protected task paths, symlinks/hardlinks, deletions and changed modes
+are refused. This intentionally matches the first task-tool grant.
+
+`runtime-home/worktrees/<worktree UUID>/candidate-<command UUID>/` retains exclusive
+intent, candidate index, publication intent and completed receipt. A successful
+capture retains `refs/ccoding/candidates/<command UUID>` with an absent-ref
+compare-and-swap. It never moves source/task HEAD, touches their indexes or merges
+the user's branch. Existing refs/locks and partial effects remain intact.
+Verification rechecks the exact receipt, app ref, tree, ownership and live bytes.
+These are host primitives for R050d/e; no Start caller, project checks, Secutor
+review or completion authority is implied. Interrupted capture is inspected with
+retained evidence, never replayed under the same key.

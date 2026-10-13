@@ -515,3 +515,12 @@ Filename exclusions do not recognize all secrets inside ordinary source files.
 The future Start scope must disclose sending eligible contents to the selected
 provider. Same-user hostile races remain outside host isolation guarantees.
 A tool receipt and a role's `completed` report are not Secutor acceptance.
+
+R050d1 candidate capture uses only host-supplied bounded path/hash pairs, a private
+index and fixed Git plumbing. It verifies ownership/registration, untouched tracked
+bytes, file modes and extra entries before publishing an app-owned candidate ref.
+No hooks, filters, signing, credentials, remote transport or provider Git arguments
+are allowed. Existing candidate refs cannot be overwritten. A retained publication
+intent without a completed receipt is uncertain and cannot be replayed. Live
+verification is a dated observation; same-user hostile races are outside host
+isolation guarantees and review/integration still require fresh checks.

@@ -3,6 +3,26 @@ set -eu
 PATH="${CARGO_HOME:-$HOME/.cargo}/bin:$PATH"
 export PATH
 cd "$(dirname "$0")/.."
+# Mix and Tauri overlay releases; recreate generated output to drop removed dependencies.
+rtk proxy python3 - <<'PY'
+from pathlib import Path
+import shutil
+import subprocess
+
+generated = [
+    Path.cwd() / "_build/prod/rel/cuckoding",
+    Path.cwd() / "desktop/src-tauri/target/release/bundle/macos/Cuckoding.app",
+]
+executables = subprocess.check_output(["ps", "-axo", "comm="], text=True).splitlines()
+for directory in generated:
+    if any(path.strip().startswith(str(directory) + "/") for path in executables):
+        raise SystemExit("Cuckoding is running from this release or bundle. Quit it before rebuilding.")
+    if directory.resolve() != directory:
+        raise SystemExit("Refusing to replace linked generated output.")
+for directory in generated:
+    if directory.exists():
+        shutil.rmtree(directory)
+PY
 rtk mix deps.get --check-locked
 rtk mix assets.setup
 # The upstream standalone Tailwind binary has a stale ad-hoc signature on macOS.

@@ -100,3 +100,17 @@ This is actual file-tool execution, not a model response interpreted as a patch.
 It supports the initial code-editing flow with finite text-file limits; commands,
 binary editing and protected configuration are outside this grant. Full runtime
 and two-workspace acceptance must still be measured, not inferred from schemas.
+
+## D025 — Host-captured task candidates
+
+2026-10-13. R050d1 extends the fixed native Git service with candidate capture and
+verification. The host supplies exact bounded path/hash pairs from completed task
+file-tool receipts; provider text never supplies Git argv or reference names.
+A private candidate index preserves unchanged base objects. All other tracked
+bytes and file modes must still match the prepared base; extra entries and policy
+changes fail closed. Candidate objects and a UUID-derived application reference
+are retained without updating the source checkout/index/branch or detached task
+HEAD. An exclusive attempt directory records intent before effects; uncertain
+attempts are inspected, never replayed. Verification compares the exact retained
+candidate tree against live bytes. Start authority, check execution, independent
+Secutor verdicts and reviewed integration are separate R050d/e responsibilities.

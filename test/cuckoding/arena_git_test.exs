@@ -23,6 +23,34 @@ defmodule Cuckoding.ArenaGitTest do
     :ok
   end
 
+  test "candidate receipts retain exact identities and reject malformed hashes without raw output" do
+    receipt = %{
+      "status" => "candidate_captured",
+      "key" => Ecto.UUID.generate(),
+      "worktree_key" => Ecto.UUID.generate(),
+      "base" => String.duplicate("a", 40),
+      "candidate" => String.duplicate("b", 40),
+      "tree" => String.duplicate("c", 40),
+      "manifest_sha256" => String.duplicate("d", 64)
+    }
+
+    assert LocalGit.normalize(Map.put(receipt, "raw", "private-canary")) == receipt
+    verified = Map.put(receipt, "status", "candidate_verified")
+    assert LocalGit.normalize(verified) == verified
+
+    for field <- ~w(key worktree_key base candidate tree manifest_sha256) do
+      assert LocalGit.normalize(Map.put(receipt, field, "invalid")) == %{
+               "status" => "invalid_repository"
+             }
+    end
+
+    for status <- ~w(candidate_incomplete candidate_exists candidate_mismatch) do
+      assert LocalGit.normalize(%{"status" => status, "raw" => "private-canary"}) == %{
+               "status" => status
+             }
+    end
+  end
+
   test "inspection and initialization are scoped, consented, idempotent and separate from setup revisions" do
     arena = arena_fixture()
     key = Ecto.UUID.generate()

@@ -108,6 +108,13 @@ Runtime built-in tools remain disabled. Read-only roles cannot edit. A transport
 report never grants battle authority or marks a card Completed; R050 must own
 that binding. Do not add a new mandatory setup diagnostic.
 
+R050d1 host candidate capture accepts only bounded task-tool path/hash pairs in a
+verified owned checkout. Preserve the original source and task HEAD/index, verify
+all other tracked bytes and modes, reject extras/protected paths, and retain
+exclusive intent/index/publication/receipt artifacts and UUID-derived app refs.
+Never replay uncertain capture. A dated candidate verification is neither a grant
+nor independent review; future integration must bind exact criteria/check evidence.
+
 ## Mission and product contract
 
 R020m's optional `codex-isolation-v1` diagnostic runs fixed commands against two

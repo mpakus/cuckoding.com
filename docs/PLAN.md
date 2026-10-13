@@ -346,6 +346,9 @@ Depends on R040. This is the first end-to-end product milestone.
   index and raw tracked bytes; preserve files and reject unsafe/foreign/late results.
   Dated observations never grant execution. See [task](../tasks/R050c-worktree-inspection.md)
   and [evidence](../worklog/2026-10-08-R050c-worktree-inspection.md).
+- [x] R050d1: retain exact task candidates through closed host Git operations,
+  verify raw bytes and preserve original checkouts/indexes/branches. No Start
+  authority or independent verdict is implied. See [task/evidence](../tasks/R050d1-task-candidates.md).
 - [ ] Implement one Start authorization for goal/spec, task membership,
   team, model, policy, base revision, check commands and cumulative limits.
 - [ ] Give Summa Rudis a closed decision contract; host-validate/persist decisions
