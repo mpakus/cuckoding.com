@@ -1,7 +1,7 @@
 defmodule Cuckoding.BattlesTest do
   use Cuckoding.DataCase
   alias Cuckoding.{Battles, Codex, Foundation, ProjectChecks, Tabulae, Team, TeamAssignments}
-  alias Cuckoding.Battles.{Attempt, Battle}
+  alias Cuckoding.Battles.{Attempt, Battle, Snapshot}
 
   setup do
     %{board: board} = Cuckoding.PlanningFixtures.planning_fixture()
@@ -134,7 +134,15 @@ defmodule Cuckoding.BattlesTest do
               "thread_id" => Ecto.UUID.generate(),
               "turn_id" => Ecto.UUID.generate(),
               "report" => %{"summary" => "Public evidence", "outcome" => "completed"},
-              "tools" => []
+              "tools" => [
+                %{
+                  "call_id" => Ecto.UUID.generate(),
+                  "tool" => "read_file",
+                  "status" => "completed",
+                  "path" => "README.md",
+                  "sha256" => String.duplicate("a", 64)
+                }
+              ]
             }
           }
       end
@@ -265,19 +273,54 @@ defmodule Cuckoding.BattlesTest do
     assert {:error, :scope_missing} = Battles.preview(Ecto.UUID.generate(), board.id)
   end
 
-  test "missing checks block Start and empty/foreign check receipts cannot pass", %{board: board} do
+  test "task criteria allow Start without extra commands and still require independent reviews",
+       %{board: board} do
     {:ok, _} = ProjectChecks.save(Ecto.UUID.generate(), board.arena_id, 1, [], true)
-    {:ok, preview} = Battles.preview(board.arena_id, board.id)
-    assert "checks_required" in preview.blockers
+    battle = start(board)
+    assert battle.snapshot["version"] == "arena-loop-v2"
+    battle = until_stage(battle, "final_secutor")
+    assert battle.state == "running"
+    {:ok, review} = Battles.claim_next(battle.id)
+    no_inspection = put_in(result(review), ["provider", "tools"], [])
 
-    assert {:error, {:not_ready, _}} =
-             Battles.start(
-               Ecto.UUID.generate(),
-               board.arena_id,
-               board.id,
-               preview.fingerprint,
-               true
-             )
+    assert {:error, :invalid_result} =
+             Battles.finish(review.id, review.claim_token, no_inspection)
+
+    assert {:ok, battle} = Battles.finish(review.id, review.claim_token, result(review))
+    {battle, _} = step(battle)
+    assert battle.state == "completed"
+    attempts = Battles.attempts(battle.id)
+    refute Enum.any?(attempts, &(&1.stage in ~w(checks final_checks)))
+    assert Enum.count(attempts, &(&1.stage == "secutor")) == 2
+    assert Enum.count(attempts, &(&1.stage == "final_secutor")) == 1
+    refute Enum.any?(attempts, &Map.has_key?(&1.result, "checks"))
+    event = Enum.find(Battles.evidence(battle.id), &(&1.kind == "battle.started"))
+    assert event.data["command_check_count"] == 0
+  end
+
+  test "legacy snapshots cannot use the new no-command review exemption", %{board: board} do
+    {:ok, preview} = Battles.preview(board.arena_id, board.id)
+    snapshot = Map.merge(preview.snapshot, %{"version" => "arena-loop-v1", "checks" => []})
+
+    battle =
+      Repo.insert!(%Battle{
+        id: Ecto.UUID.generate(),
+        arena_id: board.arena_id,
+        tabula_id: board.id,
+        snapshot: snapshot,
+        fingerprint: Snapshot.digest(snapshot),
+        state: "running",
+        stage: "final_secutor",
+        context: %{"head" => String.duplicate("a", 40)},
+        deadline_at: DateTime.add(DateTime.utc_now(), 600)
+      })
+
+    {:ok, attempt} = Battles.claim_next(battle.id)
+
+    assert {:error, :invalid_result} =
+             Battles.finish(attempt.id, attempt.claim_token, result(attempt))
+
+    assert Battles.get(battle.id).state == "running"
   end
 
   test "duplicate claims, foreign, late and reused provider sessions are refused", %{board: board} do

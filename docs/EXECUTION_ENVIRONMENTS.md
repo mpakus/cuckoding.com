@@ -2,7 +2,7 @@
 
 ## R050e sequential execution
 
-One supervised worker executes a durable stage at a time. Each task starts from the last independently reviewed battle head; failed review creates a new worktree and returns through Speculator. Checks use a separate exact-candidate clone. The initial `codex-check-single-process-v1` grant supports native commands in `/usr/bin` or `/bin` only, with no subprocess spawning; scripts and Mix/npm toolchains are refused. The Implementor connection must have verified Codex `0.162.0-alpha.17.2`. Final checks and independent review gate completion. Restart never replays unfinished effects; full reconciliation and sleep/resume remain open.
+One supervised worker executes a durable stage at a time. Each task starts from the last independently reviewed battle head; failed review creates a new worktree and returns through Speculator. Checks use a separate exact-candidate clone. The initial `codex-check-single-process-v1` grant supports native commands in `/usr/bin` or `/bin` only, with no subprocess spawning; scripts and Mix/npm toolchains are refused. The Implementor connection must have verified Codex `0.162.0-alpha.17.2`. Configured command checks and independent review gate completion. R050f v2 battles without extra commands skip command stages and rely on task/final criteria review; missing required runtime evidence blocks completion, never counts as a passing test. Restart never replays unfinished effects; full reconciliation and sleep/resume remain open.
 
 R040c's implemented Git setup uses a fixed native host helper, outside any agent
 session: inspect metadata or initialize a missing standalone repository after

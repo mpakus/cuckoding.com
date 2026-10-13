@@ -4,6 +4,13 @@
 
 Start grants bounded local completion for frozen Codex roles/tasks/checks. Provider sessions retain host-only file tools and cannot run commands. The check runner uses a fresh empty Codex profile and private candidate clone, network denial, protected policy paths, bounded output hashing and frozen argv/executable identities. Its initial single-process grant forbids forks and tracks the inner session leader by PID/start identity; cleanup uncertainty is retained instead of claiming Stop. Toolchain/subprocess checks are unsupported. Native battle branch creation and candidate integration are exclusive, audited and compare-and-swap; no source checkout change or remote operation is authorized.
 
+R050f removes mandatory command configuration, not verification or execution
+boundaries. Only a new `arena-loop-v2` empty command scope skips command stages;
+independent reviews remain mandatory. Generated verification prose cannot launch
+commands. No host command evidence is invented, and Secutor must block missing
+required runtime/test evidence. Existing declared commands and v1 snapshots retain
+their exact gates. No provider, filesystem or process grant is broadened.
+
 R020m's optional `check_codex_isolation` uses fixed commands and a fresh empty
 profile to test two disposable folders with the observed Codex
 `0.162.0-alpha.17.2`. It touches no Arena or signed-in profile and uses no model.

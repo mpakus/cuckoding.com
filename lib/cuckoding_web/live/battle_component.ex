@@ -101,7 +101,7 @@ defmodule CuckodingWeb.BattleComponent do
     do: "This workflow is not supported by the sequential Arena loop."
 
   defp message("checks_required"),
-    do: "Declare the project's verification checks in Advanced → Project checks."
+    do: "This older battle requires its original command checks. Inspect its frozen scope."
 
   defp message("check_timeout_limit"),
     do:
@@ -111,9 +111,10 @@ defmodule CuckodingWeb.BattleComponent do
     do:
       "A declared check cannot run with this grant. Use a native command from /usr/bin or /bin that needs no subprocesses; Mix/npm toolchains are not supported yet. Update checks in Advanced, then stop this attempt and start a new battle."
 
-  defp message("check_runtime_version_required"),
-    do:
-      "The Implementor needs a verified Codex version that supports restricted project checks. Recheck that connection in Agents."
+  defp message(reason)
+       when reason in ~w(check_runtime_version_required task_runtime_version_required),
+       do:
+         "The Implementor needs the verified Codex version for isolated task execution. Recheck that connection in Agents."
 
   defp message("agent_unassigned"),
     do: "Assign an agent and model to all four roles in Team, then adopt that team in Advanced."
@@ -342,7 +343,7 @@ defmodule CuckodingWeb.BattleComponent do
           Start creates a new battle from the current committed source. Prior battle edits remain on its result branch.
         </p>
         <p id="arena-start-help" class="fine-print">
-          Start authorizes the saved tasks below, automatic worktree preparation, agent file work, declared checks and independent Secutor review on an app-owned local branch.
+          Start runs the saved tasks with your assigned agents. Secutor reviews each task's acceptance criteria and checks on an app-owned local branch.
           The original checkout is preserved. No push, user-branch merge or release is included.
         </p>
         <div>
@@ -354,6 +355,11 @@ defmodule CuckodingWeb.BattleComponent do
             ]}s total ({div(@preview.limits["wall_seconds"], 3600)} hours).
           </p>
           <p id="battle-check-scope" class="fine-print">
+            Verification belongs in each task. Secutor inspects the result and evidence before completion;
+            missing required test evidence pauses the battle for attention.
+          </p>
+          <p :if={@preview.checks != []} id="battle-command-scope" class="fine-print">
+            Start also authorizes the {length(@preview.checks)} extra commands saved in Advanced.
             Declared checks run as single-process commands only; subprocess spawning is unavailable.
             Mix/npm pipelines are not yet supported. Final checks and independent final Secutor review
             must pass before completion; a failed final review needs attention.
@@ -376,7 +382,9 @@ defmodule CuckodingWeb.BattleComponent do
                 {role["name"]} · {role["kind"]} · {role["model"] || "Model needed"}
               </li>
             </ul>
-            <p :if={@preview.checks == []}>No checks declared.</p>
+            <p :if={@preview.checks == []}>
+              Checks come from the tasks. No extra command checks are configured; no command tests will run.
+            </p>
             <article :for={check <- @preview.checks} class="team-role">
               <h4>{check["name"]}</h4>
               <pre class="draft-copy">{Jason.encode!([check["executable"] | check["arguments"]])}</pre>
@@ -391,7 +399,11 @@ defmodule CuckodingWeb.BattleComponent do
           <div :if={@preview.blockers != []} class="team-actions">
             <.link navigate={~p"/agents"} class="text-link">Agents ↗</.link>
             <.link navigate={~p"/team"} class="text-link">Team ↗</.link>
-            <.link navigate={~p"/arenas/#{@board.arena_id}/checks"} class="text-link">Project checks ↗</.link>
+            <.link
+              :if={"check_timeout_limit" in @preview.blockers}
+              navigate={~p"/arenas/#{@board.arena_id}/checks"}
+              class="text-link"
+            >Extra command checks ↗</.link>
           </div>
           <.form
             for={%{}}

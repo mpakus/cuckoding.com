@@ -10,6 +10,8 @@ R040h adds proposed prerequisites and per-task selected-snapshot citations.
 R040i adds accepted private Markdown specifications with revision and hash checks.
 R040j adds revisioned, confirmed Arena check declarations. R050e freezes them in
 Start and supports bounded native single-process checks; toolchain pipelines remain unsupported.
+R050f makes those extra commands optional. Generated task criteria include verification
+instructions; independent task/final Secutor reviews remain required without command setup.
 R050a adds a read-only Battle preview for saved preparation and missing setup.
 R050b adds consented isolated Git worktree preparation; R050c adds retained worktree inspection.
 R020h fixes real model-check notices and simplifies saved agent setup. R020i adds
@@ -404,12 +406,16 @@ provider responses remain separate acceptance work. See the
 
 ## Project checks (R040j)
 
-Open an Arena or Tabula and follow **Project checks**. **Add check** provides name,
-executable basename (for example `mix`), one nonempty argument per line (for
-example `test`), relative worktree directory (`.`) and timeout (default 300 seconds,
-range 1–1,800). Use up to eight named checks. Enter no RTK prefix or credentials.
-Quotes and spaces are literal, not shell syntax; leave the whole argument field
-blank for no arguments. Existence and runtime permission are not checked yet.
+The normal flow uses acceptance criteria and verification instructions in generated
+tasks; separate command configuration is not required. For extra commands open
+**Advanced → Extra command checks (optional)**. **Add check** provides a name,
+executable basename (for example `test`), one nonempty literal argument per line
+(for example `-f` then `README.md`), relative worktree directory (`.`) and timeout
+(default 300 seconds, declaration range 1–1,800). Start accepts at most 300 seconds
+per command and 600 seconds combined. Use up to eight named checks. Enter no RTK
+prefix or credentials. Quotes and spaces are literal, not shell syntax; leave the
+whole argument field blank for no arguments. Admission verifies executable identity
+and the native single-process grant; Mix/npm toolchains are not supported.
 
 **Review changes** shows exact normalized arrays/directories/timeouts. Confirm
 before **Save checks**, including staged removals. This records configuration only;

@@ -21,7 +21,8 @@ R050c adds read-only inspection of retained ownership, index and raw file conten
 R040l adds bounded folder sources; R040m creates validated task graphs automatically
 for newly consented planning requests, retaining legacy imports and edited cards.
 R050e adds bounded sequential Codex dependency scheduling, native single-process
-checks and Start authority. General toolchain checks and real-account battle
+checks and Start authority. R050f puts verification instructions inside generated
+task criteria and removes mandatory separate command-check setup. General toolchain checks and real-account battle
 acceptance remain open.
 R030b lets existing Arenas/Tabulae explicitly adopt a newer saved default team
 without rewriting earlier requests or drafts. Per-scope role editing remains open.
@@ -68,6 +69,11 @@ The numbered story below is capability coverage, not eight mandatory screens.
 - [x] **R050e — Work and review loop (initial Codex scope):** Summa Rudis dispatch, Speculator refinement,
   Implementor candidate, independent Secutor verdict, automatic persisted card
   moves and bounded correction through Speculator; reviewed local integration.
+- [x] **R050f — Task-owned verification:** generated tasks include expected outcomes
+  and verification instructions. New battles need no separate Arena command list;
+  independent task/final review remains mandatory. Optional configured commands
+  still gate completion; no command execution or pass is inferred from an empty list.
+  [Task](../tasks/R050f-task-verification.md) · [evidence](../worklog/2026-10-13-R050f-task-verification.md).
 - [ ] **R060 / R070 / R080:** complete recovery, parallel workers, both dashboards
   and timed ten-minute acceptance. Usable Arena UI ships with each earlier slice.
 

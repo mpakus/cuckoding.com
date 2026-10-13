@@ -26,7 +26,7 @@ defmodule CuckodingWeb.ProjectChecksLiveTest do
   } do
     {arena, signed, path, view, fields} = editor(conn)
     {:ok, arena_view, _} = live(signed, "/arenas/#{arena.id}")
-    assert has_element?(arena_view, "a[href='#{path}']", "Project checks")
+    assert has_element?(arena_view, "a[href='#{path}']", "Extra command checks (optional)")
     view |> form("#checks-form", checks: %{"0" => fields}) |> render_submit()
     assert has_element?(view, "#checks-preview pre", ~s(["mix","test","--only","a b"]))
     view |> form("#checks-confirm") |> render_submit()

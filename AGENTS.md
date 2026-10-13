@@ -121,7 +121,7 @@ exclusive intent/index/publication/receipt artifacts and UUID-derived app refs.
 Never replay uncertain capture. A dated candidate verification is neither a grant
 nor independent review; future integration must bind exact criteria/check evidence.
 
-## R050e execution boundary
+## R050e / R050f execution boundary
 
 The initial sequential Codex Arena loop is implemented in `Battles`,
 `BattleRunner`, `BattleExecutor` and native battle Git/check helpers. Start freezes
@@ -134,6 +134,19 @@ only `refs/heads/ccoding/battles/<UUID>`. Preserve the source checkout and every
 uncertain effect. Failed checks return through Secutor/Speculator within the same
 review budget; final rejection needs attention. Stop waits for verified cleanup;
 startup interrupts unfinished claims without replay. Full recovery remains R060.
+
+R050f makes task criteria the ordinary verification contract. Speculator includes
+expected outcomes and verification instructions in each generated task's existing
+`criteria` field. No mandatory separate Arena command-check configuration. New
+`arena-loop-v2` snapshots with an empty command scope skip command stages, retain
+independent task/final Secutor reviews and never emit passing command receipts. A completed
+review also requires a successful host file-inspection tool receipt; a report
+with no inspection cannot pass.
+Only that exact version/empty scope has this exemption; historical snapshots and
+configured commands retain their gates. Missing required runtime evidence must
+block review, not be inferred from code. Generated task text is never executable
+policy. Keep optional command declarations in Advanced; retain existing revisions,
+consent, limits and failures. Never rewrite saved cards to invent verification.
 
 The initial check grant `codex-check-single-process-v1` is deliberately limited:
 frozen native system executable/argv, empty profile, network denied, private

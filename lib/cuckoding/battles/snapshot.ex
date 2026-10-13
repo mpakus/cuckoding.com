@@ -48,20 +48,20 @@ defmodule Cuckoding.Battles.Snapshot do
         columns(board) != @columns or Enum.map(roles, & &1["id"]) != @roles,
         "unsupported_columns"
       )
-      |> block(checks.definition["checks"] == [], "checks_required")
       |> block(check_limits?(checks.definition["checks"]), "check_timeout_limit")
       |> block(
         Enum.any?(
           roles,
-          &(&1["id"] == "implementor" and &1["version"] != Codex.isolation_version())
+          &(&1["id"] == "implementor" and &1["kind"] == "codex" and
+              &1["version"] != Codex.isolation_version())
         ),
-        "check_runtime_version_required"
+        "task_runtime_version_required"
       )
       |> Kernel.++(roles |> Enum.map(& &1["status"]) |> Enum.reject(&(&1 == "ready")))
       |> Enum.uniq()
 
     snapshot = %{
-      "version" => "arena-loop-v1",
+      "version" => "arena-loop-v2",
       "arena_id" => arena.id,
       "tabula_id" => board.id,
       "source" =>
@@ -87,6 +87,11 @@ defmodule Cuckoding.Battles.Snapshot do
 
   def digest(value), do: ProjectChecks.digest(value)
 
+  # Only new, explicitly empty command scopes may omit host command stages.
+  # Historical snapshots and any configured commands retain their original gates.
+  def task_review_only?(%{"version" => "arena-loop-v2", "checks" => []}), do: true
+  def task_review_only?(_), do: false
+
   defp block(reasons, true, reason), do: reasons ++ [reason]
   defp block(reasons, false, _), do: reasons
   defp columns(board), do: Enum.map(board.definition["columns"] || [], &{&1["key"], &1["role"]})
@@ -109,6 +114,7 @@ defmodule Cuckoding.Battles.Snapshot do
       "candidate_sha" => String.duplicate("a", 40),
       "host_checks" => Enum.map(checks, &maximum_check/1),
       "declared_checks" => checks,
+      "command_check_scope" => "not_configured",
       "review_round" => 3,
       "local_result_reference" => "refs/heads/ccoding/battles/" <> String.duplicate("a", 36)
     }

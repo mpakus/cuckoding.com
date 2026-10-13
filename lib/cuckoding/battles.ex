@@ -149,7 +149,12 @@ defmodule Cuckoding.Battles do
       })
     end
 
-    record(battle, "started", %{"task_count" => length(snapshot["tasks"])})
+    record(battle, "started", %{
+      "task_count" => length(snapshot["tasks"]),
+      "snapshot_version" => snapshot["version"],
+      "command_check_count" => length(snapshot["checks"])
+    })
+
     battle
   end
 
@@ -371,7 +376,7 @@ defmodule Cuckoding.Battles do
     update(battle,
       context: context,
       current_task_id: if(next, do: next.task_id),
-      stage: if(next, do: "prepare_worktree", else: "final_checks")
+      stage: if(next, do: "prepare_worktree", else: review_stage(battle, "final_checks"))
     )
   end
 
@@ -387,6 +392,8 @@ defmodule Cuckoding.Battles do
   end
 
   defp advance(battle, attempt, result) do
+    next_stage = review_stage(battle, Map.fetch!(@next, attempt.stage))
+
     if task = current_task(battle) do
       context = Map.merge(task.context, result_context(result))
 
@@ -396,7 +403,7 @@ defmodule Cuckoding.Battles do
           else: context
         )
 
-      state = projection(@next[attempt.stage])
+      state = projection(next_stage)
       update(task, state: state, context: context)
     end
 
@@ -406,8 +413,14 @@ defmodule Cuckoding.Battles do
         else: battle.context
       )
 
-    update(battle, stage: Map.fetch!(@next, attempt.stage), context: context)
+    update(battle, stage: next_stage, context: context)
   end
+
+  defp review_stage(battle, stage) when stage in ~w(checks final_checks) do
+    if Snapshot.task_review_only?(battle.snapshot), do: Map.fetch!(@next, stage), else: stage
+  end
+
+  defp review_stage(_, stage), do: stage
 
   defp review_return(battle, %Attempt{stage: "secutor"}, result) do
     task = current_task(battle)
@@ -495,14 +508,22 @@ defmodule Cuckoding.Battles do
 
   defp review_candidate?(_, _), do: true
 
-  defp review_verdict?(attempt, %{"status" => "completed"}) do
+  defp review_verdict?(attempt, %{"status" => "completed"} = result) do
     context =
       if(attempt.task_id, do: attempt.request["task_context"], else: attempt.request["context"])
 
-    checks?(attempt, context["checks"])
+    if Snapshot.task_review_only?(attempt.request["snapshot"]),
+      do: is_nil(context["checks"]) and inspected?(result["provider"]["tools"]),
+      else: checks?(attempt, context["checks"])
   end
 
   defp review_verdict?(_, _), do: true
+
+  defp inspected?(tools) when is_list(tools),
+    do:
+      Enum.any?(tools, &(&1["tool"] in ~w(list_files read_file) and &1["status"] == "completed"))
+
+  defp inspected?(_), do: false
 
   defp provider_identity?(attempt, provider) do
     role = attempt.request["role"]
@@ -559,7 +580,8 @@ defmodule Cuckoding.Battles do
   defp resolved_checks?(attempt, resolved) when is_list(resolved) do
     declared = attempt.request["snapshot"]["checks"]
 
-    length(declared) == length(resolved) and Enum.all?(resolved, &is_map/1) and
+    (declared != [] or Snapshot.task_review_only?(attempt.request["snapshot"])) and
+      length(declared) == length(resolved) and Enum.all?(resolved, &is_map/1) and
       Enum.map(
         resolved,
         &Map.take(&1, ~w(id name executable arguments directory timeout_seconds))

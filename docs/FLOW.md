@@ -45,7 +45,9 @@ not have to accept/import each one or produce a private Markdown artifact manual
 R040m implements this atomic card creation for newly consented planning requests.
 A new analysis adds its own graph and preserves existing cards; it does not merge
 similar tasks by inferred meaning. Legacy requests retain explicit imports.
-Cards are planning drafts, not accepted delivery or execution authorization.
+Each generated card includes expected outcomes and concrete verification
+instructions in its acceptance criteria. These are task requirements, not executable
+command policy. Cards are planning drafts, not accepted delivery or execution authorization.
 
 ## Start
 
@@ -117,7 +119,10 @@ Phoenix owns scheduling mechanics and leases. SQLite owns workflow state.
 Summa Rudis is a distinct saved role, not a hidden Speculator turn. Models never
 receive direct SQL or privileged host APIs. Project check definitions require
 explicit user-authored revisions and consent; proposals cannot activate policy.
-An empty check list never proves that checks passed.
+Extra command declarations are optional Advanced settings. New battles without
+them still require task and final Secutor review of the frozen task checks; no
+command stages run. An empty command list never proves tests passed. Missing
+required runtime evidence blocks completion. Configured commands remain required.
 
 ## States and controls
 

@@ -223,7 +223,7 @@ defmodule CuckodingWeb.PlanningComponent do
     >
       <summary>Create tasks · with Speculator</summary>
       <p>
-        Read the project sources or describe the work. Speculator creates editable tasks on this board.
+        Read the project sources or describe the work. Speculator creates editable tasks with acceptance criteria and verification instructions from your specs. Then press Start.
       </p>
       <p class="fine-print">
         Read docs/ first, then eligible text and source files. Up to 16 files, 16 KiB each and 64 KiB total; hidden, generated and known credential paths are excluded. No Git or agent runs during this local read. Review sources before sending private text.
@@ -422,7 +422,7 @@ defmodule CuckodingWeb.PlanningComponent do
           >
             <h4>{index + 1}. {task["title"]}</h4>
             <p class="draft-copy">{task["description"]}</p>
-            <p class="draft-copy">Acceptance criteria: {task["criteria"]}</p>
+            <p class="draft-copy">Acceptance criteria and checks: {task["criteria"]}</p>
             <p :if={Map.get(task, "depends_on", []) != []} class="fine-print">
               Prerequisites: {Enum.map_join(
                 task["depends_on"],

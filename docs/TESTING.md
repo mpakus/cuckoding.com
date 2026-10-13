@@ -1,5 +1,12 @@
 # Verification and acceptance
 
+R050f regressions additionally cover no-command Start, task/final review without
+fabricated command receipts, correction and missing-evidence blocking, a required
+inspection tool receipt, unchanged configured-command gates, legacy snapshot
+refusal, and preservation of generated criteria in automatic cards. Native planning
+fixtures assert verification instructions use the same no-tools scratch grant.
+See [R050f evidence](../worklog/2026-10-13-R050f-task-verification.md).
+
 ## R050e execution evidence
 
 Exercise `test/cuckoding/battles_test.exs`, `battle_executor_test.exs`, `battle_checks_test.exs`, `native_helper_test.exs` and `test/cuckoding_web/battle_live_test.exs`. Cover a two-task dependency chain, failed checks and forced review return, exact candidate/model/criteria binding, stale Start, frozen edit refusal, late results, cancellation uncertainty and restart without replay. Native battle tests verify branch chaining and original checkout preservation; check tests must separately prove the actual macOS sandbox and owned process cleanup without provider inference. Fixture success is not live provider acceptance. See the [R050e worklog](../worklog/2026-10-13-R050e-arena-loop.md) for actual commands/results and omissions.

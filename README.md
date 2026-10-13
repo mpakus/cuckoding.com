@@ -8,7 +8,8 @@ Set up your agents and roles once. For each **Arena** (project), the intended fl
 1. **Add folder.** Choose an empty folder or an existing project. Cuckoding uses
    your saved team and creates the default **Tabula** (board) automatically.
 2. **Create tasks.** Ask Speculator to analyze `docs/` and relevant project files,
-   optionally add a brief, and create the cards directly on that board. Edit if needed.
+   optionally add a brief, and create cards with acceptance criteria and verification
+   instructions directly on that board. No separate check setup is required. Edit if needed.
 3. **Start.** One button runs the team. **Summa Rudis** coordinates dispatch,
    retries and card movement. **Implementor** writes code; **Secutor** judges the
    result against the spec and checks. Review findings return to **Speculator**
@@ -53,10 +54,15 @@ excluded files and limits. Agents and Team keep their existing setup controls.
 Press **Create tasks** to save up to six validated cards in Specs automatically.
 Each keeps its prerequisites and source receipts; existing edits stay unchanged.
 Older requests retain their individual **Add to Specs** controls. **Start** freezes
-the default board, four Codex roles, model bindings, declared checks and limits:
+the default board, task criteria/checks, four Codex roles, model bindings and limits:
 20 tasks, three review returns per task, 200 role turns and two hours. A committed
-Git source and verified Codex `0.162.0-alpha.17.2` check runtime are required.
-Checks currently support native system commands that run in one process;
+Git source and verified Codex `0.162.0-alpha.17.2` task runtime are required.
+Secutor reviews the checks described in every task and the combined result.
+Missing required runtime/test evidence blocks completion; code inspection never
+proves tests ran. **Advanced → Extra command checks (optional)** adds explicit
+commands when needed; once configured, all must pass. Without them, no command
+tests run and no passing command receipt is invented. Extra commands currently
+support native system commands that run in one process;
 Mix/npm pipelines and other subprocess toolchains are not supported. Stop waits
 for cleanup. Restart or uncertain effects require inspection; no automatic replay.
 New Start uses the current original committed source and retains previous result

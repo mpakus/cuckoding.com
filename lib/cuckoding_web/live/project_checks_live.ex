@@ -220,10 +220,12 @@ defmodule CuckodingWeb.ProjectChecksLive do
     <Layouts.workspace active={:arenas} title={@arena.name} flash={@flash}>
       <section class="panel" aria-labelledby="checks-title">
         <p class="eyebrow">PROJECT CHECKS · REVISION {@base.revision}</p>
-        <h2 id="checks-title">Define how to verify the work.</h2>
-        <p>Save named checks once for this Arena. Future battles will use an exact saved revision.</p>
+        <h2 id="checks-title">Extra command checks · optional.</h2>
+        <p>
+          Tasks already contain acceptance criteria and verification instructions. Add commands here only when you want additional automated checks. Saved commands become required for future battles.
+        </p>
         <p class="fine-print">
-          Saving runs nothing and grants no access. Commands may run project code; execution, worktree permissions and executable verification are not available yet. Keep credentials out of arguments.
+          Saving runs nothing. Start separately authorizes the exact saved commands in an isolated verification checkout. Currently only native commands from /usr/bin or /bin that need no subprocesses are supported; Mix/npm toolchains are not. Keep credentials out of arguments.
         </p>
         <.link navigate={~p"/arenas/#{@arena.id}"} class="text-link">Back to Arena ↗</.link>
         <p :if={@message} role="status">{@message}</p>
@@ -235,7 +237,7 @@ defmodule CuckodingWeb.ProjectChecksLive do
           <input type="hidden" name="arena_id" value={@arena.id} />
           <input type="hidden" name="base_revision" value={@base.revision} />
           <p :if={@checks == []} class="subtle">
-            No checks in this draft. Add the command you normally use to test this project.
+            No extra commands. You can Start with the checks described in your tasks.
           </p>
           <details
             :for={{check, index} <- Enum.with_index(@checks)}
@@ -260,7 +262,7 @@ defmodule CuckodingWeb.ProjectChecksLive do
                 id={"check-executable-#{check["id"]}"}
                 name={"checks[#{index}][executable]"}
                 value={check["executable"]}
-                placeholder="mix"
+                placeholder="test"
                 maxlength="80"
                 required
               />
@@ -270,7 +272,7 @@ defmodule CuckodingWeb.ProjectChecksLive do
                 name={"checks[#{index}][argument_lines]"}
                 rows="3"
                 maxlength="4112"
-                placeholder="test"
+                placeholder="-f&#10;README.md"
               >{check["argument_lines"]}</textarea>
               <p class="fine-print">
                 Each line is one nonempty literal argument. Spaces and quotes are preserved; no shell splitting or expansion. Leave the field blank for no arguments. Enter the underlying command without RTK.

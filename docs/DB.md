@@ -4,6 +4,12 @@
 
 The tenth forward-only migration adds `battles`, `battle_tasks` and `battle_attempts`. Snapshots and requests are immutable; terminal attempt receipts cannot be rewritten/deleted. One active battle per Arena includes needs-attention state, and one running stage claim per battle is enforced by partial unique indexes. Draft history stays separate from execution projections. Start, claims, outcomes and events commit atomically; broadcasts follow commit. The native retained receipt/journal owns evidence of uncertain external effects; SQLite never promises exactly-once execution.
 
+R050f requires no migration. New battle snapshots use `arena-loop-v2`; task
+verification stays in immutable `criteria` and its existing SHA-256. Only v2 with
+`checks: []` skips command stages; no command-success receipt is stored. The Start
+event records snapshot version and command count. Historical v1 snapshots retain
+their command gates and all saved task/check revisions remain unchanged.
+
 R020m requires no migration. `check_codex_isolation` commands freeze connection ID,
 executable identity, observed version/command and contract; a 35-second exclusive
 claim owns the bounded native diagnostic. Successful completion atomically saves

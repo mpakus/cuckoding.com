@@ -31,12 +31,32 @@ This decision introduces battle and attempt records plus a supervised executor;
 existing setup/planning commands and read-only Battle preview keep their meaning.
 No push, PR, user-branch merge or deployment is part of Start authority.
 
+## Task verification (R050f)
+
+Create tasks asks Speculator for expected outcomes and concrete verification
+instructions from the supplied specs, stored in the existing revisioned `criteria`
+field. Start freezes them with the task graph. No separate command setup is needed.
+Secutor reviews every frozen criterion on the exact candidate, then independently
+reviews all criteria on the combined result. Required runtime/test evidence that
+cannot be obtained under the actual grant blocks completion; inspection is not a
+test run. Existing cards and their criteria are never silently rewritten.
+
+New `arena-loop-v2` snapshots with no configured extra commands go from capture
+directly to Secutor and from final integration directly to final Secutor. No
+command resolver/runner is called and no passing command receipt is created. A completed
+review also requires a successful host file-inspection tool receipt; a report
+with no inspection cannot pass.
+The frozen scope and Start event retain version and command count. Historical
+`arena-loop-v1` snapshots do not gain this exemption. Any explicitly configured
+commands remain mandatory, candidate-bound gates with the existing correction
+loop. Commands remain optional Advanced settings, not generated executable policy.
+
 ## Initial supported scope
 
 Default columns and the four required roles, all bound to named Codex connections.
 A fresh catalog and exact selected executable/model remain required at each role
 turn. The Implementor connection supplies the verified `0.162.0-alpha.17.2`
-check sandbox. No fallback or implicit account/model substitution occurs.
+task runtime and optional check sandbox. No fallback or implicit account/model substitution occurs.
 At most 20 tasks, three review returns per task, 200 role turns and two wall-clock
 hours; each stage expires after at most 15 minutes. Prompt preflight reserves
 worst-case public summaries and check metadata without truncating frozen criteria.

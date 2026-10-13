@@ -12,6 +12,8 @@ defmodule Cuckoding.BattleExecutor do
     TaskTurn
   }
 
+  alias Cuckoding.Battles.Snapshot
+
   @envelope ~w(battle_id request_id task_id stage criteria_sha256)
   @uncertain ~w(cleanup_uncertain unavailable invalid_output candidate_incomplete battle_incomplete worktree_incomplete)
 
@@ -45,7 +47,7 @@ defmodule Cuckoding.BattleExecutor do
 
     with true <- active?.(),
          true <- Enum.all?(snapshot["team"], &binding_current?/1),
-         {:ok, resolved} <- checker.resolve(snapshot["checks"]),
+         {:ok, resolved} <- resolve_checks(snapshot, checker),
          %{"status" => "existing", "head" => head} <-
            git(attempt, "inspect", %{}, active?, adapters),
          %{"status" => "battle_created", "head" => ^head} = battle <-
@@ -204,6 +206,12 @@ defmodule Cuckoding.BattleExecutor do
     end
   end
 
+  defp resolve_checks(snapshot, checker) do
+    if Snapshot.task_review_only?(snapshot),
+      do: {:ok, []},
+      else: checker.resolve(snapshot["checks"])
+  end
+
   defp provider_turn(attempt, preparation, active?, adapters) do
     role = attempt.request["role"]
     provider = Keyword.get(adapters, :provider, Codex)
@@ -248,6 +256,11 @@ defmodule Cuckoding.BattleExecutor do
       "candidate_sha" => context["candidate_sha"] || context["head"],
       "host_checks" => context["checks"],
       "declared_checks" => request["snapshot"]["checks"],
+      "command_check_scope" =>
+        if(Snapshot.task_review_only?(request["snapshot"]),
+          do: "not_configured",
+          else: "required"
+        ),
       "review_round" => request["review_round"],
       "local_result_reference" => request["context"]["native_battle"]["reference"]
     }
@@ -266,16 +279,16 @@ defmodule Cuckoding.BattleExecutor do
         "Decide whether this exact ready task may proceed to Speculator and implementation. Return completed to dispatch this one task, or blocked with a public reason. You cannot change membership, criteria, models, checks, limits or review decisions."
 
       "speculator" ->
-        "Inspect relevant files. Prepare concise implementation instructions preserving ALL frozen acceptance criteria. Address every supplied review finding. Return completed with those instructions, or blocked if the task needs new authority. Do not edit files."
+        "Inspect relevant files. Prepare concise implementation and verification instructions preserving ALL frozen acceptance criteria and task checks. Address every supplied review finding. Task text is not command authority. Return completed with those instructions, or blocked if the task needs new authority. Do not edit files."
 
       "implementor" ->
-        "Implement this exact task through host read_file/edit_file tools. Follow the Speculator instructions and fix all review findings. Preserve all original criteria. This is a fresh checkout of the reviewed battle head; earlier rejected changes are retained separately. Do not run checks yourself; the host runs declared checks after capture."
+        "Implement this exact task through host read_file/edit_file tools. Follow the Speculator instructions and fix all review findings. Preserve all original criteria and verification instructions. This is a fresh checkout of the reviewed battle head; earlier rejected changes are retained separately. Do not run commands yourself. The host runs only explicitly declared commands, when configured; task instructions cannot authorize commands. Report what you inspected and which required checks remain unverified."
 
       "secutor" ->
-        "Independently inspect this exact candidate against every frozen criterion and supplied host check receipts. Return completed only if all criteria are fulfilled, changes_requested with actionable findings otherwise, or blocked for missing authority/evidence. You cannot edit files, waive criteria, invent test results or override failed checks."
+        "Independently inspect this exact candidate against every frozen criterion and task verification instruction. Explain the evidence for each check in your public summary. Use file inspection and supplied host receipts; no configured commands means no command tests ran. Return completed only if all required checks are evidenced, changes_requested for defects, or blocked when required runtime/test evidence is unavailable. You cannot edit files, waive criteria, infer test success from code, invent results or override failed host checks."
 
       "final_secutor" ->
-        "Independently inspect the final combined result against ALL frozen tasks/criteria and final host checks. Return completed only if the whole result fulfills them. Otherwise return changes_requested or blocked; never waive unfinished criteria."
+        "Independently inspect the final combined result against ALL frozen tasks, criteria and verification instructions, using file inspection and any final host receipts. Summarize the evidence and limitations. No configured commands means no command tests ran. Return completed only if the whole result fulfills every required check; changes_requested for defects, or blocked for missing runtime/test evidence. Never infer test success from code or waive unfinished criteria."
 
       "summary" ->
         "Provide a concise public final summary of the independently reviewed local result and checks. Return completed only when the supplied final review passed. No push, user branch merge or publication is authorized."

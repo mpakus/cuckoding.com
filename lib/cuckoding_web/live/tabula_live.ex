@@ -713,7 +713,7 @@ defmodule CuckodingWeb.TabulaLive do
           phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
         >
           <summary>Advanced · team, repository and boards</summary>
-          <.link navigate={~p"/arenas/#{@arena.id}/checks"} class="text-link">Project checks ↗</.link>
+          <.link navigate={~p"/arenas/#{@arena.id}/checks"} class="text-link">Extra command checks (optional) ↗</.link>
           <.link
             :if={@board}
             navigate={~p"/arenas/#{@arena.id}/tabulae/#{@board.id}/battle"}
@@ -1078,7 +1078,7 @@ defmodule CuckodingWeb.TabulaLive do
               />
               <label for="draft-description">Description</label>
               <textarea id="draft-description" name="description" rows="5" maxlength="8000">{@content["description"]}</textarea>
-              <label for="draft-criteria">Acceptance criteria</label>
+              <label for="draft-criteria">Acceptance criteria and checks</label>
               <textarea id="draft-criteria" name="criteria" rows="4" maxlength="4000">{@content["criteria"]}</textarea>
               <label for="draft-column">Column</label>
               <select id="draft-column" name="column">

@@ -68,7 +68,18 @@ defmodule Cuckoding.PlanningTest do
   } do
     {:ok, command} = request(board)
     {:ok, claim} = Foundation.claim()
-    result = Map.put(planning_receipt(command.id), "reasoning", "hidden-canary")
+
+    criteria =
+      "Expected: document the feature. Check: inspect README.md for the documented behavior."
+
+    receipt =
+      put_in(
+        planning_receipt(command.id),
+        ["proposal", "tasks", Access.at(0), "criteria"],
+        criteria
+      )
+
+    result = Map.put(receipt, "reasoning", "hidden-canary")
     {:ok, saved} = Foundation.finish(claim, result)
     assert saved.state == "completed"
     assert Planning.proposal(hd(Planning.history(board.id))) == result["proposal"]
@@ -93,6 +104,8 @@ defmodule Cuckoding.PlanningTest do
                0
              )
 
+    assert revision.content["criteria"] == criteria
+    assert hd(Tabulae.tasks(board.id)).criteria == criteria
     assert revision.content["column"] == "specs"
     assert revision.content["depends_on"] == []
     assert hd(Tabulae.tasks(board.id)).depends_on == []

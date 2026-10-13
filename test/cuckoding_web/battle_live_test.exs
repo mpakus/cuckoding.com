@@ -110,8 +110,8 @@ defmodule CuckodingWeb.BattleLiveTest do
     assert has_element?(view, "#battle-start-details", "test-model")
     assert has_element?(view, "#battle-start-details", "git")
     assert has_element?(view, "#arena-start-help", "original checkout")
-    assert has_element?(view, "#battle-check-scope", "single-process commands only")
-    assert has_element?(view, "#battle-check-scope", "Mix/npm pipelines are not yet supported")
+    assert has_element?(view, "#battle-command-scope", "single-process commands only")
+    assert has_element?(view, "#battle-command-scope", "Mix/npm pipelines are not yet supported")
     view |> form("#battle-start-form") |> render_submit()
     battle = Battles.latest(arena.id, board.id)
     assert battle.state == "running"
@@ -123,6 +123,20 @@ defmodule CuckodingWeb.BattleLiveTest do
     {:ok, again, _} = live(signed, path)
     assert has_element?(again, "#battle-inspect", battle.id)
     assert Battles.latest(arena.id, board.id).id == battle.id
+  end
+
+  test "Start needs task criteria but no separate project-check setup", ctx do
+    {:ok, _} = ProjectChecks.save(Ecto.UUID.generate(), ctx.arena.id, 1, [], true)
+    {:ok, view, _} = ctx.conn |> sign_in() |> live(ctx.path)
+    assert has_element?(view, "#arena-start[type=submit]:not([disabled])", "Start")
+    assert has_element?(view, "#battle-check-scope", "Verification belongs in each task")
+    refute has_element?(view, "#battle-command-scope")
+    refute has_element?(view, "#battle-blockers")
+    assert has_element?(view, "#battle-start-details", "no command tests will run")
+    view |> form("#battle-start-form") |> render_submit()
+    battle = Battles.latest(ctx.arena.id, ctx.board.id)
+    assert battle.snapshot["checks"] == []
+    assert hd(battle.snapshot["tasks"])["criteria"] == ctx.attrs["criteria"]
   end
 
   test "stale and recovered Start forms cannot reuse old authorization", ctx do

@@ -91,6 +91,12 @@ The native inspection validates ownership/linked metadata, then reads bounded
 index entries and raw blobs/files. No process, schema or provider grant is added;
 results remain separate from source Git observations and Battle preview.
 
+R050f reuses task `criteria` for expected outcomes and verification instructions.
+`Battles.Snapshot` creates `arena-loop-v2`; only its empty command scope bypasses
+command resolution/stages. Task and final Secutor review still gate completion.
+`BattleExecutor` tells every role what evidence exists; missing runtime evidence
+blocks review. Old snapshots and configured command gates are unchanged.
+
 R050e adds immutable battle snapshots and stage requests, terminal attempt receipts,
 card projections and events in the tenth migration. A separate Task.Supervisor
 keeps battle work off the setup dispatcher. Recovery marks unfinished attempts

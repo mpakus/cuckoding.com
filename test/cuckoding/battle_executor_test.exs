@@ -97,8 +97,10 @@ defmodule Cuckoding.BattleExecutorTest do
       })
     end
 
-    def resolve(checks),
-      do: {:ok, Enum.map(checks, &Map.merge(&1, %{"identity" => %{}, "rtk_identity" => %{}}))}
+    def resolve(checks) do
+      assert checks != [], "Empty command scopes must never reach native command resolution"
+      {:ok, Enum.map(checks, &Map.merge(&1, %{"identity" => %{}, "rtk_identity" => %{}}))}
+    end
 
     def run(attempt, workspace, checks, _identity, active?) do
       assert active?.()
@@ -152,6 +154,21 @@ defmodule Cuckoding.BattleExecutorTest do
           })
         )
 
+      tools =
+        if request["access"] == "read" do
+          [
+            %{
+              "tool" => "read_file",
+              "call_id" => Ecto.UUID.generate(),
+              "status" => "completed",
+              "path" => "feature.txt",
+              "sha256" => String.duplicate("d", 64)
+            }
+          ]
+        else
+          tools
+        end
+
       %{
         "status" => "task_finished",
         "request_id" => request["request_id"],
@@ -170,6 +187,12 @@ defmodule Cuckoding.BattleExecutorTest do
 
     defp outcome(prompt) do
       cond do
+        Process.get(:block_stage) == prompt["stage"] ->
+          "blocked"
+
+        first_review_rejected?(prompt) ->
+          "changes_requested"
+
         Process.get(:invalid_outcome_stage) == prompt["stage"] ->
           "changes_requested"
 
@@ -181,6 +204,11 @@ defmodule Cuckoding.BattleExecutorTest do
           "completed"
       end
     end
+
+    defp first_review_rejected?(%{"stage" => "secutor", "review_round" => 0}),
+      do: Process.get(:reject_first_review, false)
+
+    defp first_review_rejected?(_), do: false
 
     defp summary("implementor", _), do: "Implemented the frozen criteria."
 
@@ -304,6 +332,48 @@ defmodule Cuckoding.BattleExecutorTest do
 
   defp until_stage(battle, stage) do
     if battle.stage == stage, do: battle, else: until_stage(elem(step(battle), 0), stage)
+  end
+
+  test "task checks need no command configuration, survive corrections and receive a final review",
+       ctx do
+    {:ok, _} = ProjectChecks.save(Ecto.UUID.generate(), ctx.board.arena_id, 1, [], true)
+    Process.put(:reject_first_review, true)
+    battle = ctx.board |> start() |> drive()
+    assert battle.state == "completed"
+    assert Process.get(:check_calls, []) == []
+    attempts = Battles.attempts(battle.id)
+    refute Enum.any?(attempts, &(&1.stage in ~w(checks final_checks)))
+    assert Enum.all?(Battles.tasks(battle.id), &(&1.review_round == 1))
+    providers = Process.get(:provider_calls)
+
+    {correction, _, _} =
+      Enum.find(providers, fn {p, _, _} ->
+        p["stage"] == "speculator" and p["review_round"] == 1
+      end)
+
+    assert correction["task"]["criteria"] == ctx.first.criteria
+    assert correction["review_findings"] != nil
+    {review, request, _} = Enum.find(providers, fn {p, _, _} -> p["stage"] == "final_secutor" end)
+    assert Enum.map(review["task"], & &1["criteria"]) == [ctx.first.criteria, ctx.second.criteria]
+    assert review["command_check_scope"] == "not_configured"
+    assert review["host_checks"] == nil
+    assert review["declared_checks"] == []
+    assert review["instruction"] =~ "blocked for missing runtime/test evidence"
+    assert request["access"] == "read"
+    assert request["workspace"]["head"] == battle.context["head"]
+    refute Enum.any?(attempts, &Map.has_key?(&1.result, "checks"))
+  end
+
+  test "missing required task evidence blocks completion without extra command configuration",
+       ctx do
+    {:ok, _} = ProjectChecks.save(Ecto.UUID.generate(), ctx.board.arena_id, 1, [], true)
+    Process.put(:block_stage, "secutor")
+    battle = ctx.board |> start() |> until_stage("secutor")
+    {battle, _, receipt} = step(battle)
+    assert receipt["status"] == "blocked"
+    assert battle.state == "needs_attention"
+    refute Enum.any?(Battles.tasks(battle.id), &(&1.state == "completed"))
+    refute Enum.any?(Battles.attempts(battle.id), &(&1.stage == "integrate"))
   end
 
   test "two dependent tasks correct failed checks and finish with an independent combined review",
