@@ -308,7 +308,12 @@ defmodule CuckodingWeb.BattleLiveTest do
       preview: %{preview | blockers: ["prompt_scope_too_large"]}
     )
 
-    assert has_element?(view, "#battle-blockers", "Shorten the descriptions or role instructions")
+    assert has_element?(
+             view,
+             "#battle-blockers",
+             "Shorten descriptions, criteria or check arguments"
+           )
+
     assert has_element?(view, "#arena-start[disabled]")
     Foundation.broadcast()
     view |> form("#battle-start-form") |> render_submit()

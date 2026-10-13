@@ -9,7 +9,8 @@ an independent app-owned profile, observed account status, bounded catalog and
 saved model selection. Existing Codex profiles and immutable Team bindings keep
 their original identity. Codex's fixed model diagnostic has real GPT-6.1-Sol
 response evidence from R020h; Cursor supports setup only, with a real 256-entry
-catalog recorded in [R020l](../tasks/R020l-cursor-catalog.md). Repository execution remains unavailable.
+catalog recorded in [R020l](../tasks/R020l-cursor-catalog.md). R050e now uses Codex connections for the bounded sequential Arena loop; Cursor
+repository execution remains unavailable.
 Login/logout invalidate only that connection's observations before launch.
 
 Login uses a ten-minute managed browser flow. A validated official HTTPS URL is

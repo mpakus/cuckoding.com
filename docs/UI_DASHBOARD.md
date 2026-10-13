@@ -48,8 +48,10 @@ Start is the canonical visible label. Run/Fight are not separate modes. Its comp
 summary names scope/team/limits; contextual Git or permission requirements appear
 inline when necessary. Routine preparation is automatic after authorization.
 Do not require visiting Battle preview, accepting every spec or preparing each
-worktree manually. Keep unavailable behavior explicit, with explanatory text next
-to a disabled Start until the execution path is implemented.
+worktree manually. R050e exposes bounded sequential Start and confirmed Stop,
+with stage/model/task progress and retained evidence. Unsupported setup disables
+Start with an explanation. Pause/resume, parallel workers and full recovery remain
+explicitly unavailable.
 
 Advanced contains additional boards, custom roles/columns, scoped team adoption,
 repository setup, project check declarations and retained worktree inspection.

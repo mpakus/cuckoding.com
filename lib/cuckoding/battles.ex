@@ -84,7 +84,11 @@ defmodule Cuckoding.Battles do
       from t in Task,
         join: b in Battle,
         on: b.id == t.battle_id,
-        where: b.tabula_id == ^tabula_id,
+        join: d in Cuckoding.DraftTask,
+        on: d.id == t.task_id,
+        where:
+          b.tabula_id == ^tabula_id and
+            fragment("json_extract(?, '$.revision')", t.snapshot) == d.revision,
         order_by: [asc: b.inserted_at]
     )
     |> Map.new(&{&1.task_id, &1})

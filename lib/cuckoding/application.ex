@@ -27,7 +27,13 @@ defmodule Cuckoding.Application do
   end
 
   defp dispatcher do
-    if Application.get_env(:cuckoding, :dispatcher, true), do: [Cuckoding.Dispatcher], else: []
+    if Application.get_env(:cuckoding, :dispatcher, true),
+      do: [
+        Cuckoding.Dispatcher,
+        {Task.Supervisor, name: Cuckoding.BattleTasks},
+        Cuckoding.BattleRunner
+      ],
+      else: []
   end
 end
 

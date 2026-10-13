@@ -212,7 +212,7 @@ defmodule CuckodingWeb.TeamLive do
   defp status_label(:catalog_stale), do: "Refresh model catalog"
   defp status_label(:model_missing), do: "Saved model missing from catalog"
   defp status_label(:model_changed), do: "Saved model changed · reassign explicitly"
-  defp status_label(:check_passed), do: "Model check passed · execution unavailable"
+  defp status_label(:check_passed), do: "Model check passed"
   defp status_label(:untested), do: "Catalog model · access untested"
 
   defp responsibility("speculator"), do: "Speculator · required"
@@ -243,7 +243,7 @@ defmodule CuckodingWeb.TeamLive do
         <h2 id="team-title">Cast your roles.</h2>
         <p>Give each role a name, instructions, agent and model. Unassigned drafts are welcome.</p>
         <p class="fine-print">
-          Saving starts no agent. Execution slots and permissions are not enabled in this preview. Custom roles stay planning-only and read-only.
+          Saving starts no agent. Start work from an Arena with the four required Codex roles. Custom roles remain planning-only.
         </p>
         <p class="fine-print">
           <.link navigate={~p"/agents"} class="text-link">Manage agents and model checks ↗</.link>

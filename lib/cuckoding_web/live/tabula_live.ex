@@ -439,7 +439,7 @@ defmodule CuckodingWeb.TabulaLive do
 
   defp git_message("prepared"),
     do:
-      "Detached, locked checkout prepared. Receipt records its creation; execution is not enabled."
+      "Detached, locked checkout prepared. This records its creation; starting work requires a separate Arena Start."
 
   defp git_message("unsafe_tree"),
     do:

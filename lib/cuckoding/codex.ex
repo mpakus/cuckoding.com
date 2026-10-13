@@ -211,7 +211,7 @@ defmodule Cuckoding.Codex do
         active?,
         "--run-codex-task",
         &Cuckoding.TaskTurn.normalize/1,
-        32_768,
+        65_536,
         305_000,
         progress: :no_progress,
         args: [scratch, request["model"], request["effort"]],

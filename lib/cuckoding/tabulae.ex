@@ -301,9 +301,19 @@ defmodule Cuckoding.Tabulae do
         "stale_task"
 
       true ->
-        stage_rejection(payload["content"]) || dependency_rejection(payload)
+        draft_rejection(task, payload)
     end
   end
+
+  defp draft_rejection(task, payload),
+    do:
+      battle_rejection(task) || stage_rejection(payload["content"]) ||
+        dependency_rejection(payload)
+
+  defp battle_rejection(nil), do: nil
+
+  defp battle_rejection(task),
+    do: if(Cuckoding.Battles.locked?(task.tabula_id, task.id), do: "battle_active")
 
   defp stage_rejection(%{"column" => "specs"}), do: nil
 

@@ -405,7 +405,7 @@ defmodule CuckodingWeb.PlanningComponent do
         >Cancel planning</button>
         <p :if={!active?(plan)} role="status">
           {if plan.result == "planned" && plan.payload["card_creation"] == "automatic-v1",
-            do: "Tasks created · edit them on the board. Start is not enabled yet.",
+            do: "Tasks created · edit them on the board, then Start when ready.",
             else: message(plan.result)}
         </p>
         <details id={"brief-#{plan.id}"} phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>

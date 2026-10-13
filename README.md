@@ -22,9 +22,9 @@ remote push, user-branch merge and release remain separate human actions.
 
 ## What works today
 
-**Local preview, 2026-10-13.** The flow above is the revised product target, not a
-claim that autonomous execution is available. The Arena UI now opens a default
-board after registration and keeps technical setup in Advanced.
+**Local preview, 2026-10-13.** The first sequential Codex Arena loop is implemented.
+The complete product story still includes capabilities and release acceptance
+listed below. Arena registration opens its default board; technical setup stays in Advanced.
 
 | Available in the current code | Still to implement |
 | --- | --- |
@@ -33,7 +33,7 @@ board after registration and keeps technical setup in Advanced.
 | Saved agent/model assignments for Speculator, Implementor, Secutor and Summa Rudis | Execution grants and real mixed-runtime battles |
 | Folder registration with an automatic default board, direct Arena opening, Advanced setup and editable drafts | Custom columns and scoped role editing |
 | Codex planning from a brief or bounded folder snapshots (`docs/` first), automatically saved task cards, prerequisites and original source citations | Real-account planning acceptance across supported runtimes |
-| Git setup, accepted specification artifacts, check declarations and isolated worktree preparation/inspection | One Start, automatic dispatch/card movement, independent review and local completion |
+| One bounded Start, sequential Codex dispatch, correction through Speculator, independent Secutor review and retained local battle branch | Real-account end-to-end acceptance, general toolchain checks, recovery and parallel workers |
 
 Agents uses `/agents`; Settings uses `/settings`. Agent setup follows
 **Choose Agent → Connect and Authorize → Select models → Save**. Team assigns each
@@ -52,8 +52,15 @@ A brief is optional with sources; empty folders need one. The preview reports
 excluded files and limits. Agents and Team keep their existing setup controls.
 Press **Create tasks** to save up to six validated cards in Specs automatically.
 Each keeps its prerequisites and source receipts; existing edits stay unchanged.
-Older requests retain their individual **Add to Specs** controls. Start is still
-unavailable. See
+Older requests retain their individual **Add to Specs** controls. **Start** freezes
+the default board, four Codex roles, model bindings, declared checks and limits:
+20 tasks, three review returns per task, 200 role turns and two hours. A committed
+Git source and verified Codex `0.162.0-alpha.17.2` check runtime are required.
+Checks currently support native system commands that run in one process;
+Mix/npm pipelines and other subprocess toolchains are not supported. Stop waits
+for cleanup. Restart or uncertain effects require inspection; no automatic replay.
+New Start uses the current original committed source and retains previous result
+branches. Real-account battle acceptance is still open. See
 [Development](docs/DEVELOPMENT.md) for how this build works and
 [the prioritized implementation checklist](docs/PLAN.md#next-delivery-order--simple-arena)
 for the remaining execution work. Historical source/provider evidence is linked from the plan;
@@ -72,15 +79,15 @@ default workspace, which may contain different data.
 Dependency maintenance: R101 updates Decimal to 3.2.0, resolving
 CVE-2026-97853. See [verification](worklog/2026-10-13-R101-decimal-security.md).
 
-R020n adds bounded Codex host file-tool turns for the forthcoming execution loop.
-Start still requires durable battle admission and independent review; this
-transport alone does not enable running Arenas. R020o fixes Codex tool routing;
+R020n adds bounded Codex host file-tool turns, now used by R050e battle admission
+and independent review. R020o fixes Codex tool routing;
 a consented GPT-6.1 Sol fixture verified host read and hash-guarded edit, exact
 final bytes and normal process cleanup. Full battle acceptance remains open.
 
-R050d1 captures exact task edits into retained application-owned Git candidate
-references and verifies their live bytes for future review. It preserves the
-user's checkout and branch; capture does not enable Start or mark work complete.
+R050d1 captures exact task edits into retained application-owned Git candidates.
+R050e integrates only reviewed candidates into `ccoding/battles/<UUID>` and
+checks/reviews the combined result before completion. The original checkout and
+branch stay intact. [Execution contract and limitations](docs/ARENA_LOOP.md).
 
 ## UI development
 

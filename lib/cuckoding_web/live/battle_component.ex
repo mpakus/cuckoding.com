@@ -90,7 +90,7 @@ defmodule CuckodingWeb.BattleComponent do
 
   defp message("prompt_scope_too_large"),
     do:
-      "The saved task and team instructions exceed the bounded prompt size. Shorten the descriptions or role instructions, or use a smaller board, then review Start again."
+      "The task and check scope is too large for one bounded review. Shorten descriptions, criteria or check arguments, or use a smaller board."
 
   defp message("incomplete_task"),
     do: "Save a description and acceptance criteria for every task."
@@ -106,6 +106,10 @@ defmodule CuckodingWeb.BattleComponent do
   defp message("check_timeout_limit"),
     do:
       "Keep each declared check within 300 seconds and their combined timeouts within 600 seconds."
+
+  defp message("check_executable_unavailable"),
+    do:
+      "A declared check cannot run with this grant. Use a native command from /usr/bin or /bin that needs no subprocesses; Mix/npm toolchains are not supported yet. Update checks in Advanced, then stop this attempt and start a new battle."
 
   defp message("check_runtime_version_required"),
     do:

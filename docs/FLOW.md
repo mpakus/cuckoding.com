@@ -4,7 +4,9 @@ The normal Arena journey is **Add folder → Create tasks → Start**. Agents an
 Team are reusable setup, not steps repeated for each project or card.
 [Product](PRODUCT.md) owns the story; [UI](UI_DASHBOARD.md) owns the screens.
 The autonomous flow below is the target. Current planning and setup operations
-are described in [Development](DEVELOPMENT.md); Start is not implemented.
+are described in [Development](DEVELOPMENT.md). R050e implements the first
+bounded sequential Codex Start loop; [Arena loop](ARENA_LOOP.md) states its
+limits. Full recovery, custom stages and parallelism below remain target behavior.
 
 ## Add folder
 

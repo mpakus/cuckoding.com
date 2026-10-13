@@ -4,6 +4,7 @@ mod cursor;
 mod folder;
 mod isolation;
 mod probe;
+mod project_checks;
 mod service;
 use service::Service;
 use std::{
@@ -24,6 +25,14 @@ fn main() {
         libc::umask(0o077);
     }
     let args: Vec<_> = std::env::args().skip(1).collect();
+    if args.as_slice() == ["--battle-checks"] {
+        project_checks::main();
+        return;
+    }
+    if args.first().is_some_and(|a| a == "--execute-battle-check") {
+        project_checks::execute(&args[1..]);
+        return;
+    }
     if args.first().is_some_and(|arg| arg == "--arena-git") {
         arena_git::main(&args[1..]);
         return;

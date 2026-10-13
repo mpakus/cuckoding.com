@@ -1,5 +1,9 @@
 # Security contract
 
+## R050e Start and check grants
+
+Start grants bounded local completion for frozen Codex roles/tasks/checks. Provider sessions retain host-only file tools and cannot run commands. The check runner uses a fresh empty Codex profile and private candidate clone, network denial, protected policy paths, bounded output hashing and frozen argv/executable identities. Its initial single-process grant forbids forks and tracks the inner session leader by PID/start identity; cleanup uncertainty is retained instead of claiming Stop. Toolchain/subprocess checks are unsupported. Native battle branch creation and candidate integration are exclusive, audited and compare-and-swap; no source checkout change or remote operation is authorized.
+
 R020m's optional `check_codex_isolation` uses fixed commands and a fresh empty
 profile to test two disposable folders with the observed Codex
 `0.162.0-alpha.17.2`. It touches no Arena or signed-in profile and uses no model.
@@ -83,8 +87,8 @@ they do not provide OS sandbox isolation.
 
 Creating the default board during registration adds SQLite records only; directory
 identity, session, confirmation and idempotency checks remain. Moving setup into
-Advanced does not change its consent or grant semantics. Start is disabled until
-real battle admission is implemented; opening the Arena or inspecting a preview
+Advanced does not change its consent or grant semantics. R050e Start separately
+records bounded battle authority; opening the Arena or inspecting a preview
 never executes work.
 
 Target Create tasks authorizes bounded local source collection and disclosed

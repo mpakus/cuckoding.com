@@ -225,18 +225,37 @@ defmodule Cuckoding.ArenasTest do
       {:ok, claim} = Foundation.claim()
       result = NativeHelper.choose_folder(claim)
 
-      assert result["status"] ==
-               if(String.starts_with?(output, "{"), do: "cancelled", else: "unavailable")
+      expected =
+        cond do
+          String.starts_with?(output, "{") -> "cancelled"
+          byte_size(output) > 8192 -> "cleanup_uncertain"
+          true -> "unavailable"
+        end
+
+      assert result["status"] == expected
 
       assert is_integer(result["elapsed_ms"])
       Foundation.finish(claim, result)
     end
 
     for {code, status} <- [{0, "cancelled"}, {9, "cleanup_uncertain"}] do
-      File.write!(script, "#!/bin/sh\nread -r line\nexit #{code}\n")
+      ready = script <> ".ready"
+      File.rm(ready)
+
+      File.write!(
+        script,
+        "#!/bin/sh\nprintf ready > '#{ready}'\nread -r line\nprintf '%s' '{\"status\":\"cancelled\"}'\nexit #{code}\n"
+      )
+
       {:ok, _} = Arenas.choose(Ecto.UUID.generate())
       {:ok, claim} = Foundation.claim()
       task = Task.async(fn -> NativeHelper.choose_folder(claim) end)
+
+      Enum.reduce_while(1..100, nil, fn _, _ ->
+        if File.exists?(ready), do: {:halt, :ok}, else: {:cont, Process.sleep(10)}
+      end)
+
+      assert File.exists?(ready)
       Foundation.cancel_probe(claim.id)
       assert %{"status" => ^status} = Task.await(task)
       Foundation.finish(claim, %{"status" => "cancelled"})

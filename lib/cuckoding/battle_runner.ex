@@ -1,0 +1,73 @@
+defmodule Cuckoding.BattleRunner do
+  @moduledoc "One supervised stage at a time; SQLite claims and receipts own battle progress."
+  use GenServer
+  alias Cuckoding.{BattleExecutor, Battles}
+  alias Cuckoding.Battles.Attempt
+
+  def start_link(options), do: GenServer.start_link(__MODULE__, options, name: __MODULE__)
+
+  @impl true
+  def init(options) do
+    {:ok, _} = Battles.recover()
+    send(self(), :poll)
+    {:ok, %{job: nil, executor: Keyword.get(options, :executor, &BattleExecutor.execute/1)}}
+  end
+
+  @impl true
+  def handle_info(:poll, %{job: nil} = state) do
+    job =
+      Enum.find_value(Battles.active(), fn battle ->
+        start_stage(Battles.claim_next(battle.id), state.executor)
+      end)
+
+    if is_nil(job), do: Process.send_after(self(), :poll, 500)
+    {:noreply, %{state | job: job}}
+  end
+
+  def handle_info({ref, result}, %{job: {%Task{ref: ref}, attempt}} = state) do
+    Process.demonitor(ref, [:flush])
+    settle(attempt, result)
+    send(self(), :poll)
+    {:noreply, %{state | job: nil}}
+  end
+
+  def handle_info({:DOWN, ref, :process, _, _}, %{job: {%Task{ref: ref}, attempt}} = state) do
+    settle(attempt, failure(attempt, "worker_interrupted", false))
+    send(self(), :poll)
+    {:noreply, %{state | job: nil}}
+  end
+
+  def handle_info(_, state), do: {:noreply, state}
+
+  defp start_stage({:ok, %Attempt{} = attempt}, executor) do
+    task = Task.Supervisor.async_nolink(Cuckoding.BattleTasks, fn -> executor.(attempt) end)
+    {task, attempt}
+  end
+
+  defp start_stage(_, _), do: nil
+
+  defp settle(attempt, result) do
+    case Battles.finish(attempt.id, attempt.claim_token, result) do
+      {:error, reason} when reason in [:invalid_result, :foreign_result, :stop_pending] ->
+        cleanup = is_map(result) and result["cleanup_verified"] == true
+        receipt = failure(attempt, "invalid_stage_receipt", cleanup)
+        Battles.finish(attempt.id, attempt.claim_token, receipt)
+
+      other ->
+        other
+    end
+  end
+
+  defp failure(attempt, reason, cleanup) do
+    stopping = Battles.get(attempt.battle_id).state == "stopping"
+
+    Map.merge(
+      Map.take(attempt.request, ~w(battle_id request_id task_id stage criteria_sha256)),
+      %{
+        "status" => if(stopping, do: "cancelled", else: "failed"),
+        "reason" => reason,
+        "cleanup_verified" => cleanup
+      }
+    )
+  end
+end

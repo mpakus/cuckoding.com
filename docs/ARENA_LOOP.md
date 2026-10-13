@@ -30,3 +30,55 @@ Provider tools never receive a shell or network grant. No dependency is added.
 This decision introduces battle and attempt records plus a supervised executor;
 existing setup/planning commands and read-only Battle preview keep their meaning.
 No push, PR, user-branch merge or deployment is part of Start authority.
+
+## Initial supported scope
+
+Default columns and the four required roles, all bound to named Codex connections.
+A fresh catalog and exact selected executable/model remain required at each role
+turn. The Implementor connection supplies the verified `0.162.0-alpha.17.2`
+check sandbox. No fallback or implicit account/model substitution occurs.
+At most 20 tasks, three review returns per task, 200 role turns and two wall-clock
+hours; each stage expires after at most 15 minutes. Prompt preflight reserves
+worst-case public summaries and check metadata without truncating frozen criteria.
+
+Start uses the original source's current committed HEAD, inspected at admission;
+unsaved/untracked source files are not copied into execution. Missing Git/initial
+commit uses the existing explicit Advanced controls. After completion or verified
+Stop, a new Start uses the current original committed source again; it does not
+silently adopt a previous battle branch. Frozen task edits are refused during an
+active/uncertain battle; newly added tasks wait for a future battle.
+
+## Checks and process ownership
+
+The first grant is `codex-check-single-process-v1`. Resolve only native executables
+in `/usr/bin` or `/bin`, freeze identities and literal argv, then run through RTK
+inside the verified Codex CLI sandbox from an empty private profile. Each check
+has a maximum 300-second timeout; combined declared timeouts may not exceed 600
+seconds. Scripts, subprocess toolchains, Mix/npm pipelines and dependency installs
+are unsupported. No account or model is used to establish the command sandbox.
+
+A trusted inner supervisor creates one direct child, which becomes a session
+leader and applies a hard zero process limit before executing project code. A
+pre-exec barrier waits until the host journals its identity and confirms kernel
+audit-token access. Normal cleanup owns the unreaped child; if a check kills its
+supervisor, fallback signalling uses a fresh kernel audit token after checking
+the original start identity. Numeric PID lookup alone never authorizes a kill.
+The command cannot fork or leave its session. The outer runtime group is cleaned
+separately. Cancellation/timeout retain partial receipts and cleanup uncertainty. Existing candidate file bytes/modes must remain unchanged in the
+verification copy; new output files there do not enter the candidate. Network and
+protected policy/credential paths are denied. Output is bounded and hashed; raw
+command output is not stored or sent to a provider in this first grant.
+
+Ordinary nonzero check exits go to independent Secutor review. A passing verdict
+is impossible while a declared check failed or was skipped. Actionable findings
+return through Speculator within the original review budget. Infrastructure errors,
+uncertain cleanup and final combined-review rejection need attention.
+
+## Evidence and remaining acceptance
+
+Adapter fixtures exercise a two-task dependency chain with a forced check/review
+return, fresh correction checkout and final review. Native tests separately verify
+Git preservation, sandbox behavior and process lifetime. These do not substitute
+for a live signed-in two-task battle. Pause/resume/skip, full restart/sleep
+reconciliation, parallel tasks, custom stages, general toolchain checks and the
+remaining providers stay open in [Plan](PLAN.md). No additional dependency is added.

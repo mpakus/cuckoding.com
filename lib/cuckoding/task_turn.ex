@@ -5,15 +5,16 @@ defmodule Cuckoding.TaskTurn do
   @tool_errors ~w(invalid_tool unsafe_workspace unsafe_file unsupported_file file_changed file_missing tool_limit journal_failed write_failed attempt_exists)
   @errors ~w(launch_failed timeout cancelled invalid_output executable_changed helper_unavailable connection_lost provider_error unexpected_message profile_mismatch unsupported_profile unsafe_profile profile_busy cleanup_uncertain not_connected model_unavailable model_mismatch unsupported_grant invalid_response unexpected_tool turn_failed interrupted)
 
-  def normalize(bytes) when is_binary(bytes) and byte_size(bytes) <= 32_768 do
+  def normalize(bytes) when is_binary(bytes) and byte_size(bytes) <= 65_536 do
     with {:ok, %{"status" => status} = result} <- Jason.decode(bytes),
          true <- status in ["task_finished" | @errors ++ @tool_errors],
-         true <- tools?(Map.get(result, "tools", [])) do
+         true <- tools?(Map.get(result, "tools", [])),
+         true <- changes?(result) do
       if status == "task_finished" do
         normalize_success(result)
       else
         result
-        |> Map.take(~w(status tools))
+        |> Map.take(~w(status tools changes))
         |> Map.merge(Codex.public_fields(result))
       end
     else
@@ -35,7 +36,7 @@ defmodule Cuckoding.TaskTurn do
       do:
         result
         |> Map.take(
-          ~w(status request_id grant access requested_model observed_model effort thread_id turn_id report tools)
+          ~w(status request_id grant access requested_model observed_model effort thread_id turn_id report tools changes)
         )
         |> Map.merge(Codex.public_fields(result)),
       else: %{"status" => "invalid_output"}
@@ -49,13 +50,56 @@ defmodule Cuckoding.TaskTurn do
   defp tools?(_), do: false
 
   defp tool?(%{"call_id" => id, "tool" => tool, "status" => status} = entry) do
-    Map.keys(entry) -- ~w(call_id tool status sha256) == [] and id?(id) and
+    Map.keys(entry) -- ~w(call_id tool status sha256 path) == [] and id?(id) and
       tool in ~w(list_files read_file edit_file) and status in ["completed" | @tool_errors] and
+      (not Map.has_key?(entry, "path") or path?(entry["path"], tool == "list_files")) and
       (is_nil(entry["sha256"]) or
          (is_binary(entry["sha256"]) and Regex.match?(~r/\A[0-9a-f]{64}\z/, entry["sha256"])))
   end
 
   defp tool?(_), do: false
+
+  defp changes?(%{"changes" => changes} = result)
+       when is_list(changes) and length(changes) <= 64 do
+    edits =
+      for %{"tool" => "edit_file", "status" => "completed", "path" => path, "sha256" => sha} <-
+            Map.get(result, "tools", []),
+          into: %{},
+          do: {path, sha}
+
+    (result["access"] != "read" or changes == []) and
+      Enum.all?(changes, &change?(&1, edits)) and
+      length(Enum.uniq_by(changes, & &1["path"])) == length(changes) and
+      map_size(edits) == length(changes)
+  end
+
+  defp changes?(result), do: not Map.has_key?(result, "changes")
+
+  defp change?(change, edits) when is_map(change) and map_size(change) == 2,
+    do:
+      path?(change["path"], false) and is_binary(change["sha256"]) and
+        Regex.match?(~r/\A[0-9a-f]{64}\z/, change["sha256"]) and
+        edits[change["path"]] == change["sha256"]
+
+  defp change?(_, _), do: false
+
+  defp path?("", true), do: true
+
+  defp path?(path, _) when is_binary(path) and byte_size(path) in 1..240 do
+    parts = String.split(path, "/")
+
+    length(parts) <= 8 and
+      Enum.all?(parts, fn part ->
+        lower = String.downcase(part)
+
+        Regex.match?(~r/\A[A-Za-z0-9_-][A-Za-z0-9_.-]*\z/, part) and
+          lower not in ~w(agents.md claude.md node_modules deps _build target vendor build dist) and
+          not String.starts_with?(lower, ~w(secret credential token id_rsa id_ed25519)) and
+          Path.extname(lower) not in ~w(.pem .key .p12 .pfx)
+      end)
+  end
+
+  defp path?(_, _), do: false
 
   defp report?(%{"summary" => text, "outcome" => outcome} = report) do
     map_size(report) == 2 and outcome in ~w(completed changes_requested blocked) and

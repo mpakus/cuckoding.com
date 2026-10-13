@@ -1,5 +1,9 @@
 # Execution and recovery
 
+## R050e sequential execution
+
+One supervised worker executes a durable stage at a time. Each task starts from the last independently reviewed battle head; failed review creates a new worktree and returns through Speculator. Checks use a separate exact-candidate clone. The initial `codex-check-single-process-v1` grant supports native commands in `/usr/bin` or `/bin` only, with no subprocess spawning; scripts and Mix/npm toolchains are refused. The Implementor connection must have verified Codex `0.162.0-alpha.17.2`. Final checks and independent review gate completion. Restart never replays unfinished effects; full reconciliation and sleep/resume remain open.
+
 R040c's implemented Git setup uses a fixed native host helper, outside any agent
 session: inspect metadata or initialize a missing standalone repository after
 confirmation. R040d also previews explicitly selected bounded files and creates a
@@ -130,6 +134,6 @@ capture retains `refs/ccoding/candidates/<command UUID>` with an absent-ref
 compare-and-swap. It never moves source/task HEAD, touches their indexes or merges
 the user's branch. Existing refs/locks and partial effects remain intact.
 Verification rechecks the exact receipt, app ref, tree, ownership and live bytes.
-These are host primitives for R050d/e; no Start caller, project checks, Secutor
-review or completion authority is implied. Interrupted capture is inspected with
+These R050d1 primitives are now used by R050e Start, project checks and Secutor.
+Candidate capture alone provides no review or completion authority. Interrupted capture is inspected with
 retained evidence, never replayed under the same key.

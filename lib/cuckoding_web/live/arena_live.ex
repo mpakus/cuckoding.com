@@ -231,7 +231,7 @@ defmodule CuckodingWeb.ArenaLive do
           <p class="fine-print">{git_label(arena.git_entry)} · observed at registration</p>
           <.team revision={arena.team_revision} id={"arena-team-#{arena.id}"} />
           <p class="fine-print">
-            Registered {Calendar.strftime(arena.inserted_at, "%Y-%m-%d %H:%M UTC")} · execution unavailable
+            Registered {Calendar.strftime(arena.inserted_at, "%Y-%m-%d %H:%M UTC")}
           </p>
         </article>
       </section>

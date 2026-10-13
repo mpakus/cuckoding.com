@@ -2,12 +2,13 @@
 
 ## Implemented boundary · reviewed 2026-10-13
 
-Cuckoding currently delivers authenticated setup, draft planning and consented worktree preparation and read-only inspection. It does
-**not** yet run battles, worktree task attempts, review loops or parallel workers.
+Cuckoding delivers authenticated setup, planning, isolated task turns and the
+first sequential Codex battle loop. Product parallel workers and full recovery
+remain unfinished.
 The later sections describe the target architecture, not additional shipped code.
 
 Startup: Repo → schema validation/migration → PubSub → shell authority →
-durable dispatcher → loopback Endpoint → readiness message. SQLite is authoritative;
+setup dispatcher + supervised battle runner → loopback Endpoint → readiness message. SQLite is authoritative;
 LiveView owns unsaved forms, not workflow progress. The native shell owns the
 release process group and private storage lock.
 
@@ -22,6 +23,7 @@ release process group and private storage lock.
 | `Tabulae` | Immutable default boards, revisioned Specs/ToDo drafts, acyclic prerequisites and proposal import provenance; delivery columns stay locked |
 | `Planning`, `PlanningDocuments`, native `arena_git/documents.rs` | Freeze team/model/brief and optional manual/folder text snapshots in commands; bounded descriptor-relative source collection, then validate proposals and atomically create draft cards |
 | `ProjectChecks` | Immutable Arena check declarations, explicit preview/consent and atomic command/revision/event saves; no executable resolution, filesystem access or execution |
+| `Battles`, `BattleRunner`, `BattleExecutor`, `BattleChecks` | SQLite battle/task/attempt authority; one supervised stage worker; closed native Git, provider turns and disposable check workspaces |
 | `BattlePreview` | Read-only aggregation of scoped saved preparation and verified spec artifacts; no durable battle state or launch authority |
 | `Specifications`, `Storage` | Freeze accepted draft/prerequisite revisions, write private Markdown, verify artifact hash and atomically commit acceptance/history/ToDo; no execution authority |
 | `ArenaGit`, `NativeHelper`, native `arena_git.rs` | Fixed inspect/init/initial-commit/detached-worktree operations and descriptor-relative selected file reads; no remotes, hooks or arbitrary commands |
@@ -89,11 +91,14 @@ The native inspection validates ownership/linked metadata, then reads bounded
 index entries and raw blobs/files. No process, schema or provider grant is added;
 results remain separate from source Git observations and Battle preview.
 
-Audit consequences: preserve these domain/host boundaries; extend execution
-evidence before adding battles. The nine-migration schema has no
-battle authorization, attempts, reviews,
-worker leases or integration receipts. Required work remains in [Plan](PLAN.md),
-including real-account acceptance; fixture responses do not close that gate.
+R050e adds immutable battle snapshots and stage requests, terminal attempt receipts,
+card projections and events in the tenth migration. A separate Task.Supervisor
+keeps battle work off the setup dispatcher. Recovery marks unfinished attempts
+uncertain before admission and never replays them. Native Git retains exclusive
+branch creation/integration intents and compare-and-swap receipts. Checks run in
+a fresh candidate clone with the single-process grant described in
+[Arena loop](ARENA_LOOP.md). Worker leases, parallel scheduling and complete
+reconciliation remain in [Plan](PLAN.md); fixtures do not close real-account acceptance.
 
 Agents setup uses one LiveView wizard over the existing Foundation command APIs.
 The form holds only unsaved choices; SQLite owns version, connection, diagnostics
@@ -133,7 +138,7 @@ the same immediate transaction: proposal, ordered graph, revisions, provenance
 and events commit together. Broadcast follows commit. Legacy requests keep manual
 imports; reconnect never imports or launches inference. Expired claims cannot
 publish cards. A new analysis appends new cards and retains user edits. No migration,
-worker or dependency is added. Future Start adds durable
+worker or dependency is added by R040m. R050e subsequently adds durable
 battle admission/attempt/review evidence, reusing the native ownership boundary.
 Removing visible setup steps does not remove host validation or make LiveView a
 workflow owner. [Plan](PLAN.md#next-delivery-order--simple-arena) separates these

@@ -56,4 +56,36 @@ defmodule Cuckoding.TaskTurnTest do
              "status" => "cancelled"
            }
   end
+
+  test "candidate changes are the exact final host edit receipts" do
+    sha = String.duplicate("b", 64)
+
+    result =
+      receipt()
+      |> Map.merge(%{
+        "access" => "write",
+        "tools" => [
+          %{
+            "call_id" => "edit",
+            "tool" => "edit_file",
+            "status" => "completed",
+            "path" => "src/main.ex",
+            "sha256" => sha
+          }
+        ],
+        "changes" => [%{"path" => "src/main.ex", "sha256" => sha}]
+      })
+
+    assert TaskTurn.normalize(Jason.encode!(result)) == result
+
+    for invalid <- [
+          Map.put(result, "changes", []),
+          Map.put(result, "access", "read"),
+          put_in(result, ["changes", Access.at(0), "sha256"], String.duplicate("c", 64)),
+          put_in(result, ["changes", Access.at(0), "path"], "../outside"),
+          put_in(result, ["tools", Access.at(0), "path"], ".git/config")
+        ] do
+      assert TaskTurn.normalize(Jason.encode!(invalid)) == %{"status" => "invalid_output"}
+    end
+  end
 end

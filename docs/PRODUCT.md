@@ -1,5 +1,9 @@
 # Product contract
 
+## Current implementation: R050e
+
+The first bounded Codex loop implements Start, sequential work/review/correction, card projections and an app-owned result branch. Product parallelism, custom stages, general toolchain checks, complete recovery and real-account beta acceptance remain open. Limits and command restrictions are explicit in [Arena loop](ARENA_LOOP.md); the broader story below remains the acceptance target.
+
 Updated 2026-10-10 from the original user story and the Arena simplification.
 This is the target experience. The [implementation checklist](PLAN.md) distinguishes
 available setup, folder analysis and task creation from unfinished battle execution.

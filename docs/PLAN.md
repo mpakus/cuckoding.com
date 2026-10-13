@@ -20,7 +20,9 @@ R050b adds consented detached worktree preparation with retained ownership recei
 R050c adds read-only inspection of retained ownership, index and raw file contents.
 R040l adds bounded folder sources; R040m creates validated task graphs automatically
 for newly consented planning requests, retaining legacy imports and edited cards.
-Dependency scheduling, check execution and execution grants remain open.
+R050e adds bounded sequential Codex dependency scheduling, native single-process
+checks and Start authority. General toolchain checks and real-account battle
+acceptance remain open.
 R030b lets existing Arenas/Tabulae explicitly adopt a newer saved default team
 without rewriting earlier requests or drafts. Per-scope role editing remains open.
 Historical source/tests/builds do not satisfy these gates.
@@ -57,11 +59,13 @@ The numbered story below is capability coverage, not eight mandatory screens.
   task grant, tool/output validation, cancellation and two-workspace isolation.
   Catalog/setup acceptance alone does not enable an Implementor.
   R020m adds a repeatable, version-bound two-workspace CLI sandbox diagnostic;
-  real model-tool turns and battle admission remain open.
-- [ ] **R050d — One Start:** durable bounded battle authorization and fresh admission
-  from the Arena, contextual Git/first-commit consent only when necessary, automatic
-  owned worktree preparation. No separate mandatory preview/spec-acceptance wizard.
-- [ ] **R050e — Work and review loop:** Summa Rudis dispatch, Speculator refinement,
+  R020o verifies a synthetic signed-in host-tool read/edit; R050e adds battle
+  admission. Real-account multi-task/restart acceptance remains open.
+- [x] **R050d — One Start (initial Codex scope):** durable bounded battle authorization and fresh admission
+  from the Arena and automatic owned worktree preparation. Existing contextual
+  Git/first-commit controls supply a committed source when needed; no mandatory
+  preview/spec-acceptance wizard. See [R050e](../tasks/R050e-arena-loop.md).
+- [x] **R050e — Work and review loop (initial Codex scope):** Summa Rudis dispatch, Speculator refinement,
   Implementor candidate, independent Secutor verdict, automatic persisted card
   moves and bounded correction through Speculator; reviewed local integration.
 - [ ] **R060 / R070 / R080:** complete recovery, parallel workers, both dashboards
@@ -69,7 +73,8 @@ The numbered story below is capability coverage, not eight mandatory screens.
 
 [R002 evidence](../tasks/R002-simple-arena-contract.md) records the delivered UI
 and automatic-board slice. R040l/m deliver bounded source reading and automatic
-card creation. Provider execution gates and Start are next; no battle runs yet.
+card creation. R050e adds the first sequential loop. Next: real-account two-task
+acceptance, general toolchain checks, recovery, parallel workers and release gates.
 
 ## Sequence and dependencies
 
@@ -230,8 +235,8 @@ the real-provider gate.
   requests, protected paths, compare-before-write and interruption receipts.
   [Task/evidence](../tasks/R020n-task-tools.md). R020o restores task-only Code Mode
   routing; a consented GPT-6.1 Sol synthetic read/edit and normal cleanup passed.
-  Broader real-account acceptance and
-  Start integration remain separate gates.
+  Broader real-account acceptance remains open; R050e integrates these tools
+  into the first sequential Start loop.
 - [ ] Prove a read-only turn and a permitted worktree-writing turn in isolated
   workspaces; normalize public activity, outcomes and redacted logs.
 - [ ] Add task/process identity, cancellation, clean environment, path policy,
@@ -302,7 +307,7 @@ Depends on R030.
   document snapshots; R040h validates per-task citation scope and proposed
   prerequisites. R040l/m add bounded folder analysis and automatic graph creation.
   R040i adds file-backed accepted specs; custom planning-role selection
-  and battle-time spec preparation remain.
+  remains; R050e adds battle-time Speculator preparation against frozen criteria.
 - [x] R040g: select bounded same-board task prerequisites, reject cycles against
   the latest graph and retain dependency revisions without launching work. See
   [task](../tasks/R040g-task-prerequisites.md) and
@@ -313,7 +318,8 @@ Depends on R030.
   [evidence](../worklog/2026-10-07-R040h-proposal-links.md). Citation meaning and
   accepted-spec validation remain separate from reference validation.
 - [ ] Persist project-approved check commands and grants separately from agent
-  proposals. R040j implements saved declarations; actual grants/execution remain.
+  proposals. R040j implements saved declarations; R050e adds a bounded native
+  single-process check grant. General toolchain grants remain open.
   Draft empty states and keyboard movement exist in R040b.
 - [x] R040j: explicit check preview/consent, immutable Arena revisions, idempotent
   audited saves, stale/recovered editor refusal and no implied execution authority.
@@ -351,21 +357,28 @@ Depends on R040. This is the first end-to-end product milestone.
 - [x] R050d1: retain exact task candidates through closed host Git operations,
   verify raw bytes and preserve original checkouts/indexes/branches. No Start
   authority or independent verdict is implied. See [task/evidence](../tasks/R050d1-task-candidates.md).
-- [ ] Implement one Start authorization for goal/spec, task membership,
+- [x] Implement one Start authorization for goal/spec, task membership,
   team, model, policy, base revision, check commands and cumulative limits.
-- [ ] Give Summa Rudis a closed decision contract; host-validate/persist decisions
+- [x] Give Summa Rudis a closed decision contract; host-validate/persist decisions
   and route every launch through common admission.
-- [ ] Run Speculator → Implementor → Secutor with explicit spec/candidate/evidence
+- [x] Run Speculator → Implementor → Secutor with explicit spec/candidate/evidence
   handoff; return all review comments to Speculator before another implementation.
 - [ ] Execute confirmed custom stages in order with their actual grants.
-- [ ] Retain independent Secutor sessions; bind passes to exact criteria, Git
+- [x] Retain independent Secutor sessions; bind passes to exact criteria, Git
   heads and host-check receipts. Summa Rudis cannot override rejection.
-- [ ] Integrate locally into a battle branch, run final checks and final Secutor
+- [x] Integrate locally into a battle branch, run final checks and final Secutor
   assessment, then show a complete result with branch/spec/review/log links.
 - [ ] Permit reviewed in-scope repairs/splits while preserving original criteria,
   task lineage, lifetime counters and authorization.
 
-Acceptance: one Start completes a two-task dependency chain with a forced review
+R050e code/fixture scope: Codex default stages, 20 tasks, three review returns,
+200 turns, two-hour wall limit; no ordinary per-task prompts. Host checks use
+`codex-check-single-process-v1`: native system commands, no spawned toolchain
+processes. A failed final review requires attention. Source checkout stays intact;
+Start never pushes or merges into the user branch. Stop and fail-closed restart
+are implemented; pause/resume/skip and reconciliation remain R060.
+
+Real-account acceptance remains open: one Start completes a two-task dependency chain with a forced review
 return and no ordinary human prompts. A forged/stale completion cannot advance
 state. New unrelated tasks remain outside the running battle. No remote Git
 operation or user-checkout merge occurs.

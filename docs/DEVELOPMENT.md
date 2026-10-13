@@ -8,19 +8,21 @@ previewed initial commits. R040e adds Speculator proposals and explicit imports 
 selected document snapshots. R040g adds manual task prerequisites. R030b adds explicit saved-team adoption for existing scopes.
 R040h adds proposed prerequisites and per-task selected-snapshot citations.
 R040i adds accepted private Markdown specifications with revision and hash checks.
-R040j adds revisioned, confirmed Arena check declarations; execution remains unavailable.
+R040j adds revisioned, confirmed Arena check declarations. R050e freezes them in
+Start and supports bounded native single-process checks; toolchain pipelines remain unsupported.
 R050a adds a read-only Battle preview for saved preparation and missing setup.
 R050b adds consented isolated Git worktree preparation; R050c adds retained worktree inspection.
 R020h fixes real model-check notices and simplifies saved agent setup. R020i adds
 a named Codex/Cursor roster and per-role agent/model selections. Broader
-real-account acceptance and repository execution remain R020 work. The previous source
+real-account acceptance and broader provider execution remain open. The previous source
 reset remains intentional; do not restore the deleted implementation wholesale.
 
 R002 simplifies the Arena surface and creates a default board during registration.
 The target is **Add folder → Create tasks → Start**. R040l adds bounded folder
 snapshots and consented Speculator analysis. R040m saves the validated task graph
-automatically. Actual Start remains unimplemented. [Plan](PLAN.md#next-delivery-order--simple-arena) owns
-those next gates; a disabled Start is not an execution feature.
+automatically. R050e adds a bounded sequential Codex Start loop; see
+[Arena loop](ARENA_LOOP.md) for exact prerequisites and limits.
+[Plan](PLAN.md#next-delivery-order--simple-arena) owns the remaining beta gates.
 
 ## Build and open
 
@@ -131,8 +133,8 @@ custom role needs confirmation. A stale editor keeps its draft and refuses to
 overwrite a newer revision; **Reload saved** asks before discarding edits.
 Model disconnect/drift is visible and never silently replaces the saved model.
 To replace a changed model behind the same catalog ID, clear/save the binding
-then explicitly select/save it again. Saving starts no agent; execution grants
-remain later work. Use only non-secret role instructions.
+then explicitly select/save it again. Saving starts no agent; execution requires
+a separate bounded Start. Use only non-secret role instructions.
 
 In **Arenas**, choose an existing directory in the native macOS dialog, keep or
 edit its suggested name and confirm the displayed path/team before **Add Arena**.
@@ -161,14 +163,14 @@ ToDo requires nonblank description and criteria. Use **Prerequisites** to check
 up to sixteen other tasks in this board that must come first. Tab/Space operate
 the native checkboxes. Circular dependencies are refused without losing your
 selection; uncheck a prerequisite to remove it. Cards show saved prerequisites.
-This is planning order; dependency scheduling remains future work.
+R050e freezes this graph and schedules prerequisite tasks before their dependents.
 Expand saved history in the
 editor to inspect revisions. Stale editors keep their text; copy it before
 discarding and loading the current task. Recovered mismatched forms also keep
 text but cannot overwrite another task. All drafts live in SQLite; no project
 files, Git commands or agent work are involved in manual draft saves.
 Brief/document Speculator planning and accepted Markdown specifications are
-available; custom stages and battle execution remain unavailable.
+available. The default Codex workflow can Start; custom execution stages remain unavailable.
 
 Expand **Advanced → Repository setup** in the Arena and choose **Inspect Git**.
 This checks standalone Git metadata using `/usr/bin/git` from the installed macOS

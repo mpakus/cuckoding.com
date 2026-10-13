@@ -1,5 +1,9 @@
 # Data model
 
+## R050e durable battle state
+
+The tenth forward-only migration adds `battles`, `battle_tasks` and `battle_attempts`. Snapshots and requests are immutable; terminal attempt receipts cannot be rewritten/deleted. One active battle per Arena includes needs-attention state, and one running stage claim per battle is enforced by partial unique indexes. Draft history stays separate from execution projections. Start, claims, outcomes and events commit atomically; broadcasts follow commit. The native retained receipt/journal owns evidence of uncertain external effects; SQLite never promises exactly-once execution.
+
 R020m requires no migration. `check_codex_isolation` commands freeze connection ID,
 executable identity, observed version/command and contract; a 35-second exclusive
 claim owns the bounded native diagnostic. Successful completion atomically saves
@@ -228,7 +232,7 @@ There is no migration in this slice.
 R040l retains root identity, `folder-documents-v1`, exact eligible text/hash snapshots
 and bounded visited/skipped/limited counts in `preview_documents`. Folder requests
 freeze `policy` instead of manual `paths`; neither form can reuse the other's key
-or completion. No migration: nine schema versions remain. Five-minute scope/expiry,
+or completion. R050d1 adds no migration; R050e subsequently adds the tenth schema version. Five-minute scope/expiry,
 claim/cancellation and content-free `documents.*` events reuse the existing path.
 `brief-plan-v3` freezes up to 16 source snapshots (16 KiB each, 64 KiB total), with
 source indices 0–15; v1/v2 receipts retain their earlier bounds. A missing brief
@@ -247,7 +251,7 @@ Requests without the field keep the earlier manual-import semantics; partially
 imported requests and edited cards are unchanged. New consented analyses create
 separate graphs, with no inferred task matching or overwrites. No migration.
 
-New battle snapshots/attempt/review records remain requirements, separate from
+R050e battle snapshots/attempt/review records are separate from
 planning read intent and model observations; they are not implemented tables.
 
 ## Target records (not the current schema)

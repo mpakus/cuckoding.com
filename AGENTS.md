@@ -4,13 +4,12 @@
 
 These rules apply repository-wide. More specific rules may strengthen safety,
 auditability and verification, not weaken them. The 2026-10-06 user reset replaces
-the previous product direction. R010 implements the local foundation; provider
-execution and battles remain the R020–R100 roadmap.
-The current implemented boundary includes multiple named Codex/Cursor setup connections, draft planning and consented isolated
-worktree preparation/inspection, summarized with
-source owners in [Architecture](docs/ARCHITECTURE.md). [Plan](docs/PLAN.md) owns
-remaining acceptance, not this file. Broader real-account acceptance,
-repository execution and autonomous battles remain open.
+the previous product direction. The implemented boundary includes named
+Codex/Cursor setup, draft planning, owned worktrees and the first bounded
+sequential Codex Arena loop. [Architecture](docs/ARCHITECTURE.md) names source
+owners; [Plan](docs/PLAN.md) owns remaining acceptance. General toolchain checks,
+full recovery, parallel workers, remaining providers and real-account battle
+acceptance remain open.
 
 Preserve these implemented contracts:
 
@@ -122,6 +121,28 @@ exclusive intent/index/publication/receipt artifacts and UUID-derived app refs.
 Never replay uncertain capture. A dated candidate verification is neither a grant
 nor independent review; future integration must bind exact criteria/check evidence.
 
+## R050e execution boundary
+
+The initial sequential Codex Arena loop is implemented in `Battles`,
+`BattleRunner`, `BattleExecutor` and native battle Git/check helpers. Start freezes
+membership/criteria/team/check revisions and finite limits; admission binds the
+current committed source and exact executables. Battle/task snapshots and attempt
+requests are immutable. Frozen drafts cannot be edited; new unrelated drafts wait
+for a future battle. Provider text cannot grant authority or accept failed checks.
+Keep Secutor sessions independent, bind review/checks to the candidate, and CAS
+only `refs/heads/ccoding/battles/<UUID>`. Preserve the source checkout and every
+uncertain effect. Failed checks return through Secutor/Speculator within the same
+review budget; final rejection needs attention. Stop waits for verified cleanup;
+startup interrupts unfinished claims without replay. Full recovery remains R060.
+
+The initial check grant `codex-check-single-process-v1` is deliberately limited:
+frozen native system executable/argv, empty profile, network denied, private
+verification checkout, protected paths, hard no-fork limit and owned session
+identity. Do not advertise Mix/npm or other subprocess toolchain support. Retain
+partial check evidence and cleanup uncertainty, including on cancellation. Never
+infer real-account battle acceptance from fixtures or synthetic prior task turns.
+See [Arena loop](docs/ARENA_LOOP.md) and [Plan](docs/PLAN.md).
+
 ## Mission and product contract
 
 R020m's optional `codex-isolation-v1` diagnostic runs fixed commands against two
@@ -149,7 +170,9 @@ Do not require these as routine setup screens or repeat approvals per task.
 
 R002 implements atomic default-board creation, immediate Arena navigation and
 Advanced disclosures. R040l adds bounded folder snapshots and consented Speculator
-analysis; R040m creates the validated cards automatically. Battle execution remains a target contract.
+analysis; R040m creates the validated cards automatically. R050e adds the first
+bounded sequential Codex battle; general toolchain checks and real-account battle
+acceptance remain open.
 Preserve scoped reads/consents. Folder analysis needs a bounded read grant;
 Start owns a separate bounded execution grant.
 Ask before Git initialization or initial-commit mutations, only when needed;

@@ -204,6 +204,28 @@ defmodule Cuckoding.BattlesTest do
     assert Enum.any?(Battles.evidence(battle.id), &(&1.kind == "battle.completed"))
   end
 
+  test "editing a completed task shows the new draft without reusing its old completion", %{
+    board: board,
+    first: first
+  } do
+    battle = start(board) |> until_stage("summary")
+    {_, _} = step(battle)
+    assert Battles.projections(board.id)[first.id].state == "completed"
+
+    assert {:ok, _} =
+             Tabulae.save(
+               Ecto.UUID.generate(),
+               board.arena_id,
+               board.id,
+               first.id,
+               first.revision,
+               Map.put(Tabulae.content(first), "criteria", "New work is required")
+             )
+
+    refute Map.has_key?(Battles.projections(board.id), first.id)
+    assert hd(Battles.tasks(battle.id)).state == "completed"
+  end
+
   test "Start rejects changed task/check/team scope and unknown confirmation", %{
     board: board,
     first: first

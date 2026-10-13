@@ -1,8 +1,23 @@
 # Verification and acceptance
 
+## R050e execution evidence
+
+Exercise `test/cuckoding/battles_test.exs`, `battle_executor_test.exs`, `battle_checks_test.exs`, `native_helper_test.exs` and `test/cuckoding_web/battle_live_test.exs`. Cover a two-task dependency chain, failed checks and forced review return, exact candidate/model/criteria binding, stale Start, frozen edit refusal, late results, cancellation uncertainty and restart without replay. Native battle tests verify branch chaining and original checkout preservation; check tests must separately prove the actual macOS sandbox and owned process cleanup without provider inference. Fixture success is not live provider acceptance. See the [R050e worklog](../worklog/2026-10-13-R050e-arena-loop.md) for actual commands/results and omissions.
+
 R010 has current foundation checks; see its [worklog](../worklog/2026-10-06-R010-local-foundation.md)
 and [runnable commands](DEVELOPMENT.md#quality-and-bundled-smoke). Later slice
 and full-story gates remain open. Historical test counts do not establish proof.
+
+The R050e native check canary is also explicit and uses no account/model:
+
+```sh
+rtk proxy env CUCKODING_TEST_CODEX=/absolute/trusted/codex CUCKODING_TEST_RTK=/absolute/trusted/rtk CUCKODING_TEST_CHECK_HELPER=/absolute/built/Cuckoding.app/Contents/MacOS/ccoding cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked project_checks::tests::offline_single_process_sandbox_canaries -- --ignored --exact
+```
+
+It verifies eleven scenarios against the selected packaged helper: process
+limits, timeout/cancellation, output/source bounds, protected and foreign paths,
+peer signal refusal, and cleanup after supervisor death across exec. Re-run when
+the grant or native helper changes. A routine ignored result is not a pass.
 
 ## Gates by slice
 

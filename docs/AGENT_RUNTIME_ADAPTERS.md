@@ -49,7 +49,7 @@ is actually required.
 
 | Target | Rebuild status | Evidence needed before enabling execution |
 | --- | --- | --- |
-| Codex | Version/status/login/catalog/preflight fixtures and native checks; R020h real private-account GPT-6.1-Sol diagnostic on 0.162.0-alpha.17.2 | Repository grants/turns, execution cancellation and remaining R090 matrix |
+| Codex | Setup/model diagnostics, R020o synthetic host read/edit proof, R050e bounded sequential Arena implementation | Live two-task battle, broader model/runtime coverage, general toolchain checks, interruption and remaining R090 matrix |
 | Claude Code | Pending | Current official interface, safe reusable authorization, models/default behavior and permission boundary |
 | Cursor | R020i named private-profile setup on 2026.09.15-d2fe57e; fixed status/models/login/logout, no inference | Human-completed private login, actual account catalog, model inference and project config isolation |
 | Hermes | Pending | Confirm intended runtime/distribution, supported headless interface, authorization, model catalog and enforceable grants |
