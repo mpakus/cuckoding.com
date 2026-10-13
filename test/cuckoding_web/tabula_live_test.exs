@@ -49,7 +49,7 @@ defmodule CuckodingWeb.TabulaLiveTest do
     assert render(view) =~ "Second battle"
     assert has_element?(view, "#column-review", "Secutor")
     assert has_element?(view, "#tabula-board[tabindex='0']")
-    assert has_element?(view, "#column-in_process", "Unavailable until battles")
+    assert has_element?(view, "#column-in_process", "No tasks yet")
     view |> form("#draft-form", title: "Write a plan") |> render_submit()
     board = List.last(Tabulae.list(arena.id))
     task = hd(Tabulae.tasks(board.id))

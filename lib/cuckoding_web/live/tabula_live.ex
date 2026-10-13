@@ -1,6 +1,6 @@
 defmodule CuckodingWeb.TabulaLive do
   use CuckodingWeb, :live_view
-  alias Cuckoding.{ArenaGit, Foundation, GitPreview, Tabulae, TeamAssignments}
+  alias Cuckoding.{ArenaGit, Battles, Foundation, GitPreview, Tabulae, TeamAssignments}
   alias CuckodingWeb.Layouts
 
   @impl true
@@ -167,17 +167,22 @@ defmodule CuckodingWeb.TabulaLive do
     socket = input(socket, params)
 
     result =
-      if socket.assigns.form_matches && socket.assigns.board do
-        Tabulae.save(
-          socket.assigns.key,
-          socket.assigns.arena.id,
-          socket.assigns.board.id,
-          socket.assigns.task_id,
-          socket.assigns.revision,
-          socket.assigns.content
-        )
-      else
-        {:error, "stale_form"}
+      cond do
+        not socket.assigns.form_matches or is_nil(socket.assigns.board) ->
+          {:error, "stale_form"}
+
+        Battles.locked?(socket.assigns.board.id, socket.assigns.task_id) ->
+          {:error, "task_locked"}
+
+        true ->
+          Tabulae.save(
+            socket.assigns.key,
+            socket.assigns.arena.id,
+            socket.assigns.board.id,
+            socket.assigns.task_id,
+            socket.assigns.revision,
+            socket.assigns.content
+          )
       end
 
     case result do
@@ -230,7 +235,8 @@ defmodule CuckodingWeb.TabulaLive do
     worktrees = ArenaGit.worktrees(socket.assigns.arena.id)
     paths = if git, do: git.payload["paths"] || [], else: []
 
-    assign(socket,
+    socket
+    |> assign(
       arena_team: TeamAssignments.assigned(socket.assigns.arena),
       board_team: if(board, do: TeamAssignments.assigned(board)),
       git: git,
@@ -251,6 +257,39 @@ defmodule CuckodingWeb.TabulaLive do
           do: Tabulae.history(board.id, socket.assigns.task_id),
           else: []
         )
+    )
+    |> refresh_battle()
+  end
+
+  defp refresh_battle(%{assigns: %{board: nil}} = socket) do
+    assign(socket,
+      battle: nil,
+      battle_tasks: [],
+      battle_projection: %{},
+      battle_attempts: [],
+      battle_preview: nil,
+      editing_locked: false
+    )
+  end
+
+  defp refresh_battle(socket) do
+    board = socket.assigns.board
+    battle = Battles.latest(board.arena_id, board.id)
+
+    preview =
+      case Battles.preview(board.arena_id, board.id) do
+        {:ok, preview} -> preview
+        _ -> nil
+      end
+
+    assign(socket,
+      battle: battle,
+      battle_tasks: if(battle, do: Battles.tasks(battle.id), else: []),
+      battle_projection: Battles.projections(board.id),
+      battle_attempts: if(battle, do: Battles.attempts(battle.id), else: []),
+      battle_preview: preview,
+      editing_locked:
+        socket.assigns.revision > 0 && Battles.locked?(board.id, socket.assigns.task_id)
     )
   end
 
@@ -576,9 +615,47 @@ defmodule CuckodingWeb.TabulaLive do
       "This recovered form belongs to another editor. Your text is kept; copy it before starting a new draft."
 
   defp message("stage_unavailable"),
-    do: "Delivery stages require battle execution, which is not available yet."
+    do: "Delivery stages move automatically through battle execution and independent review."
+
+  defp message("battle_active"),
+    do: "This task belongs to the active battle and cannot be edited. Your unsaved text is kept."
+
+  defp message("task_locked"), do: message("battle_active")
 
   defp message(_), do: "This Arena, Tabula or task is unavailable. Your draft is kept."
+
+  defp task_column(task, projection) do
+    case projection[task.id] do
+      %{snapshot: %{"revision" => revision}} when revision != task.revision ->
+        task.column
+
+      %{state: "pending"} ->
+        "todo"
+
+      %{state: state} when state in ~w(specs todo in_process review completed) ->
+        state
+
+      %{state: "needs_attention", context: %{"column" => column}}
+      when column in ~w(specs todo in_process review completed) ->
+        column
+
+      _ ->
+        task.column
+    end
+  end
+
+  defp task_status(task, projection) do
+    case projection[task.id] do
+      nil ->
+        "Draft · revision #{task.revision}"
+
+      %{snapshot: %{"revision" => revision}} when revision != task.revision ->
+        "Draft · revision #{task.revision} · earlier battle retained in Inspect"
+
+      result ->
+        "#{String.replace(result.state, "_", " ")} · frozen revision #{result.snapshot["revision"]}"
+    end
+  end
 
   @impl true
   def render(assigns) do
@@ -590,16 +667,18 @@ defmodule CuckodingWeb.TabulaLive do
           {if @board, do: @board.name, else: "Your board is ready to create."}
         </h2>
         <p class="fine-print arena-path">{@arena.path}</p>
-        <div :if={@board} class="team-actions" aria-label="Arena actions">
-          <button
-            id="arena-start"
-            type="button"
-            class="button"
-            disabled
-            aria-describedby="arena-start-help"
-          >Start</button>
-          <span id="arena-start-help" class="fine-print">Planning is available. Agent execution and automatic review are not available yet.</span>
-        </div>
+        <.live_component
+          :if={@board}
+          module={CuckodingWeb.BattleComponent}
+          id="arena-battle"
+          session_id={@session_id}
+          board={@board}
+          preview={@battle_preview}
+          battle={@battle}
+          battle_tasks={@battle_tasks}
+          attempts={@battle_attempts}
+          now={@now}
+        />
         <div :if={length(@boards) > 1} class="team-actions" aria-label="Tabulae">
           <.link
             :for={board <- @boards}
@@ -928,25 +1007,21 @@ defmodule CuckodingWeb.TabulaLive do
             >
               <h3 id={"heading-#{column["key"]}"}>{column["name"]}</h3>
               <p class="fine-print">{role_name(@board_team, column["role"])}</p>
-              <p :if={column["key"] not in ~w(specs todo)} class="fine-print">
-                Unavailable until battles
-              </p>
               <p
-                :if={
-                  column["key"] in ~w(specs todo) &&
-                    not Enum.any?(@tasks, &(&1.column == column["key"]))
-                }
+                :if={!Enum.any?(@tasks, &(task_column(&1, @battle_projection) == column["key"]))}
                 class="fine-print"
               >
                 No tasks yet
               </p>
               <article
-                :for={task <- Enum.filter(@tasks, &(&1.column == column["key"]))}
+                :for={
+                  task <- Enum.filter(@tasks, &(task_column(&1, @battle_projection) == column["key"]))
+                }
                 id={"task-#{task.id}"}
                 class="task-card"
               >
                 <h4>{task.title}</h4>
-                <p class="fine-print">Draft · revision {task.revision} · no active agent</p>
+                <p class="fine-print">{task_status(task, @battle_projection)}</p>
                 <p :if={task.depends_on != []} class="fine-print">
                   Prerequisites: {Enum.map_join(task.depends_on, "; ", &dependency_label(@tasks, &1))}
                 </p>
@@ -957,14 +1032,14 @@ defmodule CuckodingWeb.TabulaLive do
                     Phoenix.LiveView.JS.set_attribute({"open", ""}, to: "#draft-editor")
                     |> Phoenix.LiveView.JS.push("edit", value: %{id: task.id})
                   }
-                  aria-label={"Edit #{task.title}"}
-                >Edit task</button>
+                  aria-label={"#{if Map.has_key?(@battle_projection, task.id), do: "Inspect", else: "Edit"} #{task.title}"}
+                >{if Map.has_key?(@battle_projection, task.id), do: "Inspect task", else: "Edit task"}</button>
               </article>
             </section>
           </div>
         </div>
         <p :if={@board} class="fine-print">
-          Team revision {@board_team.id} · workflow 1 · planning drafts. ToDo does not authorize execution.
+          Team revision {@board_team.id} · workflow 1. New tasks remain available for a later battle; Start freezes its own scope.
         </p>
       </section>
       <section :if={@board} class="panel" aria-labelledby="draft-title">
@@ -983,65 +1058,74 @@ defmodule CuckodingWeb.TabulaLive do
             id="draft-form"
             phx-change="change"
             phx-submit="save"
-            class="role-fields"
             aria-describedby={if @error, do: "draft-error"}
           >
-            <input name="task_id" type="hidden" value={@task_id} />
-            <input name="revision" type="hidden" value={@revision} />
-            <input name="tabula_id" type="hidden" value={@board.id} />
-            <label for="draft-title-input">Task title</label>
-            <input
-              id="draft-title-input"
-              type="text"
-              name="title"
-              value={@content["title"]}
-              maxlength="120"
-              required
-            />
-            <label for="draft-description">Description</label>
-            <textarea id="draft-description" name="description" rows="5" maxlength="8000">{@content["description"]}</textarea>
-            <label for="draft-criteria">Acceptance criteria</label>
-            <textarea id="draft-criteria" name="criteria" rows="4" maxlength="4000">{@content["criteria"]}</textarea>
-            <label for="draft-column">Column</label>
-            <select id="draft-column" name="column">
-              <option value="specs" selected={@content["column"] == "specs"}>
-                Specs · refine the task
-              </option>
-              <option value="todo" selected={@content["column"] == "todo"}>
-                ToDo · planned work
-              </option>
-            </select>
-            <fieldset id="draft-prerequisites" aria-describedby="prerequisites-help">
-              <legend>Prerequisites</legend>
-              <p id="prerequisites-help" class="fine-print">
-                Choose up to 16 tasks that must come first. This records a plan; it does not start work.
-              </p>
-              <input type="hidden" name="depends_on[]" value="" />
-              <label
-                :for={task <- Enum.reject(@tasks, &(&1.id == @task_id))}
-                class="confirm-executable"
-              >
-                <input
-                  id={"depends-on-#{task.id}"}
-                  type="checkbox"
-                  name="depends_on[]"
-                  value={task.id}
-                  checked={task.id in @content["depends_on"]}
-                />
-                {dependency_label(@tasks, task.id)}
-              </label>
-              <p :if={!Enum.any?(@tasks, &(&1.id != @task_id))} class="fine-print">
-                Save another task to add a prerequisite.
-              </p>
-            </fieldset>
-            <p class="fine-print">
-              ToDo needs a description and criteria. These are database drafts; project files stay untouched.
+            <p :if={@editing_locked} id="draft-locked" role="status" class="notice">
+              This task is frozen in the active battle. Your unsaved text is kept; new drafts can still be added for a later battle.
             </p>
-            <p :if={@error} id="draft-error" role="alert" class="notice">{@error}</p>
-            <button id="draft-save" type="submit" class="button primary" phx-disable-with="Saving…">Save task</button>
+            <fieldset class="role-fields" disabled={@editing_locked} aria-labelledby="draft-title">
+              <input name="task_id" type="hidden" value={@task_id} />
+              <input name="revision" type="hidden" value={@revision} />
+              <input name="tabula_id" type="hidden" value={@board.id} />
+              <label for="draft-title-input">Task title</label>
+              <input
+                id="draft-title-input"
+                type="text"
+                name="title"
+                value={@content["title"]}
+                maxlength="120"
+                required
+              />
+              <label for="draft-description">Description</label>
+              <textarea id="draft-description" name="description" rows="5" maxlength="8000">{@content["description"]}</textarea>
+              <label for="draft-criteria">Acceptance criteria</label>
+              <textarea id="draft-criteria" name="criteria" rows="4" maxlength="4000">{@content["criteria"]}</textarea>
+              <label for="draft-column">Column</label>
+              <select id="draft-column" name="column">
+                <option value="specs" selected={@content["column"] == "specs"}>
+                  Specs · refine the task
+                </option>
+                <option value="todo" selected={@content["column"] == "todo"}>
+                  ToDo · planned work
+                </option>
+              </select>
+              <fieldset id="draft-prerequisites" aria-describedby="prerequisites-help">
+                <legend>Prerequisites</legend>
+                <p id="prerequisites-help" class="fine-print">
+                  Choose up to 16 tasks that must come first. This records a plan; it does not start work.
+                </p>
+                <input type="hidden" name="depends_on[]" value="" />
+                <label
+                  :for={task <- Enum.reject(@tasks, &(&1.id == @task_id))}
+                  class="confirm-executable"
+                >
+                  <input
+                    id={"depends-on-#{task.id}"}
+                    type="checkbox"
+                    name="depends_on[]"
+                    value={task.id}
+                    checked={task.id in @content["depends_on"]}
+                  />
+                  {dependency_label(@tasks, task.id)}
+                </label>
+                <p :if={!Enum.any?(@tasks, &(&1.id != @task_id))} class="fine-print">
+                  Save another task to add a prerequisite.
+                </p>
+              </fieldset>
+              <p class="fine-print">
+                ToDo needs a description and criteria. These are database drafts; project files stay untouched.
+              </p>
+              <p :if={@error} id="draft-error" role="alert" class="notice">{@error}</p>
+              <button
+                id="draft-save"
+                type="submit"
+                class="button primary"
+                phx-disable-with="Saving…"
+              >Save task</button>
+            </fieldset>
           </.form>
           <.live_component
-            :if={@revision > 0}
+            :if={@revision > 0 && !@editing_locked}
             module={CuckodingWeb.SpecificationComponent}
             id="task-specifications"
             session_id={@session_id}

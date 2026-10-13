@@ -54,7 +54,7 @@ defmodule CuckodingWeb.ArenaLiveTest do
     assert has_element?(board_view, "#brief-planning[open]")
     refute has_element?(board_view, "#arena-advanced[open]")
     assert has_element?(board_view, "#arena-start[disabled]", "Start")
-    assert has_element?(board_view, "#arena-start-help", "not available yet")
+    assert has_element?(board_view, "#battle-blockers", "Create tasks")
     assert {:ok, again, _} = live(signed, "/arenas")
     assert render(again) =~ "My project"
     assert hd(Arenas.list()).team_revision_id == 1
