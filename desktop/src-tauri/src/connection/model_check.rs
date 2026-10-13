@@ -1,11 +1,11 @@
 //! Restricted diagnostic or brief-planning turn; never repository work or a general RPC bridge.
 use super::*;
 
-const PROFILE: &str = "cuckoding-model-check";
+pub(super) const PROFILE: &str = "cuckoding-model-check";
 const ACK: &str = "CC_READY";
 const PROMPT: &str =
     "Reply with exactly CC_READY. Do not use tools, read files, or perform any other action.";
-const DISABLED: &[&str] = &[
+pub(super) const DISABLED: &[&str] = &[
     "shell_tool",
     "unified_exec",
     "apply_patch_freeform",
@@ -33,7 +33,7 @@ const DISABLED: &[&str] = &[
     "skill_env_var_dependency_prompt",
 ];
 
-fn permissions(scratch: &Path) -> Value {
+pub(super) fn permissions(scratch: &Path) -> Value {
     json!({"filesystem": {":root":"deny", scratch.to_str().unwrap():"read"},
         "network":{"enabled":false}})
 }
@@ -68,7 +68,7 @@ pub(super) fn configure(command: &mut Command, scratch: &Path) -> Result<()> {
     Ok(())
 }
 
-fn validate_config(config: &Value, scratch: &Path) -> Result<()> {
+pub(super) fn validate_config(config: &Value, scratch: &Path) -> Result<()> {
     if config["default_permissions"] != PROFILE
         || without_nulls(config["permissions"][PROFILE].clone()) != permissions(scratch)
         || !config["sandbox_mode"].is_null()
@@ -257,7 +257,12 @@ pub(super) fn check(
     Ok(receipt)
 }
 
-fn validate_thread(thread: &Value, scratch: &Path, model: &str, effort: &str) -> Result<()> {
+pub(super) fn validate_thread(
+    thread: &Value,
+    scratch: &Path,
+    model: &str,
+    effort: &str,
+) -> Result<()> {
     if thread["model"] != model {
         return Err("model_mismatch");
     }

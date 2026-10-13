@@ -120,3 +120,7 @@ Search with `rtk rg`; no indexing service is required.
 
 Dependency maintenance: R101 updates Decimal to 3.2.0, resolving
 CVE-2026-97853. See [verification](worklog/2026-10-13-R101-decimal-security.md).
+
+R020n adds bounded Codex host file-tool turns for the forthcoming execution loop.
+Start still requires durable battle admission and independent review; this
+transport alone does not enable running Arenas.

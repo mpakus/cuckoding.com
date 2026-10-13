@@ -182,3 +182,21 @@ rejected the installed CLI's complete 256-entry catalog. Saved selections also
 accept up to 512 IDs, each checked against the current agent catalog. Duplicate,
 malformed, incomplete and over-limit lists remain failures; no partial list is
 published as fresh and no model IDs or capabilities are invented.
+
+## R020n task transport
+
+Codex `run_task` starts a fresh ephemeral thread using `host-task-tools-v1`.
+Built-in tools remain disabled and the runtime sees an empty scratch folder.
+The only dynamic tools are host-owned list/read/edit operations; review omits edit.
+Native code validates the app-owned worktree marker and current device/inode.
+Limits are 64 calls, 32 KiB per text file, 512 KiB combined file/list traffic and
+five minutes per turn. Parent directories can be created; deletion, binary files,
+protected policy, commands and network are not supported by this grant.
+
+All calls bind thread/turn/call IDs. Edits compare the last read SHA-256, write
+through a pinned parent descriptor and retain a private fsynced intent/result
+journal. No interrupted write is replayed. Normalized receipts contain tool kind,
+call ID, status and hash, not content or raw provider messages. Role reports are
+`completed`, `changes_requested` or `blocked`; none directly completes a card.
+The battle host must freeze authority and validate exact candidate/review evidence.
+Cursor returns unsupported; no fallback runtime is selected.

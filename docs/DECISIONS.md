@@ -83,3 +83,20 @@ and private profiles rather than assuming minimal-system access excludes them.
 The optional Agents diagnostic does not touch an Arena, use an account/model,
 or authorize work. Its success cannot substitute for a fresh battle grant,
 effective thread policy, model tool validation or independent Secutor review.
+
+## D024 — Host-owned task tools
+
+Accepted 2026-10-13, before R020n implementation. The first coding turn retains
+Codex's empty-scratch, built-in-tools-disabled grant and supplies only bounded
+dynamic list/read/edit tools implemented by the host. This avoids giving model
+text a general shell bridge. The host validates one frozen worktree identity,
+relative eligible paths, byte/call limits and expected content hashes; protected
+policy/credentials and other folders remain inaccessible. Tool effects retain
+private receipts, while SQLite remains the attempt/authority owner. Independent
+review receives only read tools. Host check declarations execute through a
+separate bounded runner, never through proposed shell text.
+
+This is actual file-tool execution, not a model response interpreted as a patch.
+It supports the initial code-editing flow with finite text-file limits; commands,
+binary editing and protected configuration are outside this grant. Full runtime
+and two-workspace acceptance must still be measured, not inferred from schemas.

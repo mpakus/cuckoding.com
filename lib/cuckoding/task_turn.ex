@@ -1,0 +1,72 @@
+defmodule Cuckoding.TaskTurn do
+  @moduledoc "Public task receipts only; a role report does not establish task completion."
+  alias Cuckoding.Codex
+
+  @tool_errors ~w(invalid_tool unsafe_workspace unsafe_file unsupported_file file_changed file_missing tool_limit journal_failed write_failed attempt_exists)
+  @errors ~w(launch_failed timeout cancelled invalid_output executable_changed helper_unavailable connection_lost provider_error unexpected_message profile_mismatch unsupported_profile unsafe_profile profile_busy cleanup_uncertain not_connected model_unavailable model_mismatch unsupported_grant invalid_response unexpected_tool turn_failed interrupted)
+
+  def normalize(bytes) when is_binary(bytes) and byte_size(bytes) <= 32_768 do
+    with {:ok, %{"status" => status} = result} <- Jason.decode(bytes),
+         true <- status in ["task_finished" | @errors ++ @tool_errors],
+         true <- tools?(Map.get(result, "tools", [])) do
+      if status == "task_finished" do
+        normalize_success(result)
+      else
+        result
+        |> Map.take(~w(status tools))
+        |> Map.merge(Codex.public_fields(result))
+      end
+    else
+      _ -> %{"status" => "invalid_output"}
+    end
+  end
+
+  def normalize(_), do: %{"status" => "invalid_output"}
+
+  defp normalize_success(result) do
+    valid =
+      result["grant"] == "host-task-tools-v1" and result["access"] in ~w(read write) and
+        match?({:ok, _}, Ecto.UUID.cast(result["request_id"])) and
+        Enum.all?(~w(requested_model observed_model effort thread_id turn_id), &id?(result[&1])) and
+        report?(result["report"]) and
+        Enum.all?(Map.get(result, "tools", []), &(&1["status"] == "completed"))
+
+    if valid,
+      do:
+        result
+        |> Map.take(
+          ~w(status request_id grant access requested_model observed_model effort thread_id turn_id report tools)
+        )
+        |> Map.merge(Codex.public_fields(result)),
+      else: %{"status" => "invalid_output"}
+  end
+
+  defp tools?(tools) when is_list(tools) and length(tools) <= 64 do
+    Enum.all?(tools, &tool?/1) and
+      length(Enum.uniq_by(tools, & &1["call_id"])) == length(tools)
+  end
+
+  defp tools?(_), do: false
+
+  defp tool?(%{"call_id" => id, "tool" => tool, "status" => status} = entry) do
+    Map.keys(entry) -- ~w(call_id tool status sha256) == [] and id?(id) and
+      tool in ~w(list_files read_file edit_file) and status in ["completed" | @tool_errors] and
+      (is_nil(entry["sha256"]) or
+         (is_binary(entry["sha256"]) and Regex.match?(~r/\A[0-9a-f]{64}\z/, entry["sha256"])))
+  end
+
+  defp tool?(_), do: false
+
+  defp report?(%{"summary" => text, "outcome" => outcome} = report) do
+    map_size(report) == 2 and outcome in ~w(completed changes_requested blocked) and
+      is_binary(text) and byte_size(text) in 1..4000 and String.valid?(text) and
+      String.trim(text) != "" and not Regex.match?(~r/[\x00-\x08\x0B-\x1F\x7F]/, text)
+  end
+
+  defp report?(_), do: false
+
+  defp id?(id),
+    do:
+      is_binary(id) and byte_size(id) in 1..128 and
+        Regex.match?(~r/\A[a-zA-Z0-9._\/-]+\z/, id)
+end

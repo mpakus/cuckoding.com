@@ -222,3 +222,9 @@ resolve the assigned connection; Codex planning uses its exact profile. Cursor
 setup uses fixed native CLI operations and cannot infer or plan. Agents is a
 roster plus one existing four-step wizard per connection. The dispatcher remains
 serialized. See [D021](DECISIONS.md#d021--named-local-agent-connections).
+
+R020n adds the `AgentAdapter.run_task` operation and native closed dynamic file
+tools (D024). This is a callable transport, not a battle scheduler or Start grant.
+Host tools validate owned-workspace identities and retain local per-call effects;
+role reports remain bounded public data. R050 must bind these to durable battle
+authority, candidates and independent review before enabling Start.

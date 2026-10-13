@@ -1,9 +1,10 @@
 defmodule Cuckoding.AgentAdapter do
-  @moduledoc "Private profile operations and restricted diagnostic/brief turns; no repository tasks."
+  @moduledoc "Private profile operations, planning and explicit host-owned task turns."
   @callback probe(map(), binary(), (-> boolean())) :: map()
   @callback inspect_connection(map(), binary(), (-> boolean())) :: map()
   @callback check_model(map(), binary(), binary(), binary(), binary(), (-> boolean())) :: map()
   @callback plan(map(), binary(), binary(), map(), (-> boolean())) :: map()
+  @callback run_task(map(), binary(), binary(), map(), (-> boolean())) :: map()
   @callback authorize(map(), binary(), :login | :logout, (-> boolean()), (binary() -> any())) ::
               map()
 end
@@ -199,6 +200,29 @@ defmodule Cuckoding.Codex do
         Jason.encode!(Map.take(request, ~w(request_id brief instructions documents contract))) <>
           "\n"
     )
+  end
+
+  @impl true
+  def run_task(identity, profile, scratch, request, active?) do
+    if active?.() do
+      observe(
+        identity,
+        profile,
+        active?,
+        "--run-codex-task",
+        &Cuckoding.TaskTurn.normalize/1,
+        32_768,
+        305_000,
+        progress: :no_progress,
+        args: [scratch, request["model"], request["effort"]],
+        input:
+          Jason.encode!(
+            Map.take(request, ~w(request_id contract access workspace prompt instructions))
+          ) <> "\n"
+      )
+    else
+      %{"status" => "cancelled"}
+    end
   end
 
   def observe(

@@ -101,6 +101,13 @@ Preserve these implemented contracts:
   differences. Keep observations dated, retain uncertain state, reject late/foreign
   receipts and never use inspection as a grant or future-integrity guarantee.
 
+R020n task turns use only `host-task-tools-v1` dynamic list/read/edit tools.
+Keep native root identity and policy-path checks, finite call/byte limits,
+compare-before-write, fsynced effect receipts, cancellation and no replay.
+Runtime built-in tools remain disabled. Read-only roles cannot edit. A transport
+report never grants battle authority or marks a card Completed; R050 must own
+that binding. Do not add a new mandatory setup diagnostic.
+
 ## Mission and product contract
 
 R020m's optional `codex-isolation-v1` diagnostic runs fixed commands against two

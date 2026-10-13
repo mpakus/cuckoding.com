@@ -14,6 +14,8 @@ use std::{
 };
 
 mod model_check;
+mod task_files;
+mod task_turn;
 
 type Result<T> = std::result::Result<T, &'static str>;
 const FRAME_LIMIT: usize = 65_536;
@@ -35,6 +37,12 @@ pub enum Operation<'a> {
         scratch: &'a Path,
         model: &'a str,
         effort: &'a str,
+    },
+    Task {
+        scratch: &'a Path,
+        model: &'a str,
+        effort: &'a str,
+        request: &'a Value,
     },
 }
 
@@ -74,9 +82,19 @@ struct Rpc {
     completion: Option<(String, bool)>,
     capture: bool,
     pending: VecDeque<Value>,
+    task_tools: bool,
 }
 
 impl Rpc {
+    fn active(&self) -> Result<()> {
+        if self.cancel.try_recv().is_ok() {
+            return Err("cancelled");
+        }
+        if Instant::now() >= self.deadline || SystemTime::now() >= self.wall_deadline {
+            return Err("timeout");
+        }
+        Ok(())
+    }
     fn send(&mut self, value: Value) -> Result<()> {
         writeln!(self.input, "{value}").map_err(|_| "connection_lost")
     }
@@ -121,18 +139,15 @@ impl Rpc {
 
     fn next(&mut self) -> Result<Value> {
         loop {
-            if self.cancel.try_recv().is_ok() {
-                return Err("cancelled");
-            }
-            if Instant::now() >= self.deadline || SystemTime::now() >= self.wall_deadline {
-                return Err("timeout");
-            }
+            self.active()?;
             match self.output.recv_timeout(Duration::from_millis(20)) {
                 Ok(Ok(message)) => {
                     if message.get("method").is_some() {
-                        // A provider request never becomes a host command. Account drift
-                        // while fetching a catalog invalidates the observation as well.
-                        if message.get("id").is_some()
+                        // Only task turns admit closed dynamic-tool requests; setup never does.
+                        if (message.get("id").is_some()
+                            && !(self.task_tools
+                                && self.capture
+                                && message["method"] == "item/tool/call"))
                             || (!self.auth_changes
                                 && (message["method"] == "account/login/completed"
                                     || (message["method"] == "account/updated"
@@ -389,10 +404,21 @@ fn operate(
     let config = initialize(
         rpc,
         directory,
-        matches!(operation, Operation::Check { .. } | Operation::Plan { .. }),
+        matches!(
+            operation,
+            Operation::Check { .. } | Operation::Plan { .. } | Operation::Task { .. }
+        ),
     )?;
     match operation {
         Operation::Inspect => {}
+        Operation::Task {
+            scratch,
+            model,
+            effort,
+            request,
+        } => {
+            return task_turn::run(rpc, &config, directory, scratch, model, effort, request);
+        }
         Operation::Check {
             scratch,
             model,
@@ -485,7 +511,9 @@ fn run_operation(
         "approval_policy=\"never\"",
     ]);
     let cwd = match operation {
-        Operation::Check { scratch, .. } | Operation::Plan { scratch, .. } => {
+        Operation::Check { scratch, .. }
+        | Operation::Plan { scratch, .. }
+        | Operation::Task { scratch, .. } => {
             model_check::configure(&mut command, scratch)?;
             scratch
         }
@@ -528,6 +556,7 @@ fn run_operation(
         completion: None,
         capture: false,
         pending: VecDeque::new(),
+        task_tools: false,
     };
     let mut result = operate(&mut rpc, directory, operation, &mut progress)
         .unwrap_or_else(|error| json!({"status":error}));
@@ -553,6 +582,7 @@ pub fn main(args: &[String], operation: Operation) {
             Duration::from_secs(match operation {
                 Operation::Login => 600,
                 Operation::Check { .. } | Operation::Plan { .. } => 120,
+                Operation::Task { .. } => 300,
                 _ => 10,
             }),
             operation,
@@ -615,6 +645,33 @@ pub fn plan_main(args: &[String]) {
                     request: &request,
                 },
             );
+        }
+        _ => {
+            let _ = writeln!(io::stdout(), "{}", json!({"status":"invalid_output"}));
+        }
+    }
+}
+
+pub fn task_main(args: &[String]) {
+    let mut input = Vec::new();
+    let request = io::stdin()
+        .lock()
+        .take(65_537)
+        .read_until(b'\n', &mut input)
+        .ok()
+        .filter(|n| *n <= 65_536)
+        .and_then(|_| serde_json::from_slice::<Value>(&input).ok());
+    match (args, request) {
+        ([_, _, scratch, model, effort], Some(request)) if task_turn::valid_request(&request) => {
+            main(
+                &args[..2],
+                Operation::Task {
+                    scratch: Path::new(scratch),
+                    model,
+                    effort,
+                    request: &request,
+                },
+            )
         }
         _ => {
             let _ = writeln!(io::stdout(), "{}", json!({"status":"invalid_output"}));

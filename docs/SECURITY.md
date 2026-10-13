@@ -498,3 +498,20 @@ The helper owns children, clears inherited secrets and avoids personal profiles;
 it is still a host process, not a filesystem sandbox. Cursor inference grants,
 login completion/revocation and physical sleep acceptance remain separate.
 R020l verifies a real signed-in catalog; catalog metadata never proves inference access.
+
+## Host-owned task tools (R020n)
+
+The runtime retains the no-built-in-tools scratch policy; dynamic calls do not
+grant it the worktree directly. The native host rejects unknown tools, foreign
+thread/turn IDs, duplicate requests/calls, read-only edits and changed root identity.
+Paths are relative ASCII components (eight levels, 240 bytes); hidden, protected
+policy, common credential and dependency/output paths are excluded. Opens use
+pinned parent descriptors, no-follow/nonblocking flags, and regular single-link
+text-file checks. File edits require the current hash; replacement is atomic.
+Each call has a fsynced local intent before effects and an outcome afterward.
+Failures preserve effects/temporary files and stop the turn; no blind replay.
+
+Filename exclusions do not recognize all secrets inside ordinary source files.
+The future Start scope must disclose sending eligible contents to the selected
+provider. Same-user hostile races remain outside host isolation guarantees.
+A tool receipt and a role's `completed` report are not Secutor acceptance.

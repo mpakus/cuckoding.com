@@ -44,6 +44,9 @@ defmodule Cuckoding.Cursor do
   @impl true
   def plan(_, _, _, _, _), do: %{"status" => "unsupported_grant"}
 
+  @impl true
+  def run_task(_, _, _, _, _), do: %{"status" => "unsupported_grant"}
+
   def normalize(bytes) when is_binary(bytes) and byte_size(bytes) <= 1024 do
     case Jason.decode(bytes) do
       {:ok, %{"status" => "observed", "version" => version} = result} when is_binary(version) ->

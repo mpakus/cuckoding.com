@@ -226,6 +226,10 @@ the real-provider gate.
   workspaces, read-only/writing grants, canaries, timeout/cancellation and audited
   executable-bound receipts. [Task/evidence](../tasks/R020m-codex-isolation.md).
   This proves the tested CLI sandbox behavior, not actual model-tool turns.
+- [x] R020n: implement bounded Codex dynamic file-tool transport, exact scoped
+  requests, protected paths, compare-before-write and interruption receipts.
+  [Task/evidence](../tasks/R020n-task-tools.md). Real-account acceptance and
+  Start integration remain separate gates.
 - [ ] Prove a read-only turn and a permitted worktree-writing turn in isolated
   workspaces; normalize public activity, outcomes and redacted logs.
 - [ ] Add task/process identity, cancellation, clean environment, path policy,
