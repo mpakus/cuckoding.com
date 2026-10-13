@@ -90,6 +90,56 @@ defmodule Cuckoding.Codex do
     observe(identity, directory, active?, "--probe-codex", &normalize/1, 1024, 8_000)
   end
 
+  def isolation_version, do: "0.162.0-alpha.17.2"
+
+  def check_isolation(identity, directory, active?) do
+    observe(
+      identity,
+      directory,
+      active?,
+      "--check-codex-isolation",
+      &normalize_isolation/1,
+      2048,
+      25_000,
+      progress: :no_progress
+    )
+  end
+
+  def normalize_isolation(bytes) when is_binary(bytes) and byte_size(bytes) <= 2048 do
+    with {:ok, %{"status" => status} = value} <- Jason.decode(bytes),
+         true <-
+           status in (~w(passed unsupported_version unsafe_fixture isolation_failed network_unavailable) ++
+                        @errors ++ ~w(cleanup_uncertain)),
+         true <- valid_isolation_success?(status, value),
+         true <- is_nil(value["children"]) or valid_isolation_children?(value["children"], false),
+         true <-
+           is_nil(value["elapsed_ms"]) or
+             (is_integer(value["elapsed_ms"]) and value["elapsed_ms"] in 0..30_000) do
+      fields = if status == "passed", do: ~w(contract version), else: []
+      Map.take(value, ~w(status children elapsed_ms) ++ fields)
+    else
+      _ -> %{"status" => "invalid_output"}
+    end
+  end
+
+  def normalize_isolation(_), do: %{"status" => "invalid_output"}
+
+  defp valid_isolation_success?("passed", value) do
+    value["contract"] == "codex-isolation-v1" and value["version"] == isolation_version() and
+      is_integer(value["elapsed_ms"]) and valid_isolation_children?(value["children"], true)
+  end
+
+  defp valid_isolation_success?(_, _), do: true
+
+  defp valid_isolation_children?(children, complete?) do
+    is_list(children) and length(children) in if(complete?, do: 5..5, else: 0..5) and
+      Enum.all?(children, fn child ->
+        is_map(child) and map_size(child) == 2 and
+          is_integer(child["pid"]) and child["pid"] > 0 and
+          is_integer(child["spawned_at_ms"]) and child["spawned_at_ms"] > 0
+      end)
+  end
+
   @impl true
   def inspect_connection(identity, directory, active?) do
     observe(

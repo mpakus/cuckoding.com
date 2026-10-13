@@ -9,6 +9,7 @@ defmodule Cuckoding.Foundation do
                        "preview_documents",
                        "accept_spec",
                        "check_codex_model",
+                       "check_codex_isolation",
                        "choose_arena_folder",
                        "inspect_arena_git",
                        "init_arena_git",
@@ -136,7 +137,8 @@ defmodule Cuckoding.Foundation do
       from c in Command,
         where: c.id == ^claim.id and c.state == "running" and c.attempts == ^claim.attempts,
         where:
-          c.kind not in ~w(worktree_arena_git inspect_worktree_arena_git) or c.lease_until > ^now
+          c.kind not in ~w(worktree_arena_git inspect_worktree_arena_git check_codex_isolation) or
+            c.lease_until > ^now
     )
   end
 
@@ -185,6 +187,7 @@ defmodule Cuckoding.Foundation do
               "preview_documents",
               "accept_spec",
               "check_codex_model",
+              "check_codex_isolation",
               "choose_arena_folder",
               "inspect_arena_git",
               "init_arena_git",
@@ -269,6 +272,43 @@ defmodule Cuckoding.Foundation do
       {:error, _} = error -> error
       _ -> {:error, :model_refresh_required}
     end
+  end
+
+  def check_isolation(key, expected, confirmed, agent_id \\ "codex") do
+    with true <- confirmed == true,
+         {:ok, identity} <- verified_executable(agent_id),
+         true <-
+           Agents.kind(agent_id) == "codex" and
+             workspace(agent_id).codex["version"] == Codex.isolation_version() do
+      command(
+        key,
+        expected,
+        "check_codex_isolation",
+        scoped(
+          %{
+            "identity" => identity,
+            "version" => Codex.isolation_version(),
+            "version_command_id" => workspace(agent_id).codex["command_id"],
+            "contract" => "codex-isolation-v1"
+          },
+          agent_id
+        )
+      )
+    else
+      false -> {:error, :isolation_unavailable}
+      error -> error
+    end
+  end
+
+  def isolation_current?(payload) do
+    id = agent_id(payload)
+    observed = workspace(id).codex
+
+    Agents.kind(id) == "codex" and payload["contract"] == "codex-isolation-v1" and
+      payload["version"] == Codex.isolation_version() and
+      observed["version"] == payload["version"] and
+      observed["command_id"] == payload["version_command_id"] and
+      verified_executable(id) == {:ok, payload["identity"]}
   end
 
   def model_check_current?(payload) do
@@ -473,16 +513,22 @@ defmodule Cuckoding.Foundation do
       workspace().revision != expected ->
         "stale_revision"
 
-      (kind in @exclusive_kinds and pending?()) or pending_probe(@exclusive_kinds) != nil ->
+      profile_busy?(kind) ->
         "profile_busy"
 
       kind == "check_codex_model" and not model_check_current?(payload) ->
         "model_refresh_required"
 
+      kind == "check_codex_isolation" and not isolation_current?(payload) ->
+        "version_required"
+
       true ->
         nil
     end
   end
+
+  defp profile_busy?(kind),
+    do: (kind in @exclusive_kinds and pending?()) or pending_probe(@exclusive_kinds) != nil
 
   def claim(now \\ System.system_time(:millisecond)) do
     Repo.transaction(
@@ -515,6 +561,7 @@ defmodule Cuckoding.Foundation do
                  "preview_documents",
                  "accept_spec",
                  "check_codex_model",
+                 "check_codex_isolation",
                  "choose_arena_folder",
                  "inspect_arena_git",
                  "init_arena_git",
@@ -582,6 +629,7 @@ defmodule Cuckoding.Foundation do
   defp lease_duration("preview_documents"), do: 25_000
   defp lease_duration("plan_tabula"), do: 140_000
   defp lease_duration("check_codex_model"), do: 140_000
+  defp lease_duration("check_codex_isolation"), do: 35_000
 
   defp lease_duration(kind)
        when kind in ~w(inspect_codex logout_codex inspect_cursor logout_cursor), do: 20_000
@@ -666,7 +714,7 @@ defmodule Cuckoding.Foundation do
 
   defp cancelled_result(tools) do
     status = if tools["status"] == "cleanup_uncertain", do: "cleanup_uncertain", else: "cancelled"
-    tools |> Map.take(~w(pid spawned_at_ms elapsed_ms)) |> Map.put("status", status)
+    tools |> Map.take(~w(pid spawned_at_ms elapsed_ms children)) |> Map.put("status", status)
   end
 
   def record(kind, data \\ %{}, command_id \\ nil) do
@@ -723,6 +771,25 @@ defmodule Cuckoding.Foundation do
 
     {project(agent_id(claim.payload),
        connection: Map.put(workspace(agent_id(claim.payload)).connection, "model_check", public)
+     ), public}
+  end
+
+  defp projection(%{kind: "check_codex_isolation"} = claim, result) do
+    result = result |> Jason.encode!() |> Codex.normalize_isolation()
+
+    result =
+      if result["status"] == "passed" and not isolation_current?(claim.payload),
+        do: %{"status" => "executable_changed"},
+        else: result
+
+    public =
+      Map.merge(result, %{
+        "command_id" => claim.id,
+        "checked_at" => DateTime.to_iso8601(DateTime.utc_now())
+      })
+
+    {project(agent_id(claim.payload),
+       codex: Map.put(workspace(agent_id(claim.payload)).codex, "isolation", public)
      ), public}
   end
 
@@ -803,6 +870,7 @@ defmodule Cuckoding.Foundation do
   defp prefix("logout_codex"), do: "logout."
   defp prefix("plan_tabula"), do: "planning."
   defp prefix("check_codex_model"), do: "model_check."
+  defp prefix("check_codex_isolation"), do: "isolation."
 
   def broadcast, do: Phoenix.PubSub.broadcast(Cuckoding.PubSub, "foundation", :updated)
 end

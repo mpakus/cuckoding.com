@@ -8,6 +8,13 @@ diagnostic response. Cursor `2026.09.15-d2fe57e` supports fixed setup operations
 only. Human-completed Cursor login/catalog acceptance, repository turns and
 additional provider adapters remain open.
 
+R020m adds `check_isolation/3` as an optional Codex diagnostic on
+`0.162.0-alpha.17.2`. It invokes fixed sandbox commands with two synthetic
+workspaces and an empty profile, returns `codex-isolation-v1` public receipts,
+and tests denied sibling/profile/protected/link/network access. It performs no
+inference and does not implement Launch. Future app-server tool turns still need
+effective-policy validation and actual read/write/review acceptance.
+
 ## One replaceable boundary
 
 An adapter must support or explicitly report unsupported:

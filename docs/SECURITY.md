@@ -1,5 +1,24 @@
 # Security contract
 
+R020m's optional `check_codex_isolation` uses fixed commands and a fresh empty
+profile to test two disposable folders with the observed Codex
+`0.162.0-alpha.17.2`. It touches no Arena or signed-in profile and uses no model.
+It tests read-only/writing, sibling/private fixtures, protected `.git`/`.cuckoding`,
+symbolic/hard links, protected-directory rename and loopback network denial.
+The local endpoint is proven reachable outside the sandbox and dropped before
+the receipt. Explicit `:tmpdir`/`:slash_tmp` denial is required: minimal system
+access alone allowed sibling reads/writes in the initial experiment.
+This fixture result is not a universal filesystem or model-tool permission proof.
+
+The diagnostic clears inherited environment, owns child process groups, caps
+each stdout at 128 bytes, drops stderr, and has a 20-second monotonic/wall deadline.
+Only normalized result/contract/version, bounded child PID/start observations and
+elapsed time reach SQLite. Commands bind the exact connection/version/executable;
+expired/cancelled work cannot publish success and interrupted checks never replay.
+Fixtures/partial effects remain in private per-command probe directories.
+Historical success never grants repository execution; future task admission still
+needs effective grants and protected-policy validation for its actual layout.
+
 R040a Arena registration is metadata-only and grants no agent access. The native
 directory chooser runs as the app-owned fixed helper with a cleared environment,
 private HOME, owned process group, no child processes and a two-minute deadline;

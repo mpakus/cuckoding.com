@@ -72,3 +72,14 @@ Use existing Arenas/Tabulae/Planning contexts and command/event transactions.
 No new frontend, queue or database. Add-folder/default-board persistence must be
 atomic and idempotent; existing boards/history survive. Target automatic analysis,
 card creation and execution remain open in [Plan](PLAN.md#next-delivery-order--simple-arena).
+
+## D023 · Executable-bound isolation evidence
+
+Accepted 2026-10-13 for R020m. Before enabling repository turns, verify the selected
+Codex version's sandbox with fixed commands in disposable private fixtures. Use
+the existing consented command ledger, executable identity and owned process
+cleanup; retain only normalized check results. Explicitly deny temporary roots
+and private profiles rather than assuming minimal-system access excludes them.
+The optional Agents diagnostic does not touch an Arena, use an account/model,
+or authorize work. Its success cannot substitute for a fresh battle grant,
+effective thread policy, model tool validation or independent Secutor review.

@@ -6,6 +6,13 @@ and full-story gates remain open. Historical test counts do not establish proof.
 
 ## Gates by slice
 
+R020m real sandbox check (no account/inference) is opt-in:
+`rtk proxy env CUCKODING_TEST_CODEX=/absolute/trusted/codex CUCKODING_ISOLATION_CANARY=fixture cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked isolation::tests::real_codex_two_workspace_isolation -- --ignored`.
+Use a verified `0.162.0-alpha.17.2` executable. Routine Cargo tests deliberately
+skip this gate; record its separate result. It does not close model-tool execution
+or independent review acceptance. Domain/UI regressions live in
+`test/cuckoding/isolation_test.exs` and `test/cuckoding_web/isolation_live_test.exs`.
+
 | Slice | Smallest required evidence |
 | --- | --- |
 | R002 / R040k | Registration/default-board atomic rollback and replay, frozen team, unchanged folder, immediate navigation, existing/empty/multiple boards without GET writes, Advanced and draft disclosure keyboard behavior, live form preservation, honest disabled Start and responsive rendering |

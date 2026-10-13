@@ -1,5 +1,14 @@
 # Data model
 
+R020m requires no migration. `check_codex_isolation` commands freeze connection ID,
+executable identity, observed version/command and contract; a 35-second exclusive
+claim owns the bounded native diagnostic. Successful completion atomically saves
+normalized evidence in the selected connection's `codex.isolation` projection and
+an `isolation.completed` event. Version checks clear the current projection;
+immutable command/events remain. Cancellation holds exclusion through cleanup;
+expired attempts are interrupted without replay or acceptance of late results.
+Neither this projection nor its historical receipt is an execution grant.
+
 R050a's Battle preview adds no table or persisted workflow state. It reads existing
 team adoption, draft revision/acceptance, check revision and Git command receipts
 in one read transaction. Artifact verification describes bytes at observation

@@ -16,6 +16,7 @@ release process group and private storage lock.
 | `Agents`, `Foundation`, `Dispatcher`, `records.ex` | Idempotent commands, expiring claims, append-only events and setup projections in SQLite; one synchronous dispatcher executes bounded external operations |
 | `ShellAuth`, web session guard | One-time shell/browser handoff and expiring DB sessions; stateful components must guard their own events |
 | `Codex`, native `connection.rs` / `model_check.rs` | Private-profile authorization, model catalog, fixed diagnostic and structured no-tools planning; SQLite retains only normalized public receipts |
+| `Foundation`, `Codex`, native `isolation.rs` | Optional fixed two-workspace sandbox canaries, fresh empty runtime profile, executable-bound command/event receipt; no inference or Arena grant |
 | `Team`, `TeamAssignments` | Immutable default revisions and confirmed scoped adoptions; no provider launch or permission grant |
 | `Arenas`, native `folder.rs` | Native folder selection and confirmed directory identity; registration reads metadata only |
 | `Tabulae` | Immutable default boards, revisioned Specs/ToDo drafts, acyclic prerequisites and proposal import provenance; delivery columns stay locked |
@@ -102,6 +103,14 @@ while validating historical bindings against the complete catalog. No new schema
 runtime abstraction or dependency is introduced for R020h.
 
 ## Simple Arena boundary (D022)
+
+R020m reuses Foundation's exclusive command lifecycle and Dispatcher for
+`check_codex_isolation`. An exact version/executable observation is frozen in the
+payload; the native helper builds private fixtures, invokes only fixed version
+and sandbox commands, and returns bounded public child identities and status.
+The projection lives in that connection's version metadata, so a new version check
+clears it while preserving history. Cancelled/expired work cannot publish success;
+interrupted checks never replay. No schema, dependency or account access is added.
 
 R002 creates a default Tabula in the same registration transaction as its Arena,
 using Tabulae's existing command/event writer. The registration key owns replay;

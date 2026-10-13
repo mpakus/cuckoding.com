@@ -41,6 +41,11 @@ role independently: for example Cursor/Grok for Speculator and Codex/GPT for
 Implementor, once those runtime capabilities are supported. Saving a binding is
 not execution permission. A catalog is separate from model access.
 
+Codex also has an optional **Execution isolation** diagnostic. With verified
+`0.162.0-alpha.17.2`, it checks read-only/writing restrictions in two disposable
+folders without signing in or using a model. Results are saved per connection;
+they are sandbox evidence, not permission to execute Arena tasks.
+
 Use **Create tasks → Read project folder** to preview up to 16 eligible text/source
 files (16 KiB each, 64 KiB total), then confirm sending them to Speculator.
 A brief is optional with sources; empty folders need one. The preview reports

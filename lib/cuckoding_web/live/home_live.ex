@@ -3,7 +3,7 @@ defmodule CuckodingWeb.HomeLive do
   alias Cuckoding.{Agents, Foundation, Team}
   alias CuckodingWeb.Layouts
 
-  @operations ~w(probe_codex inspect_codex login_codex logout_codex check_codex_model probe_cursor inspect_cursor login_cursor logout_cursor)
+  @operations ~w(probe_codex inspect_codex login_codex logout_codex check_codex_model check_codex_isolation probe_cursor inspect_cursor login_cursor logout_cursor)
 
   @impl true
   def mount(params, _session, socket) do
@@ -121,6 +121,17 @@ defmodule CuckodingWeb.HomeLive do
   def handle_event("inspect_codex", params, socket) do
     submit(socket, params, fn ->
       Foundation.inspect_codex(
+        socket.assigns.command_key,
+        socket.assigns.workspace.revision,
+        true,
+        socket.assigns.agent_id
+      )
+    end)
+  end
+
+  def handle_event("check_isolation", params, socket) do
+    submit(socket, params, fn ->
+      Foundation.check_isolation(
         socket.assigns.command_key,
         socket.assigns.workspace.revision,
         true,
@@ -675,6 +686,47 @@ defmodule CuckodingWeb.HomeLive do
           </div>
         </div>
 
+        <details
+          :if={@agent_kind == "codex" && !@new_agent && @workspace.codex["status"] == "supported"}
+          id="isolation-diagnostic"
+          phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
+        >
+          <summary>Execution isolation (optional)</summary>
+          <p class="fine-print">
+            Run fixed local checks in two disposable test folders. This uses the selected
+            Codex executable, without your account, model usage or Arena files.
+          </p>
+          <form id="isolation-check" phx-submit="check_isolation">
+            <.form_scope key={@command_key} revision={@workspace.revision} />
+            <button
+              class="button"
+              disabled={
+                @pending || @workspace.codex["version"] != Cuckoding.Codex.isolation_version()
+              }
+            >
+              Run isolation check
+            </button>
+          </form>
+          <p
+            :if={@workspace.codex["version"] != Cuckoding.Codex.isolation_version()}
+            class="fine-print"
+          >
+            This check supports Codex {Cuckoding.Codex.isolation_version()}. Other setup features are unchanged.
+          </p>
+          <div :if={@workspace.codex["isolation"]} id="isolation-result" role="status">
+            <p>{isolation_status(@workspace.codex["isolation"]["status"])}</p>
+            <p class="fine-print">
+              Checked: {@workspace.codex["isolation"]["checked_at"]} · {@workspace.codex["isolation"][
+                "elapsed_ms"
+              ]} ms
+            </p>
+          </div>
+          <p class="fine-print">
+            A dated sandbox check does not authorize tasks or prove model-tool isolation.
+            Autonomous Start is still in development.
+          </p>
+        </details>
+
         <div :if={@operation} id="agent-progress" class="probe-progress" role="status">
           <p>
             {operation_label(@operation.kind)} · {DateTime.diff(@now, @operation.updated_at)} seconds
@@ -765,6 +817,7 @@ defmodule CuckodingWeb.HomeLive do
   defp operation_label("login_codex"), do: "Signing in to Codex"
   defp operation_label("logout_codex"), do: "Signing out of Codex"
   defp operation_label("check_codex_model"), do: "Testing model access"
+  defp operation_label("check_codex_isolation"), do: "Checking execution isolation"
   defp event_label("agent_models." <> status), do: "Agent model choices: " <> status
   defp event_label("shell.authorized"), do: "Menu bar connected"
   defp event_label("browser.authorized"), do: "Browser opened"
@@ -776,8 +829,36 @@ defmodule CuckodingWeb.HomeLive do
   defp event_label("login." <> status), do: "Codex sign-in: " <> status
   defp event_label("logout." <> status), do: "Codex sign-out: " <> status
   defp event_label("model_check." <> status), do: "Codex model check: " <> status
+  defp event_label("isolation." <> status), do: "Codex isolation check: " <> status
   defp event_label("team." <> status), do: "Team: " <> status
   defp event_label(_), do: "Workspace updated"
+
+  defp isolation_status("passed"),
+    do: "Passed: read-only and writing checks stayed within their test folders."
+
+  defp isolation_status("isolation_failed"),
+    do: "Isolation was not verified. Repository execution stays unavailable."
+
+  defp isolation_status("network_unavailable"),
+    do: "The local network check could not start. Try again."
+
+  defp isolation_status("unsupported_version"),
+    do: "The runtime version changed. Check its version before retrying."
+
+  defp isolation_status("executable_changed"),
+    do: "The executable changed. Check its version before retrying."
+
+  defp isolation_status("cancelled"),
+    do: "Isolation check cancelled. It will not retry automatically."
+
+  defp isolation_status("timeout"),
+    do: "Isolation check timed out. It will not retry automatically."
+
+  defp isolation_status("cleanup_uncertain"),
+    do: "Cleanup was not confirmed. Inspect the app before retrying."
+
+  defp isolation_status(_),
+    do: "Isolation check could not finish. Check the executable and try again."
 
   defp model_check_status("passed"), do: "Model responded to the fixed connection check."
 

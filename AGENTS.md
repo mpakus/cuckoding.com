@@ -103,6 +103,14 @@ Preserve these implemented contracts:
 
 ## Mission and product contract
 
+R020m's optional `codex-isolation-v1` diagnostic runs fixed commands against two
+disposable fixtures with a fresh empty profile, never an Arena or signed-in profile.
+Bind its receipt to the exact connection/version/executable observation. Preserve
+explicit temporary-root denial, bounded output/deadline and owned group cleanup;
+expired/cancelled work cannot publish success or replay. A dated CLI sandbox pass
+does not verify model tools or authorize repository execution. Keep it optional
+and outside the four required setup steps.
+
 Build a local-first macOS menubar application opening a minimal Phoenix LiveView
 UI in the default browser. Setup should take ten minutes with stated runtime/
 account prerequisites. Users save agents/models and roles once. The 2026-10-10

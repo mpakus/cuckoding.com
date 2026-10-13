@@ -2,6 +2,7 @@ mod arena_git;
 mod connection;
 mod cursor;
 mod folder;
+mod isolation;
 mod probe;
 mod service;
 use service::Service;
@@ -43,6 +44,13 @@ fn main() {
     }
     if args.first().is_some_and(|arg| arg == "--probe-codex") {
         probe::main(&args[1..]);
+        return;
+    }
+    if args
+        .first()
+        .is_some_and(|arg| arg == "--check-codex-isolation")
+    {
+        isolation::main(&args[1..]);
         return;
     }
     if args.first().is_some_and(|arg| arg == "--plan-codex-brief") {

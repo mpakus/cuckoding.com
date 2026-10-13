@@ -56,6 +56,8 @@ The numbered story below is capability coverage, not eight mandatory screens.
 - [ ] **R020 remaining execution gates:** prove the selected provider's actual
   task grant, tool/output validation, cancellation and two-workspace isolation.
   Catalog/setup acceptance alone does not enable an Implementor.
+  R020m adds a repeatable, version-bound two-workspace CLI sandbox diagnostic;
+  real model-tool turns and battle admission remain open.
 - [ ] **R050d — One Start:** durable bounded battle authorization and fresh admission
   from the Arena, contextual Git/first-commit consent only when necessary, automatic
   owned worktree preparation. No separate mandatory preview/spec-acceptance wizard.
@@ -220,6 +222,10 @@ the real-provider gate.
   [evidence](../worklog/2026-10-10-R020h-agent-wizard.md).
 - [x] R020l: accept Cursor catalogs and saved selections beyond 128 entries while
   retaining bounded complete validation; see [catalog evidence](../worklog/2026-10-10-R020l-cursor-catalog.md).
+- [x] R020m: optional Codex isolation diagnostic with fixed commands, two disposable
+  workspaces, read-only/writing grants, canaries, timeout/cancellation and audited
+  executable-bound receipts. [Task/evidence](../tasks/R020m-codex-isolation.md).
+  This proves the tested CLI sandbox behavior, not actual model-tool turns.
 - [ ] Prove a read-only turn and a permitted worktree-writing turn in isolated
   workspaces; normalize public activity, outcomes and redacted logs.
 - [ ] Add task/process identity, cancellation, clean environment, path policy,

@@ -117,6 +117,21 @@ defmodule Cuckoding.Dispatcher do
     _ -> %{"status" => "launch_failed"}
   end
 
+  defp execute(%{kind: "check_codex_isolation"} = command) do
+    if Cuckoding.Foundation.workspace().revision == command.expected_revision and
+         Cuckoding.Foundation.isolation_current?(command.payload) do
+      Cuckoding.Codex.check_isolation(
+        command.payload["identity"],
+        Cuckoding.Storage.probe_directory!(command.id, command.attempts),
+        fn -> Cuckoding.Foundation.probe_active?(command) end
+      )
+    else
+      %{"status" => "executable_changed"}
+    end
+  rescue
+    _ -> %{"status" => "launch_failed"}
+  end
+
   defp adapter(command),
     do:
       Cuckoding.Agents.adapter(

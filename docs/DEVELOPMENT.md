@@ -111,6 +111,15 @@ observations clear optional test consent but preserve model choices. Form keys a
 setup revisions reject recovered stale actions. The shell supplies the native helper;
 never point `CCODING_NATIVE_HELPER` at an unrelated executable.
 
+Below the wizard, **Execution isolation (optional) → Run isolation check** tests
+the verified Codex `0.162.0-alpha.17.2` sandbox with fixed commands in two disposable
+folders. No account, model or Arena is used. Results are saved per connection and
+include a timestamp; Cancel waits for helper cleanup. Each test retains its
+synthetic fixtures under the command's private `probes/` directory. Rechecking the
+version clears the current result but keeps historical events. A pass covers the
+tested CLI sandbox only; it neither enables Start nor proves model-tool isolation.
+The check is optional and does not block model selection or saving.
+
 Open **Team** to rename the four default roles, edit instructions or add up to
 eight custom roles. Leave assignments empty to save a draft; choose a named agent
 and a model from that agent’s saved wizard selection (or full legacy Codex catalog).
