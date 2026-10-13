@@ -388,6 +388,10 @@ pub(super) fn tools(writing: bool) -> Value {
     if writing {
         tools.push(json!({"name":"edit_file","description":"Create or replace one eligible UTF-8 file up to 32 KiB. Pass its last read SHA-256, or null only for a new file. Parent directories are created. No commands or protected policy changes.","inputSchema":{"type":"object","additionalProperties":false,"required":["path","expected_sha256","text"],"properties":{"path":{"type":"string"},"expected_sha256":{"type":["string","null"]},"text":{"type":"string"}}}}));
     }
+    for tool in &mut tools {
+        tool["type"] = json!("function");
+        tool["deferLoading"] = json!(false);
+    }
     json!(tools)
 }
 

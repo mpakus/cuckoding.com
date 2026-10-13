@@ -38,7 +38,12 @@ pub(super) fn permissions(scratch: &Path) -> Value {
         "network":{"enabled":false}})
 }
 
-pub(super) fn configure(command: &mut Command, scratch: &Path) -> Result<()> {
+// Code Mode is a pure interpreter/router, not Node or a host filesystem API.
+pub(super) fn feature_enabled(feature: &str, task_tools: bool) -> bool {
+    task_tools && matches!(feature, "code_mode" | "code_mode_host")
+}
+
+pub(super) fn configure(command: &mut Command, scratch: &Path, task_tools: bool) -> Result<()> {
     private_directory(scratch).map_err(|_| "unsafe_profile")?;
     if std::fs::read_dir(scratch)
         .map_err(|_| "unsafe_profile")?
@@ -63,12 +68,18 @@ pub(super) fn configure(command: &mut Command, scratch: &Path) -> Result<()> {
     );
     command.args(["-c", &profile]);
     for feature in DISABLED {
-        command.args(["-c", &format!("features.{feature}=false")]);
+        command.args([
+            "-c",
+            &format!(
+                "features.{feature}={}",
+                feature_enabled(feature, task_tools)
+            ),
+        ]);
     }
     Ok(())
 }
 
-pub(super) fn validate_config(config: &Value, scratch: &Path) -> Result<()> {
+pub(super) fn validate_config(config: &Value, scratch: &Path, task_tools: bool) -> Result<()> {
     if config["default_permissions"] != PROFILE
         || without_nulls(config["permissions"][PROFILE].clone()) != permissions(scratch)
         || !config["sandbox_mode"].is_null()
@@ -79,7 +90,7 @@ pub(super) fn validate_config(config: &Value, scratch: &Path) -> Result<()> {
         || !(config["mcp_servers"].is_null() || config["mcp_servers"] == json!({}))
         || DISABLED
             .iter()
-            .any(|feature| config["features"][feature] != false)
+            .any(|feature| config["features"][feature] != feature_enabled(feature, task_tools))
     {
         return Err("unsupported_grant");
     }
@@ -166,7 +177,7 @@ pub(super) fn check(
     }
     identifier(&json!(model)).map_err(|_| "invalid_output")?;
     identifier(&json!(effort)).map_err(|_| "invalid_output")?;
-    validate_config(config, scratch)?;
+    validate_config(config, scratch, false)?;
     if account(rpc)?["account"]["type"] != "chatgpt" {
         return Err("not_connected");
     }
@@ -394,6 +405,9 @@ mod tests {
         // Real config/read includes explicit null defaults; these grant nothing.
         config["permissions"][PROFILE]["extends"] = Value::Null;
         config["permissions"][PROFILE]["filesystem"]["glob_scan_max_depth"] = Value::Null;
+        if mode == "task_router" {
+            config["features"]["code_mode_host"] = json!(true);
+        }
         if mode == "unsafe" {
             config["permissions"][PROFILE]["filesystem"][":root"] = json!("read");
         }
@@ -477,6 +491,7 @@ done
             ("tool", "unexpected_tool"),
             ("model", "model_mismatch"),
             ("unsafe", "unsupported_grant"),
+            ("task_router", "unsupported_grant"),
             ("foreign", "unexpected_message"),
         ] {
             let (dir, path, scratch) = model_fixture(mode);
@@ -663,6 +678,7 @@ done
     fn model_check_refuses_grant_model_tool_foreign_and_invalid_answer() {
         for (mode, status, launched) in [
             ("unsafe", "unsupported_grant", false),
+            ("task_router", "unsupported_grant", false),
             ("grant", "unsupported_grant", false),
             ("roots", "unsupported_grant", false),
             ("model", "model_mismatch", false),

@@ -101,6 +101,14 @@ It supports the initial code-editing flow with finite text-file limits; commands
 binary editing and protected configuration are outside this grant. Full runtime
 and two-workspace acceptance must still be measured, not inferred from schemas.
 
+R020o clarifies the runtime routing layer after the first real task failed with
+`code-mode host is disabled`. Task turns enable Code Mode and its process host,
+a pure V8 interpreter forwarding the declared host-tool calls. It supplies no
+Node/filesystem/network/import API. Shell, provider file tools, apps, MCP,
+delegation and permission requests remain disabled/refused. No-tools diagnostics
+and planning keep Code Mode disabled. Effective feature validation distinguishes
+these grants; model text cannot turn routing into wider authority.
+
 ## D025 — Host-captured task candidates
 
 2026-10-13. R050d1 extends the fixed native Git service with candidate capture and

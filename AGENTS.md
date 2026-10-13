@@ -104,7 +104,11 @@ Preserve these implemented contracts:
 R020n task turns use only `host-task-tools-v1` dynamic list/read/edit tools.
 Keep native root identity and policy-path checks, finite call/byte limits,
 compare-before-write, fsynced effect receipts, cancellation and no replay.
-Runtime built-in tools remain disabled. Read-only roles cannot edit. A transport
+Runtime shell/file/network tools remain disabled. R020o enables only the pure
+Code Mode interpreter/router for task turns; diagnostics/planning keep it off.
+State the host-service read/write grant separately from runtime scratch access;
+never widen filesystem permissions to fix a model misunderstanding. Read-only
+roles cannot edit. A transport
 report never grants battle authority or marks a card Completed; R050 must own
 that binding. Do not add a new mandatory setup diagnostic.
 

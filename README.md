@@ -74,7 +74,9 @@ CVE-2026-97853. See [verification](worklog/2026-10-13-R101-decimal-security.md).
 
 R020n adds bounded Codex host file-tool turns for the forthcoming execution loop.
 Start still requires durable battle admission and independent review; this
-transport alone does not enable running Arenas.
+transport alone does not enable running Arenas. R020o fixes Codex tool routing;
+a real GPT-6.1 Sol turn read a synthetic file successfully. Write acceptance is
+still pending; the model declined the first write fixture.
 
 R050d1 captures exact task edits into retained application-owned Git candidate
 references and verifies their live bytes for future review. It preserves the

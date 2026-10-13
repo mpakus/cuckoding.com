@@ -1,6 +1,6 @@
 # R020n — Bounded Codex task tools
 
-Status: implementation verified, 2026-10-13; real-account acceptance pending sign-in. Branch: `feature/R020n-task-tools`.
+Status: implementation verified, 2026-10-13; real-account write acceptance pending; see R020o. Branch: `feature/R020n-task-tools`.
 
 - [x] Run a fresh Codex task session with closed host read/edit tools and no built-in
   shell, network, plugin or delegation tools; exact connection/model binding.
@@ -14,6 +14,8 @@ Status: implementation verified, 2026-10-13; real-account acceptance pending sig
 
 The host-tool boundary is D024. No new mandatory setup screen or checkbox wall.
 
-Real-account task acceptance remains open: the approved two-turn test stopped
-at `account/read` with `not_connected`; no inference started.
+Real-account task acceptance remains open. After the user signed in c2, the
+approved read turn hit disabled Code Mode routing. R020o fixed that routing and
+the write turn read the file, then declined editing due to read-only wording.
+See [current evidence](../worklog/2026-10-13-R020o-task-tool-routing.md).
 [Evidence](../worklog/2026-10-13-R020n-task-tools.md).

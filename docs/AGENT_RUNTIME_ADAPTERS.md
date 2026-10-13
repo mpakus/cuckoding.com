@@ -186,7 +186,11 @@ published as fresh and no model IDs or capabilities are invented.
 ## R020n task transport
 
 Codex `run_task` starts a fresh ephemeral thread using `host-task-tools-v1`.
-Built-in tools remain disabled and the runtime sees an empty scratch folder.
+Runtime shell/file/network tools remain disabled and the runtime sees an empty
+scratch folder. R020o enables Code Mode and its process host only for task turns
+so current models can route typed dynamic function calls. The pure interpreter
+provides no Node, filesystem, network or import APIs. Model instructions state
+the host-service grant separately; runtime permissions remain unchanged.
 The only dynamic tools are host-owned list/read/edit operations; review omits edit.
 Native code validates the app-owned worktree marker and current device/inode.
 Limits are 64 calls, 32 KiB per text file, 512 KiB combined file/list traffic and
@@ -200,3 +204,8 @@ call ID, status and hash, not content or raw provider messages. Role reports are
 `completed`, `changes_requested` or `blocked`; none directly completes a card.
 The battle host must freeze authority and validate exact candidate/review evidence.
 Cursor returns unsupported; no fallback runtime is selected.
+
+The real GPT-6.1 Sol/c2 fixture verified read_file after the routing fix. The
+write fixture stopped with a blocked role report interpreting runtime read-only
+permissions as host-tool denial. Updated grant wording needs a separately
+authorized retry; neither fixture proves full Arena execution.

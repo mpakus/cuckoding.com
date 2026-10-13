@@ -501,7 +501,7 @@ R020l verifies a real signed-in catalog; catalog metadata never proves inference
 
 ## Host-owned task tools (R020n)
 
-The runtime retains the no-built-in-tools scratch policy; dynamic calls do not
+The runtime retains the no-shell/file/network-tools scratch policy; dynamic calls do not
 grant it the worktree directly. The native host rejects unknown tools, foreign
 thread/turn IDs, duplicate requests/calls, read-only edits and changed root identity.
 Paths are relative ASCII components (eight levels, 240 bytes); hidden, protected
@@ -510,6 +510,13 @@ pinned parent descriptors, no-follow/nonblocking flags, and regular single-link
 text-file checks. File edits require the current hash; replacement is atomic.
 Each call has a fsynced local intent before effects and an outcome afterward.
 Failures preserve effects/temporary files and stop the turn; no blind replay.
+R020o permits the pure Code Mode interpreter/router only in task sessions, with
+effective feature checks; no-tools diagnostics/planning reject it. Provider
+scratch permissions do not substitute for the host-service grant. Instructions
+state the host read/write authority explicitly without broadening runtime access.
+Codex starts its Code Mode host in a separate process group; upstream disconnect
+cleanup closes its sessions when stdin ends. Normal fixture cleanup was observed,
+but real mid-call crash/cancellation and sleep acceptance remain release gates.
 
 Filename exclusions do not recognize all secrets inside ordinary source files.
 The future Start scope must disclose sending eligible contents to the selected

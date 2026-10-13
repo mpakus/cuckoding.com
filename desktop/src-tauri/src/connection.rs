@@ -515,7 +515,11 @@ fn run_operation(
         Operation::Check { scratch, .. }
         | Operation::Plan { scratch, .. }
         | Operation::Task { scratch, .. } => {
-            model_check::configure(&mut command, scratch)?;
+            model_check::configure(
+                &mut command,
+                scratch,
+                matches!(operation, Operation::Task { .. }),
+            )?;
             scratch
         }
         _ => {
