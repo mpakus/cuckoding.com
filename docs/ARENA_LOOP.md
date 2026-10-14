@@ -23,7 +23,7 @@ counts toward that deadline. Exact connection observations must still match;
 native effects retain their existing worktree/ref/executable validation. There
 is no revived provider session, repeated completed stage or implicit new Start.
 Clean paused boundaries survive app restart; interrupted Pausing remains
-needs-attention. Skip and full crash/sleep reconciliation remain open.
+needs-attention. Full crash/sleep reconciliation remains open.
 
 R060b adds **Retry failed stage** for new snapshots with `recovery: provider-retry-v1`
 and a frozen two-retry cap per task, plus two shared by final stages. Only normalized
@@ -37,6 +37,22 @@ consumed turns and original deadline do not change. Failed reviews, policy/model
 drift, native-stage errors and interrupted/uncertain work cannot Retry. Historical
 snapshots without this contract remain unchanged. Successful retries preserve
 Pause/Resume; failed attempts remain visible in Inspect.
+
+R060c adds **Skip task** under `task_selection: skip-task-v1`. A clean paused task,
+settled provider block/transient failure or exhausted task review may be skipped
+after confirming its exact ID/control revision and affected dependent tasks.
+Verify all worker cleanup, original limits and current bindings. Native/policy
+failures, active/interrupted workers and final stages cannot be skipped. The host
+atomically records `battle.task_skipped`, marks the task skipped and transitive
+dependents deferred, retaining original drafts, snapshots, attempts and edits.
+Independent work starts from the last reviewed head; paused battles stay paused.
+
+Final checks and independent Secutor review cover the retained subset; the final
+criteria digest includes explicit omitted task IDs/statuses. Prompts name omissions
+as unfinished. The final state/event is `partial`/`battle.partial`, never completed.
+Partial is terminal and releases Arena locks. If no task completed and all are
+omitted, stop without final inference. Nothing deletes or integrates abandoned edits,
+resets budgets, retries a native effect or grants historical battles new authority.
 
 The host offers Summa Rudis a single closed next-stage decision. Speculator
 prepares public instructions without dropping frozen criteria; Implementor has
@@ -127,7 +143,7 @@ uncertain cleanup and final combined-review rejection need attention.
 Adapter fixtures exercise a two-task dependency chain with a forced check/review
 return, fresh correction checkout and final review. Native tests separately verify
 Git preservation, sandbox behavior and process lifetime. These do not substitute
-for a live signed-in two-task battle. Skip, full restart/sleep
+for a live signed-in two-task battle. Full restart/sleep
 reconciliation, parallel tasks, custom stages, general toolchain checks and the
 remaining providers stay open in [Plan](PLAN.md). No additional dependency is added.
 

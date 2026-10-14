@@ -235,6 +235,88 @@ defmodule CuckodingWeb.BattleLiveTest do
     Battles.get(battle.id)
   end
 
+  test "Skip confirms dependent tasks, preserves input and rejects recovered confirmation", ctx do
+    dependent = Ecto.UUID.generate()
+
+    {:ok, _} =
+      Tabulae.save(
+        Ecto.UUID.generate(),
+        ctx.arena.id,
+        ctx.board.id,
+        dependent,
+        0,
+        Map.merge(ctx.attrs, %{"title" => "Dependent task", "depends_on" => [ctx.task]})
+      )
+
+    signed = sign_in(ctx.conn)
+    {:ok, view, _} = live(signed, ctx.path)
+    view |> element("button[aria-label='Edit First task']") |> render_click()
+    view |> form("#draft-form", title: "Keep my unsaved title") |> render_change()
+    view |> form("#battle-start-form") |> render_submit()
+    battle = Battles.latest(ctx.arena.id, ctx.board.id)
+    fail_coordinator(battle)
+    Foundation.broadcast()
+    assert has_element?(view, "#battle-skip[type=button]", "Skip task")
+    view |> element("#battle-skip") |> render_click()
+    assert has_element?(view, "#battle-skip-confirmation", "First task")
+    assert has_element?(view, "#battle-skip-confirmation li", "Dependent task")
+    assert has_element?(view, "#battle-skip-confirmation", "may use provider allowance")
+    stale = Map.put(control_params(view, "#battle-confirm-skip"), "task_id", ctx.task)
+    {:ok, again, _} = live(signed, ctx.path)
+    again |> with_target("#arena-battle") |> render_click("skip", stale)
+    assert Battles.get(battle.id).state == "needs_attention"
+    assert has_element?(again, "#battle-error", "control changed")
+    view |> element("#battle-confirm-skip") |> render_click()
+    assert Battles.get(battle.id).state == "stopped"
+    assert has_element?(view, "#battle-omissions", "1 skipped · 1 deferred")
+    assert has_element?(view, "#battle-omissions", "unfinished")
+    assert has_element?(view, "#draft-title-input[value='Keep my unsaved title']")
+    refute has_element?(view, "#battle-result")
+    assert has_element?(view, "#battle-start-scope")
+  end
+
+  test "Skip refuses foreign ids and expired sessions", ctx do
+    {:ok, view, _} = ctx.conn |> sign_in() |> live(ctx.path)
+    view |> form("#battle-start-form") |> render_submit()
+    battle = Battles.latest(ctx.arena.id, ctx.board.id)
+    fail_coordinator(battle)
+    Foundation.broadcast()
+    view |> element("#battle-skip") |> render_click()
+
+    params =
+      control_params(view, "#battle-confirm-skip") |> Map.put("task_id", Ecto.UUID.generate())
+
+    view |> with_target("#arena-battle") |> render_click("skip", params)
+    assert Battles.get(battle.id).state == "needs_attention"
+    view |> element("#battle-skip") |> render_click()
+    Repo.update_all(BrowserToken, set: [expires_at: 0])
+    view |> element("#battle-confirm-skip") |> render_click()
+    assert_redirect(view, "/locked")
+    assert Battles.get(battle.id).state == "needs_attention"
+  end
+
+  test "partial results never use the completed result label", ctx do
+    {:ok, view, _} = ctx.conn |> sign_in() |> live(ctx.path)
+    view |> form("#battle-start-form") |> render_submit()
+    battle = Battles.latest(ctx.arena.id, ctx.board.id)
+
+    Repo.update!(
+      Ecto.Changeset.change(battle,
+        state: "partial",
+        context: %{
+          "omitted_tasks" => [%{"id" => ctx.task, "state" => "skipped"}],
+          "native_battle" => %{"reference" => "refs/heads/ccoding/battles/#{battle.id}"}
+        }
+      )
+    )
+
+    Foundation.broadcast()
+    assert has_element?(view, "#battle-partial-result", "remain unfinished")
+    refute has_element?(view, "#battle-result")
+    assert has_element?(view, "#battle-start-scope")
+    refute has_element?(view, "#battle-skip")
+  end
+
   test "Retry is keyboard accessible, preserves input and rejects a recovered control", ctx do
     signed = sign_in(ctx.conn)
     {:ok, view, _} = live(signed, ctx.path)

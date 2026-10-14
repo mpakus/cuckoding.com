@@ -262,7 +262,8 @@ defmodule Cuckoding.BattleExecutor do
   defp prompt(attempt) do
     request = attempt.request
     context = if(attempt.task_id, do: request["task_context"], else: request["context"])
-    tasks = request["snapshot"]["tasks"]
+    tasks = Snapshot.retained_tasks(request["snapshot"], request["context"])
+    omitted = request["context"]["omitted_tasks"] || []
 
     action = action(attempt.stage)
 
@@ -271,6 +272,8 @@ defmodule Cuckoding.BattleExecutor do
       "stage" => attempt.stage,
       "instruction" => action,
       "task" => prompt_tasks(attempt, tasks),
+      "omitted_tasks" => omitted,
+      "result_scope" => if(omitted == [], do: "full", else: "partial"),
       "prior_public_summary" => context["summary"],
       "review_findings" => context["feedback"],
       "previous_implementation" => context["previous_implementation"],
@@ -309,10 +312,10 @@ defmodule Cuckoding.BattleExecutor do
         "Independently inspect this exact candidate against every frozen criterion and task verification instruction. Explain the evidence for each check in your public summary. Use file inspection and supplied host receipts; no configured commands means no command tests ran. Return completed only if all required checks are evidenced, changes_requested for defects, or blocked when required runtime/test evidence is unavailable. You cannot edit files, waive criteria, infer test success from code, invent results or override failed host checks."
 
       "final_secutor" ->
-        "Independently inspect the final combined result against ALL frozen tasks, criteria and verification instructions, using file inspection and any final host receipts. Summarize the evidence and limitations. No configured commands means no command tests ran. Return completed only if the whole result fulfills every required check; changes_requested for defects, or blocked for missing runtime/test evidence. Never infer test success from code or waive unfinished criteria."
+        "Independently inspect the combined result against ALL supplied retained tasks, criteria and verification instructions, using file inspection and any final host receipts. Explicitly report omitted_tasks as unfinished; they are excluded by the user's Skip decision. Return completed only if every retained criterion is evidenced; for a partial result this approves only the retained subset, never the whole original scope. Return changes_requested for defects or blocked for missing runtime/test evidence. No configured commands means no command tests ran. Never infer test success from code or waive retained criteria."
 
       "summary" ->
-        "Provide a concise public final summary of the independently reviewed local result and checks. Return completed only when the supplied final review passed. No push, user branch merge or publication is authorized."
+        "Provide a concise public final summary of the independently reviewed local result and checks. List omitted_tasks as unfinished and label a partial result incomplete. Return completed only when the supplied final review passed for the retained task subset. No push, user branch merge or publication is authorized."
     end
   end
 

@@ -23,7 +23,7 @@ remote push, user-branch merge and release remain separate human actions.
 
 ## What works today
 
-**Local preview, 2026-10-13.** The first sequential Codex Arena loop is implemented.
+**Local preview, 2026-10-14.** The first sequential Codex/Cursor Arena loop is implemented.
 The complete product story still includes capabilities and release acceptance
 listed below. Arena registration opens its default board; technical setup stays in Advanced.
 
@@ -75,6 +75,12 @@ battles: two retries per task, plus two shared by final stages, within the same
 time/turn limits. A failed Implementor returns through a fresh worktree and
 Speculator; partial edits remain retained. Blocked reviews and uncertain effects
 cannot be retried. [Retry evidence](worklog/2026-10-14-R060b-provider-retry.md).
+**Skip task** confirms leaving a clean paused or settled blocked/failed task
+unfinished and defers its dependents. Independent tasks continue from reviewed work;
+paused battles stay paused until Resume. Edits and evidence remain available.
+Final checks and review still apply, with a **Partial** result instead of Completed.
+If all tasks are omitted before any complete, the battle stops without more inference.
+[Skip evidence](worklog/2026-10-14-R060c-task-skip.md).
 New Start uses the current original committed source and retains previous result
 branches. Real-account battle acceptance is still open. See
 [Development](docs/DEVELOPMENT.md) for how this build works and

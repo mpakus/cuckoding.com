@@ -176,6 +176,221 @@ defmodule Cuckoding.BattlesTest do
     {battle, Repo.get!(Attempt, attempt.id)}
   end
 
+  test "Skip defers a diamond once, keeps paused state and survives restart", ctx do
+    sibling = save_task(ctx.board, "Sibling", [ctx.first.id])
+    leaf = save_task(ctx.board, "Leaf", [ctx.second.id, sibling.id])
+    independent = save_task(ctx.board, "Independent", [])
+    original = Tabulae.tasks(ctx.board.id)
+    battle = start(ctx.board) |> until_stage("implementor")
+    {:ok, paused} = Battles.pause(battle.id, 0)
+    before = Battles.attempts(battle.id)
+    assert length(Battles.skip_preview(paused)) == 4
+    assert {:error, :stale_control} = Battles.skip(paused.id, 1, ctx.first.id, false)
+    assert {:error, :stale_control} = Battles.skip(paused.id, 1, independent.id, true)
+    assert {:ok, skipped} = Battles.skip(paused.id, 1, ctx.first.id, true)
+    assert skipped.state == "paused"
+    assert skipped.current_task_id == independent.id
+    assert skipped.stage == "prepare_worktree"
+    assert Battles.attempts(battle.id) == before
+    assert Tabulae.tasks(ctx.board.id) == original
+
+    assert Map.take(skipped, ~w(snapshot fingerprint deadline_at turns_used)a) ==
+             Map.take(paused, ~w(snapshot fingerprint deadline_at turns_used)a)
+
+    states = Map.new(Battles.tasks(battle.id), &{&1.task_id, &1.state})
+    assert states[ctx.first.id] == "skipped"
+    for id <- [ctx.second.id, sibling.id, leaf.id], do: assert(states[id] == "deferred")
+    assert states[independent.id] == "pending"
+    assert {:ok, _} = Battles.recover()
+    assert Battles.get(battle.id).context == skipped.context
+    {:ok, resumed} = Battles.resume(skipped.id, skipped.control_revision)
+    {_, next} = step(resumed)
+    assert next.task_id == independent.id
+    assert next.request["context"]["head"] == paused.context["head"]
+    assert {:error, :stale_control} = Battles.skip(paused.id, 1, ctx.first.id, true)
+  end
+
+  test "Skip of all tasks stops without review or provider claims", ctx do
+    battle = start(ctx.board) |> until_stage("coordinator")
+    {failed, attempt} = fail_provider(battle)
+    before = Battles.attempts(battle.id)
+    {:ok, stopped} = Battles.skip(failed.id, 0, ctx.first.id, true)
+    assert stopped.state == "stopped"
+    assert stopped.reason == "all_tasks_skipped"
+    assert stopped.current_task_id == nil
+    assert Battles.attempts(battle.id) == before
+    assert stopped.context["skipped_attempts"] == [attempt.id]
+    refute Battles.locked?(ctx.board.id)
+    assert {:error, :not_running} = Battles.claim_next(stopped.id)
+    refute Enum.any?(Battles.evidence(battle.id), &(&1.kind == "battle.completed"))
+  end
+
+  test "Skip keeps reviewed commits and requires final review of the partial scope", ctx do
+    battle = start(ctx.board) |> until_stage("integrate")
+    {battle, _} = step(battle)
+    assert battle.current_task_id == ctx.second.id
+    reviewed_head = battle.context["head"]
+    {:ok, paused} = Battles.pause(battle.id, 0)
+    {:ok, skipped} = Battles.skip(paused.id, 1, ctx.second.id, true)
+    assert skipped.stage == "final_checks"
+    assert skipped.state == "paused"
+    assert skipped.context["head"] == reviewed_head
+    {:ok, resumed} = Battles.resume(skipped.id, 2)
+    {reviewing, check} = step(resumed)
+    assert check.stage == "final_checks"
+
+    assert check.request["criteria_sha256"] ==
+             Snapshot.final_criteria_digest(skipped.snapshot, skipped.context)
+
+    refute check.request["criteria_sha256"] ==
+             Snapshot.final_criteria_digest(skipped.snapshot, %{})
+
+    {summarizing, review} = step(reviewing)
+    assert review.stage == "final_secutor"
+    {partial, _} = step(summarizing)
+    assert partial.state == "partial"
+    assert partial.context["head"] == reviewed_head
+    assert {:ok, ^partial} = Battles.stop(partial.id)
+    refute Battles.locked?(ctx.board.id)
+    assert Enum.any?(Battles.evidence(battle.id), &(&1.kind == "battle.partial"))
+    refute Enum.any?(Battles.evidence(battle.id), &(&1.kind == "battle.completed"))
+  end
+
+  test "successive skips do not duplicate shared dependents", ctx do
+    independent = save_task(ctx.board, "Independent", [])
+    shared = save_task(ctx.board, "Shared", [ctx.second.id, independent.id])
+    battle = start(ctx.board) |> until_stage("coordinator")
+    {:ok, paused} = Battles.pause(battle.id, 0)
+    {:ok, skipped} = Battles.skip(paused.id, 1, ctx.first.id, true)
+    assert Enum.map(Battles.skip_preview(skipped), & &1.task_id) == [independent.id]
+    {:ok, stopped} = Battles.skip(skipped.id, 2, independent.id, true)
+    assert stopped.state == "stopped"
+    assert Enum.count(stopped.context["omitted_tasks"], &(&1["id"] == shared.id)) == 1
+    assert length(stopped.context["omitted_tasks"]) == 4
+  end
+
+  test "partial results cannot bypass failed configured final checks", ctx do
+    battle = start(ctx.board) |> until_stage("integrate")
+    {battle, _} = step(battle)
+    {:ok, paused} = Battles.pause(battle.id, 0)
+    {:ok, skipped} = Battles.skip(paused.id, 1, ctx.second.id, true)
+    {:ok, resumed} = Battles.resume(skipped.id, 2)
+
+    {reviewing, _} =
+      step(resumed, %{
+        "status" => "checks_failed",
+        "checks" => [%{"id" => ctx.check["id"], "status" => "failed", "exit_code" => 1}]
+      })
+
+    {:ok, review} = Battles.claim_next(reviewing.id)
+
+    assert {:error, :invalid_result} =
+             Battles.finish(review.id, review.claim_token, result(review))
+
+    assert Battles.get(battle.id).state == "running"
+    assert Battles.skip_preview(Battles.get(battle.id)) == []
+  end
+
+  test "Skip supports blocked criteria and exhausted task review without resetting counters",
+       ctx do
+    independent = save_task(ctx.board, "Independent", [])
+
+    for outcome <- ["blocked", "changes_requested"] do
+      battle = start(ctx.board) |> until_stage("secutor")
+
+      if outcome == "changes_requested" do
+        task = hd(Battles.tasks(battle.id))
+        Repo.update!(Ecto.Changeset.change(task, review_round: 2))
+      end
+
+      {:ok, attempt} = Battles.claim_next(battle.id)
+
+      receipt =
+        result(attempt)
+        |> put_in(["provider", "report", "outcome"], outcome)
+        |> Map.put("status", outcome)
+
+      {:ok, failed} = Battles.finish(attempt.id, attempt.claim_token, receipt)
+      task = hd(Battles.tasks(battle.id))
+      {:ok, skipped} = Battles.skip(failed.id, 0, ctx.first.id, true)
+      assert skipped.state == "running"
+      assert skipped.current_task_id == independent.id
+      assert hd(Battles.tasks(battle.id)).review_round == task.review_round
+
+      assert hd(Battles.tasks(battle.id)).context["native_candidate"] ==
+               task.context["native_candidate"]
+
+      {:ok, paused} = Battles.pause(skipped.id, 1)
+      assert paused.state == "paused"
+      {:ok, _} = Battles.stop(battle.id)
+    end
+  end
+
+  test "Skip refuses uncertain, policy, native and final-stage failures", ctx do
+    for {stage, reason, clean} <- [
+          {"capture", "provider_error", true},
+          {"integrate", "provider_error", true},
+          {"implementor", "provider_error", false},
+          {"speculator", "model_mismatch", true},
+          {"final_secutor", "provider_error", true}
+        ] do
+      {failed, _} = start(ctx.board) |> until_stage(stage) |> fail_provider(reason, clean)
+      assert Battles.skip_preview(failed) == []
+
+      assert {:error, :skip_unavailable} =
+               Battles.skip(failed.id, 0, failed.current_task_id, true)
+
+      Repo.update!(Ecto.Changeset.change(failed, state: "stopped"))
+    end
+  end
+
+  test "Skip rejects old grants, exhaustion, changed bindings and active claims", ctx do
+    battle = start(ctx.board) |> until_stage("implementor")
+    assert Battles.skip_preview(battle) == []
+    {:ok, paused} = Battles.pause(battle.id, 0)
+
+    assert Battles.skip_preview(%{
+             paused
+             | snapshot: Map.delete(paused.snapshot, "task_selection")
+           }) == []
+
+    assert Battles.skip_preview(paused, paused.deadline_at) == []
+    assert Battles.skip_preview(%{paused | turns_used: paused.snapshot["limits"]["turns"]}) == []
+    workspace = Foundation.workspace()
+
+    Repo.update!(
+      Ecto.Changeset.change(workspace,
+        connection: Map.put(workspace.connection, "authorization", "not_connected")
+      )
+    )
+
+    assert {:error, :resume_binding_changed} = Battles.skip(paused.id, 1, ctx.first.id, true)
+    Repo.update!(Ecto.Changeset.change(Foundation.workspace(), connection: workspace.connection))
+    {:ok, resumed} = Battles.resume(paused.id, 1)
+    {:ok, _} = Battles.claim_next(resumed.id)
+    {:ok, pausing} = Battles.pause(resumed.id, 2)
+    assert Battles.skip_preview(pausing) == []
+    {:ok, _} = Battles.recover()
+    assert Battles.skip_preview(Battles.get(battle.id)) == []
+  end
+
+  test "concurrent Skip confirms one graph transition", ctx do
+    independent = save_task(ctx.board, "Independent", [])
+    {failed, _} = start(ctx.board) |> until_stage("speculator") |> fail_provider()
+
+    results =
+      1..4
+      |> Enum.map(fn _ ->
+        Task.async(fn -> Battles.skip(failed.id, 0, ctx.first.id, true) end)
+      end)
+      |> Enum.map(&Task.await/1)
+
+    assert Enum.count(results, &match?({:ok, _}, &1)) == 1
+    assert Enum.count(results, &(&1 == {:error, :stale_control})) == 3
+    assert Battles.get(failed.id).current_task_id == independent.id
+    assert Enum.count(Battles.evidence(failed.id), &(&1.kind == "battle.task_skipped")) == 1
+  end
+
   test "Retry retains failed evidence and frozen limits, then Pause/Resume still work", ctx do
     battle = start(ctx.board) |> until_stage("speculator")
     {failed, attempt} = fail_provider(battle)

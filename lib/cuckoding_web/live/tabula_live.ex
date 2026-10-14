@@ -635,8 +635,9 @@ defmodule CuckodingWeb.TabulaLive do
       %{state: state} when state in ~w(specs todo in_process review completed) ->
         state
 
-      %{state: "needs_attention", context: %{"column" => column}}
-      when column in ~w(specs todo in_process review completed) ->
+      %{state: state, context: %{"column" => column}}
+      when state in ~w(needs_attention skipped deferred) and
+             column in ~w(specs todo in_process review completed) ->
         column
 
       _ ->

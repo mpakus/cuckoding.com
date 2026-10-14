@@ -120,6 +120,13 @@ provider tools/edits. Writer retries prepare a new checkout through the existing
 stage path; no runtime session or native operation is replayed. No new dependency,
 table or worker is introduced.
 
+R060c reuses Battles controls to confirm Skip, compute transitive dependents from
+the immutable graph and atomically project skipped/deferred work with retained
+evidence. Snapshot derives final review scope/digests from recorded omissions;
+BattleExecutor discloses unfinished tasks and reviews only retained criteria.
+The existing runner continues independent work; the terminal result is Partial.
+No new migration, worker or native execution grant is added.
+
 Agents setup uses one LiveView wizard over the existing Foundation command APIs.
 The form holds only unsaved choices; SQLite owns version, connection, diagnostics
 and completed model-selection snapshots. Save is a synchronous audited transaction,

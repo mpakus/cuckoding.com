@@ -337,7 +337,7 @@ defmodule Cuckoding.BattleExecutorTest do
   end
 
   defp drive(battle, remaining \\ 60)
-  defp drive(%{state: "completed"} = battle, _), do: battle
+  defp drive(%{state: state} = battle, _) when state in ~w(completed partial), do: battle
 
   defp drive(battle, remaining) when remaining > 0 do
     assert battle.state == "running", inspect(battle.reason)
@@ -347,6 +347,61 @@ defmodule Cuckoding.BattleExecutorTest do
 
   defp until_stage(battle, stage) do
     if battle.stage == stage, do: battle, else: until_stage(elem(step(battle), 0), stage)
+  end
+
+  test "Skip retains failed edits and reviews only independent work on the reviewed head", ctx do
+    independent = save_task(ctx.board, "Independent", [])
+    battle = start(ctx.board) |> until_stage("implementor")
+    old_preparation = hd(Battles.tasks(battle.id)).context["preparation"]
+    Process.put(:provider_failure_stage, "implementor")
+    {failed, attempt, receipt} = step(battle)
+    Process.delete(:provider_failure_stage)
+    {:ok, skipped} = Battles.skip(failed.id, 0, ctx.first.id, true)
+    partial = drive(skipped)
+    assert partial.state == "partial"
+    assert Repo.get!(Attempt, attempt.id).result == receipt
+    assert receipt["provider"]["changes"] != []
+    assert hd(Battles.tasks(battle.id)).context["preparation"] == old_preparation
+    independent_task = Enum.find(Battles.tasks(battle.id), &(&1.task_id == independent.id))
+    assert independent_task.state == "completed"
+    refute independent_task.context["preparation"]["key"] == old_preparation["key"]
+    assert independent_task.context["preparation"]["head"] == battle.context["head"]
+    assert File.read!(Path.join(ctx.source, "original.txt")) == "Original checkout bytes\n"
+
+    for {prompt, request, _} <- Process.get(:provider_calls),
+        prompt["stage"] in ~w(final_secutor summary) do
+      assert Enum.map(prompt["task"], & &1["id"]) == [independent.id]
+      assert prompt["result_scope"] == "partial"
+
+      assert prompt["omitted_tasks"] == [
+               %{"id" => ctx.first.id, "state" => "skipped"},
+               %{"id" => ctx.second.id, "state" => "deferred"}
+             ]
+
+      assert request["access"] == "read"
+    end
+
+    assert Enum.map(Process.get(:check_calls), &elem(&1, 0)) == ["checks", "final_checks"]
+    assert length(Enum.filter(Battles.attempts(battle.id), &(&1.stage == "integrate"))) == 1
+  end
+
+  test "partial scope still blocks on missing final evidence", ctx do
+    {:ok, _} = ProjectChecks.save(Ecto.UUID.generate(), ctx.board.arena_id, 1, [], true)
+    battle = start(ctx.board) |> until_stage("integrate")
+    {battle, _, _} = step(battle)
+    {:ok, paused} = Battles.pause(battle.id, 0)
+    {:ok, skipped} = Battles.skip(paused.id, 1, ctx.second.id, true)
+    {:ok, resumed} = Battles.resume(skipped.id, 2)
+    Process.put(:block_stage, "final_secutor")
+    {blocked, _, _} = step(resumed)
+    assert blocked.state == "needs_attention"
+    assert blocked.stage == "final_secutor"
+    assert Battles.skip_preview(blocked) == []
+
+    refute Enum.any?(
+             Battles.evidence(battle.id),
+             &(&1.kind in ~w(battle.partial battle.completed))
+           )
   end
 
   test "Retry retains failed writer effects and completes through a different workspace", ctx do

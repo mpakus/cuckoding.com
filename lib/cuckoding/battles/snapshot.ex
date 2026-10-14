@@ -62,6 +62,7 @@ defmodule Cuckoding.Battles.Snapshot do
     snapshot = %{
       "version" => "arena-loop-v2",
       "recovery" => "provider-retry-v1",
+      "task_selection" => "skip-task-v1",
       "arena_id" => arena.id,
       "tabula_id" => board.id,
       "source" =>
@@ -86,6 +87,20 @@ defmodule Cuckoding.Battles.Snapshot do
   end
 
   def digest(value), do: ProjectChecks.digest(value)
+
+  def retained_tasks(snapshot, context) do
+    omitted = Enum.map(context["omitted_tasks"] || [], & &1["id"])
+    Enum.reject(snapshot["tasks"], &(&1["id"] in omitted))
+  end
+
+  def final_criteria_digest(snapshot, context) do
+    criteria = Enum.map(retained_tasks(snapshot, context), & &1["criteria_sha256"])
+
+    case context["omitted_tasks"] || [] do
+      [] -> digest(criteria)
+      omitted -> digest(%{"criteria" => criteria, "omitted_tasks" => omitted})
+    end
+  end
 
   # Only new, explicitly empty command scopes may omit host command stages.
   # Historical snapshots and any configured commands retain their original gates.
@@ -115,6 +130,8 @@ defmodule Cuckoding.Battles.Snapshot do
       "host_checks" => Enum.map(checks, &maximum_check/1),
       "declared_checks" => checks,
       "command_check_scope" => "not_configured",
+      "result_scope" => "partial",
+      "omitted_tasks" => Enum.map(tasks, &%{"id" => &1["id"], "state" => "deferred"}),
       "review_round" => 3,
       "local_result_reference" => "refs/heads/ccoding/battles/" <> String.duplicate("a", 36)
     }

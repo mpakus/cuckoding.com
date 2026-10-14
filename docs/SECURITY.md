@@ -573,7 +573,7 @@ Pause/Resume are session-protected, battle-scoped and revision-guarded. Neither
 control changes task membership, bindings, checks, grants or deadlines. Pausing
 allows only the existing claimed stage to finish; stale claims remain refused.
 Paused requires settled attempts with verified cleanup: completed work or failed
-work explicitly consumed by an eligible R060b retry. An interrupted pausing
+work explicitly consumed by an eligible R060b retry or R060c Skip. An interrupted pausing
 worker cannot become resumable merely because the app restarted. Arena exclusion
 and frozen-draft locks persist through both states. Resume rechecks the exact
 connection observations; the next stage still performs native path/ref/executable
@@ -592,3 +592,16 @@ and session; writer retry uses a fresh worktree from the unchanged reviewed head
 No abandoned bytes are reused, deleted or integrated. Failed tool/edit receipts
 remain visible; raw provider text/thoughts are discarded. No automatic retry,
 permission expansion, live-session revival or account/model fallback is added.
+
+## Explicit task omission (R060c)
+
+Only new `skip-task-v1` snapshots permit Skip. Session/form, exact task/battle/control
+revision, current bindings and original budgets are rechecked under the write lock.
+Require a clean paused boundary or validated task-local blocked/transient provider
+failure/review exhaustion, with all earlier claims settled and verified cleanup.
+Never consume native/policy failures, interruption, unknown cleanup or final review
+as skippable work. Compute dependent omissions from the frozen graph, not model text.
+Retain failed effects and attempts; restart independent tasks from the reviewed head.
+Final prompts and criteria digests bind the retained subset and explicit omissions;
+configured checks and independent review remain mandatory. Partial is not full
+completion. No worktree deletion, original-checkout mutation or authority expansion.

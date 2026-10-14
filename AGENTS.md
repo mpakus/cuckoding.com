@@ -31,6 +31,18 @@ drift or uncertain effects, or give historical snapshots implicit retry authorit
 Retried failures remain immutable and count toward lifetime limits; Pause/Resume
 may recognize them as settled only through the recorded retry transition.
 
+R060c freezes `task_selection: skip-task-v1` in new Starts. Skip confirms the exact
+current task/control revision at a clean paused boundary or settled task-local
+provider block/transient failure/review exhaustion. Verify cleanup, bindings and
+remaining limits; never skip active workers, native/policy failures or final review.
+Atomically mark the task skipped and transitive dependents deferred; retain every
+draft, frozen snapshot, attempt and abandoned edit. Continue independent work from
+the reviewed head; paused battles stay paused. Bind final criteria to the retained
+subset plus explicit omissions, keep configured checks and independent review, and
+finish as Partial, never Completed. If everything is omitted before any task
+completed, stop without inference. Only recorded skipped failures become settled
+for later controls; no replay or cleanup uncertainty bypass.
+
 Preserve these implemented contracts:
 
 - Supported versions, observed authorization, catalog freshness, model entitlement

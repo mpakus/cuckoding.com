@@ -194,7 +194,7 @@ defmodule Cuckoding.Battles do
       "criteria_sha256" =>
         if(task,
           do: task.snapshot["criteria_sha256"],
-          else: Snapshot.digest(Enum.map(battle.snapshot["tasks"], & &1["criteria_sha256"]))
+          else: Snapshot.final_criteria_digest(battle.snapshot, battle.context)
         )
     }
 
@@ -341,7 +341,8 @@ defmodule Cuckoding.Battles do
   defp settled?(battle, attempt) do
     attempt.result["cleanup_verified"] == true and
       (attempt.state == "completed" or
-         (attempt.state == "failed" and attempt.id in retried(battle)))
+         (attempt.state == "failed" and
+            attempt.id in (retried(battle) ++ (battle.context["skipped_attempts"] || []))))
   end
 
   defp retried(battle), do: battle.context["provider_retries"] || []
@@ -430,13 +431,148 @@ defmodule Cuckoding.Battles do
     battle
   end
 
+  # This preview reads only the frozen graph. Skip rechecks it under the write lock.
+  def skip_preview(battle, now \\ DateTime.utc_now()) do
+    if skip_scope?(battle, now) and skippable_boundary?(battle) do
+      affected_tasks(battle)
+    else
+      []
+    end
+  end
+
+  defp affected_tasks(battle) do
+    Enum.reduce(tasks(battle.id), [], fn task, affected ->
+      ids = Enum.map(affected, & &1.task_id)
+
+      if task.state not in ~w(completed skipped deferred) and
+           (task.task_id == battle.current_task_id or
+              Enum.any?(task.snapshot["depends_on"], &(&1 in ids))),
+         do: affected ++ [task],
+         else: affected
+    end)
+  end
+
+  def skip(id, revision, task_id, confirmed, now \\ DateTime.utc_now()) do
+    transaction(fn ->
+      battle = get(id) || Repo.rollback(:not_found)
+
+      if confirmed != true or battle.control_revision != revision or
+           battle.current_task_id != task_id,
+         do: Repo.rollback(:stale_control)
+
+      affected = skip_preview(battle, now)
+      if affected == [], do: Repo.rollback(:skip_unavailable)
+      if not current_team?(battle), do: Repo.rollback(:resume_binding_changed)
+      skip_current(battle, affected)
+    end)
+  end
+
+  defp skip_scope?(battle, now) do
+    battle.snapshot["task_selection"] == "skip-task-v1" and
+      battle.state in ~w(paused needs_attention) and not is_nil(battle.current_task_id) and
+      not expired?(battle.deadline_at, now) and
+      battle.turns_used < battle.snapshot["limits"]["turns"]
+  end
+
+  defp skippable_boundary?(%Battle{state: "paused"} = battle), do: quiescent?(battle)
+
+  defp skippable_boundary?(battle) do
+    history = attempts(battle.id)
+    attempt = List.last(history)
+
+    task_failure?(battle, attempt) and
+      Enum.all?(history, &(&1.id == attempt.id or settled?(battle, &1)))
+  end
+
+  defp task_failure?(_, nil), do: false
+
+  defp task_failure?(battle, attempt) do
+    local? =
+      attempt.task_id == battle.current_task_id and attempt.stage == battle.stage and
+        attempt.result["cleanup_verified"] == true and not is_nil(attempt.role)
+
+    local? and
+      (retryable_attempt?(battle, attempt) or
+         (review_failure?(battle, attempt) and provider_result?(attempt, attempt.result)))
+  end
+
+  defp review_failure?(%Battle{reason: "blocked"}, %Attempt{
+         state: "failed",
+         result: %{"status" => "blocked"}
+       }),
+       do: true
+
+  defp review_failure?(%Battle{reason: "review_limit"}, %Attempt{
+         state: "completed",
+         stage: "secutor",
+         result: %{"status" => "changes_requested"}
+       }),
+       do: true
+
+  defp review_failure?(_, _), do: false
+
+  defp skip_current(battle, affected) do
+    omitted =
+      Enum.map(affected, fn task ->
+        state = if(task.task_id == battle.current_task_id, do: "skipped", else: "deferred")
+        column = if(task.state == "pending", do: "todo", else: task.state)
+        update(task, state: state, context: Map.put_new(task.context, "column", column))
+        %{"id" => task.task_id, "state" => state}
+      end)
+
+    failed =
+      attempts(battle.id)
+      |> Enum.filter(&(&1.task_id == battle.current_task_id and &1.state == "failed"))
+      |> Enum.map(& &1.id)
+
+    context =
+      battle.context
+      |> Map.put("omitted_tasks", (battle.context["omitted_tasks"] || []) ++ omitted)
+      |> Map.put(
+        "skipped_attempts",
+        Enum.uniq((battle.context["skipped_attempts"] || []) ++ failed)
+      )
+
+    battle =
+      update(battle,
+        context: context,
+        state: if(battle.state == "paused", do: "paused", else: "running"),
+        reason: nil,
+        control_revision: battle.control_revision + 1
+      )
+
+    record(battle, "task_skipped", %{
+      "task_id" => battle.current_task_id,
+      "omitted_tasks" => omitted,
+      "control_revision" => battle.control_revision
+    })
+
+    next_task(battle)
+  end
+
+  defp next_task(battle) do
+    all = tasks(battle.id)
+    next = Enum.find(all, &(&1.state not in ~w(completed skipped deferred)))
+
+    if is_nil(next) and not Enum.any?(all, &(&1.state == "completed")) do
+      battle = update(battle, state: "stopped", current_task_id: nil, reason: "all_tasks_skipped")
+      record(battle, "stopped", %{"reason" => battle.reason})
+      battle
+    else
+      update(battle,
+        current_task_id: if(next, do: next.task_id),
+        stage: if(next, do: "prepare_worktree", else: review_stage(battle, "final_checks"))
+      )
+    end
+  end
+
   def stop(id) do
     transaction(fn -> stop_current(get(id) || Repo.rollback(:not_found)) end)
   end
 
   defp stop_current(battle) do
     cond do
-      battle.state in ~w(stopped completed stopping) ->
+      battle.state in ~w(stopped completed partial stopping) ->
         battle
 
       battle.state == "needs_attention" and not safe_to_stop?(battle) ->
@@ -546,24 +682,19 @@ defmodule Cuckoding.Battles do
   defp advance(battle, %Attempt{stage: "integrate"}, result) do
     task = current_task(battle)
     update(task, state: "completed", context: Map.merge(task.context, result_context(result)))
-    next = Enum.find(tasks(battle.id), &(&1.state != "completed"))
     context = Map.merge(battle.context, Map.take(result, ~w(head native_battle)))
-
-    update(battle,
-      context: context,
-      current_task_id: if(next, do: next.task_id),
-      stage: if(next, do: "prepare_worktree", else: review_stage(battle, "final_checks"))
-    )
+    battle |> update(context: context) |> next_task()
   end
 
   defp advance(battle, %Attempt{stage: "summary"}, result) do
     battle =
       update(battle,
-        state: "completed",
+        state:
+          if((battle.context["omitted_tasks"] || []) == [], do: "completed", else: "partial"),
         context: Map.merge(battle.context, result_context(result))
       )
 
-    record(battle, "completed")
+    record(battle, battle.state)
     battle
   end
 

@@ -132,7 +132,7 @@ The workflow definition controls allowed column transitions; status alone cannot
 satisfy a gate. A blocked card stays in the relevant column with a text reason.
 
 Battle states: `ready`, `running`, `pausing`, `paused`,
-`needs_attention`, `stopping`, `stopped`, `completed`.
+`needs_attention`, `stopping`, `stopped`, `partial`, `completed`.
 Waiting/backoff and sleep are recorded reasons, not fake completion states.
 
 Implemented R060a Pause is a completed-stage boundary: the current bounded
@@ -144,7 +144,13 @@ transient provider failures: two per task and two shared by final stages, frozen
 at Start. Failed writers return through fresh preparation/coordinator/Speculator;
 read-only roles repeat only their failed stage. Preserve failed receipts and all
 consumed limits. Rejected/blocked reviews, native failures, old snapshots and
-uncertain effects do not qualify. Skip and broader recovery remain targets.
+uncertain effects do not qualify. R060c adds confirmed Skip at a clean paused task
+or settled task-local block/transient failure/review exhaustion. Its transitive
+dependents are deferred; independent work continues from the reviewed head.
+Paused battles stay paused. Final review/checks cover retained work and omissions
+are explicitly unfinished: the terminal result is Partial, never Completed.
+All-omitted work stops without inference if no task completed. Broader recovery
+remains a target; native/policy failures and final stages cannot be skipped.
 
 | Control | Meaning |
 | --- | --- |

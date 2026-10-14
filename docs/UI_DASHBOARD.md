@@ -55,8 +55,12 @@ finishes the bounded current stage, and Paused requires verified cleanup. Resume
 keeps the saved stage, team and original deadline; show that paused time counts.
 Keep Stop available while pausing or paused. R060b shows one Retry failed stage
 button only for eligible settled provider failures, with usage, retained-edit and
-retry-limit explanations. Recovered/stale controls cannot launch it. Parallel
-workers, Skip and full interrupted-work recovery remain unavailable.
+retry-limit explanations. Recovered/stale controls cannot launch it. R060c adds
+Skip task for eligible settled boundaries, with a confirmation naming the task
+and deferred dependents. Show that edits stay retained, paused work stays paused
+and continuing independent tasks may consume allowance. Keep skipped/deferred cards
+unfinished; report Partial separately from Completed. Stale confirmations cannot
+apply to a later task. Parallel workers and full interrupted-work recovery remain open.
 
 Advanced contains additional boards, custom roles/columns, scoped team adoption,
 repository setup, project check declarations and retained worktree inspection.

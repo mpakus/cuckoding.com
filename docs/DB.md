@@ -21,6 +21,14 @@ taskless final stages; do not reset counts during review returns or restart.
 Failed normalized provider tools/changes remain in the original immutable attempt.
 Missing historical recovery fields mean Retry is unavailable.
 
+R060c adds no migration. New snapshots freeze `task_selection: skip-task-v1`.
+The Skip transaction increments `control_revision`, records `battle.task_skipped`,
+updates task projections to `skipped`/`deferred` and retains bounded `omitted_tasks`
+(ID/status) and `skipped_attempts` (settled failure IDs) in battle context. Frozen
+membership and drafts remain unchanged. Final attempt digests bind retained criteria
+and omissions; `partial` is a terminal battle state/event outside the active index.
+All-omitted battles with no completed tasks stop with reason `all_tasks_skipped`.
+
 R050f requires no migration. New battle snapshots use `arena-loop-v2`; task
 verification stays in immutable `criteria` and its existing SHA-256. Only v2 with
 `checks: []` skips command stages; no command-success receipt is stored. The Start

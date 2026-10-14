@@ -8,12 +8,21 @@ defmodule CuckodingWeb.BattleComponent do
   def mount(socket) do
     {:ok,
      socket
-     |> assign(key: Ecto.UUID.generate(), error: nil, confirm_stop: nil)
+     |> assign(key: Ecto.UUID.generate(), error: nil, confirm_stop: nil, confirm_skip: nil)
      |> CuckodingWeb.SessionAuth.guard_events()}
   end
 
   @impl true
-  def update(assigns, socket), do: {:ok, assign(socket, assigns)}
+  def update(assigns, socket) do
+    socket = assign(socket, assigns)
+
+    socket =
+      if socket.assigns.confirm_skip != skip_key(socket.assigns.battle),
+        do: assign(socket, :confirm_skip, nil),
+        else: socket
+
+    {:ok, socket}
+  end
 
   @impl true
   def handle_event("recover", _, socket) do
@@ -21,22 +30,36 @@ defmodule CuckodingWeb.BattleComponent do
      assign(socket,
        key: Ecto.UUID.generate(),
        confirm_stop: nil,
+       confirm_skip: nil,
        error: "The connection changed. Review the current scope and press Start again."
      )}
   end
 
   def handle_event("scope-change", _, socket), do: {:noreply, socket}
 
-  def handle_event(action, params, socket) when action in ~w(pause resume retry) do
+  def handle_event(action, params, socket) when action in ~w(pause resume retry skip) do
     a = socket.assigns
 
     result =
       if a.battle && params["battle_id"] == a.battle.id && params["key"] == a.key &&
            params["revision"] == to_string(a.battle.control_revision) do
         case action do
-          "pause" -> Battles.pause(a.battle.id, a.battle.control_revision)
-          "resume" -> Battles.resume(a.battle.id, a.battle.control_revision)
-          "retry" -> Battles.retry(a.battle.id, a.battle.control_revision)
+          "pause" ->
+            Battles.pause(a.battle.id, a.battle.control_revision)
+
+          "resume" ->
+            Battles.resume(a.battle.id, a.battle.control_revision)
+
+          "retry" ->
+            Battles.retry(a.battle.id, a.battle.control_revision)
+
+          "skip" ->
+            Battles.skip(
+              a.battle.id,
+              a.battle.control_revision,
+              params["task_id"],
+              a.confirm_skip == skip_key(a.battle)
+            )
         end
       else
         {:error, :stale_control}
@@ -45,7 +68,12 @@ defmodule CuckodingWeb.BattleComponent do
     send(self(), :updated)
 
     {:noreply,
-     assign(socket, key: Ecto.UUID.generate(), error: result_error(result), confirm_stop: nil)}
+     assign(socket,
+       key: Ecto.UUID.generate(),
+       error: result_error(result),
+       confirm_stop: nil,
+       confirm_skip: nil
+     )}
   end
 
   def handle_event("start", params, socket) do
@@ -70,10 +98,24 @@ defmodule CuckodingWeb.BattleComponent do
 
     {:noreply,
      assign(socket,
+       confirm_skip: nil,
        confirm_stop:
          if(battle && battle.state in ~w(running pausing paused needs_attention), do: battle.id)
      )}
   end
+
+  def handle_event("ask-skip", _, socket) do
+    battle = socket.assigns.battle
+
+    {:noreply,
+     assign(socket,
+       confirm_stop: nil,
+       confirm_skip: if(battle && Battles.skip_preview(battle) != [], do: skip_key(battle))
+     )}
+  end
+
+  def handle_event("keep-task", _, socket),
+    do: {:noreply, assign(socket, :confirm_skip, nil)}
 
   def handle_event("keep-running", _, socket),
     do: {:noreply, assign(socket, :confirm_stop, nil)}
@@ -91,6 +133,9 @@ defmodule CuckodingWeb.BattleComponent do
   end
 
   def handle_event(_, _, socket), do: {:noreply, socket}
+
+  defp skip_key(nil), do: nil
+  defp skip_key(battle), do: {battle.id, battle.control_revision, battle.current_task_id}
 
   defp result_error({:ok, _}), do: nil
   defp result_error({:error, reason}), do: message(reason)
@@ -116,6 +161,10 @@ defmodule CuckodingWeb.BattleComponent do
   defp message("retry_unavailable"),
     do:
       "Retry requires a settled provider failure, verified cleanup and remaining time, turns and retries. Blocked reviews and uncertain effects need inspection."
+
+  defp message("skip_unavailable"),
+    do:
+      "Skip requires a clean paused task or a settled task failure, verified cleanup and remaining limits. Active workers, uncertain effects and final reviews cannot be skipped."
 
   defp message("no_tasks"), do: "Create tasks or add a saved task before starting."
 
@@ -308,6 +357,13 @@ defmodule CuckodingWeb.BattleComponent do
         assigns.battle && Battles.retry_available?(assigns.battle, assigns.now)
       )
 
+    assigns =
+      assign(
+        assigns,
+        :skip_tasks,
+        if(assigns.battle, do: Battles.skip_preview(assigns.battle, assigns.now), else: [])
+      )
+
     ~H"""
     <div id={@id} class="arena-battle">
       <div :if={@battle} id="battle-activity">
@@ -316,6 +372,12 @@ defmodule CuckodingWeb.BattleComponent do
           {Enum.count(@battle_tasks, &(&1.state == "completed"))} / {length(@battle_tasks)} authorized tasks completed · {label(
             @battle.stage
           )}
+        </p>
+        <p :if={(@battle.context["omitted_tasks"] || []) != []} id="battle-omissions" role="status">
+          {Enum.count(@battle_tasks, &(&1.state == "skipped"))} skipped · {Enum.count(
+            @battle_tasks,
+            &(&1.state == "deferred")
+          )} deferred · these tasks remain unfinished.
         </p>
         <p :if={@current_task} class="fine-print">Current task: {@current_task.snapshot["title"]}</p>
         <p class="fine-print">
@@ -346,7 +408,11 @@ defmodule CuckodingWeb.BattleComponent do
         <p :if={@battle.state == "completed"} id="battle-result">
           Reviewed local result: <code>{branch(@battle)}</code>. Your original branch has not been merged. Push, merge and release remain separate actions.
         </p>
-        <div :if={@retry_available && is_nil(@confirm_stop)}>
+        <p :if={@battle.state == "partial"} id="battle-partial-result">
+          Partial result · retained tasks passed final review. Skipped and deferred tasks remain unfinished.
+          Local branch: <code>{branch(@battle)}</code>. Your original branch has not been merged.
+        </p>
+        <div :if={@retry_available && is_nil(@confirm_stop) && is_nil(@confirm_skip)}>
           <p id="battle-retry-help" class="fine-print">
             Retry uses the same agent, model and remaining limits and may use provider allowance.
             Up to two retries per task; final stages share two more. Failed edits stay retained.
@@ -365,7 +431,7 @@ defmodule CuckodingWeb.BattleComponent do
           >Retry failed stage</button>
         </div>
         <button
-          :if={@battle.state in ~w(running paused) && is_nil(@confirm_stop)}
+          :if={@battle.state in ~w(running paused) && is_nil(@confirm_stop) && is_nil(@confirm_skip)}
           id={if @battle.state == "paused", do: "battle-resume", else: "battle-pause"}
           class="button"
           type="button"
@@ -376,6 +442,58 @@ defmodule CuckodingWeb.BattleComponent do
           phx-target={@myself}
           aria-describedby="battle-pause-help"
         >{if @battle.state == "paused", do: "Resume", else: "Pause"}</button>
+        <button
+          :if={@skip_tasks != [] && is_nil(@confirm_skip) && is_nil(@confirm_stop)}
+          id="battle-skip"
+          class="button"
+          type="button"
+          phx-click="ask-skip"
+          phx-target={@myself}
+        >Skip task</button>
+        <div
+          :if={@confirm_skip && @confirm_skip == skip_key(@battle) && @skip_tasks != []}
+          id="battle-skip-confirmation"
+          role="group"
+          aria-labelledby="battle-skip-question"
+          class="notice"
+        >
+          <p id="battle-skip-question">Skip “{@current_task.snapshot["title"]}”?</p>
+          <p>
+            Its edits and evidence stay retained; it will not be completed or integrated.
+            Any final result will be partial. If no tasks remain and none completed, the battle stops.
+          </p>
+          <p :if={@battle.state == "paused"}>
+            The battle stays paused. Resume will continue independent tasks with the same limits.
+          </p>
+          <p :if={@battle.state != "paused"}>
+            Independent tasks will continue with the same agents and limits and may use provider allowance.
+          </p>
+          <div :if={length(@skip_tasks) > 1}>
+            <p>These dependent tasks will also be deferred:</p>
+            <ul>
+              <li :for={task <- tl(@skip_tasks)}>{task.snapshot["title"]}</li>
+            </ul>
+          </div>
+          <button
+            id="battle-keep-task"
+            class="button"
+            type="button"
+            phx-click="keep-task"
+            phx-target={@myself}
+            phx-mounted={Phoenix.LiveView.JS.focus()}
+          >Keep task</button>
+          <button
+            id="battle-confirm-skip"
+            class="button"
+            type="button"
+            phx-click="skip"
+            phx-value-battle_id={@battle.id}
+            phx-value-task_id={@battle.current_task_id}
+            phx-value-revision={@battle.control_revision}
+            phx-value-key={@key}
+            phx-target={@myself}
+          >Confirm Skip</button>
+        </div>
         <button
           :if={@battle.state in ~w(running pausing paused needs_attention) && is_nil(@confirm_stop)}
           id="battle-stop"
@@ -430,7 +548,7 @@ defmodule CuckodingWeb.BattleComponent do
       <div
         :if={
           @preview && @preview.tasks != [] &&
-            (is_nil(@battle) || @battle.state in ~w(stopped completed))
+            (is_nil(@battle) || @battle.state in ~w(stopped completed partial))
         }
         id="battle-start-scope"
       >
@@ -441,6 +559,7 @@ defmodule CuckodingWeb.BattleComponent do
           Start runs the saved tasks with your assigned agents. Secutor reviews each task's acceptance criteria and checks on an app-owned local branch.
           The original checkout is preserved. No push, user-branch merge or release is included.
           Settled provider failures allow up to two explicit retries per task and two shared by final stages, within these same limits.
+          Skip can leave a settled task unfinished and defer its dependents; independent work can produce a reviewed partial result.
         </p>
         <div>
           <p class="fine-print">

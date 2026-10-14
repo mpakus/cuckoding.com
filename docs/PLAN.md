@@ -87,6 +87,9 @@ The numbered story below is capability coverage, not eight mandatory screens.
 - [x] **R060b — Provider Retry:** explicit bounded retries for settled transient
   role failures; retain failed edits, fresh writer worktrees, immutable scope and
   all consumed limits. No rejected-review/native-effect replay. [Task](../tasks/R060b-provider-retry.md).
+- [x] **R060c — Skip:** confirm a settled task, defer its transitive dependents,
+  retain unfinished work and review independent results as Partial. Historical grants,
+  uncertain effects and final reviews cannot be skipped. [Task](../tasks/R060c-task-skip.md).
 - [ ] **R060 / R070 / R080:** complete recovery, parallel workers, both dashboards
   and timed ten-minute acceptance. Usable Arena UI ships with each earlier slice.
 
@@ -396,7 +399,8 @@ R050e code/fixture scope: Codex default stages, 20 tasks, three review returns,
 processes. A failed final review requires attention. Source checkout stays intact;
 Start never pushes or merges into the user branch. Stop and fail-closed restart
 are implemented. R060a adds Pause/Resume at completed stage boundaries;
-R060b adds bounded provider Retry; Skip and full reconciliation remain R060.
+R060b adds bounded provider Retry; R060c adds confirmed Skip with deferred dependents
+and reviewed partial results. Full reconciliation remains R060.
 
 Real-account acceptance remains open: one Start completes a two-task dependency chain with a forced review
 return and no ordinary human prompts. A forged/stale completion cannot advance
@@ -410,7 +414,8 @@ Depends on R050.
 - [x] R060a Pause/Resume at completed stage boundaries; R050e Stop with cleanup.
   Keep durable intent, pending states, unchanged limits and retained artifacts.
 - [x] R060b explicit provider Retry with settled cleanup and frozen lifetime limits.
-- [ ] Skip and broader interrupted-work recovery with verified process cleanup.
+- [x] R060c Skip at settled task boundaries, deferred dependents and partial results.
+- [ ] Broader interrupted-work recovery with verified process cleanup.
 - [ ] Add bounded transient recovery/backoff, separate review/failure counters,
   deadline enforcement and no repeated sign-in questions per task.
 - [ ] Reconcile DB/process/transport/worktree/Git/port ownership before startup
