@@ -12,6 +12,7 @@ defmodule Cuckoding.Battles.Battle do
     field :stage, :string
     field :current_task_id, :binary_id
     field :turns_used, :integer, default: 0
+    field :control_revision, :integer, default: 0
     field :deadline_at, :utc_datetime_usec
     field :reason, :string
     timestamps(type: :utc_datetime_usec)

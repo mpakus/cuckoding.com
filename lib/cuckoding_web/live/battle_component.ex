@@ -27,6 +27,26 @@ defmodule CuckodingWeb.BattleComponent do
 
   def handle_event("scope-change", _, socket), do: {:noreply, socket}
 
+  def handle_event(action, params, socket) when action in ~w(pause resume) do
+    a = socket.assigns
+
+    result =
+      if a.battle && params["battle_id"] == a.battle.id && params["key"] == a.key &&
+           params["revision"] == to_string(a.battle.control_revision) do
+        case action do
+          "pause" -> Battles.pause(a.battle.id, a.battle.control_revision)
+          "resume" -> Battles.resume(a.battle.id, a.battle.control_revision)
+        end
+      else
+        {:error, :stale_control}
+      end
+
+    send(self(), :updated)
+
+    {:noreply,
+     assign(socket, key: Ecto.UUID.generate(), error: result_error(result), confirm_stop: nil)}
+  end
+
   def handle_event("start", params, socket) do
     a = socket.assigns
 
@@ -49,7 +69,8 @@ defmodule CuckodingWeb.BattleComponent do
 
     {:noreply,
      assign(socket,
-       confirm_stop: if(battle && battle.state in ~w(running needs_attention), do: battle.id)
+       confirm_stop:
+         if(battle && battle.state in ~w(running pausing paused needs_attention), do: battle.id)
      )}
   end
 
@@ -83,6 +104,14 @@ defmodule CuckodingWeb.BattleComponent do
   end
 
   defp message("stale_stop"), do: "Review the current battle before confirming Stop."
+
+  defp message("stale_control"),
+    do: "The battle control changed. Review its current state and use the current button."
+
+  defp message("resume_binding_changed"),
+    do:
+      "An assigned connection or model changed or expired. This battle keeps its original bindings. Stop and start a new battle with current connections."
+
   defp message("no_tasks"), do: "Create tasks or add a saved task before starting."
 
   defp message("task_limit"),
@@ -184,7 +213,9 @@ defmodule CuckodingWeb.BattleComponent do
   end
 
   defp battle_elapsed(battle, now) do
-    ending = if battle.state in ~w(running stopping), do: now, else: battle.updated_at
+    ending =
+      if battle.state in ~w(running pausing paused stopping), do: now, else: battle.updated_at
+
     elapsed(battle.inserted_at, ending)
   end
 
@@ -278,6 +309,17 @@ defmodule CuckodingWeb.BattleComponent do
         <p :if={@battle.state == "stopping"} role="status">
           Stopping · waiting for owned worker cleanup. Changes and receipts are retained.
         </p>
+        <p :if={@battle.state == "pausing"} id="battle-pause-status" role="status">
+          Pausing · the current stage is finishing within its existing limit. No next stage will start.
+          Use Stop to cancel it now.
+        </p>
+        <p :if={@battle.state == "paused"} id="battle-pause-status" role="status">
+          Paused · no stage is running. Saved results and verified worker cleanup are retained. Resume continues from the saved stage.
+        </p>
+        <p :if={@battle.state in ~w(running pausing paused)} id="battle-pause-help" class="fine-print">
+          Pause finishes the current stage before stopping new work. Time spent paused still counts toward
+          the original deadline: {Calendar.strftime(@battle.deadline_at, "%Y-%m-%d %H:%M:%S UTC")}.
+        </p>
         <p :if={@battle.state == "stopped"}>
           Stopped after worker cleanup. Unfinished tasks and evidence are retained.
         </p>
@@ -288,7 +330,19 @@ defmodule CuckodingWeb.BattleComponent do
           Reviewed local result: <code>{branch(@battle)}</code>. Your original branch has not been merged. Push, merge and release remain separate actions.
         </p>
         <button
-          :if={@battle.state in ~w(running needs_attention) && is_nil(@confirm_stop)}
+          :if={@battle.state in ~w(running paused) && is_nil(@confirm_stop)}
+          id={if @battle.state == "paused", do: "battle-resume", else: "battle-pause"}
+          class="button"
+          type="button"
+          phx-click={if @battle.state == "paused", do: "resume", else: "pause"}
+          phx-value-battle_id={@battle.id}
+          phx-value-revision={@battle.control_revision}
+          phx-value-key={@key}
+          phx-target={@myself}
+          aria-describedby="battle-pause-help"
+        >{if @battle.state == "paused", do: "Resume", else: "Pause"}</button>
+        <button
+          :if={@battle.state in ~w(running pausing paused needs_attention) && is_nil(@confirm_stop)}
           id="battle-stop"
           class="button"
           type="button"
@@ -296,7 +350,9 @@ defmodule CuckodingWeb.BattleComponent do
           phx-target={@myself}
         >Stop</button>
         <div
-          :if={@confirm_stop == @battle.id && @battle.state in ~w(running needs_attention)}
+          :if={
+            @confirm_stop == @battle.id && @battle.state in ~w(running pausing paused needs_attention)
+          }
           id="battle-stop-confirmation"
           role="group"
           aria-labelledby="battle-stop-question"

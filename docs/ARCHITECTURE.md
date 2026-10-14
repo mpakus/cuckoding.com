@@ -1,6 +1,6 @@
 # Architecture
 
-## Implemented boundary · reviewed 2026-10-13
+## Implemented boundary · reviewed 2026-10-14
 
 Cuckoding delivers authenticated setup, planning, isolated task turns and the
 sequential Codex/Cursor battle loop. Product parallel workers and full recovery
@@ -105,6 +105,13 @@ branch creation/integration intents and compare-and-swap receipts. Checks run in
 a fresh candidate clone with the single-process grant described in
 [Arena loop](ARENA_LOOP.md). Worker leases, parallel scheduling and complete
 reconciliation remain in [Plan](PLAN.md); fixtures do not close real-account acceptance.
+
+R060a keeps Pause/Resume in `Battles`, using one persisted control revision and
+transactional events. The runner keeps the current claim alive during Pausing;
+settlement retains its result and moves to Paused before another claim can run.
+Clean paused boundaries survive runner/app restart. No new scheduler, provider
+continuation or automatic replay is introduced. Native validations still precede
+effects after Resume; full uncertain-effect recovery remains open.
 
 Agents setup uses one LiveView wizard over the existing Foundation command APIs.
 The form holds only unsaved choices; SQLite owns version, connection, diagnostics

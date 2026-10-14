@@ -4,7 +4,7 @@ defmodule Cuckoding.Battles do
   alias Cuckoding.Battles.{Attempt, Battle, Snapshot, Task}
   alias Cuckoding.{Event, Foundation, Repo, TaskTurn}
 
-  @active ~w(running stopping needs_attention)
+  @active ~w(running pausing paused stopping needs_attention)
   @envelope ~w(battle_id request_id task_id stage criteria_sha256)
   @result_fields @envelope ++
                    ~w(status reason summary feedback head candidate_sha preparation native_candidate native_battle resolved_checks checks provider cleanup_verified)
@@ -245,7 +245,7 @@ defmodule Cuckoding.Battles do
       battle.state == "stopping" ->
         finish_stop(battle, attempt, result)
 
-      battle.state != "running" ->
+      battle.state not in ~w(running pausing) ->
         Repo.rollback(:not_running)
 
       expired?(attempt.deadline_at, now) or expired?(battle.deadline_at, now) ->
@@ -255,9 +255,85 @@ defmodule Cuckoding.Battles do
       not valid_result?(attempt, result) ->
         Repo.rollback(:invalid_result)
 
+      battle.state == "pausing" and result["cleanup_verified"] != true ->
+        update(attempt, state: "interrupted", result: result)
+        needs_attention(battle, "cleanup_uncertain")
+
       true ->
         complete_attempt(battle, attempt, result)
+        |> finish_pause()
     end
+  end
+
+  def pause(id, revision) do
+    transaction(fn -> control_battle(id, revision, "running") |> pause_current() end)
+  end
+
+  defp pause_current(battle) do
+    state = if(running_attempt(battle.id), do: "pausing", else: "paused")
+
+    if state == "paused" and not quiescent?(battle) do
+      attention(battle, "cleanup_uncertain")
+    else
+      battle = update(battle, state: state, control_revision: battle.control_revision + 1)
+      record(battle, "pause_requested", %{"control_revision" => battle.control_revision})
+      if state == "paused", do: record(battle, "paused")
+      battle
+    end
+  end
+
+  def resume(id, revision, now \\ DateTime.utc_now()) do
+    transaction(fn ->
+      battle = control_battle(id, revision, "paused")
+
+      cond do
+        not quiescent?(battle) -> attention(battle, "cleanup_uncertain")
+        expired?(battle.deadline_at, now) -> attention(battle, "deadline_exceeded")
+        battle.turns_used >= battle.snapshot["limits"]["turns"] -> attention(battle, "turn_limit")
+        not current_team?(battle) -> Repo.rollback(:resume_binding_changed)
+        true -> resume_current(battle)
+      end
+    end)
+  end
+
+  defp control_battle(id, revision, state) do
+    battle = get(id) || Repo.rollback(:not_found)
+
+    if battle.control_revision != revision or battle.state != state,
+      do: Repo.rollback(:stale_control)
+
+    battle
+  end
+
+  defp current_team?(battle) do
+    Enum.all?(battle.snapshot["team"], fn role ->
+      Foundation.verified_executable(role["agent_id"]) == {:ok, role["identity"]} and
+        Foundation.task_binding_current?(role)
+    end)
+  end
+
+  defp resume_current(battle) do
+    battle = update(battle, state: "running", control_revision: battle.control_revision + 1)
+    record(battle, "resumed", %{"control_revision" => battle.control_revision})
+    battle
+  end
+
+  defp finish_pause(%Battle{state: "pausing"} = battle) do
+    if quiescent?(battle) do
+      battle = update(battle, state: "paused")
+      record(battle, "paused")
+      battle
+    else
+      needs_attention(battle, "cleanup_uncertain")
+    end
+  end
+
+  defp finish_pause(battle), do: battle
+
+  defp quiescent?(battle) do
+    Enum.all?(attempts(battle.id), fn attempt ->
+      attempt.state == "completed" and attempt.result["cleanup_verified"] == true
+    end)
   end
 
   def stop(id) do
@@ -282,8 +358,8 @@ defmodule Cuckoding.Battles do
 
   defp safe_to_stop?(battle) do
     Enum.all?(attempts(battle.id), fn attempt ->
-      attempt.state == "completed" or
-        (attempt.state in ~w(failed cancelled) and attempt.result["cleanup_verified"] == true)
+      attempt.state in ~w(completed failed cancelled) and
+        attempt.result["cleanup_verified"] == true
     end)
   end
 
@@ -292,7 +368,7 @@ defmodule Cuckoding.Battles do
       %Attempt{state: "running", claim_token: ^token} = attempt ->
         battle = get(attempt.battle_id)
 
-        battle.state == "running" and not expired?(attempt.deadline_at, now) and
+        battle.state in ~w(running pausing) and not expired?(attempt.deadline_at, now) and
           not expired?(battle.deadline_at, now)
 
       _ ->
@@ -304,13 +380,19 @@ defmodule Cuckoding.Battles do
   def recover do
     transaction(fn ->
       Enum.map(
-        Repo.all(from b in Battle, where: b.state in ~w(running stopping)),
+        Repo.all(from b in Battle, where: b.state in ~w(running pausing paused stopping)),
         &recover_battle/1
       )
     end)
   end
 
-  defp recover_battle(battle) do
+  defp recover_battle(%Battle{state: "paused"} = battle) do
+    if quiescent?(battle), do: battle, else: interrupt_battle(battle)
+  end
+
+  defp recover_battle(battle), do: interrupt_battle(battle)
+
+  defp interrupt_battle(battle) do
     if attempt = running_attempt(battle.id),
       do: update(attempt, state: "interrupted", result: %{"status" => "interrupted"})
 

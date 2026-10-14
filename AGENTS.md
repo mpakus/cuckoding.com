@@ -11,6 +11,16 @@ owners; [Plan](docs/PLAN.md) owns remaining acceptance. General toolchain checks
 full recovery, parallel workers, remaining providers and real-account battle
 acceptance remain open.
 
+R060a Pause closes stage admission and lets the current bounded stage finish.
+Show Paused only at a durable boundary with verified worker cleanup; retain its
+receipt and next stage without replay. Pause/Resume use persisted control revisions
+and session/form guards. Paused/pausing battles retain Arena exclusion and draft
+locks. Resume preserves frozen scope, consumed turns/review rounds and the original
+wall deadline; revalidate exact connection bindings and native ownership before
+subsequent effects. Clean paused boundaries survive restart; interrupted pausing
+workers remain needs-attention. Stop still cancels. Do not present this as full
+crash/sleep recovery or native session continuation.
+
 Preserve these implemented contracts:
 
 - Supported versions, observed authorization, catalog freshness, model entitlement

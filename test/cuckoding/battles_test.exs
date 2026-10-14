@@ -147,7 +147,7 @@ defmodule Cuckoding.BattlesTest do
           }
       end
 
-    envelope |> Map.merge(payload) |> Map.merge(override)
+    envelope |> Map.merge(payload) |> Map.put("cleanup_verified", true) |> Map.merge(override)
   end
 
   defp step(battle, overrides \\ %{}) do
@@ -383,6 +383,225 @@ defmodule Cuckoding.BattlesTest do
 
     assert {:error, :stale_attempt} =
              Battles.finish(attempt.id, attempt.claim_token, result(attempt))
+  end
+
+  test "paused boundaries retain Arena exclusion, frozen scope and stale control protection",
+       ctx do
+    battle = start(ctx.board)
+    {:ok, paused} = Battles.pause(battle.id, 0)
+    assert paused.state == "paused"
+    assert paused.control_revision == 1
+    assert Battles.active?(ctx.board.arena_id)
+    assert Battles.locked?(ctx.board.id, ctx.first.id)
+    assert {:error, :not_running} = Battles.claim_next(battle.id)
+    assert {:error, :stale_control} = Battles.pause(battle.id, 0)
+    assert {:error, :stale_control} = Battles.resume(battle.id, 0)
+
+    assert {:error, :battle_active} =
+             Battles.start(
+               Ecto.UUID.generate(),
+               ctx.board.arena_id,
+               ctx.board.id,
+               battle.fingerprint,
+               true
+             )
+
+    assert {:error, _} =
+             Repo.query(
+               "INSERT INTO battles SELECT ?, arena_id, tabula_id, fingerprint, snapshot, context, 'running', stage, current_task_id, turns_used, deadline_at, reason, inserted_at, updated_at, control_revision FROM battles WHERE id = ?",
+               [Ecto.UUID.generate(), battle.id]
+             )
+
+    {:ok, resumed} = Battles.resume(battle.id, 1)
+    assert resumed.state == "running"
+    assert resumed.control_revision == 2
+
+    assert Map.take(resumed, ~w(snapshot fingerprint deadline_at turns_used stage context)a) ==
+             Map.take(battle, ~w(snapshot fingerprint deadline_at turns_used stage context)a)
+
+    assert {:error, :stale_control} = Battles.pause(battle.id, 0)
+    assert {:error, :stale_control} = Battles.resume(battle.id, 1)
+
+    assert Enum.map(Battles.evidence(battle.id), & &1.kind) ==
+             ~w(battle.started battle.pause_requested battle.paused battle.resumed)
+  end
+
+  test "Pause keeps the current claim active, retains its result and resumes at the next stage",
+       ctx do
+    battle = start(ctx.board) |> until_stage("implementor")
+    {:ok, attempt} = Battles.claim_next(battle.id)
+    before_pause = Battles.get(battle.id)
+    {:ok, pausing} = Battles.pause(battle.id, 0)
+    assert pausing.state == "pausing"
+    assert Battles.active_attempt?(attempt.id, attempt.claim_token)
+    assert {:error, :not_running} = Battles.claim_next(battle.id)
+    assert {:error, :stale_control} = Battles.resume(battle.id, 1)
+    receipt = result(attempt)
+    {:ok, paused} = Battles.finish(attempt.id, attempt.claim_token, receipt)
+    assert paused.state == "paused"
+    assert paused.stage == "capture"
+    assert Repo.get!(Attempt, attempt.id).result == receipt
+    assert paused.turns_used == before_pause.turns_used
+    assert {:error, :stale_attempt} = Battles.finish(attempt.id, attempt.claim_token, receipt)
+    {:ok, resumed} = Battles.resume(battle.id, paused.control_revision)
+    {:ok, next} = Battles.claim_next(resumed.id)
+    assert next.stage == "capture"
+    assert next.request["task_context"]["provider"] == receipt["provider"]
+    assert Enum.count(Battles.attempts(battle.id), &(&1.stage == "implementor")) == 1
+    assert resumed.deadline_at == battle.deadline_at
+  end
+
+  test "competing Pause and Resume requests commit a single control transition", ctx do
+    battle = start(ctx.board)
+
+    for {control, revision} <- [{&Battles.pause/2, 0}, {&Battles.resume/2, 1}] do
+      results =
+        1..4
+        |> Enum.map(fn _ -> Task.async(fn -> control.(battle.id, revision) end) end)
+        |> Enum.map(&Task.await/1)
+
+      assert Enum.count(results, &match?({:ok, _}, &1)) == 1
+      assert Enum.count(results, &(&1 == {:error, :stale_control})) == 3
+    end
+
+    assert Battles.get(battle.id).control_revision == 2
+  end
+
+  test "Pause never hides failed stages or uncertain cleanup and Stop overrides pausing", ctx do
+    battle = start(ctx.board)
+    {:ok, attempt} = Battles.claim_next(battle.id)
+    {:ok, _} = Battles.pause(battle.id, 0)
+
+    {:ok, failed} =
+      Battles.finish(
+        attempt.id,
+        attempt.claim_token,
+        result(attempt, %{"status" => "failed", "reason" => "provider_unavailable"})
+      )
+
+    assert failed.state == "needs_attention"
+    assert failed.reason == "provider_unavailable"
+    {:ok, _} = Battles.stop(battle.id)
+
+    battle = start(ctx.board)
+    {:ok, attempt} = Battles.claim_next(battle.id)
+    {:ok, _} = Battles.pause(battle.id, 0)
+    {:ok, _} = Battles.stop(battle.id)
+    refute Battles.active_attempt?(attempt.id, attempt.claim_token)
+
+    assert {:error, :stop_pending} =
+             Battles.finish(attempt.id, attempt.claim_token, result(attempt))
+
+    assert {:ok, %Battle{state: "stopped"}} =
+             Battles.finish(
+               attempt.id,
+               attempt.claim_token,
+               result(attempt, %{"status" => "cancelled"})
+             )
+
+    battle = start(ctx.board)
+    {:ok, attempt} = Battles.claim_next(battle.id)
+    {:ok, _} = Battles.pause(battle.id, 0)
+
+    {:ok, uncertain} =
+      Battles.finish(
+        attempt.id,
+        attempt.claim_token,
+        result(attempt, %{"cleanup_verified" => false})
+      )
+
+    assert uncertain.state == "needs_attention"
+    assert uncertain.reason == "cleanup_uncertain"
+    assert uncertain.stage == "admission"
+    assert {:error, :cleanup_required} = Battles.stop(battle.id)
+    assert {:error, :stale_control} = Battles.resume(battle.id, 1)
+  end
+
+  test "pausing preserves review returns and final completion takes precedence", ctx do
+    battle = start(ctx.board) |> until_stage("secutor")
+    {:ok, attempt} = Battles.claim_next(battle.id)
+    {:ok, _} = Battles.pause(battle.id, 0)
+
+    receipt =
+      result(attempt, %{"status" => "changes_requested"})
+      |> put_in(["provider", "report", "outcome"], "changes_requested")
+
+    {:ok, paused} = Battles.finish(attempt.id, attempt.claim_token, receipt)
+    assert paused.state == "paused"
+    assert paused.stage == "prepare_worktree"
+    assert hd(Battles.tasks(battle.id)).review_round == 1
+    {:ok, resumed} = Battles.resume(battle.id, 1)
+    battle = until_stage(resumed, "summary")
+    {:ok, attempt} = Battles.claim_next(battle.id)
+    {:ok, _} = Battles.pause(battle.id, 2)
+    {:ok, complete} = Battles.finish(attempt.id, attempt.claim_token, result(attempt))
+    assert complete.state == "completed"
+    assert {:error, :stale_control} = Battles.resume(battle.id, 3)
+  end
+
+  test "Resume cannot reset deadlines, turn limits or changed connection bindings", ctx do
+    battle = start(ctx.board)
+    {:ok, _} = Battles.pause(battle.id, 0)
+    workspace = Foundation.workspace()
+
+    Repo.update!(
+      Ecto.Changeset.change(workspace,
+        connection: Map.put(workspace.connection, "authorization", "not_connected")
+      )
+    )
+
+    assert {:error, :resume_binding_changed} = Battles.resume(battle.id, 1)
+    assert Battles.get(battle.id).state == "paused"
+    Repo.update!(Ecto.Changeset.change(Foundation.workspace(), connection: workspace.connection))
+    assert {:error, "deadline_exceeded"} = Battles.resume(battle.id, 1, battle.deadline_at)
+    assert Battles.get(battle.id).deadline_at == battle.deadline_at
+    {:ok, _} = Battles.stop(battle.id)
+    battle = start(ctx.board)
+    {:ok, paused} = Battles.pause(battle.id, 0)
+    Repo.update!(Ecto.Changeset.change(paused, turns_used: paused.snapshot["limits"]["turns"]))
+    assert {:error, "turn_limit"} = Battles.resume(battle.id, 1)
+    assert Battles.get(battle.id).turns_used == paused.snapshot["limits"]["turns"]
+  end
+
+  test "restart preserves a clean pause but never resumes an interrupted pausing worker", ctx do
+    battle = start(ctx.board) |> until_stage("implementor")
+    {:ok, paused} = Battles.pause(battle.id, 0)
+    assert {:ok, [^paused]} = Battles.recover()
+    assert {:error, :not_running} = Battles.claim_next(battle.id)
+    {:ok, _} = Battles.resume(battle.id, 1)
+    {:ok, attempt} = Battles.claim_next(battle.id)
+    {:ok, _} = Battles.pause(battle.id, 2)
+    {:ok, [recovered]} = Battles.recover()
+    assert recovered.state == "needs_attention"
+    assert Repo.get!(Attempt, attempt.id).state == "interrupted"
+    assert {:error, :stale_control} = Battles.resume(battle.id, 3)
+    assert {:error, :cleanup_required} = Battles.stop(battle.id)
+
+    assert {:error, :stale_attempt} =
+             Battles.finish(attempt.id, attempt.claim_token, result(attempt))
+  end
+
+  test "Pause cannot treat historical missing cleanup as a verified boundary or unlock the Arena",
+       ctx do
+    battle = start(ctx.board)
+    {battle, _} = step(battle, %{"cleanup_verified" => false})
+    assert {:error, "cleanup_uncertain"} = Battles.pause(battle.id, 0)
+    assert Battles.get(battle.id).state == "needs_attention"
+    assert {:error, :cleanup_required} = Battles.stop(battle.id)
+    assert Battles.active?(ctx.board.arena_id)
+  end
+
+  test "pausing cannot admit a late result or extend an active claim", ctx do
+    battle = start(ctx.board)
+    {:ok, attempt} = Battles.claim_next(battle.id)
+    {:ok, _} = Battles.pause(battle.id, 0)
+    refute Battles.active_attempt?(attempt.id, attempt.claim_token, attempt.deadline_at)
+
+    assert {:error, "late_result_rejected"} =
+             Battles.finish(attempt.id, attempt.claim_token, result(attempt), attempt.deadline_at)
+
+    assert Battles.get(battle.id).state == "needs_attention"
+    assert {:error, :stale_control} = Battles.resume(battle.id, 1)
   end
 
   test "restart retains uncertain effects and Stop cannot unlock a second battle", %{board: board} do

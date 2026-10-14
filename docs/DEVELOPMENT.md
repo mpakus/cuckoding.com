@@ -24,6 +24,10 @@ The target is **Add folder → Create tasks → Start**. R040l adds bounded fold
 snapshots and consented Speculator analysis. R040m saves the validated task graph
 automatically. R050e adds a bounded sequential Codex/Cursor Start loop (R020p); see
 [Arena loop](ARENA_LOOP.md) for exact prerequisites and limits.
+R060a adds Pause/Resume on the same board. Pause waits for the current bounded
+stage to finish; Stop cancels it. Resume keeps the original deadline and bindings.
+The eleventh migration adds a control revision and paused-Arena exclusion; back
+up the selected data root before upgrading. Older bundles refuse this schema.
 [Plan](PLAN.md#next-delivery-order--simple-arena) owns the remaining beta gates.
 
 ## Build and open

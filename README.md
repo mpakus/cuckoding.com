@@ -64,8 +64,12 @@ proves tests ran. **Advanced → Extra command checks (optional)** adds explicit
 commands when needed; once configured, all must pass. Without them, no command
 tests run and no passing command receipt is invented. Extra commands currently
 require a Codex Implementor and support native system commands that run in one process;
-Mix/npm pipelines and other subprocess toolchains are not supported. Stop waits
-for cleanup. Restart or uncertain effects require inspection; no automatic replay.
+Mix/npm pipelines and other subprocess toolchains are not supported.
+**Pause** finishes the current stage and saves its result before holding the next
+stage. **Resume** keeps the same team, work and limits; paused time counts toward
+the original deadline. Clean paused battles survive restart. **Stop** cancels
+and waits for cleanup. Interrupted work or uncertain effects require inspection;
+there is no automatic replay. [Pause/Resume evidence](worklog/2026-10-14-R060a-battle-pause-resume.md).
 New Start uses the current original committed source and retains previous result
 branches. Real-account battle acceptance is still open. See
 [Development](docs/DEVELOPMENT.md) for how this build works and

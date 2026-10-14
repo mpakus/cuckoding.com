@@ -4,6 +4,15 @@
 
 The tenth forward-only migration adds `battles`, `battle_tasks` and `battle_attempts`. Snapshots and requests are immutable; terminal attempt receipts cannot be rewritten/deleted. One active battle per Arena includes needs-attention state, and one running stage claim per battle is enforced by partial unique indexes. Draft history stays separate from execution projections. Start, claims, outcomes and events commit atomically; broadcasts follow commit. The native retained receipt/journal owns evidence of uncertain external effects; SQLite never promises exactly-once execution.
 
+R060a's eleventh forward-only migration adds `battles.control_revision` (zero for
+retained battles) and extends the active-Arena unique index to `pausing`/`paused`.
+Pause/Resume compare the displayed revision and expected state in an immediate
+transaction, increment the revision and append control events before broadcast.
+Stage settlement and the `paused` event commit together. No snapshot, attempt,
+deadline or prior event is rewritten. Clean paused state survives startup;
+unfinished pausing attempts are interrupted without replay. Upgrade prior-schema
+copies and verify a backup before migrating a saved workspace.
+
 R050f requires no migration. New battle snapshots use `arena-loop-v2`; task
 verification stays in immutable `criteria` and its existing SHA-256. Only v2 with
 `checks: []` skips command stages; no command-success receipt is stored. The Start

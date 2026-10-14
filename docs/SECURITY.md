@@ -566,3 +566,14 @@ session stores under an interrupted attempt; verified recovery cleanup remains
 open. Do not classify those files as public logs, export them, or replay the turn.
 Fixture and synthetic account evidence must stay separate from full battle,
 sleep/crash, and same-user hostile-process acceptance.
+
+## Paused battle authority (R060a)
+
+Pause/Resume are session-protected, battle-scoped and revision-guarded. Neither
+control changes task membership, bindings, checks, grants or deadlines. Pausing
+allows only the existing claimed stage to finish; stale claims remain refused.
+Paused requires completed attempts with verified cleanup. An interrupted pausing
+worker cannot become resumable merely because the app restarted. Arena exclusion
+and frozen-draft locks persist through both states. Resume rechecks the exact
+connection observations; the next stage still performs native path/ref/executable
+validation. Wall expiry or exhausted turns cannot be reset by controls.

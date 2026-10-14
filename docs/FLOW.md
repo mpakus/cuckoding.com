@@ -135,6 +135,13 @@ Battle states: `ready`, `running`, `pausing`, `paused`,
 `needs_attention`, `stopping`, `stopped`, `completed`.
 Waiting/backoff and sleep are recorded reasons, not fake completion states.
 
+Implemented R060a Pause is a completed-stage boundary: the current bounded
+stage finishes and verifies cleanup, then dispatch stops. Resume continues the
+saved next stage within the original two-hour wall deadline and role/review
+limits. Paused time still counts. Clean pauses survive restart; uncertain or
+interrupted pausing work cannot Resume. Retry/Skip and broader recovery below
+remain targets.
+
 | Control | Meaning |
 | --- | --- |
 | Pause | Close admission immediately; checkpoint and quiesce owned workers, then show Paused only once verified |

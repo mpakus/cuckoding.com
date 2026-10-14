@@ -80,6 +80,14 @@ any bundled helper during packaging.
 
 ## Pause, stop, crash and sleep
 
+R060a implements Pause at a completed stage boundary. Existing bounded workers
+are allowed to finish, then their receipts and verified cleanup commit with
+Paused. Resume never restores a native process or reruns that stage; it opens
+admission to the next stage under the unchanged Start snapshot/deadline. Native
+ownership/grant checks still precede effects. Clean paused battles survive
+restart, while interrupted Pausing requires inspection. This is separate from
+the broader crash/sleep reconciliation target below.
+
 Persist control intent before signalling a process. Pause closes admission,
 saves a public checkpoint and quiesces workers using supported adapter behavior.
 Stop cancels then uses an ownership-checked termination ladder. Check descendants

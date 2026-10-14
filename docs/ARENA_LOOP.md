@@ -11,6 +11,20 @@ before the next action. Restarted or uncertain attempts need attention and are
 never replayed automatically. Stop closes admission immediately and waits for
 the existing native cancellation/cleanup receipt before showing stopped.
 
+R060a adds **Pause** and **Resume** on this board. Pause immediately blocks new
+claims while the already-claimed stage finishes under its original deadline.
+Its matching result must verify cleanup before Paused appears. Failure, review
+exhaustion or uncertainty takes precedence; final summary completion ends the
+battle instead of pausing it. Stop can cancel while Pausing.
+
+Resume uses a fresh session-bound control revision and the same frozen team,
+criteria, stage, review counters, consumed turns and wall deadline. Paused time
+counts toward that deadline. Exact connection observations must still match;
+native effects retain their existing worktree/ref/executable validation. There
+is no revived provider session, repeated completed stage or implicit new Start.
+Clean paused boundaries survive app restart; interrupted Pausing remains
+needs-attention. Retry/Skip and full crash/sleep reconciliation remain open.
+
 The host offers Summa Rudis a single closed next-stage decision. Speculator
 prepares public instructions without dropping frozen criteria; Implementor has
 bounded host file tools; Secutor uses a separate read-only session and exact
@@ -100,7 +114,7 @@ uncertain cleanup and final combined-review rejection need attention.
 Adapter fixtures exercise a two-task dependency chain with a forced check/review
 return, fresh correction checkout and final review. Native tests separately verify
 Git preservation, sandbox behavior and process lifetime. These do not substitute
-for a live signed-in two-task battle. Pause/resume/skip, full restart/sleep
+for a live signed-in two-task battle. Retry/Skip, full restart/sleep
 reconciliation, parallel tasks, custom stages, general toolchain checks and the
 remaining providers stay open in [Plan](PLAN.md). No additional dependency is added.
 

@@ -608,6 +608,46 @@ defmodule Cuckoding.BattleExecutorTest do
     assert length(Battles.attempts(battle.id)) == 1
   end
 
+  test "runner settles a pausing stage once and survives restart at the paused boundary", %{
+    board: board
+  } do
+    start_supervised!({Task.Supervisor, name: Cuckoding.BattleTasks})
+    test = self()
+
+    executor = fn attempt ->
+      send(test, {:stage_started, self(), attempt})
+
+      receive do
+        :finish ->
+          BattleExecutor.execute(attempt, git: Adapters, checks: Adapters, provider: Adapters)
+      end
+    end
+
+    runner = start_supervised!({BattleRunner, executor: executor})
+    battle = start(board)
+    send(runner, :poll)
+    assert_receive {:stage_started, worker, attempt}, 1000
+    assert attempt.stage == "admission"
+    {:ok, _} = Battles.pause(battle.id, 0)
+    send(worker, :finish)
+    await(fn -> Battles.get(battle.id).state == "paused" end)
+    assert length(Battles.attempts(battle.id)) == 1
+    refute_receive {:stage_started, _, _}, 100
+    stop_supervised!(BattleRunner)
+    runner = start_supervised!({BattleRunner, executor: executor})
+    refute_receive {:stage_started, _, _}, 100
+    assert Battles.get(battle.id).state == "paused"
+    {:ok, _} = Battles.resume(battle.id, 1)
+    send(runner, :poll)
+    assert_receive {:stage_started, worker, attempt}, 1000
+    assert attempt.stage == "prepare_worktree"
+    {:ok, _} = Battles.pause(battle.id, 2)
+    send(worker, :finish)
+    await(fn -> Battles.get(battle.id).state == "paused" end)
+    assert length(Battles.attempts(battle.id)) == 2
+    assert Battles.get(battle.id).deadline_at == battle.deadline_at
+  end
+
   defp await(fun, remaining \\ 100)
 
   defp await(fun, remaining) when remaining > 0 do

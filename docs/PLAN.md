@@ -80,6 +80,10 @@ The numbered story below is capability coverage, not eight mandatory screens.
   metadata preflights pass. [Task](../tasks/R020p-cursor-task-execution.md).
 - [ ] **R020p / R090 live acceptance:** consented Cursor read/edit/permission-denial
   sessions and a real mixed-provider battle. Metadata preflights do not prove inference.
+- [x] **R060a — Pause/Resume:** finish the bounded current stage, retain its result
+  and pause before dispatch; resume a clean durable boundary with the same scope
+  and deadline. Stale controls, cleanup uncertainty and interrupted pausing refuse
+  continuation. [Task](../tasks/R060a-battle-pause-resume.md).
 - [ ] **R060 / R070 / R080:** complete recovery, parallel workers, both dashboards
   and timed ten-minute acceptance. Usable Arena UI ships with each earlier slice.
 
@@ -388,7 +392,8 @@ R050e code/fixture scope: Codex default stages, 20 tasks, three review returns,
 `codex-check-single-process-v1`: native system commands, no spawned toolchain
 processes. A failed final review requires attention. Source checkout stays intact;
 Start never pushes or merges into the user branch. Stop and fail-closed restart
-are implemented; pause/resume/skip and reconciliation remain R060.
+are implemented. R060a adds Pause/Resume at completed stage boundaries;
+Retry/Skip and full reconciliation remain R060.
 
 Real-account acceptance remains open: one Start completes a two-task dependency chain with a forced review
 return and no ordinary human prompts. A forged/stale completion cannot advance
@@ -399,8 +404,9 @@ operation or user-checkout merge occurs.
 
 Depends on R050.
 
-- [ ] Implement Pause/Resume/Retry/Stop/Skip with durable intent, correct pending
-  states, verified process cleanup and retained partial artifacts.
+- [x] R060a Pause/Resume at completed stage boundaries; R050e Stop with cleanup.
+  Keep durable intent, pending states, unchanged limits and retained artifacts.
+- [ ] Retry/Skip and broader interrupted-work recovery with verified process cleanup.
 - [ ] Add bounded transient recovery/backoff, separate review/failure counters,
   deadline enforcement and no repeated sign-in questions per task.
 - [ ] Reconcile DB/process/transport/worktree/Git/port ownership before startup

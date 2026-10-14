@@ -208,3 +208,14 @@ final completion. These fixtures do not prove real-account inference.
 `real_cursor_task` requires explicit `one-fixture-session` usage consent and an
 app-owned profile. Select exactly one synthetic read, write or denial canary.
 The five-minute fixture writes its public receipt under that app's probes directory.
+
+R060a transition tests cover concurrent/stale Pause/Resume, active-claim completion,
+retained review returns, final completion, late receipts, original wall/turn limits,
+changed bindings, unknown cleanup and Stop during Pausing. Runner fixtures verify
+one settlement, no next dispatch while paused, and restart at a clean boundary.
+LiveView tests cover button submission, pending messages, reconnect, unsaved text
+and expired sessions. These are synthetic tests; no live provider turn is needed.
+Migration acceptance upgrades a private ten-version database copy with retained
+records plus a synthetic battle, compares every previous column/row, checks
+integrity/foreign keys and proves both paused/pausing unique-index exclusions.
+Physical sleep, uncertain-effect recovery and real-provider acceptance remain open.

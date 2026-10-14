@@ -50,8 +50,11 @@ inline when necessary. Routine preparation is automatic after authorization.
 Do not require visiting Battle preview, accepting every spec or preparing each
 worktree manually. R050e exposes bounded sequential Start and confirmed Stop,
 with stage/model/task progress and retained evidence. Unsupported setup disables
-Start with an explanation. Pause/resume, parallel workers and full recovery remain
-explicitly unavailable.
+Start with an explanation. R060a adds Pause/Resume on the same board: Pausing
+finishes the bounded current stage, and Paused requires verified cleanup. Resume
+keeps the saved stage, team and original deadline; show that paused time counts.
+Keep Stop available while pausing or paused. Parallel workers, Retry/Skip and full
+interrupted-work recovery remain unavailable.
 
 Advanced contains additional boards, custom roles/columns, scoped team adoption,
 repository setup, project check declarations and retained worktree inspection.

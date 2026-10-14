@@ -117,7 +117,7 @@ defmodule CuckodingWeb.BattleLiveTest do
     assert battle.state == "running"
     assert has_element?(view, "#battle-activity", "Running")
     refute has_element?(view, "#battle-start-form")
-    refute has_element?(view, "button", "Pause")
+    assert has_element?(view, "#battle-pause[type=button]", "Pause")
     refute has_element?(view, "button", "Retry")
     assert has_element?(view, "#battle-inspect[phx-mounted*=ignore_attrs]")
     {:ok, again, _} = live(signed, path)
@@ -137,6 +137,74 @@ defmodule CuckodingWeb.BattleLiveTest do
     battle = Battles.latest(ctx.arena.id, ctx.board.id)
     assert battle.snapshot["checks"] == []
     assert hd(battle.snapshot["tasks"])["criteria"] == ctx.attrs["criteria"]
+  end
+
+  test "Pause and Resume survive reconnect, reject stale controls and preserve unsaved text",
+       ctx do
+    signed = sign_in(ctx.conn)
+    {:ok, view, _} = live(signed, ctx.path)
+    view |> element("button[aria-label='Edit First task']") |> render_click()
+    view |> form("#draft-form", title: "Keep this draft") |> render_change()
+    view |> form("#battle-start-form") |> render_submit()
+    battle = Battles.latest(ctx.arena.id, ctx.board.id)
+    pause = control_params(view, "#battle-pause")
+    view |> element("#battle-pause") |> render_click()
+    assert Battles.get(battle.id).state == "paused"
+    assert has_element?(view, "#battle-resume[type=button]", "Resume")
+    assert has_element?(view, "#battle-pause-help", "original deadline")
+    assert has_element?(view, "#draft-title-input[value='Keep this draft']")
+    assert has_element?(view, "#draft-form fieldset[disabled]")
+    old_resume = control_params(view, "#battle-resume")
+    {:ok, again, _} = live(signed, ctx.path)
+    assert has_element?(again, "#battle-activity", "Paused")
+    again |> with_target("#arena-battle") |> render_click("resume", old_resume)
+    assert Battles.get(battle.id).state == "paused"
+    assert has_element?(again, "#battle-error", "control changed")
+    again |> element("#battle-resume") |> render_click()
+    assert Battles.get(battle.id).state == "running"
+    view |> with_target("#arena-battle") |> render_click("pause", pause)
+    assert Battles.get(battle.id).state == "running"
+    assert Battles.get(battle.id).deadline_at == battle.deadline_at
+  end
+
+  test "Pausing explains pending work and Stop remains available", ctx do
+    {:ok, view, _} = ctx.conn |> sign_in() |> live(ctx.path)
+    view |> form("#battle-start-form") |> render_submit()
+    battle = Battles.latest(ctx.arena.id, ctx.board.id)
+    {:ok, _} = Battles.claim_next(battle.id)
+    view |> element("#battle-pause") |> render_click()
+    assert has_element?(view, "#battle-pause-status", "current stage is finishing")
+    refute has_element?(view, "#battle-resume")
+    view |> element("#battle-stop") |> render_click()
+    view |> element("#battle-confirm-stop") |> render_click()
+    assert Battles.get(battle.id).state == "stopping"
+    refute has_element?(view, "#battle-resume")
+  end
+
+  test "expired component sessions cannot Pause or Resume", ctx do
+    {:ok, view, _} = ctx.conn |> sign_in() |> live(ctx.path)
+    view |> form("#battle-start-form") |> render_submit()
+    battle = Battles.latest(ctx.arena.id, ctx.board.id)
+    assert has_element?(view, "#battle-pause")
+    Repo.update_all(BrowserToken, set: [expires_at: 0])
+    view |> element("#battle-pause") |> render_click()
+    assert_redirect(view, "/locked")
+    assert Battles.get(battle.id).state == "running"
+    {:ok, view, _} = ctx.conn |> sign_in() |> live(ctx.path)
+    view |> element("#battle-pause") |> render_click()
+    assert has_element?(view, "#battle-resume")
+    Repo.update_all(BrowserToken, set: [expires_at: 0])
+    view |> element("#battle-resume") |> render_click()
+    assert_redirect(view, "/locked")
+    assert Battles.get(battle.id).state == "paused"
+  end
+
+  defp control_params(view, selector) do
+    html = view |> render() |> LazyHTML.from_fragment() |> LazyHTML.query(selector)
+
+    Map.new(~w(key battle_id revision), fn name ->
+      {name, html |> LazyHTML.attribute("phx-value-#{name}") |> hd()}
+    end)
   end
 
   test "blocked Start shows the exact connection and refuses execution", ctx do
