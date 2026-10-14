@@ -113,6 +113,13 @@ Clean paused boundaries survive runner/app restart. No new scheduler, provider
 continuation or automatic replay is introduced. Native validations still precede
 effects after Resume; full uncertain-effect recovery remains open.
 
+R060b reuses these controls and the same runner. Snapshot freezes a provider-retry
+contract/cap; Battles validates settled failure evidence and records consumed
+attempt IDs before reopening dispatch. BattleExecutor retains normalized failed
+provider tools/edits. Writer retries prepare a new checkout through the existing
+stage path; no runtime session or native operation is replayed. No new dependency,
+table or worker is introduced.
+
 Agents setup uses one LiveView wizard over the existing Foundation command APIs.
 The form holds only unsaved choices; SQLite owns version, connection, diagnostics
 and completed model-selection snapshots. Save is a synchronous audited transaction,

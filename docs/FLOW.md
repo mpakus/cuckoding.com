@@ -139,8 +139,12 @@ Implemented R060a Pause is a completed-stage boundary: the current bounded
 stage finishes and verifies cleanup, then dispatch stops. Resume continues the
 saved next stage within the original two-hour wall deadline and role/review
 limits. Paused time still counts. Clean pauses survive restart; uncertain or
-interrupted pausing work cannot Resume. Retry/Skip and broader recovery below
-remain targets.
+interrupted pausing work cannot Resume. R060b implements explicit Retry for settled
+transient provider failures: two per task and two shared by final stages, frozen
+at Start. Failed writers return through fresh preparation/coordinator/Speculator;
+read-only roles repeat only their failed stage. Preserve failed receipts and all
+consumed limits. Rejected/blocked reviews, native failures, old snapshots and
+uncertain effects do not qualify. Skip and broader recovery remain targets.
 
 | Control | Meaning |
 | --- | --- |

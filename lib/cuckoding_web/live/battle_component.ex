@@ -27,7 +27,7 @@ defmodule CuckodingWeb.BattleComponent do
 
   def handle_event("scope-change", _, socket), do: {:noreply, socket}
 
-  def handle_event(action, params, socket) when action in ~w(pause resume) do
+  def handle_event(action, params, socket) when action in ~w(pause resume retry) do
     a = socket.assigns
 
     result =
@@ -36,6 +36,7 @@ defmodule CuckodingWeb.BattleComponent do
         case action do
           "pause" -> Battles.pause(a.battle.id, a.battle.control_revision)
           "resume" -> Battles.resume(a.battle.id, a.battle.control_revision)
+          "retry" -> Battles.retry(a.battle.id, a.battle.control_revision)
         end
       else
         {:error, :stale_control}
@@ -111,6 +112,10 @@ defmodule CuckodingWeb.BattleComponent do
   defp message("resume_binding_changed"),
     do:
       "An assigned connection or model changed or expired. This battle keeps its original bindings. Stop and start a new battle with current connections."
+
+  defp message("retry_unavailable"),
+    do:
+      "Retry requires a settled provider failure, verified cleanup and remaining time, turns and retries. Blocked reviews and uncertain effects need inspection."
 
   defp message("no_tasks"), do: "Create tasks or add a saved task before starting."
 
@@ -256,6 +261,11 @@ defmodule CuckodingWeb.BattleComponent do
         <p :if={attempt.result["status"]} class="fine-print">
           Result: {label(attempt.result["status"])}
         </p>
+        <ul :if={get_in(attempt.result, ["provider", "changes"]) not in [nil, []]}>
+          <li :for={change <- attempt.result["provider"]["changes"]}>
+            Retained edit: <code>{change["path"]}</code> · SHA-256 <code>{change["sha256"]}</code>
+          </li>
+        </ul>
         <p :if={attempt.result["candidate_sha"]} class="fine-print">
           Candidate: <code>{attempt.result["candidate_sha"]}</code>
         </p>
@@ -289,6 +299,13 @@ defmodule CuckodingWeb.BattleComponent do
         if(assigns.battle,
           do: Enum.find(assigns.battle_tasks, &(&1.task_id == assigns.battle.current_task_id))
         )
+      )
+
+    assigns =
+      assign(
+        assigns,
+        :retry_available,
+        assigns.battle && Battles.retry_available?(assigns.battle, assigns.now)
       )
 
     ~H"""
@@ -329,6 +346,24 @@ defmodule CuckodingWeb.BattleComponent do
         <p :if={@battle.state == "completed"} id="battle-result">
           Reviewed local result: <code>{branch(@battle)}</code>. Your original branch has not been merged. Push, merge and release remain separate actions.
         </p>
+        <div :if={@retry_available && is_nil(@confirm_stop)}>
+          <p id="battle-retry-help" class="fine-print">
+            Retry uses the same agent, model and remaining limits and may use provider allowance.
+            Up to two retries per task; final stages share two more. Failed edits stay retained.
+            A failed Implementor starts in a fresh worktree through Summa Rudis and Speculator.
+          </p>
+          <button
+            id="battle-retry"
+            class="button"
+            type="button"
+            phx-click="retry"
+            phx-value-battle_id={@battle.id}
+            phx-value-revision={@battle.control_revision}
+            phx-value-key={@key}
+            phx-target={@myself}
+            aria-describedby="battle-retry-help"
+          >Retry failed stage</button>
+        </div>
         <button
           :if={@battle.state in ~w(running paused) && is_nil(@confirm_stop)}
           id={if @battle.state == "paused", do: "battle-resume", else: "battle-pause"}
@@ -405,6 +440,7 @@ defmodule CuckodingWeb.BattleComponent do
         <p id="arena-start-help" class="fine-print">
           Start runs the saved tasks with your assigned agents. Secutor reviews each task's acceptance criteria and checks on an app-owned local branch.
           The original checkout is preserved. No push, user-branch merge or release is included.
+          Settled provider failures allow up to two explicit retries per task and two shared by final stages, within these same limits.
         </p>
         <div>
           <p class="fine-print">

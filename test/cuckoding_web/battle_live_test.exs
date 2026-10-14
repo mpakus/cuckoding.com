@@ -207,6 +207,73 @@ defmodule CuckodingWeb.BattleLiveTest do
     end)
   end
 
+  defp fail_coordinator(battle) do
+    for payload <- [
+          %{
+            "status" => "admitted",
+            "head" => String.duplicate("a", 40),
+            "native_battle" => %{},
+            "resolved_checks" => battle.snapshot["checks"]
+          },
+          %{"status" => "prepared", "preparation" => %{}},
+          %{
+            "status" => "failed",
+            "reason" => "provider_error",
+            "provider" => %{"status" => "provider_error"}
+          }
+        ] do
+      {:ok, attempt} = Battles.claim_next(battle.id)
+
+      result =
+        Map.take(attempt.request, ~w(battle_id request_id task_id stage criteria_sha256))
+        |> Map.merge(payload)
+        |> Map.put("cleanup_verified", true)
+
+      {:ok, _} = Battles.finish(attempt.id, attempt.claim_token, result)
+    end
+
+    Battles.get(battle.id)
+  end
+
+  test "Retry is keyboard accessible, preserves input and rejects a recovered control", ctx do
+    signed = sign_in(ctx.conn)
+    {:ok, view, _} = live(signed, ctx.path)
+    view |> element("button[aria-label='Edit First task']") |> render_click()
+    view |> form("#draft-form", title: "Keep my text") |> render_change()
+    view |> form("#battle-start-form") |> render_submit()
+    battle = Battles.latest(ctx.arena.id, ctx.board.id) |> fail_coordinator()
+    assert has_element?(view, "#battle-retry[type=button]", "Retry failed stage")
+    assert has_element?(view, "#battle-retry-help", "provider allowance")
+    assert has_element?(view, "#draft-title-input[value='Keep my text']")
+    previous = control_params(view, "#battle-retry")
+    {:ok, again, _} = live(signed, ctx.path)
+    again |> with_target("#arena-battle") |> render_click("retry", previous)
+    assert Battles.get(battle.id).state == "needs_attention"
+    assert has_element?(again, "#battle-error", "control changed")
+    again |> element("#battle-retry") |> render_click()
+    assert Battles.get(battle.id).state == "running"
+    assert Battles.get(battle.id).stage == "coordinator"
+    assert has_element?(again, "#battle-pause")
+    refute has_element?(again, "#battle-retry")
+    view |> with_target("#arena-battle") |> render_click("retry", previous)
+    assert length(Battles.get(battle.id).context["provider_retries"]) == 1
+  end
+
+  test "expired sessions and foreign battle ids cannot Retry", ctx do
+    {:ok, view, _} = ctx.conn |> sign_in() |> live(ctx.path)
+    view |> form("#battle-start-form") |> render_submit()
+    battle = Battles.latest(ctx.arena.id, ctx.board.id) |> fail_coordinator()
+    assert has_element?(view, "#battle-retry")
+    params = control_params(view, "#battle-retry") |> Map.put("battle_id", Ecto.UUID.generate())
+    view |> with_target("#arena-battle") |> render_click("retry", params)
+    assert Battles.get(battle.id).state == "needs_attention"
+    assert has_element?(view, "#battle-error", "control changed")
+    Repo.update_all(BrowserToken, set: [expires_at: 0])
+    view |> element("#battle-retry") |> render_click()
+    assert_redirect(view, "/locked")
+    assert Battles.get(battle.id).state == "needs_attention"
+  end
+
   test "blocked Start shows the exact connection and refuses execution", ctx do
     workspace = Foundation.workspace()
 

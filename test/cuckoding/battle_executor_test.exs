@@ -171,7 +171,7 @@ defmodule Cuckoding.BattleExecutorTest do
           tools
         end
 
-      %{
+      receipt = %{
         "status" => "task_finished",
         "request_id" => request["request_id"],
         "requested_model" => request["model"],
@@ -188,6 +188,16 @@ defmodule Cuckoding.BattleExecutorTest do
         "tools" => tools,
         "changes" => changes
       }
+
+      if Process.get(:provider_failure_stage) == prompt["stage"] do
+        Map.merge(receipt, %{
+          "status" => "provider_error",
+          "cleanup_verified" => Process.get(:provider_cleanup, true),
+          "raw_provider" => "private-canary"
+        })
+      else
+        receipt
+      end
     end
 
     defp outcome(prompt) do
@@ -337,6 +347,69 @@ defmodule Cuckoding.BattleExecutorTest do
 
   defp until_stage(battle, stage) do
     if battle.stage == stage, do: battle, else: until_stage(elem(step(battle), 0), stage)
+  end
+
+  test "Retry retains failed writer effects and completes through a different workspace", ctx do
+    battle = start(ctx.board) |> until_stage("implementor")
+    old_preparation = hd(Battles.tasks(battle.id)).context["preparation"]
+    Process.put(:provider_failure_stage, "implementor")
+    {failed, attempt, receipt} = step(battle)
+    assert failed.state == "needs_attention"
+
+    assert receipt["provider"]["changes"] == [
+             %{"path" => "feature.txt", "sha256" => String.duplicate("d", 64)}
+           ]
+
+    refute receipt["provider"]["raw_provider"]
+    refute receipt["provider"]["report"]
+    Process.delete(:provider_failure_stage)
+    {:ok, retried} = Battles.retry(failed.id, 0)
+    completed = drive(retried)
+    assert completed.state == "completed"
+    assert completed.deadline_at == battle.deadline_at
+    assert Repo.get!(Attempt, attempt.id).result == receipt
+    new_preparation = hd(Battles.tasks(battle.id)).context["preparation"]
+    refute new_preparation["key"] == old_preparation["key"]
+    assert new_preparation["head"] == old_preparation["head"]
+    assert File.read!(Path.join(ctx.source, "original.txt")) == "Original checkout bytes\n"
+
+    writes =
+      Process.get(:provider_calls)
+      |> Enum.filter(fn {_, request, _} -> request["access"] == "write" end)
+
+    assert length(writes) == 3
+  end
+
+  test "provider cleanup refusal preserves partial effects and cannot be retried", ctx do
+    battle = start(ctx.board) |> until_stage("implementor")
+    Process.put(:provider_failure_stage, "implementor")
+    Process.put(:provider_cleanup, false)
+    {failed, _, receipt} = step(battle)
+    assert receipt["cleanup_verified"] == false
+    assert receipt["reason"] == "cleanup_uncertain"
+    assert length(receipt["provider"]["changes"]) == 1
+    refute Battles.retry_available?(failed)
+    assert {:error, :retry_unavailable} = Battles.retry(failed.id, 0)
+    assert {:error, :cleanup_required} = Battles.stop(failed.id)
+    assert Battles.get(failed.id).state == "needs_attention"
+  end
+
+  test "final Secutor and summary share a finite retry allowance and preserve review", ctx do
+    battle = start(ctx.board) |> until_stage("final_secutor")
+    Process.put(:provider_failure_stage, "final_secutor")
+    {failed, _, _} = step(battle)
+    {:ok, retried} = Battles.retry(failed.id, 0)
+    Process.put(:provider_failure_stage, "summary")
+    {reviewed, _, _} = step(retried)
+    assert reviewed.stage == "summary"
+    {failed, _, _} = step(reviewed)
+    {:ok, retried} = Battles.retry(failed.id, 1)
+    {exhausted, _, _} = step(retried)
+    refute Battles.retry_available?(exhausted)
+    assert {:error, :retry_unavailable} = Battles.retry(exhausted.id, 2)
+    assert Enum.count(Battles.attempts(battle.id), &(&1.stage == "final_secutor")) == 2
+    assert Enum.all?(Battles.tasks(battle.id), &(&1.state == "completed"))
+    refute exhausted.state == "completed"
   end
 
   test "mixed Cursor and Codex roles retain exact bindings through review and completion", ctx do
@@ -646,6 +719,39 @@ defmodule Cuckoding.BattleExecutorTest do
     await(fn -> Battles.get(battle.id).state == "paused" end)
     assert length(Battles.attempts(battle.id)) == 2
     assert Battles.get(battle.id).deadline_at == battle.deadline_at
+  end
+
+  test "runner restart holds a settled failure until explicit Retry and dispatches once", ctx do
+    battle = start(ctx.board) |> until_stage("speculator")
+    Process.put(:provider_failure_stage, "speculator")
+    {failed, previous, _} = step(battle)
+    start_supervised!({Task.Supervisor, name: Cuckoding.BattleTasks})
+    parent = self()
+
+    executor = fn attempt ->
+      send(parent, {:retry_stage, self(), attempt})
+
+      receive do
+        :finish ->
+          BattleExecutor.execute(attempt, git: Adapters, provider: Adapters, checks: Adapters)
+      end
+    end
+
+    start_supervised!({BattleRunner, executor: executor})
+    refute_receive {:retry_stage, _, _}, 100
+    stop_supervised!(BattleRunner)
+    runner = start_supervised!({BattleRunner, executor: executor})
+    refute_receive {:retry_stage, _, _}, 100
+    {:ok, retried} = Battles.retry(failed.id, 0)
+    send(runner, :poll)
+    assert_receive {:retry_stage, worker, attempt}, 1000
+    refute attempt.id == previous.id
+    assert attempt.stage == previous.stage
+    {:ok, _} = Battles.pause(retried.id, retried.control_revision)
+    send(worker, :finish)
+    await(fn -> Battles.get(battle.id).state == "paused" end)
+    refute_receive {:retry_stage, _, _}, 100
+    assert Repo.get!(Attempt, previous.id).state == "failed"
   end
 
   defp await(fun, remaining \\ 100)

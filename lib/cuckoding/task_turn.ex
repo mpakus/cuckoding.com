@@ -8,13 +8,15 @@ defmodule Cuckoding.TaskTurn do
   def normalize(bytes) when is_binary(bytes) and byte_size(bytes) <= 65_536 do
     with {:ok, %{"status" => status} = result} <- Jason.decode(bytes),
          true <- status in ["task_finished" | @errors ++ @tool_errors],
+         true <-
+           not Map.has_key?(result, "cleanup_verified") or is_boolean(result["cleanup_verified"]),
          true <- tools?(Map.get(result, "tools", [])),
          true <- changes?(result) do
       if status == "task_finished" do
         normalize_success(result)
       else
         result
-        |> Map.take(~w(status tools changes))
+        |> Map.take(~w(status tools changes cleanup_verified))
         |> Map.merge(Codex.public_fields(result))
       end
     else
@@ -37,7 +39,7 @@ defmodule Cuckoding.TaskTurn do
       do:
         result
         |> Map.take(
-          ~w(status request_id grant transport access requested_model observed_model effort runtime_model runtime_parameters thread_id turn_id report tools changes)
+          ~w(status request_id grant transport access requested_model observed_model effort runtime_model runtime_parameters thread_id turn_id report tools changes cleanup_verified)
         )
         |> Map.merge(Codex.public_fields(result)),
       else: %{"status" => "invalid_output"}

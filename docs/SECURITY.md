@@ -572,8 +572,23 @@ sleep/crash, and same-user hostile-process acceptance.
 Pause/Resume are session-protected, battle-scoped and revision-guarded. Neither
 control changes task membership, bindings, checks, grants or deadlines. Pausing
 allows only the existing claimed stage to finish; stale claims remain refused.
-Paused requires completed attempts with verified cleanup. An interrupted pausing
+Paused requires settled attempts with verified cleanup: completed work or failed
+work explicitly consumed by an eligible R060b retry. An interrupted pausing
 worker cannot become resumable merely because the app restarted. Arena exclusion
 and frozen-draft locks persist through both states. Resume rechecks the exact
 connection observations; the next stage still performs native path/ref/executable
 validation. Wall expiry or exhausted turns cannot be reset by controls.
+
+## Settled provider retry (R060b)
+
+New Start snapshots freeze `provider-retry-v1` and the two-retry cap per task/final
+scope. Retry uses session/form, exact battle/revision, current binding, deadline
+and turn checks. Only the latest matching failed role with a normalized transient
+provider receipt and verified cleanup qualifies; every earlier attempt must also
+be settled. Preserve explicit cleanup refusal through receipt normalization.
+Interrupted claims, missing receipts, native operations, policy errors and blocked
+or rejected reviews never acquire retry authority. The new attempt has a fresh ID
+and session; writer retry uses a fresh worktree from the unchanged reviewed head.
+No abandoned bytes are reused, deleted or integrated. Failed tool/edit receipts
+remain visible; raw provider text/thoughts are discarded. No automatic retry,
+permission expansion, live-session revival or account/model fallback is added.

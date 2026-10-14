@@ -169,7 +169,7 @@ defmodule Cuckoding.BattleExecutor do
     with true <- active?.() and binding_current?(role),
          true <- byte_size(prompt(attempt)) <= 32_768,
          {:ok, preparation} <- provider_workspace(attempt, active?, adapters),
-         %{"status" => "task_finished"} = provider <-
+         {:ok, provider} <-
            provider_turn(attempt, preparation, active?, adapters),
          true <- provider_matches?(attempt, provider),
          :ok <- after_turn(attempt, preparation, active?, adapters) do
@@ -202,6 +202,7 @@ defmodule Cuckoding.BattleExecutor do
       end
     else
       false -> failure("model_or_grant_changed")
+      {:provider_error, receipt} -> Map.put(failed_receipt(receipt), "provider", receipt)
       {:error, result} -> failed_receipt(result)
       result -> failed_receipt(result)
     end
@@ -228,15 +229,31 @@ defmodule Cuckoding.BattleExecutor do
       "instructions" => role["instructions"]
     }
 
-    provider.run_task(
-      role["identity"],
-      Storage.codex_profile!(role["agent_id"]),
-      Storage.probe_directory!(attempt.id, 1),
-      request,
-      active?
-    )
-    |> Jason.encode!()
-    |> TaskTurn.normalize()
+    receipt =
+      provider.run_task(
+        role["identity"],
+        Storage.codex_profile!(role["agent_id"]),
+        Storage.probe_directory!(attempt.id, 1),
+        request,
+        active?
+      )
+      |> Jason.encode!()
+      |> TaskTurn.normalize()
+
+    case receipt do
+      %{"cleanup_verified" => false} ->
+        {:provider_error,
+         receipt
+         |> Map.put("status", "cleanup_uncertain")
+         |> Jason.encode!()
+         |> TaskTurn.normalize()}
+
+      %{"status" => "task_finished"} ->
+        {:ok, receipt}
+
+      _ ->
+        {:provider_error, receipt}
+    end
   end
 
   def provider_for("codex"), do: Codex

@@ -160,6 +160,153 @@ defmodule Cuckoding.BattlesTest do
     if battle.stage == stage, do: battle, else: until_stage(elem(step(battle), 0), stage)
   end
 
+  defp fail_provider(battle, reason \\ "provider_error", cleanup \\ true) do
+    {:ok, attempt} = Battles.claim_next(battle.id)
+    receipt = Map.take(attempt.request, ~w(battle_id request_id task_id stage criteria_sha256))
+
+    receipt =
+      Map.merge(receipt, %{
+        "status" => "failed",
+        "reason" => reason,
+        "provider" => %{"status" => reason},
+        "cleanup_verified" => cleanup
+      })
+
+    {:ok, battle} = Battles.finish(attempt.id, attempt.claim_token, receipt)
+    {battle, Repo.get!(Attempt, attempt.id)}
+  end
+
+  test "Retry retains failed evidence and frozen limits, then Pause/Resume still work", ctx do
+    battle = start(ctx.board) |> until_stage("speculator")
+    {failed, attempt} = fail_provider(battle)
+    assert Battles.retry_available?(failed)
+    assert {:ok, retried} = Battles.retry(failed.id, failed.control_revision)
+    assert retried.stage == "speculator"
+    assert retried.control_revision == failed.control_revision + 1
+    assert retried.context["provider_retries"] == [attempt.id]
+    assert Repo.get!(Attempt, attempt.id) == attempt
+
+    assert Map.take(retried, ~w(snapshot fingerprint deadline_at turns_used)a) ==
+             Map.take(failed, ~w(snapshot fingerprint deadline_at turns_used)a)
+
+    assert hd(Battles.tasks(retried.id)).state == "specs"
+    assert {:error, :stale_control} = Battles.retry(failed.id, failed.control_revision)
+    {:ok, paused} = Battles.pause(retried.id, retried.control_revision)
+    assert paused.state == "paused"
+    {:ok, _} = Battles.recover()
+    {:ok, resumed} = Battles.resume(paused.id, paused.control_revision)
+    {_, next} = step(resumed)
+    assert next.stage == attempt.stage
+    refute next.id == attempt.id
+    refute next.claim_token == attempt.claim_token
+    assert Enum.count(Battles.evidence(failed.id), &(&1.kind == "battle.retry_requested")) == 1
+
+    assert {:error, :stale_attempt} =
+             Battles.finish(attempt.id, attempt.claim_token, result(attempt))
+  end
+
+  test "writer Retry returns through fresh preparation without resetting review counters", ctx do
+    battle = start(ctx.board) |> until_stage("implementor")
+    task = hd(Battles.tasks(battle.id))
+    Repo.update!(Ecto.Changeset.change(task, review_round: 1))
+    old_preparation = task.context["preparation"]
+    {failed, attempt} = fail_provider(battle, "connection_lost")
+    {:ok, retried} = Battles.retry(failed.id, failed.control_revision)
+    assert retried.stage == "prepare_worktree"
+    assert retried.context["head"] == battle.context["head"]
+    assert hd(Battles.tasks(battle.id)).review_round == 1
+    {prepared, next} = step(retried)
+    assert prepared.stage == "coordinator"
+    refute hd(Battles.tasks(battle.id)).context["preparation"] == old_preparation
+    assert next.request["task"]["criteria"] == task.snapshot["criteria"]
+    assert Repo.get!(Attempt, attempt.id) == attempt
+  end
+
+  test "two retries are shared by task stages and survive restart and concurrent clicks", ctx do
+    {failed, _} = start(ctx.board) |> until_stage("coordinator") |> fail_provider()
+
+    results =
+      1..4 |> Task.async_stream(fn _ -> Battles.retry(failed.id, 0) end) |> Enum.map(&elem(&1, 1))
+
+    assert Enum.count(results, &match?({:ok, _}, &1)) == 1
+    assert Enum.count(results, &(&1 == {:error, :stale_control})) == 3
+    battle = Battles.get(failed.id) |> until_stage("speculator")
+    {failed, _} = fail_provider(battle)
+    {:ok, _} = Battles.recover()
+    assert {:ok, retried} = Battles.retry(failed.id, failed.control_revision)
+    {exhausted, _} = fail_provider(retried)
+    refute Battles.retry_available?(exhausted)
+    assert {:error, :retry_unavailable} = Battles.retry(exhausted.id, exhausted.control_revision)
+    assert exhausted.state == "needs_attention"
+    assert length(exhausted.context["provider_retries"]) == 2
+  end
+
+  test "Retry refuses changed bindings and expired authority", ctx do
+    {failed, _} = start(ctx.board) |> until_stage("speculator") |> fail_provider()
+    assert {:error, :retry_unavailable} = Battles.retry(failed.id, 0, failed.deadline_at)
+    workspace = Foundation.workspace()
+
+    Repo.update!(
+      Ecto.Changeset.change(workspace,
+        connection: Map.put(workspace.connection, "authorization", "not_connected")
+      )
+    )
+
+    assert {:error, :resume_binding_changed} = Battles.retry(failed.id, 0)
+    assert Battles.get(failed.id) == failed
+    Repo.update!(Ecto.Changeset.change(failed, turns_used: failed.snapshot["limits"]["turns"]))
+    assert {:error, :retry_unavailable} = Battles.retry(failed.id, 0)
+  end
+
+  test "Retry refuses native errors, policy errors, blocked reviews and uncertain cleanup", ctx do
+    for {stage, reason, clean} <- [
+          {"admission", "provider_error", true},
+          {"capture", "provider_error", true},
+          {"integrate", "provider_error", true},
+          {"speculator", "model_mismatch", true},
+          {"implementor", "provider_error", false},
+          {"implementor", "invalid_output", true}
+        ] do
+      {failed, _} = start(ctx.board) |> until_stage(stage) |> fail_provider(reason, clean)
+      refute Battles.retry_available?(failed)
+      assert {:error, :retry_unavailable} = Battles.retry(failed.id, 0)
+      # End only the isolated fixture so another refusal can reuse its Arena.
+      Repo.update!(Ecto.Changeset.change(failed, state: "stopped"))
+    end
+
+    battle = start(ctx.board) |> until_stage("secutor")
+    {:ok, attempt} = Battles.claim_next(battle.id)
+
+    blocked =
+      result(attempt)
+      |> put_in(["provider", "report", "outcome"], "blocked")
+      |> Map.put("status", "blocked")
+
+    {:ok, failed} = Battles.finish(attempt.id, attempt.claim_token, blocked)
+    refute Battles.retry_available?(failed)
+    assert {:error, :retry_unavailable} = Battles.retry(failed.id, 0)
+  end
+
+  test "old snapshots and interrupted claims never gain retry authority", ctx do
+    {failed, attempt} = start(ctx.board) |> until_stage("speculator") |> fail_provider()
+    refute Battles.retry_available?(%{failed | snapshot: Map.delete(failed.snapshot, "recovery")})
+
+    refute Battles.retry_available?(%{
+             failed
+             | snapshot: put_in(failed.snapshot, ["limits", "provider_retries"], 3)
+           })
+
+    {:ok, retried} = Battles.retry(failed.id, 0)
+    {:ok, _} = Battles.claim_next(retried.id)
+    {:ok, _} = Battles.recover()
+    refute Battles.retry_available?(Battles.get(retried.id))
+
+    assert {:error, :stale_attempt} =
+             Battles.finish(attempt.id, attempt.claim_token, attempt.result)
+
+    assert {:error, :retry_unavailable} = Battles.retry(retried.id, retried.control_revision)
+  end
+
   test "one Start freezes a two-task graph, preserves criteria through rejection and finishes independently",
        %{board: board, first: first, second: second} do
     original = Tabulae.tasks(board.id)

@@ -5,6 +5,7 @@ defmodule Cuckoding.Battles do
   alias Cuckoding.{Event, Foundation, Repo, TaskTurn}
 
   @active ~w(running pausing paused stopping needs_attention)
+  @retryable ~w(launch_failed timeout connection_lost provider_error profile_busy turn_failed)
   @envelope ~w(battle_id request_id task_id stage criteria_sha256)
   @result_fields @envelope ++
                    ~w(status reason summary feedback head candidate_sha preparation native_candidate native_battle resolved_checks checks provider cleanup_verified)
@@ -152,6 +153,7 @@ defmodule Cuckoding.Battles do
     record(battle, "started", %{
       "task_count" => length(snapshot["tasks"]),
       "snapshot_version" => snapshot["version"],
+      "recovery" => snapshot["recovery"],
       "command_check_count" => length(snapshot["checks"])
     })
 
@@ -332,8 +334,100 @@ defmodule Cuckoding.Battles do
 
   defp quiescent?(battle) do
     Enum.all?(attempts(battle.id), fn attempt ->
-      attempt.state == "completed" and attempt.result["cleanup_verified"] == true
+      settled?(battle, attempt)
     end)
+  end
+
+  defp settled?(battle, attempt) do
+    attempt.result["cleanup_verified"] == true and
+      (attempt.state == "completed" or
+         (attempt.state == "failed" and attempt.id in retried(battle)))
+  end
+
+  defp retried(battle), do: battle.context["provider_retries"] || []
+
+  def retry_available?(battle, now \\ DateTime.utc_now()) do
+    retry_candidate(battle, now) != nil
+  end
+
+  def retry(id, revision, now \\ DateTime.utc_now()) do
+    transaction(fn ->
+      battle = control_battle(id, revision, "needs_attention")
+      attempt = retry_candidate(battle, now) || Repo.rollback(:retry_unavailable)
+      if not current_team?(battle), do: Repo.rollback(:resume_binding_changed)
+      retry_current(battle, attempt)
+    end)
+  end
+
+  defp retry_candidate(%Battle{state: "needs_attention"} = battle, now) do
+    history = attempts(battle.id)
+    attempt = List.last(history)
+
+    used =
+      Enum.count(history, &(&1.id in retried(battle) and &1.task_id == battle.current_task_id))
+
+    if retry_scope?(battle, now) and used < 2 and
+         retryable_attempt?(battle, attempt) and
+         Enum.all?(history, &(&1.id == attempt.id or settled?(battle, &1))) do
+      attempt
+    end
+  end
+
+  defp retry_candidate(_, _), do: nil
+
+  defp retry_scope?(battle, now) do
+    battle.snapshot["recovery"] == "provider-retry-v1" and
+      battle.snapshot["limits"]["provider_retries"] == 2 and
+      not expired?(battle.deadline_at, now) and
+      battle.turns_used < battle.snapshot["limits"]["turns"]
+  end
+
+  defp retryable_attempt?(
+         battle,
+         %Attempt{
+           state: "failed",
+           result: %{
+             "status" => "failed",
+             "reason" => reason,
+             "cleanup_verified" => true,
+             "provider" => %{"status" => reason} = provider
+           }
+         } = attempt
+       )
+       when reason in @retryable do
+    attempt.stage == battle.stage and attempt.task_id == battle.current_task_id and
+      not is_nil(@roles[attempt.stage]) and attempt.id not in retried(battle) and
+      reason == battle.reason and
+      TaskTurn.normalize(Jason.encode!(provider)) == provider
+  end
+
+  defp retryable_attempt?(_, _), do: false
+
+  defp retry_current(battle, attempt) do
+    stage = if attempt.stage == "implementor", do: "prepare_worktree", else: battle.stage
+
+    if task = current_task(battle) do
+      update(task, state: projection(stage), context: Map.delete(task.context, "column"))
+    end
+
+    battle =
+      update(battle,
+        state: "running",
+        stage: stage,
+        reason: nil,
+        control_revision: battle.control_revision + 1,
+        context: Map.put(battle.context, "provider_retries", retried(battle) ++ [attempt.id])
+      )
+
+    record(battle, "retry_requested", %{
+      "attempt_id" => attempt.id,
+      "task_id" => attempt.task_id,
+      "failed_stage" => attempt.stage,
+      "next_stage" => stage,
+      "control_revision" => battle.control_revision
+    })
+
+    battle
   end
 
   def stop(id) do

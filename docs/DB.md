@@ -13,6 +13,14 @@ deadline or prior event is rewritten. Clean paused state survives startup;
 unfinished pausing attempts are interrupted without replay. Upgrade prior-schema
 copies and verify a backup before migrating a saved workspace.
 
+R060b adds no migration. New immutable snapshots carry `recovery: provider-retry-v1`
+and `limits.provider_retries: 2`. `battle.context.provider_retries` projects the
+consumed failed-attempt IDs; `battle.retry_requested` retains attempt/task/stage
+and control revision in the same transaction. Count two per task and two for
+taskless final stages; do not reset counts during review returns or restart.
+Failed normalized provider tools/changes remain in the original immutable attempt.
+Missing historical recovery fields mean Retry is unavailable.
+
 R050f requires no migration. New battle snapshots use `arena-loop-v2`; task
 verification stays in immutable `criteria` and its existing SHA-256. Only v2 with
 `checks: []` skips command stages; no command-success receipt is stored. The Start

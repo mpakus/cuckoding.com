@@ -53,8 +53,10 @@ with stage/model/task progress and retained evidence. Unsupported setup disables
 Start with an explanation. R060a adds Pause/Resume on the same board: Pausing
 finishes the bounded current stage, and Paused requires verified cleanup. Resume
 keeps the saved stage, team and original deadline; show that paused time counts.
-Keep Stop available while pausing or paused. Parallel workers, Retry/Skip and full
-interrupted-work recovery remain unavailable.
+Keep Stop available while pausing or paused. R060b shows one Retry failed stage
+button only for eligible settled provider failures, with usage, retained-edit and
+retry-limit explanations. Recovered/stale controls cannot launch it. Parallel
+workers, Skip and full interrupted-work recovery remain unavailable.
 
 Advanced contains additional boards, custom roles/columns, scoped team adoption,
 repository setup, project check declarations and retained worktree inspection.

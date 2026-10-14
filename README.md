@@ -70,6 +70,11 @@ stage. **Resume** keeps the same team, work and limits; paused time counts towar
 the original deadline. Clean paused battles survive restart. **Stop** cancels
 and waits for cleanup. Interrupted work or uncertain effects require inspection;
 there is no automatic replay. [Pause/Resume evidence](worklog/2026-10-14-R060a-battle-pause-resume.md).
+**Retry failed stage** is available for settled transient provider failures in new
+battles: two retries per task, plus two shared by final stages, within the same
+time/turn limits. A failed Implementor returns through a fresh worktree and
+Speculator; partial edits remain retained. Blocked reviews and uncertain effects
+cannot be retried. [Retry evidence](worklog/2026-10-14-R060b-provider-retry.md).
 New Start uses the current original committed source and retains previous result
 branches. Real-account battle acceptance is still open. See
 [Development](docs/DEVELOPMENT.md) for how this build works and

@@ -83,6 +83,18 @@ defmodule Cuckoding.TaskTurnTest do
            }
   end
 
+  test "explicit cleanup uncertainty survives normalization and is never coerced" do
+    for status <- ["provider_error", "task_finished"], clean <- [false, true] do
+      original = receipt() |> Map.put("status", status) |> Map.put("cleanup_verified", clean)
+      assert TaskTurn.normalize(Jason.encode!(original))["cleanup_verified"] == clean
+    end
+
+    for invalid <- [nil, "true", 1] do
+      result = receipt() |> Map.put("cleanup_verified", invalid) |> Jason.encode!()
+      assert TaskTurn.normalize(result) == %{"status" => "invalid_output"}
+    end
+  end
+
   test "candidate changes are the exact final host edit receipts" do
     sha = String.duplicate("b", 64)
 

@@ -21,6 +21,16 @@ subsequent effects. Clean paused boundaries survive restart; interrupted pausing
 workers remain needs-attention. Stop still cancels. Do not present this as full
 crash/sleep recovery or native session continuation.
 
+R060b freezes `provider-retry-v1` with two explicit provider retries per task and
+two shared by final stages. Only settled transient role failures with retained
+normalized receipts and verified cleanup qualify. Keep fresh attempt/session IDs,
+all failed edit evidence, exact bindings, consumed budgets and deadlines. Failed
+Implementors restart through a new worktree/coordinator/Speculator on the reviewed
+head. Do not replay native stages, bypass rejected/blocked review, retry policy
+drift or uncertain effects, or give historical snapshots implicit retry authority.
+Retried failures remain immutable and count toward lifetime limits; Pause/Resume
+may recognize them as settled only through the recorded retry transition.
+
 Preserve these implemented contracts:
 
 - Supported versions, observed authorization, catalog freshness, model entitlement

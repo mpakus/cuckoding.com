@@ -28,6 +28,9 @@ R060a adds Pause/Resume on the same board. Pause waits for the current bounded
 stage to finish; Stop cancels it. Resume keeps the original deadline and bindings.
 The eleventh migration adds a control revision and paused-Arena exclusion; back
 up the selected data root before upgrading. Older bundles refuse this schema.
+R060b adds Retry failed stage for new battles with settled transient provider
+failures. Two retries per task and two shared final retries preserve the original
+limits and failed evidence. There is no new migration or native runtime grant.
 [Plan](PLAN.md#next-delivery-order--simple-arena) owns the remaining beta gates.
 
 ## Build and open

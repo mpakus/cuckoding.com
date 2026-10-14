@@ -219,3 +219,12 @@ Migration acceptance upgrades a private ten-version database copy with retained
 records plus a synthetic battle, compares every previous column/row, checks
 integrity/foreign keys and proves both paused/pausing unique-index exclusions.
 Physical sleep, uncertain-effect recovery and real-provider acceptance remain open.
+
+R060b domain/executor/LiveView fixtures cover the frozen retry contract, per-task
+and shared final caps, concurrent/stale/recovered/session-expired controls, exact
+binding/deadline/turn refusal, retained partial edits, fresh writer preparation,
+independent review, explicit cleanup uncertainty, old snapshots and native/policy
+failures. Runner restart holds a settled failure until explicit Retry; Pause/Resume
+still works afterward. Task receipt checks preserve boolean cleanup evidence and
+discard private provider fields. No native grant/schema changed. Live provider,
+sleep and uncertain-effect reconciliation remain separate acceptance gates.

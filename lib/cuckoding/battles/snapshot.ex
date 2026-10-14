@@ -23,6 +23,7 @@ defmodule Cuckoding.Battles.Snapshot do
   @limits %{
     "tasks" => 20,
     "review_rounds" => 3,
+    "provider_retries" => 2,
     "turns" => 200,
     "wall_seconds" => 7200,
     "stage_seconds" => 900
@@ -60,6 +61,7 @@ defmodule Cuckoding.Battles.Snapshot do
 
     snapshot = %{
       "version" => "arena-loop-v2",
+      "recovery" => "provider-retry-v1",
       "arena_id" => arena.id,
       "tabula_id" => board.id,
       "source" =>
