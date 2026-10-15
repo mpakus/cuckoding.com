@@ -742,7 +742,7 @@ defmodule Cuckoding.BattleExecutorTest do
     board: board
   } do
     unless Process.whereis(Cuckoding.BattleTasks),
-      do: start_supervised!({Task.Supervisor, name: Cuckoding.BattleTasks})
+      do: start_battle_tasks()
 
     test = self()
 
@@ -940,7 +940,7 @@ defmodule Cuckoding.BattleExecutorTest do
   test "runner settles a pausing stage once and survives restart at the paused boundary", %{
     board: board
   } do
-    start_supervised!({Task.Supervisor, name: Cuckoding.BattleTasks})
+    start_battle_tasks()
     test = self()
 
     executor = fn attempt ->
@@ -981,7 +981,7 @@ defmodule Cuckoding.BattleExecutorTest do
     battle = start(ctx.board) |> until_stage("speculator")
     Process.put(:provider_failure_stage, "speculator")
     {failed, previous, _} = step(battle)
-    start_supervised!({Task.Supervisor, name: Cuckoding.BattleTasks})
+    start_battle_tasks()
     parent = self()
 
     executor = fn attempt ->
@@ -1013,7 +1013,7 @@ defmodule Cuckoding.BattleExecutorTest do
   test "runner startup holds a completed checkpoint until explicit Resume", ctx do
     battle = start(ctx.board) |> until_stage("implementor")
     previous = Battles.attempts(battle.id)
-    start_supervised!({Task.Supervisor, name: Cuckoding.BattleTasks})
+    start_battle_tasks()
     parent = self()
 
     executor = fn attempt ->
@@ -1222,6 +1222,182 @@ defmodule Cuckoding.BattleExecutorTest do
     assert observation["cleanup_verified"] == false
     assert {:error, :cleanup_required} = Battles.stop(battle.id)
     refute_receive {:reconciliation_called, _}, 100
+  end
+
+  defp clocked_runner(executor) do
+    clock = start_supervised!({Agent, fn -> {DateTime.utc_now(), 0} end})
+
+    start_supervised!(
+      {Cuckoding.ExecutionSupervisor,
+       coordinator: BattleRunner,
+       tasks: Cuckoding.BattleTasks,
+       clock: [clock: fn -> Agent.get(clock, & &1) end],
+       options: [executor: executor]}
+    )
+
+    {clock, Process.whereis(BattleRunner)}
+  end
+
+  defp move_clock(clock, wall, monotonic) do
+    Agent.update(clock, fn {now, elapsed} ->
+      {DateTime.add(now, wall, :millisecond), elapsed + monotonic}
+    end)
+  end
+
+  test "independent clock fences admission while the coordinator is suspended", ctx do
+    parent = self()
+
+    {clock, runner} =
+      clocked_runner(fn attempt -> send(parent, {:unexpected_admission, attempt.id}) end)
+
+    :sys.suspend(runner)
+    battle = start(ctx.board)
+    move_clock(clock, 60_000, 1_000)
+    :ok = Cuckoding.BattleClock.check()
+    paused = Battles.get(battle.id)
+    assert paused.state == "paused"
+    assert paused.reason == "timing_gap"
+    assert paused.snapshot == battle.snapshot
+    assert paused.deadline_at == battle.deadline_at
+    assert Battles.attempts(battle.id) == []
+    :sys.resume(runner)
+    send(runner, :poll)
+    refute_receive {:unexpected_admission, _}, 100
+    assert {:error, :stale_control} = Battles.resume(battle.id, battle.control_revision)
+
+    assert {:error, "deadline_exceeded"} =
+             Battles.resume(battle.id, paused.control_revision, battle.deadline_at)
+
+    assert Battles.get(battle.id).deadline_at == battle.deadline_at
+  end
+
+  test "worker checks the clock before settlement without relying on its coordinator mailbox",
+       ctx do
+    parent = self()
+
+    executor = fn attempt ->
+      receipt =
+        BattleExecutor.execute(attempt, git: Adapters, provider: Adapters, checks: Adapters)
+
+      send(parent, {:timed_handoff, self(), attempt, receipt})
+
+      receive do
+        :finish -> receipt
+      end
+    end
+
+    {clock, runner} = clocked_runner(executor)
+    battle = start(ctx.board)
+    send(runner, :poll)
+    assert_receive {:timed_handoff, worker, attempt, receipt}, 1_000
+    :sys.suspend(runner)
+    move_clock(clock, 6_000, 6_000)
+    monitor = Process.monitor(worker)
+    send(worker, :finish)
+    assert_receive {:DOWN, ^monitor, :process, ^worker, :normal}, 1_000
+    attention = Battles.get(battle.id)
+    assert attention.state == "needs_attention"
+    assert attention.stage == "admission"
+    assert attention.context["head"] == nil
+    retained = Repo.get!(Attempt, attempt.id)
+    assert retained.state == "interrupted"
+    assert retained.result == receipt
+    assert length(Battles.attempts(battle.id)) == 1
+    :sys.resume(runner)
+    refute_receive {:timed_handoff, _, _, _}, 100
+    assert {:ok, %{state: "stopped"}} = Battles.stop(battle.id)
+  end
+
+  test "a timing gap cancels the owned native helper and records cleanup without accepting work",
+       ctx do
+    helper = Path.join(ctx.source, "timing-helper")
+    ready = Path.join(ctx.source, "timing-ready")
+    done = Path.join(ctx.source, "timing-cleaned")
+
+    File.write!(
+      helper,
+      "#!/bin/sh\nprintf ready > '" <>
+        ready <>
+        "'\nread line\nprintf cleaned > '" <>
+        done <> "'\nprintf '%s\\n' '{\"status\":\"cancelled\",\"cleanup_verified\":true}'\n"
+    )
+
+    File.chmod!(helper, 0o700)
+    previous = Application.get_env(:cuckoding, :native_helper)
+    Application.put_env(:cuckoding, :native_helper, helper)
+
+    on_exit(fn ->
+      if previous,
+        do: Application.put_env(:cuckoding, :native_helper, previous),
+        else: Application.delete_env(:cuckoding, :native_helper)
+    end)
+
+    executor = fn attempt ->
+      active? = fn ->
+        :ok = Cuckoding.BattleClock.check()
+        Battles.active_attempt?(attempt.id, attempt.claim_token)
+      end
+
+      receipt =
+        Cuckoding.NativeHelper.request(%{id: attempt.id}, [], 10_000, &Jason.decode!/1, 8192,
+          active?: active?
+        )
+
+      Map.merge(
+        Map.take(attempt.request, ~w(battle_id request_id task_id stage criteria_sha256)),
+        Map.take(receipt, ~w(status cleanup_verified))
+      )
+    end
+
+    {clock, runner} = clocked_runner(executor)
+    battle = start(ctx.board)
+    send(runner, :poll)
+    await(fn -> File.exists?(ready) end)
+    move_clock(clock, 10_000, 10_000)
+    :ok = Cuckoding.BattleClock.check()
+    await(fn -> Battles.get(battle.id).state == "needs_attention" end)
+    assert File.read!(done) == "cleaned"
+    [attempt] = Battles.attempts(battle.id)
+    assert attempt.state == "interrupted"
+    assert attempt.result["status"] == "cancelled"
+    assert attempt.result["cleanup_verified"] == true
+    assert {:ok, %{state: "stopped"}} = Battles.stop(battle.id)
+  end
+
+  test "clock guard failure stops old workers before recovery can reset its baseline", ctx do
+    parent = self()
+
+    {_clock, runner} =
+      clocked_runner(fn attempt ->
+        send(parent, {:clock_owned_stage, self(), attempt})
+
+        receive do
+          :finish -> raise "must not resume this session"
+        end
+      end)
+
+    battle = start(ctx.board)
+    send(runner, :poll)
+    assert_receive {:clock_owned_stage, worker, attempt}, 1_000
+    monitor = Process.monitor(worker)
+    guard = Process.whereis(Cuckoding.BattleClock)
+    Process.exit(guard, :kill)
+    assert_receive {:DOWN, ^monitor, :process, ^worker, :shutdown}, 1_000
+
+    await(fn ->
+      is_pid(Process.whereis(Cuckoding.BattleClock)) and
+        Process.whereis(Cuckoding.BattleClock) != guard
+    end)
+
+    await(fn -> Battles.get(battle.id).state == "needs_attention" end)
+    assert Repo.get!(Attempt, attempt.id).state == "interrupted"
+    assert {:error, :cleanup_required} = Battles.stop(battle.id)
+    refute_receive {:clock_owned_stage, _, _}, 100
+  end
+
+  defp start_battle_tasks do
+    unless Process.whereis(Cuckoding.BattleClock), do: start_supervised!(Cuckoding.BattleClock)
+    start_supervised!({Task.Supervisor, name: Cuckoding.BattleTasks})
   end
 
   defp await(fun, remaining \\ 100)

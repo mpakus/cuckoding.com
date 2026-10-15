@@ -15,10 +15,17 @@ defmodule Cuckoding.ExecutionSupervisor do
 
   @impl true
   def init(options) do
-    children = [
-      {Task.Supervisor, name: Keyword.fetch!(options, :tasks)},
-      {Keyword.fetch!(options, :coordinator), Keyword.get(options, :options, [])}
-    ]
+    guard =
+      if Keyword.fetch!(options, :coordinator) == Cuckoding.BattleRunner,
+        do: [{Cuckoding.BattleClock, Keyword.get(options, :clock, [])}],
+        else: []
+
+    children =
+      guard ++
+        [
+          {Task.Supervisor, name: Keyword.fetch!(options, :tasks)},
+          {Keyword.fetch!(options, :coordinator), Keyword.get(options, :options, [])}
+        ]
 
     Supervisor.init(children, strategy: :one_for_all)
   end

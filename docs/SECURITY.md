@@ -199,6 +199,18 @@ transactionally before pausing; original deadlines and explicit Resume still
 gate continuation. Historical grants, interrupted Stop, missing receipts,
 provider-store/process recovery, sleep and cross-provider acceptance remain open.
 
+R060h narrows new battle authority after a timing discontinuity; it adds no host
+permission. The independently supervised guard records only bounded UTC and
+monotonic deltas, never process death or inferred sleep duration. Admission and
+worker settlement check it; helper active polling uses existing cancellation
+and owned cleanup. Effects can occur before polling observes a gap; retain those
+effects and reject the stage result without advancing state. A recorded bound
+cleanup receipt may permit Stop only. Guard failure stops workers with its
+execution group before resetting the clock baseline; unfinished native effects
+retain inspection gates. Historical grants, deadlines, independent review and
+exact connection bindings are unchanged. Physical sleep/wake, power assertions,
+lease reconciliation and active-time accounting remain unverified/unimplemented.
+
 R060f worker completion uses the existing claim/result validators inside the
 transaction, then sends only a completion signal to its coordinator. Unexpected
 worker execution/settlement exceptions terminate with a fixed reason before OTP

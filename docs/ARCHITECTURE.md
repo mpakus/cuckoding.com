@@ -16,6 +16,7 @@ release process group and private storage lock.
 | --- | --- |
 | `Agents`, `Foundation`, `Dispatcher`, `records.ex` | Idempotent commands, expiring claims, append-only events and setup projections in SQLite; a responsive coordinator dispatches one monitored setup/planning task |
 | `ExecutionSupervisor` | Separate `one_for_all` groups pair each coordinator with its Task.Supervisor; old workers stop before coordinator recovery |
+| `BattleClock` | Independent UTC/monotonic sampling in the battle execution group; SQLite timing fences precede admission, cancellation and receipt settlement |
 | `ShellAuth`, web session guard | One-time shell/browser handoff and expiring DB sessions; stateful components must guard their own events |
 | `Codex`, native `connection.rs` / `model_check.rs` | Private-profile authorization, model catalog, fixed diagnostic and structured no-tools planning; SQLite retains only normalized public receipts |
 | `Foundation`, `Codex`, native `isolation.rs` | Optional fixed two-workspace sandbox canaries, fresh empty runtime profile, executable-bound command/event receipt; no inference or Arena grant |
@@ -70,6 +71,15 @@ and atomically appends an observation plus a paused checkpoint; expired effects
 close cleanup for Stop without advancement. Inspection and DB settlement remain
 separate; a crash may repeat the read, never the integration. The existing Inspect
 component renders pending/normalized observations. [D029](DECISIONS.md#d029--retained-integration-reconciliation).
+
+R060h adds BattleClock before the task supervisor/coordinator in the battle
+one_for_all group. Its independent timer and synchronous checks observe UTC and
+monotonic deltas; it performs only short domain transactions, no provider I/O.
+Admission, helper active checks and worker settlement check it without depending
+on the coordinator's mailbox. A lost guard stops old workers before restarting
+the baseline. SQLite stores the fence, rejected receipt and verified closure;
+the clock process never owns workflow progress. The existing Inspect component
+shows observations after reconnect. [D030](DECISIONS.md#d030--conservative-timing-gap-fence).
 
 Every application screen is an authenticated LiveView. Layouts/dialogs use HEEx
 function components, and the four stateful form/control components share

@@ -72,6 +72,21 @@ Failed observations clear the pending marker without granting cleanup or replay;
 an interrupted inspection can repeat only its read. Historical grants do not arm
 this path. No provider call or new task claim is created by reconciliation.
 
+R060h adds no migration. New snapshots freeze `timing_guard: elapsed-gap-v1`.
+`context.timing_gap` projects the latest bounded UTC/monotonic observation,
+affected attempt/recovery-inspection IDs and continuation block. `battle.timing_gap` commits with the
+new control revision/state before cancellation or new admission. Exact duplicate
+observations are idempotent. Historical snapshots do not acquire this policy.
+A fence clears pending integration-inspection authority while retaining its ID.
+Clean boundaries pause without changing tasks, scope or limits. Backward clocks
+and active/uncertain work block continuation. A fenced active receipt becomes an
+immutable Interrupted attempt, retaining the exact bound result as rejected
+evidence. `battle.timing_stage_closed` and verified `timing_closed_attempts` IDs
+commit together. These IDs permit Stop cleanup only, never settled checkpoints
+for Resume/Retry/Skip or native integration recovery. Unknown cleanup stays
+blocked. Guard measurements describe elapsed samples, not proven sleep or active
+work duration. No deadline, attempt, review or consumed budget is reset.
+
 R020m requires no migration. `check_codex_isolation` commands freeze connection ID,
 executable identity, observed version/command and contract; a 35-second exclusive
 claim owns the bounded native diagnostic. Successful completion atomically saves

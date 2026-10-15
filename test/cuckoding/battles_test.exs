@@ -1087,6 +1087,175 @@ defmodule Cuckoding.BattlesTest do
     assert Battles.get(battle.id).turns_used == paused.snapshot["limits"]["turns"]
   end
 
+  defp timing_gap(wall \\ 6_000, monotonic \\ 6_000) do
+    now = DateTime.utc_now()
+    Cuckoding.BattleClock.gap({now, 0}, {DateTime.add(now, wall, :millisecond), monotonic})
+  end
+
+  test "a timing gap pauses a clean boundary without resetting scope or consumed limits", ctx do
+    battle = start(ctx.board) |> until_stage("implementor")
+    tasks = Battles.tasks(battle.id)
+    attempts = Battles.attempts(battle.id)
+    gap = timing_gap()
+    assert {:ok, [paused]} = Battles.observe_timing_gap(gap)
+    assert paused.state == "paused"
+    assert paused.reason == "timing_gap"
+    assert {:ok, []} = Battles.observe_timing_gap(gap)
+    assert Battles.get(battle.id) == paused
+    assert paused.control_revision == battle.control_revision + 1
+
+    assert Map.take(
+             paused,
+             ~w(stage snapshot fingerprint deadline_at turns_used current_task_id)a
+           ) ==
+             Map.take(
+               battle,
+               ~w(stage snapshot fingerprint deadline_at turns_used current_task_id)a
+             )
+
+    assert Battles.tasks(battle.id) == tasks
+    assert Battles.attempts(battle.id) == attempts
+    assert {:error, :not_running} = Battles.claim_next(battle.id)
+    assert {:error, :stale_control} = Battles.resume(battle.id, battle.control_revision)
+    {:ok, resumed} = Battles.resume(battle.id, paused.control_revision)
+    assert resumed.deadline_at == battle.deadline_at
+    assert {:ok, %{stage: "implementor"}} = Battles.claim_next(battle.id)
+  end
+
+  test "historical snapshots are not given the new timing policy", ctx do
+    current = start(ctx.board)
+    Repo.update!(Ecto.Changeset.change(current, state: "stopped"))
+    snapshot = Map.delete(current.snapshot, "timing_guard")
+
+    historical =
+      Repo.insert!(%Battle{
+        id: Ecto.UUID.generate(),
+        arena_id: current.arena_id,
+        tabula_id: current.tabula_id,
+        snapshot: snapshot,
+        fingerprint: Snapshot.digest(snapshot),
+        state: "running",
+        stage: "admission",
+        deadline_at: current.deadline_at
+      })
+
+    assert {:ok, []} = Battles.observe_timing_gap(timing_gap())
+    assert Battles.get(historical.id) == historical
+  end
+
+  test "backward time and malformed observations cannot reopen authority", ctx do
+    battle = start(ctx.board) |> until_stage("implementor")
+
+    for invalid <- [
+          nil,
+          %{},
+          Map.put(timing_gap(), "kind", "sleep"),
+          Map.put(timing_gap(), "extra", true)
+        ] do
+      assert {:error, :invalid_timing_gap} = Battles.observe_timing_gap(invalid)
+    end
+
+    assert Battles.get(battle.id) == battle
+    {:ok, [attention]} = Battles.observe_timing_gap(timing_gap(-60_000, 1_000))
+    assert attention.state == "needs_attention"
+    assert attention.context["timing_gap"]["kind"] == "clock_backward"
+    refute Battles.retry_available?(attention)
+    assert Battles.skip_preview(attention) == []
+    assert {:error, :stale_control} = Battles.resume(battle.id, attention.control_revision)
+    assert {:ok, []} = Battles.observe_timing_gap(timing_gap())
+    assert {:ok, %{state: "stopped"}} = Battles.stop(battle.id)
+  end
+
+  test "fenced successful or cancelled receipts remain rejected with verified cleanup for Stop",
+       ctx do
+    for stopping <- [false, true] do
+      battle = start(ctx.board) |> until_stage("integrate")
+      {:ok, attempt} = Battles.claim_next(battle.id)
+      receipt = result(attempt)
+      {:ok, [pausing]} = Battles.observe_timing_gap(timing_gap())
+      assert pausing.state == "pausing"
+      refute Battles.active_attempt?(attempt.id, attempt.claim_token)
+      before_tasks = Battles.tasks(battle.id)
+      if stopping, do: Battles.stop(battle.id)
+      {:ok, closed} = Battles.finish(attempt.id, attempt.claim_token, receipt)
+      assert closed.state == if(stopping, do: "stopped", else: "needs_attention")
+      assert closed.stage == "integrate"
+      assert closed.context["head"] == battle.context["head"]
+      assert closed.snapshot == battle.snapshot
+      assert closed.deadline_at == battle.deadline_at
+      retained = Repo.get!(Attempt, attempt.id)
+      assert retained.state == "interrupted"
+      assert retained.result == receipt
+
+      assert Enum.map(Battles.tasks(battle.id), & &1.snapshot) ==
+               Enum.map(before_tasks, & &1.snapshot)
+
+      refute Enum.any?(Battles.tasks(battle.id), &(&1.state == "completed"))
+      refute Battles.retry_available?(closed)
+      assert Battles.skip_preview(closed) == []
+      assert {:error, :stale_attempt} = Battles.finish(attempt.id, attempt.claim_token, receipt)
+      assert {:ok, %{state: "stopped"}} = Battles.stop(battle.id)
+    end
+  end
+
+  test "missing cleanup and interrupted clock-gap workers never become recovery checkpoints",
+       ctx do
+    battle = start(ctx.board) |> until_stage("integrate")
+    {:ok, attempt} = Battles.claim_next(battle.id)
+    {:ok, [_]} = Battles.observe_timing_gap(timing_gap())
+    {:ok, [attention]} = Battles.recover()
+    assert attention.state == "needs_attention"
+    assert is_nil(Battles.recovery_attempt())
+    assert {:error, :cleanup_required} = Battles.stop(battle.id)
+    assert Repo.get!(Attempt, attempt.id).result == %{"status" => "interrupted"}
+  end
+
+  test "a timing gap cancels pending native inspection authority without reviving integration",
+       ctx do
+    battle = start(ctx.board) |> until_stage("integrate")
+    {:ok, attempt} = Battles.claim_next(battle.id)
+    {:ok, [_]} = Battles.recover()
+    interrupted = Battles.recovery_attempt()
+    assert interrupted.id == attempt.id
+    {:ok, [attention]} = Battles.observe_timing_gap(timing_gap())
+    assert attention.context["integration_recovery_pending"] == nil
+    assert attention.context["timing_gap"]["recovery_attempt_id"] == attempt.id
+    assert is_nil(Battles.recovery_attempt())
+
+    assert {:error, :stale_reconciliation} =
+             Battles.reconcile_integration(interrupted, integration_result(attempt))
+
+    assert Battles.get(battle.id).stage == "integrate"
+    assert {:error, :cleanup_required} = Battles.stop(battle.id)
+  end
+
+  test "timing fence rolls back with its public event and never invents cleanup", ctx do
+    battle = start(ctx.board)
+
+    Repo.query!("""
+    CREATE TEMP TRIGGER reject_timing_gap BEFORE INSERT ON events
+    WHEN NEW.kind = 'battle.timing_gap'
+    BEGIN SELECT RAISE(ABORT, 'timing rollback'); END
+    """)
+
+    assert_raise Exqlite.Error, fn -> Battles.observe_timing_gap(timing_gap()) end
+    assert Battles.get(battle.id) == battle
+    refute Enum.any?(Battles.evidence(battle.id), &(&1.kind == "battle.timing_gap"))
+    Repo.query!("DROP TRIGGER reject_timing_gap")
+    {:ok, attempt} = Battles.claim_next(battle.id)
+    {:ok, [_]} = Battles.observe_timing_gap(timing_gap())
+
+    {:ok, attention} =
+      Battles.finish(
+        attempt.id,
+        attempt.claim_token,
+        result(attempt, %{"status" => "cancelled", "cleanup_verified" => false})
+      )
+
+    assert attention.reason == "cleanup_uncertain"
+    assert {:error, :cleanup_required} = Battles.stop(battle.id)
+  end
+
   defp integration_result(attempt) do
     head = attempt.request["task_context"]["candidate_sha"]
 

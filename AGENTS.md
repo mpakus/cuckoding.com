@@ -78,6 +78,19 @@ Resume with original bindings, budgets and deadlines. Late verified effects allo
 Stop cleanup only, never advancement. Historical grants, interrupted Stop, failed
 inspection, absent receipts, provider sessions and sleep gaps remain blocked.
 
+R060h freezes `timing_guard: elapsed-gap-v1` in new Starts. Keep BattleClock in
+the battle one_for_all group, independent of the coordinator; guard loss must
+stop old workers before its baseline resets. Check before admission, during
+helper polling and before settlement. Persist UTC/monotonic gap observations
+before closing admission; never call them proof of sleep or cleanup. Clean
+boundaries pause for explicit Resume; backward time or active work blocks
+continuation. Cancel active helpers through existing ownership protocols and
+retain the bound rejected receipt without advancing cards/head. Active fenced
+work permits Stop only after recorded verified closure; never Resume/Retry/Skip
+it or bypass the fence through native integration recovery. No deadline extension.
+Physical sleep, power assertions, lease/process reconciliation and active-time
+accounting remain open.
+
 Preserve these implemented contracts:
 
 - Supported versions, observed authorization, catalog freshness, model entitlement

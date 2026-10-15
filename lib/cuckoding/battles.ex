@@ -166,6 +166,7 @@ defmodule Cuckoding.Battles do
 
       cond do
         battle.state != "running" -> Repo.rollback(:not_running)
+        timing_blocked?(battle) -> attention(battle, "timing_gap")
         running_attempt(battle.id) -> Repo.rollback(:busy)
         expired?(battle.deadline_at, now) -> attention(battle, "deadline_exceeded")
         battle.turns_used >= battle.snapshot["limits"]["turns"] -> attention(battle, "turn_limit")
@@ -248,6 +249,12 @@ defmodule Cuckoding.Battles do
   end
 
   defp finish_current(battle, attempt, result, now) do
+    if timing_fenced?(battle, attempt),
+      do: finish_timing_gap(battle, attempt, result),
+      else: finish_unfenced(battle, attempt, result, now)
+  end
+
+  defp finish_unfenced(battle, attempt, result, now) do
     cond do
       battle.state == "stopping" ->
         finish_stop(battle, attempt, result)
@@ -292,6 +299,124 @@ defmodule Cuckoding.Battles do
 
   defp valid_expired_result?(attempt, result), do: valid_result?(attempt, result)
 
+  def observe_timing_gap(observation) do
+    if valid_timing_gap?(observation) do
+      transaction(fn ->
+        active()
+        |> Enum.filter(
+          &(&1.snapshot["timing_guard"] == "elapsed-gap-v1" and not timing_blocked?(&1) and
+              Map.take(&1.context["timing_gap"] || %{}, Map.keys(observation)) != observation)
+        )
+        |> Enum.map(&fence_timing_gap(&1, observation))
+      end)
+    else
+      {:error, :invalid_timing_gap}
+    end
+  end
+
+  defp valid_timing_gap?(
+         %{"previous_at" => previous, "observed_at" => current, "monotonic_elapsed_ms" => elapsed} =
+           observation
+       )
+       when is_binary(previous) and byte_size(previous) <= 40 and
+              is_binary(current) and byte_size(current) <= 40 and
+              is_integer(elapsed) and elapsed in 0..315_360_000_000 do
+    with {:ok, previous, 0} <- DateTime.from_iso8601(previous),
+         {:ok, current, 0} <- DateTime.from_iso8601(current) do
+      Cuckoding.BattleClock.gap({previous, 0}, {current, elapsed}) == observation
+    else
+      _ -> false
+    end
+  end
+
+  defp valid_timing_gap?(_), do: false
+
+  defp fence_timing_gap(battle, observation) do
+    attempt = running_attempt(battle.id)
+
+    blocked =
+      observation["kind"] == "clock_backward" or not is_nil(attempt) or not quiescent?(battle)
+
+    observation =
+      Map.merge(observation, %{
+        "attempt_id" => if(attempt, do: attempt.id),
+        "recovery_attempt_id" => battle.context["integration_recovery_pending"],
+        "blocks_continuation" => blocked
+      })
+
+    state =
+      cond do
+        battle.state == "stopping" -> "stopping"
+        not is_nil(attempt) -> "pausing"
+        blocked -> "needs_attention"
+        true -> "paused"
+      end
+
+    battle =
+      update(battle,
+        state: state,
+        reason: "timing_gap",
+        context:
+          battle.context
+          |> Map.delete("integration_recovery_pending")
+          |> Map.put("timing_gap", observation),
+        control_revision: battle.control_revision + 1
+      )
+
+    record(
+      battle,
+      "timing_gap",
+      Map.merge(observation, %{
+        "stage" => battle.stage,
+        "task_id" => battle.current_task_id,
+        "control_revision" => battle.control_revision
+      })
+    )
+
+    if state == "paused", do: record(battle, "paused")
+    battle
+  end
+
+  defp timing_blocked?(battle),
+    do: get_in(battle.context, ["timing_gap", "blocks_continuation"]) == true
+
+  defp timing_fenced?(battle, attempt),
+    do: get_in(battle.context, ["timing_gap", "attempt_id"]) == attempt.id
+
+  defp timing_closed?(battle, attempt),
+    do:
+      attempt.state == "interrupted" and attempt.result["cleanup_verified"] == true and
+        attempt.id in (battle.context["timing_closed_attempts"] || [])
+
+  defp finish_timing_gap(battle, attempt, result) do
+    unless valid_expired_result?(attempt, result), do: Repo.rollback(:invalid_result)
+    update(attempt, state: "interrupted", result: result)
+    cleanup = result["cleanup_verified"] == true
+
+    context =
+      if cleanup do
+        Map.update(battle.context, "timing_closed_attempts", [attempt.id], &(&1 ++ [attempt.id]))
+      else
+        battle.context
+      end
+
+    battle = update(battle, context: context)
+
+    record(battle, "timing_stage_closed", %{
+      "attempt_id" => attempt.id,
+      "reported_status" => result["status"],
+      "cleanup_verified" => cleanup
+    })
+
+    if battle.state == "stopping" and cleanup and safe_to_stop?(battle) do
+      battle = update(battle, state: "stopped", reason: "user_stop")
+      record(battle, "stopped", %{"attempt_id" => attempt.id})
+      battle
+    else
+      needs_attention(battle, if(cleanup, do: "timing_gap", else: "cleanup_uncertain"))
+    end
+  end
+
   def pause(id, revision) do
     transaction(fn -> control_battle(id, revision, "running") |> pause_current() end)
   end
@@ -314,6 +439,7 @@ defmodule Cuckoding.Battles do
       battle = control_battle(id, revision, "paused")
 
       cond do
+        timing_blocked?(battle) -> attention(battle, "timing_gap")
         not quiescent?(battle) -> attention(battle, "cleanup_uncertain")
         expired?(battle.deadline_at, now) -> attention(battle, "deadline_exceeded")
         battle.turns_used >= battle.snapshot["limits"]["turns"] -> attention(battle, "turn_limit")
@@ -411,7 +537,7 @@ defmodule Cuckoding.Battles do
   defp retry_candidate(_, _), do: nil
 
   defp retry_scope?(battle, now) do
-    battle.snapshot["recovery"] == "provider-retry-v1" and
+    not timing_blocked?(battle) and battle.snapshot["recovery"] == "provider-retry-v1" and
       battle.snapshot["limits"]["provider_retries"] == 2 and
       not expired?(battle.deadline_at, now) and
       battle.turns_used < battle.snapshot["limits"]["turns"]
@@ -502,7 +628,7 @@ defmodule Cuckoding.Battles do
   end
 
   defp skip_scope?(battle, now) do
-    battle.snapshot["task_selection"] == "skip-task-v1" and
+    not timing_blocked?(battle) and battle.snapshot["task_selection"] == "skip-task-v1" and
       battle.state in ~w(paused needs_attention) and not is_nil(battle.current_task_id) and
       not expired?(battle.deadline_at, now) and
       battle.turns_used < battle.snapshot["limits"]["turns"]
@@ -622,7 +748,7 @@ defmodule Cuckoding.Battles do
 
   defp safe_to_stop?(battle) do
     Enum.all?(attempts(battle.id), fn attempt ->
-      reconciled?(battle, attempt) or
+      timing_closed?(battle, attempt) or reconciled?(battle, attempt) or
         (attempt.state in ~w(completed failed cancelled expired) and
            attempt.result["cleanup_verified"] == true)
     end)
@@ -634,7 +760,7 @@ defmodule Cuckoding.Battles do
         battle = get(attempt.battle_id)
 
         battle.state in ~w(running pausing) and not expired?(attempt.deadline_at, now) and
-          not expired?(battle.deadline_at, now)
+          not expired?(battle.deadline_at, now) and not timing_fenced?(battle, attempt)
 
       _ ->
         false
@@ -684,6 +810,7 @@ defmodule Cuckoding.Battles do
         update(attempt, state: "interrupted", result: %{"status" => "interrupted"})
 
         if battle.state in ~w(running pausing) and attempt.stage == "integrate" and
+             not timing_fenced?(battle, attempt) and
              battle.snapshot["native_recovery"] == "retained-integration-v1" and
              Enum.all?(attempts(battle.id), &(&1.id == attempt.id or settled?(battle, &1))) do
           update(battle,
@@ -787,8 +914,12 @@ defmodule Cuckoding.Battles do
   defp finish_reconciliation(battle, _attempt, _result, false, _now), do: battle
 
   defp finish_reconciliation(battle, attempt, result, true, now) do
-    if expired?(attempt.deadline_at, now) or expired?(battle.deadline_at, now) do
-      needs_attention(battle, "late_result_rejected")
+    if timing_blocked?(battle) or expired?(attempt.deadline_at, now) or
+         expired?(battle.deadline_at, now) do
+      needs_attention(
+        battle,
+        if(timing_blocked?(battle), do: "timing_gap", else: "late_result_rejected")
+      )
     else
       battle = advance(battle, attempt, result)
 

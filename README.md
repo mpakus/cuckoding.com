@@ -100,6 +100,12 @@ evidence without repeating Git changes, keeps the interrupted attempt and pauses
 for Resume. Missing or changed evidence remains blocked; expired work cannot
 advance. This is a narrow recovery case, not full crash/sleep recovery.
 [Retained integration recovery](tasks/R060g-retained-integration.md).
+
+New battles also detect timing gaps and clock changes. Clean work pauses for
+Resume; active stages are cancelled and their receipts retained without advancing
+tasks. Stop waits for verified cleanup. Deadlines and consumed limits stay intact.
+This conservative guard is not physical sleep or process recovery.
+[Timing-gap fence](tasks/R060h-timing-gap-fence.md).
 The packaged build, smoke test and preserved-workspace relaunch were verified
 2026-10-15; [build evidence](worklog/2026-10-15-R060e-late-stage-receipts.md).
 **Retry failed stage** is available for settled transient provider failures in new

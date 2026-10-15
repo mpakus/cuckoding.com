@@ -62,6 +62,21 @@ Inspect shows the pending inspection and retained observation after reconnect.
 Missing or mismatched evidence remains needs-attention. Historical grants,
 interrupted Stop and other native/provider stages cannot use this path.
 
+R060h freezes `timing_guard: elapsed-gap-v1` for new Starts. An independent OTP
+guard checks UTC/monotonic samples before admission, throughout helper polling
+and before worker settlement. A five-second elapsed gap, backward wall movement
+or two-second divergence closes admission durably. These samples cannot prove
+actual sleep. A clean boundary pauses for explicit Resume with unchanged scope,
+bindings and deadline. Backward clock movement requires attention and a new Start.
+An active stage cancels through its existing helper protocol; its exact bound
+receipt stays Interrupted and rejected, even if it reports success. No card,
+reviewed head or next stage advances. Stop requires recorded verified cleanup;
+unknown cleanup remains blocked, and active fenced work cannot Resume/Retry/Skip.
+The guard shares the battle execution group's restart boundary, so losing its
+baseline also stops workers. Inspect retains timing observations after reconnect.
+This is a conservative timing fence, not native wake/process/lease reconciliation,
+active-time accounting, a power assertion or physical sleep acceptance.
+
 R060b adds **Retry failed stage** for new snapshots with `recovery: provider-retry-v1`
 and a frozen two-retry cap per task, plus two shared by final stages. Only normalized
 launch/timeout/connection/provider/busy/turn failures with verified cleanup qualify.

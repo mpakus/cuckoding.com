@@ -33,7 +33,13 @@ defmodule Cuckoding.BattleExecutor do
   end
 
   def execute(attempt, adapters \\ []) do
-    active? = fn -> Battles.active_attempt?(attempt.id, attempt.claim_token) end
+    clock = Keyword.get(adapters, :clock_check, fn -> :ok end)
+
+    active? = fn ->
+      :ok = clock.()
+      Battles.active_attempt?(attempt.id, attempt.claim_token)
+    end
+
     result = dispatch(attempt.stage, attempt, active?, adapters)
 
     result =

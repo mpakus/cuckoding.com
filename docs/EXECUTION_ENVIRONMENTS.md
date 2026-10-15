@@ -100,6 +100,17 @@ uses existing native ownership/ref/grant checks under the original deadline.
 Unfinished claims, missing cleanup and uncertain Stop still require inspection.
 No process is inferred dead, reattached or replayed by this checkpoint recovery.
 
+R060h adds a conservative timing fence for new `elapsed-gap-v1` grants. BattleClock
+runs independently of the coordinator inside its one_for_all execution group.
+UTC/monotonic samples detect five-second gaps, backward clocks and two-second
+divergence. Record the observation before closing admission. Clean checkpoints
+pause for explicit Resume; active work is cancelled through existing helper
+polling and its rejected receipt retained. Verified closure allows Stop only;
+uncertain effects still require inspection. A lost clock guard stops old workers
+before baseline reset. Observed gaps do not prove sleep, and no stage/deadline/
+consumed limit is restarted. Native power assertion, physical wake/lease/process
+reconciliation and active-time accounting below remain open.
+
 Persist control intent before signalling a process. Pause closes admission,
 saves a public checkpoint and quiesces workers using supported adapter behavior.
 Stop cancels then uses an ownership-checked termination ladder. Check descendants

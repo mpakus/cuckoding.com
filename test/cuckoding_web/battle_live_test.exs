@@ -529,6 +529,66 @@ defmodule CuckodingWeb.BattleLiveTest do
     refute has_element?(view, "#battle-start-form")
   end
 
+  test "clean timing-gap pause survives reconnect and requires a fresh Resume control", ctx do
+    signed = sign_in(ctx.conn)
+    {:ok, view, _} = live(signed, ctx.path)
+    view |> form("#battle-start-form") |> render_submit()
+    battle = Battles.latest(ctx.arena.id, ctx.board.id)
+    now = DateTime.utc_now()
+    gap = Cuckoding.BattleClock.gap({now, 0}, {DateTime.add(now, 60), 1_000})
+    {:ok, [paused]} = Battles.observe_timing_gap(gap)
+    assert has_element?(view, "#battle-timing-paused", "Paused after a timing gap")
+
+    assert has_element?(
+             view,
+             "#battle-timing-observation",
+             "does not prove sleep or worker cleanup"
+           )
+
+    stale = control_params(view, "#battle-resume")
+    {:ok, again, _} = live(signed, ctx.path)
+    again |> with_target("#arena-battle") |> render_click("resume", stale)
+    assert Battles.get(battle.id) == paused
+    again |> element("#battle-resume") |> render_click()
+    assert Battles.get(battle.id).state == "running"
+    assert Battles.get(battle.id).deadline_at == battle.deadline_at
+    assert Battles.attempts(battle.id) == []
+  end
+
+  test "active timing-gap receipt explains rejection and requires confirmed Stop after reconnect",
+       ctx do
+    signed = sign_in(ctx.conn)
+    {:ok, view, _} = live(signed, ctx.path)
+    view |> form("#battle-start-form") |> render_submit()
+    battle = Battles.latest(ctx.arena.id, ctx.board.id)
+    {:ok, attempt} = Battles.claim_next(battle.id)
+    now = DateTime.utc_now()
+    gap = Cuckoding.BattleClock.gap({now, 0}, {DateTime.add(now, 60), 60_000})
+    {:ok, [_]} = Battles.observe_timing_gap(gap)
+    assert has_element?(view, "#battle-timing-cancelling", "waiting for owned worker cleanup")
+
+    receipt =
+      Map.merge(
+        Map.take(attempt.request, ~w(battle_id request_id task_id stage criteria_sha256)),
+        %{"status" => "cancelled", "cleanup_verified" => true}
+      )
+
+    {:ok, _} = Battles.finish(attempt.id, attempt.claim_token, receipt)
+    assert has_element?(view, "#battle-attempt-#{attempt.id}", "not accepted work")
+    assert has_element?(view, "#battle-attempt-#{attempt.id}", "Worker cleanup verified")
+    refute has_element?(view, "#battle-resume")
+    refute has_element?(view, "#battle-retry")
+    refute has_element?(view, "#battle-skip")
+    view |> element("#battle-stop") |> render_click()
+    {:ok, again, _} = live(signed, ctx.path)
+    refute has_element?(again, "#battle-stop-confirmation")
+    assert has_element?(again, "#battle-timing-observation")
+    again |> element("#battle-stop") |> render_click()
+    again |> element("#battle-confirm-stop") |> render_click()
+    assert Battles.get(battle.id).state == "stopped"
+    assert Repo.get!(Cuckoding.Battles.Attempt, attempt.id).result == receipt
+  end
+
   test "recovery inspections remain visible after reconnect without resuming work", ctx do
     signed = sign_in(ctx.conn)
     {:ok, view, _} = live(signed, ctx.path)

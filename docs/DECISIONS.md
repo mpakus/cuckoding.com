@@ -1,5 +1,26 @@
 # Current decisions
 
+## D030 · Conservative timing-gap fence
+
+Accepted 2026-10-15 for R060h. New Starts freeze
+`timing_guard: elapsed-gap-v1`. A dedicated supervised clock guard observes UTC
+and monotonic samples, independently of the battle coordinator so workers can
+still commit outcomes while its mailbox is suspended. The guard shares the
+battle execution group's restart boundary. It checks before admission, during
+bounded helper polling and before settlement; SQLite owns every resulting fence.
+
+A gap of at least five seconds, backward wall time, or UTC/monotonic divergence
+of at least two seconds triggers a bounded public timing observation. This is
+not proof of sleep. Pause a clean settled boundary for explicit Resume; backward
+clock movement requires attention. Close admission and cancel an active stage
+through its existing helper protocol, retain its bound rejected receipt without
+advancement, and permit Stop only with verified cleanup. Preserve deadlines,
+consumed limits and interrupted history. A guard crash restarts the execution
+group; it cannot silently reset the baseline while workers keep running.
+
+No power assertion, physical sleep proof, process/lease reconciliation, resumed
+native session, automatic retry or active-time accounting is implied.
+
 ## D029 · Retained integration reconciliation
 
 Accepted 2026-10-15 for R060g. New battle Starts freeze

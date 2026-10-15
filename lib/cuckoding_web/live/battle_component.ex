@@ -241,6 +241,10 @@ defmodule CuckodingWeb.BattleComponent do
     do:
       "The stage finished after its time limit. Its result was not accepted and no further work will run. Inspect the retained evidence, then Stop to close this battle once worker cleanup is verified."
 
+  defp message("timing_gap"),
+    do:
+      "A timing gap or clock change interrupted this battle. No further work will run. Inspect the retained evidence and Stop once worker cleanup is verified; a new Start is required for unfinished work."
+
   defp message("final_review_changes_requested"),
     do:
       "The final Secutor review requested changes. This battle needs attention; the local result and review evidence are retained, and completion has not been granted."
@@ -296,6 +300,12 @@ defmodule CuckodingWeb.BattleComponent do
       <p class="fine-print">
         Public summaries and retained attempt receipts. Original criteria remain part of the frozen scope.
       </p>
+      <p :if={@battle.context["timing_gap"]} id="battle-timing-observation" class="notice">
+        Timing observation: {label(@battle.context["timing_gap"]["kind"])} ·
+        UTC elapsed {@battle.context["timing_gap"]["wall_elapsed_ms"]} ms ·
+        monotonic elapsed {@battle.context["timing_gap"]["monotonic_elapsed_ms"]} ms.
+        This does not prove sleep or worker cleanup. The original deadline is unchanged.
+      </p>
       <p
         :if={@battle.context["integration_recovery_pending"]}
         id="battle-recovery-inspecting"
@@ -344,6 +354,11 @@ defmodule CuckodingWeb.BattleComponent do
         <p :if={summary(attempt)} class="draft-copy">{summary(attempt)}</p>
         <p class="fine-print">Attempt receipt: <code>{attempt.id}</code></p>
         <p :if={attempt.task_id} class="fine-print">Task: <code>{attempt.task_id}</code></p>
+        <p :if={get_in(@battle.context, ["timing_gap", "attempt_id"]) == attempt.id} class="notice">
+          Interrupted after a timing gap · retained evidence, not accepted work.
+          <span :if={attempt.result["cleanup_verified"] == true}>Worker cleanup verified.</span>
+          <span :if={attempt.result["cleanup_verified"] != true}>Worker cleanup is still unverified.</span>
+        </p>
         <p :if={attempt.state == "expired"} class="notice">
           Time limit reached · this receipt is retained as evidence, not accepted work.
           <span :if={attempt.result["cleanup_verified"] == true}>Worker cleanup verified.</span>
@@ -435,16 +450,36 @@ defmodule CuckodingWeb.BattleComponent do
         <p :if={@battle.state == "stopping"} role="status">
           Stopping · waiting for owned worker cleanup. Changes and receipts are retained.
         </p>
-        <p :if={@battle.state == "pausing"} id="battle-pause-status" role="status">
+        <p
+          :if={@battle.state == "pausing" && @battle.reason == "timing_gap"}
+          id="battle-timing-cancelling"
+          role="status"
+        >
+          Timing gap detected · cancelling the current stage and waiting for owned worker cleanup.
+          Its result will be retained without advancing work.
+        </p>
+        <p
+          :if={@battle.state == "pausing" && @battle.reason != "timing_gap"}
+          id="battle-pause-status"
+          role="status"
+        >
           Pausing · the current stage is finishing within its existing limit. No next stage will start.
           Use Stop to cancel it now.
         </p>
         <p
-          :if={@battle.state == "paused" && @battle.reason != "restart_checkpoint"}
+          :if={@battle.state == "paused" && @battle.reason not in ~w(restart_checkpoint timing_gap)}
           id="battle-pause-status"
           role="status"
         >
           Paused · no stage is running. Saved results and verified worker cleanup are retained. Resume continues from the saved stage.
+        </p>
+        <p
+          :if={@battle.state == "paused" && @battle.reason == "timing_gap"}
+          id="battle-timing-paused"
+          role="status"
+        >
+          Paused after a timing gap · no stage is running. Resume continues the saved work
+          with the original deadline and remaining limits.
         </p>
         <p
           :if={@battle.state == "paused" && @battle.reason == "restart_checkpoint"}

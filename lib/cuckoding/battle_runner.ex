@@ -1,7 +1,7 @@
 defmodule Cuckoding.BattleRunner do
   @moduledoc "One supervised stage at a time; SQLite claims and receipts own battle progress."
   use GenServer
-  alias Cuckoding.{BattleExecutor, Battles}
+  alias Cuckoding.{BattleClock, BattleExecutor, Battles}
   alias Cuckoding.Battles.Attempt
 
   def start_link(options), do: GenServer.start_link(__MODULE__, options, name: __MODULE__)
@@ -14,13 +14,15 @@ defmodule Cuckoding.BattleRunner do
     {:ok,
      %{
        job: nil,
-       executor: Keyword.get(options, :executor, &BattleExecutor.execute/1),
+       executor: Keyword.get(options, :executor, &execute/1),
        reconciler: Keyword.get(options, :reconciler, &BattleExecutor.reconcile_integration/1)
      }}
   end
 
   @impl true
   def handle_info(:poll, %{job: nil} = state) do
+    :ok = BattleClock.check()
+
     job =
       if attempt = Battles.recovery_attempt() do
         task =
@@ -80,15 +82,29 @@ defmodule Cuckoding.BattleRunner do
   defp start_stage(_, _), do: nil
 
   defp run_stage(attempt, executor) do
-    settle(attempt, executor.(attempt))
+    :ok = BattleClock.check()
+
+    result =
+      if Battles.active_attempt?(attempt.id, attempt.claim_token),
+        do: executor.(attempt),
+        else: failure(attempt, "stage_not_started", true)
+
+    :ok = BattleClock.check()
+    settle(attempt, result)
     :settled
   catch
     # Task error reports must not print provider or database payloads.
     _, _ -> exit(:shutdown)
   end
 
+  defp execute(attempt), do: BattleExecutor.execute(attempt, clock_check: &BattleClock.check/0)
+
   defp run_recovery(attempt, reconciler) do
-    case Battles.reconcile_integration(attempt, reconciler.(attempt)) do
+    :ok = BattleClock.check()
+    result = reconciler.(attempt)
+    :ok = BattleClock.check()
+
+    case Battles.reconcile_integration(attempt, result) do
       {:error, reason} when reason in [:invalid_result, :foreign_result] ->
         Battles.reconcile_integration(
           attempt,
