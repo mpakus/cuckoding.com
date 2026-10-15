@@ -47,3 +47,15 @@ or implicit acceptance. Full uncertain-native and sleep reconciliation remain op
 The prior running app is a separate artifact; source changes do not update it
 automatically. Missing native receipts, full recovery, sleep reconciliation,
 parallel workers and real-provider beta acceptance remain open.
+
+## Handoff
+
+Implementation `b6af1a3` was fast-forward merged into local main; feature branch
+deleted, no push. Rebuild/relaunch is pending the user's Quit response after tray
+automation timed out. The last verified saved app remains the prior build on
+`127.0.0.1:49852` (native 80158 / BEAM 80159); recheck ownership before any restart.
+After graceful Quit, run `rtk proxy bin/dev.build` with the pinned toolchain PATH,
+then `rtk proxy bin/smoke` and the preserved
+`/private/tmp/cuckoding-r050c-proof-vvr7u4wp/Open Cuckoding Test.command` launcher.
+Compare saved records/history to the private backup and verify the new listener.
+Do not count prior packaged evidence as this source revision's build verification.

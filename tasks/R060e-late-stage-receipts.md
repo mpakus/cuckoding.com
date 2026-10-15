@@ -1,6 +1,7 @@
 # R060e — Retain expired stage evidence
 
-Status: implementation verified, 2026-10-15. Branch: `codex/R060e-late-stage-receipts`.
+Status: implementation verified and merged locally to `main` as `b6af1a3`,
+2026-10-15. Feature branch deleted. Packaged rebuild/relaunch pending graceful Quit.
 
 - [x] Validate and retain a late stage's bounded, exact-attempt receipt as an
   immutable expired outcome. Preserve normalized edits/checks/native evidence
@@ -14,7 +15,8 @@ Status: implementation verified, 2026-10-15. Branch: `codex/R060e-late-stage-rec
   session, form/revision and Stop confirmation gates.
 - [x] Focused deadline/cleanup/immutability/UI regressions, quality checks,
   docs/AGENTS/README and production compilation.
-- [ ] Local main integration and packaged build/relaunch evidence after graceful Quit.
+- [x] Local main integration; no push/deployment.
+- [ ] Packaged build/relaunch evidence after graceful Quit.
 
 This slice recovers evidence and safe closure after a known result. It does not
 reconcile missing native receipts, revive sessions, replay work or implement sleep
