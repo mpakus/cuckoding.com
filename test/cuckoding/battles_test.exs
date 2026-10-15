@@ -943,6 +943,131 @@ defmodule Cuckoding.BattlesTest do
              Battles.finish(attempt.id, attempt.claim_token, result(attempt))
   end
 
+  test "restart pauses every settled boundary without replay or changing authority", ctx do
+    for stage <-
+          ~w(admission prepare_worktree coordinator speculator implementor capture checks secutor integrate final_checks final_secutor summary) do
+      battle = start(ctx.board) |> until_stage(stage)
+      attempts = Battles.attempts(battle.id)
+      tasks = Battles.tasks(battle.id)
+      assert {:ok, [recovered]} = Battles.recover()
+      assert recovered.state == "paused"
+      assert recovered.reason == "restart_checkpoint"
+      assert recovered.control_revision == battle.control_revision + 1
+
+      assert Map.take(
+               recovered,
+               ~w(stage current_task_id context snapshot fingerprint deadline_at turns_used)a
+             ) ==
+               Map.take(
+                 battle,
+                 ~w(stage current_task_id context snapshot fingerprint deadline_at turns_used)a
+               )
+
+      assert Battles.attempts(battle.id) == attempts
+      assert Battles.tasks(battle.id) == tasks
+      assert Battles.active?(ctx.board.arena_id)
+      assert Battles.locked?(ctx.board.id)
+      assert {:error, :not_running} = Battles.claim_next(battle.id)
+      assert {:ok, [^recovered]} = Battles.recover()
+      assert Enum.count(Battles.evidence(battle.id), &(&1.kind == "battle.recovery_paused")) == 1
+      assert {:error, :stale_control} = Battles.resume(battle.id, battle.control_revision)
+      {:ok, resumed} = Battles.resume(battle.id, recovered.control_revision)
+      assert resumed.reason == nil
+      {_, next} = step(resumed)
+      assert next.stage == stage
+      refute next.id in Enum.map(attempts, & &1.id)
+      {:ok, _} = Battles.stop(battle.id)
+    end
+  end
+
+  test "restart preserves consumed retries, skipped tasks and partial final scope", ctx do
+    independent = save_task(ctx.board, "Independent", [])
+    {failed, _} = start(ctx.board) |> until_stage("implementor") |> fail_provider()
+    {:ok, retried} = Battles.retry(failed.id, 0)
+    {:ok, [recovered]} = Battles.recover()
+    assert recovered.state == "paused"
+    assert recovered.context == retried.context
+    {:ok, resumed} = Battles.resume(recovered.id, recovered.control_revision)
+    {failed, _} = until_stage(resumed, "implementor") |> fail_provider()
+    {:ok, skipped} = Battles.skip(failed.id, failed.control_revision, ctx.first.id, true)
+    {:ok, [recovered]} = Battles.recover()
+    assert recovered.state == "paused"
+    assert recovered.context == skipped.context
+    assert recovered.current_task_id == independent.id
+    {:ok, resumed} = Battles.resume(recovered.id, recovered.control_revision)
+    final = until_stage(resumed, "final_secutor")
+    {:ok, [recovered]} = Battles.recover()
+    assert recovered.context == final.context
+    {:ok, resumed} = Battles.resume(recovered.id, recovered.control_revision)
+    {summarizing, review} = step(resumed)
+
+    assert review.request["criteria_sha256"] ==
+             Snapshot.final_criteria_digest(final.snapshot, final.context)
+
+    {partial, _} = step(summarizing)
+    assert partial.state == "partial"
+  end
+
+  test "recovered checkpoints keep expired budgets and changed bindings blocked", ctx do
+    battle = start(ctx.board) |> until_stage("implementor")
+    {:ok, [recovered]} = Battles.recover()
+    workspace = Foundation.workspace()
+
+    Repo.update!(
+      Ecto.Changeset.change(workspace,
+        connection: Map.put(workspace.connection, "authorization", "not_connected")
+      )
+    )
+
+    assert {:error, :resume_binding_changed} =
+             Battles.resume(battle.id, recovered.control_revision)
+
+    Repo.update!(Ecto.Changeset.change(Foundation.workspace(), connection: workspace.connection))
+
+    assert {:error, "deadline_exceeded"} =
+             Battles.resume(battle.id, recovered.control_revision, battle.deadline_at)
+
+    assert Battles.get(battle.id).deadline_at == battle.deadline_at
+    {:ok, _} = Battles.stop(battle.id)
+
+    battle = start(ctx.board) |> until_stage("speculator")
+    Repo.update!(Ecto.Changeset.change(battle, turns_used: battle.snapshot["limits"]["turns"]))
+    {:ok, [recovered]} = Battles.recover()
+    assert {:error, "turn_limit"} = Battles.resume(battle.id, recovered.control_revision)
+    assert Battles.get(battle.id).turns_used == battle.snapshot["limits"]["turns"]
+  end
+
+  test "restart cannot infer cleanup or skip an unconsumed failure", ctx do
+    battle = start(ctx.board)
+    {battle, _} = step(battle, %{"cleanup_verified" => false})
+    {:ok, [recovered]} = Battles.recover()
+    assert recovered.state == "needs_attention"
+    assert recovered.reason == "restart_requires_inspection"
+    assert {:error, :cleanup_required} = Battles.stop(battle.id)
+    Repo.update!(Ecto.Changeset.change(recovered, state: "stopped"))
+
+    {failed, _} = start(ctx.board) |> until_stage("speculator") |> fail_provider()
+    # Simulate an older/invalid projection without granting a Retry transition.
+    Repo.update!(Ecto.Changeset.change(failed, state: "running"))
+    {:ok, [recovered]} = Battles.recover()
+    assert recovered.state == "needs_attention"
+    assert Battles.skip_preview(recovered) == []
+    refute Battles.retry_available?(recovered)
+  end
+
+  test "settled pausing checkpoint recovers once while stopping remains conservative", ctx do
+    battle = start(ctx.board) |> until_stage("capture")
+    Repo.update!(Ecto.Changeset.change(battle, state: "pausing", control_revision: 1))
+    {:ok, [recovered]} = Battles.recover()
+    assert recovered.state == "paused"
+    assert recovered.control_revision == 2
+    assert {:ok, [^recovered]} = Battles.recover()
+    Repo.update!(Ecto.Changeset.change(recovered, state: "stopping"))
+    {:ok, [attention]} = Battles.recover()
+    assert attention.state == "needs_attention"
+    assert attention.reason == "restart_requires_inspection"
+  end
+
   test "Pause cannot treat historical missing cleanup as a verified boundary or unlock the Arena",
        ctx do
     battle = start(ctx.board)

@@ -809,6 +809,44 @@ defmodule Cuckoding.BattleExecutorTest do
     assert Repo.get!(Attempt, previous.id).state == "failed"
   end
 
+  test "runner startup holds a completed checkpoint until explicit Resume", ctx do
+    battle = start(ctx.board) |> until_stage("implementor")
+    previous = Battles.attempts(battle.id)
+    start_supervised!({Task.Supervisor, name: Cuckoding.BattleTasks})
+    parent = self()
+
+    executor = fn attempt ->
+      send(parent, {:checkpoint_stage, self(), attempt})
+
+      receive do
+        :finish ->
+          BattleExecutor.execute(attempt, git: Adapters, provider: Adapters, checks: Adapters)
+      end
+    end
+
+    runner = start_supervised!({BattleRunner, executor: executor})
+    recovered = Battles.get(battle.id)
+    assert recovered.state == "paused"
+    assert recovered.reason == "restart_checkpoint"
+    send(runner, :poll)
+    refute_receive {:checkpoint_stage, _, _}, 100
+    assert Battles.attempts(battle.id) == previous
+    stop_supervised!(BattleRunner)
+    runner = start_supervised!({BattleRunner, executor: executor})
+    assert Battles.get(battle.id) == recovered
+    {:ok, resumed} = Battles.resume(battle.id, recovered.control_revision)
+    send(runner, :poll)
+    assert_receive {:checkpoint_stage, worker, attempt}, 1000
+    assert attempt.stage == "implementor"
+    assert attempt.request["task_context"] == hd(Battles.tasks(battle.id)).context
+    {:ok, _} = Battles.pause(battle.id, resumed.control_revision)
+    send(worker, :finish)
+    await(fn -> Battles.get(battle.id).state == "paused" end)
+    assert Battles.get(battle.id).stage == "capture"
+    assert length(Battles.attempts(battle.id)) == length(previous) + 1
+    refute_receive {:checkpoint_stage, _, _}, 100
+  end
+
   defp await(fun, remaining \\ 100)
 
   defp await(fun, remaining) when remaining > 0 do

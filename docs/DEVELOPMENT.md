@@ -31,6 +31,10 @@ up the selected data root before upgrading. Older bundles refuse this schema.
 R060b adds Retry failed stage for new battles with settled transient provider
 failures. Two retries per task and two shared final retries preserve the original
 limits and failed evidence. There is no new migration or native runtime grant.
+R060c adds Skip with deferred dependents and reviewed Partial results. R060d
+reopens fully settled restart checkpoints as Paused; Resume continues the saved
+stage explicitly. In-flight or unknown effects still require inspection. These
+controls retain schema version 11 and never silently switch saved connections.
 [Plan](PLAN.md#next-delivery-order--simple-arena) owns the remaining beta gates.
 
 ## Build and open

@@ -29,6 +29,13 @@ membership and drafts remain unchanged. Final attempt digests bind retained crit
 and omissions; `partial` is a terminal battle state/event outside the active index.
 All-omitted battles with no completed tasks stop with reason `all_tasks_skipped`.
 
+R060d also needs no migration. Startup atomically turns fully settled
+running/pausing boundaries into `paused`, stores reason `restart_checkpoint`,
+increments `control_revision` and records `battle.recovery_paused` with the saved
+stage/task/revision. Requests, snapshots, contexts, task projections and budgets
+are unchanged. Repeated startup retains the same clean pause without duplicate
+events; explicit Resume clears the reason. Unfinished claims remain interrupted.
+
 R050f requires no migration. New battle snapshots use `arena-loop-v2`; task
 verification stays in immutable `criteria` and its existing SHA-256. Only v2 with
 `checks: []` skips command stages; no command-success receipt is stored. The Start

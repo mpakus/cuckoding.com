@@ -43,6 +43,14 @@ finish as Partial, never Completed. If everything is omitted before any task
 completed, stop without inference. Only recorded skipped failures become settled
 for later controls; no replay or cleanup uncertainty bypass.
 
+R060d recovers running/pausing battles to Paused only when every attempt is
+settled with verified cleanup. Increment the control revision and record
+`battle.recovery_paused` with the saved stage/task; preserve all authority,
+attempts, budgets and result context. Existing clean pauses remain unchanged.
+Resume is explicit and retains binding, deadline and native integrity checks.
+Never infer cleanup from a missing process or replay an unfinished claim; those
+still need inspection. This is checkpoint recovery, not sleep/lease reconciliation.
+
 Preserve these implemented contracts:
 
 - Supported versions, observed authorization, catalog freshness, model entitlement

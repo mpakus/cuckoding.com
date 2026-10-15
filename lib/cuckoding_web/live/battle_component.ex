@@ -392,8 +392,21 @@ defmodule CuckodingWeb.BattleComponent do
           Pausing · the current stage is finishing within its existing limit. No next stage will start.
           Use Stop to cancel it now.
         </p>
-        <p :if={@battle.state == "paused"} id="battle-pause-status" role="status">
+        <p
+          :if={@battle.state == "paused" && @battle.reason != "restart_checkpoint"}
+          id="battle-pause-status"
+          role="status"
+        >
           Paused · no stage is running. Saved results and verified worker cleanup are retained. Resume continues from the saved stage.
+        </p>
+        <p
+          :if={@battle.state == "paused" && @battle.reason == "restart_checkpoint"}
+          id="battle-recovery-status"
+          role="status"
+        >
+          Paused after restart · no unfinished stage was found.
+          Resume continues from the saved stage with the same agents, work and remaining limits.
+          No work has been replayed.
         </p>
         <p :if={@battle.state in ~w(running pausing paused)} id="battle-pause-help" class="fine-print">
           Pause finishes the current stage before stopping new work. Time spent paused still counts toward

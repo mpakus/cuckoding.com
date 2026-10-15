@@ -181,6 +181,45 @@ defmodule CuckodingWeb.BattleLiveTest do
     refute has_element?(view, "#battle-resume")
   end
 
+  test "recovered checkpoint explains Resume and rejects pre-restart controls", ctx do
+    signed = sign_in(ctx.conn)
+    {:ok, view, _} = live(signed, ctx.path)
+    view |> element("button[aria-label='Edit First task']") |> render_click()
+    view |> form("#draft-form", title: "Retain my draft after restart") |> render_change()
+    view |> form("#battle-start-form") |> render_submit()
+    battle = Battles.latest(ctx.arena.id, ctx.board.id)
+    old = control_params(view, "#battle-pause")
+    {:ok, [recovered]} = Battles.recover()
+    assert has_element?(view, "#battle-recovery-status[role=status]", "Paused after restart")
+    assert has_element?(view, "#battle-recovery-status", "No work has been replayed")
+    assert has_element?(view, "#battle-resume[type=button]", "Resume")
+    assert has_element?(view, "#draft-title-input[value='Retain my draft after restart']")
+    view |> with_target("#arena-battle") |> render_click("resume", old)
+    assert Battles.get(battle.id).state == "paused"
+    assert has_element?(view, "#battle-error", "control changed")
+    stale = control_params(view, "#battle-resume")
+    {:ok, again, _} = live(signed, ctx.path)
+    again |> with_target("#arena-battle") |> render_click("resume", stale)
+    assert Battles.get(battle.id) == recovered
+    again |> element("#battle-resume") |> render_click()
+    assert Battles.get(battle.id).state == "running"
+    assert Battles.get(battle.id).reason == nil
+    refute has_element?(again, "#battle-recovery-status")
+    assert Battles.attempts(battle.id) == []
+  end
+
+  test "expired sessions cannot Resume a recovered checkpoint", ctx do
+    {:ok, view, _} = ctx.conn |> sign_in() |> live(ctx.path)
+    view |> form("#battle-start-form") |> render_submit()
+    battle = Battles.latest(ctx.arena.id, ctx.board.id)
+    {:ok, [recovered]} = Battles.recover()
+    assert has_element?(view, "#battle-recovery-status")
+    Repo.update_all(BrowserToken, set: [expires_at: 0])
+    view |> element("#battle-resume") |> render_click()
+    assert_redirect(view, "/locked")
+    assert Battles.get(battle.id) == recovered
+  end
+
   test "expired component sessions cannot Pause or Resume", ctx do
     {:ok, view, _} = ctx.conn |> sign_in() |> live(ctx.path)
     view |> form("#battle-start-form") |> render_submit()

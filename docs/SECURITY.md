@@ -579,6 +579,14 @@ and frozen-draft locks persist through both states. Resume rechecks the exact
 connection observations; the next stage still performs native path/ref/executable
 validation. Wall expiry or exhausted turns cannot be reset by controls.
 
+R060d may recover a running/pausing checkpoint only if all attempts satisfy this
+same settled-cleanup rule. Missing process visibility is not evidence of cleanup.
+Increment the control revision and record the reason atomically; startup leaves
+the battle Paused, never Running. Explicit Resume retains current-binding and
+original-budget gates, then native validation before each effect. Completed
+receipts are not a guarantee that retained checkout bytes are still unchanged.
+Unfinished/native-uncertain attempts remain interrupted and cannot be replayed.
+
 ## Settled provider retry (R060b)
 
 New Start snapshots freeze `provider-retry-v1` and the two-retry cap per task/final

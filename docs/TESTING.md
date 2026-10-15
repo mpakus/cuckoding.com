@@ -71,6 +71,7 @@ or independent review acceptance. Domain/UI regressions live in
 | R050b | Fresh scoped HEAD consent, unchanged source/index, detached locked ownership, unsafe tree/filter/path bounds, cancellation/expiry/no replay, receipt binding, session/recovered form guards, packaged real Git and restart |
 | R050c | Preparation/scope binding, ownership/linked metadata refusal, raw byte/mode/index checks including hidden flags, unchanged files/index/marker, extra-file canaries, expired/cancelled claims without replay, session controls, packaged real Git/restart |
 | R060 | Launch/integration crash windows, restart, cleanup/PID reuse, budgets, provider failure, sleep-gap accounting |
+| R060d | Every settled stage boundary restarts Paused; explicit Resume, immutable evidence/budgets, retry/skip history, duplicate startup, stale/expired UI controls, no automatic dispatch and unfinished-claim refusal. Physical crash/sleep and unknown native-effect reconciliation remain separate. |
 | R070 | Concurrent task/port claims, fairness, prerequisite bases, stale reviews, conflicting integration and recovery |
 | R080 | LiveView reconnect, keyboard/focus/input preservation, narrow viewport, logs pagination/tail, timed setup |
 | R090 | Full conformance + real evidence for each named provider and mixed-runtime team |

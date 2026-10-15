@@ -25,6 +25,14 @@ is no revived provider session, repeated completed stage or implicit new Start.
 Clean paused boundaries survive app restart; interrupted Pausing remains
 needs-attention. Full crash/sleep reconciliation remains open.
 
+R060d extends this to running/pausing checkpoints where every prior attempt is
+settled with verified cleanup, including failures already consumed by Retry/Skip.
+Startup records `battle.recovery_paused` and a new control revision, then waits
+for explicit Resume at the unchanged stage. No attempts, native effects or
+provider calls are repeated. Existing pauses remain unchanged on repeated startup.
+Unknown cleanup, unfinished claims and interrupted Stop still require inspection.
+Original deadlines include downtime; Resume cannot reset exhausted authority.
+
 R060b adds **Retry failed stage** for new snapshots with `recovery: provider-retry-v1`
 and a frozen two-retry cap per task, plus two shared by final stages. Only normalized
 launch/timeout/connection/provider/busy/turn failures with verified cleanup qualify.

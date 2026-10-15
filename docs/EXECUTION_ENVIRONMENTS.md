@@ -94,6 +94,12 @@ ownership/grant checks still precede effects. Clean paused battles survive
 restart, while interrupted Pausing requires inspection. This is separate from
 the broader crash/sleep reconciliation target below.
 
+R060d recovers running/pausing checkpoints to Paused when all attempts are settled
+with verified cleanup; no stage is launched at startup. Resume is explicit and
+uses existing native ownership/ref/grant checks under the original deadline.
+Unfinished claims, missing cleanup and uncertain Stop still require inspection.
+No process is inferred dead, reattached or replayed by this checkpoint recovery.
+
 Persist control intent before signalling a process. Pause closes admission,
 saves a public checkpoint and quiesces workers using supported adapter behavior.
 Stop cancels then uses an ownership-checked termination ladder. Check descendants

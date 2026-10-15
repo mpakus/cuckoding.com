@@ -1,32 +1,28 @@
 # Implementation plan and checklist
 
-**Rebuild baseline: 2026-10-06. R010 foundation is verified for local main.**
-R001 and R010 establish the documentation contract and local application shell.
-See [R010 evidence](../worklog/2026-10-06-R010-local-foundation.md).
-Agent authorization, models and orchestration remain R020–R100.
-R020a–d complete version readiness, private-profile inspection, validated model
-caching, managed sign-in/out and the fixed model-check controls. Real-account/model/execution acceptance
-is still open. R030a delivers independently testable saved-team configuration;
-R040a adds Arena registration and frozen team inheritance; R040b adds default
-Tabulae and manual draft tasks; R040c adds explicit Git inspection and confirmed
-initialization. R040d adds explicit file previews and consented initial commits.
-R040e adds consented Speculator proposals from typed briefs and individual imports
-into Specs. R040f adds explicit selected-document previews and consented snapshot
-inputs. R040g adds revisioned, acyclic manual task prerequisites; R040h adds
-Speculator prerequisite proposals and per-task snapshot references. R040i adds
-explicit accepted Markdown specifications. R040j adds confirmed Arena check declarations.
-R050a adds a read-only battle preparation preview; it does not implement Start.
-R050b adds consented detached worktree preparation with retained ownership receipts.
-R050c adds read-only inspection of retained ownership, index and raw file contents.
-R040l adds bounded folder sources; R040m creates validated task graphs automatically
-for newly consented planning requests, retaining legacy imports and edited cards.
-R050e adds bounded sequential Codex dependency scheduling, native single-process
-checks and Start authority. R050f puts verification instructions inside generated
-task criteria and removes mandatory separate command-check setup. General toolchain checks and real-account battle
-acceptance remain open.
-R030b lets existing Arenas/Tabulae explicitly adopt a newer saved default team
-without rewriting earlier requests or drafts. Per-scope role editing remains open.
-Historical source/tests/builds do not satisfy these gates.
+**Current implementation audit: 2026-10-14.** The source reset remains historical;
+this checklist describes the current local preview. Setup, saved teams, folder
+analysis, automatic task cards and the bounded sequential Codex/Cursor Arena loop
+are implemented. Pause/Resume, explicit provider Retry and Skip/Partial are also
+implemented. R060d adds safe restart checkpoints; the remaining recovery gates
+below still block complete beta acceptance.
+
+| Area | Implemented | Still required |
+| --- | --- | --- |
+| Agents and Team | Named Codex/Cursor connections, full bounded catalogs, model choices, default roles/custom role records, scoped team adoption | Per-scope role editing, custom role/stage execution, Cursor initial planning, Claude Code and Hermes |
+| Arena and tasks | Add folder/default board, bounded docs-first analysis, automatic cards, prerequisites, citations and saved criteria | Custom columns, custom planning-role selection and real-account planning acceptance |
+| Execution | One Start, sequential mixed-runtime dispatch, independent review/correction and retained local result branch | General subprocess/toolchain checks, real mixed-provider battle acceptance and parallel workers |
+| Controls/recovery | Stop, stage-boundary Pause/Resume, bounded provider Retry, Skip with deferred dependents and Partial result; settled restart checkpoints | Unfinished native/process/Git reconciliation, sleep accounting, safe backoff and physical sleep tests |
+| Experience | Agent wizard, Team editor, Arena board/activity and retained attempt inspector | Global worker dashboard, parallel activity, paginated logs, responsive/browser polish and timed ten-minute setup |
+| Release | Local bundle/build/smoke, separate preserved data root; Decimal advisory fixed | Signing/notarization, clean-machine install, updates/rollback and full acceptance matrix |
+
+Delivery order: finish uncertain-effect and sleep recovery (R060), implement
+parallel scheduling and combined-result review (R070), then finish dashboards,
+custom workflow/runtime coverage and release verification (R030/R040/R080–R100).
+General toolchain checks and consented live-provider acceptance can progress
+alongside recovery. No fixture suite or successful local build substitutes for
+those provider/physical/clean-machine gates. Historical slice evidence stays
+linked below; completed implementation and remaining acceptance are separate.
 
 R015 adds the separately requested public site after R010; see [Site](SITE.md).
 
@@ -90,6 +86,9 @@ The numbered story below is capability coverage, not eight mandatory screens.
 - [x] **R060c — Skip:** confirm a settled task, defer its transitive dependents,
   retain unfinished work and review independent results as Partial. Historical grants,
   uncertain effects and final reviews cannot be skipped. [Task](../tasks/R060c-task-skip.md).
+- [x] **R060d — Restart checkpoints:** reopen fully settled running/pausing
+  boundaries as Paused with a recorded reason and explicit Resume; retain
+  uncertain claims for inspection. [Task](../tasks/R060d-restart-checkpoints.md).
 - [ ] **R060 / R070 / R080:** complete recovery, parallel workers, both dashboards
   and timed ten-minute acceptance. Usable Arena UI ships with each earlier slice.
 
@@ -215,14 +214,17 @@ the real-provider gate.
   24-hour freshness, consent/cancellation/reconnect UI. Fresh signed-out Codex
   tested; connected catalog fixtures are not real-account acceptance. See
   [R020b evidence](../worklog/2026-10-07-R020b-codex-connection-inspection.md).
-- [ ] Extend the implemented adapter version boundary to the owned structured
-  runtime transport, permissions and operations below.
+- [x] R020n/o/p extend the pinned Codex/Cursor boundary to structured task turns,
+  restricted runtime permissions and host list/read/edit tools. See
+  [Codex task routing](../tasks/R020o-task-tool-routing.md) and
+  [Cursor execution](../tasks/R020p-cursor-task-execution.md); live gates remain below.
 - [x] R020c: app-owned ChatGPT browser login/status/logout, transient protected
   login redirect, cancellation/cleanup, profile serialization and durable
   account/catalog invalidation. Real login start/cancel passed; human-completed
   login remains open. See [R020c evidence](../worklog/2026-10-07-R020c-codex-sign-in.md).
-- [ ] Fetch models after login; cache bounded IDs/options/source/freshness in
-  SQLite, with stale catalog, manual refresh and validated fallback behavior.
+- [x] Fetch/cache full bounded catalogs for connected Codex/Cursor profiles,
+  with source/freshness, stale retention and explicit refresh (R020b/f/i/l).
+  No invented model IDs, entitlement inference or silent fallback.
 - [x] R020d: consented fixed model-access diagnostic, fresh catalog/identity
   binding, restrictive scratch permissions, matching public completion, cancellation
   and no automatic replay. Real unsigned config/thread preflight passed; successful
@@ -261,8 +263,10 @@ the real-provider gate.
   into the first sequential Start loop.
 - [ ] Prove a read-only turn and a permitted worktree-writing turn in isolated
   workspaces; normalize public activity, outcomes and redacted logs.
-- [ ] Add task/process identity, cancellation, clean environment, path policy,
-  finite timeout and baseline adapter conformance checks.
+- [x] Implement task/process identity, cancellation, clean environments, path
+  policy, finite deadlines and fixture conformance (R020n/p, R050e).
+- [ ] Complete real-provider read-only/write/denial, interrupted cleanup and
+  two-Arena acceptance. R020o's one synthetic read/edit success is partial evidence.
 
 Acceptance: one login supports two Arena-shaped workspaces and different models
 across app restart; revoked access and missing models produce actionable errors;
@@ -279,12 +283,11 @@ Execution acceptance depends on R020. R030a configuration can ship independently
 - [x] Persist immutable default-team revisions, idempotent audited saves, stale
   editor rejection and previous-revision inspection in the authenticated UI.
   See [task](../tasks/R030a-saved-team.md) and [evidence](../worklog/2026-10-07-R030a-saved-team.md).
-- [ ] Add explicit Arena/Tabula inheritance and overrides without changing saved
-  battle snapshots (alongside R040). Arena inheritance is implemented in R040a;
-  Tabula inheritance is implemented in R040b. R030b adds confirmed adoption of the
-  latest saved default for either scope; per-scope role editing remains. See
+- [x] Inherit teams in new Arenas/Tabulae (R040a/b) and explicitly adopt the saved
+  default for existing scopes (R030b), preserving historical snapshots. See
   [task](../tasks/R030b-scoped-team-adoption.md) and
   [evidence](../worklog/2026-10-07-R030b-scoped-team-adoption.md).
+- [ ] Edit role overrides per Arena/Tabula without rewriting previous scopes.
 - [ ] Add confirmed/audited execution slots and grants; prove independent sessions
   sharing one connection/model without inferring permission from role text.
 
@@ -322,14 +325,11 @@ Depends on R030.
   [evidence](../worklog/2026-10-07-R040f-document-planning.md).
 - [ ] Add/rename/reorder columns and assign custom roles through versioned
   definitions. Enforce mandatory final Secutor review after all writing stages.
-- [ ] Create/edit tasks manually and from a selected planning role using a brief,
-  selected files or `docs/`; persist versioned specs, source references and
-  acceptance criteria. R040b implements manual database drafts and criteria;
-  R040e adds brief proposals and source-command provenance; R040f adds selected
-  document snapshots; R040h validates per-task citation scope and proposed
-  prerequisites. R040l/m add bounded folder analysis and automatic graph creation.
-  R040i adds file-backed accepted specs; custom planning-role selection
-  remains; R050e adds battle-time Speculator preparation against frozen criteria.
+- [x] Create/edit manual drafts and assigned-Speculator tasks from briefs, selected
+  files or bounded folder snapshots. Retain criteria, source citations, prerequisites,
+  accepted-spec artifacts and edited cards (R040b/e/f/h/i/l/m).
+- [ ] Select a custom planning role; initial generation currently uses the assigned
+  Codex Speculator. Battle-time preparation supports the frozen Codex/Cursor binding.
 - [x] R040g: select bounded same-board task prerequisites, reject cycles against
   the latest graph and retain dependency revisions without launching work. See
   [task](../tasks/R040g-task-prerequisites.md) and
@@ -339,10 +339,10 @@ Depends on R030.
   See [task](../tasks/R040h-proposal-links.md) and
   [evidence](../worklog/2026-10-07-R040h-proposal-links.md). Citation meaning and
   accepted-spec validation remain separate from reference validation.
-- [ ] Persist project-approved check commands and grants separately from agent
-  proposals. R040j implements saved declarations; R050e adds a bounded native
-  single-process check grant. General toolchain grants remain open.
-  Draft empty states and keyboard movement exist in R040b.
+- [x] Persist explicit check declarations separately from proposals (R040j);
+  R050e freezes them under the bounded native single-process grant.
+- [ ] Add general subprocess/toolchain verification grants; Mix/npm pipelines
+  remain unavailable. Generated task text must not grant execution permission.
 - [x] R040j: explicit check preview/consent, immutable Arena revisions, idempotent
   audited saves, stale/recovered editor refusal and no implied execution authority.
   See [task](../tasks/R040j-project-checks.md) and
@@ -415,6 +415,7 @@ Depends on R050.
   Keep durable intent, pending states, unchanged limits and retained artifacts.
 - [x] R060b explicit provider Retry with settled cleanup and frozen lifetime limits.
 - [x] R060c Skip at settled task boundaries, deferred dependents and partial results.
+- [x] R060d settled restart checkpoints with explicit Resume and unchanged budgets.
 - [ ] Broader interrupted-work recovery with verified process cleanup.
 - [ ] Add bounded transient recovery/backoff, separate review/failure counters,
   deadline enforcement and no repeated sign-in questions per task.
@@ -477,7 +478,8 @@ Depends on R080 for final user-flow acceptance; reuse R020's adapter boundary.
 
 - [ ] Claude Code: verify current official interface/license, safe authorization,
   model discovery/defaults, grant mapping, streaming, cancellation and recovery.
-- [ ] Cursor: verify the same plus profile/history and project config behavior.
+- [ ] Cursor: complete real-account conformance, history cleanup and project-config
+  isolation acceptance; setup/catalog and R020p role execution are implemented.
 - [ ] Hermes: verify the intended official distribution/interface, license and
   all the same capabilities; record unsupported functions explicitly.
 - [ ] Re-run Codex acceptance on the pinned shipping version.

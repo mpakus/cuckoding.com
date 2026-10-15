@@ -152,6 +152,12 @@ are explicitly unfinished: the terminal result is Partial, never Completed.
 All-omitted work stops without inference if no task completed. Broader recovery
 remains a target; native/policy failures and final stages cannot be skipped.
 
+R060d recovers fully settled running/pausing boundaries as Paused after restart.
+It records the recovery reason/control revision and waits for explicit Resume.
+Keep the exact next stage, all attempts, omissions, counters and original deadline.
+Unfinished attempts, unconsumed failures and missing cleanup still require inspection;
+no restart automatically dispatches or retries a stage.
+
 | Control | Meaning |
 | --- | --- |
 | Pause | Close admission immediately; checkpoint and quiesce owned workers, then show Paused only once verified |

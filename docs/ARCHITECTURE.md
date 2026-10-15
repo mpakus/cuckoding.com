@@ -127,6 +127,12 @@ BattleExecutor discloses unfinished tasks and reviews only retained criteria.
 The existing runner continues independent work; the terminal result is Partial.
 No new migration, worker or native execution grant is added.
 
+R060d keeps startup recovery in `Battles.recover/0`, before BattleRunner polls.
+Fully settled running/pausing checkpoints become Paused with a new control
+revision/event; existing clean pauses are unchanged. Startup launches no stage
+until explicit Resume. Unfinished or unverifiable attempts still need inspection.
+Resume and each native stage retain their original admission/integrity checks.
+
 Agents setup uses one LiveView wizard over the existing Foundation command APIs.
 The form holds only unsaved choices; SQLite owns version, connection, diagnostics
 and completed model-selection snapshots. Save is a synchronous audited transaction,

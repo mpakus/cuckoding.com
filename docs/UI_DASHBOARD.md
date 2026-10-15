@@ -62,6 +62,11 @@ and continuing independent tasks may consume allowance. Keep skipped/deferred ca
 unfinished; report Partial separately from Completed. Stale confirmations cannot
 apply to a later task. Parallel workers and full interrupted-work recovery remain open.
 
+R060d displays **Paused after restart** for a fully settled checkpoint, explaining
+that Resume continues the saved stage with existing agents and remaining limits.
+Keep recovered text and task evidence visible; stale pre-restart controls cannot
+resume it. An interrupted worker still shows Needs attention, not a Resume promise.
+
 Advanced contains additional boards, custom roles/columns, scoped team adoption,
 repository setup, project check declarations and retained worktree inspection.
 Existing confirmations, audit/history and stale-form guards still apply there.

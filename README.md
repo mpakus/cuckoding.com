@@ -70,6 +70,10 @@ stage. **Resume** keeps the same team, work and limits; paused time counts towar
 the original deadline. Clean paused battles survive restart. **Stop** cancels
 and waits for cleanup. Interrupted work or uncertain effects require inspection;
 there is no automatic replay. [Pause/Resume evidence](worklog/2026-10-14-R060a-battle-pause-resume.md).
+If the app restarts between fully recorded stages, it reopens the battle as
+**Paused after restart**. Press **Resume** to continue from the saved stage with
+the same remaining limits. Unfinished attempts and unknown cleanup still require
+inspection. [Checkpoint evidence](worklog/2026-10-14-R060d-restart-checkpoints.md).
 **Retry failed stage** is available for settled transient provider failures in new
 battles: two retries per task, plus two shared by final stages, within the same
 time/turn limits. A failed Implementor returns through a fresh worktree and

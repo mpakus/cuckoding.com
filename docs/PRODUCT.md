@@ -1,16 +1,22 @@
 # Product contract
 
-## Current implementation: R050e / R050f
+## Current implementation · reviewed 2026-10-14
 
 Generated tasks carry their expected outcomes and verification instructions;
 separate Arena command checks are optional Advanced settings. Secutor verifies
 task criteria and must report missing runtime evidence as a blocker.
 
-The first bounded Codex loop implements Start, sequential work/review/correction, card projections and an app-owned result branch. Product parallelism, custom stages, general toolchain checks, complete recovery and real-account beta acceptance remain open. Limits and command restrictions are explicit in [Arena loop](ARENA_LOOP.md); the broader story below remains the acceptance target.
+The bounded Codex/Cursor loop implements Start, sequential work/review/correction,
+card activity and an app-owned result branch. Controls include Pause/Resume, Stop,
+bounded provider Retry and Skip with deferred dependents and Partial results.
+Fully settled restart checkpoints reopen as Paused for explicit Resume. Product
+parallelism, custom stages, general toolchain checks, uncertain-effect/sleep recovery
+and real-account beta acceptance remain open. [Arena loop](ARENA_LOOP.md) names the
+current limits; the broader story below remains the acceptance target.
 
 Updated 2026-10-10 from the original user story and the Arena simplification.
 This is the target experience. The [implementation checklist](PLAN.md) distinguishes
-available setup, folder analysis and task creation from unfinished battle execution.
+available setup, planning and sequential execution from remaining beta requirements.
 
 ## The story
 

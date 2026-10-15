@@ -315,7 +315,9 @@ defmodule Cuckoding.Battles do
   end
 
   defp resume_current(battle) do
-    battle = update(battle, state: "running", control_revision: battle.control_revision + 1)
+    battle =
+      update(battle, state: "running", reason: nil, control_revision: battle.control_revision + 1)
+
     record(battle, "resumed", %{"control_revision" => battle.control_revision})
     battle
   end
@@ -618,6 +620,27 @@ defmodule Cuckoding.Battles do
 
   defp recover_battle(%Battle{state: "paused"} = battle) do
     if quiescent?(battle), do: battle, else: interrupt_battle(battle)
+  end
+
+  defp recover_battle(%Battle{state: state} = battle) when state in ~w(running pausing) do
+    if quiescent?(battle) do
+      battle =
+        update(battle,
+          state: "paused",
+          reason: "restart_checkpoint",
+          control_revision: battle.control_revision + 1
+        )
+
+      record(battle, "recovery_paused", %{
+        "stage" => battle.stage,
+        "task_id" => battle.current_task_id,
+        "control_revision" => battle.control_revision
+      })
+
+      battle
+    else
+      interrupt_battle(battle)
+    end
   end
 
   defp recover_battle(battle), do: interrupt_battle(battle)
