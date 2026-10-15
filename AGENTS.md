@@ -59,6 +59,15 @@ Confirmed Stop can close the battle only when every attempt verifies cleanup;
 historical missing receipts and uncertain native effects remain blocked. No
 receipt replay, artifact deletion, deadline extension or process inference.
 
+R060f commits setup/battle outcomes through their existing domain transactions
+inside the owned supervised worker, before notifying its coordinator. Completion
+messages only release admission; they never settle a result twice. Preserve
+terminal facts on subsequent worker/coordinator failure. A committed battle
+checkpoint still restarts Paused with explicit Resume; missing receipts retain
+inspection gates. Sanitize unexpected worker exits before OTP logging. Invalid/
+foreign results cannot establish cleanup; a Stop racing a valid finished stage
+may use only the exact bound, fully validated cleanup receipt, without accepting work.
+
 Preserve these implemented contracts:
 
 - Supported versions, observed authorization, catalog freshness, model entitlement

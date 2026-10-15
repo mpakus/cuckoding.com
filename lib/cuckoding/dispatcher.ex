@@ -28,10 +28,9 @@ defmodule Cuckoding.Dispatcher do
     {:noreply, %{state | job: job}}
   end
 
-  def handle_info({ref, result}, %{job: {%Task{ref: ref}, command}} = state) do
+  def handle_info({ref, :settled}, %{job: {%Task{ref: ref}, _command}} = state) do
     Process.demonitor(ref, [:flush])
     Cuckoding.Codex.clear_login_link()
-    Cuckoding.Foundation.finish(command, result)
     send(self(), :tick)
     {:noreply, %{state | job: nil}}
   end
@@ -63,8 +62,17 @@ defmodule Cuckoding.Dispatcher do
     owner = self()
 
     Task.Supervisor.async_nolink(Cuckoding.SetupTasks, fn ->
-      executor.(command, fn url -> send(owner, {:login_link, self(), url}) end)
+      run_task(command, executor, owner)
     end)
+  end
+
+  defp run_task(command, executor, owner) do
+    result = executor.(command, fn url -> send(owner, {:login_link, self(), url}) end)
+    Cuckoding.Foundation.finish(command, result)
+    :settled
+  catch
+    # Task error reports must not print provider or database payloads.
+    _, _ -> exit(:shutdown)
   end
 
   defp execute(%{kind: "preview_documents"} = command, _progress),

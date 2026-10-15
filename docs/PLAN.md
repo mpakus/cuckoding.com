@@ -6,7 +6,8 @@ analysis, automatic task cards and the bounded sequential Codex/Cursor Arena loo
 are implemented. Pause/Resume, explicit provider Retry and Skip/Partial are also
 implemented. R060d adds safe restart checkpoints and R060e retains expired stage
 evidence for verified closure. R012 runs setup/planning in supervised asynchronous
-tasks and couples worker/coordinator restarts; the remaining recovery gates
+tasks and couples worker/coordinator restarts. R060f commits results before
+coordinator notification; the remaining recovery gates
 below still block complete beta acceptance.
 
 | Area | Implemented | Still required |
@@ -95,6 +96,10 @@ The numbered story below is capability coverage, not eight mandatory screens.
   advancing work; allow confirmed Stop only with all cleanup verified. No Resume,
   Retry, Skip or replay from expired receipts. Packaged smoke and preserved-workspace
   relaunch verified 2026-10-15. [Task](../tasks/R060e-late-stage-receipts.md).
+- [x] **R060f — Durable handoff:** workers commit validated setup/battle receipts
+  before completion notification. Coordinator crashes retain those facts and
+  clean battle checkpoints pause without replay; uncommitted work stays uncertain.
+  Invalid/foreign receipts cannot prove cleanup. [Task](../tasks/R060f-durable-worker-handoff.md).
 - [x] **R080a — Direct controls:** confirmed per-agent Disconnect unassigns current
   roles while retaining history; saved roles no longer expire on catalog age alone.
   Create tasks, repository setup and extra boards use dialogs; manual tasks use +
@@ -446,6 +451,8 @@ Depends on R050.
 - [x] R060c Skip at settled task boundaries, deferred dependents and partial results.
 - [x] R060d settled restart checkpoints with explicit Resume and unchanged budgets.
 - [x] R060e late receipt retention and verified Stop, without accepting expired work.
+- [x] R060f worker-side settlement before notification; preserve committed results
+  across coordinator crashes without replay or trusting malformed cleanup flags.
 - [ ] Broader interrupted-work recovery with verified process cleanup.
 - [ ] Add bounded transient recovery/backoff, separate review/failure counters,
   deadline enforcement and no repeated sign-in questions per task.

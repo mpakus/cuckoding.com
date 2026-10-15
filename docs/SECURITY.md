@@ -188,6 +188,14 @@ sleep/wake, recovery, settings changes and cleanup. Keep hidden chain-of-thought
 out of every artifact and UI. Public reasoning summaries and tool activity are
 sufficient.
 
+R060f worker completion uses the existing claim/result validators inside the
+transaction, then sends only a completion signal to its coordinator. Unexpected
+worker execution/settlement exceptions terminate with a fixed reason before OTP
+Task logging can print provider/database payloads. Monitors retain interruption
+without inferred cleanup; terminal receipts cannot be overwritten. Invalid or
+foreign results cannot establish cleanup through a bare boolean. Stop races use
+only an exact, fully validated stage receipt and never accept its work.
+
 [Testing](TESTING.md) requires malicious-repository/proposal fixtures, token replay,
 cross-Arena access refusal, canaries, process identity reuse, Git drift,
 concurrent integration and recovery checks. A provider fixture does not establish

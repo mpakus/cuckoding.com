@@ -42,6 +42,13 @@ receipts still block. Expired work cannot Resume, Retry or Skip, and no artifact
 is deleted or automatically replayed. This is known-result closure, not recovery
 of missing native receipts or physical sleep reconciliation.
 
+R060f commits the validated outcome in the supervised stage worker before its
+completion message reaches BattleRunner. If the coordinator crashes with that
+message queued, startup retains the receipt and pauses the saved next stage for
+explicit Resume. Missing or uncommitted results still require inspection. Stop
+can close a race with a finished stage only when its exact result validates and
+verifies cleanup; malformed/foreign flags cannot establish cleanup or accept work.
+
 R060b adds **Retry failed stage** for new snapshots with `recovery: provider-retry-v1`
 and a frozen two-retry cap per task, plus two shared by final stages. Only normalized
 launch/timeout/connection/provider/busy/turn failures with verified cleanup qualify.

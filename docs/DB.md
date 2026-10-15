@@ -44,6 +44,14 @@ Task completion, reviewed head, frozen scope and consumed limits do not advance.
 Verified expired outcomes can satisfy Stop cleanup only; they are never settled
 checkpoints for Resume/Retry/Skip. Old status-only interrupted receipts stay unchanged.
 
+R060f also adds no schema or event type. Supervised workers commit existing
+completion/cancellation/failure transactions before their result notification.
+The coordinator's mailbox holds no authoritative receipt. A worker/coordinator
+failure after commit cannot overwrite the terminal attempt/command; startup uses
+the existing checkpoint rules. Lost/uncommitted effects remain uncertain. A Stop
+race accepts cleanup only from the same bound, fully validated stage result;
+malformed/foreign results cannot create a trusted cancellation receipt.
+
 R050f requires no migration. New battle snapshots use `arena-loop-v2`; task
 verification stays in immutable `criteria` and its existing SHA-256. Only v2 with
 `checks: []` skips command stages; no command-success receipt is stored. The Start

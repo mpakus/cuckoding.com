@@ -163,3 +163,24 @@ and stateful LiveComponents where form state requires them. Use the shared
 session guards. Keep authentication, redirects, downloads and shell protocol at
 their existing controller boundaries. Native process enforcement stays in Rust;
 BEAM tasks coordinate it without widening any grant or replacing it with raw spawn.
+
+## D028 — Commit worker completion before notifying its coordinator
+
+2026-10-15, R060f, accepted before implementation. Owned setup/battle workers call
+the existing claim-bound domain settlement API after bounded execution and before
+notifying their coordinator. The SQLite transaction owns completion, projections
+and events; a mailbox message never owns the only copy of a finished receipt.
+Coordinators continue to claim/monitor and admit the next stage only after their
+current worker ends. Notifications do not settle the result a second time.
+
+If a coordinator restarts after commit, setup keeps its terminal receipt and a
+settled battle checkpoint uses the existing explicit Paused/Resume recovery.
+If execution or commit did not finish, retain interruption/unknown cleanup without
+replay. Cancellation and expiry still use the same domain validation. Invalid or
+foreign stage results cannot establish cleanup merely by reporting a boolean.
+Unexpected execution/settlement exceptions exit the worker with a fixed shutdown
+reason so Task's crash reporter cannot print private provider/database payloads.
+The coordinator monitor records the existing interrupted/unknown-cleanup outcome;
+committed facts remain unchanged. Valid finished-stage Stop races retain their
+cleanup proof only after full binding/result validation.
+No native grant, schema, budget, automatic retry or parallel capacity is added.

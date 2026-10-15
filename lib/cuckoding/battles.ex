@@ -232,6 +232,11 @@ defmodule Cuckoding.Battles do
     transaction(fn -> finish_claim(id, token, result, now) end)
   end
 
+  def stage_cleanup_verified?(%Attempt{} = attempt, result),
+    do:
+      bound?(attempt, result) and result["cleanup_verified"] == true and
+        valid_result?(attempt, result)
+
   defp finish_claim(id, token, result, now) do
     attempt = if(valid_id?(id), do: Repo.get(Attempt, id))
 

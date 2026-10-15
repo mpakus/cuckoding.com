@@ -45,6 +45,13 @@ separate monitored stage task. This remains one setup command and one battle sta
 not the future parallel scheduler. [D027](DECISIONS.md#d027--supervised-asynchronous-execution-and-liveview-components).
 
 Each execution group stops its old tasks before restarting its coordinator.
+R060f makes workers call the existing Foundation/Battles settlement transaction
+before returning a completion signal. Coordinators do not settle that notification
+again; a queued/lost message cannot erase a committed receipt. Setup terminal facts
+survive startup; completed battle boundaries use the existing Paused/Resume path.
+Unexpected worker execution/settlement errors exit with a fixed reason before Task
+can log private payloads; monitor handling retains interruption/unknown cleanup.
+Rollback or uncommitted native effects still require inspection, never replay.
 External setup claims found running/cancelling at startup, or whose task dies,
 become interrupted transactionally without replay or assumed native cleanup.
 Metadata discovery keeps its existing bounded lease recovery. Login progress is

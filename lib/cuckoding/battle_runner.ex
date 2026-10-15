@@ -24,9 +24,8 @@ defmodule Cuckoding.BattleRunner do
     {:noreply, %{state | job: job}}
   end
 
-  def handle_info({ref, result}, %{job: {%Task{ref: ref}, attempt}} = state) do
+  def handle_info({ref, :settled}, %{job: {%Task{ref: ref}, _attempt}} = state) do
     Process.demonitor(ref, [:flush])
-    settle(attempt, result)
     send(self(), :poll)
     {:noreply, %{state | job: nil}}
   end
@@ -40,17 +39,30 @@ defmodule Cuckoding.BattleRunner do
   def handle_info(_, state), do: {:noreply, state}
 
   defp start_stage({:ok, %Attempt{} = attempt}, executor) do
-    task = Task.Supervisor.async_nolink(Cuckoding.BattleTasks, fn -> executor.(attempt) end)
+    task =
+      Task.Supervisor.async_nolink(Cuckoding.BattleTasks, fn ->
+        run_stage(attempt, executor)
+      end)
+
     {task, attempt}
   end
 
   defp start_stage(_, _), do: nil
 
+  defp run_stage(attempt, executor) do
+    settle(attempt, executor.(attempt))
+    :settled
+  catch
+    # Task error reports must not print provider or database payloads.
+    _, _ -> exit(:shutdown)
+  end
+
   defp settle(attempt, result) do
     case Battles.finish(attempt.id, attempt.claim_token, result) do
       {:error, reason} when reason in [:invalid_result, :foreign_result, :stop_pending] ->
-        cleanup = is_map(result) and result["cleanup_verified"] == true
-        receipt = failure(attempt, "invalid_stage_receipt", cleanup)
+        cleanup = reason == :stop_pending and Battles.stage_cleanup_verified?(attempt, result)
+        reason = if reason == :stop_pending, do: "user_stop", else: "invalid_stage_receipt"
+        receipt = failure(attempt, reason, cleanup)
         Battles.finish(attempt.id, attempt.claim_token, receipt)
 
       other ->

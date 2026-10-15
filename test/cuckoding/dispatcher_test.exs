@@ -66,6 +66,100 @@ defmodule Cuckoding.DispatcherTest do
     assert Foundation.workspace().codex["status"] == "supported"
   end
 
+  test "completed setup survives a coordinator crash before its notification is handled", ctx do
+    {:ok, command} = Foundation.check_codex(Ecto.UUID.generate(), 0, ctx.path, true)
+    dispatcher = start_dispatcher(controlled_executor())
+    assert_receive {:executing, worker, claim}, 1_000
+    :sys.suspend(dispatcher)
+    monitor = Process.monitor(worker)
+    send(worker, {:finish, %{"status" => "supported", "version" => "0.146.0"}})
+    assert_receive {:DOWN, ^monitor, :process, ^worker, :normal}, 1_000
+    completed = Repo.get!(Command, command.id)
+    assert completed.state == "completed"
+    assert Foundation.workspace().codex["status"] == "supported"
+
+    Process.exit(dispatcher, :kill)
+
+    await(fn ->
+      is_pid(Process.whereis(Dispatcher)) and Process.whereis(Dispatcher) != dispatcher
+    end)
+
+    assert Repo.get!(Command, command.id) == completed
+    assert count_events("codex.completed", command.id) == 1
+    assert count_events("codex.interrupted", command.id) == 0
+    assert {:error, :lost_claim} = Foundation.finish(claim, %{"status" => "cancelled"})
+    refute_receive {:executing, _, _}, 100
+  end
+
+  test "cancellation commits while its coordinator is suspended and late success stays rejected",
+       ctx do
+    {:ok, _} = Foundation.check_codex(Ecto.UUID.generate(), 0, ctx.path, true)
+    {:ok, probe} = Foundation.claim()
+    Foundation.finish(probe, %{"status" => "supported", "version" => "0.146.0"})
+    {:ok, command} = Foundation.authorize_codex(Ecto.UUID.generate(), 1, :login, true)
+    dispatcher = start_dispatcher(controlled_executor())
+    assert_receive {:executing, worker, _}, 1_000
+    send(worker, {:progress, @url})
+    assert_receive {:progress_sent, ^worker}, 1_000
+    await(fn -> Foundation.login_link(Foundation.last_probe("login_codex")) == @url end)
+    :sys.suspend(dispatcher)
+    Foundation.cancel_probe(command.id)
+    monitor = Process.monitor(worker)
+
+    send(
+      worker,
+      {:finish,
+       %{
+         "status" => "checked",
+         "authorization" => "chatgpt",
+         "catalog_status" => "fresh",
+         "models" => []
+       }}
+    )
+
+    assert_receive {:DOWN, ^monitor, :process, ^worker, :normal}, 1_000
+    cancelled = Repo.get!(Command, command.id)
+    assert cancelled.state == "cancelled"
+    refute Foundation.login_redirect(command.id)
+    refute Foundation.workspace().connection["authorization"] == "chatgpt"
+    assert Map.get(Foundation.workspace().connection, "models", []) == []
+    Process.exit(dispatcher, :kill)
+
+    await(fn ->
+      is_pid(Process.whereis(Dispatcher)) and Process.whereis(Dispatcher) != dispatcher
+    end)
+
+    assert Repo.get!(Command, command.id) == cancelled
+    assert count_events("login.cancelled", command.id) == 1
+    refute_receive {:executing, _, _}, 100
+  end
+
+  test "a settlement exception rolls back and is interrupted without printing its payload", ctx do
+    {:ok, command} = Foundation.check_codex(Ecto.UUID.generate(), 0, ctx.path, true)
+    dispatcher = start_dispatcher(controlled_executor())
+    assert_receive {:executing, worker, _}, 1_000
+
+    Repo.query!("""
+    CREATE TRIGGER refuse_setup_settlement BEFORE UPDATE ON commands
+    WHEN NEW.state = 'completed'
+    BEGIN SELECT RAISE(ABORT, 'private-settlement-canary'); END
+    """)
+
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        send(worker, {:finish, %{"status" => "supported", "version" => "0.146.0"}})
+        await(fn -> Repo.get!(Command, command.id).state == "failed" end)
+      end)
+
+    refute log =~ "private-settlement-canary"
+    assert Process.whereis(Dispatcher) == dispatcher
+    assert Repo.get!(Command, command.id).result == "interrupted"
+    assert Foundation.workspace().codex == %{}
+    assert count_events("codex.completed", command.id) == 0
+    assert count_events("codex.interrupted", command.id) == 1
+    refute_receive {:executing, _, _}, 100
+  end
+
   test "worker death records interruption once without restarting the coordinator or replaying",
        ctx do
     {:ok, command} = Foundation.check_codex(Ecto.UUID.generate(), 0, ctx.path, true)
@@ -129,7 +223,8 @@ defmodule Cuckoding.DispatcherTest do
     assert Codex.login_link(command.id) == @url
     send(worker, {:finish, %{"status" => "cancelled"}})
     await(fn -> Repo.get!(Command, command.id).state == "cancelled" end)
-    refute Codex.login_link(command.id)
+    refute Foundation.login_redirect(command.id)
+    await(fn -> is_nil(Codex.login_link(command.id)) end)
     refute inspect(Repo.all(Command)) =~ "otp-login-canary"
     refute inspect(Repo.all(Event)) =~ "otp-login-canary"
     refute inspect(Foundation.workspace()) =~ "otp-login-canary"

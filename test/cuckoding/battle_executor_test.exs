@@ -746,7 +746,7 @@ defmodule Cuckoding.BattleExecutorTest do
 
     executor = fn attempt ->
       send(test, {:stage_launched, attempt.id})
-      %{"status" => "admitted", "cleanup_verified" => false}
+      %{"status" => "admitted", "cleanup_verified" => true}
     end
 
     runner = start_supervised!({BattleRunner, executor: executor})
@@ -762,6 +762,142 @@ defmodule Cuckoding.BattleExecutorTest do
     send(runner, :poll)
     refute_receive {:stage_launched, _}, 100
     assert length(Battles.attempts(battle.id)) == 1
+  end
+
+  test "committed stage survives a crash with its completion notification still queued", ctx do
+    parent = self()
+
+    executor = fn attempt ->
+      send(parent, {:handoff_stage, self(), attempt})
+
+      receive do
+        :finish ->
+          BattleExecutor.execute(attempt, git: Adapters, checks: Adapters, provider: Adapters)
+      end
+    end
+
+    start_supervised!(
+      {Cuckoding.ExecutionSupervisor,
+       coordinator: BattleRunner, tasks: Cuckoding.BattleTasks, options: [executor: executor]}
+    )
+
+    battle = start(ctx.board)
+    runner = Process.whereis(BattleRunner)
+    send(runner, :poll)
+    assert_receive {:handoff_stage, worker, attempt}, 1_000
+    :sys.suspend(runner)
+    monitor = Process.monitor(worker)
+    send(worker, :finish)
+    assert_receive {:DOWN, ^monitor, :process, ^worker, :normal}, 1_000
+    receipt = Repo.get!(Attempt, attempt.id)
+    assert receipt.state == "completed"
+    assert Battles.get(battle.id).stage == "prepare_worktree"
+    Process.exit(runner, :kill)
+    await(fn -> Battles.get(battle.id).state == "paused" end)
+    recovered = Battles.get(battle.id)
+    assert recovered.reason == "restart_checkpoint"
+    assert recovered.stage == "prepare_worktree"
+    assert recovered.snapshot == battle.snapshot
+    assert recovered.deadline_at == battle.deadline_at
+    assert Repo.get!(Attempt, attempt.id) == receipt
+    assert length(Battles.attempts(battle.id)) == 1
+    refute_receive {:handoff_stage, _, _}, 100
+
+    {:ok, resumed} = Battles.resume(battle.id, recovered.control_revision)
+    send(Process.whereis(BattleRunner), :poll)
+    assert_receive {:handoff_stage, next_worker, next}, 1_000
+    assert next.stage == "prepare_worktree"
+    refute next.id == attempt.id
+    {:ok, _} = Battles.pause(battle.id, resumed.control_revision)
+    send(next_worker, :finish)
+    await(fn -> Battles.get(battle.id).state == "paused" end)
+    assert length(Battles.attempts(battle.id)) == 2
+  end
+
+  test "committed failure stays immutable when its coordinator crashes before notification",
+       ctx do
+    parent = self()
+
+    executor = fn attempt ->
+      send(parent, {:failed_handoff, self(), attempt})
+
+      receive do
+        :finish ->
+          Map.merge(
+            Map.take(attempt.request, ~w(battle_id request_id task_id stage criteria_sha256)),
+            %{"status" => "failed", "reason" => "provider_error", "cleanup_verified" => true}
+          )
+      end
+    end
+
+    start_supervised!(
+      {Cuckoding.ExecutionSupervisor,
+       coordinator: BattleRunner, tasks: Cuckoding.BattleTasks, options: [executor: executor]}
+    )
+
+    battle = start(ctx.board)
+    runner = Process.whereis(BattleRunner)
+    send(runner, :poll)
+    assert_receive {:failed_handoff, worker, attempt}, 1_000
+    :sys.suspend(runner)
+    monitor = Process.monitor(worker)
+    send(worker, :finish)
+    assert_receive {:DOWN, ^monitor, :process, ^worker, :normal}, 1_000
+    receipt = Repo.get!(Attempt, attempt.id)
+    assert receipt.state == "failed"
+    failed = Battles.get(battle.id)
+    assert failed.state == "needs_attention"
+    assert failed.reason == "provider_error"
+    Process.exit(runner, :kill)
+
+    await(fn ->
+      is_pid(Process.whereis(BattleRunner)) and Process.whereis(BattleRunner) != runner
+    end)
+
+    assert Battles.get(battle.id) == failed
+    assert Repo.get!(Attempt, attempt.id) == receipt
+    assert length(Battles.attempts(battle.id)) == 1
+    refute_receive {:failed_handoff, _, _}, 100
+  end
+
+  test "a worker exception preserves uncertainty without logging private provider text", ctx do
+    parent = self()
+
+    executor = fn attempt ->
+      send(parent, {:crashing_stage, attempt.id})
+      raise "private-provider-error-canary"
+    end
+
+    start_supervised!(
+      {Cuckoding.ExecutionSupervisor,
+       coordinator: BattleRunner, tasks: Cuckoding.BattleTasks, options: [executor: executor]}
+    )
+
+    runner = Process.whereis(BattleRunner)
+    battle = start(ctx.board)
+
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        send(runner, :poll)
+        await(fn -> Battles.get(battle.id).state == "needs_attention" end)
+      end)
+
+    assert_receive {:crashing_stage, attempt_id}, 1_000
+    refute log =~ "private-provider-error-canary"
+    assert Process.whereis(BattleRunner) == runner
+    assert Battles.get(battle.id).reason == "worker_interrupted"
+    assert Repo.get!(Attempt, attempt_id).result["cleanup_verified"] == false
+    assert {:error, :cleanup_required} = Battles.stop(battle.id)
+    refute_receive {:crashing_stage, _}, 100
+  end
+
+  test "Stop racing a validated finished stage retains verified cleanup without accepting work",
+       ctx do
+    assert_stop_handoff(ctx, :valid)
+  end
+
+  test "Stop cannot trust a cleanup flag from a bound but malformed stage receipt", ctx do
+    assert_stop_handoff(ctx, :malformed)
   end
 
   test "coordinator restart stops its stage worker and retains uncertain work without replay",
@@ -908,6 +1044,50 @@ defmodule Cuckoding.BattleExecutorTest do
     assert Battles.get(battle.id).stage == "capture"
     assert length(Battles.attempts(battle.id)) == length(previous) + 1
     refute_receive {:checkpoint_stage, _, _}, 100
+  end
+
+  defp assert_stop_handoff(ctx, kind) do
+    parent = self()
+
+    executor = fn attempt ->
+      result =
+        BattleExecutor.execute(attempt, git: Adapters, checks: Adapters, provider: Adapters)
+
+      result =
+        if kind == :malformed, do: Map.drop(result, ["head", "native_battle"]), else: result
+
+      send(parent, {:stop_handoff, self(), attempt})
+
+      receive do
+        :finish -> result
+      end
+    end
+
+    start_supervised!(
+      {Cuckoding.ExecutionSupervisor,
+       coordinator: BattleRunner, tasks: Cuckoding.BattleTasks, options: [executor: executor]}
+    )
+
+    battle = start(ctx.board)
+    send(Process.whereis(BattleRunner), :poll)
+    assert_receive {:stop_handoff, worker, attempt}, 1_000
+    {:ok, _} = Battles.stop(battle.id)
+    send(worker, :finish)
+
+    if kind == :valid do
+      await(fn -> Battles.get(battle.id).state == "stopped" end)
+      assert Repo.get!(Attempt, attempt.id).state == "cancelled"
+      assert Repo.get!(Attempt, attempt.id).result["cleanup_verified"] == true
+    else
+      await(fn -> Battles.get(battle.id).state == "needs_attention" end)
+      assert Battles.get(battle.id).reason == "cleanup_uncertain"
+      assert Repo.get!(Attempt, attempt.id).result["cleanup_verified"] == false
+      assert {:error, :cleanup_required} = Battles.stop(battle.id)
+    end
+
+    assert length(Battles.attempts(battle.id)) == 1
+    assert Battles.get(battle.id).stage == "admission"
+    refute_receive {:stop_handoff, _, _}, 100
   end
 
   defp await(fun, remaining \\ 100)
