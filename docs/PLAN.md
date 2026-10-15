@@ -92,7 +92,8 @@ The numbered story below is capability coverage, not eight mandatory screens.
 - [x] **R080a — Direct controls:** confirmed per-agent Disconnect unassigns current
   roles while retaining history; saved roles no longer expire on catalog age alone.
   Create tasks, repository setup and extra boards use dialogs; manual tasks use +
-  on Specs/ToDo; team version numbers stay in history. [Task](../tasks/R080a-arena-controls.md).
+  on Specs/ToDo; team version numbers stay in history. Packaged smoke and preserved
+  saved-workspace relaunch verified 2026-10-15. [Task](../tasks/R080a-arena-controls.md).
 - [ ] **R060 / R070 / R080:** complete recovery, parallel workers, both dashboards
   and timed ten-minute acceptance. Usable Arena UI ships with each earlier slice.
 

@@ -1,7 +1,8 @@
 # R080a — Direct agent and Arena controls
 
-Status: implementation verified, 2026-10-14. Branch: `feature/R080a-arena-controls`.
-Bundled rebuild/relaunch pending graceful Quit of the existing saved app.
+Status: complete, 2026-10-15. Implementation merged locally to `main` as
+`90512ea`; feature branch deleted. Packaged rebuild/smoke and saved-workspace
+relaunch verified after the user's graceful Quit.
 
 - [x] Each agent has confirmed Disconnect; unassign its roles in current default,
   Arena and board teams with immutable history, exact connection scope and no
@@ -15,7 +16,7 @@ Bundled rebuild/relaunch pending graceful Quit of the existing saved app.
 - [x] Research primary Kanban references; use existing UI/native facilities.
 - [x] Focused checks, full quality, production assets/compile, source smoke and
   desktop/narrow browser verification; update docs/AGENTS/README.
-- [ ] Replace the running bundle, packaged smoke and relaunch the preserved saved
+- [x] Replace the running bundle, packaged smoke and relaunch the preserved saved
   workspace after graceful Quit. No forced shutdown or provider calls.
 
 [Verification and handoff](../worklog/2026-10-14-R080a-arena-controls.md). Local

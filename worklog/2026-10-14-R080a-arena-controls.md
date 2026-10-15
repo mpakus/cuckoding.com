@@ -68,14 +68,39 @@ and must refuse connections retained by active battles or in-flight planning.
   all eight tests and format check passed. No broader behavior changed after the
   307-test quality run.
 
-## Handoff
+## Packaged completion — 2026-10-15
 
-Source/UI implementation is verified. Full bundle replacement/smoke and reopening
-are pending graceful Quit of the still-running prior bundle. The user was asked
-because native tray automation repeatedly timed out; `bin/dev.build` correctly
-refuses to overwrite a running bundle. No forced shutdown, migration, personal
-profile import, real disconnect or inference occurred. After Quit, run
-`rtk proxy bin/dev.build`, `rtk proxy bin/smoke`, and reopen the exact preserved
-`/private/tmp/cuckoding-r050c-proof-vvr7u4wp/Open Cuckoding Test.command` launcher.
-Verify database/history preservation against the private backup and record the
-new listener. Physical/recovery/live-provider release acceptance remains open.
+The user confirmed graceful Quit. Filtered `ps` process identities showed no
+remaining repository runtime/BEAM before replacement. The saved DB passed
+integrity and foreign-key checks; retained another exclusive 0600 SQLite backup
+at `.ccoding/r080a-validation/after-quit.sqlite3` without overwriting the earlier
+backup. Menubar-shell and quality-gates guidance applied to packaging verification.
+
+- `rtk proxy env PATH=/Users/mpak/.cargo/bin:/Users/mpak/.asdf/installs/elixir/1.20.3-otp-28/bin:/Users/mpak/.asdf/installs/erlang/28.5/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin bin/dev.build`
+  — passed assets, production release and locked Tauri app build. Expected
+  OpenSSL relocation signature warnings were followed by replacement signatures.
+  No dependency or tracked generated-file changes.
+- `rtk proxy bin/smoke` — passed bundled launch, bootstrap, browser cookie,
+  handoff replay/origin refusal, heartbeat, graceful quit and listener cleanup.
+  Disposable smoke data retained at `/private/tmp/ccoding-smoke.enXe1w`.
+- Reopened the unchanged saved launcher
+  `/private/tmp/cuckoding-r050c-proof-vvr7u4wp/Open Cuckoding Test.command`.
+  At verification, native PID 80158 owned BEAM 80159 and the single loopback
+  listener `127.0.0.1:49852`; BEAM cwd was the preserved saved data directory.
+  These are dated observations, not stable future launch identities.
+- Compared every application table against the after-Quit backup, excluding
+  transient browser tokens and checking events separately. All application rows
+  were identical: 2 named connections plus the legacy Workspace projection,
+  2 Arenas/boards, 2 team revisions, 2 tasks/revisions and 57 commands. All 230
+  historical events remained unchanged; only shell/browser authorization events
+  were appended. Schema stayed at 11 migrations; integrity OK, no FK errors.
+- In the actual reopened Chrome session, verified the saved roster, all
+  Disconnect buttons, existing Arena/cards, Create tasks modal, Escape close and
+  return focus. No local-read, provider, Disconnect or battle action was run.
+  The Arena's existing Speculator/Secutor assignment still points to signed-out
+  legacy Codex; connected c2 and Cursor were preserved without substitution.
+
+Implementation is on local main (`90512ea`), with packaging evidence recorded in
+this follow-up. No push/deployment, forced shutdown, profile import, real disconnect
+or inference occurred. README/AGENTS behavior remains current from that implementation.
+Physical/recovery/live-provider and clean-machine release acceptance remains open.
