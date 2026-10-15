@@ -379,7 +379,9 @@ Do not restore the old implementation or treat historical tests as current proof
   listeners. Never dump raw argv/environments. Redact before logs/UI/artifacts.
 - For a requested restart follow [Development](docs/DEVELOPMENT.md): identify only
   owned instances, shut down gracefully, preserve data, verify cleanup, then
-  launch one chosen build. Never kill unrelated provider apps.
+  launch one chosen build. An unusable tray may use the documented normal backend
+  shutdown only after verified idle state, backup and native process identity.
+  Never kill unrelated provider apps.
 
 ## UI
 

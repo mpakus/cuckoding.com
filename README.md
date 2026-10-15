@@ -90,6 +90,8 @@ When a stage reports after its time limit, **Inspect** retains its result and ed
 as expired evidence, without accepting completion. **Stop** can close that battle
 once every worker's cleanup is verified. Unknown cleanup still blocks new work;
 late results cannot Resume, Retry or Skip. [Deadline recovery](tasks/R060e-late-stage-receipts.md).
+The packaged build, smoke test and preserved-workspace relaunch were verified
+2026-10-15; [build evidence](worklog/2026-10-15-R060e-late-stage-receipts.md).
 **Retry failed stage** is available for settled transient provider failures in new
 battles: two retries per task, plus two shared by final stages, within the same
 time/turn limits. A failed Implementor returns through a fresh worktree and

@@ -358,6 +358,17 @@ Use the graceful shell shutdown path, verify process/listener cleanup, then open
 one explicitly chosen build and record its identity. Do not kill unrelated Codex,
 Claude, Cursor or Hermes processes. The R010 app identity is `com.cuckoding.rebuild`.
 
+If the tray is unavailable, an idle workspace can use Erlang's normal `SIGTERM`
+shutdown as a fallback. First verify no battle retains resources, no provider/setup
+command is active, and the database integrity/foreign-key checks pass; take a
+private online backup. Bind the exact backend executable, parent, data-root cwd
+and start identity, then signal through its macOS audit token so PID reuse cannot
+target a different process. Wait for the backend's normal exit, the shell's
+heartbeat-driven exit and listener closure before replacing the bundle. Never
+escalate an uncertain shutdown or use this procedure for active work. This fallback
+does not produce the tray's `shell.quit_requested` event; record it in the worklog.
+[Erlang signal behavior](https://www.erlang.org/docs/29/apps/kernel/kernel_app.html).
+
 ## Toolchain and distribution
 
 Keep Elixir/OTP, Phoenix LiveView/Tailwind, Ecto/SQLite, Git worktrees and Tauri 2.

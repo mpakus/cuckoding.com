@@ -92,7 +92,8 @@ The numbered story below is capability coverage, not eight mandatory screens.
   uncertain claims for inspection. [Task](../tasks/R060d-restart-checkpoints.md).
 - [x] **R060e — Expired stage evidence:** retain validated late results without
   advancing work; allow confirmed Stop only with all cleanup verified. No Resume,
-  Retry, Skip or replay from expired receipts. [Task](../tasks/R060e-late-stage-receipts.md).
+  Retry, Skip or replay from expired receipts. Packaged smoke and preserved-workspace
+  relaunch verified 2026-10-15. [Task](../tasks/R060e-late-stage-receipts.md).
 - [x] **R080a — Direct controls:** confirmed per-agent Disconnect unassigns current
   roles while retaining history; saved roles no longer expire on catalog age alone.
   Create tasks, repository setup and extra boards use dialogs; manual tasks use +

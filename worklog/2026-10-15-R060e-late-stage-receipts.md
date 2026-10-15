@@ -48,14 +48,48 @@ The prior running app is a separate artifact; source changes do not update it
 automatically. Missing native receipts, full recovery, sleep reconciliation,
 parallel workers and real-provider beta acceptance remain open.
 
-## Handoff
+## Local integration
 
 Implementation `b6af1a3` was fast-forward merged into local main; feature branch
-deleted, no push. Rebuild/relaunch is pending the user's Quit response after tray
-automation timed out. The last verified saved app remains the prior build on
-`127.0.0.1:49852` (native 80158 / BEAM 80159); recheck ownership before any restart.
-After graceful Quit, run `rtk proxy bin/dev.build` with the pinned toolchain PATH,
-then `rtk proxy bin/smoke` and the preserved
-`/private/tmp/cuckoding-r050c-proof-vvr7u4wp/Open Cuckoding Test.command` launcher.
-Compare saved records/history to the private backup and verify the new listener.
-Do not count prior packaged evidence as this source revision's build verification.
+deleted, no push. `d0ba482` recorded the then-pending packaged rebuild.
+
+## Packaged completion — 2026-10-15
+
+- The user reported the tray menu missing/unresponsive after automation timed out.
+  Verified the old native/BEAM identities (80158/80159, start 00:13:38), executable,
+  parent, saved cwd and listener 49852. The DB contained no battles and no active
+  commands; integrity/FK checks passed. Exclusive 0600 online backups are retained
+  under `.ccoding/r060e-validation/` as `before-normal-stop.sqlite3` and
+  `after-quit.sqlite3`.
+- Used the backend's macOS audit token to bind a normal `SIGTERM` shutdown to that
+  process, following Erlang's documented `init:stop()` behavior and the existing
+  shell fallback. Backend and native shell exited; listener closed without forced
+  kill. Every table was unchanged through shutdown. No tray quit event is claimed.
+  The first identity assertion refused before any effect because `ps` pads columns;
+  separate exact executable/start reads resolved that formatting mismatch.
+- `rtk proxy env PATH=/Users/mpak/.cargo/bin:/Users/mpak/.asdf/installs/elixir/1.20.3-otp-28/bin:/opt/homebrew/opt/erlang/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin bin/dev.build`
+  — passed with locked dependencies, production compilation and Tauri app bundle.
+  Expected OpenSSL relocation warnings were followed by replacement signatures.
+  OTP 28.5 is the installed Homebrew toolchain; the old asdf Erlang path is absent.
+- `rtk proxy bin/smoke` — passed bundled launch/bootstrap, browser cookie, replay/
+  origin refusal, heartbeat, graceful Quit and listener cleanup. Disposable smoke
+  data remains at `/private/tmp/ccoding-smoke.gYEWJK`.
+- Reopened the unchanged saved launcher
+  `/private/tmp/cuckoding-r050c-proof-vvr7u4wp/Open Cuckoding Test.command`.
+  Native 16481 and BEAM 16483 started at 13:27:39 with the saved data root
+  `/private/tmp/cuckoding-r050c-proof-vvr7u4wp/data`; listener `127.0.0.1:64974`.
+- Compared every saved table with the post-shutdown backup: agents, model choices,
+  team/task revisions and old events unchanged. Only browser session rows and
+  `shell.authorized`/`browser.authorized` events (232 → 234, matching sequence)
+  changed. Integrity/FK checks passed; schema remains 11 migrations. Retained counts:
+  2 additional connections, 2 Arenas, 2 boards, 2 team revisions, 2 drafts/revisions
+  and 57 commands.
+- Chrome's authenticated UI confirmed the roster/Add agent, Team/Add role, both
+  Arenas and Ura Mawashi's two Specs cards. Its saved legacy Codex Speculator/
+  Secutor bindings remain signed out, while Cursor and c2 remain signed in.
+  No role substitution, authorization change or provider inference was performed.
+- Task, plan, README and contributor/development restart instructions now reflect
+  completion. `rtk git diff --check` passed; the Python reference check validated
+  206 local Markdown file references across 23 documents. This verifies local
+  packaging and preservation; real-account battle,
+  sleep/recovery and clean-machine beta acceptance remain open. No push/deployment.
