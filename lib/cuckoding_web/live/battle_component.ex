@@ -296,6 +296,34 @@ defmodule CuckodingWeb.BattleComponent do
       <p class="fine-print">
         Public summaries and retained attempt receipts. Original criteria remain part of the frozen scope.
       </p>
+      <p
+        :if={@battle.context["integration_recovery_pending"]}
+        id="battle-recovery-inspecting"
+        class="notice"
+      >
+        Checking retained integration evidence. No Git change will be repeated.
+      </p>
+      <article
+        :for={{id, receipt} <- @battle.context["integration_reconciliations"] || %{}}
+        id={"battle-reconciliation-#{id}"}
+        class="team-role"
+      >
+        <h4>
+          Recovery inspection · {if receipt["status"] == "integrated",
+            do: "Verified",
+            else: "Needs inspection"}
+        </h4>
+        <p class="fine-print">
+          Original interrupted attempt: <code>{id}</code>. No Git change was repeated.
+        </p>
+        <p :if={receipt["status"] == "integrated"}>
+          Retained integration and cleanup verified. Candidate: <code>{receipt["head"]}</code>.
+          This observation does not authorize Resume or extend the original time limits.
+        </p>
+        <p :if={receipt["status"] != "integrated"}>
+          Evidence could not be verified: {label(receipt["reason"])}. Cleanup remains uncertain.
+        </p>
+      </article>
       <details id="battle-frozen-tasks" phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
         <summary>Authorized tasks · {length(@battle_tasks)}</summary>
         <article :for={task <- @battle_tasks} class="team-role">

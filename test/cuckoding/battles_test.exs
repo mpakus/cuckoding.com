@@ -1087,6 +1087,207 @@ defmodule Cuckoding.BattlesTest do
     assert Battles.get(battle.id).turns_used == paused.snapshot["limits"]["turns"]
   end
 
+  defp integration_result(attempt) do
+    head = attempt.request["task_context"]["candidate_sha"]
+
+    native = %{
+      "status" => "battle_integrated",
+      "key" => attempt.id,
+      "battle_key" => attempt.battle_id,
+      "base" => String.duplicate("a", 40),
+      "head" => head,
+      "previous_head" => attempt.request["context"]["head"],
+      "reference" => "refs/heads/ccoding/battles/" <> attempt.battle_id,
+      "candidate_key" => attempt.request["task_context"]["native_candidate"]["key"],
+      "manifest_sha256" => String.duplicate("b", 64)
+    }
+
+    result(attempt, %{"native_battle" => native})
+  end
+
+  test "retained native integration is reconciled once to an explicit paused boundary", ctx do
+    for state <- ~w(running pausing) do
+      battle = start(ctx.board) |> until_stage("integrate")
+      assert battle.snapshot["native_recovery"] == "retained-integration-v1"
+      {:ok, attempt} = Battles.claim_next(battle.id)
+      receipt = integration_result(attempt)
+      if state == "pausing", do: Battles.pause(battle.id, battle.control_revision)
+      {:ok, [_]} = Battles.recover()
+      interrupted = Repo.get!(Attempt, attempt.id)
+      assert interrupted.state == "interrupted"
+      assert Battles.recovery_attempt() == interrupted
+      assert Battles.reconciliation_current?(interrupted)
+      {:ok, paused} = Battles.reconcile_integration(interrupted, receipt)
+      assert paused.state == "paused"
+      assert paused.stage == "prepare_worktree"
+      assert paused.current_task_id == ctx.second.id
+      assert paused.context["head"] == receipt["head"]
+      assert paused.context["integration_reconciliations"][attempt.id] == receipt
+      assert paused.snapshot == battle.snapshot
+      assert paused.deadline_at == battle.deadline_at
+      assert paused.turns_used == battle.turns_used
+      assert Repo.get!(Attempt, attempt.id) == interrupted
+      assert hd(Battles.tasks(battle.id)).state == "completed"
+      assert {:error, :not_running} = Battles.claim_next(battle.id)
+      assert {:error, :stale_reconciliation} = Battles.reconcile_integration(interrupted, receipt)
+      assert {:ok, [^paused]} = Battles.recover()
+      assert is_nil(Battles.recovery_attempt())
+
+      assert Enum.count(
+               Battles.evidence(battle.id),
+               &(&1.kind == "battle.integration_reconciled")
+             ) == 1
+
+      assert {:error, :stale_attempt} = Battles.finish(attempt.id, attempt.claim_token, receipt)
+      {:ok, resumed} = Battles.resume(battle.id, paused.control_revision)
+      assert resumed.deadline_at == battle.deadline_at
+      {:ok, next} = Battles.claim_next(battle.id)
+      assert next.stage == "prepare_worktree"
+      refute next.id == attempt.id
+      {:ok, _} = Battles.finish(next.id, next.claim_token, result(next))
+      {:ok, _} = Battles.stop(battle.id)
+    end
+  end
+
+  test "reconciliation never arms for historical grants, interrupted Stop or provider stages",
+       ctx do
+    for scenario <- ~w(historical stop provider) do
+      stage = if scenario == "provider", do: "implementor", else: "integrate"
+
+      battle =
+        if scenario == "historical" do
+          {:ok, preview} = Battles.preview(ctx.board.arena_id, ctx.board.id)
+          snapshot = Map.delete(preview.snapshot, "native_recovery")
+
+          battle =
+            Repo.insert!(%Battle{
+              id: Ecto.UUID.generate(),
+              arena_id: ctx.board.arena_id,
+              tabula_id: ctx.board.id,
+              snapshot: snapshot,
+              fingerprint: Snapshot.digest(snapshot),
+              state: "running",
+              stage: "admission",
+              deadline_at: DateTime.add(DateTime.utc_now(), 7200)
+            })
+
+          for {task, position} <- Enum.with_index(snapshot["tasks"]) do
+            Repo.insert!(%Cuckoding.Battles.Task{
+              id: Ecto.UUID.generate(),
+              battle_id: battle.id,
+              task_id: task["id"],
+              position: position,
+              snapshot: task
+            })
+          end
+
+          battle
+        else
+          start(ctx.board)
+        end
+
+      battle = until_stage(battle, stage)
+
+      {:ok, attempt} = Battles.claim_next(battle.id)
+      if scenario == "stop", do: Battles.stop(battle.id)
+      {:ok, [recovered]} = Battles.recover()
+      assert recovered.state == "needs_attention"
+      assert is_nil(Battles.recovery_attempt())
+      refute Battles.reconciliation_current?(Repo.get!(Attempt, attempt.id))
+      assert {:error, :cleanup_required} = Battles.stop(battle.id)
+      # Keep the fixture Arena available for the next independent scenario.
+      Repo.update!(Ecto.Changeset.change(recovered, state: "stopped"))
+    end
+  end
+
+  test "missing or foreign recovery receipts preserve unknown cleanup and interrupted history",
+       ctx do
+    battle = start(ctx.board) |> until_stage("integrate")
+    {:ok, attempt} = Battles.claim_next(battle.id)
+    receipt = integration_result(attempt)
+    {:ok, [_]} = Battles.recover()
+    interrupted = Repo.get!(Attempt, attempt.id)
+
+    assert {:error, :foreign_result} =
+             Battles.reconcile_integration(
+               interrupted,
+               Map.put(receipt, "request_id", Ecto.UUID.generate())
+             )
+
+    for field <- ~w(key battle_key previous_head candidate_key head) do
+      invalid = put_in(receipt, ["native_battle", field], "foreign")
+      assert {:error, :invalid_result} = Battles.reconcile_integration(interrupted, invalid)
+    end
+
+    forged = %{interrupted | request: Map.put(interrupted.request, "stage", "capture")}
+    refute Battles.reconciliation_current?(forged)
+    assert {:error, :stale_reconciliation} = Battles.reconcile_integration(forged, receipt)
+    assert Battles.recovery_attempt() == interrupted
+
+    failure =
+      result(attempt, %{
+        "status" => "failed",
+        "reason" => "battle_mismatch",
+        "cleanup_verified" => false
+      })
+
+    {:ok, attention} = Battles.reconcile_integration(interrupted, failure)
+    assert attention.state == "needs_attention"
+    assert is_nil(Battles.recovery_attempt())
+    assert Repo.get!(Attempt, attempt.id) == interrupted
+    assert {:error, :cleanup_required} = Battles.stop(battle.id)
+    assert {:error, :stale_reconciliation} = Battles.reconcile_integration(interrupted, receipt)
+
+    assert Enum.count(Battles.evidence(battle.id), &(&1.kind == "battle.integration_reconciled")) ==
+             1
+  end
+
+  test "recovery observation and next checkpoint roll back together on a failed event write",
+       ctx do
+    battle = start(ctx.board) |> until_stage("integrate")
+    {:ok, attempt} = Battles.claim_next(battle.id)
+    receipt = integration_result(attempt)
+    {:ok, [_]} = Battles.recover()
+    interrupted = Repo.get!(Attempt, attempt.id)
+    before = Battles.get(battle.id)
+    before_tasks = Battles.tasks(battle.id)
+
+    Repo.query!("""
+    CREATE TEMP TRIGGER reject_reconciliation BEFORE INSERT ON events
+    WHEN NEW.kind = 'battle.recovery_paused'
+    BEGIN SELECT RAISE(ABORT, 'reconciliation rollback canary'); END
+    """)
+
+    assert_raise Exqlite.Error, fn -> Battles.reconcile_integration(interrupted, receipt) end
+    assert Battles.get(battle.id) == before
+    assert Battles.tasks(battle.id) == before_tasks
+    assert Repo.get!(Attempt, attempt.id) == interrupted
+    assert Battles.recovery_attempt() == interrupted
+    refute Enum.any?(Battles.evidence(battle.id), &(&1.kind == "battle.integration_reconciled"))
+    Repo.query!("DROP TRIGGER reject_reconciliation")
+    assert {:ok, %{state: "paused"}} = Battles.reconcile_integration(interrupted, receipt)
+  end
+
+  test "expired integration observations close cleanup for Stop without accepting work", ctx do
+    battle = start(ctx.board) |> until_stage("integrate")
+    {:ok, attempt} = Battles.claim_next(battle.id)
+    receipt = integration_result(attempt)
+    {:ok, [_]} = Battles.recover()
+    interrupted = Repo.get!(Attempt, attempt.id)
+    tasks = Battles.tasks(battle.id)
+    {:ok, attention} = Battles.reconcile_integration(interrupted, receipt, attempt.deadline_at)
+    assert attention.state == "needs_attention"
+    assert attention.reason == "late_result_rejected"
+    assert attention.stage == "integrate"
+    assert attention.context["head"] == battle.context["head"]
+    assert Enum.map(Battles.tasks(battle.id), & &1.state) == Enum.map(tasks, & &1.state)
+    assert Repo.get!(Attempt, attempt.id) == interrupted
+    assert {:error, :stale_control} = Battles.resume(battle.id, attention.control_revision)
+    refute Battles.retry_available?(attention)
+    assert Battles.skip_preview(attention) == []
+    assert {:ok, %{state: "stopped"}} = Battles.stop(battle.id)
+  end
+
   test "restart preserves a clean pause but never resumes an interrupted pausing worker", ctx do
     battle = start(ctx.board) |> until_stage("implementor")
     {:ok, paused} = Battles.pause(battle.id, 0)

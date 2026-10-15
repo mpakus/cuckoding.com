@@ -99,6 +99,8 @@ defmodule Cuckoding.BattleExecutorTest do
       })
     end
 
+    defp git("recover_integration", id, payload), do: git("integrate_candidate", id, payload)
+
     def resolve(checks) do
       assert checks != [], "Empty command scopes must never reach native command resolution"
       {:ok, Enum.map(checks, &Map.merge(&1, %{"identity" => %{}, "rtk_identity" => %{}}))}
@@ -1088,6 +1090,138 @@ defmodule Cuckoding.BattleExecutorTest do
     assert length(Battles.attempts(battle.id)) == 1
     assert Battles.get(battle.id).stage == "admission"
     refute_receive {:stop_handoff, _, _}, 100
+  end
+
+  test "startup reconciliation uses an async worker and survives a lost completion notification",
+       ctx do
+    battle = start(ctx.board) |> until_stage("integrate")
+    {:ok, attempt} = Battles.claim_next(battle.id)
+    parent = self()
+
+    reconciler = fn interrupted ->
+      send(parent, {:reconciling, self(), interrupted})
+
+      receive do
+        :inspect -> BattleExecutor.reconcile_integration(interrupted, git: Adapters)
+      end
+    end
+
+    executor = fn next ->
+      send(parent, {:unexpected_stage, next})
+      raise "should remain paused"
+    end
+
+    start_supervised!(
+      {Cuckoding.ExecutionSupervisor,
+       coordinator: BattleRunner,
+       tasks: Cuckoding.BattleTasks,
+       options: [executor: executor, reconciler: reconciler]}
+    )
+
+    runner = Process.whereis(BattleRunner)
+    assert_receive {:reconciling, worker, interrupted}, 1_000
+    assert worker != runner
+    assert worker in Task.Supervisor.children(Cuckoding.BattleTasks)
+    assert interrupted.id == attempt.id
+    assert interrupted.state == "interrupted"
+    assert :sys.get_state(runner).job != nil
+    :sys.suspend(runner)
+    monitor = Process.monitor(worker)
+    send(worker, :inspect)
+    assert_receive {:DOWN, ^monitor, :process, ^worker, :normal}, 1_000
+    paused = Battles.get(battle.id)
+    assert paused.state == "paused"
+    assert paused.current_task_id == ctx.second.id
+    assert paused.context["head"] == attempt.request["task_context"]["candidate_sha"]
+    assert Repo.get!(Attempt, attempt.id) == interrupted
+    Process.exit(runner, :kill)
+
+    await(fn ->
+      is_pid(Process.whereis(BattleRunner)) and Process.whereis(BattleRunner) != runner
+    end)
+
+    assert Battles.get(battle.id) == paused
+    refute_receive {:reconciling, _, _}, 100
+    refute_receive {:unexpected_stage, _}, 100
+    {:ok, resumed} = Battles.resume(battle.id, paused.control_revision)
+    assert resumed.snapshot == battle.snapshot
+    assert resumed.deadline_at == battle.deadline_at
+    {next, _, _} = step(resumed)
+    assert next.stage == "coordinator"
+    {:ok, _} = Battles.pause(battle.id, resumed.control_revision)
+  end
+
+  test "crashing during read-only reconciliation can repeat the observation without replaying integration",
+       ctx do
+    battle = start(ctx.board) |> until_stage("integrate")
+    {:ok, attempt} = Battles.claim_next(battle.id)
+    parent = self()
+
+    reconciler = fn interrupted ->
+      send(parent, {:reading_receipt, self(), interrupted})
+
+      receive do
+        :inspect -> BattleExecutor.reconcile_integration(interrupted, git: Adapters)
+      end
+    end
+
+    start_supervised!(
+      {Cuckoding.ExecutionSupervisor,
+       coordinator: BattleRunner, tasks: Cuckoding.BattleTasks, options: [reconciler: reconciler]}
+    )
+
+    assert_receive {:reading_receipt, first_worker, interrupted}, 1_000
+    monitor = Process.monitor(first_worker)
+    Process.exit(Process.whereis(BattleRunner), :kill)
+    assert_receive {:DOWN, ^monitor, :process, ^first_worker, :shutdown}, 1_000
+    assert_receive {:reading_receipt, next_worker, ^interrupted}, 1_000
+    assert next_worker != first_worker
+    assert Repo.get!(Attempt, attempt.id) == interrupted
+    send(next_worker, :inspect)
+    await(fn -> Battles.get(battle.id).state == "paused" end)
+
+    assert Enum.count(Battles.evidence(battle.id), &(&1.kind == "battle.integration_reconciled")) ==
+             1
+
+    assert List.last(Battles.attempts(battle.id)).id == attempt.id
+    assert Repo.get!(Attempt, attempt.id) == interrupted
+    refute_receive {:reading_receipt, _, _}, 100
+  end
+
+  test "failed or malformed reconciliation runs once and keeps native cleanup uncertain", ctx do
+    battle = start(ctx.board) |> until_stage("integrate")
+    {:ok, attempt} = Battles.claim_next(battle.id)
+    parent = self()
+
+    reconciler = fn interrupted ->
+      send(parent, {:reconciliation_called, interrupted.id})
+
+      Map.merge(
+        Map.take(interrupted.request, ~w(battle_id request_id task_id stage criteria_sha256)),
+        %{
+          "status" => "integrated",
+          "head" => "forged",
+          "candidate_sha" => "forged",
+          "cleanup_verified" => true
+        }
+      )
+    end
+
+    start_supervised!(
+      {Cuckoding.ExecutionSupervisor,
+       coordinator: BattleRunner, tasks: Cuckoding.BattleTasks, options: [reconciler: reconciler]}
+    )
+
+    assert_receive {:reconciliation_called, id}, 1_000
+    assert id == attempt.id
+    await(fn -> is_nil(Battles.recovery_attempt()) end)
+    attention = Battles.get(battle.id)
+    assert attention.state == "needs_attention"
+    observation = attention.context["integration_reconciliations"][attempt.id]
+    assert observation["reason"] == "invalid_recovery_receipt"
+    assert observation["cleanup_verified"] == false
+    assert {:error, :cleanup_required} = Battles.stop(battle.id)
+    refute_receive {:reconciliation_called, _}, 100
   end
 
   defp await(fun, remaining \\ 100)

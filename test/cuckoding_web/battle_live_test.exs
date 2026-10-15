@@ -529,6 +529,59 @@ defmodule CuckodingWeb.BattleLiveTest do
     refute has_element?(view, "#battle-start-form")
   end
 
+  test "recovery inspections remain visible after reconnect without resuming work", ctx do
+    signed = sign_in(ctx.conn)
+    {:ok, view, _} = live(signed, ctx.path)
+    view |> form("#battle-start-form") |> render_submit()
+    battle = Battles.latest(ctx.arena.id, ctx.board.id)
+    id = Ecto.UUID.generate()
+
+    battle =
+      Repo.update!(
+        Ecto.Changeset.change(battle,
+          state: "needs_attention",
+          reason: "restart_requires_inspection",
+          context: %{"integration_recovery_pending" => id}
+        )
+      )
+
+    Foundation.broadcast()
+    assert has_element?(view, "#battle-recovery-inspecting", "No Git change will be repeated")
+
+    for status <- ~w(failed integrated) do
+      receipt = %{
+        "status" => status,
+        "reason" => "battle_mismatch",
+        "head" => String.duplicate("a", 40)
+      }
+
+      Repo.update!(
+        Ecto.Changeset.change(battle,
+          context: %{"integration_reconciliations" => %{id => receipt}}
+        )
+      )
+
+      Foundation.broadcast()
+      refute has_element?(view, "#battle-recovery-inspecting")
+      assert has_element?(view, "#battle-reconciliation-#{id}", "No Git change was repeated")
+
+      assert has_element?(
+               view,
+               "#battle-reconciliation-#{id}",
+               if(status == "failed",
+                 do: "Cleanup remains uncertain",
+                 else: "Retained integration and cleanup verified"
+               )
+             )
+
+      refute has_element?(view, "#battle-resume")
+      refute has_element?(view, "#battle-start-form")
+      {:ok, again, _} = live(signed, ctx.path)
+      assert has_element?(again, "#battle-reconciliation-#{id}")
+      refute has_element?(again, "#battle-resume")
+    end
+  end
+
   test "expired receipts explain retained work and require confirmed Stop after reconnect", ctx do
     signed = sign_in(ctx.conn)
     {:ok, view, _} = live(signed, ctx.path)

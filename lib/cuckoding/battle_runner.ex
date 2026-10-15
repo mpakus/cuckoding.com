@@ -10,15 +10,30 @@ defmodule Cuckoding.BattleRunner do
   def init(options) do
     {:ok, _} = Battles.recover()
     send(self(), :poll)
-    {:ok, %{job: nil, executor: Keyword.get(options, :executor, &BattleExecutor.execute/1)}}
+
+    {:ok,
+     %{
+       job: nil,
+       executor: Keyword.get(options, :executor, &BattleExecutor.execute/1),
+       reconciler: Keyword.get(options, :reconciler, &BattleExecutor.reconcile_integration/1)
+     }}
   end
 
   @impl true
   def handle_info(:poll, %{job: nil} = state) do
     job =
-      Enum.find_value(Battles.active(), fn battle ->
-        start_stage(Battles.claim_next(battle.id), state.executor)
-      end)
+      if attempt = Battles.recovery_attempt() do
+        task =
+          Task.Supervisor.async_nolink(Cuckoding.BattleTasks, fn ->
+            run_recovery(attempt, state.reconciler)
+          end)
+
+        {task, attempt, :recovery}
+      else
+        Enum.find_value(Battles.active(), fn battle ->
+          start_stage(Battles.claim_next(battle.id), state.executor)
+        end)
+      end
 
     if is_nil(job), do: Process.send_after(self(), :poll, 500)
     {:noreply, %{state | job: job}}
@@ -30,8 +45,23 @@ defmodule Cuckoding.BattleRunner do
     {:noreply, %{state | job: nil}}
   end
 
+  def handle_info({ref, :settled}, %{job: {%Task{ref: ref}, _attempt, :recovery}} = state) do
+    Process.demonitor(ref, [:flush])
+    send(self(), :poll)
+    {:noreply, %{state | job: nil}}
+  end
+
   def handle_info({:DOWN, ref, :process, _, _}, %{job: {%Task{ref: ref}, attempt}} = state) do
     settle(attempt, failure(attempt, "worker_interrupted", false))
+    send(self(), :poll)
+    {:noreply, %{state | job: nil}}
+  end
+
+  def handle_info(
+        {:DOWN, ref, :process, _, _},
+        %{job: {%Task{ref: ref}, attempt, :recovery}} = state
+      ) do
+    Battles.reconcile_integration(attempt, failure(attempt, "reconciliation_interrupted", false))
     send(self(), :poll)
     {:noreply, %{state | job: nil}}
   end
@@ -54,6 +84,23 @@ defmodule Cuckoding.BattleRunner do
     :settled
   catch
     # Task error reports must not print provider or database payloads.
+    _, _ -> exit(:shutdown)
+  end
+
+  defp run_recovery(attempt, reconciler) do
+    case Battles.reconcile_integration(attempt, reconciler.(attempt)) do
+      {:error, reason} when reason in [:invalid_result, :foreign_result] ->
+        Battles.reconcile_integration(
+          attempt,
+          failure(attempt, "invalid_recovery_receipt", false)
+        )
+
+      other ->
+        other
+    end
+
+    :settled
+  catch
     _, _ -> exit(:shutdown)
   end
 

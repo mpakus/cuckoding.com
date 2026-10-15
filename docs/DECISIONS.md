@@ -1,5 +1,23 @@
 # Current decisions
 
+## D029 · Retained integration reconciliation
+
+Accepted 2026-10-15 for R060g. New battle Starts freeze
+`native_recovery: retained-integration-v1`. After restart, only an interrupted
+integration may inspect its exact durable native intent/publication/receipt under
+the existing repository lock. Revalidate source identity, app ref, candidate
+ancestry and owned worktree integrity; never repeat the mutation or manufacture
+a missing receipt. Run inspection in the supervised battle worker, outside DB
+transactions and coordinator callbacks.
+
+SQLite retains the interrupted attempt unchanged and appends the normalized
+observation with an atomic guarded transition. Verified outcomes within both
+original deadlines advance exactly once to Paused, requiring explicit Resume.
+Late verified effects may close cleanup for Stop but cannot advance. Failed or
+missing evidence stays needs-attention. Historical snapshots, interrupted Stop,
+provider stages, uncertain native publication and sleep/lease recovery retain
+their existing gates. This extends checkpoint recovery, not general crash recovery.
+
 Accepted product reset: 2026-10-06. Earlier ADRs remain in Git history; they do
 not establish implementation or acceptance of this rebuild.
 

@@ -49,6 +49,19 @@ explicit Resume. Missing or uncommitted results still require inspection. Stop
 can close a race with a finished stage only when its exact result validates and
 verifies cleanup; malformed/foreign flags cannot establish cleanup or accept work.
 
+R060g freezes `native_recovery: retained-integration-v1` in new Starts. A restart
+interrupted at integration may verify the already-written native intent,
+publication and receipt against the exact frozen request, current app ref,
+candidate ancestry and owned worktree/source identity. This is a read-only
+inspection in a supervised worker; no ref is moved and no receipt is recreated.
+The original Interrupted attempt stays intact. A separate durable observation
+advances a verified result once to Paused, requiring explicit Resume with all
+original limits and bindings. If either original deadline passed, the verified
+effect closes cleanup for confirmed Stop only; cards/head never advance.
+Inspect shows the pending inspection and retained observation after reconnect.
+Missing or mismatched evidence remains needs-attention. Historical grants,
+interrupted Stop and other native/provider stages cannot use this path.
+
 R060b adds **Retry failed stage** for new snapshots with `recovery: provider-retry-v1`
 and a frozen two-retry cap per task, plus two shared by final stages. Only normalized
 launch/timeout/connection/provider/busy/turn failures with verified cleanup qualify.

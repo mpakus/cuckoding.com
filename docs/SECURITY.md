@@ -188,6 +188,17 @@ sleep/wake, recovery, settings changes and cleanup. Keep hidden chain-of-thought
 out of every artifact and UI. Public reasoning summaries and tool activity are
 sufficient.
 
+R060g adds only fixed read-only retained integration inspection. New Start
+snapshots opt into `retained-integration-v1`; startup binds the pending read to
+the exact interrupted integration, after settled earlier stages. Native code
+requires existing exact intent/publication/receipt under the repository lock,
+rechecks source identity, app ref, candidate ancestry and owned worktree bytes,
+and never repairs or replays publication. Failed reads prove no cleanup. The
+domain retains the interrupted attempt and records the bound observation
+transactionally before pausing; original deadlines and explicit Resume still
+gate continuation. Historical grants, interrupted Stop, missing receipts,
+provider-store/process recovery, sleep and cross-provider acceptance remain open.
+
 R060f worker completion uses the existing claim/result validators inside the
 transaction, then sends only a completion signal to its coordinator. Unexpected
 worker execution/settlement exceptions terminate with a fixed reason before OTP

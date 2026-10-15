@@ -65,7 +65,7 @@ defmodule Cuckoding.LocalGit do
     ]
 
   defp extra(%{payload: %{"operation" => operation, "request" => request}})
-       when operation in ~w(create_battle verify_battle battle_worktree integrate_candidate),
+       when operation in ~w(create_battle verify_battle battle_worktree integrate_candidate recover_integration),
        do: [Jason.encode!(request)]
 
   defp extra(_), do: []

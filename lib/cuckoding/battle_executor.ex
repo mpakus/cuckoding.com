@@ -18,6 +18,20 @@ defmodule Cuckoding.BattleExecutor do
   @envelope ~w(battle_id request_id task_id stage criteria_sha256)
   @uncertain ~w(cleanup_uncertain unavailable invalid_output candidate_incomplete battle_incomplete worktree_incomplete)
 
+  def reconcile_integration(attempt, adapters \\ []) do
+    active? = fn -> Battles.reconciliation_current?(attempt) end
+    result = integrate(attempt, "recover_integration", active?, adapters)
+    # A failed observation cannot establish cleanup of the original operation.
+    result =
+      if result["status"] == "integrated",
+        do: result,
+        else: Map.put(result, "cleanup_verified", false)
+
+    Map.merge(Map.take(attempt.request, @envelope), result)
+  rescue
+    _ -> Map.merge(Map.take(attempt.request, @envelope), failure("reconciliation_failed", false))
+  end
+
   def execute(attempt, adapters \\ []) do
     active? = fn -> Battles.active_attempt?(attempt.id, attempt.claim_token) end
     result = dispatch(attempt.stage, attempt, active?, adapters)
@@ -141,25 +155,7 @@ defmodule Cuckoding.BattleExecutor do
   end
 
   defp dispatch("integrate", attempt, active?, adapters) do
-    request = candidate_request(attempt)
-    context = attempt.request["task_context"]
-    review = context["provider"]
-
-    with true <- review["access"] == "read" and review["report"]["outcome"] == "completed",
-         %{"status" => "battle_integrated", "head" => head} = battle <-
-           git(attempt, "integrate_candidate", %{"request" => request}, active?, adapters),
-         true <- head == context["candidate_sha"] do
-      %{
-        "status" => "integrated",
-        "head" => head,
-        "candidate_sha" => head,
-        "native_battle" => battle,
-        "cleanup_verified" => true
-      }
-    else
-      false -> failure("independent_review_required")
-      result -> failed_receipt(result)
-    end
+    integrate(attempt, "integrate_candidate", active?, adapters)
   end
 
   defp dispatch(stage, attempt, active?, adapters)
@@ -204,6 +200,28 @@ defmodule Cuckoding.BattleExecutor do
       false -> failure("model_or_grant_changed")
       {:provider_error, receipt} -> Map.put(failed_receipt(receipt), "provider", receipt)
       {:error, result} -> failed_receipt(result)
+      result -> failed_receipt(result)
+    end
+  end
+
+  defp integrate(attempt, operation, active?, adapters) do
+    request = candidate_request(attempt)
+    context = attempt.request["task_context"]
+    review = context["provider"]
+
+    with true <- review["access"] == "read" and review["report"]["outcome"] == "completed",
+         %{"status" => "battle_integrated", "head" => head} = battle <-
+           git(attempt, operation, %{"request" => request}, active?, adapters),
+         true <- head == context["candidate_sha"] do
+      %{
+        "status" => "integrated",
+        "head" => head,
+        "candidate_sha" => head,
+        "native_battle" => battle,
+        "cleanup_verified" => true
+      }
+    else
+      false -> failure("independent_review_required")
       result -> failed_receipt(result)
     end
   end

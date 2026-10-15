@@ -86,6 +86,11 @@ fn current(git: &Git<'_>, battle: &Value, device: u64, inode: u64) -> Result<()>
 fn verified_candidate(git: &Git<'_>, request: &Value, device: u64, inode: u64) -> Result<String> {
     let battle = &request["battle"];
     current(git, battle, device, inode)?;
+    candidate_head(git, request, device, inode)
+}
+
+fn candidate_head(git: &Git<'_>, request: &Value, device: u64, inode: u64) -> Result<String> {
+    let battle = &request["battle"];
     let candidate = &request["candidate"];
     if request["preparation"]["head"] != battle["head"] || candidate["base"] != battle["head"] {
         return Err("battle_stale");
@@ -102,6 +107,33 @@ fn verified_candidate(git: &Git<'_>, request: &Value, device: u64, inode: u64) -
     Ok(head.to_owned())
 }
 
+// Read existing evidence only. In particular, publication without a receipt is
+// not enough to reconstruct success after a crash.
+fn recover_integration(git: &Git<'_>, request: &Value, device: u64, inode: u64) -> Result<Value> {
+    let key = initial::uuid(&request["key"])?;
+    let battle = &request["battle"];
+    if request.as_object().map(|m| m.len()) != Some(4) || request["key"] == battle["battle_key"] {
+        return Err("invalid_request");
+    }
+    let root = retained(git, battle, device, inode)?;
+    let directory = root.join(format!("integration-{key}"));
+    let intent = json!({"request":request,"source_device":device,"source_inode":inode});
+    if load(&directory, "intent.json")? != intent {
+        return Err("battle_mismatch");
+    }
+    let head = candidate_head(git, request, device, inode)?;
+    let expected = json!({"status":"battle_integrated","key":key,"battle_key":battle["battle_key"],"base":battle["base"],
+        "previous_head":battle["head"],"head":head,"reference":battle["reference"],"candidate_key":request["candidate"]["key"],
+        "manifest_sha256":initial::digest(intent.to_string().as_bytes())});
+    if load(&directory, "publication.json")? != expected
+        || load(&directory, "receipt.json")? != expected
+    {
+        return Err("battle_mismatch");
+    }
+    current(git, &expected, device, inode)?;
+    Ok(expected)
+}
+
 pub(in super::super::super) fn run(
     git: &Git<'_>,
     operation: &str,
@@ -114,6 +146,9 @@ pub(in super::super::super) fn run(
     }
     let request: Value = serde_json::from_str(extra).map_err(|_| "invalid_request")?;
     let fields = request.as_object().ok_or("invalid_request")?.len();
+    if operation == "recover_integration" {
+        return recover_integration(git, &request, device, inode);
+    }
     if operation == "verify_battle" {
         if fields != 1 {
             return Err("invalid_request");

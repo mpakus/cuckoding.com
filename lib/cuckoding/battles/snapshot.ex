@@ -62,6 +62,7 @@ defmodule Cuckoding.Battles.Snapshot do
     snapshot = %{
       "version" => "arena-loop-v2",
       "recovery" => "provider-retry-v1",
+      "native_recovery" => "retained-integration-v1",
       "task_selection" => "skip-task-v1",
       "arena_id" => arena.id,
       "tabula_id" => board.id,

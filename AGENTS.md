@@ -68,6 +68,16 @@ inspection gates. Sanitize unexpected worker exits before OTP logging. Invalid/
 foreign results cannot establish cleanup; a Stop racing a valid finished stage
 may use only the exact bound, fully validated cleanup receipt, without accepting work.
 
+R060g freezes `native_recovery: retained-integration-v1` in new Starts. A restart
+may reconcile only an interrupted integration with complete retained native
+intent/publication/receipt and verified source/ref/candidate/worktree identity.
+Use the fixed read-only operation under the repository lock in a supervised
+worker. Never recreate a receipt, replay integration or rewrite the interrupted
+attempt. Append the observation and next checkpoint atomically; pause for explicit
+Resume with original bindings, budgets and deadlines. Late verified effects allow
+Stop cleanup only, never advancement. Historical grants, interrupted Stop, failed
+inspection, absent receipts, provider sessions and sleep gaps remain blocked.
+
 Preserve these implemented contracts:
 
 - Supported versions, observed authorization, catalog freshness, model entitlement

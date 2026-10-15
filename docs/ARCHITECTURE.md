@@ -60,6 +60,17 @@ dispatcher-owned protected ETS and the protected redirect. OTP status/error
 reports redact dispatcher messages/state/reasons/debug logs. Their absence after
 restart does not invalidate historical authorization observations.
 
+R060g uses the same supervised battle worker for fixed read-only native
+`recover_integration`. Startup records a pending inspection only for new-policy
+restart-interrupted integrations with otherwise settled history. The native
+repository lock serializes verification of exact retained intent/publication/
+receipt, current ref, candidate ancestry and owned worktree/source. No mutation
+is replayed. `Battles.reconcile_integration/3` retains the interrupted attempt
+and atomically appends an observation plus a paused checkpoint; expired effects
+close cleanup for Stop without advancement. Inspection and DB settlement remain
+separate; a crash may repeat the read, never the integration. The existing Inspect
+component renders pending/normalized observations. [D029](DECISIONS.md#d029--retained-integration-reconciliation).
+
 Every application screen is an authenticated LiveView. Layouts/dialogs use HEEx
 function components, and the four stateful form/control components share
 `CuckodingWeb, :live_component` with verified routes. Their explicit per-component

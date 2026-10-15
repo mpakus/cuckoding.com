@@ -58,6 +58,20 @@ verification stays in immutable `criteria` and its existing SHA-256. Only v2 wit
 event records snapshot version and command count. Historical v1 snapshots retain
 their command gates and all saved task/check revisions remain unchanged.
 
+R060g adds no migration. New Starts freeze
+`native_recovery: retained-integration-v1`. Startup may set
+`context.integration_recovery_pending` for a restart-interrupted integration,
+only after all prior attempts are settled. The original interrupted attempt is
+immutable. `context.integration_reconciliations[attempt_id]` retains a bound,
+normalized read-only observation; `battle.integration_reconciled` records its
+status and cleanup flag. Clearing the pending marker, retaining the observation,
+updating task/head projections and pausing the next stage commit atomically.
+Only verified observations satisfy later cleanup checks. Original attempt and
+battle deadlines both gate advancement; late observations permit Stop only.
+Failed observations clear the pending marker without granting cleanup or replay;
+an interrupted inspection can repeat only its read. Historical grants do not arm
+this path. No provider call or new task claim is created by reconciliation.
+
 R020m requires no migration. `check_codex_isolation` commands freeze connection ID,
 executable identity, observed version/command and contract; a 35-second exclusive
 claim owns the bounded native diagnostic. Successful completion atomically saves

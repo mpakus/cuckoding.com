@@ -366,11 +366,18 @@ defmodule Cuckoding.Battles do
   end
 
   defp settled?(battle, attempt) do
-    attempt.result["cleanup_verified"] == true and
-      (attempt.state == "completed" or
-         (attempt.state == "failed" and
-            attempt.id in (retried(battle) ++ (battle.context["skipped_attempts"] || []))))
+    reconciled?(battle, attempt) or
+      (attempt.result["cleanup_verified"] == true and
+         (attempt.state == "completed" or
+            (attempt.state == "failed" and
+               attempt.id in (retried(battle) ++ (battle.context["skipped_attempts"] || [])))))
   end
+
+  defp reconciled?(battle, attempt),
+    do:
+      attempt.state == "interrupted" and
+        get_in(battle.context, ["integration_reconciliations", attempt.id, "status"]) ==
+          "integrated"
 
   defp retried(battle), do: battle.context["provider_retries"] || []
 
@@ -615,8 +622,9 @@ defmodule Cuckoding.Battles do
 
   defp safe_to_stop?(battle) do
     Enum.all?(attempts(battle.id), fn attempt ->
-      attempt.state in ~w(completed failed cancelled expired) and
-        attempt.result["cleanup_verified"] == true
+      reconciled?(battle, attempt) or
+        (attempt.state in ~w(completed failed cancelled expired) and
+           attempt.result["cleanup_verified"] == true)
     end)
   end
 
@@ -671,10 +679,134 @@ defmodule Cuckoding.Battles do
   defp recover_battle(battle), do: interrupt_battle(battle)
 
   defp interrupt_battle(battle) do
-    if attempt = running_attempt(battle.id),
-      do: update(attempt, state: "interrupted", result: %{"status" => "interrupted"})
+    battle =
+      if attempt = running_attempt(battle.id) do
+        update(attempt, state: "interrupted", result: %{"status" => "interrupted"})
+
+        if battle.state in ~w(running pausing) and attempt.stage == "integrate" and
+             battle.snapshot["native_recovery"] == "retained-integration-v1" and
+             Enum.all?(attempts(battle.id), &(&1.id == attempt.id or settled?(battle, &1))) do
+          update(battle,
+            context: Map.put(battle.context, "integration_recovery_pending", attempt.id)
+          )
+        else
+          battle
+        end
+      else
+        battle
+      end
 
     needs_attention(battle, "restart_requires_inspection")
+  end
+
+  # Only a durable restart marker can authorize this read-only inspection. It is
+  # separate from the interrupted claim, which must never be replayed or rewritten.
+  def recovery_attempt, do: Enum.find_value(active(), &pending_reconciliation/1)
+
+  defp pending_reconciliation(battle) do
+    with id when is_binary(id) <- battle.context["integration_recovery_pending"],
+         %Attempt{} = attempt <- Repo.get(Attempt, id),
+         true <- reconciliation_current?(attempt) do
+      attempt
+    else
+      _ -> nil
+    end
+  end
+
+  def reconciliation_current?(%Attempt{} = attempt) do
+    case get(attempt.battle_id) do
+      %Battle{state: "needs_attention", reason: "restart_requires_inspection", stage: "integrate"} =
+          battle ->
+        battle.snapshot["native_recovery"] == "retained-integration-v1" and
+          battle.context["integration_recovery_pending"] == attempt.id and
+          battle.current_task_id == attempt.task_id and
+          attempt.state == "interrupted" and attempt.result == %{"status" => "interrupted"} and
+          Repo.get(Attempt, attempt.id) == attempt
+
+      _ ->
+        false
+    end
+  end
+
+  def reconcile_integration(attempt, result, now \\ DateTime.utc_now()) do
+    transaction(fn ->
+      unless reconciliation_current?(attempt), do: Repo.rollback(:stale_reconciliation)
+      unless bound?(attempt, result), do: Repo.rollback(:foreign_result)
+      verified = verified_integration?(attempt, result)
+
+      unless verified or failed_reconciliation?(attempt, result),
+        do: Repo.rollback(:invalid_result)
+
+      battle = retain_reconciliation(get(attempt.battle_id), attempt, result, verified)
+      finish_reconciliation(battle, attempt, result, verified, now)
+    end)
+  end
+
+  defp verified_integration?(attempt, result) do
+    native = result["native_battle"]
+
+    expected = %{
+      "status" => "battle_integrated",
+      "key" => attempt.id,
+      "battle_key" => attempt.battle_id,
+      "head" => result["head"],
+      "previous_head" => attempt.request["context"]["head"],
+      "candidate_key" => attempt.request["task_context"]["native_candidate"]["key"]
+    }
+
+    result["status"] == "integrated" and stage_cleanup_verified?(attempt, result) and
+      is_map(native) and Cuckoding.LocalGit.normalize(native) == native and
+      Map.take(native, Map.keys(expected)) == expected
+  end
+
+  defp failed_reconciliation?(attempt, result),
+    do:
+      result["status"] == "failed" and result["cleanup_verified"] == false and
+        valid_result?(attempt, result)
+
+  defp retain_reconciliation(battle, attempt, result, verified) do
+    observations =
+      Map.put(battle.context["integration_reconciliations"] || %{}, attempt.id, result)
+
+    context =
+      battle.context
+      |> Map.delete("integration_recovery_pending")
+      |> Map.put("integration_reconciliations", observations)
+
+    battle = update(battle, context: context)
+
+    record(battle, "integration_reconciled", %{
+      "attempt_id" => attempt.id,
+      "status" => result["status"],
+      "cleanup_verified" => verified
+    })
+
+    battle
+  end
+
+  defp finish_reconciliation(battle, _attempt, _result, false, _now), do: battle
+
+  defp finish_reconciliation(battle, attempt, result, true, now) do
+    if expired?(attempt.deadline_at, now) or expired?(battle.deadline_at, now) do
+      needs_attention(battle, "late_result_rejected")
+    else
+      battle = advance(battle, attempt, result)
+
+      battle =
+        update(battle,
+          state: "paused",
+          reason: "restart_checkpoint",
+          control_revision: battle.control_revision + 1
+        )
+
+      record(battle, "recovery_paused", %{
+        "stage" => battle.stage,
+        "task_id" => battle.current_task_id,
+        "control_revision" => battle.control_revision
+      })
+
+      battle
+    end
   end
 
   defp finish_stop(

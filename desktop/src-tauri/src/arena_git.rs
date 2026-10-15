@@ -359,6 +359,7 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
         "create_battle",
         "battle_worktree",
         "integrate_candidate",
+        "recover_integration",
         "verify_battle",
     ]
     .contains(&operation.as_str())
@@ -376,6 +377,7 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
                     "create_battle",
                     "battle_worktree",
                     "integrate_candidate",
+                    "recover_integration",
                     "verify_battle",
                 ]
                 .contains(&operation.as_str()),
@@ -426,6 +428,7 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
         "create_battle",
         "battle_worktree",
         "integrate_candidate",
+        "recover_integration",
         "verify_battle",
     ]
     .contains(&operation.as_str())
@@ -1253,6 +1256,142 @@ mod tests {
             b"USER_UNTRACKED"
         );
         fs::remove_dir_all(root.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn recovery_only_observes_complete_exact_integration_evidence() {
+        for scenario in [
+            "valid",
+            "missing_receipt",
+            "missing_publication",
+            "intent",
+            "receipt",
+            "reference",
+            "candidate",
+            "ownership",
+            "source",
+            "cancelled",
+            "deadline",
+            "locked",
+        ] {
+            let (root, home, request, prepared) = inspection_fixture();
+            let args = &request[..5];
+            let battle = initial(
+                args,
+                "create_battle",
+                json!({"key":BATTLE_KEY,"head":prepared["head"]}),
+            )
+            .unwrap();
+            let checkout = Path::new(prepared["path"].as_str().unwrap());
+            fs::write(checkout.join("docs/plan.txt"), "candidate").unwrap();
+            let candidate = operation(
+                &candidate_request(
+                    &request,
+                    &prepared,
+                    json!([{"path":"docs/plan.txt","sha256":initial::digest(b"candidate")}]),
+                ),
+                "capture_candidate",
+            )
+            .unwrap();
+            let key = "00000000-0000-4000-8000-000000000080";
+            let integration =
+                json!({"key":key,"battle":battle,"preparation":prepared,"candidate":candidate});
+            // Represents native completion before the transport/DB handoff.
+            let receipt = initial(args, "integrate_candidate", integration.clone()).unwrap();
+            let directory = home.join(format!("battles/{BATTLE_KEY}/integration-{key}"));
+            match scenario {
+                "missing_receipt" => fs::remove_file(directory.join("receipt.json")).unwrap(),
+                "missing_publication" => {
+                    fs::remove_file(directory.join("publication.json")).unwrap()
+                }
+                "intent" => fs::write(directory.join("intent.json"), "{}").unwrap(),
+                "receipt" => fs::write(directory.join("receipt.json"), "{}").unwrap(),
+                "reference" => {
+                    assert_eq!(
+                        git(
+                            &root,
+                            &home,
+                            &[
+                                "update-ref",
+                                battle["reference"].as_str().unwrap(),
+                                battle["head"].as_str().unwrap()
+                            ]
+                        )
+                        .0,
+                        0
+                    );
+                }
+                "candidate" => fs::write(checkout.join("docs/plan.txt"), "changed").unwrap(),
+                "ownership" => {
+                    fs::write(checkout.parent().unwrap().join("owner.json"), "{}").unwrap()
+                }
+                "source" => {
+                    fs::write(root.join("new.txt"), "changed source").unwrap();
+                    commit_fixture(&root, &home);
+                }
+                _ => (),
+            }
+            fs::write(root.join("untracked.txt"), "UNTRACKED_CANARY").unwrap();
+            fs::write(root.join("docs/plan.txt"), "USER_WORKING").unwrap();
+            let index = fs::read(root.join(".git/index")).unwrap();
+            let source_head = fs::read(root.join(".git/HEAD")).unwrap();
+            let reference = root.join(format!(".git/{}", battle["reference"].as_str().unwrap()));
+            let before_ref = fs::read(&reference).unwrap();
+            let mut lock = None;
+            if scenario == "locked" {
+                let file = File::open(&root).unwrap();
+                assert_eq!(
+                    unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) },
+                    0
+                );
+                lock = Some(file);
+            }
+            let result = if ["cancelled", "deadline"].contains(&scenario) {
+                let mut command = args.to_vec();
+                command[0] = "recover_integration".into();
+                command.push(integration.to_string());
+                let (sender, receiver) = mpsc::channel();
+                if scenario == "cancelled" {
+                    sender.send(()).unwrap();
+                }
+                run(
+                    &command,
+                    receiver,
+                    if scenario == "deadline" {
+                        Duration::ZERO
+                    } else {
+                        Duration::from_secs(15)
+                    },
+                )
+            } else {
+                initial(args, "recover_integration", integration.clone())
+            };
+            if scenario == "valid" {
+                assert_eq!(result, Ok(receipt.clone()));
+                assert_eq!(
+                    initial(args, "recover_integration", integration),
+                    Ok(receipt)
+                );
+            } else {
+                assert!(result.is_err(), "{scenario}: {result:?}");
+            }
+            assert_eq!(fs::read(&reference).unwrap(), before_ref);
+            assert_eq!(fs::read(root.join(".git/index")).unwrap(), index);
+            assert_eq!(fs::read(root.join(".git/HEAD")).unwrap(), source_head);
+            assert_eq!(
+                fs::read(root.join("docs/plan.txt")).unwrap(),
+                b"USER_WORKING"
+            );
+            assert_eq!(
+                fs::read(root.join("untracked.txt")).unwrap(),
+                b"UNTRACKED_CANARY"
+            );
+            if scenario == "missing_receipt" {
+                assert!(!directory.join("receipt.json").exists());
+            }
+            drop(lock);
+            fs::remove_dir_all(root.parent().unwrap()).unwrap();
+        }
     }
 
     #[test]
