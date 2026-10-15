@@ -1,6 +1,6 @@
 # R012 — Asynchronous OTP workers and shared LiveComponents
 
-Status: verified 2026-10-15; local integration follows this change.
+Status: verified and merged locally to main as `9052733`, 2026-10-15.
 
 - [x] Audit agent execution and application routes against the OTP/LiveView contract.
 - [x] Run setup, authorization and planning in monitored supervised tasks, keeping
@@ -15,7 +15,7 @@ Status: verified 2026-10-15; local integration follows this change.
 - [x] Verify responsiveness, cancellation, worker/coordinator crash isolation,
   login-link handling and LiveView reconnect/session behavior; run quality gates.
 - [x] Update architecture/decisions/plan, AGENTS and README.
-- [ ] Merge verified change into local main.
+- [x] Merge verified change into local main; feature branch deleted.
 
 `mix quality`: 322 tests, formatter/compiler, Credo, Sobelow and dependency audit
 passed. Source and packaged smoke passed; rebuilt saved workspace preserved.

@@ -100,4 +100,6 @@ This proves supervised asynchronous dispatch and local artifact preservation.
 It does not prove product parallel scheduling, native cleanup after a hard crash,
 sleep reconciliation, real-account battle acceptance or a clean-machine release.
 Rust/site sources and native grants are unchanged, so their suites were not rerun.
-Local integration follows; no push/deployment is authorized.
+Implementation `9052733` was fast-forward merged into local main and the task
+branch deleted. Final status is recorded in this documentation follow-up.
+Working tree/packaged behavior is verified above; nothing was pushed or deployed.
