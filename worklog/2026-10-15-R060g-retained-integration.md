@@ -95,4 +95,6 @@ provider inference, sign-in, physical sleep drill or deployment occurred. Existi
 saved legacy Codex/team assignments were preserved, including their current
 connection readiness. Continue R060 before enabling R070 parallel scheduling.
 
-Local integration pending; no remote push authorized.
+Local integration: committed as `22d5d1f`, fast-forward merged into local `main`;
+`fix/R060g-retained-integration` deleted. Final documentation records this evidence.
+No remote push or publication performed.

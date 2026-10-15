@@ -1,6 +1,6 @@
 # R060g — Reconcile a retained integration receipt
 
-Status: verified; local integration pending, 2026-10-15.
+Status: verified and merged locally into main as `22d5d1f`, 2026-10-15.
 
 - [x] New Starts freeze `native_recovery: retained-integration-v1`; historical
   snapshots receive no new authority.
@@ -15,7 +15,7 @@ Status: verified; local integration pending, 2026-10-15.
 - [x] Cover crash/restart, partial publication, drift, cancellation and duplicate
   observations with native/domain/worker checks; update docs/AGENTS/README and
   verify the rebuilt saved workspace.
-- [ ] Merge into local main and delete the merged branch.
+- [x] Merged into local main; merged branch deleted.
 
 Scope excludes provider-session recovery, absent native receipts, sleep/leases,
 parallel workers and real-account acceptance.
