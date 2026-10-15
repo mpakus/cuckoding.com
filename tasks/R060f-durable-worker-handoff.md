@@ -1,7 +1,6 @@
 # R060f — Durable worker completion before coordinator notification
 
-Status: implementation, quality and packaged verification complete 2026-10-15;
-local integration follows this change.
+Status: verified and merged locally into main as `0819a3f`, 2026-10-15.
 
 - [x] Persist setup/battle results through existing claim-bound domain APIs inside
   their owned supervised workers before sending a completion notification.
@@ -16,7 +15,7 @@ local integration follows this change.
   Cover cancellation and failure receipts at the same handoff boundary.
 - [x] Update docs, AGENTS and README; run focused/full quality and source/bundle
   checks. Preserve valid Stop races and redact unexpected worker exceptions.
-- [ ] Merge into local main.
+- [x] Merge into local main; feature branch deleted.
 
 Evidence: 106 focused tests and 330 full quality tests passed; source/packaged
 smoke and saved-workspace rebuild/relaunch passed. Browser roster and existing

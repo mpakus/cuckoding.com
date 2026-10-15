@@ -85,5 +85,6 @@ still need inspection. Invalid/foreign battle results cannot establish cleanup.
 This closes committed completion's mailbox-loss window. It does not establish
 native-effect reconciliation without receipts, physical crash/sleep recovery,
 parallel scheduling, real-account battle acceptance or clean-machine release.
-Rust/site source was unchanged, so their suites were not rerun. Local integration
-follows; no push/deployment.
+Rust/site source was unchanged, so their suites were not rerun. Implementation
+`0819a3f` was fast-forward merged into local main; feature branch deleted. Final
+integration status is recorded in this follow-up. No push/deployment.
