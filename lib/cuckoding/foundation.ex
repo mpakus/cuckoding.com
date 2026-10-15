@@ -51,6 +51,17 @@ defmodule Cuckoding.Foundation do
   end
 
   def catalog_status(connection, _), do: connection["catalog_status"] || "not_requested"
+
+  # Age limits new choices; saved bindings are revalidated by the native runtime before use.
+  def reusable_catalog?(%{"catalog_status" => "fresh", "fetched_at" => fetched})
+      when is_binary(fetched) do
+    case DateTime.from_iso8601(fetched) do
+      {:ok, time, _} -> DateTime.compare(time, DateTime.utc_now()) != :gt
+      _ -> false
+    end
+  end
+
+  def reusable_catalog?(_), do: false
   def events, do: Repo.all(from e in Event, order_by: [desc: e.id], limit: 10)
 
   def pending?,
@@ -312,11 +323,16 @@ defmodule Cuckoding.Foundation do
   end
 
   def model_check_current?(payload) do
+    catalog_status(workspace(agent_id(payload)).connection) == "fresh" and
+      saved_binding_current?(payload)
+  end
+
+  def saved_binding_current?(payload) do
     connection = workspace(agent_id(payload)).connection
 
     Agents.kind(agent_id(payload)) == "codex" and connection["status"] == "checked" and
       connection["authorization"] == "chatgpt" and
-      catalog_status(connection) == "fresh" and connection["identity"] == payload["identity"] and
+      reusable_catalog?(connection) and connection["identity"] == payload["identity"] and
       connection["command_id"] == payload["connection_command_id"] and
       connection["fetched_at"] == payload["fetched_at"] and
       model_available?(connection, payload)
@@ -337,14 +353,14 @@ defmodule Cuckoding.Foundation do
     Agents.kind(agent_id(payload)) == "cursor" and
       agent.codex["version"] == Cuckoding.Cursor.task_version() and
       Map.take(connection, Map.keys(expected)) == expected and
-      catalog_status(connection) == "fresh" and is_nil(payload["effort"]) and
+      reusable_catalog?(connection) and is_nil(payload["effort"]) and
       Enum.any?(
         connection["models"] || [],
         &(&1["id"] == payload["model_id"] and &1["model"] == payload["model"])
       )
   end
 
-  def task_binding_current?(%{"kind" => "codex"} = payload), do: model_check_current?(payload)
+  def task_binding_current?(%{"kind" => "codex"} = payload), do: saved_binding_current?(payload)
   def task_binding_current?(_), do: false
 
   defp model_available?(connection, payload) do
@@ -506,6 +522,9 @@ defmodule Cuckoding.Foundation do
     record(prefix(kind) <> state, %{}, id)
 
     if state == "pending" and kind in @auth_kinds do
+      if kind in ~w(logout_codex logout_cursor),
+        do: Cuckoding.TeamAssignments.disconnect_agent(agent_id(payload), id)
+
       fields =
         project(agent_id(payload),
           connection: %{
@@ -541,6 +560,9 @@ defmodule Cuckoding.Foundation do
       profile_busy?(kind) ->
         "profile_busy"
 
+      disconnect_in_battle?(kind, payload) ->
+        "agent_in_battle"
+
       kind == "check_codex_model" and not model_check_current?(payload) ->
         "model_refresh_required"
 
@@ -554,6 +576,15 @@ defmodule Cuckoding.Foundation do
 
   defp profile_busy?(kind),
     do: (kind in @exclusive_kinds and pending?()) or pending_probe(@exclusive_kinds) != nil
+
+  defp disconnect_in_battle?(kind, payload),
+    do: kind in ~w(logout_codex logout_cursor) and agent_in_battle?(agent_id(payload))
+
+  defp agent_in_battle?(id) do
+    Enum.any?(Cuckoding.Battles.active(), fn battle ->
+      Enum.any?(battle.snapshot["team"], &(&1["agent_id"] == id))
+    end)
+  end
 
   def claim(now \\ System.system_time(:millisecond)) do
     Repo.transaction(

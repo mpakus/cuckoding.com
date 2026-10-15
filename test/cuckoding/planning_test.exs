@@ -5,6 +5,38 @@ defmodule Cuckoding.PlanningTest do
   alias Ecto.Adapters.SQL
   setup do: planning_fixture()
 
+  test "catalog age alone keeps the assigned Speculator usable, without allowing new selections",
+       %{board: board} do
+    workspace = Foundation.workspace()
+    connection = Map.put(workspace.connection, "fetched_at", "2000-01-01T00:00:00Z")
+    Repo.update!(Ecto.Changeset.change(workspace, connection: connection))
+    assert Team.catalog("codex").status == :catalog_stale
+    setup = Planning.setup(board)
+    assert setup.token
+    assert Foundation.saved_binding_current?(setup.payload)
+    refute Foundation.model_check_current?(setup.payload)
+    assert {:ok, %{state: "pending"}} = request(board)
+    {:ok, claim} = Foundation.claim()
+    assert {:ok, %{state: "completed"}} = Foundation.finish(claim, planning_receipt(claim.id))
+
+    assert {:ok, %{state: "rejected", result: "model_refresh_required"}} =
+             Foundation.save_agent_models(
+               Ecto.UUID.generate(),
+               workspace.revision,
+               connection["command_id"],
+               ["test-id"]
+             )
+
+    Repo.update!(
+      Ecto.Changeset.change(Foundation.workspace(),
+        connection: Map.put(connection, "catalog_status", "stale")
+      )
+    )
+
+    assert Planning.setup(board).token == nil
+    refute Foundation.saved_binding_current?(setup.payload)
+  end
+
   defp request(board, options \\ []) do
     Planning.request(
       options[:key] || Ecto.UUID.generate(),

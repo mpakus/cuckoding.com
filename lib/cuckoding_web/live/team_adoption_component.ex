@@ -54,7 +54,7 @@ defmodule CuckodingWeb.TeamAdoptionComponent do
     {error, message} =
       case result do
         {:ok, _} ->
-          {nil, "Saved team adopted for future work."}
+          {nil, "Saved team is now selected for future work."}
 
         {:error, "planning_active"} ->
           {"Finish or cancel this Tabula's planning request first.", nil}
@@ -97,19 +97,20 @@ defmodule CuckodingWeb.TeamAdoptionComponent do
     ~H"""
     <details id={@id} class="git-setup" phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
       <summary>
-        {if match?(%Arena{}, @scope), do: "Arena", else: "Tabula"} team · revision {@current.id}
+        {if match?(%Arena{}, @scope), do: "Team for new boards", else: "Board team"}
       </summary>
       <p class="fine-print">
         {if match?(%Arena{}, @scope),
-          do: "New Tabulae inherit this team. Existing Tabulae keep their own team.",
-          else: "Future planning uses this team. Previous proposals and task drafts stay unchanged."} Adoption starts no agent and grants no execution access.
+          do: "New boards use this team. Existing boards keep their current assignments.",
+          else:
+            "This team creates tasks and works on future battles. Past work keeps its original assignments."} Changing the team starts no agent.
       </p>
       <.roster revision={@current} label="Current team" />
       <p :if={@candidate.id == @current.id} role="status">
-        This scope uses the latest saved default team.
+        This team matches your saved Team settings.
       </p>
       <div :if={@candidate.id != @current.id}>
-        <.roster revision={@candidate} label="Proposed saved default" />
+        <.roster revision={@candidate} label="Your saved team" />
         <p class="fine-print">
           Review all roles, including removals, models and instructions. Edit the default on the Team screen.
         </p>
@@ -129,10 +130,9 @@ defmodule CuckodingWeb.TeamAdoptionComponent do
               value="true"
               checked={@confirmed}
               disabled={@busy}
-            />
-            Replace this scope's team revision {@current.id} with the displayed revision {@candidate.id} for future work.
+            /> Use the displayed saved team for future work here.
           </label>
-          <button class="button" disabled={@busy} phx-disable-with="Saving…">Adopt saved team</button>
+          <button class="button" disabled={@busy} phx-disable-with="Saving…">Use saved team</button>
         </.form>
       </div>
       <p :if={@busy} role="status">
@@ -145,9 +145,14 @@ defmodule CuckodingWeb.TeamAdoptionComponent do
         id={@id <> "-history"}
         phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
       >
-        <summary>Recent team adoptions · latest five</summary>
+        <summary>Team history</summary>
+        <p class="fine-print">
+          Each version is a saved set of roles, agents and models. History keeps past work traceable; you do not need to manage version numbers.
+        </p>
         <article :for={entry <- @history}>
-          <p class="fine-print">{Calendar.strftime(entry.inserted_at, "%Y-%m-%d %H:%M UTC")}</p>
+          <p class="fine-print">
+            {Calendar.strftime(entry.inserted_at, "%Y-%m-%d %H:%M UTC")} · saved version {entry.team_revision_id}
+          </p>
           <.roster revision={entry.team_revision} label="Adopted team" />
         </article>
       </details>
@@ -157,7 +162,7 @@ defmodule CuckodingWeb.TeamAdoptionComponent do
 
   defp roster(assigns) do
     ~H"""
-    <h3>{@label} · revision {@revision.id}</h3>
+    <h3>{@label}</h3>
     <dl class="team-history">
       <div :for={role <- @revision.definition["roles"]}>
         <dt>{role["name"]}</dt>
@@ -169,7 +174,7 @@ defmodule CuckodingWeb.TeamAdoptionComponent do
   end
 
   defp binding_label(%{"model_id" => ""}), do: "Unassigned"
-  defp binding_label(role), do: "#{role["agent"]} · #{role["model_id"]} · #{role["model"]}"
+  defp binding_label(role), do: "#{Cuckoding.Agents.display(role["agent"])} · #{role["model_id"]}"
   defp instructions(%{"instructions" => ""}), do: "No extra instructions"
   defp instructions(role), do: role["instructions"]
 end

@@ -277,6 +277,21 @@ turn parser tolerates bounded `warning` and `deprecationNotice` notifications wi
 storing their text. The transport still refuses server requests and account drift;
 tool activity, model substitution and foreign completions remain failures.
 
+R080a separates catalog age from connection invalidation. Saved planning/task
+bindings may reuse an aged successful catalog only with the same recorded
+executable, account observation, model ID/runtime model and reasoning effort.
+Missing/malformed/future timestamps, failed lookups and invalidated profiles still
+refuse use. New selections and diagnostics retain the 24-hour gate. Native
+account/model/config validation remains required before dispatch; age relaxation
+does not grant provider usage, replace an account/model or authorize execution.
+
+Confirmed logout atomically clears the connection's current default/Arena/board
+role bindings through new immutable revisions and adoption events. Historic teams,
+commands and battle snapshots remain unchanged. Exact-connection unfinished battle
+use, busy profile/planning work and stale/session-invalid forms refuse the action
+before unassignment. Roles remain unassigned if native logout fails; reconnecting
+does not silently restore them. No credential values are read or copied.
+
 R020d's separate model diagnostic records explicit usage consent and a fresh
 executable/account/catalog snapshot. Its fixed ephemeral thread must report the
 requested model and validated permission profile before inference. The named

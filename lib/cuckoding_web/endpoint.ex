@@ -40,7 +40,7 @@ defmodule CuckodingWeb.Endpoint do
   plug Plug.Static,
     at: "/",
     from: :cuckoding,
-    gzip: true,
+    gzip: Mix.env() != :dev,
     only: CuckodingWeb.static_paths(),
     only_matching: ["favicon-"]
 

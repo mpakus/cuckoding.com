@@ -115,7 +115,7 @@ active operation and exact ID membership are checked in one immediate transactio
 Save advances the workspace revision and records `agent_models.saved`. Rejections
 are retained. Stable keys replay the original result, never a changed selection.
 These are preferences for new roles, not model entitlement or an execution grant.
-Disconnect/refresh retain preferences and old bindings; model drift is not substituted.
+Disconnect/refresh retain model preferences and historical bindings; model drift is not substituted.
 
 R020d also needs no migration. `check_codex_model` snapshots the executable,
 connection command/fetch time, catalog ID, model, effort and versioned scratch
@@ -127,6 +127,15 @@ timing. Successful receipts must match the saved intent and current connection.
 Starting another check or refreshing/changing the connection clears its current
 projection while append-only `model_check.*` events retain historical evidence.
 Cancellation holds admission until cleanup and cannot record late success.
+
+R080a's accepted logout transaction adds `disconnect_agent_roles` completed
+commands, new team revisions and scoped adoptions for each affected current Arena
+and board, then restores the unassigned global default as the latest revision.
+Only the exact connection's agent/model fields are cleared; instructions, custom
+roles, other connections and old revisions remain intact. `team.agent_unassigned`
+records old/new revision IDs and the causal logout command. A rejected/replayed
+logout cannot repeat these writes. Accepted logout unassigns immediately even if
+the later native sign-out fails. No migration is needed.
 
 R030a adds append-only `team_revisions` (integer revision ID, unique nullable
 command ID, versioned JSON definition, UTC creation time). Migration seeds the
@@ -143,8 +152,9 @@ cannot invalidate provider work. Matching command keys return the original resul
 stale editors cannot overwrite current state, and removing saved custom roles
 requires explicit confirmation. Events contain counts/revision/removed IDs or a
 closed reason, not instruction text. The UI exposes the latest five revisions;
-older history remains in SQLite. Existing bindings retain the resolved model
-through disconnect or catalog drift; new bindings require verified fresh metadata.
+older history remains in SQLite. Historical bindings retain the resolved model
+through disconnect or catalog drift; current roles are cleared on confirmed
+disconnect. New bindings require verified fresh metadata.
 R030b adds scoped adoption of saved defaults (below); per-scope role editing,
 schedules and executable grants are not implemented.
 

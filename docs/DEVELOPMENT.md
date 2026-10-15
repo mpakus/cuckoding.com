@@ -60,6 +60,10 @@ release and listener. No dock window or embedded web frontend is created.
 This build is not notarized or public-release certified. Clean-machine, signing,
 update and physical sleep/wake acceptance remain R060/R100.
 
+Development serves uncompressed assets so retained release `.gz` files cannot
+hide watcher output. Production keeps compression. The source smoke checks both
+encoding requests resolve to the current development script.
+
 ### If Arenas or agent/role setup seems missing
 
 An **Agents & roles** discovery-only screen, an **Arenas · NEXT** label or the
@@ -118,7 +122,11 @@ then follow the four steps:
    expose their full catalog until their first wizard Save.
 
 The wizard resumes from saved setup. Executable paths are discovered from metadata
-only. The catalog becomes stale after 24 hours or failed refresh. Personal Codex
+only. New model selections and optional diagnostics need a catalog checked within
+24 hours. Saved role bindings remain reusable after that age limit when the last
+observation succeeded and its exact identity/model binding is unchanged. Failed
+refreshes, sign-out and binding changes still block use; native execution checks
+the account/model before dispatch. Personal Codex
 credentials are never adopted. Login URLs remain transient behind a session-protected
 redirect. Cancel waits for authentication/model helper cleanup; provider usage may
 already have occurred. Interrupted actions never retry automatically. Fresh connection
@@ -144,7 +152,12 @@ remain unavailable; no Codex fallback is used. Save creates an immutable revisio
 expand **Recent saved revisions** to inspect the latest five. Removing a saved
 custom role needs confirmation. A stale editor keeps its draft and refuses to
 overwrite a newer revision; **Reload saved** asks before discarding edits.
-Model disconnect/drift is visible and never silently replaces the saved model.
+**Disconnect** on each roster row opens a confirmation. It unassigns that exact
+connection from current default, Arena and board roles before the private logout
+runs. Instructions, other agents and historical teams remain intact. A failed logout
+does not restore assignments. An unfinished battle using that connection or a busy
+profile/planning operation refuses the action; stale forms also refuse it.
+Model drift remains visible and never silently replaces the saved model.
 To replace a changed model behind the same catalog ID, clear/save the binding
 then explicitly select/save it again. Saving starts no agent; execution requires
 a separate bounded Start. Use only non-secret role instructions.
@@ -155,8 +168,9 @@ The default Tabula is saved atomically and opens immediately. The dialog
 cannot create folders, expires after two minutes and can be cancelled from either
 surface. Registration records metadata only. `.git` presence is unverified;
 registration runs no Git commands. Expand the registration team to inspect its
-frozen revision. To update future-board defaults, open **Advanced → Arena team**, review both rosters and confirm **Adopt saved team**. Existing
-boards stay unchanged; each has a separate **Tabula team** adoption control.
+frozen team. To update future-board defaults, open **Advanced → Team for new boards**,
+review both rosters and confirm **Use saved team**. Existing boards stay unchanged;
+each has a separate **Board team** control. Version numbers remain in Team history.
 Both scope controls remain in Advanced. Adoption needs fresh
 confirmation after another team edit and waits for that board's active planning
 to finish/cancel. It preserves drafts and earlier planning receipts.
@@ -168,9 +182,12 @@ Choose **Open Arena** to return to its first board; explicit board URLs and the
 selector preserve other boards. **Advanced → Add another board** creates extra
 Tabulae with the Arena's team, even if global defaults changed. Old Arenas without
 boards offer explicit creation; opening a page never creates data.
-**Create tasks · with Speculator** opens by default on an empty board and uses the
-brief/folder-snapshot proposal flow described below. For manual work, expand **Add a
-task manually**, enter a title, description and criteria, then **Save task**.
+**Create tasks** opens the brief/folder-snapshot dialog described below.
+**Repository setup** and **Add another board** are buttons in Advanced that open
+dialogs. For manual work, choose **+** beside Specs or ToDo, enter a title,
+description and criteria, then **Save task**. Escape or the close button returns
+focus without discarding text. Reopening retains unsaved changes; selecting a
+different task still requires the existing discard confirmation.
 Use **Edit task** and the **Column** select to move between Specs and ToDo;
 ToDo requires nonblank description and criteria. Use **Prerequisites** to check
 up to sixteen other tasks in this board that must come first. Tab/Space operate
@@ -352,13 +369,14 @@ files or publish documentation claims as a working release.
 ## Create tasks (R040e/f/l/m)
 
 Save a Codex/model binding for Speculator, then create an Arena and Tabula or
-explicitly adopt the saved revision under **Tabula team** on an existing board.
-Open **Create tasks · with Speculator**. Enter a brief or **Read project folder**,
+choose **Use saved team** under **Board team** on an existing board.
+Open **Create tasks**. Enter a brief or **Read project folder**,
 review the local snapshots, confirm provider usage and **Create tasks**.
 A brief is optional with nonempty sources. One successful request atomically saves
 up to six editable cards in Specs, with their prerequisites and source receipts.
-Existing boards do not inherit later default-team edits. Refresh a
-stale catalog in Agents before confirming again. Without document selection no
+Existing boards do not inherit later default-team edits. Saved assignments do not
+need routine refresh solely because their catalog is older than a day. A failed
+lookup or invalidated connection still needs repair in Agents before planning. Without document selection no
 project files are read.
 
 **Read project folder** visits `docs/` first, then eligible text/source files.

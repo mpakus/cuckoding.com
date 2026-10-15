@@ -7,7 +7,7 @@ Set up your agents and roles once. For each **Arena** (project), the intended fl
 
 1. **Add folder.** Choose an empty folder or an existing project. Cuckoding uses
    your saved team and creates the default **Tabula** (board) automatically.
-2. **Create tasks.** Ask Speculator to analyze `docs/` and relevant project files,
+2. **Create tasks.** Open the dialog and ask Speculator to analyze `docs/` and relevant project files,
    optionally add a brief, and create cards with acceptance criteria and verification
    instructions directly on that board. No separate check setup is required. Edit if needed.
 3. **Start.** One button runs the team. **Summa Rudis** coordinates dispatch,
@@ -42,6 +42,18 @@ role independently: for example Cursor/Grok for Speculator and Codex/GPT for
 Implementor, once those runtime capabilities are supported. Saving a binding is
 not execution permission. A catalog is separate from model access.
 
+Each agent has **Disconnect**. Confirming it signs out that private profile and
+unassigns its roles in the current saved, Arena and board teams. Other agents and
+historical teams remain intact. Finish/stop an unfinished battle before disconnecting
+one of its agents. Reconnecting does not silently restore those assignments.
+Saved roles remain usable when only the catalog's age changes; failed lookups,
+sign-out and account/model/executable changes still need attention. New model
+choices and optional access tests require a recent catalog.
+
+**Create tasks**, **Repository setup** and **Add another board** open dialogs.
+Use **+** beside Specs or ToDo to add a task manually. Advanced shows **Board team**
+and **Use saved team**; version numbers are kept in Team history.
+
 Codex also has an optional **Execution isolation** diagnostic. With verified
 `0.162.0-alpha.17.2`, it checks read-only/writing restrictions in two disposable
 folders without signing in or using a model. Results are saved per connection;
@@ -56,7 +68,7 @@ Each keeps its prerequisites and source receipts; existing edits stay unchanged.
 Older requests retain their individual **Add to Specs** controls. **Start** freezes
 the default board, task criteria/checks, four assigned Codex/Cursor roles, model bindings and limits:
 20 tasks, three review returns per task, 200 role turns and two hours. A committed
-Git source, fresh model catalogs and verified task runtimes are required: Codex
+Git source, valid saved model bindings and verified task runtimes are required: Codex
 `0.162.0-alpha.17.2` or Cursor `2026.09.15-d2fe57e`.
 Secutor reviews the checks described in every task and the combined result.
 Missing required runtime/test evidence blocks completion; code inspection never

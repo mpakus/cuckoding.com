@@ -26,8 +26,8 @@ defmodule CuckodingWeb.TeamAdoptionLiveTest do
     view |> form("#planning-form", brief: "Keep my brief", confirmed: "true") |> render_change()
     view |> form("#draft-form", title: "Unsaved task") |> render_change()
     team = next_team("New planner")
-    assert has_element?(view, "#scope-team", "Proposed saved default")
-    assert has_element?(view, "#scope-team", "test-id · test-model")
+    assert has_element?(view, "#scope-team", "Your saved team")
+    assert has_element?(view, "#scope-team", "Codex · Codex · test-id")
     view |> form("#scope-team-form") |> render_submit()
     assert has_element?(view, "#scope-team [role=alert]", "confirmation is missing")
     Foundation.broadcast()
@@ -42,7 +42,7 @@ defmodule CuckodingWeb.TeamAdoptionLiveTest do
     assert has_element?(view, "#scope-team[phx-mounted*=ignore_attrs]")
     {:ok, again, _} = live(signed, path)
     assert has_element?(again, "#column-specs", "New planner")
-    assert has_element?(again, "#scope-team", "latest saved default")
+    assert has_element?(again, "#scope-team", "matches your saved Team settings")
     assert Tabulae.tasks(board.id) == []
   end
 
@@ -68,11 +68,11 @@ defmodule CuckodingWeb.TeamAdoptionLiveTest do
 
   test "Arena settings change only new board inheritance; active planning exposes the blocking reason",
        %{conn: conn, arena: arena, board: board} do
-    team = next_team("Arena planner")
+    next_team("Arena planner")
     signed = sign_in(conn)
     {:ok, settings, _} = live(signed, "/arenas/#{arena.id}")
     settings |> form("#arena-team-form", confirmed: "true") |> render_submit()
-    assert has_element?(settings, "#tabula-form", "Inherits Arena team revision #{team.id}")
+    assert has_element?(settings, "#tabula-form", "Uses this Arena’s saved team")
     result = settings |> form("#tabula-form", name: "New board") |> render_submit()
     {:ok, new_view, _} = follow_redirect(result, signed)
     assert has_element?(new_view, "#column-specs", "Arena planner")
@@ -83,7 +83,7 @@ defmodule CuckodingWeb.TeamAdoptionLiveTest do
     |> form("#planning-form", brief: "Plan something", confirmed: "true")
     |> render_submit()
 
-    assert has_element?(old_view, "#scope-team button[disabled]", "Adopt saved team")
+    assert has_element?(old_view, "#scope-team button[disabled]", "Use saved team")
     assert has_element?(old_view, "#scope-team", "Finish or cancel")
   end
 end

@@ -21,6 +21,20 @@ Folder analysis and drafting must work without Git. If execution later needs Git
 initialization or an initial commit, show the exact effect and required consent
 in the Arena; declining leaves the folder, tasks and planning usable.
 
+## Saved connections
+
+Each roster entry has confirmed Disconnect. It clears that exact agent from all
+current team scopes through new immutable versions and initiates private-profile
+logout. Other assignments and historical work remain unchanged. An unfinished
+battle using the connection blocks disconnect; stop/finish it first. Reconnecting
+requires explicit role selection again, including after a failed logout.
+
+A saved Agent–Role binding does not expire on the catalog's 24-hour picker timer.
+A successful last observation with unchanged executable/account/model metadata can
+be reused; native dispatch still validates the actual account/model. Failed or
+invalidated observations block until repaired. Picking new models and optional
+model diagnostics retain the 24-hour freshness requirement.
+
 ## Create tasks
 
 The user asks the saved Speculator to analyze the folder, optionally adding a

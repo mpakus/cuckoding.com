@@ -60,6 +60,7 @@ defmodule Cuckoding.Team do
 
     %{
       status: status,
+      reusable: Foundation.reusable_catalog?(connection),
       models: models,
       selectable_models: selectable,
       check: connection["model_check"] || %{}
@@ -82,6 +83,9 @@ defmodule Cuckoding.Team do
   def binding_status(role, %{agents: catalogs}) do
     binding_status(role, Map.get(catalogs, role["agent"], %{status: :connection_required}))
   end
+
+  def binding_status(role, %{status: :catalog_stale, reusable: true} = catalog),
+    do: binding_status(role, %{catalog | status: :available})
 
   def binding_status(_, %{status: status}) when status != :available, do: status
 

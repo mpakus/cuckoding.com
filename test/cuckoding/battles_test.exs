@@ -71,6 +71,53 @@ defmodule Cuckoding.BattlesTest do
     battle
   end
 
+  test "saved aged bindings Start and Resume without a manual refresh, but failed observations block",
+       ctx do
+    workspace = Foundation.workspace()
+    connection = Map.put(workspace.connection, "fetched_at", "2000-01-01T00:00:00Z")
+    Repo.update!(Ecto.Changeset.change(workspace, connection: connection))
+    assert Foundation.catalog_status(connection) == "stale"
+    battle = start(ctx.board)
+    role = hd(battle.snapshot["team"])
+    assert Foundation.task_binding_current?(role)
+    refute Foundation.model_check_current?(role)
+    {:ok, paused} = Battles.pause(battle.id, battle.control_revision)
+    assert {:ok, _} = Battles.resume(battle.id, paused.control_revision)
+
+    Repo.update!(
+      Ecto.Changeset.change(workspace, connection: Map.put(connection, "catalog_status", "stale"))
+    )
+
+    refute Foundation.task_binding_current?(role)
+    {:ok, preview} = Battles.preview(ctx.board.arena_id, ctx.board.id)
+    assert "catalog_stale" in preview.blockers
+  end
+
+  test "Disconnect cannot alter a connection held by a running or paused battle", ctx do
+    battle = start(ctx.board)
+    before = Team.current()
+    assigned = TeamAssignments.assigned(ctx.board)
+    connection = Foundation.workspace().connection
+
+    for _ <- 1..2 do
+      {:ok, command} =
+        Foundation.authorize_codex(
+          Ecto.UUID.generate(),
+          Foundation.workspace().revision,
+          :logout,
+          true
+        )
+
+      assert command.result == "agent_in_battle"
+      assert Team.current() == before
+      assert TeamAssignments.assigned(ctx.board) == assigned
+      assert Foundation.workspace().connection == connection
+
+      if Battles.get(battle.id).state == "running",
+        do: Battles.pause(battle.id, battle.control_revision)
+    end
+  end
+
   defp result(attempt, override \\ %{}) do
     envelope = Map.take(attempt.request, ~w(battle_id request_id task_id stage criteria_sha256))
 

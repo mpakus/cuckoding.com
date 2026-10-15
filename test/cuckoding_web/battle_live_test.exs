@@ -400,7 +400,7 @@ defmodule CuckodingWeb.BattleLiveTest do
 
     Repo.update!(
       Ecto.Changeset.change(workspace,
-        connection: Map.put(workspace.connection, "fetched_at", "2000-01-01T00:00:00Z")
+        connection: Map.put(workspace.connection, "catalog_status", "stale")
       )
     )
 
@@ -408,7 +408,7 @@ defmodule CuckodingWeb.BattleLiveTest do
     assert has_element?(view, "#arena-start:not([disabled])", "Check Start readiness")
     assert has_element?(view, "a[href='/agents/codex']")
     view |> form("#battle-start-form") |> render_submit()
-    assert has_element?(view, "#battle-blockers", "Refresh the assigned agent")
+    assert has_element?(view, "#battle-blockers", "last model lookup failed")
     assert Battles.latest(ctx.arena.id, ctx.board.id) == nil
   end
 
@@ -493,7 +493,7 @@ defmodule CuckodingWeb.BattleLiveTest do
     {:ok, again, _} = live(signed, path)
     assert has_element?(again, "#column-review #task-#{task}")
 
-    again |> element("button", "New draft") |> render_click()
+    again |> element("button[aria-label='Add task to Specs']") |> render_click()
     again |> form("#draft-form", title: "Later work") |> render_submit()
     assert length(Tabulae.tasks(board.id)) == 2
     assert length(Battles.tasks(battle.id)) == 1

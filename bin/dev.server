@@ -73,6 +73,10 @@ def smoke(port, shell):
     assert "unsafe-" not in headers["content-security-policy"]
     assert "frame-ancestors 'none'" in headers["content-security-policy"]
     assert headers["x-frame-options"] == "DENY"
+    # Dev watchers replace plain assets; a retained release .gz must not shadow them.
+    asset_status, asset_headers, asset = fetch("GET", "/assets/js/app.js", headers={"accept-encoding": "gzip"})
+    assert asset_status == 200 and "content-encoding" not in asset_headers
+    assert asset == fetch("GET", "/assets/js/app.js")[2]
     status, headers, _ = fetch("GET", "/phoenix/live_reload/frame")
     assert status == 200 and "'unsafe-inline'" in headers["content-security-policy"]
     assert "frame-ancestors 'self'" in headers["content-security-policy"]

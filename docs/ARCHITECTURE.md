@@ -18,7 +18,7 @@ release process group and private storage lock.
 | `ShellAuth`, web session guard | One-time shell/browser handoff and expiring DB sessions; stateful components must guard their own events |
 | `Codex`, native `connection.rs` / `model_check.rs` | Private-profile authorization, model catalog, fixed diagnostic and structured no-tools planning; SQLite retains only normalized public receipts |
 | `Foundation`, `Codex`, native `isolation.rs` | Optional fixed two-workspace sandbox canaries, fresh empty runtime profile, executable-bound command/event receipt; no inference or Arena grant |
-| `Team`, `TeamAssignments` | Immutable default revisions and confirmed scoped adoptions; no provider launch or permission grant |
+| `Team`, `TeamAssignments` | Immutable default revisions, confirmed scoped adoptions and transactional current-role unassignment on accepted logout; no provider launch or permission grant |
 | `Arenas`, native `folder.rs` | Native folder selection and confirmed directory identity; registration reads metadata only |
 | `Tabulae` | Immutable default boards, revisioned Specs/ToDo drafts, acyclic prerequisites and proposal import provenance; delivery columns stay locked |
 | `Planning`, `PlanningDocuments`, native `arena_git/documents.rs` | Freeze team/model/brief and optional manual/folder text snapshots in commands; bounded descriptor-relative source collection, then validate proposals and atomically create draft cards |
@@ -27,6 +27,14 @@ release process group and private storage lock.
 | `BattlePreview` | Read-only aggregation of scoped saved preparation and verified spec artifacts; no durable battle state or launch authority |
 | `Specifications`, `Storage` | Freeze accepted draft/prerequisite revisions, write private Markdown, verify artifact hash and atomically commit acceptance/history/ToDo; no execution authority |
 | `ArenaGit`, `NativeHelper`, native `arena_git.rs` | Fixed inspect/init/initial-commit/detached-worktree operations and descriptor-relative selected file reads; no remotes, hooks or arbitrary commands |
+
+R080a keeps dialog presentation in `CuckodingWeb.Dialog` and the small native
+`assets/js/dialog.mjs` hook. LiveView/domain owners still validate every action;
+opening, closing or following a dialog hash launches no provider. Native dialogs
+handle focus trapping/Escape; the hook retains open state and returns focus.
+Foundation distinguishes picker/diagnostic freshness from reusable saved role
+bindings and keeps native dispatch validation unchanged. Disconnect reuses the
+accepted logout transaction and TeamAssignments; no new worker/schema is added.
 
 The dispatcher serializes setup, local previews and planning globally. This is a
 known preview-stage capacity limit, not the future parallel scheduler. Pending

@@ -73,6 +73,7 @@ or independent review acceptance. Domain/UI regressions live in
 | R060 | Launch/integration crash windows, restart, cleanup/PID reuse, budgets, provider failure, sleep-gap accounting |
 | R060d | Every settled stage boundary restarts Paused; explicit Resume, immutable evidence/budgets, retry/skip history, duplicate startup, stale/expired UI controls, no automatic dispatch and unfinished-claim refusal. Physical crash/sleep and unknown native-effect reconciliation remain separate. |
 | R070 | Concurrent task/port claims, fairness, prerequisite bases, stale reviews, conflicting integration and recovery |
+| R080a | Exact-agent Disconnect/unassignment, immutable current/history scopes, busy/battle/stale/session refusal, aged vs failed catalogs, modal focus/Escape/text retention/deep links, board + column selection, dev gzip parity; `rtk proxy node --test test/dialog_test.mjs` plus Mix quality and source smoke |
 | R080 | LiveView reconnect, keyboard/focus/input preservation, narrow viewport, logs pagination/tail, timed setup |
 | R090 | Full conformance + real evidence for each named provider and mixed-runtime team |
 | R100 | Signed clean-machine install/update, DB backup/restore, physical sleep and complete story on actual bundle |

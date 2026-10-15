@@ -141,7 +141,7 @@ defmodule Cuckoding.Planning do
   def execute(command) do
     payload = command.payload
 
-    if Foundation.model_check_current?(payload) do
+    if Foundation.saved_binding_current?(payload) do
       Codex.plan(
         payload["identity"],
         Storage.codex_profile!(Foundation.agent_id(payload)),
@@ -230,7 +230,7 @@ defmodule Cuckoding.Planning do
     result["request_id"] == claim.id and result["requested_model"] == claim.payload["model"] and
       result["observed_model"] == claim.payload["model"] and
       result["effort"] == claim.payload["effort"] and
-      Foundation.model_check_current?(claim.payload) and
+      Foundation.saved_binding_current?(claim.payload) and
       Foundation.verified_executable(Foundation.agent_id(claim.payload)) ==
         {:ok, claim.payload["identity"]}
   end

@@ -174,6 +174,12 @@ defmodule Cuckoding.BattlePreviewTest do
     old = workspace.connection
     stale = Map.put(old, "fetched_at", "2000-01-01T00:00:00Z")
     Repo.update!(Ecto.Changeset.change(workspace, connection: stale))
+    assert Enum.all?(preview(b).roles, &(&1.status == :untested))
+
+    Repo.update!(
+      Ecto.Changeset.change(workspace, connection: Map.put(stale, "catalog_status", "stale"))
+    )
+
     assert Enum.all?(preview(b).roles, &(&1.status == :catalog_stale))
     changed = Map.update!(old, "models", fn [model] -> [Map.put(model, "model", "different")] end)
     Repo.update!(Ecto.Changeset.change(workspace, connection: changed))

@@ -1,6 +1,35 @@
 defmodule CuckodingWeb.TabulaLiveTest do
   use CuckodingWeb.ConnCase
   import Phoenix.LiveViewTest
+
+  test "board creation controls use named dialogs and plus chooses the writable column", %{
+    conn: conn
+  } do
+    %{board: board} = Cuckoding.PlanningFixtures.planning_fixture()
+    {:ok, view, _} = conn |> sign_in() |> live("/arenas/#{board.arena_id}/tabulae/#{board.id}")
+
+    for id <- ~w(brief-planning arena-git create-tabula draft-editor) do
+      assert has_element?(
+               view,
+               "dialog##{id}[phx-hook=Dialog][aria-labelledby='#{id}-title']:not([open])"
+             )
+    end
+
+    assert has_element?(view, "#open-planning[type=button]", "Create tasks")
+    assert has_element?(view, "#column-specs button[aria-label='Add task to Specs']")
+    refute has_element?(view, "#column-completed button[aria-label^='Add task']")
+    view |> element("button[aria-label='Add task to ToDo']") |> render_click()
+    assert has_element?(view, "#draft-column option[value=todo][selected]")
+    view |> form("#draft-form", title: "Keep this text") |> render_change()
+    Cuckoding.Foundation.broadcast()
+    assert has_element?(view, "#draft-title-input[value='Keep this text']")
+    view |> element("button[aria-label='Add task to Specs']") |> render_click()
+    assert has_element?(view, "#draft-editor [role=alert]", "Discard your unsaved edits")
+    assert has_element?(view, "#draft-title-input[value='Keep this text']")
+    view |> element("button", "Discard unsaved edits") |> render_click()
+    assert has_element?(view, "#draft-column option[value=specs][selected]")
+  end
+
   alias Cuckoding.{BrowserToken, Foundation, Repo, Tabulae}
 
   setup do
@@ -99,10 +128,10 @@ defmodule CuckodingWeb.TabulaLiveTest do
     assert has_element?(view, "#draft-title-input[value='My unsaved title']")
     view |> form("#draft-form") |> render_submit()
     assert has_element?(view, "[role=alert]", "changed elsewhere")
-    view |> element("button", "New draft") |> render_click()
+    view |> element("button[aria-label='Add task to Specs']") |> render_click()
     view |> element("button", "Keep editing") |> render_click()
     assert has_element?(view, "#draft-title-input[value='My unsaved title']")
-    view |> element("button", "New draft") |> render_click()
+    view |> element("button[aria-label='Add task to Specs']") |> render_click()
     view |> element("button", "Discard unsaved edits") |> render_click()
     assert has_element?(view, "#draft-title-input[value='']")
     assert hd(Tabulae.tasks(board.id)).title == "Other editor"
@@ -154,7 +183,7 @@ defmodule CuckodingWeb.TabulaLiveTest do
     view |> form("#draft-form", depends_on: [a]) |> render_change()
     Foundation.broadcast()
     assert has_element?(view, "#depends-on-#{a}[checked]")
-    view |> element("button", "New draft") |> render_click()
+    view |> element("button[aria-label='Add task to Specs']") |> render_click()
     assert has_element?(view, "[role=alert]", "Discard your unsaved edits")
     view |> element("button", "Keep editing") |> render_click()
     view |> form("#draft-form") |> render_submit()

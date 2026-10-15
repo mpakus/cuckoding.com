@@ -140,3 +140,14 @@ code { display:block; overflow-wrap:anywhere; font-size:11px; }
 .agent-roster { list-style: none; padding: 0; margin-top: 2rem; }
 .agent-roster li { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.25rem 0; border-top: 1px solid var(--border); }
 .agent-roster li > div { min-width: 0; overflow-wrap: anywhere; }
+
+.app-dialog { color:var(--text); background:var(--panel, #101612); border:1px solid var(--border); border-radius:6px; width:min(800px, calc(100vw - 32px)); max-height:calc(100dvh - 32px); padding:24px; margin:auto; overflow:auto; }
+.app-dialog::backdrop { background:rgb(0 0 0 / 76%); }
+.dialog-heading, .column-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.dialog-heading { margin-bottom:20px; }
+.dialog-heading h2 { margin:0; font-size:24px; }
+.icon-button { min-width:44px; min-height:44px; padding:8px; font-size:22px; }
+body:has(.app-dialog[open]) { overflow:hidden; }
+.app-dialog .role-fields input, .app-dialog .role-fields textarea { max-width:100%; }
+.agent-roster .team-actions { flex-shrink:0; }
+@media (max-width:760px) { .app-dialog { padding:16px; } .agent-roster li { flex-wrap:wrap; } }

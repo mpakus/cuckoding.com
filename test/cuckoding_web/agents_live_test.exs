@@ -3,6 +3,90 @@ defmodule CuckodingWeb.AgentsLiveTest do
   import Phoenix.LiveViewTest
   alias Cuckoding.{Agents, Foundation, Repo, Team}
 
+  test "roster Disconnect is scoped, guarded and unassigns only its named agent", %{conn: conn} do
+    ctx = Cuckoding.PlanningFixtures.planning_fixture()
+
+    {:ok, command} =
+      Agents.add_and_probe(
+        Ecto.UUID.generate(),
+        Foundation.workspace().revision,
+        "Writer",
+        "cursor",
+        "/bin/sh"
+      )
+
+    id = command.payload["agent_id"]
+    {:ok, probe} = Foundation.claim()
+    Foundation.finish(probe, %{"status" => "supported", "version" => "2026.09.15-d2fe57e"})
+
+    {:ok, _} =
+      Foundation.inspect_codex(Ecto.UUID.generate(), Foundation.workspace().revision, true, id)
+
+    {:ok, claim} = Foundation.claim()
+
+    Foundation.finish(claim, %{
+      "status" => "checked",
+      "authorization" => "cursor",
+      "catalog_status" => "fresh",
+      "models" => [model("writer-model")]
+    })
+
+    {:ok, _} =
+      Foundation.save_agent_models(
+        Ecto.UUID.generate(),
+        Foundation.workspace().revision,
+        Agents.get(id).connection["command_id"],
+        ["writer-model"],
+        id
+      )
+
+    roles =
+      Team.editable(Team.current())
+      |> List.update_at(1, &Map.merge(&1, %{"agent" => id, "model_id" => "writer-model"}))
+
+    {:ok, team} = Team.save(Ecto.UUID.generate(), Team.current().id, roles)
+
+    {:ok, _} =
+      Cuckoding.TeamAssignments.adopt(
+        Ecto.UUID.generate(),
+        ctx.arena.id,
+        ctx.board.id,
+        ctx.board.team_revision_id,
+        team.id,
+        true
+      )
+
+    legacy = Agents.get("codex")
+    {:ok, view, _} = conn |> sign_in() |> live("/agents")
+    assert has_element?(view, "button[aria-label='Disconnect Writer']")
+    assert has_element?(view, "dialog#disconnect-#{id}[phx-hook=Dialog]")
+    view |> form("#disconnect-form-#{id}") |> render_submit(%{"key" => "old-form"})
+    refute Foundation.pending?()
+    assert Team.current() == team
+    view |> form("#disconnect-form-#{id}") |> render_submit()
+    assert has_element?(view, "[role=status]", "roles are now unassigned")
+    assert Agents.get("codex") == legacy
+    assert hd(Team.current().definition["roles"])["agent"] == "codex"
+    assert Enum.at(Team.current().definition["roles"], 1)["agent"] == ""
+    assigned = Cuckoding.TeamAssignments.assigned(ctx.board)
+    assert hd(assigned.definition["roles"])["agent"] == "codex"
+    assert Enum.at(assigned.definition["roles"], 1)["model_id"] == ""
+    {:ok, logout} = Foundation.claim()
+    assert logout.payload["agent_id"] == id
+    assert logout.kind == "logout_cursor"
+  end
+
+  test "expired roster sessions cannot disconnect", %{conn: conn} do
+    Cuckoding.PlanningFixtures.planning_fixture()
+    {:ok, view, _} = conn |> sign_in() |> live("/agents")
+    team = Team.current()
+    Repo.update_all(Cuckoding.BrowserToken, set: [expires_at: 0])
+    view |> form("#disconnect-form-codex") |> render_submit()
+    assert_redirect(view, "/locked")
+    refute Foundation.pending?()
+    assert Team.current() == team
+  end
+
   test "roster adds a named Cursor connection without replacing Codex and scopes recovered forms",
        %{conn: conn} do
     {:ok, _} = Foundation.check_codex(Ecto.UUID.generate(), 0, "/bin/sh", true)

@@ -16,6 +16,69 @@ defmodule Cuckoding.TeamAssignments do
     do:
       Repo.all(from a in query(scope), order_by: [desc: a.id], limit: 5, preload: :team_revision)
 
+  # Called inside the accepted logout transaction; historical teams and battle snapshots stay intact.
+  def disconnect_agent(agent_id, cause_id) do
+    true = Repo.in_transaction?()
+    default = Team.current()
+
+    changed =
+      for scope <- Repo.all(Arena) ++ Repo.all(Tabula),
+          team = assigned(scope),
+          Enum.any?(team.definition["roles"], &(&1["agent"] == agent_id)) do
+        revision = unassigned_revision(team, agent_id, cause_id)
+
+        Repo.insert!(%TeamAdoption{
+          arena_id: if(match?(%Arena{}, scope), do: scope.id, else: scope.arena_id),
+          tabula_id: if(match?(%Tabula{}, scope), do: scope.id),
+          team_revision_id: revision.id,
+          command_id: revision.command_id,
+          inserted_at: DateTime.utc_now()
+        })
+      end
+
+    # Team.current is the latest revision, so restore the default last even if only scoped teams changed.
+    if changed != [] or Enum.any?(default.definition["roles"], &(&1["agent"] == agent_id)),
+      do: unassigned_revision(default, agent_id, cause_id)
+  end
+
+  defp unassigned_revision(team, agent_id, cause_id) do
+    roles =
+      Enum.map(team.definition["roles"], fn role ->
+        if role["agent"] == agent_id,
+          do: Map.merge(role, %{"agent" => "", "model_id" => "", "model" => ""}),
+          else: role
+      end)
+
+    command =
+      Repo.insert!(%Command{
+        id: Ecto.UUID.generate(),
+        kind: "disconnect_agent_roles",
+        expected_revision: team.id,
+        payload: %{"agent_id" => agent_id, "disconnect_command_id" => cause_id},
+        state: "completed"
+      })
+
+    revision =
+      Repo.insert!(%TeamRevision{
+        command_id: command.id,
+        definition: Map.put(team.definition, "roles", roles),
+        inserted_at: DateTime.utc_now()
+      })
+
+    Foundation.record(
+      "team.agent_unassigned",
+      %{
+        "agent_id" => agent_id,
+        "previous_revision" => team.id,
+        "revision" => revision.id,
+        "disconnect_command_id" => cause_id
+      },
+      command.id
+    )
+
+    revision
+  end
+
   defp query(%Arena{id: id}),
     do: from(a in TeamAdoption, where: a.arena_id == ^id and is_nil(a.tabula_id))
 

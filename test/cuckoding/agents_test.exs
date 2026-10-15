@@ -177,6 +177,46 @@ defmodule Cuckoding.AgentsTest do
 
   defp revision, do: Foundation.workspace().revision
 
+  test "Cursor saved bindings tolerate catalog age but refuse failed observations and model drift" do
+    cursor = add("Cursor worker", "cursor")
+    connect(cursor.id, "grok-fixture", "cursor")
+    cursor = Agents.get(cursor.id)
+    connection = Map.put(cursor.connection, "fetched_at", "2000-01-01T00:00:00Z")
+
+    Repo.update!(
+      Ecto.Changeset.change(cursor,
+        codex: Map.put(cursor.codex, "version", Cuckoding.Cursor.task_version()),
+        connection: connection
+      )
+    )
+
+    payload = %{
+      "kind" => "cursor",
+      "agent_id" => cursor.id,
+      "identity" => connection["identity"],
+      "connection_command_id" => connection["command_id"],
+      "fetched_at" => connection["fetched_at"],
+      "model_id" => "grok-fixture",
+      "model" => "grok-fixture",
+      "effort" => nil
+    }
+
+    assert Foundation.task_binding_current?(payload)
+    refute Foundation.task_binding_current?(Map.put(payload, "model", "different-model"))
+
+    for replacement <- [
+          Map.put(connection, "catalog_status", "stale"),
+          Map.put(connection, "fetched_at", "invalid"),
+          Map.put(connection, "fetched_at", "9999-01-01T00:00:00Z")
+        ] do
+      Repo.update!(Ecto.Changeset.change(Agents.get(cursor.id), connection: replacement))
+
+      refute Foundation.task_binding_current?(
+               Map.put(payload, "fetched_at", replacement["fetched_at"])
+             )
+    end
+  end
+
   defp add(name, kind) do
     {:ok, command} = Agents.add_and_probe(Ecto.UUID.generate(), revision(), name, kind, "/bin/sh")
     {:ok, claim} = Foundation.claim()

@@ -104,7 +104,7 @@ the same battle, not extra buttons or modes. The Arena page itself is its dashbo
 
 One primary region is the board. A compact top area shows folder, goal and current
 action; task details and logs open in one optional inspector. Before tasks exist,
-show a brief field and Create tasks. After valid tasks exist, show Start. During
+show Create tasks, opening its brief/source dialog. Manual drafts use + in Specs or ToDo. After valid tasks exist, show Start. During
 work, show current activity and Pause/Stop. Settings and evidence are disclosed
 when requested or when an actual blocker needs a decision.
 

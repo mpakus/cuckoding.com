@@ -2,6 +2,8 @@ defmodule CuckodingWeb.TabulaLive do
   use CuckodingWeb, :live_view
   alias Cuckoding.{ArenaGit, Battles, Foundation, GitPreview, Tabulae, TeamAssignments}
   alias CuckodingWeb.Layouts
+  import CuckodingWeb.Dialog
+  alias Phoenix.LiveView.JS
 
   @impl true
   def mount(params, _, socket) do
@@ -191,6 +193,7 @@ defmodule CuckodingWeb.TabulaLive do
          socket
          |> assign(error: nil, message: "Task saved · revision #{revision.revision}.")
          |> draft(nil)
+         |> push_event("dialog-close", %{id: "draft-editor"})
          |> refresh()}
 
       {:error, reason} ->
@@ -198,12 +201,14 @@ defmodule CuckodingWeb.TabulaLive do
     end
   end
 
-  def handle_event("edit", %{"id" => id}, socket) do
+  def handle_event("edit", %{"id" => id} = params, socket) do
+    column = if params["column"] == "todo", do: "todo", else: "specs"
+
     if id == "new" || Enum.any?(socket.assigns.tasks, &(&1.id == id)) do
       if socket.assigns.dirty do
-        {:noreply, assign(socket, :pending_edit, id)}
+        {:noreply, assign(socket, :pending_edit, {id, column})}
       else
-        {:noreply, select_task(socket, id)}
+        {:noreply, select_task(socket, id, column)}
       end
     else
       {:noreply, assign(socket, :error, message("scope_missing"))}
@@ -211,9 +216,10 @@ defmodule CuckodingWeb.TabulaLive do
   end
 
   def handle_event("discard", _, socket) do
-    if socket.assigns.pending_edit,
-      do: {:noreply, select_task(socket, socket.assigns.pending_edit)},
-      else: {:noreply, socket}
+    case socket.assigns.pending_edit do
+      {id, column} -> {:noreply, select_task(socket, id, column)}
+      _ -> {:noreply, socket}
+    end
   end
 
   def handle_event("keep", _, socket), do: {:noreply, assign(socket, :pending_edit, nil)}
@@ -519,6 +525,13 @@ defmodule CuckodingWeb.TabulaLive do
     do:
       "Git setup needs a fresh inspection. An interrupted initialization may have created metadata; it will not be replayed."
 
+  defp select_task(socket, "new", column) do
+    socket = select_task(socket, "new")
+    assign(socket, :content, Map.put(socket.assigns.content, "column", column))
+  end
+
+  defp select_task(socket, id, _column), do: select_task(socket, id)
+
   defp select_task(socket, id) do
     task = Enum.find(socket.assigns.tasks, &(&1.id == id))
     socket |> draft(task) |> assign(error: nil, message: nil, pending_edit: nil) |> refresh()
@@ -713,7 +726,7 @@ defmodule CuckodingWeb.TabulaLive do
           open={is_nil(@board)}
           phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
         >
-          <summary>Advanced · team, repository and boards</summary>
+          <summary>Advanced</summary>
           <.link navigate={~p"/arenas/#{@arena.id}/checks"} class="text-link">Extra command checks (optional) ↗</.link>
           <.link
             :if={@board}
@@ -737,12 +750,15 @@ defmodule CuckodingWeb.TabulaLive do
             revision={@arena_team.id}
             now={@now}
           />
-          <details
-            id="arena-git"
-            class="git-setup"
-            phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
-          >
-            <summary>Repository setup · {if @git, do: @git.state, else: "not inspected"}</summary>
+          <div class="team-actions">
+            <button type="button" class="button" phx-click={JS.dispatch("cc:open", to: "#arena-git")}>Repository setup</button>
+            <button
+              type="button"
+              class="button"
+              phx-click={JS.dispatch("cc:open", to: "#create-tabula")}
+            >Add another board</button>
+          </div>
+          <.modal id="arena-git" title="Repository setup">
             <p class="arena-path">{@arena.path}</p>
             <p class="fine-print">
               Inspect local Git metadata. This grants no agent access and does not stage, commit or contact a remote.
@@ -958,13 +974,8 @@ defmodule CuckodingWeb.TabulaLive do
                 Preview expired. Preview again before confirming.
               </p>
             </div>
-          </details>
-          <details
-            id="create-tabula"
-            open={is_nil(@board)}
-            phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
-          >
-            <summary>{if @board, do: "Add another board", else: "Create your board"}</summary>
+          </.modal>
+          <.modal id="create-tabula" title="Add another board">
             <.form
               for={%{}}
               id="tabula-form"
@@ -982,12 +993,12 @@ defmodule CuckodingWeb.TabulaLive do
                 required
               />
               <p class="fine-print">
-                Inherits Arena team revision {@arena_team.id}. No agent access is granted.
+                Uses this Arena’s saved team. Creating a board starts no agents.
               </p>
               <p :if={@board_error} role="alert" class="notice">{@board_error}</p>
               <button type="submit" class="button" phx-disable-with="Creating…">Create Tabula</button>
             </.form>
-          </details>
+          </.modal>
         </details>
         <p :if={@error && is_nil(@board)} role="alert" class="notice">{@error}</p>
         <p :if={@message} role="status">{@message}</p>
@@ -1006,7 +1017,21 @@ defmodule CuckodingWeb.TabulaLive do
               class="tabula-column"
               aria-labelledby={"heading-#{column["key"]}"}
             >
-              <h3 id={"heading-#{column["key"]}"}>{column["name"]}</h3>
+              <div class="column-heading">
+                <h3 id={"heading-#{column["key"]}"}>{column["name"]}</h3>
+                <button
+                  :if={column["key"] in ~w(specs todo)}
+                  type="button"
+                  class="button icon-button"
+                  aria-label={"Add task to #{column["name"]}"}
+                  phx-click={
+                    JS.push("edit", value: %{id: "new", column: column["key"]})
+                    |> JS.dispatch("cc:open", to: "#draft-editor")
+                  }
+                >
+                  <span aria-hidden="true">+</span>
+                </button>
+              </div>
               <p class="fine-print">{role_name(@board_team, column["role"])}</p>
               <p
                 :if={!Enum.any?(@tasks, &(task_column(&1, @battle_projection) == column["key"]))}
@@ -1030,7 +1055,7 @@ defmodule CuckodingWeb.TabulaLive do
                   type="button"
                   class="button"
                   phx-click={
-                    Phoenix.LiveView.JS.set_attribute({"open", ""}, to: "#draft-editor")
+                    JS.dispatch("cc:open", to: "#draft-editor")
                     |> Phoenix.LiveView.JS.push("edit", value: %{id: task.id})
                   }
                   aria-label={"#{if Map.has_key?(@battle_projection, task.id), do: "Inspect", else: "Edit"} #{task.title}"}
@@ -1040,144 +1065,146 @@ defmodule CuckodingWeb.TabulaLive do
           </div>
         </div>
         <p :if={@board} class="fine-print">
-          Team revision {@board_team.id} · workflow 1. New tasks remain available for a later battle; Start freezes its own scope.
+          New tasks added during a battle wait for the next Start.
         </p>
       </section>
-      <section :if={@board} class="panel" aria-labelledby="draft-title">
-        <details id="draft-editor" phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
-          <summary id="draft-title">
-            {if @revision == 0, do: "Add a task manually", else: "Edit task · revision #{@revision}"}
-          </summary>
-          <button type="button" class="button" phx-click="edit" phx-value-id="new">New draft</button>
-          <div :if={@pending_edit} role="alert" class="notice">
-            <p>Discard your unsaved edits and open the selected draft?</p>
-            <button type="button" class="button" phx-click="keep">Keep editing</button>
-            <button type="button" class="button" phx-click="discard">Discard unsaved edits</button>
-          </div>
-          <.form
-            for={%{}}
-            id="draft-form"
-            phx-change="change"
-            phx-submit="save"
-            aria-describedby={if @error, do: "draft-error"}
+      <.modal
+        :if={@board}
+        id="draft-editor"
+        title={if @revision == 0, do: "Add task", else: "Task details"}
+      >
+        <div :if={@pending_edit} role="alert" class="notice">
+          <p>Discard your unsaved edits and open the selected draft?</p>
+          <button type="button" class="button" phx-click="keep">Keep editing</button>
+          <button type="button" class="button" phx-click="discard">Discard unsaved edits</button>
+        </div>
+        <.form
+          for={%{}}
+          id="draft-form"
+          phx-change="change"
+          phx-submit="save"
+          aria-describedby={if @error, do: "draft-error"}
+        >
+          <p :if={@editing_locked} id="draft-locked" role="status" class="notice">
+            This task is frozen in the active battle. Your unsaved text is kept; new drafts can still be added for a later battle.
+          </p>
+          <fieldset
+            class="role-fields"
+            disabled={@editing_locked}
+            aria-labelledby="draft-editor-title"
           >
-            <p :if={@editing_locked} id="draft-locked" role="status" class="notice">
-              This task is frozen in the active battle. Your unsaved text is kept; new drafts can still be added for a later battle.
-            </p>
-            <fieldset class="role-fields" disabled={@editing_locked} aria-labelledby="draft-title">
-              <input name="task_id" type="hidden" value={@task_id} />
-              <input name="revision" type="hidden" value={@revision} />
-              <input name="tabula_id" type="hidden" value={@board.id} />
-              <label for="draft-title-input">Task title</label>
-              <input
-                id="draft-title-input"
-                type="text"
-                name="title"
-                value={@content["title"]}
-                maxlength="120"
-                required
-              />
-              <label for="draft-description">Description</label>
-              <textarea id="draft-description" name="description" rows="5" maxlength="8000">{@content["description"]}</textarea>
-              <label for="draft-criteria">Acceptance criteria and checks</label>
-              <textarea id="draft-criteria" name="criteria" rows="4" maxlength="4000">{@content["criteria"]}</textarea>
-              <label for="draft-column">Column</label>
-              <select id="draft-column" name="column">
-                <option value="specs" selected={@content["column"] == "specs"}>
-                  Specs · refine the task
-                </option>
-                <option value="todo" selected={@content["column"] == "todo"}>
-                  ToDo · planned work
-                </option>
-              </select>
-              <fieldset id="draft-prerequisites" aria-describedby="prerequisites-help">
-                <legend>Prerequisites</legend>
-                <p id="prerequisites-help" class="fine-print">
-                  Choose up to 16 tasks that must come first. This records a plan; it does not start work.
-                </p>
-                <input type="hidden" name="depends_on[]" value="" />
-                <label
-                  :for={task <- Enum.reject(@tasks, &(&1.id == @task_id))}
-                  class="confirm-executable"
-                >
-                  <input
-                    id={"depends-on-#{task.id}"}
-                    type="checkbox"
-                    name="depends_on[]"
-                    value={task.id}
-                    checked={task.id in @content["depends_on"]}
-                  />
-                  {dependency_label(@tasks, task.id)}
-                </label>
-                <p :if={!Enum.any?(@tasks, &(&1.id != @task_id))} class="fine-print">
-                  Save another task to add a prerequisite.
-                </p>
-              </fieldset>
-              <p class="fine-print">
-                ToDo needs a description and criteria. These are database drafts; project files stay untouched.
-              </p>
-              <p :if={@error} id="draft-error" role="alert" class="notice">{@error}</p>
-              <button
-                id="draft-save"
-                type="submit"
-                class="button primary"
-                phx-disable-with="Saving…"
-              >Save task</button>
-            </fieldset>
-          </.form>
-          <.live_component
-            :if={@revision > 0 && !@editing_locked}
-            module={CuckodingWeb.SpecificationComponent}
-            id="task-specifications"
-            session_id={@session_id}
-            board={@board}
-            task_id={@task_id}
-            revision={@revision}
-            dirty={@dirty || !@form_matches}
-            now={@now}
-          />
-          <details
-            :if={@source}
-            id="draft-source"
-            phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
-          >
-            <summary>Original proposal sources</summary>
-            <p class="fine-print">
-              Proposal {@source.plan_id} · suggestion {@source.index + 1}.
-              These snapshots describe the original import, not later draft edits or live files.
-            </p>
-            <p :if={@source.documents == []} class="fine-print">
-              No task-specific document citations.
-            </p>
-            <CuckodingWeb.PlanningComponent.documents
-              id="draft-source-document"
-              files={@source.documents}
+            <input name="task_id" type="hidden" value={@task_id} />
+            <input name="revision" type="hidden" value={@revision} />
+            <input name="tabula_id" type="hidden" value={@board.id} />
+            <label for="draft-title-input">Task title</label>
+            <input
+              id="draft-title-input"
+              type="text"
+              name="title"
+              value={@content["title"]}
+              maxlength="120"
+              required
             />
-          </details>
-          <details
-            :if={@history != []}
-            id="draft-history"
-            phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
-          >
-            <summary>Saved history · latest five revisions</summary>
-            <article :for={revision <- @history} class="team-role">
-              <h3>Revision {revision.revision} · {revision.content["column"]}</h3>
-              <p class="fine-print">
-                {Calendar.strftime(revision.inserted_at, "%Y-%m-%d %H:%M UTC")}
+            <label for="draft-description">Description</label>
+            <textarea id="draft-description" name="description" rows="5" maxlength="8000">{@content["description"]}</textarea>
+            <label for="draft-criteria">Acceptance criteria and checks</label>
+            <textarea id="draft-criteria" name="criteria" rows="4" maxlength="4000">{@content["criteria"]}</textarea>
+            <label for="draft-column">Column</label>
+            <select id="draft-column" name="column">
+              <option value="specs" selected={@content["column"] == "specs"}>
+                Specs · refine the task
+              </option>
+              <option value="todo" selected={@content["column"] == "todo"}>
+                ToDo · planned work
+              </option>
+            </select>
+            <fieldset id="draft-prerequisites" aria-describedby="prerequisites-help">
+              <legend>Prerequisites</legend>
+              <p id="prerequisites-help" class="fine-print">
+                Choose up to 16 tasks that must come first. This records a plan; it does not start work.
               </p>
-              <h4>{revision.content["title"]}</h4>
-              <p class="draft-copy">{revision.content["description"]}</p>
-              <p class="draft-copy">{revision.content["criteria"]}</p>
-              <p class="fine-print">
-                Prerequisites (current task names): {case Map.get(revision.content, "depends_on", []) do
-                  [] -> "None"
-                  ids -> Enum.map_join(ids, "; ", &dependency_label(@tasks, &1))
-                end}
+              <input type="hidden" name="depends_on[]" value="" />
+              <label
+                :for={task <- Enum.reject(@tasks, &(&1.id == @task_id))}
+                class="confirm-executable"
+              >
+                <input
+                  id={"depends-on-#{task.id}"}
+                  type="checkbox"
+                  name="depends_on[]"
+                  value={task.id}
+                  checked={task.id in @content["depends_on"]}
+                />
+                {dependency_label(@tasks, task.id)}
+              </label>
+              <p :if={!Enum.any?(@tasks, &(&1.id != @task_id))} class="fine-print">
+                Save another task to add a prerequisite.
               </p>
-            </article>
-          </details>
+            </fieldset>
+            <p class="fine-print">
+              ToDo needs a description and criteria. These are database drafts; project files stay untouched.
+            </p>
+            <p :if={@error} id="draft-error" role="alert" class="notice">{@error}</p>
+            <button
+              id="draft-save"
+              type="submit"
+              class="button primary"
+              phx-disable-with="Saving…"
+            >Save task</button>
+          </fieldset>
+        </.form>
+        <.live_component
+          :if={@revision > 0 && !@editing_locked}
+          module={CuckodingWeb.SpecificationComponent}
+          id="task-specifications"
+          session_id={@session_id}
+          board={@board}
+          task_id={@task_id}
+          revision={@revision}
+          dirty={@dirty || !@form_matches}
+          now={@now}
+        />
+        <details
+          :if={@source}
+          id="draft-source"
+          phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
+        >
+          <summary>Original proposal sources</summary>
+          <p class="fine-print">
+            Proposal {@source.plan_id} · suggestion {@source.index + 1}.
+            These snapshots describe the original import, not later draft edits or live files.
+          </p>
+          <p :if={@source.documents == []} class="fine-print">
+            No task-specific document citations.
+          </p>
+          <CuckodingWeb.PlanningComponent.documents
+            id="draft-source-document"
+            files={@source.documents}
+          />
         </details>
-      </section>
+        <details
+          :if={@history != []}
+          id="draft-history"
+          phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
+        >
+          <summary>Saved history · latest five revisions</summary>
+          <article :for={revision <- @history} class="team-role">
+            <h3>Revision {revision.revision} · {revision.content["column"]}</h3>
+            <p class="fine-print">
+              {Calendar.strftime(revision.inserted_at, "%Y-%m-%d %H:%M UTC")}
+            </p>
+            <h4>{revision.content["title"]}</h4>
+            <p class="draft-copy">{revision.content["description"]}</p>
+            <p class="draft-copy">{revision.content["criteria"]}</p>
+            <p class="fine-print">
+              Prerequisites (current task names): {case Map.get(revision.content, "depends_on", []) do
+                [] -> "None"
+                ids -> Enum.map_join(ids, "; ", &dependency_label(@tasks, &1))
+              end}
+            </p>
+          </article>
+        </details>
+      </.modal>
     </Layouts.workspace>
     """
   end

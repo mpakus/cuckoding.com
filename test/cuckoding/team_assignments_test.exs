@@ -17,6 +17,56 @@ defmodule Cuckoding.TeamAssignmentsTest do
 
   setup do: planning_fixture()
 
+  test "Disconnect unassigns current teams once, preserving defaults, other agents and history",
+       ctx do
+    old_default = Team.current()
+    old_arena = TeamAssignments.assigned(ctx.arena)
+    old_board = TeamAssignments.assigned(ctx.board)
+    # The default can differ from both scopes; it must not become a scoped team on disconnect.
+    roles =
+      Team.editable(old_default)
+      |> List.update_at(
+        0,
+        &Map.merge(&1, %{"agent" => "", "model_id" => "", "name" => "Default planner"})
+      )
+
+    {:ok, default} = Team.save(Ecto.UUID.generate(), old_default.id, roles)
+    before_tasks = Tabulae.tasks(ctx.board.id)
+    key = Ecto.UUID.generate()
+    expected = Foundation.workspace().revision
+    {:ok, command} = Foundation.authorize_codex(key, expected, :logout, true)
+    assert command.state == "pending"
+    assert {:ok, ^command} = Foundation.authorize_codex(key, expected, :logout, true)
+    assert Repo.aggregate(TeamAdoption, :count) == 2
+    assert Team.current().definition == default.definition
+
+    for scope <- [ctx.arena, ctx.board] do
+      current = TeamAssignments.assigned(scope)
+      assert hd(current.definition["roles"])["agent"] == ""
+      assert hd(current.definition["roles"])["model_id"] == ""
+
+      assert hd(current.definition["roles"])["instructions"] ==
+               hd(old_board.definition["roles"])["instructions"]
+    end
+
+    assert Repo.get!(Cuckoding.TeamRevision, old_board.id) == old_board
+    assert Repo.get!(Cuckoding.TeamRevision, old_arena.id) == old_arena
+    assert Tabulae.tasks(ctx.board.id) == before_tasks
+    {:ok, claim} = Foundation.claim()
+    Foundation.finish(claim, %{"status" => "logout_unconfirmed"})
+    assert hd(TeamAssignments.assigned(ctx.board).definition["roles"])["agent"] == ""
+  end
+
+  test "a rejected logout does not change any team", ctx do
+    before = Team.current()
+    assigned = TeamAssignments.assigned(ctx.board)
+    {:ok, command} = Foundation.authorize_codex(Ecto.UUID.generate(), 0, :logout, true)
+    assert command.state == "rejected"
+    assert Team.current() == before
+    assert TeamAssignments.assigned(ctx.board) == assigned
+    assert Repo.aggregate(TeamAdoption, :count) == 0
+  end
+
   defp next_team(name) do
     previous = Team.current()
     roles = put_in(Team.editable(previous), [Access.at(0), "name"], name)

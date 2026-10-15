@@ -24,7 +24,7 @@ Secutor · completion review. No competing start screen or separate Agent Floor.
 | State | Main surface | Primary action |
 | --- | --- | --- |
 | Add folder | Native chooser, suggested folder name and saved-team summary | Add Arena |
-| Empty Arena | Short optional brief, source summary, empty default board | Create tasks |
+| Empty Arena | Empty default board; brief/source dialog on demand | Create tasks |
 | Analyzing | Phase, elapsed time, Speculator/runtime/model, source scope | Cancel |
 | Tasks ready | Editable cards, compact team/progress and Start scope | Start |
 | Running | Same board with automatic moves and current workers | Pause; Stop available |
@@ -38,7 +38,7 @@ Existing Tabula deep links remain usable. Never create a board from a GET/mount.
 Existing Arenas with no boards need one explicit Create board recovery action;
 existing multiple boards keep their selection/URLs and are not merged or deleted.
 
-Create tasks explains that Speculator analyzes `docs/` and relevant eligible files
+Create tasks opens a modal explaining that Speculator analyzes `docs/` and relevant eligible files
 within a bounded source policy. A short brief is optional when sources are useful;
 an empty folder needs a brief. Show read/provider-use scope before dispatch, then
 sources and skipped/truncated entries in Inspect. The target needs no pasted path
@@ -79,7 +79,10 @@ empty-state checklist. The board selector is unnecessary when only one exists.
 Clicking a card opens its spec, criteria, original sources, candidate, review
 comments and attempts. Editing and manual column movement use the same domain
 gates as automated moves; dragging into Completed can never forge a review.
-Keep manual draft creation available as a secondary action.
+Use a labelled **+** in Specs and ToDo to open the manual task dialog in that
+column. Later columns have no add button because a manual draft cannot bypass
+execution/review. Keep dirty text when the dialog closes; changing task still
+requires the existing discard choice.
 
 Active cards show task, role/worker, agent, requested model (actual when reported),
 public activity, elapsed time, waiting reason and relevant controls. Parallel
@@ -114,24 +117,30 @@ fall back. Saving settings does not grant execution.
 
 R002 creates a default board with each new Arena, suggests its folder name and
 opens the board immediately. Existing Arena routes read their first board without
-creating records. Planning opens on empty boards; repository/team/extra-board
-controls are under Advanced and manual editing is an optional disclosure.
+creating records. Create tasks is a button on the board; repository/team/extra-board controls are
+under Advanced. R080a opens planning, repository setup, extra-board creation and
+manual task editing in the shared native dialog. Escape/close returns focus;
+LiveView patches retain the open state and unsaved inputs. Closing does not
+cancel an operation. Ongoing planning remains visible outside its dialog.
+**Board team**, **Team for new boards** and **Use saved team** replace technical
+version labels in ordinary controls; **Team history** retains dated versions.
 R040l adds **Read project folder**, exact source disclosures, skipped/limit counts,
 local progress/cancel and an optional brief with nonempty sources. It retains
 manual document selection and separately consented Speculator planning.
-Individual proposal imports remain; automatic card creation and actual Start are
-pending. Early UI simplification must label
-these limits accurately; it cannot relabel a proposal request as completed task
-creation. [Development](DEVELOPMENT.md) describes available operations.
+R040m creates validated cards automatically; legacy requests retain individual
+imports. R050e implements bounded sequential Start. Keep the remaining runtime,
+recovery and provider acceptance limits visible. [Development](DEVELOPMENT.md) describes available operations.
 
 ## Agent wizard and routes
 
 R020i makes `/agents` the agent roster, with one **Add agent** action and an
-**Edit** link per named connection. `/agents/new` and `/agents/<ID>` use the
+**Edit** link and confirmed **Disconnect** per named connection. Disconnect
+clears that agent's current role assignments with retained history. An unfinished
+battle using it refuses disconnection; other agents remain unchanged. `/agents/new` and `/agents/<ID>` use the
 four-step wizard. New connections choose Codex or Cursor and a display name.
 Team's agent selector lists those names and filters each role's model selector
 independently. Changing an agent clears that role's unsaved model choice. Cursor
-setup is available; tests/planning remain explicitly unavailable. Existing Codex
+setup and task execution are available; optional model tests and initial planning remain unavailable. Existing Codex
 profiles and immutable assignments are preserved. No single global agent selector.
 
 R020j aligns URLs with navigation: **Agents** uses `/agents` and **Settings** uses
@@ -148,3 +157,13 @@ show the unavailable list and **Refresh models** there. Refresh uses the same
 scoped, revision-guarded inspection command as step 2. Keep model choices through
 Back/Next and live updates. Only a fresh catalog allows selection/review/save;
 navigation alone launches no runtime and grants no authority.
+
+## Kanban references (R080a)
+
+[Vibe Kanban: Creating Tasks](https://www.vibekanban.com/docs/core-features/creating-tasks)
+uses an explicit plus control and distinguishes creating from starting work.
+[GitHub Projects: Adding items](https://docs.github.com/en/issues/planning-and-tracking-with-projects/managing-items-in-your-project/adding-items-to-your-project)
+keeps draft creation in the project view. Cuckoding adopts contextual creation and
+on-demand details, with its own five-column board, Speculator planning and Secutor
+review. These references inform interaction only; no external source code or
+artwork is copied. Start remains the separate execution authorization.

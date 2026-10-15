@@ -339,6 +339,15 @@ Do not restore the old implementation or treat historical tests as current proof
   `account/updated` during authoritative `account/read` only; unsolicited login
   completion, server requests and later account drift remain refused. Retain the
   last catalog as stale after inspection failure; age it out after 24 hours.
+  R080a keeps aged successful catalogs reusable for existing planning/task role
+  bindings; the 24-hour limit still gates new model choices and optional diagnostics.
+  Failed/invalidated observations and exact account/executable/model drift refuse
+  reuse. Native preflight remains mandatory before usage; no silent substitution.
+  Confirmed Disconnect unassigns the exact connection in current default/Arena/board
+  teams through immutable revisions/adoptions in the accepted logout transaction.
+  Preserve historical snapshots, other agents and role instructions. Refuse agents
+  used by unfinished battles and busy profile/planning work. Failed logout leaves
+  roles unassigned; reconnect never implicitly restores assignments.
   Fetch the full bounded agent catalog, including entries hidden from its default
   picker. Validate/preserve that flag and expose additional models without
   inventing IDs or inferring entitlement; older cached rows remain readable.
@@ -390,6 +399,11 @@ regions, modern mouse-friendly TUI appearance, no decorative dashboard clutter.
 Use the shared near-black/electric-green palette (`#050807` / `#82ff52`), restrained
 HUD borders and readable system type. Keep cinematic artwork on the public site;
 internal forms retain the one/two-region layout and visible keyboard focus.
+R080a uses the shared native dialog/hook for Create tasks, Repository setup,
+Add another board, task editing and Disconnect confirmation. Preserve open state,
+text, Escape/close and focus return. Specs/ToDo expose labelled + controls; other
+columns cannot create manually completed work. Show Board team / Use saved team;
+version numbers belong in Team history. Closing a dialog does not cancel work.
 Every long action shows state, elapsed time, role, runtime, model when known,
 and pause/resume/retry/stop/inspect as appropriate.
 

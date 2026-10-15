@@ -43,7 +43,7 @@ defmodule CuckodingWeb.SpecificationLiveTest do
     assert has_element?(view, "#draft-title-input[value='Keep my unsaved title']")
     {:ok, again, _} = live(signed, path)
     again |> element("button[aria-label='Edit Health endpoint']") |> render_click()
-    assert has_element?(again, "#draft-title", "revision 2")
+    assert has_element?(again, "#draft-form input[name=revision][value='2']")
     assert has_element?(again, "#spec-#{command.id}", "revisions are current")
     again |> form("#draft-form", title: "Changed specification") |> render_submit()
     again |> element("button[aria-label='Edit Changed specification']") |> render_click()

@@ -8,9 +8,10 @@ Current R020i provides a roster of named Codex and Cursor connections. Each uses
 an independent app-owned profile, observed account status, bounded catalog and
 saved model selection. Existing Codex profiles and immutable Team bindings keep
 their original identity. Codex's fixed model diagnostic has real GPT-6.1-Sol
-response evidence from R020h; Cursor supports setup only, with a real 256-entry
-catalog recorded in [R020l](../tasks/R020l-cursor-catalog.md). R050e now uses Codex connections for the bounded sequential Arena loop; Cursor
-repository execution remains unavailable.
+response evidence from R020h; Cursor has a real 256-entry
+catalog recorded in [R020l](../tasks/R020l-cursor-catalog.md). R050e/R020p use Codex
+and Cursor connections for the bounded sequential Arena loop. Cursor initial
+planning and full live-provider battle acceptance remain open.
 Login/logout invalidate only that connection's observations before launch.
 
 Login uses a ten-minute managed browser flow. A validated official HTTPS URL is
@@ -57,8 +58,7 @@ ask for another agent/model assignment. Summa Rudis and Secutor remain distinct.
 
 New Arenas inherit the default Team. Existing scoped adoptions and historical
 bindings do not change when another agent is added. Codex planning uses the exact
-assigned connection; Cursor planning reports unavailable until its execution
-boundary is implemented. Saving a mixed team grants no execution permission.
+assigned connection; Cursor initial planning remains unavailable. Saving a mixed team grants no execution permission.
 
 The normal path does not reassign agents per task or ask for another login on
 each app launch. Provider expiry/revocation remains authoritative; there is no
@@ -66,9 +66,12 @@ app promise of permanent authorization.
 
 ## Discovery behavior
 
-Refresh after successful authorization, on user request, and when the selected
-catalog is stale at start. Initial freshness default: 24 hours, recorded as a
-product setting. Deduplicate concurrent refreshes per connection/runtime.
+Refresh after successful authorization and on user request. New model selection
+and optional diagnostics require an observation from the last 24 hours. R080a
+lets existing exact Agent–Role bindings reuse an aged successful observation;
+Start/planning need no routine manual refresh on age alone. Native dispatch
+checks the actual account/model. Failed or invalidated observations still block.
+Do not silently refresh an immutable battle binding or substitute a model.
 Keep a last-good catalog on temporary failure, mark it stale and show the last
 successful refresh time. A catalog error does not turn a valid login into a
 failed login.
@@ -89,8 +92,11 @@ App-owned profiles contain provider-managed state; Cuckoding stores references,
 not credentials. Shared authorization may also share provider-managed history;
 named connections therefore use separate profiles. Task instructions and permission
 settings stay attempt-owned. Disconnect requires confirmation, logs out only that
-profile and blocks future launches. An affected-role/Arena preview is still planned. It does not
-silently erase work or revoke unrelated personal sign-ins.
+profile and unassigns it from all current default, Arena and board roles through
+new immutable revisions. Other agents and historical work remain intact. An
+unfinished battle using the connection, busy profile/planning work or stale form
+refuses the action before changes. Unassignment remains after a failed logout;
+reconnect does not restore roles. It never revokes unrelated personal sign-ins.
 
 For each runtime, verify fresh login, two Arenas, different models, concurrent
 sessions, app restart, refresh, revocation and isolated execution. Inspect global

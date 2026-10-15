@@ -122,3 +122,22 @@ HEAD. An exclusive attempt directory records intent before effects; uncertain
 attempts are inspected, never replayed. Verification compares the exact retained
 candidate tree against live bytes. Start authority, check execution, independent
 Secutor verdicts and reviewed integration are separate R050d/e responsibilities.
+
+## D026 — Reusable saved roles and direct Arena controls
+
+2026-10-14, R080a. Catalog age is a picker freshness signal, not an automatic
+sign-out. Existing exact role bindings can reuse a successful observation after
+24 hours; native account/model preflight remains required before dispatch. A
+failed/invalidated observation still blocks, and changing model choices or running
+an optional diagnostic still needs a fresh catalog. No fallback or new grant.
+
+Confirmed Disconnect clears current assignments in the global default, Arenas and
+boards through new immutable revisions before private logout. Historical team and
+battle snapshots are preserved; unfinished battles using that agent refuse the
+action. A failed logout leaves current roles unassigned. Reconnection cannot
+silently restore earlier assignments.
+
+Use one native dialog for on-demand forms. Create tasks, Repository setup and
+Add another board are buttons; manual tasks use + beside Specs/ToDo. Team history
+keeps version numbers, while ordinary controls use Board team / Use saved team.
+[UI references](UI_DASHBOARD.md#kanban-references-r080a) inform this interaction.

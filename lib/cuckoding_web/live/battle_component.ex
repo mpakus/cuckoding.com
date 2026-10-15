@@ -212,8 +212,14 @@ defmodule CuckodingWeb.BattleComponent do
   defp message("model_unavailable"),
     do: "A saved model is unavailable. Refresh its agent and explicitly update the assigned team."
 
-  defp message("catalog_stale"), do: "Refresh the assigned agent's model catalog in Agents."
-  defp message("connection_required"), do: "Refresh the assigned connection in Agents."
+  defp message("catalog_stale"),
+    do:
+      "The assigned agent's last model lookup failed. Open that agent in Agents and reconnect or refresh its models."
+
+  defp message("connection_required"),
+    do:
+      "An assigned agent is not connected. Open that agent in Agents and sign in; another connected agent is not substituted automatically."
+
   defp message("version_required"), do: "Check the assigned agent's version in Agents."
 
   defp message("battle_active"),

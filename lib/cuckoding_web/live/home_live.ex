@@ -270,6 +270,10 @@ defmodule CuckodingWeb.HomeLive do
            )
            |> reload()}
 
+        {:ok, %{state: "rejected", result: "agent_in_battle"}} ->
+          {:noreply,
+           assign(socket, error: "Stop the battle using this agent before disconnecting it.")}
+
         {:ok, %{state: "rejected"}} ->
           {:noreply,
            assign(socket,
@@ -521,7 +525,7 @@ defmodule CuckodingWeb.HomeLive do
                 <.form_scope key={@command_key} revision={@workspace.revision} />
                 <input type="hidden" name="operation" value="logout" />
                 <p class="fine-print">
-                  Sign out disconnects this private profile and clears its cached catalog. Saved roles stay unchanged.
+                  Sign out disconnects this private profile, clears its cached catalog and unassigns it from current team roles. Instructions and saved history are retained.
                 </p>
                 <button class="button" disabled={@pending}>Sign out of {Agents.label(@agent_kind)}</button>
               </form>

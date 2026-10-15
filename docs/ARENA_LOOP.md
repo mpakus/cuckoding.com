@@ -105,8 +105,10 @@ loop. Commands remain optional Advanced settings, not generated executable polic
 ## Initial supported scope
 
 Default columns and the four required roles, bound independently to named Codex or Cursor connections.
-A fresh catalog and exact selected executable/model remain required at each role
-turn. Every Codex role needs `0.162.0-alpha.17.2`; Cursor roles need
+An unchanged successful catalog observation and exact selected executable/model
+remain required at each role turn. R080a permits an aged saved binding; native
+account/model checks still run before dispatch. Failed/invalidated observations
+still refuse use. Every Codex role needs `0.162.0-alpha.17.2`; Cursor roles need
 `2026.09.15-d2fe57e` and the verified `cursor-acp-v1` grant. Extra command checks
 still require the Codex Implementor runtime. No fallback or implicit account/model substitution occurs.
 At most 20 tasks, three review returns per task, 200 role stages and two wall-clock

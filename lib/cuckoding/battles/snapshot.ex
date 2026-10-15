@@ -230,7 +230,7 @@ defmodule Cuckoding.Battles.Snapshot do
       not connected?(agent) ->
         "connection_required"
 
-      Foundation.catalog_status(agent.connection) != "fresh" ->
+      not Foundation.reusable_catalog?(agent.connection) ->
         "catalog_stale"
 
       not valid_model?(role, model, agent.kind) ->
