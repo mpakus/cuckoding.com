@@ -105,4 +105,6 @@ Remaining: physical sleep drill, native power assertion, active-time accounting,
 process/lease reconciliation, uncertain effects without receipts, safe backoff,
 parallel workers and provider/release acceptance. No live inference, personal
 profile access, physical sleep, external publication or deployment performed.
-Local integration pending; no remote push authorized.
+Local integration: committed as `35348e7`, fast-forward merged into local main;
+`fix/R060h-timing-gap-fence` deleted. Final documentation records that integration.
+No remote push or publication performed.

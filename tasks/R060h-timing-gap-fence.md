@@ -1,6 +1,6 @@
 # R060h — Fence battle work after timing gaps
 
-Status: verified; local integration pending, 2026-10-15.
+Status: verified and merged locally into main as `35348e7`, 2026-10-15.
 
 - [x] Freeze `timing_guard: elapsed-gap-v1` in new Starts; observe UTC and
   monotonic elapsed time in a supervised guard independent of the coordinator.
@@ -16,7 +16,7 @@ Status: verified; local integration pending, 2026-10-15.
   worker/coordinator crashes, stale controls and UI reconnect; update docs,
   AGENTS and README.
 - [x] Verified final package/smoke; reopened and compared the saved workspace.
-- [ ] Merge into local main and delete the merged branch.
+- [x] Merged into local main; merged branch deleted.
 
 Physical sleep, native power assertions, lease/process reconciliation, active-time
 accounting and parallel scheduling remain separate acceptance gates.
