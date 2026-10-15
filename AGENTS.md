@@ -51,6 +51,14 @@ Resume is explicit and retains binding, deadline and native integrity checks.
 Never infer cleanup from a missing process or replay an unfinished claim; those
 still need inspection. This is checkpoint recovery, not sleep/lease reconciliation.
 
+R060e retains exact, bounded late stage receipts as immutable `expired` attempts
+and records `battle.stage_expired` plus attention atomically. The executor's
+deadline cancellation may be retained only as rejected evidence. Never advance
+tasks, reviewed heads or budgets, or enable Resume/Retry/Skip from these receipts.
+Confirmed Stop can close the battle only when every attempt verifies cleanup;
+historical missing receipts and uncertain native effects remain blocked. No
+receipt replay, artifact deletion, deadline extension or process inference.
+
 Preserve these implemented contracts:
 
 - Supported versions, observed authorization, catalog freshness, model entitlement

@@ -33,6 +33,15 @@ provider calls are repeated. Existing pauses remain unchanged on repeated startu
 Unknown cleanup, unfinished claims and interrupted Stop still require inspection.
 Original deadlines include downtime; Resume cannot reset exhausted authority.
 
+R060e retains a valid late stage receipt as **Expired** with an explicit
+not-accepted label in Inspect. Normalized edits, check results, native receipts
+and cleanup status remain immutable, including host cancellation on deadline.
+No task completes and no review/head advances from this result. Stop can release
+the Arena only after every attempt's cleanup is verified; missing or uncertain
+receipts still block. Expired work cannot Resume, Retry or Skip, and no artifact
+is deleted or automatically replayed. This is known-result closure, not recovery
+of missing native receipts or physical sleep reconciliation.
+
 R060b adds **Retry failed stage** for new snapshots with `recovery: provider-retry-v1`
 and a frozen two-retry cap per task, plus two shared by final stages. Only normalized
 launch/timeout/connection/provider/busy/turn failures with verified cleanup qualify.

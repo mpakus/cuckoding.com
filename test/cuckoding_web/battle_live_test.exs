@@ -529,6 +529,70 @@ defmodule CuckodingWeb.BattleLiveTest do
     refute has_element?(view, "#battle-start-form")
   end
 
+  test "expired receipts explain retained work and require confirmed Stop after reconnect", ctx do
+    signed = sign_in(ctx.conn)
+    {:ok, view, _} = live(signed, ctx.path)
+    view |> form("#battle-start-form") |> render_submit()
+    battle = Battles.latest(ctx.arena.id, ctx.board.id)
+    {:ok, attempt} = Battles.claim_next(battle.id)
+
+    receipt =
+      Map.take(attempt.request, ~w(battle_id request_id task_id stage criteria_sha256))
+      |> Map.merge(%{
+        "status" => "admitted",
+        "head" => String.duplicate("a", 40),
+        "native_battle" => %{"reference" => "refs/heads/ccoding/battles/#{battle.id}"},
+        "resolved_checks" => battle.snapshot["checks"],
+        "cleanup_verified" => true
+      })
+
+    assert {:error, "late_result_rejected"} =
+             Battles.finish(attempt.id, attempt.claim_token, receipt, attempt.deadline_at)
+
+    assert has_element?(view, "#battle-activity", "result was not accepted")
+    assert has_element?(view, "#battle-progress", "0 / 1")
+    assert has_element?(view, "#battle-attempt-#{attempt.id}", "Worker cleanup verified")
+    assert has_element?(view, "#battle-attempt-#{attempt.id}", "Reported result (not accepted)")
+    refute has_element?(view, "#battle-resume")
+    refute has_element?(view, "#battle-retry")
+    refute has_element?(view, "#battle-skip")
+    view |> element("#battle-stop") |> render_click()
+    assert has_element?(view, "#battle-stop-question")
+    assert Battles.get(battle.id).state == "needs_attention"
+
+    {:ok, again, _} = live(signed, ctx.path)
+    refute has_element?(again, "#battle-stop-question")
+    again |> with_target("#arena-battle") |> render_click("stop", %{"battle_id" => battle.id})
+    assert Battles.get(battle.id).state == "needs_attention"
+    again |> element("#battle-stop") |> render_click()
+    again |> element("#battle-confirm-stop") |> render_click()
+    assert Battles.get(battle.id).state == "stopped"
+    assert has_element?(again, "#battle-activity", "Stopped after worker cleanup")
+    assert has_element?(again, "#battle-attempt-#{attempt.id}", "not accepted work")
+    assert Repo.get!(Cuckoding.Battles.Attempt, attempt.id).result == receipt
+  end
+
+  test "expired receipts with unknown cleanup explain why Stop cannot release the Arena", ctx do
+    {:ok, view, _} = ctx.conn |> sign_in() |> live(ctx.path)
+    view |> form("#battle-start-form") |> render_submit()
+    battle = Battles.latest(ctx.arena.id, ctx.board.id)
+    {:ok, attempt} = Battles.claim_next(battle.id)
+
+    receipt =
+      Map.take(attempt.request, ~w(battle_id request_id task_id stage criteria_sha256))
+      |> Map.merge(%{"status" => "failed", "reason" => "timeout", "cleanup_verified" => false})
+
+    {:error, "late_result_rejected"} =
+      Battles.finish(attempt.id, attempt.claim_token, receipt, attempt.deadline_at)
+
+    assert has_element?(view, "#battle-attempt-#{attempt.id}", "Worker cleanup is uncertain")
+    view |> element("#battle-stop") |> render_click()
+    view |> element("#battle-confirm-stop") |> render_click()
+    assert Battles.get(battle.id).state == "needs_attention"
+    assert has_element?(view, "#arena-battle", "Stop cannot claim cleanup is complete")
+    refute has_element?(view, "#battle-start-form")
+  end
+
   test "completed results name their local branch and distinguish a new battle", ctx do
     %{conn: conn, path: path, arena: arena, board: board} = ctx
     {:ok, view, _} = conn |> sign_in() |> live(path)

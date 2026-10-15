@@ -36,6 +36,14 @@ stage/task/revision. Requests, snapshots, contexts, task projections and budgets
 are unchanged. Repeated startup retains the same clean pause without duplicate
 events; explicit Resume clears the reason. Unfinished claims remain interrupted.
 
+R060e adds no migration. A validated late receipt terminates its still-owned
+attempt as `expired`, with the original normalized result intact. The existing
+terminal trigger prevents rewrites. `battle.stage_expired` records attempt/stage/
+task IDs, reported status and cleanup flag, atomically with needs-attention.
+Task completion, reviewed head, frozen scope and consumed limits do not advance.
+Verified expired outcomes can satisfy Stop cleanup only; they are never settled
+checkpoints for Resume/Retry/Skip. Old status-only interrupted receipts stay unchanged.
+
 R050f requires no migration. New battle snapshots use `arena-loop-v2`; task
 verification stays in immutable `criteria` and its existing SHA-256. Only v2 with
 `checks: []` skips command stages; no command-success receipt is stored. The Start

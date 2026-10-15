@@ -319,12 +319,19 @@ defmodule Cuckoding.BattleExecutorTest do
     Enum.find(Tabulae.tasks(board.id), &(&1.title == title))
   end
 
-  defp start(board) do
+  defp start(board, now \\ DateTime.utc_now()) do
     {:ok, preview} = Battles.preview(board.arena_id, board.id)
     assert preview.blockers == []
 
     {:ok, battle} =
-      Battles.start(Ecto.UUID.generate(), board.arena_id, board.id, preview.fingerprint, true)
+      Battles.start(
+        Ecto.UUID.generate(),
+        board.arena_id,
+        board.id,
+        preview.fingerprint,
+        true,
+        now
+      )
 
     battle
   end
@@ -706,6 +713,27 @@ defmodule Cuckoding.BattleExecutorTest do
     later = save_task(board, "Later", [])
     refute Enum.any?(battle.snapshot["tasks"], &(&1["id"] == later.id))
     assert Enum.find(Tabulae.tasks(board.id), &(&1.id == first.id)).criteria == first.criteria
+  end
+
+  test "executor cancellation after expiry retains cleanup and closes without dispatch", ctx do
+    before_deadline = DateTime.add(DateTime.utc_now(), -7201)
+    battle = start(ctx.board, before_deadline)
+    {:ok, attempt} = Battles.claim_next(battle.id, before_deadline)
+    receipt = BattleExecutor.execute(attempt, git: Adapters, checks: Adapters, provider: Adapters)
+    assert receipt["status"] == "cancelled"
+    assert receipt["cleanup_verified"] == true
+    assert Process.get(:git_calls, []) == []
+    assert Process.get(:provider_calls, []) == []
+
+    assert {:error, "late_result_rejected"} =
+             Battles.finish(attempt.id, attempt.claim_token, receipt)
+
+    expired = Repo.get!(Attempt, attempt.id)
+    assert expired.state == "expired"
+    assert expired.result == receipt
+    {:ok, stopped} = Battles.stop(battle.id)
+    assert stopped.state == "stopped"
+    assert Repo.get!(Attempt, attempt.id) == expired
   end
 
   test "runner records invalid receipt failure and closes admission without replay", %{

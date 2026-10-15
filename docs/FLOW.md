@@ -172,6 +172,11 @@ Keep the exact next stage, all attempts, omissions, counters and original deadli
 Unfinished attempts, unconsumed failures and missing cleanup still require inspection;
 no restart automatically dispatches or retries a stage.
 
+R060e keeps late results as expired evidence while leaving the battle needing
+attention. Inspect distinguishes the reported result from accepted work. Confirmed
+Stop can close it when every worker has verified cleanup; unknown cleanup retains
+the Arena lock. Late evidence never advances a card or enables Resume/Retry/Skip.
+
 | Control | Meaning |
 | --- | --- |
 | Pause | Close admission immediately; checkpoint and quiesce owned workers, then show Paused only once verified |

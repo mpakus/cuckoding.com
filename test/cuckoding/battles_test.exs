@@ -772,6 +772,121 @@ defmodule Cuckoding.BattlesTest do
     assert Battles.get(battle.id).state == "needs_attention"
   end
 
+  test "expired receipts retain each stage's evidence without advancing or restoring authority",
+       ctx do
+    stages =
+      ~w(admission prepare_worktree coordinator speculator implementor capture checks secutor integrate final_checks final_secutor summary)
+
+    for stage <- stages do
+      battle = start(ctx.board) |> until_stage(stage)
+      {:ok, attempt} = Battles.claim_next(battle.id)
+      before = Battles.get(battle.id)
+      tasks = Battles.tasks(battle.id)
+      receipt = result(attempt)
+
+      assert {:error, "late_result_rejected"} =
+               Battles.finish(attempt.id, attempt.claim_token, receipt, attempt.deadline_at)
+
+      expired = Repo.get!(Attempt, attempt.id)
+      assert expired.state == "expired"
+      assert expired.request == attempt.request
+      assert expired.result == receipt
+      attention = Battles.get(battle.id)
+      assert attention.state == "needs_attention"
+
+      fields =
+        ~w(snapshot fingerprint stage context current_task_id deadline_at turns_used control_revision)a
+
+      assert Map.take(attention, fields) == Map.take(before, fields)
+
+      assert Enum.count(Battles.tasks(battle.id), &(&1.state == "completed")) ==
+               Enum.count(tasks, &(&1.state == "completed"))
+
+      refute Battles.retry_available?(attention)
+      assert Battles.skip_preview(attention) == []
+      assert {:error, :retry_unavailable} = Battles.retry(battle.id, attention.control_revision)
+      assert {:error, :stale_control} = Battles.resume(battle.id, attention.control_revision)
+      assert {:error, :not_running} = Battles.claim_next(battle.id)
+      assert {:error, :stale_attempt} = Battles.finish(attempt.id, attempt.claim_token, receipt)
+      assert {:ok, []} = Battles.recover()
+      assert Repo.get!(Attempt, attempt.id) == expired
+      [event] = Enum.filter(Battles.evidence(battle.id), &(&1.kind == "battle.stage_expired"))
+      assert event.data["attempt_id"] == attempt.id
+      assert event.data["reported_status"] == receipt["status"]
+      assert event.data["cleanup_verified"] == true
+      {:ok, stopped} = Battles.stop(battle.id)
+      assert stopped.state == "stopped"
+      refute Battles.active?(ctx.board.arena_id)
+      assert Repo.get!(Attempt, attempt.id) == expired
+    end
+  end
+
+  test "late failed writers keep edits and cannot unlock missing cleanup", ctx do
+    battle = start(ctx.board) |> until_stage("implementor")
+    {:ok, attempt} = Battles.claim_next(battle.id)
+    change = %{"path" => "README.md", "sha256" => String.duplicate("b", 64)}
+
+    receipt =
+      result(attempt, %{
+        "status" => "failed",
+        "reason" => "timeout",
+        "cleanup_verified" => false,
+        "provider" => %{
+          "status" => "timeout",
+          "changes" => [change],
+          "tools" => [
+            Map.merge(change, %{
+              "tool" => "edit_file",
+              "status" => "completed",
+              "call_id" => Ecto.UUID.generate()
+            })
+          ]
+        }
+      })
+
+    assert Cuckoding.TaskTurn.normalize(Jason.encode!(receipt["provider"])) == receipt["provider"]
+
+    assert {:error, "late_result_rejected"} =
+             Battles.finish(attempt.id, attempt.claim_token, receipt, battle.deadline_at)
+
+    assert Repo.get!(Attempt, attempt.id).result == receipt
+
+    assert_raise Exqlite.Error, fn ->
+      Repo.get!(Attempt, attempt.id)
+      |> Ecto.Changeset.change(result: %{})
+      |> Repo.update!()
+    end
+
+    assert {:error, :cleanup_required} = Battles.stop(battle.id)
+    assert Battles.active?(ctx.board.arena_id)
+    assert {:ok, []} = Battles.recover()
+    assert {:error, :cleanup_required} = Battles.stop(battle.id)
+  end
+
+  test "late validation rejects malformed or foreign results without creating cleanup authority",
+       ctx do
+    battle = start(ctx.board)
+    {:ok, attempt} = Battles.claim_next(battle.id)
+
+    for invalid <- [
+          result(attempt, %{"status" => "unknown"}),
+          result(attempt, %{"head" => "bad"})
+        ] do
+      assert {:error, :invalid_result} =
+               Battles.finish(attempt.id, attempt.claim_token, invalid, attempt.deadline_at)
+    end
+
+    foreign = result(attempt, %{"request_id" => Ecto.UUID.generate()})
+
+    assert {:error, :foreign_result} =
+             Battles.finish(attempt.id, attempt.claim_token, foreign, attempt.deadline_at)
+
+    assert Repo.get!(Attempt, attempt.id).state == "running"
+    refute Enum.any?(Battles.evidence(battle.id), &(&1.kind == "battle.stage_expired"))
+    assert {:ok, [_]} = Battles.recover()
+    assert {:error, :cleanup_required} = Battles.stop(battle.id)
+  end
+
   test "Stop immediately closes admission and waits for verified cancellation", %{board: board} do
     battle = start(board)
     {:ok, attempt} = Battles.claim_next(battle.id)

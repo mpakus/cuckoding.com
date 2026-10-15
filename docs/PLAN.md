@@ -1,10 +1,11 @@
 # Implementation plan and checklist
 
-**Current implementation audit: 2026-10-14.** The source reset remains historical;
+**Current implementation audit: 2026-10-15.** The source reset remains historical;
 this checklist describes the current local preview. Setup, saved teams, folder
 analysis, automatic task cards and the bounded sequential Codex/Cursor Arena loop
 are implemented. Pause/Resume, explicit provider Retry and Skip/Partial are also
-implemented. R060d adds safe restart checkpoints; the remaining recovery gates
+implemented. R060d adds safe restart checkpoints and R060e retains expired stage
+evidence for verified closure; the remaining recovery gates
 below still block complete beta acceptance.
 
 | Area | Implemented | Still required |
@@ -89,6 +90,9 @@ The numbered story below is capability coverage, not eight mandatory screens.
 - [x] **R060d — Restart checkpoints:** reopen fully settled running/pausing
   boundaries as Paused with a recorded reason and explicit Resume; retain
   uncertain claims for inspection. [Task](../tasks/R060d-restart-checkpoints.md).
+- [x] **R060e — Expired stage evidence:** retain validated late results without
+  advancing work; allow confirmed Stop only with all cleanup verified. No Resume,
+  Retry, Skip or replay from expired receipts. [Task](../tasks/R060e-late-stage-receipts.md).
 - [x] **R080a — Direct controls:** confirmed per-agent Disconnect unassigns current
   roles while retaining history; saved roles no longer expire on catalog age alone.
   Create tasks, repository setup and extra boards use dialogs; manual tasks use +
@@ -421,6 +425,7 @@ Depends on R050.
 - [x] R060b explicit provider Retry with settled cleanup and frozen lifetime limits.
 - [x] R060c Skip at settled task boundaries, deferred dependents and partial results.
 - [x] R060d settled restart checkpoints with explicit Resume and unchanged budgets.
+- [x] R060e late receipt retention and verified Stop, without accepting expired work.
 - [ ] Broader interrupted-work recovery with verified process cleanup.
 - [ ] Add bounded transient recovery/backoff, separate review/failure counters,
   deadline enforcement and no repeated sign-in questions per task.

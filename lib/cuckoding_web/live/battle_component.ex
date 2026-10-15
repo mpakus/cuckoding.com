@@ -238,6 +238,10 @@ defmodule CuckodingWeb.BattleComponent do
     do:
       "Worker cleanup is uncertain. Inspect the retained attempt before any new execution; Stop cannot claim cleanup is complete."
 
+  defp message("late_result_rejected"),
+    do:
+      "The stage finished after its time limit. Its result was not accepted and no further work will run. Inspect the retained evidence, then Stop to close this battle once worker cleanup is verified."
+
   defp message("final_review_changes_requested"),
     do:
       "The final Secutor review requested changes. This battle needs attention; the local result and review evidence are retained, and completion has not been granted."
@@ -313,8 +317,18 @@ defmodule CuckodingWeb.BattleComponent do
         <p :if={summary(attempt)} class="draft-copy">{summary(attempt)}</p>
         <p class="fine-print">Attempt receipt: <code>{attempt.id}</code></p>
         <p :if={attempt.task_id} class="fine-print">Task: <code>{attempt.task_id}</code></p>
-        <p :if={attempt.result["status"]} class="fine-print">
+        <p :if={attempt.state == "expired"} class="notice">
+          Time limit reached · this receipt is retained as evidence, not accepted work.
+          <span :if={attempt.result["cleanup_verified"] == true}>Worker cleanup verified.</span>
+          <span :if={attempt.result["cleanup_verified"] != true}>
+            Worker cleanup is uncertain; Stop cannot release this Arena yet.
+          </span>
+        </p>
+        <p :if={attempt.result["status"] && attempt.state != "expired"} class="fine-print">
           Result: {label(attempt.result["status"])}
+        </p>
+        <p :if={attempt.result["status"] && attempt.state == "expired"} class="fine-print">
+          Reported result (not accepted): {label(attempt.result["status"])}
         </p>
         <ul :if={get_in(attempt.result, ["provider", "changes"]) not in [nil, []]}>
           <li :for={change <- attempt.result["provider"]["changes"]}>

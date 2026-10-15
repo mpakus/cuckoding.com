@@ -23,7 +23,7 @@ remote push, user-branch merge and release remain separate human actions.
 
 ## What works today
 
-**Local preview, 2026-10-14.** The first sequential Codex/Cursor Arena loop is implemented.
+**Local preview, 2026-10-15.** The first sequential Codex/Cursor Arena loop is implemented.
 The complete product story still includes capabilities and release acceptance
 listed below. Arena registration opens its default board; technical setup stays in Advanced.
 
@@ -86,6 +86,10 @@ If the app restarts between fully recorded stages, it reopens the battle as
 **Paused after restart**. Press **Resume** to continue from the saved stage with
 the same remaining limits. Unfinished attempts and unknown cleanup still require
 inspection. [Checkpoint evidence](worklog/2026-10-14-R060d-restart-checkpoints.md).
+When a stage reports after its time limit, **Inspect** retains its result and edits
+as expired evidence, without accepting completion. **Stop** can close that battle
+once every worker's cleanup is verified. Unknown cleanup still blocks new work;
+late results cannot Resume, Retry or Skip. [Deadline recovery](tasks/R060e-late-stage-receipts.md).
 **Retry failed stage** is available for settled transient provider failures in new
 battles: two retries per task, plus two shared by final stages, within the same
 time/turn limits. A failed Implementor returns through a fresh worktree and

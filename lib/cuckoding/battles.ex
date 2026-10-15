@@ -251,8 +251,7 @@ defmodule Cuckoding.Battles do
         Repo.rollback(:not_running)
 
       expired?(attempt.deadline_at, now) or expired?(battle.deadline_at, now) ->
-        update(attempt, state: "interrupted", result: %{"status" => "late_result_rejected"})
-        attention(battle, "late_result_rejected")
+        expire_attempt(battle, attempt, result)
 
       not valid_result?(attempt, result) ->
         Repo.rollback(:invalid_result)
@@ -266,6 +265,27 @@ defmodule Cuckoding.Battles do
         |> finish_pause()
     end
   end
+
+  defp expire_attempt(battle, attempt, result) do
+    unless valid_expired_result?(attempt, result), do: Repo.rollback(:invalid_result)
+    update(attempt, state: "expired", result: result)
+
+    record(battle, "stage_expired", %{
+      "attempt_id" => attempt.id,
+      "stage" => attempt.stage,
+      "task_id" => attempt.task_id,
+      "reported_status" => result["status"],
+      "cleanup_verified" => result["cleanup_verified"] == true
+    })
+
+    attention(battle, "late_result_rejected")
+  end
+
+  # The executor also cancels on expiry; this receipt can close work, never advance it.
+  defp valid_expired_result?(_, %{"status" => "cancelled", "cleanup_verified" => cleanup}),
+    do: is_boolean(cleanup)
+
+  defp valid_expired_result?(attempt, result), do: valid_result?(attempt, result)
 
   def pause(id, revision) do
     transaction(fn -> control_battle(id, revision, "running") |> pause_current() end)
@@ -590,7 +610,7 @@ defmodule Cuckoding.Battles do
 
   defp safe_to_stop?(battle) do
     Enum.all?(attempts(battle.id), fn attempt ->
-      attempt.state in ~w(completed failed cancelled) and
+      attempt.state in ~w(completed failed cancelled expired) and
         attempt.result["cleanup_verified"] == true
     end)
   end
