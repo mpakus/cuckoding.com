@@ -1,7 +1,6 @@
 defmodule CuckodingWeb.SpecificationComponent do
   @moduledoc false
-  use Phoenix.LiveComponent
-  use CuckodingWeb, :verified_routes
+  use CuckodingWeb, :live_component
   alias Cuckoding.{Foundation, Specifications}
 
   @impl true

@@ -764,6 +764,41 @@ defmodule Cuckoding.BattleExecutorTest do
     assert length(Battles.attempts(battle.id)) == 1
   end
 
+  test "coordinator restart stops its stage worker and retains uncertain work without replay",
+       ctx do
+    parent = self()
+
+    executor = fn attempt ->
+      send(parent, {:owned_stage, self(), attempt})
+
+      receive do
+        :finish ->
+          BattleExecutor.execute(attempt, git: Adapters, checks: Adapters, provider: Adapters)
+      end
+    end
+
+    start_supervised!(
+      {Cuckoding.ExecutionSupervisor,
+       coordinator: BattleRunner, tasks: Cuckoding.BattleTasks, options: [executor: executor]}
+    )
+
+    battle = start(ctx.board)
+    runner = Process.whereis(BattleRunner)
+    send(runner, :poll)
+    assert_receive {:owned_stage, worker, attempt}, 1_000
+    monitor = Process.monitor(worker)
+    Process.exit(runner, :kill)
+    assert_receive {:DOWN, ^monitor, :process, ^worker, :shutdown}, 1_000
+    await(fn -> Battles.get(battle.id).state == "needs_attention" end)
+    assert Battles.get(battle.id).reason == "restart_requires_inspection"
+    assert Repo.get!(Attempt, attempt.id).state == "interrupted"
+    assert Repo.get!(Attempt, attempt.id).result == %{"status" => "interrupted"}
+    assert length(Battles.attempts(battle.id)) == 1
+    assert Task.Supervisor.children(Cuckoding.BattleTasks) == []
+    assert {:error, :cleanup_required} = Battles.stop(battle.id)
+    refute_receive {:owned_stage, _, _}, 100
+  end
+
   test "runner settles a pausing stage once and survives restart at the paused boundary", %{
     board: board
   } do

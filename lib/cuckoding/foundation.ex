@@ -627,17 +627,7 @@ defmodule Cuckoding.Foundation do
                  "inspect_worktree_arena_git"
                ] and
                  state in ["running", "cancelling"] ->
-            failed =
-              Repo.update!(
-                Ecto.Changeset.change(command,
-                  state: "failed",
-                  result: "interrupted",
-                  lease_until: nil
-                )
-              )
-
-            record(prefix(kind) <> "interrupted", %{}, command.id)
-            failed
+            interrupt_command(command)
 
           %{attempts: count} = command when count >= 3 ->
             failed =
@@ -674,6 +664,52 @@ defmodule Cuckoding.Foundation do
       mode: :immediate
     )
     |> tap(fn result -> if match?({:ok, %Command{}}, result), do: broadcast() end)
+  end
+
+  def recover do
+    result =
+      Repo.transaction(
+        fn ->
+          Repo.all(
+            from c in Command,
+              where: c.state in ["running", "cancelling"] and c.kind != "discover_tools"
+          )
+          |> Enum.map(&interrupt_command/1)
+        end,
+        mode: :immediate
+      )
+
+    if match?({:ok, [_ | _]}, result), do: broadcast()
+    result
+  end
+
+  def interrupt(%Command{} = claim) do
+    result =
+      Repo.transaction(
+        fn ->
+          current = Repo.get!(Command, claim.id)
+
+          unless current.state in ["running", "cancelling"] and
+                   current.attempts == claim.attempts,
+                 do: Repo.rollback(:lost_claim)
+
+          interrupt_command(current)
+        end,
+        mode: :immediate
+      )
+
+    if match?({:ok, _}, result), do: broadcast()
+    result
+  end
+
+  defp interrupt_command(command) do
+    failed =
+      Repo.update!(
+        Ecto.Changeset.change(command, state: "failed", result: "interrupted", lease_until: nil)
+      )
+
+    record(prefix(command.kind) <> "interrupted", %{}, command.id)
+    failed
   end
 
   defp lease_duration(kind)

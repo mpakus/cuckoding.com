@@ -1,6 +1,6 @@
 defmodule CuckodingWeb.PlanningComponent do
   @moduledoc false
-  use Phoenix.LiveComponent
+  use CuckodingWeb, :live_component
   import CuckodingWeb.Dialog
   alias Cuckoding.{Foundation, GitPreview, Planning, PlanningDocuments, Tabulae}
   alias Phoenix.LiveView.JS

@@ -141,3 +141,25 @@ Use one native dialog for on-demand forms. Create tasks, Repository setup and
 Add another board are buttons; manual tasks use + beside Specs/ToDo. Team history
 keeps version numbers, while ordinary controls use Board team / Use saved team.
 [UI references](UI_DASHBOARD.md#kanban-references-r080a) inform this interaction.
+
+## D027 — Supervised asynchronous execution and LiveView components
+
+2026-10-15, R012, accepted before implementation. Setup/planning and battle
+coordinators claim durable work and dispatch it to monitored `Task.Supervisor`
+children. Long provider/native receive loops run in those task processes, leaving
+coordinator and LiveView mailboxes responsive. Retain one setup command and one
+battle stage at a time; asynchronous execution alone does not enable parallelism.
+
+Each coordinator and its task supervisor form a `one_for_all` supervision group.
+Restarting either stops the old workers before recovery can admit work. Worker
+failure is isolated from its coordinator; record interrupted claims without
+replay, model output or assumed native cleanup. SQLite remains authoritative.
+Login progress returns by message to the current dispatcher, which alone writes
+its protected transient ETS table after checking the exact live claim.
+
+Application screens remain authenticated LiveViews with HEEx function components
+and stateful LiveComponents where form state requires them. Use the shared
+`CuckodingWeb, :live_component` entry point and retain explicit component event
+session guards. Keep authentication, redirects, downloads and shell protocol at
+their existing controller boundaries. Native process enforcement stays in Rust;
+BEAM tasks coordinate it without widening any grant or replacing it with raw spawn.

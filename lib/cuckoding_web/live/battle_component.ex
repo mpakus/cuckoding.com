@@ -1,7 +1,6 @@
 defmodule CuckodingWeb.BattleComponent do
   @moduledoc false
-  use Phoenix.LiveComponent
-  use CuckodingWeb, :verified_routes
+  use CuckodingWeb, :live_component
   alias Cuckoding.Battles
 
   @impl true

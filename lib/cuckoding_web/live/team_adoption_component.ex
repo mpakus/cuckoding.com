@@ -1,6 +1,6 @@
 defmodule CuckodingWeb.TeamAdoptionComponent do
   @moduledoc false
-  use Phoenix.LiveComponent
+  use CuckodingWeb, :live_component
   alias Cuckoding.{Arena, Team, TeamAssignments}
 
   @impl true

@@ -1,6 +1,6 @@
 # Architecture
 
-## Implemented boundary · reviewed 2026-10-14
+## Implemented boundary · reviewed 2026-10-15
 
 Cuckoding delivers authenticated setup, planning, isolated task turns and the
 sequential Codex/Cursor battle loop. Product parallel workers and full recovery
@@ -8,13 +8,14 @@ remain unfinished.
 The later sections describe the target architecture, not additional shipped code.
 
 Startup: Repo → schema validation/migration → PubSub → shell authority →
-setup dispatcher + supervised battle runner → loopback Endpoint → readiness message. SQLite is authoritative;
+supervised setup/battle execution groups → loopback Endpoint → readiness message. SQLite is authoritative;
 LiveView owns unsaved forms, not workflow progress. The native shell owns the
 release process group and private storage lock.
 
 | Current source | Responsibility and durable owner |
 | --- | --- |
-| `Agents`, `Foundation`, `Dispatcher`, `records.ex` | Idempotent commands, expiring claims, append-only events and setup projections in SQLite; one synchronous dispatcher executes bounded external operations |
+| `Agents`, `Foundation`, `Dispatcher`, `records.ex` | Idempotent commands, expiring claims, append-only events and setup projections in SQLite; a responsive coordinator dispatches one monitored setup/planning task |
+| `ExecutionSupervisor` | Separate `one_for_all` groups pair each coordinator with its Task.Supervisor; old workers stop before coordinator recovery |
 | `ShellAuth`, web session guard | One-time shell/browser handoff and expiring DB sessions; stateful components must guard their own events |
 | `Codex`, native `connection.rs` / `model_check.rs` | Private-profile authorization, model catalog, fixed diagnostic and structured no-tools planning; SQLite retains only normalized public receipts |
 | `Foundation`, `Codex`, native `isolation.rs` | Optional fixed two-workspace sandbox canaries, fresh empty runtime profile, executable-bound command/event receipt; no inference or Arena grant |
@@ -36,12 +37,27 @@ Foundation distinguishes picker/diagnostic freshness from reusable saved role
 bindings and keeps native dispatch validation unchanged. Disconnect reuses the
 accepted logout transaction and TeamAssignments; no new worker/schema is added.
 
-The dispatcher serializes setup, local previews and planning globally. This is a
-known preview-stage capacity limit, not the future parallel scheduler. Pending
-intent/cancellation remains usable through other DB connections. Expired external
-operations become interrupted without replay; metadata discovery alone retries.
-Login URLs are transient in dispatcher-owned ETS and a protected redirect; their
-absence after restart does not invalidate historical authorization observations.
+R012 keeps setup, local previews and planning globally serialized while their
+provider/native receive loops run in separate BEAM task processes. Dispatcher
+handles correlated task results, `:DOWN` and login-progress messages without
+waiting for provider I/O in a GenServer callback. The battle runner retains its
+separate monitored stage task. This remains one setup command and one battle stage,
+not the future parallel scheduler. [D027](DECISIONS.md#d027--supervised-asynchronous-execution-and-liveview-components).
+
+Each execution group stops its old tasks before restarting its coordinator.
+External setup claims found running/cancelling at startup, or whose task dies,
+become interrupted transactionally without replay or assumed native cleanup.
+Metadata discovery keeps its existing bounded lease recovery. Login progress is
+accepted only from the current task and live claim; URLs remain transient in
+dispatcher-owned protected ETS and the protected redirect. OTP status/error
+reports redact dispatcher messages/state/reasons/debug logs. Their absence after
+restart does not invalidate historical authorization observations.
+
+Every application screen is an authenticated LiveView. Layouts/dialogs use HEEx
+function components, and the four stateful form/control components share
+`CuckodingWeb, :live_component` with verified routes. Their explicit per-component
+session event guards remain mandatory. Authentication, redirects, downloads and
+shell protocol retain controller boundaries; the public static site stays separate.
 
 R040f reuses the native pinned-directory reader for up to four selected `.md`/`.txt`
 files without running Git. A local `preview_documents` command stores exact text,
@@ -106,8 +122,8 @@ command resolution/stages. Task and final Secutor review still gate completion.
 blocks review. Old snapshots and configured command gates are unchanged.
 
 R050e adds immutable battle snapshots and stage requests, terminal attempt receipts,
-card projections and events in the tenth migration. A separate Task.Supervisor
-keeps battle work off the setup dispatcher. Recovery marks unfinished attempts
+card projections and events in the tenth migration. A separate execution group
+keeps battle work off setup tasks. Recovery marks unfinished attempts
 uncertain before admission and never replays them. Native Git retains exclusive
 branch creation/integration intents and compare-and-swap receipts. Checks run in
 a fresh candidate clone with the single-process grant described in

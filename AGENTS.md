@@ -322,6 +322,12 @@ Do not restore the old implementation or treat historical tests as current proof
 - Use explicit supervised OTP components and behaviours at implemented replaceable
   boundaries: runner, adapter, secret store, VCS host, metrics collector, plugin
   kinds and knowledge backend. Do not scaffold deferred subsystems.
+- R012 runs provider/native I/O in monitored Task.Supervisor workers; keep long
+  receive loops out of GenServer/LiveView callbacks. ExecutionSupervisor pairs
+  each coordinator with its task supervisor under `one_for_all`, stopping old
+  workers before recovery. Persist interrupted claims without replay or inferred
+  native cleanup. Login progress must match the current task/live claim, stay in
+  protected transient ETS, and be redacted from OTP status/error reports.
 - Make commands idempotent with stable keys and expected revisions. Write events
   and state transactionally before broadcast. Reconcile uncertain external
   effects before retry; never claim exactly-once external execution.
@@ -399,6 +405,10 @@ preview instance and confirm cleanup rather than leaving a competing launcher.
 Use Phoenix LiveView, HEEx and Tailwind. Keep one reusable accessible dialog
 convention; validation lives in domain contexts/LiveView and small hooks cover
 native browser behavior. No second frontend framework.
+Application screens use LiveView and reusable function components; stateful
+components use `CuckodingWeb, :live_component` and explicitly install the shared
+session event guard. Keep provider work in supervised tasks. Authentication,
+redirects, downloads and shell protocol retain their controller boundaries.
 
 Canonical navigation routes are `/agents` for the roster/wizards and `/settings`
 for workspace settings. Keep sidebar, cross-links and tray handoffs consistent;

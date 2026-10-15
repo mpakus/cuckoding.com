@@ -5,7 +5,8 @@ this checklist describes the current local preview. Setup, saved teams, folder
 analysis, automatic task cards and the bounded sequential Codex/Cursor Arena loop
 are implemented. Pause/Resume, explicit provider Retry and Skip/Partial are also
 implemented. R060d adds safe restart checkpoints and R060e retains expired stage
-evidence for verified closure; the remaining recovery gates
+evidence for verified closure. R012 runs setup/planning in supervised asynchronous
+tasks and couples worker/coordinator restarts; the remaining recovery gates
 below still block complete beta acceptance.
 
 | Area | Implemented | Still required |
@@ -146,6 +147,24 @@ Depends on R001. Read [architecture](ARCHITECTURE.md), [data](DB.md) and
 Acceptance: launch from the tray, see one browser screen, reject unauthorized/
 replayed access, reconnect without data loss, Quit cleans only owned processes.
 Run foundation/migration/security/shell checks and record the actual build.
+
+## R012 — OTP execution and LiveView component audit
+
+- [x] Run setup/planning provider I/O in monitored tasks, preserving serialized
+  admission and responsive coordinator mailboxes.
+- [x] Pair each coordinator/Task.Supervisor under `one_for_all`; interrupt lost
+  external claims without replay or assumed native cleanup.
+- [x] Keep login progress current-task-bound, transient and redacted from OTP
+  error/status reports; retain explicit cancellation/session gates.
+- [x] Standardize all four stateful components through the shared LiveComponent
+  entry point. Every application screen already uses LiveView; authentication,
+  redirects, downloads and native protocol retain their existing boundaries.
+- [x] Final quality (322 tests), source/packaged smoke and preserved-workspace
+  relaunch. Visual browser recheck unavailable while the Mac was locked.
+
+[Task](../tasks/R012-otp-workers-components.md) ·
+[Evidence](../worklog/2026-10-15-R012-otp-workers-components.md).
+This refactors execution ownership; product parallelism/full native recovery remain open.
 
 ## R011 — Source UI development
 

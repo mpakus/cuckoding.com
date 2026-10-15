@@ -17,10 +17,7 @@ defmodule CuckodingWeb.ShellController do
     Cuckoding.Foundation.record("shell.quit_requested")
 
     unless Application.get_env(:cuckoding, :testing) do
-      Task.start(fn ->
-        Process.sleep(100)
-        System.stop(0)
-      end)
+      Process.send_after(ShellAuth, :shutdown, 100)
     end
 
     conn |> put_status(202) |> json(%{status: "stopping"})

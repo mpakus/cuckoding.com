@@ -142,6 +142,11 @@ branch stay intact. [Execution contract and limitations](docs/ARENA_LOOP.md).
 
 ## UI development
 
+Agent setup, authorization, planning and battle stages run in supervised BEAM
+tasks. GenServers coordinate messages and durable claims; SQLite owns progress.
+All application screens use LiveView/HEEx with shared function and stateful
+components. [OTP/LiveView audit](tasks/R012-otp-workers-components.md).
+
 After building the native helper with `rtk proxy bin/dev.build`, run
 `rtk proxy bin/dev.server` to open the source app at `http://127.0.0.1:4000`.
 Phoenix live asset/code reload and HEEx source annotations are enabled in development.

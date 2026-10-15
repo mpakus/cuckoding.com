@@ -62,7 +62,12 @@ defmodule Cuckoding.FoundationTest do
   end
 
   test "dispatcher restarts from pending durable work" do
-    pid = start_supervised!(Cuckoding.Dispatcher)
+    start_supervised!(
+      {Cuckoding.ExecutionSupervisor,
+       coordinator: Cuckoding.Dispatcher, tasks: Cuckoding.SetupTasks}
+    )
+
+    pid = Process.whereis(Cuckoding.Dispatcher)
     :sys.suspend(pid)
     {:ok, _} = Foundation.discover(Ecto.UUID.generate(), 0)
     monitor = Process.monitor(pid)

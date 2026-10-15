@@ -46,6 +46,11 @@ defmodule Cuckoding.ShellAuth do
   end
 
   @impl true
+  def handle_info(:shutdown, state) do
+    unless Application.get_env(:cuckoding, :testing), do: System.stop(0)
+    {:noreply, state}
+  end
+
   def handle_info(:heartbeat, state) do
     if System.monotonic_time(:second) - state.seen > 30 do
       Foundation.record("shell.disconnected")

@@ -76,6 +76,15 @@ IDs are UUIDs. SQLite triggers reject event updates/deletes. Startup refuses
 unknown migration versions. Two pooled connections allow the Ecto migration
 lock and migration query to coexist; the busy timeout is five seconds.
 
+R012 changes no schema. Setup tasks return to Dispatcher through monitor-bound
+messages; the existing completion transaction still owns projections/events.
+Worker death or coordinator startup marks matching unfinished external setup
+commands `failed/interrupted`, clears the lease and records the existing
+kind-specific `*.interrupted` event atomically. Repeated recovery is a no-op;
+late/foreign attempts cannot finish or interrupt a newer claim. No cleanup,
+provider result or automatic replay is inferred. Metadata discovery retains its
+existing bounded lease retry. Login URLs never enter these records.
+
 R020a adds `workspace.codex` for the last public version observation and
 `commands.payload` for the consented executable metadata (path, device/inode,
 size and change/modify times). `probe_codex` shares command keys/revisions and
