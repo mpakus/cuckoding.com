@@ -21,30 +21,39 @@ defmodule CuckodingWeb.AgentsLive do
          params["revision"] == to_string(socket.assigns.revision) and
          Enum.any?(socket.assigns.agents, fn {agent, _} -> agent.id == params["agent_id"] end) do
       result =
-        Foundation.authorize_codex(
+        Foundation.disconnect_agent(
           socket.assigns.key,
           socket.assigns.revision,
-          :logout,
           true,
           params["agent_id"]
         )
 
       case result do
         {:ok, %{state: "pending"}} ->
-          {:noreply,
-           socket
-           |> assign(
-             key: Ecto.UUID.generate(),
-             error: nil,
-             message:
-               "Disconnecting agent. Its roles are now unassigned; saved history is retained."
-           )
-           |> push_event("dialog-close", %{id: "disconnect-#{params["agent_id"]}"})
-           |> load()}
+          disconnected(
+            socket,
+            params,
+            "Disconnecting agent. Its roles are now unassigned; saved history is retained."
+          )
+
+        {:ok, %{state: "completed", kind: "disconnect_agent"}} ->
+          disconnected(
+            socket,
+            params,
+            "Disconnected locally and unassigned its roles. Provider sign-out was not attempted because the executable needs verification. The private profile is retained."
+          )
 
         {:ok, %{result: "agent_in_battle"}} ->
           {:noreply,
            assign(socket, :error, "Stop the battle using this agent before disconnecting it.")}
+
+        {:ok, %{result: "profile_busy"}} ->
+          {:noreply,
+           assign(
+             socket,
+             :error,
+             "Finish or cancel the current setup action, then try Disconnect again."
+           )}
 
         _ ->
           {:noreply,
@@ -58,6 +67,14 @@ defmodule CuckodingWeb.AgentsLive do
       {:noreply,
        assign(socket, :error, "This confirmation is out of date. Review the agent and try again.")}
     end
+  end
+
+  defp disconnected(socket, params, message) do
+    {:noreply,
+     socket
+     |> assign(key: Ecto.UUID.generate(), error: nil, message: message)
+     |> push_event("dialog-close", %{id: "disconnect-#{params["agent_id"]}"})
+     |> load()}
   end
 
   @impl true
@@ -148,13 +165,18 @@ defmodule CuckodingWeb.AgentsLive do
                 type="button"
                 class="button"
                 aria-label={"Disconnect #{agent.name}"}
-                disabled={@busy}
+                disabled={@busy || agent.connection["status"] == "disconnected"}
                 phx-click={JS.dispatch("cc:open", to: "#disconnect-#{agent.id}")}
-              >Disconnect</button>
+              >{if agent.connection["status"] == "disconnected",
+                do: "Disconnected",
+                else: "Disconnect"}</button>
             </div>
             <.modal id={"disconnect-#{agent.id}"} title={"Disconnect #{agent.name}?"}>
               <p>
-                Sign out of this agent’s private profile and unassign it from every current team role. Other agents, role instructions and saved history stay intact.
+                Disconnect this saved connection and unassign it from every current team role. Other agents, role instructions and saved history stay intact.
+              </p>
+              <p>
+                With a verified executable, this also signs out of its private profile. Otherwise, it disconnects locally and retains the profile without running the program.
               </p>
               <p>To use this agent again, reconnect it and choose its roles in Team.</p>
               <p :if={@error} role="alert" class="notice">{@error}</p>

@@ -343,6 +343,17 @@ use, busy profile/planning work and stale/session-invalid forms refuse the actio
 before unassignment. Roles remain unassigned if native logout fails; reconnecting
 does not silently restore them. No credential values are read or copied.
 
+R080b does not require executing a missing/changed/unverified program merely to
+disable its local connection. The roster's separately confirmed
+`local-disconnect-v1` fallback unassigns only that agent's current roles and
+invalidates its usable account/catalog projection atomically. It records provider
+authorization Unknown and sign-out Not attempted, never successful logout. The
+provider-owned credential/profile files are not read, copied, deleted or changed.
+Existing battle, busy, expected-revision and session/form gates still apply;
+state/events commit before broadcast. Replayed local receipts cannot become
+native operations after executable repair. Verified native logout keeps its
+existing intent, exact executable, scoped profile and cleanup protocol.
+
 R020d's separate model diagnostic records explicit usage consent and a fresh
 executable/account/catalog snapshot. Its fixed ephemeral thread must report the
 requested model and validated permission profile before inference. The named

@@ -54,6 +54,12 @@ choices and optional access tests require a recent catalog.
 Use **+** beside Specs or ToDo to add a task manually. Advanced shows **Board team**
 and **Use saved team**; version numbers are kept in Team history.
 
+**Disconnect and unassign** also works if an agent's executable has changed or
+is unavailable. Cuckoding disables that connection and clears its current roles
+locally, without running the unverified program. The result states that provider
+sign-out was not attempted; its private profile and history are retained. Other
+saved connections stay separate. Verify/reconnect explicitly before reusing it.
+
 Codex also has an optional **Execution isolation** diagnostic. With verified
 `0.162.0-alpha.17.2`, it checks read-only/writing restrictions in two disposable
 folders without signing in or using a model. Results are saved per connection;

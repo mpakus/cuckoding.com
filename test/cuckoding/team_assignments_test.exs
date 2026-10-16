@@ -17,6 +17,105 @@ defmodule Cuckoding.TeamAssignmentsTest do
 
   setup do: planning_fixture()
 
+  test "local Disconnect after executable replacement is atomic, scoped and replayable", ctx do
+    before = Team.current()
+    revision = Foundation.workspace().revision
+
+    other =
+      Repo.insert!(%Cuckoding.AgentConnection{
+        id: Ecto.UUID.generate(),
+        name: "Other account",
+        kind: "codex",
+        connection: %{"authorization" => "chatgpt", "status" => "checked"}
+      })
+
+    File.rename!(ctx.path, ctx.path <> ".old")
+    File.write!(ctx.path, "#!/bin/sh\ntouch should-never-run\n")
+    File.chmod!(ctx.path, 0o700)
+    assert {:error, :version_required} = Foundation.verified_executable()
+    key = Ecto.UUID.generate()
+    {:ok, command} = Foundation.disconnect_agent(key, revision, true, "codex")
+    assert command.state == "completed" and command.result == "local_only"
+    assert command.payload["provider_logout"] == "not_attempted"
+    assert Foundation.workspace().revision == revision + 1
+    assert Foundation.workspace().connection["status"] == "disconnected"
+    assert Foundation.workspace().connection["authorization"] == "unknown"
+    assert Foundation.workspace().connection["models"] == []
+    assert Repo.get!(Cuckoding.AgentConnection, other.id) == other
+    assert Repo.get!(Cuckoding.TeamRevision, before.id) == before
+
+    for scope <- [ctx.arena, ctx.board] do
+      current = TeamAssignments.assigned(scope)
+      assert hd(current.definition["roles"])["agent"] == ""
+
+      assert hd(current.definition["roles"])["instructions"] ==
+               hd(before.definition["roles"])["instructions"]
+    end
+
+    assert {:ok, nil} = Foundation.claim()
+    refute File.exists?(Path.join(Path.dirname(ctx.path), "should-never-run"))
+    count = Repo.aggregate(TeamAdoption, :count)
+    assert {:ok, ^command} = Foundation.disconnect_agent(key, revision, true, "codex")
+    assert Repo.aggregate(TeamAdoption, :count) == count
+    assert {:error, :key_conflict} = Foundation.disconnect_agent(key, revision, true, other.id)
+
+    # Re-verification must not turn replay of a local receipt into native logout.
+    {:ok, _} = Foundation.check_codex(Ecto.UUID.generate(), revision + 1, ctx.path, true)
+    {:ok, probe} = Foundation.claim()
+    Foundation.finish(probe, %{"status" => "supported", "version" => "0.146.0"})
+    assert {:ok, _} = Foundation.verified_executable()
+    workspace = Foundation.workspace()
+    assert {:ok, ^command} = Foundation.disconnect_agent(key, revision, true, "codex")
+    assert Foundation.workspace() == workspace
+    assert {:ok, nil} = Foundation.claim()
+  end
+
+  test "unverified local Disconnect retains confirmation, revision and global busy gates", ctx do
+    File.rm!(ctx.path)
+    revision = Foundation.workspace().revision
+    before = Team.current()
+
+    assert {:error, :invalid_disconnect} =
+             Foundation.disconnect_agent(Ecto.UUID.generate(), revision, false, "codex")
+
+    assert {:ok, %{state: "rejected", result: "stale_revision"}} =
+             Foundation.disconnect_agent(Ecto.UUID.generate(), revision - 1, true, "codex")
+
+    {:ok, _} = Foundation.discover(Ecto.UUID.generate(), revision)
+
+    assert {:ok, %{state: "rejected", result: "profile_busy"}} =
+             Foundation.disconnect_agent(Ecto.UUID.generate(), revision, true, "codex")
+
+    assert Team.current() == before
+    assert TeamAssignments.assigned(ctx.board) == before
+  end
+
+  test "a failed local Disconnect audit rolls back connection, roles and command together", ctx do
+    File.rm!(ctx.path)
+    before = Foundation.workspace()
+    team = Team.current()
+    key = Ecto.UUID.generate()
+
+    Repo.query!("""
+    CREATE TRIGGER reject_disconnect BEFORE INSERT ON events
+    WHEN NEW.kind = 'agent.disconnect_completed'
+    BEGIN SELECT RAISE(ABORT, 'disconnect rollback'); END
+    """)
+
+    assert_raise Exqlite.Error, fn ->
+      Foundation.disconnect_agent(key, before.revision, true, "codex")
+    end
+
+    assert Foundation.workspace() == before
+    assert Team.current() == team
+    assert Repo.get(Command, key) == nil
+    assert Repo.aggregate(TeamAdoption, :count) == 0
+    Repo.query!("DROP TRIGGER reject_disconnect")
+
+    assert {:ok, %{state: "completed"}} =
+             Foundation.disconnect_agent(key, before.revision, true, "codex")
+  end
+
   test "Disconnect unassigns current teams once, preserving defaults, other agents and history",
        ctx do
     old_default = Team.current()

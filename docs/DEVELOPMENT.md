@@ -157,6 +157,11 @@ connection from current default, Arena and board roles before the private logout
 runs. Instructions, other agents and historical teams remain intact. A failed logout
 does not restore assignments. An unfinished battle using that connection or a busy
 profile/planning operation refuses the action; stale forms also refuse it.
+If the executable has changed or is unavailable, R080b completes Disconnect
+locally without running it. The roster reports that provider sign-out was not
+attempted, retains the private profile and shows Disconnected. Verify/reconnect
+through Edit before selecting that connection for roles again. This local-only
+receipt does not prove provider logout and cannot launch work.
 Model drift remains visible and never silently replaces the saved model.
 To replace a changed model behind the same catalog ID, clear/save the binding
 then explicitly select/save it again. Saving starts no agent; execution requires

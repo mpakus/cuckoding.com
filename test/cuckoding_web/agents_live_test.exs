@@ -3,6 +3,43 @@ defmodule CuckodingWeb.AgentsLiveTest do
   import Phoenix.LiveViewTest
   alias Cuckoding.{Agents, Foundation, Repo, Team}
 
+  test "signed-out Codex can disconnect and unassign after its executable changes", %{conn: conn} do
+    ctx = Cuckoding.PlanningFixtures.planning_fixture()
+
+    {:ok, _} =
+      Foundation.inspect_codex(Ecto.UUID.generate(), Foundation.workspace().revision, true)
+
+    {:ok, inspection} = Foundation.claim()
+
+    Foundation.finish(inspection, %{
+      "status" => "checked",
+      "authorization" => "not_connected",
+      "catalog_status" => "not_requested",
+      "models" => []
+    })
+
+    File.rename!(ctx.path, ctx.path <> ".old")
+    File.write!(ctx.path, "#!/bin/sh\nexit 1\n")
+    File.chmod!(ctx.path, 0o700)
+    assert {:error, :version_required} = Foundation.verified_executable()
+    signed = sign_in(conn)
+    {:ok, view, _} = live(signed, "/agents")
+    before = Team.current()
+    view |> form("#disconnect-form-codex") |> render_submit(%{"key" => "recovered"})
+    assert Team.current() == before
+    view |> form("#disconnect-form-codex") |> render_submit()
+    assert has_element?(view, "[role=status]", "Disconnected locally")
+    assert has_element?(view, "[role=status]", "Provider sign-out was not attempted")
+    assert has_element?(view, "#agent-codex button[disabled]", "Disconnected")
+    assert hd(Team.current().definition["roles"])["agent"] == ""
+    assert hd(Cuckoding.TeamAssignments.assigned(ctx.board).definition["roles"])["agent"] == ""
+    assert {:ok, nil} = Foundation.claim()
+    send(view.pid, :catalog_tick)
+    assert has_element?(view, "[role=status]", "Disconnected locally")
+    {:ok, reconnected, _} = live(signed, "/agents")
+    assert has_element?(reconnected, "#agent-codex button[disabled]", "Disconnected")
+  end
+
   test "roster Disconnect is scoped, guarded and unassigns only its named agent", %{conn: conn} do
     ctx = Cuckoding.PlanningFixtures.planning_fixture()
 

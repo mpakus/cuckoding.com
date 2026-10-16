@@ -5,6 +5,7 @@ defmodule Cuckoding.Foundation do
   @auth_kinds ~w(login_codex logout_codex login_cursor logout_cursor)
   @exclusive_kinds @auth_kinds ++
                      [
+                       "disconnect_agent",
                        "plan_tabula",
                        "preview_documents",
                        "accept_spec",
@@ -224,6 +225,45 @@ defmodule Cuckoding.Foundation do
   def authorize_codex(key, expected, operation, confirmed, agent_id \\ "codex")
       when operation in [:login, :logout] do
     profile_command(key, expected, confirmed, "#{operation}_#{Agents.kind(agent_id)}", agent_id)
+  end
+
+  def disconnect_agent(key, expected, confirmed, agent_id) do
+    with true <- confirmed == true,
+         {:ok, key} <- Ecto.UUID.cast(key),
+         true <- is_integer(expected) and expected >= 0,
+         kind when kind in ~w(codex cursor) <- Agents.kind(agent_id) do
+      disconnect_once(key, expected, agent_id, kind)
+    else
+      _ -> {:error, :invalid_disconnect}
+    end
+  end
+
+  defp disconnect_once(key, expected, id, kind) do
+    case Repo.get(Command, key) do
+      nil ->
+        new_disconnect(key, expected, id, kind)
+
+      %Command{expected_revision: ^expected, kind: kind, payload: payload} = saved
+      when kind in ~w(disconnect_agent logout_codex logout_cursor) ->
+        if agent_id(payload) == id, do: {:ok, saved}, else: {:error, :key_conflict}
+
+      _ ->
+        {:error, :key_conflict}
+    end
+  end
+
+  defp new_disconnect(key, expected, id, kind) do
+    case verified_executable(id) do
+      {:ok, identity} ->
+        command(key, expected, "logout_#{kind}", scoped(identity, id))
+
+      {:error, :version_required} ->
+        command(key, expected, "disconnect_agent", %{
+          "agent_id" => id,
+          "contract" => "local-disconnect-v1",
+          "provider_logout" => "not_attempted"
+        })
+    end
   end
 
   defp profile_command(key, expected, confirmed, kind, agent_id) do
@@ -505,6 +545,25 @@ defmodule Cuckoding.Foundation do
     end
   end
 
+  defp enqueue(id, expected, "disconnect_agent", payload) do
+    reason = rejection_reason(expected, "disconnect_agent", payload)
+    state = if reason, do: "rejected", else: "completed"
+
+    command =
+      Repo.insert!(%Command{
+        id: id,
+        kind: "disconnect_agent",
+        payload: payload,
+        expected_revision: expected,
+        state: state,
+        result: reason || "local_only"
+      })
+
+    if is_nil(reason), do: disconnect_locally(id, expected, payload)
+    record("agent.disconnect_" <> state, Map.put(payload, "reason", reason), id)
+    command
+  end
+
   defp enqueue(id, expected, kind, payload) do
     reason = rejection_reason(expected, kind, payload)
     state = if reason, do: "rejected", else: "pending"
@@ -552,6 +611,23 @@ defmodule Cuckoding.Foundation do
     command
   end
 
+  defp disconnect_locally(id, expected, payload) do
+    Cuckoding.TeamAssignments.disconnect_agent(agent_id(payload), id)
+
+    fields =
+      project(agent_id(payload),
+        connection: %{
+          "status" => "disconnected",
+          "authorization" => "unknown",
+          "models" => [],
+          "catalog_status" => "not_requested",
+          "command_id" => id
+        }
+      )
+
+    Repo.update!(Ecto.Changeset.change(workspace(), [revision: expected + 1] ++ fields))
+  end
+
   defp rejection_reason(expected, kind, payload) do
     cond do
       workspace().revision != expected ->
@@ -578,7 +654,9 @@ defmodule Cuckoding.Foundation do
     do: (kind in @exclusive_kinds and pending?()) or pending_probe(@exclusive_kinds) != nil
 
   defp disconnect_in_battle?(kind, payload),
-    do: kind in ~w(logout_codex logout_cursor) and agent_in_battle?(agent_id(payload))
+    do:
+      kind in ~w(logout_codex logout_cursor disconnect_agent) and
+        agent_in_battle?(agent_id(payload))
 
   defp agent_in_battle?(id) do
     Enum.any?(Cuckoding.Battles.active(), fn battle ->
@@ -960,6 +1038,7 @@ defmodule Cuckoding.Foundation do
   defp prefix("inspect_codex"), do: "connection."
   defp prefix("login_codex"), do: "login."
   defp prefix("logout_codex"), do: "logout."
+  defp prefix("disconnect_agent"), do: "agent.disconnect_"
   defp prefix("plan_tabula"), do: "planning."
   defp prefix("check_codex_model"), do: "model_check."
   defp prefix("check_codex_isolation"), do: "isolation."

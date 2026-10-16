@@ -202,6 +202,17 @@ records old/new revision IDs and the causal logout command. A rejected/replayed
 logout cannot repeat these writes. Accepted logout unassigns immediately even if
 the later native sign-out fails. No migration is needed.
 
+R080b adds completed/rejected `disconnect_agent` commands for the
+`local-disconnect-v1` fallback when executable verification is unavailable. The
+closed payload binds the exact agent ID and `provider_logout: not_attempted`;
+the result is `local_only`. In the same immediate transaction, reuse current-role
+unassignment, set that connection to Disconnected/Unknown with no usable catalog,
+increment the workspace revision and append `agent.disconnect_completed`.
+Rejected/busy/battle/stale requests change no connection/roles. Audit failure
+rolls back every write. Replay returns the original receipt even after runtime
+re-verification, without enqueueing logout or touching newer settings. Profiles,
+old observations/selections and team history stay intact; there is no migration.
+
 R030a adds append-only `team_revisions` (integer revision ID, unique nullable
 command ID, versioned JSON definition, UTC creation time). Migration seeds the
 four unassigned responsibilities as revision 1; custom roles use stable UUIDs.

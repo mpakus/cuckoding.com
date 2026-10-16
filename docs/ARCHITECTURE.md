@@ -38,6 +38,11 @@ handle focus trapping/Escape; the hook retains open state and returns focus.
 Foundation distinguishes picker/diagnostic freshness from reusable saved role
 bindings and keeps native dispatch validation unchanged. Disconnect reuses the
 accepted logout transaction and TeamAssignments; no new worker/schema is added.
+R080b adds a short SQLite-only `disconnect_agent` command when executable
+verification is unavailable. Foundation reuses TeamAssignments and connection
+invalidation atomically, records a local-only receipt and does not dispatch a
+native worker. Validated native logout remains asynchronous and unchanged.
+[D032](DECISIONS.md#d032--local-disconnect-when-native-logout-is-unavailable).
 
 R012 keeps setup, local previews and planning globally serialized while their
 provider/native receive loops run in separate BEAM task processes. Dispatcher

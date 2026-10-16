@@ -25,7 +25,10 @@ in the Arena; declining leaves the folder, tasks and planning usable.
 
 Each roster entry has confirmed Disconnect. It clears that exact agent from all
 current team scopes through new immutable versions and initiates private-profile
-logout. Other assignments and historical work remain unchanged. An unfinished
+logout when its executable is verified. If verification is unavailable, R080b
+disconnects it locally without running the program; provider authorization becomes
+Unknown and the retained receipt/UI explicitly says sign-out was not attempted.
+Its private profile stays intact. Other assignments and historical work remain unchanged. An unfinished
 battle using the connection blocks disconnect; stop/finish it first. Reconnecting
 requires explicit role selection again, including after a failed logout.
 

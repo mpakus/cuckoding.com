@@ -117,6 +117,14 @@ Preserve these implemented contracts:
   uses only fixed version/status/models/login/logout commands, file credentials,
   empty inherited environment, disabled provider debug logging and transient provider-scoped login URLs. Cursor
   initial planning remains unsupported; task execution uses the R020p grant below.
+- R080b roster Disconnect uses verified native logout when available. If the
+  executable is missing/changed/unverified, `local-disconnect-v1` disables only
+  that saved connection and unassigns current default/Arena/board roles in one
+  audited command transaction. Keep provider authorization Unknown and explicitly
+  report that provider sign-out was not attempted; retain the private profile.
+  Never run the changed executable, silently select another account, erase
+  credentials or alter historical/frozen bindings. Preserve battle, setup-busy,
+  session/form/revision gates and stable receipt replay, even after re-verification.
 - Team revisions and scoped adoptions are immutable. Arena adoption affects new
   boards; Tabula adoption affects future planning only and waits for active
   planning. Guard both displayed scope/default revisions and retain old receipts.

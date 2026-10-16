@@ -1,5 +1,18 @@
 # Current decisions
 
+## D032 · Local disconnect when native logout is unavailable
+
+Accepted 2026-10-15 for R080b. The roster's confirmed Disconnect first uses the
+existing verified native logout. If executable verification is unavailable,
+reuse the SQLite command/event and current-role unassignment transaction to
+disable only that saved connection locally. Do not launch an unverified program,
+delete its provider-owned profile, infer logout or substitute a connected peer.
+Store a closed local-only receipt and unknown provider authorization; explain
+that provider sign-out was not attempted. Battle exclusion, global setup busy,
+session/form and workspace-revision guards still apply. Historical commands,
+team revisions and frozen battle bindings stay immutable. Replaying one accepted
+local command returns its receipt without repeating effects.
+
 ## D031 · Native idle-sleep lease
 
 Accepted 2026-10-15 for R060i. New Starts freeze `idle_sleep: shell-lease-v1`.

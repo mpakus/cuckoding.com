@@ -187,6 +187,28 @@ defmodule Cuckoding.BattlesTest do
     end
   end
 
+  test "local-only Disconnect cannot bypass running or paused battle bindings", ctx do
+    battle = start(ctx.board)
+    File.rm!(Foundation.workspace().codex["path"])
+    assert {:error, :version_required} = Foundation.verified_executable()
+    team = Team.current()
+    connection = Foundation.workspace().connection
+
+    for _ <- 1..2 do
+      assert {:ok, %{state: "rejected", result: "agent_in_battle"}} =
+               Foundation.disconnect_agent(
+                 Ecto.UUID.generate(),
+                 Foundation.workspace().revision,
+                 true,
+                 "codex"
+               )
+
+      assert Team.current() == team
+      assert Foundation.workspace().connection == connection
+      if Battles.get(battle.id).state == "running", do: Battles.pause(battle.id, 0)
+    end
+  end
+
   defp result(attempt, override \\ %{}) do
     envelope = Map.take(attempt.request, ~w(battle_id request_id task_id stage criteria_sha256))
 

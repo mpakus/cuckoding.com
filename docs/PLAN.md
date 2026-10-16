@@ -120,6 +120,11 @@ The numbered story below is capability coverage, not eight mandatory screens.
   Create tasks, repository setup and extra boards use dialogs; manual tasks use +
   on Specs/ToDo; team version numbers stay in history. Packaged smoke and preserved
   saved-workspace relaunch verified 2026-10-15. [Task](../tasks/R080a-arena-controls.md).
+- [x] **R080b — Disconnect after runtime drift:** when the selected executable
+  is unverified, complete exact-connection local deactivation/unassignment with
+  an honest Not attempted provider-logout receipt. Preserve native profiles,
+  other connections, historical bindings and all busy/battle/form gates.
+  [Task](../tasks/R080b-disconnect-runtime-drift.md).
 - [ ] **R060 / R070 / R080:** complete recovery, parallel workers, both dashboards
   and timed ten-minute acceptance. Usable Arena UI ships with each earlier slice.
 
