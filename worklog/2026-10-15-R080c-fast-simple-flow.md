@@ -89,4 +89,8 @@ Restart/preservation:
 
 Open: narrow/package interactive walkthrough, timed ten-minute onboarding, actual
 planning/battle provider allowance acceptance, physical recovery and release gates.
-No push/publication. Local main integration pending.
+Implementation `a713383` fast-forward merged to local `main`; merged branch
+`feature/R080c-fast-simple-flow` deleted. Docs, AGENTS and README are updated.
+No push/publication. The saved-workspace native app remains running at 53635;
+the source preview was stopped with its data retained. Narrow/package interactive
+and timed acceptance remain explicitly open rather than inferred from tests.

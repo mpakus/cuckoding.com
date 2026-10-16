@@ -1,6 +1,7 @@
 # R080c — Fast, polished setup-to-Start flow
 
-Status: implemented and verified locally, 2026-10-15. Local integration pending.
+Status: implementation verified and merged to local main, 2026-10-15.
+Remaining interactive/timed acceptance is listed below.
 
 - [x] Keep the visible journey Agents → Roles → Arena & Tabula → Create tasks →
   Start, with saved progress and a useful Home next action instead of restarting
@@ -16,7 +17,8 @@ Status: implemented and verified locally, 2026-10-15. Local integration pending.
   the desktop role editor and rebuild/reopen the preserved workspace safely.
 - [ ] Complete narrow-browser and packaged interactive flow checks; browser
   automation was interrupted by concurrent user control. Timed acceptance remains open.
-- [ ] Merge this verified implementation slice to local main.
+- [x] Merge this verified implementation slice to local main (`a713383`);
+  delete its merged feature branch. No remote publication.
 
 The ten-minute target remains a timed real-provider acceptance gate, not a promise
 established by fixture/UI tests. No provider usage or real battle is authorized.
