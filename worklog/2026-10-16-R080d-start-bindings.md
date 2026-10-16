@@ -72,4 +72,8 @@ adoption; this patch does not silently undo those actions.
 
 ## Integration
 
-Pending local commit/merge; no remote publication.
+Implementation committed as `62d4a94`, fast-forward merged to local main;
+`fix/r080d-start-bindings` deleted after merge. Docs/AGENTS/README updated in the
+same implementation commit. This follow-up records verified integration. No push
+or publication. The running bundle contains the verified source implementation;
+the final task/worklog integration note does not change executable code.

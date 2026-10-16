@@ -1,6 +1,7 @@
 # R080d — Explain and repair incomplete Start bindings
 
-Status: implementation verified, 2026-10-16; local integration pending.
+Status: verified and merged to local main as `62d4a94`, 2026-10-16.
+Merged task branch deleted; no remote publication.
 
 - [x] Distinguish a selected agent without a model from a missing agent in Start.
   Link assignment problems to the affected Team role, not provider sign-in.
@@ -10,7 +11,7 @@ Status: implementation verified, 2026-10-16; local integration pending.
   Board team. Keep saved scope adoption explicit; never pick a model/account.
 - [x] Cover the missing-model blocker, successful explicit repair/adoption/Start,
   and preserved Start/session/revision gates with runnable regressions.
-- [ ] Update docs, AGENTS and README; run quality, rebuild/reopen the preserved
+- [x] Update docs, AGENTS and README; run quality, rebuild/reopen the preserved
   workspace when idle, merge to local main and delete the task branch.
 
 [Worklog](../worklog/2026-10-16-R080d-start-bindings.md).
