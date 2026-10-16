@@ -39,7 +39,7 @@ remote push, user-branch merge and release remain separate human actions.
 
 ## What works today
 
-**Local preview, 2026-10-15.** The first sequential Codex/Cursor Arena loop is implemented.
+**Local preview, 2026-10-16.** The first sequential Codex/Cursor Arena loop is implemented.
 The complete product story still includes capabilities and release acceptance
 listed below. Arena registration opens its default board; technical setup stays in Advanced.
 
@@ -68,6 +68,9 @@ Each agent has **Disconnect**. Confirming it signs out that private profile and
 unassigns its roles in the current saved, Arena and board teams. Other agents and
 historical teams remain intact. Finish/stop an unfinished battle before disconnecting
 one of its agents. Reconnecting does not silently restore those assignments.
+Completed sign-out shows **Disconnected** and disables the Disconnect button;
+**Edit** opens authorization to reconnect. Older successful sign-outs display
+correctly without another provider call.
 Saved roles remain usable when only the catalog's age changes; failed lookups,
 sign-out and account/model/executable changes still need attention. New model
 choices and optional access tests require a recent catalog.
@@ -81,6 +84,19 @@ is unavailable. Cuckoding disables that connection and clears its current roles
 locally, without running the unverified program. The result states that provider
 sign-out was not attempted; its private profile and history are retained. Other
 saved connections stay separate. Verify/reconnect explicitly before reusing it.
+
+To start completely fresh, quit Cuckoding and run:
+
+```sh
+rtk proxy bin/reset-agents --data-dir '/absolute/path/to/your/cuckoding/data'
+```
+
+Type `RESET` after checking the displayed directory. Despite its name, this resets
+**all local app state**: agents/private profiles, roles, Arenas/project registrations,
+boards, tasks, history and artifacts. It retains a private recoverable archive
+beside the data directory and leaves your actual project folders untouched.
+Reopen with that same data directory. See [reset and recovery](docs/DEVELOPMENT.md#reset-all-local-workspace-data)
+for defaults, archived credentials, running-work refusal and restore details.
 
 Codex also has an optional **Execution isolation** diagnostic. With verified
 `0.162.0-alpha.17.2`, it checks read-only/writing restrictions in two disposable

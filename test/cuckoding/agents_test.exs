@@ -72,6 +72,69 @@ defmodule Cuckoding.AgentsTest do
     assert {:error, "model_refresh_required"} = Team.save(Ecto.UUID.generate(), 1, role)
   end
 
+  test "only exact verified logout is Disconnected; signed-out inspection and uncertain results are separate" do
+    for kind <- ~w(codex cursor) do
+      agent = add("Disconnect #{kind}", kind)
+      {:ok, _} = Foundation.inspect_codex(Ecto.UUID.generate(), revision(), true, agent.id)
+      {:ok, claim} = Foundation.claim()
+
+      signed_out = %{
+        "status" => "checked",
+        "authorization" => "not_connected",
+        "catalog_status" => "not_requested"
+      }
+
+      Foundation.finish(claim, signed_out)
+      refute Agents.disconnected?(Agents.get(agent.id))
+
+      {:ok, _} = Foundation.disconnect_agent(Ecto.UUID.generate(), revision(), true, agent.id)
+      {:ok, claim} = Foundation.claim()
+      Foundation.finish(claim, %{"status" => "cleanup_uncertain"})
+      refute Agents.disconnected?(Agents.get(agent.id))
+      assert Agents.get(agent.id).connection["status"] == "cleanup_uncertain"
+
+      {:ok, _} = Foundation.disconnect_agent(Ecto.UUID.generate(), revision(), true, agent.id)
+      {:ok, claim} = Foundation.claim()
+      Foundation.finish(claim, signed_out)
+      disconnected = Agents.get(agent.id)
+      assert Agents.disconnected?(disconnected)
+      assert disconnected.connection["authorization"] == "not_connected"
+      assert disconnected.connection["models"] == []
+      assert disconnected.connection["status"] == "disconnected"
+
+      assert Enum.any?(
+               Foundation.events(),
+               &(&1.command_id == claim.id and &1.data["status"] == "checked")
+             )
+
+      historical = %{
+        disconnected
+        | connection: Map.put(disconnected.connection, "status", "checked")
+      }
+
+      assert Agents.disconnected?(historical)
+      refute Agents.disconnected?(%{historical | id: Ecto.UUID.generate()})
+
+      refute Agents.disconnected?(%{
+               historical
+               | connection: Map.put(historical.connection, "command_id", nil)
+             })
+
+      refute Agents.disconnected?(%{
+               historical
+               | connection: Map.put(historical.connection, "command_id", Ecto.UUID.generate())
+             })
+
+      {:ok, command} =
+        Foundation.authorize_codex(Ecto.UUID.generate(), revision(), :logout, true, agent.id)
+
+      {:ok, claim} = Foundation.claim()
+      Foundation.cancel_probe(command.id)
+      Foundation.finish(claim, signed_out)
+      refute Agents.disconnected?(Agents.get(agent.id))
+    end
+  end
+
   test "mixed roles use their own saved catalogs; no cross-agent model or diagnostic fallback" do
     codex = add("Coder", "codex")
     cursor = add("Planner", "cursor")

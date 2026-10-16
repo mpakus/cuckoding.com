@@ -1,7 +1,7 @@
 defmodule Cuckoding.Agents do
   @moduledoc "Named, independent runtime connections; legacy Codex keeps its existing identity."
   import Ecto.Query
-  alias Cuckoding.{AgentConnection, Codex, Foundation, Repo}
+  alias Cuckoding.{AgentConnection, Codex, Command, Foundation, Repo}
 
   def list do
     legacy = get("codex")
@@ -41,6 +41,28 @@ defmodule Cuckoding.Agents do
       _ -> nil
     end
   end
+
+  def disconnected?(%{connection: %{"status" => "disconnected"}}), do: true
+
+  def disconnected?(%{
+        id: id,
+        kind: kind,
+        connection: %{
+          "status" => "checked",
+          "authorization" => "not_connected",
+          "command_id" => key
+        }
+      }) do
+    # Older successful sign-outs retained the native checked/not_connected observation.
+    with {:ok, key} <- Ecto.UUID.cast(key),
+         %Command{kind: operation, state: "completed", payload: payload} <- Repo.get(Command, key) do
+      operation == "logout_#{kind}" and Foundation.agent_id(payload) == id
+    else
+      _ -> false
+    end
+  end
+
+  def disconnected?(_), do: false
 
   def adapter("codex"), do: Codex
   def adapter("cursor"), do: Cuckoding.Cursor

@@ -54,7 +54,11 @@ defmodule CuckodingWeb.HomeLive do
   end
 
   defp initial_step(_, _, "new"), do: 1
-  defp initial_step(saved, _, _) when not is_nil(saved), do: 4
+
+  defp initial_step(saved, %{status: status}, _)
+       when not is_nil(saved) and status in [:available, :catalog_stale],
+       do: 4
+
   defp initial_step(_, %{status: :available}, _), do: 3
 
   defp initial_step(_, _, id),
@@ -1073,6 +1077,9 @@ defmodule CuckodingWeb.HomeLive do
 
   defp codex_status(_),
     do: "The version check could not start. Check the executable and try again."
+
+  defp connection_status(%{"status" => "disconnected"}),
+    do: "Disconnected. Sign in again to use this connection."
 
   defp connection_status(%{"status" => "checked", "authorization" => "cursor"}),
     do: "Cursor account connected. Models come from this account’s catalog."

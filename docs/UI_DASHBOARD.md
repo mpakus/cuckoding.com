@@ -167,6 +167,13 @@ independently. Changing an agent clears that role's unsaved model choice. Cursor
 setup and task execution are available; optional model tests and initial planning remain unavailable. Existing Codex
 profiles and immutable assignments are preserved. No single global agent selector.
 
+R080e shows **Disconnected** after verified native sign-out, and disables repeat
+Disconnect. It also derives this display from exact older completed logout
+receipts; a signed-out inspection or failed/uncertain operation is not success.
+Edit opens authorization when disconnected even if old model selections remain.
+Disconnect preserves the named connection so the user can reconnect it; complete
+local workspace reset is the separately confirmed offline developer helper.
+
 R020j aligns URLs with navigation: **Agents** uses `/agents` and **Settings** uses
 `/settings`. Wizard pages stay under `/agents/:id`. Old `/about` and
 `/settings/:id` bookmarks redirect to the corresponding canonical pages. Tray

@@ -1018,9 +1018,21 @@ defmodule Cuckoding.Foundation do
 
     data = Map.take(result, ~w(status authorization catalog_status pid spawned_at_ms elapsed_ms))
 
+    public = logout_projection(kind, result, public)
+
     {project(agent_id(claim.payload), connection: public),
      Map.put(data, "model_count", length(result["models"] || []))}
   end
+
+  defp logout_projection(
+         kind,
+         %{"status" => "checked", "authorization" => "not_connected"},
+         public
+       )
+       when kind in ~w(logout_codex logout_cursor),
+       do: Map.put(public, "status", "disconnected")
+
+  defp logout_projection(_, _, public), do: public
 
   defp prefix(kind)
        when kind in ~w(inspect_arena_git init_arena_git preview_arena_git commit_arena_git worktree_arena_git inspect_worktree_arena_git),

@@ -138,6 +138,10 @@ The numbered story below is capability coverage, not eight mandatory screens.
   distinguish missing models from missing agents, and route repairs to Team.
   Incomplete drafts warn before Start; scope adoption remains explicit.
   [Task](../tasks/R080d-start-bindings.md).
+- [x] **R080e — Disconnect and reset:** recognize verified/historical native
+  sign-out correctly, reconnect directly, and provide an explicitly confirmed
+  full-workspace reset with a private archive and running-work/path/DB guards.
+  [Task](../tasks/R080e-disconnect-reset.md).
 
 [R002 evidence](../tasks/R002-simple-arena-contract.md) records the delivered UI
 and automatic-board slice. R040l/m deliver bounded source reading and automatic

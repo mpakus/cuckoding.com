@@ -33,7 +33,7 @@ defmodule CuckodingWeb.AgentsLive do
           disconnected(
             socket,
             params,
-            "Disconnecting agent. Its roles are now unassigned; saved history is retained."
+            "Disconnect requested. Its roles are now unassigned; saved history is retained."
           )
 
         {:ok, %{state: "completed", kind: "disconnect_agent"}} ->
@@ -88,9 +88,11 @@ defmodule CuckodingWeb.AgentsLive do
 
   defp load(socket) do
     revision = Foundation.workspace().revision
+    agents = Agents.list()
 
     assign(socket,
-      agents: Enum.map(Agents.list(), &{&1, Foundation.saved_agent_models(&1.id)}),
+      agents: Enum.map(agents, &{&1, Foundation.saved_agent_models(&1.id)}),
+      disconnected: MapSet.new(Enum.filter(agents, &Agents.disconnected?/1), & &1.id),
       revision: revision,
       busy: Foundation.pending?(),
       key:
@@ -100,7 +102,7 @@ defmodule CuckodingWeb.AgentsLive do
         ),
       disconnects:
         Map.new(
-          Agents.list(),
+          agents,
           &{&1.id, Foundation.last_probe(~w(logout_codex logout_cursor), &1.id)}
         )
     )
@@ -127,9 +129,11 @@ defmodule CuckodingWeb.AgentsLive do
             <div>
               <strong>{agent.name}</strong>
               <p class="fine-print">
-                {Agents.label(agent.kind)} · {if agent.connection["authorization"] in ~w(chatgpt cursor),
-                  do: "Signed in",
-                  else: "Connect account"} · {if saved,
+                {Agents.label(agent.kind)} · {cond do
+                  MapSet.member?(@disconnected, agent.id) -> "Disconnected"
+                  agent.connection["authorization"] in ~w(chatgpt cursor) -> "Signed in"
+                  true -> "Connect account"
+                end} · {if saved,
                   do: "#{length(saved.payload["model_ids"])} selected models",
                   else: "Setup unfinished"}
                 <span :if={
@@ -166,9 +170,9 @@ defmodule CuckodingWeb.AgentsLive do
                 type="button"
                 class="button"
                 aria-label={"Disconnect #{agent.name}"}
-                disabled={@busy || agent.connection["status"] == "disconnected"}
+                disabled={@busy || MapSet.member?(@disconnected, agent.id)}
                 phx-click={JS.dispatch("cc:open", to: "#disconnect-#{agent.id}")}
-              >{if agent.connection["status"] == "disconnected",
+              >{if MapSet.member?(@disconnected, agent.id),
                 do: "Disconnected",
                 else: "Disconnect"}</button>
             </div>

@@ -175,6 +175,34 @@ defmodule CuckodingWeb.AgentsLiveTest do
     {:ok, logout} = Foundation.claim()
     assert logout.payload["agent_id"] == id
     assert logout.kind == "logout_cursor"
+
+    Foundation.finish(logout, %{
+      "status" => "checked",
+      "authorization" => "not_connected",
+      "catalog_status" => "not_requested"
+    })
+
+    assert Agents.get(id).connection["status"] == "disconnected"
+    assert has_element?(view, "#agent-#{id} button[disabled]", "Disconnected")
+    assert has_element?(view, "#agent-#{id}", "Cursor · Disconnected")
+    refute has_element?(view, "#agent-#{id}", "Connect account")
+    {:ok, again, _} = conn |> sign_in() |> live("/agents")
+    assert has_element?(again, "#agent-#{id} button[disabled]", "Disconnected")
+
+    # Retained pre-fix receipts must render correctly without another logout or migration.
+    cursor = Agents.get(id)
+
+    Repo.update!(
+      Ecto.Changeset.change(cursor, connection: Map.put(cursor.connection, "status", "checked"))
+    )
+
+    Foundation.broadcast()
+    assert has_element?(again, "#agent-#{id} button[disabled]", "Disconnected")
+    assert Agents.disconnected?(Agents.get(id))
+    {:ok, wizard, _} = conn |> sign_in() |> live("/agents/#{id}")
+    assert has_element?(wizard, "#codex-login button", "Sign in with Cursor")
+    assert Agents.get("codex") == legacy
+    refute Foundation.pending?()
   end
 
   test "expired roster sessions cannot disconnect", %{conn: conn} do

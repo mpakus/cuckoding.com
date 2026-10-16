@@ -165,6 +165,11 @@ locally without running it. The roster reports that provider sign-out was not
 attempted, retains the private profile and shows Disconnected. Verify/reconnect
 through Edit before selecting that connection for roles again. This local-only
 receipt does not prove provider logout and cannot launch work.
+Verified native logout also shows Disconnected. Its normalized native observation
+stays checked/not_connected in the event receipt; the current projection records
+the completed disconnect. Historical observations use only their exact completed
+logout command/provider/connection to derive the same display without another call.
+Edit opens Connect and Authorize when signed out, even with an older model save.
 Model drift remains visible and never silently replaces the saved model.
 To replace a changed model behind the same catalog ID, clear/save the binding
 then explicitly select/save it again. Saving starts no agent; execution requires
@@ -396,6 +401,48 @@ age; the source UI launcher has no native assertion and may show Unknown.
 Do not change system sleep preferences or use this report as physical wake proof.
 Native tests acquire a short assertion, verify it leaves the active list on
 timeout while retaining its owned ID, then verify release; they never request sleep.
+
+## Reset all local workspace data
+
+`bin/reset-agents` resets the whole selected Cuckoding workspace. It does not
+delete your project folders or personal Codex/Cursor profiles. Quit the app first:
+
+```sh
+rtk proxy bin/reset-agents --data-dir '/absolute/path/to/cuckoding/data'
+```
+
+The directory defaults to `CCODING_DATA_DIR` when set, otherwise
+`~/Library/Application Support/CCoding Rebuild`, matching the native shell.
+The saved test launcher may select a different data root; pass that exact root.
+For source UI development, use `--data-dir "$PWD/.ccoding/ui-dev"` after Ctrl-C.
+Read the displayed target and type `RESET`; `--yes` is explicit noninteractive
+confirmation. Creating/testing the helper never authorizes resetting real data.
+
+The script validates the private canonical marker/ownership, acquires the same
+exclusive `shell.lock`, checks SQLite integrity/foreign keys and refuses pending
+setup or unfinished/paused/needs-attention battles. Finish/stop work through the
+app first; the helper neither kills workers nor bypasses uncertain cleanup.
+It retains the lock inode at the active path throughout reset.
+
+All other contents move into a new private sibling `<data-name>-reset-*/workspace/`:
+SQLite and its history, agent profiles, Arenas/boards/tasks/role registrations,
+specifications, logs and runtime artifacts. `reset.jsonl` records dated intent
+and completed archival without content/credential values. The archive still
+contains the provider-owned authorization files; keep it private. This local reset
+does not revoke provider accounts. External project Git branches/worktree
+registrations are unchanged; their old records remain in the archive.
+
+Fresh marker/lock-only storage initializes through normal migrations on the next
+launch with the same data directory. No profiles, roles or tasks are imported.
+The old marker moves first: an interrupted move leaves startup blocked instead
+of creating a mixed workspace. Keep both paths and inspect them after any error.
+To restore, quit and preserve any newly created data separately, then move the
+archived `workspace/` entries (including dotfiles) back to the original root while
+retaining its lock. Do not merge two databases or overwrite a new workspace.
+Archive purging and automatic partial-reset recovery are deliberately absent.
+
+Verify only disposable fixtures:
+`rtk proxy python3 test/reset_agents_test.py`.
 
 ## Toolchain and distribution
 

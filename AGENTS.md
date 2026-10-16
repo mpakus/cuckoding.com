@@ -125,6 +125,18 @@ Preserve these implemented contracts:
   Never run the changed executable, silently select another account, erase
   credentials or alter historical/frozen bindings. Preserve battle, setup-busy,
   session/form/revision gates and stable receipt replay, even after re-verification.
+- R080e projects verified native logout as Disconnected while preserving its raw
+  checked/not_connected audit receipt. Recognize older successful receipts only
+  through the exact current completed logout command, provider kind and connection
+  ID; inspection, failure/cancellation and uncertain cleanup are not logout proof.
+  Reconnect opens authorization even if old saved model choices remain.
+  `bin/reset-agents` is an offline full-workspace reset, not a provider logout or
+  project-folder deletion. Require recognized private canonical storage, the
+  unchanged exclusive shell lock, settled work, SQLite integrity/FKs and explicit
+  confirmation. Retain all previous contents in a private sibling archive with
+  a dated reset receipt; move the marker first so interrupted moves block startup.
+  Never follow profile links, purge archives, remove project Git metadata or run
+  a real user's reset merely to test the helper.
 - Team revisions and scoped adoptions are immutable. Arena adoption affects new
   boards; Tabula adoption affects future planning only and waits for active
   planning. Guard both displayed scope/default revisions and retain old receipts.
