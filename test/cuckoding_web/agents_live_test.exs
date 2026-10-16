@@ -3,6 +3,70 @@ defmodule CuckodingWeb.AgentsLiveTest do
   import Phoenix.LiveViewTest
   alias Cuckoding.{Agents, Foundation, Repo, Team}
 
+  test "new Cursor defaults need no typed name or path and discovery executes nothing", %{
+    conn: conn
+  } do
+    root = "/private/tmp/cuckoding-agent-defaults-#{Ecto.UUID.generate()}"
+    directory = Path.join(root, ".local/bin")
+    File.mkdir_p!(directory)
+    path = Path.join(directory, "cursor-agent")
+    marker = Path.join(root, "executed")
+    File.write!(path, "#!/bin/sh\ntouch #{marker}\n")
+    File.chmod!(path, 0o700)
+    previous = Application.get_env(:cuckoding, :discovery_home)
+    Application.put_env(:cuckoding, :discovery_home, root)
+
+    on_exit(fn ->
+      if previous,
+        do: Application.put_env(:cuckoding, :discovery_home, previous),
+        else: Application.delete_env(:cuckoding, :discovery_home)
+
+      File.rm_rf!(root)
+    end)
+
+    signed = sign_in(conn)
+    {:ok, view, _} = live(signed, "/agents/new")
+    assert has_element?(view, "#agent-name[type=text][value=Codex]")
+    view |> form("#codex-check", agent: "cursor") |> render_change()
+    assert has_element?(view, "#agent-name[value=Cursor]")
+    assert has_element?(view, "#codex-path[value='#{path}']")
+    refute has_element?(view, "#executable-details[open]")
+    refute File.exists?(marker)
+    refute Foundation.pending?()
+    view |> form("#codex-check", name: "My planner", path: "/bin/sh") |> render_change()
+    send(view.pid, :clock)
+    assert has_element?(view, "#agent-name[value='My planner']")
+    assert has_element?(view, "#codex-path[value='/bin/sh']")
+    view |> form("#codex-check", agent: "codex") |> render_change()
+    assert has_element?(view, "#agent-name[value='My planner']")
+
+    {:ok, fresh, _} = live(signed, "/agents/new")
+    fresh |> form("#codex-check", agent: "cursor") |> render_change()
+    result = fresh |> form("#codex-check") |> render_submit()
+    [cursor] = Agents.list()
+    assert cursor.name == "Cursor"
+    assert cursor.codex["path"] == nil
+    {:ok, wizard, _} = follow_redirect(result, signed)
+    {:ok, probe} = Foundation.claim()
+    assert probe.payload["path"] == path
+    Foundation.finish(probe, %{"status" => "supported", "version" => "2026.09.15-d2fe57e"})
+    refute has_element?(wizard, "#connection-check")
+    wizard |> form("#codex-login") |> render_submit()
+    {:ok, login} = Foundation.claim()
+    assert login.kind == "login_cursor"
+    assert login.payload["agent_id"] == cursor.id
+
+    Foundation.finish(login, %{
+      "status" => "checked",
+      "authorization" => "cursor",
+      "catalog_status" => "fresh",
+      "models" => [model("fixture-model")]
+    })
+
+    assert has_element?(wizard, "#wizard-models")
+    refute File.exists?(marker)
+  end
+
   test "signed-out Codex can disconnect and unassign after its executable changes", %{conn: conn} do
     ctx = Cuckoding.PlanningFixtures.planning_fixture()
 
@@ -153,12 +217,13 @@ defmodule CuckodingWeb.AgentsLiveTest do
     Foundation.finish(claim, %{"status" => "supported", "version" => "2026.09.15-d2fe57e"})
     assert has_element?(wizard, "#codex-login button", "Sign in with Cursor")
     assert Agents.get("codex").connection == %{}
-    wizard |> form("#connection-check") |> render_submit(%{"consent_key" => "recovered"})
+    refute has_element?(wizard, "#connection-check")
+    wizard |> form("#codex-login") |> render_submit(%{"consent_key" => "recovered"})
     refute Foundation.pending?()
-    wizard |> form("#connection-check") |> render_submit()
+    wizard |> form("#codex-login") |> render_submit()
     {:ok, claim} = Foundation.claim()
     assert claim.payload["agent_id"] == cursor.id
-    assert claim.kind == "inspect_cursor"
+    assert claim.kind == "login_cursor"
 
     Foundation.finish(claim, %{
       "status" => "checked",
@@ -205,7 +270,7 @@ defmodule CuckodingWeb.AgentsLiveTest do
     {:ok, claim} = Foundation.claim()
     Foundation.finish(claim, %{"status" => "supported", "version" => "2026.09.15-d2fe57e"})
     {:ok, view, _} = conn |> sign_in() |> live("/agents/#{id}")
-    view |> form("#connection-check") |> render_submit()
+    view |> form("#codex-login") |> render_submit()
     {:ok, claim} = Foundation.claim()
     rows = for index <- 1..512, do: model("variant-#{index}")
 
@@ -289,7 +354,7 @@ defmodule CuckodingWeb.AgentsLiveTest do
       assert has_element?(view, "#wizard-connect")
       refute has_element?(view, "#wizard-models")
 
-      view |> form("#connection-check") |> render_submit()
+      view |> form("#codex-login") |> render_submit()
       assert has_element?(view, "#connect-next[disabled]")
       {:ok, claim} = Foundation.claim()
 

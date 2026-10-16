@@ -46,8 +46,14 @@ listed below. Arena registration opens its default board; technical setup stays 
 | One bounded Start, sequential Codex/Cursor dispatch, correction through Speculator, independent Secutor review and retained local battle branch | Real-account end-to-end acceptance, general toolchain checks, recovery and parallel workers |
 
 Agents uses `/agents`; Settings uses `/settings`. Agent setup follows
-**Choose Agent → Connect and Authorize → Select models → Save**. Team assigns each
-role independently: for example Cursor/Grok for Speculator and Codex/GPT for
+**Choose Agent → Connect and Authorize → Select models → Save**.
+
+New agents start with an editable name and an executable path detected from known
+install locations when available. Cursor's
+normal connection needs no typed path: choose Cursor, Continue, then Sign in.
+Sign in opens the provider tab from that same click; its in-place Continue button
+is a fallback if the browser blocks/closes the tab. Refresh appears after sign-in.
+Team assigns each role independently: for example Cursor/Grok for Speculator and Codex/GPT for
 Implementor, once those runtime capabilities are supported. Saving a binding is
 not execution permission. A catalog is separate from model access.
 

@@ -240,12 +240,14 @@ defmodule CuckodingWeb.FoundationLiveTest do
     version()
     {:ok, view, _} = conn |> sign_in() |> live("/agents/codex")
     assert has_element?(view, "#codex-login")
-    view |> form("#connection-check") |> render_submit()
+    refute has_element?(view, "#connection-check")
+    view |> form("#codex-login") |> render_submit()
     {:ok, claim} = Foundation.claim()
     Foundation.finish(claim, catalog())
     assert has_element?(view, "#wizard-models")
     view |> element("#wizard-models button", "Back") |> render_click()
     refute has_element?(view, "#codex-login")
+    assert has_element?(view, "#connection-check")
     assert has_element?(view, "#codex-logout button", "Sign out of Codex")
     view |> form("#codex-logout") |> render_submit(%{"revision" => "1"})
     refute Foundation.pending?()
@@ -352,7 +354,19 @@ defmodule CuckodingWeb.FoundationLiveTest do
     version()
     signed = sign_in(conn)
     {:ok, view, _} = live(signed, "/agents/codex")
+    assert has_element?(view, "#agent-sign-in[phx-hook=AgentLogin]")
+    refute has_element?(view, "#connection-check")
+
+    [key] =
+      view
+      |> element("#codex-login input[name=consent_key]")
+      |> render()
+      |> LazyHTML.from_fragment()
+      |> LazyHTML.query("input")
+      |> LazyHTML.attribute("value")
+
     view |> form("#codex-login") |> render_submit()
+    assert_push_event(view, "login-submitted", %{key: ^key, accepted: true})
     {:ok, claim} = Foundation.claim()
     assert :ok = Foundation.login_waiting(claim)
     url = "https://auth.openai.com/oauth/authorize?state=fixture-link-canary"
@@ -360,6 +374,14 @@ defmodule CuckodingWeb.FoundationLiveTest do
     Foundation.broadcast()
     local = "/codex/login/" <> claim.id
     assert has_element?(view, "a[href='#{local}'][rel='noopener noreferrer']")
+
+    assert has_element?(
+             view,
+             "#agent-sign-in[data-command-id='#{key}'][data-login-ready=true] #agent-login-continue"
+           )
+
+    refute has_element?(view, "#agent-progress a")
+    refute has_element?(view, "#codex-login")
     refute render(view) =~ "fixture-link-canary"
     assert {:ok, reconnected, _} = live(signed, "/agents/codex")
     assert has_element?(reconnected, "a[href='#{local}']")
@@ -371,6 +393,18 @@ defmodule CuckodingWeb.FoundationLiveTest do
     assert get(signed, local) |> response(410)
     Foundation.finish(claim, %{"status" => "cancelled"})
     refute Foundation.pending?()
+  end
+
+  test "rejected sign-in forms close only their pending browser handoff and launch nothing", %{
+    conn: conn
+  } do
+    version()
+    {:ok, view, _} = conn |> sign_in() |> live("/agents/codex")
+    stale = Ecto.UUID.generate()
+    view |> form("#codex-login") |> render_submit(%{"consent_key" => stale})
+    assert_push_event(view, "login-submitted", %{key: ^stale, accepted: false})
+    refute Foundation.pending?()
+    assert has_element?(view, "#wizard-error", "out of date")
   end
 
   defp version do

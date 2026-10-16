@@ -233,6 +233,12 @@ adoption operations, immutable revisions and explicit consent. BattleComponent
 groups blockers by exact connection/status and keeps the bounded Start summary
 above on-demand details. No new domain state, migration, provider work or grant.
 
+R020q's `AgentLogin` browser hook owns only an unprivileged pending tab handle.
+LiveView/domain consent still owns native login; only the exact command's existing
+session-protected redirect can receive that tab. The raw provider URL stays in
+transient server storage/controller redirect. Source development passes the same
+discovery-only host-home hint as the native shell, preserving provider isolation.
+
 R040l extends PlanningDocuments with `folder-documents-v1`: bounded docs-first
 inventory and exact source snapshots using the same command, claim and cancellation
 path. Native directory enumeration and file reads stay relative to pinned descriptors;

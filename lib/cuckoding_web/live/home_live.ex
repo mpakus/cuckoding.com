@@ -24,7 +24,7 @@ defmodule CuckodingWeb.HomeLive do
      |> assign(
        agent_id: agent_id,
        agent_kind: kind,
-       agent_name: if(agent, do: agent.name, else: ""),
+       agent_name: if(agent, do: agent.name, else: Agents.label(kind)),
        new_agent: agent_id == "new",
        step: initial_step(saved, catalog, agent_id),
        command_key: Ecto.UUID.generate(),
@@ -68,12 +68,19 @@ defmodule CuckodingWeb.HomeLive do
         else: socket.assigns.agent_kind
 
     path = if kind != socket.assigns.agent_kind, do: default_path(kind), else: params["path"]
+    name = params["name"] || socket.assigns.agent_name
+
+    name =
+      if kind != socket.assigns.agent_kind &&
+           name in ["", Agents.label(socket.assigns.agent_kind)],
+         do: Agents.label(kind),
+         else: name
 
     {:noreply,
      assign(socket,
        codex_path: path,
        agent_kind: kind,
-       agent_name: params["name"] || socket.assigns.agent_name,
+       agent_name: name,
        error: nil
      )}
   end
@@ -142,15 +149,34 @@ defmodule CuckodingWeb.HomeLive do
 
   def handle_event("authorize_codex", %{"operation" => operation} = params, socket)
       when operation in ~w(login logout) do
-    submit(socket, params, fn ->
-      Foundation.authorize_codex(
-        socket.assigns.command_key,
-        socket.assigns.workspace.revision,
-        if(operation == "login", do: :login, else: :logout),
-        true,
-        socket.assigns.agent_id
-      )
-    end)
+    valid = current_form?(socket, params)
+
+    {:noreply, updated} =
+      submit(socket, params, fn ->
+        Foundation.authorize_codex(
+          socket.assigns.command_key,
+          socket.assigns.workspace.revision,
+          if(operation == "login", do: :login, else: :logout),
+          true,
+          socket.assigns.agent_id
+        )
+      end)
+
+    if operation == "login" do
+      key =
+        case Ecto.UUID.cast(params["consent_key"]) do
+          {:ok, key} -> key
+          _ -> nil
+        end
+
+      {:noreply,
+       push_event(updated, "login-submitted", %{
+         key: key,
+         accepted: valid && updated.assigns.awaiting == key
+       })}
+    else
+      {:noreply, updated}
+    end
   end
 
   def handle_event("cancel_probe", %{"id" => id}, socket) do
@@ -543,11 +569,18 @@ defmodule CuckodingWeb.HomeLive do
                 The desktop app and standalone CLI can offer different models.
               </p>
             </details>
+            <p id="executable-detected" class="fine-print">
+              {if @codex_path == "",
+                do:
+                  "#{Agents.label(@agent_kind)} CLI not found. Open Executable details to choose its installed program.",
+                else:
+                  "#{Agents.label(@agent_kind)} executable selected. Change it in Executable details if needed."}
+            </p>
             <p class="fine-print">
               Continue runs this executable with <code>--version</code>
               on your Mac. Only continue with an executable you trust.
             </p>
-            <button class="button primary" disabled={@pending}>Continue with {Agents.label(
+            <button class="button primary" disabled={@pending || @codex_path == ""}>Continue with {Agents.label(
               @agent_kind
             )}</button>
           </form>
@@ -562,7 +595,11 @@ defmodule CuckodingWeb.HomeLive do
           <p :if={@workspace.connection["status"]} id="connection-result" role="status">
             {connection_status(@workspace.connection)}
           </p>
-          <form id="connection-check" phx-submit="inspect_codex">
+          <form
+            :if={@workspace.connection["authorization"] in ~w(chatgpt cursor)}
+            id="connection-check"
+            phx-submit="inspect_codex"
+          >
             <.form_scope key={@command_key} revision={@workspace.revision} />
             <p class="fine-print">
               Check account status and fetch the models offered by {Agents.label(@agent_kind)}. No model usage.
@@ -572,20 +609,43 @@ defmodule CuckodingWeb.HomeLive do
               disabled={@pending}
             >Refresh connection</button>
           </form>
-          <form
+          <div
             :if={@workspace.connection["authorization"] not in ~w(chatgpt cursor)}
-            id="codex-login"
-            phx-submit="authorize_codex"
+            id="agent-sign-in"
+            phx-hook="AgentLogin"
+            data-command-id={
+              if @operation && @operation.kind in ~w(login_codex login_cursor), do: @operation.id
+            }
+            data-login-ready={to_string(@login_ready)}
+            data-login-route={if @login_ready, do: ~p"/codex/login/#{@operation.id}"}
           >
-            <.form_scope key={@command_key} revision={@workspace.revision} />
-            <input type="hidden" name="operation" value="login" />
-            <p class="fine-print">
-              Sign in opens {Agents.label(@agent_kind)} authorization using this executable. Your personal profile stays separate.
+            <form
+              :if={!@login_ready}
+              id="codex-login"
+              phx-submit="authorize_codex"
+            >
+              <.form_scope key={@command_key} revision={@workspace.revision} />
+              <input type="hidden" name="operation" value="login" />
+              <p class="fine-print">
+                Sign in opens {Agents.label(@agent_kind)} authorization in a new tab. Your personal profile stays separate.
+              </p>
+              <button class="button primary" disabled={@pending}>Sign in with {if @agent_kind ==
+                                                                                    "codex",
+                                                                                  do: "ChatGPT",
+                                                                                  else: "Cursor"}</button>
+            </form>
+            <.link
+              :if={@login_ready}
+              id="agent-login-continue"
+              href={~p"/codex/login/#{@operation.id}"}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="button primary"
+            >Continue at {if @agent_kind == "codex", do: "OpenAI", else: "Cursor"}</.link>
+            <p :if={@login_ready} class="fine-print">
+              Continue in the sign-in tab. If it did not open, use the button above.
             </p>
-            <button class="button primary" disabled={@pending}>Sign in with {if @agent_kind == "codex",
-              do: "ChatGPT",
-              else: "Cursor"}</button>
-          </form>
+          </div>
           <div :if={@workspace.connection["authorization"] in ~w(chatgpt cursor)}>
             <details id="sign-out" phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
               <summary>Disconnect {Agents.label(@agent_kind)}</summary>
@@ -816,13 +876,6 @@ defmodule CuckodingWeb.HomeLive do
             ]}</span>
             · {@operation.state}
           </p>
-          <.link
-            :if={@login_ready}
-            href={~p"/codex/login/#{@operation.id}"}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="button primary"
-          >Continue at {if @agent_kind == "codex", do: "OpenAI", else: "Cursor"}</.link>
           <button
             class="button"
             phx-click="cancel_probe"

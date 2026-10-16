@@ -498,8 +498,15 @@ for optional inference. Fresh connections clear it while preserving model choice
 Reject recovered stale forms and reviewed saves. Store selected catalog IDs plus
 resolved models in audited revision-guarded SQLite commands. Filter new Team
 choices, never rewrite existing roles or treat selections as entitlement/grants.
-Hide sign-in when connected; retain sign-out/refresh. Step 2 always shows
-Next with an explanation when unavailable. A connected account may open step 3
+Hide sign-in when connected; retain sign-out and refresh.
+R020q shows Refresh only while signed in. A sign-in click opens its pending tab
+during that user gesture; the small AgentLogin hook follows only the exact login
+command's existing session-protected local redirect once ready. Keep the in-place
+fallback for blocked/closed tabs and reconnects; never expose raw provider URLs,
+replay login or let browser state grant native authority. Prefill editable names
+and metadata-only executable hints. The source launcher passes host home only as
+CCODING_DISCOVERY_HOME, never as provider HOME or filesystem permission.
+Step 2 always shows Next with an explanation when unavailable. A connected account may open step 3
 with a stale/failed catalog to inspect and refresh it; selection/save still require
 a fresh catalog and navigation must never launch a provider. Choosing the desktop path
 is metadata-only until a consented version check. Keep errors

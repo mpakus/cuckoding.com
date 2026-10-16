@@ -88,16 +88,19 @@ availability of Agents, Add agent, Team/Add role, Arenas and Settings.
 In **Agents**, choose **Add agent** or **Edit** beside an existing connection,
 then follow the four steps:
 
-1. **Choose Agent.** Enter a connection name and choose Codex or Cursor. Add
+1. **Choose Agent.** Choose Codex or Cursor; its name and known executable path
+   are prefilled. The name stays editable and custom names/paths are retained. Add
    multiple connections as needed; Claude Code and Hermes remain coming soon. **Executable details** allows a path override or **Use desktop Codex**.
    **Continue with Codex/Cursor** explicitly runs that program's fixed `--version` check.
    Supported Codex baselines are `0.146.0`, `0.162.0-alpha.2` and `0.162.0-alpha.17.2`. The desktop and standalone
    executables can advertise different models; no executable is silently replaced.
-2. **Connect and Authorize.** **Refresh connection** checks Cuckoding's private
+2. **Connect and Authorize.** **Refresh connection**, shown after sign-in, checks Cuckoding's private
    profile (`agents/<UUID>` for new connections; `agents/codex` for the legacy one) and fetches the full bounded catalog without inference.
-   **Sign in with ChatGPT → Continue at OpenAI** starts private-profile authorization;
-   complete the provider page yourself. Cursor uses **Sign in with Cursor →
-   Continue at Cursor**; its verified CLI baseline is `2026.09.15-d2fe57e`. Connected profiles offer refresh and
+   **Sign in with ChatGPT** opens a pending tab in that click and takes it to
+   OpenAI once the exact login command is ready; complete the provider page yourself.
+   Cursor uses the same one-click **Sign in with Cursor** handoff. The in-place
+   Continue button remains for blocked/closed tabs or reconnects; it starts no
+   second login. Cursor's verified CLI baseline is `2026.09.15-d2fe57e`. Connected profiles offer refresh and
    **Disconnect → Sign out** for the selected agent. Each named button explicitly authorizes
    its action; no repeated setup confirmation checkboxes are needed.
    **Next: Select models** stays visible. It becomes available after account
@@ -290,7 +293,10 @@ Phoenix application; the separate static `site/` preview keeps its existing work
 The launcher resolves the pinned local tools, performs the same one-use bootstrap
 and browser handoff as the tray shell, and maintains its heartbeat. It reuses the
 built native helper but owns separate data at `.ccoding/ui-dev/`; existing app
-databases and agent profiles are not imported. Only one source server can own this
+databases and agent profiles are not imported. Like the native shell, it passes
+`CCODING_DISCOVERY_HOME` solely for known
+host executable metadata lookup. Provider HOME/environment/grants stay private;
+no personal authorization is imported. Only one source server can own this
 root. `--port 4001` selects another port; `--port 0` chooses an ephemeral port.
 `--no-open` suppresses browser launch. Ctrl-C stops the owned server and watchers,
 retaining development data. Restart the launcher to reopen an expired browser session.

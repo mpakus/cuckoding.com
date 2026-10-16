@@ -625,6 +625,16 @@ See [task](../tasks/R020j-navigation-routes.md) and
 - [x] Preserve pending/version/account gates, fresh-catalog saves and model choices.
 - Evidence: [R020k worklog](../worklog/2026-10-10-R020k-wizard-next.md).
 
+## R020q — Fast agent connection
+
+- [x] Editable provider-name defaults, metadata-discovered Cursor executable and
+  source launcher discovery hint; no copied profiles or expanded runtime grant.
+- [x] Signed-in-only Refresh and one-click pending-tab handoff through the existing
+  exact-command/session-protected redirect, with an in-place manual fallback.
+- [x] Focused LiveView/hook checks, a synthetic browser popup check, quality/build/
+  smoke and preserved-workspace relaunch. Live-provider authorization acceptance
+  remains separate. [Task](../tasks/R020q-agent-connect.md).
+
 ## R101 — Dependency security maintenance
 
 - [x] Upgrade Decimal beyond CVE-2026-97853 affected versions; retain compatible

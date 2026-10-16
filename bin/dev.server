@@ -142,6 +142,8 @@ def main():
         "TZ": "UTC",
         "CCODING_DEV_PORT": str(args.port),
         "CCODING_DATA_DIR": str(root),
+        # Host path hint for metadata discovery, never a provider HOME or grant.
+        "CCODING_DISCOVERY_HOME": str(Path.home()),
         "CCODING_BOOTSTRAP_FILE": str(boot),
         "CCODING_NATIVE_HELPER": str(helper),
     }

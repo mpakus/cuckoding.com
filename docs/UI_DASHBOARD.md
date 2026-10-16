@@ -165,6 +165,14 @@ shortcuts use the same routes; all destination pages require a live session.
 
 ## Agent wizard navigation (R020k)
 
+R020q prefills a new connection's editable provider name and discovered executable.
+Keep overrides in Executable details; a missing CLI needs a visible explanation,
+not a hidden-field validation bubble. Signed-out step 2 shows Sign in, not Refresh.
+The click preopens a pending tab; AgentLogin follows only the matching command's
+session-protected local redirect when ready. The same control becomes Continue
+as a blocked/closed-tab or reconnect fallback. No raw provider URL reaches LiveView
+assigns or the hook. Navigation/reconnect never opens a tab or replays login.
+
 Step 2 groups Back and **Next: Select models** as persistent navigation. Next is
 disabled with account guidance before connection and during active setup. A
 connected account with failed/expired catalog observations may still open step 3;
