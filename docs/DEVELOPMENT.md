@@ -175,8 +175,12 @@ surface. Registration records metadata only. `.git` presence is unverified;
 registration runs no Git commands. Expand the registration team to inspect its
 frozen team. To update future-board defaults, open **Advanced → Team for new boards**,
 review both rosters and confirm **Use saved team**. Existing boards stay unchanged;
-each has a separate **Board team** control. Version numbers remain in Team history.
-Both scope controls remain in Advanced. Adoption needs fresh
+each has a **Board team** dialog beside its title. Version numbers remain in Team history.
+Home and the five-step navigation rail reuse saved setup without starting providers.
+Team shows role bindings directly; optional name/instruction fields remain expandable.
+The Arena's Start summary keeps full limits in Inspect and groups identical blockers
+by exact connection. Known missing setup disables Start with a repair link.
+Adoption needs fresh
 confirmation after another team edit and waits for that board's active planning
 to finish/cancel. It preserves drafts and earlier planning receipts.
 Home/ancestor, system, known credential and application-data roots are refused.

@@ -478,6 +478,13 @@ Add another board, task editing and Disconnect confirmation. Preserve open state
 text, Escape/close and focus return. Specs/ToDo expose labelled + controls; other
 columns cannot create manually completed work. Show Board team / Use saved team;
 version numbers belong in Team history. Closing a dialog does not cancel work.
+R080c keeps the five-step Agents → Roles → Arena & Tabula → Create tasks → Start
+rail as navigation only. Home projects saved setup; it never adopts a team or
+launches usage. Team exposes agent/model choices directly; optional role details
+retain dirty text/disclosure state. Board team is a direct dialog with explicit
+revision-guarded adoption. Keep Start's bounded scope visible, full limits in
+Inspect and blockers grouped by exact connection/status. Never claim the
+ten-minute goal is verified from UI/fixture tests.
 Every long action shows state, elapsed time, role, runtime, model when known,
 and pause/resume/retry/stop/inspect as appropriate.
 

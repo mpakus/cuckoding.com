@@ -55,9 +55,8 @@ defmodule CuckodingWeb.Layouts do
       </aside>
       <main id="main" class="main">
         <header class="page-header">
-          <p class="eyebrow">YOUR AGENTS. YOUR ARENA.</p>
+          <p class="eyebrow">LOCAL AI ORCHESTRATION</p>
           <h1>{@title}</h1>
-          <p class="subtle">A quiet place to turn a plan into finished work.</p>
         </header>
         <div :if={@flash["error"]} role="alert" class="notice">{@flash["error"]}</div>
 
@@ -67,6 +66,49 @@ defmodule CuckodingWeb.Layouts do
         </footer>
       </main>
     </div>
+    """
+  end
+
+  attr :current, :integer, required: true
+  attr :arena_path, :string, default: nil
+
+  def journey(assigns) do
+    ~H"""
+    <nav class="journey" aria-label="Setup journey">
+      <ol id="setup-journey">
+        <li
+          :for={
+            {{label, path}, index} <-
+              Enum.with_index(
+                [
+                  {"Agents", ~p"/agents"},
+                  {"Roles", ~p"/team"},
+                  {"Arena & Tabula", ~p"/arenas"},
+                  {"Create tasks", @arena_path},
+                  {"Start", @arena_path}
+                ],
+                1
+              )
+          }
+          aria-current={if index == @current, do: "step"}
+        >
+          <.link :if={path} navigate={path}><b>0{index}</b><span>{label}</span></.link>
+          <span :if={!path}><b>0{index}</b><span>{label}</span></span>
+        </li>
+      </ol>
+    </nav>
+    """
+  end
+
+  attr :arena, :any, required: true
+
+  def arena_link(assigns) do
+    ~H"""
+    <.link navigate={~p"/arenas/#{@arena.id}"} class="arena-link" id={"arena-#{@arena.id}"}>
+      <span class="arena-symbol" aria-hidden="true">◇</span>
+      <span><strong>{@arena.name}</strong><small class="arena-path">{@arena.path}</small></span>
+      <span class="arena-open">Open Arena <span aria-hidden="true">↗</span></span>
+    </.link>
     """
   end
 end

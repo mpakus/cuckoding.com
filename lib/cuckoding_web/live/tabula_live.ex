@@ -245,6 +245,7 @@ defmodule CuckodingWeb.TabulaLive do
     |> assign(
       arena_team: TeamAssignments.assigned(socket.assigns.arena),
       board_team: if(board, do: TeamAssignments.assigned(board)),
+      saved_team: Cuckoding.Team.current(),
       git: git,
       worktrees: worktrees,
       worktree_inspections: ArenaGit.worktree_inspections(socket.assigns.arena.id, worktrees),
@@ -675,12 +676,62 @@ defmodule CuckodingWeb.TabulaLive do
   def render(assigns) do
     ~H"""
     <Layouts.workspace active={:arenas} title={@arena.name} flash={@flash}>
-      <section class="panel" aria-labelledby="tabula-title">
-        <p class="eyebrow">ARENA · PROJECT</p>
-        <h2 id="tabula-title">
-          {if @board, do: @board.name, else: "Your board is ready to create."}
-        </h2>
-        <p class="fine-print arena-path">{@arena.path}</p>
+      <Layouts.journey
+        :if={@board}
+        current={if @tasks == [], do: 4, else: 5}
+        arena_path={~p"/arenas/#{@arena.id}/tabulae/#{@board.id}"}
+      />
+      <section class="panel arena-panel" aria-labelledby="tabula-title">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">TABULA · BOARD</p>
+            <h2 id="tabula-title">
+              {if @board, do: @board.name, else: "Your board is ready to create."}
+            </h2>
+            <p class="fine-print arena-path">{@arena.path}</p>
+          </div>
+          <button
+            :if={@board}
+            type="button"
+            id="open-board-team"
+            class="button"
+            phx-click={JS.dispatch("cc:open", to: "#board-team")}
+          >Board team</button>
+        </div>
+        <p
+          :if={@board && @board_team.id != @saved_team.id}
+          id="board-team-changed"
+          class="fine-print"
+        >
+          Your saved team has changed.
+          <button
+            type="button"
+            class="text-link"
+            phx-click={JS.dispatch("cc:open", to: "#board-team")}
+          >Review saved team</button>
+          to use those assignments here.
+        </p>
+        <.modal :if={@board} id="board-team" title="Board team">
+          <.live_component
+            module={CuckodingWeb.TeamAdoptionComponent}
+            id="scope-team"
+            session_id={@session_id}
+            scope={@board}
+            expanded={true}
+            revision={@board_team.id}
+            now={@now}
+          />
+        </.modal>
+        <.live_component
+          :if={@board}
+          module={CuckodingWeb.PlanningComponent}
+          id="planning"
+          session_id={@session_id}
+          board={@board}
+          empty={@tasks == []}
+          now={@now}
+          busy={@setup_busy}
+        />
         <.live_component
           :if={@board}
           module={CuckodingWeb.BattleComponent}
@@ -701,16 +752,6 @@ defmodule CuckodingWeb.TabulaLive do
             aria-current={if @board && @board.id == board.id, do: "page"}
           >{board.name}</.link>
         </div>
-        <.live_component
-          :if={@board}
-          module={CuckodingWeb.PlanningComponent}
-          id="planning"
-          session_id={@session_id}
-          board={@board}
-          empty={@tasks == []}
-          now={@now}
-          busy={@setup_busy}
-        />
         <p
           :if={
             git_active?(@git) || Enum.any?(@worktrees, &git_active?/1) ||
@@ -734,11 +775,12 @@ defmodule CuckodingWeb.TabulaLive do
             class="text-link"
           >Battle preview · read only ↗</.link>
           <.live_component
+            :if={!@board}
             module={CuckodingWeb.TeamAdoptionComponent}
             id="scope-team"
             session_id={@session_id}
-            scope={@board || @arena}
-            revision={if @board, do: @board_team.id, else: @arena_team.id}
+            scope={@arena}
+            revision={@arena_team.id}
             now={@now}
           />
           <.live_component

@@ -46,7 +46,7 @@ defmodule CuckodingWeb.TabulaLiveTest do
     signed = sign_in(conn)
     {:ok, view, _} = live(signed, "/arenas/#{arena.id}")
     assert has_element?(view, "#tabula-board")
-    assert has_element?(view, "#arena-advanced #scope-team")
+    assert has_element?(view, "dialog#board-team #scope-team")
     assert has_element?(view, "#arena-advanced #arena-team")
     assert has_element?(view, "#arena-advanced #arena-git")
     refute has_element?(view, "#arena-advanced[open]")

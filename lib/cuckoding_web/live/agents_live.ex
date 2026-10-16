@@ -110,6 +110,7 @@ defmodule CuckodingWeb.AgentsLive do
   def render(assigns) do
     ~H"""
     <Layouts.workspace active={:agents} title="Agents" flash={@flash}>
+      <Layouts.journey current={1} />
       <section class="panel" aria-labelledby="agents-title">
         <p class="eyebrow">01 / YOUR AGENTS</p>
         <h2 id="agents-title">Build your roster.</h2>

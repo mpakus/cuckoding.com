@@ -125,6 +125,12 @@ The numbered story below is capability coverage, not eight mandatory screens.
   an honest Not attempted provider-logout receipt. Preserve native profiles,
   other connections, historical bindings and all busy/battle/form gates.
   [Task](../tasks/R080b-disconnect-runtime-drift.md).
+- [x] **R080c — Fast, polished journey (implementation):** saved-state Home, shared five-step
+  navigation, directly visible role bindings, contextual board-team dialog and
+  compact Start with grouped blockers. Preserve existing setup/authority and
+  verify desktop role layout, LiveView behavior and build. Narrow/package browser
+  walkthrough and timed ten-minute real-account acceptance stay open.
+  [Task](../tasks/R080c-fast-simple-flow.md).
 - [ ] **R060 / R070 / R080:** complete recovery, parallel workers, both dashboards
   and timed ten-minute acceptance. Usable Arena UI ships with each earlier slice.
 

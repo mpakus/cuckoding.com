@@ -33,7 +33,10 @@ defmodule CuckodingWeb.TeamLiveTest do
     assert html =~ "Cast your roles."
     assert has_element?(view, "a[href='/team'][aria-current='page']")
     assert has_element?(view, "label[for='instructions-speculator']")
-    assert has_element?(view, "#role-speculator[phx-mounted*=ignore_attrs]")
+    assert has_element?(view, "section#role-speculator .role-binding select#agent-speculator")
+    assert has_element?(view, "#role-options-speculator[phx-mounted*=ignore_attrs]:not([open])")
+    assert has_element?(view, "#setup-journey li[aria-current=step]", "Roles")
+    assert has_element?(view, "#team-next[href='/arenas']", "Next: Choose Arena")
     assert has_element?(view, "button[type='submit'][disabled]", "Save team")
 
     view
@@ -41,6 +44,8 @@ defmodule CuckodingWeb.TeamLiveTest do
       roles: %{speculator: %{name: "Planner", instructions: "Read docs first"}}
     )
     |> render_change()
+
+    refute has_element?(view, "#team-next")
 
     Foundation.broadcast()
     assert has_element?(view, "#name-speculator[value='Planner']")

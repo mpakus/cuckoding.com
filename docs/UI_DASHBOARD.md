@@ -19,6 +19,20 @@ Sidebar: **Tabula Gladiatorum**, **Arenas**, **Agents**, **Team**, **Settings**.
 Explain names initially: Arena · project, Tabula · board, Summa Rudis · coordinator,
 Secutor · completion review. No competing start screen or separate Agent Floor.
 
+R080c shows a quiet five-step navigation rail: **Agents → Roles → Arena & Tabula
+→ Create tasks → Start**. These are destinations, not a second wizard or proof
+of execution readiness. Home derives its next action from saved usable model
+choices, required role bindings and the latest Arena/board; existing Arenas stay
+directly accessible even if a connection needs repair. No navigation launches
+providers, adopts a team or changes a board. The ten-minute goal still needs a
+timed real-account acceptance run.
+
+Team puts agent/model selectors directly on four role cards; names/instructions
+and history remain available on demand. A clean saved form offers **Next: Choose
+Arena**; dirty text stays in the current editor. Arena exposes **Board team** in
+a shared dialog and a contextual **Review saved team** link when its saved scope
+differs. Adoption still previews both teams and requires explicit confirmation.
+
 ## Arena states
 
 | State | Main surface | Primary action |
@@ -67,8 +81,9 @@ that Resume continues the saved stage with existing agents and remaining limits.
 Keep recovered text and task evidence visible; stale pre-restart controls cannot
 resume it. An interrupted worker still shows Needs attention, not a Resume promise.
 
-Advanced contains additional boards, custom roles/columns, scoped team adoption,
+Advanced contains additional boards, custom roles/columns, future-board team adoption,
 repository setup, project check declarations and retained worktree inspection.
+The current board's team is available directly beside its title.
 Existing confirmations, audit/history and stale-form guards still apply there.
 Do not collapse an active operation into an invisible state; show progress/cancel
 and a link to its details. Optional advanced controls must not occupy the normal

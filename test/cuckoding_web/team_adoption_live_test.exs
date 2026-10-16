@@ -26,6 +26,11 @@ defmodule CuckodingWeb.TeamAdoptionLiveTest do
     view |> form("#planning-form", brief: "Keep my brief", confirmed: "true") |> render_change()
     view |> form("#draft-form", title: "Unsaved task") |> render_change()
     team = next_team("New planner")
+    assert has_element?(view, "button#open-board-team", "Board team")
+    assert has_element?(view, "dialog#board-team #scope-team[open]")
+    assert has_element?(view, "#board-team-changed", "Review saved team")
+    refute has_element?(view, "#arena-advanced #scope-team")
+    assert TeamAssignments.assigned(board).id == board.team_revision_id
     assert has_element?(view, "#scope-team", "Your saved team")
     assert has_element?(view, "#scope-team", "Codex · Codex · test-id")
     view |> form("#scope-team-form") |> render_submit()
@@ -34,6 +39,7 @@ defmodule CuckodingWeb.TeamAdoptionLiveTest do
     assert has_element?(view, "#scope-team [role=alert]")
     view |> form("#scope-team-form", confirmed: "true") |> render_submit()
     assert TeamAssignments.assigned(board).id == team.id
+    refute has_element?(view, "#board-team-changed")
     assert has_element?(view, "#column-specs", "New planner")
     assert has_element?(view, "#planning-brief", "Keep my brief")
     refute has_element?(view, "#planning-form input[name=confirmed][checked]")

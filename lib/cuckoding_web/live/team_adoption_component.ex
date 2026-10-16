@@ -11,6 +11,7 @@ defmodule CuckodingWeb.TeamAdoptionComponent do
          confirmed: false,
          consent: nil,
          key: Ecto.UUID.generate(),
+         expanded: false,
          error: nil,
          message: nil
        )
@@ -95,7 +96,12 @@ defmodule CuckodingWeb.TeamAdoptionComponent do
   @impl true
   def render(assigns) do
     ~H"""
-    <details id={@id} class="git-setup" phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
+    <details
+      id={@id}
+      class="git-setup"
+      open={@expanded}
+      phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
+    >
       <summary>
         {if match?(%Arena{}, @scope), do: "Team for new boards", else: "Board team"}
       </summary>

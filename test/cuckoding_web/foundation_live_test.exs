@@ -146,8 +146,11 @@ defmodule CuckodingWeb.FoundationLiveTest do
     {:ok, view, html} = conn |> sign_in() |> live("/")
     assert has_element?(view, "a[href='#main']", "Skip to content")
     assert html =~ "Foundation preview"
-    assert has_element?(view, "a[href='/agents']", "Check your setup")
-    assert has_element?(view, "a[href='/arenas']", "Open Arenas")
+    assert has_element?(view, "#home-next[href='/agents/new']", "Add agent")
+    assert has_element?(view, "#setup-journey li[aria-current=step]", "Agents")
+    assert has_element?(view, "#setup-journey a[href='/arenas']", "Arena")
+    assert has_element?(view, "#home-progress", "0/4 roles connected")
+    refute has_element?(view, "#home-limits[open]")
     assert has_element?(view, "#home-battle-scope", "one task at a time")
     assert has_element?(view, "#home-battle-scope", "20 tasks")
     assert has_element?(view, "#home-battle-scope", "three review rounds")
@@ -155,6 +158,54 @@ defmodule CuckodingWeb.FoundationLiveTest do
     assert has_element?(view, "#home-check-scope", "Mix/npm pipelines are not yet supported")
     refute html =~ "autonomous Start is still in development"
     refute html =~ "Start battle"
+  end
+
+  test "Home follows saved setup and resumes an Arena without adopting teams or launching work",
+       %{conn: conn} do
+    %{arena: arena, board: board} = Cuckoding.PlanningFixtures.planning_fixture()
+    signed = sign_in(conn)
+    {:ok, view, _} = live(signed, "/")
+    assert has_element?(view, "#home-next[href='/team']", "Assign roles")
+    assert has_element?(view, "#home-progress", "1/4 roles connected")
+    team = Cuckoding.Team.current()
+
+    roles =
+      Enum.map(
+        Cuckoding.Team.editable(team),
+        &Map.merge(&1, %{"agent" => "codex", "model_id" => "test-id"})
+      )
+
+    {:ok, _} = Cuckoding.Team.save(Ecto.UUID.generate(), team.id, roles)
+    assert has_element?(view, "#home-next[href='/arenas/#{arena.id}']", "Continue Arena")
+    assert has_element?(view, "#setup-journey li[aria-current=step]", "Create tasks")
+    assert Cuckoding.TeamAssignments.assigned(board).id == board.team_revision_id
+    assert has_element?(view, "#arena-#{arena.id}", arena.name)
+
+    {:ok, _} =
+      Cuckoding.Tabulae.save(Ecto.UUID.generate(), arena.id, board.id, Ecto.UUID.generate(), 0, %{
+        "title" => "Saved task",
+        "description" => "A task",
+        "criteria" => "Review it",
+        "column" => "specs"
+      })
+
+    assert has_element?(view, "#setup-journey li[aria-current=step]", "Start")
+    send(view.pid, :clock)
+    {:ok, again, _} = live(signed, "/")
+    assert has_element?(again, "#home-next", "Continue Arena")
+    refute Foundation.pending?()
+    assert Cuckoding.Battles.latest(arena.id, board.id) == nil
+
+    workspace = Foundation.workspace()
+
+    Repo.update!(
+      Ecto.Changeset.change(workspace, codex: Map.put(workspace.codex, "path", "/missing/codex"))
+    )
+
+    Foundation.broadcast()
+    assert has_element?(view, "#home-next[href='/agents']", "Review agents")
+    assert has_element?(view, "#arena-#{arena.id}")
+    assert Cuckoding.Team.current().definition["roles"] |> Enum.all?(&(&1["agent"] == "codex"))
   end
 
   test "an outdated executable observation resumes at Choose Agent", %{conn: conn} do

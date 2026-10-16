@@ -238,15 +238,14 @@ defmodule CuckodingWeb.TeamLive do
   def render(assigns) do
     ~H"""
     <Layouts.workspace active={:team} title="Team" flash={@flash}>
+      <Layouts.journey current={2} />
       <section class="panel team-editor" aria-labelledby="team-title">
-        <p class="eyebrow">02 / DEFAULT TEAM · REVISION {@base.id}</p>
+        <p class="eyebrow">02 / YOUR SAVED TEAM</p>
         <h2 id="team-title">Cast your roles.</h2>
-        <p>Give each role a name, instructions, agent and model. Unassigned drafts are welcome.</p>
+        <p>Choose an agent and model for each role. Save once, reuse across projects.</p>
         <p class="fine-print">
-          Saving starts no agent. Start work from an Arena with the four required Codex roles. Custom roles remain planning-only.
-        </p>
-        <p class="fine-print">
-          <.link navigate={~p"/agents"} class="text-link">Manage agents and model checks ↗</.link>
+          Speculator creates tasks, Implementor writes code, Secutor reviews and Summa Rudis coordinates.
+          Task generation currently needs Codex; the execution team can mix Codex and Cursor.
         </p>
         <p :if={@message} role="status" class="team-message">{@message}</p>
         <p :if={@error} id="team-error" role="alert" class="notice">{@error}</p>
@@ -261,76 +260,84 @@ defmodule CuckodingWeb.TeamLive do
           aria-describedby={@error && "team-error"}
         >
           <input type="hidden" name="base_revision" value={@draft_revision} />
-          <details
-            :for={role <- @roles}
-            id={"role-#{role["id"]}"}
-            class="team-role"
-            open={role["name"] == ""}
-            phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
-          >
-            <summary>
-              <span>{if role["name"] == "", do: "New role", else: role["name"]}</span><small>{responsibility(
-                role["id"]
-              )} · {status(role, @base, @catalog)}</small>
-            </summary>
-            <div class="role-fields">
-              <label for={"name-#{role["id"]}"}>Name</label>
-              <input
-                type="text"
-                id={"name-#{role["id"]}"}
-                name={"roles[#{role["id"]}][name]"}
-                value={role["name"]}
-                maxlength="60"
-                required
-              />
-              <label for={"instructions-#{role["id"]}"}>Instructions</label>
-              <textarea
-                id={"instructions-#{role["id"]}"}
-                name={"roles[#{role["id"]}][instructions]"}
-                rows="3"
-                maxlength="2000"
-              >{role["instructions"]}</textarea>
-              <div class="role-binding">
-                <div>
-                  <label for={"agent-#{role["id"]}"}>Agent</label>
-                  <select id={"agent-#{role["id"]}"} name={"roles[#{role["id"]}][agent]"}>
-                    <option value="" selected={role["agent"] == ""}>Unassigned</option>
-                    <option
-                      :for={agent <- @agents}
-                      value={agent.id}
-                      selected={role["agent"] == agent.id}
+          <div class="role-grid">
+            <section
+              :for={role <- @roles}
+              id={"role-#{role["id"]}"}
+              class="role-card"
+              aria-labelledby={"role-heading-#{role["id"]}"}
+            >
+              <h3 id={"role-heading-#{role["id"]}"}>
+                {if role["name"] == "", do: "New role", else: role["name"]}
+              </h3>
+              <p class="fine-print">{status(role, @base, @catalog)}</p>
+              <div class="role-fields">
+                <div class="role-binding">
+                  <div>
+                    <label for={"agent-#{role["id"]}"}>Agent</label>
+                    <select id={"agent-#{role["id"]}"} name={"roles[#{role["id"]}][agent]"}>
+                      <option value="" selected={role["agent"] == ""}>Choose agent</option>
+                      <option
+                        :for={agent <- @agents}
+                        value={agent.id}
+                        selected={role["agent"] == agent.id}
+                      >
+                        {agent.name} · {Agents.label(agent.kind)}
+                      </option>
+                    </select>
+                  </div>
+                  <div>
+                    <label for={"model-#{role["id"]}"}>Model</label>
+                    <select
+                      id={"model-#{role["id"]}"}
+                      name={"roles[#{role["id"]}][model_id]"}
+                      disabled={role["agent"] == ""}
                     >
-                      {agent.name} · {Agents.label(agent.kind)}
-                    </option>
-                  </select>
+                      <option value="" selected={role["model_id"] == ""}>Choose model</option>
+                      <option
+                        :for={model <- model_options(role, @catalog)}
+                        value={model["id"]}
+                        selected={role["model_id"] == model["id"]}
+                      >
+                        {model["name"] || model["id"]}{if model["hidden"], do: " · additional"}
+                      </option>
+                    </select>
+                  </div>
                 </div>
-                <div>
-                  <label for={"model-#{role["id"]}"}>Model</label>
-                  <select
-                    id={"model-#{role["id"]}"}
-                    name={"roles[#{role["id"]}][model_id]"}
-                    disabled={role["agent"] == ""}
-                  >
-                    <option value="" selected={role["model_id"] == ""}>Unassigned</option>
-                    <option
-                      :for={model <- model_options(role, @catalog)}
-                      value={model["id"]}
-                      selected={role["model_id"] == model["id"]}
-                    >
-                      {model["name"] || model["id"]}{if model["hidden"], do: " · additional"}
-                    </option>
-                  </select>
-                </div>
+                <details
+                  id={"role-options-#{role["id"]}"}
+                  open={role["name"] == ""}
+                  phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
+                >
+                  <summary>Name & instructions</summary>
+                  <p class="fine-print">{responsibility(role["id"])}</p>
+                  <label for={"name-#{role["id"]}"}>Name</label>
+                  <input
+                    type="text"
+                    id={"name-#{role["id"]}"}
+                    name={"roles[#{role["id"]}][name]"}
+                    value={role["name"]}
+                    maxlength="60"
+                    required
+                  />
+                  <label for={"instructions-#{role["id"]}"}>Instructions</label>
+                  <textarea
+                    id={"instructions-#{role["id"]}"}
+                    name={"roles[#{role["id"]}][instructions]"}
+                    rows="3"
+                    maxlength="2000"
+                  >{role["instructions"]}</textarea>
+                </details>
+                <button
+                  :if={not Team.required?(role["id"])}
+                  type="button"
+                  class="button"
+                  phx-click="remove"
+                  phx-value-id={role["id"]}
+                >Remove from draft</button>
               </div>
-              <button
-                :if={not Team.required?(role["id"])}
-                type="button"
-                class="button"
-                phx-click="remove"
-                phx-value-id={role["id"]}
-              >Remove from draft</button>
-            </div>
-          </details>
+            </section>
+          </div>
           <div :if={removed(@roles, @base) != []} class="notice">
             <p>
               Remove from this team: {Enum.map_join(removed(@roles, @base), ", ", & &1["name"])}. Previous revisions remain available.
@@ -351,6 +358,7 @@ defmodule CuckodingWeb.TeamLive do
             >Save team</button>
             <button type="button" class="button" phx-click="add" disabled={length(@roles) >= 12}>Add role</button>
             <button type="button" class="button" phx-click="reload">Reload saved</button>
+            <.link :if={!@dirty} id="team-next" navigate={~p"/arenas"} class="text-link">Next: Choose Arena ↗</.link>
             <span class="fine-print">{if @dirty, do: "Unsaved draft", else: "Saved locally"}</span>
           </div>
         </.form>

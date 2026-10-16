@@ -223,8 +223,15 @@ using Tabulae's existing command/event writer. The registration key owns replay;
 board failure rolls back registration and both events. Broadcast follows commit.
 No schema, filesystem grant, worker or dependency is added. The Arena route reads
 its first existing board; a GET never creates one. Explicit board URLs retain
-selection. Advanced preserves separate Arena and board team adoptions and their
+selection. Contextual controls preserve separate Arena and board team adoptions and their
 revision guards; planning and the optional task editor reuse existing components.
+
+R080c adds read-only Home setup projections and shared `Layouts.journey` /
+`arena_link` function components. The rail is navigation only. Team's visible
+binding cards and Arena's direct Board team dialog retain existing domain save /
+adoption operations, immutable revisions and explicit consent. BattleComponent
+groups blockers by exact connection/status and keeps the bounded Start summary
+above on-demand details. No new domain state, migration, provider work or grant.
 
 R040l extends PlanningDocuments with `folder-documents-v1`: bounded docs-first
 inventory and exact source snapshots using the same command, claim and cancellation

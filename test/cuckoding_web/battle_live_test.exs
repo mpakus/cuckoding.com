@@ -405,8 +405,17 @@ defmodule CuckodingWeb.BattleLiveTest do
     )
 
     {:ok, view, _} = ctx.conn |> sign_in() |> live(ctx.path)
-    assert has_element?(view, "#arena-start:not([disabled])", "Check Start readiness")
+    assert has_element?(view, "#arena-start[disabled]", "Start")
     assert has_element?(view, "a[href='/agents/codex']")
+    assert has_element?(view, "#battle-blockers", "Speculator, Implementor, Secutor, Summa Rudis")
+
+    assert view
+           |> element("#battle-blockers")
+           |> render()
+           |> LazyHTML.from_fragment()
+           |> LazyHTML.query("a[href='/agents/codex']")
+           |> Enum.count() == 1
+
     view |> form("#battle-start-form") |> render_submit()
     assert has_element?(view, "#battle-blockers", "last model lookup failed")
     assert Battles.latest(ctx.arena.id, ctx.board.id) == nil
@@ -778,8 +787,7 @@ defmodule CuckodingWeb.BattleLiveTest do
              "Shorten descriptions, criteria or check arguments"
            )
 
-    refute has_element?(view, "#arena-start[disabled]")
-    assert has_element?(view, "#arena-start", "Check Start readiness")
+    assert has_element?(view, "#arena-start[disabled]", "Start")
     Foundation.broadcast()
     view |> form("#battle-start-form") |> render_submit()
     battle = Battles.latest(arena.id, board.id)

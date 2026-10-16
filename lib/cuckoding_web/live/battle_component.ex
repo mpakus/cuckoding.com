@@ -136,6 +136,18 @@ defmodule CuckodingWeb.BattleComponent do
   defp skip_key(nil), do: nil
   defp skip_key(battle), do: {battle.id, battle.control_revision, battle.current_task_id}
 
+  defp general_blockers(preview) do
+    statuses = Enum.map(preview.team, & &1["status"])
+    Enum.reject(preview.blockers, &(&1 in statuses))
+  end
+
+  defp role_blockers(preview) do
+    preview.team
+    |> Enum.reject(&(&1["status"] == "ready"))
+    |> Enum.group_by(&{&1["agent_id"], &1["status"]})
+    |> Enum.map(fn {_, [role | _] = roles} -> {role, Enum.map(roles, & &1["name"])} end)
+  end
+
   defp result_error({:ok, _}), do: nil
   defp result_error({:error, reason}), do: message(reason)
 
@@ -203,7 +215,7 @@ defmodule CuckodingWeb.BattleComponent do
       "Extra command checks currently require a Codex Implementor. Cursor can implement and review task criteria, but cannot run these commands yet."
 
   defp message("agent_unassigned"),
-    do: "Assign an agent and model to all four roles in Team, then adopt that team in Advanced."
+    do: "Choose an agent and model in Team, then use those assignments in Board team."
 
   defp message("unsupported_provider"),
     do: "This agent does not support Arena execution yet. Codex and Cursor are supported."
@@ -650,85 +662,19 @@ defmodule CuckodingWeb.BattleComponent do
         <p :if={@battle} class="notice">
           Start creates a new battle from the current committed source. Prior battle edits remain on its result branch.
         </p>
-        <p id="arena-start-help" class="fine-print">
-          Start runs the saved tasks with your assigned agents. Secutor reviews each task's acceptance criteria and checks on an app-owned local branch.
-          The original checkout is preserved. No push, user-branch merge or release is included.
-          Settled provider failures allow up to two explicit retries per task and two shared by final stages, within these same limits.
-          Skip can leave a settled task unfinished and defer its dependents; independent work can produce a reviewed partial result.
-        </p>
-        <div>
-          <p class="fine-print">
-            {length(@preview.tasks)} tasks · one worker at a time · up to {@preview.limits["tasks"]} tasks, {@preview.limits[
-              "review_rounds"
-            ]} review rounds per task, {@preview.limits["turns"]} role stages and {@preview.limits[
-              "wall_seconds"
-            ]}s total ({div(@preview.limits["wall_seconds"], 3600)} hours).
-          </p>
-          <p id="battle-check-scope" class="fine-print">
-            Verification belongs in each task. Secutor inspects the result and evidence before completion;
-            missing required test evidence pauses the battle for attention.
-          </p>
-          <p :if={@preview.checks != []} id="battle-command-scope" class="fine-print">
-            Start also authorizes the {length(@preview.checks)} extra commands saved in Advanced.
-            Declared checks run as single-process commands only; subprocess spawning is unavailable.
-            Mix/npm pipelines are not yet supported. Final checks and independent final Secutor review
-            must pass before completion; a failed final review needs attention.
-          </p>
-          <p id="battle-start-team" class="fine-print">
-            {Enum.map_join(@preview.team, " · ", fn role ->
-              "#{role["name"]}: #{role["kind"] || "agent needed"} / #{role["model"] || "model needed"}"
-            end)}
-          </p>
-          <details
-            id="battle-start-details"
-            phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
-          >
-            <summary>Tasks, team and checks</summary>
-            <ul>
-              <li :for={task <- @preview.tasks}>{task["title"]} · revision {task["revision"]}</li>
-            </ul>
-            <ul>
-              <li :for={role <- @preview.team}>
-                {role["name"]} · {role["kind"]} · {role["model"] || "Model needed"}
-              </li>
-            </ul>
-            <p :if={@preview.checks == []}>
-              Checks come from the tasks. No extra command checks are configured; no command tests will run.
+        <div class="start-summary">
+          <div>
+            <p class="start-title">{length(@preview.tasks)} tasks. One Start.</p>
+            <p id="arena-start-help" class="fine-print">
+              Runs this board's assigned team, one task at a time, with independent Secutor review.
+              Preserves the original checkout; no push, merge to your branch or release.
             </p>
-            <article :for={check <- @preview.checks} class="team-role">
-              <h4>{check["name"]}</h4>
-              <pre class="draft-copy">{Jason.encode!([check["executable"] | check["arguments"]])}</pre>
-              <p class="fine-print">
-                Directory: {check["directory"]} · timeout {check["timeout_seconds"]}s
-              </p>
-            </article>
-          </details>
-          <ul :if={@preview.blockers != []} id="battle-blockers" class="notice">
-            <li :for={reason <- @preview.blockers}>{message(reason)}</li>
-          </ul>
-          <div :if={@preview.blockers != []} class="team-actions">
-            <p :for={role <- Enum.filter(@preview.team, &(&1["status"] != "ready"))}>
-              {role["name"]}: {message(role["status"])}
-              <.link
-                :if={role["agent_id"]}
-                navigate={~p"/agents/#{role["agent_id"]}"}
-                class="text-link"
-              >
-                Open {role["agent_name"] || role["kind"]} ↗
-              </.link>
+            <p class="fine-print">
+              Up to {@preview.limits["tasks"]} tasks · {@preview.limits["review_rounds"]} review rounds per task · {div(
+                @preview.limits["wall_seconds"],
+                3600
+              )} hours {if @preview.checks != [], do: " · #{length(@preview.checks)} extra commands"}
             </p>
-            <a
-              href="#arena-advanced"
-              phx-click={Phoenix.LiveView.JS.set_attribute({"open", ""}, to: "#arena-advanced")}
-              class="text-link"
-            >This board's team · Advanced ↓</a>
-            <.link
-              :if={
-                Enum.any?(~w(check_timeout_limit check_runtime_required), &(&1 in @preview.blockers))
-              }
-              navigate={~p"/arenas/#{@board.arena_id}/checks"}
-              class="text-link"
-            >Extra command checks ↗</.link>
           </div>
           <.form
             for={%{}}
@@ -744,12 +690,87 @@ defmodule CuckodingWeb.BattleComponent do
               id="arena-start"
               class="button primary"
               type="submit"
+              disabled={@preview.blockers != []}
               aria-describedby={
                 if @preview.blockers == [], do: "arena-start-help", else: "battle-blockers"
               }
               phx-disable-with="Starting…"
-            >{if @preview.blockers == [], do: "Start", else: "Check Start readiness"}</button>
+            >Start</button>
           </.form>
+        </div>
+        <div>
+          <p :if={@preview.checks != []} id="battle-command-scope" class="fine-print">
+            Start also authorizes the {length(@preview.checks)} extra commands saved in Advanced.
+            Declared checks run as single-process commands only; subprocess spawning is unavailable.
+            Mix/npm pipelines are not yet supported. Final checks and independent final Secutor review
+            must pass before completion; a failed final review needs attention.
+          </p>
+          <details
+            id="battle-start-details"
+            phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
+          >
+            <summary>Inspect tasks, team & limits</summary>
+            <p id="battle-start-team" class="fine-print">
+              {Enum.map_join(@preview.team, " · ", fn role ->
+                "#{role["name"]}: #{role["agent_name"] || "agent needed"} / #{role["model"] || "model needed"}"
+              end)}
+            </p>
+            <p class="fine-print">
+              Up to {@preview.limits["turns"]} role stages within {@preview.limits["wall_seconds"]}s.
+              Settled provider failures allow two explicit retries per task and two shared by final stages.
+              Skip retains unfinished work and defers its dependents; independent work can produce a reviewed partial result.
+            </p>
+            <p id="battle-check-scope" class="fine-print">
+              Verification belongs in each task. Secutor inspects the result and evidence before completion;
+              missing required test evidence pauses the battle for attention.
+            </p>
+            <ul>
+              <li :for={task <- @preview.tasks}>{task["title"]} · revision {task["revision"]}</li>
+            </ul>
+            <ul>
+              <li :for={role <- @preview.team}>
+                {role["name"]} · {role["agent_name"] || "Agent needed"} · {role["model"] ||
+                  "Model needed"}
+              </li>
+            </ul>
+            <p :if={@preview.checks == []}>
+              Checks come from the tasks. No extra command checks are configured; no command tests will run.
+            </p>
+            <article :for={check <- @preview.checks} class="team-role">
+              <h4>{check["name"]}</h4>
+              <pre class="draft-copy">{Jason.encode!([check["executable"] | check["arguments"]])}</pre>
+              <p class="fine-print">
+                Directory: {check["directory"]} · timeout {check["timeout_seconds"]}s
+              </p>
+            </article>
+          </details>
+          <div :if={@preview.blockers != []} id="battle-blockers" class="notice start-blockers">
+            <p><strong>Before Start</strong></p>
+            <p :for={reason <- general_blockers(@preview)}>{message(reason)}</p>
+            <p :for={{role, names} <- role_blockers(@preview)}>
+              <strong>{Enum.join(names, ", ")}</strong>
+              · {message(role["status"])}
+              <.link
+                :if={role["agent_id"] not in [nil, ""]}
+                navigate={~p"/agents/#{role["agent_id"]}"}
+                class="text-link"
+              >
+                Open {role["agent_name"] || role["kind"]} ↗
+              </.link>
+            </p>
+            <a
+              href="#board-team"
+              phx-click={Phoenix.LiveView.JS.dispatch("cc:open", to: "#board-team")}
+              class="text-link"
+            >Review board team</a>
+            <.link
+              :if={
+                Enum.any?(~w(check_timeout_limit check_runtime_required), &(&1 in @preview.blockers))
+              }
+              navigate={~p"/arenas/#{@board.arena_id}/checks"}
+              class="text-link"
+            >Extra command checks ↗</.link>
+          </div>
         </div>
       </div>
       <p :if={@error} id="battle-error" role="alert" class="notice">{@error}</p>

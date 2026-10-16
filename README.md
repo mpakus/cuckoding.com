@@ -5,6 +5,15 @@ Set up your agents and roles once. For each **Arena** (project), the intended fl
 
 **Add folder → Create tasks → Start**
 
+First-time setup follows **Agents → Roles → Arena & Tabula → Create tasks → Start**.
+Home remembers saved setup and links back to existing Arenas. Agent/model choices
+are visible directly on the four role cards; names and instructions expand on demand.
+The black/green interface keeps one next action prominent. On an Arena, **Board
+team** previews current versus saved assignments before an explicit adoption.
+Start keeps the execution scope compact and groups connection problems; full tasks,
+team and limits stay in Inspect. The ten-minute target still needs a timed
+real-account run.
+
 1. **Add folder.** Choose an empty folder or an existing project. Cuckoding uses
    your saved team and creates the default **Tabula** (board) automatically.
 2. **Create tasks.** Open the dialog and ask Speculator to analyze `docs/` and relevant project files,
@@ -51,8 +60,8 @@ sign-out and account/model/executable changes still need attention. New model
 choices and optional access tests require a recent catalog.
 
 **Create tasks**, **Repository setup** and **Add another board** open dialogs.
-Use **+** beside Specs or ToDo to add a task manually. Advanced shows **Board team**
-and **Use saved team**; version numbers are kept in Team history.
+Use **+** beside Specs or ToDo to add a task manually. **Board team → Use saved team**
+is available beside the board title; version numbers are kept in Team history.
 
 **Disconnect and unassign** also works if an agent's executable has changed or
 is unavailable. Cuckoding disables that connection and clears its current roles

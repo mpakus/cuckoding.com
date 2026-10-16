@@ -221,7 +221,7 @@ defmodule CuckodingWeb.PlanningComponent do
       <div class="team-actions">
         <button
           type="button"
-          class="button"
+          class={["button", @empty && "primary"]}
           id="open-planning"
           phx-click={JS.dispatch("cc:open", to: "#brief-planning")}
         >Create tasks</button>
@@ -250,7 +250,7 @@ defmodule CuckodingWeb.PlanningComponent do
         </p>
         <p :if={!@setup.token && is_nil(@preview_id)} class="notice">
           Planning currently requires a Speculator assigned to a connected Codex agent and model. Cursor can be assigned in Team; its planning support is not enabled yet.
-          After saving a model on Team, open Advanced → Board team and choose Use saved team.
+          After saving roles in Team, open Board team and choose Use saved team.
         </p>
         <details id="planning-documents" phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
           <summary>Choose specific documents instead</summary>

@@ -156,6 +156,7 @@ defmodule CuckodingWeb.ArenaLive do
   def render(assigns) do
     ~H"""
     <Layouts.workspace active={:arenas} title="Arenas" flash={@flash}>
+      <Layouts.journey current={3} />
       <section class="panel" aria-labelledby="arena-title">
         <p class="eyebrow">YOUR PROJECTS</p>
         <h2 id="arena-title">Give your team an Arena.</h2>
@@ -224,16 +225,7 @@ defmodule CuckodingWeb.ArenaLive do
         <p :if={@arenas == []} class="subtle">
           Your first Arena starts with a folder. Empty folders and existing projects are welcome.
         </p>
-        <article :for={arena <- @arenas} id={"arena-#{arena.id}"} class="team-role">
-          <h3>{arena.name}</h3>
-          <.link navigate={~p"/arenas/#{arena.id}"} class="button">Open Arena</.link>
-          <p class="arena-path">{arena.path}</p>
-          <p class="fine-print">{git_label(arena.git_entry)} · observed at registration</p>
-          <.team revision={arena.team_revision} id={"arena-team-#{arena.id}"} />
-          <p class="fine-print">
-            Registered {Calendar.strftime(arena.inserted_at, "%Y-%m-%d %H:%M UTC")}
-          </p>
-        </article>
+        <Layouts.arena_link :for={arena <- @arenas} arena={arena} />
       </section>
     </Layouts.workspace>
     """

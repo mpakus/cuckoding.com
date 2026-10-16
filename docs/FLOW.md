@@ -13,7 +13,9 @@ limits. Full recovery, custom stages and parallelism below remain target behavio
 Use the native folder chooser, default the Arena name from the folder and inherit
 the saved team. Registration creates the default Tabula with Specs, ToDo,
 In Process, Review and Completed. Open that board immediately. Creating another
-board, changing roles/columns and adopting a newer team belong in Advanced.
+board and changing columns belong in Advanced. **Board team** beside the board
+title previews and explicitly adopts saved roles/models for future work. Existing
+board assignments never change just because Home, Team or an Arena is opened.
 Existing boards, drafts and immutable team revisions remain intact.
 
 Registration reads directory metadata only. It starts no agent or Git mutation.

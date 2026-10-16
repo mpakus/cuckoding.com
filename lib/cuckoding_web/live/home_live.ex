@@ -1,6 +1,6 @@
 defmodule CuckodingWeb.HomeLive do
   use CuckodingWeb, :live_view
-  alias Cuckoding.{Agents, Foundation, Team}
+  alias Cuckoding.{Agents, Arenas, Foundation, Tabulae, Team}
   alias CuckodingWeb.Layouts
 
   @operations ~w(probe_codex inspect_codex login_codex logout_codex check_codex_model check_codex_isolation probe_cursor inspect_cursor login_cursor logout_cursor)
@@ -331,6 +331,7 @@ defmodule CuckodingWeb.HomeLive do
       events: Foundation.events(),
       power: Cuckoding.ShellAuth.power_status(),
       catalog: catalog,
+      home: if(socket.assigns.live_action == :home, do: home_progress()),
       saved: Foundation.saved_agent_models(socket.assigns.agent_id),
       step: next_step(socket, last, workspace, catalog),
       awaiting:
@@ -344,6 +345,49 @@ defmodule CuckodingWeb.HomeLive do
       now: DateTime.utc_now()
     )
   end
+
+  defp home_progress do
+    catalogs = Team.catalog()
+    roles = Enum.filter(Team.current().definition["roles"], &Team.required?(&1["id"]))
+
+    assigned =
+      Enum.count(roles, &(Team.binding_status(&1, catalogs) in [:untested, :check_passed]))
+
+    connected =
+      Enum.count(catalogs.agents, fn {_, catalog} ->
+        catalog.selectable_models != [] &&
+          (catalog.status == :available || (catalog.status == :catalog_stale && catalog.reusable))
+      end)
+
+    arenas = Arenas.list()
+    arena = List.first(arenas)
+    board = if arena, do: List.first(Tabulae.list(arena.id))
+    step = home_step(connected, assigned, arena, board)
+
+    %{
+      arenas: arenas,
+      connected: connected,
+      assigned: assigned,
+      step: step,
+      agents: length(Agents.list())
+    }
+  end
+
+  defp home_step(0, _, _, _), do: 1
+  defp home_step(_, assigned, _, _) when assigned < 4, do: 2
+  defp home_step(_, _, nil, _), do: 3
+  defp home_step(_, _, _, nil), do: 3
+  defp home_step(_, _, _, board), do: if(Tabulae.tasks(board.id) == [], do: 4, else: 5)
+
+  defp home_next(%{step: 1, agents: 0}),
+    do: {"Connect your agents.", "Add agent", ~p"/agents/new"}
+
+  defp home_next(%{step: 1}), do: {"Reconnect with your team.", "Review agents", ~p"/agents"}
+  defp home_next(%{step: 2}), do: {"Give everyone a role.", "Assign roles", ~p"/team"}
+  defp home_next(%{step: 3}), do: {"Choose your Arena.", "Open Arenas", ~p"/arenas"}
+
+  defp home_next(%{arenas: [arena | _]}),
+    do: {"Your Arena awaits.", "Continue Arena", ~p"/arenas/#{arena.id}"}
 
   defp next_step(socket, last, workspace, catalog) do
     case last do
@@ -380,29 +424,51 @@ defmodule CuckodingWeb.HomeLive do
     ~H"""
     <Layouts.workspace active={@live_action} title={title(@live_action)} flash={@flash}>
       <section :if={@live_action == :home} class="panel welcome" aria-labelledby="welcome-title">
-        <p class="eyebrow">01 / GET READY</p>
-        <h2 id="welcome-title">Build your team.</h2>
-        <p>Set up agents and roles once, then add a folder for each Arena.</p>
-        <ol class="steps" aria-label="Setup journey">
-          <li class="current"><b>01</b><span>Agents</span></li>
-          <li><b>02</b><span>Team</span></li>
-          <li><b>03</b><span>Arena</span></li>
-          <li><b>04</b><span>Create tasks</span></li>
-          <li><b>05</b><span>Start</span></li>
-        </ol>
-        <.link navigate={~p"/agents"} class="button primary">Check your setup
-        <span aria-hidden="true">↗</span></.link>
-        <.link navigate={~p"/team"} class="button">Choose your team</.link>
-        <p id="home-battle-scope" class="fine-print">
-          Arena boards are created automatically. Start runs your assigned team one task at a time:
-          up to 20 tasks, three review rounds per task and two hours. Final checks and an independent
-          Secutor review gate local completion; a failed final review needs attention.
+        <p class="eyebrow">YOUR AGENTS. YOUR ARENA.</p>
+        <h2 id="welcome-title">{elem(home_next(@home), 0)}</h2>
+        <p>Connect agents. Assign roles. Add a folder. Let the team take it from there.</p>
+        <Layouts.journey
+          current={@home.step}
+          arena_path={if @home.arenas != [], do: ~p"/arenas/#{hd(@home.arenas).id}"}
+        />
+        <p id="home-progress" class="fine-print">
+          {@home.connected} agents with saved models · {@home.assigned}/4 roles connected · {length(
+            @home.arenas
+          )} Arenas
         </p>
-        <p id="home-check-scope" class="fine-print">
-          Project checks currently support single-process commands only. They cannot spawn subprocesses;
-          Mix/npm pipelines are not yet supported. Start creates a local result branch; merging or publishing it is separate.
-        </p>
-        <.link navigate={~p"/arenas"} class="text-link">Open Arenas ↗</.link>
+        <div class="team-actions">
+          <.link id="home-next" navigate={elem(home_next(@home), 2)} class="button primary">
+            {elem(home_next(@home), 1)} <span aria-hidden="true">↗</span>
+          </.link>
+          <span class="fine-print">Agents and roles are saved for your next project.</span>
+        </div>
+        <details
+          id="home-limits"
+          class="activity"
+          phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
+        >
+          <summary>How Start works</summary>
+          <p id="home-battle-scope" class="fine-print">
+            Arena boards are created automatically. Start runs your assigned team one task at a time:
+            up to 20 tasks, three review rounds per task and two hours. Final checks and an independent
+            Secutor review gate local completion; a failed final review needs attention.
+          </p>
+          <p id="home-check-scope" class="fine-print">
+            Project checks currently support single-process commands only. They cannot spawn subprocesses;
+            Mix/npm pipelines are not yet supported. Start creates a local result branch; merging or publishing it is separate.
+          </p>
+        </details>
+      </section>
+      <section
+        :if={@live_action == :home && @home.arenas != []}
+        class="panel"
+        aria-labelledby="home-arenas"
+      >
+        <div class="panel-heading">
+          <h2 id="home-arenas">Pick up where you left off.</h2>
+          <.link navigate={~p"/arenas"} class="text-link">All Arenas ↗</.link>
+        </div>
+        <Layouts.arena_link :for={arena <- @home.arenas} arena={arena} />
       </section>
 
       <section
@@ -439,6 +505,7 @@ defmodule CuckodingWeb.HomeLive do
             <input
               :if={@new_agent}
               id="agent-name"
+              type="text"
               name="name"
               value={@agent_name}
               maxlength="60"
