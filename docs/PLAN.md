@@ -9,7 +9,8 @@ evidence for verified closure. R012 runs setup/planning in supervised asynchrono
 tasks and couples worker/coordinator restarts. R060f commits results before
 coordinator notification; R060g reconciles complete retained native integration
 receipts to a paused checkpoint without replay. R060h fences new battle work on
-timing gaps and backward clock changes. The remaining recovery gates
+timing gaps and backward clock changes. R060i adds bounded native idle-system
+sleep protection and dated Settings observations. The remaining recovery gates
 below still block complete beta acceptance.
 
 | Area | Implemented | Still required |
@@ -17,7 +18,7 @@ below still block complete beta acceptance.
 | Agents and Team | Named Codex/Cursor connections, full bounded catalogs, model choices, default roles/custom role records, scoped team adoption | Per-scope role editing, custom role/stage execution, Cursor initial planning, Claude Code and Hermes |
 | Arena and tasks | Add folder/default board, bounded docs-first analysis, automatic cards, prerequisites, citations and saved criteria | Custom columns, custom planning-role selection and real-account planning acceptance |
 | Execution | One Start, sequential mixed-runtime dispatch, independent review/correction and retained local result branch | General subprocess/toolchain checks, real mixed-provider battle acceptance and parallel workers |
-| Controls/recovery | Stop, stage-boundary Pause/Resume, bounded provider Retry, Skip with deferred dependents and Partial result; settled restart checkpoints | Unfinished native/process/Git reconciliation, sleep accounting, safe backoff and physical sleep tests |
+| Controls/recovery | Stop, stage-boundary Pause/Resume, bounded provider Retry, Skip with deferred dependents and Partial result; settled restart checkpoints, timing fence and bounded idle-sleep assertion | Unfinished native/process/Git reconciliation, sleep accounting, safe backoff and physical sleep tests |
 | Experience | Agent wizard/disconnect, Team editor, Arena dialogs/board + controls, activity and retained attempt inspector | Global worker dashboard, parallel activity, paginated logs, responsive/browser polish and timed ten-minute setup |
 | Release | Local bundle/build/smoke, separate preserved data root; Decimal advisory fixed | Signing/notarization, clean-machine install, updates/rollback and full acceptance matrix |
 
@@ -110,6 +111,10 @@ The numbered story below is capability coverage, not eight mandatory screens.
   clean boundaries or cancel/retain active work without advancement; verified
   closure permits Stop. Physical sleep and process/lease reconciliation remain open.
   [Task](../tasks/R060h-timing-gap-fence.md).
+- [x] **R060i — Idle-sleep protection:** derive bounded eligibility in Phoenix,
+  acquire/renew/release one timed native assertion through the authenticated
+  heartbeat and show dated native reports in Settings. No display/lid/forced-sleep
+  guarantee or physical recovery claim. [Task](../tasks/R060i-idle-sleep-lease.md).
 - [x] **R080a — Direct controls:** confirmed per-agent Disconnect unassigns current
   roles while retaining history; saved roles no longer expire on catalog age alone.
   Create tasks, repository setup and extra boards use dialogs; manual tasks use +
@@ -470,12 +475,14 @@ Depends on R050.
 - [ ] Broader interrupted-work recovery with verified process cleanup.
 - [x] R060h timing-gap admission/settlement fence with independent supervised
   clock observation, clean Pause and rejected active receipts; no claim of sleep.
+- [x] R060i fixed native idle-system sleep lease during eligible work, bounded
+  renewal/release, nonfatal failure and dated authenticated observations.
 - [ ] Add bounded transient recovery/backoff, separate review/failure counters,
   deadline enforcement and no repeated sign-in questions per task.
 - [ ] Reconcile DB/process/transport/worktree/Git/port ownership before startup
   admission; never blindly replay uncertain work.
-- [ ] Detect sleep gaps, reconcile leases, preserve active/wall accounting and
-  manage the native idle-sleep assertion honestly.
+- [ ] Reconcile actual sleep/wake and resource leases, preserve active/wall
+  accounting, and verify the idle-sleep assertion during physical sleep drills.
 - [ ] Classify task-local versus Arena-wide blockers; continue independent work
   when safe and present the smallest actionable attention request.
 - [ ] Preserve input/focus and reconnect both UI and workers safely.

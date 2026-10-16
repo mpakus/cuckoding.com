@@ -52,6 +52,33 @@ defmodule Cuckoding.Battles do
 
   def active, do: Repo.all(from b in Battle, where: b.state in ^@active, order_by: b.inserted_at)
 
+  # A dated shell lease is an OS convenience, never execution or cleanup evidence.
+  def idle_sleep_requested?(now \\ DateTime.utc_now()) do
+    Enum.any?(active(), &idle_sleep_eligible?(&1, now))
+  end
+
+  defp idle_sleep_eligible?(battle, now) do
+    if battle.snapshot["idle_sleep"] == "shell-lease-v1" and
+         battle.state in ~w(running pausing stopping) and
+         DateTime.compare(now, battle.inserted_at) != :lt do
+      idle_sleep_work?(battle, running_attempt(battle.id), now)
+    else
+      false
+    end
+  end
+
+  defp idle_sleep_work?(battle, attempt, now) do
+    if battle.state == "stopping" or timing_blocked?(battle) do
+      not is_nil(attempt) and DateTime.compare(now, battle.updated_at) != :lt and
+        not expired?(DateTime.add(battle.updated_at, 5), now) and
+        not expired?(DateTime.add(battle.deadline_at, 5), now) and
+        not expired?(DateTime.add(attempt.deadline_at, 5), now)
+    else
+      not expired?(battle.deadline_at, now) and
+        if(attempt, do: not expired?(attempt.deadline_at, now), else: battle.state == "running")
+    end
+  end
+
   def active?(arena_id),
     do: Repo.exists?(from b in Battle, where: b.arena_id == ^arena_id and b.state in ^@active)
 

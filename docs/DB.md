@@ -87,6 +87,17 @@ for Resume/Retry/Skip or native integration recovery. Unknown cleanup stays
 blocked. Guard measurements describe elapsed samples, not proven sleep or active
 work duration. No deadline, attempt, review or consumed budget is reset.
 
+R060i adds no migration. New immutable battle snapshots freeze
+`idle_sleep: shell-lease-v1`; eligibility is a read-only projection of battle and
+attempt states/deadlines, not a new execution grant. `shell.power_observed` events
+retain only changes to authenticated native state, with fixed contract and
+15-second lease fields. The last report/time is transient in ShellAuth and
+becomes Unknown on its restart; prior events remain dated historical evidence.
+No heartbeat row, provider data, OS error text or system-wide power list is stored.
+Settings marks a report stale after 15 seconds on either UTC or monotonic time,
+or backward time. A report cannot prove current
+protection, process cleanup, stage completion or sleep recovery.
+
 R020m requires no migration. `check_codex_isolation` commands freeze connection ID,
 executable identity, observed version/command and contract; a 35-second exclusive
 claim owns the bounded native diagnostic. Successful completion atomically saves

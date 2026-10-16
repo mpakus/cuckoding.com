@@ -1,3 +1,4 @@
+use crate::power::{Power, LEASE_SECONDS};
 use serde_json::{json, Value};
 use std::{
     fs::{self, File, OpenOptions},
@@ -14,6 +15,7 @@ use std::{
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 pub struct Service {
+    power: Power,
     child: OwnedChild,
     pub port: u16,
     token: String,
@@ -175,6 +177,7 @@ impl Service {
             .ok_or("invalid authorization response")?
             .to_owned();
         Ok(Self {
+            power: Power::new(),
             child,
             port,
             token,
@@ -203,11 +206,28 @@ impl Service {
     }
 
     pub fn heartbeat(&mut self) -> Result<()> {
-        if self.child.0.try_wait()?.is_some() {
-            return Err("local service exited".into());
+        let decision = (|| {
+            if self.child.0.try_wait()?.is_some() {
+                return Err("local service exited".into());
+            }
+            let response = request_power(
+                self.port,
+                "/shell/status",
+                &self.token,
+                Some(self.power.state()),
+            )?;
+            power_requested(&response)
+        })();
+        match decision {
+            Ok(requested) => {
+                self.power.update(requested);
+                Ok(())
+            }
+            Err(error) => {
+                self.power.update(false);
+                Err(error)
+            }
         }
-        request(self.port, "/shell/status", &self.token)?;
-        Ok(())
     }
 
     pub fn smoke_browser(&self) -> Result<()> {
@@ -270,7 +290,13 @@ impl Service {
     }
 
     pub fn shutdown(&mut self) -> Result<()> {
-        let _ = request(self.port, "/shell/quit", &self.token);
+        self.power.update(false);
+        let _ = request_power(
+            self.port,
+            "/shell/quit",
+            &self.token,
+            Some(self.power.state()),
+        );
         let deadline = Instant::now() + Duration::from_secs(8);
         while Instant::now() < deadline {
             if self.child.0.try_wait()?.is_some() {
@@ -309,6 +335,32 @@ fn terminate(child: &mut Child) -> io::Result<()> {
 }
 
 fn request(port: u16, path: &str, token: &str) -> Result<Value> {
+    request_power(port, path, token, None)
+}
+
+fn power_requested(response: &Value) -> Result<bool> {
+    let lease = &response["idle_sleep"];
+    if response["status"] != "ready"
+        || response["version"] != "0.1.0"
+        || lease["contract"] != "shell-lease-v1"
+        || lease["lease_seconds"] != LEASE_SECONDS
+        || !lease.as_object().is_some_and(|v| v.len() == 3)
+    {
+        return Err("invalid sleep lease".into());
+    }
+    lease["requested"]
+        .as_bool()
+        .ok_or_else(|| "invalid sleep lease".into())
+}
+
+fn request_power(port: u16, path: &str, token: &str, power: Option<&str>) -> Result<Value> {
+    let extra = match power {
+        Some(state @ ("held" | "released" | "unavailable")) => {
+            format!("X-CC-Power-State: {state}\r\n")
+        }
+        None => String::new(),
+        _ => return Err("invalid power state".into()),
+    };
     if !token
         .bytes()
         .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
@@ -319,7 +371,7 @@ fn request(port: u16, path: &str, token: &str) -> Result<Value> {
     let mut stream = TcpStream::connect_timeout(&address, Duration::from_secs(2))?;
     stream.set_read_timeout(Some(Duration::from_secs(3)))?;
     stream.set_write_timeout(Some(Duration::from_secs(3)))?;
-    write!(stream, "POST {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAuthorization: Bearer {token}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")?;
+    write!(stream, "POST {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAuthorization: Bearer {token}\r\n{extra}Content-Length: 0\r\nConnection: close\r\n\r\n")?;
     let mut response = String::new();
     stream.take(8193).read_to_string(&mut response)?;
     if response.len() > 8192 {
@@ -394,5 +446,105 @@ mod tests {
     #[test]
     fn authorization_cannot_inject_headers() {
         assert!(request(1, "/shell/status", "bad\r\nHost: evil").is_err());
+        assert!(request_power(1, "/shell/status", "fixture", Some("held\r\nHost: evil")).is_err());
+    }
+
+    fn lease(requested: bool) -> Value {
+        json!({"status":"ready", "version":"0.1.0", "idle_sleep":{
+            "contract":"shell-lease-v1", "requested":requested, "lease_seconds":15}})
+    }
+
+    #[test]
+    fn only_the_fixed_typed_lease_contract_is_accepted() {
+        for requested in [true, false] {
+            assert_eq!(power_requested(&lease(requested)).unwrap(), requested);
+        }
+        for invalid in [
+            json!({}),
+            json!(null),
+            json!([]),
+            json!({"requested":true, "contract":"other", "lease_seconds":15}),
+            json!({"requested":"true", "contract":"shell-lease-v1", "lease_seconds":15}),
+            json!({"requested":true, "contract":"shell-lease-v1", "lease_seconds":0}),
+            json!({"requested":true, "contract":"shell-lease-v1", "lease_seconds":16}),
+            json!({"requested":true, "contract":"shell-lease-v1", "lease_seconds":15, "extra":true}),
+        ] {
+            let mut response = lease(true);
+            response["idle_sleep"] = invalid;
+            assert!(power_requested(&response).is_err());
+        }
+        let mut response = lease(true);
+        response["status"] = json!("stopping");
+        assert!(power_requested(&response).is_err());
+    }
+
+    #[test]
+    fn heartbeat_releases_on_idle_protocol_failure_and_backend_exit() {
+        use std::net::TcpListener;
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = thread::spawn(move || {
+            for (body, state) in [
+                (lease(true), "released"),
+                (lease(false), "held"),
+                (lease(true), "released"),
+                (json!({}), "held"),
+                (lease(true), "released"),
+            ] {
+                let (mut socket, _) = listener.accept().unwrap();
+                socket
+                    .set_read_timeout(Some(Duration::from_secs(3)))
+                    .unwrap();
+                let mut request = String::new();
+                let mut reader = BufReader::new(socket.try_clone().unwrap());
+                loop {
+                    let mut line = String::new();
+                    assert!(reader.read_line(&mut line).unwrap() > 0);
+                    request.push_str(&line);
+                    if line == "\r\n" {
+                        break;
+                    }
+                    assert!(request.len() < 1024);
+                }
+                assert!(request.starts_with("POST /shell/status HTTP/1.1\r\n"));
+                assert!(request.contains(&format!("X-CC-Power-State: {state}\r\n")));
+                let body = body.to_string();
+                write!(
+                    socket,
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                )
+                .unwrap();
+            }
+        });
+        let root = temp();
+        let mut service = Service {
+            power: Power::new(),
+            child: OwnedChild(
+                Command::new("/bin/sleep")
+                    .arg("30")
+                    .process_group(0)
+                    .spawn()
+                    .unwrap(),
+            ),
+            port,
+            token: "fixture".into(),
+            _lock: data_lock(&root).unwrap(),
+        };
+        service.heartbeat().unwrap();
+        assert_eq!(service.power.state(), "held");
+        service.heartbeat().unwrap();
+        assert_eq!(service.power.state(), "released");
+        service.heartbeat().unwrap();
+        assert_eq!(service.power.state(), "held");
+        assert!(service.heartbeat().is_err());
+        assert_eq!(service.power.state(), "released");
+        service.heartbeat().unwrap();
+        terminate(&mut service.child.0).unwrap();
+        assert!(service.heartbeat().is_err());
+        assert_eq!(service.power.state(), "released");
+        server.join().unwrap();
+        drop(service);
+        fs::remove_dir_all(root).unwrap();
     }
 }

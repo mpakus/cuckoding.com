@@ -46,4 +46,39 @@ defmodule Cuckoding.ShellAuthTest do
     assert {:error, :unauthorized} = ShellAuth.authorize(shell)
     assert {:error, :unauthorized} = ShellAuth.bootstrap(bootstrap)
   end
+
+  test "native power reports require shell authority, retain only changes and age honestly", %{
+    bootstrap: bootstrap
+  } do
+    assert ShellAuth.power_status().state == "unknown"
+    assert {:ok, shell} = ShellAuth.bootstrap(bootstrap)
+    assert {:error, :unauthorized} = ShellAuth.authorize("foreign", "held")
+    assert {:error, :invalid_power_state} = ShellAuth.authorize(shell, "raw OS error")
+    assert ShellAuth.power_status().state == "unknown"
+    assert :ok = ShellAuth.authorize(shell, "held")
+    assert :ok = ShellAuth.authorize(shell, "held")
+    report = ShellAuth.power_status()
+    assert report.state == "held" and report.fresh and report.age_seconds == 0
+    monotonic = System.monotonic_time(:millisecond)
+    stale = ShellAuth.power_status({report.observed_at, monotonic + 15_000})
+    refute stale.fresh
+    assert stale.state == "held" and stale.age_seconds >= 15
+    # A suspended monotonic clock must not make an old post-sleep report recent.
+    refute ShellAuth.power_status({DateTime.add(report.observed_at, 16), monotonic}).fresh
+    refute ShellAuth.power_status({DateTime.add(report.observed_at, -1), monotonic}).fresh
+    assert :ok = ShellAuth.authorize(shell, "unavailable")
+    assert :ok = ShellAuth.authorize(shell, "released")
+    reports = Repo.all(from e in Event, where: e.kind == "shell.power_observed", order_by: e.id)
+    assert Enum.map(reports, & &1.data["state"]) == ~w(held unavailable released)
+
+    assert Enum.all?(
+             reports,
+             &(Map.keys(&1.data) |> Enum.sort() == ~w(contract lease_seconds state))
+           )
+
+    refute inspect(reports) =~ shell
+    Supervisor.terminate_child(Cuckoding.Supervisor, ShellAuth)
+    {:ok, _} = Supervisor.restart_child(Cuckoding.Supervisor, ShellAuth)
+    assert ShellAuth.power_status().state == "unknown"
+  end
 end

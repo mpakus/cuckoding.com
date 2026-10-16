@@ -88,8 +88,22 @@ continuation. Cancel active helpers through existing ownership protocols and
 retain the bound rejected receipt without advancing cards/head. Active fenced
 work permits Stop only after recorded verified closure; never Resume/Retry/Skip
 it or bypass the fence through native integration recovery. No deadline extension.
-Physical sleep, power assertions, lease/process reconciliation and active-time
+Physical sleep, lease/process reconciliation and active-time
 accounting remain open.
+
+R060i freezes `idle_sleep: shell-lease-v1` in new Starts. Phoenix derives a
+boolean lease request from durable work state and original deadlines. Ordinary
+Pausing protects only its current bounded attempt; Stop/timing cancellation has
+at most five seconds of eligibility for cleanup. The authenticated five-second
+shell heartbeat requests one fixed 15-second PreventUserIdleSystemSleep assertion.
+Use explicit OS timeout TurnOff, retain the owned ID until release and release
+on idle/pause/quit/error/drop; never use timeout Release with a reusable ID.
+Assertion API failures remain nonfatal. Record only authenticated normalized
+held/released/unavailable transitions; Settings ages reports using UTC and
+monotonic time, distrusts backward time and shows the last report and age,
+never guaranteed current protection. Historical snapshots gain no policy.
+This cannot prevent lid/forced sleep, keep the display on, extend deadlines or
+prove cleanup/recovery. Source UI development does not own a native assertion.
 
 Preserve these implemented contracts:
 

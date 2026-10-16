@@ -3,6 +3,7 @@ mod connection;
 mod cursor;
 mod folder;
 mod isolation;
+mod power;
 mod probe;
 mod project_checks;
 mod service;

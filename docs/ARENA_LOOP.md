@@ -75,7 +75,17 @@ unknown cleanup remains blocked, and active fenced work cannot Resume/Retry/Skip
 The guard shares the battle execution group's restart boundary, so losing its
 baseline also stops workers. Inspect retains timing observations after reconnect.
 This is a conservative timing fence, not native wake/process/lease reconciliation,
-active-time accounting, a power assertion or physical sleep acceptance.
+active-time accounting or physical sleep acceptance.
+
+R060i freezes `idle_sleep: shell-lease-v1` in new Starts. Eligible bounded work
+requests a fixed native idle-system sleep assertion through the authenticated
+shell heartbeat. Paused/idle work releases it; Stop/timing cancellation receives
+at most five seconds of cleanup eligibility. The OS turns the assertion off
+after 15 seconds without renewal, and its owned ID remains reserved until
+explicit release. Power API failure is nonfatal. Settings displays dated native
+reports, not current-protection or recovery proof. The display can sleep, and lid
+closure/forced sleep still interrupt work. This changes no execution authority,
+original deadlines, historical snapshots or independent-review gates.
 
 R060b adds **Retry failed stage** for new snapshots with `recovery: provider-retry-v1`
 and a frozen two-retry cap per task, plus two shared by final stages. Only normalized

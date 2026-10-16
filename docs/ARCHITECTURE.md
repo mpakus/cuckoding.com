@@ -18,6 +18,7 @@ release process group and private storage lock.
 | `ExecutionSupervisor` | Separate `one_for_all` groups pair each coordinator with its Task.Supervisor; old workers stop before coordinator recovery |
 | `BattleClock` | Independent UTC/monotonic sampling in the battle execution group; SQLite timing fences precede admission, cancellation and receipt settlement |
 | `ShellAuth`, web session guard | One-time shell/browser handoff and expiring DB sessions; stateful components must guard their own events |
+| `Battles.idle_sleep_requested?`, native `power.rs` / `service.rs` | SQLite-derived bounded eligibility through the authenticated shell heartbeat; one OS-timed idle-system sleep assertion. ShellAuth retains transient last-report age and state-change audit events; no power observation grants workflow authority |
 | `Codex`, native `connection.rs` / `model_check.rs` | Private-profile authorization, model catalog, fixed diagnostic and structured no-tools planning; SQLite retains only normalized public receipts |
 | `Foundation`, `Codex`, native `isolation.rs` | Optional fixed two-workspace sandbox canaries, fresh empty runtime profile, executable-bound command/event receipt; no inference or Arena grant |
 | `Team`, `TeamAssignments` | Immutable default revisions, confirmed scoped adoptions and transactional current-role unassignment on accepted logout; no provider launch or permission grant |
@@ -80,6 +81,16 @@ on the coordinator's mailbox. A lost guard stops old workers before restarting
 the baseline. SQLite stores the fence, rejected receipt and verified closure;
 the clock process never owns workflow progress. The existing Inspect component
 shows observations after reconnect. [D030](DECISIONS.md#d030--conservative-timing-gap-fence).
+
+R060i keeps the native shell an actuator. Phoenix computes eligibility for new
+`shell-lease-v1` battles from saved state/deadlines; it sends only a fixed boolean
+and 15-second contract in `/shell/status`. The native five-second heartbeat
+renews one owned IOKit assertion, explicitly timed to TurnOff, and releases it on
+idle, shutdown, transport/protocol failure or drop. Assertion failures remain
+nonfatal and cannot widen permissions. ShellAuth authenticates fixed native
+reports atomically with shell authority, audits changes only and caches their
+age for Settings; restart returns Unknown. Durable battle state remains the only
+eligibility authority. [D031](DECISIONS.md#d031--native-idle-sleep-lease).
 
 Every application screen is an authenticated LiveView. Layouts/dialogs use HEEx
 function components, and the four stateful form/control components share

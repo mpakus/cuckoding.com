@@ -106,6 +106,13 @@ Resume; active stages are cancelled and their receipts retained without advancin
 tasks. Stop waits for verified cleanup. Deadlines and consumed limits stay intact.
 This conservative guard is not physical sleep or process recovery.
 [Timing-gap fence](tasks/R060h-timing-gap-fence.md).
+
+The native app also requests idle-system sleep protection while new battles
+perform bounded work. It releases protection at a paused/idle boundary, and its
+15-second OS lease expires without renewal. **Settings** shows the last native
+report and its age. The display can sleep; lid closure, forced sleep and low
+battery can still interrupt work. This does not complete sleep recovery.
+[Idle-sleep protection](tasks/R060i-idle-sleep-lease.md).
 The packaged build, smoke test and preserved-workspace relaunch were verified
 2026-10-15; [build evidence](worklog/2026-10-15-R060e-late-stage-receipts.md).
 **Retry failed stage** is available for settled transient provider failures in new

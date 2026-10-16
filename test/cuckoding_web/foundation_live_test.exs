@@ -3,6 +3,32 @@ defmodule CuckodingWeb.FoundationLiveTest do
   import Phoenix.LiveViewTest
   alias Cuckoding.{BrowserToken, Foundation, Repo, ShellAuth}
 
+  test "Settings keeps native power reports observational, dated and reconnectable", %{conn: conn} do
+    bootstrap = ShellAuth.token()
+    Supervisor.terminate_child(Cuckoding.Supervisor, ShellAuth)
+    Application.put_env(:cuckoding, :bootstrap_hash, ShellAuth.digest(bootstrap))
+    {:ok, _} = Supervisor.restart_child(Cuckoding.Supervisor, ShellAuth)
+    {:ok, shell} = ShellAuth.bootstrap(bootstrap)
+    signed = sign_in(conn)
+    {:ok, view, _} = live(signed, "/settings")
+    assert has_element?(view, "#idle-sleep-report", "No native report")
+    assert :ok = ShellAuth.authorize(shell, "unavailable")
+    assert has_element?(view, "#idle-sleep-report", "app remains usable")
+    assert has_element?(view, "#idle-sleep-report time[datetime]")
+    assert has_element?(view, "#idle-sleep-scope", "does not verify")
+
+    :sys.replace_state(ShellAuth, fn state ->
+      put_in(state.power.seen, state.power.seen - 16_000)
+    end)
+
+    send(view.pid, :clock)
+    assert has_element?(view, "#idle-sleep-report", "stale")
+    {:ok, reconnected, _} = live(signed, "/settings")
+    assert has_element?(reconnected, "#idle-sleep-report", "stale")
+    assert :ok = ShellAuth.authorize(shell, "released")
+    assert has_element?(reconnected, "#idle-sleep-report", "Protection released")
+  end
+
   test "development tools and their CSP exceptions are absent", %{conn: conn} do
     refute Code.ensure_loaded?(Tidewave)
     refute Code.ensure_loaded?(Phoenix.LiveReloader)

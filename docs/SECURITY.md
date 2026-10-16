@@ -208,8 +208,28 @@ effects and reject the stage result without advancing state. A recorded bound
 cleanup receipt may permit Stop only. Guard failure stops workers with its
 execution group before resetting the clock baseline; unfinished native effects
 retain inspection gates. Historical grants, deadlines, independent review and
-exact connection bindings are unchanged. Physical sleep/wake, power assertions,
+exact connection bindings are unchanged. Physical sleep/wake,
 lease reconciliation and active-time accounting remain unverified/unimplemented.
+
+R060i adds only the fixed idle-system sleep capability for new Start snapshots.
+Phoenix computes eligibility from SQLite and original deadlines; browser/provider
+text cannot request native power actions. The authenticated `/shell/status`
+returns `shell-lease-v1`, a boolean and the fixed 15-second lease. The shell
+validates this closed lease object before creating one PreventUserIdleSystemSleep
+assertion with explicit OS timeout TurnOff. Timeout never releases/reuses its ID;
+owned release precedes renewal, and release failure cannot accumulate assertions.
+Idle/pause/quit/transport/protocol failure/drop release it; kernel/OS failure is
+reported as unavailable without making the app unusable. Forced sleep, display
+sleep, lid closure and low battery remain possible.
+
+Only the bearer-authenticated shell may report the fixed held/released/unavailable
+states through `X-CC-Power-State`; invalid values are rejected before observation.
+Audit state changes, not every heartbeat. Reports contain no OS error text,
+project paths, agent payloads, process lists or credentials. Settings shows the
+transient last report with timestamp/age and marks it stale after 15 seconds on
+either UTC or monotonic time, or backward time;
+restart returns Unknown. This is neither execution/cleanup evidence nor a claim
+of current guaranteed protection. Source-dev heartbeats do not fabricate reports.
 
 R060f worker completion uses the existing claim/result validators inside the
 transaction, then sends only a completion signal to its coordinator. Unexpected

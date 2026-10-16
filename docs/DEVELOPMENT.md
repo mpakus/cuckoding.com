@@ -369,6 +369,14 @@ escalate an uncertain shutdown or use this procedure for active work. This fallb
 does not produce the tray's `shell.quit_requested` event; record it in the worklog.
 [Erlang signal behavior](https://www.erlang.org/docs/29/apps/kernel/kernel_app.html).
 
+The packaged shell now exchanges `shell-lease-v1` on its authenticated heartbeat.
+Phoenix requests a fixed 15-second idle-system sleep assertion only for eligible
+new battles. Settings shows the last native held/released/unavailable report and
+age; the source UI launcher has no native assertion and may show Unknown.
+Do not change system sleep preferences or use this report as physical wake proof.
+Native tests acquire a short assertion, verify it leaves the active list on
+timeout while retaining its owned ID, then verify release; they never request sleep.
+
 ## Toolchain and distribution
 
 Keep Elixir/OTP, Phoenix LiveView/Tailwind, Ecto/SQLite, Git worktrees and Tauri 2.

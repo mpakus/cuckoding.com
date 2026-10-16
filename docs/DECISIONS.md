@@ -1,5 +1,23 @@
 # Current decisions
 
+## D031 · Native idle-sleep lease
+
+Accepted 2026-10-15 for R060i. New Starts freeze `idle_sleep: shell-lease-v1`.
+Phoenix derives work eligibility from SQLite battle/attempt state, original
+deadlines and a five-second cancellation grace. The existing authenticated shell
+heartbeat returns only a fixed boolean/15-second lease contract. The shell owns
+one timed PreventUserIdleSystemSleep assertion, with explicit OS timeout TurnOff,
+and releases it on idle/pause/quit/errors/drop. It cannot keep the display on,
+wake the Mac or prevent lid/forced sleep. No agent text controls this capability.
+
+Native assertion failures are nonfatal. The authenticated shell reports only
+held/released/unavailable; persist state-change observations, not heartbeat spam
+or raw OS errors. Settings shows the last transient report with freshness and
+explicit limits; age uses both UTC and monotonic time and distrusts backward
+time. It is not workflow authority or proof of current power state.
+No renewed heartbeat means the assertion turns off within its fixed lease.
+Physical sleep, process reconciliation and active-time accounting remain open.
+
 ## D030 · Conservative timing-gap fence
 
 Accepted 2026-10-15 for R060h. New Starts freeze

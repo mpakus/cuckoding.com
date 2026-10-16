@@ -71,6 +71,75 @@ defmodule Cuckoding.BattlesTest do
     battle
   end
 
+  test "idle-sleep leases follow bounded work and release at paused or finished boundaries",
+       ctx do
+    refute Battles.idle_sleep_requested?()
+    battle = start(ctx.board)
+    assert battle.snapshot["idle_sleep"] == "shell-lease-v1"
+    assert Battles.idle_sleep_requested?()
+    refute Battles.idle_sleep_requested?(DateTime.add(battle.inserted_at, -1))
+    refute Battles.idle_sleep_requested?(battle.deadline_at)
+    {:ok, paused} = Battles.pause(battle.id, 0)
+    refute Battles.idle_sleep_requested?()
+    {:ok, resumed} = Battles.resume(battle.id, paused.control_revision)
+    {:ok, attempt} = Battles.claim_next(battle.id)
+    {:ok, _} = Battles.pause(battle.id, resumed.control_revision)
+    assert Battles.idle_sleep_requested?()
+    refute Battles.idle_sleep_requested?(attempt.deadline_at)
+    {:ok, _} = Battles.finish(attempt.id, attempt.claim_token, result(attempt))
+    refute Battles.idle_sleep_requested?()
+    {:ok, _} = Battles.stop(battle.id)
+    refute Battles.idle_sleep_requested?()
+  end
+
+  test "Stop and timing cancellation cannot renew protection beyond five-second cleanup grace",
+       ctx do
+    battle = start(ctx.board)
+    {:ok, attempt} = Battles.claim_next(battle.id)
+    {:ok, stopping} = Battles.stop(battle.id)
+    assert Battles.idle_sleep_requested?(DateTime.add(stopping.updated_at, 4))
+    refute Battles.idle_sleep_requested?(DateTime.add(stopping.updated_at, 5))
+
+    {:ok, _} =
+      Battles.finish(attempt.id, attempt.claim_token, result(attempt, %{"status" => "cancelled"}))
+
+    refute Battles.idle_sleep_requested?()
+    battle = start(ctx.board)
+    {:ok, _} = Battles.claim_next(battle.id)
+    previous = DateTime.utc_now()
+    observed = DateTime.add(previous, 10)
+    gap = Cuckoding.BattleClock.gap({previous, 0}, {observed, 10_000})
+    {:ok, [fenced]} = Battles.observe_timing_gap(gap)
+    assert fenced.state == "pausing"
+    assert Battles.idle_sleep_requested?(DateTime.add(fenced.updated_at, 4))
+    refute Battles.idle_sleep_requested?(DateTime.add(fenced.updated_at, 5))
+  end
+
+  test "historical and attention battles never acquire a new idle-sleep policy", ctx do
+    battle = start(ctx.board)
+    {:ok, _} = Battles.stop(battle.id)
+
+    legacy = %Battle{
+      id: Ecto.UUID.generate(),
+      arena_id: battle.arena_id,
+      tabula_id: battle.tabula_id,
+      snapshot: Map.delete(battle.snapshot, "idle_sleep"),
+      fingerprint: battle.fingerprint,
+      deadline_at: battle.deadline_at,
+      inserted_at: battle.inserted_at,
+      updated_at: battle.updated_at,
+      state: "running",
+      stage: "admission"
+    }
+
+    Repo.insert!(legacy)
+    refute Battles.idle_sleep_requested?()
+    {:ok, _} = Battles.stop(legacy.id)
+    {failed, _} = start(ctx.board) |> fail_provider()
+    assert failed.state == "needs_attention"
+    refute Battles.idle_sleep_requested?()
+  end
+
   test "saved aged bindings Start and Resume without a manual refresh, but failed observations block",
        ctx do
     workspace = Foundation.workspace()

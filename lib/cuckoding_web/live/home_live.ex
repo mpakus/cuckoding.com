@@ -329,6 +329,7 @@ defmodule CuckodingWeb.HomeLive do
       operation: operation,
       last_operation: last,
       events: Foundation.events(),
+      power: Cuckoding.ShellAuth.power_status(),
       catalog: catalog,
       saved: Foundation.saved_agent_models(socket.assigns.agent_id),
       step: next_step(socket, last, workspace, catalog),
@@ -787,7 +788,26 @@ defmodule CuckodingWeb.HomeLive do
           <div>
             <dt>Access</dt><dd>Menu bar authorization · 30-minute browser sessions</dd>
           </div>
+          <div id="idle-sleep-report">
+            <dt>Idle sleep · last native report</dt>
+            <dd>
+              {power_label(@power.state)}
+              <span :if={@power.observed_at}>
+                ·
+                <time datetime={DateTime.to_iso8601(@power.observed_at)}>
+                  {Calendar.strftime(@power.observed_at, "%H:%M:%S UTC")}
+                </time>
+                · {@power.age_seconds}s ago · {if @power.fresh, do: "recent", else: "stale"}
+              </span>
+            </dd>
+          </div>
         </dl>
+        <p class="fine-print" id="idle-sleep-scope">
+          The native app requests idle-system sleep protection during bounded battle work.
+          Its 15-second lease expires without renewal. The display may sleep; lid closure,
+          forced sleep and low battery can still interrupt work. This report does not verify
+          current protection or recovery.
+        </p>
         <details
           id="recent-activity"
           class="activity"
@@ -819,6 +839,10 @@ defmodule CuckodingWeb.HomeLive do
   defp title(:home), do: "Tabula Gladiatorum"
   defp title(:agents), do: "Agents"
   defp title(:settings), do: "Settings"
+  defp power_label("held"), do: "Protection acquired"
+  defp power_label("released"), do: "Protection released"
+  defp power_label("unavailable"), do: "Protection unavailable; the app remains usable"
+  defp power_label(_), do: "No native report in this session"
   defp operation_label("probe_cursor"), do: "Checking Cursor version"
   defp operation_label("inspect_cursor"), do: "Refreshing Cursor connection"
   defp operation_label("login_cursor"), do: "Signing in to Cursor"

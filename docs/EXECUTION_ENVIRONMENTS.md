@@ -108,8 +108,23 @@ pause for explicit Resume; active work is cancelled through existing helper
 polling and its rejected receipt retained. Verified closure allows Stop only;
 uncertain effects still require inspection. A lost clock guard stops old workers
 before baseline reset. Observed gaps do not prove sleep, and no stage/deadline/
-consumed limit is restarted. Native power assertion, physical wake/lease/process
-reconciliation and active-time accounting below remain open.
+consumed limit is restarted. Physical wake/lease/process reconciliation and
+active-time accounting below remain open.
+
+R060i implements the native idle-sleep assertion for new `shell-lease-v1` Starts.
+Phoenix requests it while a running battle remains within its original deadline,
+or an ordinary Pausing stage is still within both deadlines. Stop/timing
+cancellation has at most five seconds of cleanup eligibility, also bounded by
+the original deadlines plus that grace. Paused/attention/finished battles and
+historical snapshots do not renew it. Each authenticated shell heartbeat replaces
+the owned assertion with a fixed 15-second PreventUserIdleSystemSleep assertion;
+the OS turns it off without renewal and keeps its ID reserved until release.
+The next heartbeat releases it when work becomes ineligible. Quit/error/drop
+also release it. Release failure retains the handle rather than accumulating
+assertions, and the timeout still bounds its effect. API failure does not close
+the app. Settings shows only the last normalized native report with its age;
+it does not certify current protection. No display, lid/forced-sleep, wake or
+deadline-extension capability is added. Source UI development has no native lease.
 
 Persist control intent before signalling a process. Pause closes admission,
 saves a public checkpoint and quiesces workers using supported adapter behavior.
