@@ -217,7 +217,7 @@ defmodule Cuckoding.Battles.Snapshot do
   end
 
   defp binding_status(_, %{id: nil}, _, _), do: "agent_unassigned"
-  defp binding_status(%{"model_id" => ""}, _, _, _), do: "agent_unassigned"
+  defp binding_status(%{"model_id" => ""}, _, _, _), do: "model_unassigned"
 
   defp binding_status(role, agent, probe, model) do
     cond do

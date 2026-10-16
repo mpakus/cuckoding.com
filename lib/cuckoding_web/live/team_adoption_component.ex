@@ -112,6 +112,7 @@ defmodule CuckodingWeb.TeamAdoptionComponent do
             "This team creates tasks and works on future battles. Past work keeps its original assignments."} Changing the team starts no agent.
       </p>
       <.roster revision={@current} label="Current team" />
+      <.link navigate={~p"/team"} class="text-link">Edit roles and models ↗</.link>
       <p :if={@candidate.id == @current.id} role="status">
         This team matches your saved Team settings.
       </p>
@@ -179,7 +180,11 @@ defmodule CuckodingWeb.TeamAdoptionComponent do
     """
   end
 
-  defp binding_label(%{"model_id" => ""}), do: "Unassigned"
+  defp binding_label(%{"agent" => ""}), do: "Agent and model needed"
+
+  defp binding_label(%{"model_id" => ""} = role),
+    do: "#{Cuckoding.Agents.display(role["agent"])} · Model needed"
+
   defp binding_label(role), do: "#{Cuckoding.Agents.display(role["agent"])} · #{role["model_id"]}"
   defp instructions(%{"instructions" => ""}), do: "No extra instructions"
   defp instructions(role), do: role["instructions"]

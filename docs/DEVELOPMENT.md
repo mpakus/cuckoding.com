@@ -183,6 +183,11 @@ Home and the five-step navigation rail reuse saved setup without starting provid
 Team shows role bindings directly; optional name/instruction fields remain expandable.
 The Arena's Start summary keeps full limits in Inspect and groups identical blockers
 by exact connection. Known missing setup disables Start with a repair link.
+An assigned agent with no model uses **Choose model** to open the affected Team
+role, rather than sending the user back to provider sign-in. Team warns about
+incomplete required roles. After **Save team**, return to the board and explicitly
+apply **Board team → Use saved team**. Disconnect clears assignments intentionally;
+reconnecting does not restore historical bindings.
 Adoption needs fresh
 confirmation after another team edit and waits for that board's active planning
 to finish/cancel. It preserves drafts and earlier planning receipts.

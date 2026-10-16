@@ -19,7 +19,8 @@ defmodule CuckodingWeb.TeamLive do
   end
 
   def handle_event("save", params, socket) do
-    socket = update_draft(socket, params)
+    # Save validates the submitted pair even if its preceding change event was lost.
+    socket = update_draft(socket, params, false)
 
     result =
       if socket.assigns.input_valid,
@@ -123,18 +124,20 @@ defmodule CuckodingWeb.TeamLive do
     )
   end
 
-  defp update_draft(socket, %{"roles" => values} = params) when is_map(values) do
+  defp update_draft(socket, params, reset_models \\ true)
+
+  defp update_draft(socket, %{"roles" => values} = params, reset_models) when is_map(values) do
     revision = params["base_revision"]
 
     if valid_fields?(values) and
          (is_nil(revision) or (is_binary(revision) and byte_size(revision) <= 16)) do
-      merge_draft(socket, params)
+      merge_draft(socket, params, reset_models)
     else
       assign(socket, input_valid: false, error: error_message(:invalid_roles))
     end
   end
 
-  defp update_draft(socket, _),
+  defp update_draft(socket, _, _),
     do: assign(socket, input_valid: false, error: error_message(:invalid_roles))
 
   defp valid_fields?(values) do
@@ -151,7 +154,7 @@ defmodule CuckodingWeb.TeamLive do
   defp form_field?("_unused_" <> field), do: field in ~w(name instructions agent model_id)
   defp form_field?(field), do: field in ~w(name instructions agent model_id)
 
-  defp merge_draft(socket, %{"roles" => values} = params) do
+  defp merge_draft(socket, %{"roles" => values} = params, reset_models) do
     revision =
       case Integer.parse(params["base_revision"] || "#{socket.assigns.draft_revision}") do
         {value, ""} when value > 0 -> value
@@ -166,7 +169,10 @@ defmodule CuckodingWeb.TeamLive do
           if is_map(fields), do: Map.take(fields, ~w(name instructions agent model_id)), else: %{}
 
         updated = Map.merge(role, fields)
-        if updated["agent"] != role["agent"], do: Map.put(updated, "model_id", ""), else: updated
+
+        if reset_models and updated["agent"] != role["agent"],
+          do: Map.put(updated, "model_id", ""),
+          else: updated
       end)
 
     assign(socket,
@@ -194,6 +200,9 @@ defmodule CuckodingWeb.TeamLive do
     end
   end
 
+  defp status(%{"agent" => ""}, _, _), do: "Choose an agent and model"
+  defp status(%{"model_id" => ""}, _, _), do: "Agent selected · choose a model"
+
   defp status(role, base, catalog) do
     old = Enum.find(base.definition["roles"], &(&1["id"] == role["id"]))
 
@@ -214,6 +223,13 @@ defmodule CuckodingWeb.TeamLive do
   defp status_label(:model_changed), do: "Saved model changed · reassign explicitly"
   defp status_label(:check_passed), do: "Model check passed"
   defp status_label(:untested), do: "Catalog model · access untested"
+
+  defp incomplete_roles(roles),
+    do:
+      Enum.filter(
+        roles,
+        &(Team.required?(&1["id"]) and (&1["agent"] == "" or &1["model_id"] == ""))
+      )
 
   defp responsibility("speculator"), do: "Speculator · required"
   defp responsibility("implementor"), do: "Implementor · required"
@@ -248,6 +264,16 @@ defmodule CuckodingWeb.TeamLive do
           Task generation currently needs Codex; the execution team can mix Codex and Cursor.
         </p>
         <p :if={@message} role="status" class="team-message">{@message}</p>
+        <div :if={incomplete_roles(@roles) != []} id="team-incomplete" role="status" class="notice">
+          <p>
+            Finish these required roles before Start: {Enum.map_join(
+              incomplete_roles(@roles),
+              ", ",
+              & &1["name"]
+            )}.
+            You can save this draft, but it cannot run yet.
+          </p>
+        </div>
         <p :if={@error} id="team-error" role="alert" class="notice">{@error}</p>
         <p :if={@latest.id != @draft_revision} role="status" class="notice">
           Revision {@latest.id} is now saved. This editor still holds your draft from revision {@draft_revision}.

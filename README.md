@@ -14,6 +14,13 @@ Start keeps the execution scope compact and groups connection problems; full tas
 team and limits stay in Inspect. The ten-minute target still needs a timed
 real-account run.
 
+If **Start** is unavailable, its notice identifies the missing choice. **Choose
+model** opens the affected Team role; select the model, **Save team**, then return
+to your board and choose **Board team → Use saved team**. Selecting an
+agent alone is an incomplete draft, and Team now says so before/after saving.
+Disconnect intentionally clears current role assignments; reconnect and choose
+their models explicitly before reusing that team.
+
 1. **Add folder.** Choose an empty folder or an existing project. Cuckoding uses
    your saved team and creates the default **Tabula** (board) automatically.
 2. **Create tasks.** Open the dialog and ask Speculator to analyze `docs/` and relevant project files,

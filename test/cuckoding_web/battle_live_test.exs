@@ -421,6 +421,71 @@ defmodule CuckodingWeb.BattleLiveTest do
     assert Battles.latest(ctx.arena.id, ctx.board.id) == nil
   end
 
+  test "missing models link to Team and explicit save/adoption repairs Start without reassignment",
+       ctx do
+    saved = Team.current()
+
+    roles =
+      Enum.map(Team.editable(saved), fn role ->
+        if role["id"] in ~w(speculator secutor), do: Map.put(role, "model_id", ""), else: role
+      end)
+
+    {:ok, incomplete} = Team.save(Ecto.UUID.generate(), saved.id, roles)
+
+    {:ok, _} =
+      TeamAssignments.adopt(
+        Ecto.UUID.generate(),
+        ctx.arena.id,
+        ctx.board.id,
+        saved.id,
+        incomplete.id,
+        true
+      )
+
+    {:ok, preview} = Battles.preview(ctx.arena.id, ctx.board.id)
+    assert preview.blockers == ["model_unassigned"]
+    signed = sign_in(ctx.conn)
+    {:ok, board, _} = live(signed, ctx.path)
+    assert has_element?(board, "#arena-start[disabled]")
+    assert has_element?(board, "#battle-blockers", "Speculator, Secutor")
+    assert has_element?(board, "#battle-blockers", "no model is selected")
+    assert has_element?(board, "#battle-blockers a[href='/team#role-speculator']", "Choose model")
+    refute has_element?(board, "#battle-blockers a[href='/agents/codex']")
+    assert has_element?(board, "#battle-start-team", "Model needed")
+    assert has_element?(board, "#scope-team", "Codex · Model needed")
+    assert has_element?(board, "#scope-team a[href='/team']", "Edit roles and models")
+    board |> form("#battle-start-form") |> render_submit()
+    assert Battles.latest(ctx.arena.id, ctx.board.id) == nil
+
+    {:ok, editor, _} = live(signed, "/team")
+    assert has_element?(editor, "#role-speculator", "Agent selected · choose a model")
+    assert has_element?(editor, "#team-incomplete", "Speculator, Secutor")
+
+    editor
+    |> form("#team-form",
+      roles: %{speculator: %{model_id: "test-id"}, secutor: %{model_id: "test-id"}}
+    )
+    |> render_submit()
+
+    refute has_element?(editor, "#team-incomplete")
+    assert TeamAssignments.assigned(ctx.board).id == incomplete.id
+    assert has_element?(board, "#arena-start[disabled]")
+    board |> form("#scope-team-form", confirmed: "true") |> render_submit()
+    assert has_element?(board, "#arena-start:not([disabled])")
+
+    assert Enum.map(
+             TeamAssignments.assigned(ctx.board).definition["roles"],
+             &Map.take(&1, ~w(agent model_id model))
+           ) ==
+             Enum.map(saved.definition["roles"], &Map.take(&1, ~w(agent model_id model)))
+
+    assert Repo.get!(Cuckoding.TeamRevision, incomplete.id) == incomplete
+    {:ok, again, _} = live(signed, ctx.path)
+    again |> form("#battle-start-form") |> render_submit()
+    assert Battles.latest(ctx.arena.id, ctx.board.id).state == "running"
+    assert length(Tabulae.tasks(ctx.board.id)) == 1
+  end
+
   test "stale and recovered Start forms cannot reuse old authorization", ctx do
     %{conn: conn, path: path, arena: arena, board: board, task: task, attrs: attrs} = ctx
     signed = sign_in(conn)

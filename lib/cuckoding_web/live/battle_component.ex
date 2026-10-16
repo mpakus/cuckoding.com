@@ -148,6 +148,12 @@ defmodule CuckodingWeb.BattleComponent do
     |> Enum.map(fn {_, [role | _] = roles} -> {role, Enum.map(roles, & &1["name"])} end)
   end
 
+  defp team_problem?(role),
+    do: role["status"] in ~w(agent_unassigned model_unassigned model_unavailable)
+
+  defp model_label(role),
+    do: if(role["model"] in [nil, ""], do: "Model needed", else: role["model"])
+
   defp result_error({:ok, _}), do: nil
   defp result_error({:error, reason}), do: message(reason)
 
@@ -216,6 +222,10 @@ defmodule CuckodingWeb.BattleComponent do
 
   defp message("agent_unassigned"),
     do: "Choose an agent and model in Team, then use those assignments in Board team."
+
+  defp message("model_unassigned"),
+    do:
+      "The agent is assigned, but no model is selected. Choose its model in Team, then use the saved team here."
 
   defp message("unsupported_provider"),
     do: "This agent does not support Arena execution yet. Codex and Cursor are supported."
@@ -712,7 +722,7 @@ defmodule CuckodingWeb.BattleComponent do
             <summary>Inspect tasks, team & limits</summary>
             <p id="battle-start-team" class="fine-print">
               {Enum.map_join(@preview.team, " · ", fn role ->
-                "#{role["name"]}: #{role["agent_name"] || "agent needed"} / #{role["model"] || "model needed"}"
+                "#{role["name"]}: #{role["agent_name"] || "agent needed"} / #{model_label(role)}"
               end)}
             </p>
             <p class="fine-print">
@@ -729,8 +739,7 @@ defmodule CuckodingWeb.BattleComponent do
             </ul>
             <ul>
               <li :for={role <- @preview.team}>
-                {role["name"]} · {role["agent_name"] || "Agent needed"} · {role["model"] ||
-                  "Model needed"}
+                {role["name"]} · {role["agent_name"] || "Agent needed"} · {model_label(role)}
               </li>
             </ul>
             <p :if={@preview.checks == []}>
@@ -751,7 +760,14 @@ defmodule CuckodingWeb.BattleComponent do
               <strong>{Enum.join(names, ", ")}</strong>
               · {message(role["status"])}
               <.link
-                :if={role["agent_id"] not in [nil, ""]}
+                :if={team_problem?(role)}
+                navigate={~p"/team" <> "#role-#{role["id"]}"}
+                class="text-link"
+              >
+                {if role["status"] == "model_unassigned", do: "Choose model", else: "Edit roles"} ↗
+              </.link>
+              <.link
+                :if={not team_problem?(role) and role["agent_id"] not in [nil, ""]}
                 navigate={~p"/agents/#{role["agent_id"]}"}
                 class="text-link"
               >

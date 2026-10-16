@@ -134,6 +134,11 @@ The numbered story below is capability coverage, not eight mandatory screens.
 - [ ] **R060 / R070 / R080:** complete recovery, parallel workers, both dashboards
   and timed ten-minute acceptance. Usable Arena UI ships with each earlier slice.
 
+- [x] **R080d — Start binding repair:** preserve submitted agent/model pairs,
+  distinguish missing models from missing agents, and route repairs to Team.
+  Incomplete drafts warn before Start; scope adoption remains explicit.
+  [Task](../tasks/R080d-start-bindings.md).
+
 [R002 evidence](../tasks/R002-simple-arena-contract.md) records the delivered UI
 and automatic-board slice. R040l/m deliver bounded source reading and automatic
 card creation. R050e adds the first sequential loop. Next: real-account two-task

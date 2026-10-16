@@ -33,6 +33,15 @@ Arena**; dirty text stays in the current editor. Arena exposes **Board team** in
 a shared dialog and a contextual **Review saved team** link when its saved scope
 differs. Adoption still previews both teams and requires explicit confirmation.
 
+R080d separates **agent missing** from **agent assigned, model missing** in Start
+and links binding problems directly to the affected Team role. Connection errors
+retain exact-agent setup links. Inspect and Board team show **Model needed**
+without hiding the selected agent. Team lists incomplete required roles while
+still allowing draft saves; successful Save preserves the explicit submitted
+agent/model pair even when the server has not seen an earlier change event.
+Changing an agent in the editor still clears its previous model. The domain
+validates each new binding; saving neither chooses a model nor adopts a board team.
+
 ## Arena states
 
 | State | Main surface | Primary action |

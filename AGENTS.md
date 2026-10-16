@@ -485,6 +485,12 @@ retain dirty text/disclosure state. Board team is a direct dialog with explicit
 revision-guarded adoption. Keep Start's bounded scope visible, full limits in
 Inspect and blockers grouped by exact connection/status. Never claim the
 ten-minute goal is verified from UI/fixture tests.
+R080d distinguishes an assigned agent without a model from a missing agent.
+Route binding repairs to the affected Team role; provider status repairs still
+open the exact connection. Preserve submitted agent/model pairs on Save and
+validate them through Team's catalog rules; an editor agent change still clears
+the old model. Incomplete teams remain saveable drafts with an explicit Start
+warning. Never infer a model, restore disconnected roles or silently adopt a team.
 Every long action shows state, elapsed time, role, runtime, model when known,
 and pause/resume/retry/stop/inspect as appropriate.
 

@@ -75,6 +75,40 @@ defmodule CuckodingWeb.TeamLiveTest do
     assert render(view) =~ "Use unique role names"
   end
 
+  test "Save preserves an explicitly submitted agent/model pair and flags incomplete drafts", %{
+    conn: conn
+  } do
+    Cuckoding.PlanningFixtures.planning_fixture()
+    {:ok, view, _} = conn |> sign_in() |> live("/team")
+    assert has_element?(view, "#team-incomplete", "Implementor, Secutor, Summa Rudis")
+
+    roles =
+      Map.new(
+        Team.editable(Team.current()),
+        &{&1["id"], %{"agent" => "codex", "model_id" => "test-id"}}
+      )
+
+    render_submit(view, "save", %{"roles" => roles})
+
+    refute has_element?(view, "#team-error")
+    refute has_element?(view, "#team-incomplete")
+    assert Enum.all?(Team.current().definition["roles"], &(&1["model"] == "test-model"))
+    assert has_element?(view, "#model-secutor option[value='test-id'][selected]")
+
+    render_change(view, "change", %{"roles" => %{"secutor" => %{"agent" => ""}}})
+    assert has_element?(view, "#model-secutor option[value=''][selected]")
+    assert has_element?(view, "#team-incomplete", "Secutor")
+    view |> form("#team-form") |> render_submit()
+    assert has_element?(view, "#team-incomplete", "cannot run yet")
+
+    render_submit(view, "save", %{
+      "roles" => %{"secutor" => %{"agent" => "codex", "model_id" => "forged"}}
+    })
+
+    assert has_element?(view, "#team-error", "needs a current agent connection and model catalog")
+    assert Enum.find(Team.current().definition["roles"], &(&1["id"] == "secutor"))["agent"] == ""
+  end
+
   test "native form unused-field markers do not reject agent selection", %{conn: conn} do
     {:ok, _} = Foundation.check_codex(Ecto.UUID.generate(), 0, "/bin/sh", true)
     {:ok, claim} = Foundation.claim()
