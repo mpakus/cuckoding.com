@@ -44,6 +44,18 @@ test("dialog opens without resetting forms, restores focus, closes on server com
   windowEvents.get("hashchange")()
   assert.equal(el.open, true)
   assert.equal(disclosure.open, true)
+  callbacks.get("cc:close")()
+  const body = {isConnected: true, focus: () => assert.fail("deep-link close should focus its opener")}
+  document.body = body
+  document.activeElement = body
+  document.querySelector = selector => {
+    assert.equal(selector, '[aria-controls="draft-editor"]')
+    return trigger
+  }
+  windowEvents.get("hashchange")()
+  const beforeClose = restored
+  callbacks.get("cc:close")()
+  assert.equal(restored, beforeClose + 1)
   Dialog.destroyed.call(hook)
   assert.equal(callbacks.size, 0)
   assert.equal(windowEvents.size, 0)

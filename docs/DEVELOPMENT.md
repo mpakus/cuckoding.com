@@ -190,11 +190,13 @@ The Arena's Start summary keeps full limits in Inspect and groups identical bloc
 by exact connection. Known missing setup disables Start with a repair link.
 An assigned agent with no model uses **Choose model** to open the affected Team
 role, rather than sending the user back to provider sign-in. Team warns about
-incomplete required roles. After **Save team**, return to the board and explicitly
-apply **Board team → Use saved team**. Disconnect clears assignments intentionally;
+incomplete required roles. Board repair links remember that exact Arena/Tabula.
+After **Save team**, choose **Review team for [board] → Use saved team**.
+The direct return opens the board dialog and the single labelled submit confirms
+the displayed assignments. Compact rows show bindings; expand Role instructions
+to inspect the full text. No checkbox or automatic adoption is involved. Disconnect clears assignments intentionally;
 reconnecting does not restore historical bindings.
-Adoption needs fresh
-confirmation after another team edit and waits for that board's active planning
+Adoption rotates its form key and needs a fresh submit after another team edit and waits for that board's active planning
 to finish/cancel. It preserves drafts and earlier planning receipts.
 Home/ancestor, system, known credential and application-data roots are refused.
 Duplicates and changed directory identities require a different/reselected folder.

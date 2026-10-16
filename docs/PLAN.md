@@ -142,6 +142,10 @@ The numbered story below is capability coverage, not eight mandatory screens.
   sign-out correctly, reconnect directly, and provide an explicitly confirmed
   full-workspace reset with a private archive and running-work/path/DB guards.
   [Task](../tasks/R080e-disconnect-reset.md).
+- [x] **R080f — Skill-guided flow:** install the requested 25 skills with pinned
+  provenance; retain exact board context through Team repairs/Save; confirm team
+  adoption with one revision-checked action; suppress equivalent-team noise.
+  [Task](../tasks/R080f-guided-flow.md).
 
 [R002 evidence](../tasks/R002-simple-arena-contract.md) records the delivered UI
 and automatic-board slice. R040l/m deliver bounded source reading and automatic

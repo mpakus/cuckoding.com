@@ -137,6 +137,12 @@ Preserve these implemented contracts:
   a dated reset receipt; move the marker first so interrupted moves block startup.
   Never follow profile links, purge archives, remove project Git metadata or run
   a real user's reset merely to test the helper.
+- R080f keeps Team repair navigation bound to validated Arena/Tabula IDs. Save
+  leads back to that board's team review; navigation never adopts a team.
+  Use saved team is an explicit confirmation submit bound to its component form
+  key and displayed current/default revisions. Rotate the key on revision changes;
+  retain session, domain confirmation and active-planning gates. Compare role
+  definitions for change notices, without rewriting immutable revision history.
 - Team revisions and scoped adoptions are immutable. Arena adoption affects new
   boards; Tabula adoption affects future planning only and waits for active
   planning. Guard both displayed scope/default revisions and retain old receipts.
@@ -602,6 +608,10 @@ the pinned toolchains; do not start the release without its native handshake.
 Branches: `feature/<task-id>-<short-name>` or `fix/<task-id>-<short-name>`.
 Commits: `<type>(<area>): <imperative summary>`. Keep one task per branch.
 Commit required generated files/migrations/config snapshots for reproducibility.
+
+The user-requested Addy Osmani skill collection is installed at the pinned
+revision in [Skills](docs/SKILLS.md). Apply only relevant guidance; it does not
+override these project rules or expand managed-agent grants.
 
 Use [Skills](docs/SKILLS.md): Ponytail for every change/review; quality-gates
 before completion; local-runner for worktrees/processes/power; agent-adapter for

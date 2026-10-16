@@ -33,6 +33,16 @@ Arena**; dirty text stays in the current editor. Arena exposes **Board team** in
 a shared dialog and a contextual **Review saved team** link when its saved scope
 differs. Adoption still previews both teams and requires explicit confirmation.
 
+R080f keeps a board's identity through **Edit roles and models** / **Choose model**.
+Team names the originating board, preserves its context through Save and offers
+**Review team for [board]**. This opens that board's team dialog directly. One
+**Use saved team** submit confirms the displayed scope/current/saved revisions;
+there is no second checkbox. Compact rows show agents/models; role instructions
+remain available in disclosures. Stale forms/revisions and active planning still block
+adoption. Closing a deep-linked dialog restores focus to Board team. Matching
+role definitions show no change banner solely because revision IDs differ.
+Direct Team visits retain **Next: Choose Arena**. No navigation launches a provider.
+
 R080d separates **agent missing** from **agent assigned, model missing** in Start
 and links binding problems directly to the affected Team role. Connection errors
 retain exact-agent setup links. Inspect and Board team show **Model needed**

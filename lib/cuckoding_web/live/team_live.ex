@@ -1,6 +1,6 @@
 defmodule CuckodingWeb.TeamLive do
   use CuckodingWeb, :live_view
-  alias Cuckoding.{Agents, Team}
+  alias Cuckoding.{Agents, Tabulae, Team}
   alias CuckodingWeb.Layouts
 
   @impl true
@@ -10,8 +10,21 @@ defmodule CuckodingWeb.TeamLive do
       Process.send_after(self(), :catalog_tick, 30_000)
     end
 
-    {:ok, socket |> assign(:message, nil) |> load_saved()}
+    {:ok, socket |> assign(message: nil, return_board: nil) |> load_saved()}
   end
+
+  @impl true
+  def handle_params(params, _, socket) do
+    board =
+      with {:ok, arena} <- Ecto.UUID.cast(params["arena"]),
+           {:ok, tabula} <- Ecto.UUID.cast(params["tabula"]),
+           do: Tabulae.get(arena, tabula),
+           else: (_ -> nil)
+
+    {:noreply, assign(socket, :return_board, board)}
+  end
+
+  defp board_path(board), do: ~p"/arenas/#{board.arena_id}/tabulae/#{board.id}"
 
   @impl true
   def handle_event("change", params, socket) do
@@ -254,11 +267,16 @@ defmodule CuckodingWeb.TeamLive do
   def render(assigns) do
     ~H"""
     <Layouts.workspace active={:team} title="Team" flash={@flash}>
-      <Layouts.journey current={2} />
+      <Layouts.journey current={2} arena_path={@return_board && board_path(@return_board)} />
       <section class="panel team-editor" aria-labelledby="team-title">
         <p class="eyebrow">02 / YOUR SAVED TEAM</p>
         <h2 id="team-title">Cast your roles.</h2>
         <p>Choose an agent and model for each role. Save once, reuse across projects.</p>
+        <p :if={@return_board} id="team-board-context" class="fine-print">
+          Updating your saved team for <strong>{@return_board.name}</strong>.
+          Save, then review it on that board. Its current assignments stay in place until you confirm.
+          <.link navigate={board_path(@return_board)} class="text-link">← Back to {@return_board.name}</.link>
+        </p>
         <p class="fine-print">
           Speculator creates tasks, Implementor writes code, Secutor reviews and Summa Rudis coordinates.
           Task generation currently needs Codex; the execution team can mix Codex and Cursor.
@@ -384,7 +402,16 @@ defmodule CuckodingWeb.TeamLive do
             >Save team</button>
             <button type="button" class="button" phx-click="add" disabled={length(@roles) >= 12}>Add role</button>
             <button type="button" class="button" phx-click="reload">Reload saved</button>
-            <.link :if={!@dirty} id="team-next" navigate={~p"/arenas"} class="text-link">Next: Choose Arena ↗</.link>
+            <.link
+              :if={!@dirty}
+              id="team-next"
+              navigate={
+                if @return_board, do: board_path(@return_board) <> "#board-team", else: ~p"/arenas"
+              }
+              class={if @return_board, do: "button primary", else: "text-link"}
+            >{if @return_board,
+              do: "Review team for #{@return_board.name}",
+              else: "Next: Choose Arena"} ↗</.link>
             <span class="fine-print">{if @dirty, do: "Unsaved draft", else: "Saved locally"}</span>
           </div>
         </.form>

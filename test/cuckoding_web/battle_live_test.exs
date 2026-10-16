@@ -449,15 +449,22 @@ defmodule CuckodingWeb.BattleLiveTest do
     assert has_element?(board, "#arena-start[disabled]")
     assert has_element?(board, "#battle-blockers", "Speculator, Secutor")
     assert has_element?(board, "#battle-blockers", "no model is selected")
-    assert has_element?(board, "#battle-blockers a[href='/team#role-speculator']", "Choose model")
+    team_path = "/team?arena=#{ctx.arena.id}&tabula=#{ctx.board.id}"
+
+    assert has_element?(
+             board,
+             "#battle-blockers a[href='#{team_path}#role-speculator']",
+             "Choose model"
+           )
+
     refute has_element?(board, "#battle-blockers a[href='/agents/codex']")
     assert has_element?(board, "#battle-start-team", "Model needed")
     assert has_element?(board, "#scope-team", "Codex · Model needed")
-    assert has_element?(board, "#scope-team a[href='/team']", "Edit roles and models")
+    assert has_element?(board, "#scope-team a[href='#{team_path}']", "Edit roles and models")
     board |> form("#battle-start-form") |> render_submit()
     assert Battles.latest(ctx.arena.id, ctx.board.id) == nil
 
-    {:ok, editor, _} = live(signed, "/team")
+    {:ok, editor, _} = live(signed, team_path)
     assert has_element?(editor, "#role-speculator", "Agent selected · choose a model")
     assert has_element?(editor, "#team-incomplete", "Speculator, Secutor")
 
@@ -470,7 +477,7 @@ defmodule CuckodingWeb.BattleLiveTest do
     refute has_element?(editor, "#team-incomplete")
     assert TeamAssignments.assigned(ctx.board).id == incomplete.id
     assert has_element?(board, "#arena-start[disabled]")
-    board |> form("#scope-team-form", confirmed: "true") |> render_submit()
+    board |> form("#scope-team-form") |> render_submit()
     assert has_element?(board, "#arena-start:not([disabled])")
 
     assert Enum.map(

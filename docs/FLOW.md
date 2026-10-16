@@ -17,6 +17,11 @@ board and changing columns belong in Advanced. **Board team** beside the board
 title previews and explicitly adopts saved roles/models for future work. Existing
 board assignments never change just because Home, Team or an Arena is opened.
 Existing boards, drafts and immutable team revisions remain intact.
+Repair links carry validated Arena/Tabula IDs through Team. Save offers a direct
+return to that board's team review. **Use saved team** is the single explicit
+confirmation action, with form-key/current/default revision and session guards;
+Save/navigation cannot adopt. Equivalent role definitions need no adoption.
+History retains its original revisions; active planning still blocks team changes.
 
 Registration reads directory metadata only. It starts no agent or Git mutation.
 Folder analysis and drafting must work without Git. If execution later needs Git

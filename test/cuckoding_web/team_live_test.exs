@@ -75,6 +75,51 @@ defmodule CuckodingWeb.TeamLiveTest do
     assert render(view) =~ "Use unique role names"
   end
 
+  test "Team repair retains its exact board through Save and explicit review", %{conn: conn} do
+    %{board: board} = Cuckoding.PlanningFixtures.planning_fixture()
+    signed = sign_in(conn)
+    path = "/team?arena=#{board.arena_id}&tabula=#{board.id}"
+    target = "/arenas/#{board.arena_id}/tabulae/#{board.id}#board-team"
+    assigned = Cuckoding.TeamAssignments.assigned(board)
+    {:ok, view, _} = live(signed, path)
+    assert has_element?(view, "#team-board-context", board.name)
+    assert has_element?(view, "#team-next[href='#{target}']", "Review team")
+    view |> form("#team-form", roles: %{speculator: %{name: "Board planner"}}) |> render_change()
+    Foundation.broadcast()
+    assert has_element?(view, "#team-board-context", board.name)
+    refute has_element?(view, "#team-next")
+    view |> form("#team-form") |> render_submit()
+    assert Cuckoding.TeamAssignments.assigned(board) == assigned
+    assert has_element?(view, "#team-next[href='#{target}']", "Review team")
+    result = view |> element("#team-next") |> render_click()
+    {:ok, arena, _} = follow_redirect(result, signed)
+    assert has_element?(arena, "#tabula-title", board.name)
+    refute has_element?(arena, "#scope-team-form input[type=checkbox]")
+    arena |> form("#scope-team-form") |> render_submit()
+    assert Cuckoding.TeamAssignments.assigned(board).id == Team.current().id
+    refute Foundation.pending?()
+  end
+
+  test "invalid, foreign or external Team context cannot choose a board or redirect", %{
+    conn: conn
+  } do
+    %{board: board} = Cuckoding.PlanningFixtures.planning_fixture()
+    signed = sign_in(conn)
+
+    for query <- [
+          "arena=bad&tabula=bad",
+          "arena=#{Ecto.UUID.generate()}&tabula=#{board.id}",
+          "return_to=https%3A%2F%2Fforeign.invalid",
+          "arena[]=bad&tabula[]=bad"
+        ] do
+      {:ok, view, _} = live(signed, "/team?" <> query)
+      refute has_element?(view, "#team-board-context")
+      assert has_element?(view, "#team-next[href='/arenas']")
+    end
+
+    refute Foundation.pending?()
+  end
+
   test "Save preserves an explicitly submitted agent/model pair and flags incomplete drafts", %{
     conn: conn
   } do

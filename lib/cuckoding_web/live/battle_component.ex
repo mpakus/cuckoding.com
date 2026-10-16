@@ -761,7 +761,7 @@ defmodule CuckodingWeb.BattleComponent do
               · {message(role["status"])}
               <.link
                 :if={team_problem?(role)}
-                navigate={~p"/team" <> "#role-#{role["id"]}"}
+                navigate={~p"/team?#{[arena: @board.arena_id, tabula: @board.id]}" <> "#role-#{role["id"]}"}
                 class="text-link"
               >
                 {if role["status"] == "model_unassigned", do: "Choose model", else: "Edit roles"} ↗

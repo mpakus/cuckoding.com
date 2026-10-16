@@ -18,6 +18,17 @@ defmodule CuckodingWeb.TeamAdoptionLiveTest do
     team
   end
 
+  test "identical saved role definitions need no adoption ceremony", %{conn: conn, board: board} do
+    current = Team.current()
+    {:ok, same} = Team.save(Ecto.UUID.generate(), current.id, Team.editable(current))
+    assert same.id != current.id
+    {:ok, view, _} = conn |> sign_in() |> live("/arenas/#{board.arena_id}/tabulae/#{board.id}")
+    refute has_element?(view, "#board-team-changed")
+    refute has_element?(view, "#scope-team-form")
+    assert has_element?(view, "#scope-team", "matches your saved Team settings")
+    assert TeamAssignments.assigned(board).id == current.id
+  end
+
   test "adopt with explicit preview and retain unsaved text, updated labels and history after reconnect",
        %{conn: conn, board: board} do
     signed = sign_in(conn)
@@ -32,12 +43,14 @@ defmodule CuckodingWeb.TeamAdoptionLiveTest do
     refute has_element?(view, "#arena-advanced #scope-team")
     assert TeamAssignments.assigned(board).id == board.team_revision_id
     assert has_element?(view, "#scope-team", "Your saved team")
+    assert has_element?(view, "#scope-team .team-roster", "Speculator")
+    assert has_element?(view, "#scope-team details:not([open]) summary", "Role instructions")
     assert has_element?(view, "#scope-team", "Codex · Codex · test-id")
-    view |> form("#scope-team-form") |> render_submit()
-    assert has_element?(view, "#scope-team [role=alert]", "confirmation is missing")
+    view |> form("#scope-team-form") |> render_submit(%{"key" => "recovered"})
+    assert has_element?(view, "#scope-team [role=alert]", "out of date")
     Foundation.broadcast()
     assert has_element?(view, "#scope-team [role=alert]")
-    view |> form("#scope-team-form", confirmed: "true") |> render_submit()
+    view |> form("#scope-team-form") |> render_submit()
     assert TeamAssignments.assigned(board).id == team.id
     refute has_element?(view, "#board-team-changed")
     assert has_element?(view, "#column-specs", "New planner")
@@ -52,24 +65,38 @@ defmodule CuckodingWeb.TeamAdoptionLiveTest do
     assert Tabulae.tasks(board.id) == []
   end
 
-  test "changed defaults clear confirmation; stale submitted forms and expired sessions cannot adopt",
+  test "changed defaults invalidate old forms; stale revisions and expired sessions cannot adopt",
        %{conn: conn, board: board} do
     first = next_team("First")
     {:ok, view, _} = conn |> sign_in() |> live("/arenas/#{board.arena_id}/tabulae/#{board.id}")
-    view |> form("#scope-team-form", confirmed: "true") |> render_change()
+    old_key = adoption_key(view)
     next_team("Second")
-    refute has_element?(view, "#scope-team-form input[name=confirmed][checked]")
+    refute adoption_key(view) == old_key
 
-    view
-    |> form("#scope-team-form", confirmed: "true")
-    |> render_submit(%{"target" => to_string(first.id)})
+    for stale <- [
+          %{"key" => old_key},
+          %{"target" => to_string(first.id)},
+          %{"expected" => "-1"}
+        ] do
+      view |> form("#scope-team-form") |> render_submit(stale)
+      assert TeamAssignments.assigned(board).id == board.team_revision_id
+      assert has_element?(view, "#scope-team [role=alert]", "out of date")
+    end
 
-    assert TeamAssignments.assigned(board).id == board.team_revision_id
-    assert has_element?(view, "#scope-team [role=alert]")
     Repo.update_all(BrowserToken, set: [expires_at: 0])
-    view |> form("#scope-team-form", confirmed: "true") |> render_submit()
+    view |> form("#scope-team-form") |> render_submit()
     assert_redirect(view, "/locked")
     assert TeamAssignments.assigned(board).id == board.team_revision_id
+  end
+
+  defp adoption_key(view) do
+    view
+    |> element("#scope-team-form input[name=key]")
+    |> render()
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.query("input")
+    |> LazyHTML.attribute("value")
+    |> List.first()
   end
 
   test "Arena settings change only new board inheritance; active planning exposes the blocking reason",
@@ -77,7 +104,7 @@ defmodule CuckodingWeb.TeamAdoptionLiveTest do
     next_team("Arena planner")
     signed = sign_in(conn)
     {:ok, settings, _} = live(signed, "/arenas/#{arena.id}")
-    settings |> form("#arena-team-form", confirmed: "true") |> render_submit()
+    settings |> form("#arena-team-form") |> render_submit()
     assert has_element?(settings, "#tabula-form", "Uses this Arena’s saved team")
     result = settings |> form("#tabula-form", name: "New board") |> render_submit()
     {:ok, new_view, _} = follow_redirect(result, signed)

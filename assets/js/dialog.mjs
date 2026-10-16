@@ -4,6 +4,9 @@ export const Dialog = {
     this.open = () => {
       if (this.el.open) return
       this.returnFocus = document.activeElement
+      if (this.returnFocus === document.body) {
+        this.returnFocus = document.querySelector(`[aria-controls="${this.el.id}"]`) || this.returnFocus
+      }
       // A deep link can open a dialog inside the initially collapsed Advanced section.
       for (let parent = this.el.parentElement; parent; parent = parent.parentElement) {
         if (parent.tagName === "DETAILS") parent.open = true

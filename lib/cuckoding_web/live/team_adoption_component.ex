@@ -8,8 +8,6 @@ defmodule CuckodingWeb.TeamAdoptionComponent do
     do:
       {:ok,
        assign(socket,
-         confirmed: false,
-         consent: nil,
          key: Ecto.UUID.generate(),
          expanded: false,
          error: nil,
@@ -30,15 +28,18 @@ defmodule CuckodingWeb.TeamAdoptionComponent do
       candidate: candidate,
       busy: TeamAssignments.busy?(scope),
       history: TeamAssignments.history(scope),
-      confirmed: socket.assigns.confirmed && socket.assigns.consent == {current.id, candidate.id}
+      changed: current.definition != candidate.definition,
+      revisions: {current.id, candidate.id},
+      key:
+        if(socket.assigns[:revisions] == {current.id, candidate.id},
+          do: socket.assigns.key,
+          else: Ecto.UUID.generate()
+        )
     )
   end
 
   @impl true
-  def handle_event("change", params, socket), do: {:noreply, input(socket, params)}
-
   def handle_event("adopt", params, socket) do
-    socket = input(socket, params)
     a = socket.assigns
     arena? = match?(%Arena{}, a.scope)
 
@@ -49,7 +50,7 @@ defmodule CuckodingWeb.TeamAdoptionComponent do
         if(arena?, do: nil, else: a.scope.id),
         a.current.id,
         a.candidate.id,
-        a.confirmed
+        current_form?(params, a)
       )
 
     {error, message} =
@@ -61,17 +62,20 @@ defmodule CuckodingWeb.TeamAdoptionComponent do
           {"Finish or cancel this Tabula's planning request first.", nil}
 
         {:error, _} ->
-          {"The team changed or confirmation is missing. Review both teams and confirm again.",
+          {"The team changed or this form is out of date. Review it and choose Use saved team again.",
            nil}
       end
+
+    socket =
+      if match?({:ok, _}, result) and not arena?,
+        do: push_event(socket, "dialog-close", %{id: "board-team"}),
+        else: socket
 
     {:noreply,
      socket
      |> assign(
        error: error,
        message: message,
-       confirmed: false,
-       consent: nil,
        key: Ecto.UUID.generate()
      )
      |> refresh()}
@@ -79,19 +83,14 @@ defmodule CuckodingWeb.TeamAdoptionComponent do
 
   def handle_event(_, _, socket), do: {:noreply, socket}
 
-  defp input(socket, params) do
-    a = socket.assigns
-
-    confirmed =
-      params["confirmed"] == "true" and
-        params["expected"] == to_string(a.current.id) and
-        params["target"] == to_string(a.candidate.id)
-
-    assign(socket,
-      confirmed: confirmed,
-      consent: if(confirmed, do: {a.current.id, a.candidate.id})
-    )
+  defp current_form?(params, assigns) do
+    params["key"] == assigns.key and
+      params["expected"] == to_string(assigns.current.id) and
+      params["target"] == to_string(assigns.candidate.id)
   end
+
+  defp team_path(%Arena{}), do: ~p"/team"
+  defp team_path(board), do: ~p"/team?#{[arena: board.arena_id, tabula: board.id]}"
 
   @impl true
   def render(assigns) do
@@ -112,33 +111,24 @@ defmodule CuckodingWeb.TeamAdoptionComponent do
             "This team creates tasks and works on future battles. Past work keeps its original assignments."} Changing the team starts no agent.
       </p>
       <.roster revision={@current} label="Current team" />
-      <.link navigate={~p"/team"} class="text-link">Edit roles and models ↗</.link>
-      <p :if={@candidate.id == @current.id} role="status">
+      <.link navigate={team_path(@scope)} class="text-link">Edit roles and models ↗</.link>
+      <p :if={!@changed} role="status">
         This team matches your saved Team settings.
       </p>
-      <div :if={@candidate.id != @current.id}>
+      <div :if={@changed}>
         <.roster revision={@candidate} label="Your saved team" />
         <p class="fine-print">
-          Review all roles, including removals, models and instructions. Edit the default on the Team screen.
+          Use these roles, models and instructions for future work here. Past work keeps its original team.
         </p>
         <.form
           for={%{}}
           id={@id <> "-form"}
-          phx-change="change"
           phx-submit="adopt"
           phx-target={@myself}
         >
+          <input type="hidden" name="key" value={@key} />
           <input type="hidden" name="expected" value={@current.id} />
           <input type="hidden" name="target" value={@candidate.id} />
-          <label class="confirm-executable">
-            <input
-              type="checkbox"
-              name="confirmed"
-              value="true"
-              checked={@confirmed}
-              disabled={@busy}
-            /> Use the displayed saved team for future work here.
-          </label>
           <button class="button" disabled={@busy} phx-disable-with="Saving…">Use saved team</button>
         </.form>
       </div>
@@ -170,13 +160,21 @@ defmodule CuckodingWeb.TeamAdoptionComponent do
   defp roster(assigns) do
     ~H"""
     <h3>{@label}</h3>
-    <dl class="team-history">
+    <dl class="team-roster">
       <div :for={role <- @revision.definition["roles"]}>
         <dt>{role["name"]}</dt>
         <dd>{binding_label(role)}</dd>
-        <dd>{instructions(role)}</dd>
       </div>
     </dl>
+    <details class="fine-print">
+      <summary>Role instructions</summary>
+      <dl class="team-history">
+        <div :for={role <- @revision.definition["roles"]}>
+          <dt>{role["name"]}</dt>
+          <dd>{instructions(role)}</dd>
+        </div>
+      </dl>
+    </details>
     """
   end
 

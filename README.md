@@ -15,8 +15,9 @@ team and limits stay in Inspect. The ten-minute target still needs a timed
 real-account run.
 
 If **Start** is unavailable, its notice identifies the missing choice. **Choose
-model** opens the affected Team role; select the model, **Save team**, then return
-to your board and choose **Board team → Use saved team**. Selecting an
+model** opens the affected Team role and remembers your board. Select the model,
+**Save team**, then **Review team for [board] → Use saved team**. The review opens
+on that exact board; one labelled action confirms the change. Selecting an
 agent alone is an incomplete draft, and Team now says so before/after saving.
 Disconnect intentionally clears current role assignments; reconnect and choose
 their models explicitly before reusing that team.
@@ -78,6 +79,12 @@ choices and optional access tests require a recent catalog.
 **Create tasks**, **Repository setup** and **Add another board** open dialogs.
 Use **+** beside Specs or ToDo to add a task manually. **Board team → Use saved team**
 is available beside the board title; version numbers are kept in Team history.
+Identical saved role definitions need no extra adoption, even if their version
+numbers differ. Editing/saving Team never silently changes an existing board.
+
+All 25 requested [Addy Osmani skills](https://github.com/addyosmani/agent-skills)
+are installed locally; the UI, simplification and incremental implementation
+guidance informed this flow. See [skill provenance and precedence](docs/SKILLS.md).
 
 **Disconnect and unassign** also works if an agent's executable has changed or
 is unavailable. Cuckoding disables that connection and clears its current roles

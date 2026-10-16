@@ -83,6 +83,9 @@ code { display:block; overflow-wrap:anywhere; font-size:11px; }
 .team-actions .fine-print { margin:0; }
 .team-editor .notice { margin:20px 0; }
 .team-message { margin-top:20px; }
+.team-roster { display:grid; gap:8px; overflow-wrap:anywhere; }
+.team-roster > div { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,2fr); gap:12px; }
+.team-roster dd { margin:0; color:var(--muted); }
 .team-history { overflow-wrap:anywhere; }
 .team-history dd { margin:8px 0 20px; color:var(--muted); white-space:pre-wrap; }
 .text-link { text-decoration:underline; text-underline-offset:3px; }
@@ -193,6 +196,7 @@ body:has(.app-dialog[open]) { overflow:hidden; }
 }
 @media (min-width:761px) and (max-width:1200px) { .role-card .role-binding { grid-template-columns:1fr; gap:4px; } }
 @media (max-width:760px) {
+  .team-roster > div { grid-template-columns:minmax(0,1fr); gap:2px; }
   .journey { overflow-x:auto; }
   .journey ol { display:flex; gap:16px; }
   .journey li { flex:none; min-width:92px; }

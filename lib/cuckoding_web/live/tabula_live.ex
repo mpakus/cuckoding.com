@@ -694,18 +694,20 @@ defmodule CuckodingWeb.TabulaLive do
             :if={@board}
             type="button"
             id="open-board-team"
+            aria-controls="board-team"
             class="button"
             phx-click={JS.dispatch("cc:open", to: "#board-team")}
           >Board team</button>
         </div>
         <p
-          :if={@board && @board_team.id != @saved_team.id}
+          :if={@board && @board_team.definition != @saved_team.definition}
           id="board-team-changed"
           class="fine-print"
         >
           Your saved team has changed.
           <button
             type="button"
+            aria-controls="board-team"
             class="text-link"
             phx-click={JS.dispatch("cc:open", to: "#board-team")}
           >Review saved team</button>
