@@ -1,6 +1,6 @@
 # R080f — Skill-guided team-to-board flow
 
-Status: verified, ready for local main integration, 2026-10-16.
+Status: completed and merged into local main, 2026-10-16 (`790c7aa`).
 
 - [x] Install/verify the requested Addy Osmani skills, license and shared
   references at a pinned revision; apply relevant guidance with project precedence.

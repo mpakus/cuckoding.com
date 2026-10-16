@@ -114,4 +114,7 @@ physical recovery or timed ten-minute setup.
 
 ## Integration
 
-Verified slice ready to commit and merge into local main; no push/deployment.
+Implementation `790c7aa` fast-forwarded into local main; task branch deleted.
+This metadata follow-up closes the task. No push/deployment. Exact Git whitespace
+validation passed after removing a worklog trailing blank line; use RTK proxy for
+the unfiltered whitespace diagnostic.
