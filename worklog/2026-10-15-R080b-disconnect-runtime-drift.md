@@ -86,4 +86,8 @@ Build/runtime acceptance:
   files resolve; whitespace checks pass. No Rust source change, provider inference,
   physical sleep or clean-machine/release acceptance was exercised in this fix.
 
-Local integration pending. The updated saved-workspace app remains running.
+Implementation `37550bb` fast-forward merged to local `main`; merged branch
+`fix/R080b-disconnect-runtime-drift` deleted. Instructions, README and affected
+docs are updated. No remote push/publication or inference. The rebuilt app stays
+running at `127.0.0.1:49384`, with the requested Codex local disconnect completed
+and all unrelated connections/assignments retained.
