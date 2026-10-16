@@ -103,5 +103,8 @@ save, model usage or real reset performed. The user's current data is preserved.
 
 ## Integration
 
-Pending local commit/merge. No push/publication; the reset helper is ready for
-the user to run with explicit target/confirmation after quitting the app.
+Committed as `6e886f7`, fast-forward merged to local main, and deleted
+`fix/r080e-disconnect-reset`. Docs/AGENTS/README shipped in that commit. This note
+records completed integration and does not change the running executable.
+No push/publication; the reset helper is ready for the user to run with explicit
+target/confirmation after quitting the app.
