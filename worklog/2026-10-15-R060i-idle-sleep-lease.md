@@ -125,4 +125,14 @@ A browser reload attempt was interrupted by user control, so its visual result
 is not claimed. Reconnect/stale/unavailable/clock-discontinuity coverage remains
 the passing LiveView/domain regressions; no further browser action was sent.
 
-Local integration pending.
+Implementation `03bd5d8` fast-forward merged into local `main`; merged branch
+`fix/R060i-idle-sleep-lease` deleted. Docs/AGENTS/README updated with the implemented
+scope and remaining gates. No push, deployment, provider usage or data/profile
+substitution. Final `rtk cargo fmt --manifest-path desktop/src-tauri/Cargo.toml
+--check` and staged/unstaged whitespace checks passed.
+
+Next R060 work: broader interrupted native/process ownership reconciliation,
+resource-lease/active-time accounting and physical sleep drills, then R070 parallel
+workers/combined-result review. General toolchain checks, live provider/mixed-team
+acceptance and release verification remain open in PLAN; this slice closes only
+bounded native idle-sleep protection and its observational UI.
