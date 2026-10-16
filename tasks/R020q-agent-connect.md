@@ -1,6 +1,6 @@
 # R020q — Single-action sign-in and discovered agent defaults
 
-Status: implemented and locally verified, 2026-10-16. Local integration pending.
+Status: implemented, locally verified and merged to main, 2026-10-16.
 
 - [x] Show Refresh connection only for a signed-in agent. Keep refresh/model
   freshness, exact-connection and existing native setup gates unchanged.
@@ -14,7 +14,7 @@ Status: implemented and locally verified, 2026-10-16. Local integration pending.
   host-home hint as the native shell; provider environments/grants stay unchanged.
 - [x] Add focused LiveView/browser-hook checks, update docs/AGENTS/README, run
   quality/build/smoke and safely preserve/reopen the saved workspace.
-- [ ] Merge this verified slice into local main and remove its merged branch.
+- [x] Merge this verified slice into local main (`3da9c8b`) and remove its merged branch.
 
 No model usage, native runtime permission expansion or credential/profile import.
 The synthetic browser check proves popup behavior, not a new live-provider OAuth

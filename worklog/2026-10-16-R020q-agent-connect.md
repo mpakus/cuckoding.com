@@ -83,5 +83,7 @@ Restart/data preservation:
   popup behavior has the independent actual-browser fixture evidence above.
 
 No real provider reauthorization or inference was performed. Live-account OAuth,
-complete timed onboarding and remaining beta acceptance stay open. Local main
-integration pending; no remote push/publication.
+complete timed onboarding and remaining beta acceptance stay open. Implementation
+`3da9c8b` fast-forward merged to local `main`; merged branch
+`fix/R020q-agent-connect` deleted. Docs, AGENTS and README are updated. No remote
+push/publication. The verified saved-workspace app stays running on 55149.
