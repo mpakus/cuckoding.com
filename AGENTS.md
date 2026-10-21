@@ -654,6 +654,11 @@ and inspect desktop/narrow rendering for site changes.
 
 Keep the locked Decimal dependency at 3.1.2 or newer (R101, CVE-2026-97853);
 integer-based accounting remains unchanged.
+R102 requires Bandit 1.13.1 or a compatible patched version (the authority/deadline
+fixes plus Phoenix parser-error compatibility), with its required Thousand Island
+1.6 cohort. Run `hex.audit` first in quality, before application-loading tasks,
+as well as the existing audit. Do not suppress advisories or ship Hex as a runtime
+application. Retain raw-loopback HTTP authority/origin/parser-error regressions.
 
 SQLite uses WAL, foreign keys, busy timeout and short transactions. Keep immutable
 historical facts in events/attempts and current projections separate. Released

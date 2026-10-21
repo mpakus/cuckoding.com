@@ -22,7 +22,7 @@ attempts, inside the existing retry budget; interrupted/native recovery remains 
 | Execution | One Start, sequential mixed-runtime dispatch per board, two isolated Arenas concurrently, independent review/correction and retained local result branch | General subprocess/toolchain checks, real mixed-provider battle acceptance and same-board parallel workers |
 | Controls/recovery | Stop, stage-boundary Pause/Resume, bounded provider Retry and automatic backoff, Skip with deferred dependents and Partial result; settled restart checkpoints, timing fence and bounded idle-sleep assertion | Unfinished native/process/Git reconciliation, sleep accounting and physical sleep tests |
 | Experience | Agent wizard/disconnect, Team editor, Arena controls/inspector, global workers/progress and paginated global/Arena activity with follow control | Broader parallel activity, responsive/browser acceptance and timed ten-minute setup |
-| Release | Local bundle/build/smoke, separate preserved data root; Decimal advisory fixed | Signing/notarization, clean-machine install, updates/rollback and full acceptance matrix |
+| Release | Local bundle/build/smoke, separate preserved data root; Decimal/Bandit advisories fixed | Signing/notarization, clean-machine install, updates/rollback and full acceptance matrix |
 
 Delivery order: finish uncertain-effect and sleep recovery (R060), implement
 parallel scheduling and combined-result review (R070), then finish dashboards,
@@ -701,3 +701,8 @@ See [task](../tasks/R020j-navigation-routes.md) and
 - [x] Upgrade Decimal beyond CVE-2026-97853 affected versions; retain compatible
   Ecto/SQLite constraints and verify quality/production compilation.
   [Evidence](../worklog/2026-10-13-R101-decimal-security.md).
+
+- [x] R102 Bandit 1.13.1 / Thousand Island 1.6.0: fix current authority/deadline
+  advisories, check Hex metadata before application tasks and retain real-loopback
+  authority/origin/Phoenix parser-error regressions. No HTTP/2 attack-drill claim.
+  [Evidence](../worklog/2026-10-21-R102-bandit-security.md).

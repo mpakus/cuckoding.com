@@ -1,5 +1,15 @@
 # Verification and acceptance
 
+R102 runs `hex.audit` before compile/tests and retains `deps.audit`. Real loopback
+Bandit/Endpoint tests check ordinary/absolute local targets, foreign host/origin,
+malformed authority rejection before Plug dispatch, invalid JSON rendering and
+continued listener service. They bind only an ephemeral loopback listener under
+ExUnit supervision. The test endpoint's logical port remains its configured 4002;
+packaged smoke separately checks the real dynamic port/handshake/session lifecycle.
+Downgrading to the original dependency cohort must fail the malformed-authority
+test; restore patched locks/packages before final quality/build. This is not an
+HTTP/2 trickle/DoS or live-provider acceptance drill.
+
 R020r tests Cursor initial planning through its exact saved connection, active
 claim, private profile and helper entrypoint; forbid grant/model/runtime/transport
 drift, missing cleanup and tool-bearing planning receipts. Retain old Codex parsing,

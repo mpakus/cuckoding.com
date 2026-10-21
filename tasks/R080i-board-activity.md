@@ -1,6 +1,7 @@
 # R080i — Board progress and setup/planning activity
 
 Status: complete, 2026-10-21. [Evidence](../worklog/2026-10-21-R080i-board-activity.md).
+Merged into local main as `e8fbb42`; task branch deleted. Not pushed.
 
 - [x] Show bounded public setup/planning work beside battle workers on the global
   dashboard, without payloads, credentials, login URLs or hidden provider text.

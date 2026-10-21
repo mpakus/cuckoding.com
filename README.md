@@ -235,6 +235,10 @@ default workspace, which may contain different data.
 
 Dependency maintenance: R101 updates Decimal to 3.2.0, resolving
 CVE-2026-97853. See [verification](worklog/2026-10-13-R101-decimal-security.md).
+R102 updates Bandit to 1.13.1 and its required Thousand Island dependency to 1.6.0,
+fixing the published HTTP authority and HTTP/2 send-deadline advisories. Quality
+now checks current Hex advisories before application tasks, alongside the existing
+audit. [Verification and limitations](worklog/2026-10-21-R102-bandit-security.md).
 
 R020n adds bounded Codex host file-tool turns, now used by R050e battle admission
 and independent review. R020o fixes Codex tool routing;

@@ -31,7 +31,7 @@ defmodule Cuckoding.MixProject do
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
       {:tailwind, "~> 0.5", runtime: Mix.env() == :dev},
       {:jason, "~> 1.4"},
-      {:bandit, "~> 1.8"},
+      {:bandit, "~> 1.13.1"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:sobelow, "~> 0.14", only: [:dev, :test], runtime: false},
       {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false}
@@ -44,6 +44,7 @@ defmodule Cuckoding.MixProject do
       "assets.build": ["tailwind cuckoding", "esbuild cuckoding"],
       "assets.deploy": ["tailwind cuckoding --minify", "esbuild cuckoding --minify", "phx.digest"],
       quality: [
+        "hex.audit",
         "format --check-formatted",
         "compile --warnings-as-errors",
         "test",

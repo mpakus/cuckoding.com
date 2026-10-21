@@ -55,6 +55,7 @@ The development packaging script uses Homebrew OpenSSL 3, bundles its runtime
 library/license, and relocates OTP's crypto references. Cargo.lock fixes the
 compatible Tauri 2.11.5 dependency cohort; use `--locked` for native checks.
 Mix.lock fixes Phoenix 1.8.15, LiveView 1.2.12, Ecto 3.14.2 and SQLite adapter 0.25.0.
+R102 pins Bandit 1.13.1 with required Thousand Island 1.6.0; use the updated lockfile.
 After Tauri copies all resources, `bin/dev.build` ad-hoc signs the complete app
 and runs strict/deep verification. `bin/smoke` requires that verification before
 launching. This seals local resources; it supplies no Developer ID identity,
@@ -368,8 +369,11 @@ rtk git diff --check
 bundle. After Quit it recreates `_build/prod/rel/cuckoding` and the generated app
 bundle so removed dependencies cannot remain in Mix/Tauri's overlaid resources. It never removes the selected application data root.
 
-`mix quality` runs formatting, compilation with warnings treated as errors,
-ExUnit, Credo, Sobelow and dependency audit. Sobelow's architecture-specific
+`mix quality` first runs Hex's current retirement/advisory check, then formatting,
+compilation with warnings treated as errors, ExUnit, Credo, Sobelow and the existing
+dependency audit. Hex is a development tool, not a release application. A package
+fetch warning is actionable even when another advisory source reports clean.
+Sobelow's architecture-specific
 exceptions are documented in [Security](SECURITY.md). Its Elixir 1.20 warnings
 while parsing Mix's generated lockfile are tool diagnostics, not compiler errors.
 The test DB is `.ccoding/test/foundation.db`; tests use rollback isolation.

@@ -1,5 +1,14 @@
 # Security contract
 
+R102 locks Bandit 1.13.1 with Thousand Island 1.6.0. The upstream fixes cover
+[unvalidated HTTP/1 request authority](https://github.com/mtrudel/bandit/security/advisories/GHSA-v53v-9hvg-37jf)
+and [HTTP/2 send-window deadline resets](https://github.com/mtrudel/bandit/security/advisories/GHSA-69m6-wcv4-rwcf);
+1.13.1 also preserves Phoenix parser-error rendering. Current Hex advisories and
+the existing audit both gate quality; no advisory ignore or runtime permission is
+added. Local raw-socket tests cover authority/origin refusal and parser errors;
+HTTP/2 resource-exhaustion attacks were not exercised. See
+[evidence](../worklog/2026-10-21-R102-bandit-security.md).
+
 ## R050e Start and check grants
 
 Start grants bounded local completion for frozen Codex roles/tasks/checks. Provider sessions retain host-only file tools and cannot run commands. The check runner uses a fresh empty Codex profile and private candidate clone, network denial, protected policy paths, bounded output hashing and frozen argv/executable identities. Its initial single-process grant forbids forks and tracks the inner session leader by PID/start identity; cleanup uncertainty is retained instead of claiming Stop. Toolchain/subprocess checks are unsupported. Native battle branch creation and candidate integration are exclusive, audited and compare-and-swap; no source checkout change or remote operation is authorized.
