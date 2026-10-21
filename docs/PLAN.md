@@ -19,7 +19,7 @@ attempts, inside the existing retry budget; interrupted/native recovery remains 
 | --- | --- | --- |
 | Agents and Team | Named Codex/Cursor connections, full bounded catalogs, model choices, default roles/custom role records, scoped team adoption | Per-scope role editing, custom role/stage execution, Cursor initial planning, Claude Code and Hermes |
 | Arena and tasks | Add folder/default board, bounded docs-first analysis, automatic cards, prerequisites, citations and saved criteria | Custom columns, custom planning-role selection and real-account planning acceptance |
-| Execution | One Start, sequential mixed-runtime dispatch, independent review/correction and retained local result branch | General subprocess/toolchain checks, real mixed-provider battle acceptance and parallel workers |
+| Execution | One Start, sequential mixed-runtime dispatch per board, two isolated Arenas concurrently, independent review/correction and retained local result branch | General subprocess/toolchain checks, real mixed-provider battle acceptance and same-board parallel workers |
 | Controls/recovery | Stop, stage-boundary Pause/Resume, bounded provider Retry and automatic backoff, Skip with deferred dependents and Partial result; settled restart checkpoints, timing fence and bounded idle-sleep assertion | Unfinished native/process/Git reconciliation, sleep accounting and physical sleep tests |
 | Experience | Agent wizard/disconnect, Team editor, Arena dialogs/board + controls, activity and retained attempt inspector | Global worker dashboard, parallel activity, paginated logs, responsive/browser polish and timed ten-minute setup |
 | Release | Local bundle/build/smoke, separate preserved data root; Decimal advisory fixed | Signing/notarization, clean-machine install, updates/rollback and full acceptance matrix |
@@ -122,6 +122,11 @@ The numbered story below is capability coverage, not eight mandatory screens.
   revalidate exact bindings/limits before fresh admission. Cancel/Stop/Skip/timing
   fences and restart close the wait; historical Starts remain manual.
   [Task](../tasks/R060j-provider-backoff.md).
+- [x] **R070a — Concurrent isolated Arenas:** new Starts permit two supervised
+  battle stages globally with one stage per Arena/exact provider connection,
+  transactional capacity, fair rotation and independent controls. Historical
+  Starts/recovery inspection remain exclusive. Same-board task cloning and
+  combined-result review remain open. [Task](../tasks/R070a-arena-workers.md).
 - [x] **R080a — Direct controls:** confirmed per-agent Disconnect unassigns current
   roles while retaining history; saved roles no longer expire on catalog age alone.
   Create tasks, repository setup and extra boards use dialogs; manual tasks use +
@@ -528,6 +533,11 @@ separately. Stop preserves changes and cannot kill an unrelated provider app.
 ## R070 — Parallel workers and safe combined results
 
 Depends on R060. Required for the requested release, not a deferred enhancement.
+
+- [x] R070a cross-Arena foundation: two supervised battle workers, transactional
+  global/Arena/exact-connection caps, fair dispatch, retained uncertain ownership
+  and isolated Stop/Pause/crash handling. Prior-schema upgrade/backup covered.
+  This does not complete the task-level acceptance below.
 
 - [ ] Clone role instances into independent sessions/worktrees/process groups.
 - [ ] Atomically claim tasks, capacity and ports; enforce global/Arena/Tabula/

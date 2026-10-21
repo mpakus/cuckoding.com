@@ -776,7 +776,7 @@ defmodule Cuckoding.BattleExecutorTest do
     runner = Process.whereis(BattleRunner)
     send(runner, :poll)
     await(fn -> Backoff.pending?(Battles.get(battle.id)) end)
-    await(fn -> :sys.get_state(runner).job == nil end)
+    await(fn -> :sys.get_state(runner).jobs == %{} end)
     assert Task.Supervisor.children(Cuckoding.BattleTasks) == []
     failed = List.last(Battles.attempts(battle.id))
     refute_receive {:backoff_launched, _, _}, 50
@@ -1176,7 +1176,7 @@ defmodule Cuckoding.BattleExecutorTest do
     assert worker in Task.Supervisor.children(Cuckoding.BattleTasks)
     assert interrupted.id == attempt.id
     assert interrupted.state == "interrupted"
-    assert :sys.get_state(runner).job != nil
+    assert :sys.get_state(runner).jobs != %{}
     :sys.suspend(runner)
     monitor = Process.monitor(worker)
     send(worker, :inspect)

@@ -2,6 +2,16 @@
 
 ## R050e durable battle state
 
+R070a's twelfth forward-only migration adds partial indexes for running attempts
+and exact connections whose provider cleanup remains unverified. No existing
+rows, snapshots, receipts or authority are changed. New Starts freeze
+`scheduler: isolated-arenas-v1`; their claim transaction enforces two global
+battle stages, one per battle and one provider turn per exact connection. Old
+Starts remain globally exclusive. Capacity rejection rolls back before new
+attempt/turn/event writes. The coordinator's monitor map/fairness cursor is a
+cache; restart stops workers before existing durable recovery. Prior-schema
+upgrade and private readable backup are covered by the migration regression.
+
 The tenth forward-only migration adds `battles`, `battle_tasks` and `battle_attempts`. Snapshots and requests are immutable; terminal attempt receipts cannot be rewritten/deleted. One active battle per Arena includes needs-attention state, and one running stage claim per battle is enforced by partial unique indexes. Draft history stays separate from execution projections. Start, claims, outcomes and events commit atomically; broadcasts follow commit. The native retained receipt/journal owns evidence of uncertain external effects; SQLite never promises exactly-once execution.
 
 R060a's eleventh forward-only migration adds `battles.control_revision` (zero for

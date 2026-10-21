@@ -1,6 +1,7 @@
 # R060j — Bounded automatic provider backoff
 
-Status: implemented and verified, 2026-10-21. Local integration follows verification.
+Status: complete, 2026-10-21. Verified and merged into local main as b99ff8f;
+task branch deleted. No push/publication or native bundle replacement.
 
 - [x] New Starts freeze an automatic backoff policy with 5/20-second waits inside
   the existing two-retry task/final budget. Only settled normalized transient

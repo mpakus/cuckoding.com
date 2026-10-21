@@ -51,7 +51,7 @@ listed below. Arena registration opens its default board; technical setup stays 
 | Saved agent/model assignments for Speculator, Implementor, Secutor and Summa Rudis | Real mixed-runtime battle acceptance |
 | Folder registration with an automatic default board, direct Arena opening, Advanced setup and editable drafts | Custom columns and scoped role editing |
 | Codex planning from a brief or bounded folder snapshots (`docs/` first), automatically saved task cards, prerequisites and original source citations | Real-account planning acceptance across supported runtimes |
-| One bounded Start, sequential Codex/Cursor dispatch, correction through Speculator, independent Secutor review and retained local battle branch | Real-account end-to-end acceptance, general toolchain checks, recovery and parallel workers |
+| One bounded Start, sequential Codex/Cursor dispatch per board, two isolated Arenas progressing concurrently, independent review and retained local battle branch | Real-account end-to-end acceptance, general toolchain checks, recovery and same-board parallel workers |
 
 Agents uses `/agents`; Settings uses `/settings`. Agent setup follows
 **Choose Agent → Connect and Authorize → Select models → Save**.
@@ -176,6 +176,10 @@ busy-profile, timeout or launch failures with verified cleanup. The wait is save
 in SQLite and can be cancelled; it consumes the same retry budget and original
 deadline. Restart cancels the automatic wait and requires explicit Retry. Generic
 provider errors remain manual. [Backoff evidence](worklog/2026-10-21-R060j-provider-backoff.md).
+New Starts can progress in two separate Arenas at once. Shared agent connections
+queue one turn at a time; uncertain cleanup keeps that exact connection reserved.
+Other connections can continue. Tasks within one board still run sequentially.
+Older Starts retain global serial dispatch. [Concurrency evidence](worklog/2026-10-21-R070a-arena-workers.md).
 **Skip task** confirms leaving a clean paused or settled blocked/failed task
 unfinished and defers its dependents. Independent tasks continue from reviewed work;
 paused battles stay paused until Resume. Edits and evidence remain available.

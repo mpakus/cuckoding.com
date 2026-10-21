@@ -112,6 +112,17 @@ Retry. Stop, Skip and timing fences cancel the wait; startup cancels it before
 admission and never repeats a provider call. Old snapshots gain no automatic
 authority, and failed writers still start fresh from the reviewed head.
 
+R070a freezes `scheduler: isolated-arenas-v1` in new Starts. Two isolated Arenas
+may have supervised stages in progress concurrently, with one stage per battle
+and one provider turn per exact saved connection. SQLite checks capacity before
+inserting the attempt; waiting spends no turns/retries. Failed/interrupted
+provider work without verified cleanup keeps that connection reserved. The
+coordinator rotates ready Arenas fairly and ignores paused/backoff work until
+eligible. Old Starts and retained integration inspection dispatch exclusively.
+Restart stops all old workers before recovery; Stop/Pause affect their own Arena.
+Each board still has sequential tasks and serialized reviewed integration;
+same-board parallel writers and combined-candidate review remain open.
+
 R060c adds **Skip task** under `task_selection: skip-task-v1`. A clean paused task,
 settled provider block/transient failure or exhausted task review may be skipped
 after confirming its exact ID/control revision and affected dependent tasks.

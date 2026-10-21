@@ -34,7 +34,11 @@ limits and failed evidence. There is no new migration or native runtime grant.
 R060c adds Skip with deferred dependents and reviewed Partial results. R060d
 reopens fully settled restart checkpoints as Paused; Resume continues the saved
 stage explicitly. In-flight or unknown effects still require inspection. These
-controls retain schema version 11 and never silently switch saved connections.
+controls never silently switch saved connections. R070a adds the twelfth
+forward-only migration: partial capacity/uncertain-connection indexes only, no
+record rewrites. Back up the selected data root before upgrading; older bundles
+refuse the newer schema. New Starts allow two isolated Arenas to progress
+concurrently; shared connections queue and each board remains sequential.
 [Plan](PLAN.md#next-delivery-order--simple-arena) owns the remaining beta gates.
 
 ## Build and open

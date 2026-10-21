@@ -1,9 +1,10 @@
 # Architecture
 
-## Implemented boundary · reviewed 2026-10-15
+## Implemented boundary · reviewed 2026-10-21
 
 Cuckoding delivers authenticated setup, planning, isolated task turns and the
-sequential Codex/Cursor battle loop. Product parallel workers and full recovery
+sequential Codex/Cursor battle loop per board, with two isolated Arenas progressing
+concurrently. Same-board parallel workers and full recovery
 remain unfinished.
 The later sections describe the target architecture, not additional shipped code.
 
@@ -26,7 +27,7 @@ release process group and private storage lock.
 | `Tabulae` | Immutable default boards, revisioned Specs/ToDo drafts, acyclic prerequisites and proposal import provenance; delivery columns stay locked |
 | `Planning`, `PlanningDocuments`, native `arena_git/documents.rs` | Freeze team/model/brief and optional manual/folder text snapshots in commands; bounded descriptor-relative source collection, then validate proposals and atomically create draft cards |
 | `ProjectChecks` | Immutable Arena check declarations, explicit preview/consent and atomic command/revision/event saves; no executable resolution, filesystem access or execution |
-| `Battles`, `BattleRunner`, `BattleExecutor`, `BattleChecks` | SQLite battle/task/attempt authority; one supervised stage worker; closed native Git, provider turns and disposable check workspaces |
+| `Battles`, `BattleRunner`, `BattleExecutor`, `BattleChecks`, `Battles.Capacity` | SQLite battle/task/attempt authority and capacity checks; two monitored workers across isolated Arenas; one stage per board/exact connection; closed native Git, provider turns and disposable check workspaces |
 | `BattlePreview` | Read-only aggregation of scoped saved preparation and verified spec artifacts; no durable battle state or launch authority |
 | `Specifications`, `Storage` | Freeze accepted draft/prerequisite revisions, write private Markdown, verify artifact hash and atomically commit acceptance/history/ToDo; no execution authority |
 | `ArenaGit`, `NativeHelper`, native `arena_git.rs` | Fixed inspect/init/initial-commit/detached-worktree operations and descriptor-relative selected file reads; no remotes, hooks or arbitrary commands |
@@ -48,8 +49,12 @@ R012 keeps setup, local previews and planning globally serialized while their
 provider/native receive loops run in separate BEAM task processes. Dispatcher
 handles correlated task results, `:DOWN` and login-progress messages without
 waiting for provider I/O in a GenServer callback. The battle runner retains its
-separate monitored stage task. This remains one setup command and one battle stage,
-not the future parallel scheduler. [D027](DECISIONS.md#d027--supervised-asynchronous-execution-and-liveview-components).
+separate monitored task group. R070a replaces its single global job with two
+worker slots and fair rotation across ready Arenas. SQLite claims enforce global,
+per-battle and exact-connection exclusion; uncertain provider cleanup reserves
+its connection. Historical Starts and retained integration recovery stay
+exclusive. Setup remains one command, each board stays sequential and same-board
+parallel scheduling remains open. [D034](DECISIONS.md#d034--concurrent-isolated-arenas).
 
 Each execution group stops its old tasks before restarting its coordinator.
 R060f makes workers call the existing Foundation/Battles settlement transaction

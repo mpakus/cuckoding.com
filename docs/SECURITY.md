@@ -686,6 +686,20 @@ revalidate exact bindings, limits and deadline at admission under the write lock
 Cancel/Stop/Skip/timing fences close the wait; startup requires manual Retry.
 Historical authority and every R060b exclusion stay intact.
 
+## Concurrent Arena admission (R070a)
+
+New `isolated-arenas-v1` Starts share two battle stage workers, one stage per
+Arena/battle and one provider turn per exact saved connection. Capacity checks
+run under the same immediate SQLite claim transaction as attempt/turn/event
+writes. A waiting claim writes nothing. Provider cleanup that is missing or
+unverified reserves its connection, including failed/interrupted attempts;
+another Arena cannot infer release from a missing process. Native profile locks
+and all existing executable/account/worktree preflights remain mandatory.
+Legacy Starts and retained integration inspection remain exclusive. The
+one_for_all group stops all old workers before recovery. No same-board writable
+checkout sharing, new tool grants, account substitution or combined-candidate
+acceptance is added.
+
 ## Explicit task omission (R060c)
 
 Only new `skip-task-v1` snapshots permit Skip. Session/form, exact task/battle/control

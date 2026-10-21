@@ -769,6 +769,10 @@ defmodule CuckodingWeb.BattleComponent do
               per task and two shared by final stages. You can cancel the wait; other eligible failures offer Retry.
               Skip retains unfinished work and defers its dependents; independent work can produce a reviewed partial result.
             </p>
+            <p id="battle-capacity-scope" class="fine-print">
+              Up to two Arenas work at once. Shared agent connections take one turn at a time;
+              tasks within this board run sequentially.
+            </p>
             <p id="battle-check-scope" class="fine-print">
               Verification belongs in each task. Secutor inspects the result and evidence before completion;
               missing required test evidence pauses the battle for attention.

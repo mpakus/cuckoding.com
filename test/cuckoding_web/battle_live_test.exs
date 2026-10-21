@@ -109,6 +109,8 @@ defmodule CuckodingWeb.BattleLiveTest do
     assert has_element?(view, "#battle-start-details", "First task")
     assert has_element?(view, "#battle-start-details", "test-model")
     assert has_element?(view, "#battle-start-details", "git")
+    assert has_element?(view, "#battle-capacity-scope", "Up to two Arenas")
+    assert has_element?(view, "#battle-capacity-scope", "sequentially")
     assert has_element?(view, "#arena-start-help", "original checkout")
     assert has_element?(view, "#battle-command-scope", "single-process commands only")
     assert has_element?(view, "#battle-command-scope", "Mix/npm pipelines are not yet supported")

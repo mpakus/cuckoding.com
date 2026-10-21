@@ -8,8 +8,18 @@ the previous product direction. The implemented boundary includes named
 Codex/Cursor setup, draft planning, owned worktrees and the first bounded
 sequential Codex/Cursor Arena loop. [Architecture](docs/ARCHITECTURE.md) names source
 owners; [Plan](docs/PLAN.md) owns remaining acceptance. General toolchain checks,
-full recovery, parallel workers, remaining providers and real-account battle
+full recovery, same-board parallel workers, remaining providers and real-account battle
 acceptance remain open.
+
+R070a freezes `scheduler: isolated-arenas-v1` in new Starts. SQLite admission
+limits battle stages to two globally, one per battle/Arena and one provider turn
+per exact connection. Unverified provider cleanup reserves that connection even
+after a failed/interrupted attempt; missing processes never prove release.
+Capacity waits consume no turns/retries. BattleRunner fairly rotates ready Arenas
+with monitored Task.Supervisor workers; legacy Starts and retained integration
+inspection stay exclusive. Keep one_for_all clock/tasks/coordinator restart and
+per-Arena Stop/Pause isolation. This does not enable same-board task cloning,
+combined-candidate integration, new tools or real-provider concurrency acceptance.
 
 R060a Pause closes stage admission and lets the current bounded stage finish.
 Show Paused only at a durable boundary with verified worker cleanup; retain its

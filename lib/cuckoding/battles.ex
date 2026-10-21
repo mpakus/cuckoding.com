@@ -1,7 +1,7 @@
 defmodule Cuckoding.Battles do
   @moduledoc "Durable bounded Arena authority and sequential stage claims; workers own external effects."
   import Ecto.Query, except: [update: 2, update: 3]
-  alias Cuckoding.Battles.{Attempt, Backoff, Battle, Snapshot, Task}
+  alias Cuckoding.Battles.{Attempt, Backoff, Battle, Capacity, Snapshot, Task}
   alias Cuckoding.{Event, Foundation, Repo, TaskTurn}
 
   @active ~w(running pausing paused stopping needs_attention)
@@ -207,6 +207,7 @@ defmodule Cuckoding.Battles do
     task = current_task(battle)
     role_id = @roles[battle.stage]
     role = Enum.find(battle.snapshot["team"], &(&1["id"] == role_id))
+    unless Capacity.available?(battle.snapshot, role), do: Repo.rollback(:capacity)
     key = Ecto.UUID.generate()
 
     request = %{

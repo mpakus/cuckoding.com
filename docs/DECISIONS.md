@@ -1,5 +1,18 @@
 # Current decisions
 
+## D034 · Concurrent isolated Arenas
+
+Accepted before implementation, 2026-10-21, R070a. New Starts freeze
+`scheduler: isolated-arenas-v1`. Admit at most two battle stage workers globally,
+one per battle/Arena and one provider stage per exact connection. Enforce these
+caps in the SQLite claim transaction before creating an attempt; busy capacity
+queues work without consuming retry/turn budgets. Fair rotation across ready
+Arenas is a coordinator cache only; claims/receipts remain durable authority.
+Historical Starts and retained integration inspection run exclusively. Keep the
+one_for_all clock/tasks/coordinator group so restart stops every old worker before
+checkpoint recovery. This does not enable same-board parallel task writers,
+combined-candidate integration, toolchain spawning or new provider permissions.
+
 ## D033 · Bounded automatic provider backoff
 
 2026-10-21, R060j, accepted before implementation. New Starts freeze

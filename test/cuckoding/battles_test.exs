@@ -464,11 +464,10 @@ defmodule Cuckoding.BattlesTest do
     end
   end
 
-  test "Skip refuses uncertain, policy, native and final-stage failures", ctx do
+  test "Skip refuses policy, native and final-stage failures", ctx do
     for {stage, reason, clean} <- [
           {"capture", "provider_error", true},
           {"integrate", "provider_error", true},
-          {"implementor", "provider_error", false},
           {"speculator", "model_mismatch", true},
           {"final_secutor", "provider_error", true}
         ] do
@@ -611,13 +610,12 @@ defmodule Cuckoding.BattlesTest do
     assert {:error, :retry_unavailable} = Battles.retry(failed.id, 0)
   end
 
-  test "Retry refuses native errors, policy errors, blocked reviews and uncertain cleanup", ctx do
+  test "Retry refuses native errors, policy errors and blocked reviews", ctx do
     for {stage, reason, clean} <- [
           {"admission", "provider_error", true},
           {"capture", "provider_error", true},
           {"integrate", "provider_error", true},
           {"speculator", "model_mismatch", true},
-          {"implementor", "provider_error", false},
           {"implementor", "invalid_output", true}
         ] do
       {failed, _} = start(ctx.board) |> until_stage(stage) |> fail_provider(reason, clean)
@@ -638,6 +636,20 @@ defmodule Cuckoding.BattlesTest do
     {:ok, failed} = Battles.finish(attempt.id, attempt.claim_token, blocked)
     refute Battles.retry_available?(failed)
     assert {:error, :retry_unavailable} = Battles.retry(failed.id, 0)
+  end
+
+  test "uncertain provider cleanup refuses Retry, Skip and Stop", ctx do
+    {failed, _} =
+      start(ctx.board) |> until_stage("implementor") |> fail_provider("provider_error", false)
+
+    refute Battles.retry_available?(failed)
+    assert Battles.skip_preview(failed) == []
+    assert {:error, :retry_unavailable} = Battles.retry(failed.id, failed.control_revision)
+
+    assert {:error, :skip_unavailable} =
+             Battles.skip(failed.id, failed.control_revision, failed.current_task_id, true)
+
+    assert {:error, :cleanup_required} = Battles.stop(failed.id)
   end
 
   test "old snapshots and interrupted claims never gain retry authority", ctx do

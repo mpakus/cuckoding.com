@@ -1,5 +1,13 @@
 # Verification and acceptance
 
+R070a adds `battle_capacity_test.exs` and `battle_capacity_migration_test.exs`:
+concurrent global claims, exact-connection reservation including uncertain cleanup,
+legacy exclusion, fair three-Arena dispatch, isolated worker failure/Pause and
+one_for_all multi-worker restart without replay. Upgrade the prior eleven-migration
+schema, retain byte-identical sample facts, check integrity/FKs/index use and open
+the private pre-upgrade backup. These are fixtures, not actual parallel provider
+or same-board combined-result acceptance.
+
 R050f regressions additionally cover no-command Start, task/final review without
 fabricated command receipts, correction and missing-evidence blocking, a required
 inspection tool receipt, unchanged configured-command gates, legacy snapshot
