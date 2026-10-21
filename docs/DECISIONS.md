@@ -1,5 +1,22 @@
 # Current decisions
 
+## D033 · Bounded automatic provider backoff
+
+2026-10-21, R060j, accepted before implementation. New Starts freeze
+`automatic-provider-backoff-v1`; only R060b-eligible settled `connection_lost`,
+`profile_busy`, `timeout` or `launch_failed` provider receipts with verified
+cleanup may wait 5/20 seconds and consume the existing two retries
+per task/shared final scope. SQLite stores the exact failed attempt and UTC due
+instant; no sleeping worker, native replay, new budget or provider fallback.
+At due admission, revalidate bindings, limits and exact eligibility under the
+write lock, record the existing retry transition and claim a fresh attempt.
+Writer retries still start with a fresh worktree/coordinator/Speculator.
+Historical snapshots remain manual. Startup cancels a pending automatic wait
+before admission; explicit Retry remains possible after inspection. Cancel/Stop
+retain revisions/session/form guards and every failed edit/receipt. UI discloses
+provider allowance and the bounded wait within the original wall deadline.
+Generic provider/turn errors remain manual because their cause is unknown.
+
 ## D032 · Local disconnect when native logout is unavailable
 
 Accepted 2026-10-15 for R080b. The roster's confirmed Disconnect first uses the

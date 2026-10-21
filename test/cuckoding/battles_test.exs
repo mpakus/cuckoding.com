@@ -1,7 +1,7 @@
 defmodule Cuckoding.BattlesTest do
   use Cuckoding.DataCase
   alias Cuckoding.{Battles, Codex, Foundation, ProjectChecks, Tabulae, Team, TeamAssignments}
-  alias Cuckoding.Battles.{Attempt, Battle, Snapshot}
+  alias Cuckoding.Battles.{Attempt, Backoff, Battle, Snapshot}
 
   setup do
     %{board: board} = Cuckoding.PlanningFixtures.planning_fixture()
@@ -2021,5 +2021,306 @@ defmodule Cuckoding.BattlesTest do
 
     assert battle.state == "needs_attention"
     assert {:error, :cleanup_required} = Battles.stop(battle.id)
+  end
+
+  test "automatic provider backoff freezes bounded waits and never replays the failed attempt",
+       ctx do
+    battle = start(ctx.board) |> until_stage("speculator")
+    assert battle.snapshot["provider_backoff"] == "automatic-provider-backoff-v1"
+    {failed, attempt} = fail_provider(battle, "connection_lost")
+    wait = failed.context["provider_backoff"]
+    assert wait["attempt_id"] == attempt.id
+    assert wait["delay_seconds"] == 5
+    {:ok, due, 0} = DateTime.from_iso8601(wait["due_at"])
+    history = Battles.attempts(failed.id)
+    assert {:error, :backoff} = Battles.claim_next(failed.id, DateTime.add(due, -1))
+    assert Battles.attempts(failed.id) == history
+    assert {:ok, next} = Battles.claim_next(failed.id, due)
+    assert next.id != attempt.id
+    assert next.claim_token != attempt.claim_token
+    assert next.stage == "speculator"
+    retried = Battles.get(battle.id)
+    assert retried.context["provider_retries"] == [attempt.id]
+    refute Map.has_key?(retried.context, "provider_backoff")
+    assert retried.deadline_at == battle.deadline_at
+    assert retried.snapshot == battle.snapshot
+    assert retried.turns_used == failed.turns_used + 1
+    assert Repo.get!(Attempt, attempt.id) == attempt
+
+    assert Enum.count(
+             Battles.evidence(battle.id),
+             &(&1.kind == "battle.provider_backoff_scheduled")
+           ) == 1
+
+    assert Enum.count(Battles.evidence(battle.id), &(&1.kind == "battle.retry_requested")) == 1
+  end
+
+  test "only one due automatic retry can claim; the second uses twenty seconds", ctx do
+    {failed, _} =
+      start(ctx.board) |> until_stage("speculator") |> fail_provider("connection_lost")
+
+    {:ok, due, 0} = DateTime.from_iso8601(failed.context["provider_backoff"]["due_at"])
+
+    results =
+      1..4
+      |> Task.async_stream(fn _ -> Battles.claim_next(failed.id, due) end)
+      |> Enum.map(&elem(&1, 1))
+
+    assert Enum.count(results, &match?({:ok, %Attempt{}}, &1)) == 1
+    assert Enum.count(results, &(&1 == {:error, :busy})) == 3
+    {:ok, next} = Enum.find(results, &match?({:ok, %Attempt{}}, &1))
+
+    receipt =
+      result(next, %{
+        "status" => "failed",
+        "reason" => "connection_lost",
+        "provider" => %{"status" => "connection_lost"}
+      })
+
+    {:ok, second} = Battles.finish(next.id, next.claim_token, receipt, due)
+    assert second.context["provider_backoff"]["delay_seconds"] == 20
+    {:ok, due2, 0} = DateTime.from_iso8601(second.context["provider_backoff"]["due_at"])
+    {:ok, last} = Battles.claim_next(failed.id, due2)
+
+    receipt =
+      result(last, %{
+        "status" => "failed",
+        "reason" => "connection_lost",
+        "provider" => %{"status" => "connection_lost"}
+      })
+
+    {:ok, exhausted} = Battles.finish(last.id, last.claim_token, receipt, due2)
+    refute Map.has_key?(exhausted.context, "provider_backoff")
+    refute Battles.retry_available?(exhausted)
+    assert {:error, :not_running} = Battles.claim_next(exhausted.id, due2)
+    assert length(exhausted.context["provider_retries"]) == 2
+  end
+
+  test "automatic waits can be cancelled with a current revision and restart never dispatches them",
+       ctx do
+    {failed, attempt} =
+      start(ctx.board) |> until_stage("speculator") |> fail_provider("connection_lost")
+
+    assert {:error, :stale_control} = Battles.cancel_backoff(failed.id, -1)
+    {:ok, cancelled} = Battles.cancel_backoff(failed.id, failed.control_revision)
+    refute Map.has_key?(cancelled.context, "provider_backoff")
+    assert cancelled.state == "needs_attention"
+    assert cancelled.context["provider_retries"] == nil
+    assert Repo.get!(Attempt, attempt.id) == attempt
+    assert {:error, :stale_control} = Battles.cancel_backoff(failed.id, failed.control_revision)
+    assert Battles.retry_available?(cancelled)
+    {:ok, _} = Battles.stop(failed.id)
+
+    {failed, attempt} =
+      start(ctx.board) |> until_stage("speculator") |> fail_provider("connection_lost")
+
+    {:ok, due, 0} = DateTime.from_iso8601(failed.context["provider_backoff"]["due_at"])
+    {:ok, _} = Battles.recover()
+    recovered = Battles.get(failed.id)
+    refute Map.has_key?(recovered.context, "provider_backoff")
+    assert recovered.state == "needs_attention"
+    assert {:error, :not_running} = Battles.claim_next(recovered.id, due)
+    assert Repo.get!(Attempt, attempt.id) == attempt
+    assert Battles.retry_available?(recovered)
+  end
+
+  test "due automatic retries revalidate exact bindings and original deadlines", ctx do
+    {failed, _} =
+      start(ctx.board) |> until_stage("speculator") |> fail_provider("connection_lost")
+
+    {:ok, due, 0} = DateTime.from_iso8601(failed.context["provider_backoff"]["due_at"])
+    workspace = Foundation.workspace()
+
+    Repo.update!(
+      Ecto.Changeset.change(workspace,
+        connection: Map.put(workspace.connection, "authorization", "not_connected")
+      )
+    )
+
+    assert {:error, "resume_binding_changed"} = Battles.claim_next(failed.id, due)
+    assert Enum.all?(Battles.attempts(failed.id), &(&1.state != "running"))
+    refute Map.has_key?(Battles.get(failed.id).context, "provider_backoff")
+    Repo.update!(Ecto.Changeset.change(Foundation.workspace(), connection: workspace.connection))
+    {:ok, _} = Battles.stop(failed.id)
+
+    {failed, _} =
+      start(ctx.board) |> until_stage("speculator") |> fail_provider("connection_lost")
+
+    assert {:error, "deadline_exceeded"} = Battles.claim_next(failed.id, failed.deadline_at)
+    assert Battles.get(failed.id).deadline_at == failed.deadline_at
+    refute Map.has_key?(Battles.get(failed.id).context, "provider_backoff")
+  end
+
+  test "historical, blocked, uncertain and pausing outcomes never gain automatic retries", ctx do
+    original = start(ctx.board)
+    {:ok, _} = Battles.stop(original.id)
+    snapshot = Map.delete(original.snapshot, "provider_backoff")
+
+    battle =
+      Repo.insert!(%Battle{
+        id: Ecto.UUID.generate(),
+        arena_id: original.arena_id,
+        tabula_id: original.tabula_id,
+        snapshot: snapshot,
+        fingerprint: Snapshot.digest(snapshot),
+        state: "running",
+        stage: "admission",
+        deadline_at: original.deadline_at
+      })
+
+    for {task, position} <- Enum.with_index(snapshot["tasks"]) do
+      Repo.insert!(%Cuckoding.Battles.Task{
+        id: Ecto.UUID.generate(),
+        battle_id: battle.id,
+        task_id: task["id"],
+        position: position,
+        snapshot: task
+      })
+    end
+
+    {failed, _} = battle |> until_stage("speculator") |> fail_provider("connection_lost")
+    refute Map.has_key?(failed.context, "provider_backoff")
+    {:ok, _} = Battles.stop(failed.id)
+    battle = start(ctx.board) |> until_stage("speculator")
+    {:ok, attempt} = Battles.claim_next(battle.id)
+    {:ok, _} = Battles.pause(battle.id, battle.control_revision)
+
+    receipt =
+      result(attempt, %{
+        "status" => "failed",
+        "reason" => "connection_lost",
+        "provider" => %{"status" => "connection_lost"}
+      })
+
+    {:ok, attention} = Battles.finish(attempt.id, attempt.claim_token, receipt)
+    refute Map.has_key?(attention.context, "provider_backoff")
+    {:ok, _} = Battles.stop(attention.id)
+
+    for reason <- ~w(model_mismatch provider_error turn_failed) do
+      {failed, _} = start(ctx.board) |> until_stage("speculator") |> fail_provider(reason)
+      refute Map.has_key?(failed.context, "provider_backoff")
+      {:ok, _} = Battles.stop(failed.id)
+    end
+
+    battle = start(ctx.board) |> until_stage("secutor")
+    {:ok, attempt} = Battles.claim_next(battle.id)
+
+    blocked =
+      result(attempt)
+      |> put_in(["provider", "report", "outcome"], "blocked")
+      |> Map.put("status", "blocked")
+
+    {:ok, failed} = Battles.finish(attempt.id, attempt.claim_token, blocked)
+    refute Map.has_key?(failed.context, "provider_backoff")
+    {:ok, _} = Battles.stop(failed.id)
+
+    {failed, _} =
+      start(ctx.board) |> until_stage("implementor") |> fail_provider("connection_lost", false)
+
+    refute Map.has_key?(failed.context, "provider_backoff")
+    assert {:error, :cleanup_required} = Battles.stop(failed.id)
+  end
+
+  test "automatic writer retry starts a fresh checkout without changing reviewed head or rounds",
+       ctx do
+    battle = start(ctx.board) |> until_stage("implementor")
+    task = hd(Battles.tasks(battle.id))
+    Repo.update!(Ecto.Changeset.change(task, review_round: 1))
+    {failed, attempt} = fail_provider(battle, "connection_lost")
+    {:ok, due, 0} = DateTime.from_iso8601(failed.context["provider_backoff"]["due_at"])
+    {:ok, fresh} = Battles.claim_next(failed.id, due)
+    assert fresh.stage == "prepare_worktree"
+    assert fresh.request["context"]["head"] == battle.context["head"]
+    assert fresh.request["review_round"] == 1
+    assert fresh.id != task.context["preparation"]["key"]
+    {:ok, prepared} = Battles.finish(fresh.id, fresh.claim_token, result(fresh), due)
+    assert prepared.stage == "coordinator"
+    refute hd(Battles.tasks(battle.id)).context["preparation"] == task.context["preparation"]
+    assert Repo.get!(Attempt, attempt.id) == attempt
+  end
+
+  test "automatic final retries share their cap across review and summary", ctx do
+    {failed, _} =
+      start(ctx.board) |> until_stage("final_secutor") |> fail_provider("connection_lost")
+
+    {:ok, due, 0} = DateTime.from_iso8601(failed.context["provider_backoff"]["due_at"])
+    {:ok, review} = Battles.claim_next(failed.id, due)
+    {:ok, battle} = Battles.finish(review.id, review.claim_token, result(review), due)
+    assert battle.stage == "summary"
+    {:ok, summary} = Battles.claim_next(battle.id, due)
+
+    receipt =
+      result(summary, %{
+        "status" => "failed",
+        "reason" => "connection_lost",
+        "provider" => %{"status" => "connection_lost"}
+      })
+
+    {:ok, failed} = Battles.finish(summary.id, summary.claim_token, receipt, due)
+    assert failed.context["provider_backoff"]["delay_seconds"] == 20
+    {:ok, due, 0} = DateTime.from_iso8601(failed.context["provider_backoff"]["due_at"])
+    {:ok, summary} = Battles.claim_next(failed.id, due)
+
+    receipt =
+      result(summary, %{
+        "status" => "failed",
+        "reason" => "connection_lost",
+        "provider" => %{"status" => "connection_lost"}
+      })
+
+    {:ok, exhausted} = Battles.finish(summary.id, summary.claim_token, receipt, due)
+    refute Map.has_key?(exhausted.context, "provider_backoff")
+    refute Battles.retry_available?(exhausted)
+    assert length(exhausted.context["provider_retries"]) == 2
+  end
+
+  test "automatic waits refuse backward time, malformed metadata and exhausted turns", ctx do
+    {failed, _} = start(ctx.board) |> until_stage("speculator") |> fail_provider("timeout")
+
+    {:ok, scheduled, 0} =
+      DateTime.from_iso8601(failed.context["provider_backoff"]["scheduled_at"])
+
+    assert {:error, "clock_backward"} = Battles.claim_next(failed.id, DateTime.add(scheduled, -1))
+    refute Map.has_key?(Battles.get(failed.id).context, "provider_backoff")
+    {:ok, _} = Battles.stop(failed.id)
+
+    {failed, _} = start(ctx.board) |> until_stage("speculator") |> fail_provider("timeout")
+    broken = put_in(failed.context, ["provider_backoff", "due_at"], "broken")
+    Repo.update!(Ecto.Changeset.change(failed, context: broken))
+    refute Backoff.pending?(Battles.get(failed.id))
+    assert {:error, :not_running} = Battles.claim_next(failed.id)
+    {:ok, _} = Battles.stop(failed.id)
+
+    {failed, _} = start(ctx.board) |> until_stage("speculator") |> fail_provider("timeout")
+    {:ok, due, 0} = DateTime.from_iso8601(failed.context["provider_backoff"]["due_at"])
+    Repo.update!(Ecto.Changeset.change(failed, turns_used: failed.snapshot["limits"]["turns"]))
+    assert {:error, "retry_unavailable"} = Battles.claim_next(failed.id, due)
+    refute Map.has_key?(Battles.get(failed.id).context, "provider_backoff")
+    assert Enum.all?(Battles.attempts(failed.id), &(&1.state != "running"))
+  end
+
+  test "Stop, Skip and timing fences cancel a waiting retry", ctx do
+    {failed, _} = start(ctx.board) |> until_stage("speculator") |> fail_provider("timeout")
+    {:ok, stopped} = Battles.stop(failed.id)
+    refute Map.has_key?(stopped.context, "provider_backoff")
+
+    assert Enum.any?(
+             Battles.evidence(failed.id),
+             &(&1.kind == "battle.provider_backoff_cancelled" and &1.data["reason"] == "user_stop")
+           )
+
+    {failed, _} = start(ctx.board) |> until_stage("speculator") |> fail_provider("timeout")
+
+    {:ok, skipped} =
+      Battles.skip(failed.id, failed.control_revision, failed.current_task_id, true)
+
+    refute Map.has_key?(skipped.context, "provider_backoff")
+    {:ok, _} = Battles.stop(skipped.id)
+    {failed, _} = start(ctx.board) |> until_stage("speculator") |> fail_provider("timeout")
+    now = DateTime.utc_now()
+    gap = Cuckoding.BattleClock.gap({now, 0}, {DateTime.add(now, 60), 0})
+    {:ok, _} = Battles.observe_timing_gap(gap)
+    refute Map.has_key?(Battles.get(failed.id).context, "provider_backoff")
+    refute Battles.retry_available?(Battles.get(failed.id))
   end
 end

@@ -246,7 +246,7 @@ defmodule CuckodingWeb.BattleLiveTest do
     end)
   end
 
-  defp fail_coordinator(battle) do
+  defp fail_coordinator(battle, reason \\ "provider_error") do
     for payload <- [
           %{
             "status" => "admitted",
@@ -257,8 +257,8 @@ defmodule CuckodingWeb.BattleLiveTest do
           %{"status" => "prepared", "preparation" => %{}},
           %{
             "status" => "failed",
-            "reason" => "provider_error",
-            "provider" => %{"status" => "provider_error"}
+            "reason" => reason,
+            "provider" => %{"status" => reason}
           }
         ] do
       {:ok, attempt} = Battles.claim_next(battle.id)
@@ -272,6 +272,47 @@ defmodule CuckodingWeb.BattleLiveTest do
     end
 
     Battles.get(battle.id)
+  end
+
+  test "waiting retry shows exact role and model; guarded cancellation preserves an unsaved draft",
+       ctx do
+    signed = sign_in(ctx.conn)
+    {:ok, view, _} = live(signed, ctx.path)
+    view |> element("button[aria-label='Edit First task']") |> render_click()
+    view |> form("#draft-form", title: "Keep my draft during backoff") |> render_change()
+    view |> form("#battle-start-form") |> render_submit()
+    battle = Battles.latest(ctx.arena.id, ctx.board.id)
+    fail_coordinator(battle, "connection_lost")
+    Foundation.broadcast()
+    assert has_element?(view, "#battle-activity", "Waiting to retry")
+    assert has_element?(view, "#battle-backoff[role=status]", "retrying in")
+    assert has_element?(view, "#battle-activity", "Summa Rudis")
+    assert has_element?(view, "#battle-activity", "requested model test-model")
+    assert has_element?(view, "#battle-cancel-backoff[type=button]")
+    stale = control_params(view, "#battle-cancel-backoff")
+    {:ok, again, _} = live(signed, ctx.path)
+    again |> with_target("#arena-battle") |> render_click("cancel-backoff", stale)
+    assert has_element?(again, "#battle-backoff")
+    assert has_element?(again, "#battle-error", "control changed")
+    view |> element("#battle-cancel-backoff") |> render_click()
+    refute has_element?(view, "#battle-backoff")
+    assert has_element?(view, "#battle-retry", "Retry failed stage")
+    assert has_element?(view, "#draft-title-input[value='Keep my draft during backoff']")
+    assert Battles.get(battle.id).state == "needs_attention"
+    assert Battles.get(battle.id).context["provider_retries"] == nil
+  end
+
+  test "expired component sessions cannot cancel a scheduled retry", ctx do
+    {:ok, view, _} = ctx.conn |> sign_in() |> live(ctx.path)
+    view |> form("#battle-start-form") |> render_submit()
+    battle = Battles.latest(ctx.arena.id, ctx.board.id)
+    waiting = fail_coordinator(battle, "connection_lost")
+    Foundation.broadcast()
+    assert has_element?(view, "#battle-cancel-backoff")
+    Repo.update_all(BrowserToken, set: [expires_at: 0])
+    view |> element("#battle-cancel-backoff") |> render_click()
+    assert_redirect(view, "/locked")
+    assert Battles.get(battle.id) == waiting
   end
 
   test "Skip confirms dependent tasks, preserves input and rejects recovered confirmation", ctx do

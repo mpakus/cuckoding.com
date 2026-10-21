@@ -100,6 +100,18 @@ drift, native-stage errors and interrupted/uncertain work cannot Retry. Historic
 snapshots without this contract remain unchanged. Successful retries preserve
 Pause/Resume; failed attempts remain visible in Inspect.
 
+R060j freezes `provider_backoff: automatic-provider-backoff-v1` in new Starts.
+Only eligible `connection_lost`, `profile_busy`, `timeout` and `launch_failed`
+failures automatically wait 5 seconds for the first retry and 20 for the second.
+Generic provider/turn errors remain manual. SQLite retains the failed attempt ID,
+schedule and due time; the coordinator releases its worker while waiting.
+Due admission rechecks exact eligibility, bindings, original limits and deadline
+under the write lock, then uses the same R060b transition and a fresh claim.
+Cancel automatic retry leaves the settled failure available for inspection/manual
+Retry. Stop, Skip and timing fences cancel the wait; startup cancels it before
+admission and never repeats a provider call. Old snapshots gain no automatic
+authority, and failed writers still start fresh from the reviewed head.
+
 R060c adds **Skip task** under `task_selection: skip-task-v1`. A clean paused task,
 settled provider block/transient failure or exhausted task review may be skipped
 after confirming its exact ID/control revision and affected dependent tasks.

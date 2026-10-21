@@ -21,6 +21,17 @@ taskless final stages; do not reset counts during review returns or restart.
 Failed normalized provider tools/changes remain in the original immutable attempt.
 Missing historical recovery fields mean Retry is unavailable.
 
+R060j adds no migration. New Start snapshots also freeze
+`provider_backoff: automatic-provider-backoff-v1`. On an eligible settled failure,
+`context.provider_backoff` stores its attempt ID/reason, scheduled/due UTC times
+and 5/20-second delay in the failure transaction, with
+`battle.provider_backoff_scheduled`. Due admission consumes the existing retry
+transition and claims the fresh attempt in one transaction. Cancelling removes
+the current wait, increments `control_revision` and records
+`battle.provider_backoff_cancelled`; prior events/attempts remain immutable.
+Restart cancels pending waits before dispatch. No timers or live process state
+are durable authority; malformed wait metadata cannot admit work.
+
 R060c adds no migration. New snapshots freeze `task_selection: skip-task-v1`.
 The Skip transaction increments `control_revision`, records `battle.task_skipped`,
 updates task projections to `skipped`/`deferred` and retains bounded `omitted_tasks`

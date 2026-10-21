@@ -18,7 +18,7 @@ defmodule Cuckoding.BattleExecutorTest do
     TeamAssignments
   }
 
-  alias Cuckoding.Battles.Attempt
+  alias Cuckoding.Battles.{Attempt, Backoff}
 
   # These adapters exercise the real executor/domain handoff without native or provider execution.
   defmodule Adapters do
@@ -736,6 +736,58 @@ defmodule Cuckoding.BattleExecutorTest do
     {:ok, stopped} = Battles.stop(battle.id)
     assert stopped.state == "stopped"
     assert Repo.get!(Attempt, attempt.id) == expired
+  end
+
+  test "automatic backoff releases its worker and dispatches a fresh attempt when due", ctx do
+    parent = self()
+
+    executor = fn attempt ->
+      cond do
+        attempt.stage != "coordinator" ->
+          BattleExecutor.execute(attempt, git: Adapters, checks: Adapters, provider: Adapters)
+
+        is_nil(attempt.request["context"]["provider_retries"]) ->
+          Map.merge(
+            Map.take(attempt.request, ~w(battle_id request_id task_id stage criteria_sha256)),
+            %{
+              "status" => "failed",
+              "reason" => "connection_lost",
+              "provider" => %{"status" => "connection_lost"},
+              "cleanup_verified" => true
+            }
+          )
+
+        true ->
+          send(parent, {:backoff_launched, self(), attempt})
+
+          receive do
+            :finish ->
+              BattleExecutor.execute(attempt, git: Adapters, checks: Adapters, provider: Adapters)
+          end
+      end
+    end
+
+    start_supervised!(
+      {Cuckoding.ExecutionSupervisor,
+       coordinator: BattleRunner, tasks: Cuckoding.BattleTasks, options: [executor: executor]}
+    )
+
+    battle = start(ctx.board)
+    runner = Process.whereis(BattleRunner)
+    send(runner, :poll)
+    await(fn -> Backoff.pending?(Battles.get(battle.id)) end)
+    await(fn -> :sys.get_state(runner).job == nil end)
+    assert Task.Supervisor.children(Cuckoding.BattleTasks) == []
+    failed = List.last(Battles.attempts(battle.id))
+    refute_receive {:backoff_launched, _, _}, 50
+    assert_receive {:backoff_launched, worker, attempt}, 6_000
+    assert attempt.id != failed.id
+    assert attempt.request["context"]["provider_retries"] == [failed.id]
+    assert Repo.get!(Attempt, failed.id) == failed
+    current = Battles.get(battle.id)
+    {:ok, _} = Battles.pause(battle.id, current.control_revision)
+    send(worker, :finish)
+    await(fn -> Battles.get(battle.id).state == "paused" end)
   end
 
   test "runner records invalid receipt failure and closes admission without replay", %{

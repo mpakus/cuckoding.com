@@ -95,6 +95,12 @@ and continuing independent tasks may consume allowance. Keep skipped/deferred ca
 unfinished; report Partial separately from Completed. Stale confirmations cannot
 apply to a later task. Parallel workers and full interrupted-work recovery remain open.
 
+R060j shows Waiting to retry for eligible automatic provider backoff, including
+the exact failed role/runtime/model, remaining seconds, allowance and original
+limits. Cancel automatic retry is one session/form/revision-guarded action;
+it leaves the settled failure and manual Retry intact. Reconnect preserves the
+saved wait and unsaved draft; application restart cancels automatic admission.
+
 R060d displays **Paused after restart** for a fully settled checkpoint, explaining
 that Resume continues the saved stage with existing agents and remaining limits.
 Keep recovered text and task evidence visible; stale pre-restart controls cannot

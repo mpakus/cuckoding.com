@@ -171,6 +171,11 @@ battles: two retries per task, plus two shared by final stages, within the same
 time/turn limits. A failed Implementor returns through a fresh worktree and
 Speculator; partial edits remain retained. Blocked reviews and uncertain effects
 cannot be retried. [Retry evidence](worklog/2026-10-14-R060b-provider-retry.md).
+New Starts automatically wait 5/20 seconds before retrying known connection,
+busy-profile, timeout or launch failures with verified cleanup. The wait is saved
+in SQLite and can be cancelled; it consumes the same retry budget and original
+deadline. Restart cancels the automatic wait and requires explicit Retry. Generic
+provider errors remain manual. [Backoff evidence](worklog/2026-10-21-R060j-provider-backoff.md).
 **Skip task** confirms leaving a clean paused or settled blocked/failed task
 unfinished and defers its dependents. Independent tasks continue from reviewed work;
 paused battles stay paused until Resume. Edits and evidence remain available.

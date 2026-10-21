@@ -2,6 +2,7 @@ defmodule CuckodingWeb.BattleComponent do
   @moduledoc false
   use CuckodingWeb, :live_component
   alias Cuckoding.Battles
+  alias Cuckoding.Battles.Backoff
 
   @impl true
   def mount(socket) do
@@ -36,30 +37,14 @@ defmodule CuckodingWeb.BattleComponent do
 
   def handle_event("scope-change", _, socket), do: {:noreply, socket}
 
-  def handle_event(action, params, socket) when action in ~w(pause resume retry skip) do
+  def handle_event(action, params, socket)
+      when action in ~w(pause resume retry skip cancel-backoff) do
     a = socket.assigns
 
     result =
       if a.battle && params["battle_id"] == a.battle.id && params["key"] == a.key &&
            params["revision"] == to_string(a.battle.control_revision) do
-        case action do
-          "pause" ->
-            Battles.pause(a.battle.id, a.battle.control_revision)
-
-          "resume" ->
-            Battles.resume(a.battle.id, a.battle.control_revision)
-
-          "retry" ->
-            Battles.retry(a.battle.id, a.battle.control_revision)
-
-          "skip" ->
-            Battles.skip(
-              a.battle.id,
-              a.battle.control_revision,
-              params["task_id"],
-              a.confirm_skip == skip_key(a.battle)
-            )
-        end
+        control(action, a, params)
       else
         {:error, :stale_control}
       end
@@ -132,6 +117,30 @@ defmodule CuckodingWeb.BattleComponent do
   end
 
   def handle_event(_, _, socket), do: {:noreply, socket}
+
+  defp control(action, a, params) do
+    case action do
+      "pause" ->
+        Battles.pause(a.battle.id, a.battle.control_revision)
+
+      "resume" ->
+        Battles.resume(a.battle.id, a.battle.control_revision)
+
+      "retry" ->
+        Battles.retry(a.battle.id, a.battle.control_revision)
+
+      "cancel-backoff" ->
+        Battles.cancel_backoff(a.battle.id, a.battle.control_revision)
+
+      "skip" ->
+        Battles.skip(
+          a.battle.id,
+          a.battle.control_revision,
+          params["task_id"],
+          a.confirm_skip == skip_key(a.battle)
+        )
+    end
+  end
 
   defp skip_key(nil), do: nil
   defp skip_key(battle), do: {battle.id, battle.control_revision, battle.current_task_id}
@@ -420,7 +429,19 @@ defmodule CuckodingWeb.BattleComponent do
 
   @impl true
   def render(assigns) do
-    assigns = assign(assigns, :attempt, active_attempt(assigns.attempts))
+    waiting = Backoff.pending?(assigns.battle)
+
+    attempt =
+      active_attempt(assigns.attempts) ||
+        if(waiting,
+          do:
+            Enum.find(
+              assigns.attempts,
+              &(&1.id == assigns.battle.context["provider_backoff"]["attempt_id"])
+            )
+        )
+
+    assigns = assign(assigns, attempt: attempt, waiting: waiting)
 
     assigns =
       assign(assigns, :binding, if(assigns.battle, do: binding(assigns.battle, assigns.attempt)))
@@ -451,7 +472,7 @@ defmodule CuckodingWeb.BattleComponent do
     ~H"""
     <div id={@id} class="arena-battle">
       <div :if={@battle} id="battle-activity">
-        <h3>Battle · {label(@battle.state)}</h3>
+        <h3>Battle · {if @waiting, do: "Waiting to retry", else: label(@battle.state)}</h3>
         <p id="battle-progress" role="status">
           {Enum.count(@battle_tasks, &(&1.state == "completed"))} / {length(@battle_tasks)} authorized tasks completed · {label(
             @battle.stage
@@ -519,7 +540,24 @@ defmodule CuckodingWeb.BattleComponent do
         <p :if={@battle.state == "stopped"}>
           Stopped after worker cleanup. Unfinished tasks and evidence are retained.
         </p>
-        <p :if={@battle.state == "needs_attention"} role="alert" class="notice">
+        <div :if={@waiting} id="battle-backoff" role="status" class="notice">
+          <p>
+            Connection interrupted · retrying in {Backoff.remaining(@battle, @now)}s with the same
+            agent and model. This may use provider allowance. Failed edits stay retained;
+            the original deadline and two-retry limit still apply.
+          </p>
+          <button
+            type="button"
+            class="button"
+            id="battle-cancel-backoff"
+            phx-click="cancel-backoff"
+            phx-target={@myself}
+            phx-value-battle_id={@battle.id}
+            phx-value-revision={@battle.control_revision}
+            phx-value-key={@key}
+          >Cancel automatic retry</button>
+        </div>
+        <p :if={@battle.state == "needs_attention" && !@waiting} role="alert" class="notice">
           {message(@battle.reason)}
         </p>
         <p :if={@battle.state == "completed"} id="battle-result">
@@ -727,7 +765,8 @@ defmodule CuckodingWeb.BattleComponent do
             </p>
             <p class="fine-print">
               Up to {@preview.limits["turns"]} role stages within {@preview.limits["wall_seconds"]}s.
-              Settled provider failures allow two explicit retries per task and two shared by final stages.
+              Known transient connection failures retry automatically after 5/20 seconds, within two retries
+              per task and two shared by final stages. You can cancel the wait; other eligible failures offer Retry.
               Skip retains unfinished work and defers its dependents; independent work can produce a reviewed partial result.
             </p>
             <p id="battle-check-scope" class="fine-print">

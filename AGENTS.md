@@ -31,6 +31,18 @@ drift or uncertain effects, or give historical snapshots implicit retry authorit
 Retried failures remain immutable and count toward lifetime limits; Pause/Resume
 may recognize them as settled only through the recorded retry transition.
 
+R060j freezes `provider_backoff: automatic-provider-backoff-v1` in new Starts.
+Only R060b-eligible settled `connection_lost`, `profile_busy`, `timeout` and
+`launch_failed` role failures with verified cleanup schedule SQLite waits of
+5/20 seconds inside the same two-retry task/shared-final budget. No sleeping
+worker owns the wait. At due admission recheck exact attempt/bindings, original
+deadline and consumed limits transactionally before a fresh claim; writer retries
+retain the fresh worktree/coordinator/Speculator path. Generic provider/turn errors
+remain manual. Cancel, Stop, Skip and timing fences cancel the wait; startup
+requires explicit Retry. Preserve historical manual-only snapshots, failed
+receipts/edits, session/form/revision gates and all R060b exclusions. This does
+not recover interrupted native sessions or prove real-account acceptance.
+
 R060c freezes `task_selection: skip-task-v1` in new Starts. Skip confirms the exact
 current task/control revision at a clean paused boundary or settled task-local
 provider block/transient failure/review exhaustion. Verify cleanup, bindings and

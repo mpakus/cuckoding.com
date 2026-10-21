@@ -1,7 +1,7 @@
 defmodule Cuckoding.Battles do
   @moduledoc "Durable bounded Arena authority and sequential stage claims; workers own external effects."
   import Ecto.Query, except: [update: 2, update: 3]
-  alias Cuckoding.Battles.{Attempt, Battle, Snapshot, Task}
+  alias Cuckoding.Battles.{Attempt, Backoff, Battle, Snapshot, Task}
   alias Cuckoding.{Event, Foundation, Repo, TaskTurn}
 
   @active ~w(running pausing paused stopping needs_attention)
@@ -192,6 +192,7 @@ defmodule Cuckoding.Battles do
       battle = get(id) || Repo.rollback(:not_found)
 
       cond do
+        Backoff.pending?(battle) -> claim_backoff(battle, now)
         battle.state != "running" -> Repo.rollback(:not_running)
         timing_blocked?(battle) -> attention(battle, "timing_gap")
         running_attempt(battle.id) -> Repo.rollback(:busy)
@@ -302,6 +303,7 @@ defmodule Cuckoding.Battles do
       true ->
         complete_attempt(battle, attempt, result)
         |> finish_pause()
+        |> schedule_backoff(battle.state, now)
     end
   end
 
@@ -359,6 +361,7 @@ defmodule Cuckoding.Battles do
   defp valid_timing_gap?(_), do: false
 
   defp fence_timing_gap(battle, observation) do
+    battle = clear_backoff(battle, "timing_gap")
     attempt = running_attempt(battle.id)
 
     blocked =
@@ -534,6 +537,90 @@ defmodule Cuckoding.Battles do
 
   defp retried(battle), do: battle.context["provider_retries"] || []
 
+  defp schedule_backoff(battle, "running", now) do
+    attempt = if Backoff.enabled?(battle), do: retry_candidate(battle, now)
+
+    if attempt && Backoff.transient?(attempt) do
+      used =
+        Enum.count(
+          attempts(battle.id),
+          &(&1.id in retried(battle) and &1.task_id == attempt.task_id)
+        )
+
+      wait = Backoff.schedule(attempt, used, now)
+      {:ok, due, 0} = DateTime.from_iso8601(wait["due_at"])
+
+      if expired?(battle.deadline_at, due) do
+        battle
+      else
+        battle = update(battle, context: Map.put(battle.context, "provider_backoff", wait))
+        record(battle, "provider_backoff_scheduled", wait)
+        battle
+      end
+    else
+      battle
+    end
+  end
+
+  defp schedule_backoff(battle, _, _), do: battle
+
+  defp claim_backoff(battle, now) do
+    {:ok, due, 0} = Backoff.due_at(battle)
+
+    cond do
+      Backoff.before_wait?(battle, now) ->
+        cancel_wait(battle, "clock_backward") |> attention("clock_backward")
+
+      expired?(battle.deadline_at, now) ->
+        cancel_wait(battle, "deadline_exceeded") |> attention("deadline_exceeded")
+
+      DateTime.compare(now, due) == :lt ->
+        Repo.rollback(:backoff)
+
+      not current_team?(battle) ->
+        cancel_wait(battle, "resume_binding_changed") |> attention("resume_binding_changed")
+
+      true ->
+        claim_retry(battle, now)
+    end
+  end
+
+  defp claim_retry(battle, now) do
+    expected = battle.context["provider_backoff"]["attempt_id"]
+
+    case retry_candidate(battle, now) do
+      %Attempt{id: ^expected} = attempt ->
+        battle |> retry_current(attempt) |> claim(now)
+
+      _ ->
+        cancel_wait(battle, "retry_unavailable") |> attention("retry_unavailable")
+    end
+  end
+
+  def cancel_backoff(id, revision) do
+    transaction(fn ->
+      battle = control_battle(id, revision, "needs_attention")
+      if not Backoff.pending?(battle), do: Repo.rollback(:stale_control)
+      cancel_wait(battle, "user_cancelled")
+    end)
+  end
+
+  defp cancel_wait(battle, reason) do
+    wait = battle.context["provider_backoff"]
+
+    battle =
+      update(battle,
+        context: Map.delete(battle.context, "provider_backoff"),
+        control_revision: battle.control_revision + 1
+      )
+
+    record(battle, "provider_backoff_cancelled", Map.put(wait, "reason", reason))
+    battle
+  end
+
+  defp clear_backoff(battle, reason),
+    do: if(Backoff.pending?(battle), do: cancel_wait(battle, reason), else: battle)
+
   def retry_available?(battle, now \\ DateTime.utc_now()) do
     retry_candidate(battle, now) != nil
   end
@@ -604,7 +691,10 @@ defmodule Cuckoding.Battles do
         stage: stage,
         reason: nil,
         control_revision: battle.control_revision + 1,
-        context: Map.put(battle.context, "provider_retries", retried(battle) ++ [attempt.id])
+        context:
+          battle.context
+          |> Map.delete("provider_backoff")
+          |> Map.put("provider_retries", retried(battle) ++ [attempt.id])
       )
 
     record(battle, "retry_requested", %{
@@ -699,6 +789,8 @@ defmodule Cuckoding.Battles do
   defp review_failure?(_, _), do: false
 
   defp skip_current(battle, affected) do
+    battle = clear_backoff(battle, "task_skipped")
+
     omitted =
       Enum.map(affected, fn task ->
         state = if(task.task_id == battle.current_task_id, do: "skipped", else: "deferred")
@@ -766,6 +858,7 @@ defmodule Cuckoding.Battles do
         Repo.rollback(:cleanup_required)
 
       true ->
+        battle = clear_backoff(battle, "user_stop")
         state = if(running_attempt(battle.id), do: "stopping", else: "stopped")
         battle = update(battle, state: state, reason: "user_stop")
         record(battle, "stop_requested")
@@ -797,11 +890,18 @@ defmodule Cuckoding.Battles do
   # The startup owner calls this once before dispatch. Uncertain effects are retained, never replayed.
   def recover do
     transaction(fn ->
-      Enum.map(
-        Repo.all(from b in Battle, where: b.state in ~w(running pausing paused stopping)),
-        &recover_battle/1
+      Repo.all(
+        from b in Battle, where: b.state in ~w(running pausing paused stopping needs_attention)
       )
+      |> Enum.filter(&(&1.state != "needs_attention" or Backoff.pending?(&1)))
+      |> Enum.map(&recover_battle/1)
     end)
+  end
+
+  defp recover_battle(%Battle{state: "needs_attention"} = battle) do
+    if Backoff.pending?(battle),
+      do: cancel_wait(battle, "restart_requires_confirmation"),
+      else: battle
   end
 
   defp recover_battle(%Battle{state: "paused"} = battle) do

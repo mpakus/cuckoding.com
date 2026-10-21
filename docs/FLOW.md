@@ -176,6 +176,13 @@ are explicitly unfinished: the terminal result is Partial, never Completed.
 All-omitted work stops without inference if no task completed. Broader recovery
 remains a target; native/policy failures and final stages cannot be skipped.
 
+R060j adds automatic 5/20-second waits for known settled connection, busy-profile,
+timeout or launch failures in new Starts. Show Waiting to retry with the exact
+role/runtime/model, remaining wait, allowance and Cancel automatic retry.
+These waits share the existing retry budget/deadline; generic provider errors
+stay manual. Due admission rechecks bindings and eligibility. Restart cancels the
+wait and leaves an explicit Retry; old Starts retain their original contract.
+
 R060d recovers fully settled running/pausing boundaries as Paused after restart.
 It records the recovery reason/control revision and waits for explicit Resume.
 Keep the exact next stage, all attempts, omissions, counters and original deadline.

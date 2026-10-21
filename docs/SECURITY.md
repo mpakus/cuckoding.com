@@ -675,8 +675,16 @@ Interrupted claims, missing receipts, native operations, policy errors and block
 or rejected reviews never acquire retry authority. The new attempt has a fresh ID
 and session; writer retry uses a fresh worktree from the unchanged reviewed head.
 No abandoned bytes are reused, deleted or integrated. Failed tool/edit receipts
-remain visible; raw provider text/thoughts are discarded. No automatic retry,
-permission expansion, live-session revival or account/model fallback is added.
+remain visible; raw provider text/thoughts are discarded. No permission expansion,
+live-session revival or account/model fallback is added.
+
+R060j permits automatic 5/20-second backoff only in new Starts with
+`automatic-provider-backoff-v1`, and only for the same settled retry candidate
+with normalized connection/busy/timeout/launch failure and verified cleanup.
+Generic provider/turn failures remain manual. Persist the wait before notification;
+revalidate exact bindings, limits and deadline at admission under the write lock.
+Cancel/Stop/Skip/timing fences close the wait; startup requires manual Retry.
+Historical authority and every R060b exclusion stay intact.
 
 ## Explicit task omission (R060c)
 
