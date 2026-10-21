@@ -1,6 +1,6 @@
 defmodule CuckodingWeb.TabulaLive do
   use CuckodingWeb, :live_view
-  alias Cuckoding.{ArenaGit, Battles, Foundation, GitPreview, Tabulae, TeamAssignments}
+  alias Cuckoding.{ArenaGit, Battles, Dashboard, Foundation, GitPreview, Tabulae, TeamAssignments}
   alias CuckodingWeb.Layouts
   import CuckodingWeb.Dialog
   alias Phoenix.LiveView.JS
@@ -265,7 +265,20 @@ defmodule CuckodingWeb.TabulaLive do
           else: []
         )
     )
+    |> refresh_board_activity()
     |> refresh_battle()
+  end
+
+  defp refresh_board_activity(%{assigns: %{board: nil}} = socket),
+    do: assign(socket, board_summary: nil, board_work: nil)
+
+  defp refresh_board_activity(socket) do
+    board = socket.assigns.board
+
+    assign(socket,
+      board_summary: Dashboard.board(board.arena_id, board.id),
+      board_work: Dashboard.work(board.arena_id, board.id)
+    )
   end
 
   defp refresh_battle(%{assigns: %{board: nil}} = socket) do
@@ -746,6 +759,38 @@ defmodule CuckodingWeb.TabulaLive do
           attempts={@battle_attempts}
           now={@now}
         />
+        <details
+          :if={@board_summary}
+          id="board-activity"
+          class="activity retained-activity"
+          phx-mounted={JS.ignore_attributes("open")}
+        >
+          <summary>
+            Board activity · {if @board_summary.battle_id,
+              do: "#{@board_summary.completed} / #{@board_summary.total} battle tasks completed",
+              else:
+                "#{@board_summary.total} saved #{if @board_summary.total == 1, do: "task", else: "tasks"}"}
+          </summary>
+          <CuckodingWeb.DashboardComponent.work_rows
+            id="board-workers"
+            work={@board_work}
+            now={@now}
+            scoped={true}
+          />
+          <p class="fine-print">
+            Saved board team · future work uses these assignments. A started battle keeps its frozen team in Inspect.
+          </p>
+          <ul id="board-saved-team" class="activity-entries">
+            <li :for={role <- @board_summary.team}>
+              {role["name"]} · {role["agent_name"]} · {if role["model_id"] in [
+                                                            nil,
+                                                            ""
+                                                          ],
+                                                          do: "No model selected",
+                                                          else: role["model_id"]}
+            </li>
+          </ul>
+        </details>
         <div :if={length(@boards) > 1} class="team-actions" aria-label="Tabulae">
           <.link
             :for={board <- @boards}

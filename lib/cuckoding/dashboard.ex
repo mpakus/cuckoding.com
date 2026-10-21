@@ -1,9 +1,27 @@
 defmodule Cuckoding.Dashboard do
   @moduledoc "Bounded read-only dashboard projections; observations never authorize work."
   import Ecto.Query
-  alias Cuckoding.{Arena, Command, DraftTask, Event, Repo, Tabula}
+
+  alias Cuckoding.{
+    AgentConnection,
+    Arena,
+    Command,
+    DraftTask,
+    Event,
+    Repo,
+    Tabula,
+    TeamAssignments
+  }
+
   alias Cuckoding.Battles.{Attempt, Battle, Task}
   @page_size 20
+  @provider_commands ~w(probe_codex inspect_codex login_codex logout_codex
+    check_codex_model check_codex_isolation probe_cursor inspect_cursor login_cursor logout_cursor)
+  @repository_commands ~w(inspect_arena_git init_arena_git preview_arena_git commit_arena_git
+    worktree_arena_git inspect_worktree_arena_git preview_documents accept_spec)
+  @setup_commands @provider_commands ++
+                    @repository_commands ++
+                    ~w(discover_tools disconnect_agent choose_arena_folder plan_tabula)
 
   def arenas(page) when is_integer(page) and page >= 0 do
     rows =
@@ -97,31 +115,181 @@ defmodule Cuckoding.Dashboard do
     |> Map.new()
   end
 
-  def workers do
-    Repo.all(
+  def board(arena_id, tabula_id) do
+    with %Tabula{} = board <- scoped_board(arena_id, tabula_id) do
+      battle =
+        Repo.one(
+          from b in Battle,
+            where: b.arena_id == ^arena_id and b.tabula_id == ^board.id,
+            order_by: [desc: b.inserted_at, desc: b.id],
+            limit: 1
+        )
+
+      {total, completed} =
+        if battle,
+          do: Map.get(task_counts([battle.id]), battle.id, {0, 0}),
+          else: {Map.get(draft_counts([board.id]), board.id, 0), 0}
+
+      team = TeamAssignments.assigned(board).definition["roles"]
+
+      %{
+        total: total,
+        completed: completed,
+        battle_id: battle && battle.id,
+        team: public_team(team)
+      }
+    end
+  end
+
+  defp public_team(roles) do
+    ids =
+      Enum.map(roles, & &1["agent"])
+      |> Enum.filter(&match?({:ok, _}, Ecto.UUID.cast(&1)))
+
+    names =
+      Repo.all(from a in AgentConnection, where: a.id in ^ids, select: {a.id, a.name})
+      |> Map.new()
+      |> Map.put("codex", "Codex")
+
+    Enum.map(roles, fn role ->
+      role
+      |> Map.take(~w(name agent model_id))
+      |> Map.put("agent_name", names[role["agent"]] || "Unassigned")
+    end)
+  end
+
+  def work(arena_id \\ nil, tabula_id \\ nil) do
+    scope =
+      if is_nil(arena_id) and is_nil(tabula_id),
+        do: :global,
+        else: scoped_board(arena_id, tabula_id)
+
+    if scope do
+      rows =
+        (battle_workers(scope) ++ setup_work(scope))
+        |> Enum.sort_by(&{DateTime.to_unix(&1.started_at, :microsecond), &1.id})
+
+      %{rows: Enum.take(rows, @page_size), more?: length(rows) > @page_size}
+    else
+      %{rows: [], more?: false}
+    end
+  end
+
+  defp scoped_board(arena_id, tabula_id) do
+    with {:ok, arena_id} <- Ecto.UUID.cast(arena_id),
+         {:ok, tabula_id} <- Ecto.UUID.cast(tabula_id) do
+      Repo.one(from b in Tabula, where: b.arena_id == ^arena_id and b.id == ^tabula_id)
+    else
+      _ -> nil
+    end
+  end
+
+  def workers, do: battle_workers(:global)
+
+  defp battle_workers(scope) do
+    query =
       from a in Attempt,
         join: b in Battle,
         on: a.battle_id == b.id,
         join: arena in Arena,
         on: arena.id == b.arena_id,
         where: a.state == "running",
-        order_by: a.inserted_at,
-        limit: 2,
+        order_by: [asc: a.inserted_at, asc: a.id],
+        limit: ^(@page_size + 1),
         select: %{
           id: a.id,
           arena_id: arena.id,
           arena_name: arena.name,
           tabula_id: b.tabula_id,
           stage: a.stage,
+          state: a.state,
           started_at: a.inserted_at,
+          agent_id: nil,
           binding: type(fragment("json_extract(?, '$.role')", a.request), :map)
         }
-    )
+
+    query =
+      if scope == :global,
+        do: query,
+        else: where(query, [_, b], b.arena_id == ^scope.arena_id and b.tabula_id == ^scope.id)
+
+    Repo.all(query)
     |> Enum.map(
       &Map.update!(&1, :binding, fn binding ->
         Map.take(binding || %{}, ~w(name kind agent_name model))
       end)
     )
+  end
+
+  defp setup_work(scope) do
+    query =
+      from c in Command,
+        left_join: agent in AgentConnection,
+        on: agent.id == fragment("json_extract(?, '$.agent_id')", c.payload),
+        left_join: arena in Arena,
+        on: arena.id == fragment("json_extract(?, '$.arena_id')", c.payload),
+        left_join: board in Tabula,
+        on:
+          board.id == fragment("json_extract(?, '$.tabula_id')", c.payload) and
+            board.arena_id == arena.id,
+        where: c.state in ~w(pending running cancelling) and c.kind in ^@setup_commands,
+        order_by: [asc: c.inserted_at, asc: c.id],
+        limit: ^(@page_size + 1),
+        select: %{
+          id: c.id,
+          stage: c.kind,
+          state: c.state,
+          started_at: c.inserted_at,
+          arena_id: arena.id,
+          arena_name: arena.name,
+          tabula_id: board.id,
+          agent_id: fragment("json_extract(?, '$.agent_id')", c.payload),
+          agent_name: agent.name,
+          kind: fragment("json_extract(?, '$.kind')", c.payload),
+          model: fragment("json_extract(?, '$.model')", c.payload),
+          role: fragment("json_extract(?, '$.role.name')", c.payload)
+        }
+
+    query =
+      if scope == :global,
+        do: query,
+        else:
+          where(
+            query,
+            [c],
+            fragment("json_extract(?, '$.arena_id')", c.payload) == ^scope.arena_id and
+              (fragment("json_extract(?, '$.tabula_id')", c.payload) == ^scope.id or
+                 (is_nil(fragment("json_extract(?, '$.tabula_id')", c.payload)) and
+                    c.kind in ^@repository_commands))
+          )
+
+    Repo.all(query) |> Enum.map(&setup_row/1)
+  end
+
+  defp setup_row(row) do
+    provider =
+      cond do
+        row.stage == "plan_tabula" ->
+          row.kind
+
+        row.stage in @provider_commands ->
+          if String.contains?(row.stage, "cursor"), do: "cursor", else: "codex"
+
+        true ->
+          nil
+      end
+
+    legacy? = provider == "codex" and is_nil(row.agent_id)
+
+    row
+    |> Map.drop([:agent_name, :kind, :model, :role])
+    |> Map.put(:agent_id, if(legacy?, do: "codex", else: row.agent_id))
+    |> Map.put(:binding, %{
+      "name" => row.role,
+      "kind" => provider,
+      "agent_name" => if(legacy?, do: "Codex", else: row.agent_name),
+      "model" => row.model
+    })
   end
 
   def activity(arena_id \\ nil, before \\ nil) do

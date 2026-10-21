@@ -1,7 +1,7 @@
 defmodule Cuckoding.DashboardTest do
   use Cuckoding.DataCase
+  alias Cuckoding.{AgentConnection, Command, Dashboard, Foundation, Tabulae}
   alias Cuckoding.Battles.{Attempt, Battle}
-  alias Cuckoding.{Command, Dashboard, Foundation, Tabulae}
 
   import Cuckoding.DashboardFixtures
 
@@ -77,6 +77,129 @@ defmodule Cuckoding.DashboardTest do
     assert worker.tabula_id == f.board.id
     assert worker.binding == Map.take(binding, ~w(name kind agent_name model))
     refute Map.has_key?(worker, :request)
+  end
+
+  test "work includes exact setup and planning bindings without private command content" do
+    f = fixture()
+
+    agent =
+      Repo.insert!(%AgentConnection{id: Ecto.UUID.generate(), name: "My Cursor", kind: "cursor"})
+
+    command =
+      Repo.insert!(%Command{
+        id: Ecto.UUID.generate(),
+        kind: "plan_tabula",
+        state: "running",
+        expected_revision: 0,
+        payload: %{
+          "arena_id" => f.arena.id,
+          "tabula_id" => f.board.id,
+          "agent_id" => agent.id,
+          "kind" => "cursor",
+          "model" => "exact-alias",
+          "role" => %{"name" => "Speculator", "instructions" => "hidden-instructions"},
+          "brief" => "private-brief",
+          "documents" => [%{"text" => "private-document"}],
+          "login_url" => "private-url"
+        }
+      })
+
+    login =
+      Repo.insert!(%Command{
+        id: Ecto.UUID.generate(),
+        kind: "login_codex",
+        state: "cancelling",
+        expected_revision: 0,
+        payload: %{"private" => "hidden-login"}
+      })
+
+    Repo.insert!(%Command{
+      id: Ecto.UUID.generate(),
+      kind: "plan_tabula",
+      state: "completed",
+      expected_revision: 0,
+      payload: %{}
+    })
+
+    assert %{rows: rows, more?: false} = Dashboard.work()
+    assert length(rows) == 2
+    planning = Enum.find(rows, &(&1.id == command.id))
+
+    assert planning.binding == %{
+             "name" => "Speculator",
+             "agent_name" => "My Cursor",
+             "kind" => "cursor",
+             "model" => "exact-alias"
+           }
+
+    assert planning.agent_id == agent.id
+    assert planning.state == "running"
+    assert Enum.find(rows, &(&1.id == login.id)).state == "cancelling"
+    refute inspect(rows) =~ "private-"
+    refute inspect(rows) =~ "hidden-"
+    assert Dashboard.work(f.arena.id, f.board.id).rows == [planning]
+  end
+
+  test "board work rejects foreign scope and limits global activity" do
+    f = fixture()
+    other = fixture()
+
+    for _ <- 1..23 do
+      Repo.insert!(%Command{
+        id: Ecto.UUID.generate(),
+        kind: "inspect_arena_git",
+        state: "pending",
+        expected_revision: 0,
+        payload: %{"arena_id" => f.arena.id}
+      })
+    end
+
+    foreign =
+      Repo.insert!(%Command{
+        id: Ecto.UUID.generate(),
+        kind: "plan_tabula",
+        state: "running",
+        expected_revision: 0,
+        payload: %{"arena_id" => other.arena.id, "tabula_id" => f.board.id}
+      })
+
+    Repo.insert!(%Command{
+      id: Ecto.UUID.generate(),
+      kind: "future_unknown_command",
+      state: "running",
+      expected_revision: 0,
+      payload: %{}
+    })
+
+    assert %{rows: rows, more?: true} = Dashboard.work()
+    assert length(rows) == 20
+    scoped = Dashboard.work(f.arena.id, f.board.id)
+    assert length(scoped.rows) == 20
+    refute Enum.any?(scoped.rows, &(&1.id == foreign.id))
+    assert Dashboard.work(f.arena.id, other.board.id).rows == []
+    assert Dashboard.work("invalid", f.board.id).rows == []
+    assert Dashboard.work(f.arena.id, nil).rows == []
+  end
+
+  test "board summary uses only that board's latest frozen progress and saved team" do
+    f = fixture()
+    other = fixture()
+    {:ok, empty} = Tabulae.create(Ecto.UUID.generate(), f.arena.id, "Empty board")
+    before = Repo.aggregate(Command, :count)
+    summary = Dashboard.board(f.arena.id, f.board.id)
+    assert summary.total == 1
+    assert summary.completed == 1
+    assert summary.battle_id == f.battle.id
+
+    assert Enum.all?(
+             summary.team,
+             &(Map.keys(&1) |> Enum.sort() == ~w(agent agent_name model_id name))
+           )
+
+    assert Dashboard.board(f.arena.id, empty.id).total == 0
+    assert Dashboard.board(f.arena.id, other.board.id) == nil
+    assert Dashboard.board("invalid", f.board.id) == nil
+    assert Repo.aggregate(Command, :count) == before
   end
 
   test "activity pages are chronological, scoped and metadata-only" do

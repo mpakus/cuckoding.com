@@ -2,8 +2,8 @@ defmodule CuckodingWeb.DashboardLiveTest do
   use CuckodingWeb.ConnCase
   import Phoenix.LiveViewTest
   import Cuckoding.DashboardFixtures
+  alias Cuckoding.{AgentConnection, BrowserToken, Command, Foundation, Repo, Tabulae}
   alias Cuckoding.Battles.Attempt
-  alias Cuckoding.{BrowserToken, Command, Foundation, Repo, Tabulae}
 
   test "global dashboard shows exact active worker, frozen progress and direct board navigation",
        ctx do
@@ -73,6 +73,68 @@ defmodule CuckodingWeb.DashboardLiveTest do
     view |> element("#workspace-activity button[phx-click=follow]") |> render_click()
     assert has_element?(view, "#workspace-activity button[aria-pressed=true]", "Pause updates")
     assert has_element?(view, "#workspace-activity-entries[data-follow=true]")
+  end
+
+  test "setup and exact-board planning are visible without exposing inputs or changing work",
+       ctx do
+    f = fixture()
+    other = fixture()
+
+    agent =
+      Repo.insert!(%AgentConnection{id: Ecto.UUID.generate(), name: "Planner", kind: "cursor"})
+
+    command =
+      Repo.insert!(%Command{
+        id: Ecto.UUID.generate(),
+        kind: "plan_tabula",
+        state: "running",
+        expected_revision: 0,
+        payload: %{
+          "arena_id" => f.arena.id,
+          "tabula_id" => f.board.id,
+          "agent_id" => agent.id,
+          "kind" => "cursor",
+          "model" => "saved-alias",
+          "role" => %{"name" => "Speculator"},
+          "brief" => "private-brief-canary"
+        }
+      })
+
+    login =
+      Repo.insert!(%Command{
+        id: Ecto.UUID.generate(),
+        kind: "login_codex",
+        state: "cancelling",
+        expected_revision: 0,
+        payload: %{"url" => "private-url-canary"}
+      })
+
+    count = Repo.aggregate(Command, :count)
+    signed = sign_in(ctx.conn)
+    {:ok, global, html} = live(signed, "/")
+    assert has_element?(global, "#dashboard-workers-#{command.id}", "Creating tasks")
+    assert has_element?(global, "#dashboard-workers-#{command.id}", "Planner")
+    assert has_element?(global, "#dashboard-workers-#{command.id}", "requested saved-alias")
+    assert has_element?(global, "#dashboard-workers-#{login.id}", "Finishing cleanup")
+    refute html =~ "private-brief-canary"
+    refute html =~ "private-url-canary"
+    {:ok, board, _} = live(signed, "/arenas/#{f.arena.id}/tabulae/#{f.board.id}")
+    assert has_element?(board, "#board-activity summary", "1 / 1 battle tasks completed")
+    assert has_element?(board, "#board-workers-#{command.id}", "Speculator")
+    assert has_element?(board, "#board-saved-team", "Implementor")
+    refute has_element?(board, "#board-workers-#{login.id}")
+    refute board |> element("#board-activity") |> render() =~ "private-brief-canary"
+    refute has_element?(board, "#board-activity form")
+
+    Repo.update!(Ecto.Changeset.change(command, state: "completed"))
+    Foundation.broadcast()
+    refute has_element?(board, "#board-workers-#{command.id}")
+    {:ok, again, _} = live(signed, "/arenas/#{f.arena.id}/tabulae/#{f.board.id}")
+    refute has_element?(again, "#board-workers-#{command.id}")
+    assert has_element?(again, "#board-activity summary", "1 / 1 battle tasks completed")
+    {:ok, foreign, _} = live(signed, "/arenas/#{other.arena.id}/tabulae/#{other.board.id}")
+    refute has_element?(foreign, "#board-workers-#{command.id}")
+    assert Repo.aggregate(Command, :count) == count
   end
 
   test "pausing an empty activity feed also preserves it across updates", ctx do

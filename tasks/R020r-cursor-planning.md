@@ -1,6 +1,7 @@
 # R020r — Initial planning through the assigned Cursor Speculator
 
 Status: complete, 2026-10-21. [Evidence](../worklog/2026-10-21-R020r-cursor-planning.md).
+Merged into local main as `95fa633`; task branch deleted. Not pushed.
 
 - [x] Reuse the exact saved Cursor connection/catalog/model for brief/document
   planning, including v3 folder snapshots and automatic card creation. No fallback.

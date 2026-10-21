@@ -29,7 +29,7 @@ defmodule CuckodingWeb.DashboardComponent do
     do:
       assign(socket,
         page: Dashboard.arenas(socket.assigns.page_number),
-        workers: Dashboard.workers()
+        work: Dashboard.work()
       )
 
   defp state(nil), do: "Not started"
@@ -40,6 +40,76 @@ defmodule CuckodingWeb.DashboardComponent do
   defp label(value), do: value |> String.replace("_", " ") |> String.capitalize()
   defp elapsed(worker, now), do: max(DateTime.diff(now, worker.started_at), 0)
 
+  defp work_state("pending"), do: "Queued"
+  defp work_state("cancelling"), do: "Finishing cleanup"
+  defp work_state(_), do: "Running"
+
+  defp work_label("plan_tabula"), do: "Creating tasks"
+  defp work_label("discover_tools"), do: "Finding installed agents"
+  defp work_label("preview_documents"), do: "Reading selected documents"
+  defp work_label("accept_spec"), do: "Saving specification"
+  defp work_label("choose_arena_folder"), do: "Choosing project folder"
+  defp work_label("disconnect_agent"), do: "Disconnecting agent"
+  defp work_label("probe_" <> _), do: "Checking executable"
+  defp work_label("inspect_codex"), do: "Checking connection"
+  defp work_label("inspect_cursor"), do: "Checking connection"
+  defp work_label("login_" <> _), do: "Authorizing account"
+  defp work_label("logout_" <> _), do: "Signing out"
+  defp work_label("check_codex_model"), do: "Checking model access"
+  defp work_label("check_codex_isolation"), do: "Checking isolation"
+  defp work_label(value), do: label(value)
+
+  defp work_path(%{arena_id: arena, tabula_id: board})
+       when not is_nil(arena) and not is_nil(board),
+       do: ~p"/arenas/#{arena}/tabulae/#{board}"
+
+  defp work_path(%{arena_id: arena}) when not is_nil(arena), do: ~p"/arenas/#{arena}"
+  defp work_path(%{agent_id: "codex"}), do: ~p"/agents/codex"
+
+  defp work_path(%{agent_id: id}) do
+    case Ecto.UUID.cast(id) do
+      {:ok, id} -> ~p"/agents/#{id}"
+      _ -> ~p"/agents"
+    end
+  end
+
+  attr :id, :string, required: true
+  attr :work, :map, required: true
+  attr :now, :any, required: true
+  attr :scoped, :boolean, default: false
+
+  def work_rows(assigns) do
+    ~H"""
+    <div id={@id} aria-label="Saved active work">
+      <p :if={@work.rows == []} class="fine-print">
+        No active work is recorded{if @scoped, do: " for this board", else: ""}.
+      </p>
+      <article :for={worker <- @work.rows} id={@id <> "-" <> worker.id} class="worker-row">
+        <span class="worker-mark" aria-hidden="true">◇</span>
+        <div>
+          <.link navigate={work_path(worker)} class="text-link">
+            {worker.arena_name || worker.binding["agent_name"] || "Local setup"}
+          </.link>
+          <p>{worker.binding["name"] || "Local host"} · {work_label(worker.stage)}</p>
+          <p class="fine-print">
+            {worker.binding["agent_name"] || "Native service"}
+            <span :if={worker.binding["kind"]}> · {worker.binding["kind"]}</span>
+            <span :if={worker.binding["model"]}> · requested {worker.binding["model"]}</span>
+            · {elapsed(worker, @now)}s since queued
+          </p>
+        </div>
+        <span class="worker-state">{work_state(worker.state)}</span>
+      </article>
+      <p :if={@work.more?} class="fine-print">
+        Showing the oldest 20 active records. Open Agents or an Arena for more.
+      </p>
+      <p :if={@work.rows != []} class="fine-print">
+        Saved state and wall time; this does not prove a process is still running.
+      </p>
+    </div>
+    """
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -48,29 +118,7 @@ defmodule CuckodingWeb.DashboardComponent do
         <h2 id="home-arenas">Inside the Arena.</h2>
         <.link navigate={~p"/arenas"} class="text-link">All Arenas ↗</.link>
       </div>
-      <div id="dashboard-workers" aria-label="Active battle workers">
-        <p :if={@workers == []} class="fine-print">
-          No battle worker is running. Open an Arena to create tasks or Start.
-        </p>
-        <article :for={worker <- @workers} id={"worker-#{worker.id}"} class="worker-row">
-          <span class="worker-mark" aria-hidden="true">◇</span>
-          <div>
-            <.link
-              navigate={~p"/arenas/#{worker.arena_id}/tabulae/#{worker.tabula_id}"}
-              class="text-link"
-            >{worker.arena_name}</.link>
-            <p>{worker.binding["name"] || "Local host"} · {label(worker.stage)}</p>
-            <p class="fine-print">
-              {worker.binding["agent_name"] || "Native service"}
-              <span :if={worker.binding["model"]}> · {worker.binding["kind"]} · requested {worker.binding[
-                "model"
-              ]}</span>
-              · {elapsed(worker, @now)}s elapsed
-            </p>
-          </div>
-          <span class="worker-state">Running</span>
-        </article>
-      </div>
+      <.work_rows id="dashboard-workers" work={@work} now={@now} />
       <div class="dashboard-arenas">
         <article :for={row <- @page.rows} id={"arena-#{row.arena.id}"} class="arena-summary">
           <div class="panel-heading">

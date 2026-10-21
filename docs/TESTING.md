@@ -43,6 +43,13 @@ user data for that negative test. Retained-data upgrade evidence compares saved
 table hashes, integrity/FKs and the unchanged original database. These local
 checks do not replace Developer ID/notarization, clean-machine or live accounts.
 
+R080i adds bounded public setup/planning/repository work, exact named/legacy
+connection labels and selected-board team/progress tests. Refuse foreign/invalid
+Arena/Tabula pairs, exclude private command fields and unknown command kinds,
+preserve drafts/reconnects, and prove observations issue no commands. Mutation of
+the board-scope check must fail these regressions. Queue duration and saved state
+are not live process or provider acceptance evidence.
+
 R080g adds Dashboard query/LiveView coverage for latest-battle progress, bounded
 Arena/activity pages, exact public bindings, direct/board/command scope precedence,
 foreign scope refusal, stable reading mode/dirty drafts and expired component

@@ -31,6 +31,14 @@ install their own session guard. Paused reading preserves pages/scroll/disclosur
 and dirty task text; following latest is explicit. These observations, links and
 pagination never start work, adopt teams or establish completion authority.
 
+R080i extends those observations to fixed setup/planning/repository commands and
+the exact selected board. Query at most 21 rows per source, show 20 plus an overflow
+notice, and whitelist public binding fields before rendering. Validate both Arena
+and Tabula; a foreign/missing scope never becomes global. Keep saved board-team
+assignments distinct from frozen battle bindings. Queue wall time and persisted
+Running state never prove process liveness or cleanup. Reuse the stateless worker
+rows inside the existing board disclosure; retain one Start and guarded parents.
+
 R080h task evidence stays inside the existing task dialog. Bind reads to the
 server-owned Arena/Tabula/draft and exact selected battle; never fall back from a
 foreign execution ID. Expose only whitelisted frozen criteria/public receipt

@@ -42,6 +42,9 @@ concurrently; shared connections queue and each board remains sequential.
 R080g adds two further index-only migrations (fourteen total) for bounded dashboard
 and scoped activity reads. Keep the selected data-root backup; do not replace an
 already running bundle without the graceful restart procedure below.
+R080i adds public setup/planning work to the same global dashboard and a compact
+Board activity disclosure for the selected Tabula's team/progress/workers. It adds
+no migration, provider access or execution control.
 [Plan](PLAN.md#next-delivery-order--simple-arena) owns the remaining beta gates.
 
 ## Build and open
@@ -166,8 +169,9 @@ Open **Team** to rename the four default roles, edit instructions or add up to
 eight custom roles. Leave assignments empty to save a draft; choose a named agent
 and a model from that agent’s saved wizard selection (or full legacy Codex catalog).
 For example, Speculator can save a Cursor/Grok binding when Cursor advertises that
-model, while Implementor uses a Codex/GPT binding. Cursor model tests and planning
-remain unavailable; no Codex fallback is used. Save creates an immutable revision;
+model, while Implementor uses a Codex/GPT binding. Cursor initial planning uses
+R020r's separate no-tools grant; optional Cursor model diagnostics remain unavailable.
+No Codex fallback is used. Save creates an immutable revision;
 expand **Recent saved revisions** to inspect the latest five. Removing a saved
 custom role needs confirmation. A stale editor keeps its draft and refuses to
 overwrite a newer revision; **Reload saved** asks before discarding edits.

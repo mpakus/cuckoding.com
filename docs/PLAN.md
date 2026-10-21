@@ -573,11 +573,12 @@ No lost code, duplicate claims, stale review acceptance or premature Completed.
 Depends on R070 for final acceptance. R040k and each execution slice deliver their
 usable Arena surface first; basic flow simplification must not wait for R080.
 
-- [x] R080g global dashboard: Arena summaries, active battle workers, progress
-  and attention from retained SQLite state. Broader setup/provider session activity
-  and real parallel acceptance remain open.
-- [ ] Arena dashboard: selected Tabula, team/progress and worker details using the
-  same durable projections.
+- [x] R080g/R080i global dashboard: Arena summaries, public setup/planning/battle
+  work, progress and attention from retained SQLite state. Bounded saved records
+  are observations, not proof of native session liveness; real acceptance stays open.
+- [x] R080i Arena dashboard: selected Tabula, saved team/progress and exact-board
+  worker details using the same durable projections inside Board activity.
+  [Task/evidence](../tasks/R080i-board-activity.md).
 - [x] R080h task inspector: frozen spec, public review comments, exact bindings,
   candidate/edit/tool/check receipts and 20-attempt cursor pages across retained
   executions, inside the existing task dialog. No new execution authority.
@@ -585,7 +586,7 @@ usable Arena surface first; basic flow simplification must not wait for R080.
 - [x] R080g scrollable/paginated normalized event activity globally/per Arena,
   with explicit follow control. Raw provider output/thoughts never enter this feed.
 - [ ] Safe opening/export of retained log artifacts where supported; full
-  parallel/setup worker activity and end-to-end dashboard acceptance.
+  parallel-worker and end-to-end dashboard acceptance.
 - [ ] Apply the one/two-region modern TUI visual contract, mouse/keyboard
   alternatives, non-color status, responsive layout and reduced motion.
 - [ ] Remove duplicate start paths and per-task setup; keep provider internals in

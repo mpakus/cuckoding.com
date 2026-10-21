@@ -52,12 +52,14 @@ listed below. Arena registration opens its default board; technical setup stays 
 | Folder registration with an automatic default board, direct Arena opening, Advanced setup and editable drafts | Custom columns and scoped role editing |
 | Codex/Cursor planning from a brief or bounded folder snapshots (`docs/` first), automatically saved task cards, prerequisites and original source citations | Real-account planning acceptance across supported runtimes |
 | One bounded Start, sequential Codex/Cursor dispatch per board, two isolated Arenas progressing concurrently, independent review and retained local battle branch | Real-account end-to-end acceptance, general toolchain checks, recovery and same-board parallel workers |
-| Live global worker/Arena summaries, exact role/model progress and paginated activity globally/per Arena | Timed real-account setup and broader dashboard/release acceptance |
+| Global setup/planning/battle activity, selected-board team/progress and paginated events globally/per Arena | Timed real-account setup and broader dashboard/release acceptance |
 
-Tabula Gladiatorum shows current battle workers and the latest saved Arena
-progress. Activity offers 20-event pages, Older/Newer and Pause updates/Follow
-latest. Reading stays fixed during updates; open the linked board for controls
-and task evidence. [Dashboard evidence](worklog/2026-10-21-R080g-live-arena-dashboard.md).
+Tabula Gladiatorum shows up to 20 saved active setup/planning/battle records and
+the latest Arena progress. Open **Board activity** on a Tabula for its own work,
+progress and saved team; started battles retain their frozen bindings in Inspect.
+Saved state and wall time do not prove process liveness. Activity offers 20-event
+pages, Older/Newer and Pause updates/Follow latest. Reading stays fixed during
+updates. [Dashboard evidence](worklog/2026-10-21-R080i-board-activity.md).
 
 Open a task's **Execution history** to inspect its frozen specification, public
 review feedback, exact agent/model, candidates, file-tool receipts and command
