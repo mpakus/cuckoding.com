@@ -20,7 +20,7 @@ release process group and private storage lock.
 | `BattleClock` | Independent UTC/monotonic sampling in the battle execution group; SQLite timing fences precede admission, cancellation and receipt settlement |
 | `ShellAuth`, web session guard | One-time shell/browser handoff and expiring DB sessions; stateful components must guard their own events |
 | `Battles.idle_sleep_requested?`, native `power.rs` / `service.rs` | SQLite-derived bounded eligibility through the authenticated shell heartbeat; one OS-timed idle-system sleep assertion. ShellAuth retains transient last-report age and state-change audit events; no power observation grants workflow authority |
-| `Codex`, native `connection.rs` / `model_check.rs` | Private-profile authorization, model catalog, fixed diagnostic and structured no-tools planning; SQLite retains only normalized public receipts |
+| `Codex`, `Cursor`, native `connection.rs` / `model_check.rs` / `cursor/task.rs` | Private-profile authorization, model catalogs, Codex diagnostic and provider-specific no-tools planning; SQLite retains only normalized public receipts |
 | `Foundation`, `Codex`, native `isolation.rs` | Optional fixed two-workspace sandbox canaries, fresh empty runtime profile, executable-bound command/event receipt; no inference or Arena grant |
 | `Team`, `TeamAssignments` | Immutable default revisions, confirmed scoped adoptions and transactional current-role unassignment on accepted logout; no provider launch or permission grant |
 | `Arenas`, native `folder.rs` | Native folder selection and confirmed directory identity; registration reads metadata only |
@@ -128,6 +128,16 @@ function components, and the four stateful form/control components share
 `CuckodingWeb, :live_component` with verified routes. Their explicit per-component
 session event guards remain mandatory. Authentication, redirects, downloads and
 shell protocol retain controller boundaries; the public static site stays separate.
+
+R020r routes initial planning to the exact frozen Codex/Cursor connection. Cursor
+reuses its isolated ACP config/model selection/cleanup path but never constructs
+the host Files service. A separate two-minute no-tools operation returns the same
+bounded proposal contract plus exact runtime-model parameters. Planning validates
+the provider-specific receipt before existing atomic graph/card creation. The
+shared ACP input writer owns stdin in a thread and has one queued bounded frame;
+the main helper remains able to observe cancellation/deadlines and close its group.
+No LiveView/GenServer callback waits for native/provider I/O, and no migration or
+new command kind is needed. Codex historical planning keeps its original grant.
 
 R040f reuses the native pinned-directory reader for up to four selected `.md`/`.txt`
 files without running Git. A local `preview_documents` command stores exact text,

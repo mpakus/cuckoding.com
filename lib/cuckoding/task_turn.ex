@@ -46,10 +46,7 @@ defmodule Cuckoding.TaskTurn do
   end
 
   defp runtime?(%{"transport" => "cursor-acp-v1", "effort" => nil} = result) do
-    parameters = result["runtime_parameters"]
-
-    id?(result["runtime_model"]) and is_map(parameters) and map_size(parameters) <= 12 and
-      Enum.all?(parameters, fn {key, value} -> id?(key) and id?(value) end)
+    Cuckoding.Cursor.runtime_metadata?(result)
   end
 
   defp runtime?(result), do: is_nil(result["transport"]) and id?(result["effort"])

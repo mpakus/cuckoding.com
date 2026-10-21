@@ -647,6 +647,17 @@ isolation guarantees and review/integration still require fresh checks.
 
 ## Cursor task execution (R020p)
 
+R020r initial planning is a separate `cursor-plan-no-tools-v1` operation. Only the
+consented brief/role instructions/frozen snapshots reach the isolated ACP prompt;
+no Arena path or host file service is supplied. Reuse verified deny policy, ask
+mode, exact alias/base-model/parameter checks and private store cleanup. Every
+native callback aborts; a failed refusal write cannot reclassify that policy error
+as a retryable transport failure. ACP input writes use a bounded owned writer so
+blocked stdin cannot prevent deadline/cancellation reaching group cleanup.
+The host requires a closed Cursor receipt with explicit cleanup, no file-tool
+fields and matching grant/transport/model before validated automatic cards. This
+is planning authority only, not an execution grant or real-provider acceptance.
+
 The setup helper remains fixed-command only. A separate task entrypoint verifies
 version, account and complete catalog, then launches ACP with the selected alias,
 empty cwd and per-attempt config/data. Credentials stay in the named private HOME.

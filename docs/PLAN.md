@@ -17,7 +17,7 @@ attempts, inside the existing retry budget; interrupted/native recovery remains 
 
 | Area | Implemented | Still required |
 | --- | --- | --- |
-| Agents and Team | Named Codex/Cursor connections, full bounded catalogs, model choices, default roles/custom role records, scoped team adoption | Per-scope role editing, custom role/stage execution, Cursor initial planning, Claude Code and Hermes |
+| Agents and Team | Named Codex/Cursor connections, full bounded catalogs, model choices, default roles/custom role records, scoped team adoption | Per-scope role editing, custom role/stage execution, Claude Code and Hermes |
 | Arena and tasks | Add folder/default board, bounded docs-first analysis, automatic cards, prerequisites, citations and saved criteria | Custom columns, custom planning-role selection and real-account planning acceptance |
 | Execution | One Start, sequential mixed-runtime dispatch per board, two isolated Arenas concurrently, independent review/correction and retained local result branch | General subprocess/toolchain checks, real mixed-provider battle acceptance and same-board parallel workers |
 | Controls/recovery | Stop, stage-boundary Pause/Resume, bounded provider Retry and automatic backoff, Skip with deferred dependents and Partial result; settled restart checkpoints, timing fence and bounded idle-sleep assertion | Unfinished native/process/Git reconciliation, sleep accounting and physical sleep tests |
@@ -418,7 +418,10 @@ Depends on R030.
   files or bounded folder snapshots. Retain criteria, source citations, prerequisites,
   accepted-spec artifacts and edited cards (R040b/e/f/h/i/l/m).
 - [ ] Select a custom planning role; initial generation currently uses the assigned
-  Codex Speculator. Battle-time preparation supports the frozen Codex/Cursor binding.
+  Codex/Cursor Speculator. Battle-time preparation supports the frozen Codex/Cursor binding.
+- [x] R020r initial task generation through the exact assigned Cursor connection,
+  isolated no-tools ACP, validated v3 snapshots/graph and automatic cards. Keep
+  real-account acceptance open. [Task/evidence](../tasks/R020r-cursor-planning.md).
 - [x] R040g: select bounded same-board task prerequisites, reject cycles against
   the latest graph and retain dependency revisions without launching work. See
   [task](../tasks/R040g-task-prerequisites.md) and

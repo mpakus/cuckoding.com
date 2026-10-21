@@ -3,6 +3,7 @@ defmodule Cuckoding.Cursor do
   @behaviour Cuckoding.AgentAdapter
   alias Cuckoding.Codex
   @version "2026.09.15-d2fe57e"
+  @plan_fields ~w(status grant transport requested_model observed_model effort runtime_model runtime_parameters thread_id turn_id request_id proposal pid spawned_at_ms elapsed_ms cleanup_verified)
   def task_version, do: @version
 
   @impl true
@@ -43,7 +44,59 @@ defmodule Cuckoding.Cursor do
   @impl true
   def check_model(_, _, _, _, _, _), do: %{"status" => "unsupported_grant"}
   @impl true
-  def plan(_, _, _, _, _), do: %{"status" => "unsupported_grant"}
+  def plan(identity, profile, scratch, request, active?) do
+    if active?.() do
+      Codex.observe(
+        identity,
+        profile,
+        active?,
+        "--plan-cursor-brief",
+        &Cuckoding.Planning.normalize/1,
+        65_536,
+        125_000,
+        progress: :no_progress,
+        args: [scratch, request["model"]],
+        input:
+          Jason.encode!(Map.take(request, ~w(request_id brief instructions documents contract))) <>
+            "\n"
+      )
+    else
+      %{"status" => "cancelled"}
+    end
+  end
+
+  @doc false
+  def runtime_metadata?(%{
+        "transport" => "cursor-acp-v1",
+        "effort" => nil,
+        "runtime_model" => model,
+        "runtime_parameters" => parameters
+      })
+      when is_map(parameters) do
+    identifier?(model) and map_size(parameters) <= 12 and
+      Enum.all?(parameters, fn {key, value} -> identifier?(key) and identifier?(value) end)
+  end
+
+  def runtime_metadata?(_), do: false
+
+  @doc false
+  def normalize_plan_fields(result) do
+    if result["status"] == "planned" and result["grant"] == "cursor-plan-no-tools-v1" and
+         result["cleanup_verified"] == true and Map.keys(result) -- @plan_fields == [] and
+         runtime_metadata?(result) and
+         Enum.all?(~w(requested_model observed_model thread_id turn_id), &identifier?(result[&1])) do
+      result
+      |> Map.take(
+        ~w(status grant transport requested_model observed_model effort runtime_model runtime_parameters thread_id turn_id)
+      )
+      |> Map.merge(Codex.public_fields(result))
+    else
+      %{"status" => "invalid_response"}
+    end
+  end
+
+  defp identifier?(id),
+    do: is_binary(id) and byte_size(id) in 1..128 and Regex.match?(~r/\A[a-zA-Z0-9._\/-]+\z/, id)
 
   @impl true
   def run_task(identity, profile, scratch, request, active?) do

@@ -13,7 +13,7 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-mod model_check;
+pub(crate) mod model_check;
 pub(crate) mod task_files;
 pub(crate) mod task_turn;
 pub(crate) use task_files::valid_path as valid_task_path;

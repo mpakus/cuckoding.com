@@ -73,6 +73,94 @@ defmodule Cuckoding.PlanningFixtures do
     }
   end
 
+  def cursor_speculator(board) do
+    alias Cuckoding.{Agents, Cursor, TeamAssignments}
+    revision = fn -> Foundation.workspace().revision end
+
+    {:ok, command} =
+      Agents.add_and_probe(
+        Ecto.UUID.generate(),
+        revision.(),
+        "Cursor planner",
+        "cursor",
+        "/bin/sh"
+      )
+
+    {:ok, claim} = Foundation.claim()
+
+    {:ok, _} =
+      Foundation.finish(claim, %{"status" => "supported", "version" => Cursor.task_version()})
+
+    agent_id = command.payload["agent_id"]
+    {:ok, _} = Foundation.inspect_codex(Ecto.UUID.generate(), revision.(), true, agent_id)
+    {:ok, claim} = Foundation.claim()
+
+    {:ok, _} =
+      Foundation.finish(claim, %{
+        "status" => "checked",
+        "authorization" => "cursor",
+        "catalog_status" => "fresh",
+        "models" => [
+          %{
+            "id" => "cursor-fixture",
+            "model" => "cursor-fixture",
+            "name" => "Cursor fixture",
+            "default" => true,
+            "hidden" => false
+          }
+        ]
+      })
+
+    connection = Agents.get(agent_id).connection
+
+    {:ok, _} =
+      Foundation.save_agent_models(
+        Ecto.UUID.generate(),
+        revision.(),
+        connection["command_id"],
+        ["cursor-fixture"],
+        agent_id
+      )
+
+    team = Team.current()
+
+    roles =
+      Team.editable(team)
+      |> Enum.map(fn role ->
+        if role["id"] == "speculator",
+          do: Map.merge(role, %{"agent" => agent_id, "model_id" => "cursor-fixture"}),
+          else: role
+      end)
+
+    {:ok, team} = Team.save(Ecto.UUID.generate(), team.id, roles)
+
+    {:ok, _} =
+      TeamAssignments.adopt(
+        Ecto.UUID.generate(),
+        board.arena_id,
+        board.id,
+        TeamAssignments.assigned(board).id,
+        team.id,
+        true
+      )
+
+    %{agent: Agents.get(agent_id), board: Tabulae.get(board.arena_id, board.id)}
+  end
+
+  def cursor_planning_receipt(id) do
+    planning_receipt(id)
+    |> Map.merge(%{
+      "requested_model" => "cursor-fixture",
+      "observed_model" => "cursor-fixture",
+      "grant" => "cursor-plan-no-tools-v1",
+      "transport" => "cursor-acp-v1",
+      "effort" => nil,
+      "runtime_model" => "fixture-base",
+      "runtime_parameters" => %{"effort" => "xhigh"},
+      "cleanup_verified" => true
+    })
+  end
+
   # Simulate a request consented before automatic card creation was introduced.
   def legacy_plan_fixture(claim) do
     claim

@@ -254,7 +254,8 @@ retained in the public receipt. No alias rewriting or default-model fallback.
 One role stage is capped at five minutes, 64 host operations and 65 model prompts;
 these prompts may consume provider allowance. Stop/timeout retain existing edits
 and terminate the owned group. No failed stage is automatically replayed.
-Cursor can fill any battle role; initial Create tasks still requires Codex.
+Cursor can fill any battle role; R020r also enables initial Create tasks through
+the assigned Cursor Speculator with no runtime/host tools and frozen snapshots.
 Runtime session files are private and removed after cleanup; hard process death
 can leave them for recovery. Raw thought frames never enter application receipts.
 Protocol fixtures and real metadata-only model selection checks pass. Live Cursor

@@ -201,7 +201,7 @@ battle using it refuses disconnection; other agents remain unchanged. `/agents/n
 four-step wizard. New connections choose Codex or Cursor and a display name.
 Team's agent selector lists those names and filters each role's model selector
 independently. Changing an agent clears that role's unsaved model choice. Cursor
-setup and task execution are available; optional model tests and initial planning remain unavailable. Existing Codex
+setup, initial planning and task execution are available; optional Cursor model tests remain unavailable. Existing Codex
 profiles and immutable assignments are preserved. No single global agent selector.
 
 R080e shows **Disconnected** after verified native sign-out, and disables repeat

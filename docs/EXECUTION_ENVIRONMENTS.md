@@ -57,6 +57,14 @@ See [D022](DECISIONS.md#d022--simple-arena) and [Flow](FLOW.md).
 
 ## Owned execution
 
+R020r Cursor initial planning shares the isolated ACP runtime with a separate
+no-tools operation. It has a two-minute native bound, one prompt and no host file
+service or Arena cwd. Only frozen snapshots/brief are input. Main helper polling
+can cancel while its bounded writer thread owns a blocked stdin pipe; group cleanup
+still precedes private-store removal. Exact runtime model/parameters and explicit
+cleanup survive normalization. Planning never grants task execution or session
+continuation, and real account/physical interruption acceptance remains open.
+
 R060k makes normal native group closure explicit: TERM/KILL while the owned
 leader remains unreaped, finite exit/group-disappearance waits, then a cached
 verified/uncertain receipt. A lost leader cannot authorize another signal.

@@ -1,5 +1,14 @@
 # Verification and acceptance
 
+R020r tests Cursor initial planning through its exact saved connection, active
+claim, private profile and helper entrypoint; forbid grant/model/runtime/transport
+drift, missing cleanup and tool-bearing planning receipts. Retain old Codex parsing,
+automatic cards, snapshot/graph validation, dirty UI input and reconnect behavior.
+Native fixtures cover all 16 bounded snapshots, no Files service or project edits,
+model/config/callback refusal, cancellation/deadline store cleanup and a blocked
+500 KiB stdin write that still reaches owned cleanup. Invert the planning-grant
+check and require regression failure. Real Cursor planning remains a separate gate.
+
 R060l tests exclusive native intent/publication, exact provider/runtime binding,
 public-only closure metadata outside an unchanged empty scratch, missing/partial/changed/symlink/hardlink/over-limit
 files and refusal before intent on foreign runtime/scratch. Host tests bind the
@@ -243,7 +252,7 @@ provider acceptance; passing unit tests do not prove sleep/cleanup on macOS.
 
 R020i focused checks cover named profile/catalog/selection isolation, independent
 mixed-role pickers, foreign catalog receipts, stale forms, Cursor login URL scope,
-per-connection planning, unsupported Cursor planning, cancellation and expired setup
+per-connection planning, the then-unsupported Cursor planning boundary, cancellation and expired setup
 claims. Native Cursor fixtures cover file-only credentials, environment canaries,
 bounded complete model parsing, redaction, signout verification and group cleanup.
 Migration acceptance uses an integrity-checked SQLite backup of the eight-version

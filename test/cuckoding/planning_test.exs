@@ -5,6 +5,84 @@ defmodule Cuckoding.PlanningTest do
   alias Ecto.Adapters.SQL
   setup do: planning_fixture()
 
+  test "the assigned Cursor Speculator generates cards without a Codex fallback", %{board: board} do
+    %{agent: agent, board: board} = cursor_speculator(board)
+    setup = Planning.setup(board)
+    assert setup.token
+    assert setup.payload["agent_id"] == agent.id
+    assert setup.payload["kind"] == "cursor"
+    assert setup.payload["grant"] == "cursor-plan-no-tools-v1"
+    {:ok, command} = request(board)
+    {:ok, claim} = Foundation.claim()
+
+    assert {:ok, %{state: "completed"} = saved} =
+             Foundation.finish(claim, cursor_planning_receipt(command.id))
+
+    assert length(Tabulae.tasks(board.id)) == 1
+    assert saved.payload["observation"]["runtime_model"] == "fixture-base"
+    assert saved.payload["observation"]["runtime_parameters"] == %{"effort" => "xhigh"}
+    assert saved.payload["agent_id"] == agent.id
+  end
+
+  test "Cursor planning rejects mismatched grants, models and runtime metadata", %{board: board} do
+    %{board: board} = cursor_speculator(board)
+
+    for change <- [:grant, :model, :runtime, :cleanup, :tools, :transport, :missing_cleanup] do
+      {:ok, command} = request(board)
+      {:ok, claim} = Foundation.claim()
+      good = cursor_planning_receipt(command.id)
+
+      bad =
+        case change do
+          :grant -> Map.put(good, "grant", "host-task-tools-v1")
+          :model -> Map.put(good, "observed_model", "another")
+          :runtime -> Map.put(good, "runtime_parameters", %{"raw" => "not public metadata"})
+          :cleanup -> Map.put(good, "cleanup_verified", false)
+          :tools -> Map.put(good, "tools", [%{"tool" => "read_file"}])
+          :transport -> Map.put(good, "transport", "unknown-transport")
+          :missing_cleanup -> Map.delete(good, "cleanup_verified")
+        end
+
+      assert {:ok, %{state: "failed"} = saved} = Foundation.finish(claim, bad)
+      refute Planning.proposal(saved)
+    end
+
+    assert Tabulae.tasks(board.id) == []
+  end
+
+  test "planning dispatch reaches only the frozen Cursor profile and native plan operation", %{
+    board: board,
+    path: path
+  } do
+    %{agent: agent, board: board} = cursor_speculator(board)
+    {:ok, command} = request(board)
+    {:ok, claim} = Foundation.claim()
+    helper = Path.join(Path.dirname(path), "native-helper")
+    old_helper = Application.get_env(:cuckoding, :native_helper)
+    Application.put_env(:cuckoding, :native_helper, helper)
+    on_exit(fn -> Application.put_env(:cuckoding, :native_helper, old_helper) end)
+    receipt = cursor_planning_receipt(command.id)
+
+    File.write!(helper, """
+    #!/usr/bin/python3
+    import json,sys
+    request=json.loads(sys.stdin.readline())
+    assert sys.argv[1]=='--plan-cursor-brief'
+    assert sys.argv[3].endswith('/agents/#{agent.id}')
+    assert sys.argv[5]=='cursor-fixture'
+    assert set(request)=={'request_id','brief','instructions','documents','contract'}
+    assert request['contract']=='brief-plan-v3'
+    print(json.dumps(json.loads(#{Jason.encode!(Jason.encode!(receipt))})))
+    """)
+
+    File.chmod!(helper, 0o700)
+    result = Planning.execute(claim)
+    assert result == receipt
+    assert {:ok, %{state: "completed"}} = Foundation.finish(claim, result)
+    assert Planning.execute(claim) == %{"status" => "cancelled"}
+    assert length(Tabulae.tasks(board.id)) == 1
+  end
+
   test "catalog age alone keeps the assigned Speculator usable, without allowing new selections",
        %{board: board} do
     workspace = Foundation.workspace()

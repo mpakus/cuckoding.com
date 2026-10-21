@@ -1,6 +1,45 @@
 use super::*;
 use std::{os::unix::fs::MetadataExt, path::PathBuf};
 
+#[test]
+fn blocked_acp_input_stays_cancellable_and_does_not_hold_owned_cleanup() {
+    let mut group = Group::new(
+        Command::new("/bin/sleep")
+            .arg("10")
+            .stdin(Stdio::piped())
+            .process_group(0)
+            .spawn()
+            .unwrap(),
+    );
+    let (input, writes) = protocol_input(group.0.stdin.take().unwrap());
+    let (_output, receiver) = mpsc::channel();
+    let mut rpc = Rpc {
+        input,
+        writes,
+        output: receiver,
+        sequence: 0,
+        session: None,
+        selection: None,
+    };
+    let (_cancel, cancel) = mpsc::channel();
+    let cli = Cli {
+        path: Path::new("/bin/sleep"),
+        directory: Path::new("/private/tmp"),
+        cancel,
+        deadline: Instant::now() + Duration::from_millis(100),
+        wall: SystemTime::now() + Duration::from_secs(1),
+        pid: Cell::new(0),
+    };
+    let started = Instant::now();
+    assert_eq!(
+        rpc.send(&cli, json!({"large":"x".repeat(500_000)}), cli.deadline),
+        Err("timeout")
+    );
+    assert!(started.elapsed() < Duration::from_secs(1));
+    drop(rpc);
+    assert!(group.finish());
+}
+
 fn fixture(mode: &str) -> (PathBuf, PathBuf, PathBuf, PathBuf, Value) {
     let (root, profile, scratch, mut request) = task_files::tests::fixture();
     if mode == "read_only" {
@@ -40,6 +79,9 @@ for line in sys.stdin:
  elif method == 'session/cancel': continue
  elif method == 'session/prompt':
   turn += 1
+  if mode == 'plan_wait':
+   Path(os.environ['CURSOR_DATA_DIR'],'prompt-started').write_text('fixture')
+   time.sleep(3); continue
   if mode == 'native':
    send({'id':100,'method':'session/request_permission','params':{'sessionId':'fixture-session'}}); continue
   if mode == 'wait' and turn == 2: time.sleep(3); continue
@@ -49,6 +91,12 @@ for line in sys.stdin:
   if mode == 'oversize': print('x'*65537,flush=True); continue
   update({'sessionUpdate':'agent_thought_chunk','content':{'type':'text','text':'PRIVATE_THOUGHT_CANARY'}})
   answer = {'tool':'edit_file','arguments':{'path':'../outside.txt' if mode == 'escape' else 'source.txt','text':'after','expected_sha256':hashlib.sha256(b'before').hexdigest()}} if turn == 1 else {'outcome':'completed','summary':'Fixture result.'}
+  if mode == 'plan_success':
+   payload = json.loads(request['params']['prompt'][0]['text'])
+   assert 'tools' not in payload and 'NO tools' in payload['instruction']
+   assert payload['output_schema']['properties']['tasks']['items']['properties']['sources']['items']['maximum'] == 15
+   assert len(payload['document_snapshots']) == 16
+   answer = {'summary':'A bounded plan','tasks':[{'title':'Plan task','description':'Use snapshots only','criteria':'Inspect the exact expected result','depends_on':[],'sources':[]}]}
   if mode == 'malformed': answer = {'outcome':'completed','summary':'Fixture result.','extra':True}
   update({'sessionUpdate':'agent_message_chunk','content':{'type':'text','text':json.dumps(answer)}},'foreign' if mode == 'foreign' else 'fixture-session')
   result = {'stopReason':'end_turn'}
@@ -102,6 +150,106 @@ fn exact_alias_parameters_scope_and_native_tool_refusal() {
             assert_eq!(result["runtime_model"], "test");
             assert_eq!(result["runtime_parameters"], json!({"effort":"xhigh"}));
         }
+        assert!(profile_lock(&profile).is_ok());
+        fs::remove_dir_all(root).unwrap();
+    }
+}
+
+#[test]
+fn initial_planning_uses_no_host_file_service_and_keeps_exact_cursor_binding() {
+    for (mode, status) in [
+        ("plan_success", "planned"),
+        ("success", "invalid_response"),
+        ("native", "unexpected_tool"),
+        ("drift", "model_mismatch"),
+        ("policy", "unsupported_grant"),
+        ("alias", "model_mismatch"),
+        ("oversize", "invalid_output"),
+    ] {
+        let (root, binary, profile, scratch, task) = fixture(mode);
+        let mut request = json!({"request_id":task["request_id"],"brief":"Plan from supplied snapshots","instructions":"Keep all criteria","documents":[],"contract":"brief-plan-v3"});
+        if mode == "plan_success" {
+            use sha2::{Digest, Sha256};
+            let text = "\\\"\n".repeat(1365);
+            request["documents"]=json!((0..16).map(|index|json!({"path":format!("docs/source{index}.md"),"text":text,"bytes":text.len(),"sha256":format!("{:x}",Sha256::digest(text.as_bytes()))})).collect::<Vec<_>>());
+        }
+        let (_sender, cancel) = mpsc::channel();
+        let result = execute(
+            &binary,
+            &profile,
+            &scratch,
+            "cursor-test-xhigh",
+            Work::Plan(&request),
+            cancel,
+            Duration::from_secs(10),
+        )
+        .unwrap();
+        assert_eq!(result["status"], status, "{mode}: {result}");
+        assert_eq!(
+            fs::read_to_string(
+                Path::new(task["workspace"]["path"].as_str().unwrap()).join("source.txt")
+            )
+            .unwrap(),
+            "before"
+        );
+        assert!(!scratch.join("tool-receipts.jsonl").exists());
+        assert!(!scratch.join("cursor-runtime").exists());
+        assert!(result.get("tools").is_none() && result.get("changes").is_none());
+        assert!(!result.to_string().contains("PRIVATE_THOUGHT_CANARY"));
+        if mode == "plan_success" {
+            assert_eq!(result["grant"], "cursor-plan-no-tools-v1");
+            assert_eq!(result["requested_model"], "cursor-test-xhigh");
+            assert_eq!(result["runtime_model"], "test");
+            assert_eq!(result["runtime_parameters"], json!({"effort":"xhigh"}));
+            assert_eq!(result["cleanup_verified"], true);
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+}
+
+#[test]
+fn initial_planning_cancellation_and_deadline_remove_only_its_runtime_store() {
+    for cancel_it in [true, false] {
+        let (root, binary, profile, scratch, task) = fixture("plan_wait");
+        let request = json!({"request_id":task["request_id"],"brief":"Wait for cancellation","instructions":"No tools","documents":[],"contract":"brief-plan-v3"});
+        let (sender, cancel) = mpsc::channel();
+        let marker = scratch.join("cursor-runtime/data/prompt-started");
+        let signal = thread::spawn(move || {
+            if cancel_it {
+                for _ in 0..300 {
+                    if marker.exists() {
+                        let _ = sender.send(());
+                        return;
+                    }
+                    thread::sleep(Duration::from_millis(10));
+                }
+            }
+        });
+        let result = execute(
+            &binary,
+            &profile,
+            &scratch,
+            "cursor-test-xhigh",
+            Work::Plan(&request),
+            cancel,
+            Duration::from_secs(if cancel_it { 5 } else { 1 }),
+        )
+        .unwrap();
+        signal.join().unwrap();
+        assert_eq!(
+            result["status"],
+            if cancel_it { "cancelled" } else { "timeout" }
+        );
+        assert_eq!(result["cleanup_verified"], true);
+        assert!(!scratch.join("cursor-runtime").exists());
+        assert!(!scratch.join("tool-receipts.jsonl").exists());
+        assert_eq!(
+            fs::read_to_string(
+                Path::new(task["workspace"]["path"].as_str().unwrap()).join("source.txt")
+            )
+            .unwrap(),
+            "before"
+        );
         assert!(profile_lock(&profile).is_ok());
         fs::remove_dir_all(root).unwrap();
     }

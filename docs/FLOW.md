@@ -292,5 +292,6 @@ models → Save. Edit opens the same wizard for one connection; all other profil
 and choices remain intact. Team chooses a connection independently for each role,
 then shows only that connection's saved model choices. Changing the agent clears
 that role's unsaved model choice. Saving a new default team does not alter any
-Arena/Tabula's existing revision. Codex planning follows the assigned connection;
-a Cursor Speculator is a saved configuration with planning currently unavailable.
+Arena/Tabula's existing revision. Codex/Cursor initial planning follows the assigned
+Speculator connection, with frozen source snapshots and explicit usage consent.
+Cursor uses its separate no-tools planning grant, never a Codex fallback.

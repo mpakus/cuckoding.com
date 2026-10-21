@@ -2,6 +2,13 @@
 
 ## R050e durable battle state
 
+R020r uses existing `plan_tabula` commands: new payloads freeze `kind` and the
+provider-specific planning `grant` alongside exact connection/catalog/model/team
+and source snapshots. Cursor public observations add validated runtime base model
+and parameters; old Codex payloads without `kind` retain their original behavior.
+Card/graph import remains in the existing single transaction. No schema migration
+or rewrite of historical planning/role receipts is needed.
+
 R070a's twelfth forward-only migration adds partial indexes for running attempts
 and exact connections whose provider cleanup remains unverified. No existing
 rows, snapshots, receipts or authority are changed. New Starts freeze

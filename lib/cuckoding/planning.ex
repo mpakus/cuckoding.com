@@ -1,7 +1,19 @@
 defmodule Cuckoding.Planning do
   @moduledoc "Consented brief and document proposals using the frozen Speculator; no delivery authority."
   import Ecto.Query
-  alias Cuckoding.{Codex, Command, Foundation, Repo, Storage, Tabulae, Team, TeamAssignments}
+
+  alias Cuckoding.{
+    Agents,
+    Codex,
+    Command,
+    Cursor,
+    Foundation,
+    Repo,
+    Storage,
+    Tabulae,
+    Team,
+    TeamAssignments
+  }
 
   def history(tabula_id) do
     Repo.all(
@@ -25,7 +37,11 @@ defmodule Cuckoding.Planning do
     role = Enum.find(team.definition["roles"], &(&1["id"] == "speculator"))
     catalog = Team.catalog(role["agent"])
 
-    if match?({:ok, _}, documents) and Cuckoding.Agents.kind(role["agent"]) == "codex" and
+    kind = Agents.kind(role["agent"])
+
+    if match?({:ok, _}, documents) and kind in ~w(codex cursor) and
+         (kind != "cursor" or
+            Foundation.workspace(role["agent"]).codex["version"] == Cursor.task_version()) and
          Team.binding_status(role, catalog) in [:untested, :check_passed] do
       model = Enum.find(catalog.models, &(&1["id"] == role["model_id"]))
       connection = Foundation.workspace(role["agent"]).connection
@@ -33,6 +49,7 @@ defmodule Cuckoding.Planning do
       payload =
         Map.merge(Map.take(connection, ~w(identity fetched_at)), %{
           "agent_id" => role["agent"],
+          "kind" => kind,
           "connection_command_id" => connection["command_id"],
           "model_id" => model["id"],
           "model" => model["model"],
@@ -41,7 +58,8 @@ defmodule Cuckoding.Planning do
           "team_revision_id" => team.id,
           "arena_id" => board.arena_id,
           "tabula_id" => board.id,
-          "grant" => "scratch-read-only-v1",
+          "grant" =>
+            if(kind == "cursor", do: "cursor-plan-no-tools-v1", else: "scratch-read-only-v1"),
           "contract" => "brief-plan-v3",
           "card_creation" => "automatic-v1",
           "document_preview_id" => preview_id,
@@ -141,8 +159,10 @@ defmodule Cuckoding.Planning do
   def execute(command) do
     payload = command.payload
 
-    if Foundation.saved_binding_current?(payload) do
-      Codex.plan(
+    if binding_current?(payload) do
+      adapter = if payload["kind"] == "cursor", do: Cursor, else: Codex
+
+      adapter.plan(
         payload["identity"],
         Storage.codex_profile!(Foundation.agent_id(payload)),
         Storage.probe_directory!(command.id, command.attempts),
@@ -230,22 +250,27 @@ defmodule Cuckoding.Planning do
     result["request_id"] == claim.id and result["requested_model"] == claim.payload["model"] and
       result["observed_model"] == claim.payload["model"] and
       result["effort"] == claim.payload["effort"] and
-      Foundation.saved_binding_current?(claim.payload) and
+      result["grant"] == claim.payload["grant"] and
+      result["transport"] == if(claim.payload["kind"] == "cursor", do: "cursor-acp-v1", else: nil) and
+      binding_current?(claim.payload) and
       Foundation.verified_executable(Foundation.agent_id(claim.payload)) ==
         {:ok, claim.payload["identity"]}
   end
 
+  defp binding_current?(%{"kind" => "cursor", "grant" => "cursor-plan-no-tools-v1"} = payload),
+    do: Foundation.task_binding_current?(payload)
+
+  defp binding_current?(payload),
+    do:
+      payload["kind"] in [nil, "codex"] and payload["grant"] == "scratch-read-only-v1" and
+        Foundation.saved_binding_current?(payload)
+
   def normalize(bytes) when is_binary(bytes) and byte_size(bytes) <= 65_536 do
     case Codex.decode_receipt(bytes) do
       {:ok, %{"status" => "planned", "proposal" => proposal, "request_id" => id} = result} ->
-        receipt =
-          result
-          |> Map.drop(~w(proposal request_id))
-          |> Map.put("status", "passed")
-          |> Jason.encode!()
-          |> Codex.normalize_model_check()
+        receipt = planning_fields(result)
 
-        if receipt["status"] == "passed" and match?({:ok, _}, Ecto.UUID.cast(id)) and
+        if receipt["status"] == "planned" and match?({:ok, _}, Ecto.UUID.cast(id)) and
              valid_proposal?(proposal),
            do:
              Map.merge(receipt, %{
@@ -264,6 +289,23 @@ defmodule Cuckoding.Planning do
   end
 
   def normalize(_), do: %{"status" => "invalid_output"}
+
+  defp planning_fields(%{"transport" => "cursor-acp-v1"} = result),
+    do: Cursor.normalize_plan_fields(result)
+
+  defp planning_fields(%{"transport" => transport}) when not is_nil(transport),
+    do: %{"status" => "invalid_response"}
+
+  defp planning_fields(result) do
+    receipt =
+      result
+      |> Map.drop(~w(proposal request_id))
+      |> Map.put("status", "passed")
+      |> Jason.encode!()
+      |> Codex.normalize_model_check()
+
+    if receipt["status"] == "passed", do: Map.put(receipt, "status", "planned"), else: receipt
+  end
 
   def proposal(%Command{
         kind: "plan_tabula",

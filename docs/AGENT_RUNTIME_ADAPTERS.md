@@ -5,7 +5,7 @@ Codex supports version/account/catalog checks, ChatGPT login/logout, a fixed
 model diagnostic and R040e/f brief/document-snapshot planning. Its verified
 baselines are `0.146.0`, `0.162.0-alpha.2` and `0.162.0-alpha.17.2`; R020h records an actual GPT-6.1-Sol
 diagnostic response. Cursor `2026.09.15-d2fe57e` supports fixed setup operations
-and R020p bounded ACP role turns. Initial planning, real mixed-runtime Arena
+and R020p bounded ACP role turns plus R020r no-tools initial planning. Real mixed-runtime Arena
 acceptance and additional provider adapters remain open.
 
 R020m adds `check_isolation/3` as an optional Codex diagnostic on
@@ -51,7 +51,7 @@ is actually required.
 | --- | --- | --- |
 | Codex | Setup/model diagnostics, R020o synthetic host read/edit proof, R050e bounded sequential Arena implementation | Live two-task battle, broader model/runtime coverage, general toolchain checks, interruption and remaining R090 matrix |
 | Claude Code | Pending | Current official interface, safe reusable authorization, models/default behavior and permission boundary |
-| Cursor | Named setup and R020p bounded ACP task turns on 2026.09.15-d2fe57e | Synthetic usage acceptance, real mixed-runtime Arena, initial planning and full recovery |
+| Cursor | Named setup, R020p bounded ACP task turns and R020r no-tools initial planning on 2026.09.15-d2fe57e | Real planning/usage acceptance, mixed-runtime Arena and full recovery |
 | Hermes | Pending | Confirm intended runtime/distribution, supported headless interface, authorization, model catalog and enforceable grants |
 | Additional runtime | Deferred until requested | Same conformance contract; a saved name/path alone does not enable execution |
 
@@ -171,8 +171,8 @@ v2 successful responses currently have fixture evidence only.
 R020i adds the Cursor setup adapter and multiple Codex connections. The existing
 bounded native-helper transport is reused; Cursor owns its authorization files.
 Cursor model metadata includes only IDs, display names and default flags; no
-reasoning/input capabilities are invented. Planning/model diagnostics return
-unsupported until a restrictive Cursor grant is verified. Model lists are obtained
+reasoning/input capabilities are invented. R020r later enables a separate no-tools
+planning operation; optional model diagnostics remain unsupported. Model lists are obtained
 from the selected CLI/account, never hardcoded or borrowed from Codex. Real Codex
 model-response evidence from R020h remains recorded separately from new fixtures.
 
@@ -246,6 +246,25 @@ oversized messages. Thought chunks are discarded. Runtime session databases are
 private transient files removed after owned group cleanup; abrupt process death
 can leave these files, an explicit R060 recovery/privacy gate.
 
-Initial planning/model diagnostics remain unsupported for Cursor. Existing native
+R020r enables initial planning separately below; model diagnostics remain unsupported. Existing native
 command checks require Codex; a Cursor Implementor with declared commands is
 blocked before Start. [Evidence](../worklog/2026-10-13-R020p-cursor-task-execution.md).
+
+## R020r Cursor planning
+
+`Cursor.plan/5` selects only `--plan-cursor-brief` on the pinned R020p runtime.
+The two-minute `cursor-plan-no-tools-v1` operation reuses private config/data/cwd,
+ask mode, denied native tools and exact catalog alias/base-model/parameter checks.
+It receives only a brief, role instructions and up to 16 frozen v3 snapshots; no
+Arena path, Files service, host operations or runtime tools are supplied. One
+`session/prompt` asks for the existing bounded proposal schema. The host validates
+text, prerequisite ordering, source indices, exact scope and current binding
+before atomically creating cards. Old Codex receipts retain their original grant.
+
+The bounded ACP writer owns stdin in a thread with one queued message. Main
+polling checks cancellation/deadlines while writes can block, preserving access
+to owned group cleanup. Unknown tool callbacks remain policy failures even if
+the denial cannot be written. Public planning receipts require explicit verified
+cleanup, exact alias, runtime model/parameters, request/session/turn IDs and no
+file-tool fields. Private session stores are removed only after verified closure;
+uncertainty stays blocked. Fixture success is not real-account acceptance.

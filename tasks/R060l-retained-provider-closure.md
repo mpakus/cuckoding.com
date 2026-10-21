@@ -1,6 +1,7 @@
 # R060l — Retained provider closure after a lost reply
 
 Status: complete, 2026-10-21. [Evidence](../worklog/2026-10-21-R060l-retained-provider-closure.md).
+Merged locally as `f7e2fa1`; task branch deleted. No publication.
 
 - [x] New Starts opt into exact, exclusive native provider closure intents and
   fsynced public closure receipts, before returning a Codex/Cursor task result.

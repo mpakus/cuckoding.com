@@ -5,6 +5,40 @@ defmodule CuckodingWeb.PlanningLiveTest do
   alias Cuckoding.{Foundation, Planning, Tabulae}
   setup do: planning_fixture()
 
+  test "the Cursor Speculator uses the same consented Create tasks dialog and retains drafts", %{
+    conn: conn,
+    board: board
+  } do
+    %{agent: agent, board: board} = cursor_speculator(board)
+    signed = sign_in(conn)
+    path = "/arenas/#{board.arena_id}/tabulae/#{board.id}"
+    {:ok, view, _} = live(signed, path)
+    refute has_element?(view, "#brief-planning .notice", "Choose a connected")
+    view |> form("#draft-form", title: "Keep my manual draft") |> render_change()
+
+    view
+    |> form("#planning-form", brief: "Plan with Cursor", confirmed: "true")
+    |> render_submit()
+
+    command = hd(Planning.history(board.id))
+    assert command.payload["agent_id"] == agent.id
+    assert command.payload["kind"] == "cursor"
+    assert has_element?(view, "#plan-#{command.id}", "Cursor · cursor-fixture")
+    refute has_element?(view, "#plan-#{command.id}", "Codex · cursor-fixture")
+    {:ok, claim} = Foundation.claim()
+
+    assert {:ok, %{state: "completed"}} =
+             Foundation.finish(claim, cursor_planning_receipt(command.id))
+
+    task = hd(Tabulae.tasks(board.id))
+    assert has_element?(view, "#column-specs #task-#{task.id}")
+    assert has_element?(view, "#draft-title-input[value='Keep my manual draft']")
+    assert has_element?(view, "#plan-#{command.id}", "Tasks created")
+    {:ok, again, _} = live(signed, path)
+    assert has_element?(again, "#column-specs #task-#{task.id}")
+    assert Planning.history(board.id) |> length() == 1
+  end
+
   test "expired sessions cannot launch component-targeted planning", %{conn: conn, board: board} do
     {:ok, view, _} = conn |> sign_in() |> live("/arenas/#{board.arena_id}/tabulae/#{board.id}")
     Cuckoding.Repo.update_all(Cuckoding.BrowserToken, set: [expires_at: 0])

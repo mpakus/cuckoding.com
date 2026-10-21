@@ -10,8 +10,8 @@ saved model selection. Existing Codex profiles and immutable Team bindings keep
 their original identity. Codex's fixed model diagnostic has real GPT-6.1-Sol
 response evidence from R020h; Cursor has a real 256-entry
 catalog recorded in [R020l](../tasks/R020l-cursor-catalog.md). R050e/R020p use Codex
-and Cursor connections for the bounded sequential Arena loop. Cursor initial
-planning and full live-provider battle acceptance remain open.
+and Cursor connections for the bounded sequential Arena loop. R020r adds initial
+Cursor planning; full live-provider planning/battle acceptance remains open.
 Login/logout invalidate only that connection's observations before launch.
 
 Login uses a ten-minute managed browser flow. A validated official HTTPS URL is
@@ -57,8 +57,8 @@ After this reusable setup, the target project path is **Add folder → Create ta
 ask for another agent/model assignment. Summa Rudis and Secutor remain distinct.
 
 New Arenas inherit the default Team. Existing scoped adoptions and historical
-bindings do not change when another agent is added. Codex planning uses the exact
-assigned connection; Cursor initial planning remains unavailable. Saving a mixed team grants no execution permission.
+bindings do not change when another agent is added. Codex/Cursor planning uses the
+exact assigned Speculator connection. Saving a mixed team grants no execution permission.
 
 The normal path does not reassign agents per task or ask for another login on
 each app launch. Provider expiry/revocation remains authoritative; there is no

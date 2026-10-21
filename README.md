@@ -47,10 +47,10 @@ listed below. Arena registration opens its default board; technical setup stays 
 | Available in the current code | Still to implement |
 | --- | --- |
 | Tray launch, authenticated browser and local SQLite state | Full timed ten-minute onboarding acceptance |
-| Multiple named Codex/Cursor connections, model discovery and saved choices | Additional runtimes; Cursor initial planning |
+| Multiple named Codex/Cursor connections, model discovery and saved choices | Additional runtimes |
 | Saved agent/model assignments for Speculator, Implementor, Secutor and Summa Rudis | Real mixed-runtime battle acceptance |
 | Folder registration with an automatic default board, direct Arena opening, Advanced setup and editable drafts | Custom columns and scoped role editing |
-| Codex planning from a brief or bounded folder snapshots (`docs/` first), automatically saved task cards, prerequisites and original source citations | Real-account planning acceptance across supported runtimes |
+| Codex/Cursor planning from a brief or bounded folder snapshots (`docs/` first), automatically saved task cards, prerequisites and original source citations | Real-account planning acceptance across supported runtimes |
 | One bounded Start, sequential Codex/Cursor dispatch per board, two isolated Arenas progressing concurrently, independent review and retained local battle branch | Real-account end-to-end acceptance, general toolchain checks, recovery and same-board parallel workers |
 | Live global worker/Arena summaries, exact role/model progress and paginated activity globally/per Arena | Timed real-account setup and broader dashboard/release acceptance |
 
@@ -241,10 +241,12 @@ final bytes and normal process cleanup. Full battle acceptance remains open.
 R020p adds Cursor role execution with the same bounded host file operations.
 It verifies the exact saved model variant, keeps native Cursor tools denied, and
 routes each role to its assigned connection. A blocked Start now names the affected
-roles and links directly to their agent setup. Cursor initial planning remains
-unsupported. Protocol fixtures and real model-selection preflights pass; live
+roles and links directly to their agent setup. R020r also adds initial Create tasks
+through the assigned Cursor Speculator, with a separate no-tools grant and the
+same validated task/citation graph. Protocol fixtures and real model-selection preflights pass; live
 Cursor read/edit/denial acceptance is still pending usage approval.
 [Cursor execution evidence](worklog/2026-10-13-R020p-cursor-task-execution.md).
+[Cursor planning evidence](worklog/2026-10-21-R020r-cursor-planning.md).
 
 R050d1 captures exact task edits into retained application-owned Git candidates.
 R050e integrates only reviewed candidates into `ccoding/battles/<UUID>` and

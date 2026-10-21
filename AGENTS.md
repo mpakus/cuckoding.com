@@ -178,7 +178,7 @@ Preserve these implemented contracts:
   to the exact connection ID, with no account/runtime/model fallback. Cursor setup
   uses only fixed version/status/models/login/logout commands, file credentials,
   empty inherited environment, disabled provider debug logging and transient provider-scoped login URLs. Cursor
-  initial planning remains unsupported; task execution uses the R020p grant below.
+  initial planning uses the separate R020r no-tools grant; task execution uses R020p below.
 - R080b roster Disconnect uses verified native logout when available. If the
   executable is missing/changed/unverified, `local-disconnect-v1` disables only
   that saved connection and unassigns current default/Arena/board roles in one
@@ -308,8 +308,21 @@ Retain effect receipts; remove private runtime session stores after owned cleanu
 Never persist provider thought frames in Cuckoding receipts or UI. Hard-kill
 cleanup of interrupted provider session stores remains a recovery gate.
 No Cursor fallback to Codex. Command checks still require a Codex Implementor;
-Cursor initial task generation and general shell/toolchain execution remain open.
+Cursor initial task generation uses R020r below; general shell/toolchain execution remains open.
 Use synthetic provider acceptance separately from fixture or full Arena evidence.
+
+R020r enables Cursor initial planning only through `cursor-plan-no-tools-v1` on
+the pinned R020p version. Freeze exact connection/model/grant in planning consent;
+retain Codex historical requests and never substitute runtimes. Reuse the isolated
+ACP policy/ask mode and verify alias/base model/parameters before and after the
+single planning prompt. Send only the brief and frozen bounded document snapshots;
+never create Files/host tools or send an Arena path. Bound input writes through a
+one-message owned writer and deadline/cancellation polling, then verified group/
+private-store cleanup. Preserve callback refusal as a policy error even when its
+denial write fails. Validate closed public Cursor receipt fields, explicit cleanup,
+proposal schema/graph/citations and exact grant/model before automatic cards.
+This enables neither Cursor model diagnostics nor general command execution;
+fixtures do not establish real-account planning or mixed-battle acceptance.
 
 R050d1 host candidate capture accepts only bounded task-tool path/hash pairs in a
 verified owned checkout. Preserve the original source and task HEAD/index, verify

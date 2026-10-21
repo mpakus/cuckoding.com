@@ -175,6 +175,10 @@ defmodule CuckodingWeb.PlanningComponent do
 
   defp active?(command), do: command.state in ~w(pending running cancelling)
 
+  defp runtime_name("cursor"), do: "Cursor"
+  defp runtime_name(kind) when kind in [nil, "codex"], do: "Codex"
+  defp runtime_name(_), do: "Unknown runtime"
+
   defp message("planning_confirmation_required"),
     do:
       "Add a brief or read project sources, then confirm provider usage. Briefs allow up to 8,000 bytes."
@@ -249,7 +253,7 @@ defmodule CuckodingWeb.PlanningComponent do
             else: "model unavailable"}
         </p>
         <p :if={!@setup.token && is_nil(@preview_id)} class="notice">
-          Planning currently requires a Speculator assigned to a connected Codex agent and model. Cursor can be assigned in Team; its planning support is not enabled yet.
+          Choose a connected Codex or Cursor agent and model for Speculator in Team.
           After saving roles in Team, open Board team and choose Use saved team.
         </p>
         <details id="planning-documents" phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
@@ -393,7 +397,9 @@ defmodule CuckodingWeb.PlanningComponent do
         <article :for={plan <- @plans} id={"plan-#{plan.id}"} class="team-role">
           <h3>Speculator · {plan.state}</h3>
           <p class="fine-print">
-            {plan.payload["role"] && plan.payload["role"]["name"]} · Codex · {plan.payload["model"]} · {Calendar.strftime(
+            {plan.payload["role"] && plan.payload["role"]["name"]} · {runtime_name(
+              plan.payload["kind"]
+            )} · {plan.payload["model"]} · {Calendar.strftime(
               plan.inserted_at,
               "%Y-%m-%d %H:%M UTC"
             )} · {if active?(plan),

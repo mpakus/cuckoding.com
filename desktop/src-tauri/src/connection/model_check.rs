@@ -110,7 +110,7 @@ fn without_nulls(value: Value) -> Value {
     }
 }
 
-pub(super) fn valid_request(request: &Value) -> bool {
+pub(crate) fn valid_request(request: &Value) -> bool {
     request.as_object().is_some_and(|map| {
         map.len()
             == 3 + usize::from(map.contains_key("documents"))
@@ -143,7 +143,7 @@ pub(super) fn valid_request(request: &Value) -> bool {
             .is_some_and(|s| s.len() <= 8_000)
 }
 
-fn proposal_schema(linked: bool, source_limit: usize) -> Value {
+pub(crate) fn proposal_schema(linked: bool, source_limit: usize) -> Value {
     let text = |max| json!({"type":"string", "minLength":1, "maxLength":max});
     let mut schema = json!({"type":"object", "additionalProperties":false, "required":["summary","tasks"],
         "properties":{"summary":text(2000), "tasks":{"type":"array", "minItems":1, "maxItems":6,
