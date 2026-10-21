@@ -12,6 +12,7 @@ defmodule CuckodingWeb.PlanningComponent do
        brief: "",
        document_paths: "",
        preview_id: nil,
+       role_id: "speculator",
        confirmed: false,
        consent_token: nil,
        key: Ecto.UUID.generate(),
@@ -27,7 +28,8 @@ defmodule CuckodingWeb.PlanningComponent do
   end
 
   defp refresh(socket) do
-    setup = Planning.setup(socket.assigns.board, socket.assigns.preview_id)
+    setup =
+      Planning.setup(socket.assigns.board, socket.assigns.preview_id, socket.assigns.role_id)
 
     assign(socket,
       setup: setup,
@@ -45,6 +47,30 @@ defmodule CuckodingWeb.PlanningComponent do
 
   @impl true
   def handle_event("change", params, socket), do: {:noreply, input(socket, params)}
+
+  def handle_event("planning-role", %{"role_id" => id}, socket)
+      when is_binary(id) and byte_size(id) in 1..36 do
+    if Enum.any?(socket.assigns.setup.roles, &(&1["id"] == id)) do
+      {:noreply,
+       socket
+       |> assign(
+         role_id: id,
+         confirmed: false,
+         consent_token: nil,
+         key: Ecto.UUID.generate(),
+         error: nil
+       )
+       |> refresh()}
+    else
+      {:noreply,
+       assign(socket,
+         confirmed: false,
+         consent_token: nil,
+         key: Ecto.UUID.generate(),
+         error: "Choose a saved role from this board's team."
+       )}
+    end
+  end
 
   def handle_event("scan-folder", _, socket) do
     a = socket.assigns
@@ -109,7 +135,8 @@ defmodule CuckodingWeb.PlanningComponent do
         a.brief,
         a.consent_token,
         a.confirmed,
-        a.preview_id
+        a.preview_id,
+        a.role_id
       )
 
     {:noreply,
@@ -151,6 +178,7 @@ defmodule CuckodingWeb.PlanningComponent do
       confirmed:
         is_binary(brief) and byte_size(brief) <= 32_000 and params["confirmed"] == "true" and
           params["setup_token"] == socket.assigns.setup.token and
+          params["role_id"] == socket.assigns.role_id and
           not is_nil(socket.assigns.setup.token),
       consent_token: params["setup_token"]
     )
@@ -233,7 +261,7 @@ defmodule CuckodingWeb.PlanningComponent do
       </div>
       <.modal id="brief-planning" title="Create tasks">
         <p>
-          Read the project sources or describe the work. Speculator creates editable tasks with acceptance criteria and verification instructions from your specs. Then press Start.
+          Read the project sources or describe the work. Your planning role creates editable tasks with acceptance criteria and verification instructions from your specs. Speculator is the default. Then press Start.
         </p>
         <p class="fine-print">
           Read docs/ first, then eligible text and source files. Up to 16 files, 16 KiB each and 64 KiB total; hidden, generated and known credential paths are excluded. No Git or agent runs during this local read. Review sources before sending private text.
@@ -247,13 +275,41 @@ defmodule CuckodingWeb.PlanningComponent do
         >
           Read project folder
         </button>
+        <details id="planning-role" phx-mounted={JS.ignore_attributes("open")}>
+          <summary>Planning role · {@setup.role["name"]}</summary>
+          <.form
+            for={%{}}
+            id="planning-role-form"
+            class="role-fields"
+            phx-change="planning-role"
+            phx-target={@myself}
+          >
+            <label for="planning-role-select">Use a saved role from this board's team</label>
+            <select id="planning-role-select" name="role_id" disabled={@busy}>
+              <option
+                :if={!Enum.any?(@setup.roles, &(&1["id"] == @role_id))}
+                value={@role_id}
+                selected
+                disabled
+              >
+                Selected role unavailable
+              </option>
+              <option :for={role <- @setup.roles} value={role["id"]} selected={role["id"] == @role_id}>
+                {role["name"]}
+              </option>
+            </select>
+            <p class="fine-print">
+              This changes only the next task-planning request. Team assignments and battle stages stay as saved.
+            </p>
+          </.form>
+        </details>
         <p class="fine-print">
           {@setup.role["name"]} · {Cuckoding.Agents.display(@setup.role["agent"])} · {if @setup.payload,
             do: @setup.payload["model"],
             else: "model unavailable"}
         </p>
         <p :if={!@setup.token && is_nil(@preview_id)} class="notice">
-          Choose a connected Codex or Cursor agent and model for Speculator in Team.
+          Choose a connected Codex or Cursor agent and model for the selected planning role in Team.
           After saving roles in Team, open Board team and choose Use saved team.
         </p>
         <details id="planning-documents" phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
@@ -343,7 +399,7 @@ defmodule CuckodingWeb.PlanningComponent do
               "Selected document snapshots will be sent with the brief. Preview expires after five minutes."
 
             @documents_ready ->
-              "Snapshots are ready locally. Check the Speculator connection before sending."
+              "Snapshots are ready locally. Check the selected planning role's connection before sending."
 
             true ->
               "Selected snapshot is pending, expired or unavailable. Preview again or use the brief only."
@@ -365,6 +421,7 @@ defmodule CuckodingWeb.PlanningComponent do
           phx-target={@myself}
         >
           <input type="hidden" name="setup_token" value={@setup.token || ""} />
+          <input type="hidden" name="role_id" value={@role_id} />
           <label for="planning-brief">Describe the work · optional with source snapshots · up to 8,000 bytes</label>
           <textarea id="planning-brief" name="brief" rows="5" maxlength="8000">{@brief}</textarea>
           <label class="confirm-executable">
@@ -375,7 +432,7 @@ defmodule CuckodingWeb.PlanningComponent do
               checked={@confirmed}
               disabled={!@setup.token || @busy}
             />
-            Send this brief, selected document snapshots and the saved Speculator instructions to {Cuckoding.Agents.display(
+            Send this brief, selected document snapshots and the saved {@setup.role["name"]} instructions to {Cuckoding.Agents.display(
               @setup.role["agent"]
             )}. This may use my account allowance.
           </label>
@@ -395,7 +452,7 @@ defmodule CuckodingWeb.PlanningComponent do
           Recent planning requests · active first · retained locally
         </p>
         <article :for={plan <- @plans} id={"plan-#{plan.id}"} class="team-role">
-          <h3>Speculator · {plan.state}</h3>
+          <h3>{get_in(plan.payload, ["role", "name"]) || "Planning role"} · {plan.state}</h3>
           <p class="fine-print">
             {plan.payload["role"] && plan.payload["role"]["name"]} · {runtime_name(
               plan.payload["kind"]

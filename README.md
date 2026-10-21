@@ -70,6 +70,11 @@ as retained evidence. This view runs no agents.
 Agents uses `/agents`; Settings uses `/settings`. Agent setup follows
 **Choose Agent → Connect and Authorize → Select models → Save**.
 
+Create tasks uses Speculator by default. **Planning role** in that dialog can
+choose another role from the board's saved team. The request keeps that role's
+exact agent/model and instructions; changing it clears usage consent and keeps
+your brief/sources. This planning choice does not change the team or battle stages.
+
 New agents start with an editable name and an executable path detected from known
 install locations when available. Cursor's
 normal connection needs no typed path: choose Cursor, Continue, then Sign in.

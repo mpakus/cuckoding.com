@@ -1,5 +1,12 @@
 # Verification and acceptance
 
+R040n covers optional custom Codex/Cursor planners, exact role/agent/model/consent,
+stable-key role conflicts and legacy Speculator replay. LiveView checks preserve
+brief/source/manual-draft text, clear consent on role changes, reject foreign
+choices, show removed roles as unavailable and guard expired component sessions.
+Mutating selected-role resolution must fail the focused tests. Fixture receipts
+prove host binding/validation only; no real-provider planning acceptance is implied.
+
 R102 runs `hex.audit` before compile/tests and retains `deps.audit`. Real loopback
 Bandit/Endpoint tests check ordinary/absolute local targets, foreign host/origin,
 malformed authority rejection before Plug dispatch, invalid JSON rendering and

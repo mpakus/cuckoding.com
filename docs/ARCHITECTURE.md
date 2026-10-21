@@ -1,5 +1,11 @@
 # Architecture
 
+R040n keeps optional planner choice inside `Planning` and its existing modal
+component. The domain resolves only the board's assigned immutable team and binds
+the chosen role/connection/model/sources to consent and the retained command.
+Native no-tools planning and automatic card import are reused; role selection
+cannot adopt teams or alter battle dispatch. Old requests remain readable.
+
 ## Implemented boundary · reviewed 2026-10-21
 
 Cuckoding delivers authenticated setup, planning, isolated task turns and the

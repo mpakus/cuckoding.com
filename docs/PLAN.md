@@ -417,8 +417,10 @@ Depends on R030.
 - [x] Create/edit manual drafts and assigned-Speculator tasks from briefs, selected
   files or bounded folder snapshots. Retain criteria, source citations, prerequisites,
   accepted-spec artifacts and edited cards (R040b/e/f/h/i/l/m).
-- [ ] Select a custom planning role; initial generation currently uses the assigned
-  Codex/Cursor Speculator. Battle-time preparation supports the frozen Codex/Cursor binding.
+- [x] R040n optional saved planning-role selection in Create tasks, with exact
+  board-team/role/agent/model/source consent and legacy Speculator compatibility.
+  Battle-time preparation keeps its existing frozen binding; no custom execution
+  stage is implied. [Task/evidence](../tasks/R040n-planning-role.md).
 - [x] R020r initial task generation through the exact assigned Cursor connection,
   isolated no-tools ACP, validated v3 snapshots/graph and automatic cards. Keep
   real-account acceptance open. [Task/evidence](../tasks/R020r-cursor-planning.md).

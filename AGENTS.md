@@ -236,10 +236,18 @@ Preserve these implemented contracts:
   and 64 KiB total. Preserve pinned descriptors, exclusions, skip/limit counts and
   exact untruncated snapshots. Empty folders need a brief; sending snapshots still
   requires separate provider consent. No Git prerequisite or live Arena grant.
-- Planning uses the assigned Speculator and fresh connection/model snapshot,
+- Planning uses the assigned Speculator by default and a fresh connection/model snapshot,
   stdin text and the existing no-tools empty-scratch grant. Import validated
   proposals into Specs once with source-command/index provenance. Cancellation
   and expired claims cannot replay usage or accept late text/results.
+- R040n optionally selects another role from the exact board's saved team inside
+  Create tasks. Freeze `planning_role_id` and the full role/team/connection/model/
+  source snapshot in the consent token and command; no fallback from foreign or
+  removed roles. Changing role clears usage consent while keeping brief/sources.
+  Old requests missing the selection field retain Speculator only for stable-key
+  replay; never rewrite them or infer new authority. Keep the existing no-tools
+  provider grant, proposal validation, session guard and automatic-card transaction.
+  This neither adopts teams nor changes battle stages or execution permissions.
 - New planning uses `brief-plan-v3` with up to 16 source snapshots: distinct prerequisite indices refer only to
   earlier suggestions; citation indices refer only to snapshots frozen in that
   request. Reject downgrade/malformed references before storage. Resolve imports

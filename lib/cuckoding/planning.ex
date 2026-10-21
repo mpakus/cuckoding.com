@@ -1,5 +1,5 @@
 defmodule Cuckoding.Planning do
-  @moduledoc "Consented brief and document proposals using the frozen Speculator; no delivery authority."
+  @moduledoc "Consented proposals using a frozen saved planning role; Speculator is the default. No delivery authority."
   import Ecto.Query
 
   alias Cuckoding.{
@@ -31,10 +31,20 @@ defmodule Cuckoding.Planning do
 
   alias Cuckoding.PlanningDocuments
 
-  def setup(board, preview_id \\ nil) do
+  def setup(board, preview_id \\ nil, role_id \\ "speculator") do
     documents = PlanningDocuments.selected(board, preview_id)
     team = TeamAssignments.assigned(board)
-    role = Enum.find(team.definition["roles"], &(&1["id"] == "speculator"))
+
+    role =
+      Enum.find(team.definition["roles"], &(&1["id"] == role_id)) ||
+        %{"name" => "Selected role unavailable", "agent" => "", "model_id" => ""}
+
+    context = %{
+      team_id: team.id,
+      role: role,
+      roles: Enum.map(team.definition["roles"], &Map.take(&1, ~w(id name)))
+    }
+
     catalog = Team.catalog(role["agent"])
 
     kind = Agents.kind(role["agent"])
@@ -49,6 +59,7 @@ defmodule Cuckoding.Planning do
       payload =
         Map.merge(Map.take(connection, ~w(identity fetched_at)), %{
           "agent_id" => role["agent"],
+          "planning_role_id" => role_id,
           "kind" => kind,
           "connection_command_id" => connection["command_id"],
           "model_id" => model["id"],
@@ -66,28 +77,37 @@ defmodule Cuckoding.Planning do
           "documents" => elem(documents, 1)
         })
 
-      %{
-        team_id: team.id,
-        role: role,
+      Map.merge(context, %{
         payload: payload,
         token: Base.encode16(:crypto.hash(:sha256, :erlang.term_to_binary(payload)))
-      }
+      })
     else
-      %{team_id: team.id, role: role, payload: nil, token: nil}
+      Map.merge(context, %{payload: nil, token: nil})
     end
   end
 
-  def request(key, arena_id, tabula_id, brief, token, confirmed, preview_id \\ nil) do
+  def request(
+        key,
+        arena_id,
+        tabula_id,
+        brief,
+        token,
+        confirmed,
+        preview_id \\ nil,
+        role_id \\ "speculator"
+      ) do
     with {:ok, key} <- Ecto.UUID.cast(key),
          {:ok, arena_id} <- Ecto.UUID.cast(arena_id),
          %{} = board <- Tabulae.get(arena_id, tabula_id),
          {:ok, brief} <- planning_brief(brief, board, preview_id),
-         true <- confirmed == true and is_binary(token) and byte_size(token) == 64 do
+         true <- confirmed == true and is_binary(token) and byte_size(token) == 64,
+         true <- is_binary(role_id) and byte_size(role_id) in 1..36 do
       input = %{
         "arena_id" => arena_id,
         "tabula_id" => board.id,
         "brief" => brief,
         "setup_token" => token,
+        "planning_role_id" => role_id,
         "document_preview_id" => preview_id
       }
 
@@ -116,7 +136,7 @@ defmodule Cuckoding.Planning do
   defp enqueue(key, board, input) do
     case Repo.get(Command, key) do
       nil ->
-        setup = setup(board, input["document_preview_id"])
+        setup = setup(board, input["document_preview_id"], input["planning_role_id"])
 
         reason = rejection(setup, input)
 
@@ -139,7 +159,9 @@ defmodule Cuckoding.Planning do
         command
 
       %Command{kind: "plan_tabula"} = command ->
-        if Map.take(command.payload, Map.keys(input)) == input,
+        retained = Map.put_new(command.payload, "planning_role_id", "speculator")
+
+        if Map.take(retained, Map.keys(input)) == input,
           do: command,
           else: Repo.rollback(:key_conflict)
 

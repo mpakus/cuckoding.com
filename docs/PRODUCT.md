@@ -43,7 +43,8 @@ status text, a narrow sidebar and one or two primary content regions.
    automatically with the saved roles. Creating/naming a board is not a required
    user step. Additional boards, custom columns and role overrides remain available
    through advanced settings.
-6. **Create tasks.** Ask the assigned Speculator to analyze `docs/` first and the
+6. **Create tasks.** Ask the assigned Speculator, or optionally another saved
+   board role under Planning role, to analyze `docs/` first and the
    relevant files in the folder, with an optional brief. Show the folder scope and
    provider usage at the action. The host reads bounded eligible files, freezes
    sources, validates the proposals and creates cards automatically. No manual

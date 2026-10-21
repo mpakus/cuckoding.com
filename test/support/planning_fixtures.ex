@@ -73,6 +73,31 @@ defmodule Cuckoding.PlanningFixtures do
     }
   end
 
+  def add_planning_role(board) do
+    alias Cuckoding.TeamAssignments
+    team = Team.current()
+    planner = Enum.find(Team.editable(team), &(&1["id"] == "speculator"))
+
+    role =
+      Team.custom_role()
+      |> Map.merge(Map.take(planner, ~w(agent model_id)))
+      |> Map.merge(%{"name" => "Researcher", "instructions" => "Create a careful task plan."})
+
+    {:ok, team} = Team.save(Ecto.UUID.generate(), team.id, Team.editable(team) ++ [role])
+
+    {:ok, _} =
+      TeamAssignments.adopt(
+        Ecto.UUID.generate(),
+        board.arena_id,
+        board.id,
+        TeamAssignments.assigned(board).id,
+        team.id,
+        true
+      )
+
+    %{board: Tabulae.get(board.arena_id, board.id), role: role}
+  end
+
   def cursor_speculator(board) do
     alias Cuckoding.{Agents, Cursor, TeamAssignments}
     revision = fn -> Foundation.workspace().revision end

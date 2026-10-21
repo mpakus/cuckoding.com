@@ -5,6 +5,84 @@ defmodule CuckodingWeb.PlanningLiveTest do
   alias Cuckoding.{Foundation, Planning, Tabulae}
   setup do: planning_fixture()
 
+  test "another saved role is optional, clears consent and preserves text before creating tasks",
+       %{conn: conn, board: board} do
+    %{role: role, board: board} = add_planning_role(board)
+    {:ok, view, _} = conn |> sign_in() |> live("/arenas/#{board.arena_id}/tabulae/#{board.id}")
+    assert has_element?(view, "#planning-role-select option[value=speculator][selected]")
+    view |> form("#draft-form", title: "Keep this manual draft") |> render_change()
+    view |> form("#documents-form", paths: "docs/plan.md") |> render_submit()
+    {:ok, source} = Foundation.claim()
+    Foundation.finish(source, document_receipt())
+    view |> form("#planning-form", brief: "Keep this plan", confirmed: "true") |> render_change()
+    view |> form("#planning-role-form", role_id: role["id"]) |> render_change()
+    assert has_element?(view, "#planning-role-select option[value='#{role["id"]}'][selected]")
+    assert has_element?(view, "#planning-brief", "Keep this plan")
+    refute has_element?(view, "#planning-form input[name=confirmed][checked]")
+    Foundation.broadcast()
+    assert has_element?(view, "#draft-title-input[value='Keep this manual draft']")
+    assert has_element?(view, "#planning-role-select option[value='#{role["id"]}'][selected]")
+    view |> form("#planning-form", confirmed: "true") |> render_submit()
+    command = hd(Planning.history(board.id))
+    assert command.payload["role"]["id"] == role["id"]
+    assert command.payload["document_preview_id"] == source.id
+    assert hd(command.payload["documents"])["text"] == "# Selected plan\nBuild a small feature."
+    assert has_element?(view, "#plan-#{command.id} h3", "Researcher")
+  end
+
+  test "a foreign role cannot silently select Speculator and expired role controls are guarded",
+       %{conn: conn, board: board} do
+    %{role: role, board: board} = add_planning_role(board)
+    {:ok, view, _} = conn |> sign_in() |> live("/arenas/#{board.arena_id}/tabulae/#{board.id}")
+    view |> form("#planning-role-form", role_id: role["id"]) |> render_change()
+    view |> element("#planning-role-form") |> render_change(%{"role_id" => Ecto.UUID.generate()})
+    assert has_element?(view, "#planning-role-select option[value='#{role["id"]}'][selected]")
+    assert has_element?(view, "#planning-error", "Choose a saved role")
+    assert Planning.history(board.id) == []
+    Cuckoding.Repo.update_all(Cuckoding.BrowserToken, set: [expires_at: 0])
+    view |> form("#planning-role-form", role_id: "speculator") |> render_change()
+    assert_redirect(view, "/locked")
+  end
+
+  test "removing the selected role leaves an unavailable choice and clears consent without losing the brief",
+       %{conn: conn, board: board} do
+    alias Cuckoding.{Team, TeamAssignments}
+    %{role: role, board: board} = add_planning_role(board)
+    {:ok, view, _} = conn |> sign_in() |> live("/arenas/#{board.arena_id}/tabulae/#{board.id}")
+    view |> form("#planning-role-form", role_id: role["id"]) |> render_change()
+    view |> form("#planning-form", brief: "Keep this work", confirmed: "true") |> render_change()
+    team = Team.current()
+
+    {:ok, team} =
+      Team.save(
+        Ecto.UUID.generate(),
+        team.id,
+        Enum.reject(Team.editable(team), &(&1["id"] == role["id"])),
+        true
+      )
+
+    {:ok, _} =
+      TeamAssignments.adopt(
+        Ecto.UUID.generate(),
+        board.arena_id,
+        board.id,
+        TeamAssignments.assigned(board).id,
+        team.id,
+        true
+      )
+
+    assert has_element?(
+             view,
+             "#planning-role-select option[selected][disabled]",
+             "Selected role unavailable"
+           )
+
+    assert has_element?(view, "#planning-brief", "Keep this work")
+    refute has_element?(view, "#planning-form input[name=confirmed][checked]")
+    assert has_element?(view, "#planning-form button[disabled]")
+    assert Planning.history(board.id) == []
+  end
+
   test "the Cursor Speculator uses the same consented Create tasks dialog and retains drafts", %{
     conn: conn,
     board: board

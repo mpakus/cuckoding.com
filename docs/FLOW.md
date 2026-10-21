@@ -292,6 +292,12 @@ models → Save. Edit opens the same wizard for one connection; all other profil
 and choices remain intact. Team chooses a connection independently for each role,
 then shows only that connection's saved model choices. Changing the agent clears
 that role's unsaved model choice. Saving a new default team does not alter any
-Arena/Tabula's existing revision. Codex/Cursor initial planning follows the assigned
-Speculator connection, with frozen source snapshots and explicit usage consent.
+Arena/Tabula's existing revision. Codex/Cursor initial planning defaults to the assigned
+Speculator. Create tasks → Planning role optionally chooses another saved board
+role. Its exact role/team/connection/model/sources are frozen in usage consent;
+changing the choice clears consent without discarding brief/source selections.
+Foreign/removed roles stay unavailable instead of falling back. This is a
+planning-only request, not team adoption or a custom battle stage. Reopening the
+dialog in a new LiveView starts with Speculator; retained history names the role
+that actually produced each request.
 Cursor uses its separate no-tools planning grant, never a Codex fallback.

@@ -1,5 +1,12 @@
 # Data model
 
+R040n adds `planning_role_id` to new `plan_tabula` payloads and their setup-consent
+hash. It names a role in the board's assigned team; the existing full frozen role,
+team/connection/model and source snapshots remain authoritative. Stable-key
+comparison treats a missing field on old requests as Speculator without changing
+the stored payload or enabling another role. No schema migration or provider
+grant change; existing receipt/card provenance and atomic imports stay intact.
+
 ## R050e durable battle state
 
 R020r uses existing `plan_tabula` commands: new payloads freeze `kind` and the

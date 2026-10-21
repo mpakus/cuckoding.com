@@ -5,6 +5,120 @@ defmodule Cuckoding.PlanningTest do
   alias Ecto.Adapters.SQL
   setup do: planning_fixture()
 
+  test "an explicitly selected saved role freezes its instructions and creates cards with the same no-tools grant",
+       %{board: board} do
+    %{role: role, board: board} = add_planning_role(board)
+    setup = Planning.setup(board, nil, role["id"])
+    assert setup.role["id"] == role["id"]
+    assert setup.token != Planning.setup(board).token
+    key = Ecto.UUID.generate()
+    args = [key, board.arena_id, board.id, "Plan this", setup.token, true, nil, role["id"]]
+    assert {:ok, command} = apply(Planning, :request, args)
+    assert command.payload["planning_role_id"] == role["id"]
+    assert command.payload["role"]["instructions"] == role["instructions"]
+    assert command.payload["grant"] == "scratch-read-only-v1"
+    assert {:ok, ^command} = apply(Planning, :request, args)
+
+    assert {:error, :key_conflict} =
+             Planning.request(key, board.arena_id, board.id, "Plan this", setup.token, true)
+
+    {:ok, claim} = Foundation.claim()
+    assert claim.payload["role"]["id"] == role["id"]
+    assert {:ok, %{state: "completed"}} = Foundation.finish(claim, planning_receipt(claim.id))
+    assert length(Tabulae.tasks(board.id)) == 1
+  end
+
+  test "foreign roles and a token for another role never fall back to Speculator", %{board: board} do
+    %{role: role, board: board} = add_planning_role(board)
+    assert Planning.setup(board, nil, Ecto.UUID.generate()).token == nil
+    assert Planning.setup(board, nil, "").payload == nil
+
+    assert {:ok, %{state: "rejected", result: "planning_setup_changed"}} =
+             Planning.request(
+               Ecto.UUID.generate(),
+               board.arena_id,
+               board.id,
+               "Plan this",
+               Planning.setup(board).token,
+               true,
+               nil,
+               role["id"]
+             )
+
+    assert Tabulae.tasks(board.id) == []
+    assert Foundation.claim() == {:ok, nil}
+  end
+
+  test "a custom Cursor planning role retains its own provider grant and exact connection", %{
+    board: board
+  } do
+    %{agent: agent, board: board} = cursor_speculator(board)
+    %{role: role, board: board} = add_planning_role(board)
+    setup = Planning.setup(board, nil, role["id"])
+
+    {:ok, command} =
+      Planning.request(
+        Ecto.UUID.generate(),
+        board.arena_id,
+        board.id,
+        "Plan with Researcher",
+        setup.token,
+        true,
+        nil,
+        role["id"]
+      )
+
+    assert command.payload["agent_id"] == agent.id
+    assert command.payload["grant"] == "cursor-plan-no-tools-v1"
+    {:ok, claim} = Foundation.claim()
+
+    assert {:ok, %{state: "completed"}} =
+             Foundation.finish(claim, cursor_planning_receipt(command.id))
+  end
+
+  test "legacy Speculator stable keys remain readable without gaining role-selection authority",
+       %{board: board} do
+    setup = Planning.setup(board)
+    key = Ecto.UUID.generate()
+
+    payload =
+      setup.payload
+      |> Map.delete("planning_role_id")
+      |> Map.merge(%{
+        "brief" => "Legacy plan",
+        "setup_token" => setup.token,
+        "document_preview_id" => nil
+      })
+
+    legacy =
+      Repo.insert!(%Command{
+        id: key,
+        kind: "plan_tabula",
+        expected_revision: 0,
+        state: "cancelled",
+        payload: payload,
+        result: "cancelled"
+      })
+
+    assert {:ok, ^legacy} =
+             Planning.request(key, board.arena_id, board.id, "Legacy plan", setup.token, true)
+
+    assert {:error, :key_conflict} =
+             Planning.request(
+               key,
+               board.arena_id,
+               board.id,
+               "Legacy plan",
+               setup.token,
+               true,
+               nil,
+               Ecto.UUID.generate()
+             )
+
+    assert Foundation.claim() == {:ok, nil}
+    assert Repo.get!(Command, key).payload == payload
+  end
+
   test "the assigned Cursor Speculator generates cards without a Codex fallback", %{board: board} do
     %{agent: agent, board: board} = cursor_speculator(board)
     setup = Planning.setup(board)
