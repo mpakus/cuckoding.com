@@ -1,6 +1,6 @@
 defmodule Cuckoding.Battles.Snapshot do
   @moduledoc false
-  alias Cuckoding.Battles.{Backoff, Capacity}
+  alias Cuckoding.Battles.{Backoff, Capacity, ProviderClosure}
 
   alias Cuckoding.{
     Agents,
@@ -67,6 +67,7 @@ defmodule Cuckoding.Battles.Snapshot do
       "provider_backoff" => Backoff.policy(),
       "scheduler" => Capacity.policy(),
       "native_recovery" => "retained-integration-v1",
+      "provider_closure" => ProviderClosure.policy(),
       "timing_guard" => "elapsed-gap-v1",
       "idle_sleep" => "shell-lease-v1",
       "task_selection" => "skip-task-v1",

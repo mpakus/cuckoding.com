@@ -7,6 +7,7 @@ mod power;
 mod probe;
 mod project_checks;
 mod service;
+mod task_closure;
 use service::Service;
 use std::{
     path::PathBuf,
@@ -26,6 +27,10 @@ fn main() {
         libc::umask(0o077);
     }
     let args: Vec<_> = std::env::args().skip(1).collect();
+    if args.as_slice() == ["--inspect-provider-closure"] {
+        task_closure::main();
+        return;
+    }
     if args.as_slice() == ["--battle-checks"] {
         project_checks::main();
         return;

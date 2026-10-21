@@ -1,7 +1,7 @@
 defmodule Cuckoding.Battles do
   @moduledoc "Durable bounded Arena authority and sequential stage claims; workers own external effects."
   import Ecto.Query, except: [update: 2, update: 3]
-  alias Cuckoding.Battles.{Attempt, Backoff, Battle, Capacity, Snapshot, Task}
+  alias Cuckoding.Battles.{Attempt, Backoff, Battle, Capacity, ProviderClosure, Snapshot, Task}
   alias Cuckoding.{Event, Foundation, Repo, TaskTurn}
 
   @active ~w(running pausing paused stopping needs_attention)
@@ -869,7 +869,8 @@ defmodule Cuckoding.Battles do
 
   defp safe_to_stop?(battle) do
     Enum.all?(attempts(battle.id), fn attempt ->
-      timing_closed?(battle, attempt) or reconciled?(battle, attempt) or
+      provider_closed?(battle, attempt) or timing_closed?(battle, attempt) or
+        reconciled?(battle, attempt) or
         (attempt.state in ~w(completed failed cancelled expired) and
            attempt.result["cleanup_verified"] == true)
     end)
@@ -937,16 +938,7 @@ defmodule Cuckoding.Battles do
       if attempt = running_attempt(battle.id) do
         update(attempt, state: "interrupted", result: %{"status" => "interrupted"})
 
-        if battle.state in ~w(running pausing) and attempt.stage == "integrate" and
-             not timing_fenced?(battle, attempt) and
-             battle.snapshot["native_recovery"] == "retained-integration-v1" and
-             Enum.all?(attempts(battle.id), &(&1.id == attempt.id or settled?(battle, &1))) do
-          update(battle,
-            context: Map.put(battle.context, "integration_recovery_pending", attempt.id)
-          )
-        else
-          battle
-        end
+        arm_recovery(battle, attempt)
       else
         battle
       end
@@ -954,19 +946,122 @@ defmodule Cuckoding.Battles do
     needs_attention(battle, "restart_requires_inspection")
   end
 
+  defp arm_recovery(battle, attempt) do
+    if Enum.all?(attempts(battle.id), &(&1.id == attempt.id or settled?(battle, &1))) do
+      key =
+        cond do
+          provider_recoverable?(battle, attempt) -> "provider_closure_pending"
+          integration_recoverable?(battle, attempt) -> "integration_recovery_pending"
+          true -> nil
+        end
+
+      if key, do: update(battle, context: Map.put(battle.context, key, attempt.id)), else: battle
+    else
+      battle
+    end
+  end
+
+  defp provider_recoverable?(battle, attempt),
+    do:
+      battle.state in ~w(running pausing stopping) and not is_nil(attempt.role) and
+        ProviderClosure.enabled?(battle.snapshot)
+
+  defp integration_recoverable?(battle, attempt),
+    do:
+      battle.state in ~w(running pausing) and attempt.stage == "integrate" and
+        not timing_fenced?(battle, attempt) and
+        battle.snapshot["native_recovery"] == "retained-integration-v1"
+
   # Only a durable restart marker can authorize this read-only inspection. It is
   # separate from the interrupted claim, which must never be replayed or rewritten.
   def recovery_attempt, do: Enum.find_value(active(), &pending_reconciliation/1)
 
   defp pending_reconciliation(battle) do
-    with id when is_binary(id) <- battle.context["integration_recovery_pending"],
+    with id when is_binary(id) <-
+           battle.context["provider_closure_pending"] ||
+             battle.context["integration_recovery_pending"],
          %Attempt{} = attempt <- Repo.get(Attempt, id),
-         true <- reconciliation_current?(attempt) do
+         true <- provider_reconciliation_current?(attempt) or reconciliation_current?(attempt) do
       attempt
     else
       _ -> nil
     end
   end
+
+  def provider_reconciliation_current?(%Attempt{} = attempt) do
+    case get(attempt.battle_id) do
+      %Battle{state: "needs_attention", reason: "restart_requires_inspection"} = battle ->
+        ProviderClosure.enabled?(battle.snapshot) and not is_nil(attempt.role) and
+          battle.context["provider_closure_pending"] == attempt.id and
+          battle.current_task_id == attempt.task_id and battle.stage == attempt.stage and
+          interrupted_current?(attempt)
+
+      _ ->
+        false
+    end
+  end
+
+  def reconcile_recovery(attempt, result),
+    do:
+      if(is_nil(attempt.role),
+        do: reconcile_integration(attempt, result),
+        else: reconcile_provider(attempt, result)
+      )
+
+  defp interrupted_current?(attempt),
+    do:
+      attempt.state == "interrupted" and attempt.result == %{"status" => "interrupted"} and
+        Repo.get(Attempt, attempt.id) == attempt
+
+  def reconcile_provider(attempt, result) do
+    transaction(fn ->
+      unless provider_reconciliation_current?(attempt), do: Repo.rollback(:stale_reconciliation)
+      unless bound?(attempt, result, ["provider_closure"]), do: Repo.rollback(:foreign_result)
+
+      verified = verified_provider_closure?(attempt, result)
+
+      unless verified or failed_provider_closure?(attempt, result),
+        do: Repo.rollback(:invalid_result)
+
+      battle = get(attempt.battle_id)
+
+      context =
+        battle.context
+        |> Map.delete("provider_closure_pending")
+        |> Map.update(
+          "provider_closures",
+          %{attempt.id => result},
+          &Map.put(&1, attempt.id, result)
+        )
+
+      battle = update(battle, context: context, control_revision: battle.control_revision + 1)
+
+      record(battle, "provider_closure_observed", %{
+        "attempt_id" => attempt.id,
+        "cleanup_verified" => verified
+      })
+
+      battle
+    end)
+  end
+
+  defp verified_provider_closure?(attempt, result),
+    do:
+      result["status"] == "closed" and result["cleanup_verified"] == true and
+        Map.keys(result) -- (@envelope ++ ~w(status cleanup_verified provider_closure)) == [] and
+        ProviderClosure.verified?(attempt, result["provider_closure"])
+
+  defp failed_provider_closure?(attempt, result),
+    do:
+      result["status"] == "failed" and result["cleanup_verified"] == false and
+        Map.keys(result) -- (@envelope ++ ~w(status reason cleanup_verified)) == [] and
+        valid_result?(attempt, result)
+
+  defp provider_closed?(battle, attempt),
+    do:
+      ProviderClosure.enabled?(battle.snapshot) and attempt.state == "interrupted" and
+        get_in(battle.context, ["provider_closures", attempt.id, "status"]) == "closed" and
+        get_in(battle.context, ["provider_closures", attempt.id, "cleanup_verified"]) == true
 
   def reconciliation_current?(%Attempt{} = attempt) do
     case get(attempt.battle_id) do
@@ -1347,13 +1442,15 @@ defmodule Cuckoding.Battles do
     sha?(expected) and result["candidate_sha"] == expected
   end
 
-  defp bound?(attempt, result) when is_map(result) do
-    Map.keys(result) -- @result_fields == [] and
+  defp bound?(attempt, result, extra \\ [])
+
+  defp bound?(attempt, result, extra) when is_map(result) do
+    Map.keys(result) -- (@result_fields ++ extra) == [] and
       Map.take(result, @envelope) == Map.take(attempt.request, @envelope) and
       match?({:ok, _}, Jason.encode(result)) and byte_size(Jason.encode!(result)) <= 131_072
   end
 
-  defp bound?(_, _), do: false
+  defp bound?(_, _, _), do: false
   defp result_context(result), do: Map.drop(result, @envelope ++ ["status", "reason"])
   defp current_task(%Battle{current_task_id: nil}), do: nil
 

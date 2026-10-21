@@ -128,6 +128,18 @@ Resume with original bindings, budgets and deadlines. Late verified effects allo
 Stop cleanup only, never advancement. Historical grants, interrupted Stop, failed
 inspection, absent receipts, provider sessions and sleep gaps remain blocked.
 
+R060l freezes `provider_closure: retained-provider-closure-v1` in new Starts.
+Before Codex/Cursor task launch, exclusively retain an exact attempt/connection/
+runtime intent outside the provider's empty scratch; publish only bounded public closure metadata after verified group
+cleanup (and Cursor store removal), before stdout. A supervised fixed read checks
+descriptor-pinned private intent/receipt files and the frozen binding, without
+launching/signalling a provider. Append a separate SQLite observation; retain the
+interrupted attempt, edits, budgets, deadlines and card/head state. Verified closure
+permits confirmed Stop and releases only that connection's capacity. It never
+accepts lost work or enables Resume/Retry/Skip. Missing/partial/foreign evidence,
+older policies, hard-killed helpers and escaped sessions stay blocked; do not
+infer closure from process absence or delete uncertain artifacts.
+
 R060h freezes `timing_guard: elapsed-gap-v1` in new Starts. Keep BattleClock in
 the battle one_for_all group, independent of the coordinator; guard loss must
 stop old workers before its baseline resets. Check before admission, during

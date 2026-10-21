@@ -1421,15 +1421,20 @@ defmodule Cuckoding.BattlesTest do
     end
   end
 
-  test "reconciliation never arms for historical grants, interrupted Stop or provider stages",
+  test "integration recovery never arms for historical grants, interrupted Stop or legacy provider stages",
        ctx do
     for scenario <- ~w(historical stop provider) do
       stage = if scenario == "provider", do: "implementor", else: "integrate"
 
       battle =
-        if scenario == "historical" do
+        if scenario in ~w(historical provider) do
           {:ok, preview} = Battles.preview(ctx.board.arena_id, ctx.board.id)
-          snapshot = Map.delete(preview.snapshot, "native_recovery")
+          snapshot = Map.delete(preview.snapshot, "provider_closure")
+
+          snapshot =
+            if scenario == "historical",
+              do: Map.delete(snapshot, "native_recovery"),
+              else: snapshot
 
           battle =
             Repo.insert!(%Battle{

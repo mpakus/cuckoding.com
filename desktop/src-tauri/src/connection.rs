@@ -587,28 +587,52 @@ pub fn main(args: &[String], operation: Operation) {
         let _ = sender.send(());
     });
     let result = match args {
-        [path, directory] => run_operation(
-            Path::new(path),
-            Path::new(directory),
-            cancel,
-            Duration::from_secs(match operation {
-                Operation::Login => 600,
-                Operation::Check { .. } | Operation::Plan { .. } => 120,
-                Operation::Task { .. } => 300,
-                _ => 10,
-            }),
-            operation,
-            |url| {
-                let mut output = io::stdout().lock();
-                writeln!(
-                    output,
-                    "{}",
-                    json!({"status":"awaiting_login","auth_url":url})
-                )
-                .and_then(|_| output.flush())
-                .map_err(|_| "connection_lost")
-            },
-        ),
+        [path, directory] => (|| {
+            let journal = match operation {
+                Operation::Task {
+                    scratch,
+                    model,
+                    effort,
+                    request,
+                } => crate::task_closure::Journal::start(
+                    Path::new(path),
+                    Path::new(directory),
+                    scratch,
+                    "codex",
+                    request,
+                    model,
+                    Some(effort),
+                )?,
+                _ => None,
+            };
+            let mut result = run_operation(
+                Path::new(path),
+                Path::new(directory),
+                cancel,
+                Duration::from_secs(match operation {
+                    Operation::Login => 600,
+                    Operation::Check { .. } | Operation::Plan { .. } => 120,
+                    Operation::Task { .. } => 300,
+                    _ => 10,
+                }),
+                operation,
+                |url| {
+                    let mut output = io::stdout().lock();
+                    writeln!(
+                        output,
+                        "{}",
+                        json!({"status":"awaiting_login","auth_url":url})
+                    )
+                    .and_then(|_| output.flush())
+                    .map_err(|_| "connection_lost")
+                },
+            )
+            .unwrap_or_else(|status| json!({"status":status}));
+            if let Some(journal) = journal {
+                journal.finish(&mut result);
+            }
+            Ok(result)
+        })(),
         _ => Err("launch_failed"),
     };
     let _ = writeln!(

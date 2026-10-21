@@ -365,6 +365,33 @@ defmodule CuckodingWeb.BattleComponent do
           Evidence could not be verified: {label(receipt["reason"])}. Cleanup remains uncertain.
         </p>
       </article>
+      <p
+        :if={@battle.context["provider_closure_pending"]}
+        id="battle-provider-closure-pending"
+        class="notice"
+      >
+        Checking retained provider closure. No agent turn will be repeated or accepted.
+      </p>
+      <article
+        :for={{id, receipt} <- @battle.context["provider_closures"] || %{}}
+        id={"battle-provider-closure-#{id}"}
+        class="team-role"
+      >
+        <h4>
+          Provider closure · {if receipt["cleanup_verified"] == true,
+            do: "Verified",
+            else: "Needs inspection"}
+        </h4>
+        <p class="fine-print">
+          Interrupted attempt: <code>{id}</code>. Its work has not been accepted.
+        </p>
+        <p :if={receipt["cleanup_verified"] == true}>
+          Retained native evidence verifies closure. You can Stop this run; Resume, Retry and Skip remain unavailable.
+        </p>
+        <p :if={receipt["cleanup_verified"] != true}>
+          Closure could not be verified. Keep the retained files for inspection; no turn was replayed.
+        </p>
+      </article>
       <details id="battle-frozen-tasks" phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
         <summary>Authorized tasks · {length(@battle_tasks)}</summary>
         <article :for={task <- @battle_tasks} class="team-role">

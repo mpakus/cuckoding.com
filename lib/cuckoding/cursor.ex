@@ -60,7 +60,10 @@ defmodule Cuckoding.Cursor do
         args: [scratch, request["model"]],
         input:
           Jason.encode!(
-            Map.take(request, ~w(request_id contract access workspace prompt instructions))
+            Map.take(
+              request,
+              ~w(request_id contract access workspace prompt instructions closure)
+            )
           ) <> "\n"
       )
     else

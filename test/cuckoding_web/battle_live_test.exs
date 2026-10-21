@@ -766,6 +766,72 @@ defmodule CuckodingWeb.BattleLiveTest do
     end
   end
 
+  test "provider closure inspection survives reconnect without presenting accepted work", ctx do
+    signed = sign_in(ctx.conn)
+    {:ok, view, _} = live(signed, ctx.path)
+    view |> form("#battle-start-form") |> render_submit()
+    battle = Battles.latest(ctx.arena.id, ctx.board.id)
+    id = Ecto.UUID.generate()
+
+    battle =
+      Repo.update!(
+        Ecto.Changeset.change(battle,
+          state: "needs_attention",
+          reason: "restart_requires_inspection",
+          context: %{"provider_closure_pending" => id}
+        )
+      )
+
+    Foundation.broadcast()
+
+    assert has_element?(
+             view,
+             "#battle-provider-closure-pending",
+             "No agent turn will be repeated"
+           )
+
+    for verified <- [false, true] do
+      Repo.update!(
+        Ecto.Changeset.change(battle,
+          context: %{
+            "provider_closures" => %{
+              id => %{
+                "status" => if(verified, do: "closed", else: "failed"),
+                "cleanup_verified" => verified
+              }
+            }
+          }
+        )
+      )
+
+      Foundation.broadcast()
+      refute has_element?(view, "#battle-provider-closure-pending")
+
+      assert has_element?(
+               view,
+               "#battle-provider-closure-#{id}",
+               "Its work has not been accepted"
+             )
+
+      assert has_element?(
+               view,
+               "#battle-provider-closure-#{id}",
+               if(verified, do: "You can Stop", else: "could not be verified")
+             )
+
+      refute has_element?(view, "#battle-resume")
+      refute has_element?(view, "#battle-retry")
+      refute has_element?(view, "#battle-skip")
+      {:ok, again, _} = live(signed, ctx.path)
+
+      assert has_element?(
+               again,
+               "#battle-provider-closure-#{id}",
+               "Its work has not been accepted"
+             )
+    end
+  end
+
   test "expired receipts explain retained work and require confirmed Stop after reconnect", ctx do
     signed = sign_in(ctx.conn)
     {:ok, view, _} = live(signed, ctx.path)

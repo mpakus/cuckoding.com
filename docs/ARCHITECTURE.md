@@ -102,6 +102,17 @@ the baseline. SQLite stores the fence, rejected receipt and verified closure;
 the clock process never owns workflow progress. The existing Inspect component
 shows observations after reconnect. [D030](DECISIONS.md#d030--conservative-timing-gap-fence).
 
+R060l `task_closure.rs` retains an exclusive task intent and fsynced closure file
+inside `provider-closures/<attempt UUID>`, outside the empty runtime scratch.
+Only public closure metadata and
+the frozen binding/hash are stored, never prompts, reports or provider frames.
+`Battles.ProviderClosure` normalizes the fixed read-only helper response. Existing
+BattleRunner supervised recovery dispatch appends a separate SQLite observation
+before notification. The interrupted attempt remains immutable; confirmed Stop
+and exact-connection capacity can use verified closure, while ordinary settled
+stage/Resume/Retry/Skip predicates deliberately do not. No migration or provider
+session replay is introduced.
+
 R060i keeps the native shell an actuator. Phoenix computes eligibility for new
 `shell-lease-v1` battles from saved state/deadlines; it sends only a fixed boolean
 and 15-second contract in `/shell/status`. The native five-second heartbeat

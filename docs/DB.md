@@ -103,6 +103,16 @@ Failed observations clear the pending marker without granting cleanup or replay;
 an interrupted inspection can repeat only its read. Historical grants do not arm
 this path. No provider call or new task claim is created by reconciliation.
 
+R060l adds no migration. New snapshots freeze
+`provider_closure: retained-provider-closure-v1`. Startup may set
+`context.provider_closure_pending` for an interrupted provider after settled
+history. `context.provider_closures[attempt_id]` retains only the bound public
+closure observation. Clear the marker, append the observation/event
+`battle.provider_closure_observed` and increment `control_revision` atomically.
+The interrupted attempt/result never changes; no task/head/counter/deadline
+advances. Verified closure permits Stop and exact-connection capacity release,
+not settled-stage authority. Missing/failed reads retain unknown cleanup.
+
 R060h adds no migration. New snapshots freeze `timing_guard: elapsed-gap-v1`.
 `context.timing_gap` projects the latest bounded UTC/monotonic observation,
 affected attempt/recovery-inspection IDs and continuation block. `battle.timing_gap` commits with the

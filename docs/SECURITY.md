@@ -241,6 +241,21 @@ Cursor stores remain private and are not deleted as purported cleanup. This
 cannot detect escaped groups, prove hard-killed session closure or recover absent
 receipts; historical absent fields gain no new recovery authority.
 
+R060l writes only native public closure metadata under a new frozen policy.
+The exclusive intent binds the exact request digest/connection/provider/runtime
+and canonical private UUID scratch before launch. Intent/closure files live in
+`provider-closures/<UUID>`, outside the provider grant; scratch remains empty.
+The final file is
+created only after explicit verified closure, including Cursor store removal.
+The fixed inspection entrypoint reads bounded single-link regular files through
+pinned directory/file descriptors, refuses links/foreign bindings/partial files,
+and launches or signals nothing. Executable replacement or account changes cannot
+turn this historical read into a new provider launch. SQLite appends the verified
+observation and clears its pending marker atomically, never rewriting the original
+interrupted attempt. Only Stop and exact-connection capacity may consume it;
+settled/Resume/Retry/Skip predicates stay unchanged. No receipt/report is invented,
+no edit/store is erased and no missing process is treated as cleanup evidence.
+
 R060f worker completion uses the existing claim/result validators inside the
 transaction, then sends only a completion signal to its coordinator. Unexpected
 worker execution/settlement exceptions terminate with a fixed reason before OTP

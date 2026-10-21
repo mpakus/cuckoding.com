@@ -65,6 +65,18 @@ cancellation; neither can become work/authorization success. Private Cursor
 runtime stores are removed only after verified closure. This checks the owned
 group, not escaped sessions; missing receipts and crash reconciliation remain open.
 
+R060l closes only the completed-provider/lost-reply gap for new Start policies.
+Native task launch reserves an exclusive intent bound to attempt digest, exact
+connection, provider executable identity/model/effort and UUID scratch path. Evidence
+stays in a separate private `provider-closures/<UUID>` directory; runtime scratch
+remains empty at launch and its grant cannot read the closure files. After
+verified closure it fsyncs public closure metadata before replying. Restart may
+repeat the fixed bounded read, never a provider turn or signal. SQLite retains the
+observation separately; it permits confirmed Stop and connection-capacity release,
+not task acceptance, head movement, Resume, Retry or Skip. Late observations cannot
+extend deadlines. Missing/partial receipts, escaped processes, killed helpers,
+uncertain Cursor stores and broader native/process/port recovery remain open.
+
 Each task attempt has a recorded worktree/branch/base, run directory, generated
 runtime instructions, process group and optional leased loopback ports.
 Parallel workers never share a writable checkout. Read-only roles receive

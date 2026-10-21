@@ -1,6 +1,7 @@
 # R060k — Explicit bounded native provider cleanup
 
 Status: complete, 2026-10-21. [Evidence](../worklog/2026-10-21-R060k-provider-cleanup.md).
+Merged locally as `2e4082f`; task branch deleted. No publication.
 
 - [x] Return explicit verified/uncertain group cleanup, with finite waits and no
   signalling after the owned unreaped leader can release its PID/PGID.

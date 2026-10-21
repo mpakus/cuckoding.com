@@ -3,8 +3,13 @@ use super::*;
 use task_files::Files;
 
 pub(crate) fn valid_request(request: &Value) -> bool {
-    request.as_object().is_some_and(|m| m.len() == 6)
-        && request["contract"] == "host-task-tools-v1"
+    request.as_object().is_some_and(|m| {
+        m.len() == 6
+            || (m.len() == 7
+                && request
+                    .get("closure")
+                    .is_some_and(crate::task_closure::valid_closure))
+    }) && request["contract"] == "host-task-tools-v1"
         && matches!(request["access"].as_str(), Some("read" | "write"))
         && request["request_id"].as_str().is_some_and(|id| {
             id.len() == 36

@@ -62,6 +62,16 @@ Inspect shows the pending inspection and retained observation after reconnect.
 Missing or mismatched evidence remains needs-attention. Historical grants,
 interrupted Stop and other native/provider stages cannot use this path.
 
+R060l adds the separate `retained-provider-closure-v1` policy to new Starts.
+Codex/Cursor task helpers reserve an exact private intent before launch and fsync
+public closure metadata before returning. After restart, a supervised read may
+verify that retained closure without replaying any turn or accepting its work.
+The original attempt, edits and frozen scope remain intact. Inspect shows the
+pending/read result; verified closure permits confirmed Stop and releases that
+exact connection's capacity, never Resume/Retry/Skip or task/head advancement.
+Missing/partial/foreign files and killed helpers without a receipt remain blocked.
+This is separate from continuing a native provider session or sleep recovery.
+
 R060h freezes `timing_guard: elapsed-gap-v1` for new Starts. An independent OTP
 guard checks UTC/monotonic samples before admission, throughout helper polling
 and before worker settlement. A five-second elapsed gap, backward wall movement

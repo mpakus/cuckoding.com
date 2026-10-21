@@ -13,10 +13,30 @@ defmodule Cuckoding.BattleExecutor do
     TaskTurn
   }
 
-  alias Cuckoding.Battles.Snapshot
+  alias Cuckoding.Battles.{ProviderClosure, Snapshot}
 
   @envelope ~w(battle_id request_id task_id stage criteria_sha256)
   @uncertain ~w(cleanup_uncertain unavailable invalid_output candidate_incomplete battle_incomplete worktree_incomplete)
+
+  def reconcile(attempt),
+    do:
+      if(is_nil(attempt.role),
+        do: reconcile_integration(attempt),
+        else: reconcile_provider(attempt)
+      )
+
+  def reconcile_provider(attempt, inspector \\ &ProviderClosure.inspect/2) do
+    receipt = inspector.(attempt, fn -> Battles.provider_reconciliation_current?(attempt) end)
+
+    result =
+      if ProviderClosure.verified?(attempt, receipt),
+        do: %{"status" => "closed", "cleanup_verified" => true, "provider_closure" => receipt},
+        else: failure("closure_unavailable", false)
+
+    Map.merge(Map.take(attempt.request, @envelope), result)
+  rescue
+    _ -> Map.merge(Map.take(attempt.request, @envelope), failure("closure_unavailable", false))
+  end
 
   def reconcile_integration(attempt, adapters \\ []) do
     active? = fn -> Battles.reconciliation_current?(attempt) end
@@ -252,6 +272,11 @@ defmodule Cuckoding.BattleExecutor do
       "prompt" => prompt(attempt),
       "instructions" => role["instructions"]
     }
+
+    request =
+      if ProviderClosure.enabled?(attempt.request["snapshot"]),
+        do: Map.put(request, "closure", ProviderClosure.binding_for(attempt)),
+        else: request
 
     receipt =
       provider.run_task(

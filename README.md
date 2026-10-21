@@ -170,6 +170,12 @@ sign-in or cancellation proof. Public edits remain inspectable; uncertain Cursor
 session stores remain private. This does not recover missing receipts or escaped
 sessions. [Cleanup evidence](worklog/2026-10-21-R060k-provider-cleanup.md).
 
+New runs also retain native provider closure evidence before returning task
+results. After a lost reply and restart, Cuckoding can verify that evidence and
+let you Stop the interrupted run safely. It preserves edits and history without
+accepting or repeating the lost work. Missing evidence still needs inspection.
+[Retained provider closure](tasks/R060l-retained-provider-closure.md).
+
 New battles also detect timing gaps and clock changes. Clean work pauses for
 Resume; active stages are cancelled and their receipts retained without advancing
 tasks. Stop waits for verified cleanup. Deadlines and consumed limits stay intact.

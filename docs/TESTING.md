@@ -1,5 +1,15 @@
 # Verification and acceptance
 
+R060l tests exclusive native intent/publication, exact provider/runtime binding,
+public-only closure metadata outside an unchanged empty scratch, missing/partial/changed/symlink/hardlink/over-limit
+files and refusal before intent on foreign runtime/scratch. Host tests bind the
+normalized observation to an exact frozen attempt, retain execution duration
+separately from read latency, reject forged cleanup and keep interrupted history
+unchanged. Test Stop-only authority, reserved/released exact connection capacity,
+older policies, reconnect UI and supervised worker settlement before a lost
+coordinator notification. Mutation of the exact-attempt guard must fail. A local
+helper/fixture check is not real-provider crash or physical sleep acceptance.
+
 R060k adds native bounded/idempotent group closure tests with an owned descendant,
 an unrelated surviving peer and lost leader ownership. Existing probe tests cover
 timeout/cancellation. Host tests inject false and malformed closure through

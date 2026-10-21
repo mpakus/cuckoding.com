@@ -18,7 +18,7 @@ defmodule Cuckoding.BattleExecutorTest do
     TeamAssignments
   }
 
-  alias Cuckoding.Battles.{Attempt, Backoff}
+  alias Cuckoding.Battles.{Attempt, Backoff, ProviderClosure, Snapshot}
 
   # These adapters exercise the real executor/domain handoff without native or provider execution.
   defmodule Adapters do
@@ -356,6 +356,152 @@ defmodule Cuckoding.BattleExecutorTest do
 
   defp until_stage(battle, stage) do
     if battle.stage == stage, do: battle, else: until_stage(elem(step(battle), 0), stage)
+  end
+
+  defp closure_receipt(attempt) do
+    ProviderClosure.binding_for(attempt)
+    |> Map.take(~w(attempt_sha256 agent_id kind))
+    |> Map.merge(%{
+      "status" => "provider_closed",
+      "request_id" => attempt.id,
+      "cleanup_verified" => true,
+      "pid" => 123,
+      "spawned_at_ms" => 1000,
+      "elapsed_ms" => 20,
+      "receipt_sha256" => String.duplicate("a", 64)
+    })
+  end
+
+  test "retained provider closure permits Stop without accepting the interrupted turn", ctx do
+    battle = start(ctx.board) |> until_stage("implementor")
+    {:ok, attempt} = Battles.claim_next(battle.id)
+    assert attempt.request["snapshot"]["provider_closure"] == ProviderClosure.policy()
+    assert {:ok, _} = Battles.recover()
+    interrupted = Repo.get!(Attempt, attempt.id)
+    before = Battles.get(battle.id)
+    tasks = Battles.tasks(battle.id)
+    assert Battles.recovery_attempt() == interrupted
+    assert {:error, :cleanup_required} = Battles.stop(battle.id)
+
+    result =
+      BattleExecutor.reconcile_provider(interrupted, fn exact, active? ->
+        assert exact == interrupted
+        assert active?.()
+        closure_receipt(exact)
+      end)
+
+    assert {:ok, observed} = Battles.reconcile_provider(interrupted, result)
+    assert observed.state == "needs_attention"
+    assert observed.context["head"] == before.context["head"]
+    assert observed.turns_used == before.turns_used
+    assert observed.deadline_at == before.deadline_at
+    assert observed.stage == before.stage
+    assert Battles.tasks(battle.id) == tasks
+    assert Repo.get!(Attempt, attempt.id) == interrupted
+    assert Battles.recovery_attempt() == nil
+    assert {:error, :stale_reconciliation} = Battles.reconcile_provider(interrupted, result)
+    refute match?({:ok, _}, Battles.resume(observed.id, observed.control_revision))
+    refute match?({:ok, _}, Battles.retry(observed.id, observed.control_revision))
+
+    refute match?(
+             {:ok, _},
+             Battles.skip(observed.id, observed.control_revision, ctx.first.id, true)
+           )
+
+    assert {:ok, _} = Battles.recover()
+    assert Repo.get!(Attempt, attempt.id) == interrupted
+    assert {:ok, %{state: "stopped"}} = Battles.stop(battle.id)
+  end
+
+  test "provider recovery rejects changed, malformed and foreign closure with no fallback", ctx do
+    battle = start(ctx.board) |> until_stage("coordinator")
+    {:ok, attempt} = Battles.claim_next(battle.id)
+    {:ok, _} = Battles.recover()
+    interrupted = Repo.get!(Attempt, attempt.id)
+    receipt = closure_receipt(interrupted)
+    assert receipt["attempt_sha256"] == Snapshot.digest(attempt.request)
+    result = BattleExecutor.reconcile_provider(interrupted, fn _, _ -> receipt end)
+
+    for invalid <- [
+          put_in(result, ["provider_closure", "request_id"], Ecto.UUID.generate()),
+          put_in(result, ["provider_closure", "attempt_sha256"], String.duplicate("b", 64)),
+          put_in(result, ["provider_closure", "agent_id"], Ecto.UUID.generate()),
+          put_in(result, ["provider_closure", "cleanup_verified"], "true"),
+          Map.put(result, "summary", "Do not accept this work")
+        ] do
+      assert {:error, :invalid_result} = Battles.reconcile_provider(interrupted, invalid)
+      assert Battles.provider_reconciliation_current?(interrupted)
+    end
+
+    failure =
+      BattleExecutor.reconcile_provider(interrupted, fn _, _ ->
+        %{"status" => "closure_unavailable"}
+      end)
+
+    assert {:ok, failed} = Battles.reconcile_provider(interrupted, failure)
+    refute failed.context["provider_closure_pending"]
+    assert {:error, :cleanup_required} = Battles.stop(failed.id)
+    assert Repo.get!(Attempt, attempt.id) == interrupted
+  end
+
+  test "provider closure commits in its supervised worker before a lost coordinator notification",
+       ctx do
+    battle = start(ctx.board) |> until_stage("implementor")
+    {:ok, attempt} = Battles.claim_next(battle.id)
+    parent = self()
+
+    reconciler = fn interrupted ->
+      send(parent, {:closing_provider, self(), interrupted})
+
+      receive do
+        :inspect ->
+          BattleExecutor.reconcile_provider(interrupted, fn _, active? ->
+            assert active?.()
+            closure_receipt(interrupted)
+          end)
+      end
+    end
+
+    executor = fn next ->
+      send(parent, {:unexpected_provider_replay, next})
+      exit(:shutdown)
+    end
+
+    start_supervised!(
+      {Cuckoding.ExecutionSupervisor,
+       coordinator: BattleRunner,
+       tasks: Cuckoding.BattleTasks,
+       options: [executor: executor, reconciler: reconciler]}
+    )
+
+    runner = Process.whereis(BattleRunner)
+    assert_receive {:closing_provider, worker, interrupted}, 1000
+    assert interrupted.id == attempt.id
+    assert worker != runner
+    assert worker in Task.Supervisor.children(Cuckoding.BattleTasks)
+    :sys.suspend(runner)
+    monitor = Process.monitor(worker)
+    send(worker, :inspect)
+    assert_receive {:DOWN, ^monitor, :process, ^worker, :normal}, 1000
+    observed = Battles.get(battle.id)
+    assert observed.context["provider_closures"][attempt.id]["cleanup_verified"] == true
+    assert Repo.get!(Attempt, attempt.id) == interrupted
+    Process.exit(runner, :kill)
+
+    await(fn ->
+      is_pid(Process.whereis(BattleRunner)) and Process.whereis(BattleRunner) != runner
+    end)
+
+    assert Battles.get(battle.id) == observed
+    refute_receive {:closing_provider, _, _}, 100
+    refute_receive {:unexpected_provider_replay, _}, 100
+
+    assert Enum.count(
+             Battles.evidence(battle.id),
+             &(&1.kind == "battle.provider_closure_observed")
+           ) == 1
+
+    assert {:ok, %{state: "stopped"}} = Battles.stop(battle.id)
   end
 
   test "Skip retains failed edits and reviews only independent work on the reviewed head", ctx do

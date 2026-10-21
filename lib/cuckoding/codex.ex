@@ -217,7 +217,10 @@ defmodule Cuckoding.Codex do
         args: [scratch, request["model"], request["effort"]],
         input:
           Jason.encode!(
-            Map.take(request, ~w(request_id contract access workspace prompt instructions))
+            Map.take(
+              request,
+              ~w(request_id contract access workspace prompt instructions closure)
+            )
           ) <> "\n"
       )
     else

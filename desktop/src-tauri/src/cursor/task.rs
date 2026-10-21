@@ -657,15 +657,31 @@ pub fn main(args: &[String]) {
         let _ = sender.send(());
     });
     let result = match (args, request) {
-        ([path, profile, scratch, model], Some(request)) => run(
-            Path::new(path),
-            Path::new(profile),
-            Path::new(scratch),
-            model,
-            &request,
-            cancel,
-            Duration::from_secs(300),
-        ),
+        ([path, profile, scratch, model], Some(request)) => (|| {
+            let journal = crate::task_closure::Journal::start(
+                Path::new(path),
+                Path::new(profile),
+                Path::new(scratch),
+                "cursor",
+                &request,
+                model,
+                None,
+            )?;
+            let mut result = run(
+                Path::new(path),
+                Path::new(profile),
+                Path::new(scratch),
+                model,
+                &request,
+                cancel,
+                Duration::from_secs(300),
+            )
+            .unwrap_or_else(|status| json!({"status":status}));
+            if let Some(journal) = journal {
+                journal.finish(&mut result);
+            }
+            Ok(result)
+        })(),
         _ => Err("invalid_output"),
     };
     let _ = writeln!(

@@ -12,7 +12,7 @@ defmodule Cuckoding.BattleCapacityTest do
     TeamAssignments
   }
 
-  alias Cuckoding.Battles.{Attempt, Battle, Snapshot}
+  alias Cuckoding.Battles.{Attempt, Battle, ProviderClosure, Snapshot}
 
   setup do
     %{board: board} = Cuckoding.PlanningFixtures.planning_fixture()
@@ -127,6 +127,46 @@ defmodule Cuckoding.BattleCapacityTest do
 
   test "new Starts freeze isolated Arena concurrency", ctx do
     assert start(ctx.board).snapshot["scheduler"] == "isolated-arenas-v1"
+  end
+
+  test "only a recorded exact provider closure releases interrupted connection capacity", ctx do
+    first = start(ctx.board)
+    second = start(board())
+
+    for battle <- [first, second] do
+      {:ok, admission} = Battles.claim_next(battle.id)
+      finish_native(admission)
+      {:ok, prepare} = Battles.claim_next(battle.id)
+      finish_native(prepare)
+    end
+
+    {:ok, attempt} = Battles.claim_next(first.id)
+    {:ok, _} = Battles.recover()
+    interrupted = Repo.get!(Attempt, attempt.id)
+    # The other clean Arena pauses at restart; continue it explicitly.
+    paused = Battles.get(second.id)
+    assert {:ok, resumed} = Battles.resume(paused.id, paused.control_revision)
+    assert {:error, :capacity} = Battles.claim_next(second.id)
+
+    native =
+      ProviderClosure.binding_for(interrupted)
+      |> Map.take(~w(attempt_sha256 agent_id kind))
+      |> Map.merge(%{
+        "status" => "provider_closed",
+        "request_id" => attempt.id,
+        "cleanup_verified" => true,
+        "pid" => 123,
+        "spawned_at_ms" => 1000,
+        "elapsed_ms" => 20,
+        "receipt_sha256" => String.duplicate("a", 64)
+      })
+
+    result = Cuckoding.BattleExecutor.reconcile_provider(interrupted, fn _, _ -> native end)
+    assert {:ok, observed} = Battles.reconcile_provider(interrupted, result)
+    assert {:ok, next} = Battles.claim_next(resumed.id)
+    assert next.role == "summa_rudis"
+    assert Repo.get!(Attempt, attempt.id) == interrupted
+    assert observed.state == "needs_attention"
   end
 
   test "concurrent database claims cannot exceed two global battle workers", ctx do

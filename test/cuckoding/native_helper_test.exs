@@ -104,4 +104,41 @@ defmodule Cuckoding.NativeHelperTest do
     assert %{"status" => "supported"} =
              Cuckoding.Codex.normalize(~s({"status":"observed","version":"0.146.0"}))
   end
+
+  test "closure inspection retains provider duration separately from the helper read", %{
+    path: path
+  } do
+    alias Cuckoding.Battles.ProviderClosure
+
+    attempt = %{
+      id: Ecto.UUID.generate(),
+      request: %{"role" => %{"agent_id" => "codex", "kind" => "codex"}}
+    }
+
+    native =
+      ProviderClosure.binding_for(attempt)
+      |> Map.take(~w(attempt_sha256 agent_id kind))
+      |> Map.merge(%{
+        "status" => "provider_closed",
+        "request_id" => attempt.id,
+        "cleanup_verified" => true,
+        "pid" => 1,
+        "spawned_at_ms" => 1000,
+        "elapsed_ms" => 12_345,
+        "receipt_sha256" => String.duplicate("a", 64)
+      })
+
+    File.write!(
+      path,
+      "#!/bin/sh\nread -r ignored\nprintf '%s\\n' '" <> Jason.encode!(native) <> "'\n"
+    )
+
+    File.chmod!(path, 0o700)
+    assert ProviderClosure.inspect(attempt, fn -> true end) == native
+
+    assert ProviderClosure.inspect(attempt, fn -> false end) == %{
+             "status" => "closure_unavailable",
+             "cleanup_verified" => false
+           }
+  end
 end

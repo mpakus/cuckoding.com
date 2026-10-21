@@ -17,7 +17,7 @@ defmodule Cuckoding.BattleRunner do
        cursor: nil,
        timer: nil,
        executor: Keyword.get(options, :executor, &execute/1),
-       reconciler: Keyword.get(options, :reconciler, &BattleExecutor.reconcile_integration/1)
+       reconciler: Keyword.get(options, :reconciler, &BattleExecutor.reconcile/1)
      }}
   end
 
@@ -41,7 +41,7 @@ defmodule Cuckoding.BattleRunner do
 
     if kind == :recovery,
       do:
-        Battles.reconcile_integration(
+        Battles.reconcile_recovery(
           attempt,
           failure(attempt, "reconciliation_interrupted", false)
         ),
@@ -143,9 +143,9 @@ defmodule Cuckoding.BattleRunner do
     result = reconciler.(attempt)
     :ok = BattleClock.check()
 
-    case Battles.reconcile_integration(attempt, result) do
+    case Battles.reconcile_recovery(attempt, result) do
       {:error, reason} when reason in [:invalid_result, :foreign_result] ->
-        Battles.reconcile_integration(
+        Battles.reconcile_recovery(
           attempt,
           failure(attempt, "invalid_recovery_receipt", false)
         )

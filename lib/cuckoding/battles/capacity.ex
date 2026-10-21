@@ -1,7 +1,7 @@
 defmodule Cuckoding.Battles.Capacity do
   @moduledoc "Frozen cross-Arena capacity; callers check inside the SQLite claim transaction."
   import Ecto.Query
-  alias Cuckoding.Battles.Attempt
+  alias Cuckoding.Battles.{Attempt, Battle, ProviderClosure}
   alias Cuckoding.Repo
 
   def policy, do: "isolated-arenas-v1"
@@ -25,9 +25,28 @@ defmodule Cuckoding.Battles.Capacity do
   defp connection_available?(connection) do
     not Repo.exists?(
       from a in Attempt,
+        join: b in Battle,
+        on: b.id == a.battle_id,
         where: not is_nil(a.role),
         where: fragment("json_extract(?, '$.role.agent_id') = ?", a.request, ^connection),
-        where: fragment("coalesce(json_extract(?, '$.cleanup_verified'), 0) != 1", a.result)
+        where: fragment("coalesce(json_extract(?, '$.cleanup_verified'), 0) != 1", a.result),
+        where:
+          not (a.state == "interrupted" and
+                 fragment(
+                   "coalesce(json_extract(?, '$.provider_closure'), '') = ?",
+                   b.snapshot,
+                   ^ProviderClosure.policy()
+                 ) and
+                 fragment(
+                   "coalesce(json_extract(?, '$.provider_closures.\"' || ? || '\".cleanup_verified'), 0) = 1",
+                   b.context,
+                   a.id
+                 ) and
+                 fragment(
+                   "coalesce(json_extract(?, '$.provider_closures.\"' || ? || '\".status'), '') = 'closed'",
+                   b.context,
+                   a.id
+                 ))
     )
   end
 end
