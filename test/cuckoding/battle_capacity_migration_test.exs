@@ -32,8 +32,10 @@ defmodule Cuckoding.BattleCapacityMigrationTest do
     assert [["ok"]] = MigrationRepo.query!("PRAGMA integrity_check").rows
     assert [] == MigrationRepo.query!("PRAGMA foreign_key_check").rows
 
-    assert [20_261_021_000_000] ==
-             Ecto.Migrator.run(MigrationRepo, path, :up, all: true, log: false)
+    migrated = Ecto.Migrator.run(MigrationRepo, path, :up, all: true, log: false)
+    assert 20_261_021_000_000 in migrated
+    assert 20_261_021_010_000 in migrated
+    assert 20_261_021_020_000 in migrated
 
     assert MigrationRepo.query!("SELECT * FROM events").rows == before
     assert [["ok"]] = MigrationRepo.query!("PRAGMA integrity_check").rows
@@ -45,6 +47,13 @@ defmodule Cuckoding.BattleCapacityMigrationTest do
       ).rows
 
     assert inspect(plan) =~ "battle_attempts_uncertain_connection"
+
+    event_plan =
+      MigrationRepo.query!(
+        "EXPLAIN QUERY PLAN SELECT id FROM events WHERE json_extract(data, '$.arena_id') = 'arena' AND id < 100 ORDER BY id DESC LIMIT 21"
+      ).rows
+
+    assert inspect(event_plan) =~ "events_arena_sequence"
     stop_supervised!(MigrationRepo)
 
     start_supervised!(

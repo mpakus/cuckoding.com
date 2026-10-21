@@ -32,6 +32,21 @@ h2 { font-size:28px; font-weight:500; letter-spacing:-.03em; line-height:1.3; ma
 .subtle,.panel>p:not(.eyebrow) { color:var(--muted); }
 .panel { background:linear-gradient(145deg,#101b13,var(--panel) 48%); border:1px solid var(--border); border-radius:8px; padding:30px; }
 .panel + .panel { margin-top:24px; }
+.dashboard { margin-top:24px; }
+.worker-row { display:flex; align-items:center; gap:16px; border-block-end:1px solid var(--border); padding:20px 0; overflow-wrap:anywhere; }
+.worker-row > div { min-width:0; flex:1; }
+.worker-row p { margin:4px 0 0; }
+.worker-mark { color:var(--accent); font-size:28px; }
+.worker-state { font:12px ui-monospace,monospace; color:var(--accent); }
+.dashboard-arenas { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr)); gap:16px; margin-top:24px; }
+.arena-summary { min-width:0; border:1px solid var(--border); padding:20px; border-radius:3px; overflow-wrap:anywhere; }
+.arena-summary h3 { font-size:18px; margin:0; }
+.arena-summary progress { display:block; width:100%; height:6px; margin:16px 0; accent-color:var(--accent); }
+.arena-summary .button { margin-top:16px; }
+.retained-activity { margin-top:24px; border-top:1px solid var(--border); padding-top:16px; }
+.retained-activity summary { min-height:44px; }
+.activity-entries { max-height:20rem; overflow:auto; overflow-wrap:anywhere; overscroll-behavior:contain; font-size:15px; line-height:1.5; }
+.activity-entries li { padding:8px 0; }
 .welcome { padding:36px; border-top-color:var(--accent); }
 .steps { list-style:none; display:grid; grid-template-columns:repeat(5,1fr); padding:25px 0 34px; margin:0; gap:10px; }
 .steps li { color:var(--muted); border-top:1px solid var(--border); padding-top:16px; display:grid; gap:9px; font-size:13px; }

@@ -39,6 +39,9 @@ forward-only migration: partial capacity/uncertain-connection indexes only, no
 record rewrites. Back up the selected data root before upgrading; older bundles
 refuse the newer schema. New Starts allow two isolated Arenas to progress
 concurrently; shared connections queue and each board remains sequential.
+R080g adds two further index-only migrations (fourteen total) for bounded dashboard
+and scoped activity reads. Keep the selected data-root backup; do not replace an
+already running bundle without the graceful restart procedure below.
 [Plan](PLAN.md#next-delivery-order--simple-arena) owns the remaining beta gates.
 
 ## Build and open

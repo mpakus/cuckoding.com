@@ -21,6 +21,16 @@ inspection stay exclusive. Keep one_for_all clock/tasks/coordinator restart and
 per-Arena Stop/Pause isolation. This does not enable same-board task cloning,
 combined-candidate integration, new tools or real-provider concurrency acceptance.
 
+R080g keeps dashboard observations read-only. Global worker rows expose only
+exact public role/runtime/model bindings; Arena summaries and chronological
+activity pages are limited to 20 rows. Activity scope comes from server-owned
+Arena assigns, with direct event scope taking precedence over board/command
+references; never fall through an explicit foreign scope. Display event metadata
+only, never payloads/raw frames/thoughts. Stateful dashboard/activity components
+install their own session guard. Paused reading preserves pages/scroll/disclosures
+and dirty task text; following latest is explicit. These observations, links and
+pagination never start work, adopt teams or establish completion authority.
+
 R060a Pause closes stage admission and lets the current bounded stage finish.
 Show Paused only at a durable boundary with verified worker cleanup; retain its
 receipt and next stage without replay. Pause/Resume use persisted control revisions

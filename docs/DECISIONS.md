@@ -1,5 +1,16 @@
 # Current decisions
 
+## D035 · Dashboard observations stay read-only
+
+2026-10-21, R080g. Global and Arena dashboards derive bounded views from retained
+SQLite facts; no process cache, page load, follow toggle or link owns execution
+authority. Public worker bindings and event metadata are sufficient for ordinary
+activity; raw provider/event payloads stay excluded. Direct Arena scope wins over
+board/command references, without foreign-scope fallback. Page/follow/scroll state
+is transient UI state in session-guarded LiveComponents. Retain twenty-row pages,
+stable reading and explicit follow-latest; keep task evidence and controls on the
+existing exact board. Index-only forward migrations preserve older facts.
+
 ## D034 · Concurrent isolated Arenas
 
 Accepted before implementation, 2026-10-21, R070a. New Starts freeze

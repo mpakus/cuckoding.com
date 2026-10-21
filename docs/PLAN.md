@@ -21,7 +21,7 @@ attempts, inside the existing retry budget; interrupted/native recovery remains 
 | Arena and tasks | Add folder/default board, bounded docs-first analysis, automatic cards, prerequisites, citations and saved criteria | Custom columns, custom planning-role selection and real-account planning acceptance |
 | Execution | One Start, sequential mixed-runtime dispatch per board, two isolated Arenas concurrently, independent review/correction and retained local result branch | General subprocess/toolchain checks, real mixed-provider battle acceptance and same-board parallel workers |
 | Controls/recovery | Stop, stage-boundary Pause/Resume, bounded provider Retry and automatic backoff, Skip with deferred dependents and Partial result; settled restart checkpoints, timing fence and bounded idle-sleep assertion | Unfinished native/process/Git reconciliation, sleep accounting and physical sleep tests |
-| Experience | Agent wizard/disconnect, Team editor, Arena dialogs/board + controls, activity and retained attempt inspector | Global worker dashboard, parallel activity, paginated logs, responsive/browser polish and timed ten-minute setup |
+| Experience | Agent wizard/disconnect, Team editor, Arena controls/inspector, global workers/progress and paginated global/Arena activity with follow control | Broader parallel activity, responsive/browser acceptance and timed ten-minute setup |
 | Release | Local bundle/build/smoke, separate preserved data root; Decimal advisory fixed | Signing/notarization, clean-machine install, updates/rollback and full acceptance matrix |
 
 Delivery order: finish uncertain-effect and sleep recovery (R060), implement
@@ -127,6 +127,10 @@ The numbered story below is capability coverage, not eight mandatory screens.
   transactional capacity, fair rotation and independent controls. Historical
   Starts/recovery inspection remain exclusive. Same-board task cloning and
   combined-result review remain open. [Task](../tasks/R070a-arena-workers.md).
+- [x] **R080g — Live dashboard/activity:** bounded global worker rows, paginated
+  latest Arena progress/attention and direct board navigation; shared scoped
+  chronological activity with Older/Newer and Pause/Follow latest. Dirty drafts,
+  read position and session boundaries stay intact. [Task](../tasks/R080g-live-arena-dashboard.md).
 - [x] **R080a — Direct controls:** confirmed per-agent Disconnect unassigns current
   roles while retaining history; saved roles no longer expire on catalog age alone.
   Create tasks, repository setup and extra boards use dialogs; manual tasks use +
@@ -559,11 +563,16 @@ No lost code, duplicate claims, stale review acceptance or premature Completed.
 Depends on R070 for final acceptance. R040k and each execution slice deliver their
 usable Arena surface first; basic flow simplification must not wait for R080.
 
-- [ ] Global dashboard: Arena summaries, active workers, progress and attention.
+- [x] R080g global dashboard: Arena summaries, active battle workers, progress
+  and attention from retained SQLite state. Broader setup/provider session activity
+  and real parallel acceptance remain open.
 - [ ] Arena dashboard: selected Tabula, team/progress and worker details using the
   same durable projections.
 - [ ] Task inspector: spec, review comments, attempts, candidates and evidence.
-- [ ] Scrollable/paginated logs with follow-tail control and safe file opening.
+- [x] R080g scrollable/paginated normalized event activity globally/per Arena,
+  with explicit follow control. Raw provider output/thoughts never enter this feed.
+- [ ] Safe opening/export of retained log artifacts where supported; full
+  parallel/setup worker activity and end-to-end dashboard acceptance.
 - [ ] Apply the one/two-region modern TUI visual contract, mouse/keyboard
   alternatives, non-color status, responsive layout and reduced motion.
 - [ ] Remove duplicate start paths and per-task setup; keep provider internals in

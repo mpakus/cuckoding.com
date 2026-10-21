@@ -12,6 +12,16 @@ attempt/turn/event writes. The coordinator's monitor map/fairness cursor is a
 cache; restart stops workers before existing durable recovery. Prior-schema
 upgrade and private readable backup are covered by the migration regression.
 
+R080g's thirteenth/fourteenth migrations add dashboard latest-Arena/first-board
+and event/command scope indexes only. Existing records/events remain unchanged;
+the prior-schema backup/upgrade test covers their forward application and index
+use. Dashboard reads at most 20 Arena summaries or event rows per page, plus one
+look-ahead row. Active battle workers use the frozen cap of two. Events resolve
+direct Arena scope first, then a saved board, then a scoped command only if no
+explicit Arena/board scope exists. DTOs expose event ID/kind/time and public
+worker binding fields, not payloads. Page/follow state lives in LiveComponents;
+workflow facts remain in SQLite and observation never grants Start authority.
+
 The tenth forward-only migration adds `battles`, `battle_tasks` and `battle_attempts`. Snapshots and requests are immutable; terminal attempt receipts cannot be rewritten/deleted. One active battle per Arena includes needs-attention state, and one running stage claim per battle is enforced by partial unique indexes. Draft history stays separate from execution projections. Start, claims, outcomes and events commit atomically; broadcasts follow commit. The native retained receipt/journal owns evidence of uncertain external effects; SQLite never promises exactly-once execution.
 
 R060a's eleventh forward-only migration adds `battles.control_revision` (zero for

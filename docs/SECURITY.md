@@ -700,6 +700,17 @@ one_for_all group stops all old workers before recovery. No same-board writable
 checkout sharing, new tool grants, account substitution or combined-candidate
 acceptance is added.
 
+## Read-only dashboard/activity (R080g)
+
+Dashboard routes retain authenticated LiveView access. Both stateful components
+also guard their own events using the server-owned browser session. Scope comes
+from the mounted Arena, never event parameters; explicit Arena/board references
+take precedence over command fallback and foreign scope cannot be bypassed.
+Invalid scope returns no events. Page queries return only ID/kind/time; worker
+DTOs keep only public name/kind/connection-name/model fields. No raw event/provider
+payload, credential, thought frame or filesystem path is opened by activity.
+Paging/following/navigation performs no provider call or authority mutation.
+
 ## Explicit task omission (R060c)
 
 Only new `skip-task-v1` snapshots permit Skip. Session/form, exact task/battle/control

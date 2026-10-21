@@ -40,7 +40,7 @@ remote push, user-branch merge and release remain separate human actions.
 
 ## What works today
 
-**Local preview, 2026-10-16.** The first sequential Codex/Cursor Arena loop is implemented.
+**Local preview source, 2026-10-21.** The first sequential Codex/Cursor Arena loop is implemented.
 The complete product story still includes capabilities and release acceptance
 listed below. Arena registration opens its default board; technical setup stays in Advanced.
 
@@ -52,6 +52,12 @@ listed below. Arena registration opens its default board; technical setup stays 
 | Folder registration with an automatic default board, direct Arena opening, Advanced setup and editable drafts | Custom columns and scoped role editing |
 | Codex planning from a brief or bounded folder snapshots (`docs/` first), automatically saved task cards, prerequisites and original source citations | Real-account planning acceptance across supported runtimes |
 | One bounded Start, sequential Codex/Cursor dispatch per board, two isolated Arenas progressing concurrently, independent review and retained local battle branch | Real-account end-to-end acceptance, general toolchain checks, recovery and same-board parallel workers |
+| Live global worker/Arena summaries, exact role/model progress and paginated activity globally/per Arena | Timed real-account setup and broader dashboard/release acceptance |
+
+Tabula Gladiatorum shows current battle workers and the latest saved Arena
+progress. Activity offers 20-event pages, Older/Newer and Pause updates/Follow
+latest. Reading stays fixed during updates; open the linked board for controls
+and task evidence. [Dashboard evidence](worklog/2026-10-21-R080g-live-arena-dashboard.md).
 
 Agents uses `/agents`; Settings uses `/settings`. Agent setup follows
 **Choose Agent → Connect and Authorize → Select models → Save**.

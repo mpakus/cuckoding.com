@@ -1111,6 +1111,13 @@ defmodule CuckodingWeb.TabulaLive do
         <p :if={@board} class="fine-print">
           New tasks added during a battle wait for the next Start.
         </p>
+        <.live_component
+          module={CuckodingWeb.ActivityComponent}
+          id="arena-activity"
+          arena_id={@arena.id}
+          session_id={@session_id}
+          now={@now}
+        />
       </section>
       <.modal
         :if={@board}

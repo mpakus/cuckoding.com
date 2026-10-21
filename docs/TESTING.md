@@ -1,5 +1,13 @@
 # Verification and acceptance
 
+R080g adds Dashboard query/LiveView coverage for latest-battle progress, bounded
+Arena/activity pages, exact public bindings, direct/board/command scope precedence,
+foreign scope refusal, stable reading mode/dirty drafts and expired component
+sessions. `node --test test/activity_follow_test.mjs` verifies follow/reading scroll
+behavior. Prior-schema migration/backup checks include dashboard/scoped indexes.
+Rendered source preview and fixture workers remain separate from real-provider
+dashboard acceptance and an unfamiliar user's timed first setup.
+
 R070a adds `battle_capacity_test.exs` and `battle_capacity_migration_test.exs`:
 concurrent global claims, exact-connection reservation including uncertain cleanup,
 legacy exclusion, fair three-Arena dispatch, isolated worker failure/Pause and

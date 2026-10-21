@@ -489,17 +489,13 @@ defmodule CuckodingWeb.HomeLive do
           </p>
         </details>
       </section>
-      <section
-        :if={@live_action == :home && @home.arenas != []}
-        class="panel"
-        aria-labelledby="home-arenas"
-      >
-        <div class="panel-heading">
-          <h2 id="home-arenas">Pick up where you left off.</h2>
-          <.link navigate={~p"/arenas"} class="text-link">All Arenas ↗</.link>
-        </div>
-        <Layouts.arena_link :for={arena <- @home.arenas} arena={arena} />
-      </section>
+      <.live_component
+        :if={@live_action == :home}
+        module={CuckodingWeb.DashboardComponent}
+        id="live-dashboard"
+        session_id={@session_id}
+        now={@now}
+      />
 
       <section
         :if={@live_action == :agents}

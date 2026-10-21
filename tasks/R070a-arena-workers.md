@@ -1,6 +1,7 @@
 # R070a — Concurrent isolated Arenas
 
-Status: implemented and verified, 2026-10-21. Local integration follows verification.
+Status: complete, 2026-10-21. Verified and merged into local main as 23b83d4;
+task branch deleted. No push/publication or native bundle replacement.
 
 - [x] New Starts freeze `isolated-arenas-v1`: two battle stage workers globally,
   one stage per battle/Arena and one provider turn per exact saved connection.

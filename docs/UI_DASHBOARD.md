@@ -27,6 +27,18 @@ directly accessible even if a connection needs repair. No navigation launches
 providers, adopts a team or changes a board. The ten-minute goal still needs a
 timed real-account acceptance run.
 
+R080g adds a second operational region on Home: actual active battle workers
+with role, named connection, requested model, stage and wall elapsed time; latest
+Arena completion/attention summaries with direct board links and 20-row pages.
+The same Arena page retains its existing team/task/control surface. Global and
+Arena Activity use one shared session-guarded LiveComponent with chronological
+20-event pages, Older/Newer and Pause updates/Follow latest. Paused reading keeps
+its page/scroll position through live updates; following scrolls to newest entries.
+Disclosures and unsaved task input stay intact. Only event metadata is shown;
+raw provider text/thoughts and event payloads are excluded. No dashboard read or
+navigation launches a provider or adopts a team. Full parallel/setup activity,
+artifact export and timed real-user acceptance remain open.
+
 Team puts agent/model selectors directly on four role cards; names/instructions
 and history remain available on demand. A clean saved form offers **Next: Choose
 Arena**; dirty text stays in the current editor. Arena exposes **Board team** in
