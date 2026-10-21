@@ -1,5 +1,13 @@
 # Verification and acceptance
 
+R100a's packaged smoke includes unauthorized/authenticated global dashboard
+checks and requires strict/deep ad-hoc bundle verification first. Build signing
+occurs after resource copying. Verify a disposable bundle copy before changing
+one resource, then require signature rejection; never mutate the built app or
+user data for that negative test. Retained-data upgrade evidence compares saved
+table hashes, integrity/FKs and the unchanged original database. These local
+checks do not replace Developer ID/notarization, clean-machine or live accounts.
+
 R080g adds Dashboard query/LiveView coverage for latest-battle progress, bounded
 Arena/activity pages, exact public bindings, direct/board/command scope precedence,
 foreign scope refusal, stable reading mode/dirty drafts and expired component

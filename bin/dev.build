@@ -48,3 +48,6 @@ done
 rtk proxy chmod -R u+w desktop/resources/release
 cd desktop
 rtk cargo tauri build --bundles app --ci -- --locked
+# Seal the complete development bundle after Tauri has copied every resource.
+rtk proxy codesign --force --sign - src-tauri/target/release/bundle/macos/Cuckoding.app
+rtk proxy codesign --verify --deep --strict src-tauri/target/release/bundle/macos/Cuckoding.app

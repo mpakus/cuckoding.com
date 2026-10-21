@@ -170,8 +170,12 @@ perform bounded work. It releases protection at a paused/idle boundary, and its
 report and its age. The display can sleep; lid closure, forced sleep and low
 battery can still interrupt work. This does not complete sleep recovery.
 [Idle-sleep protection](tasks/R060i-idle-sleep-lease.md).
-The packaged build, smoke test and preserved-workspace relaunch were verified
-2026-10-15; [build evidence](worklog/2026-10-15-R060e-late-stage-receipts.md).
+The 2026-10-21 packaged build passes strict ad-hoc bundle verification and fresh
+workspace smoke, including the dashboard. A copy of the retained database upgrades
+from eleven to fourteen migrations with saved records intact; its original data
+and provider profiles stay untouched. Developer ID signing/notarization,
+clean-machine installation and real-provider acceptance remain open.
+[Current local build evidence](worklog/2026-10-21-R100a-local-beta-verification.md).
 **Retry failed stage** is available for settled transient provider failures in new
 battles: two retries per task, plus two shared by final stages, within the same
 time/turn limits. A failed Implementor returns through a fresh worktree and

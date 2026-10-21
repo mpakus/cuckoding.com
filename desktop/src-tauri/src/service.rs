@@ -244,6 +244,7 @@ impl Service {
             Ok(response)
         };
         let pages = [
+            ("/", "Inside the Arena."),
             ("/agents", "Add agent"),
             ("/agents/new", "Choose Agent"),
             ("/team", "Add role"),

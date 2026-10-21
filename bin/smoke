@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
 cd "$(dirname "$0")/.."
+rtk proxy codesign --verify --deep --strict desktop/src-tauri/target/release/bundle/macos/Cuckoding.app
 CCODING_RELEASE_DIR="$(pwd)/desktop/src-tauri/target/release/bundle/macos/Cuckoding.app/Contents/Resources/release"
 CCODING_DATA_DIR="$(rtk proxy mktemp -d /private/tmp/ccoding-smoke.XXXXXX)"
 export CCODING_RELEASE_DIR CCODING_DATA_DIR

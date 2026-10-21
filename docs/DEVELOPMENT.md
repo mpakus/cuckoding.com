@@ -52,6 +52,10 @@ The development packaging script uses Homebrew OpenSSL 3, bundles its runtime
 library/license, and relocates OTP's crypto references. Cargo.lock fixes the
 compatible Tauri 2.11.5 dependency cohort; use `--locked` for native checks.
 Mix.lock fixes Phoenix 1.8.15, LiveView 1.2.12, Ecto 3.14.2 and SQLite adapter 0.25.0.
+After Tauri copies all resources, `bin/dev.build` ad-hoc signs the complete app
+and runs strict/deep verification. `bin/smoke` requires that verification before
+launching. This seals local resources; it supplies no Developer ID identity,
+notarization, reproducibility or clean-machine guarantee.
 
 From the repository root:
 
@@ -90,7 +94,12 @@ directory with a `.retired` suffix; never remove their data. See
 
 After restart, verify the actual browser and listener, not just source or build
 success. The packaged smoke now checks session protection and authenticated
-availability of Agents, Add agent, Team/Add role, Arenas and Settings.
+availability of the global dashboard, Agents, Add agent, Team/Add role, Arenas
+and Settings. R100a also opened an eleven-migration retained-data copy with the
+current bundle, checked the fourteen-migration result and preserved saved records.
+The original nonempty data root has no ownership marker; that copy test does not
+authorize recreating its marker or launching it. See the
+[dated evidence](../worklog/2026-10-21-R100a-local-beta-verification.md).
 
 In **Agents**, choose **Add agent** or **Edit** beside an existing connection,
 then follow the four steps:

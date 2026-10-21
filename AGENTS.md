@@ -492,6 +492,12 @@ Do not restore the old implementation or treat historical tests as current proof
   launch one chosen build. An unusable tray may use the documented normal backend
   shutdown only after verified idle state, backup and native process identity.
   Never kill unrelated provider apps.
+- R100a development packaging seals the complete ad-hoc app after copying all
+  resources and requires strict/deep signature verification before smoke. Prove
+  resource-tampering refusal only on disposable copies. Ad-hoc sealing is not
+  Developer ID provenance/notarization or release acceptance. An unrecognized
+  nonempty data root still requires an explicit migration/recognition decision;
+  a successful copied-database upgrade never authorizes restoring its marker.
 
 ## UI
 

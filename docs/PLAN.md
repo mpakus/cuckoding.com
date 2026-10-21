@@ -606,6 +606,12 @@ item and is reported to the user; it is not silently counted as provider support
 
 Depends on every previous slice.
 
+- [x] R100a local preview verification: seal and strictly verify the complete
+  ad-hoc bundle, reject modified resources, smoke the authenticated dashboard
+  and setup routes, and upgrade an integrity-checked retained-data copy from
+  eleven to fourteen migrations without changing saved records. This is not
+  notarization, a clean-machine test or real-provider acceptance.
+  [Task and evidence](../tasks/R100a-local-beta-verification.md).
 - [ ] Reproducible signed/notarized Apple Silicon application with bundled release
   and verified helper provenance; no developer toolchain needed by the user.
 - [ ] Clean-machine install/launch/quit and login persistence; document provider

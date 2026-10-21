@@ -1,6 +1,7 @@
 # R080g — Live Arena dashboard and retained activity
 
-Status: implemented and verified, 2026-10-21. Local integration follows verification.
+Status: complete, 2026-10-21. Verified and merged into local main as d549f8c;
+task branch deleted. No push/publication or native bundle replacement in this slice.
 
 - [x] Global Tabula Gladiatorum shows durable active battle workers with exact
   role/runtime/model and elapsed time, plus paginated Arena progress/attention
