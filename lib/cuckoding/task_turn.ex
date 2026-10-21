@@ -6,7 +6,7 @@ defmodule Cuckoding.TaskTurn do
   @errors ~w(launch_failed timeout cancelled invalid_output executable_changed helper_unavailable connection_lost provider_error unexpected_message profile_mismatch unsupported_profile unsafe_profile profile_busy cleanup_uncertain not_connected model_unavailable model_mismatch unsupported_grant invalid_response unexpected_tool turn_failed interrupted)
 
   def normalize(bytes) when is_binary(bytes) and byte_size(bytes) <= 65_536 do
-    with {:ok, %{"status" => status} = result} <- Jason.decode(bytes),
+    with {:ok, %{"status" => status} = result} <- Codex.decode_receipt(bytes),
          true <- status in ["task_finished" | @errors ++ @tool_errors],
          true <-
            not Map.has_key?(result, "cleanup_verified") or is_boolean(result["cleanup_verified"]),

@@ -107,49 +107,57 @@ impl Runner<'_> {
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .process_group(0);
-        let mut group = Group(child.spawn().map_err(|_| "launch_failed")?);
-        self.children
-            .push(json!({"pid":group.0.id(), "spawned_at_ms":SystemTime::now()
+        let mut group = Group::new(child.spawn().map_err(|_| "launch_failed")?);
+        let result = (|| {
+            self.children
+                .push(json!({"pid":group.0.id(), "spawned_at_ms":SystemTime::now()
             .duration_since(UNIX_EPOCH).map_err(|_| "launch_failed")?.as_millis()}));
-        let stdout = group.0.stdout.take().ok_or("launch_failed")?;
-        let (sender, output) = mpsc::sync_channel(1);
-        thread::spawn(move || {
-            let mut bytes = Vec::new();
-            let result = stdout.take(129).read_to_end(&mut bytes);
-            let _ = sender.send(result.map(|_| bytes));
-        });
-        let mut bytes = None;
-        loop {
-            self.active()?;
-            if let Ok(result) = output.try_recv() {
-                let value = result.map_err(|_| "invalid_output")?;
-                if value.len() > 128 {
-                    return Err("invalid_output");
+            let stdout = group.0.stdout.take().ok_or("launch_failed")?;
+            let (sender, output) = mpsc::sync_channel(1);
+            thread::spawn(move || {
+                let mut bytes = Vec::new();
+                let result = stdout.take(129).read_to_end(&mut bytes);
+                let _ = sender.send(result.map(|_| bytes));
+            });
+            let mut bytes = None;
+            loop {
+                self.active()?;
+                if let Ok(result) = output.try_recv() {
+                    let value = result.map_err(|_| "invalid_output")?;
+                    if value.len() > 128 {
+                        return Err("invalid_output");
+                    }
+                    bytes = Some(value);
                 }
-                bytes = Some(value);
+                if let (true, Some(bytes)) =
+                    (exited(&group.0).map_err(|_| "launch_failed")?, &bytes)
+                {
+                    // Keep the leader unreaped until Group kills its descendants.
+                    let mut info: libc::siginfo_t = unsafe { std::mem::zeroed() };
+                    let success = unsafe {
+                        libc::waitid(
+                            libc::P_PID,
+                            group.0.id(),
+                            &mut info,
+                            libc::WEXITED | libc::WNOHANG | libc::WNOWAIT,
+                        ) == 0
+                            && info.si_pid() != 0
+                            && info.si_code == libc::CLD_EXITED
+                            && info.si_status() == 0
+                    };
+                    return if success {
+                        Ok(bytes.clone())
+                    } else {
+                        Err("isolation_failed")
+                    };
+                }
+                thread::sleep(Duration::from_millis(10));
             }
-            if let (true, Some(bytes)) = (exited(&group.0).map_err(|_| "launch_failed")?, &bytes) {
-                // Keep the leader unreaped until Group kills its descendants.
-                let mut info: libc::siginfo_t = unsafe { std::mem::zeroed() };
-                let success = unsafe {
-                    libc::waitid(
-                        libc::P_PID,
-                        group.0.id(),
-                        &mut info,
-                        libc::WEXITED | libc::WNOHANG | libc::WNOWAIT,
-                    ) == 0
-                        && info.si_pid() != 0
-                        && info.si_code == libc::CLD_EXITED
-                        && info.si_status() == 0
-                };
-                drop(group);
-                return if success {
-                    Ok(bytes.clone())
-                } else {
-                    Err("isolation_failed")
-                };
-            }
-            thread::sleep(Duration::from_millis(10));
+        })();
+        if group.finish() {
+            result
+        } else {
+            Err("cleanup_uncertain")
         }
     }
 

@@ -11,14 +11,55 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-pub(crate) struct Group(pub(crate) Child);
+pub(crate) struct Group(pub(crate) Child, Option<bool>);
+impl Group {
+    // Every caller supplies a fresh process-group leader; never reap it elsewhere.
+    pub(crate) fn new(child: Child) -> Self {
+        Self(child, None)
+    }
+
+    pub(crate) fn finish(&mut self) -> bool {
+        if let Some(cleaned) = self.1 {
+            return cleaned;
+        }
+        // A failed ownership check must not signal a potentially reused PID/PGID.
+        self.1 = Some(false);
+        if exited(&self.0).is_err() {
+            return false;
+        }
+        let group = -(self.0.id() as i32);
+        // SAFETY: the owned unreaped leader pins this process group through final signalling.
+        unsafe { libc::kill(group, libc::SIGTERM) };
+        thread::sleep(Duration::from_millis(100));
+        // SAFETY: no wait/try_wait has released the leader's PID/PGID yet.
+        unsafe { libc::kill(group, libc::SIGKILL) };
+        let deadline = Instant::now() + Duration::from_secs(1);
+        while matches!(exited(&self.0), Ok(false)) && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(10));
+        }
+        if !matches!(exited(&self.0), Ok(true)) || !matches!(self.0.try_wait(), Ok(Some(_))) {
+            return false;
+        }
+        // Never signal again after reaping. A reused group can only cause conservative refusal.
+        let deadline = Instant::now() + Duration::from_secs(1);
+        loop {
+            // SAFETY: signal zero observes existence only and cannot affect another process.
+            if unsafe { libc::kill(group, 0) } == -1
+                && io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH)
+            {
+                self.1 = Some(true);
+                return true;
+            }
+            if Instant::now() >= deadline {
+                return false;
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+    }
+}
 impl Drop for Group {
     fn drop(&mut self) {
-        // Never reap before group cleanup: the unreaped leader pins its PID/PGID.
-        unsafe { libc::kill(-(self.0.id() as i32), libc::SIGTERM) };
-        thread::sleep(Duration::from_millis(100));
-        unsafe { libc::kill(-(self.0.id() as i32), libc::SIGKILL) };
-        let _ = self.0.wait();
+        self.finish();
     }
 }
 
@@ -85,7 +126,7 @@ fn run(path: &Path, directory: &Path, cancel: Receiver<()>, limit: Duration) -> 
         .duration_since(UNIX_EPOCH)
         .map_err(|_| io::Error::other("clock unavailable"))?
         .as_millis();
-    let mut group = Group(
+    let mut group = Group::new(
         Command::new(executable)
             .arg("--version")
             .env_clear()
@@ -103,56 +144,68 @@ fn run(path: &Path, directory: &Path, cancel: Receiver<()>, limit: Duration) -> 
             .spawn()?,
     );
     let pid = group.0.id();
-    let stdout = group.0.stdout.take().ok_or(io::ErrorKind::BrokenPipe)?;
-    let (sender, output) = mpsc::sync_channel(1);
-    thread::spawn(move || {
-        let mut bytes = Vec::new();
-        let read = stdout.take(129).read_to_end(&mut bytes);
-        let _ = sender.send(read.map(|_| bytes));
-    });
-    let mut bytes = None;
-    let status = loop {
-        if cancel.try_recv().is_ok() {
-            break "cancelled";
-        }
-        if started.elapsed() >= limit {
-            break "timeout";
-        }
-        if let Ok(result) = output.try_recv() {
-            bytes = Some(result?);
-        }
-        if bytes.as_ref().is_some_and(|b| b.len() > 128) {
-            break "invalid_output";
-        }
-        if exited(&group.0)? && bytes.is_some() {
-            break "observed";
-        }
-        thread::sleep(Duration::from_millis(10));
-    };
-    // Check exit status without releasing ownership before all descendants are stopped.
-    let mut info: libc::siginfo_t = unsafe { std::mem::zeroed() };
-    let successful = unsafe {
-        libc::waitid(
-            libc::P_PID,
-            pid,
-            &mut info,
-            libc::WEXITED | libc::WNOHANG | libc::WNOWAIT,
-        ) == 0
-            && info.si_pid() != 0
-            && info.si_code == libc::CLD_EXITED
-            && info.si_status() == 0
-    };
-    drop(group);
-    let observed = bytes.as_deref().and_then(version).filter(|_| successful);
-    let status = if status == "observed" && observed.is_none() {
-        "invalid_output"
-    } else {
-        status
-    };
-    Ok(
-        json!({"status": status, "version": if status == "observed" { observed } else { None },
+    let result = (|| {
+        let stdout = group.0.stdout.take().ok_or(io::ErrorKind::BrokenPipe)?;
+        let (sender, output) = mpsc::sync_channel(1);
+        thread::spawn(move || {
+            let mut bytes = Vec::new();
+            let read = stdout.take(129).read_to_end(&mut bytes);
+            let _ = sender.send(read.map(|_| bytes));
+        });
+        let mut bytes = None;
+        let status = loop {
+            if cancel.try_recv().is_ok() {
+                break "cancelled";
+            }
+            if started.elapsed() >= limit {
+                break "timeout";
+            }
+            if let Ok(result) = output.try_recv() {
+                bytes = Some(result?);
+            }
+            if bytes.as_ref().is_some_and(|b| b.len() > 128) {
+                break "invalid_output";
+            }
+            if exited(&group.0)? && bytes.is_some() {
+                break "observed";
+            }
+            thread::sleep(Duration::from_millis(10));
+        };
+        // Check exit status without releasing ownership before all descendants are stopped.
+        let mut info: libc::siginfo_t = unsafe { std::mem::zeroed() };
+        let successful = unsafe {
+            libc::waitid(
+                libc::P_PID,
+                pid,
+                &mut info,
+                libc::WEXITED | libc::WNOHANG | libc::WNOWAIT,
+            ) == 0
+                && info.si_pid() != 0
+                && info.si_code == libc::CLD_EXITED
+                && info.si_status() == 0
+        };
+        let observed = bytes.as_deref().and_then(version).filter(|_| successful);
+        let status = if status == "observed" && observed.is_none() {
+            "invalid_output"
+        } else {
+            status
+        };
+        Ok(
+            json!({"status": status, "version": if status == "observed" { observed } else { None },
         "pid": pid, "spawned_at_ms": spawned_at, "elapsed_ms": started.elapsed().as_millis()}),
-    )
+        )
+    })();
+    if group.finish() {
+        result.map(|mut value: Value| {
+            value["cleanup_verified"] = json!(true);
+            value
+        })
+    } else {
+        Ok(
+            json!({"status":"cleanup_uncertain","cleanup_verified":false,"pid":pid,
+            "spawned_at_ms":spawned_at,"elapsed_ms":started.elapsed().as_millis()}),
+        )
+    }
 }
 
 pub fn main(args: &[String]) {
@@ -196,6 +249,50 @@ mod tests {
         fs::write(&program, format!("#!/bin/sh\n{body}\n")).unwrap();
         fs::set_permissions(&program, fs::Permissions::from_mode(0o700)).unwrap();
         (directory, program)
+    }
+
+    #[test]
+    fn group_finish_is_bounded_idempotent_and_leaves_an_unrelated_peer() {
+        let (dir, path) = fixture("trap '' TERM\nsleep 30 &\necho $! > child\nwait");
+        let mut peer = Command::new("/bin/sleep").arg("30").spawn().unwrap();
+        let mut group = Group::new(
+            Command::new(path)
+                .current_dir(&dir)
+                .process_group(0)
+                .spawn()
+                .unwrap(),
+        );
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while !dir.join("child").exists() && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(10));
+        }
+        let child: i32 = fs::read_to_string(dir.join("child"))
+            .unwrap()
+            .trim()
+            .parse()
+            .unwrap();
+        let started = Instant::now();
+        assert!(group.finish());
+        assert!(started.elapsed() < Duration::from_secs(3));
+        assert!(group.finish());
+        drop(group);
+        assert_eq!(unsafe { libc::kill(child, 0) }, -1);
+        assert!(peer.try_wait().unwrap().is_none());
+        peer.kill().unwrap();
+        peer.wait().unwrap();
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn group_finish_refuses_lost_leader_ownership_without_signalling_again() {
+        let mut child = Command::new("/usr/bin/true")
+            .process_group(0)
+            .spawn()
+            .unwrap();
+        child.wait().unwrap();
+        let mut group = Group::new(child);
+        assert!(!group.finish());
+        assert!(!group.finish());
     }
 
     #[test]

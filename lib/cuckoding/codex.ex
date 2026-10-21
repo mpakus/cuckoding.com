@@ -14,9 +14,9 @@ defmodule Cuckoding.Codex do
   @behaviour Cuckoding.AgentAdapter
   import Bitwise
   @verified_versions ~w(0.146.0 0.162.0-alpha.2 0.162.0-alpha.17.2)
-  @errors ~w(launch_failed timeout cancelled invalid_output executable_changed helper_unavailable)
+  @errors ~w(launch_failed timeout cancelled invalid_output executable_changed helper_unavailable cleanup_uncertain)
   @connection_errors @errors ++
-                       ~w(connection_lost provider_error unexpected_message profile_mismatch unsupported_profile unsafe_profile profile_busy invalid_login login_failed logout_unconfirmed cleanup_uncertain)
+                       ~w(connection_lost provider_error unexpected_message profile_mismatch unsupported_profile unsafe_profile profile_busy invalid_login login_failed logout_unconfirmed)
 
   @model_errors @connection_errors ++
                   ~w(not_connected model_unavailable model_mismatch unsupported_grant invalid_response unexpected_tool turn_failed interrupted)
@@ -107,7 +107,7 @@ defmodule Cuckoding.Codex do
   end
 
   def normalize_isolation(bytes) when is_binary(bytes) and byte_size(bytes) <= 2048 do
-    with {:ok, %{"status" => status} = value} <- Jason.decode(bytes),
+    with {:ok, %{"status" => status} = value} <- decode_receipt(bytes),
          true <-
            status in (~w(passed unsupported_version unsafe_fixture isolation_failed network_unavailable) ++
                         @errors ++ ~w(cleanup_uncertain)),
@@ -403,7 +403,7 @@ defmodule Cuckoding.Codex do
   end
 
   def normalize(data) when is_binary(data) and byte_size(data) <= 1024 do
-    case Jason.decode(data) do
+    case decode_receipt(data) do
       {:ok, %{"status" => "observed", "version" => version} = result} ->
         if is_binary(version) and
              Regex.match?(
@@ -431,7 +431,7 @@ defmodule Cuckoding.Codex do
   def normalize(_), do: %{"status" => "invalid_output"}
 
   def normalize_connection(data) when is_binary(data) and byte_size(data) <= 524_288 do
-    case Jason.decode(data) do
+    case decode_receipt(data) do
       {:ok,
        %{"status" => "checked", "authorization" => auth, "catalog_status" => catalog} = result} ->
         normalized =
@@ -464,7 +464,7 @@ defmodule Cuckoding.Codex do
   def normalize_connection(_), do: %{"status" => "invalid_output"}
 
   def normalize_model_check(data) when is_binary(data) and byte_size(data) <= 1024 do
-    case Jason.decode(data) do
+    case decode_receipt(data) do
       {:ok, %{"status" => "passed", "grant" => "scratch-read-only-v1"} = result} ->
         if Enum.all?(~w(requested_model observed_model effort), &identifier?(result[&1])) and
              match?({:ok, _}, Ecto.UUID.cast(result["thread_id"])) and
@@ -542,11 +542,35 @@ defmodule Cuckoding.Codex do
       is_binary(value) and byte_size(value) in 1..128 and
         Regex.match?(~r/\A[a-zA-Z0-9._\/-]+\z/, value)
 
+  @doc false
+  def decode_receipt(bytes) when is_binary(bytes) and byte_size(bytes) <= 524_288 do
+    case Jason.decode(bytes) do
+      {:ok, %{"cleanup_verified" => cleanup} = receipt} when cleanup !== true ->
+        {:ok,
+         receipt
+         |> Map.put("cleanup_verified", false)
+         |> Map.put(
+           "status",
+           if(cleanup == false, do: "cleanup_uncertain", else: "invalid_output")
+         )}
+
+      result ->
+        result
+    end
+  end
+
+  def decode_receipt(_), do: {:error, :invalid_receipt}
+
   def public_fields(result) do
-    for key <- ~w(pid spawned_at_ms elapsed_ms),
-        value = result[key],
-        is_integer(value) and value >= 0 and value < 10_000_000_000_000,
-        into: %{},
-        do: {key, value}
+    fields =
+      for key <- ~w(pid spawned_at_ms elapsed_ms),
+          value = result[key],
+          is_integer(value) and value >= 0 and value < 10_000_000_000_000,
+          into: %{},
+          do: {key, value}
+
+    if Map.has_key?(result, "cleanup_verified"),
+      do: Map.put(fields, "cleanup_verified", result["cleanup_verified"] == true),
+      else: fields
   end
 end

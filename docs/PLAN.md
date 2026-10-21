@@ -512,6 +512,9 @@ Depends on R050.
   interrupted attempts and pause verified in-budget results for explicit Resume.
   Missing receipts and other native/provider stages remain needs-attention.
   [Task and evidence](../tasks/R060g-retained-integration.md).
+- [x] R060k explicit bounded native group closure and fail-closed receipt
+  normalization; retain uncertain effects/session stores without success or
+  cancellation promotion. [Task/evidence](../tasks/R060k-provider-cleanup.md).
 - [ ] Broader interrupted-work recovery with verified process cleanup.
 - [x] R060h timing-gap admission/settlement fence with independent supervised
   clock observation, clean Pause and rejected active receipts; no claim of sleep.

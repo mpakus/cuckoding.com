@@ -130,7 +130,7 @@ impl Cli<'_> {
         if !self.path.is_absolute() || !executable.is_file() {
             return Err("launch_failed");
         }
-        let mut group = Group(
+        let mut group = Group::new(
             Command::new(executable)
                 .args(args)
                 .env_clear()
@@ -154,76 +154,83 @@ impl Cli<'_> {
                 .spawn()
                 .map_err(|_| "launch_failed")?,
         );
-        self.pid.set(group.0.id());
-        let mut stdout = group.0.stdout.take().ok_or("connection_lost")?;
-        let (sender, output) = mpsc::sync_channel(8);
-        thread::spawn(move || loop {
-            let mut bytes = [0; 4096];
-            match stdout.read(&mut bytes) {
-                Ok(0) => break,
-                Ok(n) => {
-                    if sender.send(Ok(bytes[..n].to_vec())).is_err() {
+        let result = (|| {
+            self.pid.set(group.0.id());
+            let mut stdout = group.0.stdout.take().ok_or("connection_lost")?;
+            let (sender, output) = mpsc::sync_channel(8);
+            thread::spawn(move || loop {
+                let mut bytes = [0; 4096];
+                match stdout.read(&mut bytes) {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        if sender.send(Ok(bytes[..n].to_vec())).is_err() {
+                            break;
+                        }
+                    }
+                    Err(_) => {
+                        let _ = sender.send(Err("connection_lost"));
                         break;
                     }
                 }
-                Err(_) => {
-                    let _ = sender.send(Err("connection_lost"));
-                    break;
+            });
+            let mut bytes = Vec::new();
+            let mut prompted = false;
+            loop {
+                if self.cancel.try_recv().is_ok() {
+                    return Err("cancelled");
                 }
-            }
-        });
-        let mut bytes = Vec::new();
-        let mut prompted = false;
-        loop {
-            if self.cancel.try_recv().is_ok() {
-                return Err("cancelled");
-            }
-            if Instant::now() >= self.deadline || SystemTime::now() >= self.wall {
-                return Err("timeout");
-            }
-            match output.recv_timeout(Duration::from_millis(20)) {
-                Ok(chunk) => {
-                    bytes.extend(chunk?);
-                    if bytes.len() > 65_536 {
-                        return Err("invalid_output");
-                    }
-                    if login && !prompted {
-                        // Wait for the line ending so a split URL cannot be published truncated.
-                        if let Some(end) = bytes.iter().rposition(|b| *b == b'\n') {
-                            if let Some(url) = login_url(
-                                std::str::from_utf8(&bytes[..end]).map_err(|_| "invalid_output")?,
-                            ) {
-                                progress(url)?;
-                                prompted = true;
+                if Instant::now() >= self.deadline || SystemTime::now() >= self.wall {
+                    return Err("timeout");
+                }
+                match output.recv_timeout(Duration::from_millis(20)) {
+                    Ok(chunk) => {
+                        bytes.extend(chunk?);
+                        if bytes.len() > 65_536 {
+                            return Err("invalid_output");
+                        }
+                        if login && !prompted {
+                            // Wait for the line ending so a split URL cannot be published truncated.
+                            if let Some(end) = bytes.iter().rposition(|b| *b == b'\n') {
+                                if let Some(url) = login_url(
+                                    std::str::from_utf8(&bytes[..end])
+                                        .map_err(|_| "invalid_output")?,
+                                ) {
+                                    progress(url)?;
+                                    prompted = true;
+                                }
                             }
                         }
                     }
+                    Err(mpsc::RecvTimeoutError::Disconnected)
+                        if exited(&group.0).map_err(|_| "connection_lost")? =>
+                    {
+                        break
+                    }
+                    Err(_) => {}
                 }
-                Err(mpsc::RecvTimeoutError::Disconnected)
-                    if exited(&group.0).map_err(|_| "connection_lost")? =>
-                {
-                    break
-                }
-                Err(_) => {}
             }
-        }
-        let mut info: libc::siginfo_t = unsafe { std::mem::zeroed() };
-        let success = unsafe {
-            libc::waitid(
-                libc::P_PID,
-                group.0.id(),
-                &mut info,
-                libc::WEXITED | libc::WNOHANG | libc::WNOWAIT,
-            ) == 0
-                && info.si_pid() != 0
-                && info.si_code == libc::CLD_EXITED
-                && info.si_status() == 0
-        };
-        drop(group);
-        if success {
-            Ok(bytes)
+            let mut info: libc::siginfo_t = unsafe { std::mem::zeroed() };
+            let success = unsafe {
+                libc::waitid(
+                    libc::P_PID,
+                    group.0.id(),
+                    &mut info,
+                    libc::WEXITED | libc::WNOHANG | libc::WNOWAIT,
+                ) == 0
+                    && info.si_pid() != 0
+                    && info.si_code == libc::CLD_EXITED
+                    && info.si_status() == 0
+            };
+            if success {
+                Ok(bytes)
+            } else {
+                Err("provider_error")
+            }
+        })();
+        if group.finish() {
+            result
         } else {
-            Err("provider_error")
+            Err("cleanup_uncertain")
         }
     }
 }
@@ -291,13 +298,14 @@ fn run(
             Ok(rows) => Ok(
                 json!({"status":"checked","authorization":"cursor","catalog_status":"fresh","models":rows}),
             ),
-            Err("cancelled") => Err("cancelled"),
+            Err(status @ ("cancelled" | "cleanup_uncertain")) => Err(status),
             Err(_) => {
                 Ok(json!({"status":"checked","authorization":"cursor","catalog_status":"failed"}))
             }
         }
     })();
     let mut result = result.unwrap_or_else(|status| json!({"status":status}));
+    result["cleanup_verified"] = json!(result["status"] != "cleanup_uncertain");
     if cli.pid.get() != 0 {
         result["pid"] = json!(cli.pid.get());
     }

@@ -55,4 +55,53 @@ defmodule Cuckoding.NativeHelperTest do
     assert %{"status" => "cancelled", "cleanup_verified" => true} =
              NativeHelper.request(nil, [], 1_000, &Jason.decode!/1, 8192, active?: active)
   end
+
+  test "provider normalization cannot promote false or malformed closure on cancellation", %{
+    path: path
+  } do
+    for cleanup <- [false, "true"] do
+      receipt = Jason.encode!(%{"status" => "cancelled", "cleanup_verified" => cleanup})
+      File.write!(path, "#!/bin/sh\nread -r ignored\nprintf '%s\\n' '" <> receipt <> "'\n")
+      File.chmod!(path, 0o700)
+      counter = :atomics.new(1, [])
+      active = fn -> :atomics.add_get(counter, 1, 1) < 3 end
+
+      assert %{"status" => "cleanup_uncertain", "cleanup_verified" => false} =
+               NativeHelper.request(nil, [], 1_000, &Cuckoding.Codex.normalize_connection/1, 8192,
+                 active?: active
+               )
+    end
+  end
+
+  test "unverified native receipts cannot publish version, account, model, plan or task success" do
+    for normalize <- [
+          &Cuckoding.Codex.normalize/1,
+          &Cuckoding.Cursor.normalize/1,
+          &Cuckoding.Codex.normalize_connection/1,
+          &Cuckoding.Cursor.normalize_connection/1,
+          &Cuckoding.Codex.normalize_model_check/1,
+          &Cuckoding.Planning.normalize/1,
+          &Cuckoding.TaskTurn.normalize/1
+        ] do
+      for cleanup <- [false, "true"] do
+        result =
+          normalize.(
+            Jason.encode!(%{
+              "status" => "observed",
+              "version" => "0.146.0",
+              "cleanup_verified" => cleanup,
+              "private" => "hidden"
+            })
+          )
+
+        assert result["status"] in ~w(cleanup_uncertain invalid_output)
+        assert result["cleanup_verified"] == false
+        refute Map.has_key?(result, "version")
+        refute Map.has_key?(result, "private")
+      end
+    end
+
+    assert %{"status" => "supported"} =
+             Cuckoding.Codex.normalize(~s({"status":"observed","version":"0.146.0"}))
+  end
 end

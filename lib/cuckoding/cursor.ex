@@ -69,7 +69,7 @@ defmodule Cuckoding.Cursor do
   end
 
   def normalize(bytes) when is_binary(bytes) and byte_size(bytes) <= 1024 do
-    case Jason.decode(bytes) do
+    case Codex.decode_receipt(bytes) do
       {:ok, %{"status" => "observed", "version" => version} = result} when is_binary(version) ->
         if Regex.match?(~r/\A[0-9]{4}\.[0-9]{2}\.[0-9]{2}-[a-f0-9]{7}\z/, version) do
           Map.merge(Codex.public_fields(result), %{
@@ -88,7 +88,7 @@ defmodule Cuckoding.Cursor do
   def normalize(_), do: %{"status" => "invalid_output"}
 
   def normalize_connection(bytes) when is_binary(bytes) and byte_size(bytes) <= 524_288 do
-    case Jason.decode(bytes) do
+    case Codex.decode_receipt(bytes) do
       {:ok,
        %{"status" => "checked", "authorization" => "cursor", "catalog_status" => status} = result}
       when status in ~w(fresh failed) ->

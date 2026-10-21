@@ -231,6 +231,16 @@ either UTC or monotonic time, or backward time;
 restart returns Unknown. This is neither execution/cleanup evidence nor a claim
 of current guaranteed protection. Source-dev heartbeats do not fabricate reports.
 
+R060k native closure pins the unreaped leader through final signalling, bounds
+waits and observes owned-group disappearance before publishing success. A cached
+result prevents repeat signals; missing leader ownership refuses cleanup. All
+provider normalizers preserve explicit false/malformed cleanup as a refusal,
+including cancellation with a zero helper exit. Public host effects remain
+retained, but no successful report/account observation is accepted. Uncertain
+Cursor stores remain private and are not deleted as purported cleanup. This
+cannot detect escaped groups, prove hard-killed session closure or recover absent
+receipts; historical absent fields gain no new recovery authority.
+
 R060f worker completion uses the existing claim/result validators inside the
 transaction, then sends only a completion signal to its coordinator. Unexpected
 worker execution/settlement exceptions terminate with a fixed reason before OTP
@@ -636,8 +646,9 @@ abort; model text is a proposal to the existing descriptor-bound file service.
 Request alias and runtime model/parameters have separate receipt fields.
 This is provider-enforced tool restriction, not an OS sandbox around Cursor.
 
-Normal timeout/cancel/error/success kills the owned group, removes provider session
-stores and retains public host effects only. Thought frames are discarded, never
+Normal timeout/cancel/error/success verifies owned group closure before removing
+provider session stores; uncertainty retains those private stores for inspection.
+Only public host effects reach receipts. Thought frames are discarded, never
 shown or written to app receipts. Hard process death can leave private provider
 session stores under an interrupted attempt; verified recovery cleanup remains
 open. Do not classify those files as public logs, export them, or replay the turn.

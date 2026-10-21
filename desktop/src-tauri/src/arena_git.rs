@@ -157,57 +157,63 @@ impl Git<'_> {
         if let Some(index) = index {
             command.env("GIT_INDEX_FILE", index);
         }
-        let mut group = Group(command.spawn().map_err(|_| "git_unavailable")?);
-        let writer = if let Some(bytes) = input {
-            let mut stdin = group.0.stdin.take().ok_or("git_unavailable")?;
-            Some(thread::spawn(move || stdin.write_all(&bytes)))
-        } else {
-            None
-        };
-        let stdout = group.0.stdout.take().ok_or("git_unavailable")?;
-        let (sender, receiver) = mpsc::sync_channel(1);
-        thread::spawn(move || {
-            let mut bytes = Vec::new();
-            let result = stdout.take(output_limit as u64 + 1).read_to_end(&mut bytes);
-            let _ = sender.send(result.map(|_| bytes));
-        });
-        let mut bytes = None;
-        loop {
-            self.active()?;
-            if let Ok(result) = receiver.try_recv() {
-                bytes = Some(result.map_err(|_| "invalid_repository")?);
-            }
-            if bytes.as_ref().is_some_and(|b| b.len() > output_limit) {
-                return Err("metadata_limit");
-            }
-            if exited(&group.0).map_err(|_| "git_unavailable")? && bytes.is_some() {
-                break;
-            }
-            thread::sleep(Duration::from_millis(10));
-        }
-        let mut info: libc::siginfo_t = unsafe { std::mem::zeroed() };
-        let code = unsafe {
-            if libc::waitid(
-                libc::P_PID,
-                group.0.id(),
-                &mut info,
-                libc::WEXITED | libc::WNOWAIT,
-            ) == 0
-                && info.si_code == libc::CLD_EXITED
-            {
-                info.si_status()
+        let mut group = Group::new(command.spawn().map_err(|_| "git_unavailable")?);
+        let result = (|| {
+            let writer = if let Some(bytes) = input {
+                let mut stdin = group.0.stdin.take().ok_or("git_unavailable")?;
+                Some(thread::spawn(move || stdin.write_all(&bytes)))
             } else {
-                -1
+                None
+            };
+            let stdout = group.0.stdout.take().ok_or("git_unavailable")?;
+            let (sender, receiver) = mpsc::sync_channel(1);
+            thread::spawn(move || {
+                let mut bytes = Vec::new();
+                let result = stdout.take(output_limit as u64 + 1).read_to_end(&mut bytes);
+                let _ = sender.send(result.map(|_| bytes));
+            });
+            let mut bytes = None;
+            loop {
+                self.active()?;
+                if let Ok(result) = receiver.try_recv() {
+                    bytes = Some(result.map_err(|_| "invalid_repository")?);
+                }
+                if bytes.as_ref().is_some_and(|b| b.len() > output_limit) {
+                    return Err("metadata_limit");
+                }
+                if exited(&group.0).map_err(|_| "git_unavailable")? && bytes.is_some() {
+                    break;
+                }
+                thread::sleep(Duration::from_millis(10));
             }
-        };
-        drop(group); // Kill descendants before reaping the owned leader.
+            let mut info: libc::siginfo_t = unsafe { std::mem::zeroed() };
+            let code = unsafe {
+                if libc::waitid(
+                    libc::P_PID,
+                    group.0.id(),
+                    &mut info,
+                    libc::WEXITED | libc::WNOWAIT,
+                ) == 0
+                    && info.si_code == libc::CLD_EXITED
+                {
+                    info.si_status()
+                } else {
+                    -1
+                }
+            };
+            Ok((code, bytes.unwrap_or_default(), writer))
+        })();
+        if !group.finish() {
+            return Err("cleanup_uncertain");
+        }
+        let (code, bytes, writer) = result?;
         if let Some(writer) = writer {
             writer
                 .join()
                 .map_err(|_| "recheck_required")?
                 .map_err(|_| "recheck_required")?;
         }
-        Ok((code, bytes.unwrap_or_default()))
+        Ok((code, bytes))
     }
 
     fn inspect(&self) -> Result<Value> {

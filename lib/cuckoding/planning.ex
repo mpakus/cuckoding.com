@@ -236,7 +236,7 @@ defmodule Cuckoding.Planning do
   end
 
   def normalize(bytes) when is_binary(bytes) and byte_size(bytes) <= 65_536 do
-    case Jason.decode(bytes) do
+    case Codex.decode_receipt(bytes) do
       {:ok, %{"status" => "planned", "proposal" => proposal, "request_id" => id} = result} ->
         receipt =
           result

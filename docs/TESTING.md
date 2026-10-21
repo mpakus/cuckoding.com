@@ -1,5 +1,13 @@
 # Verification and acceptance
 
+R060k adds native bounded/idempotent group closure tests with an owned descendant,
+an unrelated surviving peer and lost leader ownership. Existing probe tests cover
+timeout/cancellation. Host tests inject false and malformed closure through
+Codex/Cursor/version/planning/task receipts and the cancellation bridge; safe
+effects remain, successful reports do not. Inverting the shared decoder guard
+must fail those tests. Native fixture success is not live-provider interruption,
+escaped-session or physical sleep recovery evidence.
+
 R080h adds scoped execution/attempt projection and task-dialog regressions:
 foreign Arena/board/task/battle refusal without fallback or writes, deterministic
 earlier execution, bounded cursor pages despite new arrivals, nested private-field

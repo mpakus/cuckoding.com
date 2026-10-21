@@ -141,7 +141,7 @@ defmodule Cuckoding.NativeHelper do
   defp cancellation_receipt(bytes, decode, limit) when byte_size(bytes) <= limit do
     case decode.(bytes) do
       %{"cleanup_verified" => false} = result ->
-        result
+        Map.put(result, "status", "cleanup_uncertain")
 
       %{"status" => "cancelled"} = result ->
         Map.put(result, "cleanup_verified", true)

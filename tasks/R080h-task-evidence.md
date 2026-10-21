@@ -1,6 +1,7 @@
 # R080h — Task execution evidence in its existing dialog
 
 Status: complete, 2026-10-21. [Evidence](../worklog/2026-10-21-R080h-task-evidence.md).
+Merged locally as `42e1741`; task branch deleted. No publication.
 
 - [x] Open a saved task's execution history inside its existing details dialog:
   frozen revision/criteria, public review feedback, exact agent/model, candidate,

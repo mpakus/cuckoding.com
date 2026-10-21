@@ -363,7 +363,7 @@ fn spawn(
     workspace: &Path,
     model: &str,
 ) -> Result<(Group, Rpc)> {
-    let mut group = Group(
+    let mut group = Group::new(
         Command::new(fs::canonicalize(cli.path).map_err(|_| "launch_failed")?)
             .args([
                 "--disable-project-configs",
@@ -395,8 +395,21 @@ fn spawn(
             .map_err(|_| "launch_failed")?,
     );
     cli.pid.set(group.0.id());
-    let input = group.0.stdin.take().ok_or("connection_lost")?;
-    let output = protocol_output(group.0.stdout.take().ok_or("connection_lost")?);
+    let pipes = (|| {
+        let input = group.0.stdin.take().ok_or("connection_lost")?;
+        let output = protocol_output(group.0.stdout.take().ok_or("connection_lost")?);
+        Ok((input, output))
+    })();
+    let (input, output) = match pipes {
+        Ok(pipes) => pipes,
+        Err(status) => {
+            return Err(if group.finish() {
+                status
+            } else {
+                "cleanup_uncertain"
+            })
+        }
+    };
     Ok((
         group,
         Rpc {
@@ -591,7 +604,7 @@ fn run(
         let data = private_child(&runtime, "data")?;
         let workspace = private_child(&runtime, "workspace")?;
         save_policy(&config.join("cli-config.json"))?;
-        let (group, mut rpc) = spawn(&cli, &config, &data, &workspace, model)?;
+        let (mut group, mut rpc) = spawn(&cli, &config, &data, &workspace, model)?;
         let result = connect(&cli, &mut rpc, &config, &workspace, model, &catalog).and_then(|_| {
             session(
                 &cli, &mut rpc, &config, model, &catalog, request, &mut files,
@@ -605,11 +618,14 @@ fn run(
             }
         }
         drop(rpc);
-        drop(group);
+        if !group.finish() {
+            return Err("cleanup_uncertain");
+        }
         result
     })();
     // Runtime session stores can contain reasoning; retain only the host journal.
-    let clean = fs::remove_dir_all(&runtime).is_ok();
+    let clean =
+        !matches!(&result, Err("cleanup_uncertain")) && fs::remove_dir_all(&runtime).is_ok();
     let mut receipt = match result {
         Ok(completed) if clean => {
             json!({"status":"task_finished","request_id":request["request_id"],"grant":"host-task-tools-v1","transport":"cursor-acp-v1","access":request["access"],"requested_model":model,"observed_model":model,"effort":null,"runtime_model":completed["runtime_model"],"runtime_parameters":completed["runtime_parameters"],"thread_id":completed["session_id"],"turn_id":completed["turn_id"],"report":completed["report"]})
@@ -617,6 +633,7 @@ fn run(
         Err(status) if clean => json!({"status":status}),
         _ => json!({"status":"cleanup_uncertain"}),
     };
+    receipt["cleanup_verified"] = json!(clean);
     receipt["tools"] = json!(files.receipts);
     receipt["changes"] = files.changes();
     receipt["pid"] = json!(cli.pid.get());

@@ -527,7 +527,7 @@ fn run_operation(
             directory
         }
     };
-    let mut group = Group(
+    let mut group = Group::new(
         command
             .env_clear()
             .env("HOME", directory)
@@ -545,28 +545,35 @@ fn run_operation(
             .map_err(|_| "launch_failed")?,
     );
     let pid = group.0.id();
-    let input = group.0.stdin.take().ok_or("launch_failed")?;
-    let stdout = group.0.stdout.take().ok_or("launch_failed")?;
-    let (sender, output) = mpsc::sync_channel(1);
-    thread::spawn(move || bounded_frames(stdout, sender));
-    let mut rpc = Rpc {
-        input,
-        output,
-        cancel,
-        deadline: started + limit,
-        wall_deadline: SystemTime::now() + limit,
-        sequence: 0,
-        auth_changes: false,
-        account_reading: false,
-        completion: None,
-        capture: false,
-        pending: VecDeque::new(),
-        task_tools: false,
-    };
-    let mut result = operate(&mut rpc, directory, operation, &mut progress)
-        .unwrap_or_else(|error| json!({"status":error}));
-    drop(rpc);
-    drop(group);
+    let result = (|| {
+        let input = group.0.stdin.take().ok_or("launch_failed")?;
+        let stdout = group.0.stdout.take().ok_or("launch_failed")?;
+        let (sender, output) = mpsc::sync_channel(1);
+        thread::spawn(move || bounded_frames(stdout, sender));
+        let mut rpc = Rpc {
+            input,
+            output,
+            cancel,
+            deadline: started + limit,
+            wall_deadline: SystemTime::now() + limit,
+            sequence: 0,
+            auth_changes: false,
+            account_reading: false,
+            completion: None,
+            capture: false,
+            pending: VecDeque::new(),
+            task_tools: false,
+        };
+        let result = operate(&mut rpc, directory, operation, &mut progress);
+        drop(rpc);
+        result
+    })();
+    let cleaned = group.finish();
+    let mut result = result.unwrap_or_else(|error| json!({"status":error}));
+    if !cleaned {
+        result["status"] = json!("cleanup_uncertain");
+    }
+    result["cleanup_verified"] = json!(cleaned);
     result["pid"] = json!(pid);
     result["spawned_at_ms"] = json!(spawned_at);
     result["elapsed_ms"] = json!(started.elapsed().as_millis());

@@ -57,6 +57,14 @@ See [D022](DECISIONS.md#d022--simple-arena) and [Flow](FLOW.md).
 
 ## Owned execution
 
+R060k makes normal native group closure explicit: TERM/KILL while the owned
+leader remains unreaped, finite exit/group-disappearance waits, then a cached
+verified/uncertain receipt. A lost leader cannot authorize another signal.
+Elixir preserves false or malformed closure through provider normalization and
+cancellation; neither can become work/authorization success. Private Cursor
+runtime stores are removed only after verified closure. This checks the owned
+group, not escaped sessions; missing receipts and crash reconciliation remain open.
+
 Each task attempt has a recorded worktree/branch/base, run directory, generated
 runtime instructions, process group and optional leased loopback ports.
 Parallel workers never share a writable checkout. Read-only roles receive

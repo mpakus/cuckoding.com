@@ -109,6 +109,15 @@ inspection gates. Sanitize unexpected worker exits before OTP logging. Invalid/
 foreign results cannot establish cleanup; a Stop racing a valid finished stage
 may use only the exact bound, fully validated cleanup receipt, without accepting work.
 
+R060k explicitly finishes native process groups before publishing provider/Git
+results. Keep the owned leader unreaped through final TERM/KILL, bound waits,
+observe group disappearance and cache closure; never signal after reaping or
+after losing leader ownership. Preserve false/malformed cleanup through every
+Elixir normalizer and cancellation path; it cannot publish successful work or
+authorization. Retain public effects and uncertain private Cursor session stores.
+Historical missing flags retain compatibility, never new recovery authority.
+This does not reconcile missing receipts, escaped sessions or physical sleep.
+
 R060g freezes `native_recovery: retained-integration-v1` in new Starts. A restart
 may reconcile only an interrupted integration with complete retained native
 intent/publication/receipt and verified source/ref/candidate/worktree identity.

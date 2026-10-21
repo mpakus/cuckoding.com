@@ -74,6 +74,14 @@ dispatcher-owned protected ETS and the protected redirect. OTP status/error
 reports redact dispatcher messages/state/reasons/debug logs. Their absence after
 restart does not invalidate historical authorization observations.
 
+R060k shares `probe::Group::finish` across version, Codex/Cursor, Git and isolation
+children. It caches a bounded closure result, pins the leader until final signals
+and never signals after reaping. Native receipts carry verified/uncertain cleanup;
+the shared bounded Elixir decoder retains false flags and refuses malformed ones
+before adapter projection. Cancellation cannot promote either to verified closure.
+Uncertain Cursor groups retain their private runtime store. No worker, grant,
+schema or interrupted-session recovery is added.
+
 R060g uses the same supervised battle worker for fixed read-only native
 `recover_integration`. Startup records a pending inspection only for new-policy
 restart-interrupted integrations with otherwise settled history. The native
