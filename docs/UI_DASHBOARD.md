@@ -131,6 +131,15 @@ empty-state checklist. The board selector is unnecessary when only one exists.
 Clicking a card opens its spec, criteria, original sources, candidate, review
 comments and attempts. Editing and manual column movement use the same domain
 gates as automated moves; dragging into Completed can never forge a review.
+R080h's **Execution history** disclosure keeps frozen criteria separate from the
+current draft, with an explicit changed-draft notice. Attempts show public role,
+named connection, requested/reported model, feedback, candidate hashes, file-tool
+receipts and configured check outcomes. Only the newest attempt starts expanded;
+20-row pages and Earlier/Latest execution navigation preserve retained history.
+Older pages and the selected execution stay fixed during updates. Expired,
+interrupted and failed attempts are labelled as unaccepted completion receipts; an agent report
+or retained edit alone never establishes completion. Full final-battle review
+remains in Inspect battle. Opening any disclosure runs no provider or file read.
 Use a labelled **+** in Specs and ToDo to open the manual task dialog in that
 column. Later columns have no add button because a manual draft cannot bypass
 execution/review. Keep dirty text when the dialog closes; changing task still

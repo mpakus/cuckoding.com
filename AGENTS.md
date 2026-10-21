@@ -31,6 +31,15 @@ install their own session guard. Paused reading preserves pages/scroll/disclosur
 and dirty task text; following latest is explicit. These observations, links and
 pagination never start work, adopt teams or establish completion authority.
 
+R080h task evidence stays inside the existing task dialog. Bind reads to the
+server-owned Arena/Tabula/draft and exact selected battle; never fall back from a
+foreign execution ID. Expose only whitelisted frozen criteria/public receipt
+fields, never request/context/claim tokens or raw provider data. Page 20 attempts
+with stable cursors and preserve the selected execution/reading page through
+updates. Historical/expired reports and retained edits are not completion proof.
+Keep current dirty draft text separate, native disclosure/focus behavior and the
+component's own session guard. Reading history never launches work or grants access.
+
 R060a Pause closes stage admission and lets the current bounded stage finish.
 Show Paused only at a durable boundary with verified worker cleanup; retain its
 receipt and next stage without replay. Pause/Resume use persisted control revisions

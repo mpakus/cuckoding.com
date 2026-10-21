@@ -1129,6 +1129,16 @@ defmodule CuckodingWeb.TabulaLive do
           <button type="button" class="button" phx-click="keep">Keep editing</button>
           <button type="button" class="button" phx-click="discard">Discard unsaved edits</button>
         </div>
+        <.live_component
+          :if={@revision > 0}
+          module={CuckodingWeb.TaskEvidenceComponent}
+          id="task-evidence"
+          session_id={@session_id}
+          board={@board}
+          task_id={@task_id}
+          draft_revision={@revision}
+          dirty={@dirty}
+        />
         <.form
           for={%{}}
           id="draft-form"

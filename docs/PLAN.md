@@ -568,7 +568,10 @@ usable Arena surface first; basic flow simplification must not wait for R080.
   and real parallel acceptance remain open.
 - [ ] Arena dashboard: selected Tabula, team/progress and worker details using the
   same durable projections.
-- [ ] Task inspector: spec, review comments, attempts, candidates and evidence.
+- [x] R080h task inspector: frozen spec, public review comments, exact bindings,
+  candidate/edit/tool/check receipts and 20-attempt cursor pages across retained
+  executions, inside the existing task dialog. No new execution authority.
+  [Task and evidence](../tasks/R080h-task-evidence.md).
 - [x] R080g scrollable/paginated normalized event activity globally/per Arena,
   with explicit follow control. Raw provider output/thoughts never enter this feed.
 - [ ] Safe opening/export of retained log artifacts where supported; full

@@ -1,5 +1,13 @@
 # Verification and acceptance
 
+R080h adds scoped execution/attempt projection and task-dialog regressions:
+foreign Arena/board/task/battle refusal without fallback or writes, deterministic
+earlier execution, bounded cursor pages despite new arrivals, nested private-field
+exclusion, exact bindings, retained expired evidence, dirty input/history
+preservation, reconnect and expired component session refusal. Inverting the Arena
+scope condition must fail the focused domain tests. Native/browser fixture checks
+remain separate from real-provider review and full beta acceptance.
+
 R100a's packaged smoke includes unauthorized/authenticated global dashboard
 checks and requires strict/deep ad-hoc bundle verification first. Build signing
 occurs after resource copying. Verify a disposable bundle copy before changing

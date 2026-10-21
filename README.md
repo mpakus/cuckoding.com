@@ -59,6 +59,12 @@ progress. Activity offers 20-event pages, Older/Newer and Pause updates/Follow
 latest. Reading stays fixed during updates; open the linked board for controls
 and task evidence. [Dashboard evidence](worklog/2026-10-21-R080g-live-arena-dashboard.md).
 
+Open a task's **Execution history** to inspect its frozen specification, public
+review feedback, exact agent/model, candidates, file-tool receipts and command
+checks. Attempts are collapsible and paginated; **Earlier execution** keeps older
+results available without replacing current draft text. Expired work is labelled
+as retained evidence. This view runs no agents.
+
 Agents uses `/agents`; Settings uses `/settings`. Agent setup follows
 **Choose Agent → Connect and Authorize → Select models → Save**.
 

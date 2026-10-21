@@ -1,6 +1,7 @@
 # R100a — Current local beta artifact verification
 
-Status: complete, 2026-10-21. Local preview verification only; broader R100 gates
+Status: complete, merged locally as 41d3b47 on 2026-10-21; task branch deleted.
+Local preview verification only; broader R100 gates
 remain open. [Evidence](../worklog/2026-10-21-R100a-local-beta-verification.md).
 
 - [x] Rebuild the current macOS app only after owned-instance inspection; run the

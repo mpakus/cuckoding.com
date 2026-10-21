@@ -3,7 +3,7 @@ defmodule Cuckoding.DashboardFixtures do
   alias Cuckoding.Battles.{Battle, Task}
   alias Cuckoding.{Repo, Tabulae}
 
-  def fixture(state \\ "running") do
+  def fixture(state \\ "running", snapshot \\ %{"title" => "Task"}) do
     arena = Cuckoding.DataCase.arena_fixture()
     {:ok, board} = Tabulae.create(Ecto.UUID.generate(), arena.id, "Beta")
     id = Ecto.UUID.generate()
@@ -38,7 +38,7 @@ defmodule Cuckoding.DashboardFixtures do
         battle_id: battle.id,
         task_id: id,
         position: 0,
-        snapshot: %{"title" => "Task"},
+        snapshot: snapshot,
         state: "completed"
       })
 
