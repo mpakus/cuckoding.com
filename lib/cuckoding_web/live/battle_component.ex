@@ -2,7 +2,7 @@ defmodule CuckodingWeb.BattleComponent do
   @moduledoc false
   use CuckodingWeb, :live_component
   alias Cuckoding.Battles
-  alias Cuckoding.Battles.{Backoff, Slots, Waves}
+  alias Cuckoding.Battles.{Backoff, Slots, Stages, Waves}
 
   @impl true
   def mount(socket) do
@@ -153,12 +153,29 @@ defmodule CuckodingWeb.BattleComponent do
   defp role_blockers(preview) do
     preview.team
     |> Enum.reject(&(&1["status"] == "ready"))
-    |> Enum.group_by(&{&1["agent_id"], &1["status"]})
+    |> Enum.group_by(&{&1["agent_id"], &1["status"], custom_role?(&1)})
     |> Enum.map(fn {_, [role | _] = roles} -> {role, Enum.map(roles, & &1["name"])} end)
   end
 
   defp team_problem?(role),
     do: role["status"] in ~w(agent_unassigned model_unassigned model_unavailable)
+
+  defp custom_role?(role), do: role["id"] not in ~w(speculator implementor secutor summa_rudis)
+
+  defp role_message(role) do
+    if custom_role?(role) and team_problem?(role),
+      do: "Choose this read role's agent and model in this board's Team, then Save team here.",
+      else: message(role["status"])
+  end
+
+  defp repair_path(board, role) do
+    path =
+      if custom_role?(role),
+        do: ~p"/arenas/#{board.arena_id}/tabulae/#{board.id}/team",
+        else: ~p"/team?#{[arena: board.arena_id, tabula: board.id]}"
+
+    path <> "#role-#{role["id"]}"
+  end
 
   defp model_label(role),
     do: if(role["model"] in [nil, ""], do: "Model needed", else: role["model"])
@@ -285,6 +302,11 @@ defmodule CuckodingWeb.BattleComponent do
       "Attention required: #{String.replace(to_string(reason), "_", " ")}. Inspect the retained evidence before continuing."
 
   defp label(value), do: value |> to_string() |> String.replace("_", " ") |> String.capitalize()
+
+  defp stage_label(battle, stage),
+    do:
+      Enum.find_value(Stages.custom(battle.snapshot), &if(&1["key"] == stage, do: &1["name"])) ||
+        label(stage)
 
   defp role_name("summa_rudis"), do: "Summa Rudis"
   defp role_name(nil), do: "Host"
@@ -455,7 +477,7 @@ defmodule CuckodingWeb.BattleComponent do
         </article>
       </details>
       <article :for={attempt <- @attempts} id={"battle-attempt-#{attempt.id}"} class="team-role">
-        <h4>{label(attempt.stage)} · {label(attempt.state)}</h4>
+        <h4>{stage_label(@battle, attempt.stage)} · {label(attempt.state)}</h4>
         <p class="fine-print">
           {role_name(attempt.role)} · {Calendar.strftime(attempt.inserted_at, "%Y-%m-%d %H:%M:%S UTC")}
         </p>
@@ -558,7 +580,8 @@ defmodule CuckodingWeb.BattleComponent do
       <div :if={@battle} id="battle-activity">
         <h3>Battle · {if @waiting, do: "Waiting to retry", else: label(@battle.state)}</h3>
         <p id="battle-progress" role="status">
-          {Enum.count(@battle_tasks, &(&1.state == "completed"))} / {length(@battle_tasks)} authorized tasks completed · {label(
+          {Enum.count(@battle_tasks, &(&1.state == "completed"))} / {length(@battle_tasks)} authorized tasks completed · {stage_label(
+            @battle,
             @battle.stage
           )}
         </p>
@@ -901,10 +924,10 @@ defmodule CuckodingWeb.BattleComponent do
             <p :for={reason <- general_blockers(@preview)}>{message(reason)}</p>
             <p :for={{role, names} <- role_blockers(@preview)}>
               <strong>{Enum.join(names, ", ")}</strong>
-              · {message(role["status"])}
+              · {role_message(role)}
               <.link
                 :if={team_problem?(role)}
-                navigate={~p"/team?#{[arena: @board.arena_id, tabula: @board.id]}" <> "#role-#{role["id"]}"}
+                navigate={repair_path(@board, role)}
                 class="text-link"
               >
                 {if role["status"] == "model_unassigned", do: "Choose model", else: "Edit roles"} ↗

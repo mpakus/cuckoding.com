@@ -12,6 +12,7 @@ defmodule Cuckoding.Battles do
     Receipts,
     Slots,
     Snapshot,
+    Stages,
     Task,
     Waves
   }
@@ -21,26 +22,6 @@ defmodule Cuckoding.Battles do
   @active ~w(running pausing paused stopping needs_attention)
   @retryable ~w(launch_failed timeout connection_lost provider_error profile_busy turn_failed)
   @envelope ~w(battle_id request_id task_id stage criteria_sha256)
-  @roles %{
-    "coordinator" => "summa_rudis",
-    "speculator" => "speculator",
-    "implementor" => "implementor",
-    "secutor" => "secutor",
-    "final_secutor" => "secutor",
-    "summary" => "summa_rudis"
-  }
-  @next %{
-    "prepare_worktree" => "coordinator",
-    "coordinator" => "speculator",
-    "speculator" => "implementor",
-    "implementor" => "capture",
-    "capture" => "checks",
-    "combine" => "checks",
-    "checks" => "secutor",
-    "secutor" => "integrate",
-    "final_checks" => "final_secutor",
-    "final_secutor" => "summary"
-  }
 
   def preview(arena_id, tabula_id) do
     Repo.transaction(fn ->
@@ -302,13 +283,19 @@ defmodule Cuckoding.Battles do
   end
 
   defp claimable_wave?(view) do
-    role = Slots.task_binding(view.snapshot, @roles[view.stage], current_task(view))
+    role =
+      Slots.task_binding(
+        view.snapshot,
+        Stages.role(view.snapshot, view.stage),
+        current_task(view)
+      )
+
     Capacity.available?(view.snapshot, role)
   end
 
   defp claim(battle, now) do
     task = current_task(battle)
-    role_id = @roles[battle.stage]
+    role_id = Stages.role(battle.snapshot, battle.stage)
     role = claimed_binding(battle.snapshot, role_id, task)
     unless Capacity.available?(battle.snapshot, role), do: Repo.rollback(:capacity)
     key = Ecto.UUID.generate()
@@ -852,7 +839,8 @@ defmodule Cuckoding.Battles do
        )
        when reason in @retryable do
     attempt.stage == battle.stage and attempt.task_id == battle.current_task_id and
-      not is_nil(@roles[attempt.stage]) and attempt.id not in retried(battle) and
+      not is_nil(Stages.role(battle.snapshot, attempt.stage)) and
+      attempt.id not in retried(battle) and
       reason == battle.reason and
       TaskTurn.normalize(Jason.encode!(provider)) == provider
   end
@@ -1646,17 +1634,23 @@ defmodule Cuckoding.Battles do
   end
 
   defp advance(battle, attempt, result) do
-    next_stage = review_stage(battle, Map.fetch!(@next, attempt.stage))
+    next_stage = review_stage(battle, Stages.next(battle.snapshot, attempt.stage))
 
     if task = current_task(battle) do
       context =
-        Map.merge(task.context, result_context(result)) |> Waves.put_stage(battle, next_stage)
+        Stages.merge_context(battle.snapshot, attempt.stage, task.context, result_context(result))
+        |> Waves.put_stage(battle, next_stage)
 
       context =
         case attempt.stage do
-          "prepare_worktree" -> Map.drop(context, ~w(candidate_sha native_candidate checks))
-          "combine" -> Map.drop(context, ~w(checks provider))
-          _ -> context
+          "prepare_worktree" ->
+            Map.drop(context, ~w(candidate_sha native_candidate checks read_stage_summaries))
+
+          "combine" ->
+            Map.drop(context, ~w(checks provider))
+
+          _ ->
+            context
         end
 
       state = projection(next_stage)
@@ -1673,7 +1667,9 @@ defmodule Cuckoding.Battles do
   end
 
   defp review_stage(battle, stage) when stage in ~w(checks final_checks) do
-    if Snapshot.task_review_only?(battle.snapshot), do: Map.fetch!(@next, stage), else: stage
+    if Snapshot.task_review_only?(battle.snapshot),
+      do: Stages.next(battle.snapshot, stage),
+      else: stage
   end
 
   defp review_stage(_, stage), do: stage

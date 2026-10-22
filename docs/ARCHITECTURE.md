@@ -1,5 +1,13 @@
 # Architecture
 
+R050g moves fixed stage order/responsibility into pure `Battles.Stages`, extending
+it only from the frozen read-stage policy. `Workflows` owns validated metadata;
+Battles still owns claims/transitions, Waves schedules the same bounded lanes and
+BattleExecutor uses its existing read-only provider path. Public findings augment
+the Speculator plan. Snapshot resolves selected extra roles; unused planning roles
+stay outside execution. The guarded Advanced editor reuses the revision ledger,
+with no native operation, migration, dependency or extra normal setup screen.
+
 R040o puts per-board workflow state in `Workflows` and its immutable revision
 ledger. `Tabulae.get/2` projects current labels; new Start snapshots freeze that
 definition/revision. `WorkflowComponent` uses the shared native dialog under

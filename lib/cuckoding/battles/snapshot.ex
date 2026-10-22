@@ -1,6 +1,14 @@
 defmodule Cuckoding.Battles.Snapshot do
   @moduledoc false
-  alias Cuckoding.Battles.{Backoff, Capacity, PreparationRecovery, ProviderClosure, Slots, Waves}
+  alias Cuckoding.Battles.{
+    Backoff,
+    Capacity,
+    PreparationRecovery,
+    ProviderClosure,
+    Slots,
+    Stages,
+    Waves
+  }
 
   alias Cuckoding.{
     Agents,
@@ -11,7 +19,8 @@ defmodule Cuckoding.Battles.Snapshot do
     ProjectChecks,
     Repo,
     Tabulae,
-    TeamAssignments
+    TeamAssignments,
+    Workflows
   }
 
   @roles ~w(speculator implementor secutor summa_rudis)
@@ -36,7 +45,15 @@ defmodule Cuckoding.Battles.Snapshot do
     arena = Tabulae.arena(arena_id) || Repo.rollback(:scope_missing)
     board = Tabulae.get(arena.id, tabula_id) || Repo.rollback(:scope_missing)
     team = TeamAssignments.assigned(board)
-    {execution, planning} = Enum.split_with(team.definition["roles"], &(&1["id"] in @roles))
+    steps = Workflows.read_stages(board.definition)
+    step_roles = Enum.map(steps, & &1["role"])
+
+    {execution, planning} =
+      Enum.split_with(team.definition["roles"], &(&1["id"] in (@roles ++ step_roles)))
+
+    execution =
+      Enum.sort_by(execution, &Enum.find_index(@roles ++ step_roles, fn id -> id == &1["id"] end))
+
     roles = Enum.map(execution, &role_binding/1)
 
     additional =
@@ -55,9 +72,12 @@ defmodule Cuckoding.Battles.Snapshot do
       |> block(length(tasks) > @limits["tasks"], "task_limit")
       |> block(Enum.any?(tasks, &incomplete?/1), "incomplete_task")
       |> block(not graph_valid?, "invalid_dependencies")
-      |> block(not prompt_scope?(tasks, checks.definition["checks"]), "prompt_scope_too_large")
       |> block(
-        columns(board) != @columns or Enum.map(roles, & &1["id"]) != @roles,
+        not prompt_scope?(tasks, checks.definition["checks"], steps),
+        "prompt_scope_too_large"
+      )
+      |> block(
+        columns(board) != @columns or Enum.map(roles, & &1["id"]) != @roles ++ step_roles,
         "unsupported_columns"
       )
       |> block(check_limits?(checks.definition["checks"]), "check_timeout_limit")
@@ -80,6 +100,7 @@ defmodule Cuckoding.Battles.Snapshot do
       "scheduler" => Capacity.policy(),
       "parallelism" => Waves.policy(),
       "role_slots" => Slots.policy(),
+      "custom_stages" => Stages.policy(),
       "parallel_team" => additional,
       "native_recovery" => "retained-integration-v1",
       "worktree_recovery" => PreparationRecovery.policy(),
@@ -137,7 +158,12 @@ defmodule Cuckoding.Battles.Snapshot do
 
   defp block(reasons, true, reason), do: reasons ++ [reason]
   defp block(reasons, false, _), do: reasons
-  defp columns(board), do: Enum.map(board.definition["columns"] || [], &{&1["key"], &1["role"]})
+
+  defp columns(board),
+    do:
+      board.definition["columns"]
+      |> Enum.reject(&Stages.custom_key?(&1["key"]))
+      |> Enum.map(&{&1["key"], &1["role"]})
 
   defp check_limits?(checks),
     do:
@@ -146,12 +172,14 @@ defmodule Cuckoding.Battles.Snapshot do
 
   # Public summaries are byte-bounded at 4,000; escaping can double each byte.
   # Reserve the largest stage instruction and normalized check metadata without truncating input.
-  defp prompt_scope?(tasks, checks) do
+  defp prompt_scope?(tasks, checks, steps) do
     common = %{
       "contract" => "arena-stage-v1",
       "stage" => "final_secutor",
       "instruction" => String.duplicate("x", 2048),
       "prior_public_summary" => String.duplicate("\n", 4000),
+      "workflow_findings" =>
+        Enum.map(steps, &%{"stage" => &1["key"], "summary" => String.duplicate("\n", 512)}),
       "review_findings" => nil,
       "previous_implementation" => nil,
       "candidate_sha" => String.duplicate("a", 40),

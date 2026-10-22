@@ -315,6 +315,17 @@ Preserve these implemented contracts:
   freeze the exact definition/revision; later labels never alter past battles.
   Back up before the sixteenth additive migration; older bundles refuse it.
   Adding/reordering custom execution stages and their grants remains required.
+- R050g extends that ledger with explicit `read-role-stages-v1` configuration:
+  up to four distinct custom roles from the exact board team run in order between
+  Speculator and Implementor. Core stages/reviews remain mandatory. Save binds
+  the displayed team revision as well as workflow scope/revision/key; active work
+  refuses changes. New Starts freeze only selected extra bindings and the policy;
+  unused custom roles retain R030d planning-only behavior. Custom stages use only
+  existing host read tools, no edits, shell or completion authority. Bound each
+  finding to 512 bytes, retain the Speculator plan and ordered findings, and
+  preserve budgets/capacity/controls/cleanup and historical fixed-stage snapshots.
+  Keep optional Add/Up/Down/Remove controls in Advanced, exact board-team links
+  and guarded recovered draft text. Custom writers/other placement remain open.
 - R030c edits the exact validated Arena/Tabula through the shared Team editor.
   `save_scoped_team` appends revision/adoption/command/event atomically against
   the assigned revision; it never changes defaults or existing planning/battles.

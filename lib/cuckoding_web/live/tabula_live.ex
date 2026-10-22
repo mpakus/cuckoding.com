@@ -671,8 +671,20 @@ defmodule CuckodingWeb.TabulaLive do
 
   defp message(_), do: "This Arena, Tabula or task is unavailable. Your draft is kept."
 
-  defp task_column(task, projection) do
-    case projection[task.id] do
+  defp task_column(task, projection, board) do
+    result = projection[task.id]
+    custom_column(result, board) || ordinary_column(task, result)
+  end
+
+  defp custom_column(%{state: state, context: %{"lane_stage" => stage}}, board)
+       when state not in ~w(completed skipped deferred) do
+    if Enum.any?(Workflows.read_stages(board.definition), &(&1["key"] == stage)), do: stage
+  end
+
+  defp custom_column(_, _), do: nil
+
+  defp ordinary_column(task, result) do
+    case result do
       %{snapshot: %{"revision" => revision}} when revision != task.revision ->
         task.column
 
@@ -1157,14 +1169,20 @@ defmodule CuckodingWeb.TabulaLive do
               </div>
               <p class="fine-print">{role_name(@board_team, column["role"])}</p>
               <p
-                :if={!Enum.any?(@tasks, &(task_column(&1, @battle_projection) == column["key"]))}
+                :if={
+                  !Enum.any?(@tasks, &(task_column(&1, @battle_projection, @board) == column["key"]))
+                }
                 class="fine-print"
               >
                 No tasks yet
               </p>
               <article
                 :for={
-                  task <- Enum.filter(@tasks, &(task_column(&1, @battle_projection) == column["key"]))
+                  task <-
+                    Enum.filter(
+                      @tasks,
+                      &(task_column(&1, @battle_projection, @board) == column["key"])
+                    )
                 }
                 id={"task-#{task.id}"}
                 class="task-card"

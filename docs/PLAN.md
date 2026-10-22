@@ -19,8 +19,8 @@ attempts, inside the existing retry budget; interrupted/native recovery remains 
 
 | Area | Implemented | Still required |
 | --- | --- | --- |
-| Agents and Team | Named Codex/Cursor connections, full bounded catalogs, model choices, default/custom planning roles, scoped team editing/adoption | Custom execution roles/stages, Claude Code and Hermes |
-| Arena and tasks | Add folder/default board, versioned names for the five columns, bounded docs-first analysis, optional saved planning role, automatic cards, prerequisites, citations and saved criteria | Adding/reordering custom columns/stages and real-account planning acceptance |
+| Agents and Team | Named Codex/Cursor connections, full bounded catalogs, model choices, default/custom planning roles, selected custom read stages, scoped team editing/adoption | Custom writing stages, Claude Code and Hermes |
+| Arena and tasks | Add folder/default board, versioned column names/ordered custom read stages, bounded docs-first analysis, optional saved planning role, automatic cards, prerequisites, citations and saved criteria | Custom writing stages/broader stage placement and real-account planning acceptance |
 | Execution | One Start, two independent task pipelines per wave within two global workers, serialized independent review/correction/integration and retained local result branch | General subprocess/toolchain checks, real mixed-provider and same-account parallel battle acceptance |
 | Controls/recovery | Stop, stage-boundary Pause/Resume, bounded provider Retry and automatic backoff, Skip with deferred dependents and Partial result; settled restart checkpoints, timing fence and bounded idle-sleep assertion | Unfinished native/process/Git reconciliation, sleep accounting and physical sleep tests |
 | Experience | Agent wizard/disconnect, Team editor, Arena controls/inspector with public JSON evidence downloads, global workers/progress and paginated global/Arena activity with follow control | Broader parallel activity, responsive/browser acceptance and timed ten-minute setup |
@@ -498,6 +498,12 @@ Depends on R040. This is the first end-to-end product milestone.
 - [x] Run Speculator → Implementor → Secutor with explicit spec/candidate/evidence
   handoff; return all review comments to Speculator before another implementation.
 - [ ] Execute confirmed custom stages in order with their actual grants.
+- [x] R050g executes up to four explicitly selected custom read roles between
+  Speculator and Implementor, with immutable order/bindings, existing read tools,
+  finite budgets/capacity, automatic card movement and mandatory Secutor review.
+  Advanced supports Add/Up/Down/Remove; unused roles stay planning-only. Custom
+  writers and broader stage placement remain required above.
+  [Task/evidence](../tasks/R050g-read-role-stages.md).
 - [x] Retain independent Secutor sessions; bind passes to exact criteria, Git
   heads and host-check receipts. Summa Rudis cannot override rejection.
 - [x] Integrate locally into a battle branch, run final checks and final Secutor

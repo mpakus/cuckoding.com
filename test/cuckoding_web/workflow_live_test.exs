@@ -13,7 +13,7 @@ defmodule CuckodingWeb.WorkflowLiveTest do
   defp params(view) do
     html = view |> render() |> LazyHTML.from_fragment()
 
-    Map.new(~w(key base_revision arena_id tabula_id), fn name ->
+    Map.new(~w(key base_revision arena_id tabula_id team_revision_id), fn name ->
       {name,
        html
        |> LazyHTML.query("#workflow-form input[name=#{name}]")
@@ -28,6 +28,13 @@ defmodule CuckodingWeb.WorkflowLiveTest do
     assert has_element?(view, "#arena-advanced button", "Board columns")
     assert has_element?(view, "dialog#board-workflow[phx-hook=Dialog]:not([open])")
     assert has_element?(view, "#workflow-form[phx-auto-recover=recover]")
+    assert has_element?(view, "#workflow-core-names[phx-mounted*=ignore_attrs]:not([open])")
+
+    assert has_element?(
+             view,
+             "#board-workflow a[href='#{path(ctx.board)}/team']",
+             "Edit this board's roles"
+           )
 
     labels =
       Map.merge(Workflows.labels(ctx.board.definition), %{
@@ -96,11 +103,11 @@ defmodule CuckodingWeb.WorkflowLiveTest do
     view |> form("#workflow-form") |> render_submit(old)
     assert Workflows.current(ctx.board).revision == 1
     assert has_element?(view, "#workflow-specs[value='Keep my draft']")
-    view |> element("#board-workflow button", "Reload saved names") |> render_click()
-    assert has_element?(view, "#workflow-discard", "unsaved names")
+    view |> element("#board-workflow button", "Reload saved workflow") |> render_click()
+    assert has_element?(view, "#workflow-discard", "unsaved workflow")
     view |> element("#workflow-discard button", "Keep editing") |> render_click()
     assert has_element?(view, "#workflow-specs[value='Keep my draft']")
-    view |> element("#board-workflow button", "Reload saved names") |> render_click()
+    view |> element("#board-workflow button", "Reload saved workflow") |> render_click()
     view |> element("#workflow-discard button", "Discard draft and reload") |> render_click()
     assert has_element?(view, "#workflow-specs[value='Saved elsewhere']")
     refute has_element?(view, "#workflow-discard")
@@ -133,6 +140,100 @@ defmodule CuckodingWeb.WorkflowLiveTest do
     assert Workflows.current(ctx.board).revision == 1
   end
 
+  test "optional read stages save reordered roles and display automatic card progress", ctx do
+    old = Cuckoding.TeamAssignments.assigned(ctx.board)
+
+    roles =
+      for name <- ["Research", "Risk check"],
+          do:
+            Cuckoding.Team.custom_role()
+            |> Map.merge(%{"name" => name, "agent" => "codex", "model_id" => "test-id"})
+
+    {:ok, _} =
+      Cuckoding.Team.save(
+        Ecto.UUID.generate(),
+        old.id,
+        Cuckoding.Team.editable(old) ++ roles,
+        false,
+        ctx.board
+      )
+
+    {:ok, view, _} = ctx.conn |> sign_in() |> live(path(ctx.board))
+    view |> element("#board-workflow button", "+ Add read stage") |> render_click()
+    view |> element("#board-workflow button", "+ Add read stage") |> render_click()
+    view |> element("#board-workflow button[aria-label='Up Risk check']") |> render_click()
+    view |> form("#workflow-form") |> render_submit()
+    assert has_element?(view, "#workflow-notice", "No work was started")
+    steps = Workflows.read_stages(Workflows.current(ctx.board).definition)
+    assert Enum.map(steps, & &1["name"]) == ["Risk check", "Research"]
+    [first | _] = steps
+    battle = start(ctx.board)
+
+    Enum.reduce_while(1..12, battle, fn _, current ->
+      if current.stage == first["key"] do
+        {:halt, current}
+      else
+        {:ok, attempt} = Battles.claim_next(current.id)
+        {:ok, next} = Battles.finish(attempt.id, attempt.claim_token, result(attempt))
+        {:cont, next}
+      end
+    end)
+
+    assert has_element?(view, "#column-#{first["key"]}", "First")
+    refute has_element?(view, "#column-#{first["key"]} button[aria-label^='Add task']")
+    assert has_element?(view, "#workflow-busy", "Finish or Stop")
+    {:ok, _} = Battles.stop(battle.id)
+    view |> element("#board-workflow button[aria-label='Remove Research']") |> render_click()
+    view |> form("#workflow-form") |> render_submit()
+    assert length(Workflows.read_stages(Workflows.current(ctx.board).definition)) == 1
+
+    assert length(Workflows.read_stages(Battles.get(battle.id).snapshot["workflow_definition"])) ==
+             2
+
+    team = Cuckoding.TeamAssignments.assigned(ctx.board)
+    remaining_role = first["role"]
+
+    unassigned =
+      Enum.map(Cuckoding.Team.editable(team), fn role ->
+        if role["id"] == remaining_role,
+          do: Map.merge(role, %{"agent" => "", "model_id" => ""}),
+          else: role
+      end)
+
+    {:ok, _} = Cuckoding.Team.save(Ecto.UUID.generate(), team.id, unassigned, false, ctx.board)
+
+    assert has_element?(
+             view,
+             "#battle-blockers a[href='#{path(ctx.board)}/team#role-#{remaining_role}']",
+             "Edit roles"
+           )
+
+    assert has_element?(view, "#battle-blockers", "this board's Team")
+  end
+
+  test "recovery retains unsaved added stages as text without authority", ctx do
+    {:ok, view, _} = ctx.conn |> sign_in() |> live(path(ctx.board))
+
+    step = %{
+      "key" => "step_" <> Ecto.UUID.generate(),
+      "name" => "Recovered research",
+      "role" => Ecto.UUID.generate(),
+      "_unused_name" => ""
+    }
+
+    recovered =
+      params(view)
+      |> Map.put("labels", Workflows.labels(ctx.board.definition))
+      |> Map.put("steps", %{"0" => step})
+
+    view |> with_target("#workflow-#{ctx.board.id}") |> render_click("recover", recovered)
+    assert has_element?(view, "input[value='Recovered research']")
+    assert has_element?(view, "#workflow-form button[disabled]", "Save workflow")
+    view |> form("#workflow-form") |> render_submit()
+    assert Workflows.current(ctx.board).revision == 0
+    assert has_element?(view, "input[value='Recovered research']")
+  end
+
   test "foreign recovered forms and expired component sessions cannot save", ctx do
     {:ok, view, _} = ctx.conn |> sign_in() |> live(path(ctx.board))
     labels = Map.put(Workflows.labels(ctx.board.definition), "specs", "Recovered draft")
@@ -141,7 +242,7 @@ defmodule CuckodingWeb.WorkflowLiveTest do
     assert has_element?(view, "#workflow-specs[value='Recovered draft']")
     view |> form("#workflow-form") |> render_submit()
     assert Workflows.current(ctx.board).revision == 0
-    view |> element("#board-workflow button", "Reload saved names") |> render_click()
+    view |> element("#board-workflow button", "Reload saved workflow") |> render_click()
     view |> element("#workflow-discard button", "Discard draft and reload") |> render_click()
 
     view

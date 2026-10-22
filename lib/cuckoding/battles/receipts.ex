@@ -1,7 +1,7 @@
 defmodule Cuckoding.Battles.Receipts do
   @moduledoc "Attempt-bound receipt evidence; callers retain transaction and workflow authority."
   import Ecto.Query
-  alias Cuckoding.Battles.{Attempt, Snapshot, Waves}
+  alias Cuckoding.Battles.{Attempt, Snapshot, Stages, Waves}
   alias Cuckoding.{LocalGit, Repo, TaskTurn}
 
   @envelope ~w(battle_id request_id task_id stage criteria_sha256)
@@ -124,6 +124,7 @@ defmodule Cuckoding.Battles.Receipts do
     }
 
     Map.take(provider, Map.keys(expected)) == expected and
+      Stages.report_valid?(attempt.request["snapshot"], attempt.stage, attempt.role, provider) and
       provider["transport"] == if(role["kind"] == "cursor", do: "cursor-acp-v1", else: nil)
   end
 

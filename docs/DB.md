@@ -1,5 +1,14 @@
 # Data model
 
+R050g adds no migration (sixteen remain). `save_workflow` appends a version-three
+definition with up to four `step_<UUID>` columns, each bound to a distinct custom
+role in the exact displayed board-team revision. The five core keys/roles/order
+are preserved. Stable replay includes the team revision and full definition.
+New Starts add `custom_stages: read-role-stages-v1` and selected bindings to the
+immutable snapshot. Task lane stages retain their exact step key; ordered public
+`read_stage_summaries` keep the original Speculator summary separately and reset
+only on a fresh writer-preparation/review round. Old snapshots/history stay intact.
+
 R040o's sixteenth forward-only migration adds `workflow_revisions`: exact Tabula
 and command FKs, consecutive per-board revisions, a definition and timestamp.
 Unique board/revision and command indexes plus update/delete/sequence triggers

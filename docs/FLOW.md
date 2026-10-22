@@ -122,10 +122,12 @@ findings and failed-check receipts to Speculator, then Implementor. The user doe
 not drag cards to keep ordinary work moving. No coordinator or manual move can
 override a failed review or turn an unreviewed candidate into Completed.
 
-Advanced → Board columns currently renames the five required columns using
-immutable per-board revisions. Active planning/battles block edits; a new Start
-freezes the exact definition and existing battles keep theirs. Custom ordered
-role steps remain required implementation work. Writing stages must
+Advanced → Board columns renames the five required columns and can add/reorder
+up to four explicitly selected custom read roles between Speculator and
+Implementor. Their findings supplement the retained plan; they cannot edit or
+complete work. Active planning/battles block edits; a new Start freezes the exact
+definition/bindings and existing battles keep theirs. Custom writing stages and
+other placement remain required implementation work. Writing stages must
 precede final Secutor review; a later stage that changes the candidate requires
 another review. Renaming changes the label only. Publish new workflow revisions
 without rewriting active battles; no general conditional graph editor is needed.

@@ -204,7 +204,7 @@ defmodule CuckodingWeb.TeamLiveTest do
   } do
     {:ok, view, _} = conn |> sign_in() |> live("/team")
     view |> element("button", "Add role") |> render_click()
-    assert render(view) =~ "Custom · planning only · read-only"
+    assert render(view) =~ "Custom · read-only · optional board stage"
     html = render(view)
     [_, id] = Regex.run(~r/id="name-([0-9a-f-]{36})"/, html)
     render_submit(view, "save", %{"roles" => %{id => %{"name" => "Research"}}})

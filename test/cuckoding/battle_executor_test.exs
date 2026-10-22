@@ -387,6 +387,54 @@ defmodule Cuckoding.BattleExecutorTest do
     })
   end
 
+  test "custom roles use real executor read grants and pass ordered findings to Implementor",
+       ctx do
+    old = TeamAssignments.assigned(ctx.board)
+
+    role =
+      Team.custom_role()
+      |> Map.merge(%{"name" => "Research", "agent" => "codex", "model_id" => "test-id"})
+
+    {:ok, team} =
+      Team.save(Ecto.UUID.generate(), old.id, Team.editable(old) ++ [role], false, ctx.board)
+
+    custom = %{
+      "key" => "step_" <> Ecto.UUID.generate(),
+      "name" => "Research",
+      "role" => role["id"]
+    }
+
+    {:ok, _} =
+      Cuckoding.Workflows.configure(
+        Ecto.UUID.generate(),
+        ctx.board.arena_id,
+        ctx.board.id,
+        0,
+        team.id,
+        Cuckoding.Workflows.labels(ctx.board.definition),
+        [custom]
+      )
+
+    battle = start(ctx.board) |> until_stage(custom["key"])
+    {next, attempt, receipt} = step(battle)
+    assert attempt.role == role["id"]
+    assert receipt["provider"]["access"] == "read"
+    assert receipt["provider"]["changes"] == []
+    {_, writer, _} = step(next)
+    assert writer.stage == "implementor"
+    calls = Process.get(:provider_calls)
+
+    {prompt, request, _} =
+      Enum.find(calls, fn {prompt, _, _} -> prompt["stage"] == custom["key"] end)
+
+    assert request["access"] == "read" and prompt["instruction"] =~ "512"
+    {writing, _, _} = Enum.find(calls, fn {prompt, _, _} -> prompt["stage"] == "implementor" end)
+    assert [%{"stage" => stage, "summary" => summary}] = writing["workflow_findings"]
+    assert stage == custom["key"] and summary == receipt["provider"]["report"]["summary"]
+    assert writing["prior_public_summary"] != summary
+    assert drive(Battles.get(battle.id)).state == "completed"
+  end
+
   test "executor checks and independently reviews the combined wave candidate before integration",
        ctx do
     independent = save_task(ctx.board, "Independent", [])

@@ -1,5 +1,16 @@
 # Sequential Arena execution — implementation decision
 
+R050g extends R030d only for explicitly selected custom read stages. A version-three
+board definition may insert up to four ordered custom roles between Speculator
+and Implementor. New Starts freeze `custom_stages: read-role-stages-v1`, the full
+workflow and only the selected additional bindings. Each stage runs through the
+existing supervised executor/read grant, exact connection capacity and lifetime
+budgets. The Speculator plan is retained alongside ordered findings (512 bytes
+each); no edit receipt or changes-requested completion is accepted from them.
+Pause/Retry/Stop and retained provider closure still apply. Task/final Secutor
+reviews remain independent after writing. Historical snapshots without this
+policy gain no stages; custom writers and broader ordering remain required.
+
 R030d binds the four required execution responsibilities from the exact saved
 team revision before resolving native connections/models. Extra custom planning
 roles stay in the saved team and task-generation selector; their unused bindings

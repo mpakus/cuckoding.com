@@ -1,5 +1,13 @@
 # Verification and acceptance
 
+R050g verifies ordered selected-role execution through the real executor with
+fixture adapters, read/write/oversized-receipt refusal, retained Speculator plan
+and findings, required reviews, pause/retry budgets and historical policy absence.
+LiveView covers Add/Up/Remove, automatic card placement, exact board-team links,
+active-work gates and recovered unsaved stage text without authority. Removing
+the policy gate must fail the historical-snapshot regression. Real-provider stage
+acceptance remains distinct from these fixtures and source/package browser checks.
+
 R040o covers immutable/consecutive workflow history, exact board scope, competing
 revision saves, stable-key replay, closed label bounds, active planning/battle
 refusal and new Start snapshots without changing old battles. LiveView checks

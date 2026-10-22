@@ -427,3 +427,17 @@ the selected revision and complete definition; historical snapshots never change
 Keep the editor/history in Advanced, preserve dirty text and guard its own session.
 Actual ordered custom stages and grants follow this foundation; unavailable steps
 are not offered as inert columns and do not silently disable the working Start.
+
+## D044 — Explicit custom read stages before implementation
+
+2026-10-22, R050g. A board may explicitly select up to four distinct custom roles
+from its own saved team and order their read-only stages between Speculator and
+Implementor. New Starts freeze workflow revision/definition, the selected bindings
+and `read-role-stages-v1`. Unused roles stay planning-only. The existing host
+read grant, per-connection capacity, finite budgets and independent Secutor review
+remain mandatory. A report cannot edit criteria or mark a task complete.
+
+Keep core semantic order and historical snapshots unchanged. Configuring names,
+order or selected roles appends one scoped revision and refuses active work.
+Custom writing stages require a separate effect-aggregation/review contract;
+they are not silently approximated by read stages.

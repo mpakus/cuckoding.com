@@ -73,6 +73,13 @@ defmodule CuckodingWeb.TaskEvidenceComponent do
   defp label(nil), do: "Unknown"
   defp label(value), do: value |> String.replace("_", " ") |> String.capitalize()
 
+  defp stage_label(attempt),
+    do:
+      if(Cuckoding.Workflows.custom_key?(attempt.stage),
+        do: "Read stage · #{attempt.binding["name"]}",
+        else: label(attempt.stage)
+      )
+
   defp download_path(assigns) do
     query = if hd(assigns.cursors), do: %{before: hd(assigns.cursors).id}, else: %{}
 
@@ -137,7 +144,7 @@ defmodule CuckodingWeb.TaskEvidenceComponent do
           phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
         >
           <summary>
-            {label(attempt.stage)} · {label(attempt.state)} · {Calendar.strftime(
+            {stage_label(attempt)} · {label(attempt.state)} · {Calendar.strftime(
               attempt.started_at,
               "%H:%M:%S UTC"
             )}

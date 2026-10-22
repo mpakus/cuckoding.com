@@ -1,5 +1,13 @@
 # Security contract
 
+R050g custom stages require the exact versioned Start policy and explicitly saved
+board-team roles. They retain native read-only host tools; write access, edit-file
+receipts, role/model drift and over-512-byte findings are rejected. Only selected
+bindings reserve provider capacity. Stage reports cannot change criteria, skip
+review or establish completion. Active work blocks configuration, and stale team
+or recovered forms require explicit reload. Removed roles are shown as missing,
+never silently replaced. Core stage order and both independent reviews remain.
+
 R040o column saves bind exact Arena/Tabula IDs, displayed revision and stable
 command key in an immediate transaction. The LiveComponent installs its own
 session guard, rejects recovered/foreign forms and keeps dirty text on revision

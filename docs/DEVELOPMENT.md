@@ -1,5 +1,12 @@
 # Development
 
+For optional custom read stages (R050g), add roles in the exact board's Team,
+then open **Advanced → Board columns → Add read stage**. Arrange them with
+Up/Down/Remove and Save workflow. Up to four run after Speculator and before
+Implementor, within Start's existing limits. They inspect files only; all writing
+and independent reviews still follow. Unused roles stay planning-only. This uses
+the existing sixteen-migration schema; custom writers/broader placement remain open.
+
 The local preview includes R010's tray, authenticated browser and durable setup
 check, plus Codex version, private-profile inspection, managed sign-in/out and a
 fixed model diagnostic, R030a saved default-team configuration and R040a Arena

@@ -14,7 +14,7 @@ defmodule Cuckoding.BattleExecutor do
     TaskTurn
   }
 
-  alias Cuckoding.Battles.{ProviderClosure, Slots, Snapshot}
+  alias Cuckoding.Battles.{ProviderClosure, Slots, Snapshot, Stages}
 
   @envelope ~w(battle_id request_id task_id stage criteria_sha256)
   @uncertain ~w(cleanup_uncertain unavailable invalid_output candidate_incomplete battle_incomplete worktree_incomplete)
@@ -231,11 +231,17 @@ defmodule Cuckoding.BattleExecutor do
     integrate(attempt, "integrate_candidate", active?, adapters)
   end
 
+  defp dispatch("step_" <> id = stage, attempt, active?, adapters) when byte_size(id) == 36,
+    do: run_role(stage, attempt, active?, adapters)
+
   defp dispatch(stage, attempt, active?, adapters)
-       when stage in ~w(coordinator speculator implementor secutor final_secutor summary) do
+       when stage in ~w(coordinator speculator implementor secutor final_secutor summary),
+       do: run_role(stage, attempt, active?, adapters)
+
+  defp run_role(stage, attempt, active?, adapters) do
     role = attempt.request["role"]
 
-    with true <- active?.() and binding_current?(role),
+    with true <- active?.() and role_authorized?(attempt, role),
          true <- byte_size(prompt(attempt)) <= 32_768,
          {:ok, preparation} <- provider_workspace(attempt, active?, adapters),
          {:ok, provider} <-
@@ -260,6 +266,9 @@ defmodule Cuckoding.BattleExecutor do
           else: result
 
       cond do
+        not Stages.report_valid?(attempt.request["snapshot"], stage, attempt.role, provider) ->
+          failure("invalid_role_report")
+
         result["status"] == "changes_requested" and stage not in ~w(secutor final_secutor) ->
           failure("invalid_role_outcome")
 
@@ -276,6 +285,12 @@ defmodule Cuckoding.BattleExecutor do
       result -> failed_receipt(result)
     end
   end
+
+  defp role_authorized?(attempt, role),
+    do:
+      not is_nil(attempt.role) and
+        Stages.role(attempt.request["snapshot"], attempt.stage) == attempt.role and
+        role["id"] == attempt.role and binding_current?(role)
 
   defp integrate(attempt, operation, active?, adapters) do
     request = candidate_request(attempt)
@@ -371,6 +386,7 @@ defmodule Cuckoding.BattleExecutor do
       "omitted_tasks" => omitted,
       "result_scope" => if(omitted == [], do: "full", else: "partial"),
       "prior_public_summary" => context["summary"],
+      "workflow_findings" => context["read_stage_summaries"] || [],
       "review_findings" => context["feedback"],
       "previous_implementation" => context["previous_implementation"],
       "candidate_sha" => context["candidate_sha"] || context["head"],
@@ -395,6 +411,9 @@ defmodule Cuckoding.BattleExecutor do
 
   defp action(stage) do
     case stage do
+      "step_" <> _ ->
+        "Inspect this task using host read tools and your frozen role instructions. Preserve the Speculator plan and all criteria; give additional public findings in at most 512 UTF-8 bytes. Return completed or blocked. You cannot edit files, run commands, change scope or grant completion; Implementor and independent Secutor review still follow."
+
       "coordinator" ->
         "Decide whether this exact ready task may proceed to Speculator and implementation. Return completed to dispatch this one task, or blocked with a public reason. You cannot change membership, criteria, models, checks, limits or review decisions."
 

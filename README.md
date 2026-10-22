@@ -49,7 +49,7 @@ listed below. Arena registration opens its default board; technical setup stays 
 | Tray launch, authenticated browser and local SQLite state | Full timed ten-minute onboarding acceptance |
 | Multiple named Codex/Cursor connections, model discovery and saved choices | Additional runtimes |
 | Saved agent/model assignments for Speculator, Implementor, Secutor and Summa Rudis | Real mixed-runtime battle acceptance |
-| Folder registration with an automatic default board, direct Arena opening, scoped team editing, versioned column names and editable drafts | Adding/reordering custom columns and execution stages |
+| Folder registration with an automatic default board, direct Arena opening, scoped team editing, versioned column names, ordered custom read stages and editable drafts | Custom writing stages and broader stage placement |
 | Codex/Cursor planning from a brief or bounded folder snapshots (`docs/` first), automatically saved task cards, prerequisites and original source citations | Real-account planning acceptance across supported runtimes |
 | One bounded Start, independent task pipelines in waves of up to two, serialized independent review/integration and a retained local battle branch | Real-account end-to-end acceptance, general toolchain checks, full recovery and real-provider parallel acceptance |
 | Global setup/planning/battle activity, selected-board team/progress and paginated events globally/per Arena | Timed real-account setup and broader dashboard/release acceptance |
@@ -86,15 +86,21 @@ changes the team inherited by new boards. Existing work keeps its frozen team.
 The saved-default editor and explicit **Use saved team** action remain available.
 [Scoped team evidence](tasks/R030c-scoped-team-editor.md).
 
-Extra custom roles are available for planning. Start uses Speculator, Implementor,
-Secutor and Summa Rudis; an unused planning role does not block the battle or get
-execution access. Inspect lists these planning-only roles separately.
+Extra custom roles are available for planning. Start always uses Speculator,
+Implementor, Secutor and Summa Rudis; an unused custom role does not block the
+battle or get execution access. Inspect lists unused planning roles separately.
 
-**Advanced → Board columns** renames the five columns for that board. Roles,
-order and review rules stay the same; active planning/battles block changes.
+**Advanced → Board columns** renames the five core columns and optionally adds
+up to four custom **read stages** between Speculator and Implementor. Add a custom
+role with its agent/model in that board's Team, then select it here and use
+Up/Down/Remove to arrange stages before **Save workflow**. They inspect files and
+pass findings to Implementor; they cannot edit or run commands. Their usage is
+included in Start's existing finite limits. Core order/review rules stay fixed;
+active planning/battles block changes.
 Names have dated history, and Start keeps its original definition even after a
 later rename. This adds the sixteenth database migration: back up before upgrading;
-older bundles refuse the new schema. Custom ordered execution stages remain open.
+older bundles refuse the new schema. Custom writing stages and placement outside
+this read-stage window remain open.
 
 New agents start with an editable name and an executable path detected from known
 install locations when available. Cursor's

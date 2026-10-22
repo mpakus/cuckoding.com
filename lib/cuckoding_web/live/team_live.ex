@@ -323,7 +323,7 @@ defmodule CuckodingWeb.TeamLive do
   defp responsibility("implementor"), do: "Implementor · required"
   defp responsibility("secutor"), do: "Secutor · required"
   defp responsibility("summa_rudis"), do: "Summa Rudis · coordinator"
-  defp responsibility(_), do: "Custom · planning only · read-only"
+  defp responsibility(_), do: "Custom · read-only · optional board stage"
 
   defp error_message("stale_team"),
     do: "A newer team was saved. Your draft is kept here; inspect the revisions before reloading."

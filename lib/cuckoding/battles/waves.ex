@@ -1,6 +1,6 @@
 defmodule Cuckoding.Battles.Waves do
   @moduledoc "Two independent implementation lanes, followed by serialized review/integration."
-  alias Cuckoding.Battles.{Attempt, Battle, ProviderClosure, Receipts, Slots, Task}
+  alias Cuckoding.Battles.{Attempt, Battle, ProviderClosure, Receipts, Slots, Stages, Task}
   alias Cuckoding.{Event, Repo}
   import Ecto.Query
 
@@ -8,7 +8,7 @@ defmodule Cuckoding.Battles.Waves do
   @terminal ~w(completed skipped deferred)
   def policy, do: "parallel-waves-v1"
   def enabled?(snapshot), do: snapshot["parallelism"] == policy()
-  def pipeline?(stage), do: stage in @pipeline
+  def pipeline?(stage), do: stage in @pipeline or Stages.custom_key?(stage)
 
   def stage(task), do: task.context["lane_stage"]
   def active(tasks), do: Enum.filter(tasks, &(stage(&1) && &1.state not in @terminal))
@@ -46,9 +46,12 @@ defmodule Cuckoding.Battles.Waves do
 
   defp prioritize(tasks, snapshot) do
     if Slots.enabled?(snapshot) and snapshot["parallel_team"] != [],
-      do: Enum.sort_by(tasks, &Enum.find_index(@pipeline, fn name -> name == stage(&1) end)),
+      do: Enum.sort_by(tasks, &pipeline_position(stage(&1))),
       else: tasks
   end
+
+  defp pipeline_position(stage),
+    do: if(Stages.custom_key?(stage), do: 2.5, else: Enum.find_index(@pipeline, &(&1 == stage)))
 
   def backoff_origin(battle),
     do:

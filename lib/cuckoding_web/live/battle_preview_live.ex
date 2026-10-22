@@ -147,7 +147,7 @@ defmodule CuckodingWeb.BattlePreviewLive do
                                                                                   ]}
             </p>
             <p :if={!role.required} class="fine-print">
-              Custom role · planning only; no execution slot or grant.
+              Custom role · execution requires an explicitly selected read stage on the board.
             </p>
           </article>
           <p class="fine-print">
