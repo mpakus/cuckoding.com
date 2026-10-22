@@ -1,5 +1,13 @@
 # Verification and acceptance
 
+R030c checks scoped/default/sibling isolation, new-board inheritance, exact
+scope/revision/key replay, competing saves, model/removal/active-planning gates,
+atomic rollback and preservation of completed planning/cards. Disconnect keeps
+scoped instructions and independent defaults. LiveView covers exact editor links,
+dirty text/reconnects, foreign/malformed routes, scope-patch refusal, recovered
+keys and expired sessions. Inverting the default projection's scoped-kind filter
+must fail the regression. These fixture checks grant no extra role tools/stages.
+
 R080j checks authenticated JSON attachment headers, exact execution scope and
 20-attempt cursor pages, frozen/public field inclusion and nested private-field
 exclusion. Refuse missing/expired sessions, foreign/malformed cursors and output

@@ -224,6 +224,15 @@ Preserve these implemented contracts:
 - Team revisions and scoped adoptions are immutable. Arena adoption affects new
   boards; Tabula adoption affects future planning only and waits for active
   planning. Guard both displayed scope/default revisions and retain old receipts.
+- R030c edits the exact validated Arena/Tabula through the shared Team editor.
+  `save_scoped_team` appends revision/adoption/command/event atomically against
+  the assigned revision; it never changes defaults or existing planning/battles.
+  The default projection excludes new `save_scoped_team` and
+  `disconnect_scoped_agent_roles` revisions. Retain legacy rows/commands unchanged;
+  do not restore defaults by appending redundant revisions. Scoped forms bind a
+  mount-owned scope, session, key and displayed revision; reject foreign/stale
+  navigation and keep dirty text. Preserve model/removal/active-planning gates,
+  explicit saved-default adoption and exact current-scope Disconnect unassignment.
 - Registration reads directory metadata only. Git inspection, initialization and
   initial commit require their separate recorded intent/consent. Revalidate folder
   identity; preserve Git locks, exact byte/hash consent and uncertain partial effects.

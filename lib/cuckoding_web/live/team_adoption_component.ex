@@ -91,6 +91,8 @@ defmodule CuckodingWeb.TeamAdoptionComponent do
 
   defp team_path(%Arena{}), do: ~p"/team"
   defp team_path(board), do: ~p"/team?#{[arena: board.arena_id, tabula: board.id]}"
+  defp customize_path(%Arena{id: id}), do: ~p"/arenas/#{id}/team"
+  defp customize_path(board), do: ~p"/arenas/#{board.arena_id}/tabulae/#{board.id}/team"
 
   @impl true
   def render(assigns) do
@@ -111,7 +113,10 @@ defmodule CuckodingWeb.TeamAdoptionComponent do
             "This team creates tasks and works on future battles. Past work keeps its original assignments."} Changing the team starts no agent.
       </p>
       <.roster revision={@current} label="Current team" />
-      <.link navigate={team_path(@scope)} class="text-link">Edit roles and models ↗</.link>
+      <.link navigate={customize_path(@scope)} class="text-link">{if match?(%Arena{}, @scope),
+        do: "Customize this Arena",
+        else: "Customize this board"} ↗</.link>
+      <.link navigate={team_path(@scope)} class="text-link">Edit saved defaults ↗</.link>
       <p :if={!@changed} role="status">
         This team matches your saved Team settings.
       </p>

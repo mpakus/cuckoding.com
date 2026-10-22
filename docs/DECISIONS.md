@@ -1,5 +1,19 @@
 # Current decisions
 
+## D036 · Scoped team edits append without changing defaults
+
+Accepted before implementation, 2026-10-21, R030c. Reuse the existing Team editor,
+immutable team revisions, command ledger and scoped adoptions. An explicit scoped
+Save appends the role definition, its exact scope/revision command, adoption and
+event together. New `save_scoped_team` and `disconnect_scoped_agent_roles` commands
+distinguish scoped-only revisions from defaults; the default projection excludes
+only those kinds. Keep old revisions/commands and their historical default-restoring
+disconnect behavior readable without rewriting them or adding a second pointer.
+Scoped edits affect future work and new-board inheritance only, never existing
+planning/battle snapshots or sibling boards. Bind the editor to a validated scope
+at mount, retain dirty text, and reject navigation/form drift instead of falling
+back to the default editor. Saved-default adoption stays separately explicit.
+
 ## D035 · Dashboard observations stay read-only
 
 2026-10-21, R080g. Global and Arena dashboards derive bounded views from retained

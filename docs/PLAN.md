@@ -17,7 +17,7 @@ attempts, inside the existing retry budget; interrupted/native recovery remains 
 
 | Area | Implemented | Still required |
 | --- | --- | --- |
-| Agents and Team | Named Codex/Cursor connections, full bounded catalogs, model choices, default roles/custom role records, scoped team adoption | Per-scope role editing, custom role/stage execution, Claude Code and Hermes |
+| Agents and Team | Named Codex/Cursor connections, full bounded catalogs, model choices, default/custom planning roles, scoped team editing/adoption | Custom execution roles/stages, Claude Code and Hermes |
 | Arena and tasks | Add folder/default board, bounded docs-first analysis, optional saved planning role, automatic cards, prerequisites, citations and saved criteria | Custom columns and real-account planning acceptance |
 | Execution | One Start, sequential mixed-runtime dispatch per board, two isolated Arenas concurrently, independent review/correction and retained local result branch | General subprocess/toolchain checks, real mixed-provider battle acceptance and same-board parallel workers |
 | Controls/recovery | Stop, stage-boundary Pause/Resume, bounded provider Retry and automatic backoff, Skip with deferred dependents and Partial result; settled restart checkpoints, timing fence and bounded idle-sleep assertion | Unfinished native/process/Git reconciliation, sleep accounting and physical sleep tests |
@@ -376,7 +376,10 @@ Execution acceptance depends on R020. R030a configuration can ship independently
   default for existing scopes (R030b), preserving historical snapshots. See
   [task](../tasks/R030b-scoped-team-adoption.md) and
   [evidence](../worklog/2026-10-07-R030b-scoped-team-adoption.md).
-- [ ] Edit role overrides per Arena/Tabula without rewriting previous scopes.
+- [x] R030c edit role overrides per Arena/Tabula through the shared Team editor,
+  with immutable scope-bound saves and independent defaults. Preserve active
+  planning, model, removal, session and form gates; navigation never adopts.
+  [Task/evidence](../tasks/R030c-scoped-team-editor.md).
 - [ ] Add confirmed/audited execution slots and grants; prove independent sessions
   sharing one connection/model without inferring permission from role text.
 

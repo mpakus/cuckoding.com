@@ -286,8 +286,8 @@ closed reason, not instruction text. The UI exposes the latest five revisions;
 older history remains in SQLite. Historical bindings retain the resolved model
 through disconnect or catalog drift; current roles are cleared on confirmed
 disconnect. New bindings require verified fresh metadata.
-R030b adds scoped adoption of saved defaults (below); per-scope role editing,
-schedules and executable grants are not implemented.
+R030b adds scoped adoption of saved defaults (below); R030c adds scoped editing.
+Schedules and extra executable grants are not implemented.
 
 R040a adds `arenas`: UUID, registration/selection command references, name,
 canonical path, device/inode identity, observed Git-entry presence, immutable
@@ -399,6 +399,18 @@ The command never enters the dispatcher or changes provider workspace revisions.
 Arena adoption affects only subsequently created Tabulae. Tabula adoption affects
 new planning consent/snapshots; creation references, earlier requests and draft
 history remain unchanged. The UI shows the last five adoptions; all remain stored.
+
+R030c reuses those tables. `save_scoped_team` freezes Arena/optional Tabula IDs,
+the displayed assigned revision and roles/removal confirmation. In one immediate
+transaction it validates scope/current bindings/active planning, appends the team
+revision and adoption, and records `team.scoped_saved` (IDs/counts only). Rejected
+intent stays replayable; key reuse with another scope conflicts. No migration or
+historical rewrite. Default current/history reads exclude only revisions created
+by new `save_scoped_team` and `disconnect_scoped_agent_roles` commands; seed and
+legacy commands remain readable. New scoped Disconnect revisions retain scope
+IDs and never become defaults; a default revision is appended only if its own
+roles change. The scoped editor shows the five most recently created revisions
+referenced by that scope, including its creation team, without leaking siblings.
 
 ## Simple Arena records (D022)
 

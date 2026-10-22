@@ -1,13 +1,57 @@
 defmodule Cuckoding.Team do
-  @moduledoc "Revisioned default-team configuration. Saving never authorizes execution."
+  @moduledoc "Revisioned default/scoped teams. Saving never authorizes execution."
   import Ecto.Query
-  alias Cuckoding.{Agents, Command, Foundation, Repo, TeamRevision}
+
+  alias Cuckoding.{
+    Agents,
+    Arena,
+    Command,
+    Foundation,
+    Repo,
+    Tabula,
+    TeamAdoption,
+    TeamAssignments,
+    TeamRevision
+  }
 
   @required ~w(speculator implementor secutor summa_rudis)
   @fields ~w(id name instructions agent model_id)
+  @scoped_commands ~w(save_scoped_team disconnect_scoped_agent_roles)
 
-  def current, do: Repo.one!(from t in TeamRevision, order_by: [desc: t.id], limit: 1)
-  def history, do: Repo.all(from t in TeamRevision, order_by: [desc: t.id], limit: 5)
+  def current, do: Repo.one!(from t in defaults(), order_by: [desc: t.id], limit: 1)
+  def history(scope \\ nil)
+  def history(nil), do: Repo.all(from t in defaults(), order_by: [desc: t.id], limit: 5)
+
+  def history(scope) do
+    with {:ok, ids} <- scope_ids(scope),
+         %{} = saved <- scope_record(ids) do
+      adoptions = from a in TeamAdoption, where: a.arena_id == ^ids["arena_id"]
+
+      adoptions =
+        if ids["tabula_id"],
+          do: where(adoptions, [a], a.tabula_id == ^ids["tabula_id"]),
+          else: where(adoptions, [a], is_nil(a.tabula_id))
+
+      Repo.all(
+        from t in TeamRevision,
+          where:
+            t.id == ^saved.team_revision_id or
+              t.id in subquery(from a in adoptions, select: a.team_revision_id),
+          order_by: [desc: t.id],
+          limit: 5
+      )
+    else
+      _ -> []
+    end
+  end
+
+  defp defaults do
+    from t in TeamRevision,
+      left_join: c in Command,
+      on: c.id == t.command_id,
+      where: is_nil(t.command_id) or c.kind not in ^@scoped_commands
+  end
+
   def editable(team), do: Enum.map(team.definition["roles"], &Map.take(&1, @fields))
   def required?(id), do: id in @required
 
@@ -110,13 +154,22 @@ defmodule Cuckoding.Team do
     end
   end
 
-  def save(key, expected, roles, removal_confirmed \\ false) do
+  def save(key, expected, roles, removal_confirmed \\ false, scope \\ nil) do
     with {:ok, id} <- Ecto.UUID.cast(key),
          true <- is_integer(expected) and expected > 0,
+         {:ok, ids} <- scope_ids(scope),
          :ok <- validate_roles(roles) do
-      payload = %{"roles" => roles, "removal_confirmed" => removal_confirmed == true}
+      payload =
+        Map.merge(
+          %{"roles" => roles, "removal_confirmed" => removal_confirmed == true},
+          ids || %{}
+        )
 
-      result = Repo.transaction(fn -> save_command(id, expected, payload) end, mode: :immediate)
+      kind = if ids, do: "save_scoped_team", else: "save_team"
+
+      result =
+        Repo.transaction(fn -> save_command(id, expected, payload, kind) end, mode: :immediate)
+
       if match?({:ok, _}, result), do: Foundation.broadcast()
 
       case result do
@@ -135,18 +188,37 @@ defmodule Cuckoding.Team do
     end
   end
 
-  defp save_command(id, expected, payload) do
+  defp scope_ids(nil), do: {:ok, nil}
+  defp scope_ids(%Arena{id: id}), do: scope_ids(id, nil)
+  defp scope_ids(%Tabula{id: id, arena_id: arena}), do: scope_ids(arena, id)
+  defp scope_ids(_), do: {:error, :invalid_scope}
+
+  defp scope_ids(arena, tabula) do
+    with {:ok, arena} <- Ecto.UUID.cast(arena),
+         {:ok, tabula} <- if(is_nil(tabula), do: {:ok, nil}, else: Ecto.UUID.cast(tabula)) do
+      {:ok, %{"arena_id" => arena, "tabula_id" => tabula}}
+    else
+      _ -> {:error, :invalid_scope}
+    end
+  end
+
+  defp scope_record(%{"arena_id" => arena, "tabula_id" => nil}), do: Repo.get(Arena, arena)
+
+  defp scope_record(%{"arena_id" => arena, "tabula_id" => board}),
+    do: Repo.get_by(Tabula, id: board, arena_id: arena)
+
+  defp save_command(id, expected, payload, kind) do
     case Repo.get(Command, id) do
-      nil -> persist(id, expected, payload)
-      %Command{kind: "save_team", expected_revision: ^expected, payload: ^payload} = c -> c
+      nil -> persist(id, expected, payload, kind)
+      %Command{kind: ^kind, expected_revision: ^expected, payload: ^payload} = c -> c
       _ -> Repo.rollback(:key_conflict)
     end
   end
 
-  defp persist(id, expected, payload) do
-    previous = current()
-    removed = Enum.map(editable(previous), & &1["id"]) -- Enum.map(payload["roles"], & &1["id"])
-    result = resolve(previous, expected, payload, removed)
+  defp persist(id, expected, payload, kind) do
+    {scope, previous} = previous_team(kind, payload)
+    removed = removed(previous, payload["roles"])
+    result = resolve(previous, scope, expected, payload, removed)
 
     reason =
       case result do
@@ -157,41 +229,75 @@ defmodule Cuckoding.Team do
     command =
       Repo.insert!(%Command{
         id: id,
-        kind: "save_team",
+        kind: kind,
         expected_revision: expected,
         payload: payload,
         state: if(reason, do: "rejected", else: "completed"),
         result: reason
       })
 
-    case result do
-      {:ok, roles} ->
-        revision =
-          Repo.insert!(%TeamRevision{
-            command_id: id,
-            inserted_at: DateTime.utc_now(),
-            definition: %{"version" => 1, "execution" => "disabled", "roles" => roles}
-          })
-
-        Foundation.record(
-          "team.saved",
-          %{
-            "revision" => revision.id,
-            "role_count" => length(roles),
-            "removed_role_ids" => removed
-          },
-          id
-        )
-
-      {:error, reason} ->
-        Foundation.record("team.rejected", %{"reason" => reason}, id)
-    end
-
+    record_result(result, command, scope, removed)
     command
   end
 
-  defp resolve(previous, expected, payload, removed) do
+  defp previous_team("save_team", _), do: {nil, current()}
+
+  defp previous_team("save_scoped_team", payload) do
+    scope = scope_record(payload)
+    {scope, scope && TeamAssignments.assigned(scope)}
+  end
+
+  defp removed(nil, _), do: []
+
+  defp removed(previous, roles),
+    do: Enum.map(editable(previous), & &1["id"]) -- Enum.map(roles, & &1["id"])
+
+  defp record_result({:ok, roles}, command, scope, removed) do
+    revision =
+      Repo.insert!(%TeamRevision{
+        command_id: command.id,
+        inserted_at: DateTime.utc_now(),
+        definition: %{"version" => 1, "execution" => "disabled", "roles" => roles}
+      })
+
+    if scope do
+      Repo.insert!(%TeamAdoption{
+        arena_id: command.payload["arena_id"],
+        tabula_id: command.payload["tabula_id"],
+        team_revision_id: revision.id,
+        command_id: command.id,
+        inserted_at: DateTime.utc_now()
+      })
+    end
+
+    Foundation.record(
+      if(scope, do: "team.scoped_saved", else: "team.saved"),
+      %{
+        "revision" => revision.id,
+        "previous_revision" => command.expected_revision,
+        "role_count" => length(roles),
+        "removed_role_ids" => removed
+      }
+      |> Map.merge(Map.take(command.payload, ~w(arena_id tabula_id))),
+      command.id
+    )
+  end
+
+  defp record_result({:error, reason}, command, _, _) do
+    Foundation.record(
+      "team.rejected",
+      Map.put(Map.take(command.payload, ~w(arena_id tabula_id)), "reason", reason),
+      command.id
+    )
+  end
+
+  defp resolve(nil, _, _, _, _), do: {:error, "scope_missing"}
+
+  defp resolve(previous, scope, expected, payload, removed) do
     cond do
+      scope && TeamAssignments.busy?(scope) ->
+        {:error, "planning_active"}
+
       previous.id != expected ->
         {:error, "stale_team"}
 

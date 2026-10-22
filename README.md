@@ -79,6 +79,13 @@ choose another role from the board's saved team. The request keeps that role's
 exact agent/model and instructions; changing it clears usage consent and keeps
 your brief/sources. This planning choice does not change the team or battle stages.
 
+In **Board team**, **Customize this board** opens the same role editor for only
+that Tabula. **Save team here** changes its future planning/battles and keeps your
+default team and other boards intact. **Customize this Arena** under Advanced
+changes the team inherited by new boards. Existing work keeps its frozen team.
+The saved-default editor and explicit **Use saved team** action remain available.
+[Scoped team evidence](tasks/R030c-scoped-team-editor.md).
+
 New agents start with an editable name and an executable path detected from known
 install locations when available. Cursor's
 normal connection needs no typed path: choose Cursor, Continue, then Sign in.

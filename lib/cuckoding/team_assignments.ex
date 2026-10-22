@@ -21,27 +21,32 @@ defmodule Cuckoding.TeamAssignments do
     true = Repo.in_transaction?()
     default = Team.current()
 
-    changed =
-      for scope <- Repo.all(Arena) ++ Repo.all(Tabula),
-          team = assigned(scope),
-          Enum.any?(team.definition["roles"], &(&1["agent"] == agent_id)) do
-        revision = unassigned_revision(team, agent_id, cause_id)
+    for scope <- Repo.all(Arena) ++ Repo.all(Tabula),
+        team = assigned(scope),
+        Enum.any?(team.definition["roles"], &(&1["agent"] == agent_id)) do
+      revision = unassigned_revision(team, agent_id, cause_id, scope)
 
-        Repo.insert!(%TeamAdoption{
-          arena_id: if(match?(%Arena{}, scope), do: scope.id, else: scope.arena_id),
-          tabula_id: if(match?(%Tabula{}, scope), do: scope.id),
-          team_revision_id: revision.id,
-          command_id: revision.command_id,
-          inserted_at: DateTime.utc_now()
-        })
-      end
+      Repo.insert!(%TeamAdoption{
+        arena_id: if(match?(%Arena{}, scope), do: scope.id, else: scope.arena_id),
+        tabula_id: if(match?(%Tabula{}, scope), do: scope.id),
+        team_revision_id: revision.id,
+        command_id: revision.command_id,
+        inserted_at: DateTime.utc_now()
+      })
+    end
 
-    # Team.current is the latest revision, so restore the default last even if only scoped teams changed.
-    if changed != [] or Enum.any?(default.definition["roles"], &(&1["agent"] == agent_id)),
-      do: unassigned_revision(default, agent_id, cause_id)
+    if Enum.any?(default.definition["roles"], &(&1["agent"] == agent_id)),
+      do: unassigned_revision(default, agent_id, cause_id, nil)
   end
 
-  defp unassigned_revision(team, agent_id, cause_id) do
+  defp unassigned_revision(team, agent_id, cause_id, scope) do
+    ids =
+      case scope do
+        %Arena{id: id} -> %{"arena_id" => id, "tabula_id" => nil}
+        %Tabula{id: id, arena_id: arena} -> %{"arena_id" => arena, "tabula_id" => id}
+        nil -> %{}
+      end
+
     roles =
       Enum.map(team.definition["roles"], fn role ->
         if role["agent"] == agent_id,
@@ -52,9 +57,9 @@ defmodule Cuckoding.TeamAssignments do
     command =
       Repo.insert!(%Command{
         id: Ecto.UUID.generate(),
-        kind: "disconnect_agent_roles",
+        kind: if(scope, do: "disconnect_scoped_agent_roles", else: "disconnect_agent_roles"),
         expected_revision: team.id,
-        payload: %{"agent_id" => agent_id, "disconnect_command_id" => cause_id},
+        payload: Map.merge(%{"agent_id" => agent_id, "disconnect_command_id" => cause_id}, ids),
         state: "completed"
       })
 
@@ -72,7 +77,8 @@ defmodule Cuckoding.TeamAssignments do
         "previous_revision" => team.id,
         "revision" => revision.id,
         "disconnect_command_id" => cause_id
-      },
+      }
+      |> Map.merge(ids),
       command.id
     )
 

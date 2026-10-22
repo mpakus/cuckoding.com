@@ -187,6 +187,15 @@ a grant or schedule is confirmed and audited. Repository changes to
 `.cuckoding/` and other protected execution configuration can be proposed but
 cannot become active policy in the same battle without a new explicit decision.
 
+R030c scoped role editing retains that boundary. A current browser session and
+mount-owned validated Arena/Tabula select the editor; scoped Save also requires
+its live form key and displayed assigned revision. Foreign route/patch/recovered
+forms cannot become a default save or change another board. The short transaction
+revalidates scope, bindings, active planning and custom-role removal before the
+immutable revision/adoption/event. It starts no provider and never rewrites past
+requests or battle teams. Default projections exclude new scoped-only command
+kinds; Disconnect preserves those scopes while unassigning the exact connection.
+
 No routine human approval is inserted between authorized task stages. Ask only
 for unresolved intent, exhausted limits or a genuine trust boundary. Clarification
 answers cannot silently enlarge the original authorization.

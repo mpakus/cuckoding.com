@@ -503,7 +503,7 @@ defmodule CuckodingWeb.BattleLiveTest do
     refute has_element?(board, "#battle-blockers a[href='/agents/codex']")
     assert has_element?(board, "#battle-start-team", "Model needed")
     assert has_element?(board, "#scope-team", "Codex · Model needed")
-    assert has_element?(board, "#scope-team a[href='#{team_path}']", "Edit roles and models")
+    assert has_element?(board, "#scope-team a[href='#{team_path}']", "Edit saved defaults")
     board |> form("#battle-start-form") |> render_submit()
     assert Battles.latest(ctx.arena.id, ctx.board.id) == nil
 

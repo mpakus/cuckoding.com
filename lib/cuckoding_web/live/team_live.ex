@@ -1,30 +1,72 @@
 defmodule CuckodingWeb.TeamLive do
   use CuckodingWeb, :live_view
-  alias Cuckoding.{Agents, Tabulae, Team}
+  alias Cuckoding.{Agents, Arena, Repo, Tabula, Tabulae, Team, TeamAssignments}
   alias CuckodingWeb.Layouts
 
   @impl true
-  def mount(_params, _session, socket) do
+  def mount(params, _session, socket) do
     if connected?(socket) do
       Phoenix.PubSub.subscribe(Cuckoding.PubSub, "foundation")
       Process.send_after(self(), :catalog_tick, 30_000)
     end
 
-    {:ok, socket |> assign(message: nil, return_board: nil) |> load_saved()}
+    case edit_scope(socket.assigns.live_action, params) do
+      {:ok, scope} ->
+        {:ok,
+         socket
+         |> assign(message: nil, return_board: nil, scope: scope, scope_error: false)
+         |> load_saved()}
+
+      :error ->
+        {:ok,
+         socket
+         |> put_flash(:error, "This team scope is unavailable.")
+         |> redirect(to: ~p"/arenas")}
+    end
   end
 
   @impl true
   def handle_params(params, _, socket) do
-    board =
-      with {:ok, arena} <- Ecto.UUID.cast(params["arena"]),
-           {:ok, tabula} <- Ecto.UUID.cast(params["tabula"]),
-           do: Tabulae.get(arena, tabula),
-           else: (_ -> nil)
+    case edit_scope(socket.assigns.live_action, params) do
+      {:ok, scope} when scope == socket.assigns.scope ->
+        board = if match?(%Tabula{}, scope), do: scope, else: return_board(params)
+        {:noreply, assign(socket, return_board: board, scope_error: false)}
 
-    {:noreply, assign(socket, :return_board, board)}
+      _ ->
+        {:noreply, assign(socket, :scope_error, true)}
+    end
+  end
+
+  defp edit_scope(:team, _), do: {:ok, nil}
+
+  defp edit_scope(:arena_team, params) do
+    with {:ok, id} <- Ecto.UUID.cast(params["arena_id"]),
+         %Arena{} = arena <- Repo.get(Arena, id),
+         do: {:ok, arena},
+         else: (_ -> :error)
+  end
+
+  defp edit_scope(:tabula_team, params) do
+    with {:ok, arena} <- Ecto.UUID.cast(params["arena_id"]),
+         {:ok, board} <- Ecto.UUID.cast(params["id"]),
+         %Tabula{} = board <- Tabulae.get(arena, board),
+         do: {:ok, board},
+         else: (_ -> :error)
+  end
+
+  defp return_board(params) do
+    with {:ok, arena} <- Ecto.UUID.cast(params["arena"]),
+         {:ok, tabula} <- Ecto.UUID.cast(params["tabula"]),
+         do: Tabulae.get(arena, tabula),
+         else: (_ -> nil)
   end
 
   defp board_path(board), do: ~p"/arenas/#{board.arena_id}/tabulae/#{board.id}"
+  defp scope_path(nil), do: ~p"/team"
+  defp scope_path(%Arena{id: id}), do: ~p"/arenas/#{id}/team"
+  defp scope_path(board), do: ~p"/arenas/#{board.arena_id}/tabulae/#{board.id}/team"
+  defp scope_team(nil), do: Team.current()
+  defp scope_team(scope), do: TeamAssignments.assigned(scope)
 
   @impl true
   def handle_event("change", params, socket) do
@@ -32,19 +74,30 @@ defmodule CuckodingWeb.TeamLive do
   end
 
   def handle_event("save", params, socket) do
+    current_form =
+      not socket.assigns.scope_error and
+        (is_nil(socket.assigns.scope) or params["key"] == socket.assigns.key)
+
     # Save validates the submitted pair even if its preceding change event was lost.
     socket = update_draft(socket, params, false)
 
     result =
-      if socket.assigns.input_valid,
-        do:
+      cond do
+        not current_form ->
+          {:error, :stale_form}
+
+        socket.assigns.input_valid ->
           Team.save(
             socket.assigns.key,
             socket.assigns.draft_revision,
             socket.assigns.roles,
-            socket.assigns.confirm_removal
-          ),
-        else: {:error, :invalid_roles}
+            socket.assigns.confirm_removal,
+            socket.assigns.scope
+          )
+
+        true ->
+          {:error, :invalid_roles}
+      end
 
     case result do
       {:ok, revision} ->
@@ -107,10 +160,11 @@ defmodule CuckodingWeb.TeamLive do
     if socket.assigns.dirty do
       {:noreply,
        assign(socket,
-         latest: Team.current(),
+         latest: scope_team(socket.assigns.scope),
+         busy: scope_busy?(socket.assigns.scope),
          catalog: Team.catalog(),
          agents: Agents.list(),
-         history: Team.history()
+         history: Team.history(socket.assigns.scope)
        )}
     else
       {:noreply, load_saved(socket)}
@@ -118,16 +172,17 @@ defmodule CuckodingWeb.TeamLive do
   end
 
   defp load_saved(socket) do
-    team = Team.current()
+    team = scope_team(socket.assigns.scope)
 
     assign(socket,
       base: team,
+      busy: scope_busy?(socket.assigns.scope),
       draft_revision: team.id,
       latest: team,
       roles: Team.editable(team),
       catalog: Team.catalog(),
       agents: Agents.list(),
-      history: Team.history(),
+      history: Team.history(socket.assigns.scope),
       key: Ecto.UUID.generate(),
       dirty: false,
       confirm_removal: false,
@@ -202,6 +257,9 @@ defmodule CuckodingWeb.TeamLive do
     Enum.reject(base.definition["roles"], fn old -> Enum.any?(roles, &(&1["id"] == old["id"])) end)
   end
 
+  defp scope_busy?(nil), do: false
+  defp scope_busy?(scope), do: TeamAssignments.busy?(scope)
+
   defp model_options(role, catalog) do
     selected = Map.get(catalog.agents, role["agent"], %{status: :connection_required})
     models = if selected.status == :available, do: selected.selectable_models, else: []
@@ -253,6 +311,16 @@ defmodule CuckodingWeb.TeamLive do
   defp error_message("stale_team"),
     do: "A newer team was saved. Your draft is kept here; inspect the revisions before reloading."
 
+  defp error_message(:stale_form),
+    do:
+      "This form or its scope changed. Your draft is kept; review the current scope and submit again."
+
+  defp error_message("planning_active"),
+    do:
+      "Finish or cancel this board's planning request before saving its team. Your draft is kept."
+
+  defp error_message("scope_missing"), do: "This team scope is unavailable. Your draft is kept."
+
   defp error_message("removal_confirmation_required"),
     do: "Confirm removal of saved custom roles before saving."
 
@@ -269,19 +337,44 @@ defmodule CuckodingWeb.TeamLive do
     <Layouts.workspace active={:team} title="Team" flash={@flash}>
       <Layouts.journey current={2} arena_path={@return_board && board_path(@return_board)} />
       <section class="panel team-editor" aria-labelledby="team-title">
-        <p class="eyebrow">02 / YOUR SAVED TEAM</p>
+        <p class="eyebrow">
+          02 / {cond do
+            match?(%Arena{}, @scope) -> "ARENA TEAM"
+            @scope -> "BOARD TEAM"
+            true -> "YOUR SAVED TEAM"
+          end}
+        </p>
         <h2 id="team-title">Cast your roles.</h2>
-        <p>Choose an agent and model for each role. Save once, reuse across projects.</p>
-        <p :if={@return_board} id="team-board-context" class="fine-print">
+        <p>
+          Choose an agent and model for each role.
+          <span :if={!@scope}>Save once, reuse across projects.</span>
+        </p>
+        <p :if={@scope} id="team-scope-context" class="fine-print">
+          <strong>{if match?(%Arena{}, @scope),
+            do: "New boards in #{@scope.name}",
+            else: "Only #{@scope.name}"}.</strong>
+          {if match?(%Arena{}, @scope),
+            do: "Existing boards keep their team.",
+            else: "Future planning and battles use this team after Save."} Your saved defaults and past work stay unchanged. Saving starts no agents.
+        </p>
+        <p :if={@scope_error} id="team-scope-error" role="alert" class="notice">
+          This address points to a different team. Your draft is kept and cannot be saved here.
+          <.link patch={scope_path(@scope)}>Return to this team's address</.link>
+        </p>
+        <p :if={@return_board && !@scope} id="team-board-context" class="fine-print">
           Updating your saved team for <strong>{@return_board.name}</strong>.
           Save, then review it on that board. Its current assignments stay in place until you confirm.
           <.link navigate={board_path(@return_board)} class="text-link">← Back to {@return_board.name}</.link>
         </p>
         <p class="fine-print">
           Speculator creates tasks, Implementor writes code, Secutor reviews and Summa Rudis coordinates.
-          Task generation currently needs Codex; the execution team can mix Codex and Cursor.
+          Task generation and execution can use the assigned Codex or Cursor connection.
         </p>
         <p :if={@message} role="status" class="team-message">{@message}</p>
+        <p :if={@busy} role="status" class="notice">
+          This board is creating tasks. Finish or cancel that request before saving its team.
+          Your draft is kept here.
+        </p>
         <div :if={incomplete_roles(@roles) != []} id="team-incomplete" role="status" class="notice">
           <p>
             Finish these required roles before Start: {Enum.map_join(
@@ -304,6 +397,7 @@ defmodule CuckodingWeb.TeamLive do
           aria-describedby={@error && "team-error"}
         >
           <input type="hidden" name="base_revision" value={@draft_revision} />
+          <input type="hidden" name="key" value={@key} />
           <div class="role-grid">
             <section
               :for={role <- @roles}
@@ -398,20 +492,26 @@ defmodule CuckodingWeb.TeamLive do
               type="submit"
               class="button primary"
               phx-disable-with="Saving…"
-              disabled={not @dirty}
-            >Save team</button>
+              disabled={not @dirty or @scope_error or @busy}
+            >{if @scope, do: "Save team here", else: "Save team"}</button>
             <button type="button" class="button" phx-click="add" disabled={length(@roles) >= 12}>Add role</button>
             <button type="button" class="button" phx-click="reload">Reload saved</button>
             <.link
               :if={!@dirty}
               id="team-next"
               navigate={
-                if @return_board, do: board_path(@return_board) <> "#board-team", else: ~p"/arenas"
+                cond do
+                  @return_board -> board_path(@return_board) <> "#board-team"
+                  @scope -> ~p"/arenas/#{@scope.id}"
+                  true -> ~p"/arenas"
+                end
               }
               class={if @return_board, do: "button primary", else: "text-link"}
-            >{if @return_board,
-              do: "Review team for #{@return_board.name}",
-              else: "Next: Choose Arena"} ↗</.link>
+            >{cond do
+              @scope -> "Back to #{@scope.name}"
+              @return_board -> "Review team for #{@return_board.name}"
+              true -> "Next: Choose Arena"
+            end} ↗</.link>
             <span class="fine-print">{if @dirty, do: "Unsaved draft", else: "Saved locally"}</span>
           </div>
         </.form>
