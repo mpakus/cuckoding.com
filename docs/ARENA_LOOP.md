@@ -1,5 +1,12 @@
 # Sequential Arena execution — implementation decision
 
+R030d binds the four required execution responsibilities from the exact saved
+team revision before resolving native connections/models. Extra custom planning
+roles stay in the saved team and task-generation selector; their unused bindings
+cannot block Start or gain a battle session. Start Inspect lists them as planning
+only. Required role order/membership, default columns and every existing admission/
+review/check gate remain enforced. Old battle snapshots are never rewritten.
+
 R050e keeps SQLite authoritative. A battle freezes the existing board's bounded
 task graph, immutable team/model bindings, source folder identity, committed Git
 base, user-declared checks and finite lifetime limits. The Start form fingerprint

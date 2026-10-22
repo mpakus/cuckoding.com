@@ -1,5 +1,11 @@
 # Verification and acceptance
 
+R030d checks that custom planning-only roles stay saved/selectable while the
+preview/Start freezes exactly the four required execution IDs. Unassigned unused
+roles must not add connection blockers; later team edits cannot rewrite a frozen
+battle. The inspector names extras as planning-only. Restoring all-role binding
+resolution must fail the focused regression; no custom execution grant is added.
+
 R030c checks scoped/default/sibling isolation, new-board inheritance, exact
 scope/revision/key replay, competing saves, model/removal/active-planning gates,
 atomic rollback and preservation of completed planning/cards. Disconnect keeps

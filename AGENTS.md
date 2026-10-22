@@ -233,6 +233,11 @@ Preserve these implemented contracts:
   mount-owned scope, session, key and displayed revision; reject foreign/stale
   navigation and keep dirty text. Preserve model/removal/active-planning gates,
   explicit saved-default adoption and exact current-scope Disconnect unassignment.
+- R030d resolves new battle bindings only for the four required responsibility
+  IDs, in their existing strict order. Custom planning-only roles remain in the
+  immutable saved team/planning selector and are disclosed separately in Start
+  Inspect. Their unused bindings never block or join a battle. Keep all required
+  role/column/native/check gates and old snapshots; this grants no custom stage.
 - Registration reads directory metadata only. Git inspection, initialization and
   initial commit require their separate recorded intent/consent. Revalidate folder
   identity; preserve Git locks, exact byte/hash consent and uncertain partial effects.

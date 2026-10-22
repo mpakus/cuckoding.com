@@ -785,6 +785,10 @@ defmodule CuckodingWeb.BattleComponent do
             phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
           >
             <summary>Inspect tasks, team & limits</summary>
+            <p :if={@preview.planning_roles != []} id="battle-planning-roles" class="fine-print">
+              Planning only: {Enum.map_join(@preview.planning_roles, ", ", & &1["name"])}.
+              Start runs the four execution responsibilities below.
+            </p>
             <p id="battle-start-team" class="fine-print">
               {Enum.map_join(@preview.team, " · ", fn role ->
                 "#{role["name"]}: #{role["agent_name"] || "agent needed"} / #{model_label(role)}"

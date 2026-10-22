@@ -86,6 +86,10 @@ changes the team inherited by new boards. Existing work keeps its frozen team.
 The saved-default editor and explicit **Use saved team** action remain available.
 [Scoped team evidence](tasks/R030c-scoped-team-editor.md).
 
+Extra custom roles are available for planning. Start uses Speculator, Implementor,
+Secutor and Summa Rudis; an unused planning role does not block the battle or get
+execution access. Inspect lists these planning-only roles separately.
+
 New agents start with an editable name and an executable path detected from known
 install locations when available. Cursor's
 normal connection needs no typed path: choose Cursor, Continue, then Sign in.

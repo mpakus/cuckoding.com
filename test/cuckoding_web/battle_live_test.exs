@@ -99,6 +99,22 @@ defmodule CuckodingWeb.BattleLiveTest do
     }
   end
 
+  test "custom planning roles remain available while Start uses only execution roles", ctx do
+    team = TeamAssignments.assigned(ctx.board)
+    custom = Team.custom_role() |> Map.put("name", "Read-only researcher")
+
+    {:ok, _} =
+      Team.save(Ecto.UUID.generate(), team.id, Team.editable(team) ++ [custom], false, ctx.board)
+
+    path = "/arenas/#{ctx.board.arena_id}/tabulae/#{ctx.board.id}"
+    {:ok, view, _} = ctx.conn |> sign_in() |> live(path)
+    assert has_element?(view, "#arena-start:not([disabled])", "Start")
+    assert has_element?(view, "#battle-planning-roles", "Planning only: Read-only researcher")
+    refute has_element?(view, "#battle-start-team", "Read-only researcher")
+    assert has_element?(view, "#scope-team", "Read-only researcher")
+    assert has_element?(view, "#planning-role option", "Read-only researcher")
+  end
+
   test "keyboard submission freezes one scope without checkboxes or a preview ceremony", ctx do
     %{conn: conn, path: path, arena: arena, board: board} = ctx
     signed = sign_in(conn)

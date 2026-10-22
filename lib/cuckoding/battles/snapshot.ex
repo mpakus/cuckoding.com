@@ -36,7 +36,8 @@ defmodule Cuckoding.Battles.Snapshot do
     arena = Tabulae.arena(arena_id) || Repo.rollback(:scope_missing)
     board = Tabulae.get(arena.id, tabula_id) || Repo.rollback(:scope_missing)
     team = TeamAssignments.assigned(board)
-    roles = Enum.map(team.definition["roles"], &role_binding/1)
+    {execution, planning} = Enum.split_with(team.definition["roles"], &(&1["id"] in @roles))
+    roles = Enum.map(execution, &role_binding/1)
     tasks = Enum.map(Tabulae.tasks(board.id), &task/1)
     checks = ProjectChecks.current(arena.id)
     {ordered, graph_valid?} = order(tasks, [])
@@ -89,6 +90,7 @@ defmodule Cuckoding.Battles.Snapshot do
       blockers: blockers,
       tasks: snapshot["tasks"],
       team: roles,
+      planning_roles: Enum.map(planning, &Map.take(&1, ~w(id name))),
       checks: snapshot["checks"],
       limits: @limits
     }

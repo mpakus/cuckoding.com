@@ -380,6 +380,9 @@ Execution acceptance depends on R020. R030a configuration can ship independently
   with immutable scope-bound saves and independent defaults. Preserve active
   planning, model, removal, session and form gates; navigation never adopts.
   [Task/evidence](../tasks/R030c-scoped-team-editor.md).
+- [x] R030d keep custom planning-only roles available without blocking Start;
+  bind only the four existing execution responsibilities and disclose extras in
+  Inspect. No custom execution stage is implied. [Task](../tasks/R030d-planning-role-start.md).
 - [ ] Add confirmed/audited execution slots and grants; prove independent sessions
   sharing one connection/model without inferring permission from role text.
 

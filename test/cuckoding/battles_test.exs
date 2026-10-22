@@ -71,6 +71,33 @@ defmodule Cuckoding.BattlesTest do
     battle
   end
 
+  test "custom planning roles stay saved without blocking or joining a battle", ctx do
+    old = TeamAssignments.assigned(ctx.board)
+    custom = Team.custom_role() |> Map.put("name", "Research only")
+
+    {:ok, scoped} =
+      Team.save(Ecto.UUID.generate(), old.id, Team.editable(old) ++ [custom], false, ctx.board)
+
+    assert {:ok, preview} = Battles.preview(ctx.board.arena_id, ctx.board.id)
+    assert preview.blockers == []
+    assert preview.planning_roles == [%{"id" => custom["id"], "name" => "Research only"}]
+    battle = start(ctx.board)
+    assert battle.snapshot["team_revision"] == scoped.id
+
+    assert Enum.map(battle.snapshot["team"], & &1["id"]) ==
+             ~w(speculator implementor secutor summa_rudis)
+
+    refute Enum.any?(battle.snapshot["team"], &(&1["id"] == custom["id"]))
+
+    assert List.last(TeamAssignments.assigned(ctx.board).definition["roles"])["id"] ==
+             custom["id"]
+
+    assert {:ok, _} =
+             Team.save(Ecto.UUID.generate(), scoped.id, Team.editable(old), true, ctx.board)
+
+    assert Repo.get!(Battle, battle.id).snapshot == battle.snapshot
+  end
+
   test "idle-sleep leases follow bounded work and release at paused or finished boundaries",
        ctx do
     refute Battles.idle_sleep_requested?()
