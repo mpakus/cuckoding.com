@@ -1,6 +1,6 @@
 # R060n — Retained parallel preparation checkpoint
 
-Status: implemented and locally verified, 2026-10-21; integration recorded below.
+Status: implemented, locally verified and merged to main, 2026-10-21 (`1dc6d21`).
 
 - [x] Freeze `worktree_wave_recovery: retained-preparation-wave-v1` in new Starts.
   Preserve R060m single-preparation behavior and older two-claim refusal.
@@ -16,7 +16,7 @@ Status: implemented and locally verified, 2026-10-21; integration recorded below
 - [x] Test sequential reads, worker restart, exact scope, old policies, all-or-none
   checkpoint, deadline/fence failures and no replay. Reuse the dated existing
   Inspect surface. Update docs/AGENTS/README and verify.
-- [ ] Merge the verified slice locally to main and delete its completed branch.
+- [x] Merge the verified slice locally to main and delete its completed branch.
 
 This covers only two completed writer preparations whose replies were lost.
 Admission/capture/check/provider-session and physical sleep recovery stay open.

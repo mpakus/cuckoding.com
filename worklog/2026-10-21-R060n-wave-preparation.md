@@ -58,3 +58,7 @@ normal quit and listener cleanup; retained root `/private/tmp/ccoding-smoke.EX1A
 No interactive app/source listener is left running. The overall beta goal stays
 active, including general toolchain grants, real providers, other interrupted
 native effects/sleep, custom workflows/providers and signed release verification.
+
+Committed as `1dc6d21`, fast-forwarded into local `main`, and deleted
+`feature/r060n-wave-preparation`. No push/publication. Only the unrelated user
+file `Untitled.md.age` remains untracked; its contents were not read or changed.
