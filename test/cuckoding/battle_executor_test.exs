@@ -86,6 +86,21 @@ defmodule Cuckoding.BattleExecutorTest do
       }
     end
 
+    defp git("combine_candidate", id, %{"request" => request}) do
+      %{
+        "status" => "candidate_combined",
+        "key" => id,
+        "battle_key" => request["battle"]["battle_key"],
+        "worktree_key" => request["preparation"]["key"],
+        "task_candidate_key" => request["candidate"]["key"],
+        "base" => request["battle"]["head"],
+        "task_base" => request["preparation"]["head"],
+        "candidate" => digest("combined:" <> id),
+        "tree" => digest("tree:" <> id),
+        "manifest_sha256" => String.duplicate("a", 64)
+      }
+    end
+
     defp git("integrate_candidate", id, %{"request" => request}) do
       assert request["candidate"]["base"] == request["battle"]["head"]
 
@@ -370,6 +385,28 @@ defmodule Cuckoding.BattleExecutorTest do
       "elapsed_ms" => 20,
       "receipt_sha256" => String.duplicate("a", 64)
     })
+  end
+
+  test "executor checks and independently reviews the combined wave candidate before integration",
+       ctx do
+    independent = save_task(ctx.board, "Independent", [])
+
+    completed =
+      Enum.reduce_while(1..100, start(ctx.board), fn _, battle ->
+        {next, _, _} = step(battle)
+        if next.state == "completed", do: {:halt, next}, else: {:cont, next}
+      end)
+
+    assert completed.state == "completed"
+    history = Battles.attempts(completed.id)
+    combined = Enum.find(history, &(&1.stage == "combine"))
+    assert combined.task_id == independent.id
+    review = Enum.find(history, &(&1.task_id == independent.id and &1.stage == "secutor"))
+    assert review.request["task_context"]["candidate_sha"] == combined.result["candidate_sha"]
+    checks = Enum.find(history, &(&1.task_id == independent.id and &1.stage == "checks"))
+    assert checks.result["candidate_sha"] == combined.result["candidate_sha"]
+    integrated = Enum.find(history, &(&1.task_id == independent.id and &1.stage == "integrate"))
+    assert integrated.result["head"] == combined.result["candidate_sha"]
   end
 
   test "retained provider closure permits Stop without accepting the interrupted turn", ctx do

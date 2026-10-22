@@ -9,9 +9,9 @@ cannot adopt teams or alter battle dispatch. Old requests remain readable.
 ## Implemented boundary · reviewed 2026-10-21
 
 Cuckoding delivers authenticated setup, planning, isolated task turns and the
-sequential Codex/Cursor battle loop per board, with two isolated Arenas progressing
-concurrently. Same-board parallel workers and full recovery
-remain unfinished.
+Codex/Cursor battle loop with two-task implementation waves sharing two global
+workers. Checks/review/integration remain serialized within each board. Additional
+parallel role slots, real-provider acceptance and full recovery remain unfinished.
 The later sections describe the target architecture, not additional shipped code.
 
 Startup: Repo → schema validation/migration → PubSub → shell authority →
@@ -33,7 +33,7 @@ release process group and private storage lock.
 | `Tabulae` | Immutable default boards, revisioned Specs/ToDo drafts, acyclic prerequisites and proposal import provenance; delivery columns stay locked |
 | `Planning`, `PlanningDocuments`, native `arena_git/documents.rs` | Freeze team/model/brief and optional manual/folder text snapshots in commands; bounded descriptor-relative source collection, then validate proposals and atomically create draft cards |
 | `ProjectChecks` | Immutable Arena check declarations, explicit preview/consent and atomic command/revision/event saves; no executable resolution, filesystem access or execution |
-| `Battles`, `BattleRunner`, `BattleExecutor`, `BattleChecks`, `Battles.Capacity` | SQLite battle/task/attempt authority and capacity checks; two monitored workers across isolated Arenas; one stage per board/exact connection; closed native Git, provider turns and disposable check workspaces |
+| `Battles`, `BattleRunner`, `BattleExecutor`, `BattleChecks`, `Battles.Capacity` | SQLite battle/task/attempt authority and capacity checks; two monitored workers across isolated Arenas; per-task wave claims, serial review and one provider turn per exact connection; closed native Git, provider turns and disposable check workspaces |
 | `Battles.Receipts` | Closed result envelope and stage/provider/session/candidate/check evidence validation against an immutable attempt; read-only session-reuse query, no settlement or launch authority |
 | `BattlePreview` | Read-only aggregation of scoped saved preparation and verified spec artifacts; no durable battle state or launch authority |
 | `Dashboard`, `DashboardComponent`, `ActivityComponent` | Bounded read-only Arena/latest-battle/task/setup/planning projections, exact-board team/progress and 20-event chronological pages; shared stateless worker rows, guarded parent/component events and stable reading mode; no execution authority |
@@ -47,9 +47,16 @@ captured paths and current reviewed head under the repository lock, builds a
 compatible tree through a private index and retains an exclusive UUID ref/receipt.
 Existing review-worktree and CAS consumers verify that exact combined candidate;
 post-CAS recovery verifies retained objects against its own live ref boundary.
-`LocalGit` exposes only the closed public receipt. Same-board SQLite lane state,
-scheduling and independent combined review remain unfinished; current Starts stay
-sequential per board. No new provider/tool grant or migration is introduced.
+`LocalGit` exposes only the closed public receipt. R070d adds SQLite lane state, scheduling and independent combined review on this
+proof. The primitive alone introduces no provider/tool grant or migration.
+
+R070d owns ready-task wave selection and task stage projections in
+`Battles.Waves`; `Battles` retains transactional claims/settlement/controls.
+`BattleRepository` serializes native I/O by pinned repository identity in the
+supervised worker with bounded cancellable waiting. It grants no native ownership
+or cleanup authority. The fifteenth migration changes only claim uniqueness;
+old snapshots retain sequential admission. Two global workers and one provider
+turn per exact connection remain. Further role slots require explicit bindings.
 
 R080a keeps dialog presentation in `CuckodingWeb.Dialog` and the small native
 `assets/js/dialog.mjs` hook. LiveView/domain owners still validate every action;
@@ -72,8 +79,8 @@ separate monitored task group. R070a replaces its single global job with two
 worker slots and fair rotation across ready Arenas. SQLite claims enforce global,
 per-battle and exact-connection exclusion; uncertain provider cleanup reserves
 its connection. Historical Starts and retained integration recovery stay
-exclusive. Setup remains one command, each board stays sequential and same-board
-parallel scheduling remains open. [D034](DECISIONS.md#d034--concurrent-isolated-arenas).
+exclusive. Setup remains one command. R070d adds bounded independent task waves;
+older per-board policies stay sequential. [D034](DECISIONS.md#d034--concurrent-isolated-arenas).
 
 Each execution group stops its old tasks before restarting its coordinator.
 R060f makes workers call the existing Foundation/Battles settlement transaction

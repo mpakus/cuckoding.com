@@ -2,7 +2,7 @@ defmodule CuckodingWeb.BattleComponent do
   @moduledoc false
   use CuckodingWeb, :live_component
   alias Cuckoding.Battles
-  alias Cuckoding.Battles.Backoff
+  alias Cuckoding.Battles.{Backoff, Waves}
 
   @impl true
   def mount(socket) do
@@ -207,7 +207,7 @@ defmodule CuckodingWeb.BattleComponent do
   defp message("invalid_dependencies"), do: "Repair missing or circular task prerequisites."
 
   defp message("unsupported_columns"),
-    do: "This workflow is not supported by the sequential Arena loop."
+    do: "This workflow is not supported by the current Arena loop."
 
   defp message("checks_required"),
     do: "This older battle requires its original command checks. Inspect its frozen scope."
@@ -392,6 +392,12 @@ defmodule CuckodingWeb.BattleComponent do
           Closure could not be verified. Keep the retained files for inspection; no turn was replayed.
         </p>
       </article>
+      <p id="battle-frozen-workers" class="fine-print">
+        {if Waves.enabled?(@battle.snapshot),
+          do:
+            "Up to two independent tasks per wave; shared connections take turns. Review and integration are serialized.",
+          else: "This saved battle uses sequential task execution."}
+      </p>
       <details id="battle-frozen-tasks" phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
         <summary>Authorized tasks · {length(@battle_tasks)}</summary>
         <article :for={task <- @battle_tasks} class="team-role">
@@ -412,7 +418,14 @@ defmodule CuckodingWeb.BattleComponent do
         <p :if={summary(attempt)} class="draft-copy">{summary(attempt)}</p>
         <p class="fine-print">Attempt receipt: <code>{attempt.id}</code></p>
         <p :if={attempt.task_id} class="fine-print">Task: <code>{attempt.task_id}</code></p>
-        <p :if={get_in(@battle.context, ["timing_gap", "attempt_id"]) == attempt.id} class="notice">
+        <p
+          :if={
+            get_in(@battle.context, ["timing_gap", "attempt_id"]) == attempt.id or
+              (Waves.enabled?(@battle.snapshot) and
+                 attempt.id in (get_in(@battle.context, ["timing_gap", "attempt_ids"]) || []))
+          }
+          class="notice"
+        >
           Interrupted after a timing gap · retained evidence, not accepted work.
           <span :if={attempt.result["cleanup_verified"] == true}>Worker cleanup verified.</span>
           <span :if={attempt.result["cleanup_verified"] != true}>Worker cleanup is still unverified.</span>
@@ -505,6 +518,17 @@ defmodule CuckodingWeb.BattleComponent do
             @battle.stage
           )}
         </p>
+        <p
+          :if={Waves.enabled?(@battle.snapshot) and @battle.context["wave"]}
+          id="battle-wave-status"
+          class="fine-print"
+        >
+          Implementation wave {@battle.context["wave"]} · {Enum.count(
+            @attempts,
+            &(&1.state == "running")
+          )} stages claimed.
+          Shared connections take turns; inspect receipts for current state and cleanup.
+        </p>
         <p :if={(@battle.context["omitted_tasks"] || []) != []} id="battle-omissions" role="status">
           {Enum.count(@battle_tasks, &(&1.state == "skipped"))} skipped · {Enum.count(
             @battle_tasks,
@@ -525,7 +549,7 @@ defmodule CuckodingWeb.BattleComponent do
           id="battle-timing-cancelling"
           role="status"
         >
-          Timing gap detected · cancelling the current stage and waiting for owned worker cleanup.
+          Timing gap detected · cancelling active stages and waiting for owned worker cleanup.
           Its result will be retained without advancing work.
         </p>
         <p
@@ -533,7 +557,7 @@ defmodule CuckodingWeb.BattleComponent do
           id="battle-pause-status"
           role="status"
         >
-          Pausing · the current stage is finishing within its existing limit. No next stage will start.
+          Pausing · current stages are finishing within their existing limits. No next stage will start.
           Use Stop to cancel it now.
         </p>
         <p
@@ -561,7 +585,7 @@ defmodule CuckodingWeb.BattleComponent do
           No work has been replayed.
         </p>
         <p :if={@battle.state in ~w(running pausing paused)} id="battle-pause-help" class="fine-print">
-          Pause finishes the current stage before stopping new work. Time spent paused still counts toward
+          Pause finishes current stages before stopping new work. Time spent paused still counts toward
           the original deadline: {Calendar.strftime(@battle.deadline_at, "%Y-%m-%d %H:%M:%S UTC")}.
         </p>
         <p :if={@battle.state == "stopped"}>
@@ -741,7 +765,7 @@ defmodule CuckodingWeb.BattleComponent do
           <div>
             <p class="start-title">{length(@preview.tasks)} tasks. One Start.</p>
             <p id="arena-start-help" class="fine-print">
-              Runs this board's assigned team, one task at a time, with independent Secutor review.
+              Runs independent tasks in waves of up to two, with separate workspaces and independent Secutor review.
               Preserves the original checkout; no push, merge to your branch or release.
             </p>
             <p class="fine-print">
@@ -801,8 +825,9 @@ defmodule CuckodingWeb.BattleComponent do
               Skip retains unfinished work and defers its dependents; independent work can produce a reviewed partial result.
             </p>
             <p id="battle-capacity-scope" class="fine-print">
-              Up to two Arenas work at once. Shared agent connections take one turn at a time;
-              tasks within this board run sequentially.
+              Two stage workers are shared across Arenas. Up to two independent tasks form a wave;
+              each assigned connection takes one provider turn at a time. Checks, review and integration
+              run in order after implementation; dependent tasks wait for reviewed results.
             </p>
             <p id="battle-check-scope" class="fine-print">
               Verification belongs in each task. Secutor inspects the result and evidence before completion;

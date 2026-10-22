@@ -152,6 +152,28 @@ alone never completes a task. Combined operations/consumers use a fixed 60-secon
 native budget and 65-second host ceiling; existing sequential limits and active
 cancellation remain. Future lane stages must also retain their original deadlines.
 
+R070d freezes `parallelism: parallel-waves-v1` in new Starts. SQLite selects up to
+two independent ready tasks whose prerequisites are already integrated. Each owns
+its stage, workspace and fresh sessions. Two global workers and one provider turn
+per exact connection remain; different assigned bindings permit overlap, while
+shared role connections queue. Old snapshots stay sequential.
+
+The wave finishes implementation/capture before serialized checks, Secutor review
+and CAS. A later candidate based on the old head uses R070b combination, clears old
+check/review authority and obtains fresh independent evidence. A verified conflict
+consumes a review round and returns through a fresh coordinator/Speculator/writer;
+its failed attempt/edits remain immutable. Other native failures never replay.
+Pause drains all current stages. Stop and timing fences require every bound
+cleanup receipt, without renewing the original five-second cleanup sleep window.
+Failures drain siblings before attention; each failed lane has its own Retry/Skip
+choice. Automatic backoff waits for a clean ordinary drain; multiple unresolved
+failures and user Pause remain explicit. Late siblings retain rejected receipts
+without head/card advancement. Startup interrupts every unfinished claim and may
+queue exact provider-closure reads individually; these allow Stop/capacity release
+only, never continuation. VM repository queues are not cleanup evidence.
+Additional parallel role slots, interrupted native sessions, real-provider and
+physical-sleep acceptance remain open. [Implementation](../tasks/R070d-parallel-waves.md).
+
 R060c adds **Skip task** under `task_selection: skip-task-v1`. A clean paused task,
 settled provider block/transient failure or exhausted task review may be skipped
 after confirming its exact ID/control revision and affected dependent tasks.

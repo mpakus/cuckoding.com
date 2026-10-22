@@ -76,7 +76,7 @@ defmodule CuckodingWeb.BattlePreviewLive do
         <h2 id="battle-preview-title">Inspect the preparation.</h2>
         <p id="preview-authority" class="notice">
           This preview is read-only. Start on the Arena board records separate execution authority
-          for the sequential Codex loop; viewing this page starts no work.
+          for the bounded Arena loop; viewing this page starts no work.
         </p>
         <p class="fine-print">
           This reads saved settings and verifies accepted Markdown. It starts no agent,
@@ -90,7 +90,7 @@ defmodule CuckodingWeb.BattlePreviewLive do
           >Back to Arena · Start and activity ↗</.link>
         </div>
         <p id="preview-loop-scope" class="fine-print">
-          The first loop runs one task at a time, with up to 20 tasks, three review rounds per task
+          Start runs independent tasks in waves of up to two, with up to 20 tasks, three review rounds per task
           and two hours. Final checks and an independent final Secutor review must pass;
           a failed final review needs attention. The result stays on an app-owned local branch.
         </p>

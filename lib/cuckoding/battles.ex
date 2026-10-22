@@ -1,5 +1,5 @@
 defmodule Cuckoding.Battles do
-  @moduledoc "Durable bounded Arena authority and sequential stage claims; workers own external effects."
+  @moduledoc "Durable bounded Arena authority and attempt claims; workers own external effects."
   import Ecto.Query, except: [update: 2, update: 3]
 
   alias Cuckoding.Battles.{
@@ -10,7 +10,8 @@ defmodule Cuckoding.Battles do
     ProviderClosure,
     Receipts,
     Snapshot,
-    Task
+    Task,
+    Waves
   }
 
   alias Cuckoding.{Event, Foundation, Repo, TaskTurn}
@@ -32,6 +33,7 @@ defmodule Cuckoding.Battles do
     "speculator" => "implementor",
     "implementor" => "capture",
     "capture" => "checks",
+    "combine" => "checks",
     "checks" => "secutor",
     "secutor" => "integrate",
     "final_checks" => "final_secutor",
@@ -67,25 +69,74 @@ defmodule Cuckoding.Battles do
   end
 
   defp idle_sleep_eligible?(battle, now) do
-    if battle.snapshot["idle_sleep"] == "shell-lease-v1" and
-         battle.state in ~w(running pausing stopping) and
-         DateTime.compare(now, battle.inserted_at) != :lt do
-      idle_sleep_work?(battle, running_attempt(battle.id), now)
-    else
-      false
-    end
+    battle.snapshot["idle_sleep"] == "shell-lease-v1" and
+      battle.state in ~w(running pausing stopping) and
+      DateTime.compare(now, battle.inserted_at) != :lt and idle_sleep_workers?(battle, now)
+  end
+
+  defp idle_sleep_workers?(battle, now) do
+    workers =
+      if Waves.enabled?(battle.snapshot),
+        do:
+          Repo.all(
+            from a in Attempt, where: a.battle_id == ^battle.id and a.state == "running", limit: 2
+          ),
+        else: [running_attempt(battle.id)]
+
+    workers = if workers == [], do: [nil], else: workers
+    Enum.any?(workers, &idle_sleep_work?(battle, &1, now))
   end
 
   defp idle_sleep_work?(battle, attempt, now) do
     if battle.state == "stopping" or timing_blocked?(battle) do
-      not is_nil(attempt) and DateTime.compare(now, battle.updated_at) != :lt and
-        not expired?(DateTime.add(battle.updated_at, 5), now) and
-        not expired?(DateTime.add(battle.deadline_at, 5), now) and
-        not expired?(DateTime.add(attempt.deadline_at, 5), now)
+      cleanup_sleep_window?(battle, attempt, now)
     else
       not expired?(battle.deadline_at, now) and
         if(attempt, do: not expired?(attempt.deadline_at, now), else: battle.state == "running")
     end
+  end
+
+  defp cleanup_sleep_window?(_, nil, _), do: false
+
+  defp cleanup_sleep_window?(battle, attempt, now) do
+    case cancellation_started_at(battle) do
+      %DateTime{} = time ->
+        DateTime.compare(now, time) != :lt and not expired?(DateTime.add(time, 5), now) and
+          not expired?(DateTime.add(min_time(battle.deadline_at, attempt.deadline_at), 5), now)
+
+      _ ->
+        false
+    end
+  end
+
+  defp cancellation_started_at(battle),
+    do:
+      if(Waves.enabled?(battle.snapshot),
+        do: parse_cancellation(battle.context["cancellation_started_at"]),
+        else: battle.updated_at
+      )
+
+  defp parse_cancellation(value) when is_binary(value) do
+    case DateTime.from_iso8601(value) do
+      {:ok, time, 0} -> time
+      _ -> nil
+    end
+  end
+
+  defp parse_cancellation(_), do: nil
+
+  defp mark_cancellation(battle) do
+    if Waves.enabled?(battle.snapshot),
+      do:
+        update(battle,
+          context:
+            Map.put_new(
+              battle.context,
+              "cancellation_started_at",
+              DateTime.to_iso8601(DateTime.utc_now())
+            )
+        ),
+      else: battle
   end
 
   def active?(arena_id),
@@ -201,15 +252,56 @@ defmodule Cuckoding.Battles do
       battle = get(id) || Repo.rollback(:not_found)
 
       cond do
-        Backoff.pending?(battle) -> claim_backoff(battle, now)
-        battle.state != "running" -> Repo.rollback(:not_running)
-        timing_blocked?(battle) -> attention(battle, "timing_gap")
-        running_attempt(battle.id) -> Repo.rollback(:busy)
-        expired?(battle.deadline_at, now) -> attention(battle, "deadline_exceeded")
-        battle.turns_used >= battle.snapshot["limits"]["turns"] -> attention(battle, "turn_limit")
-        true -> claim(battle, now)
+        Backoff.pending?(battle) ->
+          claim_backoff(battle, now)
+
+        battle.state != "running" ->
+          Repo.rollback(:not_running)
+
+        timing_blocked?(battle) ->
+          attention(battle, "timing_gap")
+
+        stage_busy?(battle) ->
+          Repo.rollback(:busy)
+
+        expired?(battle.deadline_at, now) ->
+          attention(battle, "deadline_exceeded")
+
+        battle.turns_used >= battle.snapshot["limits"]["turns"] ->
+          attention(battle, "turn_limit")
+
+        true ->
+          claim_work(battle, now)
       end
     end)
+  end
+
+  defp stage_busy?(battle),
+    do:
+      (not Waves.enabled?(battle.snapshot) or is_nil(battle.current_task_id)) and
+        running_attempt(battle.id)
+
+  defp claim_work(battle, now) do
+    if Waves.enabled?(battle.snapshot) and battle.current_task_id,
+      do: claim_wave(battle, now),
+      else: claim(battle, now)
+  end
+
+  defp claim_wave(battle, now) do
+    running =
+      Repo.all(from a in Attempt, where: a.battle_id == ^battle.id and a.state == "running")
+
+    candidates = Waves.candidates(battle, tasks(battle.id), running)
+    selected = Enum.find(candidates, &claimable_wave?/1)
+    if is_nil(selected), do: Repo.rollback(if(candidates == [], do: :busy, else: :capacity))
+    task = current_task(selected)
+    update(task, context: Waves.put_stage(task.context, selected, selected.stage))
+    claim(selected, now)
+  end
+
+  defp claimable_wave?(view) do
+    role = Enum.find(view.snapshot["team"], &(&1["id"] == @roles[view.stage]))
+    Capacity.available?(view.snapshot, role)
   end
 
   defp claim(battle, now) do
@@ -287,10 +379,29 @@ defmodule Cuckoding.Battles do
   end
 
   defp finish_current(battle, attempt, result, now) do
-    if timing_fenced?(battle, attempt),
-      do: finish_timing_gap(battle, attempt, result),
-      else: finish_unfenced(battle, attempt, result, now)
+    if Waves.enabled?(battle.snapshot) and battle.state == "needs_attention" and
+         battle.reason == "late_result_rejected" do
+      Waves.reject_receipt(battle, attempt, result)
+    else
+      finish_selected(battle, attempt, result, now)
+    end
   end
+
+  defp finish_selected(battle, attempt, result, now) do
+    battle = if Waves.enabled?(battle.snapshot), do: Waves.view(battle, attempt), else: battle
+
+    updated =
+      if timing_fenced?(battle, attempt),
+        do: finish_timing_gap(battle, attempt, result),
+        else: finish_unfenced(battle, attempt, result, now)
+
+    focus_wave(updated)
+  end
+
+  defp focus_wave(%Battle{} = battle),
+    do: if(Waves.enabled?(battle.snapshot), do: Waves.focus(battle), else: battle)
+
+  defp focus_wave(other), do: other
 
   defp finish_unfenced(battle, attempt, result, now) do
     cond do
@@ -313,12 +424,13 @@ defmodule Cuckoding.Battles do
       true ->
         complete_attempt(battle, attempt, result)
         |> finish_pause()
-        |> schedule_backoff(battle.state, now)
+        |> focus_wave()
+        |> schedule_backoff(Waves.backoff_origin(battle), now)
     end
   end
 
   defp expire_attempt(battle, attempt, result) do
-    unless valid_expired_result?(attempt, result), do: Repo.rollback(:invalid_result)
+    unless Receipts.rejected_payload_valid?(attempt, result), do: Repo.rollback(:invalid_result)
     update(attempt, state: "expired", result: result)
 
     record(battle, "stage_expired", %{
@@ -331,12 +443,6 @@ defmodule Cuckoding.Battles do
 
     attention(battle, "late_result_rejected")
   end
-
-  # The executor also cancels on expiry; this receipt can close work, never advance it.
-  defp valid_expired_result?(_, %{"status" => "cancelled", "cleanup_verified" => cleanup}),
-    do: is_boolean(cleanup)
-
-  defp valid_expired_result?(attempt, result), do: Receipts.payload_valid?(attempt, result)
 
   def observe_timing_gap(observation) do
     if valid_timing_gap?(observation) do
@@ -373,16 +479,12 @@ defmodule Cuckoding.Battles do
   defp fence_timing_gap(battle, observation) do
     battle = clear_backoff(battle, "timing_gap")
     attempt = running_attempt(battle.id)
+    battle = mark_active_cancellation(battle, attempt)
 
     blocked =
       observation["kind"] == "clock_backward" or not is_nil(attempt) or not quiescent?(battle)
 
-    observation =
-      Map.merge(observation, %{
-        "attempt_id" => if(attempt, do: attempt.id),
-        "recovery_attempt_id" => battle.context["integration_recovery_pending"],
-        "blocks_continuation" => blocked
-      })
+    observation = bind_timing_observation(battle, observation, attempt, blocked)
 
     state =
       cond do
@@ -417,11 +519,42 @@ defmodule Cuckoding.Battles do
     battle
   end
 
+  defp mark_active_cancellation(battle, nil), do: battle
+  defp mark_active_cancellation(battle, _), do: mark_cancellation(battle)
+
+  defp bind_timing_observation(battle, observation, attempt, blocked) do
+    observation =
+      Map.merge(observation, %{
+        "attempt_id" => if(attempt, do: attempt.id),
+        "recovery_attempt_id" => battle.context["integration_recovery_pending"],
+        "blocks_continuation" => blocked
+      })
+
+    observation =
+      if Waves.enabled?(battle.snapshot) do
+        ids =
+          Repo.all(
+            from a in Attempt,
+              where: a.battle_id == ^battle.id and a.state == "running",
+              select: a.id
+          )
+
+        Map.put(observation, "attempt_ids", ids)
+      else
+        observation
+      end
+
+    observation
+  end
+
   defp timing_blocked?(battle),
     do: get_in(battle.context, ["timing_gap", "blocks_continuation"]) == true
 
   defp timing_fenced?(battle, attempt),
-    do: get_in(battle.context, ["timing_gap", "attempt_id"]) == attempt.id
+    do:
+      get_in(battle.context, ["timing_gap", "attempt_id"]) == attempt.id or
+        (Waves.enabled?(battle.snapshot) and
+           attempt.id in (get_in(battle.context, ["timing_gap", "attempt_ids"]) || []))
 
   defp timing_closed?(battle, attempt),
     do:
@@ -429,7 +562,7 @@ defmodule Cuckoding.Battles do
         attempt.id in (battle.context["timing_closed_attempts"] || [])
 
   defp finish_timing_gap(battle, attempt, result) do
-    unless valid_expired_result?(attempt, result), do: Repo.rollback(:invalid_result)
+    unless Receipts.rejected_payload_valid?(attempt, result), do: Repo.rollback(:invalid_result)
     update(attempt, state: "interrupted", result: result)
     cleanup = result["cleanup_verified"] == true
 
@@ -448,14 +581,26 @@ defmodule Cuckoding.Battles do
       "cleanup_verified" => cleanup
     })
 
-    if battle.state == "stopping" and cleanup and safe_to_stop?(battle) do
-      battle = update(battle, state: "stopped", reason: "user_stop")
-      record(battle, "stopped", %{"attempt_id" => attempt.id})
-      battle
-    else
-      needs_attention(battle, if(cleanup, do: "timing_gap", else: "cleanup_uncertain"))
+    finish_timing_boundary(battle, attempt, cleanup)
+  end
+
+  defp finish_timing_boundary(%Battle{state: "stopping"} = battle, attempt, cleanup) do
+    cond do
+      cleanup and safe_to_stop?(battle) ->
+        battle = update(battle, state: "stopped", reason: "user_stop")
+        record(battle, "stopped", %{"attempt_id" => attempt.id})
+        battle
+
+      Waves.enabled?(battle.snapshot) and running_attempt(battle.id) ->
+        battle
+
+      true ->
+        needs_attention(battle, "cleanup_uncertain")
     end
   end
+
+  defp finish_timing_boundary(battle, _, cleanup),
+    do: needs_attention(battle, if(cleanup, do: "timing_gap", else: "cleanup_uncertain"))
 
   def pause(id, revision) do
     transaction(fn -> control_battle(id, revision, "running") |> pause_current() end)
@@ -514,12 +659,20 @@ defmodule Cuckoding.Battles do
   end
 
   defp finish_pause(%Battle{state: "pausing"} = battle) do
-    if quiescent?(battle) do
-      battle = update(battle, state: "paused")
-      record(battle, "paused")
-      battle
-    else
-      needs_attention(battle, "cleanup_uncertain")
+    cond do
+      running_attempt(battle.id) ->
+        battle
+
+      Waves.enabled?(battle.snapshot) and Waves.blocked?(battle) ->
+        update(battle, state: "needs_attention")
+
+      quiescent?(battle) ->
+        battle = update(battle, state: "paused")
+        record(battle, "paused")
+        battle
+
+      true ->
+        needs_attention(battle, "cleanup_uncertain")
     end
   end
 
@@ -532,7 +685,7 @@ defmodule Cuckoding.Battles do
   end
 
   defp settled?(battle, attempt) do
-    reconciled?(battle, attempt) or
+    reconciled?(battle, attempt) or Waves.conflict_settled?(battle, attempt) or
       (attempt.result["cleanup_verified"] == true and
          (attempt.state == "completed" or
             (attempt.state == "failed" and
@@ -548,7 +701,10 @@ defmodule Cuckoding.Battles do
   defp retried(battle), do: battle.context["provider_retries"] || []
 
   defp schedule_backoff(battle, "running", now) do
-    attempt = if Backoff.enabled?(battle), do: retry_candidate(battle, now)
+    multiple =
+      Waves.enabled?(battle.snapshot) and map_size(battle.context["lane_blockers"] || %{}) > 1
+
+    attempt = if Backoff.enabled?(battle) and not multiple, do: retry_candidate(battle, now)
 
     if attempt && Backoff.transient?(attempt) do
       used =
@@ -600,7 +756,7 @@ defmodule Cuckoding.Battles do
 
     case retry_candidate(battle, now) do
       %Attempt{id: ^expected} = attempt ->
-        battle |> retry_current(attempt) |> claim(now)
+        battle |> retry_current(attempt) |> claim_work(now)
 
       _ ->
         cancel_wait(battle, "retry_unavailable") |> attention("retry_unavailable")
@@ -646,19 +802,22 @@ defmodule Cuckoding.Battles do
 
   defp retry_candidate(%Battle{state: "needs_attention"} = battle, now) do
     history = attempts(battle.id)
-    attempt = List.last(history)
+    attempt = Waves.control_attempt(battle, history)
 
     used =
       Enum.count(history, &(&1.id in retried(battle) and &1.task_id == battle.current_task_id))
 
     if retry_scope?(battle, now) and used < 2 and
          retryable_attempt?(battle, attempt) and
-         Enum.all?(history, &(&1.id == attempt.id or settled?(battle, &1))) do
+         Enum.all?(history, &(&1.id == attempt.id or control_settled?(battle, &1))) do
       attempt
     end
   end
 
   defp retry_candidate(_, _), do: nil
+
+  defp control_settled?(battle, attempt),
+    do: settled?(battle, attempt) or Waves.other_blocked?(battle, attempt)
 
   defp retry_scope?(battle, now) do
     not timing_blocked?(battle) and battle.snapshot["recovery"] == "provider-retry-v1" and
@@ -692,7 +851,10 @@ defmodule Cuckoding.Battles do
     stage = if attempt.stage == "implementor", do: "prepare_worktree", else: battle.stage
 
     if task = current_task(battle) do
-      update(task, state: projection(stage), context: Map.delete(task.context, "column"))
+      update(task,
+        state: projection(stage),
+        context: task.context |> Map.delete("column") |> Waves.put_stage(battle, stage)
+      )
     end
 
     battle =
@@ -715,7 +877,9 @@ defmodule Cuckoding.Battles do
       "control_revision" => battle.control_revision
     })
 
-    battle
+    if Waves.enabled?(battle.snapshot),
+      do: Waves.clear_block(battle, attempt.task_id),
+      else: battle
   end
 
   # This preview reads only the frozen graph. Skip rechecks it under the write lock.
@@ -765,10 +929,10 @@ defmodule Cuckoding.Battles do
 
   defp skippable_boundary?(battle) do
     history = attempts(battle.id)
-    attempt = List.last(history)
+    attempt = Waves.control_attempt(battle, history)
 
     task_failure?(battle, attempt) and
-      Enum.all?(history, &(&1.id == attempt.id or settled?(battle, &1)))
+      Enum.all?(history, &(&1.id == attempt.id or control_settled?(battle, &1)))
   end
 
   defp task_failure?(_, nil), do: false
@@ -836,10 +1000,21 @@ defmodule Cuckoding.Battles do
       "control_revision" => battle.control_revision
     })
 
+    battle =
+      if Waves.enabled?(battle.snapshot),
+        do: Waves.clear_blocks(battle, Enum.map(affected, & &1.task_id)),
+        else: battle
+
     next_task(battle)
   end
 
   defp next_task(battle) do
+    if Waves.enabled?(battle.snapshot),
+      do: Waves.activate(battle, review_stage(battle, "final_checks")),
+      else: next_sequential_task(battle)
+  end
+
+  defp next_sequential_task(battle) do
     all = tasks(battle.id)
     next = Enum.find(all, &(&1.state not in ~w(completed skipped deferred)))
 
@@ -869,7 +1044,9 @@ defmodule Cuckoding.Battles do
 
       true ->
         battle = clear_backoff(battle, "user_stop")
-        state = if(running_attempt(battle.id), do: "stopping", else: "stopped")
+        attempt = running_attempt(battle.id)
+        battle = mark_active_cancellation(battle, attempt)
+        state = if(attempt, do: "stopping", else: "stopped")
         battle = update(battle, state: state, reason: "user_stop")
         record(battle, "stop_requested")
         battle
@@ -904,15 +1081,20 @@ defmodule Cuckoding.Battles do
       Repo.all(
         from b in Battle, where: b.state in ~w(running pausing paused stopping needs_attention)
       )
-      |> Enum.filter(&(&1.state != "needs_attention" or Backoff.pending?(&1)))
+      |> Enum.filter(
+        &(&1.state != "needs_attention" or Backoff.pending?(&1) or
+            (Waves.enabled?(&1.snapshot) and not is_nil(running_attempt(&1.id))))
+      )
       |> Enum.map(&recover_battle/1)
     end)
   end
 
   defp recover_battle(%Battle{state: "needs_attention"} = battle) do
-    if Backoff.pending?(battle),
-      do: cancel_wait(battle, "restart_requires_confirmation"),
-      else: battle
+    cond do
+      Backoff.pending?(battle) -> cancel_wait(battle, "restart_requires_confirmation")
+      Waves.enabled?(battle.snapshot) and running_attempt(battle.id) -> interrupt_battle(battle)
+      true -> battle
+    end
   end
 
   defp recover_battle(%Battle{state: "paused"} = battle) do
@@ -943,6 +1125,23 @@ defmodule Cuckoding.Battles do
   defp recover_battle(battle), do: interrupt_battle(battle)
 
   defp interrupt_battle(battle) do
+    if Waves.enabled?(battle.snapshot),
+      do: interrupt_wave(battle),
+      else: interrupt_sequential(battle)
+  end
+
+  defp interrupt_wave(battle) do
+    {battle, selected} = Waves.interrupt(battle)
+
+    battle =
+      if selected && is_nil(battle.context["provider_closure_pending"]),
+        do: arm_recovery(battle, selected),
+        else: battle
+
+    needs_attention(battle, "restart_requires_inspection")
+  end
+
+  defp interrupt_sequential(battle) do
     battle =
       if attempt = running_attempt(battle.id) do
         update(attempt, state: "interrupted", result: %{"status" => "interrupted"})
@@ -1052,7 +1251,7 @@ defmodule Cuckoding.Battles do
         "cleanup_verified" => verified
       })
 
-      battle
+      Waves.advance_provider_queue(battle, attempt.id)
     end)
   end
 
@@ -1155,6 +1354,11 @@ defmodule Cuckoding.Battles do
         if(timing_blocked?(battle), do: "timing_gap", else: "late_result_rejected")
       )
     else
+      battle =
+        if Waves.enabled?(battle.snapshot),
+          do: Waves.clear_block(battle, attempt.task_id),
+          else: battle
+
       battle = advance(battle, attempt, result)
 
       battle =
@@ -1180,14 +1384,30 @@ defmodule Cuckoding.Battles do
          %{"status" => "cancelled", "cleanup_verified" => true} = result
        ) do
     update(attempt, state: "cancelled", result: result)
-    battle = update(battle, state: "stopped", reason: "user_stop")
-    record(battle, "stopped", %{"attempt_id" => attempt.id})
-    battle
+
+    cond do
+      Waves.enabled?(battle.snapshot) and running_attempt(battle.id) ->
+        update(battle, state: "stopping")
+
+      Waves.enabled?(battle.snapshot) and not safe_to_stop?(battle) ->
+        battle = update(battle, state: "needs_attention", reason: "cleanup_uncertain")
+        record(battle, "needs_attention", %{"reason" => "cleanup_uncertain"})
+        battle
+
+      true ->
+        battle = update(battle, state: "stopped", reason: "user_stop")
+        record(battle, "stopped", %{"attempt_id" => attempt.id})
+        battle
+    end
   end
 
   defp finish_stop(battle, attempt, %{"status" => "cancelled"} = result) do
     update(attempt, state: "interrupted", result: result)
-    needs_attention(battle, "cleanup_uncertain")
+    battle = needs_attention(battle, "cleanup_uncertain")
+
+    if Waves.enabled?(battle.snapshot) and running_attempt(battle.id),
+      do: update(battle, state: "stopping"),
+      else: battle
   end
 
   defp finish_stop(_, _, _), do: Repo.rollback(:stop_pending)
@@ -1208,20 +1428,46 @@ defmodule Cuckoding.Battles do
     })
 
     cond do
-      status in ~w(failed blocked) -> needs_attention(battle, result["reason"] || status)
-      status == "changes_requested" -> review_return(battle, attempt, result)
-      true -> advance(battle, attempt, result)
+      Waves.conflict?(attempt, result) ->
+        context =
+          Map.update(battle.context, "combination_conflicts", [attempt.id], &(&1 ++ [attempt.id]))
+
+        battle = update(battle, context: context)
+
+        record(battle, "combination_conflict", %{
+          "attempt_id" => attempt.id,
+          "task_id" => attempt.task_id
+        })
+
+        review_return(battle, attempt, %{
+          "feedback" =>
+            "A combination conflict prevents preserving both task results. Inspect the current reviewed head and reimplement this task in the fresh checkout, preserving all frozen criteria and the other task's work."
+        })
+
+      status in ~w(failed blocked) ->
+        needs_attention(battle, result["reason"] || status)
+
+      status == "changes_requested" ->
+        review_return(battle, attempt, result)
+
+      true ->
+        advance(battle, attempt, result)
     end
   end
 
   defp advance(battle, %Attempt{stage: "admission"}, result) do
     task = hd(tasks(battle.id))
 
-    update(battle,
-      context: result_context(result),
-      current_task_id: task.task_id,
-      stage: "prepare_worktree"
-    )
+    battle =
+      update(battle,
+        context: result_context(result),
+        current_task_id: task.task_id,
+        stage: "prepare_worktree"
+      )
+
+    if Waves.enabled?(battle.snapshot),
+      do: Waves.activate(battle, review_stage(battle, "final_checks")),
+      else: battle
   end
 
   defp advance(battle, %Attempt{stage: "integrate"}, result) do
@@ -1247,13 +1493,15 @@ defmodule Cuckoding.Battles do
     next_stage = review_stage(battle, Map.fetch!(@next, attempt.stage))
 
     if task = current_task(battle) do
-      context = Map.merge(task.context, result_context(result))
+      context =
+        Map.merge(task.context, result_context(result)) |> Waves.put_stage(battle, next_stage)
 
       context =
-        if(attempt.stage == "prepare_worktree",
-          do: Map.drop(context, ~w(candidate_sha native_candidate checks)),
-          else: context
-        )
+        case attempt.stage do
+          "prepare_worktree" -> Map.drop(context, ~w(candidate_sha native_candidate checks))
+          "combine" -> Map.drop(context, ~w(checks provider))
+          _ -> context
+        end
 
       state = projection(next_stage)
       update(task, state: state, context: context)
@@ -1274,7 +1522,7 @@ defmodule Cuckoding.Battles do
 
   defp review_stage(_, stage), do: stage
 
-  defp review_return(battle, %Attempt{stage: "secutor"}, result) do
+  defp review_return(battle, %Attempt{stage: stage}, result) when stage in ~w(secutor combine) do
     task = current_task(battle)
     round = task.review_round + 1
 
@@ -1286,6 +1534,13 @@ defmodule Cuckoding.Battles do
           "feedback" => result["feedback"] || result["provider"]["report"]["summary"],
           "previous_implementation" => get_in(task.context, ["provider", "report", "summary"])
         })
+        |> Waves.put_stage(
+          battle,
+          if(round >= battle.snapshot["limits"]["review_rounds"],
+            do: stage,
+            else: "prepare_worktree"
+          )
+        )
     )
 
     if round >= battle.snapshot["limits"]["review_rounds"],
@@ -1296,7 +1551,7 @@ defmodule Cuckoding.Battles do
   defp review_return(battle, _, _), do: needs_attention(battle, "final_review_changes_requested")
 
   defp projection(stage) when stage in ~w(prepare_worktree coordinator speculator), do: "specs"
-  defp projection(stage) when stage in ~w(checks secutor integrate), do: "review"
+  defp projection(stage) when stage in ~w(combine checks secutor integrate), do: "review"
   defp projection(_), do: "in_process"
 
   defp result_context(result), do: Map.drop(result, @envelope ++ ["status", "reason"])
@@ -1306,7 +1561,13 @@ defmodule Cuckoding.Battles do
     do: Repo.get_by!(Task, battle_id: battle.id, task_id: battle.current_task_id)
 
   defp running_attempt(id),
-    do: Repo.one(from a in Attempt, where: a.battle_id == ^id and a.state == "running")
+    do:
+      Repo.one(
+        from a in Attempt,
+          where: a.battle_id == ^id and a.state == "running",
+          order_by: a.inserted_at,
+          limit: 1
+      )
 
   defp attention(battle, reason) do
     needs_attention(battle, reason)
@@ -1320,7 +1581,15 @@ defmodule Cuckoding.Battles do
       update(task, state: "needs_attention", context: context)
     end
 
-    battle = update(battle, state: "needs_attention", reason: reason)
+    context = Waves.failure_context(battle, reason)
+
+    battle = update(battle, state: "needs_attention", reason: reason, context: context)
+
+    battle =
+      if Waves.enabled?(battle.snapshot) and reason != "late_result_rejected",
+        do: Waves.block(battle, reason),
+        else: battle
+
     record(battle, "needs_attention", %{"reason" => reason})
     battle
   end

@@ -1,74 +1,21 @@
 defmodule Cuckoding.BattlesTest do
   use Cuckoding.DataCase
-  alias Cuckoding.{Battles, Codex, Foundation, ProjectChecks, Tabulae, Team, TeamAssignments}
+
+  alias Cuckoding.{
+    Battles,
+    Foundation,
+    ProjectChecks,
+    Tabulae,
+    Team,
+    TeamAssignments
+  }
+
   alias Cuckoding.Battles.{Attempt, Backoff, Battle, Snapshot}
 
+  import Cuckoding.BattleFixtures
+
   setup do
-    %{board: board} = Cuckoding.PlanningFixtures.planning_fixture()
-    workspace = Foundation.workspace()
-
-    Repo.update!(
-      Ecto.Changeset.change(workspace,
-        codex: Map.put(workspace.codex, "version", Codex.isolation_version())
-      )
-    )
-
-    team = Team.current()
-
-    roles =
-      Enum.map(
-        Team.editable(team),
-        &Map.merge(&1, %{"agent" => "codex", "model_id" => "test-id"})
-      )
-
-    {:ok, team} = Team.save(Ecto.UUID.generate(), team.id, roles)
-
-    {:ok, _} =
-      TeamAssignments.adopt(
-        Ecto.UUID.generate(),
-        board.arena_id,
-        board.id,
-        board.team_revision_id,
-        team.id,
-        true
-      )
-
-    check = %{
-      "id" => Ecto.UUID.generate(),
-      "name" => "Tests",
-      "executable" => "mix",
-      "arguments" => ["test"],
-      "directory" => ".",
-      "timeout_seconds" => 120
-    }
-
-    {:ok, _} = ProjectChecks.save(Ecto.UUID.generate(), board.arena_id, 0, [check], true)
-    first = save_task(board, "First", [])
-    second = save_task(board, "Second", [first.id])
-    %{board: board, first: first, second: second, check: check}
-  end
-
-  defp save_task(board, title, dependencies) do
-    {:ok, _} =
-      Tabulae.save(Ecto.UUID.generate(), board.arena_id, board.id, Ecto.UUID.generate(), 0, %{
-        "title" => title,
-        "description" => "Implement #{title}",
-        "criteria" => "Retain all acceptance criteria #{title}",
-        "column" => "specs",
-        "depends_on" => dependencies
-      })
-
-    Enum.find(Tabulae.tasks(board.id), &(&1.title == title))
-  end
-
-  defp start(board) do
-    {:ok, preview} = Battles.preview(board.arena_id, board.id)
-    assert preview.blockers == []
-
-    {:ok, battle} =
-      Battles.start(Ecto.UUID.generate(), board.arena_id, board.id, preview.fingerprint, true)
-
-    battle
+    fixture()
   end
 
   test "custom planning roles stay saved without blocking or joining a battle", ctx do
@@ -236,85 +183,6 @@ defmodule Cuckoding.BattlesTest do
     end
   end
 
-  defp result(attempt, override \\ %{}) do
-    envelope = Map.take(attempt.request, ~w(battle_id request_id task_id stage criteria_sha256))
-
-    candidate =
-      attempt.request["task_context"]["candidate_sha"] || attempt.request["context"]["head"]
-
-    payload =
-      case attempt.stage do
-        "admission" ->
-          %{
-            "status" => "admitted",
-            "head" => String.duplicate("a", 40),
-            "native_battle" => %{"reference" => "refs/ccoding/battles/#{attempt.battle_id}"},
-            "resolved_checks" => attempt.request["snapshot"]["checks"]
-          }
-
-        "prepare_worktree" ->
-          %{
-            "status" => "prepared",
-            "preparation" => %{"key" => attempt.id, "head" => attempt.request["context"]["head"]}
-          }
-
-        "capture" ->
-          %{
-            "status" => "captured",
-            "candidate_sha" => Base.encode16(:crypto.hash(:sha, attempt.id), case: :lower),
-            "native_candidate" => %{"key" => attempt.id}
-          }
-
-        stage when stage in ~w(checks final_checks) ->
-          %{
-            "status" => "passed",
-            "candidate_sha" => candidate,
-            "checks" =>
-              Enum.map(
-                attempt.request["snapshot"]["checks"],
-                &%{"id" => &1["id"], "status" => "passed", "exit_code" => 0}
-              )
-          }
-
-        "integrate" ->
-          %{
-            "status" => "integrated",
-            "candidate_sha" => candidate,
-            "head" => candidate,
-            "native_battle" => %{"head" => candidate}
-          }
-
-        _ ->
-          %{
-            "status" => "completed",
-            "candidate_sha" => candidate,
-            "provider" => %{
-              "status" => "task_finished",
-              "request_id" => attempt.id,
-              "grant" => "host-task-tools-v1",
-              "access" => if(attempt.stage == "implementor", do: "write", else: "read"),
-              "requested_model" => "test-model",
-              "observed_model" => "test-model",
-              "effort" => "low",
-              "thread_id" => Ecto.UUID.generate(),
-              "turn_id" => Ecto.UUID.generate(),
-              "report" => %{"summary" => "Public evidence", "outcome" => "completed"},
-              "tools" => [
-                %{
-                  "call_id" => Ecto.UUID.generate(),
-                  "tool" => "read_file",
-                  "status" => "completed",
-                  "path" => "README.md",
-                  "sha256" => String.duplicate("a", 64)
-                }
-              ]
-            }
-          }
-      end
-
-    envelope |> Map.merge(payload) |> Map.put("cleanup_verified", true) |> Map.merge(override)
-  end
-
   defp step(battle, overrides \\ %{}) do
     {:ok, attempt} = Battles.claim_next(battle.id)
     {:ok, battle} = Battles.finish(attempt.id, attempt.claim_token, result(attempt, overrides))
@@ -365,7 +233,7 @@ defmodule Cuckoding.BattlesTest do
     states = Map.new(Battles.tasks(battle.id), &{&1.task_id, &1.state})
     assert states[ctx.first.id] == "skipped"
     for id <- [ctx.second.id, sibling.id, leaf.id], do: assert(states[id] == "deferred")
-    assert states[independent.id] == "pending"
+    assert states[independent.id] == "specs"
     assert {:ok, _} = Battles.recover()
     assert Battles.get(battle.id).context == skipped.context
     {:ok, resumed} = Battles.resume(skipped.id, skipped.control_revision)

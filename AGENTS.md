@@ -5,14 +5,14 @@
 These rules apply repository-wide. More specific rules may strengthen safety,
 auditability and verification, not weaken them. The 2026-10-06 user reset replaces
 the previous product direction. The implemented boundary includes named
-Codex/Cursor setup, draft planning, owned worktrees and the first bounded
-sequential Codex/Cursor Arena loop. [Architecture](docs/ARCHITECTURE.md) names source
+Codex/Cursor setup, draft planning, owned worktrees and the bounded
+Codex/Cursor Arena loop with independent-task implementation waves. [Architecture](docs/ARCHITECTURE.md) names source
 owners; [Plan](docs/PLAN.md) owns remaining acceptance. General toolchain checks,
-full recovery, same-board parallel workers, remaining providers and real-account battle
+full recovery, additional parallel role slots, remaining providers and real-account battle
 acceptance remain open.
 
 R070a freezes `scheduler: isolated-arenas-v1` in new Starts. SQLite admission
-limits battle stages to two globally, one per battle/Arena and one provider turn
+limits R070a-only battle stages to two globally, one per battle/Arena and one provider turn
 per exact connection. Unverified provider cleanup reserves that connection even
 after a failed/interrupted attempt; missing processes never prove release.
 Capacity waits consume no turns/retries. BattleRunner fairly rotates ready Arenas
@@ -32,8 +32,8 @@ single-parent candidate requires new independent review/check evidence before
 serialized CAS; its native receipt alone grants no workflow authority. New combined
 operations/consumers have a fixed 60-second native budget (65-second host ceiling),
 with cancellation and the original future stage/battle deadline still authoritative.
-Historical sequential operations keep their limits. Same-board lane admission,
-conflict repair and real-provider parallel acceptance remain open.
+Historical sequential operations keep their limits. R070d supplies wave admission
+and conflict repair; additional role slots and real-provider acceptance remain open.
 
 R070c centralizes existing outcome checks in `Battles.Receipts`. Settlement,
 Stop, expiry, review-failure controls and recovery retain their exact envelope,
@@ -41,6 +41,25 @@ payload/provider/session/candidate/check gates inside the owning transaction.
 `payload_valid?` alone is not envelope binding or workflow authority. Keep reads
 bound to the immutable attempt, never a different task selected by a coordinator.
 This extraction enables no lane policy or new historical authority.
+
+R070d freezes `parallelism: parallel-waves-v1` in new Starts. Two independent
+ready task pipelines may share the two global workers; prerequisites must already
+be integrated. Task `lane_stage` is durable; the battle cursor is presentation.
+Keep one claim per task, one provider turn per exact connection and serialized
+wave review/checks/integration. A changed head uses the R070b candidate and new
+evidence; clear old check/review authority. Only verified `candidate_conflict`
+returns through a recorded bounded fresh-worktree Speculator/Implementor repair.
+Pause drains every current stage. Stop/timing cancellation waits for every bound
+cleanup receipt and retains its original five-second sleep-lease cleanup window.
+Failures drain siblings before attention; separate failed lanes keep separate
+Retry/Skip decisions. Automatic backoff waits until a clean drain; multiple
+unresolved failures or a user Pause never gain automatic continuation. Late
+siblings retain rejected evidence without card/head advancement. Restart retains
+all interrupted claims; exact provider-closure reads queue individually and permit
+Stop/capacity release only. VM repository I/O locks are cancellable coordination,
+never native ownership or cleanup proof. Preserve old snapshots and forward-only
+claim-index migration/backup. This is not simultaneous same-connection writers,
+additional role slots, full native recovery or real-account parallel acceptance.
 
 R080g keeps dashboard observations read-only. Global worker rows expose only
 exact public role/runtime/model bindings; Arena summaries and chronological
@@ -392,7 +411,7 @@ nor independent review; future integration must bind exact criteria/check eviden
 
 ## R050e / R050f execution boundary
 
-The sequential Codex/Cursor Arena loop is implemented in `Battles`,
+The bounded Codex/Cursor Arena loop is implemented in `Battles`,
 `BattleRunner`, `BattleExecutor` and native battle Git/check helpers. Start freezes
 membership/criteria/team/check revisions and finite limits; admission binds the
 current committed source and exact executables. Battle/task snapshots and attempt
@@ -453,7 +472,7 @@ Do not require these as routine setup screens or repeat approvals per task.
 R002 implements atomic default-board creation, immediate Arena navigation and
 Advanced disclosures. R040l adds bounded folder snapshots and consented Speculator
 analysis; R040m creates the validated cards automatically. R050e adds the first
-bounded sequential Codex/Cursor battle; general toolchain checks and real-account battle
+bounded Codex/Cursor battle (extended by R070d task waves); general toolchain checks and real-account battle
 acceptance remain open.
 Preserve scoped reads/consents. Folder analysis needs a bounded read grant;
 Start owns a separate bounded execution grant.

@@ -2,7 +2,7 @@
 
 **Current implementation audit: 2026-10-21.** The source reset remains historical;
 this checklist describes the current local preview. Setup, saved teams, folder
-analysis, automatic task cards and the bounded sequential Codex/Cursor Arena loop
+analysis, automatic task cards and the bounded Codex/Cursor Arena loop with task waves
 are implemented. Pause/Resume, explicit provider Retry and Skip/Partial are also
 implemented. R060d adds safe restart checkpoints and R060e retains expired stage
 evidence for verified closure. R012 runs setup/planning in supervised asynchronous
@@ -19,7 +19,7 @@ attempts, inside the existing retry budget; interrupted/native recovery remains 
 | --- | --- | --- |
 | Agents and Team | Named Codex/Cursor connections, full bounded catalogs, model choices, default/custom planning roles, scoped team editing/adoption | Custom execution roles/stages, Claude Code and Hermes |
 | Arena and tasks | Add folder/default board, bounded docs-first analysis, optional saved planning role, automatic cards, prerequisites, citations and saved criteria | Custom columns and real-account planning acceptance |
-| Execution | One Start, sequential mixed-runtime dispatch per board, two isolated Arenas concurrently, independent review/correction and retained local result branch | General subprocess/toolchain checks, real mixed-provider battle acceptance and same-board parallel workers |
+| Execution | One Start, two independent task pipelines per wave within two global workers, serialized independent review/correction/integration and retained local result branch | General subprocess/toolchain checks, real mixed-provider battle acceptance and additional parallel role slots |
 | Controls/recovery | Stop, stage-boundary Pause/Resume, bounded provider Retry and automatic backoff, Skip with deferred dependents and Partial result; settled restart checkpoints, timing fence and bounded idle-sleep assertion | Unfinished native/process/Git reconciliation, sleep accounting and physical sleep tests |
 | Experience | Agent wizard/disconnect, Team editor, Arena controls/inspector with public JSON evidence downloads, global workers/progress and paginated global/Arena activity with follow control | Broader parallel activity, responsive/browser acceptance and timed ten-minute setup |
 | Release | Local bundle/build/smoke, separate preserved data root; Decimal/Bandit advisories fixed | Signing/notarization, clean-machine install, updates/rollback and full acceptance matrix |
@@ -165,8 +165,9 @@ The numbered story below is capability coverage, not eight mandatory screens.
 
 [R002 evidence](../tasks/R002-simple-arena-contract.md) records the delivered UI
 and automatic-board slice. R040l/m deliver bounded source reading and automatic
-card creation. R050e adds the first sequential loop. Next: real-account two-task
-acceptance, general toolchain checks, recovery, parallel workers and release gates.
+card creation. R050e adds the first loop; R070d adds task waves. Next: explicit
+additional role slots, real-account mixed-task acceptance, general toolchain checks,
+remaining recovery/providers/custom workflows and release gates.
 
 ## Sequence and dependencies
 
@@ -568,13 +569,20 @@ Depends on R060. Required for the requested release, not a deferred enhancement.
   controls and recovery before adding lane state; no policy/data changes.
   [Task](../tasks/R070c-stage-receipts.md).
 
-- [ ] Clone role instances into independent sessions/worktrees/process groups.
+- [x] R070d bounded task waves: independent ready pipelines, per-task claims,
+  exact-connection/global caps, serialized combined review/integration, bounded
+  conflict repair, multi-worker controls and individually scoped closure reads.
+  [Task](../tasks/R070d-parallel-waves.md). Native/fixture proof is separate from
+  real-provider acceptance; shared role connections still serialize their turns.
+- [ ] Add explicitly assigned additional execution slots for simultaneous role
+  instances using independent connections/sessions/worktrees/process groups. Never clone logins
+  or infer a binding. This remains required R030/R070 work.
 - [ ] Atomically claim tasks, capacity and ports; enforce global/Arena/Tabula/
   provider caps, fairness and one active battle per Arena.
-- [ ] Dispatch independent tasks concurrently; wait for integrated prerequisites.
-- [ ] Serialize integration; if the battle head changed, validate/test/review the
+- [x] Dispatch independent task pipelines concurrently in bounded waves; wait for integrated prerequisites. Additional role slots remain above.
+- [x] Serialize integration; if the battle head changed, validate/test/review the
   combined candidate and compare-and-swap the head.
-- [ ] Route conflicts to bounded spec/implementation repair; retain every branch
+- [x] Route compatible-combination conflicts to bounded spec/implementation repair; retain every branch
   and failed integration candidate.
 - [ ] Recover uncertain Git effects and expired claims without duplicate work;
   reserve scheduling opportunity for coordinator/review to avoid starvation.

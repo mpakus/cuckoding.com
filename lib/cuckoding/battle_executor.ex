@@ -4,6 +4,7 @@ defmodule Cuckoding.BattleExecutor do
     ArenaGit,
     Arenas,
     BattleChecks,
+    BattleRepository,
     Battles,
     Codex,
     Cursor,
@@ -146,6 +147,27 @@ defmodule Cuckoding.BattleExecutor do
       end
     else
       failure("missing_edit_evidence")
+    end
+  end
+
+  defp dispatch("combine", attempt, active?, adapters) do
+    case git(
+           attempt,
+           "combine_candidate",
+           %{"request" => candidate_request(attempt)},
+           active?,
+           adapters
+         ) do
+      %{"status" => "candidate_combined"} = candidate ->
+        %{
+          "status" => "combined",
+          "candidate_sha" => candidate["candidate"],
+          "native_candidate" => candidate,
+          "cleanup_verified" => true
+        }
+
+      result ->
+        failed_receipt(result)
     end
   end
 
@@ -447,11 +469,17 @@ defmodule Cuckoding.BattleExecutor do
     with true <- active?.(),
          {:ok, current} <- Arenas.inspect_folder(source["path"]),
          true <- Map.take(current, ~w(path device inode)) == source do
-      adapter.run(
-        %{id: attempt.id, payload: Map.merge(source, extra) |> Map.put("operation", operation)},
-        active?: active?
-      )
-      |> LocalGit.normalize()
+      call = fn ->
+        adapter.run(
+          %{id: attempt.id, payload: Map.merge(source, extra) |> Map.put("operation", operation)},
+          active?: active?
+        )
+        |> LocalGit.normalize()
+      end
+
+      if attempt.request["snapshot"]["parallelism"] == "parallel-waves-v1",
+        do: BattleRepository.run(source, active?, call),
+        else: call.()
     else
       _ -> %{"status" => "folder_changed"}
     end

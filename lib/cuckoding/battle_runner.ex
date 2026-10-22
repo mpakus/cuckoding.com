@@ -2,7 +2,7 @@ defmodule Cuckoding.BattleRunner do
   @moduledoc "Bounded supervised stages across isolated Arenas; SQLite owns claims and receipts."
   use GenServer
   alias Cuckoding.{BattleClock, BattleExecutor, Battles}
-  alias Cuckoding.Battles.{Attempt, Backoff, Capacity}
+  alias Cuckoding.Battles.{Attempt, Backoff, Capacity, Waves}
 
   def start_link(options), do: GenServer.start_link(__MODULE__, options, name: __MODULE__)
 
@@ -84,13 +84,21 @@ defmodule Cuckoding.BattleRunner do
   defp next_stage(state, busy) do
     Battles.active()
     |> rotate(state.cursor)
-    |> Enum.reject(&(&1.id in busy))
+    |> Enum.reject(&(&1.id in busy and not wave_slot?(state, &1)))
     |> Enum.filter(&(&1.state == "running" or Backoff.pending?(&1)))
     |> Enum.find_value(fn battle ->
       if not Capacity.concurrent?(battle.snapshot) and busy != [],
         do: :drain,
         else: start_stage(Battles.claim_next(battle.id), state.executor)
     end)
+  end
+
+  defp wave_slot?(state, battle) do
+    Waves.enabled?(battle.snapshot) and
+      Enum.all?(state.jobs, fn {_, {_, attempt, kind}} ->
+        attempt.battle_id != battle.id or
+          (kind == :stage and not is_nil(attempt.task_id) and Waves.pipeline?(attempt.stage))
+      end)
   end
 
   defp exclusive?(jobs) do

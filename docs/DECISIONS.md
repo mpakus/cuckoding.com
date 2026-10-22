@@ -1,5 +1,25 @@
 # Current decisions
 
+## D039 · Parallel implementation waves with serialized review
+
+Accepted before implementation, 2026-10-21, R070d. New Starts freeze a two-task
+wave policy, retaining the two global stage slots and one provider turn per exact
+connection. SQLite claims only independent tasks whose prerequisites are already
+integrated; each task owns its stage, worktree and fresh provider sessions.
+The reviewed head stays fixed until every wave implementation/capture settles.
+Checks, Secutor review and integration then run serially. A later task based on
+the old head must use the retained combined candidate and new independent review;
+overlap returns through bounded fresh-worktree specification/implementation repair.
+
+Native repository I/O is serialized in supervised workers with bounded cancellable
+waiting; VM coordination is never native ownership, effect or cleanup proof.
+Pause drains all workers and Stop waits for all exact cleanup. Failed waves drain
+their current bounded stages before attention; each failed task keeps its own
+explicit retry/skip authority, lifetime budgets and immutable evidence. Recovery
+and timing fences retain every interrupted claim without replay. Old frozen
+policies keep their original sequential dispatch and controls. No new provider
+tools, account fallback, credential cloning or real-account acceptance is granted.
+
 ## D038 · Validate outcomes against the immutable attempt
 
 Accepted before implementation, 2026-10-21, R070c. Keep closed receipt/envelope,

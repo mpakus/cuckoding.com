@@ -83,4 +83,61 @@ defmodule Cuckoding.Battles.ReceiptsTest do
     historical = put_in(admission.request["snapshot"]["version"], "arena-loop-v1")
     refute Receipts.payload_valid?(historical, admitted)
   end
+
+  test "combination evidence is exact to the new attempt, both bases and its original writer" do
+    item = attempt("combine")
+    preparation = %{"key" => Ecto.UUID.generate(), "head" => String.duplicate("d", 40)}
+    original = %{"key" => Ecto.UUID.generate()}
+
+    item = %{
+      item
+      | request:
+          item.request
+          |> put_in(["snapshot", "parallelism"], "parallel-waves-v1")
+          |> put_in(["task_context", "preparation"], preparation)
+          |> put_in(["task_context", "native_candidate"], original)
+    }
+
+    native = %{
+      "status" => "candidate_combined",
+      "key" => item.id,
+      "battle_key" => item.battle_id,
+      "worktree_key" => preparation["key"],
+      "task_candidate_key" => original["key"],
+      "base" => item.request["context"]["head"],
+      "task_base" => preparation["head"],
+      "candidate" => String.duplicate("e", 40),
+      "tree" => String.duplicate("f", 40),
+      "manifest_sha256" => String.duplicate("a", 64)
+    }
+
+    receipt = %{
+      "status" => "combined",
+      "candidate_sha" => native["candidate"],
+      "native_candidate" => native
+    }
+
+    assert Receipts.payload_valid?(item, receipt)
+
+    for field <- ~w(key battle_key worktree_key task_candidate_key) do
+      refute Receipts.payload_valid?(
+               item,
+               put_in(receipt, ["native_candidate", field], Ecto.UUID.generate())
+             )
+    end
+
+    for field <- ~w(base task_base candidate) do
+      refute Receipts.payload_valid?(
+               item,
+               put_in(receipt, ["native_candidate", field], String.duplicate("b", 40))
+             )
+    end
+
+    historical = %{
+      item
+      | request: Map.update!(item.request, "snapshot", &Map.delete(&1, "parallelism"))
+    }
+
+    refute Receipts.payload_valid?(historical, receipt)
+  end
 end

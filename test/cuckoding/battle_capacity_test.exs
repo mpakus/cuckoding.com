@@ -13,6 +13,7 @@ defmodule Cuckoding.BattleCapacityTest do
   }
 
   alias Cuckoding.Battles.{Attempt, Battle, ProviderClosure, Snapshot}
+  alias Cuckoding.Battles.Task, as: BattleTask
 
   setup do
     %{board: board} = Cuckoding.PlanningFixtures.planning_fixture()
@@ -125,6 +126,51 @@ defmodule Cuckoding.BattleCapacityTest do
     end
   end
 
+  test "the supervised runner fills two lanes for one board and Pause drains both", ctx do
+    {:ok, _} =
+      Tabulae.save(
+        Ecto.UUID.generate(),
+        ctx.board.arena_id,
+        ctx.board.id,
+        Ecto.UUID.generate(),
+        0,
+        %{
+          "title" => "Second independent",
+          "description" => "Implement separately",
+          "criteria" => "Inspect",
+          "column" => "specs"
+        }
+      )
+
+    coordinator = runner()
+    battle = start(ctx.board)
+    assert_receive {:launched, admission_pid, %{stage: "admission"}}, 2000
+    send(admission_pid, :finish)
+    assert_receive {:launched, first_pid, first}, 2000
+    assert_receive {:launched, second_pid, second}, 2000
+    assert first.stage == "prepare_worktree" and second.stage == "prepare_worktree"
+    refute first.task_id == second.task_id
+
+    for pid <- [first_pid, second_pid] do
+      refute pid == coordinator
+      assert pid in Task.Supervisor.children(Cuckoding.BattleTasks)
+    end
+
+    assert Repo.aggregate(
+             from(a in Attempt, where: a.battle_id == ^battle.id and a.state == "running"),
+             :count
+           ) == 2
+
+    assert {:ok, pausing} = Battles.pause(battle.id, 0)
+    assert pausing.state == "pausing"
+    send(first_pid, :finish)
+    await(fn -> Repo.get!(Attempt, first.id).state == "completed" end)
+    assert Battles.get(battle.id).state == "pausing"
+    send(second_pid, :finish)
+    await(fn -> Battles.get(battle.id).state == "paused" end)
+    refute_receive {:launched, _, _}, 100
+  end
+
   test "new Starts freeze isolated Arena concurrency", ctx do
     assert start(ctx.board).snapshot["scheduler"] == "isolated-arenas-v1"
   end
@@ -230,12 +276,10 @@ defmodule Cuckoding.BattleCapacityTest do
     assert length(Battles.attempts(second.id)) == 2
   end
 
-  test "historical Starts preserve exclusive global dispatch in either direction", ctx do
-    original = start(ctx.board)
-    {:ok, _} = Battles.stop(original.id)
-    snapshot = Map.delete(original.snapshot, "scheduler")
+  defp historical(original, removed) do
+    snapshot = Map.drop(original.snapshot, removed)
 
-    legacy =
+    historical =
       Repo.insert!(%Battle{
         id: Ecto.UUID.generate(),
         arena_id: original.arena_id,
@@ -248,14 +292,50 @@ defmodule Cuckoding.BattleCapacityTest do
       })
 
     for {task, position} <- Enum.with_index(snapshot["tasks"]) do
-      Repo.insert!(%Cuckoding.Battles.Task{
+      Repo.insert!(%BattleTask{
         id: Ecto.UUID.generate(),
-        battle_id: legacy.id,
+        battle_id: historical.id,
         task_id: task["id"],
         position: position,
         snapshot: task
       })
     end
+
+    historical
+  end
+
+  test "R070a-only snapshots keep one task stage per board under the new indexes", ctx do
+    {:ok, _} =
+      Tabulae.save(
+        Ecto.UUID.generate(),
+        ctx.board.arena_id,
+        ctx.board.id,
+        Ecto.UUID.generate(),
+        0,
+        %{
+          "title" => "Another",
+          "description" => "Independent",
+          "criteria" => "Inspect",
+          "column" => "specs"
+        }
+      )
+
+    original = start(ctx.board)
+    assert {:ok, _} = Battles.stop(original.id)
+    legacy = historical(original, ["parallelism"])
+    {:ok, admission} = Battles.claim_next(legacy.id)
+    finish_native(admission)
+    {:ok, first} = Battles.claim_next(legacy.id)
+    assert first.stage == "prepare_worktree"
+    assert {:error, :busy} = Battles.claim_next(legacy.id)
+    assert Enum.all?(Battles.tasks(legacy.id), &is_nil(&1.context["lane_stage"]))
+    assert Enum.all?(Battles.tasks(legacy.id), &(&1.state == "pending"))
+  end
+
+  test "historical Starts preserve exclusive global dispatch in either direction", ctx do
+    original = start(ctx.board)
+    {:ok, _} = Battles.stop(original.id)
+    legacy = historical(original, ~w(scheduler parallelism))
 
     newer = start(board())
     {:ok, active} = Battles.claim_next(newer.id)

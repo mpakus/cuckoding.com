@@ -36,7 +36,21 @@ explicit Arena/board scope exists. DTOs expose event ID/kind/time and public
 worker binding fields, not payloads. Page/follow state lives in LiveComponents;
 workflow facts remain in SQLite and observation never grants Start authority.
 
-The tenth forward-only migration adds `battles`, `battle_tasks` and `battle_attempts`. Snapshots and requests are immutable; terminal attempt receipts cannot be rewritten/deleted. One active battle per Arena includes needs-attention state, and one running stage claim per battle is enforced by partial unique indexes. Draft history stays separate from execution projections. Start, claims, outcomes and events commit atomically; broadcasts follow commit. The native retained receipt/journal owns evidence of uncertain external effects; SQLite never promises exactly-once execution.
+R070d's fifteenth forward-only migration replaces the old one-running-attempt
+index with one running claim per exact battle/task and one running final stage per
+battle. Existing rows/requests/snapshots stay byte-identical. The immediate claim
+transaction still refuses concurrent task/final stages, serializes review and
+preserves old sequential policies. New Starts freeze `parallelism: parallel-waves-v1`.
+Task context owns `lane_stage` and its wave; `battles.stage/current_task_id` is the
+current display/control focus, not a task-selection grant. Failed lanes retain
+separate blockers, retry/skip decisions and all immutable receipts. A queue of
+exact interrupted provider attempts authorizes only existing closure reads;
+observations do not accept lost work. Original cancellation time bounds the
+five-second cleanup sleep lease across later sibling receipts. Eleven- and
+fourteen-schema upgrade tests retain verified readable backups, integrity/FKs,
+saved facts and a synthetic running claim; no real workspace is reset.
+
+The tenth forward-only migration adds `battles`, `battle_tasks` and `battle_attempts`. Snapshots and requests are immutable; terminal attempt receipts cannot be rewritten/deleted. One active battle per Arena includes needs-attention state, and originally one running stage claim per battle was enforced by a partial unique index (extended by R070d above). Draft history stays separate from execution projections. Start, claims, outcomes and events commit atomically; broadcasts follow commit. The native retained receipt/journal owns evidence of uncertain external effects; SQLite never promises exactly-once execution.
 
 R060a's eleventh forward-only migration adds `battles.control_revision` (zero for
 retained battles) and extends the active-Arena unique index to `pausing`/`paused`.

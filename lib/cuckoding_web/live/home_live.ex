@@ -479,7 +479,7 @@ defmodule CuckodingWeb.HomeLive do
         >
           <summary>How Start works</summary>
           <p id="home-battle-scope" class="fine-print">
-            Arena boards are created automatically. Start runs your assigned team one task at a time:
+            Arena boards are created automatically. Start runs your assigned team in independent task waves:
             up to 20 tasks, three review rounds per task and two hours. Final checks and an independent
             Secutor review gate local completion; a failed final review needs attention.
           </p>

@@ -151,7 +151,7 @@ defmodule CuckodingWeb.FoundationLiveTest do
     assert has_element?(view, "#setup-journey a[href='/arenas']", "Arena")
     assert has_element?(view, "#home-progress", "0/4 roles connected")
     refute has_element?(view, "#home-limits[open]")
-    assert has_element?(view, "#home-battle-scope", "one task at a time")
+    assert has_element?(view, "#home-battle-scope", "independent task waves")
     assert has_element?(view, "#home-battle-scope", "20 tasks")
     assert has_element?(view, "#home-battle-scope", "three review rounds")
     assert has_element?(view, "#home-battle-scope", "two hours")

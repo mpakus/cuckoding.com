@@ -1,14 +1,19 @@
 defmodule Cuckoding.Battles.Receipts do
   @moduledoc "Attempt-bound receipt evidence; callers retain transaction and workflow authority."
   import Ecto.Query
-  alias Cuckoding.Battles.{Attempt, Snapshot}
-  alias Cuckoding.{Repo, TaskTurn}
+  alias Cuckoding.Battles.{Attempt, Snapshot, Waves}
+  alias Cuckoding.{LocalGit, Repo, TaskTurn}
 
   @envelope ~w(battle_id request_id task_id stage criteria_sha256)
   @result_fields @envelope ++
                    ~w(status reason summary feedback head candidate_sha preparation native_candidate native_battle resolved_checks checks provider cleanup_verified)
 
   # Payload checks do not replace the closed envelope or confer settlement authority.
+  def rejected_payload_valid?(_, %{"status" => "cancelled", "cleanup_verified" => cleanup}),
+    do: is_boolean(cleanup)
+
+  def rejected_payload_valid?(attempt, result), do: payload_valid?(attempt, result)
+
   def payload_valid?(_, %{"status" => "failed", "reason" => reason}),
     do: is_binary(reason) and byte_size(reason) in 1..200
 
@@ -22,6 +27,26 @@ defmodule Cuckoding.Battles.Receipts do
 
   def payload_valid?(%Attempt{stage: "prepare_worktree"}, %{"status" => "prepared"} = result),
     do: is_map(result["preparation"])
+
+  def payload_valid?(%Attempt{stage: "combine"} = attempt, %{"status" => "combined"} = result) do
+    candidate = result["native_candidate"]
+    context = attempt.request["task_context"]
+
+    expected = %{
+      "status" => "candidate_combined",
+      "key" => attempt.id,
+      "battle_key" => attempt.battle_id,
+      "worktree_key" => context["preparation"]["key"],
+      "task_candidate_key" => context["native_candidate"]["key"],
+      "base" => attempt.request["context"]["head"],
+      "task_base" => context["preparation"]["head"]
+    }
+
+    Waves.enabled?(attempt.request["snapshot"]) and is_map(candidate) and
+      LocalGit.normalize(candidate) == candidate and
+      Map.take(candidate, Map.keys(expected)) == expected and
+      result["candidate_sha"] == candidate["candidate"]
+  end
 
   def payload_valid?(%Attempt{stage: "capture"}, %{"status" => "captured"} = result),
     do: sha?(result["candidate_sha"]) and is_map(result["native_candidate"])

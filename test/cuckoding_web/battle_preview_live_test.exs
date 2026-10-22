@@ -16,7 +16,7 @@ defmodule CuckodingWeb.BattlePreviewLiveTest do
     before = {Repo.all(Command), Repo.all(Event)}
     {:ok, view, _} = live(signed, path)
     assert has_element?(view, "#preview-authority", "read-only")
-    assert has_element?(view, "#preview-authority", "sequential Codex loop")
+    assert has_element?(view, "#preview-authority", "bounded Arena loop")
     assert has_element?(view, "#preview-loop-scope", "three review rounds")
     assert has_element?(view, "#preview-loop-scope", "two hours")
     assert has_element?(view, "#preview-loop-scope", "failed final review needs attention")

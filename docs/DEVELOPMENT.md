@@ -45,6 +45,13 @@ already running bundle without the graceful restart procedure below.
 R080i adds public setup/planning work to the same global dashboard and a compact
 Board activity disclosure for the selected Tabula's team/progress/workers. It adds
 no migration, provider access or execution control.
+R070d adds the fifteenth forward-only migration: per-task/final claim indexes,
+without rewriting existing authority. Back up the selected data root before
+upgrading; fourteen-schema bundles refuse the upgraded root. New Starts allow
+waves of up to two independent task pipelines, with exact connections serialized
+and checks/review/integration ordered afterward. Older battles retain their
+sequential policy. Additional simultaneous role slots and real-provider parallel
+acceptance remain open. No provider grant or native toolchain permission widens.
 [Plan](PLAN.md#next-delivery-order--simple-arena) owns the remaining beta gates.
 
 ## Build and open

@@ -683,6 +683,17 @@ neither a Secutor verdict nor parallel admission. The fixed new operation budget
 does not extend an existing stage or battle deadline. Same-user hostile mutation
 remains outside host isolation, and same-board workflow acceptance is still open.
 
+R070d admits only ready independent task pipelines in two-task waves. SQLite
+retains exact per-task claims, prerequisites and the original frozen authority;
+all role turns retain the one-per-connection cap and fresh sessions. A local OTP
+repository queue serializes native I/O, but its release never proves native
+closure. Review/integration are serial and changed heads require new combined
+check/review evidence. Only recorded verified conflicts permit bounded repair.
+Pause/Stop/timing controls cover every worker; late/unknown outcomes cannot advance
+cards/head. Restart queues fixed exact provider-closure inspections without
+replaying calls or accepting lost work. Do not clone credentials, infer a slot,
+share writable roots or treat fixtures as same-account parallel acceptance.
+
 ## Cursor task execution (R020p)
 
 R020r initial planning is a separate `cursor-plan-no-tools-v1` operation. Only the

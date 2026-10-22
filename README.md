@@ -40,7 +40,7 @@ remote push, user-branch merge and release remain separate human actions.
 
 ## What works today
 
-**Local preview source, 2026-10-21.** The first sequential Codex/Cursor Arena loop is implemented.
+**Local preview source, 2026-10-21.** The Codex/Cursor Arena loop includes independent-task implementation waves.
 The complete product story still includes capabilities and release acceptance
 listed below. Arena registration opens its default board; technical setup stays in Advanced.
 
@@ -51,7 +51,7 @@ listed below. Arena registration opens its default board; technical setup stays 
 | Saved agent/model assignments for Speculator, Implementor, Secutor and Summa Rudis | Real mixed-runtime battle acceptance |
 | Folder registration with an automatic default board, direct Arena opening, scoped team editing, Advanced setup and editable drafts | Custom columns and execution stages |
 | Codex/Cursor planning from a brief or bounded folder snapshots (`docs/` first), automatically saved task cards, prerequisites and original source citations | Real-account planning acceptance across supported runtimes |
-| One bounded Start, sequential Codex/Cursor dispatch per board, two isolated Arenas progressing concurrently, independent review and retained local battle branch | Real-account end-to-end acceptance, general toolchain checks, recovery and same-board parallel workers |
+| One bounded Start, independent task pipelines in waves of up to two, serialized independent review/integration and a retained local battle branch | Real-account end-to-end acceptance, general toolchain checks, full recovery and additional parallel role slots |
 | Global setup/planning/battle activity, selected-board team/progress and paginated events globally/per Arena | Timed real-account setup and broader dashboard/release acceptance |
 
 Tabula Gladiatorum shows up to 20 saved active setup/planning/battle records and
@@ -226,17 +226,19 @@ busy-profile, timeout or launch failures with verified cleanup. The wait is save
 in SQLite and can be cancelled; it consumes the same retry budget and original
 deadline. Restart cancels the automatic wait and requires explicit Retry. Generic
 provider errors remain manual. [Backoff evidence](worklog/2026-10-21-R060j-provider-backoff.md).
-New Starts can progress in two separate Arenas at once. Shared agent connections
-queue one turn at a time; uncertain cleanup keeps that exact connection reserved.
-Other connections can continue. Tasks within one board still run sequentially.
-Older Starts retain global serial dispatch. [Concurrency evidence](worklog/2026-10-21-R070a-arena-workers.md).
-The native helper can also prepare a compatible combined result from retained
-task edits and the reviewed head, preserving both originals and refusing conflicts.
-This is a prerequisite for same-board parallel work; lane scheduling and combined
-independent review are still unfinished. [Combination evidence](tasks/R070b-combined-candidate.md).
-The shared outcome validator keeps settlement, Stop and recovery tied to each
-frozen attempt. Parallel task dispatch remains the next implementation step.
-[Receipt boundary](tasks/R070c-stage-receipts.md).
+New Starts share two stage workers across Arenas. Within a board, up to two
+independent tasks form an implementation wave, each with its own workspace and
+fresh sessions. Shared agent connections take one turn at a time; overlap depends
+on the saved bindings. Checks, Secutor review and integration run in order after
+implementation. A changed head produces a combined candidate for fresh review;
+conflicts return through Speculator and a new writer. Dependent tasks wait for
+reviewed results. Pause/Stop cover both workers. Older saved battles retain their
+sequential policy. [Wave implementation](tasks/R070d-parallel-waves.md).
+
+Additional simultaneous role slots and real-account parallel acceptance remain
+open. The current loop does not clone credentials or run simultaneous turns on
+one saved connection. The [shared receipt boundary](tasks/R070c-stage-receipts.md)
+keeps every outcome bound to its frozen attempt.
 **Skip task** confirms leaving a clean paused or settled blocked/failed task
 unfinished and defers its dependents. Independent tasks continue from reviewed work;
 paused battles stay paused until Resume. Edits and evidence remain available.

@@ -224,14 +224,14 @@ handled once for the affected connection.
 
 ## Parallel workers and Git integration
 
-Implemented R070a permits two battle stage workers across independent Arenas for
-new `isolated-arenas-v1` Starts. Each board stays sequential. SQLite enforces
-global/per-battle capacity and one provider turn per exact saved connection;
-uncertain cleanup retains that connection's reservation. A full slot/connection
-wait spends no turn/retry. Fair rotation admits other ready Arenas. Historical
-Starts and retained native recovery inspection run exclusively. Broader same-board
-task cloning, provider-account caps and combined candidates below remain target
-behavior, not implemented acceptance.
+Implemented R070a permits two global stage workers; R070d adds independent-task
+implementation waves of up to two within one board. Prerequisites must already be
+integrated. Exact saved connections take one provider turn at a time, and capacity
+waits add no attempts/turns. Checks/review/integration run serially after the wave;
+changed-head candidates need a new combined review, and conflicts return through
+bounded fresh-worktree repair. Old snapshots remain sequential. Additional
+explicit role slots, provider-account concurrency proof and broader recovery below
+remain required target work, not implemented acceptance.
 
 A clone is a new attempt/session using the same role definition, not a duplicated
 login or shared writable checkout. Atomically claim tasks and capacity; retain
