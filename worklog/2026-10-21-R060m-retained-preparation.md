@@ -87,3 +87,7 @@ Final bundled smoke passed with normal quit/listener cleanup; retained root
 on port 52232 and stopped normally. Source/ad-hoc package evidence remains
 separate from signed release, provider, physical sleep and timed setup acceptance.
 Markdown local-link checks and `git diff --check` passed.
+
+Committed as `1c653ac`, fast-forwarded into local `main`, and deleted
+`feature/r060m-retained-preparation`. Nothing was pushed/published. The overall
+beta goal remains active; this task completes only its specific retained checkpoint.

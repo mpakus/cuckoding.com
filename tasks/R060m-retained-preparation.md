@@ -1,6 +1,6 @@
 # R060m — Retained worktree preparation checkpoint
 
-Status: implemented and locally verified, 2026-10-21; local main integration below.
+Status: implemented, locally verified and merged to main, 2026-10-21 (`1c653ac`).
 
 - [x] Add one fixed native read for an interrupted battle writer preparation.
   Require the exact original two-field battle/key request, complete retained
@@ -22,7 +22,7 @@ Status: implemented and locally verified, 2026-10-21; local main integration bel
   source/checkout retention and stale/foreign UI results. Update docs/AGENTS/README,
   run native/host/package checks. Browser control timed out; LiveView rendering/
   reconnect coverage passed, full visual walkthrough remains in R080/R100.
-- [ ] Merge the verified slice locally to main and delete its completed branch.
+- [x] Merge the verified slice locally to main and delete its completed branch.
 
 This is a specific verified checkpoint, not full crash/sleep or lost-provider-work
 recovery. Multi-interruption/native admission/capture/check recovery and actual
