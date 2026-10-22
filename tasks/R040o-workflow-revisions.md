@@ -1,6 +1,6 @@
 # R040o — Versioned Tabula workflow foundation
 
-Status: implemented and verified, 2026-10-22; local integration recorded below.
+Status: implemented, verified and merged to local main, 2026-10-22.
 
 - [x] Add an additive immutable per-board workflow revision ledger. Existing
   Tabula rows/definitions remain byte-for-byte unchanged and supply revision zero;
@@ -17,9 +17,9 @@ Status: implemented and verified, 2026-10-22; local integration recorded below.
 - [x] Prove labels render on the board and still permit the existing Start/review
   loop, while earlier battle snapshots retain their original workflow. Run focused,
   full quality, migration, source/package checks; update docs/AGENTS/README and
-  prepare local integration to main.
+  merge locally to main.
 
-- [ ] Merge locally to main and delete the completed feature branch.
+- [x] Merge locally to main and delete the completed feature branch (`1201e3a`).
 
 Evidence: [worklog](../worklog/2026-10-22-R040o-workflow-revisions.md).
 

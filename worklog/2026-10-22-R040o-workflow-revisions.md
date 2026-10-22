@@ -83,3 +83,7 @@ test/build diagnostics and shell exit status. `git diff --check` passed. Docs,
 AGENTS and README distinguish implemented renaming from the still-required
 add/reorder/custom execution stages, toolchain checks, recovery, additional
 providers and live/sleep/release acceptance. No push/publication or memory edits.
+
+Local integration: `1201e3a` fast-forwarded into `main`; the completed
+`feature/r040o-workflow-revisions` branch was deleted. The unrelated untracked
+`Untitled.md.age` remains untouched. The complete beta objective remains open.
