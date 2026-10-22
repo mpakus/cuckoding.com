@@ -3,6 +3,7 @@ use super::*;
 use candidate::{hash, load, oid, save, success};
 use std::path::PathBuf;
 mod combined;
+mod preparation;
 
 fn reference(key: &str) -> String {
     format!("refs/heads/ccoding/battles/{key}")
@@ -153,6 +154,9 @@ pub(in super::super::super) fn run(
     let fields = request.as_object().ok_or("invalid_request")?.len();
     if operation == "recover_integration" {
         return recover_integration(git, &request, device, inode);
+    }
+    if operation == "recover_battle_worktree" {
+        return preparation::recover(git, &request, device, inode);
     }
     if operation == "verify_battle" {
         if fields != 1 {

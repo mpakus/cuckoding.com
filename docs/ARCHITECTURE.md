@@ -125,6 +125,13 @@ close cleanup for Stop without advancement. Inspection and DB settlement remain
 separate; a crash may repeat the read, never the integration. The existing Inspect
 component renders pending/normalized observations. [D029](DECISIONS.md#d029--retained-integration-reconciliation).
 
+R060m reuses that exclusive supervised dispatcher for fixed
+`recover_battle_worktree`. Native `battle/preparation.rs` verifies retained writer
+receipt/tag plus existing raw-byte ownership inspection. `Battles.PreparationRecovery`
+validates closed exact observations; Battles alone appends the dated receipt and
+Paused checkpoint atomically. Reads may repeat after a coordinator crash; native
+preparation and the Interrupted attempt never replay or change. [D041](DECISIONS.md#d041--retained-preparation-checkpoint).
+
 R060h adds BattleClock before the task supervisor/coordinator in the battle
 one_for_all group. Its independent timer and synchronous checks observe UTC and
 monotonic deltas; it performs only short domain transactions, no provider I/O.

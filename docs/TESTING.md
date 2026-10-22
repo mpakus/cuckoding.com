@@ -1,5 +1,16 @@
 # Verification and acceptance
 
+R060m covers exact retained writer preparation without replay: missing/tampered/
+linked receipt/tag, owner/source/ref/checkout drift, foreign/extra requests and
+native cancellation/deadline, retaining original source/index/untracked bytes.
+Host checks reject foreign/stale/extra receipts, false/malformed Git cleanup,
+older grants, preexisting Stop/timing fences and multiple interrupted native
+claims. Verify expiry/racing-fence Stop-only closure, original attempts/budgets,
+explicit Resume binding/deadline checks and exclusive supervised read restart.
+LiveView covers dated public-only Inspect evidence, reconnect and foreign-board
+isolation. Removing the exact-head comparison must fail the focused regression.
+Real-provider, physical-sleep and broader native recovery remain separate gates.
+
 R030d checks that custom planning-only roles stay saved/selectable while the
 preview/Start freezes exactly the four required execution IDs. Unassigned unused
 roles must not add connection blockers; later team edits cannot rewrite a frozen

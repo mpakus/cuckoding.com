@@ -131,6 +131,15 @@ Failed observations clear the pending marker without granting cleanup or replay;
 an interrupted inspection can repeat only its read. Historical grants do not arm
 this path. No provider call or new task claim is created by reconciliation.
 
+R060m adds no migration. New Starts freeze `worktree_recovery: retained-preparation-v1`.
+Startup may set `context.preparation_recovery_pending` for one exact interrupted
+writer preparation after all other claims are settled. The original attempt stays
+unchanged. `context.preparation_reconciliations[attempt_id]` holds the closed bound
+`receipt` and host `observed_at` UTC timestamp. Clear the marker, append
+`battle.preparation_reconciled` and a verified in-budget Paused checkpoint in one
+transaction. Expiry/timing refusal retains closure without task/head advancement;
+failed observations cannot satisfy cleanup. Schema remains fifteen migrations.
+
 R060l adds no migration. New snapshots freeze
 `provider_closure: retained-provider-closure-v1`. Startup may set
 `context.provider_closure_pending` for an interrupted provider after settled

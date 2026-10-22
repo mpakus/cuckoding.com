@@ -214,6 +214,18 @@ accepts lost work or enables Resume/Retry/Skip. Missing/partial/foreign evidence
 older policies, hard-killed helpers and escaped sessions stay blocked; do not
 infer closure from process absence or delete uncertain artifacts.
 
+R060m freezes `worktree_recovery: retained-preparation-v1` in new Starts. Only one
+restart-interrupted writer preparation with every other attempt settled may use
+the exclusive supervised `recover_battle_worktree` read. Require the original
+two-field request, complete private receipt/battle tag, current source/ref/head
+and unchanged owned detached/locked checkout. Never recreate evidence or replay
+preparation. Keep the Interrupted attempt; atomically append a dated closed public
+observation and pause a verified in-budget checkpoint for explicit Resume. Older,
+already-stopping/fenced or multiple unfinished native claims cannot arm recovery.
+Expiry or a timing fence racing a completed read permits verified Stop closure
+only. Preserve false/malformed cleanup through Git normalization. Missing proof,
+other native stages, escaped sessions and physical sleep remain recovery gates.
+
 R060h freezes `timing_guard: elapsed-gap-v1` in new Starts. Keep BattleClock in
 the battle one_for_all group, independent of the coordinator; guard loss must
 stop old workers before its baseline resets. Check before admission, during

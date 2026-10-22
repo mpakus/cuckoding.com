@@ -376,3 +376,23 @@ both positions without rewriting history or promoting an extra worker.
 
 This adds no provider grant, tool, port/process reconciliation or real-account
 acceptance. Additional providers/custom stages and release gates remain open.
+
+## D041 — Retained preparation checkpoint
+
+2026-10-21, R060m. A native writer worktree may finish before its public result
+reaches SQLite. Add a fixed read of the original UUID-derived preparation receipt
+and battle tag, bound to the exact saved two-field request and current battle/ref/
+source identity. Reuse the existing descriptor-pinned detached/locked/index/raw-byte
+inspector; refuse partial/missing evidence rather than rebuilding it.
+
+New Starts freeze `worktree_recovery: retained-preparation-v1`. Only one unfinished
+prepare claim with every other attempt settled may use supervised exclusive
+inspection. Keep the original Interrupted attempt and append a separate observation.
+Verified in-budget, unfenced evidence supplies a Paused checkpoint; Resume stays
+explicit and revalidates frozen bindings/worktree integrity. Already-stopping or
+fenced claims cannot arm inspection. Expiry or a timing fence racing a completed
+read permits verified closure/confirmed Stop only. No native mutation, provider replay,
+new authority for older snapshots, or inference from missing processes/receipts.
+
+Multiple unfinished native claims, admission/capture/check recovery, escaped
+sessions and actual sleep/provider acceptance remain separate beta gates.

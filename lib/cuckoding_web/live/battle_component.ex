@@ -340,6 +340,35 @@ defmodule CuckodingWeb.BattleComponent do
         This does not prove sleep or worker cleanup. The original deadline is unchanged.
       </p>
       <p
+        :if={@battle.context["preparation_recovery_pending"]}
+        id="battle-preparation-inspecting"
+        class="notice"
+      >
+        Checking retained worktree preparation. No checkout or agent turn will be repeated.
+      </p>
+      <article
+        :for={{id, observation} <- @battle.context["preparation_reconciliations"] || %{}}
+        id={"battle-preparation-reconciliation-#{id}"}
+        class="team-role"
+      >
+        <h4>
+          Worktree preparation · {if observation["receipt"]["status"] == "prepared",
+            do: "Verified",
+            else: "Needs inspection"}
+        </h4>
+        <p class="fine-print">
+          Observed {observation["observed_at"]} · interrupted attempt: <code>{id}</code>.
+          No checkout or agent turn was repeated.
+        </p>
+        <p :if={observation["receipt"]["status"] == "prepared"}>
+          Retained worktree and cleanup verified. Only an in-budget, unfenced checkpoint can Resume
+          from Paused. Expired or timing-fenced observations permit confirmed Stop only.
+        </p>
+        <p :if={observation["receipt"]["status"] != "prepared"}>
+          Preparation evidence could not be verified. Cleanup remains uncertain; keep the retained files for inspection.
+        </p>
+      </article>
+      <p
         :if={@battle.context["integration_recovery_pending"]}
         id="battle-recovery-inspecting"
         class="notice"
@@ -588,7 +617,7 @@ defmodule CuckodingWeb.BattleComponent do
           id="battle-recovery-status"
           role="status"
         >
-          Paused after restart · no unfinished stage was found.
+          Paused after restart · saved checkpoint and verified cleanup retained.
           Resume continues from the saved stage with the same agents, work and remaining limits.
           No work has been replayed.
         </p>

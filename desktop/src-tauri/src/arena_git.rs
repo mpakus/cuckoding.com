@@ -368,6 +368,7 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
         "battle_worktree",
         "integrate_candidate",
         "recover_integration",
+        "recover_battle_worktree",
         "combine_candidate",
         "verify_combined_candidate",
         "verify_battle",
@@ -388,6 +389,7 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
                     "battle_worktree",
                     "integrate_candidate",
                     "recover_integration",
+                    "recover_battle_worktree",
                     "combine_candidate",
                     "verify_combined_candidate",
                     "verify_battle",
@@ -441,6 +443,7 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
         "battle_worktree",
         "integrate_candidate",
         "recover_integration",
+        "recover_battle_worktree",
         "combine_candidate",
         "verify_combined_candidate",
         "verify_battle",
@@ -518,6 +521,7 @@ pub fn main(args: &[String]) {
 
 #[cfg(test)]
 mod tests {
+    mod preparation_recovery;
     use super::*;
     use std::{
         os::unix::fs::PermissionsExt,

@@ -8,7 +8,9 @@ implemented. R060d adds safe restart checkpoints and R060e retains expired stage
 evidence for verified closure. R012 runs setup/planning in supervised asynchronous
 tasks and couples worker/coordinator restarts. R060f commits results before
 coordinator notification; R060g reconciles complete retained native integration
-receipts to a paused checkpoint without replay. R060h fences new battle work on
+receipts to a paused checkpoint without replay. R060m adds the exact retained
+writer-preparation checkpoint; other interrupted native effects remain open.
+R060h fences new battle work on
 timing gaps and backward clock changes. R060i adds bounded native idle-system
 sleep protection and dated Settings observations. The remaining recovery gates
 below still block complete beta acceptance.
@@ -535,6 +537,11 @@ Depends on R050.
   inspection can enable confirmed Stop and connection release without accepting
   or replaying the interrupted work. Missing receipts/hard-kill remain open.
   [Task/evidence](../tasks/R060l-retained-provider-closure.md).
+- [x] R060m inspect complete retained writer preparations through the exclusive
+  supervised recovery path. Keep Interrupted history and dated observations;
+  pause verified in-budget checkpoints for explicit Resume. Missing/foreign/
+  partial evidence, preexisting Stop/timing fences and multiple unfinished native
+  stages remain blocked. [Task/evidence](../tasks/R060m-retained-preparation.md).
 - [ ] Broader interrupted-work recovery with verified process cleanup.
 - [x] R060h timing-gap admission/settlement fence with independent supervised
   clock observation, clean Pause and rejected active receipts; no claim of sleep.

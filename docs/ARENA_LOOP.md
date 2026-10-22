@@ -69,6 +69,16 @@ Inspect shows the pending inspection and retained observation after reconnect.
 Missing or mismatched evidence remains needs-attention. Historical grants,
 interrupted Stop and other native/provider stages cannot use this path.
 
+R060m separately freezes `worktree_recovery: retained-preparation-v1`. One
+restart-interrupted writer preparation with otherwise settled history may read
+its complete private receipt and battle tag under the same exclusive recovery
+worker/repository lock. Exact source/ref/head and unchanged owned checkout are
+required. Keep the Interrupted attempt and append a dated observation in Inspect;
+verified in-budget evidence advances once to Paused for explicit Resume. Expired
+evidence or a timing fence racing a completed read supplies Stop closure only.
+Older grants, already-stopping/fenced claims, missing proofs and multiple unfinished
+native stages gain no continuation. No checkout is created or receipt repaired.
+
 R060l adds the separate `retained-provider-closure-v1` policy to new Starts.
 Codex/Cursor task helpers reserve an exact private intent before launch and fsync
 public closure metadata before returning. After restart, a supervised read may

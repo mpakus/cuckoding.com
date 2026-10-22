@@ -7,6 +7,7 @@ defmodule Cuckoding.Battles do
     Backoff,
     Battle,
     Capacity,
+    PreparationRecovery,
     ProviderClosure,
     Receipts,
     Slots,
@@ -534,7 +535,9 @@ defmodule Cuckoding.Battles do
     observation =
       Map.merge(observation, %{
         "attempt_id" => if(attempt, do: attempt.id),
-        "recovery_attempt_id" => battle.context["integration_recovery_pending"],
+        "recovery_attempt_id" =>
+          battle.context["integration_recovery_pending"] ||
+            battle.context["preparation_recovery_pending"],
         "blocks_continuation" => blocked
       })
 
@@ -702,9 +705,10 @@ defmodule Cuckoding.Battles do
 
   defp reconciled?(battle, attempt),
     do:
-      attempt.state == "interrupted" and
-        get_in(battle.context, ["integration_reconciliations", attempt.id, "status"]) ==
-          "integrated"
+      PreparationRecovery.reconciled?(battle, attempt) or
+        (attempt.state == "interrupted" and
+           get_in(battle.context, ["integration_reconciliations", attempt.id, "status"]) ==
+             "integrated")
 
   defp retried(battle), do: battle.context["provider_retries"] || []
 
@@ -1166,9 +1170,17 @@ defmodule Cuckoding.Battles do
     if Enum.all?(attempts(battle.id), &(&1.id == attempt.id or settled?(battle, &1))) do
       key =
         cond do
-          provider_recoverable?(battle, attempt) -> "provider_closure_pending"
-          integration_recoverable?(battle, attempt) -> "integration_recovery_pending"
-          true -> nil
+          provider_recoverable?(battle, attempt) ->
+            "provider_closure_pending"
+
+          integration_recoverable?(battle, attempt) ->
+            "integration_recovery_pending"
+
+          PreparationRecovery.eligible?(battle, attempt) and not timing_fenced?(battle, attempt) ->
+            "preparation_recovery_pending"
+
+          true ->
+            nil
         end
 
       if key, do: update(battle, context: Map.put(battle.context, key, attempt.id)), else: battle
@@ -1195,9 +1207,12 @@ defmodule Cuckoding.Battles do
   defp pending_reconciliation(battle) do
     with id when is_binary(id) <-
            battle.context["provider_closure_pending"] ||
-             battle.context["integration_recovery_pending"],
+             battle.context["integration_recovery_pending"] ||
+             battle.context["preparation_recovery_pending"],
          %Attempt{} = attempt <- Repo.get(Attempt, id),
-         true <- provider_reconciliation_current?(attempt) or reconciliation_current?(attempt) do
+         true <-
+           provider_reconciliation_current?(attempt) or reconciliation_current?(attempt) or
+             preparation_reconciliation_current?(attempt) do
       attempt
     else
       _ -> nil
@@ -1217,12 +1232,62 @@ defmodule Cuckoding.Battles do
     end
   end
 
+  def reconcile_recovery(%Attempt{stage: "prepare_worktree", role: nil} = attempt, result),
+    do: reconcile_preparation(attempt, result)
+
   def reconcile_recovery(attempt, result),
     do:
       if(is_nil(attempt.role),
         do: reconcile_integration(attempt, result),
         else: reconcile_provider(attempt, result)
       )
+
+  def preparation_reconciliation_current?(%Attempt{} = attempt) do
+    case get(attempt.battle_id) do
+      %Battle{reason: "restart_requires_inspection"} = battle ->
+        PreparationRecovery.pending?(battle, attempt) and interrupted_current?(attempt)
+
+      _ ->
+        false
+    end
+  end
+
+  def reconcile_preparation(attempt, result, now \\ DateTime.utc_now()) do
+    transaction(fn ->
+      battle = get(attempt.battle_id)
+
+      unless battle && PreparationRecovery.pending?(battle, attempt) &&
+               interrupted_current?(attempt),
+             do: Repo.rollback(:stale_reconciliation)
+
+      unless Receipts.bound?(attempt, result), do: Repo.rollback(:foreign_result)
+      verified = PreparationRecovery.verified?(attempt, result)
+
+      unless verified or PreparationRecovery.failed?(attempt, result),
+        do: Repo.rollback(:invalid_result)
+
+      observation = %{"receipt" => result, "observed_at" => DateTime.to_iso8601(now)}
+
+      context =
+        battle.context
+        |> Map.delete("preparation_recovery_pending")
+        |> Map.update(
+          "preparation_reconciliations",
+          %{attempt.id => observation},
+          &Map.put(&1, attempt.id, observation)
+        )
+
+      battle = update(battle, context: context)
+
+      record(battle, "preparation_reconciled", %{
+        "attempt_id" => attempt.id,
+        "status" => result["status"],
+        "cleanup_verified" => verified
+      })
+
+      finish_reconciliation(battle, attempt, result, verified, now)
+    end)
+  end
 
   defp interrupted_current?(attempt),
     do:

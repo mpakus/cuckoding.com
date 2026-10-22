@@ -76,7 +76,7 @@ defmodule Cuckoding.LocalGit do
     ]
 
   defp extra(%{payload: %{"operation" => operation, "request" => request}})
-       when operation in ~w(create_battle verify_battle battle_worktree integrate_candidate recover_integration combine_candidate verify_combined_candidate),
+       when operation in ~w(create_battle verify_battle battle_worktree integrate_candidate recover_integration recover_battle_worktree combine_candidate verify_combined_candidate),
        do: [Jason.encode!(request)]
 
   defp extra(_), do: []
@@ -87,6 +87,9 @@ defmodule Cuckoding.LocalGit do
       _ -> %{"status" => "unavailable"}
     end
   end
+
+  def normalize(%{"cleanup_verified" => cleanup}) when cleanup != true,
+    do: %{"status" => "cleanup_uncertain", "cleanup_verified" => false}
 
   def normalize(%{"status" => "previewed", "preview" => preview}) do
     case GitPreview.normalize(preview) do

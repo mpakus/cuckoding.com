@@ -50,8 +50,11 @@ without rewriting existing authority. Back up the selected data root before
 upgrading; fourteen-schema bundles refuse the upgraded root. New Starts allow
 waves of up to two independent task pipelines, with exact connections serialized
 and checks/review/integration ordered afterward. Older battles retain their
-sequential policy. Additional simultaneous role slots and real-provider parallel
-acceptance remain open. No provider grant or native toolchain permission widens.
+sequential policy. R070e adds explicitly assigned paired connections per role;
+real-provider parallel acceptance remains open. R060m adds a fixed read-only
+retained writer-preparation checkpoint, requiring a rebuilt native helper and
+matching host policy. It adds no migration and never repairs missing receipts.
+No provider grant or native toolchain permission widens.
 [Plan](PLAN.md#next-delivery-order--simple-arena) owns the remaining beta gates.
 
 ## Build and open

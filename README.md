@@ -186,6 +186,13 @@ for Resume. Missing or changed evidence remains blocked; expired work cannot
 advance. This is a narrow recovery case, not full crash/sleep recovery.
 [Retained integration recovery](tasks/R060g-retained-integration.md).
 
+New battles can also inspect a completed writer worktree whose result was lost
+before SQLite saved it. Complete matching evidence reopens a clean, in-budget
+checkpoint as Paused for explicit Resume; no checkout or agent turn is repeated.
+Inspect keeps the dated result and original interrupted history. Missing evidence,
+multiple unfinished native stages and physical sleep remain recovery gates.
+[Preparation recovery](tasks/R060m-retained-preparation.md).
+
 Native helpers now report bounded process-group cleanup explicitly before
 publishing results. Failed or malformed cleanup cannot become successful work,
 sign-in or cancellation proof. Public edits remain inspectable; uncertain Cursor

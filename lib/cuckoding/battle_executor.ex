@@ -19,12 +19,37 @@ defmodule Cuckoding.BattleExecutor do
   @envelope ~w(battle_id request_id task_id stage criteria_sha256)
   @uncertain ~w(cleanup_uncertain unavailable invalid_output candidate_incomplete battle_incomplete worktree_incomplete)
 
+  def reconcile(%{stage: "prepare_worktree", role: nil} = attempt),
+    do: reconcile_preparation(attempt)
+
   def reconcile(attempt),
     do:
       if(is_nil(attempt.role),
         do: reconcile_integration(attempt),
         else: reconcile_provider(attempt)
       )
+
+  def reconcile_preparation(attempt, adapters \\ []) do
+    active? = fn -> Battles.preparation_reconciliation_current?(attempt) end
+    request = %{"key" => attempt.id, "battle" => attempt.request["context"]["native_battle"]}
+
+    result =
+      case git(attempt, "recover_battle_worktree", %{"request" => request}, active?, adapters) do
+        %{"status" => "prepared"} = receipt ->
+          %{
+            "status" => "prepared",
+            "preparation" => Map.take(receipt, ~w(key head path device inode)),
+            "cleanup_verified" => true
+          }
+
+        _ ->
+          failure("reconciliation_failed", false)
+      end
+
+    Map.merge(Map.take(attempt.request, @envelope), result)
+  rescue
+    _ -> Map.merge(Map.take(attempt.request, @envelope), failure("reconciliation_failed", false))
+  end
 
   def reconcile_provider(attempt, inspector \\ &ProviderClosure.inspect/2) do
     receipt = inspector.(attempt, fn -> Battles.provider_reconciliation_current?(attempt) end)

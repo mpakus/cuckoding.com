@@ -225,6 +225,16 @@ transactionally before pausing; original deadlines and explicit Resume still
 gate continuation. Historical grants, interrupted Stop, missing receipts,
 provider-store/process recovery, sleep and cross-provider acceptance remain open.
 
+R060m permits only a fixed read of an original two-field writer-preparation
+request. Descriptor-pinned private receipt/tag reads, exact source/ref/head and
+the existing owned detached/locked/raw-byte checkout inspector must agree twice.
+No missing artifact is recreated or native effect replayed. SQLite retains the
+Interrupted attempt and a separate dated closed observation. Only one unfinished,
+unfenced non-Stop preparation can arm inspection; late/racing-fence evidence
+permits verified Stop closure only. False/malformed Git cleanup flags remain
+uncertain through repeated normalization. This grants no provider or shell tools
+and does not reconcile multiple native claims, escaped sessions or physical sleep.
+
 R060h narrows new battle authority after a timing discontinuity; it adds no host
 permission. The independently supervised guard records only bounded UTC and
 monotonic deltas, never process death or inferred sleep duration. Admission and
