@@ -189,9 +189,13 @@ advance. This is a narrow recovery case, not full crash/sleep recovery.
 New battles can also inspect a completed writer worktree whose result was lost
 before SQLite saved it. Complete matching evidence reopens a clean, in-budget
 checkpoint as Paused for explicit Resume; no checkout or agent turn is repeated.
-Inspect keeps the dated result and original interrupted history. Missing evidence,
-multiple unfinished native stages and physical sleep remain recovery gates.
+Inspect keeps the dated result and original interrupted history. New two-worker
+waves can verify both interrupted preparations, one read at a time, and pause
+both next stages together only after both proofs pass within their original
+limits. Failed or incomplete waves cannot advance one task alone. Other unfinished
+native stages and physical sleep remain recovery gates.
 [Preparation recovery](tasks/R060m-retained-preparation.md).
+[Wave checkpoint](tasks/R060n-wave-preparation.md).
 
 Native helpers now report bounded process-group cleanup explicitly before
 publishing results. Failed or malformed cleanup cannot become successful work,

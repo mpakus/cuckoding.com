@@ -214,7 +214,8 @@ accepts lost work or enables Resume/Retry/Skip. Missing/partial/foreign evidence
 older policies, hard-killed helpers and escaped sessions stay blocked; do not
 infer closure from process absence or delete uncertain artifacts.
 
-R060m freezes `worktree_recovery: retained-preparation-v1` in new Starts. Only one
+R060m freezes `worktree_recovery: retained-preparation-v1` in new Starts. Without
+the R060n policy below, only one
 restart-interrupted writer preparation with every other attempt settled may use
 the exclusive supervised `recover_battle_worktree` read. Require the original
 two-field request, complete private receipt/battle tag, current source/ref/head
@@ -225,6 +226,17 @@ already-stopping/fenced or multiple unfinished native claims cannot arm recovery
 Expiry or a timing fence racing a completed read permits verified Stop closure
 only. Preserve false/malformed cleanup through Git normalization. Missing proof,
 other native stages, escaped sessions and physical sleep remain recovery gates.
+
+R060n additionally freezes `worktree_wave_recovery: retained-preparation-wave-v1`.
+Only two exact restart-interrupted writer preparations with otherwise settled
+history may queue the same fixed read, one exclusive supervised worker at a time.
+Record ordered membership and dated observations without changing Interrupted
+attempts. Neither task advances until both receipts verify within every original
+deadline; commit both next stages and one Paused checkpoint atomically. Explicit
+Resume keeps slots, bindings and budgets. A failed/missing/foreign proof, mixed
+stage, expiry or timing fence cannot partially advance the wave. Exact closure
+permits Stop only when all claims are closed. Preserve R060m-only limits for older
+snapshots, no replay/new native operation, and broader recovery/physical gates.
 
 R060h freezes `timing_guard: elapsed-gap-v1` in new Starts. Keep BattleClock in
 the battle one_for_all group, independent of the coordinator; guard loss must

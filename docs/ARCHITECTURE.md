@@ -132,6 +132,12 @@ validates closed exact observations; Battles alone appends the dated receipt and
 Paused checkpoint atomically. Reads may repeat after a coordinator crash; native
 preparation and the Interrupted attempt never replay or change. [D041](DECISIONS.md#d041--retained-preparation-checkpoint).
 
+R060n uses the same validator/dispatcher for two exact interrupted preparations.
+SQLite owns the ordered read queue and observations. Battles verifies every
+member/deadline before one atomic two-task Paused checkpoint; failed/mixed or
+fenced waves retain only known closure. No native helper change or new worker
+kind. [D042](DECISIONS.md#d042--atomic-retained-preparation-wave).
+
 R060h adds BattleClock before the task supervisor/coordinator in the battle
 one_for_all group. Its independent timer and synchronous checks observe UTC and
 monotonic deltas; it performs only short domain transactions, no provider I/O.

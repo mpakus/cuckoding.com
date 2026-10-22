@@ -235,6 +235,15 @@ permits verified Stop closure only. False/malformed Git cleanup flags remain
 uncertain through repeated normalization. This grants no provider or shell tools
 and does not reconcile multiple native claims, escaped sessions or physical sleep.
 
+R060n narrowly adds two exact interrupted writer preparations under a new frozen
+wave policy. Validate ordered queue membership, every original bound interrupted
+attempt, both retained receipts and all deadlines before advancing either task.
+The supervised reads remain exclusive and use R060m's unchanged native operation.
+Mixed stages, older grants, missing/failed proof and timing fences cannot acquire
+partial checkpoint authority. Known per-attempt closure can release Stop only
+when all original claims verify; no process absence, receipt reconstruction or
+provider replay is introduced.
+
 R060h narrows new battle authority after a timing discontinuity; it adds no host
 permission. The independently supervised guard records only bounded UTC and
 monotonic deltas, never process death or inferred sleep duration. Admission and

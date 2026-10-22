@@ -396,3 +396,19 @@ new authority for older snapshots, or inference from missing processes/receipts.
 
 Multiple unfinished native claims, admission/capture/check recovery, escaped
 sessions and actual sleep/provider acceptance remain separate beta gates.
+
+## D042 — Atomic retained preparation wave
+
+2026-10-21, R060n. Two bounded independent writers may both finish preparation
+before their replies reach SQLite. New Starts freeze
+`worktree_wave_recovery: retained-preparation-wave-v1`. Only two exact interrupted
+prepare claims, with all other history settled, may queue R060m's fixed read.
+Read one at a time in the exclusive supervised recovery path; retain ordered
+membership and separate dated observations, never rewrite or replay attempts.
+
+Advance neither task until both receipts verify within both original stage and
+battle deadlines. Commit both next stages and one Paused checkpoint atomically;
+Resume remains explicit with original bindings/slots/budgets. A failed read,
+expiry or timing fence cannot partially advance the wave. Exact verified closure
+is retained for Stop; unknown members still block cleanup. Older snapshots keep
+R060m's one-claim limit. This adds no other native/session or physical sleep recovery.

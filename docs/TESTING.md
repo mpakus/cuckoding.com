@@ -11,6 +11,13 @@ LiveView covers dated public-only Inspect evidence, reconnect and foreign-board
 isolation. Removing the exact-head comparison must fail the focused regression.
 Real-provider, physical-sleep and broader native recovery remain separate gates.
 
+R060n extends the preparation tests with ordered exclusive reads, no advancement
+after the first receipt, atomic paired Pause/Resume, immutable history/slots/
+budgets, one failed proof, either deadline, mixed stages, pre-read and racing timing
+fences, old-policy refusal and coordinator restart between reads. Replacing the
+all-member receipt predicate with any-member acceptance must fail. The native
+R060m reader/grant is unchanged; real-provider/sleep acceptance stays open.
+
 R030d checks that custom planning-only roles stay saved/selectable while the
 preview/Start freezes exactly the four required execution IDs. Unassigned unused
 roles must not add connection blockers; later team edits cannot rewrite a frozen

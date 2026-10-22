@@ -1185,6 +1185,27 @@ defmodule Cuckoding.Battles do
 
       if key, do: update(battle, context: Map.put(battle.context, key, attempt.id)), else: battle
     else
+      arm_preparation_wave(battle, attempt)
+    end
+  end
+
+  defp arm_preparation_wave(battle, selected) do
+    unsettled = Enum.reject(attempts(battle.id), &settled?(battle, &1))
+
+    if PreparationRecovery.wave_eligible?(battle, unsettled) and
+         Enum.all?(unsettled, &(interrupted_current?(&1) and not timing_fenced?(battle, &1))) do
+      ids = [selected.id | Enum.map(unsettled, & &1.id) -- [selected.id]]
+
+      context =
+        Map.merge(battle.context, %{
+          "preparation_recovery_pending" => selected.id,
+          "preparation_recovery_wave" => %{"attempt_ids" => ids, "remaining_ids" => ids}
+        })
+
+      battle = update(battle, context: context)
+      record(battle, "preparation_recovery_queued", %{"attempt_ids" => ids})
+      battle
+    else
       battle
     end
   end
@@ -1285,8 +1306,68 @@ defmodule Cuckoding.Battles do
         "cleanup_verified" => verified
       })
 
-      finish_reconciliation(battle, attempt, result, verified, now)
+      finish_preparation_recovery(battle, attempt, result, verified, now)
     end)
+  end
+
+  defp finish_preparation_recovery(battle, attempt, result, verified, now) do
+    if wave = battle.context["preparation_recovery_wave"] do
+      members = preparation_wave_members!(battle, wave)
+
+      case tl(wave["remaining_ids"]) do
+        [] ->
+          battle =
+            update(battle, context: Map.delete(battle.context, "preparation_recovery_wave"))
+
+          finish_preparation_wave(battle, members, now)
+
+        [next | _] = remaining ->
+          member = Enum.find(members, &(&1.id == next))
+
+          context =
+            battle.context
+            |> Map.put("preparation_recovery_pending", next)
+            |> put_in(["preparation_recovery_wave", "remaining_ids"], remaining)
+
+          update(battle, context: context, current_task_id: member.task_id, stage: member.stage)
+      end
+    else
+      finish_reconciliation(battle, attempt, result, verified, now)
+    end
+  end
+
+  defp preparation_wave_members!(battle, wave) do
+    Enum.map(wave["attempt_ids"], fn id ->
+      member = Repo.get(Attempt, id)
+
+      unless member && PreparationRecovery.member?(battle, member) && interrupted_current?(member),
+        do: Repo.rollback(:stale_reconciliation)
+
+      member
+    end)
+  end
+
+  defp finish_preparation_wave(battle, members, now) do
+    cond do
+      timing_blocked?(battle) ->
+        update(battle, state: "needs_attention", reason: "timing_gap")
+
+      not Enum.all?(members, &PreparationRecovery.reconciled?(battle, &1)) ->
+        battle
+
+      expired?(battle.deadline_at, now) or Enum.any?(members, &expired?(&1.deadline_at, now)) ->
+        needs_attention(battle, "late_result_rejected")
+
+      true ->
+        Enum.reduce(members, battle, fn member, current ->
+          current = update(current, current_task_id: member.task_id, stage: member.stage)
+          current = Waves.clear_block(current, member.task_id)
+          receipt = current.context["preparation_reconciliations"][member.id]["receipt"]
+          advance(current, member, receipt)
+        end)
+        |> Waves.focus()
+        |> pause_reconciled()
+    end
   end
 
   defp interrupted_current?(attempt),
@@ -1432,23 +1513,25 @@ defmodule Cuckoding.Battles do
           do: Waves.clear_block(battle, attempt.task_id),
           else: battle
 
-      battle = advance(battle, attempt, result)
-
-      battle =
-        update(battle,
-          state: "paused",
-          reason: "restart_checkpoint",
-          control_revision: battle.control_revision + 1
-        )
-
-      record(battle, "recovery_paused", %{
-        "stage" => battle.stage,
-        "task_id" => battle.current_task_id,
-        "control_revision" => battle.control_revision
-      })
-
-      battle
+      battle |> advance(attempt, result) |> pause_reconciled()
     end
+  end
+
+  defp pause_reconciled(battle) do
+    battle =
+      update(battle,
+        state: "paused",
+        reason: "restart_checkpoint",
+        control_revision: battle.control_revision + 1
+      )
+
+    record(battle, "recovery_paused", %{
+      "stage" => battle.stage,
+      "task_id" => battle.current_task_id,
+      "control_revision" => battle.control_revision
+    })
+
+    battle
   end
 
   defp finish_stop(

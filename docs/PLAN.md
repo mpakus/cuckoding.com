@@ -542,6 +542,10 @@ Depends on R050.
   pause verified in-budget checkpoints for explicit Resume. Missing/foreign/
   partial evidence, preexisting Stop/timing fences and multiple unfinished native
   stages remain blocked. [Task/evidence](../tasks/R060m-retained-preparation.md).
+- [x] R060n queue two exact retained preparations under a new Start policy, read
+  exclusively and checkpoint both tasks atomically only after both proofs pass
+  within all original limits. Partial/failed/mixed/fenced waves never advance.
+  Older snapshots retain single-claim limits. [Task/evidence](../tasks/R060n-wave-preparation.md).
 - [ ] Broader interrupted-work recovery with verified process cleanup.
 - [x] R060h timing-gap admission/settlement fence with independent supervised
   clock observation, clean Pause and rejected active receipts; no claim of sleep.

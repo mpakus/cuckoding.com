@@ -367,7 +367,8 @@ defmodule Cuckoding.BattleWavesTest do
       assert interrupted.request == attempt.request
     end
 
-    assert Battles.recovery_attempt() == nil
+    assert Battles.recovery_attempt().id in [first.id, second.id]
+    assert Enum.all?(Battles.tasks(battle.id), &is_nil(&1.context["preparation"]))
     assert {:error, :cleanup_required} = Battles.stop(battle.id)
   end
 

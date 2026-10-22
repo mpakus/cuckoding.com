@@ -31,8 +31,8 @@ defmodule Cuckoding.PreparationRecoveryTest do
     ctx
   end
 
-  defp preparing(board) do
-    battle = start(board)
+  defp preparing(board, battle \\ nil) do
+    battle = battle || start(board)
     {:ok, admission} = Battles.claim_next(battle.id)
 
     {:ok, _} =
@@ -147,9 +147,10 @@ defmodule Cuckoding.PreparationRecoveryTest do
     assert {:error, :cleanup_required} = Battles.stop(battle.id)
   end
 
-  test "multiple interrupted native preparations cannot authorize a checkpoint", ctx do
+  test "older policies cannot recover multiple interrupted native preparations", ctx do
     save_task(ctx.board, "Another independent task", [])
-    {battle, first} = preparing(ctx.board)
+    legacy = historical(ctx.board, ["worktree_wave_recovery"])
+    {battle, first} = preparing(ctx.board, legacy)
     assert {:ok, second} = Battles.claim_next(battle.id)
     assert second.stage == "prepare_worktree" and second.task_id != first.task_id
     assert {:ok, _} = Battles.recover()
@@ -243,10 +244,10 @@ defmodule Cuckoding.PreparationRecoveryTest do
     assert {:ok, %{state: "stopped"}} = Battles.stop(battle.id)
   end
 
-  test "old policies gain no authority", ctx do
-    battle = start(ctx.board)
+  defp historical(board, omitted) do
+    battle = start(board)
     {:ok, _} = Battles.stop(battle.id)
-    snapshot = Map.delete(battle.snapshot, "worktree_recovery")
+    snapshot = Map.drop(battle.snapshot, omitted)
 
     legacy =
       Repo.insert!(%Battle{
@@ -271,12 +272,192 @@ defmodule Cuckoding.PreparationRecoveryTest do
             snapshot: task.snapshot
           })
 
+    legacy
+  end
+
+  test "old policies gain no authority", ctx do
+    legacy = historical(ctx.board, ["worktree_recovery", "worktree_wave_recovery"])
     {:ok, admission} = Battles.claim_next(legacy.id)
     {:ok, _} = Battles.finish(admission.id, admission.claim_token, result(admission))
     {:ok, _} = Battles.claim_next(legacy.id)
     {:ok, _} = Battles.recover()
     assert Battles.recovery_attempt() == nil
     assert {:error, :cleanup_required} = Battles.stop(legacy.id)
+  end
+
+  defp interrupted_pair(board) do
+    save_task(board, "Another independent task", [])
+    {battle, first} = preparing(board)
+    {:ok, second} = Battles.claim_next(battle.id)
+    assert second.stage == "prepare_worktree" and first.task_id != second.task_id
+    {:ok, _} = Battles.recover()
+    {Battles.get(battle.id), Enum.map([first, second], &Repo.get!(Attempt, &1.id))}
+  end
+
+  test "two retained preparations advance together only after both exact reads verify", ctx do
+    {battle, [first, second]} = interrupted_pair(ctx.board)
+    assert battle.snapshot["worktree_wave_recovery"] == "retained-preparation-wave-v1"
+    assert Battles.recovery_attempt() == first
+    {:ok, pending} = Battles.reconcile_preparation(first, prepared(first))
+    assert pending.state == "needs_attention"
+    assert Battles.recovery_attempt() == second
+    assert {:error, :cleanup_required} = Battles.stop(battle.id)
+    assert {:error, :stale_reconciliation} = Battles.reconcile_preparation(first, prepared(first))
+    assert Enum.all?(Battles.tasks(battle.id), &is_nil(&1.context["preparation"]))
+    {:ok, paused} = Battles.reconcile_preparation(second, prepared(second))
+    assert paused.state == "paused" and paused.stage == "coordinator"
+    assert paused.turns_used == battle.turns_used and paused.deadline_at == battle.deadline_at
+
+    for attempt <- [first, second] do
+      assert Repo.get!(Attempt, attempt.id) == attempt
+      task = Enum.find(Battles.tasks(battle.id), &(&1.task_id == attempt.task_id))
+      assert task.context["lane_stage"] == "coordinator"
+      assert task.context["worker_slot"] == attempt.request["task_context"]["worker_slot"]
+      assert task.context["preparation"] == prepared(attempt)["preparation"]
+    end
+
+    assert length(Battles.attempts(battle.id)) == 3
+    assert Battles.recovery_attempt() == nil
+    assert Enum.count(Battles.evidence(battle.id), &(&1.kind == "battle.recovery_paused")) == 1
+    assert {:ok, resumed} = Battles.resume(battle.id, paused.control_revision)
+    assert {:ok, next} = Battles.claim_next(resumed.id)
+    assert next.stage == "coordinator"
+  end
+
+  test "one failed read retains both preparations without a partial checkpoint", ctx do
+    {battle, [first, second]} = interrupted_pair(ctx.board)
+
+    assert {:error, :stale_reconciliation} =
+             Battles.reconcile_preparation(second, prepared(second))
+
+    failure =
+      result(first, %{
+        "status" => "failed",
+        "reason" => "reconciliation_failed",
+        "cleanup_verified" => false
+      })
+      |> Map.delete("preparation")
+
+    {:ok, _} = Battles.reconcile_preparation(first, failure)
+    assert Battles.recovery_attempt() == second
+    {:ok, retained} = Battles.reconcile_preparation(second, prepared(second))
+    assert retained.state == "needs_attention"
+    assert Enum.all?(Battles.tasks(battle.id), &is_nil(&1.context["preparation"]))
+    assert Battles.recovery_attempt() == nil
+    assert {:error, :cleanup_required} = Battles.stop(battle.id)
+    assert {:error, _} = Battles.resume(battle.id, retained.control_revision)
+    assert Repo.get!(Attempt, first.id) == first
+    assert Repo.get!(Attempt, second.id) == second
+  end
+
+  test "a mixed provider and native interruption cannot become a preparation wave", ctx do
+    save_task(ctx.board, "Another independent task", [])
+    {battle, first} = preparing(ctx.board)
+    {:ok, second} = Battles.claim_next(battle.id)
+    {:ok, _} = Battles.finish(first.id, first.claim_token, prepared(first))
+    {:ok, provider} = Battles.claim_next(battle.id)
+    assert provider.stage == "coordinator"
+    {:ok, _} = Battles.recover()
+    retained = Battles.get(battle.id)
+    assert retained.context["preparation_recovery_wave"] == nil
+    assert retained.context["preparation_recovery_pending"] == nil
+    assert Battles.recovery_attempt().id == provider.id
+    interrupted = Repo.get!(Attempt, second.id)
+
+    assert BattleExecutor.reconcile_preparation(interrupted, git: __MODULE__.Git)[
+             "cleanup_verified"
+           ] == false
+
+    refute_receive {:recovery_operation, _, _}
+    assert {:error, :cleanup_required} = Battles.stop(battle.id)
+  end
+
+  test "expiry of either original preparation blocks advancement of both tasks", ctx do
+    {battle, [first, second]} = interrupted_pair(ctx.board)
+    {:ok, _} = Battles.reconcile_preparation(first, prepared(first), first.deadline_at)
+
+    {:ok, retained} =
+      Battles.reconcile_preparation(second, prepared(second), first.deadline_at)
+
+    assert retained.state == "needs_attention" and retained.reason == "late_result_rejected"
+    assert Enum.all?(Battles.tasks(battle.id), &is_nil(&1.context["preparation"]))
+    refute Battles.retry_available?(retained)
+    assert Battles.skip_preview(retained) == []
+    assert {:error, _} = Battles.resume(battle.id, retained.control_revision)
+    assert {:ok, %{state: "stopped"}} = Battles.stop(battle.id)
+    assert length(Battles.attempts(battle.id)) == 3
+  end
+
+  test "a fence racing the last read retains only whole-wave Stop closure", ctx do
+    {battle, [first, second]} = interrupted_pair(ctx.board)
+    {:ok, _} = Battles.reconcile_preparation(first, prepared(first))
+    receipt = BattleExecutor.reconcile_preparation(second, git: __MODULE__.Git)
+    assert receipt == prepared(second)
+    now = DateTime.utc_now()
+    gap = Cuckoding.BattleClock.gap({now, 0}, {DateTime.add(now, 60), 60_000})
+    {:ok, _} = Battles.observe_timing_gap(gap)
+    refute Battles.preparation_reconciliation_current?(second)
+    {:ok, retained} = Battles.reconcile_preparation(second, receipt)
+    assert retained.state == "needs_attention" and retained.reason == "timing_gap"
+    assert Enum.all?(Battles.tasks(battle.id), &is_nil(&1.context["preparation"]))
+    assert Battles.recovery_attempt() == nil
+    assert {:ok, %{state: "stopped"}} = Battles.stop(battle.id)
+  end
+
+  test "a fence between reads prevents the next read and leaves unknown cleanup blocked", ctx do
+    {battle, [first, second]} = interrupted_pair(ctx.board)
+    {:ok, _} = Battles.reconcile_preparation(first, prepared(first))
+    now = DateTime.utc_now()
+
+    {:ok, _} =
+      Battles.observe_timing_gap(
+        Cuckoding.BattleClock.gap({now, 0}, {DateTime.add(now, -60), 1000})
+      )
+
+    assert Battles.recovery_attempt() == nil
+    assert BattleExecutor.reconcile_preparation(second, git: __MODULE__.Git)["status"] == "failed"
+    refute_receive {:recovery_operation, _, _}
+    assert {:error, :cleanup_required} = Battles.stop(battle.id)
+    assert Enum.all?(Battles.tasks(battle.id), &is_nil(&1.context["preparation"]))
+  end
+
+  test "coordinator restart repeats only the unfinished read of a retained preparation wave",
+       ctx do
+    {battle, [first, second]} = interrupted_pair(ctx.board)
+    parent = self()
+
+    reconciler = fn interrupted ->
+      send(parent, {:wave_read, self(), interrupted})
+
+      receive do
+        :inspect -> prepared(interrupted)
+      end
+    end
+
+    start_supervised!(
+      {ExecutionSupervisor,
+       coordinator: BattleRunner, tasks: Cuckoding.BattleTasks, options: [reconciler: reconciler]}
+    )
+
+    assert_receive {:wave_read, first_worker, ^first}, 1_000
+    send(first_worker, :inspect)
+    assert_receive {:wave_read, second_worker, ^second}, 1_000
+    assert Enum.all?(Battles.tasks(battle.id), &is_nil(&1.context["preparation"]))
+    monitor = Process.monitor(second_worker)
+    Process.exit(Process.whereis(BattleRunner), :kill)
+    assert_receive {:DOWN, ^monitor, :process, ^second_worker, :shutdown}, 1_000
+    assert_receive {:wave_read, replacement, ^second}, 1_000
+    send(replacement, :inspect)
+    await(fn -> Battles.get(battle.id).state == "paused" end)
+    assert Repo.get!(Attempt, first.id) == first
+    assert Repo.get!(Attempt, second.id) == second
+    assert length(Battles.attempts(battle.id)) == 3
+
+    assert Enum.count(Battles.evidence(battle.id), &(&1.kind == "battle.preparation_reconciled")) ==
+             2
+
+    assert Enum.count(Battles.evidence(battle.id), &(&1.kind == "battle.recovery_paused")) == 1
+    refute_receive {:wave_read, _, _}
   end
 
   defmodule Git do

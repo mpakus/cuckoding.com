@@ -79,6 +79,14 @@ evidence or a timing fence racing a completed read supplies Stop closure only.
 Older grants, already-stopping/fenced claims, missing proofs and multiple unfinished
 native stages gain no continuation. No checkout is created or receipt repaired.
 
+R060n extends only new Starts with `worktree_wave_recovery: retained-preparation-wave-v1`.
+Two interrupted writer preparations may queue the same exclusive fixed read.
+Keep both tasks at preparation until both receipts and all original deadlines
+verify; then save both next stages and one Paused checkpoint atomically. Resume
+keeps their frozen worker slots. Failed, partial, mixed-stage, expired or fenced
+waves cannot advance one task alone. Retain each known closure for Stop; an
+unknown member still blocks it. Older Starts retain R060m's one-claim limit.
+
 R060l adds the separate `retained-provider-closure-v1` policy to new Starts.
 Codex/Cursor task helpers reserve an exact private intent before launch and fsync
 public closure metadata before returning. After restart, a supervised read may

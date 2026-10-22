@@ -140,6 +140,15 @@ unchanged. `context.preparation_reconciliations[attempt_id]` holds the closed bo
 transaction. Expiry/timing refusal retains closure without task/head advancement;
 failed observations cannot satisfy cleanup. Schema remains fifteen migrations.
 
+R060n adds `worktree_wave_recovery: retained-preparation-wave-v1` to new snapshots,
+without migration. `context.preparation_recovery_wave` holds exact ordered
+`attempt_ids` and its `remaining_ids` suffix; `battle.preparation_recovery_queued`
+retains the original membership. Each observation commits before the next read.
+After the final read, clear the queue and advance both task contexts plus one
+Paused/control revision only if all original receipts/deadlines verify. Failure,
+expiry or a timing fence never partially advances tasks. Keep original attempts
+and individual dated observations unchanged; older snapshots keep R060m limits.
+
 R060l adds no migration. New snapshots freeze
 `provider_closure: retained-provider-closure-v1`. Startup may set
 `context.provider_closure_pending` for an interrupted provider after settled

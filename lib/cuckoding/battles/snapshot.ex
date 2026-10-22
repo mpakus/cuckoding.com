@@ -83,6 +83,7 @@ defmodule Cuckoding.Battles.Snapshot do
       "parallel_team" => additional,
       "native_recovery" => "retained-integration-v1",
       "worktree_recovery" => PreparationRecovery.policy(),
+      "worktree_wave_recovery" => PreparationRecovery.wave_policy(),
       "provider_closure" => ProviderClosure.policy(),
       "timing_guard" => "elapsed-gap-v1",
       "idle_sleep" => "shell-lease-v1",
