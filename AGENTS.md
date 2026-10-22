@@ -306,6 +306,15 @@ Preserve these implemented contracts:
 - Team revisions and scoped adoptions are immutable. Arena adoption affects new
   boards; Tabula adoption affects future planning only and waits for active
   planning. Guard both displayed scope/default revisions and retain old receipts.
+- R040o appends immutable per-Tabula workflow revisions; the original definition
+  remains revision zero without backfill. Board columns in Advanced renames only
+  the five required keys, preserving role/order/review semantics. Save binds the
+  server-owned Arena/Tabula, session, form key and revision, refuses active
+  planning/battles and preserves dirty text on updates/recovery. Strip only known
+  empty LiveView unused-field markers before closed input validation. New Starts
+  freeze the exact definition/revision; later labels never alter past battles.
+  Back up before the sixteenth additive migration; older bundles refuse it.
+  Adding/reordering custom execution stages and their grants remains required.
 - R030c edits the exact validated Arena/Tabula through the shared Team editor.
   `save_scoped_team` appends revision/adoption/command/event atomically against
   the assigned revision; it never changes defaults or existing planning/battles.

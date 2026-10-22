@@ -412,3 +412,18 @@ Resume remains explicit with original bindings/slots/budgets. A failed read,
 expiry or timing fence cannot partially advance the wave. Exact verified closure
 is retained for Stop; unknown members still block cleanup. Older snapshots keep
 R060m's one-claim limit. This adds no other native/session or physical sleep recovery.
+
+## D043 — Immutable Tabula workflow revisions
+
+2026-10-22, R040o. Introduce a per-board immutable workflow ledger before adding
+custom role execution. The original Tabula definition remains untouched revision
+zero; later definitions append audited scoped revisions. This additive migration
+must preserve prior facts and verified backups; older bundles refuse the new schema.
+
+The first editor changes only bounded unique labels for the existing five semantic
+keys/roles in their required order. Scope, expected revision and stable command
+key bind Save; active board planning/battles refuse changes. New Starts freeze
+the selected revision and complete definition; historical snapshots never change.
+Keep the editor/history in Advanced, preserve dirty text and guard its own session.
+Actual ordered custom stages and grants follow this foundation; unavailable steps
+are not offered as inert columns and do not silently disable the working Start.

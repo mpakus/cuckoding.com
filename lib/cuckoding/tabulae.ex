@@ -11,17 +11,11 @@ defmodule Cuckoding.Tabulae do
     Planning,
     Repo,
     Tabula,
-    TeamAssignments
+    TeamAssignments,
+    Workflows
   }
 
   @fields ~w(title description criteria column)
-  @columns [
-    %{"key" => "specs", "name" => "Specs", "role" => "speculator"},
-    %{"key" => "todo", "name" => "ToDo", "role" => "summa_rudis"},
-    %{"key" => "in_process", "name" => "In Process", "role" => "implementor"},
-    %{"key" => "review", "name" => "Review", "role" => "secutor"},
-    %{"key" => "completed", "name" => "Completed", "role" => nil}
-  ]
 
   def arena(id) do
     case Ecto.UUID.cast(id) do
@@ -35,8 +29,14 @@ defmodule Cuckoding.Tabulae do
 
   def get(arena_id, id) do
     case Ecto.UUID.cast(id) do
-      {:ok, id} -> Repo.get_by(Tabula, id: id, arena_id: arena_id) |> Repo.preload(:team_revision)
-      _ -> nil
+      {:ok, id} ->
+        case Repo.get_by(Tabula, id: id, arena_id: arena_id) do
+          nil -> nil
+          board -> board |> Repo.preload(:team_revision) |> Workflows.project()
+        end
+
+      _ ->
+        nil
     end
   end
 
@@ -360,7 +360,7 @@ defmodule Cuckoding.Tabulae do
         team_revision_id: TeamAssignments.assigned(arena).id,
         command_id: id,
         name: payload["name"],
-        definition: %{"version" => 1, "execution" => "disabled", "columns" => @columns},
+        definition: Workflows.default_definition(),
         inserted_at: DateTime.utc_now()
       })
 

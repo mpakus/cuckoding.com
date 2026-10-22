@@ -2,7 +2,7 @@ defmodule CuckodingWeb.PlanningComponent do
   @moduledoc false
   use CuckodingWeb, :live_component
   import CuckodingWeb.Dialog
-  alias Cuckoding.{Foundation, GitPreview, Planning, PlanningDocuments, Tabulae}
+  alias Cuckoding.{Foundation, GitPreview, Planning, PlanningDocuments, Tabulae, Workflows}
   alias Phoenix.LiveView.JS
 
   @impl true
@@ -192,20 +192,39 @@ defmodule CuckodingWeb.PlanningComponent do
       assign(socket,
         key: Ecto.UUID.generate(),
         error: nil,
-        message: "Added to Specs. Open Edit task to refine it."
+        message:
+          "Added to #{Workflows.column_name(socket.assigns.board, "specs")}. Open Edit task to refine it."
       )
 
   defp result(socket, {:ok, _}),
     do: assign(socket, key: Ecto.UUID.generate(), error: nil, message: nil)
 
   defp result(socket, {:error, reason}),
-    do: assign(socket, key: Ecto.UUID.generate(), error: message(reason), message: nil)
+    do:
+      assign(socket,
+        key: Ecto.UUID.generate(),
+        error: message(reason, socket.assigns.board),
+        message: nil
+      )
 
   defp active?(command), do: command.state in ~w(pending running cancelling)
 
   defp runtime_name("cursor"), do: "Cursor"
   defp runtime_name(kind) when kind in [nil, "codex"], do: "Codex"
   defp runtime_name(_), do: "Unknown runtime"
+
+  defp message("already_imported", board),
+    do:
+      "This suggestion is already in #{Workflows.column_name(board, "specs")}. Edit the existing task."
+
+  defp message("prerequisites_not_imported", board),
+    do:
+      "Add this suggestion's prerequisites to #{Workflows.column_name(board, "specs")} first. Existing tasks stay unchanged."
+
+  defp message("planned", board),
+    do: "Proposals ready · review before adding to #{Workflows.column_name(board, "specs")}."
+
+  defp message(reason, _board), do: message(reason)
 
   defp message("planning_confirmation_required"),
     do:
@@ -225,13 +244,6 @@ defmodule CuckodingWeb.PlanningComponent do
   defp message("profile_busy"),
     do: "Another setup or planning operation is active. Wait or cancel it first."
 
-  defp message("already_imported"),
-    do: "This suggestion is already in Specs. Edit the existing task."
-
-  defp message("prerequisites_not_imported"),
-    do: "Add this suggestion's prerequisites to Specs first. Existing tasks stay unchanged."
-
-  defp message("planned"), do: "Proposals ready · review before adding to Specs."
   defp message("cancelled"), do: "Planning cancelled. No proposals were imported."
 
   defp message("interrupted"),
@@ -437,7 +449,7 @@ defmodule CuckodingWeb.PlanningComponent do
             )}. This may use my account allowance.
           </label>
           <p class="fine-print">
-            One turn creates up to six validated cards in Specs, with their prerequisites and sources. Existing tasks stay unchanged. No tools, live project-file access or battle execution.
+            One turn creates up to six validated cards in {Workflows.column_name(@board, "specs")}, with their prerequisites and sources. Existing tasks stay unchanged. No tools, live project-file access or battle execution.
           </p>
           <p :if={@error} id="planning-error" role="alert" class="notice">{@error}</p>
           <p :if={@message} role="status">{@message}</p>
@@ -475,7 +487,7 @@ defmodule CuckodingWeb.PlanningComponent do
           <p :if={!active?(plan)} role="status">
             {if plan.result == "planned" && plan.payload["card_creation"] == "automatic-v1",
               do: "Tasks created · edit them on the board, then Start when ready.",
-              else: message(plan.result)}
+              else: message(plan.result, @board)}
           </p>
           <details id={"brief-#{plan.id}"} phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
             <summary>Source brief · team {plan.payload["team_revision_id"]}</summary>
@@ -517,8 +529,8 @@ defmodule CuckodingWeb.PlanningComponent do
                 disabled={Map.has_key?(@imported, {plan.id, index})}
               >
                 {if Map.has_key?(@imported, {plan.id, index}),
-                  do: "Added to Specs",
-                  else: "Add to Specs"}
+                  do: "Added to #{Workflows.column_name(@board, "specs")}",
+                  else: "Add to #{Workflows.column_name(@board, "specs")}"}
               </button>
               <p :if={plan.payload["card_creation"] == "automatic-v1"} class="fine-print">
                 Created on the board

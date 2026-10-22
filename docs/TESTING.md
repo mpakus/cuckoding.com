@@ -1,5 +1,15 @@
 # Verification and acceptance
 
+R040o covers immutable/consecutive workflow history, exact board scope, competing
+revision saves, stable-key replay, closed label bounds, active planning/battle
+refusal and new Start snapshots without changing old battles. LiveView checks
+cover dirty/stale/recovered forms, component session expiry, real-browser unused
+field metadata, escaped labels and consistent board/planning/specification copy.
+Migration tests upgrade backed-up schema fifteen to sixteen without rewriting
+prior facts. Source browser verification found and fixed unused-field rejection;
+copied-data bundled launch and older-release schema refusal are separate checks.
+These do not establish custom execution-stage or real-provider acceptance.
+
 R060m covers exact retained writer preparation without replay: missing/tampered/
 linked receipt/tag, owner/source/ref/checkout drift, foreign/extra requests and
 native cancellation/deadline, retaining original source/index/untracked bytes.

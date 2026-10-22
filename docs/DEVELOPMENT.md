@@ -55,6 +55,12 @@ real-provider parallel acceptance remains open. R060m adds a fixed read-only
 retained writer-preparation checkpoint, requiring a rebuilt native helper and
 matching host policy. It adds no migration and never repairs missing receipts.
 No provider grant or native toolchain permission widens.
+R040o adds the sixteenth additive migration, an immutable workflow revision table.
+Back up before upgrading; fifteen-schema bundles refuse the new root. Existing
+Tabula definitions supply revision zero without changing old rows. Use
+**Advanced → Board columns** to rename the five columns; roles/order/grants stay
+fixed and active planning/battles block edits. History is dated and new Starts
+freeze their exact definition. Adding/reordering custom stages remains open.
 [Plan](PLAN.md#next-delivery-order--simple-arena) owns the remaining beta gates.
 
 ## Build and open

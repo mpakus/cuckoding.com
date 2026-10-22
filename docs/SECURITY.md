@@ -1,5 +1,14 @@
 # Security contract
 
+R040o column saves bind exact Arena/Tabula IDs, displayed revision and stable
+command key in an immediate transaction. The LiveComponent installs its own
+session guard, rejects recovered/foreign forms and keeps dirty text on revision
+drift. Only the five bounded unique labels change; keys, roles, stage order and
+grants are fixed. Known empty LiveView unused-field markers are form metadata,
+not extra domain fields. Active planning/battles refuse edits, and new Starts
+retain their exact workflow independently of later names. The additive immutable
+ledger and virtual revision zero do not rewrite historical authority.
+
 R080j evidence downloads require the current browser session behind the loopback/
 origin boundary. The route binds Arena, Tabula, draft and execution, and resolves
 pagination only through an attempt in that scope. It exports the existing public

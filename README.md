@@ -40,7 +40,7 @@ remote push, user-branch merge and release remain separate human actions.
 
 ## What works today
 
-**Local preview source, 2026-10-21.** The Codex/Cursor Arena loop includes independent-task implementation waves.
+**Local preview source, 2026-10-22.** The Codex/Cursor Arena loop includes independent-task implementation waves.
 The complete product story still includes capabilities and release acceptance
 listed below. Arena registration opens its default board; technical setup stays in Advanced.
 
@@ -49,7 +49,7 @@ listed below. Arena registration opens its default board; technical setup stays 
 | Tray launch, authenticated browser and local SQLite state | Full timed ten-minute onboarding acceptance |
 | Multiple named Codex/Cursor connections, model discovery and saved choices | Additional runtimes |
 | Saved agent/model assignments for Speculator, Implementor, Secutor and Summa Rudis | Real mixed-runtime battle acceptance |
-| Folder registration with an automatic default board, direct Arena opening, scoped team editing, Advanced setup and editable drafts | Custom columns and execution stages |
+| Folder registration with an automatic default board, direct Arena opening, scoped team editing, versioned column names and editable drafts | Adding/reordering custom columns and execution stages |
 | Codex/Cursor planning from a brief or bounded folder snapshots (`docs/` first), automatically saved task cards, prerequisites and original source citations | Real-account planning acceptance across supported runtimes |
 | One bounded Start, independent task pipelines in waves of up to two, serialized independent review/integration and a retained local battle branch | Real-account end-to-end acceptance, general toolchain checks, full recovery and real-provider parallel acceptance |
 | Global setup/planning/battle activity, selected-board team/progress and paginated events globally/per Arena | Timed real-account setup and broader dashboard/release acceptance |
@@ -89,6 +89,12 @@ The saved-default editor and explicit **Use saved team** action remain available
 Extra custom roles are available for planning. Start uses Speculator, Implementor,
 Secutor and Summa Rudis; an unused planning role does not block the battle or get
 execution access. Inspect lists these planning-only roles separately.
+
+**Advanced → Board columns** renames the five columns for that board. Roles,
+order and review rules stay the same; active planning/battles block changes.
+Names have dated history, and Start keeps its original definition even after a
+later rename. This adds the sixteenth database migration: back up before upgrading;
+older bundles refuse the new schema. Custom ordered execution stages remain open.
 
 New agents start with an editable name and an executable path detected from known
 install locations when available. Cursor's

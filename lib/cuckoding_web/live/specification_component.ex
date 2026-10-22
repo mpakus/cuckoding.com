@@ -1,7 +1,7 @@
 defmodule CuckodingWeb.SpecificationComponent do
   @moduledoc false
   use CuckodingWeb, :live_component
-  alias Cuckoding.{Foundation, Specifications}
+  alias Cuckoding.{Foundation, Specifications, Workflows}
 
   @impl true
   def mount(socket) do
@@ -101,6 +101,12 @@ defmodule CuckodingWeb.SpecificationComponent do
     assign(socket, :confirmed, confirmed)
   end
 
+  defp message("accepted", board),
+    do:
+      "Specification accepted and saved in #{Workflows.column_name(board, "todo")}. Reload the task to edit its current revision."
+
+  defp message(reason, _board), do: message(reason)
+
   defp message("criteria_required"),
     do: "Save a description and acceptance criteria before previewing a specification."
 
@@ -115,9 +121,6 @@ defmodule CuckodingWeb.SpecificationComponent do
   defp message(status) when status in ~w(stale_task preview_changed),
     do: "The task or a prerequisite changed. Reload the task and preview again."
 
-  defp message("accepted"),
-    do: "Specification accepted and saved in ToDo. Reload the task to edit its current revision."
-
   defp message("cancelled"),
     do: "Acceptance cancelled. Any partial artifact is retained; the task was not moved."
 
@@ -131,7 +134,10 @@ defmodule CuckodingWeb.SpecificationComponent do
     <details id={@id} phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
       <summary>Accepted specifications</summary>
       <p class="fine-print">
-        Save an exact Markdown specification in Cuckoding's private storage and move this task to ToDo.
+        Save an exact Markdown specification in Cuckoding's private storage and move this task to {Workflows.column_name(
+          @board,
+          "todo"
+        )}.
         Your Arena files stay untouched. Acceptance does not authorize an agent or start a battle.
       </p>
       <p :if={@dirty} role="status">Save your edits before previewing a specification.</p>
@@ -194,7 +200,7 @@ defmodule CuckodingWeb.SpecificationComponent do
             "%Y-%m-%d %H:%M UTC"
           )}
         </p>
-        <p :if={spec.state not in ~w(pending running cancelling)}>{message(spec.result)}</p>
+        <p :if={spec.state not in ~w(pending running cancelling)}>{message(spec.result, @board)}</p>
         <div :if={spec.state == "completed"}>
           <p>
             {if Specifications.current?(spec),

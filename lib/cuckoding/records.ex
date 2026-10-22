@@ -126,6 +126,20 @@ defmodule Cuckoding.Tabula do
     field :command_id, :binary_id
     field :name, :string
     field :definition, :map
+    field :workflow_revision, :integer, virtual: true, default: 0
+    field :inserted_at, :utc_datetime_usec
+  end
+end
+
+defmodule Cuckoding.WorkflowRevision do
+  @moduledoc false
+  use Ecto.Schema
+
+  schema "workflow_revisions" do
+    field :tabula_id, :binary_id
+    field :command_id, :binary_id
+    field :revision, :integer
+    field :definition, :map
     field :inserted_at, :utc_datetime_usec
   end
 end

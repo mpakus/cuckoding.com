@@ -1,6 +1,6 @@
 # Implementation plan and checklist
 
-**Current implementation audit: 2026-10-21.** The source reset remains historical;
+**Current implementation audit: 2026-10-22.** The source reset remains historical;
 this checklist describes the current local preview. Setup, saved teams, folder
 analysis, automatic task cards and the bounded Codex/Cursor Arena loop with task waves
 are implemented. Pause/Resume, explicit provider Retry and Skip/Partial are also
@@ -20,7 +20,7 @@ attempts, inside the existing retry budget; interrupted/native recovery remains 
 | Area | Implemented | Still required |
 | --- | --- | --- |
 | Agents and Team | Named Codex/Cursor connections, full bounded catalogs, model choices, default/custom planning roles, scoped team editing/adoption | Custom execution roles/stages, Claude Code and Hermes |
-| Arena and tasks | Add folder/default board, bounded docs-first analysis, optional saved planning role, automatic cards, prerequisites, citations and saved criteria | Custom columns and real-account planning acceptance |
+| Arena and tasks | Add folder/default board, versioned names for the five columns, bounded docs-first analysis, optional saved planning role, automatic cards, prerequisites, citations and saved criteria | Adding/reordering custom columns/stages and real-account planning acceptance |
 | Execution | One Start, two independent task pipelines per wave within two global workers, serialized independent review/correction/integration and retained local result branch | General subprocess/toolchain checks, real mixed-provider and same-account parallel battle acceptance |
 | Controls/recovery | Stop, stage-boundary Pause/Resume, bounded provider Retry and automatic backoff, Skip with deferred dependents and Partial result; settled restart checkpoints, timing fence and bounded idle-sleep assertion | Unfinished native/process/Git reconciliation, sleep accounting and physical sleep tests |
 | Experience | Agent wizard/disconnect, Team editor, Arena controls/inspector with public JSON evidence downloads, global workers/progress and paginated global/Arena activity with follow control | Broader parallel activity, responsive/browser acceptance and timed ten-minute setup |
@@ -427,6 +427,11 @@ Depends on R030.
   [evidence](../worklog/2026-10-07-R040f-document-planning.md).
 - [ ] Add/rename/reorder columns and assign custom roles through versioned
   definitions. Enforce mandatory final Secutor review after all writing stages.
+- [x] R040o establishes the immutable per-board workflow ledger and Advanced
+  column-name editor, with exact scope/revision/session gates and frozen Start
+  definitions. Existing rows remain revision zero. This completes renaming only;
+  adding/reordering custom stages and their real grants remain required above.
+  [Task/evidence](../tasks/R040o-workflow-revisions.md).
 - [x] Create/edit manual drafts and assigned-Speculator tasks from briefs, selected
   files or bounded folder snapshots. Retain criteria, source citations, prerequisites,
   accepted-spec artifacts and edited cards (R040b/e/f/h/i/l/m).

@@ -1,6 +1,17 @@
 defmodule CuckodingWeb.TabulaLive do
   use CuckodingWeb, :live_view
-  alias Cuckoding.{ArenaGit, Battles, Dashboard, Foundation, GitPreview, Tabulae, TeamAssignments}
+
+  alias Cuckoding.{
+    ArenaGit,
+    Battles,
+    Dashboard,
+    Foundation,
+    GitPreview,
+    Tabulae,
+    TeamAssignments,
+    Workflows
+  }
+
   alias CuckodingWeb.Layouts
   import CuckodingWeb.Dialog
   alias Phoenix.LiveView.JS
@@ -197,7 +208,11 @@ defmodule CuckodingWeb.TabulaLive do
          |> refresh()}
 
       {:error, reason} ->
-        {:noreply, assign(socket, error: message(reason), key: Ecto.UUID.generate())}
+        {:noreply,
+         assign(socket,
+           error: draft_message(reason, socket.assigns.board),
+           key: Ecto.UUID.generate()
+         )}
     end
   end
 
@@ -236,10 +251,19 @@ defmodule CuckodingWeb.TabulaLive do
 
   defp refresh(socket) do
     board = socket.assigns.board
+    board = if board, do: Tabulae.get(socket.assigns.arena.id, board.id)
+    socket = assign(socket, :board, board)
     editing = board != nil and socket.assigns.revision > 0
     git = ArenaGit.latest(socket.assigns.arena.id)
     worktrees = ArenaGit.worktrees(socket.assigns.arena.id)
     paths = if git, do: git.payload["paths"] || [], else: []
+
+    {source, history} =
+      if editing,
+        do:
+          {Tabulae.source(board.id, socket.assigns.task_id),
+           Tabulae.history(board.id, socket.assigns.task_id)},
+        else: {nil, []}
 
     socket
     |> assign(
@@ -255,15 +279,8 @@ defmodule CuckodingWeb.TabulaLive do
       now: DateTime.utc_now(),
       boards: Tabulae.list(socket.assigns.arena.id),
       tasks: if(board, do: Tabulae.tasks(board.id), else: []),
-      source:
-        if(editing,
-          do: Tabulae.source(board.id, socket.assigns.task_id)
-        ),
-      history:
-        if(editing,
-          do: Tabulae.history(board.id, socket.assigns.task_id),
-          else: []
-        )
+      source: source,
+      history: history
     )
     |> refresh_board_activity()
     |> refresh_battle()
@@ -617,6 +634,12 @@ defmodule CuckodingWeb.TabulaLive do
     end
   end
 
+  defp draft_message("criteria_required", board),
+    do:
+      "#{Workflows.column_name(board, "todo")} needs a description and acceptance criteria. Your draft is kept."
+
+  defp draft_message(reason, _board), do: message(reason)
+
   defp message("invalid_board"), do: "Enter a Tabula name of 1–80 characters."
 
   defp message("invalid_task"),
@@ -629,9 +652,6 @@ defmodule CuckodingWeb.TabulaLive do
   defp message("dependency_cycle"),
     do:
       "These prerequisites create a circular dependency. Your draft is kept; revise the selection."
-
-  defp message("criteria_required"),
-    do: "ToDo needs a description and acceptance criteria. Your draft is kept."
 
   defp message("stale_task"),
     do:
@@ -840,6 +860,12 @@ defmodule CuckodingWeb.TabulaLive do
             now={@now}
           />
           <div class="team-actions">
+            <button
+              :if={@board}
+              type="button"
+              class="button"
+              phx-click={JS.dispatch("cc:open", to: "#board-workflow")}
+            >Board columns</button>
             <button type="button" class="button" phx-click={JS.dispatch("cc:open", to: "#arena-git")}>Repository setup</button>
             <button
               type="button"
@@ -847,6 +873,14 @@ defmodule CuckodingWeb.TabulaLive do
               phx-click={JS.dispatch("cc:open", to: "#create-tabula")}
             >Add another board</button>
           </div>
+          <.live_component
+            :if={@board}
+            module={CuckodingWeb.WorkflowComponent}
+            id={"workflow-#{@board.id}"}
+            session_id={@session_id}
+            board={@board}
+            now={@now}
+          />
           <.modal id="arena-git" title="Repository setup">
             <p class="arena-path">{@arena.path}</p>
             <p class="fine-print">
@@ -1218,10 +1252,10 @@ defmodule CuckodingWeb.TabulaLive do
             <label for="draft-column">Column</label>
             <select id="draft-column" name="column">
               <option value="specs" selected={@content["column"] == "specs"}>
-                Specs · refine the task
+                {Workflows.column_name(@board, "specs")} · refine the task
               </option>
               <option value="todo" selected={@content["column"] == "todo"}>
-                ToDo · planned work
+                {Workflows.column_name(@board, "todo")} · planned work
               </option>
             </select>
             <fieldset id="draft-prerequisites" aria-describedby="prerequisites-help">
@@ -1248,7 +1282,7 @@ defmodule CuckodingWeb.TabulaLive do
               </p>
             </fieldset>
             <p class="fine-print">
-              ToDo needs a description and criteria. These are database drafts; project files stay untouched.
+              {Workflows.column_name(@board, "todo")} needs a description and criteria. These are database drafts; project files stay untouched.
             </p>
             <p :if={@error} id="draft-error" role="alert" class="notice">{@error}</p>
             <button

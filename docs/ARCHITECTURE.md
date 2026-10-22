@@ -1,12 +1,20 @@
 # Architecture
 
+R040o puts per-board workflow state in `Workflows` and its immutable revision
+ledger. `Tabulae.get/2` projects current labels; new Start snapshots freeze that
+definition/revision. `WorkflowComponent` uses the shared native dialog under
+Advanced with its own session/scope/form/revision guards and explicit draft
+discard. Active planning/battles block edits transactionally. Native/provider
+work, core stage order and grants are unchanged; custom ordered stages remain
+required. The sixteenth migration is additive with virtual legacy revision zero.
+
 R040n keeps optional planner choice inside `Planning` and its existing modal
 component. The domain resolves only the board's assigned immutable team and binds
 the chosen role/connection/model/sources to consent and the retained command.
 Native no-tools planning and automatic card import are reused; role selection
 cannot adopt teams or alter battle dispatch. Old requests remain readable.
 
-## Implemented boundary · reviewed 2026-10-21
+## Implemented boundary · reviewed 2026-10-22
 
 Cuckoding delivers authenticated setup, planning, isolated task turns and the
 Codex/Cursor battle loop with two-task implementation waves sharing two global

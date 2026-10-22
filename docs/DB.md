@@ -1,5 +1,18 @@
 # Data model
 
+R040o's sixteenth forward-only migration adds `workflow_revisions`: exact Tabula
+and command FKs, consecutive per-board revisions, a definition and timestamp.
+Unique board/revision and command indexes plus update/delete/sequence triggers
+retain immutable history. It backfills nothing: original `tabulae.definition`
+supplies virtual revision zero. `Workflows` projects the latest definition in
+memory; old Tabula, team, task, command and battle rows remain unchanged.
+`save_workflow_labels` commits the revision, stable-key command and scoped event
+in one immediate transaction. New Starts freeze `workflow_revision` and
+`workflow_definition`; older snapshots stay readable without those fields.
+The current editor changes only bounded unique labels for the five fixed keys.
+Prior-schema backup/upgrade, integrity/FKs and older-bundle refusal are verified
+on copied development data; this does not authorize downgrading a live root.
+
 R040n adds `planning_role_id` to new `plan_tabula` payloads and their setup-consent
 hash. It names a role in the board's assigned team; the existing full frozen role,
 team/connection/model and source snapshots remain authoritative. Stable-key
@@ -138,7 +151,8 @@ unchanged. `context.preparation_reconciliations[attempt_id]` holds the closed bo
 `receipt` and host `observed_at` UTC timestamp. Clear the marker, append
 `battle.preparation_reconciled` and a verified in-budget Paused checkpoint in one
 transaction. Expiry/timing refusal retains closure without task/head advancement;
-failed observations cannot satisfy cleanup. Schema remains fifteen migrations.
+failed observations cannot satisfy cleanup. R060m itself adds no migration;
+R040o subsequently brings the schema to sixteen.
 
 R060n adds `worktree_wave_recovery: retained-preparation-wave-v1` to new snapshots,
 without migration. `context.preparation_recovery_wave` holds exact ordered

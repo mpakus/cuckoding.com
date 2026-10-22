@@ -333,6 +333,13 @@ defmodule CuckodingWeb.BattleComponent do
       <p class="fine-print">
         Public summaries and retained attempt receipts. Original criteria remain part of the frozen scope.
       </p>
+      <p :if={@battle.snapshot["workflow_definition"]} id="battle-frozen-workflow" class="fine-print">
+        Columns at Start: {Enum.map_join(
+          @battle.snapshot["workflow_definition"]["columns"],
+          " → ",
+          & &1["name"]
+        )}
+      </p>
       <p :if={@battle.context["timing_gap"]} id="battle-timing-observation" class="notice">
         Timing observation: {label(@battle.context["timing_gap"]["kind"])} ·
         UTC elapsed {@battle.context["timing_gap"]["wall_elapsed_ms"]} ms ·

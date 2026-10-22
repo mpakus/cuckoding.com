@@ -95,7 +95,7 @@ defmodule Cuckoding.BattleCapacityMigrationTest do
     MigrationRepo.query!("VACUUM INTO ?", [backup])
     File.chmod!(backup, 0o600)
 
-    assert Ecto.Migrator.run(MigrationRepo, path, :up, all: true, log: false) == [
+    assert Ecto.Migrator.run(MigrationRepo, path, :up, to: 20_261_022_000_000, log: false) == [
              20_261_022_000_000
            ]
 
@@ -134,6 +134,48 @@ defmodule Cuckoding.BattleCapacityMigrationTest do
     assert [] == MigrationRepo.query!("PRAGMA foreign_key_check").rows
     assert MigrationRepo.query!("SELECT * FROM events").rows == before
     assert [["ok"]] = MigrationRepo.query!("PRAGMA integrity_check").rows
+  end
+
+  test "workflow ledger upgrades a backed-up fifteen-schema copy without rewriting facts" do
+    root = "/private/tmp/cuckoding-workflow-migration-#{Ecto.UUID.generate()}"
+    File.mkdir!(root)
+    File.chmod!(root, 0o700)
+    on_exit(fn -> File.rm_rf!(root) end)
+    database = Path.join(root, "prior.sqlite3")
+    backup = Path.join(root, "before-upgrade.sqlite3")
+
+    start_supervised!(
+      {MigrationRepo, database: database, pool: DBConnection.ConnectionPool, pool_size: 1}
+    )
+
+    path = Application.app_dir(:cuckoding, "priv/repo/migrations")
+
+    assert length(Ecto.Migrator.run(MigrationRepo, path, :up, to: 20_261_022_000_000, log: false)) ==
+             15
+
+    tables = legacy_claim_rows()
+    facts = Map.new(tables, &{&1, MigrationRepo.query!("SELECT * FROM " <> &1).rows})
+    MigrationRepo.query!("VACUUM INTO ?", [backup])
+    File.chmod!(backup, 0o600)
+
+    assert Ecto.Migrator.run(MigrationRepo, path, :up, all: true, log: false) == [
+             20_261_022_010_000
+           ]
+
+    assert Map.new(tables, &{&1, MigrationRepo.query!("SELECT * FROM " <> &1).rows}) == facts
+    assert MigrationRepo.query!("SELECT * FROM workflow_revisions").rows == []
+    assert [["ok"]] = MigrationRepo.query!("PRAGMA integrity_check").rows
+    assert [] == MigrationRepo.query!("PRAGMA foreign_key_check").rows
+    stop_supervised!(MigrationRepo)
+
+    start_supervised!(
+      {MigrationRepo, database: backup, pool: DBConnection.ConnectionPool, pool_size: 1}
+    )
+
+    assert length(Ecto.Migrator.migrated_versions(MigrationRepo)) == 15
+    assert Map.new(tables, &{&1, MigrationRepo.query!("SELECT * FROM " <> &1).rows}) == facts
+    assert [["ok"]] = MigrationRepo.query!("PRAGMA integrity_check").rows
+    assert [] == MigrationRepo.query!("PRAGMA foreign_key_check").rows
   end
 
   defp legacy_claim_rows do

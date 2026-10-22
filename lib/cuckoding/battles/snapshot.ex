@@ -90,6 +90,8 @@ defmodule Cuckoding.Battles.Snapshot do
       "task_selection" => "skip-task-v1",
       "arena_id" => arena.id,
       "tabula_id" => board.id,
+      "workflow_revision" => board.workflow_revision,
+      "workflow_definition" => board.definition,
       "source" =>
         Map.new(~w(path device inode), &{&1, Map.fetch!(arena, String.to_existing_atom(&1))}),
       "team_revision" => team.id,
