@@ -36,7 +36,7 @@ release process group and private storage lock.
 | `Battles`, `BattleRunner`, `BattleExecutor`, `BattleChecks`, `Battles.Capacity` | SQLite battle/task/attempt authority and capacity checks; two monitored workers across isolated Arenas; one stage per board/exact connection; closed native Git, provider turns and disposable check workspaces |
 | `BattlePreview` | Read-only aggregation of scoped saved preparation and verified spec artifacts; no durable battle state or launch authority |
 | `Dashboard`, `DashboardComponent`, `ActivityComponent` | Bounded read-only Arena/latest-battle/task/setup/planning projections, exact-board team/progress and 20-event chronological pages; shared stateless worker rows, guarded parent/component events and stable reading mode; no execution authority |
-| `Battles.Evidence`, `TaskEvidenceComponent` | Exact Arena/Tabula/draft/execution read scope, whitelisted frozen/public receipts and cursor-paged task attempts inside the existing dialog; no workflow transitions or provider/file access |
+| `Battles.Evidence`, `TaskEvidenceComponent`, `SessionController.task_evidence` | Exact Arena/Tabula/draft/execution read scope, whitelisted frozen/public receipts and cursor-paged task attempts inside the existing dialog; authenticated bounded JSON download of the same projection; no workflow transitions or provider/file access |
 | `Specifications`, `Storage` | Freeze accepted draft/prerequisite revisions, write private Markdown, verify artifact hash and atomically commit acceptance/history/ToDo; no execution authority |
 | `ArenaGit`, `NativeHelper`, native `arena_git.rs` | Fixed inspect/init/initial-commit/detached-worktree operations and descriptor-relative selected file reads; no remotes, hooks or arbitrary commands |
 

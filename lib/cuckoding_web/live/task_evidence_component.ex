@@ -73,6 +73,12 @@ defmodule CuckodingWeb.TaskEvidenceComponent do
   defp label(nil), do: "Unknown"
   defp label(value), do: value |> String.replace("_", " ") |> String.capitalize()
 
+  defp download_path(assigns) do
+    query = if hd(assigns.cursors), do: %{before: hd(assigns.cursors).id}, else: %{}
+
+    ~p"/arenas/#{assigns.board.arena_id}/tabulae/#{assigns.board.id}/tasks/#{assigns.task_id}/executions/#{assigns.run.battle_id}/evidence.json?#{query}"
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -100,6 +106,7 @@ defmodule CuckodingWeb.TaskEvidenceComponent do
             disabled={!@earlier}
           >Earlier execution</button>
           <button type="button" class="button" phx-target={@myself} phx-click="latest">Latest execution</button>
+          <a class="button" href={download_path(assigns)} download>Download evidence · JSON</a>
         </div>
         <p :if={@dirty || @run.snapshot["revision"] != @draft_revision} class="notice">
           The draft below differs from this frozen execution. Its saved evidence is unchanged.

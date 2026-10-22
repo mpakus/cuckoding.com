@@ -65,7 +65,11 @@ Open a task's **Execution history** to inspect its frozen specification, public
 review feedback, exact agent/model, candidates, file-tool receipts and command
 checks. Attempts are collapsible and paginated; **Earlier execution** keeps older
 results available without replacing current draft text. Expired work is labelled
-as retained evidence. This view runs no agents.
+as retained evidence. **Download evidence · JSON** saves that execution's public
+20-attempt page and frozen criteria, with a date and scope. Older pages keep their
+cursor; the latest page reflects saved receipts when downloaded. Downloads require
+an active session, are capped at 2 MiB and exclude private provider envelopes.
+This view runs no agents. [Download evidence](tasks/R080j-evidence-download.md).
 
 Agents uses `/agents`; Settings uses `/settings`. Agent setup follows
 **Choose Agent → Connect and Authorize → Select models → Save**.

@@ -1,5 +1,6 @@
 defmodule CuckodingWeb.SessionController do
   use CuckodingWeb, :controller
+  alias Cuckoding.Battles.Evidence
   alias Cuckoding.ShellAuth
 
   def open(conn, %{"token" => token} = params) do
@@ -67,6 +68,32 @@ defmodule CuckodingWeb.SessionController do
           |> text(
             "This specification file is missing, changed or unavailable. Return to the task to accept a new preview."
           )
+      end
+    else
+      locked(conn, %{})
+    end
+  end
+
+  def task_evidence(conn, params) do
+    if ShellAuth.valid_session?(get_session(conn, :session_id)) do
+      case Evidence.export(
+             params["arena_id"],
+             params["board_id"],
+             params["task_id"],
+             params["battle_id"],
+             params["before"]
+           ) do
+        {:ok, body} ->
+          send_download(conn, {:binary, body},
+            filename: "task-#{params["task_id"]}-#{params["battle_id"]}.json",
+            content_type: "application/json"
+          )
+
+        {:error, :too_large} ->
+          conn |> put_status(413) |> text("This evidence page exceeds the 2 MiB download limit.")
+
+        {:error, :not_found} ->
+          conn |> put_status(404) |> text("This task evidence page is unavailable.")
       end
     else
       locked(conn, %{})

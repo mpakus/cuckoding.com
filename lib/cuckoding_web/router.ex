@@ -25,6 +25,11 @@ defmodule CuckodingWeb.Router do
     get "/locked", SessionController, :locked, log: false
     get "/codex/login/:id", SessionController, :codex_login, log: false
     get "/specifications/:id/download", SessionController, :specification, log: false
+
+    get "/arenas/:arena_id/tabulae/:board_id/tasks/:task_id/executions/:battle_id/evidence.json",
+        SessionController,
+        :task_evidence, log: false
+
     get "/about", SessionController, :legacy_settings, log: false
     get "/settings/:id", SessionController, :legacy_agent, log: false
 

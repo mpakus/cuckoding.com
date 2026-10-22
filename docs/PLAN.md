@@ -18,10 +18,10 @@ attempts, inside the existing retry budget; interrupted/native recovery remains 
 | Area | Implemented | Still required |
 | --- | --- | --- |
 | Agents and Team | Named Codex/Cursor connections, full bounded catalogs, model choices, default roles/custom role records, scoped team adoption | Per-scope role editing, custom role/stage execution, Claude Code and Hermes |
-| Arena and tasks | Add folder/default board, bounded docs-first analysis, automatic cards, prerequisites, citations and saved criteria | Custom columns, custom planning-role selection and real-account planning acceptance |
+| Arena and tasks | Add folder/default board, bounded docs-first analysis, optional saved planning role, automatic cards, prerequisites, citations and saved criteria | Custom columns and real-account planning acceptance |
 | Execution | One Start, sequential mixed-runtime dispatch per board, two isolated Arenas concurrently, independent review/correction and retained local result branch | General subprocess/toolchain checks, real mixed-provider battle acceptance and same-board parallel workers |
 | Controls/recovery | Stop, stage-boundary Pause/Resume, bounded provider Retry and automatic backoff, Skip with deferred dependents and Partial result; settled restart checkpoints, timing fence and bounded idle-sleep assertion | Unfinished native/process/Git reconciliation, sleep accounting and physical sleep tests |
-| Experience | Agent wizard/disconnect, Team editor, Arena controls/inspector, global workers/progress and paginated global/Arena activity with follow control | Broader parallel activity, responsive/browser acceptance and timed ten-minute setup |
+| Experience | Agent wizard/disconnect, Team editor, Arena controls/inspector with public JSON evidence downloads, global workers/progress and paginated global/Arena activity with follow control | Broader parallel activity, responsive/browser acceptance and timed ten-minute setup |
 | Release | Local bundle/build/smoke, separate preserved data root; Decimal/Bandit advisories fixed | Signing/notarization, clean-machine install, updates/rollback and full acceptance matrix |
 
 Delivery order: finish uncertain-effect and sleep recovery (R060), implement
@@ -585,9 +585,13 @@ usable Arena surface first; basic flow simplification must not wait for R080.
   candidate/edit/tool/check receipts and 20-attempt cursor pages across retained
   executions, inside the existing task dialog. No new execution authority.
   [Task and evidence](../tasks/R080h-task-evidence.md).
+- [x] R080j authenticated public evidence JSON downloads from the task inspector:
+  exact execution/scoped cursor, 20-attempt pages, dated frozen/public fields and
+  2 MiB limit; no arbitrary file/log access or workflow effects.
+  [Task and evidence](../tasks/R080j-evidence-download.md).
 - [x] R080g scrollable/paginated normalized event activity globally/per Arena,
   with explicit follow control. Raw provider output/thoughts never enter this feed.
-- [ ] Safe opening/export of retained log artifacts where supported; full
+- [ ] Safe opening/export of any additional retained log artifacts where supported; full
   parallel-worker and end-to-end dashboard acceptance.
 - [ ] Apply the one/two-region modern TUI visual contract, mouse/keyboard
   alternatives, non-color status, responsive layout and reduced motion.

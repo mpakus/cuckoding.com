@@ -60,10 +60,13 @@ defmodule CuckodingWeb.TaskEvidenceLiveTest do
     assert has_element?(view, "#task-evidence", "Repair the task")
     assert has_element?(view, "#task-evidence", "lib/app.ex")
     assert has_element?(view, "#task-evidence", "not an accepted completion receipt")
+    download = evidence_path(f)
+    assert has_element?(view, "#task-evidence a[href='#{download}']", "Download evidence")
     refute render(view) =~ "hidden-sentinel"
     view |> form("#draft-form", title: "Keep my draft") |> render_change()
     view |> element("#task-evidence-older") |> render_click()
     assert has_element?(view, "#task-evidence", "Review 3")
+    assert has_element?(view, "#task-evidence a[href^='#{download}?before=']")
     refute has_element?(view, "#task-evidence", "Review 23")
     Foundation.broadcast()
     assert has_element?(view, "#draft-title-input[value='Keep my draft']")
@@ -104,6 +107,7 @@ defmodule CuckodingWeb.TaskEvidenceLiveTest do
 
     Foundation.broadcast()
     assert has_element?(view, "#task-evidence", "Frozen criteria")
+    assert has_element?(view, "#task-evidence a[href='#{evidence_path(f)}']")
     refute has_element?(view, "#task-evidence", "Later criteria")
 
     view
@@ -111,6 +115,7 @@ defmodule CuckodingWeb.TaskEvidenceLiveTest do
     |> render_click(%{"battle_id" => Ecto.UUID.generate()})
 
     assert has_element?(view, "#task-evidence", "Later criteria")
+    assert has_element?(view, "#task-evidence a[href='#{evidence_path(%{f | battle: newer})}']")
     assert has_element?(view, "#task-evidence", "task Skipped")
     view |> element("#task-evidence button[phx-click=earlier]") |> render_click()
     assert has_element?(view, "#task-evidence", "Frozen criteria")
@@ -136,4 +141,91 @@ defmodule CuckodingWeb.TaskEvidenceLiveTest do
     view |> element("#task-evidence-older") |> render_click()
     assert_redirect(view, "/locked")
   end
+
+  test "download is a bounded public page with a scoped attempt cursor and no writes", f do
+    signed = sign_in(f.conn)
+    counts = {Repo.aggregate(Cuckoding.Command, :count), Repo.aggregate(Cuckoding.Event, :count)}
+    conn = get(signed, evidence_path(f))
+    assert get_resp_header(conn, "cache-control") == ["no-store"]
+    assert get_resp_header(conn, "content-type") == ["application/json"]
+
+    assert get_resp_header(conn, "content-disposition") ==
+             [~s(attachment; filename="task-#{f.task.task_id}-#{f.battle.id}.json")]
+
+    data = json_response(conn, 200)
+    assert data["format"] == "cuckoding-task-evidence-v1"
+    assert {:ok, _, 0} = DateTime.from_iso8601(data["exported_at"])
+    assert data["execution"]["snapshot"]["criteria"] == "Frozen criteria"
+    assert data["scope"]["battle_id"] == f.battle.id
+    assert data["pagination"] == %{"before" => nil, "more" => true, "page_size" => 20}
+    assert length(data["attempts"]) == 20
+    assert hd(data["attempts"])["state"] == "expired"
+    assert data["notice"] =~ "not completion proof"
+    refute conn.resp_body =~ "hidden-sentinel"
+    refute conn.resp_body =~ "claim_token"
+    refute conn.resp_body =~ "deadline_at"
+    cursor = List.last(data["attempts"])["id"]
+    older = signed |> get(evidence_path(f), %{before: cursor}) |> json_response(200)
+    assert length(older["attempts"]) == 3
+    refute older["pagination"]["more"]
+    assert older["pagination"]["before"] == cursor
+
+    assert counts ==
+             {Repo.aggregate(Cuckoding.Command, :count), Repo.aggregate(Cuckoding.Event, :count)}
+  end
+
+  test "download rejects missing sessions, foreign scope/cursors and oversized output", f do
+    assert f.conn |> get(evidence_path(f)) |> response(401)
+    signed = sign_in(f.conn)
+    other = DashboardFixtures.fixture("completed")
+
+    for path <- [
+          evidence_path(%{f | arena: other.arena}),
+          evidence_path(%{f | board: other.board}),
+          evidence_path(%{f | task: other.task}),
+          evidence_path(%{f | battle: other.battle})
+        ] do
+      assert signed |> get(path) |> response(404)
+    end
+
+    for cursor <- ["invalid", Ecto.UUID.generate(), ["malformed"]] do
+      assert signed |> get(evidence_path(f), %{before: cursor}) |> response(404)
+    end
+
+    foreign =
+      Repo.insert!(%Attempt{
+        id: Ecto.UUID.generate(),
+        battle_id: other.battle.id,
+        task_id: other.task.task_id,
+        stage: "secutor",
+        state: "failed",
+        claim_token: Ecto.UUID.generate(),
+        deadline_at: other.battle.deadline_at,
+        request: %{},
+        result: %{}
+      })
+
+    assert signed |> get(evidence_path(f), %{before: foreign.id}) |> response(404)
+
+    Repo.insert!(%Attempt{
+      id: Ecto.UUID.generate(),
+      battle_id: f.battle.id,
+      task_id: f.task.task_id,
+      stage: "secutor",
+      state: "failed",
+      claim_token: Ecto.UUID.generate(),
+      deadline_at: f.battle.deadline_at,
+      request: %{},
+      inserted_at: DateTime.add(f.battle.inserted_at, 100),
+      result: %{"summary" => String.duplicate("x", 2 * 1024 * 1024)}
+    })
+
+    assert signed |> get(evidence_path(f)) |> response(413)
+    Repo.update_all(BrowserToken, set: [expires_at: 0])
+    assert signed |> get(evidence_path(f)) |> response(401)
+  end
+
+  defp evidence_path(f),
+    do:
+      "/arenas/#{f.arena.id}/tabulae/#{f.board.id}/tasks/#{f.task.task_id}/executions/#{f.battle.id}/evidence.json"
 end

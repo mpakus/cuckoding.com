@@ -48,6 +48,14 @@ updates. Historical/expired reports and retained edits are not completion proof.
 Keep current dirty draft text separate, native disclosure/focus behavior and the
 component's own session guard. Reading history never launches work or grants access.
 
+R080j downloads only that public evidence projection through the authenticated
+controller boundary. Require exact Arena/Tabula/task/battle IDs; an optional cursor
+must belong to that battle/task. Export 20 attempts plus frozen criteria, dated
+format/scope and a retained-evidence notice; refuse output over 2 MiB without
+truncation. Preserve the selected execution/page and dirty text. No arbitrary log
+or native file path, raw provider envelope, claim token, download-triggered work
+or completion authority; final review/recovery remain in Inspect battle.
+
 R060a Pause closes stage admission and lets the current bounded stage finish.
 Show Paused only at a durable boundary with verified worker cleanup; retain its
 receipt and next stage without replay. Pause/Resume use persisted control revisions

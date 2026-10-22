@@ -1,5 +1,13 @@
 # Verification and acceptance
 
+R080j checks authenticated JSON attachment headers, exact execution scope and
+20-attempt cursor pages, frozen/public field inclusion and nested private-field
+exclusion. Refuse missing/expired sessions, foreign/malformed cursors and output
+over 2 MiB. Reading creates no commands/events; links retain the selected execution
+and page without changing dirty drafts. Removing the cursor's scope check must
+fail the regression. These exports are public receipt pages, not raw native logs
+or real-provider/release acceptance.
+
 R040n covers optional custom Codex/Cursor planners, exact role/agent/model/consent,
 stable-key role conflicts and legacy Speculator replay. LiveView checks preserve
 brief/source/manual-draft text, clear consent on role changes, reject foreign

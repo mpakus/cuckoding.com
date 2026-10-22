@@ -1,5 +1,13 @@
 # Security contract
 
+R080j evidence downloads require the current browser session behind the loopback/
+origin boundary. The route binds Arena, Tabula, draft and execution, and resolves
+pagination only through an attempt in that scope. It exports the existing public
+projection, at most 20 attempts/2 MiB, with no-store headers and a fixed UUID-based
+JSON attachment name. It never opens arbitrary native paths or exports raw provider
+frames, thoughts, claim tokens or private envelopes. Frozen task text is included;
+the local download is not a publication, execution grant or completion proof.
+
 R102 locks Bandit 1.13.1 with Thousand Island 1.6.0. The upstream fixes cover
 [unvalidated HTTP/1 request authority](https://github.com/mtrudel/bandit/security/advisories/GHSA-v53v-9hvg-37jf)
 and [HTTP/2 send-window deadline resets](https://github.com/mtrudel/bandit/security/advisories/GHSA-69m6-wcv4-rwcf);

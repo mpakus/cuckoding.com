@@ -4,6 +4,51 @@ defmodule Cuckoding.Battles.Evidence do
   alias Cuckoding.Battles.{Attempt, Battle, Task}
   alias Cuckoding.{DraftTask, Repo, Tabula}
   @page_size 20
+  @export_bytes 2 * 1024 * 1024
+
+  def export(arena, board, task, battle, before \\ nil) do
+    with true <- ids?([battle]),
+         %{} = execution <- run(arena, board, task, battle),
+         {:ok, cursor} <- export_cursor(battle, task, before) do
+      page = attempts(arena, board, task, battle, cursor)
+
+      body =
+        Jason.encode_to_iodata!(%{
+          format: "cuckoding-task-evidence-v1",
+          exported_at: DateTime.utc_now(),
+          scope: %{arena_id: arena, tabula_id: board, task_id: task, battle_id: battle},
+          notice:
+            "Public retained evidence, not completion proof or execution permission. " <>
+              "Final review and recovery observations remain in Inspect battle.",
+          execution: execution,
+          attempts: page.rows,
+          pagination: %{before: before, more: page.more?, page_size: @page_size}
+        })
+
+      if IO.iodata_length(body) <= @export_bytes,
+        do: {:ok, IO.iodata_to_binary(body)},
+        else: {:error, :too_large}
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  defp export_cursor(_, _, nil), do: {:ok, nil}
+
+  defp export_cursor(battle, task, id) do
+    if ids?([id]) do
+      case Repo.one(
+             from a in Attempt,
+               where: a.battle_id == ^battle and a.task_id == ^task and a.id == ^id,
+               select: %{id: a.id, started_at: a.inserted_at}
+           ) do
+        nil -> {:error, :not_found}
+        cursor -> {:ok, cursor}
+      end
+    else
+      {:error, :not_found}
+    end
+  end
 
   def run(arena, board, task, battle \\ nil) do
     if ids?([arena, board, task]) and (is_nil(battle) or ids?([battle])) do
