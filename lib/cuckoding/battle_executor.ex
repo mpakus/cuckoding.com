@@ -14,7 +14,7 @@ defmodule Cuckoding.BattleExecutor do
     TaskTurn
   }
 
-  alias Cuckoding.Battles.{ProviderClosure, Snapshot}
+  alias Cuckoding.Battles.{ProviderClosure, Slots, Snapshot}
 
   @envelope ~w(battle_id request_id task_id stage criteria_sha256)
   @uncertain ~w(cleanup_uncertain unavailable invalid_output candidate_incomplete battle_incomplete worktree_incomplete)
@@ -88,7 +88,7 @@ defmodule Cuckoding.BattleExecutor do
     checker = Keyword.get(adapters, :checks, BattleChecks)
 
     with true <- active?.(),
-         true <- Enum.all?(snapshot["team"], &binding_current?/1),
+         true <- Enum.all?(Slots.bindings(snapshot), &binding_current?/1),
          {:ok, resolved} <- resolve_checks(snapshot, checker),
          %{"status" => "existing", "head" => head} <-
            git(attempt, "inspect", %{}, active?, adapters),

@@ -354,3 +354,25 @@ The coordinator monitor records the existing interrupted/unknown-cleanup outcome
 committed facts remain unchanged. Valid finished-stage Stop races retain their
 cleanup proof only after full binding/result validation.
 No native grant, schema, budget, automatic retry or parallel capacity is added.
+
+## D040 — Explicit paired role workers
+
+2026-10-21, R070e. The two-task wave needs optional additional exact bindings to
+run simultaneous turns of the same responsibility. Reuse named connections and
+Team's immutable revision/command; each required role may explicitly select one
+additional agent/model, with inherited name/instructions and independent provider
+sessions/worktrees. Do not copy credentials or infer another account/model.
+
+New Starts freeze `role_slots: assigned-pairs-v1` and the resolved additional
+bindings. Wave slots 0/1 select primary/additional deterministically; missing
+additional binding means the saved shared primary, not dynamic load balancing.
+A present invalid/unavailable additional binding blocks Start; it never falls
+back. Retries keep the frozen slot, all budgets and the original deadline.
+Final stages/configured command checks use the primary responsibility binding.
+Keep the two-worker global cap and one turn per exact connection. Older Starts
+and planning use their existing bindings. Save launches nothing; explicit scoped
+adoption/Start retains authority. Disconnect unassigns the exact connection in
+both positions without rewriting history or promoting an extra worker.
+
+This adds no provider grant, tool, port/process reconciliation or real-account
+acceptance. Additional providers/custom stages and release gates remain open.

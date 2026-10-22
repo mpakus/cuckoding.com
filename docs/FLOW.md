@@ -230,7 +230,7 @@ integrated. Exact saved connections take one provider turn at a time, and capaci
 waits add no attempts/turns. Checks/review/integration run serially after the wave;
 changed-head candidates need a new combined review, and conflicts return through
 bounded fresh-worktree repair. Old snapshots remain sequential. Additional
-explicit role slots, provider-account concurrency proof and broader recovery below
+provider-account concurrency proof and broader recovery below
 remain required target work, not implemented acceptance.
 
 A clone is a new attempt/session using the same role definition, not a duplicated
@@ -301,3 +301,14 @@ planning-only request, not team adoption or a custom battle stage. Reopening the
 dialog in a new LiveView starts with Speculator; retained history names the role
 that actually produced each request.
 Cursor uses its separate no-tools planning grant, never a Codex fallback.
+
+## Optional second role workers (R070e)
+
+Within Team, Additional worker is optional and uses another named connection and
+selected model. Save/adoption keeps the normal scoped flow. New Start freezes
+primary/extra bindings and assigns wave tasks to slot 0/1 without dynamic fallback.
+A missing extra shares the primary; an assigned unavailable extra blocks, while a
+busy one waits. Extra-equipped waves prioritize earlier planning stages, enabling
+two writers after shared planning turns. Review repair/Retry keeps the same slot;
+final review and configured checks retain primaries. Disconnect clears its exact
+bindings from both positions in current teams. Past Starts/teams remain intact.

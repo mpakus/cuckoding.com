@@ -809,3 +809,20 @@ Retain failed effects and attempts; restart independent tasks from the reviewed 
 Final prompts and criteria digests bind the retained subset and explicit omissions;
 configured checks and independent review remain mandatory. Partial is not full
 completion. No worktree deletion, original-checkout mutation or authority expansion.
+
+## Exact additional role bindings (R070e)
+
+Optional Team worker pairs are metadata until the one bounded Start grant. Validate
+both positions through exact connection catalogs; a fresh additional binding cannot
+borrow a primary's model selection. Reject duplicate same-role connection IDs,
+foreign/forged fields and malformed allocation. Keep immutable v2 team history,
+server-owned scopes, form/revision/session guards and explicit adoption. Legacy
+omission preserves existing extras; it cannot silently promote or duplicate them.
+
+New Starts freeze all resolved pairs. Wave slots select exact bindings, never
+load-balanced fallback, and keep one turn per exact connection under two global
+workers. Admission/Resume and unfinished-battle Disconnect cover every extra;
+retained closures bind the exact chosen request. Disconnect later unassigns only
+the exact connection across both current positions. Public rows whitelist bindings;
+Inspect reads exact frozen/request metadata without private identity envelopes.
+No new runtime tool/grant, account credential clone or real-account proof results.

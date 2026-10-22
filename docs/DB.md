@@ -300,6 +300,21 @@ closed reason, not instruction text. The UI exposes the latest five revisions;
 older history remains in SQLite. Historical bindings retain the resolved model
 through disconnect or catalog drift; current roles are cleared on confirmed
 disconnect. New bindings require verified fresh metadata.
+R070e uses team definition v2 when a required role carries `parallel_agent`,
+`parallel_model_id` and host-resolved `parallel_model`. At most one extra per
+required role; it inherits that role's instructions/name and needs a different
+saved connection. Old saves omitting the fields preserve existing workers;
+matching historical command keys retain their original result. Adoption notices
+compare role/binding projections, not empty optional fields or format versions. No schema change
+or profile duplication. Disconnect appends exact current-scope unassignment in
+both positions; old revisions stay immutable.
+
+New battle snapshots freeze `role_slots: assigned-pairs-v1` and `parallel_team`
+with the same exact metadata as primaries. Task context records `worker_slot`
+0/1; immutable attempt requests freeze the selected full role. Retry preserves
+allocation and original limits. Extra-equipped waves prefer earlier pipeline
+stages; old policy ordering stays unchanged. Final stages/checks use primaries.
+
 R030b adds scoped adoption of saved defaults (below); R030c adds scoped editing.
 Schedules and extra executable grants are not implemented.
 

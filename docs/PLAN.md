@@ -19,7 +19,7 @@ attempts, inside the existing retry budget; interrupted/native recovery remains 
 | --- | --- | --- |
 | Agents and Team | Named Codex/Cursor connections, full bounded catalogs, model choices, default/custom planning roles, scoped team editing/adoption | Custom execution roles/stages, Claude Code and Hermes |
 | Arena and tasks | Add folder/default board, bounded docs-first analysis, optional saved planning role, automatic cards, prerequisites, citations and saved criteria | Custom columns and real-account planning acceptance |
-| Execution | One Start, two independent task pipelines per wave within two global workers, serialized independent review/correction/integration and retained local result branch | General subprocess/toolchain checks, real mixed-provider battle acceptance and additional parallel role slots |
+| Execution | One Start, two independent task pipelines per wave within two global workers, serialized independent review/correction/integration and retained local result branch | General subprocess/toolchain checks, real mixed-provider and same-account parallel battle acceptance |
 | Controls/recovery | Stop, stage-boundary Pause/Resume, bounded provider Retry and automatic backoff, Skip with deferred dependents and Partial result; settled restart checkpoints, timing fence and bounded idle-sleep assertion | Unfinished native/process/Git reconciliation, sleep accounting and physical sleep tests |
 | Experience | Agent wizard/disconnect, Team editor, Arena controls/inspector with public JSON evidence downloads, global workers/progress and paginated global/Arena activity with follow control | Broader parallel activity, responsive/browser acceptance and timed ten-minute setup |
 | Release | Local bundle/build/smoke, separate preserved data root; Decimal/Bandit advisories fixed | Signing/notarization, clean-machine install, updates/rollback and full acceptance matrix |
@@ -165,8 +165,8 @@ The numbered story below is capability coverage, not eight mandatory screens.
 
 [R002 evidence](../tasks/R002-simple-arena-contract.md) records the delivered UI
 and automatic-board slice. R040l/m deliver bounded source reading and automatic
-card creation. R050e adds the first loop; R070d adds task waves. Next: explicit
-additional role slots, real-account mixed-task acceptance, general toolchain checks,
+card creation. R050e adds the first loop; R070d/e add task waves and assigned
+role workers. Next: real-account mixed-task/parallel acceptance, general toolchain checks,
 remaining recovery/providers/custom workflows and release gates.
 
 ## Sequence and dependencies
@@ -384,8 +384,12 @@ Execution acceptance depends on R020. R030a configuration can ship independently
 - [x] R030d keep custom planning-only roles available without blocking Start;
   bind only the four existing execution responsibilities and disclose extras in
   Inspect. No custom execution stage is implied. [Task](../tasks/R030d-planning-role-start.md).
-- [ ] Add confirmed/audited execution slots and grants; prove independent sessions
-  sharing one connection/model without inferring permission from role text.
+- [x] R070e optional exact second bindings per required role in Team; immutable
+  scoped/default saves, explicit adoption, catalog/Disconnect gates and frozen
+  Start allocation. Separate sessions/worktrees; one exact connection still
+  serializes turns. [Task](../tasks/R070e-assigned-workers.md).
+- [ ] Prove real-account independent sessions, including a shared provider account,
+  without inferring permission from role text or cloning authorization.
 
 Acceptance: save the team once, reuse it without per-task assignment, change a
 future default without changing an existing snapshot, and reject permission
@@ -574,12 +578,13 @@ Depends on R060. Required for the requested release, not a deferred enhancement.
   conflict repair, multi-worker controls and individually scoped closure reads.
   [Task](../tasks/R070d-parallel-waves.md). Native/fixture proof is separate from
   real-provider acceptance; shared role connections still serialize their turns.
-- [ ] Add explicitly assigned additional execution slots for simultaneous role
-  instances using independent connections/sessions/worktrees/process groups. Never clone logins
-  or infer a binding. This remains required R030/R070 work.
+- [x] R070e explicitly assigned paired role workers using separate named
+  connections/sessions/worktrees, with stable allocation and no login clone or
+  busy-binding fallback. [Task](../tasks/R070e-assigned-workers.md).
+- [ ] Prove these pairs with real providers and independent same-account sessions.
 - [ ] Atomically claim tasks, capacity and ports; enforce global/Arena/Tabula/
   provider caps, fairness and one active battle per Arena.
-- [x] Dispatch independent task pipelines concurrently in bounded waves; wait for integrated prerequisites. Additional role slots remain above.
+- [x] Dispatch independent task pipelines concurrently in bounded waves; wait for integrated prerequisites. Real-provider acceptance remains below.
 - [x] Serialize integration; if the battle head changed, validate/test/review the
   combined candidate and compare-and-swap the head.
 - [x] Route compatible-combination conflicts to bounded spec/implementation repair; retain every branch

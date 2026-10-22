@@ -347,3 +347,10 @@ failures. Runner restart holds a settled failure until explicit Retry; Pause/Res
 still works afterward. Task receipt checks preserve boolean cleanup evidence and
 discard private provider fields. No native grant/schema changed. Live provider,
 sleep and uncertain-effect reconciliation remain separate acceptance gates.
+
+R070e adds `role_slots_test.exs` and `role_workers_live_test.exs`: exact optional
+catalog/scoped saves, legacy omission/replay, invalid/foreign binding refusal,
+all-scope Disconnect, concurrent writer claims after shared planning, full combined
+review flow, slot-preserving writer Retry, admission/Resume gates, public frozen
+projection and dirty/session-guarded shared selectors. These remain fixtures;
+real-provider parallel/permission/cleanup acceptance is still required.

@@ -9,6 +9,7 @@ defmodule Cuckoding.Battles do
     Capacity,
     ProviderClosure,
     Receipts,
+    Slots,
     Snapshot,
     Task,
     Waves
@@ -300,14 +301,14 @@ defmodule Cuckoding.Battles do
   end
 
   defp claimable_wave?(view) do
-    role = Enum.find(view.snapshot["team"], &(&1["id"] == @roles[view.stage]))
+    role = Slots.task_binding(view.snapshot, @roles[view.stage], current_task(view))
     Capacity.available?(view.snapshot, role)
   end
 
   defp claim(battle, now) do
     task = current_task(battle)
     role_id = @roles[battle.stage]
-    role = Enum.find(battle.snapshot["team"], &(&1["id"] == role_id))
+    role = claimed_binding(battle.snapshot, role_id, task)
     unless Capacity.available?(battle.snapshot, role), do: Repo.rollback(:capacity)
     key = Ecto.UUID.generate()
 
@@ -357,6 +358,13 @@ defmodule Cuckoding.Battles do
     })
 
     attempt
+  end
+
+  defp claimed_binding(snapshot, role_id, task) do
+    unless Slots.valid_task?(snapshot, task), do: Repo.rollback(:invalid_binding)
+    role = Slots.task_binding(snapshot, role_id, task)
+    if role_id && is_nil(role), do: Repo.rollback(:invalid_binding)
+    role
   end
 
   def finish(id, token, result, now \\ DateTime.utc_now()) do
@@ -644,7 +652,7 @@ defmodule Cuckoding.Battles do
   end
 
   defp current_team?(battle) do
-    Enum.all?(battle.snapshot["team"], fn role ->
+    Enum.all?(Slots.bindings(battle.snapshot), fn role ->
       Foundation.verified_executable(role["agent_id"]) == {:ok, role["identity"]} and
         Foundation.task_binding_current?(role)
     end)

@@ -51,7 +51,7 @@ listed below. Arena registration opens its default board; technical setup stays 
 | Saved agent/model assignments for Speculator, Implementor, Secutor and Summa Rudis | Real mixed-runtime battle acceptance |
 | Folder registration with an automatic default board, direct Arena opening, scoped team editing, Advanced setup and editable drafts | Custom columns and execution stages |
 | Codex/Cursor planning from a brief or bounded folder snapshots (`docs/` first), automatically saved task cards, prerequisites and original source citations | Real-account planning acceptance across supported runtimes |
-| One bounded Start, independent task pipelines in waves of up to two, serialized independent review/integration and a retained local battle branch | Real-account end-to-end acceptance, general toolchain checks, full recovery and additional parallel role slots |
+| One bounded Start, independent task pipelines in waves of up to two, serialized independent review/integration and a retained local battle branch | Real-account end-to-end acceptance, general toolchain checks, full recovery and real-provider parallel acceptance |
 | Global setup/planning/battle activity, selected-board team/progress and paginated events globally/per Arena | Timed real-account setup and broader dashboard/release acceptance |
 
 Tabula Gladiatorum shows up to 20 saved active setup/planning/battle records and
@@ -235,9 +235,14 @@ conflicts return through Speculator and a new writer. Dependent tasks wait for
 reviewed results. Pause/Stop cover both workers. Older saved battles retain their
 sequential policy. [Wave implementation](tasks/R070d-parallel-waves.md).
 
-Additional simultaneous role slots and real-account parallel acceptance remain
-open. The current loop does not clone credentials or run simultaneous turns on
-one saved connection. The [shared receipt boundary](tasks/R070c-stage-receipts.md)
+In Team, **Additional worker (optional)** assigns a second named agent and model
+for a required role. Save it for future work, using the normal explicit adoption
+for an existing board. New Starts freeze these pairs: two independent tasks can
+use different Implementors simultaneously. Each exact connection still takes one
+turn at a time; leaving the extra empty shares the primary. No credentials are
+cloned and an unavailable assigned worker is never substituted. Final review and
+configured checks keep their primary binding. Real-account parallel acceptance
+remains open. [Assigned workers](tasks/R070e-assigned-workers.md). The [shared receipt boundary](tasks/R070c-stage-receipts.md)
 keeps every outcome bound to its frozen attempt.
 **Skip task** confirms leaving a clean paused or settled blocked/failed task
 unfinished and defers its dependents. Independent tasks continue from reviewed work;

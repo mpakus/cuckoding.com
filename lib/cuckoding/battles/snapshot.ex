@@ -1,6 +1,6 @@
 defmodule Cuckoding.Battles.Snapshot do
   @moduledoc false
-  alias Cuckoding.Battles.{Backoff, Capacity, ProviderClosure, Waves}
+  alias Cuckoding.Battles.{Backoff, Capacity, ProviderClosure, Slots, Waves}
 
   alias Cuckoding.{
     Agents,
@@ -38,6 +38,13 @@ defmodule Cuckoding.Battles.Snapshot do
     team = TeamAssignments.assigned(board)
     {execution, planning} = Enum.split_with(team.definition["roles"], &(&1["id"] in @roles))
     roles = Enum.map(execution, &role_binding/1)
+
+    additional =
+      execution
+      |> Enum.map(&Cuckoding.Team.additional/1)
+      |> Enum.reject(&(&1["agent"] == ""))
+      |> Enum.map(&role_binding/1)
+
     tasks = Enum.map(Tabulae.tasks(board.id), &task/1)
     checks = ProjectChecks.current(arena.id)
     {ordered, graph_valid?} = order(tasks, [])
@@ -59,7 +66,11 @@ defmodule Cuckoding.Battles.Snapshot do
           not Enum.any?(roles, &(&1["id"] == "implementor" and &1["kind"] == "codex")),
         "check_runtime_required"
       )
-      |> Kernel.++(roles |> Enum.map(& &1["status"]) |> Enum.reject(&(&1 == "ready")))
+      |> Kernel.++(
+        (roles ++ additional)
+        |> Enum.map(& &1["status"])
+        |> Enum.reject(&(&1 == "ready"))
+      )
       |> Enum.uniq()
 
     snapshot = %{
@@ -68,6 +79,8 @@ defmodule Cuckoding.Battles.Snapshot do
       "provider_backoff" => Backoff.policy(),
       "scheduler" => Capacity.policy(),
       "parallelism" => Waves.policy(),
+      "role_slots" => Slots.policy(),
+      "parallel_team" => additional,
       "native_recovery" => "retained-integration-v1",
       "provider_closure" => ProviderClosure.policy(),
       "timing_guard" => "elapsed-gap-v1",
@@ -90,7 +103,7 @@ defmodule Cuckoding.Battles.Snapshot do
       fingerprint: digest(snapshot),
       blockers: blockers,
       tasks: snapshot["tasks"],
-      team: roles,
+      team: roles ++ additional,
       planning_roles: Enum.map(planning, &Map.take(&1, ~w(id name))),
       checks: snapshot["checks"],
       limits: @limits

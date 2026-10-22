@@ -31,7 +31,7 @@ defmodule Cuckoding.BattlePreview do
         execution: :unavailable,
         busy: Foundation.pending?(),
         team_revision: team.id,
-        roles: Enum.map(team.definition["roles"], &role(&1, catalog)),
+        roles: Enum.map(Team.bindings(team.definition["roles"]), &role(&1, catalog)),
         tasks: tasks,
         checks: ProjectChecks.current(arena.id),
         git: git(ArenaGit.latest(arena.id), now)

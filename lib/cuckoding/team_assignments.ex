@@ -23,7 +23,7 @@ defmodule Cuckoding.TeamAssignments do
 
     for scope <- Repo.all(Arena) ++ Repo.all(Tabula),
         team = assigned(scope),
-        Enum.any?(team.definition["roles"], &(&1["agent"] == agent_id)) do
+        Team.uses_agent?(team.definition["roles"], agent_id) do
       revision = unassigned_revision(team, agent_id, cause_id, scope)
 
       Repo.insert!(%TeamAdoption{
@@ -35,7 +35,7 @@ defmodule Cuckoding.TeamAssignments do
       })
     end
 
-    if Enum.any?(default.definition["roles"], &(&1["agent"] == agent_id)),
+    if Team.uses_agent?(default.definition["roles"], agent_id),
       do: unassigned_revision(default, agent_id, cause_id, nil)
   end
 
@@ -49,8 +49,18 @@ defmodule Cuckoding.TeamAssignments do
 
     roles =
       Enum.map(team.definition["roles"], fn role ->
-        if role["agent"] == agent_id,
-          do: Map.merge(role, %{"agent" => "", "model_id" => "", "model" => ""}),
+        role =
+          if role["agent"] == agent_id,
+            do: Map.merge(role, %{"agent" => "", "model_id" => "", "model" => ""}),
+            else: role
+
+        if role["parallel_agent"] == agent_id,
+          do:
+            Map.merge(role, %{
+              "parallel_agent" => "",
+              "parallel_model_id" => "",
+              "parallel_model" => ""
+            }),
           else: role
       end)
 

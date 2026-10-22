@@ -136,7 +136,7 @@ defmodule Cuckoding.Dashboard do
         total: total,
         completed: completed,
         battle_id: battle && battle.id,
-        team: public_team(team)
+        team: public_team(Cuckoding.Team.bindings(team))
       }
     end
   end

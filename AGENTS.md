@@ -8,7 +8,7 @@ the previous product direction. The implemented boundary includes named
 Codex/Cursor setup, draft planning, owned worktrees and the bounded
 Codex/Cursor Arena loop with independent-task implementation waves. [Architecture](docs/ARCHITECTURE.md) names source
 owners; [Plan](docs/PLAN.md) owns remaining acceptance. General toolchain checks,
-full recovery, additional parallel role slots, remaining providers and real-account battle
+full recovery, remaining providers and real-account parallel/battle
 acceptance remain open.
 
 R070a freezes `scheduler: isolated-arenas-v1` in new Starts. SQLite admission
@@ -33,7 +33,7 @@ serialized CAS; its native receipt alone grants no workflow authority. New combi
 operations/consumers have a fixed 60-second native budget (65-second host ceiling),
 with cancellation and the original future stage/battle deadline still authoritative.
 Historical sequential operations keep their limits. R070d supplies wave admission
-and conflict repair; additional role slots and real-provider acceptance remain open.
+and conflict repair; R070e adds exact paired bindings. Real-provider acceptance remains open.
 
 R070c centralizes existing outcome checks in `Battles.Receipts`. Settlement,
 Stop, expiry, review-failure controls and recovery retain their exact envelope,
@@ -59,7 +59,25 @@ all interrupted claims; exact provider-closure reads queue individually and perm
 Stop/capacity release only. VM repository I/O locks are cancellable coordination,
 never native ownership or cleanup proof. Preserve old snapshots and forward-only
 claim-index migration/backup. This is not simultaneous same-connection writers,
-additional role slots, full native recovery or real-account parallel acceptance.
+full native recovery or real-account parallel acceptance. R070e adds explicit role pairs below.
+
+R070e freezes `role_slots: assigned-pairs-v1` with up to one additional exact
+connection/model per required responsibility. Team definition v2 stores the
+optional pair in immutable default/scoped saves; planning keeps the primary.
+New choices require their own fresh selected catalog; legacy omitted fields
+preserve existing extras. Never copy logins, promote a worker or silently select
+another binding. Wave slots 0/1 choose primary/additional deterministically;
+missing additional means the explicitly shared primary, never availability-based
+fallback. Invalid slots refuse before effects. With assigned extras, prioritize
+earlier pipeline stages so a shared planning connection is not monopolized by a
+writer. Preserve older wave ordering/snapshots. Admission/Resume/Disconnect inspect
+all frozen bindings; Retry keeps its slot. Final stages/configured checks use the
+primary. Disconnect clears only that connection in both positions across current
+scopes, preserving history. Public rows/Inspect display exact request bindings;
+optional selectors stay inside Team, with one Start and unchanged provider grants.
+Compare projected role/binding definitions for adoption notices; blank optional
+fields or definition-version changes alone never require redundant adoption.
+This is bounded two-worker implementation, not real-account parallel acceptance.
 
 R080g keeps dashboard observations read-only. Global worker rows expose only
 exact public role/runtime/model bindings; Arena summaries and chronological

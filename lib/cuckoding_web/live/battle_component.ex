@@ -2,7 +2,7 @@ defmodule CuckodingWeb.BattleComponent do
   @moduledoc false
   use CuckodingWeb, :live_component
   alias Cuckoding.Battles
-  alias Cuckoding.Battles.{Backoff, Waves}
+  alias Cuckoding.Battles.{Backoff, Slots, Waves}
 
   @impl true
   def mount(socket) do
@@ -293,10 +293,12 @@ defmodule CuckodingWeb.BattleComponent do
   defp active_attempt(attempts),
     do: Enum.find(attempts, &(&1.state in ~w(pending running stopping)))
 
-  defp binding(battle, attempt) do
-    role = if attempt, do: attempt.role
-    Enum.find(battle.snapshot["team"] || [], &(&1["id"] == role))
-  end
+  defp binding(_battle, attempt), do: if(attempt, do: attempt.request["role"])
+
+  defp frozen_bindings(%{"team" => roles} = snapshot) when is_list(roles),
+    do: Slots.bindings(snapshot)
+
+  defp frozen_bindings(_), do: []
 
   defp elapsed(started, now), do: max(0, DateTime.diff(now, started))
 
@@ -398,6 +400,12 @@ defmodule CuckodingWeb.BattleComponent do
             "Up to two independent tasks per wave; shared connections take turns. Review and integration are serialized.",
           else: "This saved battle uses sequential task execution."}
       </p>
+      <dl id="battle-frozen-team" class="team-history">
+        <div :for={role <- frozen_bindings(@battle.snapshot)}>
+          <dt>{role["name"]}</dt>
+          <dd>{role["agent_name"]} · {role["model"]}</dd>
+        </div>
+      </dl>
       <details id="battle-frozen-tasks" phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}>
         <summary>Authorized tasks · {length(@battle_tasks)}</summary>
         <article :for={task <- @battle_tasks} class="team-role">

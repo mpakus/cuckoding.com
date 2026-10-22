@@ -2,6 +2,7 @@ defmodule CuckodingWeb.TeamLive do
   use CuckodingWeb, :live_view
   alias Cuckoding.{Agents, Arena, Repo, Tabula, Tabulae, Team, TeamAssignments}
   alias CuckodingWeb.Layouts
+  @form_fields ~w(name instructions agent model_id parallel_agent parallel_model_id)
 
   @impl true
   def mount(params, _session, socket) do
@@ -211,7 +212,7 @@ defmodule CuckodingWeb.TeamLive do
   defp valid_fields?(values) do
     map_size(values) <= 12 and
       Enum.all?(values, fn {_, fields} ->
-        is_map(fields) and map_size(fields) <= 8 and
+        is_map(fields) and map_size(fields) <= 12 and
           Enum.all?(fields, fn {key, value} ->
             form_field?(key) and is_binary(value) and
               byte_size(value) <= 8_000 and String.valid?(value)
@@ -219,8 +220,10 @@ defmodule CuckodingWeb.TeamLive do
       end)
   end
 
-  defp form_field?("_unused_" <> field), do: field in ~w(name instructions agent model_id)
-  defp form_field?(field), do: field in ~w(name instructions agent model_id)
+  defp form_field?("_unused_" <> field), do: field in @form_fields
+
+  defp form_field?(field),
+    do: field in @form_fields
 
   defp merge_draft(socket, %{"roles" => values} = params, reset_models) do
     revision =
@@ -230,18 +233,10 @@ defmodule CuckodingWeb.TeamLive do
       end
 
     roles =
-      Enum.map(socket.assigns.roles, fn role ->
-        fields = Map.get(values, role["id"], %{})
-
-        fields =
-          if is_map(fields), do: Map.take(fields, ~w(name instructions agent model_id)), else: %{}
-
-        updated = Map.merge(role, fields)
-
-        if reset_models and updated["agent"] != role["agent"],
-          do: Map.put(updated, "model_id", ""),
-          else: updated
-      end)
+      Enum.map(
+        socket.assigns.roles,
+        &merge_role(&1, Map.get(values, &1["id"], %{}), reset_models)
+      )
 
     assign(socket,
       roles: roles,
@@ -250,6 +245,26 @@ defmodule CuckodingWeb.TeamLive do
       confirm_removal: params["confirm_removal"] == "true",
       input_valid: true,
       message: nil
+    )
+  end
+
+  defp merge_role(role, fields, reset_models) do
+    updated = Map.merge(role, Map.take(fields, @form_fields))
+    updated = if reset_models, do: reset_changed_models(role, updated), else: updated
+
+    if not Map.has_key?(role, "parallel_agent") and updated["parallel_agent"] in [nil, ""] and
+         updated["parallel_model_id"] in [nil, ""],
+       do: Map.drop(updated, ~w(parallel_agent parallel_model_id)),
+       else: updated
+  end
+
+  defp reset_changed_models(role, updated) do
+    Enum.reduce(
+      [{"agent", "model_id"}, {"parallel_agent", "parallel_model_id"}],
+      updated,
+      fn {agent, model}, draft ->
+        if draft[agent] != role[agent], do: Map.put(draft, model, ""), else: draft
+      end
     )
   end
 
@@ -271,11 +286,13 @@ defmodule CuckodingWeb.TeamLive do
     end
   end
 
-  defp status(%{"agent" => ""}, _, _), do: "Choose an agent and model"
-  defp status(%{"model_id" => ""}, _, _), do: "Agent selected · choose a model"
+  defp status(role, base, catalog, additional? \\ false)
+  defp status(%{"agent" => ""}, _, _, _), do: "Choose an agent and model"
+  defp status(%{"model_id" => ""}, _, _, _), do: "Agent selected · choose a model"
 
-  defp status(role, base, catalog) do
+  defp status(role, base, catalog, additional?) do
     old = Enum.find(base.definition["roles"], &(&1["id"] == role["id"]))
+    old = if old && additional?, do: Team.additional(old), else: old
 
     role =
       if old && old["agent"] == role["agent"] && old["model_id"] == role["model_id"],
@@ -327,9 +344,52 @@ defmodule CuckodingWeb.TeamLive do
   defp error_message("model_refresh_required"),
     do: "This new binding needs a current agent connection and model catalog. Your draft is kept."
 
+  defp error_message("worker_connection_conflict"),
+    do:
+      "Choose different saved connections for the primary and additional worker. Your draft is kept."
+
   defp error_message(_),
     do:
-      "Use unique role names (1–60 characters), instructions up to 2,000 characters, and valid agent/model choices. Keep the four required roles and at most 12 roles total."
+      "Use unique role names (1–60 characters), instructions up to 2,000 characters, and valid agent/model choices. Additional workers need a different saved connection. Keep the four required roles and at most 12 roles total."
+
+  attr :binding, :map, required: true
+  attr :role_id, :string, required: true
+  attr :prefix, :string, default: ""
+  attr :agents, :list, required: true
+  attr :catalog, :map, required: true
+
+  defp binding_fields(assigns) do
+    ~H"""
+    <div class="role-binding">
+      <div>
+        <label for={"#{@prefix}agent-#{@role_id}"}>Agent</label>
+        <select id={"#{@prefix}agent-#{@role_id}"} name={"roles[#{@role_id}][#{@prefix}agent]"}>
+          <option value="" selected={@binding["agent"] == ""}>Choose agent</option>
+          <option :for={agent <- @agents} value={agent.id} selected={@binding["agent"] == agent.id}>
+            {agent.name} · {Agents.label(agent.kind)}
+          </option>
+        </select>
+      </div>
+      <div>
+        <label for={"#{@prefix}model-#{@role_id}"}>Model</label>
+        <select
+          id={"#{@prefix}model-#{@role_id}"}
+          name={"roles[#{@role_id}][#{@prefix}model_id]"}
+          disabled={@binding["agent"] == ""}
+        >
+          <option value="" selected={@binding["model_id"] == ""}>Choose model</option>
+          <option
+            :for={model <- model_options(@binding, @catalog)}
+            value={model["id"]}
+            selected={@binding["model_id"] == model["id"]}
+          >
+            {model["name"] || model["id"]}{if model["hidden"], do: " · additional"}
+          </option>
+        </select>
+      </div>
+    </div>
+    """
+  end
 
   @impl true
   def render(assigns) do
@@ -410,38 +470,32 @@ defmodule CuckodingWeb.TeamLive do
               </h3>
               <p class="fine-print">{status(role, @base, @catalog)}</p>
               <div class="role-fields">
-                <div class="role-binding">
-                  <div>
-                    <label for={"agent-#{role["id"]}"}>Agent</label>
-                    <select id={"agent-#{role["id"]}"} name={"roles[#{role["id"]}][agent]"}>
-                      <option value="" selected={role["agent"] == ""}>Choose agent</option>
-                      <option
-                        :for={agent <- @agents}
-                        value={agent.id}
-                        selected={role["agent"] == agent.id}
-                      >
-                        {agent.name} · {Agents.label(agent.kind)}
-                      </option>
-                    </select>
-                  </div>
-                  <div>
-                    <label for={"model-#{role["id"]}"}>Model</label>
-                    <select
-                      id={"model-#{role["id"]}"}
-                      name={"roles[#{role["id"]}][model_id]"}
-                      disabled={role["agent"] == ""}
-                    >
-                      <option value="" selected={role["model_id"] == ""}>Choose model</option>
-                      <option
-                        :for={model <- model_options(role, @catalog)}
-                        value={model["id"]}
-                        selected={role["model_id"] == model["id"]}
-                      >
-                        {model["name"] || model["id"]}{if model["hidden"], do: " · additional"}
-                      </option>
-                    </select>
-                  </div>
-                </div>
+                <.binding_fields
+                  binding={role}
+                  role_id={role["id"]}
+                  agents={@agents}
+                  catalog={@catalog}
+                />
+                <details
+                  :if={Team.required?(role["id"])}
+                  id={"role-workers-#{role["id"]}"}
+                  phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
+                >
+                  <summary>Additional worker (optional)</summary>
+                  <p class="fine-print">
+                    Choose a different saved connection to run this role on a second independent task. Both workers share these instructions. Leave it empty to share the primary connection.
+                  </p>
+                  <p :if={Team.additional(role)["agent"] != ""} class="fine-print">
+                    {status(Team.additional(role), @base, @catalog, true)}
+                  </p>
+                  <.binding_fields
+                    binding={Team.additional(role)}
+                    role_id={role["id"]}
+                    prefix="parallel_"
+                    agents={@agents}
+                    catalog={@catalog}
+                  />
+                </details>
                 <details
                   id={"role-options-#{role["id"]}"}
                   open={role["name"] == ""}
@@ -535,7 +589,7 @@ defmodule CuckodingWeb.TeamLive do
               Revision {revision.id} · {Calendar.strftime(revision.inserted_at, "%Y-%m-%d %H:%M UTC")}
             </summary>
             <dl class="team-history">
-              <div :for={role <- revision.definition["roles"]}>
+              <div :for={role <- Team.bindings(revision.definition["roles"])}>
                 <dt>{role["name"]} · {responsibility(role["id"])}</dt>
                 <dd>
                   {if role["model"] == "",

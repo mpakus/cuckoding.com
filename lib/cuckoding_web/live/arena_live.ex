@@ -242,7 +242,7 @@ defmodule CuckodingWeb.ArenaLive do
         Frozen at folder selection. Open Arena → Advanced to inspect or adopt a newer team for future boards. No execution grants.
       </p>
       <dl class="team-history">
-        <div :for={role <- @revision.definition["roles"]}>
+        <div :for={role <- Cuckoding.Team.bindings(@revision.definition["roles"])}>
           <dt>{role["name"]}</dt>
           <dd>
             {if role["model"] == "",

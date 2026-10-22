@@ -21,8 +21,8 @@ connections permit one provider turn. Native repository I/O waits in a bounded
 cancellable local process queue, with native ownership/locks still authoritative.
 Checks, independent review and integration run serially after implementation;
 combined candidates receive new review/check evidence. Old Starts remain
-sequential per board. Additional simultaneous role slots and real-provider
-parallel acceptance remain open. Each task starts from the last independently reviewed battle head; failed review creates a new worktree and returns through Speculator. Checks use a separate exact-candidate clone. The initial `codex-check-single-process-v1` grant supports native commands in `/usr/bin` or `/bin` only, with no subprocess spawning; scripts and Mix/npm toolchains are refused. The Implementor connection must have verified Codex `0.162.0-alpha.17.2`. Configured command checks and independent review gate completion. R050f v2 battles without extra commands skip command stages and rely on task/final criteria review; missing required runtime evidence blocks completion, never counts as a passing test. Restart never replays unfinished effects; full reconciliation and sleep/resume remain open.
+sequential per board. R070e adds explicitly paired role bindings; real-provider
+parallel acceptance remains open. Each task starts from the last independently reviewed battle head; failed review creates a new worktree and returns through Speculator. Checks use a separate exact-candidate clone. The initial `codex-check-single-process-v1` grant supports native commands in `/usr/bin` or `/bin` only, with no subprocess spawning; scripts and Mix/npm toolchains are refused. The Implementor connection must have verified Codex `0.162.0-alpha.17.2`. Configured command checks and independent review gate completion. R050f v2 battles without extra commands skip command stages and rely on task/final criteria review; missing required runtime evidence blocks completion, never counts as a passing test. Restart never replays unfinished effects; full reconciliation and sleep/resume remain open.
 
 R040c's implemented Git setup uses a fixed native host helper, outside any agent
 session: inspect metadata or initialize a missing standalone repository after
@@ -225,3 +225,13 @@ Verification rechecks the exact receipt, app ref, tree, ownership and live bytes
 These R050d1 primitives are now used by R050e Start, project checks and Secutor.
 Candidate capture alone provides no review or completion authority. Interrupted capture is inspected with
 retained evidence, never replayed under the same key.
+
+## Explicit role pairs (R070e)
+
+A required role may assign a second named connection/model through Team. Both
+instances use existing host-task grants, separate attempts/sessions/worktrees and
+exact native profile locks; no authorization store is cloned. Start freezes all
+pairs, and deterministic task slots never select another runtime when busy or
+unavailable. Primary-only planning, final stages and configured command checks
+retain their existing grants. Native admission/Resume checks include every extra.
+Fixtures establish allocation/control behavior, not real-account concurrency.

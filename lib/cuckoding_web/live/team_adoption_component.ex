@@ -28,7 +28,8 @@ defmodule CuckodingWeb.TeamAdoptionComponent do
       candidate: candidate,
       busy: TeamAssignments.busy?(scope),
       history: TeamAssignments.history(scope),
-      changed: current.definition != candidate.definition,
+      changed:
+        Team.bindings(current.definition["roles"]) != Team.bindings(candidate.definition["roles"]),
       revisions: {current.id, candidate.id},
       key:
         if(socket.assigns[:revisions] == {current.id, candidate.id},
@@ -166,7 +167,7 @@ defmodule CuckodingWeb.TeamAdoptionComponent do
     ~H"""
     <h3>{@label}</h3>
     <dl class="team-roster">
-      <div :for={role <- @revision.definition["roles"]}>
+      <div :for={role <- Team.bindings(@revision.definition["roles"])}>
         <dt>{role["name"]}</dt>
         <dd>{binding_label(role)}</dd>
       </div>

@@ -2,6 +2,7 @@ defmodule Cuckoding.Foundation do
   @moduledoc "Idempotent setup commands and their committed public event stream."
   import Ecto.Query
   alias Cuckoding.{Agents, Codex, Command, Event, Repo, Workspace}
+  alias Cuckoding.Battles.Slots
   @auth_kinds ~w(login_codex logout_codex login_cursor logout_cursor)
   @exclusive_kinds @auth_kinds ++
                      [
@@ -660,7 +661,7 @@ defmodule Cuckoding.Foundation do
 
   defp agent_in_battle?(id) do
     Enum.any?(Cuckoding.Battles.active(), fn battle ->
-      Enum.any?(battle.snapshot["team"], &(&1["agent_id"] == id))
+      Enum.any?(Slots.bindings(battle.snapshot), &(&1["agent_id"] == id))
     end)
   end
 

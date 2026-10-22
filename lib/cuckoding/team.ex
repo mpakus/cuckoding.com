@@ -16,6 +16,7 @@ defmodule Cuckoding.Team do
 
   @required ~w(speculator implementor secutor summa_rudis)
   @fields ~w(id name instructions agent model_id)
+  @parallel_fields ~w(parallel_agent parallel_model_id)
   @scoped_commands ~w(save_scoped_team disconnect_scoped_agent_roles)
 
   def current, do: Repo.one!(from t in defaults(), order_by: [desc: t.id], limit: 1)
@@ -52,8 +53,35 @@ defmodule Cuckoding.Team do
       where: is_nil(t.command_id) or c.kind not in ^@scoped_commands
   end
 
-  def editable(team), do: Enum.map(team.definition["roles"], &Map.take(&1, @fields))
+  def editable(team),
+    do: Enum.map(team.definition["roles"], &Map.take(&1, @fields ++ @parallel_fields))
+
   def required?(id), do: id in @required
+
+  def additional(role) do
+    role
+    |> Map.take(~w(id name instructions))
+    |> Map.merge(%{
+      "name" => role["name"] <> " · worker 2",
+      "agent" => role["parallel_agent"] || "",
+      "model_id" => role["parallel_model_id"] || ""
+    })
+    |> then(fn worker ->
+      if Map.has_key?(role, "parallel_model"),
+        do: Map.put(worker, "model", role["parallel_model"]),
+        else: worker
+    end)
+  end
+
+  def bindings(roles),
+    do:
+      Enum.flat_map(roles, fn role ->
+        worker = additional(role)
+        primary = Map.drop(role, @parallel_fields ++ ["parallel_model"])
+        [primary] ++ if(worker["agent"] == "", do: [], else: [worker])
+      end)
+
+  def uses_agent?(roles, agent_id), do: Enum.any?(bindings(roles), &(&1["agent"] == agent_id))
 
   def custom_role do
     %{
@@ -253,11 +281,13 @@ defmodule Cuckoding.Team do
     do: Enum.map(editable(previous), & &1["id"]) -- Enum.map(roles, & &1["id"])
 
   defp record_result({:ok, roles}, command, scope, removed) do
+    version = if Enum.any?(roles, &Map.has_key?(&1, "parallel_agent")), do: 2, else: 1
+
     revision =
       Repo.insert!(%TeamRevision{
         command_id: command.id,
         inserted_at: DateTime.utc_now(),
-        definition: %{"version" => 1, "execution" => "disabled", "roles" => roles}
+        definition: %{"version" => version, "execution" => "disabled", "roles" => roles}
       })
 
     if scope do
@@ -313,31 +343,55 @@ defmodule Cuckoding.Team do
     Enum.reduce_while(roles, {:ok, []}, fn role, {:ok, acc} ->
       old = Enum.find(previous, &(&1["id"] == role["id"]))
 
-      selected =
-        Map.get(catalog.agents, role["agent"], %{
-          status: :connection_required,
-          selectable_models: []
-        })
-
-      model = Enum.find(selected.selectable_models, &(&1["id"] == role["model_id"]))
-
-      cond do
-        role["agent"] != "" and is_nil(Agents.get(role["agent"])) ->
-          {:halt, {:error, "model_refresh_required"}}
-
-        role["model_id"] == "" ->
-          {:cont, {:ok, acc ++ [Map.put(role, "model", "")]}}
-
-        old && Map.take(old, ~w(agent model_id)) == Map.take(role, ~w(agent model_id)) ->
-          {:cont, {:ok, acc ++ [Map.put(role, "model", old["model"])]}}
-
-        selected.status == :available and model != nil ->
-          {:cont, {:ok, acc ++ [Map.put(role, "model", model["model"])]}}
-
-        true ->
-          {:halt, {:error, "model_refresh_required"}}
+      with {:ok, resolved} <- resolve_binding(role, old, catalog),
+           {:ok, resolved} <- resolve_additional(resolved, old, catalog) do
+        {:cont, {:ok, acc ++ [resolved]}}
+      else
+        error -> {:halt, error}
       end
     end)
+  end
+
+  defp resolve_binding(role, old, catalog) do
+    selected =
+      Map.get(catalog.agents, role["agent"], %{
+        status: :connection_required,
+        selectable_models: []
+      })
+
+    model = Enum.find(selected.selectable_models, &(&1["id"] == role["model_id"]))
+
+    cond do
+      role["agent"] != "" and is_nil(Agents.get(role["agent"])) ->
+        {:error, "model_refresh_required"}
+
+      role["model_id"] == "" ->
+        {:ok, Map.put(role, "model", "")}
+
+      old && Map.take(old, ~w(agent model_id)) == Map.take(role, ~w(agent model_id)) ->
+        {:ok, Map.put(role, "model", old["model"])}
+
+      selected.status == :available and model != nil ->
+        {:ok, Map.put(role, "model", model["model"])}
+
+      true ->
+        {:error, "model_refresh_required"}
+    end
+  end
+
+  defp resolve_additional(role, old, catalog) do
+    # A legacy save omitting the new fields preserves an already assigned worker.
+    if Map.has_key?(role, "parallel_agent") do
+      with {:ok, worker} <- resolve_binding(additional(role), old && additional(old), catalog) do
+        {:ok, Map.put(role, "parallel_model", worker["model"])}
+      end
+    else
+      preserved = Map.merge(role, Map.take(old || %{}, @parallel_fields ++ ["parallel_model"]))
+
+      if valid_additional?(preserved),
+        do: {:ok, preserved},
+        else: {:error, "worker_connection_conflict"}
+    end
   end
 
   defp validate_roles(roles) when is_list(roles) and length(roles) in 4..12 do
@@ -359,7 +413,7 @@ defmodule Cuckoding.Team do
   defp validate_roles(_), do: {:error, :invalid_roles}
 
   defp valid_role?(role) when is_map(role) do
-    Enum.sort(Map.keys(role)) == Enum.sort(@fields) and
+    valid_role_shape?(role) and
       (role["id"] in @required or match?({:ok, _}, Ecto.UUID.cast(role["id"]))) and
       valid_text?(role["name"], 1, 60, false) and
       valid_text?(role["instructions"], 0, 2_000, true) and
@@ -369,6 +423,23 @@ defmodule Cuckoding.Team do
   end
 
   defp valid_role?(_), do: false
+
+  defp valid_role_shape?(role),
+    do:
+      Map.keys(role) -- (@fields ++ @parallel_fields) == [] and
+        Enum.all?(@fields, &Map.has_key?(role, &1)) and valid_additional?(role)
+
+  defp valid_additional?(role) do
+    if Map.has_key?(role, "parallel_agent") or Map.has_key?(role, "parallel_model_id") do
+      required?(role["id"]) and valid_agent_id?(role["parallel_agent"]) and
+        valid_text?(role["parallel_model_id"], 0, 200, false) and
+        (role["parallel_agent"] != "" or role["parallel_model_id"] == "") and
+        (role["parallel_agent"] == "" or role["parallel_agent"] != role["agent"])
+    else
+      true
+    end
+  end
+
   defp valid_agent_id?(id), do: id in ["", "codex"] or match?({:ok, _}, Ecto.UUID.cast(id))
 
   defp valid_text?(value, min, max, multiline) when is_binary(value) do

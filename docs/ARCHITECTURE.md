@@ -10,8 +10,8 @@ cannot adopt teams or alter battle dispatch. Old requests remain readable.
 
 Cuckoding delivers authenticated setup, planning, isolated task turns and the
 Codex/Cursor battle loop with two-task implementation waves sharing two global
-workers. Checks/review/integration remain serialized within each board. Additional
-parallel role slots, real-provider acceptance and full recovery remain unfinished.
+workers. Checks/review/integration remain serialized within each board.
+Real-provider parallel acceptance and full recovery remain unfinished.
 The later sections describe the target architecture, not additional shipped code.
 
 Startup: Repo → schema validation/migration → PubSub → shell authority →
@@ -50,13 +50,21 @@ post-CAS recovery verifies retained objects against its own live ref boundary.
 `LocalGit` exposes only the closed public receipt. R070d adds SQLite lane state, scheduling and independent combined review on this
 proof. The primitive alone introduces no provider/tool grant or migration.
 
+R070e keeps exact role-pair selection in `Battles.Slots`. Team owns optional
+second catalog bindings and immutable definition v2; its existing LiveView reuses
+function-component selectors. Snapshot resolves all pairs before Start; each task
+gets durable wave slot 0/1. Capacity never picks a substitute. Admission and
+controls validate every frozen binding, while attempts retain the chosen pair.
+Only extra-equipped new waves prioritize earlier planning stages. Final stages
+and configured checks use primary roles; old snapshots/planning remain unchanged.
+
 R070d owns ready-task wave selection and task stage projections in
 `Battles.Waves`; `Battles` retains transactional claims/settlement/controls.
 `BattleRepository` serializes native I/O by pinned repository identity in the
 supervised worker with bounded cancellable waiting. It grants no native ownership
 or cleanup authority. The fifteenth migration changes only claim uniqueness;
 old snapshots retain sequential admission. Two global workers and one provider
-turn per exact connection remain. Further role slots require explicit bindings.
+turn per exact connection remain. R070e supplies explicit paired bindings.
 
 R080a keeps dialog presentation in `CuckodingWeb.Dialog` and the small native
 `assets/js/dialog.mjs` hook. LiveView/domain owners still validate every action;

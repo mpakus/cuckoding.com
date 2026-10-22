@@ -171,7 +171,7 @@ failures and user Pause remain explicit. Late siblings retain rejected receipts
 without head/card advancement. Startup interrupts every unfinished claim and may
 queue exact provider-closure reads individually; these allow Stop/capacity release
 only, never continuation. VM repository queues are not cleanup evidence.
-Additional parallel role slots, interrupted native sessions, real-provider and
+R070e adds assigned role pairs below. Interrupted native sessions, real-provider and
 physical-sleep acceptance remain open. [Implementation](../tasks/R070d-parallel-waves.md).
 
 R060c adds **Skip task** under `task_selection: skip-task-v1`. A clean paused task,
@@ -301,3 +301,20 @@ Runtime session files are private and removed after cleanup; hard process death
 can leave them for recovery. Raw thought frames never enter application receipts.
 Protocol fixtures and real metadata-only model selection checks pass. Live Cursor
 read/edit/denial and mixed-battle acceptance remain open; see the R020p worklog.
+
+## Assigned role workers (R070e)
+
+Team exposes one optional additional exact agent/model for each required role.
+Saving launches nothing and existing boards still adopt defaults explicitly.
+New Start freezes `assigned-pairs-v1`, primary roles and all configured extras.
+Wave lane 0 uses primaries; lane 1 uses each configured extra, or the saved shared
+primary where none is configured. A present invalid/disconnected extra blocks
+Start/Resume; a busy one waits. No credential copy, implicit promotion or fallback.
+
+Each task retains its allocated slot across review repair/Retry. With extras,
+earlier pipeline stages take priority so shared planning turns can finish before
+writers occupy their connections. The two global workers and exact-connection
+cap remain. Final stages/configured command checks use the primary binding.
+All frozen bindings block Disconnect while unfinished; afterward Disconnect
+unassigns that exact connection in both current positions and all current scopes.
+Older Starts keep their bindings/ordering. Real-provider acceptance is separate.

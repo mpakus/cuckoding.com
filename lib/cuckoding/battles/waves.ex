@@ -1,6 +1,6 @@
 defmodule Cuckoding.Battles.Waves do
   @moduledoc "Two independent implementation lanes, followed by serialized review/integration."
-  alias Cuckoding.Battles.{Attempt, Battle, ProviderClosure, Receipts, Task}
+  alias Cuckoding.Battles.{Attempt, Battle, ProviderClosure, Receipts, Slots, Task}
   alias Cuckoding.{Event, Repo}
   import Ecto.Query
 
@@ -30,7 +30,9 @@ defmodule Cuckoding.Battles.Waves do
         true -> Enum.take(lanes, 1)
       end
 
-    Enum.map(eligible, fn task ->
+    eligible
+    |> prioritize(battle.snapshot)
+    |> Enum.map(fn task ->
       stage =
         if stage(task) in ~w(checks secutor integrate) and
              (task.context["native_candidate"]["base"] || task.context["preparation"]["head"]) !=
@@ -40,6 +42,12 @@ defmodule Cuckoding.Battles.Waves do
 
       %{battle | current_task_id: task.task_id, stage: stage}
     end)
+  end
+
+  defp prioritize(tasks, snapshot) do
+    if Slots.enabled?(snapshot) and snapshot["parallel_team"] != [],
+      do: Enum.sort_by(tasks, &Enum.find_index(@pipeline, fn name -> name == stage(&1) end)),
+      else: tasks
   end
 
   def backoff_origin(battle),
@@ -170,10 +178,17 @@ defmodule Cuckoding.Battles.Waves do
     if ready == [], do: Repo.rollback(:invalid_dependencies)
     wave = (battle.context["wave"] || 0) + 1
 
-    for task <- ready do
+    for {task, slot} <- Enum.with_index(ready) do
+      context = Map.merge(task.context, %{"wave" => wave, "lane_stage" => "prepare_worktree"})
+
+      context =
+        if Slots.enabled?(battle.snapshot),
+          do: Map.put(context, "worker_slot", slot),
+          else: context
+
       change(task,
         state: "specs",
-        context: Map.merge(task.context, %{"wave" => wave, "lane_stage" => "prepare_worktree"})
+        context: context
       )
     end
 
