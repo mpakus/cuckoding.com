@@ -40,6 +40,16 @@ release process group and private storage lock.
 | `Specifications`, `Storage` | Freeze accepted draft/prerequisite revisions, write private Markdown, verify artifact hash and atomically commit acceptance/history/ToDo; no execution authority |
 | `ArenaGit`, `NativeHelper`, native `arena_git.rs` | Fixed inspect/init/initial-commit/detached-worktree operations and descriptor-relative selected file reads; no remotes, hooks or arbitrary commands |
 
+R070b owns combined-candidate preparation in native
+`arena_git/worktree/battle/combined.rs`. It verifies the original writer receipt,
+captured paths and current reviewed head under the repository lock, builds a
+compatible tree through a private index and retains an exclusive UUID ref/receipt.
+Existing review-worktree and CAS consumers verify that exact combined candidate;
+post-CAS recovery verifies retained objects against its own live ref boundary.
+`LocalGit` exposes only the closed public receipt. Same-board SQLite lane state,
+scheduling and independent combined review remain unfinished; current Starts stay
+sequential per board. No new provider/tool grant or migration is introduced.
+
 R080a keeps dialog presentation in `CuckodingWeb.Dialog` and the small native
 `assets/js/dialog.mjs` hook. LiveView/domain owners still validate every action;
 opening, closing or following a dialog hash launches no provider. Native dialogs

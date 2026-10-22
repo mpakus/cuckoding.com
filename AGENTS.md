@@ -21,6 +21,20 @@ inspection stay exclusive. Keep one_for_all clock/tasks/coordinator restart and
 per-Arena Stop/Pause isolation. This does not enable same-board task cloning,
 combined-candidate integration, new tools or real-provider concurrency acceptance.
 
+R070b adds the fixed native `combine_candidate` / `verify_combined_candidate`
+primitive, without enabling parallel Starts. Bind an original captured writer's
+retained battle/worktree receipt to the exact current reviewed head and source.
+Apply only compatible bounded path changes through an isolated Git index; refuse
+divergent overlap and case/file-directory collisions. Never invoke project merge
+drivers or rewrite the source checkout, original candidate or partial artifacts.
+Retain exclusive intent/publication/receipt and a UUID app ref. The combined
+single-parent candidate requires new independent review/check evidence before
+serialized CAS; its native receipt alone grants no workflow authority. New combined
+operations/consumers have a fixed 60-second native budget (65-second host ceiling),
+with cancellation and the original future stage/battle deadline still authoritative.
+Historical sequential operations keep their limits. Same-board lane admission,
+conflict repair and real-provider parallel acceptance remain open.
+
 R080g keeps dashboard observations read-only. Global worker rows expose only
 exact public role/runtime/model bindings; Arena summaries and chronological
 activity pages are limited to 20 rows. Activity scope comes from server-owned

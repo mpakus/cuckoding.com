@@ -1,5 +1,19 @@
 # Current decisions
 
+## D037 · Rebuild parallel candidates on the reviewed head
+
+Accepted before implementation, 2026-10-21, R070b. Native combination validates
+the retained task candidate and current battle ref under the repository lock,
+including ancestry from the battle base. Build an isolated index on the reviewed
+head and apply only compatible bounded captured path changes. An overlap or file/
+directory/case collision is a conflict for workflow repair, never a last-writer
+overwrite. Use raw Git object/index operations, not merge drivers or project
+commands. Retain exclusive intent/publication/receipt and a UUID-owned candidate
+ref; partial effects never replay. The new single-parent candidate needs its own
+check/review checkout and independent Secutor verdict before serialized CAS.
+This primitive does not authorize parallel lanes, custom stages or a new Start;
+those require their own frozen workflow, SQLite capacity and control contracts.
+
 ## D036 · Scoped team edits append without changing defaults
 
 Accepted before implementation, 2026-10-21, R030c. Reuse the existing Team editor,

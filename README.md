@@ -49,7 +49,7 @@ listed below. Arena registration opens its default board; technical setup stays 
 | Tray launch, authenticated browser and local SQLite state | Full timed ten-minute onboarding acceptance |
 | Multiple named Codex/Cursor connections, model discovery and saved choices | Additional runtimes |
 | Saved agent/model assignments for Speculator, Implementor, Secutor and Summa Rudis | Real mixed-runtime battle acceptance |
-| Folder registration with an automatic default board, direct Arena opening, Advanced setup and editable drafts | Custom columns and scoped role editing |
+| Folder registration with an automatic default board, direct Arena opening, scoped team editing, Advanced setup and editable drafts | Custom columns and execution stages |
 | Codex/Cursor planning from a brief or bounded folder snapshots (`docs/` first), automatically saved task cards, prerequisites and original source citations | Real-account planning acceptance across supported runtimes |
 | One bounded Start, sequential Codex/Cursor dispatch per board, two isolated Arenas progressing concurrently, independent review and retained local battle branch | Real-account end-to-end acceptance, general toolchain checks, recovery and same-board parallel workers |
 | Global setup/planning/battle activity, selected-board team/progress and paginated events globally/per Arena | Timed real-account setup and broader dashboard/release acceptance |
@@ -230,6 +230,10 @@ New Starts can progress in two separate Arenas at once. Shared agent connections
 queue one turn at a time; uncertain cleanup keeps that exact connection reserved.
 Other connections can continue. Tasks within one board still run sequentially.
 Older Starts retain global serial dispatch. [Concurrency evidence](worklog/2026-10-21-R070a-arena-workers.md).
+The native helper can also prepare a compatible combined result from retained
+task edits and the reviewed head, preserving both originals and refusing conflicts.
+This is a prerequisite for same-board parallel work; lane scheduling and combined
+independent review are still unfinished. [Combination evidence](tasks/R070b-combined-candidate.md).
 **Skip task** confirms leaving a clean paused or settled blocked/failed task
 unfinished and defers its dependents. Independent tasks continue from reviewed work;
 paused battles stay paused until Resume. Edits and evidence remain available.

@@ -51,6 +51,37 @@ defmodule Cuckoding.ArenaGitTest do
     end
   end
 
+  test "combined candidates preserve both bases and closed public bindings" do
+    receipt = %{
+      "status" => "candidate_combined",
+      "key" => Ecto.UUID.generate(),
+      "battle_key" => Ecto.UUID.generate(),
+      "worktree_key" => Ecto.UUID.generate(),
+      "task_candidate_key" => Ecto.UUID.generate(),
+      "base" => String.duplicate("a", 40),
+      "task_base" => String.duplicate("b", 40),
+      "candidate" => String.duplicate("c", 40),
+      "tree" => String.duplicate("d", 40),
+      "manifest_sha256" => String.duplicate("e", 64)
+    }
+
+    assert LocalGit.normalize(Map.put(receipt, "raw", "private-canary")) == receipt
+
+    assert LocalGit.normalize(Map.put(receipt, "status", "combined_verified")) ==
+             Map.put(receipt, "status", "combined_verified")
+
+    for field <- Map.keys(receipt) -- ["status"] do
+      assert LocalGit.normalize(Map.put(receipt, field, "invalid")) == %{
+               "status" => "invalid_repository"
+             }
+
+      assert LocalGit.normalize(Map.delete(receipt, field)) == %{"status" => "invalid_repository"}
+    end
+
+    assert LocalGit.normalize(%{"status" => "candidate_conflict", "raw" => "private-canary"}) ==
+             %{"status" => "candidate_conflict"}
+  end
+
   test "inspection and initialization are scoped, consented, idempotent and separate from setup revisions" do
     arena = arena_fixture()
     key = Ecto.UUID.generate()

@@ -560,6 +560,10 @@ Depends on R060. Required for the requested release, not a deferred enhancement.
   global/Arena/exact-connection caps, fair dispatch, retained uncertain ownership
   and isolated Stop/Pause/crash handling. Prior-schema upgrade/backup covered.
   This does not complete the task-level acceptance below.
+- [x] R070b native prerequisite: combine compatible bounded captured paths on the
+  exact reviewed head, retain immutable artifacts/ref, prepare a fresh review
+  checkout and verify serialized integration/recovery. Conflicts refuse safely.
+  No Start policy or same-board lane is enabled. [Task](../tasks/R070b-combined-candidate.md).
 
 - [ ] Clone role instances into independent sessions/worktrees/process groups.
 - [ ] Atomically claim tasks, capacity and ports; enforce global/Arena/Tabula/

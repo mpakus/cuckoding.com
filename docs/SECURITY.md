@@ -671,6 +671,18 @@ intent without a completed receipt is uncertain and cannot be replayed. Live
 verification is a dated observation; same-user hostile races are outside host
 isolation guarantees and review/integration still require fresh checks.
 
+R070b combination additionally requires the captured writer's exact retained
+battle/preparation binding and ancestry to the current reviewed head. It applies
+at most 64 existing host-tool changes (32 KiB each, 512 KiB total) in a separate
+index; divergent overlap and case/file-directory collisions refuse. Raw Git
+plumbing avoids merge drivers and preserves original worktrees/source index.
+Exclusive intent/publication/receipt bind both bases, source identity and a UUID
+ref; missing evidence never replays. Verification/review/CAS consumers recheck
+the full proof and their exact live ref boundary. A native combined receipt is
+neither a Secutor verdict nor parallel admission. The fixed new operation budget
+does not extend an existing stage or battle deadline. Same-user hostile mutation
+remains outside host isolation, and same-board workflow acceptance is still open.
+
 ## Cursor task execution (R020p)
 
 R020r initial planning is a separate `cursor-plan-no-tools-v1` operation. Only the

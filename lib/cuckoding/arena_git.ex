@@ -8,7 +8,7 @@ defmodule Cuckoding.LocalGit do
   @behaviour Cuckoding.GitAdapter
   alias Cuckoding.{GitPreview, NativeHelper}
 
-  @statuses ~w(missing unborn initialized cancelled timeout cleanup_uncertain unavailable invalid_request folder_changed git_unavailable invalid_repository metadata_limit nested_repository unsupported_layout unsafe_config repository_busy repository_changed recheck_required invalid_selection selection_limit unsafe_file preview_changed initial_only index_present commit_incomplete unsafe_tree tree_limit worktree_incomplete worktree_exists worktree_mismatch candidate_incomplete candidate_exists candidate_mismatch battle_mismatch battle_stale battle_exists battle_incomplete)
+  @statuses ~w(missing unborn initialized cancelled timeout cleanup_uncertain unavailable invalid_request folder_changed git_unavailable invalid_repository metadata_limit nested_repository unsupported_layout unsafe_config repository_busy repository_changed recheck_required invalid_selection selection_limit unsafe_file preview_changed initial_only index_present commit_incomplete unsafe_tree tree_limit worktree_incomplete worktree_exists worktree_mismatch candidate_incomplete candidate_exists candidate_mismatch candidate_conflict battle_mismatch battle_stale battle_exists battle_incomplete)
 
   @impl true
   def run(command), do: run(command, [])
@@ -27,12 +27,23 @@ defmodule Cuckoding.LocalGit do
         to_string(payload["inode"]),
         home
       ] ++ extra(command),
-      20_000,
+      timeout(payload),
       &decode/1,
       8192,
       options
     )
   end
+
+  defp timeout(%{"operation" => operation})
+       when operation in ~w(combine_candidate verify_combined_candidate), do: 65_000
+
+  defp timeout(%{
+         "operation" => operation,
+         "request" => %{"candidate" => %{"status" => "candidate_combined"}}
+       })
+       when operation in ~w(battle_worktree integrate_candidate recover_integration), do: 65_000
+
+  defp timeout(_), do: 20_000
 
   defp extra(%{payload: %{"operation" => "preview", "paths" => paths}}),
     do: [Jason.encode!(%{"paths" => paths})]
@@ -65,7 +76,7 @@ defmodule Cuckoding.LocalGit do
     ]
 
   defp extra(%{payload: %{"operation" => operation, "request" => request}})
-       when operation in ~w(create_battle verify_battle battle_worktree integrate_candidate recover_integration),
+       when operation in ~w(create_battle verify_battle battle_worktree integrate_candidate recover_integration combine_candidate verify_combined_candidate),
        do: [Jason.encode!(request)]
 
   defp extra(_), do: []
@@ -88,6 +99,22 @@ defmodule Cuckoding.LocalGit do
     if GitPreview.hash?(result["head"], 40) and GitPreview.hash?(result["tree"], 40) and
          match?({:ok, _}, Ecto.UUID.cast(result["preview_id"])),
        do: Map.take(result, ~w(status head tree preview_id)),
+       else: %{"status" => "invalid_repository"}
+  end
+
+  def normalize(%{"status" => status} = result)
+      when status in ~w(candidate_combined combined_verified) do
+    if Enum.all?(
+         ~w(key battle_key worktree_key task_candidate_key),
+         &match?({:ok, _}, Ecto.UUID.cast(result[&1]))
+       ) and
+         Enum.all?(~w(base task_base candidate tree), &GitPreview.hash?(result[&1], 40)) and
+         GitPreview.hash?(result["manifest_sha256"], 64),
+       do:
+         Map.take(
+           result,
+           ~w(status key battle_key worktree_key task_candidate_key base task_base candidate tree manifest_sha256)
+         ),
        else: %{"status" => "invalid_repository"}
   end
 

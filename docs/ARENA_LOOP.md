@@ -140,6 +140,18 @@ Restart stops all old workers before recovery; Stop/Pause affect their own Arena
 Each board still has sequential tasks and serialized reviewed integration;
 same-board parallel writers and combined-candidate review remain open.
 
+R070b supplies the native combination prerequisite, not parallel dispatch. A
+captured writer must retain its exact battle/worktree origin. The fixed operation
+rebuilds compatible bounded file changes on the current reviewed head using Git
+objects and a private index, without a project merge driver. Divergent overlap or
+case/file-directory collisions return `candidate_conflict`; old edits remain.
+An exclusive intent/publication/receipt and UUID ref bind both bases and candidates.
+Missing evidence cannot be repaired by replay. A new independent review/check
+checkout contains the combined tree before existing serialized CAS; native success
+alone never completes a task. Combined operations/consumers use a fixed 60-second
+native budget and 65-second host ceiling; existing sequential limits and active
+cancellation remain. Future lane stages must also retain their original deadlines.
+
 R060c adds **Skip task** under `task_selection: skip-task-v1`. A clean paused task,
 settled provider block/transient failure or exhausted task review may be skipped
 after confirming its exact ID/control revision and affected dependent tasks.

@@ -2,6 +2,7 @@
 use super::*;
 use candidate::{hash, load, oid, save, success};
 use std::path::PathBuf;
+mod combined;
 
 fn reference(key: &str) -> String {
     format!("refs/heads/ccoding/battles/{key}")
@@ -92,6 +93,10 @@ fn verified_candidate(git: &Git<'_>, request: &Value, device: u64, inode: u64) -
 fn candidate_head(git: &Git<'_>, request: &Value, device: u64, inode: u64) -> Result<String> {
     let battle = &request["battle"];
     let candidate = &request["candidate"];
+    if candidate["status"] == "candidate_combined" {
+        return combined::verify_retained(git, request, device, inode)
+            .map(|receipt| receipt["candidate"].as_str().unwrap().to_owned());
+    }
     if request["preparation"]["head"] != battle["head"] || candidate["base"] != battle["head"] {
         return Err("battle_stale");
     }
@@ -158,6 +163,12 @@ pub(in super::super::super) fn run(
         receipt["status"] = json!("battle_verified");
         return Ok(receipt);
     }
+    if operation == "verify_combined_candidate" {
+        if fields != 3 {
+            return Err("invalid_request");
+        }
+        return combined::verify(git, &request, device, inode);
+    }
     let key = initial::uuid(&request["key"])?;
     if operation == "create_battle" {
         if fields != 2 {
@@ -206,19 +217,35 @@ pub(in super::super::super) fn run(
     }
     let battle = &request["battle"];
     current(git, battle, device, inode)?;
+    if operation == "combine_candidate" {
+        if fields != 4 || request["key"] == battle["battle_key"] {
+            return Err("invalid_request");
+        }
+        return combined::run(git, &request, device, inode);
+    }
     if operation == "battle_worktree" {
         let head = match fields {
             2 => hash(&battle["head"], 40)?.to_owned(),
             4 => verified_candidate(git, &request, device, inode)?,
             _ => return Err("invalid_request"),
         };
-        return prepare(git, key, &head, device, inode, || {
+        let preparation = prepare(git, key, &head, device, inode, || {
             if fields == 4 {
                 verified_candidate(git, &request, device, inode).map(|_| ())
             } else {
                 current(git, battle, device, inode)
             }
-        });
+        })?;
+        let directory = git.home.join("worktrees").join(key);
+        save(
+            &directory,
+            "battle.json",
+            &json!({"request":request,"preparation":preparation,
+            "source_device":device,"source_inode":inode}),
+        )
+        .map_err(|_| "worktree_incomplete")?;
+        current(git, battle, device, inode)?;
+        return Ok(preparation);
     }
     if operation != "integrate_candidate" || fields != 4 || request["key"] == battle["battle_key"] {
         return Err("invalid_request");
@@ -246,8 +273,9 @@ pub(in super::super::super) fn run(
     .map_err(|_| "battle_incomplete")?;
     // A missing receipt after ref publication is uncertain; no retry can fill it in.
     git.identity(device, inode)?;
-    let verify = json!({"key":request["candidate"]["key"],"preparation":request["preparation"],"candidate":request["candidate"]});
-    candidate::run(git, "verify_candidate", &verify.to_string(), device, inode)?;
+    if candidate_head(git, &request, device, inode)? != head {
+        return Err("candidate_mismatch");
+    }
     save(&directory, "receipt.json", &receipt).map_err(|_| "battle_incomplete")?;
     current(git, &receipt, device, inode)?;
     Ok(receipt)

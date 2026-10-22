@@ -44,6 +44,7 @@ fn configuration(git: &Git<'_>) -> Result<Vec<u8>> {
     Ok(bytes)
 }
 
+#[derive(Clone, PartialEq, Eq)]
 struct Entry {
     mode: String,
     oid: String,

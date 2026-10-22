@@ -1,4 +1,6 @@
 //! Fixed local Git operations. Repository text never supplies argv or authority.
+#[cfg(test)]
+mod combination_tests;
 mod documents;
 mod initial;
 mod worktree;
@@ -366,6 +368,8 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
         "battle_worktree",
         "integrate_candidate",
         "recover_integration",
+        "combine_candidate",
+        "verify_combined_candidate",
         "verify_battle",
     ]
     .contains(&operation.as_str())
@@ -384,6 +388,8 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
                     "battle_worktree",
                     "integrate_candidate",
                     "recover_integration",
+                    "combine_candidate",
+                    "verify_combined_candidate",
                     "verify_battle",
                 ]
                 .contains(&operation.as_str()),
@@ -435,6 +441,8 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
         "battle_worktree",
         "integrate_candidate",
         "recover_integration",
+        "combine_candidate",
+        "verify_combined_candidate",
         "verify_battle",
     ]
     .contains(&operation.as_str())
@@ -480,6 +488,21 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
     }
 }
 
+fn operation_limit(args: &[String]) -> Duration {
+    let combined = matches!(
+        args.first().map(String::as_str),
+        Some("combine_candidate" | "verify_combined_candidate")
+    ) || (matches!(
+        args.first().map(String::as_str),
+        Some("battle_worktree" | "integrate_candidate" | "recover_integration")
+    ) && args
+        .get(5)
+        .filter(|input| input.len() <= 32_768)
+        .and_then(|input| serde_json::from_str::<Value>(input).ok())
+        .is_some_and(|request| request["candidate"]["status"] == "candidate_combined"));
+    Duration::from_secs(if combined { 60 } else { 15 })
+}
+
 pub fn main(args: &[String]) {
     let started = Instant::now();
     let (sender, cancel) = mpsc::channel();
@@ -487,8 +510,8 @@ pub fn main(args: &[String]) {
         let _ = std::io::stdin().read(&mut [0]);
         let _ = sender.send(());
     });
-    let mut result = run(args, cancel, Duration::from_secs(15))
-        .unwrap_or_else(|status| json!({"status":status}));
+    let mut result =
+        run(args, cancel, operation_limit(args)).unwrap_or_else(|status| json!({"status":status}));
     result["elapsed_ms"] = json!(started.elapsed().as_millis());
     let _ = writeln!(std::io::stdout(), "{result}");
 }
@@ -503,7 +526,7 @@ mod tests {
     };
     static SERIAL: AtomicUsize = AtomicUsize::new(0);
 
-    fn fixture() -> (PathBuf, PathBuf, Vec<String>) {
+    pub(super) fn fixture() -> (PathBuf, PathBuf, Vec<String>) {
         let base = PathBuf::from(format!(
             "/private/tmp/cuckoding-git-{}-{}",
             std::process::id(),
@@ -525,7 +548,7 @@ mod tests {
         (root, home, args)
     }
 
-    fn operation(args: &[String], name: &str) -> Result<Value> {
+    pub(super) fn operation(args: &[String], name: &str) -> Result<Value> {
         let mut args = args.to_vec();
         args[0] = name.into();
         let (_sender, receiver) = mpsc::channel();
@@ -692,7 +715,7 @@ mod tests {
         fs::remove_dir_all(root.parent().unwrap()).unwrap();
     }
 
-    fn git(root: &Path, home: &Path, args: &[&str]) -> (i32, Vec<u8>) {
+    pub(super) fn git(root: &Path, home: &Path, args: &[&str]) -> (i32, Vec<u8>) {
         let (_sender, cancel) = mpsc::channel();
         Git {
             root,
@@ -1137,7 +1160,7 @@ mod tests {
         args
     }
 
-    fn commit_fixture(root: &Path, home: &Path) {
+    pub(super) fn commit_fixture(root: &Path, home: &Path) {
         assert_eq!(git(root, home, &["add", "--all"]).0, 0);
         assert_eq!(
             git(
