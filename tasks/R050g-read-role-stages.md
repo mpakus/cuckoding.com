@@ -1,6 +1,6 @@
 # R050g — Ordered custom read-only role stages
 
-Status: implemented and verified, 2026-10-22; local integration recorded below.
+Status: implemented, verified and merged to local main, 2026-10-22.
 
 - [x] Let a board explicitly add, remove and reorder up to four read-only stages
   between Speculator and Implementor, using roles from its exact saved team.
@@ -15,7 +15,7 @@ Status: implemented and verified, 2026-10-22; local integration recorded below.
   on the board. Preserve dirty forms and simple Add folder → Create tasks → Start.
 - [x] Run focused transitions/executor/UI regressions, quality and package checks;
   update docs/AGENTS/README.
-- [ ] Merge locally to main and delete the completed feature branch.
+- [x] Merge locally to main and delete the completed feature branch (`3fa9bf8`).
 
 Evidence: [worklog](../worklog/2026-10-22-R050g-read-role-stages.md).
 

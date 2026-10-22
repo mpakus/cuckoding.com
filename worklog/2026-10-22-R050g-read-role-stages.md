@@ -93,3 +93,7 @@ not live-provider, sleep, Developer ID/notarization or clean-machine acceptance.
 The final source review found no remaining actionable issue in this slice.
 Documentation link validation and `git diff --check` passed. The complete beta
 objective remains open; no push/publication or memory edit was performed.
+
+Local integration: `3fa9bf8` fast-forwarded into `main`; the completed
+`feature/r050g-read-role-stages` branch was deleted. Working-tree content is clean
+except the unrelated, untouched untracked `Untitled.md.age`.
