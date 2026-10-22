@@ -1,14 +1,23 @@
 defmodule Cuckoding.Battles do
   @moduledoc "Durable bounded Arena authority and sequential stage claims; workers own external effects."
   import Ecto.Query, except: [update: 2, update: 3]
-  alias Cuckoding.Battles.{Attempt, Backoff, Battle, Capacity, ProviderClosure, Snapshot, Task}
+
+  alias Cuckoding.Battles.{
+    Attempt,
+    Backoff,
+    Battle,
+    Capacity,
+    ProviderClosure,
+    Receipts,
+    Snapshot,
+    Task
+  }
+
   alias Cuckoding.{Event, Foundation, Repo, TaskTurn}
 
   @active ~w(running pausing paused stopping needs_attention)
   @retryable ~w(launch_failed timeout connection_lost provider_error profile_busy turn_failed)
   @envelope ~w(battle_id request_id task_id stage criteria_sha256)
-  @result_fields @envelope ++
-                   ~w(status reason summary feedback head candidate_sha preparation native_candidate native_battle resolved_checks checks provider cleanup_verified)
   @roles %{
     "coordinator" => "summa_rudis",
     "speculator" => "speculator",
@@ -264,8 +273,8 @@ defmodule Cuckoding.Battles do
 
   def stage_cleanup_verified?(%Attempt{} = attempt, result),
     do:
-      bound?(attempt, result) and result["cleanup_verified"] == true and
-        valid_result?(attempt, result)
+      Receipts.bound?(attempt, result) and result["cleanup_verified"] == true and
+        Receipts.payload_valid?(attempt, result)
 
   defp finish_claim(id, token, result, now) do
     attempt = if(valid_id?(id), do: Repo.get(Attempt, id))
@@ -273,7 +282,7 @@ defmodule Cuckoding.Battles do
     if is_nil(attempt) or attempt.claim_token != token or attempt.state != "running",
       do: Repo.rollback(:stale_attempt)
 
-    if not bound?(attempt, result), do: Repo.rollback(:foreign_result)
+    if not Receipts.bound?(attempt, result), do: Repo.rollback(:foreign_result)
     finish_current(get(attempt.battle_id), attempt, result, now)
   end
 
@@ -294,7 +303,7 @@ defmodule Cuckoding.Battles do
       expired?(attempt.deadline_at, now) or expired?(battle.deadline_at, now) ->
         expire_attempt(battle, attempt, result)
 
-      not valid_result?(attempt, result) ->
+      not Receipts.payload_valid?(attempt, result) ->
         Repo.rollback(:invalid_result)
 
       battle.state == "pausing" and result["cleanup_verified"] != true ->
@@ -327,7 +336,7 @@ defmodule Cuckoding.Battles do
   defp valid_expired_result?(_, %{"status" => "cancelled", "cleanup_verified" => cleanup}),
     do: is_boolean(cleanup)
 
-  defp valid_expired_result?(attempt, result), do: valid_result?(attempt, result)
+  defp valid_expired_result?(attempt, result), do: Receipts.payload_valid?(attempt, result)
 
   def observe_timing_gap(observation) do
     if valid_timing_gap?(observation) do
@@ -771,7 +780,7 @@ defmodule Cuckoding.Battles do
 
     local? and
       (retryable_attempt?(battle, attempt) or
-         (review_failure?(battle, attempt) and provider_result?(attempt, attempt.result)))
+         (review_failure?(battle, attempt) and Receipts.provider_valid?(attempt, attempt.result)))
   end
 
   defp review_failure?(%Battle{reason: "blocked"}, %Attempt{
@@ -1016,7 +1025,9 @@ defmodule Cuckoding.Battles do
   def reconcile_provider(attempt, result) do
     transaction(fn ->
       unless provider_reconciliation_current?(attempt), do: Repo.rollback(:stale_reconciliation)
-      unless bound?(attempt, result, ["provider_closure"]), do: Repo.rollback(:foreign_result)
+
+      unless Receipts.bound?(attempt, result, ["provider_closure"]),
+        do: Repo.rollback(:foreign_result)
 
       verified = verified_provider_closure?(attempt, result)
 
@@ -1055,7 +1066,7 @@ defmodule Cuckoding.Battles do
     do:
       result["status"] == "failed" and result["cleanup_verified"] == false and
         Map.keys(result) -- (@envelope ++ ~w(status reason cleanup_verified)) == [] and
-        valid_result?(attempt, result)
+        Receipts.payload_valid?(attempt, result)
 
   defp provider_closed?(battle, attempt),
     do:
@@ -1081,7 +1092,7 @@ defmodule Cuckoding.Battles do
   def reconcile_integration(attempt, result, now \\ DateTime.utc_now()) do
     transaction(fn ->
       unless reconciliation_current?(attempt), do: Repo.rollback(:stale_reconciliation)
-      unless bound?(attempt, result), do: Repo.rollback(:foreign_result)
+      unless Receipts.bound?(attempt, result), do: Repo.rollback(:foreign_result)
       verified = verified_integration?(attempt, result)
 
       unless verified or failed_reconciliation?(attempt, result),
@@ -1112,7 +1123,7 @@ defmodule Cuckoding.Battles do
   defp failed_reconciliation?(attempt, result),
     do:
       result["status"] == "failed" and result["cleanup_verified"] == false and
-        valid_result?(attempt, result)
+        Receipts.payload_valid?(attempt, result)
 
   defp retain_reconciliation(battle, attempt, result, verified) do
     observations =
@@ -1288,169 +1299,6 @@ defmodule Cuckoding.Battles do
   defp projection(stage) when stage in ~w(checks secutor integrate), do: "review"
   defp projection(_), do: "in_process"
 
-  defp valid_result?(_, %{"status" => "failed", "reason" => reason}),
-    do: is_binary(reason) and byte_size(reason) in 1..200
-
-  defp valid_result?(%Attempt{role: role} = attempt, result) when not is_nil(role),
-    do: provider_result?(attempt, result)
-
-  defp valid_result?(%Attempt{stage: "admission"} = attempt, %{"status" => "admitted"} = result),
-    do:
-      sha?(result["head"]) and is_map(result["native_battle"]) and
-        resolved_checks?(attempt, result["resolved_checks"])
-
-  defp valid_result?(%Attempt{stage: "prepare_worktree"}, %{"status" => "prepared"} = result),
-    do: is_map(result["preparation"])
-
-  defp valid_result?(%Attempt{stage: "capture"}, %{"status" => "captured"} = result),
-    do: sha?(result["candidate_sha"]) and is_map(result["native_candidate"])
-
-  defp valid_result?(%Attempt{stage: stage} = attempt, %{"status" => "passed"} = result)
-       when stage in ~w(checks final_checks),
-       do: candidate?(attempt, result) and checks?(attempt, result["checks"])
-
-  defp valid_result?(
-         %Attempt{stage: stage} = attempt,
-         %{"status" => "checks_failed", "cleanup_verified" => true} = result
-       )
-       when stage in ~w(checks final_checks),
-       do: candidate?(attempt, result) and failed_checks?(attempt, result["checks"])
-
-  defp valid_result?(
-         %Attempt{stage: "integrate"} = attempt,
-         %{"status" => "integrated"} = result
-       ),
-       do:
-         candidate?(attempt, result) and result["head"] == result["candidate_sha"] and
-           is_map(result["native_battle"])
-
-  defp valid_result?(_, _), do: false
-
-  defp provider_result?(attempt, result) do
-    provider = result["provider"] || %{}
-    normalized = TaskTurn.normalize(Jason.encode!(provider))
-
-    allowed =
-      if(attempt.stage in ~w(secutor final_secutor),
-        do: ~w(completed changes_requested blocked),
-        else: ~w(completed blocked)
-      )
-
-    normalized["status"] == "task_finished" and normalized == provider and
-      result["status"] in allowed and
-      provider_identity?(attempt, provider) and
-      provider["report"]["outcome"] == result["status"] and fresh_session?(attempt, provider) and
-      review_candidate?(attempt, result)
-  end
-
-  defp review_candidate?(%Attempt{stage: stage} = attempt, result)
-       when stage in ~w(secutor final_secutor),
-       do: candidate?(attempt, result) and review_verdict?(attempt, result)
-
-  defp review_candidate?(_, _), do: true
-
-  defp review_verdict?(attempt, %{"status" => "completed"} = result) do
-    context =
-      if(attempt.task_id, do: attempt.request["task_context"], else: attempt.request["context"])
-
-    if Snapshot.task_review_only?(attempt.request["snapshot"]),
-      do: is_nil(context["checks"]) and inspected?(result["provider"]["tools"]),
-      else: checks?(attempt, context["checks"])
-  end
-
-  defp review_verdict?(_, _), do: true
-
-  defp inspected?(tools) when is_list(tools),
-    do:
-      Enum.any?(tools, &(&1["tool"] in ~w(list_files read_file) and &1["status"] == "completed"))
-
-  defp inspected?(_), do: false
-
-  defp provider_identity?(attempt, provider) do
-    role = attempt.request["role"]
-
-    expected = %{
-      "request_id" => attempt.id,
-      "requested_model" => role["model"],
-      "observed_model" => role["model"],
-      "effort" => role["effort"],
-      "access" => if(attempt.stage == "implementor", do: "write", else: "read")
-    }
-
-    Map.take(provider, Map.keys(expected)) == expected and
-      provider["transport"] == if(role["kind"] == "cursor", do: "cursor-acp-v1", else: nil)
-  end
-
-  defp fresh_session?(attempt, provider) do
-    not Repo.exists?(
-      from a in Attempt,
-        where:
-          a.battle_id == ^attempt.battle_id and a.id != ^attempt.id and
-            (fragment("json_extract(?, '$.provider.thread_id')", a.result) ==
-               ^provider["thread_id"] or
-               fragment("json_extract(?, '$.provider.turn_id')", a.result) == ^provider["turn_id"])
-    )
-  end
-
-  defp checks?(attempt, checks) when is_list(checks) do
-    declared = attempt.request["snapshot"]["checks"]
-
-    declared != [] and length(checks) == length(declared) and Enum.all?(checks, &is_map/1) and
-      Enum.sort(Enum.map(checks, & &1["id"])) == Enum.sort(Enum.map(declared, & &1["id"])) and
-      Enum.all?(checks, &(&1["status"] == "passed" and &1["exit_code"] == 0))
-  end
-
-  defp checks?(_, _), do: false
-
-  defp failed_checks?(attempt, checks) when is_list(checks) and checks != [] do
-    declared = attempt.request["snapshot"]["checks"]
-
-    Enum.all?(checks, &is_map/1) and length(checks) <= length(declared) and
-      Enum.map(checks, & &1["id"]) ==
-        declared |> Enum.take(length(checks)) |> Enum.map(& &1["id"]) and
-      Enum.all?(Enum.drop(checks, -1), &(&1["status"] == "passed" and &1["exit_code"] == 0)) and
-      failed_check?(List.last(checks))
-  end
-
-  defp failed_checks?(_, _), do: false
-
-  defp failed_check?(%{"status" => "failed", "exit_code" => code}),
-    do: is_integer(code) and code in 1..255
-
-  defp failed_check?(_), do: false
-
-  defp resolved_checks?(attempt, resolved) when is_list(resolved) do
-    declared = attempt.request["snapshot"]["checks"]
-
-    (declared != [] or Snapshot.task_review_only?(attempt.request["snapshot"])) and
-      length(declared) == length(resolved) and Enum.all?(resolved, &is_map/1) and
-      Enum.map(
-        resolved,
-        &Map.take(&1, ~w(id name executable arguments directory timeout_seconds))
-      ) == declared
-  end
-
-  defp resolved_checks?(_, _), do: false
-
-  defp candidate?(attempt, result) do
-    expected =
-      if(attempt.task_id,
-        do: attempt.request["task_context"]["candidate_sha"],
-        else: attempt.request["context"]["head"]
-      )
-
-    sha?(expected) and result["candidate_sha"] == expected
-  end
-
-  defp bound?(attempt, result, extra \\ [])
-
-  defp bound?(attempt, result, extra) when is_map(result) do
-    Map.keys(result) -- (@result_fields ++ extra) == [] and
-      Map.take(result, @envelope) == Map.take(attempt.request, @envelope) and
-      match?({:ok, _}, Jason.encode(result)) and byte_size(Jason.encode!(result)) <= 131_072
-  end
-
-  defp bound?(_, _, _), do: false
   defp result_context(result), do: Map.drop(result, @envelope ++ ["status", "reason"])
   defp current_task(%Battle{current_task_id: nil}), do: nil
 
@@ -1492,7 +1340,6 @@ defmodule Cuckoding.Battles do
 
   defp expired?(deadline, now), do: DateTime.compare(now, deadline) != :lt
   defp min_time(a, b), do: if(DateTime.compare(a, b) == :gt, do: b, else: a)
-  defp sha?(value), do: is_binary(value) and Regex.match?(~r/\A[0-9a-f]{40}\z/, value)
   defp valid_id?(id), do: match?({:ok, _}, Ecto.UUID.cast(id))
 
   defp transaction(fun) do

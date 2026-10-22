@@ -35,6 +35,13 @@ with cancellation and the original future stage/battle deadline still authoritat
 Historical sequential operations keep their limits. Same-board lane admission,
 conflict repair and real-provider parallel acceptance remain open.
 
+R070c centralizes existing outcome checks in `Battles.Receipts`. Settlement,
+Stop, expiry, review-failure controls and recovery retain their exact envelope,
+payload/provider/session/candidate/check gates inside the owning transaction.
+`payload_valid?` alone is not envelope binding or workflow authority. Keep reads
+bound to the immutable attempt, never a different task selected by a coordinator.
+This extraction enables no lane policy or new historical authority.
+
 R080g keeps dashboard observations read-only. Global worker rows expose only
 exact public role/runtime/model bindings; Arena summaries and chronological
 activity pages are limited to 20 rows. Activity scope comes from server-owned

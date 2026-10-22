@@ -1,5 +1,16 @@
 # Current decisions
 
+## D038 · Validate outcomes against the immutable attempt
+
+Accepted before implementation, 2026-10-21, R070c. Keep closed receipt/envelope,
+provider identity/session, candidate/check and historical-policy validation in
+`Battles.Receipts`. The durable battle owner invokes that boundary inside its
+existing transaction for settlement, Stop, expiry and recovery. The validator
+reads retained attempts only for session reuse; it never writes, launches work or
+selects a task from a mutable coordinator cursor. Reuse this single boundary for
+the upcoming lane workflow, rather than copy the sequential validator.
+This extraction changes no grants, budgets, projections or Start policies.
+
 ## D037 · Rebuild parallel candidates on the reviewed head
 
 Accepted before implementation, 2026-10-21, R070b. Native combination validates

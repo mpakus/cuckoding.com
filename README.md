@@ -234,6 +234,9 @@ The native helper can also prepare a compatible combined result from retained
 task edits and the reviewed head, preserving both originals and refusing conflicts.
 This is a prerequisite for same-board parallel work; lane scheduling and combined
 independent review are still unfinished. [Combination evidence](tasks/R070b-combined-candidate.md).
+The shared outcome validator keeps settlement, Stop and recovery tied to each
+frozen attempt. Parallel task dispatch remains the next implementation step.
+[Receipt boundary](tasks/R070c-stage-receipts.md).
 **Skip task** confirms leaving a clean paused or settled blocked/failed task
 unfinished and defers its dependents. Independent tasks continue from reviewed work;
 paused battles stay paused until Resume. Edits and evidence remain available.
