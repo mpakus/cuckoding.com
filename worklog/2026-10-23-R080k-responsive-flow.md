@@ -125,4 +125,12 @@ and bounded scrolling. Installed Phoenix `push_event` documentation explicitly
 confirms default dispatch after the LiveView patch (`deps/phoenix_live_view/lib/phoenix_live_view.ex:866-868`).
 No unresolved slice finding. Documentation links and `git diff --check` passed.
 No human ten-minute, screen-reader/zoom, actual provider, forced sleep or
-clean-machine release acceptance is claimed. Local integration pending; no push.
+clean-machine release acceptance is claimed.
+
+## Local integration
+
+Implementation `7942cb7` fast-forwarded into local `main`; the feature branch was
+deleted. Only the unrelated `Untitled.md.age` remains untracked and unread. The
+source QA preview and bundled smoke are stopped; saved production data remains
+untouched. No push/publication or paid provider usage occurred. Remaining beta
+acceptance stays unchecked in PLAN; the overall goal remains active.
