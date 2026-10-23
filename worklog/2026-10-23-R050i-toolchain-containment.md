@@ -1,6 +1,6 @@
 # R050i — Toolchain containment prerequisite
 
-Investigation verified; local integration pending. Branch
+Investigation verified and merged locally. Branch
 `feature/R050i-toolchain-containment`, base `7b1b699`.
 Ponytail full 5.3.2 MIT; local-runner, security, architecture and quality guidance.
 Exact-output `rtk proxy` preserves source/probe semantics. No shipping grant,
@@ -80,7 +80,7 @@ Verified **219** local Markdown targets, retained probe status/expected results,
 source hash and whitespace. Recomputed application input digest still matches
 R020s's sealed artifact exactly. Reviewed the negative result against the existing
 single-process contract; no claim that every conceivable macOS boundary is
-impossible. Local integration pending.
+impossible. Commit `6302a60` fast-forwarded into local main; feature branch deleted.
 No full suite/build rerun is required for this docs-only slice; R020s's sealed
 artifact and verified application source remain unchanged. General toolchains,
 real-provider, recovery/physical sleep and release acceptance remain open.
