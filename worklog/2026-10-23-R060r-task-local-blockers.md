@@ -1,6 +1,6 @@
 # R060r — Task-local attention and independent work
 
-Implemented, verified and packaged; local integration pending. Branch
+Implemented, verified, packaged and merged locally. Branch
 `feature/R060r-task-local-blockers`, base `c4f43f6`.
 Ponytail full 5.3.2 MIT; workflow/OTP/LiveView, architecture, security and quality
 guidance. No provider usage, personal profile, user workspace or publication.
@@ -113,7 +113,13 @@ lock verified. No owned bundle/release process remains.
 Final local Markdown targets: **267** verified; whitespace and the final artifact's
 application input digest match. Final private logs: `.ccoding/r060r-quality-final.log`, `r060r-focused-final.log`,
 `r060r-build-final.log`, `r060r-smoke-final.log`, `r060r-upgraded-smoke.log`.
-No user workspace/profile was migrated, copied or started. Local integration pending.
+No user workspace/profile was migrated, copied or started.
+
+Runtime/migration/tests `e6c178a`, LiveView `0f7d898` and evidence `2b3bd00`
+fast-forwarded into local main; feature branch deleted. The branch was separated
+into reviewable commits after verification without changing application bytes.
+The final bundle identifies the recorded pre-commit inputs above. No push or
+publication; only unrelated `Untitled.md.age` remains untracked.
 
 Real-provider local-block/parallel/battle acceptance, general subprocess toolchains,
 broader recovery and physical sleep, remaining providers, human accessibility/
