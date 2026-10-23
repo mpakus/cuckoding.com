@@ -343,6 +343,40 @@ stripping is disabled for the verified LINKEDIT alignment failure described in
 [rust-lang/rust#157750](https://github.com/rust-lang/rust/issues/157750).
 These build-tool workarounds do not disable Gatekeeper or signature verification.
 
+## Build identity and retained evidence
+
+`rtk proxy bin/dev.build` generates one format-one public manifest before compiling
+the production release and native shell. Settings → Build details shows its UUID,
+UTC build time, source revision/dirty observation, application-input digest, target,
+schema generation and tool versions. A native/release mismatch refuses before
+workspace preparation; production verifies its compiled copy before migration or
+dispatch. Startup does not add a general runtime file-reading API.
+
+The builder's explicit `INPUTS` in `bin/build-info` covers application source,
+configuration, locks, migrations, branding/native resources and build scripts.
+Generated files, private storage and unrelated files are excluded. Git reports
+only whether local changes exist; their names/content are not put into metadata.
+Links/special inputs and source changes during the build refuse its evidence.
+This digest does not cover dependency provenance or prove reproducible output.
+
+After strict/deep seal verification, the build exclusively retains
+`.ccoding/build-receipts/<build UUID>.json` with the manifest, actual helper SHA-256
+and resource-manifest SHA-256. Previous receipts are not overwritten. These are
+private local-preview observations, with release acceptance explicitly false.
+Normal builds invoke `bin/build-info generate` / `record` automatically; a bare
+Cargo shell without embedded metadata cannot launch a packaged release. Fixed
+provider helper operations retain their existing boundaries.
+
+`bin/dev.server` remains a separate source preview: it ignores packaged metadata
+even when generated files exist. Settings labels it accordingly. Build metadata
+never reattributes historical attempts or grants provider access. No schema
+migration is added; the existing schema-seventeen barrier remains unchanged.
+
+Verify metadata behavior with `rtk proxy python3 test/build_info_test.py`, focused
+BuildInfo/Settings tests, Mix quality, Rust checks and bundled smoke. The native
+`--build-info` switch reports only the closed public metadata or Not packaged;
+it does not launch a provider or read a saved profile.
+
 ## UI development
 
 After the first `rtk proxy bin/dev.build`, run:

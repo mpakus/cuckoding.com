@@ -1,0 +1,195 @@
+#!/usr/bin/env python3
+"""Bind local-preview build inputs and retain sealed artifact observations."""
+import argparse
+from datetime import datetime, timezone
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import stat
+import subprocess
+import uuid
+
+ROOT = Path(__file__).resolve().parent.parent
+INPUTS = (
+    "mix.exs", "mix.lock", ".tool-versions", "config", "lib", "assets", "priv/repo",
+    "priv/static/favicon.svg", "desktop/mark.svg", "desktop/frontend",
+    "desktop/src-tauri/Cargo.toml", "desktop/src-tauri/Cargo.lock",
+    "desktop/src-tauri/build.rs", "desktop/src-tauri/Info.plist",
+    "desktop/src-tauri/tauri.conf.json", "desktop/src-tauri/src",
+    "desktop/src-tauri/icons", "desktop/src-tauri/capabilities",
+    "bin/dev.build", "bin/build-info",
+)
+OUTPUTS = ("priv/build-info.json", "desktop/resources/build-info.json")
+
+
+def input_digest(root):
+    files = []
+    visited = 0
+
+    def visit(path):
+        nonlocal visited
+        visited += 1
+        if visited > 8192 or len(path.relative_to(root).parts) > 16 or len(files) >= 4096:
+            raise ValueError("Application input tree exceeds bounds")
+        metadata = path.lstat()
+        if stat.S_ISDIR(metadata.st_mode):
+            for child in sorted(path.iterdir()):
+                if child.name != ".DS_Store":
+                    visit(child)
+        elif stat.S_ISREG(metadata.st_mode):
+            files.append(path)
+        else:
+            raise ValueError("Linked or special application input")
+
+    for name in INPUTS:
+        path = root / name
+        for parent in path.parents:
+            if parent == root:
+                break
+            if parent.is_symlink():
+                raise ValueError("Linked application input directory")
+        if path.exists() or path.is_symlink():
+            visit(path)
+    if len(files) > 4096:
+        raise ValueError("Too many application inputs")
+    digest = hashlib.sha256()
+    total = 0
+    for path in sorted(files):
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(fd, "rb") as source:
+            before = os.fstat(source.fileno())
+            if not stat.S_ISREG(before.st_mode) or before.st_size > 16 * 1024 * 1024:
+                raise ValueError("Invalid application input")
+            data = source.read(16 * 1024 * 1024 + 1)
+            after = os.fstat(source.fileno())
+        if (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns) != (
+                after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns):
+            raise ValueError("Application input changed while reading")
+        total += len(data)
+        if total > 64 * 1024 * 1024:
+            raise ValueError("Application inputs exceed bound")
+        relative = path.relative_to(root).as_posix()
+        header = f"{relative}\0{bool(before.st_mode & 0o111)}\0{len(data)}\0"
+        digest.update(header.encode())
+        digest.update(hashlib.sha256(data).digest())
+    return digest.hexdigest()
+
+
+def write_json(path, value, exclusive=False):
+    if path.is_symlink() or (path.exists() and not path.is_file()):
+        raise ValueError("Unsafe generated output")
+    if path.parent.resolve() != path.parent:
+        raise ValueError("Linked generated directory")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+    flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK
+    flags |= os.O_EXCL if exclusive else 0
+    fd = os.open(path, flags, 0o600)
+    with os.fdopen(fd, "wb") as output:
+        metadata = os.fstat(output.fileno())
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+            raise ValueError("Unsafe generated file")
+        output.truncate(0)
+        output.write(data)
+        output.flush()
+        os.fsync(output.fileno())
+
+
+def read_json(path):
+    if path.parent.resolve() != path.parent:
+        raise ValueError("Missing or unsafe build manifest")
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, "rb") as source:
+        metadata = os.fstat(source.fileno())
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > 4096:
+            raise ValueError("Missing or unsafe build manifest")
+        data = source.read(4097)
+    if len(data) > 4096:
+        raise ValueError("Oversized build manifest")
+    return json.loads(data)
+
+
+def run(*args):
+    return subprocess.check_output(["rtk", "proxy", *args], cwd=ROOT, text=True, timeout=30).strip()
+
+
+def revision():
+    value = run("git", "rev-parse", "HEAD")
+    if not re.fullmatch("[0-9a-f]{40}", value):
+        raise ValueError("Unsupported source revision")
+    return value
+
+
+def generate():
+    elixir = run("elixir", "-e", 'IO.write(System.version() <> "|" <> '
+                 'String.trim(File.read!(Path.join([:code.root_dir(), "releases", '
+                 'List.to_string(:erlang.system_info(:otp_release)), "OTP_VERSION"]))))')
+    elixir, otp = elixir.split("|")
+    rust = run("rustc", "--version").split()[1]
+    target = next(line.removeprefix("host: ") for line in run("rustc", "-vV").splitlines()
+                  if line.startswith("host: "))
+    if target != "aarch64-apple-darwin":
+        raise ValueError("Unsupported preview target")
+    for version in (elixir, otp, rust):
+        if not re.fullmatch(r"[0-9]+(?:\.[0-9]+){1,3}(?:-[a-z0-9.]+)?", version):
+            raise ValueError("Invalid build tool version")
+    value = {
+        "format": 1, "build_id": str(uuid.uuid4()), "application": "0.1.0",
+        "channel": "local-preview", "source_revision": revision(),
+        # Observe names/status only; never read an unrelated untracked file.
+        "source_dirty": bool(run("git", "status", "--porcelain", "--untracked-files=normal")),
+        "source_sha256": input_digest(ROOT),
+        "built_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "target": target, "schema": len(list((ROOT / "priv/repo/migrations").glob("*.exs"))),
+        "elixir": elixir, "otp": otp, "rust": rust,
+    }
+    for path in OUTPUTS:
+        write_json(ROOT / path, value)
+    print("Prepared public local-preview build identity: " + value["build_id"])
+
+
+def verify_inputs(root, info, paths, current_revision):
+    if info["source_revision"] != current_revision or info["source_sha256"] != input_digest(root):
+        raise ValueError("Application inputs changed during build; rebuild")
+    if any(read_json(path) != info for path in paths):
+        raise ValueError("Mixed build manifests; rebuild")
+
+
+def record():
+    app = ROOT / "desktop/src-tauri/target/release/bundle/macos/Cuckoding.app"
+    contents = app / "Contents"
+    helper = contents / "MacOS/ccoding"
+    resource = contents / "_CodeSignature/CodeResources"
+    paths = [ROOT / p for p in OUTPUTS]
+    info = read_json(paths[0])
+    uuid.UUID(info["build_id"])
+    paths.append(contents / "Resources/release/lib/cuckoding-0.1.0/priv/build-info.json")
+    verify_inputs(ROOT, info, paths, revision())
+    subprocess.run(["rtk", "proxy", "codesign", "--verify", "--deep", "--strict", str(app)], check=True, timeout=60)
+    if json.loads(run(str(helper), "--build-info")) != info:
+        raise ValueError("Native helper/release build mismatch")
+    receipt = {
+        "format": 1, "build": info, "seal_verification": "strict-deep",
+        "helper_sha256": hashlib.sha256(helper.read_bytes()).hexdigest(),
+        "resource_manifest_sha256": hashlib.sha256(resource.read_bytes()).hexdigest(),
+        "release_acceptance": False,
+    }
+    directory = ROOT / ".ccoding/build-receipts"
+    if directory.is_symlink() or directory.parent.resolve() != directory.parent:
+        raise ValueError("Unsafe build receipt directory")
+    directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+    directory.chmod(0o700)
+    write_json(directory / (info["build_id"] + ".json"), receipt, exclusive=True)
+    print("Retained sealed local-preview build receipt: " + info["build_id"])
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("operation", choices=("generate", "record"))
+    args = parser.parse_args()
+    try:
+        generate() if args.operation == "generate" else record()
+    except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
+        raise SystemExit("Build identity verification failed; inspect inputs and rebuild.") from None

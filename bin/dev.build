@@ -27,6 +27,7 @@ rtk mix deps.get --check-locked
 rtk mix assets.setup
 # The upstream standalone Tailwind binary has a stale ad-hoc signature on macOS.
 rtk proxy codesign --force --sign - _build/tailwind-macos-arm64-4.3.0
+rtk proxy bin/build-info generate
 rtk proxy env MIX_ENV=prod mix assets.deploy
 rtk proxy env MIX_ENV=prod mix compile --warnings-as-errors
 rtk proxy env MIX_ENV=prod mix release --overwrite
@@ -47,7 +48,8 @@ done
 # Tauri must be able to overwrite its staged resources on the next build.
 rtk proxy chmod -R u+w desktop/resources/release
 cd desktop
-rtk cargo tauri build --bundles app --ci -- --locked
+rtk proxy env CCODING_BUILD_INFO_FILE="$PWD/resources/build-info.json" rtk cargo tauri build --bundles app --ci -- --locked
 # Seal the complete development bundle after Tauri has copied every resource.
 rtk proxy codesign --force --sign - src-tauri/target/release/bundle/macos/Cuckoding.app
-rtk proxy codesign --verify --deep --strict src-tauri/target/release/bundle/macos/Cuckoding.app
+cd ..
+rtk proxy bin/build-info record

@@ -97,6 +97,7 @@ fn data_lock(root: &Path) -> Result<DataLock> {
 
 impl Service {
     pub fn launch(release: &Path, root: &Path, discovery_home: Option<&str>) -> Result<Self> {
+        let build = crate::build_info::release(release)?;
         let lock = data_lock(root)?;
         let bootstrap = random_hex(32)?;
         let boot = BootstrapFile(root.join(format!("launch-{}", random_hex(12)?)));
@@ -138,6 +139,8 @@ impl Service {
             .env("CCODING_DATA_DIR", root)
             .env("CCODING_BOOTSTRAP_FILE", &boot.0)
             .env("CCODING_NATIVE_HELPER", std::env::current_exe()?)
+            .env("CCODING_BUILD_ID", &build.id)
+            .env("CCODING_BUILD_SHA256", &build.sha256)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -171,6 +174,9 @@ impl Service {
             .recv_timeout(Duration::from_secs(30))
             .map_err(|_| "local service did not become ready")?;
         let result = request(port, "/shell/bootstrap", &bootstrap)?;
+        if result["build_id"] != build.id {
+            return Err("running service build mismatch".into());
+        }
         let token = result["token"]
             .as_str()
             .filter(|s| s.len() <= 128)

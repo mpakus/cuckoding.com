@@ -23,6 +23,7 @@ defmodule CuckodingWeb.HomeLive do
      socket
      |> assign(
        agent_id: agent_id,
+       build_info: Cuckoding.BuildInfo.current(),
        agent_kind: kind,
        agent_name: if(agent, do: agent.name, else: Agents.label(kind)),
        new_agent: agent_id == "new",
@@ -899,6 +900,13 @@ defmodule CuckodingWeb.HomeLive do
           <div>
             <dt>Cuckoding</dt><dd>0.1.0 · foundation preview</dd>
           </div>
+          <div id="build-identity">
+            <dt>Build</dt>
+            <dd :if={@build_info}>
+              <code>{@build_info["build_id"]}</code>Local package · {@build_info["built_at"]}
+            </dd>
+            <dd :if={!@build_info}>Source UI preview · no packaged build identity</dd>
+          </div>
           <div>
             <dt>Data</dt><dd>A separate rebuild workspace; previous app data stays intact.</dd>
           </div>
@@ -922,6 +930,37 @@ defmodule CuckodingWeb.HomeLive do
             </dd>
           </div>
         </dl>
+        <details
+          :if={@build_info}
+          id="build-details"
+          class="activity"
+          phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
+        >
+          <summary>Build details</summary>
+          <dl class="facts">
+            <div>
+              <dt>Source</dt><dd>
+                <code>{@build_info["source_revision"]}</code>{if @build_info["source_dirty"],
+                  do: "Local changes were present during build",
+                  else: "Clean source checkout during build"}
+              </dd>
+            </div>
+            <div>
+              <dt>Input digest</dt><dd><code>{@build_info["source_sha256"]}</code></dd>
+            </div>
+            <div>
+              <dt>Target</dt><dd>{@build_info["target"]} · schema {@build_info["schema"]}</dd>
+            </div>
+            <div>
+              <dt>Tools</dt><dd>
+                Elixir {@build_info["elixir"]} · OTP {@build_info["otp"]} · Rust {@build_info["rust"]}
+              </dd>
+            </div>
+          </dl>
+          <p class="fine-print">
+            Local-preview metadata identifies this package and its enumerated application inputs. It does not prove signing, notarization, dependency provenance or release acceptance.
+          </p>
+        </details>
         <p class="fine-print" id="idle-sleep-scope">
           The native app requests idle-system sleep protection during bounded battle work.
           Its 15-second lease expires without renewal. The display may sleep; lid closure,

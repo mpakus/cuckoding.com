@@ -705,6 +705,11 @@ Depends on every previous slice.
   eleven to fourteen migrations without changing saved records. This is not
   notarization, a clean-machine test or real-provider acceptance.
   [Task and evidence](../tasks/R100a-local-beta-verification.md).
+- [x] R100b identifies local packages with a shared compiled native/BEAM manifest,
+  source/input digest and private immutable artifact receipt. Mixed/missing
+  identities refuse before data/dispatch; Settings distinguishes packaged and
+  source UI. [Task/evidence](../tasks/R100b-build-identity.md). This is not signed,
+  reproducible, clean-machine or real-provider release acceptance.
 - [ ] Reproducible signed/notarized Apple Silicon application with bundled release
   and verified helper provenance; no developer toolchain needed by the user.
 - [ ] Clean-machine install/launch/quit and login persistence; document provider

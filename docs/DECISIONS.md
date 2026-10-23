@@ -486,3 +486,25 @@ can close Stop only; partial/foreign/missing proof cannot advance any lane.
 Pure preparation recovery and old policy limits retain their existing contracts.
 The new read has a fixed 60-second native / 65-second host budget; it grants no
 extra task time, provider turn, native mutation or inference authority.
+
+## D047 — Bind local packages to an explicit build identity
+
+2026-10-23, R100b. A local preview build creates one small public manifest, shared
+by the compiled native shell and packaged Phoenix release. It records a build
+UUID/date, source revision/dirty observation, digest of enumerated application
+inputs, target, schema and actual tool versions. Input enumeration excludes
+generated/private storage and unrelated files; links/special files and drift
+during the build refuse packaging evidence. The digest is application-input
+identity, not proof of dependencies, signature provenance or reproducibility.
+
+The shell checks the release manifest before data preparation and passes only
+its expected public build UUID and manifest digest. Production configuration
+verifies its own compiled copy before migrations/dispatch; authenticated Settings reads the validated public
+projection. Source development ignores packaged metadata and identifies itself
+explicitly. No manifest grants provider access or workflow authority.
+
+After strict/deep seal verification, retain an exclusive private receipt with
+the actual helper and resource-manifest hashes. Never overwrite an older build
+receipt, expose absolute paths/credentials or label an ad-hoc preview notarized.
+Developer ID, clean-machine, update/rollback and real-provider evidence remain
+required separately.

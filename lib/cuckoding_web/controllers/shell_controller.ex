@@ -5,7 +5,7 @@ defmodule CuckodingWeb.ShellController do
 
   def bootstrap(conn, _) do
     case ShellAuth.bootstrap(bearer(conn)) do
-      {:ok, token} -> json(conn, %{token: token})
+      {:ok, token} -> json(conn, %{token: token, build_id: Cuckoding.BuildInfo.id()})
       _ -> send_resp(conn, 401, "Unauthorized")
     end
   end

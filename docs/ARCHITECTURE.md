@@ -1,5 +1,12 @@
 # Architecture
 
+R100b embeds the same public build manifest in the native shell and Phoenix BEAM.
+The shell verifies the release copy before data preparation; runtime configuration
+verifies its compiled UUID/digest before migration/dispatch. Settings exposes the
+validated observation only. Source UI has no packaged identity. The builder hashes
+enumerated application inputs and retains sealed-artifact hashes, without granting
+workflow authority or proving release acceptance. [Decision](DECISIONS.md#d047--bind-local-packages-to-an-explicit-build-identity).
+
 R060o adds fixed retained-candidate recovery. New Starts freeze
 `candidate_recovery: retained-candidate-wave-v1`. One/two exact interrupted
 captures or a mixed capture/preparation pair queue exclusive supervised reads.

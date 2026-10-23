@@ -10,6 +10,7 @@
 /priv/static/cache_manifest.json
 /priv/static/favicon-*.svg
 /priv/static/*.gz
+/priv/build-info.json
 /desktop/resources/
 /desktop/src-tauri/target/
 /desktop/src-tauri/gen/

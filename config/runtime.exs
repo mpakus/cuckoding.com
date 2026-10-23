@@ -1,5 +1,14 @@
 import Config
 
+if config_env() == :prod do
+  config :cuckoding,
+         :build_info,
+         Cuckoding.BuildInfo.load!(
+           System.get_env("CCODING_BUILD_ID"),
+           System.get_env("CCODING_BUILD_SHA256")
+         )
+end
+
 if config_env() != :test do
   root = System.fetch_env!("CCODING_DATA_DIR")
   Cuckoding.Storage.prepare!(root)

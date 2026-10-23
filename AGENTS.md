@@ -710,6 +710,16 @@ Do not restore the old implementation or treat historical tests as current proof
   Developer ID provenance/notarization or release acceptance. An unrecognized
   nonempty data root still requires an explicit migration/recognition decision;
   a successful copied-database upgrade never authorizes restoring its marker.
+R100b binds the compiled native shell and Phoenix release to one bounded public
+format-one build manifest. Check the release copy before data preparation, then
+verify the BEAM-embedded UUID/digest before migration/dispatch. Missing/mixed
+identity refuses startup; source UI never borrows packaged metadata. Enumerate
+application inputs explicitly, reject links/special files and drift, and never
+read unrelated files to label the checkout dirty. Settings is a guarded public
+observation, not historical run attribution or execution authority. Keep exclusive
+private build receipts with actual helper/resource hashes after strict/deep seal
+verification; they do not prove notarization, dependency provenance or release
+acceptance. No schema/credential/provider grant changes.
 
 ## UI
 

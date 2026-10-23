@@ -43,6 +43,10 @@ remote push, user-branch merge and release remain separate human actions.
 ## What works today
 
 **Local preview source, 2026-10-23.** The Codex/Cursor Arena loop includes independent-task implementation waves.
+Settings → Build details identifies the packaged build, source revision, local
+changes and application-input digest. Source UI previews are labelled separately.
+The build retains artifact hashes in a private receipt; signing/notarization and
+release acceptance remain separate gates.
 The complete product story still includes capabilities and release acceptance
 listed below. Arena registration opens its default board; technical setup stays in Advanced.
 

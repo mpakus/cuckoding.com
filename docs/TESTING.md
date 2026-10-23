@@ -1,5 +1,15 @@
 # Verification and acceptance
 
+R100b covers closed public build fields, unknown/secret canaries, exact compiled
+UUID/digest, missing/foreign/oversized/linked release metadata, input byte/mode/new
+file drift and generated-output/receipt guards. Packaged probes refuse before
+workspace creation; production boot probes reject wrong/missing expected identity
+before SQLite or bootstrap consumption. Settings browser checks cover the actual
+packaged UUID/digest at four widths, keyboard disclosure and preserved reading
+state. Source UI explicitly does not borrow the generated package identity.
+Retained artifact hashes and a passing local seal/smoke are not notarization,
+dependency provenance, real-provider or clean-machine acceptance.
+
 R080k's profile-free source browser pass covers Home, Agents, new/edit Agent,
 Team, Arenas, Settings and one six-column Arena at 320/768/1024/1440 CSS pixels.
 All columns share one row; replacing the CSS with the old five-column rule fails

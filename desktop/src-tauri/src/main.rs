@@ -1,4 +1,5 @@
 mod arena_git;
+mod build_info;
 mod connection;
 mod cursor;
 mod folder;
@@ -27,6 +28,10 @@ fn main() {
         libc::umask(0o077);
     }
     let args: Vec<_> = std::env::args().skip(1).collect();
+    if args.as_slice() == ["--build-info"] {
+        println!("{}", build_info::public());
+        return;
+    }
     if args.as_slice() == ["--inspect-provider-closure"] {
         task_closure::main();
         return;

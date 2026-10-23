@@ -61,6 +61,12 @@ If Hermes refers to a different distribution than the adapter implementor finds,
 resolve that identity before installing/launching it. This planning reset installs
 no providers or plugins.
 
+Claude authentication decision remains open (checked 2026-10-23): the official
+[Agent SDK overview](https://code.claude.com/docs/en/agent-sdk/overview) requires
+prior approval for third-party claude.ai sign-in. API-key authentication or that
+approval must be resolved before implementing the connection; no subscription
+token transport, account fallback or provider installation has been enabled.
+
 For Codex, the version adapter callback is `probe/3`. Its native helper runs only
 `--version`, with a five-second deadline, 128-byte provider-output ceiling and
 1 KiB host response ceiling. HOME, CODEX_HOME, TMPDIR and working directory point
