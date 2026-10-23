@@ -808,6 +808,12 @@ revalidate exact bindings, limits and deadline at admission under the write lock
 Cancel/Stop/Skip/timing fences close the wait; startup requires manual Retry.
 Historical authority and every R060b exclusion stay intact.
 
+R060q's new v2 snapshots additionally permit typed Codex overload with bounded
+5–7/20–22-second jittered waits. No raw message/header inference grants retry:
+usage exhaustion is nonretryable and ambiguous HTTP 429 stays manual. Exact
+internal willRetry notifications consume the original turn/deadline. No cleanup,
+drain, identity, provider grant or lifetime-budget gate changes; v1 stays exact.
+
 ## Concurrent Arena admission (R070a)
 
 New `isolated-arenas-v1` Starts share two battle stage workers, one stage per

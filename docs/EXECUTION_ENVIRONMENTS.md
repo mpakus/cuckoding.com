@@ -26,6 +26,11 @@ the wait and checks exact bindings/deadlines before dispatch. Cancel automatic
 retry retains manual inspection/Retry; restart cancels pending waits. Generic
 provider/turn failures stay manual and uncertain native work never retries.
 
+R060q's new backoff v2 adds typed Codex overload (5–7/20–22 seconds), preserving
+the same retry cap/deadline/cleanup/binding rules and v1 compatibility. Usage or
+session exhaustion is nonretryable; ambiguous HTTP 429 stays manual. Internal
+provider retries remain bounded by the original turn; no host budget resets.
+
 R070d permits two independent task pipelines per wave within the two global
 supervised stage workers. SQLite owns each task stage/claim; exact saved
 connections permit one provider turn. Native repository I/O waits in a bounded

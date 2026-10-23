@@ -83,6 +83,22 @@ defmodule Cuckoding.TaskTurnTest do
            }
   end
 
+  test "typed provider failures retain public effects but never raw error text or a report" do
+    for status <- ~w(provider_overloaded rate_limited usage_limit) do
+      original =
+        receipt() |> Map.put("status", status) |> Map.put("message", "PRIVATE_ERROR_CANARY")
+
+      normalized = TaskTurn.normalize(Jason.encode!(original))
+      assert normalized["status"] == status and normalized["tools"] == original["tools"]
+      refute normalized["report"]
+      refute Jason.encode!(normalized) =~ "PRIVATE_ERROR_CANARY"
+
+      assert TaskTurn.normalize(Jason.encode!(Map.put(original, "cleanup_verified", false)))[
+               "status"
+             ] == "cleanup_uncertain"
+    end
+  end
+
   test "explicit cleanup uncertainty survives normalization and is never coerced" do
     for status <- ["provider_error", "task_finished"], clean <- [false, true] do
       original = receipt() |> Map.put("status", status) |> Map.put("cleanup_verified", clean)

@@ -22,7 +22,7 @@ defmodule Cuckoding.Battles do
   alias Cuckoding.{Event, Foundation, Repo, TaskTurn}
 
   @active ~w(running pausing paused stopping needs_attention)
-  @retryable ~w(launch_failed timeout connection_lost provider_error profile_busy turn_failed)
+  @retryable ~w(launch_failed timeout connection_lost provider_error provider_overloaded rate_limited profile_busy turn_failed)
   @envelope ~w(battle_id request_id task_id stage criteria_sha256)
 
   def preview(arena_id, tabula_id) do

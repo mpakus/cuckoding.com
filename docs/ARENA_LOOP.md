@@ -182,6 +182,12 @@ Retry. Stop, Skip and timing fences cancel the wait; startup cancels it before
 admission and never repeats a provider call. Old snapshots gain no automatic
 authority, and failed writers still start fresh from the reviewed head.
 
+R060q new Starts use backoff v2, adding only explicit Codex overload to automatic
+retries with bounded per-attempt 5–7/20–22-second jitter. The two-retry cap and
+all existing admission/cleanup/drain gates stay unchanged. Usage/session limits
+do not retry; ambiguous HTTP 429 remains manual. Native willRetry notifications
+stay within the original bounded turn; historical v1 retains its exact behavior.
+
 R070a freezes `scheduler: isolated-arenas-v1` in new Starts. Two isolated Arenas
 may have supervised stages in progress concurrently, with one stage per battle
 and one provider turn per exact saved connection. SQLite checks capacity before

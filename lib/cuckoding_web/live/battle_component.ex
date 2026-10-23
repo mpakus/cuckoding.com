@@ -205,6 +205,18 @@ defmodule CuckodingWeb.BattleComponent do
     do:
       "Retry requires a settled provider failure, verified cleanup and remaining time, turns and retries. Blocked reviews and uncertain effects need inspection."
 
+  defp message("usage_limit"),
+    do:
+      "The provider reported a usage or session budget limit. Stop this run and wait for availability before starting again. Your work is retained."
+
+  defp message("rate_limited"),
+    do:
+      "The provider returned a limit response (HTTP 429). Wait before using Retry; the response does not distinguish temporary throttling from exhausted usage. Your work is retained."
+
+  defp message("provider_overloaded"),
+    do:
+      "The provider is overloaded. Your work is retained; Retry is available only after verified cleanup and within the original limits."
+
   defp message("skip_unavailable"),
     do:
       "Skip requires a clean paused task or a settled task failure, verified cleanup and remaining limits. Active workers, uncertain effects and final reviews cannot be skipped."
@@ -723,7 +735,9 @@ defmodule CuckodingWeb.BattleComponent do
         </p>
         <div :if={@waiting} id="battle-backoff" role="status" class="notice">
           <p>
-            Connection interrupted · retrying in {Backoff.remaining(@battle, @now)}s with the same
+            {if @battle.reason == "provider_overloaded",
+              do: "Provider overloaded",
+              else: "Connection interrupted"} · retrying in {Backoff.remaining(@battle, @now)}s with the same
             agent and model. This may use provider allowance. Failed edits stay retained;
             the original deadline and two-retry limit still apply.
           </p>

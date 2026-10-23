@@ -3,7 +3,7 @@ defmodule Cuckoding.TaskTurn do
   alias Cuckoding.Codex
 
   @tool_errors ~w(invalid_tool unsafe_workspace unsafe_file unsupported_file file_changed file_missing tool_limit journal_failed write_failed attempt_exists)
-  @errors ~w(launch_failed timeout cancelled invalid_output executable_changed helper_unavailable connection_lost provider_error unexpected_message profile_mismatch unsupported_profile unsafe_profile profile_busy cleanup_uncertain not_connected model_unavailable model_mismatch unsupported_grant invalid_response unexpected_tool turn_failed interrupted)
+  @errors ~w(launch_failed timeout cancelled invalid_output executable_changed helper_unavailable connection_lost provider_error provider_overloaded rate_limited usage_limit unexpected_message profile_mismatch unsupported_profile unsafe_profile profile_busy cleanup_uncertain not_connected model_unavailable model_mismatch unsupported_grant invalid_response unexpected_tool turn_failed interrupted)
 
   def normalize(bytes) when is_binary(bytes) and byte_size(bytes) <= 65_536 do
     with {:ok, %{"status" => status} = result} <- Codex.decode_receipt(bytes),

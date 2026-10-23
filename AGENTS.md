@@ -146,6 +146,19 @@ requires explicit Retry. Preserve historical manual-only snapshots, failed
 receipts/edits, session/form/revision gates and all R060b exclusions. This does
 not recover interrupted native sessions or prove real-account acceptance.
 
+R060q freezes `provider_backoff: automatic-provider-backoff-v2` in new Starts.
+Keep v1's reasons and exact 5/20-second waits unchanged. Only typed Codex
+`serverOverloaded` adds automatic 5–7/20–22-second waits, with stable bounded
+per-attempt jitter and the same cleanup/binding/drain/deadline/two-retry gates.
+Typed usage/session budget exhaustion is nonretryable. HTTP 429 is ambiguous:
+show manual Retry, never infer delay or quota state from provider message text.
+Parse only exact thread/turn-bound terminal errors. Exact `willRetry: true`
+notifications remain inside the original bounded turn, not a new host retry.
+Retain effects and verified native closure, discard raw messages and details;
+unknown/malformed variants stay generic. This adds no tool/provider grant, new
+runtime baseline, account substitution or real-provider acceptance. Cursor and
+broader rate-limit conformance remain open.
+
 R060c freezes `task_selection: skip-task-v1` in new Starts. Skip confirms the exact
 current task/control revision at a clean paused boundary or settled task-local
 provider block/transient failure/review exhaustion. Verify cleanup, bindings and

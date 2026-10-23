@@ -1938,7 +1938,7 @@ defmodule Cuckoding.BattlesTest do
   test "automatic provider backoff freezes bounded waits and never replays the failed attempt",
        ctx do
     battle = start(ctx.board) |> until_stage("speculator")
-    assert battle.snapshot["provider_backoff"] == "automatic-provider-backoff-v1"
+    assert battle.snapshot["provider_backoff"] == "automatic-provider-backoff-v2"
     {failed, attempt} = fail_provider(battle, "connection_lost")
     wait = failed.context["provider_backoff"]
     assert wait["attempt_id"] == attempt.id
@@ -2131,6 +2131,54 @@ defmodule Cuckoding.BattlesTest do
 
     refute Map.has_key?(failed.context, "provider_backoff")
     assert {:error, :cleanup_required} = Battles.stop(failed.id)
+  end
+
+  test "typed overload uses the existing two-retry budget; 429 stays manual and quota stops",
+       ctx do
+    {failed, original} =
+      start(ctx.board) |> until_stage("speculator") |> fail_provider("provider_overloaded")
+
+    deadline = failed.deadline_at
+    assert failed.context["provider_backoff"]["delay_seconds"] in 5..7
+    {:ok, due, 0} = Backoff.due_at(failed)
+    {:ok, fresh} = Battles.claim_next(failed.id, due)
+    assert fresh.stage == "speculator" and fresh.id != original.id
+
+    receipt =
+      result(fresh, %{
+        "status" => "failed",
+        "reason" => "provider_overloaded",
+        "provider" => %{"status" => "provider_overloaded"}
+      })
+
+    {:ok, failed} = Battles.finish(fresh.id, fresh.claim_token, receipt, due)
+    assert failed.context["provider_backoff"]["delay_seconds"] in 20..22
+    {:ok, due, 0} = Backoff.due_at(failed)
+    {:ok, fresh} = Battles.claim_next(failed.id, due)
+
+    {:ok, exhausted} =
+      Battles.finish(
+        fresh.id,
+        fresh.claim_token,
+        result(fresh, Map.drop(receipt, ~w(battle_id request_id task_id stage criteria_sha256))),
+        due
+      )
+
+    refute Backoff.pending?(exhausted)
+    refute Battles.retry_available?(exhausted)
+
+    assert length(exhausted.context["provider_retries"]) == 2 and
+             exhausted.deadline_at == deadline
+
+    assert Repo.get!(Attempt, original.id).state == "failed"
+    {:ok, _} = Battles.stop(exhausted.id)
+
+    for reason <- ~w(rate_limited usage_limit) do
+      {failed, _} = start(ctx.board) |> until_stage("speculator") |> fail_provider(reason)
+      refute Backoff.pending?(failed)
+      assert Battles.retry_available?(failed) == (reason == "rate_limited")
+      {:ok, _} = Battles.stop(failed.id)
+    end
   end
 
   test "automatic writer retry starts a fresh checkout without changing reviewed head or rounds",

@@ -1,5 +1,12 @@
 # Architecture
 
+R060q keeps Codex typed failure parsing in native `connection/task_turn.rs`.
+Only normalized public codes cross TaskTurn; raw errors never do. New snapshots
+freeze backoff v2; Backoff validates bounded persisted jittered overload windows,
+and Battles retains exact claim/retry/cleanup authority. Native internal retry
+notifications consume the same original turn. v1 retains its historical rules.
+[Decision](DECISIONS.md#d049--separate-typed-provider-failures-from-retry-authority).
+
 R060p adds `Battles.MixedClosure`: a new immutable Start policy queues exact
 provider-then-native retained reads for one interrupted provider/capture-or-
 preparation pair. Existing BattleRunner supervised workers commit observations

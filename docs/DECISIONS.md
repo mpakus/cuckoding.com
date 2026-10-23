@@ -526,3 +526,20 @@ continuation authority. Keep the queue durable across coordinator restart and
 exclusive with ordinary dispatch. Historical snapshots, preexisting Stop/fences,
 other native stages and missing receipts gain no authority. No new native tool,
 provider capability, inference, schema change or process-absence inference.
+
+## D049 — Separate typed provider failures from retry authority
+
+2026-10-23, R060q. Parse only scoped Codex protocol error discriminants, never
+message text. Retain usage_limit, provider_overloaded and rate_limited as public
+codes; unauthorized remains not_connected. Unknown/malformed variants retain the
+generic failure. An exact error notification with willRetry true remains inside
+the original bounded provider turn; no new host claim/session/budget is created.
+
+New Starts freeze automatic-provider-backoff-v2. Only explicit provider_overloaded
+adds automatic waits, using 5–7 then 20–22 seconds with stable per-attempt jitter,
+inside the existing two-retry lifetime cap and original deadlines. Historical v1
+waits/reasons keep exact behavior. HTTP 429 alone is ambiguous and exposes manual
+Retry only; usage exhaustion is not retryable. The protocol carries no trusted
+Retry-After delay, so none is inferred. Cleanup uncertainty, native failures,
+review verdicts, binding drift and sibling drains retain every existing gate.
+Cursor/other adapters and real-provider rate-limit acceptance remain required.

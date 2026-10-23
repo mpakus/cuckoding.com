@@ -147,6 +147,15 @@ No API key is requested.
 
 ## Conformance
 
+R060q interprets only structured Codex task errors. Typed server overload gains
+bounded host backoff in new v2 Starts; usage/session budgets do not retry, and
+HTTP 429 remains manual because this protocol does not expose a trusted delay
+or unambiguous quota distinction. Exact internal `willRetry` notifications stay
+inside the same bounded turn. Native fixtures retain edits and cleanup while
+discarding raw error text; real-provider and Cursor rate-limit acceptance remain
+open. The source/fixture schema was generated offline from 0.146.0, not from a
+signed-in account. No runtime compatibility list was expanded.
+
 One shared test contract covers parsing, split output, unknown events, malformed
 frames, bounded memory/logs, secret canaries, requested/actual model separation,
 permission refusal, cancellation/descendants, lost transport ownership, crash,

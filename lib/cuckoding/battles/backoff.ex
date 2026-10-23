@@ -1,13 +1,17 @@
 defmodule Cuckoding.Battles.Backoff do
   @moduledoc "Versioned wait metadata; admission and retry authority remain in Battles."
-  @policy "automatic-provider-backoff-v1"
+  @policy "automatic-provider-backoff-v2"
+  @legacy "automatic-provider-backoff-v1"
 
   def policy, do: @policy
 
-  def enabled?(battle), do: battle.snapshot["provider_backoff"] == @policy
+  def enabled?(battle), do: battle.snapshot["provider_backoff"] in [@legacy, @policy]
 
   def transient?(attempt),
-    do: attempt.result["reason"] in ~w(connection_lost profile_busy timeout launch_failed)
+    do:
+      attempt.result["reason"] in ~w(connection_lost profile_busy timeout launch_failed) or
+        (attempt.result["reason"] == "provider_overloaded" and
+           attempt.request["snapshot"]["provider_backoff"] == @policy)
 
   def pending?(nil), do: false
 
@@ -18,7 +22,12 @@ defmodule Cuckoding.Battles.Backoff do
   end
 
   def schedule(attempt, used, now) when used in 0..1 do
-    delay = Enum.at([5, 20], used)
+    jitter =
+      if attempt.result["reason"] == "provider_overloaded",
+        do: :erlang.phash2(attempt.id, 3),
+        else: 0
+
+    delay = Enum.at([5, 20], used) + jitter
 
     %{
       "attempt_id" => attempt.id,
@@ -55,8 +64,7 @@ defmodule Cuckoding.Battles.Backoff do
            "delay_seconds" => delay
          } <- battle.context["provider_backoff"],
          true <-
-           is_binary(id) and delay in [5, 20] and
-             reason in ~w(connection_lost profile_busy timeout launch_failed),
+           is_binary(id) and valid_delay?(battle, reason, delay),
          true <- is_binary(start) and is_binary(due),
          {:ok, start, 0} <- DateTime.from_iso8601(start),
          {:ok, due, 0} <- DateTime.from_iso8601(due),
@@ -66,4 +74,10 @@ defmodule Cuckoding.Battles.Backoff do
       _ -> nil
     end
   end
+
+  defp valid_delay?(battle, "provider_overloaded", delay),
+    do: battle.snapshot["provider_backoff"] == @policy and delay in [5, 6, 7, 20, 21, 22]
+
+  defp valid_delay?(_, reason, delay),
+    do: reason in ~w(connection_lost profile_busy timeout launch_failed) and delay in [5, 20]
 end

@@ -1,5 +1,12 @@
 # Verification and acceptance
 
+R060q tests typed Codex terminal errors, internal willRetry completion, foreign
+scope, malformed retry flags/variants and raw error canaries through the real
+native fixture process. Effects/cleanup remain exact. Host tests cover new code
+normalization, jitter/windows, old v1 rules, quota refusal, manual 429, shared
+two-retry exhaustion and UI reconnect/actions. Real throttling/usage reset and
+remaining-runtime acceptance are not inferred from fixture success.
+
 R060p fixtures cover provider-plus-capture/preparation closure, both proof gates,
 missing/foreign/false proof, immutable claims/tasks/head/budgets/deadlines, expiry/
 timing Stop-only races, historical-policy refusal and coordinator loss between

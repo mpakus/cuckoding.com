@@ -188,6 +188,12 @@ These waits share the existing retry budget/deadline; generic provider errors
 stay manual. Due admission rechecks bindings and eligibility. Restart cancels the
 wait and leaves an explicit Retry; old Starts retain their original contract.
 
+R060q freezes v2 for new Starts: explicit Codex overload additionally waits
+5–7/20–22 seconds with bounded jitter, within those same retry limits. Usage or
+session exhaustion stops without retry; HTTP 429 offers manual Retry after a
+wait because quota and throttling are not distinguished. UI explains the reason;
+no role/account/model substitution occurs. Historical v1 waits remain unchanged.
+
 R060d recovers fully settled running/pausing boundaries as Paused after restart.
 It records the recovery reason/control revision and waits for explicit Resume.
 Keep the exact next stage, all attempts, omissions, counters and original deadline.

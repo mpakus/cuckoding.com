@@ -1,5 +1,11 @@
 # Data model
 
+R060q adds no migration (schema seventeen). New snapshots freeze
+`provider_backoff: automatic-provider-backoff-v2`. Existing wait metadata retains
+its shape; only explicit overload permits 5–7/20–22-second delays. Old v1 delays
+and reasons remain exact. Typed failure codes contain no raw provider text;
+retry claims, counters, cleanup and deadline checks keep their existing owners.
+
 R060p adds no migration (schema seventeen). New snapshots freeze `mixed_closure:
 retained-mixed-closure-v1`. Context retains the exact provider/native IDs, one
 pending native read and dated `mixed_closures` receipts. Existing provider closure

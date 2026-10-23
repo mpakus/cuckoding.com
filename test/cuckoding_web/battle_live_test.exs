@@ -320,6 +320,34 @@ defmodule CuckodingWeb.BattleLiveTest do
     assert Battles.get(battle.id).context["provider_retries"] == nil
   end
 
+  test "typed limits show the correct next action and survive reconnect", ctx do
+    signed = sign_in(ctx.conn)
+
+    for {reason, text, retry?} <- [
+          {"provider_overloaded", "Provider overloaded", true},
+          {"rate_limited", "does not distinguish temporary throttling", true},
+          {"usage_limit", "usage or session budget limit", false}
+        ] do
+      {:ok, view, _} = live(signed, ctx.path)
+      view |> form("#battle-start-form") |> render_submit()
+      battle = Battles.latest(ctx.arena.id, ctx.board.id)
+      fail_coordinator(battle, reason)
+      Foundation.broadcast()
+      assert render(view) =~ text
+      assert has_element?(view, "#battle-backoff") == (reason == "provider_overloaded")
+
+      if reason == "provider_overloaded",
+        do: view |> element("#battle-cancel-backoff") |> render_click()
+
+      assert has_element?(view, "#battle-retry") == retry?
+      {:ok, again, _} = live(signed, ctx.path)
+      assert has_element?(again, "#battle-retry") == retry?
+      assert Battles.get(battle.id).state == "needs_attention"
+      {:ok, _} = Battles.stop(battle.id)
+      Foundation.broadcast()
+    end
+  end
+
   test "expired component sessions cannot cancel a scheduled retry", ctx do
     {:ok, view, _} = ctx.conn |> sign_in() |> live(ctx.path)
     view |> form("#battle-start-form") |> render_submit()

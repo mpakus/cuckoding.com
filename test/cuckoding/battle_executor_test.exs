@@ -228,7 +228,7 @@ defmodule Cuckoding.BattleExecutorTest do
 
       if Process.get(:provider_failure_stage) == prompt["stage"] do
         Map.merge(receipt, %{
-          "status" => "provider_error",
+          "status" => Process.get(:provider_failure_status, "provider_error"),
           "cleanup_verified" => Process.get(:provider_cleanup, true),
           "raw_provider" => "private-canary"
         })
@@ -939,6 +939,30 @@ defmodule Cuckoding.BattleExecutorTest do
       |> Enum.filter(fn {_, request, _} -> request["access"] == "write" end)
 
     assert length(writes) == 3
+  end
+
+  test "typed writer failures reach durable handling with retained edits and no raw error", ctx do
+    for reason <- ~w(provider_overloaded rate_limited usage_limit) do
+      battle = start(ctx.board) |> until_stage("implementor")
+      Process.put(:provider_failure_stage, "implementor")
+      Process.put(:provider_failure_status, reason)
+      {failed, attempt, receipt} = step(battle)
+      Process.delete(:provider_failure_stage)
+      Process.delete(:provider_failure_status)
+      assert failed.reason == reason and receipt["reason"] == reason
+      assert receipt["cleanup_verified"] == true
+
+      assert receipt["provider"]["changes"] == [
+               %{"path" => "feature.txt", "sha256" => String.duplicate("d", 64)}
+             ]
+
+      refute receipt["provider"]["raw_provider"]
+      refute receipt["provider"]["report"]
+      assert Backoff.pending?(failed) == (reason == "provider_overloaded")
+      assert Battles.retry_available?(failed) == (reason != "usage_limit")
+      assert Repo.get!(Attempt, attempt.id).result == receipt
+      assert {:ok, %{state: "stopped"}} = Battles.stop(battle.id)
+    end
   end
 
   test "provider cleanup refusal preserves partial effects and cannot be retried", ctx do

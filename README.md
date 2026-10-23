@@ -194,6 +194,10 @@ capture/preparation pair can become one Paused checkpoint after every proof pass
 Press Resume to continue with the same bindings, slots and budgets. Edits, capture
 and provider turns are never repeated. Missing proof stays blocked; expired/fenced
 observations allow Stop only. [Candidate recovery](tasks/R060o-candidate-recovery.md).
+Codex overloads receive a short bounded automatic retry within the existing
+two-retry allowance. A reported usage/session limit stops without retry; an
+ambiguous HTTP 429 offers manual Retry after waiting. Error details stay private,
+and agent/model choices never change automatically. [Failure handling](tasks/R060q-provider-failures.md).
 If restart interrupts an agent turn beside capture/worktree preparation, Cuckoding
 checks their retained closure receipts in order. Every claim must verify before
 **Stop** becomes available. Lost work is not accepted and this pair cannot Resume,
@@ -269,6 +273,9 @@ busy-profile, timeout or launch failures with verified cleanup. The wait is save
 in SQLite and can be cancelled; it consumes the same retry budget and original
 deadline. Restart cancels the automatic wait and requires explicit Retry. Generic
 provider errors remain manual. [Backoff evidence](worklog/2026-10-21-R060j-provider-backoff.md).
+New v2 Starts also retry explicit Codex overload after 5–7/20–22 seconds, with
+bounded jitter and the same limits. Usage/session exhaustion stops; ambiguous
+HTTP 429 stays manual. [Typed failure evidence](tasks/R060q-provider-failures.md).
 New Starts share two stage workers across Arenas. Within a board, up to two
 independent tasks form an implementation wave, each with its own workspace and
 fresh sessions. Shared agent connections take one turn at a time; overlap depends

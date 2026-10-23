@@ -215,7 +215,11 @@ fn complete(rpc: &mut Rpc, thread: &str, turn: &str, files: &mut Files) -> Resul
                 }
                 if method == "turn/completed" {
                     if p["turn"]["status"] != "completed" || !p["turn"]["error"].is_null() {
-                        return Err("turn_failed");
+                        return Err(if p["turn"]["status"] == "failed" {
+                            turn_error(&p["turn"]["error"])
+                        } else {
+                            "turn_failed"
+                        });
                     }
                     for value in p["turn"]["items"].as_array().ok_or("invalid_output")? {
                         item(value, &mut answer, files, true)?;
@@ -230,7 +234,16 @@ fn complete(rpc: &mut Rpc, thread: &str, turn: &str, files: &mut Files) -> Resul
                 item(&p["item"], &mut answer, files, method == "item/completed")?;
             }
             "model/rerouted" => return Err("model_mismatch"),
-            "error" => return Err("turn_failed"),
+            "error" => {
+                if p["threadId"] != thread || p["turnId"] != turn {
+                    return Err("unexpected_message");
+                }
+                match p["willRetry"].as_bool() {
+                    Some(true) if p["error"]["message"].is_string() => {}
+                    Some(false) => return Err(turn_error(&p["error"])),
+                    _ => return Err("invalid_output"),
+                }
+            }
             "thread/status/changed"
             | "thread/tokenUsage/updated"
             | "thread/started"
@@ -240,6 +253,38 @@ fn complete(rpc: &mut Rpc, thread: &str, turn: &str, files: &mut Files) -> Resul
             | "deprecationNotice" => {}
             _ if method.starts_with("item/reasoning") || method == "item/agentMessage/delta" => {}
             _ => return Err("unexpected_message"),
+        }
+    }
+}
+
+fn turn_error(error: &Value) -> &'static str {
+    if !error["message"].is_string() {
+        return "turn_failed";
+    }
+    match error["codexErrorInfo"].as_str() {
+        Some("usageLimitExceeded" | "sessionBudgetExceeded") => "usage_limit",
+        Some("serverOverloaded") => "provider_overloaded",
+        Some("unauthorized") => "not_connected",
+        _ => {
+            let info = &error["codexErrorInfo"];
+            if info.as_object().is_some_and(|o| o.len() == 1) {
+                for variant in [
+                    "httpConnectionFailed",
+                    "responseStreamConnectionFailed",
+                    "responseStreamDisconnected",
+                    "responseTooManyFailedAttempts",
+                ] {
+                    let details = &info[variant];
+                    if details.as_object().is_some_and(|o| o.len() == 1) {
+                        match details["httpStatusCode"].as_u64() {
+                            Some(401) => return "not_connected",
+                            Some(429) => return "rate_limited",
+                            _ => {}
+                        }
+                    }
+                }
+            }
+            "turn_failed"
         }
     }
 }
@@ -292,9 +337,36 @@ mod tests {
         }
         let report = json!({"outcome":"completed","summary":"Changed the fixture. No checks run."})
             .to_string();
-        let completed = json!({"method":"turn/completed","params":{"threadId":THREAD,"turn":{"id":TURN,"status":"completed","error":null,
+        let mut completed = json!({"method":"turn/completed","params":{"threadId":THREAD,"turn":{"id":TURN,"status":"completed","error":null,
             "items":[{"type":"dynamicToolCall","id":"edit-one","tool":call["params"]["tool"],"status":"completed"},
                 {"type":"agentMessage","id":"answer","phase":"final_answer","text":report}]}}});
+        let info = match mode {
+            "overload" => Some(json!("serverOverloaded")),
+            "usage" => Some(json!("usageLimitExceeded")),
+            "rate" => Some(json!({"httpConnectionFailed":{"httpStatusCode":429}})),
+            "auth" => Some(json!("unauthorized")),
+            "unknown_error" => Some(json!("unknownNewFailure")),
+            _ => None,
+        };
+        if let Some(info) = info {
+            completed["params"]["turn"]["status"] = json!("failed");
+            completed["params"]["turn"]["error"] =
+                json!({"message":"PRIVATE_ERROR_CANARY","codexErrorInfo":info});
+        }
+        let notification = if matches!(
+            mode,
+            "internal_retry"
+                | "foreign_error"
+                | "malformed_retry"
+                | "terminal_error"
+                | "retry_wait"
+        ) {
+            json!({"method":"error","params":{"threadId":if mode=="foreign_error"{"foreign"}else{THREAD},"turnId":TURN,
+                "willRetry":if mode=="malformed_retry"{json!("true")}else{json!(mode!="terminal_error")},
+                "error":{"message":"PRIVATE_ERROR_CANARY","codexErrorInfo":"serverOverloaded"}}}).to_string()
+        } else {
+            String::new()
+        };
         let init = json!({"codexHome":profile});
         let config = json!({"config":config});
         let models = json!({"data":[model],"nextCursor":null});
@@ -318,8 +390,10 @@ while IFS= read -r line; do
   echo yes > "$CODEX_HOME/effect"
   case '{mode}' in
    wait) continue ;;
+   retry_wait) printf '%s\n' '{notification}'; continue ;;
    duplicate) printf '%s\n' '{call}'; continue ;;
-   *) printf '%s\n' '{completed}'; continue ;;
+   *) if [ -n '{notification}' ]; then printf '%s\n' '{notification}'; fi
+      printf '%s\n' '{completed}'; continue ;;
   esac ;;
  *) exit 9 ;;
  esac
@@ -328,6 +402,76 @@ done
 "#)).unwrap();
         fs::set_permissions(&binary, fs::Permissions::from_mode(0o700)).unwrap();
         (root, binary, profile, scratch, request)
+    }
+
+    #[test]
+    fn typed_failures_retain_edits_cleanup_and_scope_without_leaking_messages() {
+        for (mode, status) in [
+            ("overload", "provider_overloaded"),
+            ("usage", "usage_limit"),
+            ("rate", "rate_limited"),
+            ("auth", "not_connected"),
+            ("unknown_error", "turn_failed"),
+            ("internal_retry", "task_finished"),
+            ("terminal_error", "provider_overloaded"),
+            ("foreign_error", "unexpected_message"),
+            ("malformed_retry", "invalid_output"),
+        ] {
+            let (root, binary, profile, scratch, request) = fixture(mode);
+            let (_sender, cancel) = mpsc::channel();
+            let result = run_operation(
+                &binary,
+                &profile,
+                cancel,
+                Duration::from_secs(3),
+                Operation::Task {
+                    scratch: &scratch,
+                    model: "test-model",
+                    effort: "low",
+                    request: &request,
+                },
+                |_| panic!("no login"),
+            )
+            .unwrap();
+            assert_eq!(result["status"], status, "{mode}: {result}");
+            assert_eq!(result["cleanup_verified"], true);
+            assert_eq!(result["changes"].as_array().unwrap().len(), 1);
+            assert_eq!(result["tools"].as_array().unwrap().len(), 1);
+            assert!(!result.to_string().contains("PRIVATE_ERROR_CANARY"));
+            assert_eq!(
+                profile.join("interrupted").exists(),
+                status != "task_finished"
+            );
+            assert!(profile_lock(&profile).is_ok());
+            fs::remove_dir_all(root).unwrap();
+        }
+    }
+
+    #[test]
+    fn failure_classification_never_guesses_from_raw_text_or_malformed_variants() {
+        for info in [
+            json!(null),
+            json!("rate limit exceeded"),
+            json!({"serverOverloaded":true}),
+            json!({"httpConnectionFailed":{"httpStatusCode":"429"}}),
+            json!({"httpConnectionFailed":{"httpStatusCode":429,"unknown":"private"}}),
+            json!({"httpConnectionFailed":{"httpStatusCode":429},"unknown":true}),
+        ] {
+            assert_eq!(
+                turn_error(
+                    &json!({"message":"serverOverloaded 429 usageLimitExceeded","codexErrorInfo":info})
+                ),
+                "turn_failed"
+            );
+        }
+        assert_eq!(
+            turn_error(&json!({"codexErrorInfo":"serverOverloaded"})),
+            "turn_failed"
+        );
+        assert_eq!(
+            turn_error(&json!({"message":"private","codexErrorInfo":"sessionBudgetExceeded"})),
+            "usage_limit"
+        );
     }
 
     #[test]
@@ -401,8 +545,13 @@ done
 
     #[test]
     fn interruption_retains_effects_and_kills_owned_child_without_replay() {
-        for cancel_it in [false, true] {
-            let (root, binary, profile, scratch, request) = fixture("wait");
+        for (mode, cancel_it) in [
+            ("wait", false),
+            ("wait", true),
+            ("retry_wait", false),
+            ("retry_wait", true),
+        ] {
+            let (root, binary, profile, scratch, request) = fixture(mode);
             let (sender, cancel) = mpsc::channel();
             let marker = profile.join("effect");
             let signal = thread::spawn(move || {

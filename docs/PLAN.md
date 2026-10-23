@@ -595,6 +595,11 @@ Depends on R050.
   separate retry/review counters and unchanged deadlines; no repeated sign-in
   requests per task. Historical Starts retain explicit Retry.
 - [ ] Broader provider-specific rate-limit classification and recovery acceptance.
+- [x] R060q classifies scoped typed Codex overload/usage/auth/HTTP-429 failures,
+  preserves bounded internal retry notifications and retained effects, and adds
+  v2 overload backoff within existing lifetime limits. Ambiguous 429 stays manual;
+  quota does not retry. v1 behavior remains readable. Cursor/real-provider rate
+  acceptance is still required. [Task/evidence](../tasks/R060q-provider-failures.md).
 - [ ] Reconcile DB/process/transport/worktree/Git/port ownership before startup
   admission; never blindly replay uncertain work.
 - [ ] Reconcile actual sleep/wake and resource leases, preserve active/wall
