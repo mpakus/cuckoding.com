@@ -678,7 +678,7 @@ defmodule CuckodingWeb.TabulaLive do
 
   defp custom_column(%{state: state, context: %{"lane_stage" => stage}}, board)
        when state not in ~w(completed skipped deferred) do
-    if Enum.any?(Workflows.read_stages(board.definition), &(&1["key"] == stage)), do: stage
+    if Enum.any?(Workflows.execution_stages(board.definition), &(&1["key"] == stage)), do: stage
   end
 
   defp custom_column(_, _), do: nil

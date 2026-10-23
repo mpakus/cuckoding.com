@@ -20,15 +20,35 @@ defmodule Cuckoding.Workflows do
 
   def read_stages(_), do: []
 
+  def execution_stages(%{"version" => 4, "columns" => columns}),
+    do: Enum.filter(columns, &custom_key?(&1["key"]))
+
+  def execution_stages(definition), do: read_stages(definition)
+
+  def editable_stages(definition),
+    do:
+      Enum.map(
+        execution_stages(definition),
+        &Map.merge(%{"access" => "read", "position" => "before"}, &1)
+      )
+
   def custom_key?("step_" <> id), do: match?({:ok, ^id}, Ecto.UUID.cast(id))
   def custom_key?(_), do: false
 
   def configure(key, arena_id, tabula_id, expected, team_id, names, steps) do
+    configure_version(key, arena_id, tabula_id, expected, team_id, names, steps, 3)
+  end
+
+  def configure_execution(key, arena_id, tabula_id, expected, team_id, names, steps) do
+    configure_version(key, arena_id, tabula_id, expected, team_id, names, steps, 4)
+  end
+
+  defp configure_version(key, arena_id, tabula_id, expected, team_id, names, steps, version) do
     with {:ok, key} <- Ecto.UUID.cast(key),
          {:ok, arena_id} <- Ecto.UUID.cast(arena_id),
          {:ok, tabula_id} <- Ecto.UUID.cast(tabula_id),
          true <- is_integer(expected) and expected >= 0 and is_integer(team_id),
-         true <- valid_names?(names) and valid_steps?(steps, names) do
+         true <- valid_names?(names) and valid_steps?(steps, names, version) do
       core = Enum.map(@columns, &Map.put(&1, "name", String.trim(names[&1["key"]])))
       {before, after_steps} = Enum.split(core, 2)
 
@@ -37,12 +57,9 @@ defmodule Cuckoding.Workflows do
         "tabula_id" => tabula_id,
         "team_revision_id" => team_id,
         "definition" => %{
-          "version" => 3,
+          "version" => version,
           "execution" => "arena-loop-v2",
-          "columns" =>
-            before ++
-              Enum.map(steps, &Map.update!(&1, "name", fn name -> String.trim(name) end)) ++
-              after_steps
+          "columns" => before ++ positioned_steps(steps, version, after_steps)
         }
       }
 
@@ -50,6 +67,12 @@ defmodule Cuckoding.Workflows do
     else
       _ -> {:error, "invalid_workflow"}
     end
+  end
+
+  defp positioned_steps(steps, version, [implementor | review]) do
+    steps = Enum.map(steps, &Map.update!(&1, "name", fn name -> String.trim(name) end))
+    {before, after_steps} = Enum.split_with(steps, &(version == 3 or &1["position"] == "before"))
+    before ++ [implementor] ++ after_steps ++ review
   end
 
   def current(%Tabula{} = board) do
@@ -191,7 +214,7 @@ defmodule Cuckoding.Workflows do
       not team_matches?(board, payload) ->
         "stale_team"
 
-      read_stages(previous.definition) != [] and payload["definition"]["version"] != 3 ->
+      stage_downgrade?(previous.definition, payload["definition"]) ->
         "unsupported_workflow"
 
       previous.definition["columns"] == payload["definition"]["columns"] ->
@@ -202,8 +225,16 @@ defmodule Cuckoding.Workflows do
     end
   end
 
+  defp stage_downgrade?(previous, next) do
+    case previous["version"] do
+      4 -> execution_stages(previous) != [] and next["version"] != 4
+      3 -> read_stages(previous) != [] and next["version"] not in [3, 4]
+      _ -> false
+    end
+  end
+
   defp supported?(%{"version" => version, "columns" => columns})
-       when version in [1, 2, 3] and is_list(columns),
+       when version in [1, 2, 3, 4] and is_list(columns),
        do:
          Enum.map(
            Enum.reject(columns, &custom_key?(&1["key"])),
@@ -221,10 +252,21 @@ defmodule Cuckoding.Workflows do
           role["id"] not in ~w(speculator implementor secutor summa_rudis),
           do: role["id"]
 
-    team.id == id and Enum.all?(read_stages(definition), &(&1["role"] in ids))
+    team.id == id and Enum.all?(execution_stages(definition), &(&1["role"] in ids))
   end
 
   defp team_matches?(_, _), do: true
+
+  defp valid_steps?(steps, names, 3), do: valid_steps?(steps, names)
+
+  defp valid_steps?(steps, names, 4) when is_list(steps) do
+    Enum.all?(steps, fn step ->
+      is_map(step) and Enum.sort(Map.keys(step)) == ~w(access key name position role) and
+        step["access"] in ~w(read write) and step["position"] in ~w(before after)
+    end) and valid_steps?(Enum.map(steps, &Map.take(&1, ~w(key name role))), names)
+  end
+
+  defp valid_steps?(_, _, _), do: false
 
   defp valid_steps?(steps, names) when is_list(steps) and length(steps) <= 4 do
     Enum.all?(steps, fn step ->

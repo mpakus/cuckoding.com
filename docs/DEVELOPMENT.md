@@ -1,11 +1,15 @@
 # Development
 
-For optional custom read stages (R050g), add roles in the exact board's Team,
-then open **Advanced → Board columns → Add read stage**. Arrange them with
-Up/Down/Remove and Save workflow. Up to four run after Speculator and before
-Implementor, within Start's existing limits. They inspect files only; all writing
-and independent reviews still follow. Unused roles stay planning-only. This uses
-the existing sixteen-migration schema; custom writers/broader placement remain open.
+For optional custom stages (R050h), add roles in the exact board's Team,
+then open **Advanced → Board columns → Add stage**. Choose file access (read by
+default, or explicitly read/edit), before/after Implementor and Up/Down order,
+then Save workflow. Up to four stages run between Speculator and independent
+Secutor review, within existing Start limits and 64 changed files per task.
+Every writer gets a retained checkpoint verified by later roles; no command
+execution is added. Unused roles stay planning-only. Old read-only workflows keep
+their grants; version four requires the seventeenth forward-only migration. Back
+up first; schema-sixteen bundles refuse the upgraded root. Real-account custom-stage
+acceptance remains open.
 
 The local preview includes R010's tray, authenticated browser and durable setup
 check, plus Codex version, private-profile inspection, managed sign-in/out and a
@@ -67,7 +71,8 @@ Back up before upgrading; fifteen-schema bundles refuse the new root. Existing
 Tabula definitions supply revision zero without changing old rows. Use
 **Advanced → Board columns** to rename the five columns; roles/order/grants stay
 fixed and active planning/battles block edits. History is dated and new Starts
-freeze their exact definition. Adding/reordering custom stages remains open.
+freeze their exact definition. R050g/R050h extend that ledger with ordered custom
+read/write stages; R050h requires schema seventeen.
 [Plan](PLAN.md#next-delivery-order--simple-arena) owns the remaining beta gates.
 
 ## Build and open

@@ -159,12 +159,12 @@ defmodule CuckodingWeb.WorkflowLiveTest do
       )
 
     {:ok, view, _} = ctx.conn |> sign_in() |> live(path(ctx.board))
-    view |> element("#board-workflow button", "+ Add read stage") |> render_click()
-    view |> element("#board-workflow button", "+ Add read stage") |> render_click()
+    view |> element("#board-workflow button", "+ Add stage") |> render_click()
+    view |> element("#board-workflow button", "+ Add stage") |> render_click()
     view |> element("#board-workflow button[aria-label='Up Risk check']") |> render_click()
     view |> form("#workflow-form") |> render_submit()
     assert has_element?(view, "#workflow-notice", "No work was started")
-    steps = Workflows.read_stages(Workflows.current(ctx.board).definition)
+    steps = Workflows.execution_stages(Workflows.current(ctx.board).definition)
     assert Enum.map(steps, & &1["name"]) == ["Risk check", "Research"]
     [first | _] = steps
     battle = start(ctx.board)
@@ -185,9 +185,11 @@ defmodule CuckodingWeb.WorkflowLiveTest do
     {:ok, _} = Battles.stop(battle.id)
     view |> element("#board-workflow button[aria-label='Remove Research']") |> render_click()
     view |> form("#workflow-form") |> render_submit()
-    assert length(Workflows.read_stages(Workflows.current(ctx.board).definition)) == 1
+    assert length(Workflows.execution_stages(Workflows.current(ctx.board).definition)) == 1
 
-    assert length(Workflows.read_stages(Battles.get(battle.id).snapshot["workflow_definition"])) ==
+    assert length(
+             Workflows.execution_stages(Battles.get(battle.id).snapshot["workflow_definition"])
+           ) ==
              2
 
     team = Cuckoding.TeamAssignments.assigned(ctx.board)
@@ -209,6 +211,55 @@ defmodule CuckodingWeb.WorkflowLiveTest do
            )
 
     assert has_element?(view, "#battle-blockers", "this board's Team")
+  end
+
+  test "custom stage access defaults to read and explicit edits and placement are saved", ctx do
+    old = Cuckoding.TeamAssignments.assigned(ctx.board)
+
+    role =
+      Cuckoding.Team.custom_role()
+      |> Map.merge(%{"name" => "Polish", "agent" => "codex", "model_id" => "test-id"})
+
+    {:ok, _} =
+      Cuckoding.Team.save(
+        Ecto.UUID.generate(),
+        old.id,
+        Cuckoding.Team.editable(old) ++ [role],
+        false,
+        ctx.board
+      )
+
+    {:ok, view, _} = ctx.conn |> sign_in() |> live(path(ctx.board))
+    view |> element("#board-workflow button", "+ Add stage") |> render_click()
+    html = view |> render() |> LazyHTML.from_fragment()
+
+    [id] =
+      html
+      |> LazyHTML.query("#workflow-form input[name='steps[0][key]']")
+      |> LazyHTML.attribute("value")
+
+    assert has_element?(view, "#step-access-#{id} option[value=read][selected]")
+    assert has_element?(view, "#step-position-#{id} option[value=before][selected]")
+
+    view
+    |> form("#workflow-form", steps: %{"0" => %{"access" => "write", "position" => "after"}})
+    |> render_change()
+
+    Foundation.broadcast()
+    assert has_element?(view, "#step-access-#{id} option[value=write][selected]")
+    view |> form("#workflow-form") |> render_submit()
+    revision = Workflows.current(ctx.board)
+    assert revision.definition["version"] == 4
+    [step] = Workflows.execution_stages(revision.definition)
+    assert step["access"] == "write" and step["position"] == "after"
+
+    assert Enum.map(revision.definition["columns"], & &1["key"]) ==
+             ~w(specs todo in_process) ++ [id] ++ ~w(review completed)
+
+    assert has_element?(view, "#arena-start:not([disabled])")
+    {:ok, again, _} = ctx.conn |> sign_in() |> live(path(ctx.board))
+    assert has_element?(again, "#step-access-#{id} option[value=write][selected]")
+    assert has_element?(again, "#step-position-#{id} option[value=after][selected]")
   end
 
   test "recovery retains unsaved added stages as text without authority", ctx do

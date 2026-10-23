@@ -48,8 +48,22 @@ defmodule Cuckoding.Battles.Receipts do
       result["candidate_sha"] == candidate["candidate"]
   end
 
-  def payload_valid?(%Attempt{stage: "capture"}, %{"status" => "captured"} = result),
-    do: sha?(result["candidate_sha"]) and is_map(result["native_candidate"])
+  def payload_valid?(%Attempt{stage: "capture"} = attempt, %{"status" => "captured"} = result) do
+    candidate = result["native_candidate"]
+    basic = sha?(result["candidate_sha"]) and is_map(candidate)
+
+    if Stages.writers?(attempt.request["snapshot"]) do
+      preparation = attempt.request["task_context"]["preparation"]
+
+      basic and LocalGit.normalize(candidate) == candidate and
+        candidate["status"] == "candidate_captured" and candidate["key"] == attempt.id and
+        candidate["worktree_key"] == preparation["key"] and
+        candidate["base"] == preparation["head"] and
+        result["candidate_sha"] == candidate["candidate"]
+    else
+      basic
+    end
+  end
 
   def payload_valid?(%Attempt{stage: stage} = attempt, %{"status" => "passed"} = result)
       when stage in ~w(checks final_checks),
@@ -120,7 +134,7 @@ defmodule Cuckoding.Battles.Receipts do
       "requested_model" => role["model"],
       "observed_model" => role["model"],
       "effort" => role["effort"],
-      "access" => if(attempt.stage == "implementor", do: "write", else: "read")
+      "access" => Stages.access(attempt.request["snapshot"], attempt.stage)
     }
 
     Map.take(provider, Map.keys(expected)) == expected and

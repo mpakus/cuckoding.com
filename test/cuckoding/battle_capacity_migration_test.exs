@@ -158,7 +158,7 @@ defmodule Cuckoding.BattleCapacityMigrationTest do
     MigrationRepo.query!("VACUUM INTO ?", [backup])
     File.chmod!(backup, 0o600)
 
-    assert Ecto.Migrator.run(MigrationRepo, path, :up, all: true, log: false) == [
+    assert Ecto.Migrator.run(MigrationRepo, path, :up, to: 20_261_022_010_000, log: false) == [
              20_261_022_010_000
            ]
 
@@ -173,6 +173,54 @@ defmodule Cuckoding.BattleCapacityMigrationTest do
     )
 
     assert length(Ecto.Migrator.migrated_versions(MigrationRepo)) == 15
+    assert Map.new(tables, &{&1, MigrationRepo.query!("SELECT * FROM " <> &1).rows}) == facts
+    assert [["ok"]] = MigrationRepo.query!("PRAGMA integrity_check").rows
+    assert [] == MigrationRepo.query!("PRAGMA foreign_key_check").rows
+  end
+
+  test "writer checkpoint migration preserves schema sixteen and its readable backup" do
+    root = "/private/tmp/cuckoding-writer-migration-#{Ecto.UUID.generate()}"
+    File.mkdir!(root)
+    File.chmod!(root, 0o700)
+    on_exit(fn -> File.rm_rf!(root) end)
+    database = Path.join(root, "prior.sqlite3")
+    backup = Path.join(root, "before-upgrade.sqlite3")
+
+    start_supervised!(
+      {MigrationRepo, database: database, pool: DBConnection.ConnectionPool, pool_size: 1}
+    )
+
+    path = Application.app_dir(:cuckoding, "priv/repo/migrations")
+
+    assert length(Ecto.Migrator.run(MigrationRepo, path, :up, to: 20_261_022_010_000, log: false)) ==
+             16
+
+    tables = legacy_claim_rows() ++ ["workflow_revisions"]
+    facts = Map.new(tables, &{&1, MigrationRepo.query!("SELECT * FROM " <> &1).rows})
+    MigrationRepo.query!("VACUUM INTO ?", [backup])
+    File.chmod!(backup, 0o600)
+
+    assert Ecto.Migrator.run(MigrationRepo, path, :up, all: true, log: false) == [
+             20_261_023_000_000
+           ]
+
+    assert Map.new(tables, &{&1, MigrationRepo.query!("SELECT * FROM " <> &1).rows}) == facts
+    assert [["ok"]] = MigrationRepo.query!("PRAGMA integrity_check").rows
+    assert [] == MigrationRepo.query!("PRAGMA foreign_key_check").rows
+
+    plan =
+      MigrationRepo.query!(
+        "EXPLAIN QUERY PLAN SELECT * FROM battle_attempts WHERE battle_id = 'battle' AND task_id = 'task' AND state = 'completed' AND stage = 'implementor' AND json_extract(request, '$.task_context.preparation.key') = 'preparation' LIMIT 6"
+      ).rows
+
+    assert inspect(plan) =~ "battle_attempts_writer_checkpoint"
+    stop_supervised!(MigrationRepo)
+
+    start_supervised!(
+      {MigrationRepo, database: backup, pool: DBConnection.ConnectionPool, pool_size: 1}
+    )
+
+    assert length(Ecto.Migrator.migrated_versions(MigrationRepo)) == 16
     assert Map.new(tables, &{&1, MigrationRepo.query!("SELECT * FROM " <> &1).rows}) == facts
     assert [["ok"]] = MigrationRepo.query!("PRAGMA integrity_check").rows
     assert [] == MigrationRepo.query!("PRAGMA foreign_key_check").rows

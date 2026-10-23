@@ -848,7 +848,10 @@ defmodule Cuckoding.Battles do
   defp retryable_attempt?(_, _), do: false
 
   defp retry_current(battle, attempt) do
-    stage = if attempt.stage == "implementor", do: "prepare_worktree", else: battle.stage
+    stage =
+      if Stages.access(battle.snapshot, attempt.stage) == "write",
+        do: "prepare_worktree",
+        else: battle.stage
 
     if task = current_task(battle) do
       update(task,
@@ -1634,7 +1637,11 @@ defmodule Cuckoding.Battles do
   end
 
   defp advance(battle, attempt, result) do
-    next_stage = review_stage(battle, Stages.next(battle.snapshot, attempt.stage))
+    next_stage =
+      review_stage(
+        battle,
+        Stages.next(battle.snapshot, attempt.stage, attempt.request["task_context"])
+      )
 
     if task = current_task(battle) do
       context =
@@ -1644,7 +1651,10 @@ defmodule Cuckoding.Battles do
       context =
         case attempt.stage do
           "prepare_worktree" ->
-            Map.drop(context, ~w(candidate_sha native_candidate checks read_stage_summaries))
+            Map.drop(
+              context,
+              ~w(candidate_sha native_candidate checks read_stage_summaries speculator_plan writer_stage)
+            )
 
           "combine" ->
             Map.drop(context, ~w(checks provider))

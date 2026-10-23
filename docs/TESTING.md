@@ -1,5 +1,17 @@
 # Verification and acceptance
 
+R050h covers explicit custom read/write and pre/post placement, rejected grants/
+foreign roles/downgrades and legacy policy isolation. Schema-sixteen backup/upgrade
+coverage verifies unchanged facts, integrity/FKs and the checkpoint index; the
+packaged prior-schema release must refuse the upgraded copy before dispatch. Real executor fixtures
+verify cumulative overlapping edits, a trailing reader, checkpoint drift refusal
+before inference, independent task/final review, pause without writer replay,
+fresh-worktree writer retry, foreign evidence/native receipts and the aggregate
+64-file limit. Native regression captures successive checkpoints on the original
+base while preserving source bytes/index. LiveView covers default read, explicit
+write/placement, saved reload, dirty/recovered forms and scoped repair. These are
+local fixture/native proofs; real-account custom-stage acceptance remains open.
+
 R050g verifies ordered selected-role execution through the real executor with
 fixture adapters, read/write/oversized-receipt refusal, retained Speculator plan
 and findings, required reviews, pause/retry budgets and historical policy absence.

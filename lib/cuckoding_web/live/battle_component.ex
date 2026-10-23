@@ -164,7 +164,7 @@ defmodule CuckodingWeb.BattleComponent do
 
   defp role_message(role) do
     if custom_role?(role) and team_problem?(role),
-      do: "Choose this read role's agent and model in this board's Team, then Save team here.",
+      do: "Choose this custom role's agent and model in this board's Team, then Save team here.",
       else: message(role["status"])
   end
 
@@ -308,6 +308,16 @@ defmodule CuckodingWeb.BattleComponent do
       Enum.find_value(Stages.custom(battle.snapshot), &if(&1["key"] == stage, do: &1["name"])) ||
         label(stage)
 
+  defp stage_grants(snapshot) do
+    Enum.map_join(Stages.custom(snapshot), " → ", fn step ->
+      access =
+        if Stages.access(snapshot, step["key"]) == "write", do: "read and edit", else: "read only"
+
+      position = if step["position"] == "after", do: "after", else: "before"
+      "#{step["name"]} (#{access}, #{position} Implementor)"
+    end)
+  end
+
   defp role_name("summa_rudis"), do: "Summa Rudis"
   defp role_name(nil), do: "Host"
   defp role_name(role), do: label(role)
@@ -354,6 +364,9 @@ defmodule CuckodingWeb.BattleComponent do
       </p>
       <p class="fine-print">
         Public summaries and retained attempt receipts. Original criteria remain part of the frozen scope.
+      </p>
+      <p :if={Stages.custom(@battle.snapshot) != []} id="battle-frozen-grants" class="fine-print">
+        {stage_grants(@battle.snapshot)}
       </p>
       <p :if={@battle.snapshot["workflow_definition"]} id="battle-frozen-workflow" class="fine-print">
         Columns at Start: {Enum.map_join(
@@ -878,7 +891,14 @@ defmodule CuckodingWeb.BattleComponent do
             <summary>Inspect tasks, team & limits</summary>
             <p :if={@preview.planning_roles != []} id="battle-planning-roles" class="fine-print">
               Planning only: {Enum.map_join(@preview.planning_roles, ", ", & &1["name"])}.
-              Start runs the four execution responsibilities below.
+              Start runs the required responsibilities and configured stages below.
+            </p>
+            <p
+              :if={Stages.custom(@preview.snapshot) != []}
+              id="battle-stage-grants"
+              class="fine-print"
+            >
+              {stage_grants(@preview.snapshot)}
             </p>
             <p id="battle-start-team" class="fine-print">
               {Enum.map_join(@preview.team, " · ", fn role ->

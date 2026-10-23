@@ -1,6 +1,18 @@
 # Data model
 
-R050g adds no migration (sixteen remain). `save_workflow` appends a version-three
+R050h adds the seventeenth forward-only migration: a writer-checkpoint index and
+compatibility barrier. Back up first; schema-sixteen bundles refuse this database
+before dispatch. Version-four `save_workflow` definitions add closed
+`access` (read/write) and `position` (before/after Implementor) fields to custom
+stages, preserving immutable older definitions/stable replay. New Starts freeze
+`write-role-stages-v1`. Task context records the host-selected `writer_stage` and
+original `speculator_plan`; capture aggregates exact successful immutable writer
+attempts for the same preparation, never a latest provider text projection.
+Capture receipts bind their exact attempt/worktree/base/candidate. Existing
+candidate artifacts remain immutable. New preparation clears only current
+checkpoint/plan/finding projections, retaining all historical receipts and edits.
+
+R050g added no migration (then schema sixteen). `save_workflow` appends a version-three
 definition with up to four `step_<UUID>` columns, each bound to a distinct custom
 role in the exact displayed board-team revision. The five core keys/roles/order
 are preserved. Stable replay includes the team revision and full definition.
@@ -18,7 +30,7 @@ memory; old Tabula, team, task, command and battle rows remain unchanged.
 `save_workflow_labels` commits the revision, stable-key command and scoped event
 in one immediate transaction. New Starts freeze `workflow_revision` and
 `workflow_definition`; older snapshots stay readable without those fields.
-The current editor changes only bounded unique labels for the five fixed keys.
+That initial editor changed only bounded unique labels; later versions extend its ledger.
 Prior-schema backup/upgrade, integrity/FKs and older-bundle refusal are verified
 on copied development data; this does not authorize downgrading a live root.
 

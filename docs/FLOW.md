@@ -122,15 +122,14 @@ findings and failed-check receipts to Speculator, then Implementor. The user doe
 not drag cards to keep ordinary work moving. No coordinator or manual move can
 override a failed review or turn an unreviewed candidate into Completed.
 
-Advanced → Board columns renames the five required columns and can add/reorder
-up to four explicitly selected custom read roles between Speculator and
-Implementor. Their findings supplement the retained plan; they cannot edit or
-complete work. Active planning/battles block edits; a new Start freezes the exact
-definition/bindings and existing battles keep theirs. Custom writing stages and
-other placement remain required implementation work. Writing stages must
-precede final Secutor review; a later stage that changes the candidate requires
-another review. Renaming changes the label only. Publish new workflow revisions
-without rewriting active battles; no general conditional graph editor is needed.
+Advanced → Board columns renames the five required columns and adds/reorders up
+to four custom roles before or after Implementor. Each explicitly declares read
+or read/edit access; read is the default. All run after Speculator and before
+independent Secutor review. Every writer captures cumulative edit evidence; later
+roles verify that checkpoint. Custom stages cannot run commands or complete work.
+Active work blocks edits; Start freezes the exact definition/bindings/grants.
+Historical workflows retain their permissions. Changes after review require a
+new reviewed candidate; no conditional graph editor is needed.
 
 ## Durable coordination
 
@@ -172,7 +171,7 @@ limits. Paused time still counts. Clean pauses survive restart; uncertain or
 interrupted pausing work cannot Resume. R060b implements explicit Retry for settled
 transient provider failures: two per task and two shared by final stages, frozen
 at Start. Failed writers return through fresh preparation/coordinator/Speculator;
-read-only roles repeat only their failed stage. Preserve failed receipts and all
+read-only roles repeat only their failed stage; configured custom writers use the same fresh-worktree retry as Implementor. Preserve failed receipts and all
 consumed limits. Rejected/blocked reviews, native failures, old snapshots and
 uncertain effects do not qualify. R060c adds confirmed Skip at a clean paused task
 or settled task-local block/transient failure/review exhaustion. Its transitive

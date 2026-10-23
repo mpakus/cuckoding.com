@@ -4,7 +4,7 @@
 
 R060b permits explicit bounded retry of settled transient provider failures only
 under the frozen `provider-retry-v1` contract. Read-only stages keep their native
-integrity checks; a failed Implementor starts in a new owned worktree through
+integrity checks; a failed Implementor or R050h custom writer starts in a new owned worktree through
 coordinator/Speculator. Failed effects stay retained. Native operations and
 interrupted/uncertain sessions are never retried by this control.
 

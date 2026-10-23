@@ -1,5 +1,18 @@
 # Sequential Arena execution — implementation decision
 
+R050h adds version-four workflow stages with explicit read/write access and
+before/after Implementor placement. Start freezes `write-role-stages-v1`; prior
+read-only/missing policies never acquire write authority. `Battles.Stages` owns
+order/access/continuation; `Battles.Writers` reads bounded immutable successful
+writer attempts for the exact task/preparation and folds cumulative final hashes.
+Every writer captures an immutable candidate before the next role; later turns
+verify that checkpoint. The original worktree/head/index and source checkout stay
+unchanged by capture. Independent task/final review and serialized integration
+remain mandatory. Writer retry starts fresh preparation/Speculator; interrupted
+captures remain inspection gates. No native operation or runtime tool is added. The seventeenth migration
+indexes writer evidence and blocks older bundles before authentication/dispatch;
+back up first. [Decision](DECISIONS.md#d045--explicit-custom-writer-checkpoints).
+
 R050g extends R030d only for explicitly selected custom read stages. A version-three
 board definition may insert up to four ordered custom roles between Speculator
 and Implementor. New Starts freeze `custom_stages: read-role-stages-v1`, the full
@@ -9,7 +22,7 @@ budgets. The Speculator plan is retained alongside ordered findings (512 bytes
 each); no edit receipt or changes-requested completion is accepted from them.
 Pause/Retry/Stop and retained provider closure still apply. Task/final Secutor
 reviews remain independent after writing. Historical snapshots without this
-policy gain no stages; custom writers and broader ordering remain required.
+policy gain no stages; R050h extends newer workflows without rewriting history.
 
 R030d binds the four required execution responsibilities from the exact saved
 team revision before resolving native connections/models. Extra custom planning

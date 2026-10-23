@@ -440,4 +440,30 @@ remain mandatory. A report cannot edit criteria or mark a task complete.
 Keep core semantic order and historical snapshots unchanged. Configuring names,
 order or selected roles appends one scoped revision and refuses active work.
 Custom writing stages require a separate effect-aggregation/review contract;
-they are not silently approximated by read stages.
+D045 supplies it for explicit newer workflows, preserving this read-only policy.
+
+## D045 — Explicit custom writer checkpoints
+
+Accepted 2026-10-23 for R050h.
+
+Version-four board workflows may place up to four distinct custom team roles before
+or after Implementor, after Speculator and before mandatory task review. Each stage
+declares read or write. Start freezes `write-role-stages-v1`; old policies never
+acquire write permission. Core roles/order remain mandatory.
+
+Every writer uses the existing bounded host task tools and original owned worktree.
+A native capture follows each writer. Captures use cumulative final path/hash pairs
+from completed, bound, cleanup-verified writer attempts for the exact preparation;
+later verified edits supersede earlier hashes for the same path. The next provider
+turn verifies the latest retained candidate. Native capture also rejects unreported
+bytes, unsafe paths and excess files. Intermediate candidates retain evidence only.
+The final candidate still needs independent Secutor/check evidence and serialized
+integration. No new native operation, provider tool, shell or network grant exists.
+The seventeenth migration indexes exact writer evidence and makes older bundles
+refuse startup before dispatch. Back up first; never run an older policy interpreter
+on a version-four workflow.
+
+Writer retry abandons the old edits and restarts preparation/Speculator with existing
+budgets, exact binding/slot and deadline. Pause/Stop/expiry retain every checkpoint
+and edit receipt. Uncertain or interrupted capture is not completion or recovery
+authority. UI choices stay in Advanced with guarded immutable workflow saves.

@@ -1,6 +1,6 @@
 # Implementation plan and checklist
 
-**Current implementation audit: 2026-10-22.** The source reset remains historical;
+**Current implementation audit: 2026-10-23.** The source reset remains historical;
 this checklist describes the current local preview. Setup, saved teams, folder
 analysis, automatic task cards and the bounded Codex/Cursor Arena loop with task waves
 are implemented. Pause/Resume, explicit provider Retry and Skip/Partial are also
@@ -19,8 +19,8 @@ attempts, inside the existing retry budget; interrupted/native recovery remains 
 
 | Area | Implemented | Still required |
 | --- | --- | --- |
-| Agents and Team | Named Codex/Cursor connections, full bounded catalogs, model choices, default/custom planning roles, selected custom read stages, scoped team editing/adoption | Custom writing stages, Claude Code and Hermes |
-| Arena and tasks | Add folder/default board, versioned column names/ordered custom read stages, bounded docs-first analysis, optional saved planning role, automatic cards, prerequisites, citations and saved criteria | Custom writing stages/broader stage placement and real-account planning acceptance |
+| Agents and Team | Named Codex/Cursor connections, full bounded catalogs, model choices, default/custom planning roles, selected custom read/write stages, scoped team editing/adoption | Claude Code, Hermes and real-provider custom-stage acceptance |
+| Arena and tasks | Add folder/default board, versioned column names/ordered custom read/write stages, bounded docs-first analysis, optional saved planning role, automatic cards, prerequisites, citations and saved criteria | Real-account planning/custom-stage acceptance |
 | Execution | One Start, two independent task pipelines per wave within two global workers, serialized independent review/correction/integration and retained local result branch | General subprocess/toolchain checks, real mixed-provider and same-account parallel battle acceptance |
 | Controls/recovery | Stop, stage-boundary Pause/Resume, bounded provider Retry and automatic backoff, Skip with deferred dependents and Partial result; settled restart checkpoints, timing fence and bounded idle-sleep assertion | Unfinished native/process/Git reconciliation, sleep accounting and physical sleep tests |
 | Experience | Agent wizard/disconnect, Team editor, Arena controls/inspector with public JSON evidence downloads, global workers/progress and paginated global/Arena activity with follow control | Broader parallel activity, responsive/browser acceptance and timed ten-minute setup |
@@ -425,12 +425,13 @@ Depends on R030.
   and source-command provenance; no directory crawl or delivery work. See
   [task](../tasks/R040f-document-planning.md) and
   [evidence](../worklog/2026-10-07-R040f-document-planning.md).
-- [ ] Add/rename/reorder columns and assign custom roles through versioned
-  definitions. Enforce mandatory final Secutor review after all writing stages.
+- [x] Add/rename/reorder bounded custom columns and assign roles through versioned
+  definitions (R040o/R050g/R050h). Core order stays fixed; mandatory independent
+  Secutor review follows all custom writing stages.
 - [x] R040o establishes the immutable per-board workflow ledger and Advanced
   column-name editor, with exact scope/revision/session gates and frozen Start
   definitions. Existing rows remain revision zero. This completes renaming only;
-  adding/reordering custom stages and their real grants remain required above.
+  R050g/R050h add ordered custom stages and explicit grants below.
   [Task/evidence](../tasks/R040o-workflow-revisions.md).
 - [x] Create/edit manual drafts and assigned-Speculator tasks from briefs, selected
   files or bounded folder snapshots. Retain criteria, source citations, prerequisites,
@@ -497,13 +498,20 @@ Depends on R040. This is the first end-to-end product milestone.
   and route every launch through common admission.
 - [x] Run Speculator → Implementor → Secutor with explicit spec/candidate/evidence
   handoff; return all review comments to Speculator before another implementation.
-- [ ] Execute confirmed custom stages in order with their actual grants.
+- [x] Execute confirmed bounded custom stages in order with their explicit read/write
+  grants (R050g/R050h); real-provider acceptance remains a separate open gate.
 - [x] R050g executes up to four explicitly selected custom read roles between
   Speculator and Implementor, with immutable order/bindings, existing read tools,
   finite budgets/capacity, automatic card movement and mandatory Secutor review.
-  Advanced supports Add/Up/Down/Remove; unused roles stay planning-only. Custom
-  writers and broader stage placement remain required above.
+  Advanced supports Add/Up/Down/Remove; unused roles stay planning-only. R050h
+  extends this historical read-only contract below.
   [Task/evidence](../tasks/R050g-read-role-stages.md).
+- [x] R050h adds explicit custom writers and read stages before/after Implementor.
+  Version-four workflows freeze grants/order; every writer captures cumulative
+  immutable edit evidence and subsequent stages verify the retained checkpoint.
+  Retry starts fresh preparation/Speculator; independent review still gates final
+  integration. No new provider/native tools or per-task setup. The seventeenth migration indexes writer evidence and prevents old bundles from misinterpreting the policy; back up first.
+  [Task/evidence](../tasks/R050h-custom-writers.md). Real-account acceptance remains open.
 - [x] Retain independent Secutor sessions; bind passes to exact criteria, Git
   heads and host-check receipts. Summa Rudis cannot override rejection.
 - [x] Integrate locally into a battle branch, run final checks and final Secutor

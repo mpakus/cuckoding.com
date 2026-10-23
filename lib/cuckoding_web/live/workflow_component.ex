@@ -64,7 +64,7 @@ defmodule CuckodingWeb.WorkflowComponent do
     names =
       Map.take(Workflows.labels(revision.definition), ~w(specs todo in_process review completed))
 
-    steps = Workflows.read_stages(revision.definition)
+    steps = Workflows.editable_stages(revision.definition)
     team = TeamAssignments.assigned(socket.assigns.board)
 
     assign(socket,
@@ -117,7 +117,15 @@ defmodule CuckodingWeb.WorkflowComponent do
       result =
         if a.valid_input,
           do:
-            Workflows.configure(a.key, arena, board, a.base_revision, a.team_id, a.names, a.steps),
+            Workflows.configure_execution(
+              a.key,
+              arena,
+              board,
+              a.base_revision,
+              a.team_id,
+              a.names,
+              a.steps
+            ),
           else: {:error, "invalid_workflow"}
 
       socket =
@@ -166,16 +174,18 @@ defmodule CuckodingWeb.WorkflowComponent do
       step = %{
         "key" => "step_" <> Ecto.UUID.generate(),
         "name" => role["name"],
-        "role" => role["id"]
+        "role" => role["id"],
+        "access" => "read",
+        "position" => "before"
       }
 
-      {:noreply, assign(socket, steps: a.steps ++ [step], dirty: true, notice: nil)}
+      {:noreply, assign(socket, steps: order_steps(a.steps ++ [step]), dirty: true, notice: nil)}
     else
       {:noreply,
        assign(
          socket,
          :error,
-         "Add a different custom role in this board's Team first. Up to four read stages are supported."
+         "Add a different custom role in this board's Team first. Up to four stages are supported."
        )}
     end
   end
@@ -196,18 +206,30 @@ defmodule CuckodingWeb.WorkflowComponent do
 
   def handle_event(_, _, socket), do: {:noreply, socket}
 
+  defp order_steps(steps), do: Enum.sort_by(steps, &if(&1["position"] == "after", do: 1, else: 0))
+
+  defp can_move?(steps, index, action) do
+    position = Enum.at(steps, index)["position"]
+    siblings = if action == "up", do: Enum.take(steps, index), else: Enum.drop(steps, index + 1)
+    Enum.any?(siblings, &(&1["position"] == position))
+  end
+
   defp move_step(steps, nil, _), do: steps
   defp move_step(steps, index, "remove"), do: List.delete_at(steps, index)
 
   defp move_step(steps, index, action) do
-    target = index + if(action == "up", do: -1, else: 1)
+    if can_move?(steps, index, action) do
+      step = Enum.at(steps, index)
 
-    if target >= 0 and target < length(steps),
-      do:
-        steps
-        |> List.replace_at(index, Enum.at(steps, target))
-        |> List.replace_at(target, Enum.at(steps, index)),
-      else: steps
+      indices =
+        for {sibling, i} <- Enum.with_index(steps), sibling["position"] == step["position"], do: i
+
+      sibling = Enum.find_index(indices, &(&1 == index))
+      target = Enum.at(indices, sibling + if(action == "up", do: -1, else: 1))
+      steps |> List.replace_at(index, Enum.at(steps, target)) |> List.replace_at(target, step)
+    else
+      steps
+    end
   end
 
   defp input(socket, %{"labels" => names} = params) when is_map(names) do
@@ -221,7 +243,7 @@ defmodule CuckodingWeb.WorkflowComponent do
          Enum.all?(Map.values(names), &(is_binary(&1) and byte_size(&1) <= 160)) do
       assign(socket,
         names: names,
-        steps: steps,
+        steps: order_steps(steps),
         dirty: names != socket.assigns.base_names or steps != socket.assigns.base_steps,
         valid_input: true,
         error: nil,
@@ -251,14 +273,17 @@ defmodule CuckodingWeb.WorkflowComponent do
   defp input_step(fields, step) when is_map(fields) do
     fields =
       Map.reject(fields, fn {key, value} ->
-        key in ~w(_unused_key _unused_name _unused_role) and value == ""
+        key in ~w(_unused_access _unused_key _unused_name _unused_position _unused_role) and
+          value == ""
       end)
 
     role = fields["role"]
 
-    if fields["key"] == step["key"] and Enum.sort(Map.keys(fields)) == ~w(key name role) and
+    if fields["key"] == step["key"] and
+         Enum.sort(Map.keys(fields)) == ~w(access key name position role) and
          is_binary(fields["name"]) and byte_size(fields["name"]) <= 160 and
-         match?({:ok, ^role}, Ecto.UUID.cast(role)),
+         match?({:ok, ^role}, Ecto.UUID.cast(role)) and fields["access"] in ~w(read write) and
+         fields["position"] in ~w(before after),
        do: fields
   end
 
@@ -285,7 +310,11 @@ defmodule CuckodingWeb.WorkflowComponent do
   defp recovered_steps(_), do: nil
 
   defp recovered_step(%{"key" => key} = fields) do
-    if Workflows.custom_key?(key), do: input_step(fields, %{"key" => key})
+    if Workflows.custom_key?(key),
+      do:
+        input_step(Map.merge(%{"access" => "read", "position" => "before"}, fields), %{
+          "key" => key
+        })
   end
 
   defp recovered_step(_), do: nil
@@ -335,7 +364,7 @@ defmodule CuckodingWeb.WorkflowComponent do
     <div id={@id}>
       <.modal id="board-workflow" title="Board columns">
         <p class="fine-print">
-          Name this board's columns and add optional read-only roles before implementation.
+          Name this board's columns and add optional roles around Implementor.
           Core roles and independent review stay in order. Saving starts no agent.
         </p>
         <p :if={@stale} role="status" class="notice">
@@ -376,9 +405,9 @@ defmodule CuckodingWeb.WorkflowComponent do
             </div>
           </details>
           <fieldset class="role-fields">
-            <legend>Read stages · after Speculator, before Implementor</legend>
+            <legend>Custom stages</legend>
             <p class="fine-print">
-              Up to four custom roles inspect files in order. They cannot edit files or run commands. Each stage uses your provider allowance after Start.
+              Up to four roles run before or after Implementor, after Speculator and before independent review. Choose read access or explicitly allow file edits. No stage can run commands. Each stage uses your provider allowance after Start.
             </p>
             <article
               :for={{step, index} <- Enum.with_index(@steps)}
@@ -395,7 +424,7 @@ defmodule CuckodingWeb.WorkflowComponent do
                 maxlength="40"
                 required
               />
-              <label for={"step-role-#{step["key"]}"}>Read-only role</label>
+              <label for={"step-role-#{step["key"]}"}>Role</label>
               <select id={"step-role-#{step["key"]}"} name={"steps[#{index}][role]"}>
                 <option
                   :if={!Enum.any?(@custom_roles, &(&1["id"] == step["role"]))}
@@ -412,6 +441,22 @@ defmodule CuckodingWeb.WorkflowComponent do
                   {role["name"]}
                 </option>
               </select>
+              <label for={"step-access-#{step["key"]}"}>File access</label>
+              <select id={"step-access-#{step["key"]}"} name={"steps[#{index}][access]"}>
+                <option value="read" selected={step["access"] == "read"}>Read only</option>
+                <option value="write" selected={step["access"] == "write"}>
+                  Read and edit files
+                </option>
+              </select>
+              <label for={"step-position-#{step["key"]}"}>Run</label>
+              <select id={"step-position-#{step["key"]}"} name={"steps[#{index}][position]"}>
+                <option value="before" selected={step["position"] == "before"}>
+                  Before Implementor
+                </option>
+                <option value="after" selected={step["position"] == "after"}>
+                  After Implementor
+                </option>
+              </select>
               <div class="team-actions">
                 <button
                   :for={action <- ~w(up down remove)}
@@ -423,8 +468,7 @@ defmodule CuckodingWeb.WorkflowComponent do
                   phx-value-step={step["key"]}
                   phx-value-action={action}
                   disabled={
-                    @stale or (action == "up" and index == 0) or
-                      (action == "down" and index == length(@steps) - 1)
+                    @stale or (action in ~w(up down) and not can_move?(@steps, index, action))
                   }
                   aria-label={"#{String.capitalize(action)} #{step["name"]}"}
                 >{String.capitalize(action)}</button>
@@ -437,7 +481,7 @@ defmodule CuckodingWeb.WorkflowComponent do
               phx-click="add_step"
               phx-value-key={@key}
               disabled={length(@steps) >= min(4, length(@custom_roles)) or @stale}
-            >+ Add read stage</button>
+            >+ Add stage</button>
             <.link navigate={"/arenas/#{elem(@scope, 0)}/tabulae/#{elem(@scope, 1)}/team"}>Edit this board's roles ↗</.link>
           </fieldset>
           <button

@@ -325,7 +325,22 @@ Preserve these implemented contracts:
   finding to 512 bytes, retain the Speculator plan and ordered findings, and
   preserve budgets/capacity/controls/cleanup and historical fixed-stage snapshots.
   Keep optional Add/Up/Down/Remove controls in Advanced, exact board-team links
-  and guarded recovered draft text. Custom writers/other placement remain open.
+  and guarded recovered draft text. R050h extends custom access/placement below without changing old snapshots.
+- R050h extends the ledger with version-four workflows and explicit
+  `write-role-stages-v1`. Up to four distinct custom roles declare read/write and
+  before/after Implementor placement; Speculator and independent review stay
+  mandatory. Never infer writes from legacy/missing policies or role instructions.
+  Capture every writer before continuing, using cumulative final hashes from
+  exact completed, bound, cleanup-verified attempts for that task/preparation.
+  Later writer hashes replace only the same path; the whole task stays at 64 files.
+  Verify the retained candidate before subsequent turns and after read turns.
+  Keep original Speculator instructions and bounded ordered findings. A custom
+  writer failure restarts fresh preparation/Speculator within existing limits;
+  uncertain/interrupted captures gain no recovery authority. Preserve old
+  snapshots, scoped/session/revision/dirty-form gates, native deny rules and one
+  Start. The seventeenth forward-only migration indexes writer evidence and makes
+  older bundles refuse the schema before dispatch. Back up first; no new native
+  operation or real-provider acceptance.
 - R030c edits the exact validated Arena/Tabula through the shared Team editor.
   `save_scoped_team` appends revision/adoption/command/event atomically against
   the assigned revision; it never changes defaults or existing planning/battles.

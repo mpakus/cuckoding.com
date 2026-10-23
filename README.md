@@ -40,7 +40,7 @@ remote push, user-branch merge and release remain separate human actions.
 
 ## What works today
 
-**Local preview source, 2026-10-22.** The Codex/Cursor Arena loop includes independent-task implementation waves.
+**Local preview source, 2026-10-23.** The Codex/Cursor Arena loop includes independent-task implementation waves.
 The complete product story still includes capabilities and release acceptance
 listed below. Arena registration opens its default board; technical setup stays in Advanced.
 
@@ -49,7 +49,7 @@ listed below. Arena registration opens its default board; technical setup stays 
 | Tray launch, authenticated browser and local SQLite state | Full timed ten-minute onboarding acceptance |
 | Multiple named Codex/Cursor connections, model discovery and saved choices | Additional runtimes |
 | Saved agent/model assignments for Speculator, Implementor, Secutor and Summa Rudis | Real mixed-runtime battle acceptance |
-| Folder registration with an automatic default board, direct Arena opening, scoped team editing, versioned column names, ordered custom read stages and editable drafts | Custom writing stages and broader stage placement |
+| Folder registration with an automatic default board, direct Arena opening, scoped team editing, versioned column names, ordered custom read/write stages and editable drafts | Real-provider custom-stage acceptance |
 | Codex/Cursor planning from a brief or bounded folder snapshots (`docs/` first), automatically saved task cards, prerequisites and original source citations | Real-account planning acceptance across supported runtimes |
 | One bounded Start, independent task pipelines in waves of up to two, serialized independent review/integration and a retained local battle branch | Real-account end-to-end acceptance, general toolchain checks, full recovery and real-provider parallel acceptance |
 | Global setup/planning/battle activity, selected-board team/progress and paginated events globally/per Arena | Timed real-account setup and broader dashboard/release acceptance |
@@ -91,16 +91,19 @@ Implementor, Secutor and Summa Rudis; an unused custom role does not block the
 battle or get execution access. Inspect lists unused planning roles separately.
 
 **Advanced → Board columns** renames the five core columns and optionally adds
-up to four custom **read stages** between Speculator and Implementor. Add a custom
-role with its agent/model in that board's Team, then select it here and use
-Up/Down/Remove to arrange stages before **Save workflow**. They inspect files and
-pass findings to Implementor; they cannot edit or run commands. Their usage is
-included in Start's existing finite limits. Core order/review rules stay fixed;
-active planning/battles block changes.
-Names have dated history, and Start keeps its original definition even after a
-later rename. This adds the sixteenth database migration: back up before upgrading;
-older bundles refuse the new schema. Custom writing stages and placement outside
-this read-stage window remain open.
+up to four custom stages before or after Implementor. Add each role with its
+agent/model in this board's Team, then choose **Read only** or **Read and edit
+files**, placement and order here before **Save workflow**. Read is the default.
+Every writer produces a retained checkpoint; later roles verify it, preserving
+all earlier file changes. Independent Secutor review follows all configured stages.
+No custom stage can run commands or grant completion. The whole task retains the
+64 changed-file limit and existing finite Start budgets. Active work blocks edits;
+old battles keep their original workflow and grants. These local fixtures/native
+checks still need real-account custom-stage acceptance.
+
+Back up before upgrading. The seventeenth forward-only migration indexes writer
+checkpoints and prevents schema-sixteen bundles from interpreting the new policy.
+Older bundles refuse the upgraded database before dispatch.
 
 New agents start with an editable name and an executable path detected from known
 install locations when available. Cursor's

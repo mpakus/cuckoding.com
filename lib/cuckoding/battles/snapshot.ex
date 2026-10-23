@@ -45,7 +45,7 @@ defmodule Cuckoding.Battles.Snapshot do
     arena = Tabulae.arena(arena_id) || Repo.rollback(:scope_missing)
     board = Tabulae.get(arena.id, tabula_id) || Repo.rollback(:scope_missing)
     team = TeamAssignments.assigned(board)
-    steps = Workflows.read_stages(board.definition)
+    steps = Workflows.execution_stages(board.definition)
     step_roles = Enum.map(steps, & &1["role"])
 
     {execution, planning} =
@@ -100,7 +100,8 @@ defmodule Cuckoding.Battles.Snapshot do
       "scheduler" => Capacity.policy(),
       "parallelism" => Waves.policy(),
       "role_slots" => Slots.policy(),
-      "custom_stages" => Stages.policy(),
+      "custom_stages" =>
+        if(board.definition["version"] == 4, do: Stages.writer_policy(), else: Stages.policy()),
       "parallel_team" => additional,
       "native_recovery" => "retained-integration-v1",
       "worktree_recovery" => PreparationRecovery.policy(),
@@ -182,6 +183,7 @@ defmodule Cuckoding.Battles.Snapshot do
         Enum.map(steps, &%{"stage" => &1["key"], "summary" => String.duplicate("\n", 512)}),
       "review_findings" => nil,
       "previous_implementation" => nil,
+      "speculator_plan" => nil,
       "candidate_sha" => String.duplicate("a", 40),
       "host_checks" => Enum.map(checks, &maximum_check/1),
       "declared_checks" => checks,

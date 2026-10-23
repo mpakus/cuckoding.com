@@ -1627,6 +1627,66 @@ mod tests {
     }
 
     #[test]
+    fn successive_writer_checkpoints_capture_all_edits_on_the_original_base() {
+        let (root, home, request, prepared) = inspection_fixture();
+        let checkout = Path::new(prepared["path"].as_str().unwrap());
+        let source_index = fs::read(root.join(".git/index")).unwrap();
+        let checkpoint = |key: &str, files: Value| {
+            let mut args = request[..5].to_vec();
+            args.push(json!({"key":key,"preparation":prepared,"files":files}).to_string());
+            operation(&args, "capture_candidate").unwrap()
+        };
+        let verify = |candidate: &Value| {
+            let mut args = request[..5].to_vec();
+            args.push(
+                json!({"key":candidate["key"],"preparation":prepared,"candidate":candidate})
+                    .to_string(),
+            );
+            operation(&args, "verify_candidate")
+        };
+        fs::write(checkout.join("fixture.txt"), "first writer\n").unwrap();
+        let first = checkpoint(
+            CANDIDATE_KEY,
+            json!([
+                {"path":"fixture.txt","sha256":initial::digest(b"first writer\n")}
+            ]),
+        );
+        assert_eq!(verify(&first).unwrap()["status"], "candidate_verified");
+        fs::write(checkout.join("fixture.txt"), "second writer\n").unwrap();
+        fs::write(checkout.join("feature.txt"), "implemented\n").unwrap();
+        assert_eq!(verify(&first), Err("candidate_mismatch"));
+        let second = checkpoint(
+            "00000000-0000-4000-8000-000000000052",
+            json!([
+                {"path":"fixture.txt","sha256":initial::digest(b"second writer\n")},
+                {"path":"feature.txt","sha256":initial::digest(b"implemented\n")}
+            ]),
+        );
+        assert_eq!(verify(&second).unwrap()["status"], "candidate_verified");
+        assert_eq!(first["base"], prepared["head"]);
+        assert_eq!(second["base"], prepared["head"]);
+        let commit = second["candidate"].as_str().unwrap();
+        assert_eq!(
+            git(&root, &home, &["show", &format!("{commit}:fixture.txt")]).1,
+            b"second writer\n"
+        );
+        assert_eq!(
+            git(&root, &home, &["show", &format!("{commit}:feature.txt")]).1,
+            b"implemented\n"
+        );
+        assert_eq!(
+            git(checkout, &home, &["rev-parse", "HEAD"]).1,
+            format!("{}\n", prepared["head"].as_str().unwrap()).as_bytes()
+        );
+        assert_eq!(fs::read(root.join(".git/index")).unwrap(), source_index);
+        assert_eq!(
+            fs::read(root.join("docs/plan.txt")).unwrap(),
+            b"committed\n"
+        );
+        fs::remove_dir_all(root.parent().unwrap()).unwrap();
+    }
+
+    #[test]
     fn candidates_refuse_undeclared_policy_link_mode_and_stale_edits() {
         for mode in [
             "undeclared",

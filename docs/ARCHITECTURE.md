@@ -1,5 +1,18 @@
 # Architecture
 
+R050h adds version-four workflow stages with explicit read/write access and
+before/after Implementor placement. Start freezes `write-role-stages-v1`; prior
+read-only/missing policies never acquire write authority. `Battles.Stages` owns
+order/access/continuation; `Battles.Writers` reads bounded immutable successful
+writer attempts for the exact task/preparation and folds cumulative final hashes.
+Every writer captures an immutable candidate before the next role; later turns
+verify that checkpoint. The original worktree/head/index and source checkout stay
+unchanged by capture. Independent task/final review and serialized integration
+remain mandatory. Writer retry starts fresh preparation/Speculator; interrupted
+captures remain inspection gates. No native operation or runtime tool is added. The seventeenth migration
+indexes writer evidence and blocks older bundles before authentication/dispatch;
+back up first. [Decision](DECISIONS.md#d045--explicit-custom-writer-checkpoints).
+
 R050g moves fixed stage order/responsibility into pure `Battles.Stages`, extending
 it only from the frozen read-stage policy. `Workflows` owns validated metadata;
 Battles still owns claims/transitions, Waves schedules the same bounded lanes and
@@ -13,8 +26,9 @@ ledger. `Tabulae.get/2` projects current labels; new Start snapshots freeze that
 definition/revision. `WorkflowComponent` uses the shared native dialog under
 Advanced with its own session/scope/form/revision guards and explicit draft
 discard. Active planning/battles block edits transactionally. Native/provider
-work, core stage order and grants are unchanged; custom ordered stages remain
-required. The sixteenth migration is additive with virtual legacy revision zero.
+work, core stage order and grants were unchanged in that initial slice; R050g/h
+extend its ledger with actual custom stages above. The sixteenth migration is
+additive with virtual legacy revision zero.
 
 R040n keeps optional planner choice inside `Planning` and its existing modal
 component. The domain resolves only the board's assigned immutable team and binds
@@ -50,6 +64,7 @@ release process group and private storage lock.
 | `Planning`, `PlanningDocuments`, native `arena_git/documents.rs` | Freeze team/model/brief and optional manual/folder text snapshots in commands; bounded descriptor-relative source collection, then validate proposals and atomically create draft cards |
 | `ProjectChecks` | Immutable Arena check declarations, explicit preview/consent and atomic command/revision/event saves; no executable resolution, filesystem access or execution |
 | `Battles`, `BattleRunner`, `BattleExecutor`, `BattleChecks`, `Battles.Capacity` | SQLite battle/task/attempt authority and capacity checks; two monitored workers across isolated Arenas; per-task wave claims, serial review and one provider turn per exact connection; closed native Git, provider turns and disposable check workspaces |
+| `Battles.Stages`, `Battles.Writers` | Frozen stage order/access and exact successful writer evidence; bounded cumulative file hashes for successive retained native checkpoints, no independent completion authority |
 | `Battles.Receipts` | Closed result envelope and stage/provider/session/candidate/check evidence validation against an immutable attempt; read-only session-reuse query, no settlement or launch authority |
 | `BattlePreview` | Read-only aggregation of scoped saved preparation and verified spec artifacts; no durable battle state or launch authority |
 | `Dashboard`, `DashboardComponent`, `ActivityComponent` | Bounded read-only Arena/latest-battle/task/setup/planning projections, exact-board team/progress and 20-event chronological pages; shared stateless worker rows, guarded parent/component events and stable reading mode; no execution authority |

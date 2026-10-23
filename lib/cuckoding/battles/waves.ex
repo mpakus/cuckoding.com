@@ -46,12 +46,20 @@ defmodule Cuckoding.Battles.Waves do
 
   defp prioritize(tasks, snapshot) do
     if Slots.enabled?(snapshot) and snapshot["parallel_team"] != [],
-      do: Enum.sort_by(tasks, &pipeline_position(stage(&1))),
+      do: Enum.sort_by(tasks, &pipeline_position(snapshot, stage(&1))),
       else: tasks
   end
 
-  defp pipeline_position(stage),
-    do: if(Stages.custom_key?(stage), do: 2.5, else: Enum.find_index(@pipeline, &(&1 == stage)))
+  defp pipeline_position(snapshot, stage) do
+    if Stages.writers?(snapshot),
+      do:
+        Enum.find_index(
+          ["prepare_worktree", "coordinator"] ++ Stages.pipeline(snapshot) ++ ["capture"],
+          &(&1 == stage)
+        ),
+      else:
+        if(Stages.custom_key?(stage), do: 2.5, else: Enum.find_index(@pipeline, &(&1 == stage)))
+  end
 
   def backoff_origin(battle),
     do:

@@ -18,12 +18,13 @@ defmodule Cuckoding.BattleExecutorTest do
     TeamAssignments
   }
 
-  alias Cuckoding.Battles.{Attempt, Backoff, ProviderClosure, Snapshot}
+  alias Cuckoding.Battles.{Attempt, Backoff, ProviderClosure, Snapshot, Writers}
 
   # These adapters exercise the real executor/domain handoff without native or provider execution.
   defmodule Adapters do
     import ExUnit.Assertions
     alias Cuckoding.ArenaGit
+    alias Cuckoding.Battles.Stages
 
     def run(%{id: id, payload: payload}, options) do
       assert options[:active?].()
@@ -71,9 +72,26 @@ defmodule Cuckoding.BattleExecutorTest do
     defp git("verify_battle", _, %{"request" => request}),
       do: Map.put(request["battle"], "status", "battle_verified")
 
+    defp git("verify_candidate", _, payload) do
+      assert payload["candidate"]["worktree_key"] == payload["preparation"]["key"]
+
+      cond do
+        Process.get(:checkpoint_changed) ->
+          %{"status" => "candidate_mismatch"}
+
+        Process.get(:foreign_checkpoint) ->
+          payload["candidate"]
+          |> Map.put("status", "candidate_verified")
+          |> Map.put("candidate", digest("foreign"))
+
+        true ->
+          Map.put(payload["candidate"], "status", "candidate_verified")
+      end
+    end
+
     defp git("capture_candidate", id, payload) do
-      assert [%{"path" => "feature.txt", "sha256" => sha}] = payload["files"]
-      assert byte_size(sha) == 64
+      assert Enum.all?(payload["files"], &is_binary(&1["path"]))
+      assert Enum.all?(payload["files"], &(byte_size(&1["sha256"]) == 64))
 
       %{
         "status" => "candidate_captured",
@@ -159,7 +177,9 @@ defmodule Cuckoding.BattleExecutorTest do
 
       changes =
         if(request["access"] == "write",
-          do: [%{"path" => "feature.txt", "sha256" => String.duplicate("d", 64)}],
+          do:
+            Process.get(:writer_changes, %{})[prompt["stage"]] ||
+              [%{"path" => "feature.txt", "sha256" => String.duplicate("d", 64)}],
           else: []
         )
 
@@ -201,7 +221,7 @@ defmodule Cuckoding.BattleExecutorTest do
         "access" => request["access"],
         "thread_id" => Ecto.UUID.generate(),
         "turn_id" => Ecto.UUID.generate(),
-        "report" => %{"outcome" => outcome, "summary" => summary(prompt["stage"], outcome)},
+        "report" => %{"outcome" => outcome, "summary" => public_summary(prompt["stage"], outcome)},
         "tools" => tools,
         "changes" => changes
       }
@@ -241,6 +261,15 @@ defmodule Cuckoding.BattleExecutorTest do
       do: Process.get(:reject_first_review, false)
 
     defp first_review_rejected?(_), do: false
+
+    defp public_summary(stage, outcome) do
+      if Process.get(:full_summaries) do
+        bound = if Stages.custom_key?(stage), do: 512, else: 4000
+        "x" <> String.duplicate("\n", bound - 1)
+      else
+        summary(stage, outcome)
+      end
+    end
 
     defp summary("implementor", _), do: "Implemented the frozen criteria."
 
@@ -433,6 +462,243 @@ defmodule Cuckoding.BattleExecutorTest do
     assert stage == custom["key"] and summary == receipt["provider"]["report"]["summary"]
     assert writing["prior_public_summary"] != summary
     assert drive(Battles.get(battle.id)).state == "completed"
+  end
+
+  defp writer_workflow(ctx) do
+    old = TeamAssignments.assigned(ctx.board)
+
+    roles =
+      for name <- ["Prepare", "Polish", "Inspect"],
+          do:
+            Team.custom_role()
+            |> Map.merge(%{"name" => name, "agent" => "codex", "model_id" => "test-id"})
+
+    {:ok, team} =
+      Team.save(Ecto.UUID.generate(), old.id, Team.editable(old) ++ roles, false, ctx.board)
+
+    steps =
+      Enum.zip(roles, [{"write", "before"}, {"write", "after"}, {"read", "after"}])
+      |> Enum.map(fn {role, {access, position}} ->
+        %{
+          "key" => "step_" <> Ecto.UUID.generate(),
+          "name" => role["name"],
+          "role" => role["id"],
+          "access" => access,
+          "position" => position
+        }
+      end)
+
+    {:ok, _} =
+      Cuckoding.Workflows.configure_execution(
+        Ecto.UUID.generate(),
+        ctx.board.arena_id,
+        ctx.board.id,
+        0,
+        team.id,
+        Cuckoding.Workflows.labels(ctx.board.definition),
+        steps
+      )
+
+    steps
+  end
+
+  test "custom writers checkpoint cumulative edits and a later reader cannot discard them", ctx do
+    [before, after_writer, reader] = writer_workflow(ctx)
+    first = %{"path" => "fixture.txt", "sha256" => String.duplicate("1", 64)}
+    initial = %{"path" => "feature.txt", "sha256" => String.duplicate("2", 64)}
+    revised = %{initial | "sha256" => String.duplicate("3", 64)}
+
+    Process.put(:writer_changes, %{
+      before["key"] => [first],
+      "implementor" => [initial],
+      after_writer["key"] => [revised]
+    })
+
+    battle = start(ctx.board)
+    assert drive(battle).state == "completed"
+
+    captures =
+      for {"capture_candidate", _, payload} <- Process.get(:git_calls), do: payload["files"]
+
+    assert Enum.take(captures, 3) == [[first], [initial, first], [revised, first]]
+    calls = Process.get(:provider_calls)
+    stages = Enum.map(calls, fn {prompt, _, _} -> prompt["stage"] end)
+
+    assert Enum.take(stages, 6) == [
+             "coordinator",
+             "speculator",
+             before["key"],
+             "implementor",
+             after_writer["key"],
+             reader["key"]
+           ]
+
+    for {prompt, request, _} <- calls, prompt["stage"] in [before["key"], after_writer["key"]] do
+      assert request["access"] == "write"
+      assert prompt["speculator_plan"] == "speculator public result."
+      assert is_nil(prompt["previous_implementation"])
+    end
+
+    {_, read_request, _} = Enum.find(calls, fn {p, _, _} -> p["stage"] == reader["key"] end)
+    assert read_request["access"] == "read"
+    assert Enum.count(Process.get(:git_calls), fn {op, _, _} -> op == "verify_candidate" end) >= 8
+    assert Enum.count(stages, &(&1 == "secutor")) == 2
+    assert Enum.count(stages, &(&1 == "final_secutor")) == 1
+  end
+
+  test "changed checkpoint refuses the next writer before provider usage", ctx do
+    [before | _] = writer_workflow(ctx)
+    battle = start(ctx.board) |> until_stage(before["key"])
+    {capture, _, _} = step(battle)
+    {next, _, _} = step(capture)
+    assert next.stage == "implementor"
+    calls = length(Process.get(:provider_calls))
+    {:ok, bound} = Battles.claim_next(next.id)
+    Process.put(:foreign_checkpoint, true)
+    foreign = BattleExecutor.execute(bound, git: Adapters, provider: Adapters, checks: Adapters)
+    assert foreign["reason"] == "candidate_mismatch"
+    assert length(Process.get(:provider_calls)) == calls
+    Process.delete(:foreign_checkpoint)
+    Process.put(:checkpoint_changed, true)
+    receipt = BattleExecutor.execute(bound, git: Adapters, provider: Adapters, checks: Adapters)
+    {:ok, blocked} = Battles.finish(bound.id, bound.claim_token, receipt)
+    assert blocked.state == "needs_attention"
+    assert receipt["reason"] == "candidate_mismatch"
+    assert length(Process.get(:provider_calls)) == calls
+  end
+
+  test "custom writer pause captures without replay and failed writer retry gets fresh preparation",
+       ctx do
+    [before | _] = writer_workflow(ctx)
+    battle = start(ctx.board) |> until_stage(before["key"])
+    {capture, writer, _} = step(battle)
+    {:ok, paused} = Battles.pause(capture.id, capture.control_revision)
+    assert paused.state == "paused" and paused.stage == "capture"
+    {:ok, resumed} = Battles.resume(paused.id, paused.control_revision)
+    {next, _, _} = step(resumed)
+    assert next.stage == "implementor"
+
+    assert Enum.count(Process.get(:provider_calls), fn {p, _, _} ->
+             p["stage"] == before["key"]
+           end) == 1
+
+    {:ok, _} = Battles.stop(next.id)
+
+    Process.put(:provider_failure_stage, before["key"])
+    failed_battle = start(ctx.board) |> until_stage(before["key"])
+    {failed, attempt, _} = step(failed_battle)
+    assert failed.state == "needs_attention"
+    {:ok, retried} = Battles.retry(failed.id, failed.control_revision)
+    assert retried.stage == "prepare_worktree"
+    Process.delete(:provider_failure_stage)
+    fresh = until_stage(retried, before["key"])
+    {:ok, new_attempt} = Battles.claim_next(fresh.id)
+
+    assert new_attempt.request["task_context"]["preparation"]["key"] !=
+             attempt.request["task_context"]["preparation"]["key"]
+
+    assert is_nil(new_attempt.request["task_context"]["native_candidate"])
+    assert is_nil(new_attempt.request["task_context"]["writer_stage"])
+    assert Repo.get!(Attempt, writer.id).state == "completed"
+
+    receipt =
+      BattleExecutor.execute(new_attempt, git: Adapters, provider: Adapters, checks: Adapters)
+
+    {:ok, _} = Battles.finish(new_attempt.id, new_attempt.claim_token, receipt)
+    assert drive(Battles.get(failed.id)).state == "completed"
+    assert Repo.get!(Attempt, attempt.id).state == "failed"
+  end
+
+  test "cumulative writer file limit refuses capture and retains earlier checkpoint", ctx do
+    [before | _] = writer_workflow(ctx)
+
+    changes = fn range ->
+      for n <- range, do: %{"path" => "file-#{n}.txt", "sha256" => String.duplicate("a", 64)}
+    end
+
+    Process.put(:writer_changes, %{
+      before["key"] => changes.(1..40),
+      "implementor" => changes.(41..70)
+    })
+
+    battle = start(ctx.board) |> until_stage("implementor")
+    {capture, _, _} = step(battle)
+    {:ok, attempt} = Battles.claim_next(capture.id)
+    previous = attempt.request["task_context"]["native_candidate"]
+    calls = length(Process.get(:git_calls))
+    receipt = BattleExecutor.execute(attempt, git: Adapters, provider: Adapters, checks: Adapters)
+    assert receipt["reason"] == "writer_file_limit"
+    assert length(Process.get(:git_calls)) == calls
+    {:ok, failed} = Battles.finish(attempt.id, attempt.claim_token, receipt)
+    assert failed.state == "needs_attention"
+    assert hd(Battles.tasks(failed.id)).context["native_candidate"] == previous
+    assert hd(Battles.tasks(failed.id)).state != "completed"
+  end
+
+  test "capture cannot use another preparation's edit evidence or a foreign native receipt",
+       ctx do
+    [before | _] = writer_workflow(ctx)
+    battle = start(ctx.board) |> until_stage(before["key"])
+    {capture, _, _} = step(battle)
+    {:ok, attempt} = Battles.claim_next(capture.id)
+    forged = put_in(attempt.request, ["task_context", "preparation", "key"], Ecto.UUID.generate())
+
+    assert {:error, "missing_edit_evidence"} =
+             Writers.files(%{attempt | request: forged})
+
+    receipt = BattleExecutor.execute(attempt, git: Adapters, provider: Adapters, checks: Adapters)
+
+    assert {:error, :invalid_result} =
+             Battles.finish(
+               attempt.id,
+               attempt.claim_token,
+               put_in(receipt, ["native_candidate", "key"], Ecto.UUID.generate())
+             )
+
+    assert {:ok, _} = Battles.finish(attempt.id, attempt.claim_token, receipt)
+  end
+
+  test "four mixed stages retain bounded prompts even on a correction round", ctx do
+    steps = writer_workflow(ctx)
+    team = TeamAssignments.assigned(ctx.board)
+
+    role =
+      Team.custom_role()
+      |> Map.merge(%{"name" => "Final audit", "agent" => "codex", "model_id" => "test-id"})
+
+    {:ok, team} =
+      Team.save(Ecto.UUID.generate(), team.id, Team.editable(team) ++ [role], false, ctx.board)
+
+    fourth = %{
+      "key" => "step_" <> Ecto.UUID.generate(),
+      "name" => "Final audit",
+      "role" => role["id"],
+      "access" => "read",
+      "position" => "after"
+    }
+
+    {:ok, _} =
+      Cuckoding.Workflows.configure_execution(
+        Ecto.UUID.generate(),
+        ctx.board.arena_id,
+        ctx.board.id,
+        1,
+        team.id,
+        Cuckoding.Workflows.labels(ctx.board.definition),
+        steps ++ [fourth]
+      )
+
+    Process.put(:full_summaries, true)
+    Process.put(:reject_first_review, true)
+    assert drive(start(ctx.board), 120).state == "completed"
+
+    {prompt, _, _} =
+      Process.get(:provider_calls)
+      |> Enum.find(fn {p, _, _} -> p["stage"] == "secutor" and p["review_round"] == 1 end)
+
+    assert length(prompt["workflow_findings"]) == 4
+    assert byte_size(prompt["speculator_plan"]) == 4000
+    assert byte_size(prompt["review_findings"]) == 4000
   end
 
   test "executor checks and independently reviews the combined wave candidate before integration",
