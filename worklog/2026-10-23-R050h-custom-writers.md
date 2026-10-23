@@ -75,6 +75,11 @@ CodeResources SHA256:
 `f37c826fc8c8a9bddf760acb261d823b450ffe4656e227354c29420eaf78bc29`.
 
 Final source/security review and documentation-link/whitespace checks passed.
-Local integration pending. Real-provider, general subprocess/toolchain, broader
+Local integration: `6036303` fast-forwarded into `main`; completed branch
+`feature/R050h-custom-writers` deleted. Real-provider, general subprocess/toolchain, broader
 recovery/sleep, remaining provider and signed/clean-machine release gates remain
 open. No push/publication or memory edit.
+
+Working tree retains only the unrelated untracked `Untitled.md.age`; it was not
+read, modified or staged. No runtime or profile in the original user workspace
+was launched/restored. Source QA and bundled smoke use separate private data.
