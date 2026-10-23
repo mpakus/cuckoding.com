@@ -128,6 +128,8 @@ passed. The original saved workspace/profiles were untouched. The observed
 signal/Event handler race in the existing source launcher needs a separate focused
 reproduction/fix (R011b); it is not silently marked solved here.
 
-Local integration pending. No paid inference, provider installation, publication,
+Implementation `8b32fc3` fast-forwarded into local `main`; feature branch deleted.
+Documentation references and whitespace checks passed. Only unrelated
+`Untitled.md.age` remains untracked, unread and unstaged. No paid inference, provider installation, publication,
 notarization, physical sleep, unfamiliar-user timing or clean-machine/update
 acceptance is claimed. The full beta goal remains active.

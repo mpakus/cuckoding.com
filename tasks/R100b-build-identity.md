@@ -1,6 +1,6 @@
 # R100b — Identify the actual local build
 
-Status: implemented and verified, 2026-10-23; local integration pending.
+Status: implemented, verified and merged locally to main, 2026-10-23 (`8b32fc3`).
 
 - [x] Generate one bounded public build manifest with UUID/date, source revision,
   dirty observation, digest of enumerated application inputs, tool versions,
@@ -15,7 +15,7 @@ Status: implemented and verified, 2026-10-23; local integration pending.
 - [x] Test malformed/mixed/missing identities, source drift and output/path guards;
   verify source UI, native launch, build/smoke and preserved data. Update
   docs/AGENTS/README.
-- [ ] Merge locally to main and delete the feature branch.
+- [x] Merge locally to main and delete the feature branch; no publication.
 
 Provider/physical/clean-machine/signing/update acceptance remains separate.
 Evidence: [worklog](../worklog/2026-10-23-R100b-build-identity.md).
