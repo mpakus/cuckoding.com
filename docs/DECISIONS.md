@@ -557,3 +557,10 @@ version in isolation requests. Native canaries report their actual verified
 version; host settlement must match that exact request as well as executable and
 version-command identity. A receipt for another supported cohort cannot publish
 success. Preserve immutable historical commands/receipts and existing grants.
+
+## D051 — Claude subscription sign-in after approval
+
+2026-10-23, user decision, R090a. Use subscription sign-in after Anthropic approval.
+Approval is unconfirmed. Keep Claude unavailable until approval and the existing
+adapter conformance gates; never borrow personal tokens or silently switch billing.
+[Authentication boundary](AGENT_RUNTIME_ADAPTERS.md#provider-evidence-checklist).

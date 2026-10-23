@@ -687,6 +687,9 @@ Do not restore the old implementation or treat historical tests as current proof
 - Executable discovery reads known locations/metadata only. Manual overrides,
   supported-version probes and app-owned authorization remain distinct. Host
   discovery hints never become child environment or filesystem grants.
+  Claude's selected authentication path is subscription sign-in after Anthropic
+  approval. Approval is unconfirmed; do not enable login, borrow personal tokens
+  or substitute API billing. See D051 and the adapter acceptance checklist.
   The native fixed `--version` probe uses a private scratch directory, empty
   inherited environment, bounded output and owned group cleanup. Interrupted
   probes and connection inspections require a new consented command; never replay

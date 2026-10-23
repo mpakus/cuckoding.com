@@ -179,6 +179,8 @@ Git source, valid saved model bindings and verified task runtimes are required: 
 The newer Codex cohort passed fresh-profile policy/thread and OS canaries without
 inference. Additional native tool/daemon defaults are disabled explicitly. Real
 account execution remains a separate acceptance gate. [Compatibility evidence](tasks/R020s-codex-compatibility.md).
+Claude is planned with subscription sign-in after Anthropic approval; it remains
+unavailable pending that approval and adapter verification.
 Secutor reviews the checks described in every task and the combined result.
 Missing required runtime/test evidence blocks completion; code inspection never
 proves tests ran. **Advanced → Extra command checks (optional)** adds explicit

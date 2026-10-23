@@ -707,6 +707,8 @@ Depends on R080 for final user-flow acceptance; reuse R020's adapter boundary.
 
 - [ ] Claude Code: verify current official interface/license, safe authorization,
   model discovery/defaults, grant mapping, streaming, cancellation and recovery.
+  Authentication selected: subscription sign-in after Anthropic approval. Approval
+  is unconfirmed; keep login/execution unavailable. [Decision](../tasks/R090a-claude-auth-decision.md).
 - [ ] Cursor: complete real-account conformance, history cleanup and project-config
   isolation acceptance; setup/catalog and R020p role execution are implemented.
 - [ ] Hermes: verify the intended official distribution/interface, license and

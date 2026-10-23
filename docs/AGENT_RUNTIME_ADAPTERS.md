@@ -70,10 +70,11 @@ If Hermes refers to a different distribution than the adapter implementor finds,
 resolve that identity before installing/launching it. This planning reset installs
 no providers or plugins.
 
-Claude authentication decision remains open (checked 2026-10-23): the official
+Claude authentication is selected: **subscription sign-in after Anthropic
+approval** (user decision, 2026-10-23). Approval has not been confirmed. The
 [Agent SDK overview](https://code.claude.com/docs/en/agent-sdk/overview) requires
-prior approval for third-party claude.ai sign-in. API-key authentication or that
-approval must be resolved before implementing the connection; no subscription
+it for third-party claude.ai sign-in. Keep connection/execution unavailable until
+approval and adapter conformance; no subscription
 token transport, account fallback or provider installation has been enabled.
 
 For Codex, the version adapter callback is `probe/3`. Its native helper runs only
