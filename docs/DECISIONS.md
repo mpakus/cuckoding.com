@@ -564,3 +564,19 @@ success. Preserve immutable historical commands/receipts and existing grants.
 Approval is unconfirmed. Keep Claude unavailable until approval and the existing
 adapter conformance gates; never borrow personal tokens or silently switch billing.
 [Authentication boundary](AGENT_RUNTIME_ADAPTERS.md#provider-evidence-checklist).
+
+## D052 — Verified task-local attention may permit independent work
+
+2026-10-23, R060r. New Starts freeze `blocker_scope: task-local-continuation-v1`.
+Only exact validated provider `blocked` receipts or exhausted task Secutor review,
+with verified cleanup, are task-local. Drain all current workers before continuing
+independent ready tasks. Preserve blocked tasks, pending dependents, failed edits,
+criteria, binding slots, consumed limits and the original deadline. No automatic
+Skip, lost-work acceptance or final completion with unresolved tasks.
+
+Other failures retain Arena-wide admission closure and existing backoff/recovery.
+User Pause prevents automatic continuation; restart still needs explicit Resume.
+Controls remain separate and revision-guarded. Prioritize shared/uncertain attention.
+The eighteenth forward-only migration backs up and prevents older bundles from
+interpreting running battles with unresolved lanes; a DB trigger refuses claims
+on blocked tasks under the new policy. Historical snapshots keep their behavior.

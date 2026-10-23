@@ -17,6 +17,9 @@ R060h fences new battle work on
 timing gaps and backward clock changes. R060i adds bounded native idle-system
 sleep protection and dated Settings observations. The remaining recovery gates
 below still block complete beta acceptance.
+R060r permits independent ready work after verified task-local attention and a
+clean drain, with unresolved tasks retained and shared failures still closing
+the Arena. Schema eighteen protects that new policy from older bundles.
 R060j adds bounded automatic provider backoff with SQLite-owned waits and fresh
 attempts, inside the existing retry budget; interrupted/native recovery remains open.
 
@@ -608,8 +611,12 @@ Depends on R050.
   admission; never blindly replay uncertain work.
 - [ ] Reconcile actual sleep/wake and resource leases, preserve active/wall
   accounting, and verify the idle-sleep assertion during physical sleep drills.
-- [ ] Classify task-local versus Arena-wide blockers; continue independent work
-  when safe and present the smallest actionable attention request.
+- [x] R060r classifies verified task blockers/exhausted task review separately from
+  shared/uncertain failures. Drain current stages, continue ready independent work
+  with exact evidence/bindings/limits, retain unresolved tasks/dependents and show
+  compact task/Arena attention. Pause/restart still require explicit Resume and
+  final completion waits for decisions. Real-provider acceptance remains open.
+  [Task/evidence](../tasks/R060r-task-local-blockers.md).
 - [ ] Preserve input/focus and reconnect both UI and workers safely.
 
 Acceptance: crash before/after launch and integration, lost transport, rate-limit

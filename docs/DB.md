@@ -1,5 +1,14 @@
 # Data model
 
+R060r adds forward-only migration eighteen: `battle_attempts_blocked_task` refuses
+running claims on `needs_attention` tasks under the new frozen blocker policy.
+Its schema version also makes older bundles refuse startup. Back up before
+upgrade; schema-seventeen copy/backup and old-bundle refusal are verified.
+Existing battle context stores exact task/attempt/stage/reason references in
+`task_blocks`, with task-blocked and independent-continuation events in the same
+immediate settlement transaction. Receipts, criteria and interrupted history are
+never rewritten. Clearing a resolved block changes its projection, not its audit.
+
 R020s adds no migration (schema seventeen). Existing isolation requests now freeze
 the selected connection's actual observed version in their existing version field.
 Native success reports that exact cohort; settlement rejects another supported

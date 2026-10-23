@@ -1,7 +1,7 @@
 defmodule Cuckoding.BattleFixtures do
   @moduledoc false
   import ExUnit.Assertions
-  alias Cuckoding.Battles.Attempt
+  alias Cuckoding.Battles.{Attempt, Battle, Snapshot, Task}
 
   alias Cuckoding.{
     Battles,
@@ -78,6 +78,36 @@ defmodule Cuckoding.BattleFixtures do
 
     {:ok, battle} =
       Battles.start(Ecto.UUID.generate(), board.arena_id, board.id, preview.fingerprint, true)
+
+    battle
+  end
+
+  def start_legacy(board, omitted) do
+    {:ok, preview} = Battles.preview(board.arena_id, board.id)
+    assert preview.blockers == []
+    snapshot = Map.drop(preview.snapshot, omitted)
+
+    battle =
+      Repo.insert!(%Battle{
+        id: Ecto.UUID.generate(),
+        arena_id: board.arena_id,
+        tabula_id: board.id,
+        snapshot: snapshot,
+        fingerprint: Snapshot.digest(snapshot),
+        state: "running",
+        stage: "admission",
+        deadline_at: DateTime.add(DateTime.utc_now(), 7200)
+      })
+
+    for {task, position} <- Enum.with_index(snapshot["tasks"]) do
+      Repo.insert!(%Task{
+        id: Ecto.UUID.generate(),
+        battle_id: battle.id,
+        task_id: task["id"],
+        position: position,
+        snapshot: task
+      })
+    end
 
     battle
   end

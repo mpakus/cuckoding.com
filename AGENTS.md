@@ -159,6 +159,20 @@ unknown/malformed variants stay generic. This adds no tool/provider grant, new
 runtime baseline, account substitution or real-provider acceptance. Cursor and
 broader rate-limit conformance remain open.
 
+R060r freezes `blocker_scope: task-local-continuation-v1` in new Starts. Only exact
+validated provider `blocked` or exhausted task Secutor review, with verified
+cleanup, may retain task-local attention and permit independent work after all
+current workers drain. Revalidate the immutable attempt, receipt, binding, limits
+and deadline; neither UI metadata nor missing processes prove this boundary.
+Keep blocked tasks/dependents unresolved and every edit/receipt; final review
+waits for explicit decisions. User Pause holds a clean boundary for explicit
+Resume, restart never auto-resumes, and shared/native/auth/transport/policy/timing/
+uncertain failures still stop the Arena. Prioritize those failures in attention.
+Retry/Skip stay separate and revision-guarded; no implicit omission or reset of
+lifetime counters. Back up before migration eighteen; its claim trigger and
+startup version fence keep old bundles from running blocked lanes. No new native
+grant, provider or account fallback; real-provider acceptance remains open.
+
 R060c freezes `task_selection: skip-task-v1` in new Starts. Skip confirms the exact
 current task/control revision at a clean paused boundary or settled task-local
 provider block/transient failure/review exhaustion. Verify cleanup, bindings and

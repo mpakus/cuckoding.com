@@ -1,5 +1,13 @@
 # Security contract
 
+R060r continuation consumes only the original frozen Start authority. Classification
+uses an exact validated provider outcome and verified cleanup, not report text or
+UI metadata. Revalidate the bound immutable attempt and all shared gates after
+the drain. Never accept its rejected candidate, omit criteria, release uncertain
+ownership or advance blocked dependents. Shared/unknown failures remain Arena-wide.
+New policy/compatibility migration and existing session/control guards preserve
+historical scope. No new native/provider grant or account substitution.
+
 R050g custom stages require the exact versioned Start policy and explicitly saved
 board-team roles. They retain native read-only host tools; write access, edit-file
 receipts, role/model drift and over-512-byte findings are rejected. Only selected

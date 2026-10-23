@@ -9,6 +9,7 @@ defmodule Cuckoding.Battles.Snapshot do
     ProviderClosure,
     Slots,
     Stages,
+    TaskBlocks,
     Waves
   }
 
@@ -101,6 +102,7 @@ defmodule Cuckoding.Battles.Snapshot do
       "provider_backoff" => Backoff.policy(),
       "scheduler" => Capacity.policy(),
       "parallelism" => Waves.policy(),
+      "blocker_scope" => TaskBlocks.policy(),
       "role_slots" => Slots.policy(),
       "custom_stages" =>
         if(board.definition["version"] == 4, do: Stages.writer_policy(), else: Stages.policy()),

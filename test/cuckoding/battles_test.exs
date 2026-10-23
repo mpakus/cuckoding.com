@@ -324,12 +324,12 @@ defmodule Cuckoding.BattlesTest do
     assert Battles.skip_preview(Battles.get(battle.id)) == []
   end
 
-  test "Skip supports blocked criteria and exhausted task review without resetting counters",
+  test "historical Skip supports blocked criteria and exhausted review without resetting counters",
        ctx do
     independent = save_task(ctx.board, "Independent", [])
 
     for outcome <- ["blocked", "changes_requested"] do
-      battle = start(ctx.board) |> until_stage("secutor")
+      battle = start_legacy(ctx.board, ["blocker_scope"]) |> until_stage("secutor")
 
       if outcome == "changes_requested" do
         task = hd(Battles.tasks(battle.id))

@@ -16,6 +16,7 @@ defmodule Cuckoding.Battles do
     Snapshot,
     Stages,
     Task,
+    TaskBlocks,
     Waves
   }
 
@@ -421,9 +422,11 @@ defmodule Cuckoding.Battles do
 
       true ->
         complete_attempt(battle, attempt, result)
+        |> TaskBlocks.retain(attempt)
         |> finish_pause()
         |> focus_wave()
         |> schedule_backoff(Waves.backoff_origin(battle), now)
+        |> continue_independent(now)
     end
   end
 
@@ -614,7 +617,13 @@ defmodule Cuckoding.Battles do
     if state == "paused" and not quiescent?(battle) do
       attention(battle, "cleanup_uncertain")
     else
-      battle = update(battle, state: state, control_revision: battle.control_revision + 1)
+      battle =
+        update(battle,
+          state: state,
+          context: TaskBlocks.pause_context(battle),
+          control_revision: battle.control_revision + 1
+        )
+
       record(battle, "pause_requested", %{"control_revision" => battle.control_revision})
       if state == "paused", do: record(battle, "paused")
       battle
@@ -654,10 +663,18 @@ defmodule Cuckoding.Battles do
 
   defp resume_current(battle) do
     battle =
-      update(battle, state: "running", reason: nil, control_revision: battle.control_revision + 1)
+      update(battle,
+        state: "running",
+        reason: nil,
+        context: TaskBlocks.resume_context(battle.context),
+        control_revision: battle.control_revision + 1
+      )
 
     record(battle, "resumed", %{"control_revision" => battle.control_revision})
-    battle
+
+    if TaskBlocks.enabled?(battle.snapshot) and Waves.blocked?(battle),
+      do: next_task(battle),
+      else: battle
   end
 
   defp finish_pause(%Battle{state: "pausing"} = battle) do
@@ -665,7 +682,8 @@ defmodule Cuckoding.Battles do
       running_attempt(battle.id) ->
         battle
 
-      Waves.enabled?(battle.snapshot) and Waves.blocked?(battle) ->
+      Waves.enabled?(battle.snapshot) and Waves.blocked?(battle) and
+          not (battle.context["task_block_user_pause"] == true and TaskBlocks.local_only?(battle)) ->
         update(battle, state: "needs_attention")
 
       quiescent?(battle) ->
@@ -687,7 +705,8 @@ defmodule Cuckoding.Battles do
   end
 
   defp settled?(battle, attempt) do
-    reconciled?(battle, attempt) or Waves.conflict_settled?(battle, attempt) or
+    TaskBlocks.settled?(battle, attempt) or reconciled?(battle, attempt) or
+      Waves.conflict_settled?(battle, attempt) or
       (attempt.result["cleanup_verified"] == true and
          (attempt.state == "completed" or
             (attempt.state == "failed" and
@@ -733,6 +752,51 @@ defmodule Cuckoding.Battles do
   end
 
   defp schedule_backoff(battle, _, _), do: battle
+
+  defp continue_independent(%Battle{state: "needs_attention"} = battle, now) do
+    cond do
+      not independent_boundary?(battle) ->
+        battle
+
+      expired?(battle.deadline_at, now) ->
+        needs_attention(battle, "deadline_exceeded")
+
+      battle.turns_used >= battle.snapshot["limits"]["turns"] ->
+        needs_attention(battle, "turn_limit")
+
+      not current_team?(battle) ->
+        needs_attention(battle, "resume_binding_changed")
+
+      true ->
+        continue_ready_tasks(battle)
+    end
+  end
+
+  defp continue_independent(battle, _), do: battle
+
+  defp independent_boundary?(battle),
+    do:
+      TaskBlocks.local_only?(battle) and battle.context["task_block_user_pause"] != true and
+        not Backoff.pending?(battle) and not timing_blocked?(battle) and quiescent?(battle) and
+        Waves.work_available?(battle)
+
+  defp continue_ready_tasks(battle) do
+    battle =
+      update(battle,
+        state: "running",
+        reason: nil,
+        control_revision: battle.control_revision + 1,
+        context: Map.delete(battle.context, "wave_failure_drain")
+      )
+      |> next_task()
+
+    record(battle, "independent_work_continued", %{
+      "blocked_task_ids" => Map.keys(battle.context["task_blocks"]),
+      "control_revision" => battle.control_revision
+    })
+
+    battle
+  end
 
   defp claim_backoff(battle, now) do
     {:ok, due, 0} = Backoff.due_at(battle)
@@ -873,6 +937,7 @@ defmodule Cuckoding.Battles do
         control_revision: battle.control_revision + 1,
         context:
           battle.context
+          |> TaskBlocks.resume_context()
           |> Map.delete("provider_backoff")
           |> Map.put("provider_retries", retried(battle) ++ [attempt.id])
       )
@@ -993,6 +1058,8 @@ defmodule Cuckoding.Battles do
         "skipped_attempts",
         Enum.uniq((battle.context["skipped_attempts"] || []) ++ failed)
       )
+
+    context = if battle.state == "paused", do: context, else: TaskBlocks.resume_context(context)
 
     battle =
       update(battle,

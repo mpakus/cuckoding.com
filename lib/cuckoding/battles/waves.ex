@@ -1,6 +1,16 @@
 defmodule Cuckoding.Battles.Waves do
   @moduledoc "Two independent implementation lanes, followed by serialized review/integration."
-  alias Cuckoding.Battles.{Attempt, Battle, ProviderClosure, Receipts, Slots, Stages, Task}
+  alias Cuckoding.Battles.{
+    Attempt,
+    Battle,
+    ProviderClosure,
+    Receipts,
+    Slots,
+    Stages,
+    Task,
+    TaskBlocks
+  }
+
   alias Cuckoding.{Event, Repo}
   import Ecto.Query
 
@@ -13,13 +23,24 @@ defmodule Cuckoding.Battles.Waves do
   def stage(task), do: task.context["lane_stage"]
   def active(tasks), do: Enum.filter(tasks, &(stage(&1) && &1.state not in @terminal))
 
+  defp runnable(battle, tasks),
+    do:
+      Enum.reject(active(tasks), fn task ->
+        TaskBlocks.enabled?(battle.snapshot) and task.state == "needs_attention"
+      end)
+
+  def work_available?(battle) do
+    all = tasks(battle.id)
+    runnable(battle, all) != [] or ready_tasks(all) != []
+  end
+
   def view(%Battle{} = battle, %Attempt{task_id: nil}), do: battle
 
   def view(%Battle{} = battle, %Attempt{} = attempt),
     do: %{battle | current_task_id: attempt.task_id, stage: attempt.stage}
 
   def candidates(battle, tasks, running) do
-    lanes = active(tasks)
+    lanes = runnable(battle, tasks)
     pipeline = Enum.filter(lanes, &pipeline?(stage(&1)))
     busy = Enum.map(running, & &1.task_id)
 
@@ -169,23 +190,30 @@ defmodule Cuckoding.Battles.Waves do
     remaining = Enum.reject(tasks, &(&1.state in @terminal))
 
     cond do
-      active(tasks) != [] -> focus(battle, true)
+      runnable(battle, tasks) != [] -> focus(battle, true)
       remaining == [] -> finish_tasks(battle, tasks, final_stage)
       true -> open_wave(battle, tasks)
     end
   end
 
   defp open_wave(battle, tasks) do
+    ready = tasks |> ready_tasks() |> Enum.take(2)
+
+    if ready == [] and TaskBlocks.enabled?(battle.snapshot) and blocked?(battle),
+      do: battle |> change(state: "needs_attention") |> focus(),
+      else: start_wave(battle, ready)
+  end
+
+  defp ready_tasks(tasks) do
     completed = for task <- tasks, task.state == "completed", do: task.task_id
 
-    ready =
-      tasks
-      |> Enum.filter(fn task ->
-        task.state == "pending" and
-          Enum.all?(task.snapshot["depends_on"] || [], &(&1 in completed))
-      end)
-      |> Enum.take(2)
+    Enum.filter(tasks, fn task ->
+      task.state == "pending" and
+        Enum.all?(task.snapshot["depends_on"] || [], &(&1 in completed))
+    end)
+  end
 
+  defp start_wave(battle, ready) do
     if ready == [], do: Repo.rollback(:invalid_dependencies)
     wave = (battle.context["wave"] || 0) + 1
 
@@ -258,9 +286,26 @@ defmodule Cuckoding.Battles.Waves do
   end
 
   defp ordinary_focus(battle, tasks, blockers, accepted_transition?) do
-    if not accepted_transition? and battle.state == "needs_attention" and blockers == %{},
-      do: nil,
-      else: Enum.find(tasks, &Map.has_key?(blockers, &1.task_id)) || List.first(active(tasks))
+    cond do
+      TaskBlocks.enabled?(battle.snapshot) and battle.state == "running" ->
+        List.first(runnable(battle, tasks))
+
+      not accepted_transition? and battle.state == "needs_attention" and blockers == %{} ->
+        nil
+
+      true ->
+        attention_task(battle, tasks, blockers)
+    end
+  end
+
+  defp attention_task(battle, tasks, blockers) do
+    blocked = Enum.filter(tasks, &Map.has_key?(blockers, &1.task_id))
+
+    shared =
+      if TaskBlocks.enabled?(battle.snapshot),
+        do: Enum.find(blocked, &(not TaskBlocks.local_task?(battle, &1.task_id)))
+
+    shared || List.first(blocked) || List.first(active(tasks))
   end
 
   def block(battle, reason) do
@@ -289,8 +334,19 @@ defmodule Cuckoding.Battles.Waves do
     transaction!()
     blockers = Map.drop(battle.context["lane_blockers"] || %{}, task_ids)
     context = Map.put(battle.context, "lane_blockers", blockers)
+
+    context =
+      if TaskBlocks.enabled?(battle.snapshot),
+        do: TaskBlocks.clear(context, task_ids),
+        else: context
+
     context = if blockers == %{}, do: Map.delete(context, "wave_failure_drain"), else: context
-    state = if blockers == %{}, do: battle.state, else: "needs_attention"
+
+    state =
+      if blockers == %{} or (TaskBlocks.enabled?(battle.snapshot) and battle.state == "paused"),
+        do: battle.state,
+        else: "needs_attention"
+
     battle |> change(state: state, context: context) |> focus()
   end
 

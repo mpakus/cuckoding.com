@@ -200,7 +200,7 @@ defmodule Cuckoding.BattleCapacityMigrationTest do
     MigrationRepo.query!("VACUUM INTO ?", [backup])
     File.chmod!(backup, 0o600)
 
-    assert Ecto.Migrator.run(MigrationRepo, path, :up, all: true, log: false) == [
+    assert Ecto.Migrator.run(MigrationRepo, path, :up, to: 20_261_023_000_000, log: false) == [
              20_261_023_000_000
            ]
 
@@ -221,6 +221,54 @@ defmodule Cuckoding.BattleCapacityMigrationTest do
     )
 
     assert length(Ecto.Migrator.migrated_versions(MigrationRepo)) == 16
+    assert Map.new(tables, &{&1, MigrationRepo.query!("SELECT * FROM " <> &1).rows}) == facts
+    assert [["ok"]] = MigrationRepo.query!("PRAGMA integrity_check").rows
+    assert [] == MigrationRepo.query!("PRAGMA foreign_key_check").rows
+  end
+
+  test "task-block admission upgrades a backed-up seventeen-schema copy without changing facts" do
+    root = "/private/tmp/cuckoding-task-block-migration-#{Ecto.UUID.generate()}"
+    File.mkdir!(root)
+    File.chmod!(root, 0o700)
+    on_exit(fn -> File.rm_rf!(root) end)
+    database = Path.join(root, "prior.sqlite3")
+    backup = Path.join(root, "before-upgrade.sqlite3")
+
+    start_supervised!(
+      {MigrationRepo, database: database, pool: DBConnection.ConnectionPool, pool_size: 1}
+    )
+
+    path = Application.app_dir(:cuckoding, "priv/repo/migrations")
+
+    assert length(Ecto.Migrator.run(MigrationRepo, path, :up, to: 20_261_023_000_000, log: false)) ==
+             17
+
+    tables = legacy_claim_rows()
+    facts = Map.new(tables, &{&1, MigrationRepo.query!("SELECT * FROM " <> &1).rows})
+    MigrationRepo.query!("VACUUM INTO ?", [backup])
+    File.chmod!(backup, 0o600)
+
+    assert Ecto.Migrator.run(MigrationRepo, path, :up, all: true, log: false) == [
+             20_261_023_010_000
+           ]
+
+    assert Map.new(tables, &{&1, MigrationRepo.query!("SELECT * FROM " <> &1).rows}) == facts
+    assert [["ok"]] = MigrationRepo.query!("PRAGMA integrity_check").rows
+    assert [] == MigrationRepo.query!("PRAGMA foreign_key_check").rows
+
+    assert [[sql]] =
+             MigrationRepo.query!(
+               "SELECT sql FROM sqlite_master WHERE type='trigger' AND name='battle_attempts_blocked_task'"
+             ).rows
+
+    assert sql =~ "task-local-continuation-v1" and sql =~ "needs_attention"
+    stop_supervised!(MigrationRepo)
+
+    start_supervised!(
+      {MigrationRepo, database: backup, pool: DBConnection.ConnectionPool, pool_size: 1}
+    )
+
+    assert length(Ecto.Migrator.migrated_versions(MigrationRepo)) == 17
     assert Map.new(tables, &{&1, MigrationRepo.query!("SELECT * FROM " <> &1).rows}) == facts
     assert [["ok"]] = MigrationRepo.query!("PRAGMA integrity_check").rows
     assert [] == MigrationRepo.query!("PRAGMA foreign_key_check").rows
