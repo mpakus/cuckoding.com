@@ -115,6 +115,50 @@ defmodule CuckodingWeb.BattleLiveTest do
     assert has_element?(view, "#planning-role option", "Read-only researcher")
   end
 
+  test "task-local attention stays compact while shared failures stop the Arena", ctx do
+    alias Cuckoding.BattleFixtures, as: Fixtures
+    Fixtures.save_task(ctx.board, "Independent task", [])
+    battle = Fixtures.start(ctx.board)
+    {:ok, admission} = Battles.claim_next(battle.id)
+    {:ok, _} = Battles.finish(admission.id, admission.claim_token, Fixtures.result(admission))
+    {:ok, first} = Battles.claim_next(battle.id)
+    {:ok, sibling} = Battles.claim_next(battle.id)
+    {:ok, _} = Battles.finish(first.id, first.claim_token, Fixtures.result(first))
+    {:ok, coordinator} = Battles.claim_next(battle.id)
+
+    {:ok, _} =
+      Battles.finish(coordinator.id, coordinator.claim_token, Fixtures.result(coordinator))
+
+    {:ok, speculator} = Battles.claim_next(battle.id)
+
+    blocked =
+      Fixtures.result(speculator)
+      |> Map.put("status", "blocked")
+      |> put_in(["provider", "report", "outcome"], "blocked")
+
+    {:ok, _} = Battles.finish(speculator.id, speculator.claim_token, blocked)
+    {:ok, _} = Battles.finish(sibling.id, sibling.claim_token, Fixtures.result(sibling))
+
+    {:ok, view, _} = ctx.conn |> sign_in() |> live(ctx.path)
+    assert has_element?(view, "#battle-task-blocks summary", "1 task")
+    assert has_element?(view, "#battle-task-blocks [role=status]", "Independent tasks continue")
+    assert has_element?(view, "#battle-task-blocks li", "First task")
+    refute has_element?(view, "#battle-activity [role=alert]", "Arena needs attention")
+
+    {:ok, next} = Battles.claim_next(battle.id)
+
+    failed =
+      Fixtures.result(next, %{
+        "status" => "failed",
+        "reason" => "not_connected",
+        "provider" => %{"status" => "not_connected"}
+      })
+
+    {:ok, _} = Battles.finish(next.id, next.claim_token, failed)
+    assert render(view) =~ "Arena needs attention"
+    refute has_element?(view, "#battle-task-blocks [role=status]", "Independent tasks continue")
+  end
+
   test "keyboard submission freezes one scope without checkboxes or a preview ceremony", ctx do
     %{conn: conn, path: path, arena: arena, board: board} = ctx
     signed = sign_in(conn)

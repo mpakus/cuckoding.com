@@ -1,9 +1,15 @@
 # Development
 
+The current preview requires schema eighteen (R060r). Back up before upgrading;
+older bundles refuse this schema before dispatch. New Starts may continue ready
+independent tasks after verified task-local blockers and a clean worker drain.
+Blocked tasks/dependents remain unfinished; shared failures stop the Arena.
+Pause/restart still require Resume. [Evidence](../tasks/R060r-task-local-blockers.md).
+
 R060o requires a rebuilt native helper for the fixed candidate-recovery read.
 New Starts may recover complete retained capture/preparation checkpoints after
 restart; Inspect shows dated observations and Resume stays explicit. This changes
-no schema beyond seventeen. Missing proof stays blocked; no edits/capture/provider
+no schema itself. Missing proof stays blocked; no edits/capture/provider
 turns are replayed. Physical sleep and broader recovery still need acceptance.
 
 For optional custom stages (R050h), add roles in the exact board's Team,

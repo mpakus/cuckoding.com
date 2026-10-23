@@ -2,7 +2,7 @@ defmodule CuckodingWeb.BattleComponent do
   @moduledoc false
   use CuckodingWeb, :live_component
   alias Cuckoding.Battles
-  alias Cuckoding.Battles.{Backoff, Slots, Stages, Waves}
+  alias Cuckoding.Battles.{Backoff, Slots, Stages, TaskBlocks, Waves}
 
   @impl true
   def mount(socket) do
@@ -625,6 +625,17 @@ defmodule CuckodingWeb.BattleComponent do
     assigns = assign(assigns, attempt: attempt, waiting: waiting)
 
     assigns =
+      assign(
+        assigns,
+        :task_blocks,
+        if(assigns.battle,
+          do:
+            Enum.filter(assigns.battle_tasks, &TaskBlocks.local_task?(assigns.battle, &1.task_id)),
+          else: []
+        )
+      )
+
+    assigns =
       assign(assigns, :binding, if(assigns.battle, do: binding(assigns.battle, assigns.attempt)))
 
     assigns =
@@ -678,6 +689,28 @@ defmodule CuckodingWeb.BattleComponent do
           )} deferred · these tasks remain unfinished.
         </p>
         <p :if={@current_task} class="fine-print">Current task: {@current_task.snapshot["title"]}</p>
+        <details
+          :if={@task_blocks != []}
+          id="battle-task-blocks"
+          phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
+        >
+          <summary>
+            {length(@task_blocks)} {if length(@task_blocks) == 1, do: "task needs", else: "tasks need"} attention
+          </summary>
+          <p :if={@battle.state == "running"} role="status">
+            Independent tasks continue. Blocked tasks and their dependents stay unfinished.
+          </p>
+          <p :if={@battle.state != "running"}>
+            Blocked tasks stay unfinished. Review the task evidence before choosing Skip or Stop.
+          </p>
+          <ul>
+            <li :for={task <- @task_blocks}>
+              {task.snapshot["title"]} · {message(
+                @battle.context["task_blocks"][task.task_id]["reason"]
+              )}
+            </li>
+          </ul>
+        </details>
         <p class="fine-print">
           {role_name(if(@attempt, do: @attempt.role))} · {if @binding,
             do: "#{@binding["kind"]} · requested model #{@binding["model"]}",
@@ -753,6 +786,11 @@ defmodule CuckodingWeb.BattleComponent do
           >Cancel automatic retry</button>
         </div>
         <p :if={@battle.state == "needs_attention" && !@waiting} role="alert" class="notice">
+          <strong :if={TaskBlocks.enabled?(@battle.snapshot)}>
+            {if @task_blocks != [] and TaskBlocks.local_task?(@battle, @battle.current_task_id),
+              do: "Task needs attention · ",
+              else: "Arena needs attention · "}
+          </strong>
           {message(@battle.reason)}
         </p>
         <p :if={@battle.state == "completed"} id="battle-result">

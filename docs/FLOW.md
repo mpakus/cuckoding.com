@@ -1,5 +1,11 @@
 # Workflow contract
 
+With R060r new Starts, verified task-local blockers keep their cards unfinished
+while independent ready work continues after a clean worker drain. Dependents wait;
+shared/uncertain failures stop the Arena. Pause/restart still require Resume.
+Final review waits for every task's completion or explicit Skip/defer decisions.
+The existing single Start and frozen criteria/bindings/budgets remain unchanged.
+
 The normal Arena journey is **Add folder → Create tasks → Start**. Agents and
 Team are reusable setup, not steps repeated for each project or card.
 [Product](PRODUCT.md) owns the story; [UI](UI_DASHBOARD.md) owns the screens.

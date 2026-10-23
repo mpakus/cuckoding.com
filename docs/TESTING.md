@@ -1,5 +1,14 @@
 # Verification and acceptance
 
+R060r tests exact task-local receipts, independent waves, blocked dependencies,
+mandatory explicit Skip/Partial, shared-failure priority, cleanup/binding/budget
+refusal, Pause/Resume, settled/interrupted restart, audit rollback, DB claim guard
+and supervised asynchronous dispatch. LiveView distinguishes task/Arena attention.
+The schema-seventeen copy/backup upgrade preserves facts; a retained older sealed
+bundle refuses schema eighteen with the exact newer-schema startup error.
+The cleanup-gate mutation fails its regression; restored source passes. These
+fixtures are separate from real-provider battle/recovery acceptance.
+
 R050i's trusted disposable Darwin probe observed child session/group escape under
 deny-default Seatbelt with fork enabled, while its file-write canary refused.
 All three children exited and were waited/reaped. This negative containment

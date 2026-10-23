@@ -1,5 +1,13 @@
 # Architecture
 
+R060r `Battles.TaskBlocks` binds task-local attention to an immutable validated
+attempt/receipt. Battles owns settlement, controls, cleanup/deadline/binding gates
+and transactional continuation; Waves excludes blocked lanes and opens only ready
+independent work. The existing supervised runner dispatches those claims without
+new mailbox loops or tools. LiveView projects task/Arena attention; it cannot grant
+continuation. Migration eighteen prevents old bundles and direct blocked-task
+claims. [Decision](DECISIONS.md#d052--verified-task-local-attention-may-permit-independent-work).
+
 R020s separates exact Codex setup and execution cohorts. Native `codex_versions`
 is shared by OS diagnostics/checks; host Codex exposes the matching bounded list.
 Isolation captures the selected connection's actual version and settlement binds

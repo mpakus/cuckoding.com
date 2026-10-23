@@ -107,9 +107,9 @@ No custom stage can run commands or grant completion. The whole task retains the
 old battles keep their original workflow and grants. These local fixtures/native
 checks still need real-account custom-stage acceptance.
 
-Back up before upgrading. The seventeenth forward-only migration indexes writer
-checkpoints and prevents schema-sixteen bundles from interpreting the new policy.
-Older bundles refuse the upgraded database before dispatch.
+Back up before upgrading. The current schema is eighteen: writer checkpoints from
+seventeen remain intact, with an additional blocked-task admission guard. Older
+bundles refuse the upgraded database before dispatch.
 
 New agents start with an editable name and an executable path detected from known
 install locations when available. Cursor's
@@ -195,6 +195,12 @@ stage. **Resume** keeps the same team, work and limits; paused time counts towar
 the original deadline. Clean paused battles survive restart. **Stop** cancels
 and waits for cleanup. Interrupted work or uncertain effects require inspection;
 there is no automatic replay. [Pause/Resume evidence](worklog/2026-10-14-R060a-battle-pause-resume.md).
+New battles can keep working on independent tasks when one task reports a verified
+blocker or exhausts its review rounds. Current workers finish and cleanup verifies
+first. The blocked task and its dependents stay unfinished; no task is silently
+skipped. Shared failures stop the Arena. Pause and restart still require Resume.
+Back up before upgrading to schema eighteen; older builds refuse it.
+[Task-local attention](tasks/R060r-task-local-blockers.md).
 **Retained capture after restart.** If capture finished before its response was
 saved, Cuckoding reads its complete original evidence. One/two captures or a mixed
 capture/preparation pair can become one Paused checkpoint after every proof passes.

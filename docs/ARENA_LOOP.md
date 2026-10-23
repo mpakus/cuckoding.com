@@ -1,5 +1,14 @@
 # Sequential Arena execution — implementation decision
 
+R060r new Starts freeze task-local continuation. A validated provider `blocked`
+receipt or exhausted task Secutor review can hold that task while ready independent
+tasks continue, after every current worker verifies cleanup. Blocked prerequisites
+never unlock dependents. All unresolved tasks must receive explicit decisions
+before final review/completion; Skip still produces reviewed Partial output.
+Shared, uncertain and final-stage failures close the Arena. User Pause/restart
+need explicit Resume, with the original deadline, bindings and counters unchanged.
+Older Starts keep their failure behavior; schema eighteen fences older bundles.
+
 R060o adds fixed retained-candidate recovery. New Starts freeze
 `candidate_recovery: retained-candidate-wave-v1`. One/two exact interrupted
 captures or a mixed capture/preparation pair queue exclusive supervised reads.
