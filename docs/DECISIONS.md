@@ -508,3 +508,21 @@ the actual helper and resource-manifest hashes. Never overwrite an older build
 receipt, expose absolute paths/credentials or label an ad-hoc preview notarized.
 Developer ID, clean-machine, update/rollback and real-provider evidence remain
 required separately.
+
+## D048 — Inspect mixed interrupted claims for Stop only
+
+2026-10-23, R060p. New Starts freeze `mixed_closure: retained-mixed-closure-v1`.
+A restart with exactly one interrupted provider claim and one interrupted native
+capture/preparation in different task lanes may retain a Stop-only inspection
+queue. Inspect the provider first using R060l, then the exact native operation
+using R060m/R060o's fixed read. Both original claims, worktrees and edits remain
+immutable; observations are separate and dated. No provider output is recovered,
+no checkpoint/card/head advances and Resume/Retry/Skip remain unavailable.
+
+Only verified closure of every original claim permits confirmed Stop. A failed
+read does not prevent reading the sibling's exact proof, but never proves the
+failed claim closed. Expiry/timing races cannot turn these observations into
+continuation authority. Keep the queue durable across coordinator restart and
+exclusive with ordinary dispatch. Historical snapshots, preexisting Stop/fences,
+other native stages and missing receipts gain no authority. No new native tool,
+provider capability, inference, schema change or process-absence inference.

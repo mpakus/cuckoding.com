@@ -8,6 +8,7 @@ defmodule Cuckoding.Battles do
     Battle,
     CandidateRecovery,
     Capacity,
+    MixedClosure,
     PreparationRecovery,
     ProviderClosure,
     Receipts,
@@ -526,7 +527,8 @@ defmodule Cuckoding.Battles do
         "recovery_attempt_id" =>
           battle.context["integration_recovery_pending"] ||
             battle.context["preparation_recovery_pending"] ||
-            battle.context["candidate_recovery_pending"],
+            battle.context["candidate_recovery_pending"] ||
+            battle.context["mixed_closure_pending"],
         "blocks_continuation" => blocked
       })
 
@@ -1061,7 +1063,8 @@ defmodule Cuckoding.Battles do
 
   defp safe_to_stop?(battle) do
     Enum.all?(attempts(battle.id), fn attempt ->
-      provider_closed?(battle, attempt) or timing_closed?(battle, attempt) or
+      provider_closed?(battle, attempt) or MixedClosure.closed?(battle, attempt) or
+        timing_closed?(battle, attempt) or
         reconciled?(battle, attempt) or
         (attempt.state in ~w(completed failed cancelled expired) and
            attempt.result["cleanup_verified"] == true)
@@ -1138,6 +1141,7 @@ defmodule Cuckoding.Battles do
 
   defp interrupt_wave(battle) do
     {battle, selected} = Waves.interrupt(battle)
+    battle = arm_mixed_closure(battle)
 
     battle =
       if selected && is_nil(battle.context["provider_closure_pending"]),
@@ -1145,6 +1149,20 @@ defmodule Cuckoding.Battles do
         else: battle
 
     needs_attention(battle, "restart_requires_inspection")
+  end
+
+  defp arm_mixed_closure(battle) do
+    unsettled = Enum.reject(attempts(battle.id), &settled?(battle, &1))
+    pair = MixedClosure.pair(battle, unsettled)
+
+    if pair &&
+         Enum.all?(unsettled, &(interrupted_current?(&1) and not timing_fenced?(battle, &1))) do
+      battle = update(battle, context: Map.put(battle.context, "mixed_closure_pair", pair))
+      record(battle, "mixed_closure_queued", pair)
+      battle
+    else
+      battle
+    end
   end
 
   defp interrupt_sequential(battle) do
@@ -1245,7 +1263,8 @@ defmodule Cuckoding.Battles do
            battle.context["provider_closure_pending"] ||
              battle.context["integration_recovery_pending"] ||
              battle.context["preparation_recovery_pending"] ||
-             battle.context["candidate_recovery_pending"],
+             battle.context["candidate_recovery_pending"] ||
+             battle.context["mixed_closure_pending"],
          %Attempt{} = attempt <- Repo.get(Attempt, id),
          true <-
            provider_reconciliation_current?(attempt) or reconciliation_current?(attempt) or
@@ -1274,9 +1293,16 @@ defmodule Cuckoding.Battles do
       when stage in ~w(capture prepare_worktree) do
     battle = get(attempt.battle_id)
 
-    if battle && CandidateRecovery.pending?(battle, attempt),
-      do: reconcile_candidate(attempt, result),
-      else: reconcile_native_recovery(attempt, result)
+    cond do
+      battle && MixedClosure.pending?(battle, attempt) ->
+        reconcile_mixed_closure(attempt, result)
+
+      battle && CandidateRecovery.pending?(battle, attempt) ->
+        reconcile_candidate(attempt, result)
+
+      true ->
+        reconcile_native_recovery(attempt, result)
+    end
   end
 
   def reconcile_recovery(attempt, result), do: reconcile_native_recovery(attempt, result)
@@ -1300,7 +1326,8 @@ defmodule Cuckoding.Battles do
   def candidate_reconciliation_current?(%Attempt{} = attempt) do
     case get(attempt.battle_id) do
       %Battle{reason: "restart_requires_inspection"} = battle ->
-        CandidateRecovery.pending?(battle, attempt) and interrupted_current?(attempt)
+        (CandidateRecovery.pending?(battle, attempt) or MixedClosure.pending?(battle, attempt)) and
+          interrupted_current?(attempt)
 
       _ ->
         false
@@ -1342,6 +1369,41 @@ defmodule Cuckoding.Battles do
       })
 
       finish_candidate_recovery(battle, now)
+    end)
+  end
+
+  def reconcile_mixed_closure(attempt, result, now \\ DateTime.utc_now()) do
+    transaction(fn ->
+      battle = get(attempt.battle_id)
+
+      unless battle && MixedClosure.pending?(battle, attempt) && interrupted_current?(attempt),
+        do: Repo.rollback(:stale_reconciliation)
+
+      unless Receipts.bound?(attempt, result), do: Repo.rollback(:foreign_result)
+      verified = CandidateRecovery.verified?(attempt, result)
+
+      unless verified or CandidateRecovery.failed?(attempt, result),
+        do: Repo.rollback(:invalid_result)
+
+      observation = %{"receipt" => result, "observed_at" => DateTime.to_iso8601(now)}
+
+      context =
+        battle.context
+        |> Map.delete("mixed_closure_pending")
+        |> Map.update(
+          "mixed_closures",
+          %{attempt.id => observation},
+          &Map.put(&1, attempt.id, observation)
+        )
+
+      battle = update(battle, context: context, control_revision: battle.control_revision + 1)
+
+      record(battle, "mixed_closure_observed", %{
+        "attempt_id" => attempt.id,
+        "cleanup_verified" => verified
+      })
+
+      battle
     end)
   end
 
@@ -1544,7 +1606,16 @@ defmodule Cuckoding.Battles do
         "cleanup_verified" => verified
       })
 
-      Waves.advance_provider_queue(battle, attempt.id)
+      battle = Waves.advance_provider_queue(battle, attempt.id)
+
+      if native = MixedClosure.next(battle, attempt.id),
+        do:
+          update(battle,
+            context: Map.put(battle.context, "mixed_closure_pending", native.id),
+            current_task_id: native.task_id,
+            stage: native.stage
+          ),
+        else: battle
     end)
   end
 

@@ -1,5 +1,12 @@
 # Verification and acceptance
 
+R060p fixtures cover provider-plus-capture/preparation closure, both proof gates,
+missing/foreign/false proof, immutable claims/tasks/head/budgets/deadlines, expiry/
+timing Stop-only races, historical-policy refusal and coordinator loss between
+exclusive reads. LiveView verifies dated public observations, raw-data exclusion,
+scope and reconnect without Start/Resume. These do not prove real-provider crash
+recovery, physical sleep or missing-receipt reconstruction.
+
 R100b covers closed public build fields, unknown/secret canaries, exact compiled
 UUID/digest, missing/foreign/oversized/linked release metadata, input byte/mode/new
 file drift and generated-output/receipt guards. Packaged probes refuse before

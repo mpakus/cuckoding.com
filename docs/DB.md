@@ -1,5 +1,11 @@
 # Data model
 
+R060p adds no migration (schema seventeen). New snapshots freeze `mixed_closure:
+retained-mixed-closure-v1`. Context retains the exact provider/native IDs, one
+pending native read and dated `mixed_closures` receipts. Existing provider closure
+observations keep their format. Original Interrupted attempts/tasks/head stay
+unchanged; these observations support Stop only, not settled-work/Resume authority.
+
 R060o adds no migration (schema seventeen). New immutable snapshots add
 `candidate_recovery: retained-candidate-wave-v1`. Durable
 `candidate_recovery_wave` membership and `candidate_recovery_pending` queue exact

@@ -853,6 +853,67 @@ defmodule CuckodingWeb.BattleLiveTest do
     refute render(other) =~ "battle-preparation-reconciliation-#{id}"
   end
 
+  test "mixed native closure is dated, private and Stop-only through reconnect", ctx do
+    signed = sign_in(ctx.conn)
+    {:ok, view, _} = live(signed, ctx.path)
+    view |> form("#battle-start-form") |> render_submit()
+    battle = Battles.latest(ctx.arena.id, ctx.board.id)
+    id = Ecto.UUID.generate()
+
+    battle =
+      Repo.update!(
+        Ecto.Changeset.change(battle,
+          state: "needs_attention",
+          reason: "restart_requires_inspection",
+          context: %{"mixed_closure_pending" => id}
+        )
+      )
+
+    Foundation.broadcast()
+
+    assert has_element?(
+             view,
+             "#battle-mixed-closure-pending",
+             "No work will be repeated or accepted"
+           )
+
+    for closed? <- [false, true] do
+      Repo.update!(
+        Ecto.Changeset.change(battle,
+          context: %{
+            "mixed_closures" => %{
+              id => %{
+                "observed_at" => "2026-10-23T12:34:56Z",
+                "receipt" => %{
+                  "cleanup_verified" => closed?,
+                  "raw" => "PRIVATE_MIXED_CLOSURE_CANARY"
+                }
+              }
+            }
+          }
+        )
+      )
+
+      Foundation.broadcast()
+      selector = "#battle-mixed-closure-#{id}"
+      assert has_element?(view, selector, "2026-10-23T12:34:56Z")
+      assert has_element?(view, selector, if(closed?, do: "Verified", else: "Needs inspection"))
+      assert has_element?(view, selector, "Every claim must verify closure before Stop")
+      refute render(view) =~ "PRIVATE_MIXED_CLOSURE_CANARY"
+      refute has_element?(view, "#battle-resume")
+      refute has_element?(view, "#battle-start-form")
+      {:ok, again, _} = live(signed, ctx.path)
+      assert has_element?(again, selector)
+      refute has_element?(again, "#battle-resume")
+      assert Battles.attempts(battle.id) == []
+    end
+
+    other_arena = Cuckoding.DataCase.arena_fixture()
+    {:ok, board} = Tabulae.create(Ecto.UUID.generate(), other_arena.id, "Other board")
+    {:ok, other, _} = live(signed, "/arenas/#{other_arena.id}/tabulae/#{board.id}")
+    refute render(other) =~ "battle-mixed-closure-#{id}"
+  end
+
   test "provider closure inspection survives reconnect without presenting accepted work", ctx do
     signed = sign_in(ctx.conn)
     {:ok, view, _} = live(signed, ctx.path)
@@ -903,7 +964,10 @@ defmodule CuckodingWeb.BattleLiveTest do
       assert has_element?(
                view,
                "#battle-provider-closure-#{id}",
-               if(verified, do: "You can Stop", else: "could not be verified")
+               if(verified,
+                 do: "Every claim must verify closure before Stop",
+                 else: "could not be verified"
+               )
              )
 
       refute has_element?(view, "#battle-resume")

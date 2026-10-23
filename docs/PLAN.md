@@ -10,8 +10,9 @@ tasks and couples worker/coordinator restarts. R060f commits results before
 coordinator notification; R060g reconciles complete retained native integration
 receipts to a paused checkpoint without replay. R060m/n add retained writer-
 preparation checkpoints; R060o adds capture and mixed capture/preparation
-checkpoints with all-member proof and explicit Resume. Other interrupted native
-effects remain open.
+checkpoints with all-member proof and explicit Resume. R060p adds Stop-only
+inspection of a provider/capture-or-preparation pair; it never accepts either
+interrupted operation. Other interrupted native effects remain open.
 R060h fences new battle work on
 timing gaps and backward clock changes. R060i adds bounded native idle-system
 sleep protection and dated Settings observations. The remaining recovery gates
@@ -580,6 +581,11 @@ Depends on R050.
   commit every next stage together and pause for explicit Resume. Missing proof
   never replays capture; expired/fenced reads permit verified Stop only.
   [Task/evidence](../tasks/R060o-candidate-recovery.md).
+- [x] R060p reads retained closure for one interrupted provider plus a native
+  capture/preparation. Queue provider first and then native in exclusive workers;
+  preserve every Interrupted claim and task/head/budget/deadline. Only all-claim
+  verified closure permits Stop; no Resume/Retry/Skip or work acceptance.
+  [Task/evidence](../tasks/R060p-mixed-closure.md).
 - [ ] Broader interrupted-work recovery with verified process cleanup.
 - [x] R060h timing-gap admission/settlement fence with independent supervised
   clock observation, clean Pause and rejected active receipts; no claim of sleep.

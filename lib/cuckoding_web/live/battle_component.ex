@@ -465,6 +465,29 @@ defmodule CuckodingWeb.BattleComponent do
         </p>
       </article>
       <p
+        :if={@battle.context["mixed_closure_pending"]}
+        id="battle-mixed-closure-pending"
+        class="notice"
+      >
+        Checking the retained native receipt beside the interrupted agent turn. No work will be repeated or accepted.
+      </p>
+      <article
+        :for={{id, observation} <- @battle.context["mixed_closures"] || %{}}
+        id={"battle-mixed-closure-#{id}"}
+        class="team-role"
+      >
+        <h4>
+          Native closure · {if observation["receipt"]["cleanup_verified"] == true,
+            do: "Verified",
+            else: "Needs inspection"}
+        </h4>
+        <p class="fine-print">
+          Observed {observation["observed_at"]} · interrupted attempt: <code>{id}</code>.
+          Its work has not been accepted. Every claim must verify closure before Stop;
+          Resume, Retry and Skip remain unavailable.
+        </p>
+      </article>
+      <p
         :if={@battle.context["provider_closure_pending"]}
         id="battle-provider-closure-pending"
         class="notice"
@@ -485,7 +508,8 @@ defmodule CuckodingWeb.BattleComponent do
           Interrupted attempt: <code>{id}</code>. Its work has not been accepted.
         </p>
         <p :if={receipt["cleanup_verified"] == true}>
-          Retained native evidence verifies closure. You can Stop this run; Resume, Retry and Skip remain unavailable.
+          Retained native evidence verifies this provider's closure. Every claim must verify closure before Stop;
+          Resume, Retry and Skip remain unavailable.
         </p>
         <p :if={receipt["cleanup_verified"] != true}>
           Closure could not be verified. Keep the retained files for inspection; no turn was replayed.

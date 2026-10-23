@@ -13,7 +13,7 @@ defmodule Cuckoding.CandidateRecoveryTest do
     Workflows
   }
 
-  alias Cuckoding.Battles.{Attempt, Battle, Snapshot, Stages, Task}
+  alias Cuckoding.Battles.{Attempt, Battle, MixedClosure, ProviderClosure, Snapshot, Stages, Task}
 
   defmodule ReadGit do
     alias Cuckoding.ArenaGit
@@ -184,6 +184,328 @@ defmodule Cuckoding.CandidateRecoveryTest do
         "inode" => 2
       }
     })
+  end
+
+  defp provider(battle) do
+    {:ok, attempt} = Battles.claim_next(battle.id)
+    if attempt.stage == "implementor", do: attempt, else: provider(finish(attempt))
+  end
+
+  defp mixed(board, kind, legacy? \\ false) do
+    save_task(board, "Independent", [])
+    battle = start(board)
+
+    battle =
+      if legacy? do
+        {:ok, _} = Battles.stop(battle.id)
+        snapshot = Map.delete(battle.snapshot, "mixed_closure")
+
+        legacy =
+          Repo.insert!(%Battle{
+            id: Ecto.UUID.generate(),
+            arena_id: battle.arena_id,
+            tabula_id: battle.tabula_id,
+            state: "running",
+            stage: "admission",
+            snapshot: snapshot,
+            fingerprint: Snapshot.digest(snapshot),
+            deadline_at: battle.deadline_at
+          })
+
+        for task <- Battles.tasks(battle.id),
+            do:
+              Repo.insert!(%Task{
+                id: Ecto.UUID.generate(),
+                battle_id: legacy.id,
+                task_id: task.task_id,
+                position: task.position,
+                state: "pending",
+                snapshot: task.snapshot
+              })
+
+        legacy
+      else
+        battle
+      end
+
+    native =
+      if kind == "capture" do
+        capture(battle)
+      else
+        {:ok, admission} = Battles.claim_next(battle.id)
+        battle = finish(admission)
+        {:ok, preparation} = Battles.claim_next(battle.id)
+        assert preparation.stage == "prepare_worktree"
+        preparation
+      end
+
+    provider = provider(Battles.get(battle.id))
+    {:ok, _} = Battles.recover()
+    {Battles.get(battle.id), Repo.get!(Attempt, provider.id), Repo.get!(Attempt, native.id)}
+  end
+
+  defp provider_observation(attempt, closed? \\ true) do
+    BattleExecutor.reconcile_provider(attempt, fn exact, active? ->
+      assert exact == attempt and active?.()
+
+      ProviderClosure.binding_for(attempt)
+      |> Map.take(~w(attempt_sha256 agent_id kind))
+      |> Map.merge(%{
+        "status" => "provider_closed",
+        "request_id" => attempt.id,
+        "cleanup_verified" => closed?,
+        "pid" => 123,
+        "spawned_at_ms" => 1000,
+        "elapsed_ms" => 20,
+        "receipt_sha256" => String.duplicate("a", 64)
+      })
+    end)
+  end
+
+  test "mixed provider/native closure allows Stop only after both exact proofs, never advancement",
+       ctx do
+    for kind <- ~w(capture prepare_worktree) do
+      {battle, provider, native} = mixed(ctx.board, kind)
+      tasks = Battles.tasks(battle.id)
+      assert MixedClosure.enabled?(battle.snapshot)
+      assert Battles.recovery_attempt() == provider
+      refute Battles.candidate_reconciliation_current?(native)
+      assert {:error, :cleanup_required} = Battles.stop(battle.id)
+
+      assert {:error, :stale_reconciliation} =
+               Battles.reconcile_recovery(native, observation(native))
+
+      {:ok, pending} = Battles.reconcile_recovery(provider, provider_observation(provider))
+      assert pending.state == "needs_attention" and Battles.recovery_attempt() == native
+      assert {:error, :cleanup_required} = Battles.stop(battle.id)
+      assert {:ok, _} = Battles.recover()
+      assert Battles.recovery_attempt() == native
+
+      receipt =
+        if kind == "capture",
+          do: BattleExecutor.reconcile_candidate(native, git: ReadGit),
+          else: BattleExecutor.reconcile_preparation(native, git: ReadGit)
+
+      assert receipt == observation(native)
+      {:ok, retained} = Battles.reconcile_recovery(native, receipt)
+
+      assert retained.state == "needs_attention" and
+               retained.reason == "restart_requires_inspection"
+
+      assert retained.context["head"] == battle.context["head"]
+
+      assert retained.turns_used == battle.turns_used and
+               retained.deadline_at == battle.deadline_at
+
+      assert Battles.tasks(battle.id) == tasks and Battles.recovery_attempt() == nil
+
+      assert Repo.get!(Attempt, provider.id) == provider and
+               Repo.get!(Attempt, native.id) == native
+
+      refute match?({:ok, _}, Battles.resume(battle.id, retained.control_revision))
+      refute match?({:ok, _}, Battles.retry(battle.id, retained.control_revision))
+
+      refute match?(
+               {:ok, _},
+               Battles.skip(battle.id, retained.control_revision, native.task_id, true)
+             )
+
+      assert {:error, :stale_reconciliation} = Battles.reconcile_recovery(native, receipt)
+      assert {:ok, %{state: "stopped"}} = Battles.stop(battle.id)
+    end
+  end
+
+  test "mixed closure retains failures and rejects foreign native proofs without releasing Stop",
+       ctx do
+    {battle, provider, native} = mixed(ctx.board, "capture")
+    {:ok, _} = Battles.reconcile_recovery(provider, provider_observation(provider, false))
+    assert Battles.recovery_attempt() == native
+
+    for path <- [
+          ["request_id"],
+          ["task_id"],
+          ["native_candidate", "key"],
+          ["native_candidate", "worktree_key"]
+        ] do
+      invalid = put_in(observation(native), path, Ecto.UUID.generate())
+      assert {:error, reason} = Battles.reconcile_recovery(native, invalid)
+      assert reason in [:foreign_result, :invalid_result]
+      assert Battles.recovery_attempt() == native
+    end
+
+    {:ok, _} = Battles.reconcile_recovery(native, observation(native))
+    assert {:error, :cleanup_required} = Battles.stop(battle.id)
+    assert Repo.get!(Attempt, native.id) == native
+
+    assert {:error, :stale_reconciliation} =
+             Battles.reconcile_recovery(provider, provider_observation_after(provider))
+  end
+
+  defp provider_observation_after(attempt) do
+    result(attempt, %{"status" => "closed", "cleanup_verified" => true})
+    |> Map.drop(~w(provider candidate_sha))
+  end
+
+  test "missing native proof leaves mixed claims blocked even when provider closure verified",
+       ctx do
+    {battle, provider, native} = mixed(ctx.board, "prepare_worktree")
+    {:ok, _} = Battles.reconcile_recovery(provider, provider_observation(provider))
+    Process.put(:bad_cleanup, true)
+    receipt = BattleExecutor.reconcile_preparation(native, git: ReadGit)
+    Process.delete(:bad_cleanup)
+    assert receipt["cleanup_verified"] == false
+    {:ok, failed} = Battles.reconcile_recovery(native, receipt)
+    assert failed.state == "needs_attention" and Battles.recovery_attempt() == nil
+    assert {:error, :cleanup_required} = Battles.stop(battle.id)
+  end
+
+  test "expired and timing-fenced mixed reads remain Stop-only", ctx do
+    {battle, provider, native} = mixed(ctx.board, "capture")
+    tasks = Battles.tasks(battle.id)
+    {:ok, _} = Battles.reconcile_recovery(provider, provider_observation(provider))
+
+    {:ok, observed} =
+      Battles.reconcile_mixed_closure(native, observation(native), native.deadline_at)
+
+    assert observed.state == "needs_attention" and Battles.tasks(battle.id) == tasks
+    assert {:ok, %{state: "stopped"}} = Battles.stop(battle.id)
+
+    {battle, provider, native} = mixed(ctx.board, "prepare_worktree")
+    tasks = Battles.tasks(battle.id)
+    {:ok, _} = Battles.reconcile_recovery(provider, provider_observation(provider))
+
+    gap =
+      Cuckoding.BattleClock.gap(
+        {DateTime.utc_now(), 0},
+        {DateTime.add(DateTime.utc_now(), -60), 1000}
+      )
+
+    {:ok, _} = Battles.observe_timing_gap(gap)
+    refute Battles.candidate_reconciliation_current?(native)
+    {:ok, observed} = Battles.reconcile_recovery(native, observation(native))
+    assert observed.reason == "timing_gap" and observed.state == "needs_attention"
+    assert Battles.tasks(battle.id) == tasks
+    assert {:ok, %{state: "stopped"}} = Battles.stop(battle.id)
+  end
+
+  test "old snapshots do not acquire mixed native closure authority", ctx do
+    {battle, provider, native} = mixed(ctx.board, "capture", true)
+    refute MixedClosure.enabled?(battle.snapshot)
+    {:ok, _} = Battles.reconcile_recovery(provider, provider_observation(provider))
+    assert Battles.recovery_attempt() == nil
+    refute Battles.candidate_reconciliation_current?(native)
+
+    assert {:error, :stale_reconciliation} =
+             Battles.reconcile_recovery(native, observation(native))
+
+    assert {:error, :cleanup_required} = Battles.stop(battle.id)
+  end
+
+  test "mixed pair admission refuses Stop, foreign scope and different policies",
+       ctx do
+    {battle, provider, native} = mixed(ctx.board, "capture")
+    running = %{battle | state: "running"}
+    assert MixedClosure.pair(running, [native, provider]) == battle.context["mixed_closure_pair"]
+
+    for state <- ~w(stopping stopped needs_attention paused) do
+      refute MixedClosure.pair(%{battle | state: state}, [provider, native])
+    end
+
+    for field <- ~w(mixed_closure parallelism candidate_recovery provider_closure) do
+      refute MixedClosure.pair(%{running | snapshot: Map.delete(running.snapshot, field)}, [
+               provider,
+               native
+             ])
+    end
+
+    refute MixedClosure.pair(running, [provider, %{native | task_id: provider.task_id}])
+    refute MixedClosure.pair(running, [provider, %{native | battle_id: Ecto.UUID.generate()}])
+    refute MixedClosure.pair(running, [provider, %{native | stage: "integrate"}])
+    refute MixedClosure.pair(running, [provider])
+
+    {:ok, _} = Battles.reconcile_recovery(provider, provider_observation(provider))
+    {:ok, retained} = Battles.reconcile_recovery(native, observation(native))
+    assert MixedClosure.closed?(retained, native)
+    foreign = put_in(retained.context, ["mixed_closure_pair", "native_id"], Ecto.UUID.generate())
+    refute MixedClosure.closed?(%{retained | context: foreign}, native)
+  end
+
+  test "a timing fence before restart cannot arm mixed native inspection", ctx do
+    save_task(ctx.board, "Independent", [])
+    battle = start(ctx.board)
+    native = capture(battle)
+    provider = provider(Battles.get(battle.id))
+
+    gap =
+      Cuckoding.BattleClock.gap(
+        {DateTime.utc_now(), 0},
+        {DateTime.add(DateTime.utc_now(), -60), 1000}
+      )
+
+    {:ok, _} = Battles.observe_timing_gap(gap)
+    {:ok, _} = Battles.recover()
+    retained = Battles.get(battle.id)
+    refute retained.context["mixed_closure_pair"]
+    refute Battles.candidate_reconciliation_current?(Repo.get!(Attempt, native.id))
+    assert Battles.recovery_attempt().id == provider.id
+    assert {:error, :cleanup_required} = Battles.stop(battle.id)
+  end
+
+  test "mixed closure queue survives worker/coordinator loss without provider replay", ctx do
+    {battle, provider, native} = mixed(ctx.board, "capture")
+    owner = self()
+
+    reconciler = fn attempt ->
+      send(owner, {:mixed_read, self(), attempt})
+
+      receive do
+        :inspect ->
+          if attempt.role,
+            do: provider_observation(attempt),
+            else: BattleExecutor.reconcile_candidate(attempt, git: ReadGit)
+      end
+    end
+
+    start_supervised!(
+      {ExecutionSupervisor,
+       coordinator: BattleRunner,
+       tasks: Cuckoding.BattleTasks,
+       options: [
+         reconciler: reconciler,
+         executor: fn attempt -> send(owner, {:unexpected_execution, attempt}) end
+       ]}
+    )
+
+    assert_receive {:mixed_read, provider_worker, ^provider}, 1000
+    send(provider_worker, :inspect)
+    assert_receive {:mixed_read, native_worker, ^native}, 1000
+    monitor = Process.monitor(native_worker)
+    Process.exit(Process.whereis(BattleRunner), :kill)
+    assert_receive {:DOWN, ^monitor, :process, ^native_worker, :shutdown}, 1000
+    assert_receive {:mixed_read, replacement, ^native}, 1000
+    send(replacement, :inspect)
+    deadline = System.monotonic_time(:millisecond) + 2000
+    await_closure(battle.id, native.id, deadline)
+    assert Repo.get!(Attempt, provider.id) == provider and Repo.get!(Attempt, native.id) == native
+    assert Battles.get(battle.id).state == "needs_attention"
+
+    assert Enum.count(Battles.evidence(battle.id), &(&1.kind == "battle.mixed_closure_observed")) ==
+             1
+
+    assert {:ok, %{state: "stopped"}} = Battles.stop(battle.id)
+    refute_receive {:mixed_read, _, _}
+    refute_receive {:unexpected_execution, _}
+  end
+
+  defp await_closure(id, attempt_id, deadline) do
+    if Battles.get(id).context["mixed_closures"][attempt_id],
+      do: :ok,
+      else:
+        (
+          assert System.monotonic_time(:millisecond) < deadline
+          Process.sleep(10)
+          await_closure(id, attempt_id, deadline)
+        )
   end
 
   test "complete retained capture becomes a paused next checkpoint without rewriting its attempt",

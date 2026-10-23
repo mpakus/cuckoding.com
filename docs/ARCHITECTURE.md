@@ -1,5 +1,12 @@
 # Architecture
 
+R060p adds `Battles.MixedClosure`: a new immutable Start policy queues exact
+provider-then-native retained reads for one interrupted provider/capture-or-
+preparation pair. Existing BattleRunner supervised workers commit observations
+before notification. Provider closure retains its separate capacity semantics;
+native observations grant Stop cleanup only, never settlement/checkpoint authority.
+No original claim/card/head is rewritten or advanced. [Decision](DECISIONS.md#d048--inspect-mixed-interrupted-claims-for-stop-only).
+
 R100b embeds the same public build manifest in the native shell and Phoenix BEAM.
 The shell verifies the release copy before data preparation; runtime configuration
 verifies its compiled UUID/digest before migration/dispatch. Settings exposes the

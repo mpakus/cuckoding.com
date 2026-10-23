@@ -194,6 +194,10 @@ capture/preparation pair can become one Paused checkpoint after every proof pass
 Press Resume to continue with the same bindings, slots and budgets. Edits, capture
 and provider turns are never repeated. Missing proof stays blocked; expired/fenced
 observations allow Stop only. [Candidate recovery](tasks/R060o-candidate-recovery.md).
+If restart interrupts an agent turn beside capture/worktree preparation, Cuckoding
+checks their retained closure receipts in order. Every claim must verify before
+**Stop** becomes available. Lost work is not accepted and this pair cannot Resume,
+Retry or Skip. Missing proof stays blocked. [Mixed closure](tasks/R060p-mixed-closure.md).
 
 If the app restarts between fully recorded stages, it reopens the battle as
 **Paused after restart**. Press **Resume** to continue from the saved stage with

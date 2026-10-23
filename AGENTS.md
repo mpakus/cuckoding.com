@@ -249,8 +249,20 @@ next stages and pausing for explicit Resume with original bindings/slots/budgets
 deadlines. Late/timing-fenced proof closes Stop only after every claim is closed.
 Preserve R060m/n-only limits for old policies and ordinary preparation waves. The
 new read has a fixed 60-second native/65-second host budget, not extra task time.
-Missing/mixed-provider/other native effects and physical sleep remain recovery
+Missing/other native effects and physical sleep remain recovery
 gates. Inspect shows public status/date only, never request/files/claim tokens.
+
+R060p freezes `mixed_closure: retained-mixed-closure-v1`. Only an exact restart-
+interrupted provider plus native capture/preparation in different wave tasks may
+queue Stop-only inspection. Read R060l provider closure first, then the existing
+fixed native read in an exclusive supervised worker. Keep original Interrupted
+claims, dated separate observations, edits, bindings, slots, budgets and deadlines.
+Never accept provider output, advance cards/head/checkpoints or enable Resume/
+Retry/Skip. All claims must verify closure before Stop; failed/missing/foreign
+evidence stays blocked even if its sibling verifies. Retain the queue across
+coordinator loss. Old policies, preexisting Stop/fences and other stages gain no
+authority; expiry/timing races cannot create continuation authority. No new native
+operation, inference, migration or process-absence cleanup inference.
 
 R060h freezes `timing_guard: elapsed-gap-v1` in new Starts. Keep BattleClock in
 the battle one_for_all group, independent of the coordinator; guard loss must
