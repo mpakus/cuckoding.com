@@ -1,6 +1,6 @@
 # R020s — Installed Codex compatibility
 
-Implemented and verified; local integration pending. Branch
+Implemented, verified and merged locally. Branch
 `feature/R020s-codex-compatibility`, base `bbdec5e`.
 Ponytail full 5.3.2 (MIT); adapter, local-runner, security, OTP/Rust and quality
 guidance. No inference, user profile/credential access, push or publication.
@@ -99,3 +99,8 @@ Private logs: `.ccoding/r020s-quality.log`, `r020s-native.log`, `r020s-mutation.
 Real-account execution/review/parallel acceptance on this exact cohort, remaining
 providers, general subprocess checks, broader recovery, physical sleep and release
 signing/clean-machine acceptance remain open. No inference, push or publication.
+
+Implementation `5ee73eb` fast-forwarded into local main; the feature branch was
+deleted. The sealed bundle identifies the recorded pre-commit inputs above,
+not this documentation-only integration receipt. Only unrelated `Untitled.md.age`
+remains untracked. No provider/user workspace or development app was left running.
