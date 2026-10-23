@@ -401,6 +401,10 @@ no personal authorization is imported. Only one source server can own this
 root. `--port 4001` selects another port; `--port 0` chooses an ephemeral port.
 `--no-open` suppresses browser launch. Ctrl-C stops the owned server and watchers,
 retaining development data. Restart the launcher to reopen an expired browser session.
+R011d handles Ctrl-C/SIGTERM without signal-handler locks, including repeated
+signals during startup. Shutdown may take the remainder of the five-second
+heartbeat interval plus the existing backend cleanup time. Wait for terminal,
+listener and lock cleanup before starting another instance.
 
 **Already running:** a second launcher now explains that the existing server owns
 this checkout's data. The older `[Errno 35] Resource temporarily unavailable` meant

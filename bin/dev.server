@@ -150,9 +150,15 @@ def main():
     child = None
     shell = None
     port = None
-    stopped = threading.Event()
+    stop_requested = False
+
+    def request_stop(*_):
+        nonlocal stop_requested
+        # A signal may interrupt Event.wait while its non-reentrant lock is held.
+        stop_requested = True
+
     for sig in (signal.SIGINT, signal.SIGTERM):
-        signal.signal(sig, lambda *_: stopped.set())
+        signal.signal(sig, request_stop)
     try:
         child = subprocess.Popen([rtk, "proxy", mix, "phx.server"], cwd=project, env=env,
                                  stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
@@ -168,16 +174,18 @@ def main():
 
         threading.Thread(target=output, daemon=True).start()
         deadline = time.monotonic() + 120
-        while port is None and not stopped.is_set():
+        while port is None and not stop_requested:
             if child.poll() is not None or time.monotonic() > deadline:
                 raise RuntimeError("Development server did not start")
             try:
                 port = ready.get(timeout=0.1)
             except queue.Empty:
                 pass
-        if port is None:
+        if port is None or stop_requested:
             return
         shell = request(port, "/shell/bootstrap", bootstrap)["token"]
+        if stop_requested:
+            return
         print(f"Cuckoding UI development: http://127.0.0.1:{port}", flush=True)
         print("Press Ctrl-C to stop. Development data stays in .ccoding/ui-dev.", flush=True)
         if args.smoke:
@@ -185,9 +193,12 @@ def main():
             return
         if not args.no_open:
             handoff = request(port, "/shell/open", shell)["token"]
-            subprocess.run(["/usr/bin/open", f"http://127.0.0.1:{port}/open?token={handoff}"], check=True)
-        while not stopped.wait(5):
-            request(port, "/shell/status", shell)
+            if not stop_requested:
+                subprocess.run(["/usr/bin/open", f"http://127.0.0.1:{port}/open?token={handoff}"], check=True)
+        while not stop_requested:
+            time.sleep(5)
+            if not stop_requested:
+                request(port, "/shell/status", shell)
     finally:
         if shell:
             try:

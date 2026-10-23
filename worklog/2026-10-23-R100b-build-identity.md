@@ -126,7 +126,7 @@ After terminal completion, its lock was available; all fourteen copied domain
 table hashes matched source QA data, schema remained seventeen and integrity/FKs
 passed. The original saved workspace/profiles were untouched. The observed
 signal/Event handler race in the existing source launcher needs a separate focused
-reproduction/fix (R011b); it is not silently marked solved here.
+reproduction/fix (R011d); it is not silently marked solved here.
 
 Implementation `8b32fc3` fast-forwarded into local `main`; feature branch deleted.
 Documentation references and whitespace checks passed. Only unrelated

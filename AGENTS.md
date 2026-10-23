@@ -733,6 +733,11 @@ See [Development](docs/DEVELOPMENT.md#ui-development).
 If the developer data lock is held, identify the existing owner; never unlink or
 steal it. When handing terminal startup back to the user, stop only your verified
 preview instance and confirm cleanup rather than leaving a competing launcher.
+R011d signal handlers set only a plain stop flag; never acquire an Event/Condition
+lock from SIGINT/SIGTERM. Check the flag around startup/bootstrap and before new
+browser/heartbeat work, then use the existing bounded backend cleanup once.
+Repeated signals must preserve data and release the same lock; process absence
+or forced termination is not passing graceful-shutdown evidence.
 
 Use Phoenix LiveView, HEEx and Tailwind. Keep one reusable accessible dialog
 convention; validation lives in domain contexts/LiveView and small hooks cover

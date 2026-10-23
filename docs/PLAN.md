@@ -237,6 +237,9 @@ This refactors execution ownership; product parallelism/full native recovery rem
 - [x] Launch a source server with isolated data and the existing shell/session contract.
 - [x] Enable HEEx annotations and standard Phoenix/asset reload in development.
 - [x] Explain an already-running source server and retain exclusive data ownership.
+- [x] R011d removes the signal/Event shutdown deadlock, fences startup/browser/
+  heartbeat work after Stop and verifies real SIGINT/SIGTERM lock/listener release.
+  [Task/evidence](../tasks/R011d-launcher-signals.md).
 - [x] Remove Tidewave at the user's request; verify absent MCP/toolbar and strict
   application CSP. See [removal evidence](../tasks/R011b-remove-tidewave.md).
 - [x] Restore the current packaged app with its saved test workspace after an

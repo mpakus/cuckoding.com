@@ -344,6 +344,7 @@ After building the native helper with `rtk proxy bin/dev.build`, run
 Phoenix live asset/code reload and HEEx source annotations are enabled in development.
 The launcher uses separate `.ccoding/ui-dev/` data and stops with Ctrl-C. If it reports **already running**, use the existing browser
 tab or stop that launcher before starting another; do not delete its lock file.
+Shutdown retains your developer data and releases its listener/lock before reuse.
 Tidewave has been removed. See [setup and checks](docs/DEVELOPMENT.md#ui-development).
 
 ## Public site

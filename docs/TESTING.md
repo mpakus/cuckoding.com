@@ -339,6 +339,13 @@ perform the journey; a developer clicking a fixture is not ten-minute acceptance
 `rtk proxy python3 test/dev_server_test.py` checks real nonblocking lock contention
 in a temporary checkout, the actionable message, preserved data/lock identity and
 reuse after the owner releases it. It starts no Phoenix/native/provider process.
+The same script also runs ten isolated SIGINT/SIGTERM interleavings: startup,
+READY, bootstrap, browser handoff and the old Event critical section. Repeated signals must skip
+new admission, run cleanup once and release the original lock. The deliberate
+deadlock is bounded in an owned test process with a fake backend, never real app
+data. R011d separately verifies real source launches, graceful signal shutdown,
+listener/lock release and unchanged developer-data facts. This is not native
+provider-process or physical sleep recovery acceptance.
 
 After `rtk proxy bin/dev.build`, stop any source developer server and run:
 
