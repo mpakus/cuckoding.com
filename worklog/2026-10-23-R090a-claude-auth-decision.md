@@ -1,6 +1,6 @@
 # R090a — Claude subscription authentication decision
 
-Decision recorded and verified; local integration pending. Branch
+Decision recorded, verified and merged locally. Branch
 `feature/R090a-claude-auth-decision`, base `1d92f05`.
 Ponytail full 5.3.2 MIT; adapter/security/quality guidance. Docs only.
 
@@ -16,3 +16,6 @@ and the still-unconfirmed approval. Verified **211** local Markdown targets,
 whitespace and an unchanged application input digest against R020s's sealed
 receipt. No full suite/build rerun is warranted for this documentation-only
 decision; existing application evidence is not approval or Claude acceptance.
+
+Commit `b18943d` is on local main; the feature branch was deleted. No push or
+publication. This records the human choice; the Claude adapter remains pending.
