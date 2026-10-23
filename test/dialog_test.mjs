@@ -26,6 +26,9 @@ test("dialog opens without resetting forms, restores focus, closes on server com
   }
   const hook = {el, handleEvent: (name, fn) => events.set(name, fn)}
   Dialog.mounted.call(hook)
+  events.get("dialog-open")({id: "other-dialog"})
+  assert.equal(opens, 0)
+  events.get("dialog-open")({id: el.id})
   callbacks.get("cc:open")()
   callbacks.get("cc:open")()
   assert.equal(opens, 1)

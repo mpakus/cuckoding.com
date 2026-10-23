@@ -14,6 +14,11 @@ Use crisp borders, generous space and monospace labels/logs. No decorative contr
 room, blinking cursor, terminal emulator, extra framework or analytics clutter.
 Motion clarifies changes and respects reduced motion. Status includes text/icons.
 Mobile form text is at least 16px; sidebar navigation becomes one scrollable row.
+All Tabula columns, including custom stages, stay in one horizontal row. A visible
+scroll hint describes the focusable board region; arrow keys can reach the final
+column. Task-editor opening waits for the server's scoped draft selection (or
+dirty-draft decision), so a late selection cannot replace newly typed text.
+Native dialog focus/Escape/return and the other immediate dialogs remain shared.
 
 Sidebar: **Tabula Gladiatorum**, **Arenas**, **Agents**, **Team**, **Settings**.
 Explain names initially: Arena · project, Tabula · board, Summa Rudis · coordinator,

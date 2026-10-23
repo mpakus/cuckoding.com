@@ -761,6 +761,11 @@ the old model. Incomplete teams remain saveable drafts with an explicit Start
 warning. Never infer a model, restore disconnected roles or silently adopt a team.
 Every long action shows state, elapsed time, role, runtime, model when known,
 and pause/resume/retry/stop/inspect as appropriate.
+R080k keeps every Tabula column in a single horizontal row, with a visible scroll
+hint on its keyboard-focusable region. Task edit/+ waits for the guarded server
+selection/dirty-draft decision before the shared hook opens its exact dialog.
+Do not reopen the editor optimistically before its form identity is patched.
+Other immediate dialogs, native focus/Escape/return and all domain grants stay unchanged.
 
 Provide keyboard/menu alternatives to every drag action; enforce the same gates.
 Preserve text, focus, scroll and disclosures through live updates. Bind checkbox

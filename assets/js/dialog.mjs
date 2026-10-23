@@ -21,6 +21,7 @@ export const Dialog = {
     this.el.addEventListener("cc:open", this.open)
     this.el.addEventListener("cc:close", this.close)
     this.el.addEventListener("close", this.restoreFocus)
+    this.handleEvent("dialog-open", ({id}) => { if (id === this.el.id) this.open() })
     this.handleEvent("dialog-close", ({id}) => { if (id === this.el.id) this.close() })
     this.openFromHash = () => { if (window.location.hash === `#${this.el.id}`) this.open() }
     window.addEventListener("hashchange", this.openFromHash)

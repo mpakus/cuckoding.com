@@ -8,8 +8,10 @@ implemented. R060d adds safe restart checkpoints and R060e retains expired stage
 evidence for verified closure. R012 runs setup/planning in supervised asynchronous
 tasks and couples worker/coordinator restarts. R060f commits results before
 coordinator notification; R060g reconciles complete retained native integration
-receipts to a paused checkpoint without replay. R060m adds the exact retained
-writer-preparation checkpoint; other interrupted native effects remain open.
+receipts to a paused checkpoint without replay. R060m/n add retained writer-
+preparation checkpoints; R060o adds capture and mixed capture/preparation
+checkpoints with all-member proof and explicit Resume. Other interrupted native
+effects remain open.
 R060h fences new battle work on
 timing gaps and backward clock changes. R060i adds bounded native idle-system
 sleep protection and dated Settings observations. The remaining recovery gates
@@ -26,9 +28,10 @@ attempts, inside the existing retry budget; interrupted/native recovery remains 
 | Experience | Agent wizard/disconnect, Team editor, Arena controls/inspector with public JSON evidence downloads, global workers/progress and paginated global/Arena activity with follow control | Broader parallel activity, responsive/browser acceptance and timed ten-minute setup |
 | Release | Local bundle/build/smoke, separate preserved data root; Decimal/Bandit advisories fixed | Signing/notarization, clean-machine install, updates/rollback and full acceptance matrix |
 
-Delivery order: finish uncertain-effect and sleep recovery (R060), implement
-parallel scheduling and combined-result review (R070), then finish dashboards,
-custom workflow/runtime coverage and release verification (R030/R040/R080–R100).
+Delivery order: finish uncertain-effect/toolchain recovery (R060), real-provider
+parallel and combined-result acceptance (R070), then complete the user-flow/runtime
+and release verification gates (R080–R100). The bounded implementation is in place;
+unchecked acceptance below remains required.
 General toolchain checks and consented live-provider acceptance can progress
 alongside recovery. No fixture suite or successful local build substitutes for
 those provider/physical/clean-machine gates. Historical slice evidence stays
@@ -656,6 +659,11 @@ usable Arena surface first; basic flow simplification must not wait for R080.
   [Task and evidence](../tasks/R080j-evidence-download.md).
 - [x] R080g scrollable/paginated normalized event activity globally/per Arena,
   with explicit follow control. Raw provider output/thoughts never enter this feed.
+- [x] R080k verifies eight setup-to-Start pages at 320/768/1024/1440 CSS pixels,
+  keyboard access to the last custom column and twelve native dialog states.
+  Custom columns stay in one row; task editing opens after server selection and
+  preserves dirty text. [Task/evidence](../tasks/R080k-responsive-flow.md).
+  Human timing, screen-reader/zoom and real-provider acceptance remain open.
 - [ ] Safe opening/export of any additional retained log artifacts where supported; full
   parallel-worker and end-to-end dashboard acceptance.
 - [ ] Apply the one/two-region modern TUI visual contract, mouse/keyboard

@@ -220,11 +220,12 @@ defmodule CuckodingWeb.TabulaLive do
     column = if params["column"] == "todo", do: "todo", else: "specs"
 
     if id == "new" || Enum.any?(socket.assigns.tasks, &(&1.id == id)) do
-      if socket.assigns.dirty do
-        {:noreply, assign(socket, :pending_edit, {id, column})}
-      else
-        {:noreply, select_task(socket, id, column)}
-      end
+      socket =
+        if socket.assigns.dirty,
+          do: assign(socket, :pending_edit, {id, column}),
+          else: select_task(socket, id, column)
+
+      {:noreply, push_event(socket, "dialog-open", %{id: "draft-editor"})}
     else
       {:noreply, assign(socket, :error, message("scope_missing"))}
     end
@@ -1137,6 +1138,9 @@ defmodule CuckodingWeb.TabulaLive do
         </details>
         <p :if={@error && is_nil(@board)} role="alert" class="notice">{@error}</p>
         <p :if={@message} role="status">{@message}</p>
+        <p :if={@board} id="tabula-scroll-hint" class="fine-print">
+          Scroll horizontally to see every stage.
+        </p>
         <div
           :if={@board}
           id="tabula-board"
@@ -1144,6 +1148,7 @@ defmodule CuckodingWeb.TabulaLive do
           tabindex="0"
           role="region"
           aria-label="Task columns; scroll horizontally for delivery stages"
+          aria-describedby="tabula-scroll-hint"
         >
           <div class="tabula-columns">
             <section
@@ -1159,10 +1164,10 @@ defmodule CuckodingWeb.TabulaLive do
                   type="button"
                   class="button icon-button"
                   aria-label={"Add task to #{column["name"]}"}
-                  phx-click={
-                    JS.push("edit", value: %{id: "new", column: column["key"]})
-                    |> JS.dispatch("cc:open", to: "#draft-editor")
-                  }
+                  aria-controls="draft-editor"
+                  phx-click="edit"
+                  phx-value-id="new"
+                  phx-value-column={column["key"]}
                 >
                   <span aria-hidden="true">+</span>
                 </button>
@@ -1195,10 +1200,9 @@ defmodule CuckodingWeb.TabulaLive do
                 <button
                   type="button"
                   class="button"
-                  phx-click={
-                    JS.dispatch("cc:open", to: "#draft-editor")
-                    |> Phoenix.LiveView.JS.push("edit", value: %{id: task.id})
-                  }
+                  aria-controls="draft-editor"
+                  phx-click="edit"
+                  phx-value-id={task.id}
                   aria-label={"#{if Map.has_key?(@battle_projection, task.id), do: "Inspect", else: "Edit"} #{task.title}"}
                 >{if Map.has_key?(@battle_projection, task.id), do: "Inspect task", else: "Edit task"}</button>
               </article>

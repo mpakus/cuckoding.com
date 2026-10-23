@@ -38,6 +38,23 @@ defmodule CuckodingWeb.TabulaLiveTest do
     %{arena: arena, board: board, path: "/arenas/#{arena.id}/tabulae/#{board.id}"}
   end
 
+  test "task selection opens only after the server has prepared its scoped draft", ctx do
+    {:ok, view, _} = ctx.conn |> sign_in() |> live(ctx.path)
+    view |> element("button[aria-label='Add task to ToDo']") |> render_click()
+    assert_push_event(view, "dialog-open", %{id: "draft-editor"})
+    assert has_element?(view, "#draft-column option[value=todo][selected]")
+    refute has_element?(view, "#column-todo button[phx-click*='cc:open']")
+
+    view |> form("#draft-form", title: "Keep typed text") |> render_change()
+    view |> element("button[aria-label='Add task to Specs']") |> render_click()
+    assert_push_event(view, "dialog-open", %{id: "draft-editor"})
+    assert has_element?(view, "#draft-title-input[value='Keep typed text']")
+    assert has_element?(view, "#draft-editor [role=alert]", "Discard your unsaved edits")
+
+    render_click(view, "edit", %{"id" => Ecto.UUID.generate()})
+    refute_push_event(view, "dialog-open", %{id: "draft-editor"})
+  end
+
   test "Arena opens its existing board without creating another or changing drafts", %{
     conn: conn,
     arena: arena,

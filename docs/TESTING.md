@@ -1,5 +1,17 @@
 # Verification and acceptance
 
+R080k's profile-free source browser pass covers Home, Agents, new/edit Agent,
+Team, Arenas, Settings and one six-column Arena at 320/768/1024/1440 CSS pixels.
+All columns share one row; replacing the CSS with the old five-column rule fails
+that check. Arrow keys reach the final stage. Create tasks, Board team and task
+editing fit at each width, keep background content inert, close on Escape and
+restore focus. Chrome may legitimately move focus into browser chrome; it never
+focuses a background control. Opening task editing is server-confirmed after the
+scoped form patch; immediate typed text survives ticks and reopening. Node and
+LiveView regressions cover exact-dialog/foreign-scope events and dirty-draft
+decisions. No provider work ran. This is not screen-reader/zoom acceptance, an
+unfamiliar user's timed setup or a real-account battle walkthrough.
+
 R060o verifies complete/absent/tampered/linked capture evidence, exact request/
 preparation/battle binding, worktree drift and cancellation/deadline without
 native replay or source/index mutation. Host tests cover both mixed-wave orders,

@@ -34,6 +34,8 @@ their models explicitly before reusing that team.
 
 The Arena stays on one board with an optional task/log inspector. Global and
 Arena **Tabula Gladiatorum** dashboards show activity, progress and attention.
+Custom board stages stay in one scrollable row; focus the board and use arrow
+keys to reach every column. Task dialogs retain unsaved text through live updates.
 Independent tasks may use parallel role instances with separate sessions/worktrees.
 Git initialization asks first when needed. Local work is reviewed before completion;
 remote push, user-branch merge and release remain separate human actions.
