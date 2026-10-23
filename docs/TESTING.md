@@ -1,5 +1,11 @@
 # Verification and acceptance
 
+R050i's trusted disposable Darwin probe observed child session/group escape under
+deny-default Seatbelt with fork enabled, while its file-write canary refused.
+All three children exited and were waited/reaped. This negative containment
+result is distinct from the passing shipping single-process canaries and does
+not enable toolchains. [Source/probe evidence](../worklog/2026-10-23-R050i-toolchain-containment.md).
+
 R020s admits exact Codex 0.163.0-alpha.11.2 after signed-binary/offline schema,
 fresh-profile setup/login-start/cancel, task/no-tools policy/thread preflight and
 actual two-workspace/single-process OS canaries. No browser, sign-in, inference or

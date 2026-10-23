@@ -558,6 +558,10 @@ verification checkout, protected paths, hard no-fork limit and owned session
 identity. Do not advertise Mix/npm or other subprocess toolchain support. Retain
 partial check evidence and cleanup uncertainty, including on cancellation. Never
 infer real-account battle acceptance from fixtures or synthetic prior task turns.
+R050i observed child setsid/setpgid/spawn-group escape with fork enabled under
+deny-default Seatbelt. Keep hard NPROC=0 until a new OS-enforced descendant lifetime
+boundary is proven. Session-leader denial, PID polling and original-group cleanup
+are not that proof; a research probe never changes the shipping grant.
 See [Arena loop](docs/ARENA_LOOP.md) and [Plan](docs/PLAN.md).
 
 ## Mission and product contract

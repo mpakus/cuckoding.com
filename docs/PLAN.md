@@ -466,6 +466,10 @@ Depends on R030.
   R060o investigation confirmed the installed Apple SDK marks NOTE_TRACK child
   tracking unsupported; removing RLIMIT_NPROC would not establish ownership of
   escaped sessions. A verified containment/cleanup design remains required.
+  R050i's disposable Darwin probe also observed child session/group escape under
+  deny-default Seatbelt with fork enabled. Group cleanup alone is insufficient;
+  retain the current grant pending a proven descendant lifetime boundary.
+  [Investigation](../tasks/R050i-toolchain-containment.md).
 
 - [x] R040j: explicit check preview/consent, immutable Arena revisions, idempotent
   audited saves, stale/recovered editor refusal and no implied execution authority.

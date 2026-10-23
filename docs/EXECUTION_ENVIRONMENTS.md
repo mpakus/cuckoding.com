@@ -67,6 +67,25 @@ Dated observations require fresh validation at future execution admission.
 The first runner is a supervised host process runner using Git worktrees.
 There are no containers, remote workers or claimed host sandbox boundaries.
 
+### Subprocess prerequisite (R050i)
+
+The shipping check grant keeps hard `RLIMIT_NPROC=0`. A disposable trusted probe
+on Darwin 27.0.0 confirmed that deny-default Seatbelt with fork enabled still
+permits a nonleader child to use `setsid`, `setpgid` or
+`POSIX_SPAWN_SETPGROUP` to leave the original group. The file-write canary refused
+and every synthetic child was waited/reaped. This is separate from the current
+single-process canary, whose session leader cannot call `setsid` by POSIX rules.
+[Pinned source, probe and results](../worklog/2026-10-23-R050i-toolchain-containment.md).
+
+Do not enable arbitrary toolchain descendants by raising NPROC, killing only the
+original group, polling PIDs/parents or treating a missing process as closure.
+Before a new grant, prove an OS-enforced lifetime boundary for every descendant,
+including group/session changes, double fork, leader/monitor death and exec,
+then bind shutdown/cleanup evidence to the existing attempt and deadlines. An
+isolated guest worker is a candidate requiring its own design/prototype and
+dependency/installer review; it is not selected, installed or enabled here.
+Mix/npm support and its acceptance remain open.
+
 The target Arena exposes one **Start** action. Ordinary owned worktree creation,
 fresh inspection and stage dispatch belong to that bounded battle authority;
 users should not prepare every checkout manually. Current preparation/inspection

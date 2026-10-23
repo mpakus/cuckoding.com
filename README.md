@@ -185,7 +185,9 @@ proves tests ran. **Advanced → Extra command checks (optional)** adds explicit
 commands when needed; once configured, all must pass. Without them, no command
 tests run and no passing command receipt is invented. Extra commands currently
 require a Codex Implementor and support native system commands that run in one process;
-Mix/npm pipelines and other subprocess toolchains are not supported.
+Mix/npm pipelines and other subprocess toolchains are not supported. A disposable
+macOS probe confirmed that allowing fork needs stronger cleanup containment than
+the original process group. [Toolchain prerequisite](tasks/R050i-toolchain-containment.md).
 **Pause** finishes the current stage and saves its result before holding the next
 stage. **Resume** keeps the same team, work and limits; paused time counts toward
 the original deadline. Clean paused battles survive restart. **Stop** cancels
