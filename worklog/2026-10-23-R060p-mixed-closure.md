@@ -1,6 +1,6 @@
 # R060p — Mixed interrupted closure
 
-Implemented and verified; integration pending. Branch `feature/R060p-mixed-closure`, base `08d843f`.
+Implemented, verified and merged locally. Branch `feature/R060p-mixed-closure`, base `08d843f`.
 Ponytail full 5.3.2 (MIT); workflow, local-runner, security and quality guidance.
 
 The provider closure queue currently consumes the provider claim and leaves a
@@ -68,4 +68,11 @@ pass were not rerun for this domain/UI-text slice. Real-provider crash acceptanc
 general subprocess checks, other interrupted effects, physical sleep and signed
 release delivery remain open. No inference, push or publication occurred.
 
-Local integration pending.
+Final review also applied the installed code-review-and-quality skill. Mutation
+verification, connected authority paths and public UI projections were checked;
+no unresolved actionable issue was found. No review subagent was started.
+
+Implementation `d4a0f98` fast-forwarded to local main; feature branch deleted.
+Only unrelated `Untitled.md.age` remained untracked. Local integration is not
+remote publication or beta-release acceptance. The new receipt remains a dated
+build of the application inputs before the commit, as reported above.
