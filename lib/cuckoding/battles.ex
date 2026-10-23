@@ -6,6 +6,7 @@ defmodule Cuckoding.Battles do
     Attempt,
     Backoff,
     Battle,
+    CandidateRecovery,
     Capacity,
     PreparationRecovery,
     ProviderClosure,
@@ -524,7 +525,8 @@ defmodule Cuckoding.Battles do
         "attempt_id" => if(attempt, do: attempt.id),
         "recovery_attempt_id" =>
           battle.context["integration_recovery_pending"] ||
-            battle.context["preparation_recovery_pending"],
+            battle.context["preparation_recovery_pending"] ||
+            battle.context["candidate_recovery_pending"],
         "blocks_continuation" => blocked
       })
 
@@ -692,7 +694,8 @@ defmodule Cuckoding.Battles do
 
   defp reconciled?(battle, attempt),
     do:
-      PreparationRecovery.reconciled?(battle, attempt) or
+      CandidateRecovery.reconciled?(battle, attempt) or
+        PreparationRecovery.reconciled?(battle, attempt) or
         (attempt.state == "interrupted" and
            get_in(battle.context, ["integration_reconciliations", attempt.id, "status"]) ==
              "integrated")
@@ -1158,6 +1161,27 @@ defmodule Cuckoding.Battles do
   end
 
   defp arm_recovery(battle, attempt) do
+    unsettled = Enum.reject(attempts(battle.id), &settled?(battle, &1))
+
+    if CandidateRecovery.eligible?(battle, unsettled) and
+         Enum.all?(unsettled, &(interrupted_current?(&1) and not timing_fenced?(battle, &1))) do
+      ids = [attempt.id | Enum.map(unsettled, & &1.id) -- [attempt.id]]
+
+      context =
+        Map.merge(battle.context, %{
+          "candidate_recovery_pending" => attempt.id,
+          "candidate_recovery_wave" => %{"attempt_ids" => ids, "remaining_ids" => ids}
+        })
+
+      battle = update(battle, context: context)
+      record(battle, "candidate_recovery_queued", %{"attempt_ids" => ids})
+      battle
+    else
+      arm_legacy_recovery(battle, attempt)
+    end
+  end
+
+  defp arm_legacy_recovery(battle, attempt) do
     if Enum.all?(attempts(battle.id), &(&1.id == attempt.id or settled?(battle, &1))) do
       key =
         cond do
@@ -1220,11 +1244,13 @@ defmodule Cuckoding.Battles do
     with id when is_binary(id) <-
            battle.context["provider_closure_pending"] ||
              battle.context["integration_recovery_pending"] ||
-             battle.context["preparation_recovery_pending"],
+             battle.context["preparation_recovery_pending"] ||
+             battle.context["candidate_recovery_pending"],
          %Attempt{} = attempt <- Repo.get(Attempt, id),
          true <-
            provider_reconciliation_current?(attempt) or reconciliation_current?(attempt) or
-             preparation_reconciliation_current?(attempt) do
+             preparation_reconciliation_current?(attempt) or
+             candidate_reconciliation_current?(attempt) do
       attempt
     else
       _ -> nil
@@ -1244,15 +1270,137 @@ defmodule Cuckoding.Battles do
     end
   end
 
-  def reconcile_recovery(%Attempt{stage: "prepare_worktree", role: nil} = attempt, result),
-    do: reconcile_preparation(attempt, result)
+  def reconcile_recovery(%Attempt{stage: stage, role: nil} = attempt, result)
+      when stage in ~w(capture prepare_worktree) do
+    battle = get(attempt.battle_id)
 
-  def reconcile_recovery(attempt, result),
+    if battle && CandidateRecovery.pending?(battle, attempt),
+      do: reconcile_candidate(attempt, result),
+      else: reconcile_native_recovery(attempt, result)
+  end
+
+  def reconcile_recovery(attempt, result), do: reconcile_native_recovery(attempt, result)
+
+  defp reconcile_native_recovery(
+         %Attempt{stage: "prepare_worktree", role: nil} = attempt,
+         result
+       ),
+       do: reconcile_preparation(attempt, result)
+
+  defp reconcile_native_recovery(%Attempt{stage: "capture"}, _),
+    do: {:error, :stale_reconciliation}
+
+  defp reconcile_native_recovery(attempt, result),
     do:
       if(is_nil(attempt.role),
         do: reconcile_integration(attempt, result),
         else: reconcile_provider(attempt, result)
       )
+
+  def candidate_reconciliation_current?(%Attempt{} = attempt) do
+    case get(attempt.battle_id) do
+      %Battle{reason: "restart_requires_inspection"} = battle ->
+        CandidateRecovery.pending?(battle, attempt) and interrupted_current?(attempt)
+
+      _ ->
+        false
+    end
+  end
+
+  def reconcile_candidate(attempt, result, now \\ DateTime.utc_now()) do
+    transaction(fn ->
+      battle = get(attempt.battle_id)
+
+      unless battle && CandidateRecovery.pending?(battle, attempt) &&
+               interrupted_current?(attempt),
+             do: Repo.rollback(:stale_reconciliation)
+
+      unless Receipts.bound?(attempt, result), do: Repo.rollback(:foreign_result)
+      verified = CandidateRecovery.verified?(attempt, result)
+
+      unless verified or CandidateRecovery.failed?(attempt, result),
+        do: Repo.rollback(:invalid_result)
+
+      observation = %{"receipt" => result, "observed_at" => DateTime.to_iso8601(now)}
+
+      context =
+        battle.context
+        |> Map.delete("candidate_recovery_pending")
+        |> Map.update(
+          "candidate_reconciliations",
+          %{attempt.id => observation},
+          &Map.put(&1, attempt.id, observation)
+        )
+
+      battle = update(battle, context: context)
+
+      record(battle, "candidate_reconciled", %{
+        "attempt_id" => attempt.id,
+        "stage" => attempt.stage,
+        "status" => result["status"],
+        "cleanup_verified" => verified
+      })
+
+      finish_candidate_recovery(battle, now)
+    end)
+  end
+
+  defp finish_candidate_recovery(battle, now) do
+    wave = battle.context["candidate_recovery_wave"]
+
+    members =
+      Enum.map(wave["attempt_ids"], fn id ->
+        member = Repo.get(Attempt, id)
+
+        unless member && CandidateRecovery.member?(battle, member) && interrupted_current?(member),
+          do: Repo.rollback(:stale_reconciliation)
+
+        member
+      end)
+
+    case tl(wave["remaining_ids"]) do
+      [next | _] = remaining ->
+        member = Enum.find(members, &(&1.id == next))
+
+        context =
+          battle.context
+          |> Map.put("candidate_recovery_pending", next)
+          |> put_in(["candidate_recovery_wave", "remaining_ids"], remaining)
+
+        update(battle, context: context, current_task_id: member.task_id, stage: member.stage)
+
+      [] ->
+        battle = update(battle, context: Map.delete(battle.context, "candidate_recovery_wave"))
+        finish_candidate_wave(battle, members, now)
+    end
+  end
+
+  defp finish_candidate_wave(battle, members, now) do
+    cond do
+      timing_blocked?(battle) ->
+        update(battle, state: "needs_attention", reason: "timing_gap")
+
+      not Enum.all?(members, &CandidateRecovery.reconciled?(battle, &1)) ->
+        battle
+
+      expired?(battle.deadline_at, now) or Enum.any?(members, &expired?(&1.deadline_at, now)) ->
+        needs_attention(battle, "late_result_rejected")
+
+      true ->
+        Enum.reduce(members, battle, fn member, current ->
+          current = update(current, current_task_id: member.task_id, stage: member.stage)
+          current = Waves.clear_block(current, member.task_id)
+
+          advance(
+            current,
+            member,
+            current.context["candidate_reconciliations"][member.id]["receipt"]
+          )
+        end)
+        |> Waves.focus()
+        |> pause_reconciled()
+    end
+  end
 
   def preparation_reconciliation_current?(%Attempt{} = attempt) do
     case get(attempt.battle_id) do

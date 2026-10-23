@@ -2,6 +2,7 @@
 use super::*;
 use candidate::{hash, load, oid, save, success};
 use std::path::PathBuf;
+mod candidate_recovery;
 mod combined;
 mod preparation;
 
@@ -157,6 +158,9 @@ pub(in super::super::super) fn run(
     }
     if operation == "recover_battle_worktree" {
         return preparation::recover(git, &request, device, inode);
+    }
+    if operation == "recover_battle_candidate" {
+        return candidate_recovery::recover(git, &request, device, inode);
     }
     if operation == "verify_battle" {
         if fields != 1 {

@@ -238,6 +238,20 @@ stage, expiry or timing fence cannot partially advance the wave. Exact closure
 permits Stop only when all claims are closed. Preserve R060m-only limits for older
 snapshots, no replay/new native operation, and broader recovery/physical gates.
 
+R060o freezes `candidate_recovery: retained-candidate-wave-v1`. Exact restart-
+interrupted captures, singly or in a two-member capture/preparation wave, may
+queue fixed exclusive supervised reads. Native `recover_battle_candidate` requires
+complete original capture intent/publication/receipt, exact cumulative files,
+preparation/battle tag, current source/ref and unchanged owned checkout/index/bytes.
+Never reconstruct missing evidence, replay capture or change original attempts.
+Retain dated observations; all members verify before atomically advancing their
+next stages and pausing for explicit Resume with original bindings/slots/budgets/
+deadlines. Late/timing-fenced proof closes Stop only after every claim is closed.
+Preserve R060m/n-only limits for old policies and ordinary preparation waves. The
+new read has a fixed 60-second native/65-second host budget, not extra task time.
+Missing/mixed-provider/other native effects and physical sleep remain recovery
+gates. Inspect shows public status/date only, never request/files/claim tokens.
+
 R060h freezes `timing_guard: elapsed-gap-v1` in new Starts. Keep BattleClock in
 the battle one_for_all group, independent of the coordinator; guard loss must
 stop old workers before its baseline resets. Check before admission, during

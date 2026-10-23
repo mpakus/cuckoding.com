@@ -2,6 +2,7 @@ defmodule Cuckoding.Battles.Snapshot do
   @moduledoc false
   alias Cuckoding.Battles.{
     Backoff,
+    CandidateRecovery,
     Capacity,
     PreparationRecovery,
     ProviderClosure,
@@ -106,6 +107,7 @@ defmodule Cuckoding.Battles.Snapshot do
       "native_recovery" => "retained-integration-v1",
       "worktree_recovery" => PreparationRecovery.policy(),
       "worktree_wave_recovery" => PreparationRecovery.wave_policy(),
+      "candidate_recovery" => CandidateRecovery.policy(),
       "provider_closure" => ProviderClosure.policy(),
       "timing_guard" => "elapsed-gap-v1",
       "idle_sleep" => "shell-lease-v1",

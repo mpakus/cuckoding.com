@@ -1,5 +1,16 @@
 # Sequential Arena execution — implementation decision
 
+R060o adds fixed retained-candidate recovery. New Starts freeze
+`candidate_recovery: retained-candidate-wave-v1`. One/two exact interrupted
+captures or a mixed capture/preparation pair queue exclusive supervised reads.
+The native read requires original intent/publication/receipt, exact files,
+preparation/battle tag and current source/ref/owned bytes. Missing evidence is
+never rebuilt; no capture/provider turn repeats. Each observation is separate
+from its immutable Interrupted attempt. All members must verify before one
+atomic Paused checkpoint, with unchanged slots/bindings/budgets/deadlines.
+Expired/fenced reads permit verified Stop only. Other native/provider/sleep
+recovery remains open. [Decision](DECISIONS.md#d046--recover-complete-retained-candidate-checkpoints).
+
 R050h adds version-four workflow stages with explicit read/write access and
 before/after Implementor placement. Start freezes `write-role-stages-v1`; prior
 read-only/missing policies never acquire write authority. `Battles.Stages` owns

@@ -467,3 +467,22 @@ Writer retry abandons the old edits and restarts preparation/Speculator with exi
 budgets, exact binding/slot and deadline. Pause/Stop/expiry retain every checkpoint
 and edit receipt. Uncertain or interrupted capture is not completion or recovery
 authority. UI choices stay in Advanced with guarded immutable workflow saves.
+
+## D046 — Recover complete retained candidate checkpoints
+
+2026-10-23, R060o. New Starts freeze `retained-candidate-wave-v1`.
+Only exact restart-interrupted captures with complete private intent, publication,
+receipt, app ref, original preparation/battle tag and unchanged owned bytes can
+be reconciled. The fixed read verifies the original capture's exact cumulative
+file request and current source/battle identity; it writes no Git/file evidence.
+A missing receipt is never reconstructed and capture is never replayed.
+
+One or two captures, or a capture/preparation pair, queue exclusive supervised
+reads. Each observation is retained separately from the immutable Interrupted
+attempt. All members must verify within the original deadlines before next-stage
+projections and one Paused checkpoint commit atomically. Resume is explicit and
+revalidates existing bindings/ownership. A late/timing-fenced complete observation
+can close Stop only; partial/foreign/missing proof cannot advance any lane.
+Pure preparation recovery and old policy limits retain their existing contracts.
+The new read has a fixed 60-second native / 65-second host budget; it grants no
+extra task time, provider turn, native mutation or inference authority.

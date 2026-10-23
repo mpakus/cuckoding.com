@@ -22,6 +22,9 @@ defmodule Cuckoding.BattleExecutor do
   def reconcile(%{stage: "prepare_worktree", role: nil} = attempt),
     do: reconcile_preparation(attempt)
 
+  def reconcile(%{stage: "capture", role: nil} = attempt),
+    do: reconcile_candidate(attempt)
+
   def reconcile(attempt),
     do:
       if(is_nil(attempt.role),
@@ -29,8 +32,47 @@ defmodule Cuckoding.BattleExecutor do
         else: reconcile_provider(attempt)
       )
 
+  def reconcile_candidate(attempt, adapters \\ []) do
+    active? = fn -> Battles.candidate_reconciliation_current?(attempt) end
+
+    result =
+      with {:ok, files} <- Writers.files(attempt),
+           %{"status" => "candidate_captured"} = candidate <-
+             git(
+               attempt,
+               "recover_battle_candidate",
+               %{
+                 "request" => %{
+                   "key" => attempt.id,
+                   "battle" => attempt.request["context"]["native_battle"],
+                   "preparation" => attempt.request["task_context"]["preparation"],
+                   "files" => files
+                 }
+               },
+               active?,
+               adapters
+             ) do
+        %{
+          "status" => "captured",
+          "candidate_sha" => candidate["candidate"],
+          "native_candidate" => candidate,
+          "cleanup_verified" => true
+        }
+      else
+        _ -> failure("reconciliation_failed", false)
+      end
+
+    Map.merge(Map.take(attempt.request, @envelope), result)
+  rescue
+    _ -> Map.merge(Map.take(attempt.request, @envelope), failure("reconciliation_failed", false))
+  end
+
   def reconcile_preparation(attempt, adapters \\ []) do
-    active? = fn -> Battles.preparation_reconciliation_current?(attempt) end
+    active? = fn ->
+      Battles.preparation_reconciliation_current?(attempt) or
+        Battles.candidate_reconciliation_current?(attempt)
+    end
+
     request = %{"key" => attempt.id, "battle" => attempt.request["context"]["native_battle"]}
 
     result =

@@ -1,5 +1,15 @@
 # Verification and acceptance
 
+R060o verifies complete/absent/tampered/linked capture evidence, exact request/
+preparation/battle binding, worktree drift and cancellation/deadline without
+native replay or source/index mutation. Host tests cover both mixed-wave orders,
+all-or-nothing observation/advance, foreign/legacy refusal, expiry/timing Stop-only
+closure, custom writer continuation, false Git cleanup, exclusive supervised
+reads and coordinator restart during the second read. LiveView covers pending/
+dated public observations, retained Interrupted history, explicit Resume and
+claim-token exclusion. These are deterministic local proofs, not real-account,
+forced sleep or missing-artifact reconstruction acceptance.
+
 R050h covers explicit custom read/write and pre/post placement, rejected grants/
 foreign roles/downgrades and legacy policy isolation. Schema-sixteen backup/upgrade
 coverage verifies unchanged facts, integrity/FKs and the checkpoint index; the

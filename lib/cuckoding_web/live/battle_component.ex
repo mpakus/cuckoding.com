@@ -382,6 +382,32 @@ defmodule CuckodingWeb.BattleComponent do
         This does not prove sleep or worker cleanup. The original deadline is unchanged.
       </p>
       <p
+        :if={@battle.context["candidate_recovery_pending"]}
+        id="battle-candidate-inspecting"
+        class="notice"
+      >
+        Checking retained candidate/worktree checkpoints. No capture, edit or agent turn will be repeated.
+      </p>
+      <article
+        :for={{id, observation} <- @battle.context["candidate_reconciliations"] || %{}}
+        id={"battle-candidate-reconciliation-#{id}"}
+        class="team-role"
+      >
+        <h4>
+          Retained checkpoint · {if observation["receipt"]["cleanup_verified"] == true,
+            do: "Verified",
+            else: "Needs inspection"}
+        </h4>
+        <p class="fine-print">
+          Observed {observation["observed_at"]} · interrupted attempt: <code>{id}</code>.
+          The original attempt and all edit evidence are retained.
+        </p>
+        <p>
+          Every member must verify before one Paused checkpoint can Resume. Expired or
+          timing-fenced observations permit confirmed Stop only; missing proof cannot advance work.
+        </p>
+      </article>
+      <p
         :if={@battle.context["preparation_recovery_pending"]}
         id="battle-preparation-inspecting"
         class="notice"

@@ -1,5 +1,14 @@
 # Data model
 
+R060o adds no migration (schema seventeen). New immutable snapshots add
+`candidate_recovery: retained-candidate-wave-v1`. Durable
+`candidate_recovery_wave` membership and `candidate_recovery_pending` queue exact
+Interrupted capture/preparation claims; `candidate_reconciliations` stores dated
+public normalized reads without changing their attempts. Each read/event commits
+atomically; only complete in-budget proofs advance all member projections and
+one Paused checkpoint together. Failed/late/fenced observations retain history
+and original deadlines; closure alone never accepts lost provider work.
+
 R050h adds the seventeenth forward-only migration: a writer-checkpoint index and
 compatibility barrier. Back up first; schema-sixteen bundles refuse this database
 before dispatch. Version-four `save_workflow` definitions add closed

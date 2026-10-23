@@ -1,5 +1,11 @@
 # Development
 
+R060o requires a rebuilt native helper for the fixed candidate-recovery read.
+New Starts may recover complete retained capture/preparation checkpoints after
+restart; Inspect shows dated observations and Resume stays explicit. This changes
+no schema beyond seventeen. Missing proof stays blocked; no edits/capture/provider
+turns are replayed. Physical sleep and broader recovery still need acceptance.
+
 For optional custom stages (R050h), add roles in the exact board's Team,
 then open **Advanced → Board columns → Add stage**. Choose file access (read by
 default, or explicitly read/edit), before/after Implementor and Up/Down order,

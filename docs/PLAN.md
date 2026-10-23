@@ -169,7 +169,7 @@ The numbered story below is capability coverage, not eight mandatory screens.
 and automatic-board slice. R040l/m deliver bounded source reading and automatic
 card creation. R050e adds the first loop; R070d/e add task waves and assigned
 role workers. Next: real-account mixed-task/parallel acceptance, general toolchain checks,
-remaining recovery/providers/custom workflows and release gates.
+remaining recovery/providers/reviewed task repairs and release gates.
 
 ## Sequence and dependencies
 
@@ -456,6 +456,10 @@ Depends on R030.
   R050e freezes them under the bounded native single-process grant.
 - [ ] Add general subprocess/toolchain verification grants; Mix/npm pipelines
   remain unavailable. Generated task text must not grant execution permission.
+  R060o investigation confirmed the installed Apple SDK marks NOTE_TRACK child
+  tracking unsupported; removing RLIMIT_NPROC would not establish ownership of
+  escaped sessions. A verified containment/cleanup design remains required.
+
 - [x] R040j: explicit check preview/consent, immutable Arena revisions, idempotent
   audited saves, stale/recovered editor refusal and no implied execution authority.
   See [task](../tasks/R040j-project-checks.md) and
@@ -565,6 +569,11 @@ Depends on R050.
   exclusively and checkpoint both tasks atomically only after both proofs pass
   within all original limits. Partial/failed/mixed/fenced waves never advance.
   Older snapshots retain single-claim limits. [Task/evidence](../tasks/R060n-wave-preparation.md).
+- [x] R060o reads complete retained capture evidence for one/two captures or a mixed
+  capture/preparation pair. Exclusive supervised reads retain immutable history,
+  commit every next stage together and pause for explicit Resume. Missing proof
+  never replays capture; expired/fenced reads permit verified Stop only.
+  [Task/evidence](../tasks/R060o-candidate-recovery.md).
 - [ ] Broader interrupted-work recovery with verified process cleanup.
 - [x] R060h timing-gap admission/settlement fence with independent supervised
   clock observation, clean Pause and rejected active receipts; no claim of sleep.

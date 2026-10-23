@@ -75,6 +75,27 @@ fn stable(
     Ok(current)
 }
 
+pub(super) fn valid_changes(files: &Value) -> Result<()> {
+    let changes = files
+        .as_array()
+        .filter(|v| v.len() <= 64)
+        .ok_or("invalid_request")?;
+    let mut names = HashSet::new();
+    for file in changes {
+        let path = file["path"]
+            .as_str()
+            .filter(|p| crate::connection::valid_task_path(p, false))
+            .ok_or("invalid_request")?;
+        hash(&file["sha256"], 64)?;
+        if !file.as_object().is_some_and(|m| m.len() == 2)
+            || !names.insert(path.to_ascii_lowercase())
+        {
+            return Err("invalid_request");
+        }
+    }
+    Ok(())
+}
+
 pub(in super::super::super) fn run(
     git: &Git<'_>,
     operation: &str,
@@ -152,23 +173,8 @@ pub(in super::super::super) fn run(
     if operation != "capture_candidate" || !request.as_object().is_some_and(|m| m.len() == 3) {
         return Err("invalid_request");
     }
-    let changes = request["files"]
-        .as_array()
-        .filter(|v| v.len() <= 64)
-        .ok_or("invalid_request")?;
-    let mut names = HashSet::new();
-    for file in changes {
-        let path = file["path"]
-            .as_str()
-            .filter(|p| crate::connection::valid_task_path(p, false))
-            .ok_or("invalid_request")?;
-        hash(&file["sha256"], 64)?;
-        if !file.as_object().is_some_and(|m| m.len() == 2)
-            || !names.insert(path.to_ascii_lowercase())
-        {
-            return Err("invalid_request");
-        }
-    }
+    valid_changes(&request["files"])?;
+    let changes = request["files"].as_array().unwrap();
     if !index_matches(git, &workspace, &entries)? {
         return Err("candidate_mismatch");
     }

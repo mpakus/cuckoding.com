@@ -1,5 +1,16 @@
 # Architecture
 
+R060o adds fixed retained-candidate recovery. New Starts freeze
+`candidate_recovery: retained-candidate-wave-v1`. One/two exact interrupted
+captures or a mixed capture/preparation pair queue exclusive supervised reads.
+The native read requires original intent/publication/receipt, exact files,
+preparation/battle tag and current source/ref/owned bytes. Missing evidence is
+never rebuilt; no capture/provider turn repeats. Each observation is separate
+from its immutable Interrupted attempt. All members must verify before one
+atomic Paused checkpoint, with unchanged slots/bindings/budgets/deadlines.
+Expired/fenced reads permit verified Stop only. Other native/provider/sleep
+recovery remains open. [Decision](DECISIONS.md#d046--recover-complete-retained-candidate-checkpoints).
+
 R050h adds version-four workflow stages with explicit read/write access and
 before/after Implementor placement. Start freezes `write-role-stages-v1`; prior
 read-only/missing policies never acquire write authority. `Battles.Stages` owns
@@ -65,6 +76,7 @@ release process group and private storage lock.
 | `ProjectChecks` | Immutable Arena check declarations, explicit preview/consent and atomic command/revision/event saves; no executable resolution, filesystem access or execution |
 | `Battles`, `BattleRunner`, `BattleExecutor`, `BattleChecks`, `Battles.Capacity` | SQLite battle/task/attempt authority and capacity checks; two monitored workers across isolated Arenas; per-task wave claims, serial review and one provider turn per exact connection; closed native Git, provider turns and disposable check workspaces |
 | `Battles.Stages`, `Battles.Writers` | Frozen stage order/access and exact successful writer evidence; bounded cumulative file hashes for successive retained native checkpoints, no independent completion authority |
+| `Battles.CandidateRecovery`, native `arena_git/worktree/battle/candidate_recovery.rs` | Exact retained capture/preparation proof and exclusive recovery queue; immutable observations, atomic paused checkpoints and no native replay |
 | `Battles.Receipts` | Closed result envelope and stage/provider/session/candidate/check evidence validation against an immutable attempt; read-only session-reuse query, no settlement or launch authority |
 | `BattlePreview` | Read-only aggregation of scoped saved preparation and verified spec artifacts; no durable battle state or launch authority |
 | `Dashboard`, `DashboardComponent`, `ActivityComponent` | Bounded read-only Arena/latest-battle/task/setup/planning projections, exact-board team/progress and 20-event chronological pages; shared stateless worker rows, guarded parent/component events and stable reading mode; no execution authority |

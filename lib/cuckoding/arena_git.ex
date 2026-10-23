@@ -35,7 +35,8 @@ defmodule Cuckoding.LocalGit do
   end
 
   defp timeout(%{"operation" => operation})
-       when operation in ~w(combine_candidate verify_combined_candidate), do: 65_000
+       when operation in ~w(combine_candidate verify_combined_candidate recover_battle_candidate),
+       do: 65_000
 
   defp timeout(%{
          "operation" => operation,
@@ -76,7 +77,7 @@ defmodule Cuckoding.LocalGit do
     ]
 
   defp extra(%{payload: %{"operation" => operation, "request" => request}})
-       when operation in ~w(create_battle verify_battle battle_worktree integrate_candidate recover_integration recover_battle_worktree combine_candidate verify_combined_candidate),
+       when operation in ~w(create_battle verify_battle battle_worktree integrate_candidate recover_integration recover_battle_worktree recover_battle_candidate combine_candidate verify_combined_candidate),
        do: [Jason.encode!(request)]
 
   defp extra(_), do: []
