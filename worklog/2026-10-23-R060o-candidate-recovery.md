@@ -103,5 +103,12 @@ slice findings. Documentation references/whitespace are checked before commit.
 No fresh real-browser, real-provider, physical sleep, clean-machine or signed
 release acceptance is claimed. The original saved workspace and its profiles
 remain untouched. General subprocess containment, other interrupted native/provider
-effects and the remaining beta gates stay open in PLAN. Local integration pending;
-no push/publication.
+effects and the remaining beta gates stay open in PLAN.
+
+## Local integration
+
+Implementation `400f0bb` fast-forwarded into local `main`; the feature branch was
+deleted. Documentation links and `git diff --check` passed. The only unrelated
+untracked file remains `Untitled.md.age`, unread/unstaged. No push/publication,
+original-workspace launch or paid provider usage occurred. The goal remains active
+for the unchecked beta gates in PLAN.

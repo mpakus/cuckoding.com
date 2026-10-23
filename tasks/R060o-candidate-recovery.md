@@ -1,6 +1,6 @@
 # R060o — Retained candidate checkpoint recovery
 
-Status: verified, 2026-10-23; local integration pending.
+Status: implemented, verified and merged locally to main, 2026-10-23 (`400f0bb`).
 
 - [x] Add a fixed read-only native recovery operation for an exact interrupted
   capture with complete original intent/publication/receipt, source/ref/worktree
@@ -14,7 +14,7 @@ Status: verified, 2026-10-23; local integration pending.
   only when all original claims are closed. Preserve historical policy limits.
 - [x] Verify native/domain/OTP/UI/schema compatibility and packaging; update
   docs/AGENTS/README. No new migration beyond schema seventeen.
-- [ ] Merge locally to main without publication.
+- [x] Merge locally to main without publication; feature branch deleted.
 
 Evidence: [worklog](../worklog/2026-10-23-R060o-candidate-recovery.md).
 General subprocess checks, other interrupted native/provider effects, physical
