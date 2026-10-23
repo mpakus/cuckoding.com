@@ -543,3 +543,17 @@ Retry only; usage exhaustion is not retryable. The protocol carries no trusted
 Retry-After delay, so none is inferred. Cleanup uncertainty, native failures,
 review verdicts, binding drift and sibling drains retain every existing gate.
 Cursor/other adapters and real-provider rate-limit acceptance remain required.
+
+## D050 — Verify exact Codex cohorts and bind isolation versions
+
+2026-10-23, R020s. An updated installed Codex remains unsupported until its exact
+version passes fresh-profile non-inference configuration/thread/isolation and
+single-process conformance. Keep setup-only baselines separate from execution
+cohorts. No semver range, guessed compatibility, default model/account or widened
+permission policy may replace those checks. Real-provider acceptance stays open.
+
+When a cohort is admitted, freeze the selected connection's actual observed
+version in isolation requests. Native canaries report their actual verified
+version; host settlement must match that exact request as well as executable and
+version-command identity. A receipt for another supported cohort cannot publish
+success. Preserve immutable historical commands/receipts and existing grants.

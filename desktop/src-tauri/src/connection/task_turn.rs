@@ -608,6 +608,80 @@ done
     }
 
     #[test]
+    #[ignore = "explicit fresh-profile policy preflight, no inference"]
+    fn offline_codex_policy_preflight() {
+        let executable =
+            PathBuf::from(std::env::var_os("CUCKODING_TEST_CODEX").expect("explicit executable"));
+        for task_tools in [false, true] {
+            let (root, profile, scratch, _) = task_files::tests::fixture();
+            let (_sender, cancel) = mpsc::channel();
+            let result = run_operation(
+                &executable,
+                &profile,
+                cancel,
+                Duration::from_secs(15),
+                Operation::PolicyPreflight {
+                    scratch: &scratch,
+                    task_tools,
+                },
+                |_| panic!("no login"),
+            )
+            .expect("bounded preflight");
+            assert_eq!(
+                result["status"], "policy_preflight",
+                "tool mode {task_tools}: {result}"
+            );
+            assert_eq!(result["cleanup_verified"], true);
+            assert!(!profile.join("auth.json").exists());
+            assert!(profile_lock(&profile).is_ok());
+            fs::remove_dir_all(root).unwrap();
+        }
+    }
+
+    #[test]
+    #[ignore = "explicit fresh-profile setup inspection, no inference"]
+    fn offline_codex_setup_preflight() {
+        let executable =
+            PathBuf::from(std::env::var_os("CUCKODING_TEST_CODEX").expect("explicit executable"));
+        let (root, profile, _, _) = task_files::tests::fixture();
+        let (_sender, cancel) = mpsc::channel();
+        let result = run_operation(
+            &executable,
+            &profile,
+            cancel,
+            Duration::from_secs(15),
+            Operation::Inspect,
+            |_| panic!("no login"),
+        )
+        .expect("bounded setup preflight");
+        assert_eq!(result["status"], "checked", "{result}");
+        assert_eq!(result["authorization"], "not_connected");
+        assert_eq!(result["catalog_status"], "not_requested");
+        assert_eq!(result["cleanup_verified"], true);
+        assert!(!profile.join("auth.json").exists());
+        let (_sender, cancel) = mpsc::channel();
+        let mut links = 0;
+        let cancelled = run_operation(
+            &executable,
+            &profile,
+            cancel,
+            Duration::from_secs(15),
+            Operation::Login,
+            |_| {
+                links += 1;
+                Err("cancelled")
+            },
+        )
+        .expect("bounded login-start/cancel preflight");
+        assert_eq!(links, 1);
+        assert_eq!(cancelled["status"], "cancelled", "{cancelled}");
+        assert_eq!(cancelled["cleanup_verified"], true);
+        assert!(!profile.join("auth.json").exists());
+        assert!(profile_lock(&profile).is_ok());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     #[ignore = "requires explicit account usage consent and an app-owned signed-in profile"]
     fn real_codex_task_tools() {
         let executable =

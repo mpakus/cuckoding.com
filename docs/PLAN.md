@@ -695,6 +695,12 @@ rendered desktop/narrow screenshots and observed timing with prerequisites.
 
 Depends on R080 for final user-flow acceptance; reuse R020's adapter boundary.
 
+- [x] R020s verifies the installed Codex `0.163.0-alpha.11.2` alongside the old
+  execution cohort with fresh-profile non-inference setup/policy/thread and OS
+  canaries. Disable new action/daemon defaults and bind isolation receipt versions
+  exactly; do not infer real-account execution acceptance from these checks.
+  [Task/evidence](../tasks/R020s-codex-compatibility.md).
+
 - [ ] Claude Code: verify current official interface/license, safe authorization,
   model discovery/defaults, grant mapping, streaming, cancellation and recovery.
 - [ ] Cursor: complete real-account conformance, history cleanup and project-config

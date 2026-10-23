@@ -1,5 +1,10 @@
 # Data model
 
+R020s adds no migration (schema seventeen). Existing isolation requests now freeze
+the selected connection's actual observed version in their existing version field.
+Native success reports that exact cohort; settlement rejects another supported
+cohort while retaining immutable historical commands/receipts and identity guards.
+
 R060q adds no migration (schema seventeen). New snapshots freeze
 `provider_backoff: automatic-provider-backoff-v2`. Existing wait metadata retains
 its shape; only explicit overload permits 5–7/20–22-second delays. Old v1 delays

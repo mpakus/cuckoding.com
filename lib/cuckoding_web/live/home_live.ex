@@ -840,18 +840,16 @@ defmodule CuckodingWeb.HomeLive do
             <.form_scope key={@command_key} revision={@workspace.revision} />
             <button
               class="button"
-              disabled={
-                @pending || @workspace.codex["version"] != Cuckoding.Codex.isolation_version()
-              }
+              disabled={@pending || not Cuckoding.Codex.task_version?(@workspace.codex["version"])}
             >
               Run isolation check
             </button>
           </form>
           <p
-            :if={@workspace.codex["version"] != Cuckoding.Codex.isolation_version()}
+            :if={not Cuckoding.Codex.task_version?(@workspace.codex["version"])}
             class="fine-print"
           >
-            This check supports Codex {Cuckoding.Codex.isolation_version()}. Other setup features are unchanged.
+            This check supports Codex {Enum.join(Cuckoding.Codex.task_versions(), " or ")}. Other setup features are unchanged.
           </p>
           <div :if={@workspace.codex["isolation"]} id="isolation-result" role="status">
             <p>{isolation_status(@workspace.codex["isolation"]["status"])}</p>
@@ -1094,7 +1092,7 @@ defmodule CuckodingWeb.HomeLive do
 
   defp codex_status("unsupported"),
     do:
-      "This version has not been verified. Verified versions: 0.146.0, 0.162.0-alpha.2 and 0.162.0-alpha.17.2."
+      "This version has not been verified. Verified versions: #{Enum.join(Cuckoding.Codex.verified_versions(), ", ")}."
 
   defp codex_status("timeout"),
     do: "The version check timed out. Check the executable and try again."

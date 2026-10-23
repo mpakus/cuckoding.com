@@ -45,6 +45,11 @@ pub enum Operation<'a> {
         effort: &'a str,
         request: &'a Value,
     },
+    #[cfg(test)]
+    PolicyPreflight {
+        scratch: &'a Path,
+        task_tools: bool,
+    },
 }
 
 pub(crate) struct ProfileLock(File);
@@ -402,16 +407,42 @@ fn operate(
     operation: Operation,
     progress: &mut impl FnMut(&str) -> Result<()>,
 ) -> Result<Value> {
-    let config = initialize(
-        rpc,
-        directory,
-        matches!(
-            operation,
-            Operation::Check { .. } | Operation::Plan { .. } | Operation::Task { .. }
-        ),
-    )?;
+    let constrained = match operation {
+        Operation::Check { .. } | Operation::Plan { .. } | Operation::Task { .. } => true,
+        #[cfg(test)]
+        Operation::PolicyPreflight { .. } => true,
+        _ => false,
+    };
+    let config = initialize(rpc, directory, constrained)?;
     match operation {
         Operation::Inspect => {}
+        #[cfg(test)]
+        Operation::PolicyPreflight {
+            scratch,
+            task_tools,
+        } => {
+            model_check::validate_config(&config, scratch, task_tools)?;
+            let tools = if task_tools {
+                task_files::tools(true)
+            } else {
+                json!([])
+            };
+            let result = rpc.request(
+                "thread/start",
+                json!({
+                    "model":"gpt-6.1-sol", "modelProvider":"openai", "cwd":scratch,
+                    "approvalPolicy":"never", "permissions":model_check::PROFILE,
+                    "ephemeral":true, "allowProviderModelFallback":false,
+                    "experimentalRawEvents":false, "environments":[],
+                    "runtimeWorkspaceRoots":[scratch], "dynamicTools":tools,
+                    "baseInstructions":"No inference preflight. No turn is permitted.",
+                    "developerInstructions":"No inference preflight.",
+                    "config":{"model_reasoning_effort":"low"}
+                }),
+            )?;
+            model_check::validate_thread(&result, scratch, "gpt-6.1-sol", "low")?;
+            return Ok(json!({"status":"policy_preflight"}));
+        }
         Operation::Task {
             scratch,
             model,
@@ -512,6 +543,14 @@ fn run_operation(
         "approval_policy=\"never\"",
     ]);
     let cwd = match operation {
+        #[cfg(test)]
+        Operation::PolicyPreflight {
+            scratch,
+            task_tools,
+        } => {
+            model_check::configure(&mut command, scratch, task_tools)?;
+            scratch
+        }
         Operation::Check { scratch, .. }
         | Operation::Plan { scratch, .. }
         | Operation::Task { scratch, .. } => {
@@ -524,6 +563,9 @@ fn run_operation(
         }
         _ => {
             command.args(["-c", "sandbox_mode=\"read-only\""]);
+            for feature in model_check::DISABLED {
+                command.args(["-c", &format!("features.{feature}=false")]);
+            }
             directory
         }
     };

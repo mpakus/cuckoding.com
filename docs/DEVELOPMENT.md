@@ -146,7 +146,7 @@ then follow the four steps:
    are prefilled. The name stays editable and custom names/paths are retained. Add
    multiple connections as needed; Claude Code and Hermes remain coming soon. **Executable details** allows a path override or **Use desktop Codex**.
    **Continue with Codex/Cursor** explicitly runs that program's fixed `--version` check.
-   Supported Codex baselines are `0.146.0`, `0.162.0-alpha.2` and `0.162.0-alpha.17.2`. The desktop and standalone
+   Supported Codex setup baselines are `0.146.0`, `0.162.0-alpha.2`, `0.162.0-alpha.17.2` and `0.163.0-alpha.11.2`. The desktop and standalone
    executables can advertise different models; no executable is silently replaced.
 2. **Connect and Authorize.** **Refresh connection**, shown after sign-in, checks Cuckoding's private
    profile (`agents/<UUID>` for new connections; `agents/codex` for the legacy one) and fetches the full bounded catalog without inference.
@@ -192,7 +192,7 @@ setup revisions reject recovered stale actions. The shell supplies the native he
 never point `CCODING_NATIVE_HELPER` at an unrelated executable.
 
 Below the wizard, **Execution isolation (optional) → Run isolation check** tests
-the verified Codex `0.162.0-alpha.17.2` sandbox with fixed commands in two disposable
+a verified Codex `0.162.0-alpha.17.2` / `0.163.0-alpha.11.2` sandbox with fixed commands in two disposable
 folders. No account, model or Arena is used. Results are saved per connection and
 include a timestamp; Cancel waits for helper cleanup. Each test retains its
 synthetic fixtures under the command's private `probes/` directory. Rechecking the

@@ -308,7 +308,7 @@ defmodule Cuckoding.Battles.Snapshot do
 
   defp runtime_status(%{kind: "codex", codex: observation}),
     do:
-      if(observation["version"] == Codex.isolation_version(),
+      if(Codex.task_version?(observation["version"]),
         do: "ready",
         else: "task_runtime_version_required"
       )

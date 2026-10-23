@@ -331,7 +331,7 @@ defmodule Cuckoding.Foundation do
          {:ok, identity} <- verified_executable(agent_id),
          true <-
            Agents.kind(agent_id) == "codex" and
-             workspace(agent_id).codex["version"] == Codex.isolation_version() do
+             Codex.task_version?(workspace(agent_id).codex["version"]) do
       command(
         key,
         expected,
@@ -339,7 +339,7 @@ defmodule Cuckoding.Foundation do
         scoped(
           %{
             "identity" => identity,
-            "version" => Codex.isolation_version(),
+            "version" => workspace(agent_id).codex["version"],
             "version_command_id" => workspace(agent_id).codex["command_id"],
             "contract" => "codex-isolation-v1"
           },
@@ -357,7 +357,7 @@ defmodule Cuckoding.Foundation do
     observed = workspace(id).codex
 
     Agents.kind(id) == "codex" and payload["contract"] == "codex-isolation-v1" and
-      payload["version"] == Codex.isolation_version() and
+      Codex.task_version?(payload["version"]) and
       observed["version"] == payload["version"] and
       observed["command_id"] == payload["version_command_id"] and
       verified_executable(id) == {:ok, payload["identity"]}
@@ -949,9 +949,10 @@ defmodule Cuckoding.Foundation do
     result = result |> Jason.encode!() |> Codex.normalize_isolation()
 
     result =
-      if result["status"] == "passed" and not isolation_current?(claim.payload),
-        do: %{"status" => "executable_changed"},
-        else: result
+      if result["status"] == "passed" and
+           (not isolation_current?(claim.payload) or result["version"] != claim.payload["version"]),
+         do: %{"status" => "executable_changed"},
+         else: result
 
     public =
       Map.merge(result, %{

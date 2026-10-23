@@ -295,7 +295,7 @@ Default columns and the four required roles, bound independently to named Codex 
 An unchanged successful catalog observation and exact selected executable/model
 remain required at each role turn. R080a permits an aged saved binding; native
 account/model checks still run before dispatch. Failed/invalidated observations
-still refuse use. Every Codex role needs `0.162.0-alpha.17.2`; Cursor roles need
+still refuse use. Every Codex role needs `0.162.0-alpha.17.2` or `0.163.0-alpha.11.2`; Cursor roles need
 `2026.09.15-d2fe57e` and the verified `cursor-acp-v1` grant. Extra command checks
 still require the Codex Implementor runtime. No fallback or implicit account/model substitution occurs.
 At most 20 tasks, three review returns per task, 200 role stages and two wall-clock

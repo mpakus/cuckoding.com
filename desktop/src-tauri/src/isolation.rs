@@ -13,6 +13,7 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
+#[cfg(test)]
 const VERSION: &str = "0.162.0-alpha.17.2";
 const CONTRACT: &str = "codex-isolation-v1";
 type Result<T> = std::result::Result<T, &'static str>;
@@ -74,6 +75,7 @@ struct Runner<'a> {
     wall_started: SystemTime,
     limit: Duration,
     children: Vec<Value>,
+    version: Option<&'static str>,
 }
 
 impl Runner<'_> {
@@ -224,9 +226,10 @@ impl Runner<'_> {
             std::os::unix::fs::symlink(self.root.join("outside.txt"), workspace.join("link"))
                 .map_err(|_| "unsafe_fixture")?;
         }
-        if self.command(&["--version"], self.root)? != format!("codex-cli {VERSION}\n").as_bytes() {
-            return Err("unsupported_version");
-        }
+        self.version = Some(
+            crate::codex_versions::from_output(&self.command(&["--version"], self.root)?)
+                .ok_or("unsupported_version")?,
+        );
         let listener = TcpListener::bind("127.0.0.1:0").map_err(|_| "network_unavailable")?;
         listener
             .set_nonblocking(true)
@@ -250,6 +253,8 @@ impl Runner<'_> {
                         workspace.to_str().ok_or("unsafe_fixture")?,
                         "-c",
                         &profile,
+                        "-c",
+                        "features.daemon_auto_start=false",
                         "--",
                         "/bin/sh",
                         "-c",
@@ -287,12 +292,13 @@ fn run(executable: &Path, root: &Path, cancel: Receiver<()>, limit: Duration) ->
         wall_started: SystemTime::now(),
         limit,
         children: Vec::new(),
+        version: None,
     };
     let status = match runner.check() {
         Ok(()) => "passed",
         Err(status) => status,
     };
-    json!({"status":status, "contract":CONTRACT, "version":VERSION,
+    json!({"status":status, "contract":CONTRACT, "version":runner.version,
         "children":runner.children, "elapsed_ms":runner.started.elapsed().as_millis()})
 }
 
@@ -371,6 +377,7 @@ mod tests {
             wall_started: SystemTime::now(),
             limit: Duration::from_secs(1),
             children: Vec::new(),
+            version: None,
         };
         let client = thread::spawn(move || {
             thread::sleep(Duration::from_millis(40));

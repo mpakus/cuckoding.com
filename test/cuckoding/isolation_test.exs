@@ -99,6 +99,26 @@ defmodule Cuckoding.IsolationTest do
              )
   end
 
+  test "each execution cohort freezes its observed version and refuses a different accepted cohort",
+       %{path: path} do
+    for observed <- Codex.task_versions() do
+      version(path, observed)
+      claim = start_check()
+      assert claim.payload["version"] == observed
+      other = Enum.find(Codex.task_versions(), &(&1 != observed))
+      {:ok, _} = Foundation.finish(claim, Map.put(receipt(), "version", other))
+      assert Foundation.workspace().codex["isolation"]["status"] == "executable_changed"
+      retained = Repo.get!(Command, claim.id)
+
+      version(path, observed)
+      correct = start_check()
+      {:ok, _} = Foundation.finish(correct, Map.put(receipt(), "version", observed))
+      assert Foundation.workspace().codex["isolation"]["status"] == "passed"
+      assert Foundation.workspace().codex["isolation"]["version"] == observed
+      assert Repo.get!(Command, claim.id) == retained
+    end
+  end
+
   test "named Codex keeps its receipt separate from the legacy profile", %{path: path} do
     {:ok, command} =
       Agents.add_and_probe(

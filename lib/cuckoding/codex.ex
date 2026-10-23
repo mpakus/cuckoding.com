@@ -13,7 +13,8 @@ defmodule Cuckoding.Codex do
   @moduledoc "Version readiness and fixed private-profile operations."
   @behaviour Cuckoding.AgentAdapter
   import Bitwise
-  @verified_versions ~w(0.146.0 0.162.0-alpha.2 0.162.0-alpha.17.2)
+  @task_versions ~w(0.162.0-alpha.17.2 0.163.0-alpha.11.2)
+  @verified_versions ~w(0.146.0 0.162.0-alpha.2) ++ @task_versions
   @errors ~w(launch_failed timeout cancelled invalid_output executable_changed helper_unavailable cleanup_uncertain)
   @connection_errors @errors ++
                        ~w(connection_lost provider_error unexpected_message profile_mismatch unsupported_profile unsafe_profile profile_busy invalid_login login_failed logout_unconfirmed)
@@ -91,7 +92,10 @@ defmodule Cuckoding.Codex do
     observe(identity, directory, active?, "--probe-codex", &normalize/1, 1024, 8_000)
   end
 
-  def isolation_version, do: "0.162.0-alpha.17.2"
+  def verified_versions, do: @verified_versions
+  def task_versions, do: @task_versions
+  def task_version?(version), do: version in @task_versions
+  def isolation_version, do: hd(@task_versions)
 
   def check_isolation(identity, directory, active?) do
     observe(
@@ -126,7 +130,7 @@ defmodule Cuckoding.Codex do
   def normalize_isolation(_), do: %{"status" => "invalid_output"}
 
   defp valid_isolation_success?("passed", value) do
-    value["contract"] == "codex-isolation-v1" and value["version"] == isolation_version() and
+    value["contract"] == "codex-isolation-v1" and task_version?(value["version"]) and
       is_integer(value["elapsed_ms"]) and valid_isolation_children?(value["children"], true)
   end
 

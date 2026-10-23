@@ -3,7 +3,7 @@
 Status: R020i adds named Codex/Cursor setup connections and per-role bindings.
 Codex supports version/account/catalog checks, ChatGPT login/logout, a fixed
 model diagnostic and R040e/f brief/document-snapshot planning. Its verified
-baselines are `0.146.0`, `0.162.0-alpha.2` and `0.162.0-alpha.17.2`; R020h records an actual GPT-6.1-Sol
+baselines are `0.146.0`, `0.162.0-alpha.2`, `0.162.0-alpha.17.2` and `0.163.0-alpha.11.2`; R020h records an actual GPT-6.1-Sol
 diagnostic response. Cursor `2026.09.15-d2fe57e` supports fixed setup operations
 and R020p bounded ACP role turns plus R020r no-tools initial planning. Real mixed-runtime Arena
 acceptance and additional provider adapters remain open.
@@ -46,6 +46,15 @@ Pin and verify any bridge binary, source license and build provenance when one
 is actually required.
 
 ## Provider evidence checklist
+
+R020s admits the exact `0.163.0-alpha.11.2` cohort beside
+`0.162.0-alpha.17.2` for existing task/check grants, after actual fresh-profile
+setup/policy/thread and OS canaries. New daemon/browser/installation/delegation
+defaults are explicitly disabled in addition to the prior tool restrictions.
+No inference or existing profile was used. Optional isolation freezes/reports the
+actual cohort and refuses a receipt for a different accepted version. Setup-only
+older clients remain distinct; no account/model substitution or schema change.
+Real-account execution on the new cohort remains required.
 
 | Target | Rebuild status | Evidence needed before enabling execution |
 | --- | --- | --- |

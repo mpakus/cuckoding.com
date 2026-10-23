@@ -690,7 +690,9 @@ Do not restore the old implementation or treat historical tests as current proof
   initialize/config-read/account-read/model-list, keeps raw frames and account
   identifiers out of Cuckoding storage, and rejects unsafe profiles. Keep the
   explicitly selected executable: desktop and standalone Codex can advertise
-  different catalogs. Verified versions are 0.146.0, 0.162.0-alpha.2 and 0.162.0-alpha.17.2. Allow
+  different catalogs. Setup baselines are 0.146.0, 0.162.0-alpha.2,
+  0.162.0-alpha.17.2 and 0.163.0-alpha.11.2. R020s execution cohorts are only
+  0.162.0-alpha.17.2 and 0.163.0-alpha.11.2; unknown versions remain unsupported. Allow
   `account/updated` during authoritative `account/read` only; unsolicited login
   completion, server requests and later account drift remain refused. Retain the
   last catalog as stale after inspection failure; age it out after 24 hours.
@@ -698,6 +700,14 @@ Do not restore the old implementation or treat historical tests as current proof
   bindings; the 24-hour limit still gates new model choices and optional diagnostics.
   Failed/invalidated observations and exact account/executable/model drift refuse
   reuse. Native preflight remains mandatory before usage; no silent substitution.
+  R020s explicitly disables the newer action/installation/delegation/daemon
+  defaults without widening grants. Setup, task/no-tools policy/thread and OS
+  canaries use fresh private profiles; inference acceptance stays separate.
+  Isolation commands freeze the actual observed version. Native receipts report
+  that version, and settlement requires its exact match plus the existing
+  identity/version-command guards; another supported cohort is never a fallback.
+  Preserve historical commands and optional diagnostics. Test-only preflight has
+  no release CLI/API entry point or completion authority.
   Confirmed Disconnect unassigns the exact connection in current default/Arena/board
   teams through immutable revisions/adoptions in the accepted logout transaction.
   Preserve historical snapshots, other agents and role instructions. Refuse agents

@@ -47,7 +47,7 @@ their exact gates. No provider, filesystem or process grant is broadened.
 
 R020m's optional `check_codex_isolation` uses fixed commands and a fresh empty
 profile to test two disposable folders with the observed Codex
-`0.162.0-alpha.17.2`. It touches no Arena or signed-in profile and uses no model.
+`0.162.0-alpha.17.2` or `0.163.0-alpha.11.2`. It touches no Arena or signed-in profile and uses no model.
 It tests read-only/writing, sibling/private fixtures, protected `.git`/`.cuckoding`,
 symbolic/hard links, protected-directory rename and loopback network denial.
 The local endpoint is proven reachable outside the sandbox and dropped before

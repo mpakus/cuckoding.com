@@ -24,7 +24,6 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-const VERSION: &str = "0.162.0-alpha.17.2";
 const CONTRACT: &str = "codex-check-single-process-v1";
 type Result<T> = std::result::Result<T, &'static str>;
 type Manifest = BTreeMap<String, (u32, String)>;
@@ -1029,7 +1028,9 @@ impl Runner {
             None,
         )?;
         if version["exit_code"] != 0
-            || version["stdout_sha256"] != hash(format!("codex-cli {VERSION}\n").as_bytes())
+            || !crate::codex_versions::TASK
+                .iter()
+                .any(|v| version["stdout_sha256"] == hash(format!("codex-cli {v}\n").as_bytes()))
         {
             return Err("unsupported_version");
         }
@@ -1079,6 +1080,8 @@ impl Runner {
                 scratch.to_str().ok_or("unsafe_workspace")?,
                 "-c",
                 &policy,
+                "-c",
+                "features.daemon_auto_start=false",
                 "--",
                 rtk.to_str().ok_or("invalid_request")?,
                 "proxy",

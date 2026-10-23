@@ -1,5 +1,6 @@
 mod arena_git;
 mod build_info;
+mod codex_versions;
 mod connection;
 mod cursor;
 mod folder;

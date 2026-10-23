@@ -1,5 +1,13 @@
 # Architecture
 
+R020s separates exact Codex setup and execution cohorts. Native `codex_versions`
+is shared by OS diagnostics/checks; host Codex exposes the matching bounded list.
+Isolation captures the selected connection's actual version and settlement binds
+the receipt to that version plus existing identity/command guards. Additional
+native action/daemon defaults are disabled, not granted by compatibility. A
+test-only no-inference preflight checks effective policy/thread metadata and is
+absent from release CLI/API. [Decision](DECISIONS.md#d050--verify-exact-codex-cohorts-and-bind-isolation-versions).
+
 R060q keeps Codex typed failure parsing in native `connection/task_turn.rs`.
 Only normalized public codes cross TaskTurn; raw errors never do. New snapshots
 freeze backoff v2; Backoff validates bounded persisted jittered overload windows,

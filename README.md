@@ -161,7 +161,7 @@ Reopen with that same data directory. See [reset and recovery](docs/DEVELOPMENT.
 for defaults, archived credentials, running-work refusal and restore details.
 
 Codex also has an optional **Execution isolation** diagnostic. With verified
-`0.162.0-alpha.17.2`, it checks read-only/writing restrictions in two disposable
+`0.162.0-alpha.17.2` or `0.163.0-alpha.11.2`, it checks read-only/writing restrictions in two disposable
 folders without signing in or using a model. Results are saved per connection;
 they are sandbox evidence, not permission to execute Arena tasks.
 
@@ -175,7 +175,10 @@ Older requests retain their individual **Add to Specs** controls. **Start** free
 the default board, task criteria/checks, four assigned Codex/Cursor roles, model bindings and limits:
 20 tasks, three review returns per task, 200 role turns and two hours. A committed
 Git source, valid saved model bindings and verified task runtimes are required: Codex
-`0.162.0-alpha.17.2` or Cursor `2026.09.15-d2fe57e`.
+`0.162.0-alpha.17.2` / `0.163.0-alpha.11.2` or Cursor `2026.09.15-d2fe57e`.
+The newer Codex cohort passed fresh-profile policy/thread and OS canaries without
+inference. Additional native tool/daemon defaults are disabled explicitly. Real
+account execution remains a separate acceptance gate. [Compatibility evidence](tasks/R020s-codex-compatibility.md).
 Secutor reviews the checks described in every task and the combined result.
 Missing required runtime/test evidence blocks completion; code inspection never
 proves tests ran. **Advanced → Extra command checks (optional)** adds explicit

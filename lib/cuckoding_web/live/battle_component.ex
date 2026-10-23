@@ -252,7 +252,7 @@ defmodule CuckodingWeb.BattleComponent do
   defp message(reason)
        when reason in ~w(check_runtime_version_required task_runtime_version_required),
        do:
-         "Every assigned Codex connection needs version 0.162.0-alpha.17.2 for task execution. Recheck the connection in Agents."
+         "Every assigned Codex connection needs a verified task version (#{Enum.join(Cuckoding.Codex.task_versions(), " or ")}). Recheck the connection in Agents."
 
   defp message("check_runtime_required"),
     do:

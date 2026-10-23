@@ -1,5 +1,19 @@
 # Verification and acceptance
 
+R020s admits exact Codex 0.163.0-alpha.11.2 after signed-binary/offline schema,
+fresh-profile setup/login-start/cancel, task/no-tools policy/thread preflight and
+actual two-workspace/single-process OS canaries. No browser, sign-in, inference or
+existing profile is required. Unknown versions and cross-cohort isolation receipts
+refuse. New action/daemon defaults are disabled; transport settings are unchanged.
+This is distinct from real-account execution/review/parallel acceptance.
+
+For non-inference SDK checks, set only `CUCKODING_TEST_CODEX` to the explicitly
+chosen trusted executable, leave `CUCKODING_TEST_PROFILE` unset, and use exact
+test names with `--ignored --exact`: `connection::task_turn::tests::offline_codex_policy_preflight`
+and `connection::task_turn::tests::offline_codex_setup_preflight`. The latter also
+tests fixed login-start/cancel without opening the returned link. Never use a
+broad `real_codex_` filter: it also selects the consented inference test.
+
 R060q tests typed Codex terminal errors, internal willRetry completion, foreign
 scope, malformed retry flags/variants and raw error canaries through the real
 native fixture process. Effects/cleanup remain exact. Host tests cover new code
@@ -228,8 +242,8 @@ the grant or native helper changes. A routine ignored result is not a pass.
 ## Gates by slice
 
 R020m real sandbox check (no account/inference) is opt-in:
-`rtk proxy env CUCKODING_TEST_CODEX=/absolute/trusted/codex CUCKODING_ISOLATION_CANARY=fixture cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked isolation::tests::real_codex_two_workspace_isolation -- --ignored`.
-Use a verified `0.162.0-alpha.17.2` executable. Routine Cargo tests deliberately
+`rtk proxy env CUCKODING_TEST_CODEX=/absolute/trusted/codex CUCKODING_ISOLATION_CANARY=fixture cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked isolation::tests::real_codex_two_workspace_isolation -- --ignored --exact`.
+Use a verified `0.162.0-alpha.17.2` or `0.163.0-alpha.11.2` executable. Routine Cargo tests deliberately
 skip this gate; record its separate result. It does not close model-tool execution
 or independent review acceptance. Domain/UI regressions live in
 `test/cuckoding/isolation_test.exs` and `test/cuckoding_web/isolation_live_test.exs`.
