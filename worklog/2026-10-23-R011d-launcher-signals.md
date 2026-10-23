@@ -1,6 +1,6 @@
 # R011d — Lock-free source-launcher shutdown signals
 
-Claimed on `fix/R011d-launcher-signals`, after R100b implementation/integration.
+Claimed on `fix/R011d-launcher-signals`, base `8204f1e`, after R100b implementation/integration.
 The R100b copied QA launcher used the existing source launcher's Event-based
 signal handler. It remained alive holding its private data lock after its backend
 and listener exited, despite Ctrl-C/normal SIGTERM. Only that verified childless
@@ -65,4 +65,9 @@ The change is the developer Python launcher only. No Elixir/Rust/app bundle inpu
 changed, so their R100b 557/98 passing evidence is historical here, not claimed
 as rerun. No bundle rebuild, paid inference, native-provider cleanup, physical
 sleep or real-account beta acceptance is claimed. Original saved profiles/data
-and unrelated `Untitled.md.age` remain untouched. Local integration pending.
+and unrelated `Untitled.md.age` remain untouched.
+
+Implementation `1c8db0d` fast-forwarded into local `main`; feature branch deleted.
+Relevant docs, AGENTS.md and README.md are updated. Only the unread unrelated
+encrypted file remains untracked. No push/publication; no developer preview is
+left running. The full beta goal remains active for the unchecked PLAN gates.
