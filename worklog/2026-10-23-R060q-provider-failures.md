@@ -1,6 +1,6 @@
 # R060q — Structured Codex failures
 
-Implemented and verified; integration pending. Branch `feature/R060q-provider-failures`, base `dbdf4ad`.
+Implemented, verified and merged locally. Branch `feature/R060q-provider-failures`, base `dbdf4ad`.
 Ponytail full 5.3.2 MIT; adapter, OTP, security, local-runner and quality guidance.
 No inference, provider credentials or user workspace access.
 
@@ -80,7 +80,9 @@ Private logs: `.ccoding/r060q-quality-final.log`, `r060q-native.log`,
 replay/origin refusal, heartbeat, graceful quit and listener cleanup. Fresh smoke
 data remains at `/private/tmp/ccoding-smoke.177DQC`; post-quit schema seventeen,
 SQLite integrity/FKs and released shell lock verified. No user workspace/profile
-was copied or started. Local integration pending.
+was copied or started. Implementation `b2eb1cb` fast-forwarded into local main;
+feature branch deleted. Only unrelated `Untitled.md.age` remains untracked.
+No remote publication or beta-release acceptance is implied by this local merge.
 Real-provider throttling/reset/recovery, Cursor classification, newer desktop
 runtime conformance, general subprocess checks, physical sleep and signed release
 acceptance remain open. No inference, push or publication occurred.
