@@ -1,5 +1,23 @@
 # Verification and acceptance
 
+R060t: after `rtk proxy bin/dev.build`, run
+`rtk proxy python3 -B test/guest_battle_smoke.py --check-recovery`. The fresh
+synthetic R060t fixture runs the R050r six-VM loop, then constructs native recovery
+queries from the original immutable attempt snapshots. Require repeated exact
+reads of all six original pass/fail receipts, intact source/index/artifact hashes,
+no new run keys and refusal of foreign commands/source, missing runs and keeper-
+only proof. Private probe frames stay in that fixture, never printed or exported.
+The retained schema20 bundle metadata uses `.ccoding/r050r-old-bundle.json` for
+the unchanged schema21 compatibility fence. Replies are synthetic, no inference.
+
+Native unit checks cover closed query shape, expired historical proof, exact
+output/keeper/boot/intent/publication/wrapper receipts, false/malformed cleanup,
+links/modes/missing evidence, cancellation, no-created namespaces and fixed budget.
+Dropping the exact wrapper receipt comparison must fail the forged-cleanup test.
+This proves the native prerequisite only; OTP checkpoint recovery, keeper loss,
+physical sleep, real-provider and release acceptance remain separate.
+[Task/evidence](../tasks/R060t-retained-guest-check.md).
+
 R050r: after `rtk proxy bin/dev.build`, run
 `rtk proxy python3 -B test/guest_battle_smoke.py --check-feedback`. Keep the sealed
 schema-twenty app before rebuilding, with exact metadata at

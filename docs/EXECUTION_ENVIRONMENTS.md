@@ -232,6 +232,17 @@ establishes cleanup, replay, recovery or task completion. Start/OTP/tool grants
 and real dependencies/platform/distribution acceptance remain separate.
 [Keeper contract/evidence](../tasks/R050o-native-check-keeper.md).
 
+R060t `recover_guest_check` reads only complete original retained proof under the
+exact run/check/attempt/candidate/command/image binding. It verifies the existing
+image/capsule, recomputes boot bytes, checks private keeper/output bytes and requires
+both native closure records plus the wrapper receipt. A keeper-only observation
+still refuses. Repeated reads create/modify nothing and start no VM or project
+command. The separate 60-second native/65-second caller inspection budget does
+not extend execution deadlines. Historical proof is data until the future OTP
+consumer binds all ordered checks, retains Interrupted history and pauses for
+explicit Resume; current Start/recovery grants are unchanged.
+[Inspection contract](../tasks/R060t-retained-guest-check.md).
+
 R050p new Starts with entirely saved npm/Mix check lists freeze
 `isolated-guest-checks-v1` and the compiled image/keeper/process/build digest.
 `CheckImage` installs or verifies the exact audited image inside the existing

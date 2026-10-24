@@ -724,6 +724,21 @@ bundles and bounds check-result updates; back up first, no historical rewrite.
 Preserve budgets, waves, exact bindings and cleanup/recovery gates. See
 [task](tasks/R050r-check-feedback.md).
 
+R060t adds fixed native `recover_guest_check` inspection only. Bind the exact
+original run/attempt/check/candidate/command and frozen image; require complete
+private admission/request/intent, keeper publication and wrapper receipt. Reuse
+image and owned candidate verification, recompute the boot image, verify embedded
+keeper/output bytes and exact typed VM/helper closure. Read only pinned private
+regular files; refuse missing/linked/foreign/uncertain proof without recreating
+anything. Never launch/signal a VM/provider or infer cleanup from process absence.
+The inspection has a 60-second native budget (65-second caller ceiling), separate
+from original execution deadlines; expired proof is historical only. Preserve the
+original opt-in feedback bounds. This prerequisite enables no Start/recovery
+policy, replay, checkpoint advancement or public log access. The later OTP consumer
+must retain Interrupted attempts, require all ordered checks, record dated bound
+observations and pause for explicit Resume under original limits. See
+[task](tasks/R060t-retained-guest-check.md).
+
 R020m's optional `codex-isolation-v1` diagnostic runs fixed commands against two
 disposable fixtures with a fresh empty profile, never an Arena or signed-in profile.
 Bind its receipt to the exact connection/version/executable observation. Preserve

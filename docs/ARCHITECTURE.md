@@ -1,5 +1,17 @@
 # Architecture
 
+R060t `arena_git::guest_check::recovery` owns a fixed read of complete retained
+guest-check proof. `Store::retained_run` opens the existing namespace without
+creating it; the only executable read is the fixed private keeper artifact.
+The reader reuses current image/candidate verification, reconstructs expected boot
+bytes in memory and checks original admission/intent/publication/receipt/output.
+It launches no VM/provider, changes no artifact and returns the original bound
+result as historical data. A 60-second native/65-second caller budget never
+extends execution authority. No Phoenix recovery consumer or Start grant is added
+in this prerequisite; an interrupted check still needs inspection. The subsequent
+consumer must bind all original ordered checks and explicit paused checkpoints.
+[Contract](../tasks/R060t-retained-guest-check.md).
+
 R050r `CheckFeedback` owns the opt-in failed-check schema, exact immutable
 attempt/check/candidate binding, prompt projection/reservation and public metadata.
 The existing native `guest_check` owner transforms already verified output before

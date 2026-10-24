@@ -1,5 +1,18 @@
 # Security contract
 
+R060t native `recover_guest_check` is a closed retained-proof read, not a general
+log reader or command grant. Require exact caller binding, frozen current image,
+source identity, owned candidate capsule and complete original private proof.
+Recompute expected boot bytes; verify keeper, intent, output and separate VM /
+wrapper-group closure before returning the unchanged bounded result. Missing
+wrapper receipt cannot be replaced by keeper-only closure or process absence.
+No store/file is created and no project command/VM/provider is launched or signalled.
+All reads are pinned, size/mode/link/owner checked, cancellable and bounded by the
+60-second inspection budget. Original execution expiry remains historical;
+workflow continuation is not enabled by this primitive. Failure excerpts retain
+their original opt-in/private bounds. The new source enters the compiled image
+cohort; there is no silent image/version fallback.
+
 R050r new guest Starts explicitly freeze/disclose bounded-guest-feedback-v1. The
 existing native check owner projects only a normal failed result after exact
 retained output size/hash, unchanged source and VM/helper closure verification.

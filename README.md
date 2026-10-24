@@ -42,7 +42,7 @@ remote push, user-branch merge and release remain separate human actions.
 
 ## What works today
 
-**Local preview source, 2026-10-23.** The Codex/Cursor Arena loop includes independent-task implementation waves.
+**Local preview source, 2026-10-24.** The Codex/Cursor Arena loop includes independent-task implementation waves.
 Settings → Build details identifies the packaged build, source revision, local
 changes and application-input digest. Source UI previews are labelled separately.
 The build retains artifact hashes in a private receipt; signing/notarization and
@@ -55,6 +55,9 @@ The repeatable packaged recovery check uses fresh synthetic workspaces and real
 native Git operations. It verifies the normal app's restart checkpoint and
 missing-proof refusal without provider calls; this is separate from real-account
 battle acceptance. See [packaged recovery checks](docs/TESTING.md).
+The native helper can now inspect complete retained guest-check receipts without
+rerunning tests. The OTP checkpoint consumer is still pending, so this primitive
+alone does not resume an interrupted check stage. [Native proof reader](tasks/R060t-retained-guest-check.md).
 Before upgrading a recognized existing schema, startup verifies a private
 database copy and retains its dated receipt. Settings → Database copy details
 shows its location and recorded hash. Failed copies stop migration. Provider
@@ -120,8 +123,8 @@ No custom stage can run commands or grant completion. The whole task retains the
 old battles keep their original workflow and grants. These local fixtures/native
 checks still need real-account custom-stage acceptance.
 
-Back up before upgrading. The current schema is eighteen: writer checkpoints from
-seventeen remain intact, with an additional blocked-task admission guard. Older
+Back up before upgrading. The current schema is twenty-one: task-owned check
+profiles and bounded failure evidence retain earlier history unchanged. Older
 bundles refuse the upgraded database before dispatch.
 
 New agents start with an editable name and an executable path detected from known

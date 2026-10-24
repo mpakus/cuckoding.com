@@ -534,6 +534,16 @@ Depends on R030.
   final review, image reuse/Pause/Stop and the schema20-to21 old-bundle fence;
   providers remain synthetic.
   [Task/evidence](../tasks/R050r-check-feedback.md).
+- [x] R060t native read-only inspection of complete retained guest-check proof.
+  Exact original bindings, frozen image/candidate/output and both closure records;
+  no VM/command launch, artifact replay or workflow authority.
+  Six actual guest receipts pass repeated exact reads; foreign/partial proof
+  refuses with original artifacts intact. OTP recovery remains the next item.
+  [Task/evidence](../tasks/R060t-retained-guest-check.md).
+- [ ] Wire complete retained-check inspection into the supervised OTP recovery
+  queue. Preserve Interrupted attempts and dated observations, require every
+  original ordered check and pause for explicit Resume under original budgets.
+  Missing/partial/expired/fenced proof must never accept work or rerun tests.
 - [ ] Provision project dependencies and verify
   platform/distribution/licensing. Hard VM-owner loss requires recovery evidence;
   synthetic checks never establish real-provider or release acceptance.

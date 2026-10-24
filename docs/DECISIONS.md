@@ -799,3 +799,26 @@ receipts remain host-owned. A failure-evidence prompt omits the redundant previo
 public stage summary, retaining complete frozen task criteria, review findings,
 previous implementation or Speculator plan. Reserve worst-case excerpt/metadata
 before Start; never silently truncate task, review or plan text to fit.
+
+## D065 — Inspect complete retained guest-check proof without replay
+
+2026-10-24, R060t. A fixed `recover_guest_check` read binds one original run key,
+attempt/check/candidate/command and frozen image. It reads only existing private
+admission, request, intent, keeper publication, wrapper receipt and output, then
+reuses current image/candidate verification. Require exact typed native Stopped
+and wrapper-group closure, original and transformed output hashes and unchanged
+source/owned paths. Missing/partial/foreign/linked/uncertain proof refuses; process
+absence and a keeper-only receipt never imply wrapper cleanup. No artifact is
+created, recreated or modified, and no VM, provider or project command is launched.
+
+The native inspection has a fixed 60-second budget and a 65-second host ceiling.
+Its separate read budget never extends original execution authority. An expired
+execution may still be inspected as historical evidence; future workflow code
+must permit only closure/Stop for expired or timing-fenced work. Retained failure
+text stays bounded/private under the original opt-in policy, not a log-reader
+grant. This prerequisite adds no Start policy or historical workflow authority.
+
+A subsequent OTP consumer must bind every original ordered check, retain the
+Interrupted claim, commit dated observations atomically, preserve all original
+limits and independent review, and pause an in-budget verified checkpoint for
+explicit Resume. Partial stages and lost/uncertain native proof remain blocked.
