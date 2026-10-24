@@ -1,5 +1,6 @@
 mod arena_git;
 mod build_info;
+mod check_image;
 mod codex_versions;
 mod connection;
 mod cursor;
@@ -39,6 +40,16 @@ fn main() {
     }
     if args.as_slice() == ["--battle-checks"] {
         project_checks::main();
+        return;
+    }
+    if args
+        .first()
+        .is_some_and(|a| ["--prepare-check-image", "--verify-check-image"].contains(&a.as_str()))
+    {
+        if args.len() != 1 {
+            std::process::exit(64);
+        }
+        check_image::main(args.as_slice() == ["--verify-check-image"]);
         return;
     }
     if args.first().is_some_and(|a| a == "--execute-battle-check") {

@@ -1,5 +1,17 @@
 # Architecture
 
+R050n puts the fixed image installer and production guest programs in native
+`check_image`. `store` owns descriptor-relative exclusive private artifacts;
+`archive` composes pinned TAR/ZIP inputs into deterministic newc without host
+extraction. Explicit CLI install/verify is bounded/cancellable and binds compiled
+input/source digests plus the original full receipt. Guest PID1/root control owns
+deadlines and result framing outside the unprivileged resource group; only a
+fixed npm/Mix runtime receives bounded literal arguments. Worker output is separate
+data. There is no production VM launcher, entitlement, OTP worker, database
+state or new Start grant in this slice. Those must require exact image/candidate
+bindings and actual native shutdown before publishing any check result.
+[Decision](DECISIONS.md#d060--install-fixed-guest-inputs-and-keep-control-outside-project-execution).
+
 R050m implements isolated-check candidate transport inside the existing native
 Git boundary. `worktree/check_input.rs` owns descriptor-relative private artifacts,
 deterministic newc and read-only verification against immutable blobs.

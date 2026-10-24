@@ -219,6 +219,11 @@ The native runner can now prepare and verify a private input archive for an exac
 committed candidate, preserving the user's checkout. This is the production
 transport prerequisite; Start still does not enable guest toolchain checks.
 [Candidate transport](tasks/R050m-candidate-check-input.md).
+The native installer now builds a private image from pinned upstream inputs;
+production guest control runs isolated offline npm/Mix checks against that exact
+candidate transport. Start integration and a production VM keeper are still
+pending, so this does not yet enable Arena toolchain commands.
+[Image/runtime evidence](tasks/R050n-frozen-check-image.md).
 **Pause** finishes the current stage and saves its result before holding the next
 stage. **Resume** keeps the same team, work and limits; paused time counts toward
 the original deadline. Clean paused battles survive restart. **Stop** cancels

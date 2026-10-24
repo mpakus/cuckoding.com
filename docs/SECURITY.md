@@ -115,6 +115,27 @@ check grant rejects it. No VM entitlement, provider permission, shell command,
 Start authority or interrupted-session recovery is added.
 [Evidence](../worklog/2026-10-23-R050m-candidate-check-input.md).
 
+R050n downloads only compiled HTTPS inputs, with exact length/SHA256 before use;
+redirects carry no inherited environment/credentials. Fixed download/kernel
+extraction helpers retain unreaped group ownership through cleanup. Images live
+under private `runtime-home/check-images/<UUID>` with no-follow, single-link
+regular files, exclusive fsynced intent/manifest/receipt and exact frozen digest
+verification. No archive entries are extracted on the host. Archive paths/types,
+collisions and aggregate limits are checked in memory; special bits are stripped.
+Partial artifacts are never repaired or replayed. Hash pinning is not independent
+upstream signature verification, licensing approval or release provenance.
+
+Production guest PID1/root controller owns the console, manifests and an
+independent 320-second watchdog outside the nondelegated worker cgroup. The
+worker is UID1000, has no capabilities, no-new-privileges and finite resources;
+it cannot write control frames. Literal argv selects only fixed npm/Mix, without
+host shares, network or provider credentials. Source reads reject links/mode/hash
+drift before/after verified group closure. Output is separately bounded/hashed;
+root result data still needs native Stopped and frozen host authority. The current
+shipping check normalizer does not accept it. Production keeper loss/recovery,
+image distribution/updates and real-project dependencies remain open.
+[Evidence](../worklog/2026-10-23-R050n-frozen-check-image.md).
+
 Start grants bounded local completion for frozen Codex roles/tasks/checks. Provider sessions retain host-only file tools and cannot run commands. The check runner uses a fresh empty Codex profile and private candidate clone, network denial, protected policy paths, bounded output hashing and frozen argv/executable identities. Its initial single-process grant forbids forks and tracks the inner session leader by PID/start identity; cleanup uncertainty is retained instead of claiming Stop. Toolchain/subprocess checks are unsupported. Native battle branch creation and candidate integration are exclusive, audited and compare-and-swap; no source checkout change or remote operation is authorized.
 
 R050f removes mandatory command configuration, not verification or execution

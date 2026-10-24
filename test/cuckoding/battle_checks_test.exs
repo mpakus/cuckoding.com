@@ -46,6 +46,8 @@ defmodule Cuckoding.BattleChecksTest do
     for result <- [
           Map.delete(receipt(), "request_id"),
           Map.put(receipt(), "contract", "codex-check-sandbox-v1"),
+          Map.put(receipt(), "contract", "guest-check-v1"),
+          Map.put(receipt(), "contract", "isolated-check-image-v1"),
           Map.update!(receipt(), "checks", &(&1 ++ &1))
         ] do
       assert %{"status" => "invalid_output"} = BattleChecks.normalize(Jason.encode!(result))

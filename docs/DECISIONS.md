@@ -689,3 +689,20 @@ Cancellation/expiry or incomplete/foreign/tampered evidence cannot publish succe
 verification never rebuilds artifacts. The public host projection contains only
 exact bindings/counts/hashes. This transport receipt grants no execution, completion
 or recovery authority. Production image/keeper/grant/OTP integration stays separate.
+
+## D060 — Install fixed guest inputs and keep control outside project execution
+
+2026-10-23, R050n. A native fixed image installer downloads only compiled-in HTTPS
+URLs with exact sizes/SHA256, retains input/license metadata and composes files in
+memory into a private image; no archive link/device is extracted on the host.
+General TAR/gzip/ZIP parsing uses maintained archive libraries, not a bespoke
+parser. Downloads and composition are cancellable/bounded and retain partial
+effects. Nothing is fetched at ordinary startup or inferred from project text.
+
+The guest has fixed root control and an independent PID1 deadline outside its
+UID1000/no-new-privileges resource group. It consumes only exact candidate/check
+manifests, dispatches a fixed npm/Mix runtime with literal bounded argv, captures
+worker output separately and reports typed scope/exit/integrity after group closure.
+Project text cannot change control, tools or limits. Native guest shutdown and
+frozen OTP/Start authority remain separately required. Image production is not a
+VM launch, release distribution, dependency/network or recovery grant.

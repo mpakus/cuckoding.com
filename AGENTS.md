@@ -626,6 +626,17 @@ as a read-only hash stream; never rebuild missing/partial artifacts or accept a
 forged archive/receipt pair. Retain all failures; cancellation/expiry cannot return
 success. This transport receipt grants no check, completion, recovery or Start
 authority. Shipping VM image/keeper/grant/OTP integration remains open.
+R050n adds explicit native `--prepare-check-image` / `--verify-check-image`, never
+ordinary startup downloads or VM launch. Use only compiled HTTPS input sizes/hashes,
+private exclusive descriptor-bound storage and the exact original image receipt;
+retain partials and reject drift rather than repair/replay. Compose archives in
+memory without host extraction. Production guest root control stays outside the
+UID1000/no-new-privileges bounded worker group, validates exact candidate/check
+scope, separates worker output and requires source integrity plus group closure.
+Its result is data until a future native keeper verifies shutdown and OTP admits
+the frozen grant. Start still rejects this guest contract; no new production
+virtualization entitlement, dependency/network access or recovery authority.
+Synthetic npm/Mix evidence does not establish real-project or release acceptance.
 See [Arena loop](docs/ARENA_LOOP.md) and [Plan](docs/PLAN.md).
 
 ## Mission and product contract

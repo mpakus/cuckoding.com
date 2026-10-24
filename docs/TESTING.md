@@ -99,6 +99,24 @@ exercises the sealed native CLI in new disposable folders, including preparation
 repeated verification, replay/tamper/missing-receipt refusal and retained user edits.
 This never boots a guest, uses a provider or establishes battle/check authority.
 
+R050n native `check_image` tests exercise closed requests, private/link-safe
+storage, original receipt/hash binding, cancelled group cleanup, unsafe archive
+paths/types/collisions, concatenated gzip members and deterministic composition.
+`rtk proxy node --test test/check_image_protocol_test.mjs` checks the production
+guest protocol and descriptor reads without a VM. After `rtk proxy bin/dev.build`,
+`rtk proxy python3 -B test/check_image_guest_test.py` verifies the sealed helper's
+source identity, installs/inspects an actual production image, then uses a
+separately signed test-only SDK observer with native-produced synthetic candidates.
+It checks npm/Mix pass/fail, forged worker output/denied console access, source
+tamper, permitted/oversized output, timeout, malformed scope and active
+cancellation. It also refuses extra CLI arguments, replayed installation and a
+foreign image receipt. Retain every fixture.
+`--debug` selects only the repository debug helper during development; it is not
+sealed-package evidence. No provider, user folder/profile or Start grant is used.
+This requires Apple Silicon/macOS Virtualization, Swift SDK, upstream HTTPS access
+and disk space for retained images. Keeper-loss, real dependencies, distribution
+and production OTP/Start integration remain separate gates.
+
 R020s admits exact Codex 0.163.0-alpha.11.2 after signed-binary/offline schema,
 fresh-profile setup/login-start/cancel, task/no-tools policy/thread preflight and
 actual two-workspace/single-process OS canaries. No browser, sign-in, inference or

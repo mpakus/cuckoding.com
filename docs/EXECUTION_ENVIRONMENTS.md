@@ -187,8 +187,21 @@ future isolated-check runner. It exports exact immutable Git blobs and a bound
 manifest as a private deterministic newc archive; no host directory is shared.
 Verification is read-only and refuses partial, foreign or changed artifacts.
 The public result is bounded metadata, not an execution/check/completion grant.
-Image installation, native guest ownership and frozen Start/OTP integration remain
-required. [Transport contract](../tasks/R050m-candidate-check-input.md).
+Native guest ownership and frozen Start/OTP integration remain required.
+[Transport contract](../tasks/R050m-candidate-check-input.md).
+
+R050n's explicit native image installer pins 24 official inputs, Node 24.22.1,
+npm 11.12.1, OTP 28.5.0.8 and Elixir 1.20.3. Its 300-second budget includes
+downloads/composition, with private retained partials and no implicit startup fetch.
+Root guest control consumes the R050m archive and a closed check request. The
+guest has no network/shares; the worker group has 128 PIDs, 512 MiB/no swap and
+one CPU. UID1000/no-new-privileges workers get only fixed npm/Mix plus literal
+arguments and an offline empty cache. Check limits are 1–300 seconds and 64 KiB
+captured output; overflow refuses rather than truncates a pass. After group
+closure root verifies original source bytes/modes and emits bound result data.
+No dependency installation, host-platform equivalence, production VM ownership
+or frozen battle grant is established by this image/runtime slice.
+[Image contract/evidence](../tasks/R050n-frozen-check-image.md).
 
 ## RTK and Ponytail
 

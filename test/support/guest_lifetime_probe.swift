@@ -25,7 +25,7 @@ final class Probe: NSObject, @preconcurrency VZVirtualMachineDelegate {
         let config = VZVirtualMachineConfiguration()
         config.platform = VZGenericPlatformConfiguration()
         config.cpuCount = 2
-        config.memorySize = (check != nil ? 1024 : 512) * 1024 * 1024
+        config.memorySize = (check != nil || mode == "image_check" ? 1024 : 512) * 1024 * 1024
         config.bootLoader = boot
         let console = VZVirtioConsoleDeviceSerialPortConfiguration()
         console.attachment = VZFileHandleSerialPortAttachment(
@@ -52,7 +52,7 @@ final class Probe: NSObject, @preconcurrency VZVirtualMachineDelegate {
             case .success:
                 self.emit(["event": "running", "state": self.machine.state.rawValue,
                            "network": false, "host_shares": false])
-                DispatchQueue.main.asyncAfter(deadline: .now() + (self.check != nil ? 40 : self.mode == "deadline" ? 10 : 20)) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + (self.check != nil || self.mode == "image_check" ? 40 : self.mode == "deadline" ? 10 : 20)) {
                     self.stop(reason: "deadline")
                 }
                 FileHandle.standardInput.readabilityHandler = { handle in
@@ -114,6 +114,7 @@ final class Probe: NSObject, @preconcurrency VZVirtualMachineDelegate {
 
     func guestDidStop(_ virtualMachine: VZVirtualMachine) {
         emit(["event": "guest_stopped", "state": virtualMachine.state.rawValue])
+        if mode == "image_check" && !stopping { recordStop(reason: "guest_check_shutdown") }
         if let check {
             guard machine.state == .stopped else { exit(3) }
             check.stopped()
@@ -146,13 +147,13 @@ func canonicalPath(_ path: String) -> String? {
 }
 
 let arguments = CommandLine.arguments
-guard arguments.count == 3, ["input", "eof", "deadline", "paused", "owner_loss", "watchdog_pids",
+guard arguments.count == 3, ["image_check", "input", "eof", "deadline", "paused", "owner_loss", "watchdog_pids",
     "watchdog_memory", "watchdog_eof", "watchdog_owner_loss", "check_npm_pass", "check_npm_fail",
     "check_mix_pass", "check_mix_fail", "check_forgery", "check_source_mutation", "check_output_boundary", "check_output_limit",
     "check_cancel", "check_owner_loss"].contains(arguments[2]) else { exit(64) }
 let root = URL(fileURLWithPath: arguments[1], isDirectory: true)
 guard canonicalPath(arguments[1]) == arguments[1], root.deletingLastPathComponent().path == "/private/tmp",
-      ["cuckoding-r050j-", "cuckoding-r050k-", "cuckoding-r050l-"].contains(where: root.lastPathComponent.hasPrefix),
+      ["cuckoding-r050j-", "cuckoding-r050k-", "cuckoding-r050l-", "cuckoding-r050n-vm-"].contains(where: root.lastPathComponent.hasPrefix),
       root.path == arguments[1] else { exit(65) }
 guard VZVirtualMachine.isSupported else { exit(66) }
 do {

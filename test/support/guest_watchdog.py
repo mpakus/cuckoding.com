@@ -60,7 +60,9 @@ echo "WORKER_GROUP $($B cat /proc/self/cgroup)"
 if (kill -9 1) 2>/dev/null; then echo WORKER_ESCAPE signal; else echo WORKER_DENIED signal; fi
 if (echo 99 > /sys/fs/cgroup/work/pids.max) 2>/dev/null; then echo WORKER_ESCAPE policy; else echo WORKER_DENIED policy; fi
 if (echo $$ > /sys/fs/cgroup/cgroup.procs) 2>/dev/null; then echo WORKER_ESCAPE migrate; else echo WORKER_DENIED migrate; fi
-/bin/busybox setsid /bin/sh -c 'echo "WORKER_SESSION $(/bin/busybox cat /proc/self/cgroup)"; exec /bin/busybox sleep 30' &
+/bin/busybox setsid /bin/sh -c 'echo "WORKER_SESSION $(/bin/busybox cat /proc/self/cgroup)"; echo ready > /tmp/session-ready; exec /bin/busybox sleep 30' &
+# Observe the new session before intentional fork exhaustion can interleave stderr.
+while [ ! -f /tmp/session-ready ]; do $B sleep 0.05; done
 echo WORKER_READY
 case "$($B cat /proc/cmdline)" in
     *cc_probe=memory*) $B dd if=/dev/zero of=/tmp/pressure bs=1048576 count=128 2>/dev/null;;

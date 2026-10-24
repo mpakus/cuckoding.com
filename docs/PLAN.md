@@ -496,6 +496,15 @@ Depends on R030.
   immutable blobs, descriptor-pinned private newc/manifest/intent/receipt, exact
   scope/hashes/counts and read-only recomputation. Keep execution grants unchanged.
   [Task/evidence](../tasks/R050m-candidate-check-input.md).
+- [x] R050n fixed production image installation and protected guest runtime:
+  pinned upstream inputs, exclusive private receipts, read-only image verification,
+  bounded unprivileged npm/Mix and separate typed control/output. Actual synthetic
+  candidate checks use the production image; Start grants remain unchanged.
+  [Task/evidence](../tasks/R050n-frozen-check-image.md).
+- [ ] Integrate the production native VM keeper, cancellation/shutdown proof and
+  exact image/candidate/check bindings into supervised OTP execution and a frozen
+  Start grant. Verify missing-owner proof, interruption, dependency/platform limits
+  and distribution/licensing before enabling Arena toolchains.
 
 - [x] R040j: explicit check preview/consent, immutable Arena revisions, idempotent
   audited saves, stale/recovered editor refusal and no implied execution authority.
@@ -862,3 +871,8 @@ See [task](../tasks/R020j-navigation-routes.md) and
   advisories, check Hex metadata before application tasks and retain real-loopback
   authority/origin/Phoenix parser-error regressions. No HTTP/2 attack-drill claim.
   [Evidence](../worklog/2026-10-21-R102-bandit-security.md).
+- [ ] Native dependency follow-up: the R050n audit reports Tokio 1.53.2's
+  [AsyncFd advisory](https://rustsec.org/advisories/RUSTSEC-2026-0386.html)
+  (patched in 1.53.3), plus seven existing maintenance/unsoundness warnings.
+  Patch the compatible native cohort and rerun its tests/sealed lifecycle before
+  release; an exit-zero advisory scan does not mean zero warnings.
