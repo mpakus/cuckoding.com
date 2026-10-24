@@ -1,5 +1,22 @@
 # Verification and acceptance
 
+R050o: `rtk proxy python3 -B test/keeper_protocol_test.py` compiles the production
+decoder/private-file code with a test-only compilation flag and Address Sanitizer.
+It checks foreign/extra/malformed frames, counts/hashes/exit/closure flags, bounded
+private reads, links and exclusive publication; no VM or release test entrypoint.
+After `bin/dev.build`, `rtk proxy python3 -B test/guest_check_keeper_test.py` checks
+the actual sealed helper/embedded keeper, image installation and native candidate
+transport. Assert npm/Mix pass/fail, output forgery/source mutation, boundary/
+overflow, timeout, active cancellation, earlier absolute expiry and wrapper loss.
+Native Stopped and helper cleanup are distinct; wrapper-loss VM-only proof cannot
+be promoted to overall cleanup. Public results contain no raw text/path/argv, and
+validated output bytes/hash remain private. Source/index stay unchanged; replayed
+runs and foreign image/input receipts refuse. Preflight refusals retain exclusive
+admission and cannot be replayed to establish cleanup for an earlier run. `--debug` tests only the repository
+debug helper, without claiming sealed-artifact acceptance. Retain all fixtures;
+real project dependencies, provider acceptance, physical sleep and OTP/Start
+integration remain separate. [Evidence](../worklog/2026-10-24-R050o-native-check-keeper.md).
+
 R103 verifies the locked Tokio1.53.3 patch with the unsuppressed native audit,
 an exact Apple Silicon reverse/normal/build dependency graph, native tests/lints
 and a rebuilt sealed app's lifecycle/recovery. The current audit has no

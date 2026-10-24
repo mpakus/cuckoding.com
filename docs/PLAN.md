@@ -501,10 +501,15 @@ Depends on R030.
   bounded unprivileged npm/Mix and separate typed control/output. Actual synthetic
   candidate checks use the production image; Start grants remain unchanged.
   [Task/evidence](../tasks/R050n-frozen-check-image.md).
-- [ ] Integrate the production native VM keeper, cancellation/shutdown proof and
-  exact image/candidate/check bindings into supervised OTP execution and a frozen
-  Start grant. Verify missing-owner proof, interruption, dependency/platform limits
-  and distribution/licensing before enabling Arena toolchains.
+- [x] R050o production native VM keeper: exact image/candidate/check scope,
+  dedicated entitlement, bounded private output, original deadline, EOF cancellation,
+  SDK Stopped plus helper-group closure and retained exact receipt. VM-only closure
+  after wrapper loss remains insufficient for overall cleanup/recovery.
+  [Task/evidence](../tasks/R050o-native-check-keeper.md).
+- [ ] Integrate native guest checks into supervised OTP execution and a frozen
+  Start/tool grant, including task-owned verification without a new setup ceremony.
+  Verify interruption/owner-loss policy, dependency/platform limits and image
+  distribution/licensing before enabling Arena toolchains.
 
 - [x] R040j: explicit check preview/consent, immutable Arena revisions, idempotent
   audited saves, stale/recovered editor refusal and no implied execution authority.

@@ -706,3 +706,23 @@ worker output separately and reports typed scope/exit/integrity after group clos
 Project text cannot change control, tools or limits. Native guest shutdown and
 frozen OTP/Start authority remain separately required. Image production is not a
 VM launch, release distribution, dependency/network or recovery grant.
+
+## D061 — Keep the VM owner independent until native shutdown is recorded
+
+2026-10-24, R050o. Build and embed one exact Swift Virtualization keeper with
+its own entitlement. A fixed native operation verifies the existing candidate
+and image receipts, composes private boot inputs and exclusively retains a
+deadline-bound intent before launching that keeper with an empty inherited
+environment. Reserve a single-use private run namespace and admission before
+preflight; retain owned no-VM refusal receipts. A replay never overwrites prior
+evidence or establishes cleanup for it. No user-supplied helper, kernel, URL, host
+share or network device.
+
+The keeper owns the VM, parent-liveness pipe and independent original deadline.
+It validates protected guest frames separately from captured worker output,
+requires actual SDK Stopped and fsyncs a bound private closure before returning
+public counts/hashes/status. Cancellation returns no invented test exit. Rust
+also verifies owned helper cleanup and the exact retained closure; process loss
+without that proof is uncertainty, never success. Hard keeper death/physical
+sleep remain recovery gates. The native primitive does not grant execution to
+historical or current Starts; frozen supervised OTP integration follows.

@@ -221,9 +221,13 @@ transport prerequisite; Start still does not enable guest toolchain checks.
 [Candidate transport](tasks/R050m-candidate-check-input.md).
 The native installer now builds a private image from pinned upstream inputs;
 production guest control runs isolated offline npm/Mix checks against that exact
-candidate transport. Start integration and a production VM keeper are still
-pending, so this does not yet enable Arena toolchain commands.
+candidate transport. Start integration remains pending, so the installer alone
+does not enable Arena toolchain commands.
 [Image/runtime evidence](tasks/R050n-frozen-check-image.md).
+The production native keeper now owns actual check VMs, bounded private output,
+cancellation and verified shutdown. It is a native primitive; Arena still needs
+the frozen OTP/Start integration before it can use guest toolchain checks.
+[Keeper implementation/evidence](tasks/R050o-native-check-keeper.md).
 **Pause** finishes the current stage and saves its result before holding the next
 stage. **Resume** keeps the same team, work and limits; paused time counts toward
 the original deadline. Clean paused battles survive restart. **Stop** cancels

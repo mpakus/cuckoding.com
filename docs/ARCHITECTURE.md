@@ -1,5 +1,21 @@
 # Architecture
 
+R050o adds native `arena_git::guest_check` as an unadmitted fixed operation. It
+reuses image and committed-candidate verification, retains an exact scoped intent,
+and starts only the compiled embedded Swift keeper. `build.rs` compiles/signs that
+dedicated Apple Silicon/macOS13 helper; build identity also covers its source and
+entitlement. The tray shell gets no new entitlement. Guest boot copies use private
+descriptor-bound APFS clones (exclusive bounded-copy fallback), never host shares.
+Swift owns the VM/deadline/liveness pipe, exact frame decoding and SDK Stopped;
+Rust owns the helper group and final receipt. Their closure facts stay separate.
+Only after both verify does Rust publish bounded public metadata. A single-use
+run namespace and admission are reserved before preflight; replay never closes
+an earlier run or overwrites its proof. Captured
+output remains a private hash-bound file. There is no new SQLite state/command,
+provider permission or Start grant; the existing check normalizer refuses this
+contract. Wrapper-loss VM-only observations never authorize recovery or release.
+[Decision](DECISIONS.md#d061--keep-the-vm-owner-independent-until-native-shutdown-is-recorded).
+
 R050n puts the fixed image installer and production guest programs in native
 `check_image`. `store` owns descriptor-relative exclusive private artifacts;
 `archive` composes pinned TAR/ZIP inputs into deterministic newc without host
@@ -7,9 +23,9 @@ extraction. Explicit CLI install/verify is bounded/cancellable and binds compile
 input/source digests plus the original full receipt. Guest PID1/root control owns
 deadlines and result framing outside the unprivileged resource group; only a
 fixed npm/Mix runtime receives bounded literal arguments. Worker output is separate
-data. There is no production VM launcher, entitlement, OTP worker, database
-state or new Start grant in this slice. Those must require exact image/candidate
-bindings and actual native shutdown before publishing any check result.
+data. The installer grants no VM launch or Start authority. R050o above supplies
+the native keeper; supervised OTP admission, frozen grants and application state
+remain separate.
 [Decision](DECISIONS.md#d060--install-fixed-guest-inputs-and-keep-control-outside-project-execution).
 
 R050m implements isolated-check candidate transport inside the existing native

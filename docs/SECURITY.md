@@ -136,6 +136,23 @@ shipping check normalizer does not accept it. Production keeper loss/recovery,
 image distribution/updates and real-project dependencies remain open.
 [Evidence](../worklog/2026-10-23-R050n-frozen-check-image.md).
 
+R050o's dedicated keeper is compiled and signed during the native build, embedded
+as exact bytes and installed only in a fresh private run container. The main shell
+gets no virtualization entitlement. Native preflight reuses original image and
+candidate receipts; no arbitrary executable, boot image, URL or device can be
+selected. Reserve the single-use run namespace before preflight, retain bounded
+no-VM refusals and never let a replay claim an earlier run is closed. The intent hashes the source/request scope, kernel, ramdisk and helper;
+the keeper pins private regular files/descriptors and retains exact closure only
+after SDK Stopped. Guest text never controls that state. Raw command output stays
+in a separate private bounded file, with verified bytes/hash; public results expose
+only whitelisted scope/status/counts, never raw frames or output paths.
+Rust additionally verifies the helper group before publishing overall cleanup.
+Missing/malformed/foreign proof stays unverified even after process loss. A
+wrapper-loss VM-only closure is not the final native receipt or recovery authority.
+Cancellation, clock failure/backward time and original expiry refuse work, with
+only bounded shutdown grace. No new historical/Start grant or automatic recovery.
+[Evidence](../worklog/2026-10-24-R050o-native-check-keeper.md).
+
 Start grants bounded local completion for frozen Codex roles/tasks/checks. Provider sessions retain host-only file tools and cannot run commands. The check runner uses a fresh empty Codex profile and private candidate clone, network denial, protected policy paths, bounded output hashing and frozen argv/executable identities. Its initial single-process grant forbids forks and tracks the inner session leader by PID/start identity; cleanup uncertainty is retained instead of claiming Stop. Toolchain/subprocess checks are unsupported. Native battle branch creation and candidate integration are exclusive, audited and compare-and-swap; no source checkout change or remote operation is authorized.
 
 R050f removes mandatory command configuration, not verification or execution

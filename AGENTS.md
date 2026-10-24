@@ -625,7 +625,8 @@ closed binding/count/hash projections. Verification recomputes expected bytes
 as a read-only hash stream; never rebuild missing/partial artifacts or accept a
 forged archive/receipt pair. Retain all failures; cancellation/expiry cannot return
 success. This transport receipt grants no check, completion, recovery or Start
-authority. Shipping VM image/keeper/grant/OTP integration remains open.
+authority. R050n/o supply the image/keeper below; frozen grants/OTP integration
+remain open.
 R050n adds explicit native `--prepare-check-image` / `--verify-check-image`, never
 ordinary startup downloads or VM launch. Use only compiled HTTPS input sizes/hashes,
 private exclusive descriptor-bound storage and the exact original image receipt;
@@ -633,10 +634,25 @@ retain partials and reject drift rather than repair/replay. Compose archives in
 memory without host extraction. Production guest root control stays outside the
 UID1000/no-new-privileges bounded worker group, validates exact candidate/check
 scope, separates worker output and requires source integrity plus group closure.
-Its result is data until a future native keeper verifies shutdown and OTP admits
-the frozen grant. Start still rejects this guest contract; no new production
-virtualization entitlement, dependency/network access or recovery authority.
+Its result is data until the native keeper verifies shutdown and OTP admits
+the frozen grant. Start still rejects this guest contract. Image installation
+itself grants no VM launch, dependency/network access or recovery authority.
 Synthetic npm/Mix evidence does not establish real-project or release acceptance.
+R050o adds only fixed native `run_guest_check`: exact image/candidate verification,
+literal npm/Mix arguments, a 360-second admission ceiling and the caller's original
+absolute deadline. Boot files and the dedicated compiled/signed Swift keeper are
+exclusive private artifacts; only the keeper receives the virtualization entitlement.
+No network, host share, runtime credentials or caller-supplied helper/kernel.
+The guest frame is bounded/typed and its output retained separately in private
+storage. Require the keeper's actual SDK Stopped observation, exact intent/closure
+and owned helper-group cleanup before public success. EOF/expiry cancels and never
+invents a test exit. Reserve a single-use run key and retain admission before
+preflight; replays retain prior proof and always report cleanup unverified. Bound
+owned pre-launch refusals distinguish `native_started: false`; malformed scope and
+uncertain Git cleanup cannot establish work authority.
+After wrapper loss, private `vm_closed` alone is not overall cleanup or recovery:
+no public native receipt means no accepted work/capacity release. Keep Start and
+its old normalizer unchanged until frozen supervised OTP integration is verified.
 See [Arena loop](docs/ARENA_LOOP.md) and [Plan](docs/PLAN.md).
 
 ## Mission and product contract

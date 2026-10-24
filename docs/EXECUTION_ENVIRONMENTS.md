@@ -203,6 +203,25 @@ No dependency installation, host-platform equivalence, production VM ownership
 or frozen battle grant is established by this image/runtime slice.
 [Image contract/evidence](../tasks/R050n-frozen-check-image.md).
 
+R050o's fixed native `run_guest_check` verifies both receipts and binds source
+identity, candidate/check/image hashes, literal argv and the caller's absolute
+deadline before VM effects. Each single-use run key reserves admission before
+preflight. A replay retains the original proof and reports cleanup unverified;
+only a bound owned no-VM refusal can prove it never launched. Admission allows at
+most 360 seconds including
+preparation; work never gains a deadline extension. Cancellation has at most ten
+seconds to obtain native shutdown before reporting uncertainty. A dedicated
+compiled Swift helper has the sole virtualization entitlement; its SDK VM has
+two CPUs/1GiB, no network/share/storage/socket devices and the existing protected
+guest worker limits. APFS boot clones are independent private files, not shared
+guest directories. A private root controller frame is data until exact hash/scope
+validation, SDK Stopped and owned helper-group cleanup verify. Output is retained
+privately, capped and hash-bound; public receipts have no raw output/argv/path.
+Wrapper loss may retain `vm_closed` but no overall native receipt; it never
+establishes cleanup, replay, recovery or task completion. Start/OTP/tool grants
+and real dependencies/platform/distribution acceptance remain separate.
+[Keeper contract/evidence](../tasks/R050o-native-check-keeper.md).
+
 ## RTK and Ponytail
 
 Contributors use RTK for every repository shell command and Ponytail full.
