@@ -590,6 +590,12 @@ R050i observed child setsid/setpgid/spawn-group escape with fork enabled under
 deny-default Seatbelt. Keep hard NPROC=0 until a new OS-enforced descendant lifetime
 boundary is proven. Session-leader denial, PID polling and original-group cleanup
 are not that proof; a research probe never changes the shipping grant.
+R050j's opt-in guest prototype uses only fresh private pinned inputs, two CPUs,
+512 MiB, finite trusted probes and no network/host shares. Native stop completion
+plus Stopped state is an observation only; owner loss/EOF without that receipt
+does not prove guest cleanup. Keep its Swift entitlement and downloaded images
+out of production. Untrusted-worker watchdog/ownership, worktree/toolchain/grant
+integration and release acceptance remain required before Mix/npm support.
 See [Arena loop](docs/ARENA_LOOP.md) and [Plan](docs/PLAN.md).
 
 ## Mission and product contract

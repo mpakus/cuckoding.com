@@ -50,6 +50,17 @@ All three children exited and were waited/reaped. This negative containment
 result is distinct from the passing shipping single-process canaries and does
 not enable toolchains. [Source/probe evidence](../worklog/2026-10-23-R050i-toolchain-containment.md).
 
+R050j's opt-in `rtk proxy python3 test/guest_lifetime_probe.py` requires Darwin
+arm64, Xcode and at least 2 GiB free temporary space. It downloads ~100 MB of
+pinned official Alpine inputs into a fresh private root, validates hashes and
+builds only a disposable Swift probe. No install, host share, guest network,
+project/provider/profile or shipping grant. Five cases require native Stopped
+observations for input/EOF/deadline/paused stop, and explicitly refuse verified
+cleanup after owner loss. Fixed guest workloads have finite bounds. Strict Swift
+compilation, canonical-path/mode refusal, Address Sanitizer path check and an
+inverted-Stopped-gate mutation cover the probe. Retain logs/inputs/public evidence;
+never count this as actual toolchain or full recovery acceptance.
+
 R020s admits exact Codex 0.163.0-alpha.11.2 after signed-binary/offline schema,
 fresh-profile setup/login-start/cancel, task/no-tools policy/thread preflight and
 actual two-workspace/single-process OS canaries. No browser, sign-in, inference or

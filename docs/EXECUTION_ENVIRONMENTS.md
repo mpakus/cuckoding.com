@@ -97,6 +97,17 @@ isolated guest worker is a candidate requiring its own design/prototype and
 dependency/installer review; it is not selected, installed or enabled here.
 Mix/npm support and its acceptance remain open.
 
+R050j tests that candidate boundary with Apple's installed Virtualization API:
+two virtual CPUs, 512 MiB, a pinned Alpine kernel and minimal RAM filesystem,
+no storage/network/socket/directory-share devices. Fixed finite guest children
+enter independent sessions (including a reparented double fork). Native forced
+stop completion and Stopped state are observed for controller input/EOF,
+deadline and a paused VM. Killing the owned helper yields no stop receipt and
+remains unverified; stream EOF/process absence is not cleanup authority. These
+are trusted probes, not untrusted workload/watchdog enforcement. The shipping
+application has no new entitlement, guest, provider or toolchain grant.
+See [R050j evidence](../worklog/2026-10-23-R050j-guest-lifetime-prototype.md).
+
 The target Arena exposes one **Start** action. Ordinary owned worktree creation,
 fresh inspection and stage dispatch belong to that bounded battle authority;
 users should not prepare every checkout manually. Current preparation/inspection

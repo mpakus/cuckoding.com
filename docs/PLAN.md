@@ -473,6 +473,13 @@ Depends on R030.
   deny-default Seatbelt with fork enabled. Group cleanup alone is insufficient;
   retain the current grant pending a proven descendant lifetime boundary.
   [Investigation](../tasks/R050i-toolchain-containment.md).
+- [x] R050j prototype a bounded isolated guest with pinned official inputs and
+  no network/host shares. Actual native Stopped observations pass for input,
+  controller EOF, deadline and paused VM; abrupt owner loss remains unverified.
+  Keep shipping grants unchanged. [Task/evidence](../tasks/R050j-guest-lifetime-prototype.md).
+  Next implementation still needs untrusted-worker watchdog/owner-loss closure,
+  private candidate/toolchain transport, frozen grants/receipts/OTP integration,
+  actual Mix/npm checks and packaging/licensing/acceptance.
 
 - [x] R040j: explicit check preview/consent, immutable Arena revisions, idempotent
   audited saves, stale/recovered editor refusal and no implied execution authority.

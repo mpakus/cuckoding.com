@@ -641,3 +641,15 @@ The packaged app uses its normal boot, ownership and supervised recovery with
 no grant override. Read durable public metadata for proof, then close the pipe.
 This verifies that checkpoint boundary, not real providers, full recovery or
 physical sleep; existing gates and no-publication scope remain unchanged.
+
+## D056 — Prototype an isolated guest before adding toolchain grants
+
+2026-10-23, R050j. The verified host process-group escape rules out merely
+permitting fork. Prototype Apple's installed Virtualization API with a fresh
+bounded Linux guest and verified official inputs. Attach no host directories,
+network, provider account or project. Keep trusted fixed guest probes finite and
+retain native state/stop observations separately from inferred process absence.
+The prototype adds no production dependency, entitlement, runtime tool or grant.
+It does not select a shipping guest/installer, establish helper-death recovery or
+enable Mix/npm. Those decisions require concrete lifetime, worktree/toolchain,
+licensing, packaging, cleanup and acceptance evidence first.

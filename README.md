@@ -203,6 +203,10 @@ require a Codex Implementor and support native system commands that run in one p
 Mix/npm pipelines and other subprocess toolchains are not supported. A disposable
 macOS probe confirmed that allowing fork needs stronger cleanup containment than
 the original process group. [Toolchain prerequisite](tasks/R050i-toolchain-containment.md).
+A separate disposable VM prototype verifies normal stop, controller loss and
+deadline handling for isolated guest sessions. Abrupt owner loss still lacks
+verified cleanup; it does not enable Mix/npm or change Start permissions.
+[Prototype evidence](tasks/R050j-guest-lifetime-prototype.md).
 **Pause** finishes the current stage and saves its result before holding the next
 stage. **Resume** keeps the same team, work and limits; paused time counts toward
 the original deadline. Clean paused battles survive restart. **Stop** cancels
