@@ -21,6 +21,7 @@ defmodule Cuckoding.Battles.MixedClosure do
   def member?(battle, attempt),
     do:
       enabled?(battle.snapshot) and CandidateRecovery.enabled?(battle.snapshot) and
+        attempt.stage in ~w(capture prepare_worktree) and
         attempt.state == "interrupted" and CandidateRecovery.member?(battle, attempt)
 
   def next(battle, completed_id) do

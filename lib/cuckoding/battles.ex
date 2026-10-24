@@ -1357,7 +1357,7 @@ defmodule Cuckoding.Battles do
   end
 
   def reconcile_recovery(%Attempt{stage: stage, role: nil} = attempt, result)
-      when stage in ~w(capture prepare_worktree) do
+      when stage in ~w(capture prepare_worktree combine) do
     battle = get(attempt.battle_id)
 
     cond do
@@ -1380,7 +1380,7 @@ defmodule Cuckoding.Battles do
        ),
        do: reconcile_preparation(attempt, result)
 
-  defp reconcile_native_recovery(%Attempt{stage: "capture"}, _),
+  defp reconcile_native_recovery(%Attempt{stage: stage}, _) when stage in ~w(capture combine),
     do: {:error, :stale_reconciliation}
 
   defp reconcile_native_recovery(attempt, result),

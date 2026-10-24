@@ -6,12 +6,22 @@ defmodule Cuckoding.Battles.CandidateRecovery do
 
   def policy, do: "retained-candidate-wave-v1"
   def enabled?(snapshot), do: snapshot["candidate_recovery"] == policy()
+  def combination_policy, do: "retained-combination-v1"
+
+  def combination_enabled?(snapshot),
+    do: snapshot["combination_recovery"] == combination_policy()
+
+  def eligible?(battle, [%Attempt{stage: "combine"} = attempt]),
+    do:
+      enabled?(battle.snapshot) and battle.state in ~w(running pausing) and
+        member?(battle, attempt)
 
   def eligible?(battle, attempts) do
     enabled?(battle.snapshot) and battle.state in ~w(running pausing) and
       length(attempts) in 1..2 and Enum.any?(attempts, &(&1.stage == "capture")) and
       (length(attempts) == 1 or battle.snapshot["parallelism"] == "parallel-waves-v1") and
       length(Enum.uniq_by(attempts, & &1.task_id)) == length(attempts) and
+      Enum.all?(attempts, &(&1.stage in ~w(capture prepare_worktree))) and
       Enum.all?(attempts, &member?(battle, &1))
   end
 
@@ -20,6 +30,13 @@ defmodule Cuckoding.Battles.CandidateRecovery do
       do:
         not is_nil(attempt.task_id) and attempt.battle_id == battle.id and
           attempt.request["snapshot"] == battle.snapshot
+
+  def member?(battle, %Attempt{role: nil, stage: "combine"} = attempt),
+    do:
+      combination_enabled?(battle.snapshot) and
+        battle.snapshot["parallelism"] == "parallel-waves-v1" and
+        not is_nil(attempt.task_id) and attempt.battle_id == battle.id and
+        attempt.request["snapshot"] == battle.snapshot
 
   def member?(_, _), do: false
 
@@ -41,6 +58,22 @@ defmodule Cuckoding.Battles.CandidateRecovery do
 
   def verified?(%Attempt{stage: "prepare_worktree"} = attempt, result),
     do: enabled?(attempt.request["snapshot"]) and PreparationRecovery.verified?(attempt, result)
+
+  def verified?(
+        %Attempt{stage: "combine"} = attempt,
+        %{"status" => "combined", "cleanup_verified" => true} = result
+      ) do
+    context = attempt.request["context"]
+    original = attempt.request["task_context"]["native_candidate"]
+
+    enabled?(attempt.request["snapshot"]) and combination_enabled?(attempt.request["snapshot"]) and
+      Receipts.bound?(attempt, result) and Receipts.payload_valid?(attempt, result) and
+      Map.keys(result) --
+        (@envelope ++ ~w(status cleanup_verified candidate_sha native_candidate)) == [] and
+      is_map(original) and original["status"] == "candidate_captured" and
+      LocalGit.normalize(original) == original and
+      context["head"] == context["native_battle"]["head"]
+  end
 
   def verified?(
         %Attempt{stage: "capture"} = attempt,

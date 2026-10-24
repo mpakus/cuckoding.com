@@ -398,7 +398,11 @@ defmodule CuckodingWeb.BattleComponent do
         id="battle-candidate-inspecting"
         class="notice"
       >
-        Checking retained candidate/worktree checkpoints. No capture, edit or agent turn will be repeated.
+        {if @battle.stage == "combine",
+          do:
+            "Checking retained combined candidate. No combination, edit or agent turn will be repeated.",
+          else:
+            "Checking retained candidate/worktree checkpoints. No capture, edit or agent turn will be repeated."}
       </p>
       <article
         :for={{id, observation} <- @battle.context["candidate_reconciliations"] || %{}}
@@ -413,6 +417,10 @@ defmodule CuckodingWeb.BattleComponent do
         <p class="fine-print">
           Observed {observation["observed_at"]} · interrupted attempt: <code>{id}</code>.
           The original attempt and all edit evidence are retained.
+        </p>
+        <p :if={observation["receipt"]["stage"] == "combine"} class="fine-print">
+          This combined candidate still requires fresh checks and independent Secutor review.
+          The battle head has not advanced.
         </p>
         <p>
           Every member must verify before one Paused checkpoint can Resume. Expired or

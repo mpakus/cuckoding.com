@@ -111,6 +111,7 @@ defmodule Cuckoding.Battles.Snapshot do
       "worktree_recovery" => PreparationRecovery.policy(),
       "worktree_wave_recovery" => PreparationRecovery.wave_policy(),
       "candidate_recovery" => CandidateRecovery.policy(),
+      "combination_recovery" => CandidateRecovery.combination_policy(),
       "mixed_closure" => MixedClosure.policy(),
       "provider_closure" => ProviderClosure.policy(),
       "timing_guard" => "elapsed-gap-v1",

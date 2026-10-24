@@ -25,6 +25,9 @@ defmodule Cuckoding.BattleExecutor do
   def reconcile(%{stage: "capture", role: nil} = attempt),
     do: reconcile_candidate(attempt)
 
+  def reconcile(%{stage: "combine", role: nil} = attempt),
+    do: reconcile_combination(attempt)
+
   def reconcile(attempt),
     do:
       if(is_nil(attempt.role),
@@ -81,6 +84,34 @@ defmodule Cuckoding.BattleExecutor do
           %{
             "status" => "prepared",
             "preparation" => Map.take(receipt, ~w(key head path device inode)),
+            "cleanup_verified" => true
+          }
+
+        _ ->
+          failure("reconciliation_failed", false)
+      end
+
+    Map.merge(Map.take(attempt.request, @envelope), result)
+  rescue
+    _ -> Map.merge(Map.take(attempt.request, @envelope), failure("reconciliation_failed", false))
+  end
+
+  def reconcile_combination(attempt, adapters \\ []) do
+    active? = fn -> Battles.candidate_reconciliation_current?(attempt) end
+
+    result =
+      case git(
+             attempt,
+             "recover_combined_candidate",
+             %{"request" => candidate_request(attempt)},
+             active?,
+             adapters
+           ) do
+        %{"status" => "candidate_combined"} = candidate ->
+          %{
+            "status" => "combined",
+            "candidate_sha" => candidate["candidate"],
+            "native_candidate" => candidate,
             "cleanup_verified" => true
           }
 
