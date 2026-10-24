@@ -7,6 +7,7 @@ use super::*;
 pub(super) use battle::run as battle;
 pub(super) use candidate::run as candidate;
 pub(super) use check_input::run as check_input;
+pub(super) use check_input::verified_bytes as check_input_bytes;
 pub(super) use inspection::inspect;
 use std::{collections::HashSet, os::unix::fs::DirBuilderExt};
 

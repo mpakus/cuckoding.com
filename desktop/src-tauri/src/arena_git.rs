@@ -2,6 +2,7 @@
 #[cfg(test)]
 mod combination_tests;
 mod documents;
+mod guest_check;
 mod initial;
 mod worktree;
 use crate::probe::{exited, private_directory, Group};
@@ -366,6 +367,7 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
         "verify_candidate",
         "prepare_check_input",
         "verify_check_input",
+        "run_guest_check",
         "create_battle",
         "battle_worktree",
         "integrate_candidate",
@@ -391,6 +393,7 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
                     "verify_candidate",
                     "prepare_check_input",
                     "verify_check_input",
+                    "run_guest_check",
                     "create_battle",
                     "battle_worktree",
                     "integrate_candidate",
@@ -430,6 +433,9 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
     let device = device.parse().map_err(|_| "invalid_request")?;
     let inode = inode.parse().map_err(|_| "invalid_request")?;
     git.identity(device, inode)?;
+    if operation == "run_guest_check" {
+        return guest_check::run(&git, &extra[0], device, inode);
+    }
     if operation == "scan_documents" {
         let result = documents::scan(&git, &extra[0])?;
         git.identity(device, inode)?;
@@ -505,6 +511,9 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
 }
 
 fn operation_limit(args: &[String]) -> Duration {
+    if args.first().is_some_and(|s| s == "run_guest_check") {
+        return Duration::from_secs(360);
+    }
     let combined = matches!(
         args.first().map(String::as_str),
         Some(

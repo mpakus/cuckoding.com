@@ -47,6 +47,7 @@ defmodule Cuckoding.BattleChecksTest do
           Map.delete(receipt(), "request_id"),
           Map.put(receipt(), "contract", "codex-check-sandbox-v1"),
           Map.put(receipt(), "contract", "guest-check-v1"),
+          Map.put(receipt(), "contract", "isolated-guest-check-v1"),
           Map.put(receipt(), "contract", "isolated-check-image-v1"),
           Map.update!(receipt(), "checks", &(&1 ++ &1))
         ] do

@@ -394,3 +394,26 @@ pub(in super::super) fn run(
     git.active()?;
     Ok(result)
 }
+
+pub(in super::super) fn verified_bytes(
+    git: &Git<'_>,
+    request: &Value,
+    device: u64,
+    inode: u64,
+) -> Result<(Value, Vec<u8>)> {
+    let receipt = run(
+        git,
+        "verify_check_input",
+        &request.to_string(),
+        device,
+        inode,
+    )?;
+    let storage = Storage::open(git, initial::uuid(&request["key"])?, false)?;
+    let bytes = storage.read("candidate.cpio", ARCHIVE_LIMIT)?;
+    if receipt["archive_sha256"] != initial::digest(&bytes) {
+        return Err("check_input_mismatch");
+    }
+    storage.current(git)?;
+    git.active()?;
+    Ok((receipt, bytes))
+}

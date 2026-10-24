@@ -143,6 +143,26 @@ fn child_cancellation_closes_the_owned_download_group() {
     assert!(work.cleaned && work.began.elapsed() < Duration::from_secs(3));
 }
 
+#[test]
+fn run_clones_are_exclusive_independent_private_files_and_preserve_the_image() {
+    let (home, _) = fixture();
+    let image = store::Store::open(&home, KEY, true).unwrap();
+    image.write("kernel", b"original").unwrap();
+    let run = store::Store::run(&home, KEY).unwrap();
+    let mut copy = run
+        .clone_file(&image.reader("kernel").unwrap(), "kernel")
+        .unwrap();
+    copy.write_all(b"-append").unwrap();
+    copy.sync_all().unwrap();
+    assert_eq!(image.read("kernel", 100).unwrap(), b"original");
+    assert_eq!(run.read("kernel", 100).unwrap(), b"original-append");
+    assert!(run
+        .clone_file(&image.reader("kernel").unwrap(), "kernel")
+        .is_err());
+    image.current().unwrap();
+    run.current().unwrap();
+}
+
 fn tar_gzip(path: &str, kind: tar::EntryType, data: &[u8]) -> Vec<u8> {
     let mut header = tar::Header::new_gnu();
     header.set_entry_type(kind);

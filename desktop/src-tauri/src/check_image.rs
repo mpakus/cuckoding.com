@@ -1,6 +1,7 @@
 //! Fixed, explicit upstream image installation; never starts a VM or runs project code.
 mod archive;
 mod store;
+pub(crate) use store::Store;
 #[cfg(test)]
 mod tests;
 use crate::probe::{exited, private_directory, Group};
@@ -59,6 +60,26 @@ fn spec() -> String {
         .concat()
         .as_slice(),
     )
+}
+
+pub(crate) fn verified_files(home: &Path, request: &Value) -> Result<(Value, Vec<u8>, Vec<u8>)> {
+    let (_tx, cancel) = mpsc::channel();
+    let mut installer = Installer {
+        cancel,
+        began: Instant::now(),
+        wall: SystemTime::now(),
+        cleaned: true,
+        journal: None,
+    };
+    let receipt = installer.run(home, request, true)?;
+    let store = Store::open(home, key(&request["key"])?, false)?;
+    let kernel = store.read("kernel", 134_217_728)?;
+    let ramdisk = store.read("ramdisk.cpio.gz", 134_217_728)?;
+    if hash(&kernel) != receipt["kernel_sha256"] || hash(&ramdisk) != receipt["ramdisk_sha256"] {
+        return Err("image_changed");
+    }
+    store.current()?;
+    Ok((receipt, kernel, ramdisk))
 }
 fn key(value: &Value) -> Result<&str> {
     value
