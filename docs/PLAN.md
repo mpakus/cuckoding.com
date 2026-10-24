@@ -871,8 +871,13 @@ See [task](../tasks/R020j-navigation-routes.md) and
   advisories, check Hex metadata before application tasks and retain real-loopback
   authority/origin/Phoenix parser-error regressions. No HTTP/2 attack-drill claim.
   [Evidence](../worklog/2026-10-21-R102-bandit-security.md).
-- [ ] Native dependency follow-up: the R050n audit reports Tokio 1.53.2's
-  [AsyncFd advisory](https://rustsec.org/advisories/RUSTSEC-2026-0386.html)
-  (patched in 1.53.3), plus seven existing maintenance/unsoundness warnings.
-  Patch the compatible native cohort and rerun its tests/sealed lifecycle before
-  release; an exit-zero advisory scan does not mean zero warnings.
+- [x] R103 updates only Tokio 1.53.2 → 1.53.3 for the
+  [AsyncFd advisory](https://rustsec.org/advisories/RUSTSEC-2026-0386.html), with
+  locked native checks and rebuilt sealed lifecycle/recovery verification.
+  [Evidence](../worklog/2026-10-24-R103-native-tokio.md).
+- [ ] Review the seven remaining transitive native warnings before release:
+  five unmaintained `unic-*` crates remain in the Apple Silicon normal/build
+  graph through urlpattern/Tauri. `proc-macro-error` maintenance and `glib`
+  unsoundness warnings are absent from that target graph but remain in the
+  cross-platform lockfile. Do not infer zero risk or suppressions from an
+  exit-zero audit; replacement/upgrade or explicit release disposition is open.

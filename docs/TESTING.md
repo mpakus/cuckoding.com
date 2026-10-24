@@ -1,5 +1,13 @@
 # Verification and acceptance
 
+R103 verifies the locked Tokio1.53.3 patch with the unsuppressed native audit,
+an exact Apple Silicon reverse/normal/build dependency graph, native tests/lints
+and a rebuilt sealed app's lifecycle/recovery. The current audit has no
+vulnerability errors and seven transitive warnings; only the Tokio advisory was
+removed. Target absence is not a blanket release waiver. Record the actual
+artifact/source identity and distinguish prior guest/provider evidence from
+fresh checks. [Evidence](../worklog/2026-10-24-R103-native-tokio.md).
+
 R100d adds `rtk proxy python3 test/packaged_recovery_smoke.py` after a sealed
 `bin/dev.build`. It creates only fresh private synthetic inputs, using actual
 native Git plus source-only provider replies, and launches normal packaged

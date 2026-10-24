@@ -94,6 +94,9 @@ Elixir 1.20.3-otp-28 / OTP 28.5, rustup 1.97.1 and cargo-tauri 2.11.4.
 The development packaging script uses Homebrew OpenSSL 3, bundles its runtime
 library/license, and relocates OTP's crypto references. Cargo.lock fixes the
 compatible Tauri 2.11.5 dependency cohort; use `--locked` for native checks.
+R103 locks Tokio 1.53.3 for RUSTSEC-2026-0386. Run
+`rtk proxy cargo audit --file desktop/src-tauri/Cargo.lock` without suppressions;
+record remaining warnings and the target graph separately from the exit code.
 Mix.lock fixes Phoenix 1.8.15, LiveView 1.2.12, Ecto 3.14.2 and SQLite adapter 0.25.0.
 R102 pins Bandit 1.13.1 with required Thousand Island 1.6.0; use the updated lockfile.
 After Tauri copies all resources, `bin/dev.build` ad-hoc signs the complete app

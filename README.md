@@ -370,6 +370,9 @@ R102 updates Bandit to 1.13.1 and its required Thousand Island dependency to 1.6
 fixing the published HTTP authority and HTTP/2 send-deadline advisories. Quality
 now checks current Hex advisories before application tasks, alongside the existing
 audit. [Verification and limitations](worklog/2026-10-21-R102-bandit-security.md).
+R103 updates native Tokio to patched 1.53.3 for RUSTSEC-2026-0386. Seven existing
+transitive maintenance/platform warnings remain tracked for release review.
+[Native dependency evidence](worklog/2026-10-24-R103-native-tokio.md).
 
 R020n adds bounded Codex host file-tool turns, now used by R050e battle admission
 and independent review. R020o fixes Codex tool routing;

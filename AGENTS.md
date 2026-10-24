@@ -976,6 +976,10 @@ fixes plus Phoenix parser-error compatibility), with its required Thousand Islan
 1.6 cohort. Run `hex.audit` first in quality, before application-loading tasks,
 as well as the existing audit. Do not suppress advisories or ship Hex as a runtime
 application. Retain raw-loopback HTTP authority/origin/parser-error regressions.
+R103 keeps native Tokio on a compatible patched cohort (locked 1.53.3 for
+RUSTSEC-2026-0386). Run the unsuppressed native advisory scan and record warnings
+separately from errors, with the actual target graph. An exit-zero audit is not
+zero warnings or release acceptance; do not mask transitive maintenance issues.
 
 SQLite uses WAL, foreign keys, busy timeout and short transactions. Keep immutable
 historical facts in events/attempts and current projections separate. Released
