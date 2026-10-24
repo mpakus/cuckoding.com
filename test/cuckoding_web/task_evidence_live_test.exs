@@ -139,6 +139,41 @@ defmodule CuckodingWeb.TaskEvidenceLiveTest do
     refute has_element?(view, "#task-evidence", "Frozen criteria")
   end
 
+  test "failure excerpt metadata is visible while private text stays out of rendering and export",
+       f do
+    Repo.insert!(%Attempt{
+      id: Ecto.UUID.generate(),
+      battle_id: f.battle.id,
+      task_id: f.task.task_id,
+      stage: "checks",
+      state: "completed",
+      claim_token: Ecto.UUID.generate(),
+      request: %{},
+      deadline_at: f.battle.deadline_at,
+      inserted_at: DateTime.add(f.battle.inserted_at, 99),
+      result: %{
+        "check_feedback" => [
+          %{
+            "excerpt" => "TEST_SENSITIVE_RAW",
+            "excerpt_bytes" => 99,
+            "truncated" => false,
+            "request_id" => "PRIVATE_CHECK_ATTEMPT"
+          }
+        ]
+      }
+    })
+
+    signed = sign_in(f.conn)
+    {:ok, view, _} = live(signed, f.path)
+    view |> element("button[aria-label='Inspect Task']") |> render_click()
+    assert has_element?(view, "#task-evidence", "Failure excerpt retained for repair · 99 bytes")
+    refute render(view) =~ "TEST_SENSITIVE_RAW"
+    refute render(view) =~ "PRIVATE_CHECK_ATTEMPT"
+    data = get(signed, evidence_path(f)) |> json_response(200) |> Jason.encode!()
+    refute data =~ "TEST_SENSITIVE_RAW"
+    refute data =~ "PRIVATE_CHECK_ATTEMPT"
+  end
+
   test "expired component session cannot read another page", f do
     {:ok, view, _} = f.conn |> sign_in() |> live(f.path)
     view |> element("button[aria-label='Inspect Task']") |> render_click()

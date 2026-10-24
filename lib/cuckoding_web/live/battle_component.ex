@@ -1032,6 +1032,9 @@ defmodule CuckodingWeb.BattleComponent do
               npm/Mix checks run offline in Linux. First use downloads verified toolchains;
               project dependencies are not downloaded. The original checkout stays intact.
             </span>
+            <span :if={@preview.snapshot["check_feedback"]}>
+              Failed-test excerpts, up to 4 KiB, are shared with the assigned repair roles.
+            </span>
             <span :if={not GuestChecks.enabled?(@preview.snapshot)}>
               Declared checks run as single-process commands only; subprocess spawning is unavailable.
               Mix/npm pipelines are not yet supported by this system-command grant.

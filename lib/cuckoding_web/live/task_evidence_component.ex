@@ -212,6 +212,13 @@ defmodule CuckodingWeb.TaskEvidenceComponent do
               do: "verified",
               else: "unverified"}
           </p>
+          <p :for={failure <- attempt.result["check_feedback"] || []} class="fine-print">
+            Failure excerpt retained for repair · {failure["excerpt_bytes"]} bytes {if failure[
+                                                                                         "truncated"
+                                                                                       ],
+                                                                                       do:
+                                                                                         " · shortened"}
+          </p>
         </details>
         <div
           :if={@page.more? || length(@cursors) > 1}

@@ -28,14 +28,18 @@ defmodule Cuckoding.GuestBattleFixture do
     Logger.configure(level: :warning)
     root = System.fetch_env!("CUCKODING_GUEST_FIXTURE_ROOT")
     mode = System.get_env("CUCKODING_GUEST_FIXTURE_MODE", "declared")
-    true = mode in ~w(declared planned)
-    planned? = mode == "planned"
+    true = mode in ~w(declared planned feedback)
+    planned? = mode in ~w(planned feedback)
     true = Path.expand(root) == root and Path.dirname(root) == "/private/tmp"
 
     true =
       String.starts_with?(
         Path.basename(root),
-        if(planned?, do: "cuckoding-r050q-", else: "cuckoding-r050p-")
+        case mode do
+          "feedback" -> "cuckoding-r050r-"
+          "planned" -> "cuckoding-r050q-"
+          "declared" -> "cuckoding-r050p-"
+        end
       )
 
     true = Enum.all?(components(root), &match?({:ok, %{type: :directory}}, File.lstat(&1)))
@@ -163,8 +167,14 @@ defmodule Cuckoding.GuestBattleFixture do
     "stopped" = stopped.state
     true = File.ls!(Path.join(data, "runtime-home/check-images")) == [image["key"]]
 
+    observed_feedback = feedback_stages(attempts)
+
+    verify_feedback_stages(mode, observed_feedback)
+
     evidence = %{
       "format" => 1,
+      "feedback_stages" => observed_feedback,
+      "failure_feedback_verified" => mode == "feedback",
       "verification_mode" => mode,
       "configured_check_revision" => ProjectChecks.current(arena.id).revision,
       "inference" => false,
@@ -200,6 +210,18 @@ defmodule Cuckoding.GuestBattleFixture do
       "PASS: one Start, dependent tasks, actual npm/Mix failure/correction/final checks, image reuse/Pause/Stop; synthetic providers only."
     )
   end
+
+  defp feedback_stages(attempts) do
+    attempts
+    |> Enum.filter(&(not is_nil(Cuckoding.CheckFeedback.prompt(&1))))
+    |> Enum.map(& &1.stage)
+  end
+
+  defp verify_feedback_stages("feedback", stages) do
+    true = Enum.all?(~w(speculator implementor secutor), &(&1 in stages))
+  end
+
+  defp verify_feedback_stages(_mode, _stages), do: :ok
 
   def execute(attempt) do
     true = self() in Task.Supervisor.children(Cuckoding.BattleTasks)
@@ -514,6 +536,7 @@ defmodule Cuckoding.GuestBattleFixture.Provider do
       end)
 
     prompt = Jason.decode!(request["prompt"])
+    verify_feedback(attempt, prompt)
     failed = Enum.any?(prompt["host_checks"] || [], &(&1["status"] != "passed"))
     outcome = if attempt.stage == "secutor" and failed, do: "changes_requested", else: "completed"
 
@@ -536,6 +559,26 @@ defmodule Cuckoding.GuestBattleFixture.Provider do
       "changes" => if(write?, do: Enum.map(tools, &Map.take(&1, ~w(path sha256))), else: []),
       "cleanup_verified" => true
     }
+  end
+
+  defp verify_feedback(attempt, prompt) do
+    if System.get_env("CUCKODING_GUEST_FIXTURE_MODE") == "feedback" do
+      expected = Cuckoding.CheckFeedback.prompt(attempt)
+      ^expected = prompt["check_feedback"]
+
+      if expected do
+        "untrusted_test_output" = expected["trust"]
+        nil = prompt["prior_public_summary"]
+        [feedback] = expected["failures"]
+        true = String.contains?(feedback["excerpt"], "owned files")
+        true = Fixture.digest(feedback["excerpt"]) == feedback["excerpt_sha256"]
+        origin = Repo.get!(Cuckoding.Battles.Attempt, feedback["request_id"])
+        "completed" = origin.state
+        "checks" = origin.stage
+        [^feedback] = origin.result["check_feedback"]
+        true = origin.task_id == attempt.task_id and origin.battle_id == attempt.battle_id
+      end
+    end
   end
 
   defp apply_change(_, _, _, false), do: :ok
