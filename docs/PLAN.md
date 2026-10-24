@@ -594,6 +594,13 @@ Depends on R050.
   verified closure permits Stop; no Resume/Retry/Skip or work acceptance.
   [Task/evidence](../tasks/R060p-mixed-closure.md).
 - [ ] Broader interrupted-work recovery with verified process cleanup.
+- [x] R060s inspect one exact complete retained combined candidate under a new
+  Start policy, without recombination or missing-proof reconstruction. Reuse the
+  exclusive supervised queue; pause for explicit Resume and fresh checks/review.
+  Fix the actual host/native preparation mismatch; packaged CLI proof preserves
+  edits/index/receipts and refuses missing proof/replay. Historical/mixed scopes
+  and original bounds stay unchanged. Broader recovery
+  remains open. [Task/evidence](../tasks/R060s-combination-recovery.md).
 - [x] R060h timing-gap admission/settlement fence with independent supervised
   clock observation, clean Pause and rejected active receipts; no claim of sleep.
 - [x] R060i fixed native idle-system sleep lease during eligible work, bounded

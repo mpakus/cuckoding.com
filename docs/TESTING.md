@@ -1,5 +1,17 @@
 # Verification and acceptance
 
+R060s covers exact complete retained combination recovery, repeated read/no replay,
+unchanged source/index/receipts, foreign/partial/linked/tampered/stale proof,
+fixed native budget/cancellation and missing-policy isolation. Host tests cover
+immutable Interrupted claims, atomic audit rollback, false cleanup, late/timing
+Stop-only settlement, exact binding revalidation, exclusive supervised restart
+and existing LiveView reconnect/explicit Resume. Native and host fixtures do not
+prove real-provider or physical recovery. [Task/evidence](../tasks/R060s-combination-recovery.md).
+After `rtk proxy bin/dev.build`, run `rtk proxy python3 test/combined_candidate_smoke.py`
+for the actual sealed CLI: five-field host preparations, independent edits,
+combination, immutable repeated recovery, missing-proof refusal and no replay.
+It creates only fresh retained fixtures and never uses provider profiles/inference.
+
 R100c tests WAL-backed prior-schema copying with retained rows, readable old
 schema/hash/private permissions, no repeated current/fresh work, unknown/future
 schema refusal, links/hardlinks/malformed metadata, FK/durability failures and

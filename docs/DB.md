@@ -1,5 +1,13 @@
 # Data model
 
+R060s adds no migration. New Starts freeze `combination_recovery:
+retained-combination-v1`; one exact interrupted combine may use the existing
+`candidate_recovery_pending` / single-member wave and `candidate_reconciliations`
+dated observation ledger. Its attempt never changes. Only bound verified in-budget
+proof advances the task's next stage and Paused checkpoint atomically; it clears
+old checks/review authority without advancing the reviewed battle head. Old/missing
+policies and mixed queues retain their scopes. [Decision](DECISIONS.md#d054--recover-complete-combined-candidates-without-replay).
+
 R100c adds no migration. Before upgrading an existing known schema, startup uses
 `VACUUM INTO` for a consistent WAL-aware copy at private
 `backups/<UUID>/foundation.db`. Source/copy integrity, FKs and exact migration

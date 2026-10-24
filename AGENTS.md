@@ -173,6 +173,20 @@ lifetime counters. Back up before migration eighteen; its claim trigger and
 startup version fence keep old bundles from running blocked lanes. No new native
 grant, provider or account fallback; real-provider acceptance remains open.
 
+R060s freezes `combination_recovery: retained-combination-v1` in new Starts.
+Only one exact restart-interrupted `combine` with otherwise settled history may
+join the existing exclusive supervised candidate-read queue. The fixed native
+`recover_combined_candidate` requires original request/intent/publication/receipt,
+current reviewed head/ref/config, original captured writer and owned source/tree.
+Compare the host's five preparation identity fields with the retained status
+projection in memory only; preserve original intents/receipts and reject unknown fields.
+Never recreate proof or recombine. Retain Interrupted history and dated observation;
+pause an in-budget next checkpoint for explicit Resume, new configured checks
+and independent review. Original bindings/budgets/deadlines remain authoritative;
+late/fenced verified closure permits Stop only. Preserve historical and mixed
+provider/capture/preparation recovery scopes and 60-second native/65-second host
+budgets/cancellation. No new provider/tool grant or real-account acceptance.
+
 R060c freezes `task_selection: skip-task-v1` in new Starts. Skip confirms the exact
 current task/control revision at a clean paused boundary or settled task-local
 provider block/transient failure/review exhaustion. Verify cleanup, bindings and

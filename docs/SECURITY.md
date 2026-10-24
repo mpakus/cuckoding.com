@@ -1,5 +1,14 @@
 # Security contract
 
+R060s adds a fixed read of complete combined-candidate proof, not permission to
+recombine or recreate missing receipts. Bind exact original request, private
+intent/publication/receipt, source/ref/current head/configuration, original writer
+and combined tree through existing native verification under the repository lock.
+The original Interrupted attempt, grants and counters remain. Only new frozen
+policies can pause a verified checkpoint; old checks cannot authorize its candidate.
+Expired/fenced proof permits Stop only. Mixed native/provider recovery does not
+gain combination membership. [Decision](DECISIONS.md#d054--recover-complete-combined-candidates-without-replay).
+
 R100c backup paths derive from the recognized canonical private root and fresh
 UUIDs under its exclusive launcher lock. Refuse links/special files before
 startup permission changes and bound marker/receipt/pointer reads. Source and

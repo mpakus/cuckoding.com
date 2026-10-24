@@ -597,3 +597,29 @@ copy excludes provider profiles, project folders and retained native artifacts.
 It never authorizes overwriting later work, auto-downgrading or replacing an app
 while native effects are uncertain. Full update/restore and physical power-loss
 acceptance remain release gates. No schema or provider-grant change.
+
+## D054 — Recover complete combined candidates without replay
+
+2026-10-23, R060s. New Starts freeze `combination_recovery:
+retained-combination-v1`. Only one exact restart-interrupted combination with
+otherwise settled history may join the existing exclusive retained-read queue.
+A fixed read binds its original request and complete intent/publication/receipt
+to the current reviewed head/ref/configuration, original captured writer and
+unchanged source/worktree/combined tree. Never rebuild evidence or recombine.
+
+The immutable Interrupted attempt remains; a separate dated observation can pause
+an in-budget next checkpoint for explicit Resume. Old check/review evidence does
+not authorize the combined result; fresh checks and independent review remain.
+Original deadlines, lifetime counters, binding/cleanup/timing gates and historical
+snapshots retain their authority. Expired/fenced verified closure enables Stop
+only. Missing/foreign evidence stays needs-attention. Keep this single-claim scope
+separate from mixed provider/capture/preparation closure and unchanged budgets:
+60 seconds native, 65 host, cancellation and original stage/battle deadline.
+No schema/provider/tool grant or real-account recovery acceptance is added.
+
+Packaged CLI verification exposed a preexisting host/native format mismatch:
+Phoenix retains five preparation identity fields; native `battle.json` also keeps
+`status: prepared`. Normalize only that comparison in memory. Preserve the exact
+original request/intents and reject other status/extra-field mismatches. Native
+combination fixtures now use the real host shape, covering normal combination,
+verification/consumers and recovery together.

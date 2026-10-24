@@ -1,5 +1,16 @@
 # Execution and recovery
 
+R060s new Starts additionally freeze `combination_recovery:
+retained-combination-v1`. One restart-interrupted combine with otherwise settled
+history may read complete original proof through `recover_combined_candidate`.
+It never recombines, reconstructs evidence or accepts previous review for the new
+candidate. A bound verified in-budget observation pauses at fresh configured
+checks/independent review for explicit Resume. Interrupted history, original limits,
+bindings and deadlines remain; expired/fenced proof permits Stop only. The fixed
+read has the existing combined-operation 60-second native/65-second host budget
+and cancellation. Historical and mixed queues keep their original scope. Broader
+native/process/sleep and real-account recovery remain open.
+
 R060o adds fixed retained-candidate recovery. New Starts freeze
 `candidate_recovery: retained-candidate-wave-v1`. One/two exact interrupted
 captures or a mixed capture/preparation pair queue exclusive supervised reads.

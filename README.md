@@ -47,6 +47,10 @@ Settings → Build details identifies the packaged build, source revision, local
 changes and application-input digest. Source UI previews are labelled separately.
 The build retains artifact hashes in a private receipt; signing/notarization and
 release acceptance remain separate gates.
+Restart can inspect a complete retained combined candidate and pause for Resume,
+fresh configured checks and independent review. It never recombines or recreates
+missing proof; broader recovery and real-account acceptance remain open.
+This also fixes a format mismatch that prevented parallel results from combining.
 Before upgrading a recognized existing schema, startup verifies a private
 database copy and retains its dated receipt. Settings → Database copy details
 shows its location and recorded hash. Failed copies stop migration. Provider

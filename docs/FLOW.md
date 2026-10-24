@@ -1,5 +1,11 @@
 # Workflow contract
 
+R060s can pause a new-policy battle after verifying one complete retained combined
+candidate following restart. Resume remains explicit and revalidates the saved
+bindings; configured checks and independent review run against that candidate
+before integration. No work repeats, no reviewed head advances from inspection,
+and late/fenced proof permits Stop only. Missing proof stays in Inspect.
+
 With R060r new Starts, verified task-local blockers keep their cards unfinished
 while independent ready work continues after a clean worker drain. Dependents wait;
 shared/uncertain failures stop the Arena. Pause/restart still require Resume.
@@ -12,8 +18,8 @@ Team are reusable setup, not steps repeated for each project or card.
 The autonomous flow below is the target. Current planning and setup operations
 are described in [Development](DEVELOPMENT.md). R050e implements the first
 bounded Codex/Cursor Start loop, extended by independent task waves in R070d;
-[Arena loop](ARENA_LOOP.md) states its limits. Full recovery, custom stages and
-real-provider parallel acceptance below remain target behavior.
+[Arena loop](ARENA_LOOP.md) states its limits. Full recovery and real-provider
+parallel/custom-stage acceptance below remain target behavior.
 
 ## Add folder
 

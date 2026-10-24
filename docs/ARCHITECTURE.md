@@ -1,5 +1,12 @@
 # Architecture
 
+R060s extends `Battles.CandidateRecovery` only under the new combination policy:
+one exact interrupted combination uses the existing exclusive supervised queue.
+`BattleExecutor` calls the fixed native retained read, which reuses combined-tree
+verification. Battles appends the observation and pauses a verified checkpoint;
+the claim stays Interrupted, reviewed head stays unchanged and checks/review stay
+fresh. MixedClosure excludes combination members. [Decision](DECISIONS.md#d054--recover-complete-combined-candidates-without-replay).
+
 R100c `Database` refuses future/unknown schemas and calls `UpgradeBackup` before
 pending migrations of an existing known schema. Under the launcher lock, the
 startup process owns consistent SQLite copying, readonly checks, bounded hashing
