@@ -70,7 +70,7 @@ listed below. Arena registration opens its default board; technical setup stays 
 | Saved agent/model assignments for Speculator, Implementor, Secutor and Summa Rudis | Real mixed-runtime battle acceptance |
 | Folder registration with an automatic default board, direct Arena opening, scoped team editing, versioned column names, ordered custom read/write stages and editable drafts | Real-provider custom-stage acceptance |
 | Codex/Cursor planning from a brief or bounded folder snapshots (`docs/` first), automatically saved task cards, prerequisites and original source citations | Real-account planning acceptance across supported runtimes |
-| One bounded Start, independent task pipelines in waves of up to two, serialized independent review/integration, task-proposed offline npm/Mix checks and a retained local battle branch | Failure-log delivery, project dependencies/platform verification, real-account end-to-end acceptance, full recovery and real-provider parallel acceptance |
+| One bounded Start, independent task pipelines in waves of up to two, serialized independent review/integration, task-proposed offline npm/Mix checks, bounded failure feedback and a retained local battle branch | Project dependencies/platform verification, real-account end-to-end acceptance, full recovery and real-provider parallel acceptance |
 | Global setup/planning/battle activity, selected-board team/progress and paginated events globally/per Arena | Timed real-account setup and broader dashboard/release acceptance |
 
 Tabula Gladiatorum shows up to 20 saved active setup/planning/battle records and
@@ -211,7 +211,11 @@ review run in the existing supervised Arena workers, with verified VM shutdown
 required before advancement. [Planned task checks](tasks/R050q-task-checks.md).
 
 These checks do not download project dependencies or reproduce macOS/browser
-environments. Bounded failure-log delivery to repair roles remains unfinished.
+environments. New Starts share a bounded failed-test excerpt with Secutor and the
+assigned repair agents, so correction uses actual failure evidence. It stays tied
+to the failed candidate and clears when new checks settle. History shows retained
+excerpt metadata; raw text stays outside public feeds/downloads. No extra setup
+or per-task approval. [Failed-check feedback](tasks/R050r-check-feedback.md).
 Native system checks retain the separate Codex single-process grant;
 mixing system and guest checks in one saved list is refused. Historical Starts
 keep their original grants. Interrupted checks and hard VM-owner loss need

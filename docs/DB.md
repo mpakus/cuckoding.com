@@ -1,5 +1,16 @@
 # Data model
 
+R050r adds forward-only migration twenty-one with the normal pre-upgrade private
+backup and older-bundle fence. `battle_attempt_feedback_shape` limits updates
+containing `result.check_feedback` to arrays of at most one row on checks/final_checks
+attempts; the domain owns full typed binding/authorization. Nothing is backfilled.
+New guest Starts freeze `check_feedback: bounded-guest-feedback-v1`. A failed
+check stores the bounded excerpt plus original/output hashes/counts against the
+exact original attempt/check/candidate. Task context retains that immutable
+failed-candidate evidence through fresh preparation/repair. New check results
+replace it, using `[]` for a settled pass. Failed attempts remain unchanged.
+Public evidence projects counts/hashes only, never text or private request IDs.
+
 R050q adds forward-only migration twenty. The optional `verification` array lives
 only in immutable `draft_task_revisions.content`; `DraftTask.verification` is a
 virtual current-revision projection. Absence remains distinct from `[]` to keep

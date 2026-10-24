@@ -110,6 +110,12 @@ tasks and configured checks. Skipped/deferred task profiles do not become final
 requirements, while configured checks always remain. Empty check subsets still
 require independent inspection. Checks run offline in Linux without downloaded
 project dependencies; missing required evidence blocks completion.
+New guest-check Starts share up to 4 KiB of failed-test output with the assigned
+review/repair roles. Secutor sees the failed candidate's evidence; a return through
+Speculator and Implementor retains it across fresh worktrees. New checks replace
+that evidence. It is labelled historical/untrusted, never permission or proof that
+the current candidate passes. Task history shows retention size/hash metadata;
+no extra check setup or per-task approval is added.
 Protected policy changes, newly requested access and remote publication remain
 separate decisions. Until execution exists, explain its absence beside a disabled
 Start control; do not turn a preview into a pretend successful run.

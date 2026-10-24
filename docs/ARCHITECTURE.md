@@ -1,5 +1,16 @@
 # Architecture
 
+R050r `CheckFeedback` owns the opt-in failed-check schema, exact immutable
+attempt/check/candidate binding, prompt projection/reservation and public metadata.
+The existing native `guest_check` owner transforms already verified output before
+publishing its private receipt; there is no new log reader/process/tool. GuestChecks
+separates the excerpt from check metadata, Receipts checks the bound envelope,
+and normal domain transitions retain/clear feedback through repair/new checks.
+BattleExecutor labels it untrusted and preserves the 32 KiB prompt limit. The
+existing guarded task history shows counts only; Evidence omits text/private
+request IDs. Schema twenty-one adds the update-shape fence/older-bundle refusal.
+Normal setup and OTP worker ownership are unchanged.
+
 R050q connects task planning to those guest checks. `Planning` validates the
 closed `brief-plan-v4` proposal; `Tabulae` stores profiles in immutable task
 revision content. `TaskChecks` owns profile validation, fixed command resolution,

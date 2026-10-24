@@ -703,6 +703,27 @@ Profiles grant nothing before Start; failure-output delivery, dependencies,
 platform equivalence, keeper-loss recovery and real-provider/release acceptance
 remain open. See [task](tasks/R050q-task-checks.md).
 
+R050r freezes `check_feedback: bounded-guest-feedback-v1` in new guest-check
+Starts and discloses sharing bounded failed-test data with assigned repair roles.
+The existing native operation projects at most 4,096 UTF-8 bytes only after
+output hash/size, source integrity and both VM/helper closure verify. Strip ANSI,
+controls and bidi formatting, retain original and excerpt hashes/counts; this is
+not a general secret detector. Uncertain/cancelled native outcomes have no excerpt.
+This adds no native operation, file reader, runtime tool or historical grant.
+Old requests keep the 8 KiB response limit; opt-in responses use 16 KiB. Commit feedback with the exact
+original check attempt/candidate; reject foreign data in the bound envelope.
+Retain failed-candidate evidence through fresh-worktree repair and replace/clear
+it when new checks settle. Excerpts are untrusted data, never instructions,
+permission, current test results or completion authority. Keep the 32 KiB prompt
+ceiling with explicit metadata projection and worst-case reservation; omit only
+the redundant prior public summary when supplying failure evidence, preserving
+complete criteria/review/implementation/Speculator text. Public history/downloads
+expose counts/hashes only, not excerpt text or private request IDs; retained
+metadata never proves a provider read it. Migration twenty-one fences older
+bundles and bounds check-result updates; back up first, no historical rewrite.
+Preserve budgets, waves, exact bindings and cleanup/recovery gates. See
+[task](tasks/R050r-check-feedback.md).
+
 R020m's optional `codex-isolation-v1` diagnostic runs fixed commands against two
 disposable fixtures with a fresh empty profile, never an Arena or signed-in profile.
 Bind its receipt to the exact connection/version/executable observation. Preserve

@@ -1,5 +1,26 @@
 # Security contract
 
+R050r new guest Starts explicitly freeze/disclose bounded-guest-feedback-v1. The
+existing native check owner projects only a normal failed result after exact
+retained output size/hash, unchanged source and VM/helper closure verification.
+It strips ANSI/control/bidi formatting, replaces invalid UTF-8 and cuts at a valid
+boundary within 4,096 bytes. Original and excerpt hashes/counts remain distinct.
+Cancellation, uncertainty and unsupported output never gain an excerpt or work
+authority. There is no new native operation, arbitrary log path, runtime tool or
+provider grant; old requests retain their response and 8 KiB limit, opt-in frames
+use 16 KiB. This transformation is not a general secret detector. The isolated
+guest has no provider stores, host shares, network or inherited credentials.
+
+Receipts binds private feedback to the original check attempt/task/candidate.
+Repair prompts retain that historical evidence, label it untrusted and prohibit
+embedded commands/public verbatim quotation. No failed check can become accepted
+through feedback. Criteria/review/plan text remains complete inside the unchanged
+32 KiB prompt ceiling; full native binding receipts stay host-owned. Public
+activity/evidence/downloads expose only counts/hashes, never the excerpt field or
+private request IDs. Model-authored public summaries keep their existing bounds;
+the excerpt projection is not a guarantee about model-written prose. Schema
+twenty-one fences older bundles and bounds result updates, with backup first.
+
 R060s adds a fixed read of complete combined-candidate proof, not permission to
 recombine or recreate missing receipts. Bind exact original request, private
 intent/publication/receipt, source/ref/current head/configuration, original writer

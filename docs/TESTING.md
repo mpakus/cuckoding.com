@@ -1,5 +1,25 @@
 # Verification and acceptance
 
+R050r: after `rtk proxy bin/dev.build`, run
+`rtk proxy python3 -B test/guest_battle_smoke.py --check-feedback`. Keep the sealed
+schema-twenty app before rebuilding, with exact metadata at
+`.ccoding/r050r-old-bundle.json` using the private root/app layout below. The driver
+creates only a fresh synthetic R050r fixture. Require generated tasks, six real
+VM checks, failure/correction/final review, exact native output/excerpt hashes and
+immutable original check binding. Source-only providers assert actual prompt
+delivery to Secutor and fresh-worktree Speculator/Implementor; new settled checks
+clear the old excerpt. Provider replies are synthetic, never inference acceptance.
+Assert no excerpt field in events/public export, unchanged source/index, responsive
+coordinator, image reuse/Pause/Stop and exact old-bundle schema21 refusal.
+
+Focused regressions cover UTF-8/boundary/ANSI/control transformation, opt-in-only
+native fields/response limits, typed closure and malformed feedback, foreign
+attempt binding, repair/clear behavior, public LiveView/export privacy and the
+schema20-to21 backup/update trigger. Removing feedback binding must fail the
+forged-attempt test. Full quality/native tests/clippy/audit, sealed package
+lifecycle/recovery and build-input identity remain separate evidence.
+[Task/evidence](../tasks/R050r-check-feedback.md).
+
 R050q: after `rtk proxy bin/dev.build`, run
 `rtk proxy python3 -B test/guest_battle_smoke.py --task-checks`. It reads a fresh
 synthetic `docs/brief.md`, creates v4 tasks/profiles/prerequisites through actual

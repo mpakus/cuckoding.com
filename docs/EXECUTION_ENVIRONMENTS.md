@@ -261,8 +261,19 @@ independent review validates the exact original completed check attempt.
 Interrupted admission/checks retain the global reservation until actual cleanup
 proof; no process-absence inference, native replay or new recovery is added.
 
+R050r new guest Starts freeze `check_feedback: bounded-guest-feedback-v1`. The
+same native operation returns a failed-test excerpt only after normal closed,
+source-unchanged output verification. UTF-8/ANSI/control normalization is capped
+at 4 KiB, with original and excerpt hashes/counts. Old requests retain their exact
+receipt; only opt-in response transport grows from 8 to 16 KiB. No guest/provider
+tool, file reader, process or execution permission is added. Failed-candidate
+evidence survives fresh preparation for the assigned repair pipeline; new checks
+replace/clear it. Prompts explicitly label it untrusted/historical, retaining the
+32 KiB ceiling and full frozen criteria/review/plan text. Public projections show
+metadata only. [Contract/evidence](../tasks/R050r-check-feedback.md).
+
 Projects needing downloaded dependencies, other runtimes, browser/macOS execution
-or host-platform equivalence are unsupported by this grant. Failure-log delivery,
+or host-platform equivalence are unsupported by this grant. Broader log access,
 hard keeper-loss recovery, image distribution/licensing and
 real-provider/release verification remain separate acceptance work.
 [Integration contract/evidence](../tasks/R050p-arena-guest-checks.md).

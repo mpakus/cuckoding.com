@@ -771,3 +771,31 @@ compatibility fence/backup before new records can be interpreted by older bundle
 No extra setup page or routine per-task approval. Failure-output delivery,
 dependencies/platforms, native recovery and real-account/release acceptance stay
 separate, required work.
+
+## D064 — Deliver bounded check-failure evidence under frozen Start scope
+
+2026-10-24, R050r. New guest-check Starts freeze bounded-guest-feedback-v1 and
+explicitly disclose sharing test-failure excerpts with assigned roles. Existing
+run_guest_check may return an opt-in 4 KiB UTF-8/control-normalized excerpt only
+after exact retained output hash/size, unchanged source, VM Stopped and native
+helper closure verify. Bind original output and excerpt hashes/counts, exact
+attempt/check/candidate and transformation version. Old requests keep their exact
+response; absent policy grants no output projection. No new operation or log path.
+
+Commit feedback with the original immutable check attempt. Subsequent task
+Secutor/repair prompts carry bound failed-candidate evidence, labelled untrusted,
+not live results or policy. Fresh-worktree repair retains it until new checks
+settle, which replaces/clears previous evidence. It never grants tools, permits
+failed-check completion or changes review/Skip/budget/deadline/cleanup rules.
+Public activity/history/downloads expose retention metadata only, never excerpt
+text or private native identifiers. Add a forward-only older-bundle fence; no
+historical backfill. Real-provider, dependency/platform and recovery/release gates
+remain separate. Control normalization is not a general secret detector; isolated
+guest checks contain no provider profiles, host shares or inherited credentials.
+
+Keep the existing 32 KiB role-prompt ceiling. For these new snapshots, send only
+needed check status/hash/count/source/closure fields to roles; full native binding
+receipts remain host-owned. A failure-evidence prompt omits the redundant previous
+public stage summary, retaining complete frozen task criteria, review findings,
+previous implementation or Speculator plan. Reserve worst-case excerpt/metadata
+before Start; never silently truncate task, review or plan text to fit.
