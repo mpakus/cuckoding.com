@@ -20,12 +20,13 @@ import tempfile
 import time
 
 project = Path(__file__).resolve().parent.parent
-assert sys.argv[1:] in ([], ['--watchdog'])
-watchdog = bool(sys.argv[1:])
+assert sys.argv[1:] in ([], ['--watchdog'], ['--toolchains'])
+watchdog = sys.argv[1:] == ['--watchdog']
+toolchains = sys.argv[1:] == ['--toolchains']
 assert os.uname().sysname == 'Darwin' and os.uname().machine == 'arm64'
 assert shutil.disk_usage('/private/tmp').free >= 2 * 1024**3
 os.umask(0o077)
-root = Path(tempfile.mkdtemp(prefix='cuckoding-r050k-' if watchdog else 'cuckoding-r050j-', dir='/private/tmp'))
+root = Path(tempfile.mkdtemp(prefix='cuckoding-r050l-' if toolchains else 'cuckoding-r050k-' if watchdog else 'cuckoding-r050j-', dir='/private/tmp'))
 assert root.resolve() == root
 root.chmod(0o700)
 environment = {'HOME': str(root), 'TMPDIR': str(root), 'PATH': '/usr/bin:/bin:/usr/sbin:/sbin',
@@ -95,10 +96,15 @@ if watchdog:
     entries = [entry for entry in entries if entry[0] not in ('init', 'TRAILER!!!')]
     entries += [('init', stat.S_IFREG | 0o555, guest_watchdog.init), *guest_watchdog.files,
                 ('TRAILER!!!', stat.S_IFREG, b'')]
+if toolchains:
+    from support import guest_toolchain
+    entries = guest_toolchain.prepare(root, environment, entries)
 cpio = bytearray()
-for inode, (name, mode, data) in enumerate(entries, 1):
+for inode, entry in enumerate(entries, 1):
+    name, mode, data = entry[:3]
+    uid, gid = entry[3:] if len(entry) == 5 else (0, 0)
     encoded = name.encode() + b'\0'
-    fields = [inode, mode, 0, 0, 1, 0, len(data), 0, 0, 0, 0, len(encoded), 0]
+    fields = [inode, mode, uid, gid, 1, 0, len(data), 0, 0, 0, 0, len(encoded), 0]
     cpio.extend(b'070701' + b''.join(f'{field:08x}'.encode() for field in fields) + encoded)
     cpio.extend(b'\0' * (-len(cpio) % 4))
     cpio.extend(data)
@@ -106,10 +112,13 @@ for inode, (name, mode, data) in enumerate(entries, 1):
 (root / 'probe.cpio.gz').write_bytes(gzip.compress(bytes(cpio), mtime=0))
 (root / 'entitlements.plist').write_text('''<?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0"><dict><key>com.apple.security.virtualization</key><true/></dict></plist>''')
-source = root / 'Probe.swift'
+source = root / 'main.swift'
 source.write_bytes((project / 'test/support/guest_lifetime_probe.swift').read_bytes())
+control_source = root / 'Control.swift'
+control_source.write_bytes((project / 'test/support/guest_check_control.swift').read_bytes())
 run(['/usr/bin/xcrun', 'swiftc', '-swift-version', '6', '-default-isolation', 'MainActor',
      '-warnings-as-errors', '-module-cache-path', str(root / 'module-cache'), str(source),
+     str(control_source),
      '-framework', 'Virtualization', '-o', str(root / 'probe')], timeout=120)
 run(['/usr/bin/codesign', '--force', '--sign', '-', '--entitlements',
      str(root / 'entitlements.plist'), str(root / 'probe')], timeout=10)
@@ -146,6 +155,12 @@ def observe(mode):
                 lines.append(line)
                 if line.startswith(b'HOST '):
                     records.append(json.loads(line[5:]))
+                    if toolchains and mode in ('check_cancel', 'check_owner_loss') and records[-1].get('event') == 'check_running':
+                        if mode == 'check_owner_loss':
+                            assert child.poll() is None
+                            child.terminate()
+                        else:
+                            child.stdin.close()
                 if line.startswith(b'GUEST_CHILD '):
                     parts = line.decode().split()
                     groups[parts[1]] = {k: int(v) for k, v in (field.split('=') for field in parts[2:])}
@@ -173,6 +188,46 @@ def observe(mode):
             child.wait(timeout=45)
         selector.close()
         child.stdout.close()
+    if toolchains:
+        expected = json.loads((root / 'expected-checks.json').read_text())[mode]
+        if mode == 'check_owner_loss':
+            assert child.returncode == -15 and not (root / ('stop-' + mode + '.json')).exists()
+            result = {'mode': mode, 'cleanup_verified': False, 'missing_receipt_is_unverified': True}
+            print(json.dumps(result), flush=True)
+            return result
+        if mode == 'check_output_limit':
+            assert child.returncode == 5 and not (root / ('stop-' + mode + '.json')).exists()
+            assert any(row.get('event') == 'guest_stopped' and row.get('state') == 0 for row in records)
+            result = {'mode': mode, 'oversized_output_refused': True, 'check_receipt_published': False}
+            print(json.dumps(result), flush=True)
+            return result
+        receipt = json.loads((root / ('stop-' + mode + '.json')).read_bytes())
+        assert child.returncode == 0
+        assert all(receipt[key] == value for key, value in expected.items())
+        assert receipt['contract'] == 'guest-check-prototype-v1'
+        assert receipt['native_state'] == 0 and receipt['cleanup_verified'] is True
+        if mode == 'check_cancel':
+            assert receipt['status'] == 'cancelled' and 'exit_code' not in receipt
+            result = {'mode': mode, 'status': 'cancelled', 'scope_and_native_closure_bound': True}
+            print(json.dumps(result), flush=True)
+            return result
+        assert receipt['source_unchanged'] is (mode != 'check_source_mutation') and receipt['stdout_bytes'] > 0
+        passed = mode in ('check_npm_pass', 'check_mix_pass', 'check_output_boundary')
+        assert receipt['status'] == ('passed' if passed else 'failed')
+        assert (receipt['exit_code'] == 0) is (passed or mode == 'check_source_mutation')
+        output = (root / ('output-' + mode + '.log')).read_bytes()
+        assert len(output) == receipt['stdout_bytes'] and hashlib.sha256(output).hexdigest() == receipt['stdout_sha256']
+        if mode == 'check_output_boundary':
+            assert 62000 < len(output) <= 65536
+        if mode == 'check_forgery':
+            assert b'CONTROL_ACCESS_DENIED' in output and b'CHECK_RESULT {"exit_code":0}' in output
+        if mode in ('check_mix_pass', 'check_mix_fail'):
+            assert b'Running ExUnit' in output
+            assert (b'Result: 1 passed' if passed else b'test actual candidate') in output
+        result = {'mode': mode, 'status': receipt['status'], 'exit_code': receipt['exit_code'],
+                  'seconds': round(time.monotonic() - began, 3), 'scope_and_native_closure_bound': True}
+        print(json.dumps(result), flush=True)
+        return result
     if watchdog:
         guest_watchdog.verify(lines, mode)
     else:
@@ -205,13 +260,13 @@ def observe(mode):
     return result
 
 
-modes = ('watchdog_pids', 'watchdog_memory', 'watchdog_eof', 'watchdog_owner_loss') if watchdog else (
+modes = guest_toolchain.MODES if toolchains else ('watchdog_pids', 'watchdog_memory', 'watchdog_eof', 'watchdog_owner_loss') if watchdog else (
     'input', 'eof', 'deadline', 'paused', 'owner_loss')
 outcomes = [observe(mode) for mode in modes]
-result = {'fixture_root': str(root), 'inputs': inputs, 'cpus': 2, 'memory_mib': 512,
+result = {'fixture_root': str(root), 'inputs': inputs, 'cpus': 2, 'memory_mib': 1024 if toolchains else 512,
           'network': False, 'host_shares': False, 'shipping_grant_changed': False,
           'outcomes': outcomes, 'owner_loss_cleanup_authority': False,
           'hashes': {name: hashlib.sha256((root / name).read_bytes()).hexdigest()
-                     for name in ('kernel', 'probe.cpio.gz', 'Probe.swift', 'probe')}}
+                     for name in ('kernel', 'probe.cpio.gz', 'main.swift', 'Control.swift', 'probe')}}
 (root / 'evidence.json').write_text(json.dumps(result, indent=2) + '\n')
 print('PASS: native guest stop observations; owner loss remains unverified, toolchain grants unchanged.', flush=True)

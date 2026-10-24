@@ -77,8 +77,24 @@ migration denial and PID/memory/CPU enforcement are observed under fixed pressur
 Kernel group-empty data is diagnostic; only the separate native observation
 reports guest shutdown, and neither is current battle authority. Client EOF and
 abrupt keeper death remain distinct; the latter has no accepted cleanup proof.
-Privileged control-channel separation, real toolchains and production ownership/
-recovery are still required. [Evidence](../worklog/2026-10-23-R050k-protected-guest-watchdog.md).
+Production ownership/recovery remains required.
+[Evidence](../worklog/2026-10-23-R050k-protected-guest-watchdog.md).
+
+R050l adds actual offline npm/Mix commands only to fresh synthetic guest fixtures.
+Pinned packages and Elixir archive are read into memory; archive paths, parents,
+entry types, collisions and sizes are checked before composing the ramdisk, with
+no host extraction of links/devices. Workers have no network/host shares and run
+as UID1000 with no-new-privileges, zero capabilities and nondelegated PID/memory/
+CPU limits. Only root owns the console/control paths. Worker output is separately
+captured, capped at 64 KiB and hash-checked; a forged result in that output has no
+authority. After group cleanup, root refuses changed source modes/bytes or links
+before hashing. Typed host decoding binds exact request/candidate/toolchain-policy/
+command and still requires native guest shutdown. Cancellation publishes no test
+exit, and hard keeper death has no accepted receipt. Full image hashes are retained
+separately; the policy digest is not production image attestation. Signature/
+licensing/distribution review, production candidate transport, keeper ownership/
+recovery and grant/OTP integration remain open. The application rejects this
+test-only contract. [Evidence](../worklog/2026-10-23-R050l-offline-toolchain-checks.md).
 
 Start grants bounded local completion for frozen Codex roles/tasks/checks. Provider sessions retain host-only file tools and cannot run commands. The check runner uses a fresh empty Codex profile and private candidate clone, network denial, protected policy paths, bounded output hashing and frozen argv/executable identities. Its initial single-process grant forbids forks and tracks the inner session leader by PID/start identity; cleanup uncertainty is retained instead of claiming Stop. Toolchain/subprocess checks are unsupported. Native battle branch creation and candidate integration are exclusive, audited and compare-and-swap; no source checkout change or remote operation is authorized.
 

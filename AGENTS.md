@@ -603,6 +603,18 @@ separate evidence. Client EOF with a surviving keeper is not keeper death;
 missing native proof still refuses cleanup. Treat guest stdout as diagnostics,
 never completion authority. No shipping entitlement/grant or actual toolchain
 integration is implied by these fixed adverse-workload checks.
+R050l's opt-in toolchain probe runs only synthetic committed candidates with
+pinned Linux Node/npm/OTP/Elixir inputs. Keep the toolchain-manifest/policy digest
+separate from the retained full kernel/ramdisk hashes; neither is production image
+attestation. UID1000/no-new-privileges workers cannot publish control frames.
+Typed privileged results bind request/candidate/toolchain/command, bounded output
+bytes/hash and unchanged source, then require actual native Stopped before host
+publication. Worker text, changed source, malformed/foreign/oversized output and
+missing closure cannot pass. Cancellation has no invented test exit; abrupt
+keeper loss stays unverified. This test-only contract must never be accepted by
+shipping check settlement. Image installation/provenance, private production
+candidate transport, explicit grants/OTP/UI integration and keeper recovery remain
+required; no production entitlement, grant or provider usage is added.
 See [Arena loop](docs/ARENA_LOOP.md) and [Plan](docs/PLAN.md).
 
 ## Mission and product contract

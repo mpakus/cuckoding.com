@@ -210,6 +210,11 @@ verified cleanup; it does not enable Mix/npm or change Start permissions.
 The protected-worker probe also verifies non-root/no-new-privileges execution,
 PID/memory/CPU limits and an independent guest watchdog. These remain research
 checks; actual toolchain integration is pending. [Evidence](tasks/R050k-protected-guest-watchdog.md).
+A disposable offline extension now runs real npm/ExUnit pass/fail tests against
+synthetic committed candidates, with separate privileged results and native
+shutdown observations. This remains a development probe; Arena toolchain support,
+image distribution and keeper-loss recovery are unfinished.
+[Toolchain evidence](tasks/R050l-offline-toolchain-checks.md).
 **Pause** finishes the current stage and saves its result before holding the next
 stage. **Resume** keeps the same team, work and limits; paused time counts toward
 the original deadline. Clean paused battles survive restart. **Stop** cancels

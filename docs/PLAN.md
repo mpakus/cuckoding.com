@@ -477,15 +477,21 @@ Depends on R030.
   no network/host shares. Actual native Stopped observations pass for input,
   controller EOF, deadline and paused VM; abrupt owner loss remains unverified.
   Keep shipping grants unchanged. [Task/evidence](../tasks/R050j-guest-lifetime-prototype.md).
-  Next implementation still needs protected control transport/owner-loss closure,
-  private candidate/toolchain transport, frozen grants/receipts/OTP integration,
-  actual Mix/npm checks and packaging/licensing/acceptance.
+  Production implementation still needs protected transport/owner-loss closure,
+  private candidate/image transport, frozen grants/receipts/OTP integration and
+  packaging/licensing/acceptance. R050l supplies separate actual-toolchain probe
+  evidence below.
 - [x] R050k verify non-root/no-new-privileges workers, nondelegated kernel
   PID/memory/CPU budgets, session containment and a separately protected guest
   watchdog under fixed adverse workloads. Client EOF with a live keeper reaches
   native guest shutdown; abrupt keeper death remains unverified. The root-worker
   mutation refuses. No shipping grant changes.
   [Task/evidence](../tasks/R050k-protected-guest-watchdog.md).
+- [x] R050l verify actual offline npm/Mix pass/fail checks against synthetic Git
+  candidates in the protected guest. Bind exact scope and output to privileged
+  control plus native shutdown; refuse worker forgery, changed source and oversized
+  output. Cancellation carries no invented exit; keeper loss remains unverified.
+  Production grants remain unchanged. [Task/evidence](../tasks/R050l-offline-toolchain-checks.md).
 
 - [x] R040j: explicit check preview/consent, immutable Arena revisions, idempotent
   audited saves, stale/recovered editor refusal and no implied execution authority.

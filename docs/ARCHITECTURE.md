@@ -1,5 +1,15 @@
 # Architecture
 
+R050l extends only the disposable guest probe. Python composes pinned toolchain
+files and synthetic committed candidates into a private ramdisk; Swift decodes a
+separate privileged channel. Worker output stays data, bound by byte count/hash.
+Request/candidate/toolchain-policy/command identity and native Stopped are both
+required for a successful retained observation. Complete kernel/ramdisk hashes
+are separate from that policy digest. Neither SQLite nor the production check
+adapter accepts this prototype contract. Shipping image/candidate transport,
+keeper-loss ownership and frozen grant/OTP/UI integration still need implementation.
+[Decision](DECISIONS.md#d058--bind-actual-guest-checks-separately-from-worker-output).
+
 R100d's optional held smoke mode extends only the existing native Service
 lifecycle, with fixed readiness, normal heartbeats and bounded release/shutdown.
 The source-only synthetic fixture builder leaves an unsettled native claim in a

@@ -70,6 +70,24 @@ the independent guest deadline; hard keeper loss remains unverified. The origina
 five cases must also pass. A root-worker mutation must fail even if native VM
 shutdown succeeds. All use fresh private fixtures and unchanged shipping grants.
 
+R050l's `rtk proxy python3 -B test/guest_lifetime_probe.py --toolchains` additionally
+downloads 22 pinned official assets (~76 MB) listed in
+`test/support/guest-toolchain-inputs.json`. It builds fresh synthetic Git candidates
+and runs actual `npm test --offline` / `mix test`, without dependencies requiring
+network access. The guest uses two CPUs/1 GiB; the unprivileged group has 128 PIDs,
+512 MiB, no swap and one CPU. Root control remains separate from captured worker
+output, with a 64 KiB output ceiling. Verify npm/Mix pass/fail, denied console
+access plus forged worker output, source-link mutation, a permitted near-limit output and output overflow, active
+cancellation and missing keeper receipt. Cancellation must not invent a test exit.
+Hash actual retained output and bind the request/candidate/toolchain-policy/command
+to native Stopped. Full kernel/ramdisk hashes are retained separately.
+`rtk proxy python3 -B test/guest_check_control_test.py` exercises typed field
+validation and native/result ordering without a VM. R050j/R050k cases must remain
+green. These are disposable development probes, not shipping Mix/npm, real-project
+dependencies, host-platform equivalence, image distribution or keeper recovery
+acceptance. Retain failed fixtures; never borrow user projects/profiles or enable
+the prototype contract in production settlement.
+
 R020s admits exact Codex 0.163.0-alpha.11.2 after signed-binary/offline schema,
 fresh-profile setup/login-start/cancel, task/no-tools policy/thread preflight and
 actual two-workspace/single-process OS canaries. No browser, sign-in, inference or

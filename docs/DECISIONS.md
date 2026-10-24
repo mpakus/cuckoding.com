@@ -664,3 +664,15 @@ Client EOF while the keeper lives and abrupt keeper loss are separate cases.
 Missing native stop proof stays unverified. Guest output is diagnostic evidence,
 never workflow authority. No shipping grant, runtime entitlement, guest transport,
 toolchain support or recovery privilege is established by this research slice.
+
+## D058 — Bind actual guest checks separately from worker output
+
+2026-10-23, R050l. Extend the disposable guest path to real offline toolchains and
+an immutable private candidate fixture. Only root control can report exact
+request/candidate/toolchain-policy/command and observed exit/output; workers run separately
+without access to the control console. Combine that observation with actual native
+guest shutdown before retaining a successful host result. Worker text, a zero
+exit alone, or missing native closure never proves a check. Pin actual image/
+runtime inputs, retain full kernel/ramdisk hashes separately, retain failures and
+refuse unsupported versions. This is not yet
+the production Start grant, image installer, keeper recovery or OTP integration.

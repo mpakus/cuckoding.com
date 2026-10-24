@@ -6,6 +6,8 @@ import Darwin
 final class Probe: NSObject, @preconcurrency VZVirtualMachineDelegate {
     let machine: VZVirtualMachine
     let input = Pipe()
+    let output = Pipe()
+    let check: GuestCheckControl?
     let root: URL
     let mode: String
     let began = ContinuousClock.now
@@ -14,19 +16,21 @@ final class Probe: NSObject, @preconcurrency VZVirtualMachineDelegate {
     init(root: URL, mode: String) throws {
         self.root = root
         self.mode = mode
+        check = mode.hasPrefix("check_") ? try GuestCheckControl(root: root, mode: mode) : nil
         let boot = VZLinuxBootLoader(kernelURL: root.appendingPathComponent("kernel"))
         boot.initialRamdiskURL = root.appendingPathComponent("probe.cpio.gz")
         boot.commandLine = "console=hvc0 rdinit=/init panic=5 quiet" +
-            (mode == "watchdog_memory" ? " cc_probe=memory" : "")
+            (mode == "watchdog_memory" ? " cc_probe=memory" : "") +
+            (check != nil ? " cc_check=\(mode)" : "")
         let config = VZVirtualMachineConfiguration()
         config.platform = VZGenericPlatformConfiguration()
         config.cpuCount = 2
-        config.memorySize = 512 * 1024 * 1024
+        config.memorySize = (check != nil ? 1024 : 512) * 1024 * 1024
         config.bootLoader = boot
         let console = VZVirtioConsoleDeviceSerialPortConfiguration()
         console.attachment = VZFileHandleSerialPortAttachment(
             fileHandleForReading: input.fileHandleForReading,
-            fileHandleForWriting: .standardOutput)
+            fileHandleForWriting: check != nil ? output.fileHandleForWriting : .standardOutput)
         config.serialPorts = [console]
         try config.validate()
         precondition(config.networkDevices.isEmpty && config.directorySharingDevices.isEmpty)
@@ -34,6 +38,12 @@ final class Probe: NSObject, @preconcurrency VZVirtualMachineDelegate {
         machine = VZVirtualMachine(configuration: config)
         super.init()
         machine.delegate = self
+        if check != nil {
+            output.fileHandleForReading.readabilityHandler = { handle in
+                let data = handle.availableData
+                DispatchQueue.main.async { self.check?.receive(data) }
+            }
+        }
     }
 
     func start() {
@@ -42,7 +52,7 @@ final class Probe: NSObject, @preconcurrency VZVirtualMachineDelegate {
             case .success:
                 self.emit(["event": "running", "state": self.machine.state.rawValue,
                            "network": false, "host_shares": false])
-                DispatchQueue.main.asyncAfter(deadline: .now() + (self.mode == "deadline" ? 10 : 20)) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + (self.check != nil ? 40 : self.mode == "deadline" ? 10 : 20)) {
                     self.stop(reason: "deadline")
                 }
                 FileHandle.standardInput.readabilityHandler = { handle in
@@ -74,6 +84,7 @@ final class Probe: NSObject, @preconcurrency VZVirtualMachineDelegate {
     func stop(reason: String) {
         guard !stopping else { return }
         stopping = true
+        check?.cancellation = reason == "deadline" ? "timeout" : "cancelled"
         FileHandle.standardInput.readabilityHandler = nil
         guard machine.canStop else {
             emit(["event": "refused_stop", "state": machine.state.rawValue])
@@ -87,6 +98,10 @@ final class Probe: NSObject, @preconcurrency VZVirtualMachineDelegate {
 
     func recordStop(reason: String) {
         guard machine.state == .stopped else { exit(3) }
+        if let check {
+            check.stopped()
+            return
+        }
         let value: [String: Any] = ["event": "stopped", "state": machine.state.rawValue,
                                    "reason": reason, "elapsed": "\(began.duration(to: .now))"]
         do {
@@ -99,6 +114,11 @@ final class Probe: NSObject, @preconcurrency VZVirtualMachineDelegate {
 
     func guestDidStop(_ virtualMachine: VZVirtualMachine) {
         emit(["event": "guest_stopped", "state": virtualMachine.state.rawValue])
+        if let check {
+            guard machine.state == .stopped else { exit(3) }
+            check.stopped()
+            return
+        }
         if mode.hasPrefix("watchdog_") && !stopping { recordStop(reason: "guest_shutdown") }
         if !stopping { exit(4) }
     }
@@ -127,10 +147,12 @@ func canonicalPath(_ path: String) -> String? {
 
 let arguments = CommandLine.arguments
 guard arguments.count == 3, ["input", "eof", "deadline", "paused", "owner_loss", "watchdog_pids",
-    "watchdog_memory", "watchdog_eof", "watchdog_owner_loss"].contains(arguments[2]) else { exit(64) }
+    "watchdog_memory", "watchdog_eof", "watchdog_owner_loss", "check_npm_pass", "check_npm_fail",
+    "check_mix_pass", "check_mix_fail", "check_forgery", "check_source_mutation", "check_output_boundary", "check_output_limit",
+    "check_cancel", "check_owner_loss"].contains(arguments[2]) else { exit(64) }
 let root = URL(fileURLWithPath: arguments[1], isDirectory: true)
 guard canonicalPath(arguments[1]) == arguments[1], root.deletingLastPathComponent().path == "/private/tmp",
-      ["cuckoding-r050j-", "cuckoding-r050k-"].contains(where: root.lastPathComponent.hasPrefix),
+      ["cuckoding-r050j-", "cuckoding-r050k-", "cuckoding-r050l-"].contains(where: root.lastPathComponent.hasPrefix),
       root.path == arguments[1] else { exit(65) }
 guard VZVirtualMachine.isSupported else { exit(66) }
 do {
