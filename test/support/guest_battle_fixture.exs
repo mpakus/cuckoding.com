@@ -14,6 +14,8 @@ defmodule Cuckoding.GuestBattleFixture do
     Foundation,
     GuestChecks,
     LocalGit,
+    Planning,
+    PlanningDocuments,
     ProjectChecks,
     Repo,
     Storage,
@@ -25,8 +27,17 @@ defmodule Cuckoding.GuestBattleFixture do
     true = Mix.env() == :test
     Logger.configure(level: :warning)
     root = System.fetch_env!("CUCKODING_GUEST_FIXTURE_ROOT")
+    mode = System.get_env("CUCKODING_GUEST_FIXTURE_MODE", "declared")
+    true = mode in ~w(declared planned)
+    planned? = mode == "planned"
     true = Path.expand(root) == root and Path.dirname(root) == "/private/tmp"
-    true = String.starts_with?(Path.basename(root), "cuckoding-r050p-")
+
+    true =
+      String.starts_with?(
+        Path.basename(root),
+        if(planned?, do: "cuckoding-r050q-", else: "cuckoding-r050p-")
+      )
+
     true = Enum.all?(components(root), &match?({:ok, %{type: :directory}}, File.lstat(&1)))
     true = band(File.stat!(root).mode, 0o777) == 0o700
     [".fixture-v1", "data"] = Enum.sort(File.ls!(root))
@@ -68,12 +79,17 @@ defmodule Cuckoding.GuestBattleFixture do
     File.chmod!(executable, 0o700)
     setup_agent(executable)
     arena = setup_arena(root)
-    source_files = setup_git(arena)
+    source_files = setup_git(arena, planned?)
     index = digest(File.read!(Path.join(arena.path, ".git/index")))
     [selected] = Tabulae.list(arena.id)
     board = Tabulae.get(arena.id, selected.id)
-    first = save_task(board, "Fixture A", [])
-    save_task(board, "Fixture B", [first.id])
+
+    if planned? do
+      plan_tasks(board)
+    else
+      first = save_task(board, "Fixture A", [])
+      save_task(board, "Fixture B", [first.id])
+    end
 
     checks =
       Enum.map(~w(npm mix), fn tool ->
@@ -87,7 +103,10 @@ defmodule Cuckoding.GuestBattleFixture do
         }
       end)
 
-    {:ok, _} = ProjectChecks.save(Ecto.UUID.generate(), arena.id, 0, checks, true)
+    unless planned?,
+      do: {:ok, _} = ProjectChecks.save(Ecto.UUID.generate(), arena.id, 0, checks, true)
+
+    if planned?, do: 0 = ProjectChecks.current(arena.id).revision
     true = Process.register(self(), __MODULE__)
 
     {:ok, supervisor} =
@@ -146,6 +165,8 @@ defmodule Cuckoding.GuestBattleFixture do
 
     evidence = %{
       "format" => 1,
+      "verification_mode" => mode,
+      "configured_check_revision" => ProjectChecks.current(arena.id).revision,
       "inference" => false,
       "provider" => "synthetic source-only adapter",
       "battle_id" => completed.id,
@@ -318,7 +339,7 @@ defmodule Cuckoding.GuestBattleFixture do
     arena
   end
 
-  defp setup_git(arena) do
+  defp setup_git(arena, planned?) do
     {:ok, _} = ArenaGit.request(Ecto.UUID.generate(), arena.id, "inspect")
     observed = finish_git()
     "missing" = observed.result
@@ -340,6 +361,19 @@ defmodule Cuckoding.GuestBattleFixture do
         "defmodule ProbeTest do\n use ExUnit.Case\n test \"owned files\" do\n for c <- [\"a\",\"b\"], do: assert File.read!(c <> \".txt\") in [c <> \" base\\n\",c <> \" result\\n\"]\n end\nend\n"
     }
 
+    files =
+      if planned? do
+        files
+        |> Enum.map(&planned_file/1)
+        |> Map.new()
+        |> Map.put(
+          "docs/brief.md",
+          "# Synthetic scope\nTask A changes a.txt and runs npm-test in frontend. Task B depends on A, changes b.txt and runs mix-test in backend. Keep all existing checks passing.\n"
+        )
+      else
+        files
+      end
+
     for {name, text} <- files do
       path = Path.join(arena.path, name)
       File.mkdir_p!(Path.dirname(path))
@@ -352,6 +386,78 @@ defmodule Cuckoding.GuestBattleFixture do
     {:ok, _} = ArenaGit.request(Ecto.UUID.generate(), arena.id, "commit", preview.id, true)
     "committed" = finish_git().result
     files
+  end
+
+  defp planned_file({name, text}) when name in ~w(package.json test/check.test.js),
+    do:
+      {"frontend/" <> name,
+       String.replace(text, "fs.readFileSync(c+", "fs.readFileSync('../'+c+")}
+
+  defp planned_file({name, text})
+       when name in ~w(mix.exs test/test_helper.exs test/check_test.exs),
+       do:
+         {"backend/" <> name,
+          String.replace(text, "File.read!(c <>", "File.read!(\"../\" <> c <>")}
+
+  defp planned_file(file), do: file
+
+  defp plan_tasks(board) do
+    {:ok, preview} = PlanningDocuments.scan(Ecto.UUID.generate(), board.arena_id, board.id)
+    {:ok, claim} = Foundation.claim()
+    {:ok, %{state: "completed"}} = Foundation.finish(claim, PlanningDocuments.execute(claim))
+    setup = Planning.setup(board, preview.id)
+    "docs/brief.md" = hd(setup.payload["documents"])["path"]
+    "brief-plan-v4" = setup.payload["contract"]
+
+    {:ok, plan} =
+      Planning.request(
+        Ecto.UUID.generate(),
+        board.arena_id,
+        board.id,
+        "Analyze the supplied specs and create both tasks with verification.",
+        setup.token,
+        true,
+        preview.id
+      )
+
+    {:ok, claim} = Foundation.claim()
+
+    tasks =
+      for {title, dependencies, profile, directory} <- [
+            {"Fixture A", [], "npm-test", "frontend"},
+            {"Fixture B", [0], "mix-test", "backend"}
+          ] do
+        %{
+          "title" => title,
+          "description" => "Synthetic owned-file change only",
+          "criteria" =>
+            "Corresponding file has its result line and the selected offline test passes.",
+          "depends_on" => dependencies,
+          "sources" => [0],
+          "verification" => [
+            %{"profile" => profile, "directory" => directory, "timeout_seconds" => 30}
+          ]
+        }
+      end
+
+    receipt = %{
+      "status" => "planned",
+      "request_id" => plan.id,
+      "grant" => "scratch-read-only-v1",
+      "requested_model" => "synthetic-model",
+      "observed_model" => "synthetic-model",
+      "effort" => "low",
+      "thread_id" => Ecto.UUID.generate(),
+      "turn_id" => Ecto.UUID.generate(),
+      "cleanup_verified" => true,
+      "proposal" => %{"summary" => "SYNTHETIC planning reply; no inference.", "tasks" => tasks}
+    }
+
+    {:ok, %{state: "completed"}} = Foundation.finish(claim, receipt)
+    [a, b] = Tabulae.tasks(board.id)
+    a_id = a.id
+    [^a_id] = b.depends_on
+    true = Enum.all?([a, b], &(length(&1.verification) == 1))
   end
 
   defp finish_git do
