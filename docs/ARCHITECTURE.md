@@ -1,5 +1,16 @@
 # Architecture
 
+R050m implements isolated-check candidate transport inside the existing native
+Git boundary. `worktree/check_input.rs` owns descriptor-relative private artifacts,
+deterministic newc and read-only verification against immutable blobs.
+`inspection::each_blob` reuses the existing bounded blob parser; portable prefix
+validation is shared with combination without changing its conflict semantics.
+`LocalGit` exposes only bounded public scope/count/hash fields. There is no new
+UI command, database state machine or worker; future supervised battle execution
+must still freeze/admit the image, grant and exact receipt. The archive cannot
+run a toolchain or establish task completion by itself.
+[Decision](DECISIONS.md#d059--transport-exact-candidate-bytes-through-a-private-native-capsule).
+
 R050l extends only the disposable guest probe. Python composes pinned toolchain
 files and synthetic committed candidates into a private ramdisk; Swift decodes a
 separate privileged channel. Worker output stays data, bound by byte count/hash.

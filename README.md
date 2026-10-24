@@ -215,6 +215,10 @@ synthetic committed candidates, with separate privileged results and native
 shutdown observations. This remains a development probe; Arena toolchain support,
 image distribution and keeper-loss recovery are unfinished.
 [Toolchain evidence](tasks/R050l-offline-toolchain-checks.md).
+The native runner can now prepare and verify a private input archive for an exact
+committed candidate, preserving the user's checkout. This is the production
+transport prerequisite; Start still does not enable guest toolchain checks.
+[Candidate transport](tasks/R050m-candidate-check-input.md).
 **Pause** finishes the current stage and saves its result before holding the next
 stage. **Resume** keeps the same team, work and limits; paused time counts toward
 the original deadline. Clean paused battles survive restart. **Stop** cancels

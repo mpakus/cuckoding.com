@@ -1,14 +1,38 @@
 //! Consented detached checkout; failures retain ownership and any partial Git effects.
 mod battle;
 mod candidate;
+mod check_input;
 mod inspection;
 use super::*;
 pub(super) use battle::run as battle;
 pub(super) use candidate::run as candidate;
+pub(super) use check_input::run as check_input;
 pub(super) use inspection::inspect;
 use std::{collections::HashSet, os::unix::fs::DirBuilderExt};
 
 const TREE_LIMIT: usize = 1_048_576;
+
+fn portable_paths<'a>(paths: impl Iterator<Item = &'a str>) -> Result<()> {
+    let mut seen = std::collections::BTreeMap::new();
+    for path in paths {
+        let mut prefix = String::new();
+        let parts: Vec<_> = path.split('/').collect();
+        for (index, part) in parts.iter().enumerate() {
+            if index > 0 {
+                prefix.push('/');
+            }
+            prefix.push_str(part);
+            let value = (prefix.clone(), index == parts.len() - 1);
+            if seen
+                .insert(prefix.to_lowercase(), value.clone())
+                .is_some_and(|old| old != value)
+            {
+                return Err("unsafe_tree");
+            }
+        }
+    }
+    Ok(())
+}
 
 fn configuration(git: &Git<'_>) -> Result<Vec<u8>> {
     let path = git.root.join(".git/config");

@@ -364,6 +364,8 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
         "inspect_worktree",
         "capture_candidate",
         "verify_candidate",
+        "prepare_check_input",
+        "verify_check_input",
         "create_battle",
         "battle_worktree",
         "integrate_candidate",
@@ -387,6 +389,8 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
                     "inspect_worktree",
                     "capture_candidate",
                     "verify_candidate",
+                    "prepare_check_input",
+                    "verify_check_input",
                     "create_battle",
                     "battle_worktree",
                     "integrate_candidate",
@@ -461,6 +465,9 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
     if ["capture_candidate", "verify_candidate"].contains(&operation.as_str()) {
         return worktree::candidate(&git, operation, &extra[0], device, inode);
     }
+    if ["prepare_check_input", "verify_check_input"].contains(&operation.as_str()) {
+        return worktree::check_input(&git, operation, &extra[0], device, inode);
+    }
     if operation == "worktree" {
         return worktree::run(&git, &extra[0], device, inode);
     }
@@ -502,6 +509,8 @@ fn operation_limit(args: &[String]) -> Duration {
         args.first().map(String::as_str),
         Some(
             "combine_candidate"
+                | "prepare_check_input"
+                | "verify_check_input"
                 | "verify_combined_candidate"
                 | "recover_battle_candidate"
                 | "recover_combined_candidate"

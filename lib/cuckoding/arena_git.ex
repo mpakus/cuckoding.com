@@ -8,7 +8,7 @@ defmodule Cuckoding.LocalGit do
   @behaviour Cuckoding.GitAdapter
   alias Cuckoding.{GitPreview, NativeHelper}
 
-  @statuses ~w(missing unborn initialized cancelled timeout cleanup_uncertain unavailable invalid_request folder_changed git_unavailable invalid_repository metadata_limit nested_repository unsupported_layout unsafe_config repository_busy repository_changed recheck_required invalid_selection selection_limit unsafe_file preview_changed initial_only index_present commit_incomplete unsafe_tree tree_limit worktree_incomplete worktree_exists worktree_mismatch candidate_incomplete candidate_exists candidate_mismatch candidate_conflict battle_mismatch battle_stale battle_exists battle_incomplete)
+  @statuses ~w(missing unborn initialized cancelled timeout cleanup_uncertain unavailable invalid_request folder_changed git_unavailable invalid_repository metadata_limit nested_repository unsupported_layout unsafe_config repository_busy repository_changed recheck_required invalid_selection selection_limit unsafe_file preview_changed initial_only index_present commit_incomplete unsafe_tree tree_limit worktree_incomplete worktree_exists worktree_mismatch candidate_incomplete candidate_exists candidate_mismatch candidate_conflict battle_mismatch battle_stale battle_exists battle_incomplete check_input_exists check_input_incomplete check_input_mismatch)
 
   @impl true
   def run(command), do: run(command, [])
@@ -35,7 +35,7 @@ defmodule Cuckoding.LocalGit do
   end
 
   defp timeout(%{"operation" => operation})
-       when operation in ~w(combine_candidate verify_combined_candidate recover_battle_candidate recover_combined_candidate),
+       when operation in ~w(combine_candidate verify_combined_candidate recover_battle_candidate recover_combined_candidate prepare_check_input verify_check_input),
        do: 65_000
 
   defp timeout(%{
@@ -77,7 +77,7 @@ defmodule Cuckoding.LocalGit do
     ]
 
   defp extra(%{payload: %{"operation" => operation, "request" => request}})
-       when operation in ~w(create_battle verify_battle battle_worktree integrate_candidate recover_integration recover_battle_worktree recover_battle_candidate recover_combined_candidate combine_candidate verify_combined_candidate),
+       when operation in ~w(create_battle verify_battle battle_worktree integrate_candidate recover_integration recover_battle_worktree recover_battle_candidate recover_combined_candidate combine_candidate verify_combined_candidate prepare_check_input verify_check_input),
        do: [Jason.encode!(request)]
 
   defp extra(_), do: []
@@ -104,6 +104,33 @@ defmodule Cuckoding.LocalGit do
          match?({:ok, _}, Ecto.UUID.cast(result["preview_id"])),
        do: Map.take(result, ~w(status head tree preview_id)),
        else: %{"status" => "invalid_repository"}
+  end
+
+  def normalize(%{"status" => status} = result)
+      when status in ~w(check_input_prepared check_input_verified) do
+    if result["contract"] == "candidate-check-input-v1" and
+         Enum.all?(~w(key worktree_key), &match?({:ok, _}, Ecto.UUID.cast(result[&1]))) and
+         Enum.all?(~w(candidate_sha tree_sha), &GitPreview.hash?(result[&1], 40)) and
+         Enum.all?(
+           ~w(intent_sha256 archive_sha256 manifest_sha256),
+           &GitPreview.hash?(result[&1], 64)
+         ) and
+         Enum.all?(
+           [
+             {"archive_bytes", 1..83_886_080},
+             {"manifest_bytes", 1..5_242_880},
+             {"file_count", 0..10_000},
+             {"content_bytes", 0..67_108_864}
+           ],
+           fn {field, range} -> is_integer(result[field]) and result[field] in range end
+         ) do
+      Map.take(
+        result,
+        ~w(status contract key worktree_key candidate_sha tree_sha intent_sha256 archive_sha256 manifest_sha256 archive_bytes manifest_bytes file_count content_bytes)
+      )
+    else
+      %{"status" => "invalid_repository"}
+    end
   end
 
   def normalize(%{"status" => status} = result)

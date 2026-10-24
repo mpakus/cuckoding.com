@@ -45,24 +45,7 @@ fn plan(
     }
     // Compare every prefix as well as full names: APFS case aliases and file/directory
     // collisions must not turn an independent result into an overwrite.
-    let mut seen = BTreeMap::new();
-    for path in merged.keys() {
-        let mut prefix = String::new();
-        let parts: Vec<_> = path.split('/').collect();
-        for (index, part) in parts.iter().enumerate() {
-            if index > 0 {
-                prefix.push('/');
-            }
-            prefix.push_str(part);
-            let value = (prefix.clone(), index == parts.len() - 1);
-            if seen
-                .insert(prefix.to_lowercase(), value.clone())
-                .is_some_and(|old| old != value)
-            {
-                return Err("candidate_conflict");
-            }
-        }
-    }
+    portable_paths(merged.keys().map(String::as_str)).map_err(|_| "candidate_conflict")?;
     Ok(merged)
 }
 

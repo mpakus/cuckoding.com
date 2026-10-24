@@ -51,6 +51,65 @@ defmodule Cuckoding.ArenaGitTest do
     end
   end
 
+  test "check input observations expose only bounded exact bindings, never check authority" do
+    receipt = %{
+      "status" => "check_input_prepared",
+      "contract" => "candidate-check-input-v1",
+      "key" => Ecto.UUID.generate(),
+      "worktree_key" => Ecto.UUID.generate(),
+      "candidate_sha" => String.duplicate("a", 40),
+      "tree_sha" => String.duplicate("b", 40),
+      "intent_sha256" => String.duplicate("c", 64),
+      "archive_sha256" => String.duplicate("d", 64),
+      "manifest_sha256" => String.duplicate("e", 64),
+      "archive_bytes" => 4096,
+      "manifest_bytes" => 256,
+      "file_count" => 2,
+      "content_bytes" => 10
+    }
+
+    for status <- ~w(check_input_prepared check_input_verified) do
+      expected = Map.put(receipt, "status", status)
+
+      assert LocalGit.normalize(
+               Map.merge(expected, %{"path" => "/private-canary", "raw" => "canary"})
+             ) ==
+               expected
+    end
+
+    for field <-
+          ~w(contract key worktree_key candidate_sha tree_sha intent_sha256 archive_sha256 manifest_sha256 archive_bytes manifest_bytes file_count content_bytes),
+        value <- [nil, "invalid", true, -1] do
+      assert LocalGit.normalize(Map.put(receipt, field, value)) == %{
+               "status" => "invalid_repository"
+             }
+    end
+
+    for {field, value} <- [
+          {"archive_bytes", 83_886_081},
+          {"manifest_bytes", 5_242_881},
+          {"file_count", 10_001},
+          {"content_bytes", 67_108_865}
+        ] do
+      assert LocalGit.normalize(Map.put(receipt, field, value)) == %{
+               "status" => "invalid_repository"
+             }
+    end
+
+    assert LocalGit.normalize(Map.put(receipt, "cleanup_verified", false)) ==
+             %{"status" => "cleanup_uncertain", "cleanup_verified" => false}
+
+    assert Cuckoding.BattleChecks.normalize(Jason.encode!(receipt)) == %{
+             "status" => "invalid_output"
+           }
+
+    for status <- ~w(check_input_exists check_input_incomplete check_input_mismatch) do
+      assert LocalGit.normalize(%{"status" => status, "raw" => "private"}) == %{
+               "status" => status
+             }
+    end
+  end
+
   test "combined candidates preserve both bases and closed public bindings" do
     receipt = %{
       "status" => "candidate_combined",

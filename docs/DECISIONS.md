@@ -676,3 +676,16 @@ exit alone, or missing native closure never proves a check. Pin actual image/
 runtime inputs, retain full kernel/ramdisk hashes separately, retain failures and
 refuse unsupported versions. This is not yet
 the production Start grant, image installer, keeper recovery or OTP integration.
+
+## D059 — Transport exact candidate bytes through a private native capsule
+
+2026-10-23, R050m. Extend the existing fixed native Git boundary with prepare/
+verify operations for isolated-check input. Require the exact retained preparation,
+owned locked checkout, unchanged index/raw bytes and safe Git tree. Serialize
+immutable Git blobs into bounded deterministic newc under a fixed guest prefix,
+with no Git metadata, host shares or arbitrary destination. Retain intent, hashes
+and receipt exclusively outside the checkout through pinned private descriptors.
+Cancellation/expiry or incomplete/foreign/tampered evidence cannot publish success;
+verification never rebuilds artifacts. The public host projection contains only
+exact bindings/counts/hashes. This transport receipt grants no execution, completion
+or recovery authority. Production image/keeper/grant/OTP integration stays separate.

@@ -96,6 +96,25 @@ licensing/distribution review, production candidate transport, keeper ownership/
 recovery and grant/OTP integration remain open. The application rejects this
 test-only contract. [Evidence](../worklog/2026-10-23-R050l-offline-toolchain-checks.md).
 
+R050m's production input transport remains separate from execution. The fixed
+native operations require an exact retained preparation, source identity and
+unchanged owned locked checkout/index/raw bytes. Git blobs, never uncommitted
+source files or Git administration, become regular 0644/0755 files owned by
+guest UID/GID1000 below `work/checkout`. Only fixed root directories and a
+root-owned manifest accompany them; project instruction text stays data. Safe
+tree paths, case/prefix collisions, 10,000 files/64MiB content, 20,000 archive
+entries, 5MiB manifest and 80MiB archive limits are enforced without truncation.
+Intent, archive, manifest and receipt are exclusive/fsynced in an owned private
+container outside the checkout. Creation and reads use retained descriptors,
+no-follow opens, exact private regular-file modes and single-link checks.
+Read-only verification recomputes the expected archive hash from Git into a sink,
+checks every retained binding/hash/count, and rechecks source/storage identity.
+Tampered or missing artifacts cannot be rebuilt or made valid by supplying a
+matching forged receipt. This receipt is transport evidence only; the current
+check grant rejects it. No VM entitlement, provider permission, shell command,
+Start authority or interrupted-session recovery is added.
+[Evidence](../worklog/2026-10-23-R050m-candidate-check-input.md).
+
 Start grants bounded local completion for frozen Codex roles/tasks/checks. Provider sessions retain host-only file tools and cannot run commands. The check runner uses a fresh empty Codex profile and private candidate clone, network denial, protected policy paths, bounded output hashing and frozen argv/executable identities. Its initial single-process grant forbids forks and tracks the inner session leader by PID/start identity; cleanup uncertainty is retained instead of claiming Stop. Toolchain/subprocess checks are unsupported. Native battle branch creation and candidate integration are exclusive, audited and compare-and-swap; no source checkout change or remote operation is authorized.
 
 R050f removes mandatory command configuration, not verification or execution

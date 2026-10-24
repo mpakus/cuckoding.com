@@ -88,6 +88,17 @@ dependencies, host-platform equivalence, image distribution or keeper recovery
 acceptance. Retain failed fixtures; never borrow user projects/profiles or enable
 the prototype contract in production settlement.
 
+R050m native `check_input` tests cover exact binary/executable bytes, independent
+archive decoding and system tar listing, unchanged source/index, repeated read-only
+verification, forged receipts, missing/tampered/linked artifacts, foreign/changed/
+extra checkout content, storage aliases, path collisions, bounds and cancellation.
+The empty committed tree remains valid. Host tests verify closed projections and
+that transport receipts cannot pass the check-result normalizer.
+After `rtk proxy bin/dev.build`, `rtk proxy python3 -B test/check_input_smoke.py`
+exercises the sealed native CLI in new disposable folders, including preparation,
+repeated verification, replay/tamper/missing-receipt refusal and retained user edits.
+This never boots a guest, uses a provider or establishes battle/check authority.
+
 R020s admits exact Codex 0.163.0-alpha.11.2 after signed-binary/offline schema,
 fresh-profile setup/login-start/cancel, task/no-tools policy/thread preflight and
 actual two-workspace/single-process OS canaries. No browser, sign-in, inference or

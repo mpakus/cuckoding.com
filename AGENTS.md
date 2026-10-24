@@ -615,6 +615,17 @@ keeper loss stays unverified. This test-only contract must never be accepted by
 shipping check settlement. Image installation/provenance, private production
 candidate transport, explicit grants/OTP/UI integration and keeper recovery remain
 required; no production entitlement, grant or provider usage is added.
+R050m adds fixed native `prepare_check_input` / `verify_check_input` operations
+with a 60-second native budget and 65-second host ceiling. Bind the exact retained
+preparation, source identity, locked checkout/index/raw bytes, head/tree and private
+intent. Serialize only committed blobs into bounded deterministic newc under fixed
+guest paths, with unprivileged source ownership and no Git metadata or host share.
+Use pinned private descriptors, exclusive creation, fsynced artifacts/receipt and
+closed binding/count/hash projections. Verification recomputes expected bytes
+as a read-only hash stream; never rebuild missing/partial artifacts or accept a
+forged archive/receipt pair. Retain all failures; cancellation/expiry cannot return
+success. This transport receipt grants no check, completion, recovery or Start
+authority. Shipping VM image/keeper/grant/OTP integration remains open.
 See [Arena loop](docs/ARENA_LOOP.md) and [Plan](docs/PLAN.md).
 
 ## Mission and product contract

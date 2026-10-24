@@ -492,6 +492,10 @@ Depends on R030.
   control plus native shutdown; refuse worker forgery, changed source and oversized
   output. Cancellation carries no invented exit; keeper loss remains unverified.
   Production grants remain unchanged. [Task/evidence](../tasks/R050l-offline-toolchain-checks.md).
+- [x] R050m production candidate-input transport: fixed native prepare/verify,
+  immutable blobs, descriptor-pinned private newc/manifest/intent/receipt, exact
+  scope/hashes/counts and read-only recomputation. Keep execution grants unchanged.
+  [Task/evidence](../tasks/R050m-candidate-check-input.md).
 
 - [x] R040j: explicit check preview/consent, immutable Arena revisions, idempotent
   audited saves, stale/recovered editor refusal and no implied execution authority.

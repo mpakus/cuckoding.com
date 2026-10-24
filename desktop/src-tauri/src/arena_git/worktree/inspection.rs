@@ -178,7 +178,11 @@ fn extra_files(git: &Git<'_>, root: &File, entries: &[Entry]) -> Result<bool> {
     Ok(false)
 }
 
-pub(super) fn files_match(git: &Git<'_>, owned: &Owned, entries: &[Entry]) -> Result<bool> {
+pub(super) fn each_blob(
+    git: &Git<'_>,
+    entries: &[Entry],
+    mut visit: impl FnMut(&Entry, &[u8]) -> Result<bool>,
+) -> Result<bool> {
     let input = entries
         .iter()
         .map(|e| format!("{}\n", e.oid))
@@ -203,11 +207,7 @@ pub(super) fn files_match(git: &Git<'_>, owned: &Owned, entries: &[Entry]) -> Re
         if remaining.len() <= entry.bytes || remaining[entry.bytes] != b'\n' {
             return Err("invalid_repository");
         }
-        let Ok((metadata, content)) = initial::read_at(&owned.checkout, &entry.path, 8_388_608)
-        else {
-            return Ok(false);
-        };
-        if content != remaining[..entry.bytes] || metadata["mode"] != entry.mode {
+        if !visit(entry, &remaining[..entry.bytes])? {
             return Ok(false);
         }
         remaining = &remaining[entry.bytes + 1..];
@@ -215,7 +215,18 @@ pub(super) fn files_match(git: &Git<'_>, owned: &Owned, entries: &[Entry]) -> Re
     if !remaining.is_empty() {
         return Err("invalid_repository");
     }
-    Ok(!extra_files(git, &owned.checkout, entries)?)
+    Ok(true)
+}
+
+pub(super) fn files_match(git: &Git<'_>, owned: &Owned, entries: &[Entry]) -> Result<bool> {
+    let matches = each_blob(git, entries, |entry, bytes| {
+        let Ok((metadata, content)) = initial::read_at(&owned.checkout, &entry.path, 8_388_608)
+        else {
+            return Ok(false);
+        };
+        Ok(content == bytes && metadata["mode"] == entry.mode)
+    })?;
+    Ok(matches && !extra_files(git, &owned.checkout, entries)?)
 }
 
 pub(in super::super) fn inspect(

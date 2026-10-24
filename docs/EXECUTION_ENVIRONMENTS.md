@@ -177,9 +177,18 @@ the requested restriction; adapters report actual enforcement.
 
 R040j stores user-approved check declarations only. Each Arena revision retains
 literal argv, a relative working directory and finite timeout, with execution
-disabled. Configuration reads no files and launches no process. The eventual
-runner must bind this revision to Start authority, resolve/verify executables and
-worktree paths, enforce grants and retain check receipts; those remain open.
+disabled. Configuration reads no files and launches no process. R050e binds an
+explicit saved revision to Start, verifies executable/worktree identity and retains
+receipts under the existing native single-process grant. General toolchains remain
+unavailable.
+
+R050m implements fixed native candidate-input preparation/verification for the
+future isolated-check runner. It exports exact immutable Git blobs and a bound
+manifest as a private deterministic newc archive; no host directory is shared.
+Verification is read-only and refuses partial, foreign or changed artifacts.
+The public result is bounded metadata, not an execution/check/completion grant.
+Image installation, native guest ownership and frozen Start/OTP integration remain
+required. [Transport contract](../tasks/R050m-candidate-check-input.md).
 
 ## RTK and Ponytail
 
