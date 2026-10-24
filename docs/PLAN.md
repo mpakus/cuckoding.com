@@ -27,7 +27,7 @@ attempts, inside the existing retry budget; interrupted/native recovery remains 
 | --- | --- | --- |
 | Agents and Team | Named Codex/Cursor connections, full bounded catalogs, model choices, default/custom planning roles, selected custom read/write stages, scoped team editing/adoption | Claude Code, Hermes and real-provider custom-stage acceptance |
 | Arena and tasks | Add folder/default board, versioned column names/ordered custom read/write stages, bounded docs-first analysis, optional saved planning role, automatic cards, prerequisites, citations and saved criteria | Real-account planning/custom-stage acceptance |
-| Execution | One Start, two independent task pipelines per wave within two global workers, serialized independent review/correction/integration, declared offline npm/Mix checks and retained local result branch | Task-proposed checks, dependency/platform verification, real mixed-provider and same-account parallel battle acceptance |
+| Execution | One Start, two independent task pipelines per wave within two global workers, serialized independent review/correction/integration, task-proposed offline npm/Mix checks and retained local result branch | Failure-output delivery, dependency/platform verification, real mixed-provider and same-account parallel battle acceptance |
 | Controls/recovery | Stop, stage-boundary Pause/Resume, bounded provider Retry and automatic backoff, Skip with deferred dependents and Partial result; settled restart checkpoints, timing fence and bounded idle-sleep assertion | Unfinished native/process/Git reconciliation, sleep accounting and physical sleep tests |
 | Experience | Agent wizard/disconnect, Team editor, Arena controls/inspector with public JSON evidence downloads, global workers/progress and paginated global/Arena activity with follow control | Broader parallel activity, responsive/browser acceptance and timed ten-minute setup |
 | Release | Local bundle/build/smoke, separate preserved data root; Decimal/Bandit advisories fixed | Signing/notarization, clean-machine install, updates/rollback and full acceptance matrix |
@@ -40,10 +40,10 @@ Task-proposed checks/dependency support and consented live-provider acceptance c
 alongside recovery. No fixture suite or successful local build substitutes for
 those provider/physical/clean-machine gates. Historical slice evidence stays
 linked below; completed implementation and remaining acceptance are separate.
-The next check slice must let task analysis propose bounded verification without
-requiring the optional Advanced editor, and make retained failure evidence useful
-to the assigned repair roles. R050p's declared offline checks are the runner for
-that work; they do not complete the ordinary task-owned verification flow.
+R050q lets task analysis propose fixed verification profiles without the optional
+Advanced editor. Remaining check work must make retained failure output useful
+to assigned repair roles, support dependencies and verify platform/distribution
+limits. The existing runner and generated profiles do not complete those gates.
 
 R015 adds the separately requested public site after R010; see [Site](SITE.md).
 
@@ -468,9 +468,9 @@ Depends on R030.
   accepted-spec validation remain separate from reference validation.
 - [x] Persist explicit check declarations separately from proposals (R040j);
   R050e freezes them under the bounded native single-process grant.
-- [ ] Complete task-proposed subprocess/toolchain verification, project dependency
-  provisioning and platform acceptance. R050p admits only already-declared offline
-  npm/Mix scopes; generated task text must not grant execution permission.
+- [ ] Complete subprocess/toolchain verification, project dependency provisioning
+  and platform acceptance. R050q adds task-proposed fixed offline npm/Mix scopes;
+  generated task text must not grant execution permission.
   R060o investigation confirmed the installed Apple SDK marks NOTE_TRACK child
   tracking unsupported; removing RLIMIT_NPROC would not establish ownership of
   escaped sessions. A verified containment/cleanup design remains required.
@@ -519,8 +519,14 @@ Depends on R030.
   Seven actual VM checks complete two dependent tasks with a forced review return;
   providers are synthetic. Image reuse/Pause/Stop and old-bundle refusal pass.
   [Task/evidence](../tasks/R050p-arena-guest-checks.md).
-- [ ] Add task-owned check proposals/tools without routine Advanced setup, expose
-  bounded failure evidence for repairs, provision project dependencies and verify
+- [x] R050q task-owned fixed npm/Mix profiles without routine Advanced setup,
+  immutable v4 proposals/task revisions, per-task/integrated/final retained scope,
+  guarded task dialog and forward-only schema twenty. Start grants the exact
+  bounded guest scope; historical contracts and configured requirements remain.
+  Six real VM checks finish generated dependent tasks with failed-test correction,
+  final review, image reuse/Pause/Stop and a schema19-to20 bundle fence; providers
+  are synthetic. [Task/evidence](../tasks/R050q-task-checks.md).
+- [ ] Expose bounded failure output for repairs, provision project dependencies and verify
   platform/distribution/licensing. Hard VM-owner loss requires recovery evidence;
   synthetic checks never establish real-provider or release acceptance.
 

@@ -168,6 +168,19 @@ Unknown admission/check shutdown reserves global capacity after interruption.
 No process absence, missing native receipt or VM-only closure proves release.
 Task-selected tools, dependency provisioning and new recovery remain ungranted.
 
+R050q adds closed task profile proposals, not provider command access. Only
+`npm-test` and `mix-test` resolve in host code to literal fixed arguments. Reject
+arbitrary executable/argument fields, unknown profiles, unsafe relative folders,
+duplicate profile/folder pairs and bounded proposal-budget overflow before card
+import. Start alone freezes concrete checks and per-task/configured membership
+under `planned-checks-v1` plus the existing guest grant. Recompute frozen scope
+before admission/effects; bind review to the original check attempt. Integrated
+membership changes only with reviewed-head integration; Skip cannot remove
+configured requirements. Empty subsets grant no command pass. Task dialogs retain
+session/form/revision/active-work guards; optional revision fields preserve older
+bytes. Prompts disclose Linux/offline/unprovisioned dependency limits. Raw failure
+output delivery and broader tool/dependency/platform permissions are still open.
+
 Start grants bounded local completion for frozen Codex/Cursor roles/tasks/checks.
 Provider sessions retain host-only file tools and cannot run commands. Historical
 system checks use the empty Codex profile/private candidate clone, denied network,

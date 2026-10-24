@@ -239,6 +239,15 @@ admission worker, never ordinary app startup. First-use downloads and offline
 Linux scope are visible beside Start. A changed helper/image cohort refuses
 before role turns. Historical system grants and empty review-only scopes remain
 unchanged; mixed lists refuse rather than choose a different runtime.
+R050q `brief-plan-v4` task profiles use this same runtime. Host code resolves
+`npm-test` to `npm test --offline` and `mix-test` to `mix test`; model-supplied
+arguments are refused. Start freezes `planned-checks-v1` membership and the union
+with explicit Arena checks, within eight commands/600 seconds. Per-task stages
+cover own/integrated work plus configured checks; final stages use retained tasks
+plus configured checks. Independent reviews require exact original receipts, and
+empty subsets require inspection. No task profile changes provider tools or
+runtime permissions. Execution prompts state Linux arm64, offline networking and
+unprovisioned project dependencies.
 
 `GuestChecks` prepares one immutable candidate capsule per check stage and reserves
 one run UUID per declaration in the immutable attempt request. Length-framed
@@ -253,8 +262,8 @@ Interrupted admission/checks retain the global reservation until actual cleanup
 proof; no process-absence inference, native replay or new recovery is added.
 
 Projects needing downloaded dependencies, other runtimes, browser/macOS execution
-or host-platform equivalence are unsupported by this grant. Task-proposed checks,
-failure-log delivery, hard keeper-loss recovery, image distribution/licensing and
+or host-platform equivalence are unsupported by this grant. Failure-log delivery,
+hard keeper-loss recovery, image distribution/licensing and
 real-provider/release verification remain separate acceptance work.
 [Integration contract/evidence](../tasks/R050p-arena-guest-checks.md).
 

@@ -1,5 +1,26 @@
 # Data model
 
+R050q adds forward-only migration twenty. The optional `verification` array lives
+only in immutable `draft_task_revisions.content`; `DraftTask.verification` is a
+virtual current-revision projection. Absence remains distinct from `[]` to keep
+historical accepted-spec bytes unchanged. Omitted legacy edits preserve the
+saved field; explicit `[]` clears it. The additive trigger refuses non-array or
+more-than-four-row values; the domain validates closed profiles, folders, limits
+and duplicate entries. Existing rows are neither rewritten nor backfilled.
+Back up before migration under the ordinary exclusive launcher lock; older
+bundles refuse this schema before effects.
+
+New planning freezes `brief-plan-v4`; automatic import stores verification with
+the existing graph/proposal receipts in the same transaction. New battles with
+planned profiles retain `task_verification: planned-checks-v1`: configured IDs,
+per-task check membership and the concrete union in `snapshot.checks`. Stable
+content IDs identify commands, never authorization tokens. `integrated_task_ids`
+is appended with reviewed-head integration. Per-attempt UUID reservations cover
+only that exact stage's derived scope. Final retained-subset scope excludes
+skipped/deferred task profiles but always retains configured Arena checks.
+Public task evidence exposes only those three profile fields, at most four rows,
+from the selected frozen execution; it never substitutes the current dirty draft.
+
 R050p adds forward-only migration nineteen. `battle_attempts_check_images` indexes
 completed admission image identity; reuse still requires the exact retained
 cleanup-verified receipt. `battle_attempts_guest_reservations` indexes new-policy

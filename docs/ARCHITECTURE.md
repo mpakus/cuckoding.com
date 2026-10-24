@@ -1,5 +1,18 @@
 # Architecture
 
+R050q connects task planning to those guest checks. `Planning` validates the
+closed `brief-plan-v4` proposal; `Tabulae` stores profiles in immutable task
+revision content. `TaskChecks` owns profile validation, fixed command resolution,
+stable content IDs and exact frozen membership. `Snapshot` freezes the union
+with configured Arena checks. `Battles` records integrated task IDs atomically
+with the reviewed head, then derives each check-stage scope. `GuestChecks` and
+`Receipts` bind execution and independent review to the original attempt and
+candidate. The existing LiveView task dialog uses stateless verification
+components; no additional setup route or worker/coordinator is introduced.
+Migration twenty fences older bundles and checks optional revision-array shape;
+domain validation owns full profile/budget rules. Historical absent fields keep
+their original serialization and grants. [Contract](../tasks/R050q-task-checks.md).
+
 R050p connects declared offline npm/Mix checks to the existing Arena stage worker.
 `GuestChecks` owns the frozen grant, literal command binding, exact-candidate
 capsule/VM calls and closed public receipt validation. `CheckImage` embeds the

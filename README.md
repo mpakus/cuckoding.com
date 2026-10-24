@@ -70,7 +70,7 @@ listed below. Arena registration opens its default board; technical setup stays 
 | Saved agent/model assignments for Speculator, Implementor, Secutor and Summa Rudis | Real mixed-runtime battle acceptance |
 | Folder registration with an automatic default board, direct Arena opening, scoped team editing, versioned column names, ordered custom read/write stages and editable drafts | Real-provider custom-stage acceptance |
 | Codex/Cursor planning from a brief or bounded folder snapshots (`docs/` first), automatically saved task cards, prerequisites and original source citations | Real-account planning acceptance across supported runtimes |
-| One bounded Start, independent task pipelines in waves of up to two, serialized independent review/integration, declared offline npm/Mix checks and a retained local battle branch | Task-proposed checks, project dependencies/platform verification, real-account end-to-end acceptance, full recovery and real-provider parallel acceptance |
+| One bounded Start, independent task pipelines in waves of up to two, serialized independent review/integration, task-proposed offline npm/Mix checks and a retained local battle branch | Failure-log delivery, project dependencies/platform verification, real-account end-to-end acceptance, full recovery and real-provider parallel acceptance |
 | Global setup/planning/battle activity, selected-board team/progress and paginated events globally/per Arena | Timed real-account setup and broader dashboard/release acceptance |
 
 Tabula Gladiatorum shows up to 20 saved active setup/planning/battle records and
@@ -197,18 +197,22 @@ unavailable pending that approval and adapter verification.
 Secutor reviews the checks described in every task and the combined result.
 Missing required runtime/test evidence blocks completion; code inspection never
 proves tests ran. **Advanced → Extra command checks (optional)** adds explicit
-commands when needed; once configured, all must pass. Without them, no command
-tests run and no passing command receipt is invented. New Starts whose saved
+commands when needed; once configured, all must pass. Task analysis can propose
+fixed **npm tests** / **Mix tests** with their folder and time limit. They appear
+in the task dialog and run through Start without Advanced setup. Each task checks
+its own and already integrated work; final checks cover the retained tasks.
+Configured Arena checks remain mandatory throughout. Empty subsets require
+independent inspection, with no invented command pass. New Starts whose frozen
 checks are entirely `npm`/`mix` use an isolated offline Linux VM for each exact
 candidate. Start prepares pinned toolchains on first use and reuses only a
 verified saved image; the UI explains that first-use download. Codex and Cursor
 roles keep their assigned bindings. Checks, failed-test correction and independent
 review run in the existing supervised Arena workers, with verified VM shutdown
-required before advancement. [Arena check integration](tasks/R050p-arena-guest-checks.md).
+required before advancement. [Planned task checks](tasks/R050q-task-checks.md).
 
 These checks do not download project dependencies or reproduce macOS/browser
-environments. Automatic task-proposed checks and failure-log delivery remain
-unfinished. Native system checks retain the separate Codex single-process grant;
+environments. Bounded failure-log delivery to repair roles remains unfinished.
+Native system checks retain the separate Codex single-process grant;
 mixing system and guest checks in one saved list is refused. Historical Starts
 keep their original grants. Interrupted checks and hard VM-owner loss need
 inspection; missing cleanup proof never releases capacity. Native containment and

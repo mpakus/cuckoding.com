@@ -1,5 +1,28 @@
 # Verification and acceptance
 
+R050q: after `rtk proxy bin/dev.build`, run
+`rtk proxy python3 -B test/guest_battle_smoke.py --task-checks`. It reads a fresh
+synthetic `docs/brief.md`, creates v4 tasks/profiles/prerequisites through actual
+planning/import transactions and starts the existing OTP/native loop with no
+configured Arena checks. Only provider replies are synthetic; Git, image,
+candidate transport and six pass/fail npm/Mix VMs are real. Require a failed test,
+fresh correction, per-task/integrated/final scope, exact retained output/closure,
+source/index preservation, responsive coordinator and second-Start image reuse /
+Pause / Stop. Before replacing the schema-nineteen build, retain its sealed app
+and exact build metadata in `.ccoding/r050q-old-bundle.json`, with the same private
+root/app layout described below. Require that old artifact to refuse schema
+twenty with the exact newer-schema reason and unchanged database.
+
+Focused tests cover closed profiles/aggregate budgets, legacy omitted-field/spec
+compatibility, atomic automatic import, per-task/combined/final/Skip scopes,
+independent exact original receipts, guarded dirty task forms and the nineteen-
+to-twenty backup/shape trigger. Removing integrated-task membership must fail the
+scope regression. Run full Elixir quality and native format/tests/clippy/audit;
+verify the sealed artifact's normal and recovery lifecycle separately. These
+fixtures use no inference and do not prove real-account, dependency/platform,
+keeper-loss, physical-sleep or release acceptance.
+[Task/evidence](../tasks/R050q-task-checks.md).
+
 R050p: after `rtk proxy bin/dev.build`, run
 `rtk proxy python3 -B test/guest_battle_smoke.py`. The driver verifies the current
 sealed helper/source identity, creates only a fresh private fixture and runs the
@@ -26,7 +49,7 @@ command digest, foreign/cross-attempt candidates, forged shutdown, failed-check
 review handoff, interrupted capacity and cancellation grace. Upgrade tests verify
 the eighteen-to-nineteen database-only backup and additive indexes. Run normal
 packaged lifecycle/recovery separately; hard keeper loss, real project dependency/
-platform support, task-proposed checks and release acceptance remain open.
+platform support, failure-output delivery and release acceptance remain open.
 [Evidence](../worklog/2026-10-24-R050p-arena-guest-checks.md).
 
 R050o: `rtk proxy python3 -B test/keeper_protocol_test.py` compiles the production

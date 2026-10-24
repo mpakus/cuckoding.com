@@ -680,6 +680,29 @@ acceptance or release authority follows from this grant.
 
 ## Mission and product contract
 
+R050q versions new planning as `brief-plan-v4`: each task may propose at most
+four closed `npm-test` / `mix-test` profiles with a bounded relative directory and
+1–300-second limit. Host code alone resolves literal commands; reject unknown
+fields, duplicate profile/folder pairs and proposals exceeding eight distinct
+checks or 600 seconds. Keep v1/v2/v3 receipts exact. Store verification only in
+immutable task revisions; omitted legacy fields preserve existing values and
+old accepted-spec bytes. Inspect/edit profiles in the guarded task dialog.
+Frozen history/downloads expose at most four profile/directory/timeout rows only;
+retain the existing exact scope and public-field whitelist.
+New Starts freeze `task_verification: planned-checks-v1`, exact membership and
+the separate guest policy. Each task checks its own profiles, already integrated
+tasks and all configured Arena checks; final checks cover retained tasks plus
+configured checks. Append integrated membership with reviewed-head integration.
+Skip never removes configured checks. Empty subsets require independent file
+inspection, never invented command evidence. Bind independent review to the
+original exact check attempt/candidate/scope. Preserve waves, combined candidates,
+budgets, original deadlines and unknown-cleanup reservations. Prompts disclose
+offline Linux and unprovisioned dependencies. Migration twenty is forward-only
+with backup and an older-bundle fence, without rewriting historical revisions.
+Profiles grant nothing before Start; failure-output delivery, dependencies,
+platform equivalence, keeper-loss recovery and real-provider/release acceptance
+remain open. See [task](tasks/R050q-task-checks.md).
+
 R020m's optional `codex-isolation-v1` diagnostic runs fixed commands against two
 disposable fixtures with a fresh empty profile, never an Arena or signed-in profile.
 Bind its receipt to the exact connection/version/executable observation. Preserve

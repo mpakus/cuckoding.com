@@ -85,6 +85,10 @@ similar tasks by inferred meaning. Legacy requests retain explicit imports.
 Each generated card includes expected outcomes and concrete verification
 instructions in its acceptance criteria. These are task requirements, not executable
 command policy. Cards are planning drafts, not accepted delivery or execution authorization.
+R050q also proposes fixed npm-test/Mix-test profiles when the sources support
+them. Each has a relative folder and time limit, visible and editable inside the
+same task dialog. No Advanced command declaration is needed for these profiles.
+Unsupported verification stays in the criteria; it is not silently discarded.
 
 ## Start
 
@@ -100,6 +104,12 @@ It is separate from Create tasks' read/provider-use intent. Prepare and verify
 owned worktrees under that authority. Manual pre-battle spec acceptance and
 worktree tools remain optional inspection/setup utilities. Ordinary spec refinement,
 implementation, checks and review need no repeated human approval after Start.
+For planned profiles, each task runs its own checks plus those of integrated work
+and any explicitly configured Arena checks. Final verification covers all retained
+tasks and configured checks. Skipped/deferred task profiles do not become final
+requirements, while configured checks always remain. Empty check subsets still
+require independent inspection. Checks run offline in Linux without downloaded
+project dependencies; missing required evidence blocks completion.
 Protected policy changes, newly requested access and remote publication remain
 separate decisions. Until execution exists, explain its absence beside a disabled
 Start control; do not turn a preview into a pretend successful run.
