@@ -10,6 +10,7 @@ import json
 import os
 import runpy
 import sqlite3
+import stat
 import subprocess
 import tempfile
 import uuid
@@ -53,15 +54,23 @@ old = json.loads((project / ".ccoding/r050p-old-bundle.json").read_bytes())
 old_app = Path(old["root"]) / "Cuckoding.app"
 assert old["build"]["schema"] == 18 and old_app.is_dir()
 subprocess.run(["/usr/bin/codesign", "--verify", "--strict", "--deep", str(old_app)], check=True, timeout=60)
+assert json.loads(subprocess.check_output([str(old_app / "Contents/MacOS/ccoding"), "--build-info"], timeout=5)) == old["build"]
 database = data / "foundation.db"
 before = hashlib.sha256(database.read_bytes()).hexdigest()
 fence_log = root / "old-bundle-refusal.log"
+crash = data / "erl_crash.dump"
+assert not crash.exists()
 with fence_log.open("xb") as output:
     result = subprocess.run([str(old_app / "Contents/MacOS/ccoding"), "--smoke-test"], cwd=root,
                             env={"HOME": str(root), "PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "LANG": "en_US.UTF-8",
                                  "CCODING_DATA_DIR": str(data), "CCODING_RELEASE_DIR": str(old_app / "Contents/Resources/release")},
                             stdout=output, stderr=subprocess.STDOUT, timeout=30)
 assert result.returncode != 0
+metadata = crash.lstat()
+assert stat.S_ISREG(metadata.st_mode) and metadata.st_nlink == 1 and metadata.st_size <= 16 * 1024 * 1024
+with crash.open("rb") as failure:
+    message = failure.read(16 * 1024 * 1024 + 1)
+assert len(message) <= 16 * 1024 * 1024 and b"database schema is newer than this application" in message
 assert hashlib.sha256(database.read_bytes()).hexdigest() == before
 with sqlite3.connect(f"file:{database}?mode=ro", uri=True) as db:
     assert db.execute("SELECT count(*) FROM schema_migrations").fetchone()[0] == 19

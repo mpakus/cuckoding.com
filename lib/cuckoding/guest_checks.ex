@@ -283,7 +283,7 @@ defmodule Cuckoding.GuestChecks do
     snapshot = attempt.request["snapshot"]
     declared = Enum.find(snapshot["checks"], &(&1["id"] == row["id"]))
 
-    if (declared && byte_size(Jason.encode!(row)) <= 2048) and
+    if not is_nil(declared) and byte_size(Jason.encode!(row)) <= 2048 and
          Map.keys(row) --
            ((@native_fields -- ["check_id"]) ++
               ~w(id input_manifest_sha256 image_spec_sha256 image_key)) == [] and

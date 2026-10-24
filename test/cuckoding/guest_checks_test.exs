@@ -297,6 +297,7 @@ defmodule Cuckoding.GuestChecksTest do
           put_in(attempt.request["snapshot"]["checks"], [Map.put(c, "arguments", ["different"])])
 
         refute GuestChecks.valid_check?(changed, row)
+        refute GuestChecks.valid_check?(attempt, Map.put(row, "id", Ecto.UUID.generate()))
         refute GuestChecks.valid_check?(attempt, Map.put(row, "key", Ecto.UUID.generate()))
         refute GuestChecks.valid_check?(attempt, Map.put(row, "image_key", Ecto.UUID.generate()))
       end
