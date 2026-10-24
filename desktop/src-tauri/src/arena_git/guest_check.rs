@@ -1,4 +1,4 @@
-//! Fixed VM operation; it is not admitted by current battle grants.
+//! Fixed bounded VM checks and read-only retained proof; workflow authority belongs to Phoenix.
 use super::*;
 use crate::check_image::{self, Store};
 use flate2::{write::GzEncoder, Compression};
@@ -6,8 +6,10 @@ use std::{
     os::unix::fs::PermissionsExt,
     time::{SystemTime, UNIX_EPOCH},
 };
+mod recovery;
 #[cfg(test)]
 mod tests;
+pub(super) use recovery::run as recover;
 
 const CONTRACT: &str = "isolated-guest-check-v1";
 const FEEDBACK: &str = "bounded-guest-feedback-v1";
@@ -30,6 +32,15 @@ fn relative(value: &str) -> bool {
         && value.split('/').all(|s| !["", ".", ".."].contains(&s))
 }
 fn validate(request: &Value) -> Result<(&str, u64)> {
+    let (key, deadline) = validate_shape(request)?;
+    let time = now()?;
+    if deadline <= time || deadline - time > 360_000 {
+        return Err("timeout");
+    }
+    Ok((key, deadline))
+}
+
+fn validate_shape(request: &Value) -> Result<(&str, u64)> {
     let feedback = request["feedback"] == FEEDBACK;
     if !request
         .as_object()
@@ -43,10 +54,6 @@ fn validate(request: &Value) -> Result<(&str, u64)> {
     let deadline = request["deadline_unix_ms"]
         .as_u64()
         .ok_or("invalid_request")?;
-    let time = now()?;
-    if deadline <= time || deadline - time > 360_000 {
-        return Err("timeout");
-    }
     let check = &request["check"];
     if !check.as_object().is_some_and(|m| m.len() == 10)
         || !matches!(check["toolchain"].as_str(), Some("npm" | "mix"))

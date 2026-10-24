@@ -61,6 +61,9 @@ impl Store {
     pub(crate) fn run(home: &Path, key: &str) -> Result<Self> {
         Self::namespace(home, key, true, "check-runs")
     }
+    pub(crate) fn retained_run(home: &Path, key: &str) -> Result<Self> {
+        Self::namespace(home, key, false, "check-runs")
+    }
     fn namespace(home: &Path, key: &str, create: bool, namespace: &'static str) -> Result<Self> {
         private_directory(home).map_err(|_| "unsafe_image")?;
         if home.file_name().and_then(|n| n.to_str()) != Some("runtime-home") {
@@ -158,11 +161,17 @@ impl Store {
         self.owned.sync_all().map_err(|_| "image_incomplete")
     }
     pub(crate) fn read(&self, name: &str, limit: u64) -> Result<Vec<u8>> {
+        self.read_mode(name, limit, 0o600)
+    }
+    pub(crate) fn keeper(&self) -> Result<Vec<u8>> {
+        self.read_mode("keeper", 4_194_304, 0o700)
+    }
+    fn read_mode(&self, name: &str, limit: u64, mode: u32) -> Result<Vec<u8>> {
         let file = open(&self.owned, name, libc::O_RDONLY)?;
         let before = file.metadata().map_err(|_| "image_changed")?;
         if !before.is_file()
             || before.nlink() != 1
-            || before.mode() & 0o7777 != 0o600
+            || before.mode() & 0o7777 != mode
             || before.len() > limit
             || before.uid() != self.owned.metadata().map_err(|_| "image_changed")?.uid()
         {

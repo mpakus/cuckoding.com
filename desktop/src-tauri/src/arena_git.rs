@@ -368,6 +368,7 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
         "prepare_check_input",
         "verify_check_input",
         "run_guest_check",
+        "recover_guest_check",
         "create_battle",
         "battle_worktree",
         "integrate_candidate",
@@ -394,6 +395,7 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
                     "prepare_check_input",
                     "verify_check_input",
                     "run_guest_check",
+                    "recover_guest_check",
                     "create_battle",
                     "battle_worktree",
                     "integrate_candidate",
@@ -435,6 +437,9 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
     git.identity(device, inode)?;
     if operation == "run_guest_check" {
         return guest_check::run(&git, &extra[0], device, inode);
+    }
+    if operation == "recover_guest_check" {
+        return guest_check::recover(&git, &extra[0], device, inode);
     }
     if operation == "scan_documents" {
         let result = documents::scan(&git, &extra[0])?;
@@ -520,6 +525,7 @@ fn operation_limit(args: &[String]) -> Duration {
             "combine_candidate"
                 | "prepare_check_input"
                 | "verify_check_input"
+                | "recover_guest_check"
                 | "verify_combined_candidate"
                 | "recover_battle_candidate"
                 | "recover_combined_candidate"

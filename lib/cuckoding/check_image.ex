@@ -5,7 +5,7 @@ defmodule Cuckoding.CheckImage do
   alias Cuckoding.{NativeHelper, Repo}
 
   @root Path.expand("../../desktop/src-tauri/src", __DIR__)
-  @sources ~w(check_image/inputs.json check_image/init check_image/launch check_image/control.mjs check_image/worker.mjs check_image/protocol.mjs check_image/archive.rs check_image/store.rs check_image.rs arena_git/guest_check.rs arena_git.rs probe.rs ../keeper/main.swift ../keeper/entitlements.plist ../build.rs)
+  @sources ~w(check_image/inputs.json check_image/init check_image/launch check_image/control.mjs check_image/worker.mjs check_image/protocol.mjs check_image/archive.rs check_image/store.rs check_image.rs arena_git/guest_check.rs arena_git/guest_check/recovery.rs arena_git.rs probe.rs ../keeper/main.swift ../keeper/entitlements.plist ../build.rs)
   for source <- @sources, do: @external_resource(Path.join(@root, source))
 
   @image_spec :crypto.hash(:sha256, Enum.map(@sources, &File.read!(Path.join(@root, &1))))

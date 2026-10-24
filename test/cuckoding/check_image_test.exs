@@ -10,6 +10,28 @@ defmodule Cuckoding.CheckImageTest do
     ProjectChecks
   }
 
+  test "BEAM and native image cohorts include the same ordered source bytes" do
+    root = Path.expand("../../desktop/src-tauri/src", __DIR__)
+    native = File.read!(Path.join(root, "check_image.rs"))
+
+    constants =
+      Regex.scan(~r/const ([A-Z]+): &str = include_str!\("([^"]+)"\);/, native)
+      |> Map.new(fn [_, name, path] -> {name, path} end)
+
+    [_, body] =
+      Regex.run(~r/fn spec\(\) -> String \{(.*?)\npub\(crate\) fn verified_files/s, native)
+
+    sources =
+      Regex.scan(~r/([A-Z]+)\.as_bytes\(\)|include_bytes!\("([^"]+)"\)/, body)
+      |> Enum.map(fn
+        [_, name] -> Map.fetch!(constants, name)
+        [_, "", path] -> path
+      end)
+
+    expected = :crypto.hash(:sha256, Enum.map(sources, &File.read!(Path.join(root, &1))))
+    assert CheckImage.spec() == Base.encode16(expected, case: :lower)
+  end
+
   test "image decoding refuses foreign scope, malformed cleanup and private extras" do
     key = Ecto.UUID.generate()
     image = GuestCheckFixtures.image(key)

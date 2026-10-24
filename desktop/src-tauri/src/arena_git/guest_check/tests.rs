@@ -1,6 +1,6 @@
 use super::*;
 
-fn request() -> Value {
+pub(super) fn request() -> Value {
     json!({"contract":CONTRACT,"key":"00000000-0000-4000-8000-000000000001",
         "deadline_unix_ms":now().unwrap()+60000,"image":{},"input":{},"check":{
         "request_id":"00000000-0000-4000-8000-000000000002","check_id":"00000000-0000-4000-8000-000000000003",
