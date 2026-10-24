@@ -19,6 +19,7 @@ INPUTS = (
     "desktop/src-tauri/build.rs", "desktop/src-tauri/Info.plist",
     "desktop/src-tauri/tauri.conf.json", "desktop/src-tauri/src",
     "desktop/src-tauri/icons", "desktop/src-tauri/capabilities",
+    "desktop/src-tauri/keeper",
     "bin/dev.build", "bin/build-info",
 )
 OUTPUTS = ("priv/build-info.json", "desktop/resources/build-info.json")
