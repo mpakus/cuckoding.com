@@ -577,6 +577,23 @@ Skip, lost-work acceptance or final completion with unresolved tasks.
 Other failures retain Arena-wide admission closure and existing backoff/recovery.
 User Pause prevents automatic continuation; restart still needs explicit Resume.
 Controls remain separate and revision-guarded. Prioritize shared/uncertain attention.
-The eighteenth forward-only migration backs up and prevents older bundles from
+The eighteenth forward-only migration requires a backup and prevents older bundles from
 interpreting running battles with unresolved lanes; a DB trigger refuses claims
 on blocked tasks under the new policy. Historical snapshots keep their behavior.
+
+## D053 — Verify a private database copy before startup migration
+
+2026-10-23, R100c. With the existing exclusive workspace launcher, create a fresh
+UUID backup before changing an existing known schema. Use SQLite's consistent
+copy operation, readonly integrity/FK/schema verification, bounded hashing and
+file/directory synchronization. Publish a private immutable receipt only after
+verification; any failure stops startup before migration/authentication/dispatch.
+Retain partial attempts and never reuse them as proof. Fresh/current schemas do
+not need a new copy; future/unknown schemas still refuse.
+
+Settings may read dated whitelisted metadata through a fixed private pointer;
+it is an observation, not a new integrity claim or restore action. The database
+copy excludes provider profiles, project folders and retained native artifacts.
+It never authorizes overwriting later work, auto-downgrading or replacing an app
+while native effects are uncertain. Full update/restore and physical power-loss
+acceptance remain release gates. No schema or provider-grant change.

@@ -431,6 +431,32 @@ Verify the developer integration (no browser or provider usage):
 rtk proxy bin/dev.server --smoke --port 0
 ```
 
+## Pre-migration database copies (R100c)
+
+On an existing recognized schema with pending migrations, startup automatically
+creates `backups/<UUID>/foundation.db` inside the selected private workspace.
+SQLite copies the committed snapshot including WAL data, then Cuckoding verifies
+integrity, foreign keys and exact prior versions, hashes the copy and synchronizes
+files/directories before recording `receipt.json`. `backups/latest.json` points
+only to the latest verified copy. Schema targets in the receipt are planned
+migrations; the copy retains its prior versions. Copies are limited to 1 GiB with
+a shared 20-second query/hash budget; OS I/O and the existing shell readiness
+ceiling still apply. Failure refuses migration and retains partial files for
+inspection; a later attempt uses a new UUID. Nothing purges previous copies.
+
+Fresh/current databases need no new copy. Unknown/future schemas refuse. Startup
+retains the native/source launcher lock and completes this guard before shell
+authorization, agent dispatch and HTTP. Settings → Database copy details shows
+dated metadata/location only; it does not recheck bytes on every page load.
+
+These private files contain database facts and may contain project document text;
+do not publish them. Provider profiles, project folders and native receipts are
+not copied. Quit before examining any copy. Do not overwrite current data or
+auto-downgrade from a copy: later facts and matching external artifacts need a
+coordinated restore decision. Full updater/restore, disk/power-loss and clean-machine
+acceptance remain open. An unrecognized saved root still needs an explicit human
+decision; a backup never restores its marker automatically.
+
 ## Quality and bundled smoke
 
 ```sh

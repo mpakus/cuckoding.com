@@ -777,6 +777,17 @@ private build receipts with actual helper/resource hashes after strict/deep seal
 verification; they do not prove notarization, dependency provenance or release
 acceptance. No schema/credential/provider grant changes.
 
+R100c verifies a private database-only copy before changing an existing known
+schema, under the unchanged exclusive launcher lock and before authentication,
+dispatch or HTTP. Fresh/current schemas need no new copy; unknown/future versions
+still refuse. Use bounded SQLite consistent copy/checks/hash, private UUID files,
+file/directory sync and an immutable dated receipt; failures stop migration and
+retain partial attempts. Refuse hardlinked/special marker/database/sidecar files
+before permission changes; marker reads are bounded. Never copy profiles/project/native artifacts, reuse a
+partial as proof, automatically restore/downgrade or overwrite newer facts.
+Settings reads only bounded fixed-pointer metadata and makes no fresh integrity
+claim. Full update/restore, uncertain mutation and physical power-loss gates remain.
+
 ## UI
 
 For source UI development use `rtk proxy bin/dev.server` after building the native

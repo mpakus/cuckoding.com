@@ -745,6 +745,10 @@ Depends on every previous slice.
   reproducible, clean-machine or real-provider release acceptance.
 - [ ] Reproducible signed/notarized Apple Silicon application with bundled release
   and verified helper provenance; no developer toolchain needed by the user.
+- [x] R100c verified database-only copy before existing-schema migrations, private
+  immutable receipt and dated Settings metadata. Fresh/current startup remains
+  fast and failed copies refuse migration. Full restore/import/update and physical
+  power-loss acceptance stay separate. [Task/evidence](../tasks/R100c-upgrade-backups.md).
 - [ ] Clean-machine install/launch/quit and login persistence; document provider
   prerequisites separately.
 - [ ] Prior-data backup/import or safe explicit separate-data behavior; verify

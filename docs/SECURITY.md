@@ -1,5 +1,15 @@
 # Security contract
 
+R100c backup paths derive from the recognized canonical private root and fresh
+UUIDs under its exclusive launcher lock. Refuse links/special files before
+startup permission changes and bound marker/receipt/pointer reads. Source and
+readonly-copy integrity, FKs, exact schema, size/deadline and hash must verify;
+sync precedes publication. Failed or partial copies cannot permit migration.
+The private database may contain project text; never publish it. Profiles,
+project/native artifacts and uncertain external effects are not part of this
+copy. Settings exposes dated metadata only, with no download/restore capability.
+Backup evidence never grants workflow completion, cleanup or downgrade authority.
+
 R060r continuation consumes only the original frozen Start authority. Classification
 uses an exact validated provider outcome and verified cleanup, not report text or
 UI metadata. Revalidate the bound immutable attempt and all shared gates after

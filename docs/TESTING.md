@@ -1,5 +1,14 @@
 # Verification and acceptance
 
+R100c tests WAL-backed prior-schema copying with retained rows, readable old
+schema/hash/private permissions, no repeated current/fresh work, unknown/future
+schema refusal, links/hardlinks/malformed metadata, FK/durability failures and
+preservation through a later failed migration. Settings tests exact dated
+whitelisted metadata, unavailable states, session guarding and no database-row
+rendering/restore control. Use `rtk mix test test/cuckoding/upgrade_backup_test.exs
+test/cuckoding_web/upgrade_backup_live_test.exs`. Full update/restore and physical
+power-loss remain separate from these fixtures and local package smoke.
+
 R060r tests exact task-local receipts, independent waves, blocked dependencies,
 mandatory explicit Skip/Partial, shared-failure priority, cleanup/binding/budget
 refusal, Pause/Resume, settled/interrupted restart, audit rollback, DB claim guard

@@ -47,6 +47,11 @@ Settings → Build details identifies the packaged build, source revision, local
 changes and application-input digest. Source UI previews are labelled separately.
 The build retains artifact hashes in a private receipt; signing/notarization and
 release acceptance remain separate gates.
+Before upgrading a recognized existing schema, startup verifies a private
+database copy and retains its dated receipt. Settings → Database copy details
+shows its location and recorded hash. Failed copies stop migration. Provider
+profiles, project folders and native artifacts are excluded; full restore/update
+acceptance remains open. See [upgrade backups](docs/DEVELOPMENT.md#pre-migration-database-copies-r100c).
 The complete product story still includes capabilities and release acceptance
 listed below. Arena registration opens its default board; technical setup stays in Advanced.
 

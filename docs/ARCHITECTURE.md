@@ -1,5 +1,13 @@
 # Architecture
 
+R100c `Database` refuses future/unknown schemas and calls `UpgradeBackup` before
+pending migrations of an existing known schema. Under the launcher lock, the
+startup process owns consistent SQLite copying, readonly checks, bounded hashing
+and synchronized private receipts. It completes before authentication/dispatch/HTTP.
+Settings reads only dated metadata from the fixed pointer; it cannot restore or
+establish current integrity. No new schema, native operation or provider grant.
+[Decision](DECISIONS.md#d053--verify-a-private-database-copy-before-startup-migration).
+
 R060r `Battles.TaskBlocks` binds task-local attention to an immutable validated
 attempt/receipt. Battles owns settlement, controls, cleanup/deadline/binding gates
 and transactional continuation; Waves excludes blocked lanes and opens only ready
@@ -92,13 +100,14 @@ workers. Checks/review/integration remain serialized within each board.
 Real-provider parallel acceptance and full recovery remain unfinished.
 The later sections describe the target architecture, not additional shipped code.
 
-Startup: Repo → schema validation/migration → PubSub → shell authority →
+Startup: Repo → schema validation/pre-migration copy/migration → PubSub → shell authority →
 supervised setup/battle execution groups → loopback Endpoint → readiness message. SQLite is authoritative;
 LiveView owns unsaved forms, not workflow progress. The native shell owns the
 release process group and private storage lock.
 
 | Current source | Responsibility and durable owner |
 | --- | --- |
+| `Database`, `UpgradeBackup` | Before-migration verified database copies and private immutable receipts; fixed dated Settings projection, no restoration authority |
 | `Agents`, `Foundation`, `Dispatcher`, `records.ex` | Idempotent commands, expiring claims, append-only events and setup projections in SQLite; a responsive coordinator dispatches one monitored setup/planning task |
 | `ExecutionSupervisor` | Separate `one_for_all` groups pair each coordinator with its Task.Supervisor; old workers stop before coordinator recovery |
 | `BattleClock` | Independent UTC/monotonic sampling in the battle execution group; SQLite timing fences precede admission, cancellation and receipt settlement |

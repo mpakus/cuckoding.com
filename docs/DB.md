@@ -1,5 +1,17 @@
 # Data model
 
+R100c adds no migration. Before upgrading an existing known schema, startup uses
+`VACUUM INTO` for a consistent WAL-aware copy at private
+`backups/<UUID>/foundation.db`. Source/copy integrity, FKs and exact migration
+versions must verify; size/time limits, SHA-256 and file/directory sync precede
+the immutable `receipt.json` and atomic bounded `backups/latest.json` pointer.
+The receipt binds the current root identity and planned target versions; it is
+not a claim that the copy has the newer schema. Partial artifacts remain and are
+never reused. Fresh/current schemas need no repeated copy; unknown/future schemas
+refuse before migration. Settings reads metadata only. The copy contains SQLite
+facts, not provider profiles/project/native artifacts; coordinated restore and
+automatic update/rollback acceptance remain open.
+
 R060r adds forward-only migration eighteen: `battle_attempts_blocked_task` refuses
 running claims on `needs_attention` tasks under the new frozen blocker policy.
 Its schema version also makes older bundles refuse startup. Back up before
