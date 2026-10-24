@@ -1,6 +1,7 @@
 defmodule CuckodingWeb.PlanningComponent do
   @moduledoc false
   use CuckodingWeb, :live_component
+  import CuckodingWeb.VerificationComponents
   import CuckodingWeb.Dialog
   alias Cuckoding.{Foundation, GitPreview, Planning, PlanningDocuments, Tabulae, Workflows}
   alias Phoenix.LiveView.JS
@@ -504,6 +505,7 @@ defmodule CuckodingWeb.PlanningComponent do
               <h4>{index + 1}. {task["title"]}</h4>
               <p class="draft-copy">{task["description"]}</p>
               <p class="draft-copy">Acceptance criteria and checks: {task["criteria"]}</p>
+              <.verification entries={Map.get(task, "verification", [])} />
               <p :if={Map.get(task, "depends_on", []) != []} class="fine-print">
                 Prerequisites: {Enum.map_join(
                   task["depends_on"],

@@ -38,6 +38,39 @@ defmodule CuckodingWeb.TabulaLiveTest do
     %{arena: arena, board: board, path: "/arenas/#{arena.id}/tabulae/#{board.id}"}
   end
 
+  test "planned check editing keeps dirty state, exact scope and current form identity", ctx do
+    {:ok, view, _} = ctx.conn |> sign_in() |> live(ctx.path)
+    view |> element("#draft-verification-add") |> render_click()
+
+    view
+    |> form("#draft-form",
+      title: "Run tests",
+      verification: %{
+        "0" => %{"profile" => "npm-test", "directory" => "web", "timeout_seconds" => "60"}
+      }
+    )
+    |> render_change()
+
+    Foundation.broadcast()
+    assert has_element?(view, "#verification-directory-0[value=web]")
+    assert has_element?(view, "#verification-profile-0 option[value=npm-test][selected]")
+    view |> form("#draft-form") |> render_submit()
+    [task] = Tabulae.tasks(ctx.board.id)
+
+    assert task.verification == [
+             %{"profile" => "npm-test", "directory" => "web", "timeout_seconds" => 60}
+           ]
+
+    view |> element("#task-#{task.id} button", "Edit task") |> render_click()
+    render_click(view, "verification-remove", %{"key" => Ecto.UUID.generate(), "index" => 0})
+    assert has_element?(view, "#verification-directory-0[value=web]")
+    assert has_element?(view, "#draft-error", "form")
+    view |> element("#draft-verification button[aria-label='Remove check 1']") |> render_click()
+    view |> form("#draft-form") |> render_submit()
+    [task] = Tabulae.tasks(ctx.board.id)
+    assert task.verification == []
+  end
+
   test "task selection opens only after the server has prepared its scoped draft", ctx do
     {:ok, view, _} = ctx.conn |> sign_in() |> live(ctx.path)
     view |> element("button[aria-label='Add task to ToDo']") |> render_click()

@@ -459,6 +459,160 @@ defmodule Cuckoding.BattleExecutorTest do
            end) == 3
   end
 
+  test "planned profiles follow task and integrated scope through combined review", ctx do
+    {:ok, _} = ProjectChecks.save(Ecto.UUID.generate(), ctx.board.arena_id, 1, [], true)
+
+    for {task, profile, directory} <- [
+          {ctx.first, "npm-test", "a"},
+          {ctx.second, "mix-test", "b"}
+        ] do
+      attrs =
+        Tabulae.content(task)
+        |> Map.put("depends_on", [])
+        |> Map.put("verification", [
+          %{"profile" => profile, "directory" => directory, "timeout_seconds" => 60}
+        ])
+
+      {:ok, _} =
+        Tabulae.save(
+          Ecto.UUID.generate(),
+          ctx.board.arena_id,
+          ctx.board.id,
+          task.id,
+          task.revision,
+          attrs
+        )
+    end
+
+    battle = start(ctx.board)
+    assert battle.snapshot["task_verification"]["configured_ids"] == []
+    assert length(battle.snapshot["checks"]) == 2
+
+    options = [
+      git: Adapters,
+      provider: Adapters,
+      checks: Adapters,
+      image: Adapters,
+      guest_checks: Adapters
+    ]
+
+    final =
+      Enum.reduce_while(1..60, battle, fn _, battle ->
+        if battle.state == "completed" do
+          {:halt, battle}
+        else
+          {:ok, attempt} = Battles.claim_next(battle.id)
+          scope = Cuckoding.TaskChecks.for_attempt(attempt)
+
+          if attempt.stage in ~w(checks final_checks) do
+            expected = if attempt.task_id == ctx.first.id, do: ["a"], else: ["a", "b"]
+            assert Enum.map(scope, & &1["directory"]) == expected
+
+            assert Enum.sort(Map.keys(attempt.request["guest_check_runs"])) ==
+                     Enum.sort(Enum.map(scope, & &1["id"]))
+          end
+
+          result = BattleExecutor.execute(attempt, options)
+
+          assert {:ok, _} = Battles.finish(attempt.id, attempt.claim_token, result),
+                 "Stage #{attempt.stage}: #{inspect(result)}"
+
+          {:cont, Battles.get(battle.id)}
+        end
+      end)
+
+    assert final.state == "completed"
+    assert final.context["integrated_task_ids"] == [ctx.first.id, ctx.second.id]
+
+    assert Enum.all?(Process.get(:provider_calls), fn {prompt, _, _} ->
+             prompt["check_environment"]["platform"] == "linux-arm64"
+           end)
+
+    assert Enum.any?(Battles.attempts(final.id), &(&1.stage == "combine"))
+    assert Enum.count(Process.get(:guest_calls), fn {op, _} -> op == "run_guest_check" end) == 5
+  end
+
+  test "Skip removes only omitted profiles and leaves review-only retained work truthful", ctx do
+    {:ok, _} = ProjectChecks.save(Ecto.UUID.generate(), ctx.board.arena_id, 1, [], true)
+
+    attrs =
+      Tabulae.content(ctx.second)
+      |> Map.put("verification", [
+        %{"profile" => "mix-test", "directory" => "later", "timeout_seconds" => 60}
+      ])
+
+    {:ok, _} =
+      Tabulae.save(
+        Ecto.UUID.generate(),
+        ctx.board.arena_id,
+        ctx.board.id,
+        ctx.second.id,
+        1,
+        attrs
+      )
+
+    battle = start(ctx.board)
+
+    options = [
+      git: Adapters,
+      provider: Adapters,
+      checks: Adapters,
+      image: Adapters,
+      guest_checks: Adapters
+    ]
+
+    battle =
+      Enum.reduce_while(1..30, battle, fn _, current ->
+        if Enum.any?(
+             Battles.tasks(current.id),
+             &(&1.task_id == ctx.first.id and &1.state == "completed")
+           ) do
+          {:halt, current}
+        else
+          {:ok, attempt} = Battles.claim_next(current.id)
+          refute attempt.stage == "checks"
+
+          {:ok, _} =
+            Battles.finish(
+              attempt.id,
+              attempt.claim_token,
+              BattleExecutor.execute(attempt, options)
+            )
+
+          {:cont, Battles.get(current.id)}
+        end
+      end)
+
+    {:ok, paused} = Battles.pause(battle.id, battle.control_revision)
+    {:ok, skipped} = Battles.skip(paused.id, paused.control_revision, ctx.second.id, true)
+    assert skipped.stage == "final_secutor"
+    {:ok, resumed} = Battles.resume(skipped.id, skipped.control_revision)
+
+    completed =
+      Enum.reduce_while(1..5, resumed, fn _, current ->
+        if current.state == "partial",
+          do: {:halt, current},
+          else:
+            (
+              {:ok, attempt} = Battles.claim_next(current.id)
+              assert Cuckoding.TaskChecks.for_attempt(attempt) == []
+
+              {:ok, _} =
+                Battles.finish(
+                  attempt.id,
+                  attempt.claim_token,
+                  BattleExecutor.execute(attempt, options)
+                )
+
+              {:cont, Battles.get(current.id)}
+            )
+      end)
+
+    assert completed.state == "partial"
+    refute Enum.any?(Battles.attempts(completed.id), &(&1.stage in ~w(checks final_checks)))
+    assert Process.get(:guest_calls) == nil
+  end
+
   test "lost guest closure cannot advance or release its global reservation", ctx do
     guest = Map.put(ctx.check, "executable", "npm")
     {:ok, _} = ProjectChecks.save(Ecto.UUID.generate(), ctx.board.arena_id, 1, [guest], true)

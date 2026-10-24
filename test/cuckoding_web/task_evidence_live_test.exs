@@ -9,7 +9,10 @@ defmodule CuckodingWeb.TaskEvidenceLiveTest do
       DashboardFixtures.fixture("completed", %{
         "title" => "Task",
         "revision" => 1,
-        "criteria" => "Frozen criteria"
+        "criteria" => "Frozen criteria",
+        "verification" => [
+          %{"profile" => "mix-test", "directory" => "backend", "timeout_seconds" => 60}
+        ]
       })
 
     for i <- 1..23 do
@@ -54,6 +57,8 @@ defmodule CuckodingWeb.TaskEvidenceLiveTest do
     {:ok, view, _} = live(signed, f.path)
     view |> element("button[aria-label='Inspect Task']") |> render_click()
     assert has_element?(view, "#task-evidence", "Frozen criteria")
+    assert has_element?(view, "#task-evidence", "Mix tests")
+    assert has_element?(view, "#task-evidence", "backend")
     assert has_element?(view, "#task-evidence", "Saved judge")
     assert has_element?(view, "#task-evidence", "requested exact-model")
     assert has_element?(view, "#task-evidence", "actual-model")
@@ -156,6 +161,11 @@ defmodule CuckodingWeb.TaskEvidenceLiveTest do
     assert data["format"] == "cuckoding-task-evidence-v1"
     assert {:ok, _, 0} = DateTime.from_iso8601(data["exported_at"])
     assert data["execution"]["snapshot"]["criteria"] == "Frozen criteria"
+
+    assert data["execution"]["snapshot"]["verification"] == [
+             %{"profile" => "mix-test", "directory" => "backend", "timeout_seconds" => 60}
+           ]
+
     assert data["scope"]["battle_id"] == f.battle.id
     assert data["pagination"] == %{"before" => nil, "more" => true, "page_size" => 20}
     assert length(data["attempts"]) == 20

@@ -10,6 +10,13 @@ defmodule Cuckoding.GuestChecks do
 
   def image_spec, do: CheckImage.spec()
 
+  def environment,
+    do: %{
+      "platform" => "linux-arm64",
+      "network" => "offline",
+      "project_dependencies" => "not-provisioned"
+    }
+
   def policy_for(checks) do
     if checks != [] and Enum.all?(checks, &(&1["executable"] in @tools)),
       do: %{"version" => @policy, "image_spec_sha256" => image_spec()}
@@ -149,7 +156,9 @@ defmodule Cuckoding.GuestChecks do
       workspace |> Map.take(~w(key head path device inode)) |> Map.put("status", "prepared")
 
     with true <-
-           current?(attempt.request["snapshot"]) and CheckImage.valid?(image, image_spec()) and
+           current?(attempt.request["snapshot"]) and
+             Cuckoding.TaskChecks.current?(attempt.request["snapshot"]) and
+             CheckImage.valid?(image, image_spec()) and
              workspace["head"] == candidate(attempt),
          true <- active?.(),
          %{"status" => "check_input_prepared"} = input <-
@@ -170,7 +179,7 @@ defmodule Cuckoding.GuestChecks do
       }
 
       Enum.reduce_while(
-        attempt.request["snapshot"]["checks"],
+        Cuckoding.TaskChecks.for_attempt(attempt),
         result,
         &run_one(&1, &2, attempt, preparation, input, active?, native)
       )
@@ -281,7 +290,7 @@ defmodule Cuckoding.GuestChecks do
 
   def valid_check?(attempt, row) when is_map(row) do
     snapshot = attempt.request["snapshot"]
-    declared = Enum.find(snapshot["checks"], &(&1["id"] == row["id"]))
+    declared = Enum.find(Cuckoding.TaskChecks.for_attempt(attempt), &(&1["id"] == row["id"]))
 
     if not is_nil(declared) and byte_size(Jason.encode!(row)) <= 2048 and
          Map.keys(row) --

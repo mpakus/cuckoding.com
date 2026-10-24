@@ -149,13 +149,21 @@ defmodule Cuckoding.Battles.Evidence do
           }
       )
 
-    if row,
+    if row, do: Map.update!(row, :snapshot, &public_snapshot/1)
+  end
+
+  defp public_snapshot(snapshot) do
+    visible =
+      Map.take(snapshot, ~w(title description criteria criteria_sha256 revision depends_on))
+
+    if Map.has_key?(snapshot, "verification"),
       do:
-        Map.update!(
-          row,
-          :snapshot,
-          &Map.take(&1, ~w(title description criteria criteria_sha256 revision depends_on))
-        )
+        Map.put(
+          visible,
+          "verification",
+          public_list(snapshot["verification"], 4, ~w(profile directory timeout_seconds))
+        ),
+      else: visible
   end
 
   defp receipt(result) do

@@ -117,9 +117,13 @@ defmodule Cuckoding.Battles.Receipts do
     context =
       if(attempt.task_id, do: attempt.request["task_context"], else: attempt.request["context"])
 
-    if Snapshot.task_review_only?(attempt.request["snapshot"]),
-      do: is_nil(context["checks"]) and inspected?(result["provider"]["tools"]),
-      else: checks?(attempt, context["checks"])
+    if Cuckoding.TaskChecks.review_only?(
+         attempt.request["snapshot"],
+         attempt.task_id,
+         attempt.request["context"]
+       ),
+       do: is_nil(context["checks"]) and inspected?(result["provider"]["tools"]),
+       else: checks?(attempt, context["checks"])
   end
 
   defp review_verdict?(_, _), do: true
@@ -158,7 +162,7 @@ defmodule Cuckoding.Battles.Receipts do
   end
 
   defp checks?(attempt, checks) when is_list(checks) do
-    declared = attempt.request["snapshot"]["checks"]
+    declared = Cuckoding.TaskChecks.for_attempt(attempt)
 
     declared != [] and length(checks) == length(declared) and Enum.all?(checks, &is_map/1) and
       Enum.sort(Enum.map(checks, & &1["id"])) == Enum.sort(Enum.map(declared, & &1["id"])) and
@@ -169,7 +173,7 @@ defmodule Cuckoding.Battles.Receipts do
   defp checks?(_, _), do: false
 
   defp failed_checks?(attempt, checks) when is_list(checks) and checks != [] do
-    declared = attempt.request["snapshot"]["checks"]
+    declared = Cuckoding.TaskChecks.for_attempt(attempt)
 
     Enum.all?(checks, &is_map/1) and length(checks) <= length(declared) and
       Enum.map(checks, & &1["id"]) ==
@@ -231,6 +235,8 @@ defmodule Cuckoding.Battles.Receipts do
     do:
       origin.battle_id == attempt.battle_id and origin.task_id == attempt.task_id and
         origin.request["criteria_sha256"] == attempt.request["criteria_sha256"] and
+        origin.request["snapshot"]["task_verification"] ==
+          attempt.request["snapshot"]["task_verification"] and
         origin.request["snapshot"]["check_execution"] ==
           attempt.request["snapshot"]["check_execution"]
 

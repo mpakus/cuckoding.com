@@ -23,6 +23,7 @@ defmodule Cuckoding.Battles.Snapshot do
     ProjectChecks,
     Repo,
     Tabulae,
+    TaskChecks,
     TeamAssignments,
     Workflows
   }
@@ -69,6 +70,12 @@ defmodule Cuckoding.Battles.Snapshot do
     tasks = Enum.map(Tabulae.tasks(board.id), &task/1)
     checks = ProjectChecks.current(arena.id)
     {ordered, graph_valid?} = order(tasks, [])
+    tasks = if graph_valid?, do: ordered, else: tasks
+    planned = TaskChecks.freeze(tasks, checks.definition["checks"])
+    invalid_verification? = match?({:error, _}, planned)
+
+    planned =
+      if invalid_verification?, do: %{"checks" => checks.definition["checks"]}, else: planned
 
     blockers =
       []
@@ -76,15 +83,16 @@ defmodule Cuckoding.Battles.Snapshot do
       |> block(length(tasks) > @limits["tasks"], "task_limit")
       |> block(Enum.any?(tasks, &incomplete?/1), "incomplete_task")
       |> block(not graph_valid?, "invalid_dependencies")
+      |> block(invalid_verification?, "invalid_task_verification")
       |> block(
-        not prompt_scope?(tasks, checks.definition["checks"], steps),
+        not prompt_scope?(tasks, planned["checks"], steps),
         "prompt_scope_too_large"
       )
       |> block(
         columns(board) != @columns or Enum.map(roles, & &1["id"]) != @roles ++ step_roles,
         "unsupported_columns"
       )
-      |> check_blockers(checks.definition["checks"], roles)
+      |> check_blockers(planned["checks"], roles)
       |> Kernel.++(
         (roles ++ additional)
         |> Enum.map(& &1["status"])
@@ -121,11 +129,13 @@ defmodule Cuckoding.Battles.Snapshot do
         Map.new(~w(path device inode), &{&1, Map.fetch!(arena, String.to_existing_atom(&1))}),
       "team_revision" => team.id,
       "team" => roles,
-      "tasks" => if(graph_valid?, do: ordered, else: tasks),
+      "tasks" => tasks,
       "check_revision" => checks.revision,
-      "checks" => checks.definition["checks"],
+      "checks" => planned["checks"],
       "limits" => @limits
     }
+
+    snapshot = Map.merge(snapshot, Map.drop(planned, ["checks"]))
 
     snapshot =
       if policy = GuestChecks.policy_for(snapshot["checks"]),
@@ -217,13 +227,18 @@ defmodule Cuckoding.Battles.Snapshot do
       "local_result_reference" => "refs/heads/ccoding/battles/" <> String.duplicate("a", 36)
     }
 
+    common =
+      if GuestChecks.policy_for(checks),
+        do: Map.put(common, "check_environment", GuestChecks.environment()),
+        else: common
+
     task_metadata =
       Map.merge(common, %{
         "review_findings" => String.duplicate("\n", 4000),
         "previous_implementation" => String.duplicate("\n", 4000)
       })
 
-    final = Enum.map(tasks, &Map.take(&1, ~w(id title criteria criteria_sha256)))
+    final = Enum.map(tasks, &Map.take(&1, ~w(id title criteria criteria_sha256 verification)))
     Enum.all?(tasks, &prompt_fits?(&1, task_metadata)) and prompt_fits?(final, common)
   end
 
@@ -256,7 +271,7 @@ defmodule Cuckoding.Battles.Snapshot do
     |> Map.merge(%{
       "id" => task.id,
       "revision" => task.revision,
-      "criteria_sha256" => digest(task.criteria)
+      "criteria_sha256" => TaskChecks.criteria_hash(task.criteria, task.verification)
     })
   end
 

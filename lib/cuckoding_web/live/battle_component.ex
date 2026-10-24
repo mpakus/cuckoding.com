@@ -261,6 +261,14 @@ defmodule CuckodingWeb.BattleComponent do
   defp message("mixed_check_grants"),
     do: "Keep npm/Mix checks separate from native system commands for this battle."
 
+  defp message("invalid_task_verification"),
+    do:
+      "Inspect the task's planned checks. Choose supported profiles, relative folders and bounded time limits."
+
+  defp message("check_scope_changed"),
+    do:
+      "This battle's frozen task checks are no longer supported. Stop after verified cleanup and start again."
+
   defp message("check_runtime_changed"),
     do:
       "This battle's frozen check runtime changed. Stop it after verified cleanup and start a new battle."
@@ -980,7 +988,7 @@ defmodule CuckodingWeb.BattleComponent do
               Up to {@preview.limits["tasks"]} tasks · {@preview.limits["review_rounds"]} review rounds per task · {div(
                 @preview.limits["wall_seconds"],
                 3600
-              )} hours {if @preview.checks != [], do: " · #{length(@preview.checks)} extra commands"}
+              )} hours
             </p>
           </div>
           <.form
@@ -1013,7 +1021,13 @@ defmodule CuckodingWeb.BattleComponent do
         </div>
         <div>
           <p :if={@preview.checks != []} id="battle-command-scope" class="fine-print">
-            Start also authorizes the {length(@preview.checks)} extra commands saved in Advanced.
+            <span :if={@preview.snapshot["task_verification"]} id="battle-planned-check-scope">
+              Start authorizes {length(@preview.checks)} saved checks from these tasks and any configured Arena checks.
+              Each task checks its own work and earlier integrated work; final checks cover the retained tasks.
+            </span>
+            <span :if={is_nil(@preview.snapshot["task_verification"])}>
+              Start also authorizes the {length(@preview.checks)} extra commands saved in Advanced.
+            </span>
             <span :if={GuestChecks.enabled?(@preview.snapshot)} id="battle-guest-scope">
               npm/Mix checks run offline in Linux. First use downloads verified toolchains;
               project dependencies are not downloaded. The original checkout stays intact.

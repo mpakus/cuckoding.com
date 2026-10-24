@@ -263,6 +263,7 @@ defmodule Cuckoding.Battles do
 
   defp claim_limit_reason(battle, now) do
     cond do
+      not Cuckoding.TaskChecks.current?(battle.snapshot) -> "check_scope_changed"
       not Cuckoding.GuestChecks.runtime_current?(battle.snapshot) -> "check_runtime_changed"
       expired?(battle.deadline_at, now) -> "deadline_exceeded"
       battle.turns_used >= battle.snapshot["limits"]["turns"] -> "turn_limit"
@@ -336,7 +337,14 @@ defmodule Cuckoding.Battles do
            Map.put(
              request,
              "guest_check_runs",
-             Map.new(battle.snapshot["checks"], &{&1["id"], Ecto.UUID.generate()})
+             Map.new(
+               Cuckoding.TaskChecks.scope(
+                 battle.snapshot,
+                 battle.current_task_id,
+                 battle.context
+               ),
+               &{&1["id"], Ecto.UUID.generate()}
+             )
            ),
          else: request
 
@@ -688,7 +696,8 @@ defmodule Cuckoding.Battles do
   end
 
   defp current_team?(battle) do
-    Cuckoding.GuestChecks.runtime_current?(battle.snapshot) and
+    Cuckoding.TaskChecks.current?(battle.snapshot) and
+      Cuckoding.GuestChecks.runtime_current?(battle.snapshot) and
       Enum.all?(Slots.bindings(battle.snapshot), fn role ->
         Foundation.verified_executable(role["agent_id"]) == {:ok, role["identity"]} and
           Foundation.task_binding_current?(role)
@@ -1941,6 +1950,18 @@ defmodule Cuckoding.Battles do
     task = current_task(battle)
     update(task, state: "completed", context: Map.merge(task.context, result_context(result)))
     context = Map.merge(battle.context, Map.take(result, ~w(head native_battle)))
+
+    context =
+      if battle.snapshot["task_verification"],
+        do:
+          Map.update(
+            context,
+            "integrated_task_ids",
+            [task.task_id],
+            &Enum.uniq(&1 ++ [task.task_id])
+          ),
+        else: context
+
     battle |> update(context: context) |> next_task()
   end
 
@@ -1997,7 +2018,9 @@ defmodule Cuckoding.Battles do
   end
 
   defp review_stage(battle, stage) when stage in ~w(checks final_checks) do
-    if Snapshot.task_review_only?(battle.snapshot),
+    task_id = if stage == "final_checks", do: nil, else: battle.current_task_id
+
+    if Cuckoding.TaskChecks.review_only?(battle.snapshot, task_id, battle.context),
       do: Stages.next(battle.snapshot, stage),
       else: stage
   end

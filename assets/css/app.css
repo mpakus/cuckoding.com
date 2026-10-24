@@ -76,7 +76,7 @@ code { display:block; overflow-wrap:anywhere; font-size:11px; }
 .notice { border:1px solid #c59761; padding:16px; margin-bottom:20px; }
 .codex-setup { margin-top:24px; }
 .codex-setup form { display:grid; gap:14px; }
-.codex-setup input[type=text], .codex-setup select, .role-fields input[type=text], .role-fields select, .role-fields textarea, .team-editor select, .team-editor textarea { width:100%; min-width:0; padding:12px; border:1px solid var(--input-border); border-radius:5px; background:var(--bg); color:var(--text); font:13px ui-monospace,monospace; }
+.codex-setup input[type=text], .codex-setup select, .role-fields input[type=text], .role-fields input[type=number], .role-fields select, .role-fields textarea, .team-editor select, .team-editor textarea { width:100%; min-width:0; padding:12px; border:1px solid var(--input-border); border-radius:5px; background:var(--bg); color:var(--text); font:13px ui-monospace,monospace; }
 .codex-setup label { font-size:13px; }
 .codex-setup .fine-print { margin:0; }
 .codex-setup .fine-print code { display:inline; }
@@ -131,7 +131,7 @@ code { display:block; overflow-wrap:anywhere; font-size:11px; }
   .panel-heading { align-items:flex-start; flex-direction:column; }
   .tool-status { font-size:10px; }
   .facts div { grid-template-columns:1fr; gap:4px; }
-  .codex-setup input[type=text], .codex-setup select, .role-fields input[type=text], .role-fields select, .role-fields textarea, .team-editor select, .team-editor textarea { font-size:16px; }
+  .codex-setup input[type=text], .codex-setup select, .role-fields input[type=text], .role-fields input[type=number], .role-fields select, .role-fields textarea, .team-editor select, .team-editor textarea { font-size:16px; }
   .role-binding { grid-template-columns:1fr; gap:4px; }
   .main-foot { padding-top:32px; }
 }

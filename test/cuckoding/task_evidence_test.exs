@@ -40,13 +40,33 @@ defmodule Cuckoding.TaskEvidenceTest do
       battle_id: newer.id,
       task_id: f.task.task_id,
       position: 0,
-      snapshot: %{"revision" => 2, "criteria" => "New frozen checks", "private" => "hidden"},
+      snapshot: %{
+        "revision" => 2,
+        "criteria" => "New frozen checks",
+        "private" => "hidden",
+        "verification" => [
+          %{
+            "profile" => "mix-test",
+            "directory" => "backend",
+            "timeout_seconds" => 60,
+            "private" => "hidden"
+          }
+        ]
+      },
       state: "skipped"
     })
 
     run = Evidence.run(f.arena.id, f.board.id, f.task.task_id)
     assert run.battle_id == newer.id
-    assert run.snapshot == %{"revision" => 2, "criteria" => "New frozen checks"}
+
+    assert run.snapshot == %{
+             "revision" => 2,
+             "criteria" => "New frozen checks",
+             "verification" => [
+               %{"profile" => "mix-test", "directory" => "backend", "timeout_seconds" => 60}
+             ]
+           }
+
     assert run.task_state == "skipped"
     older = Evidence.earlier(f.arena.id, f.board.id, f.task.task_id, run.battle_id)
     assert older.battle_id == f.battle.id

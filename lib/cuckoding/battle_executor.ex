@@ -496,21 +496,31 @@ defmodule Cuckoding.BattleExecutor do
       "speculator_plan" => if(writer_plan?(attempt), do: context["speculator_plan"]),
       "candidate_sha" => context["candidate_sha"] || context["head"],
       "host_checks" => context["checks"],
-      "declared_checks" => request["snapshot"]["checks"],
-      "command_check_scope" =>
-        if(Snapshot.task_review_only?(request["snapshot"]),
-          do: "not_configured",
-          else: "required"
-        ),
+      "declared_checks" => Cuckoding.TaskChecks.for_attempt(attempt),
+      "command_check_scope" => command_check_scope(attempt),
       "review_round" => request["review_round"],
       "local_result_reference" => request["context"]["native_battle"]["reference"]
     }
 
-    Jason.encode!(data)
+    data |> check_environment(request["snapshot"]) |> Jason.encode!()
+  end
+
+  defp command_check_scope(attempt) do
+    if Cuckoding.TaskChecks.review_only?(
+         attempt.request["snapshot"],
+         attempt.task_id,
+         attempt.request["context"]
+       ), do: "not_configured", else: "required"
+  end
+
+  defp check_environment(data, snapshot) do
+    if GuestChecks.enabled?(snapshot) and data["declared_checks"] != [],
+      do: Map.put(data, "check_environment", GuestChecks.environment()),
+      else: data
   end
 
   defp prompt_tasks(%{task_id: nil}, tasks),
-    do: Enum.map(tasks, &Map.take(&1, ~w(id title criteria criteria_sha256)))
+    do: Enum.map(tasks, &Map.take(&1, ~w(id title criteria criteria_sha256 verification)))
 
   defp prompt_tasks(attempt, _), do: attempt.request["task"]
 

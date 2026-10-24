@@ -8,12 +8,14 @@ defmodule CuckodingWeb.TabulaLive do
     Foundation,
     GitPreview,
     Tabulae,
+    TaskChecks,
     TeamAssignments,
     Workflows
   }
 
   alias CuckodingWeb.Layouts
   import CuckodingWeb.Dialog
+  import CuckodingWeb.VerificationComponents
   alias Phoenix.LiveView.JS
 
   @impl true
@@ -175,6 +177,31 @@ defmodule CuckodingWeb.TabulaLive do
   end
 
   def handle_event("change", params, socket), do: {:noreply, input(socket, params)}
+
+  def handle_event(event, params, socket)
+      when event in ~w(verification-add verification-remove) do
+    if params["key"] == socket.assigns.key and not is_nil(socket.assigns.board) and
+         not Battles.locked?(socket.assigns.board.id, socket.assigns.task_id) do
+      entries = socket.assigns.content["verification"] || []
+
+      entries =
+        case {event, params["index"]} do
+          {"verification-add", _} when length(entries) < 4 ->
+            entries ++ [%{"profile" => "", "directory" => ".", "timeout_seconds" => 60}]
+
+          {"verification-remove", index} when is_integer(index) and index in 0..3 ->
+            List.delete_at(entries, index)
+
+          _ ->
+            entries
+        end
+
+      content = Map.put(socket.assigns.content, "verification", entries)
+      {:noreply, assign(socket, content: content, dirty: content != socket.assigns.original)}
+    else
+      {:noreply, assign(socket, error: message("stale_form"))}
+    end
+  end
 
   def handle_event("save", params, socket) do
     socket = input(socket, params)
@@ -597,24 +624,43 @@ defmodule CuckodingWeb.TabulaLive do
     bounded = Enum.all?(content, fn {_, v} -> is_binary(v) and byte_size(v) <= 32_000 end)
     dependencies = Map.get(params, "depends_on", socket.assigns.content["depends_on"])
 
-    matches =
-      socket.assigns.board != nil and params["task_id"] == socket.assigns.task_id and
-        params["revision"] == to_string(socket.assigns.revision) and
-        params["tabula_id"] == socket.assigns.board.id
+    verification = verification_input(params)
 
-    if bounded && map_size(content) == 4 && bounded_dependencies?(dependencies) do
+    if bounded && map_size(content) == 4 && bounded_dependencies?(dependencies) &&
+         match?({:ok, _}, verification) do
       content = Map.put(content, "depends_on", List.delete(dependencies, ""))
+
+      content = merge_verification(content, verification, socket.assigns.content)
 
       assign(socket,
         content: content,
         dirty: content != socket.assigns.original,
-        form_matches: socket.assigns.form_matches && matches,
+        form_matches: socket.assigns.form_matches && form_matches?(socket, params),
         message: nil
       )
     else
       assign(socket, form_matches: false, error: message("invalid_task"))
     end
   end
+
+  defp verification_input(params) do
+    cond do
+      Map.has_key?(params, "verification") -> TaskChecks.form(params["verification"])
+      params["verification_present"] == "true" -> {:ok, []}
+      true -> {:ok, :preserve}
+    end
+  end
+
+  defp merge_verification(content, {:ok, :preserve}, previous),
+    do: Map.merge(content, Map.take(previous, ["verification"]))
+
+  defp merge_verification(content, {:ok, rows}, _), do: Map.put(content, "verification", rows)
+
+  defp form_matches?(socket, params),
+    do:
+      socket.assigns.board != nil and params["task_id"] == socket.assigns.task_id and
+        params["revision"] == to_string(socket.assigns.revision) and
+        params["tabula_id"] == socket.assigns.board.id
 
   defp bounded_dependencies?(ids) when is_list(ids),
     do: length(ids) <= 17 and Enum.all?(ids, &(is_binary(&1) and byte_size(&1) <= 36))
@@ -645,7 +691,7 @@ defmodule CuckodingWeb.TabulaLive do
 
   defp message("invalid_task"),
     do:
-      "Enter a title (1–120 characters), description (up to 8,000), criteria (up to 4,000) and up to 16 distinct prerequisites."
+      "Enter a title (1–120 characters), description (up to 8,000), criteria (up to 4,000) and up to 16 distinct prerequisites. Planned checks need supported profiles, relative folders and 1–300-second limits, with no duplicates."
 
   defp message("invalid_dependencies"),
     do: "Choose other tasks in this Tabula as prerequisites. Your draft is kept."
@@ -1271,6 +1317,7 @@ defmodule CuckodingWeb.TabulaLive do
             <textarea id="draft-description" name="description" rows="5" maxlength="8000">{@content["description"]}</textarea>
             <label for="draft-criteria">Acceptance criteria and checks</label>
             <textarea id="draft-criteria" name="criteria" rows="4" maxlength="4000">{@content["criteria"]}</textarea>
+            <.verification_editor content={@content} form_key={@key} />
             <label for="draft-column">Column</label>
             <select id="draft-column" name="column">
               <option value="specs" selected={@content["column"] == "specs"}>
@@ -1358,6 +1405,7 @@ defmodule CuckodingWeb.TabulaLive do
             <h4>{revision.content["title"]}</h4>
             <p class="draft-copy">{revision.content["description"]}</p>
             <p class="draft-copy">{revision.content["criteria"]}</p>
+            <.verification entries={Map.get(revision.content, "verification", [])} />
             <p class="fine-print">
               Prerequisites (current task names): {case Map.get(revision.content, "depends_on", []) do
                 [] -> "None"

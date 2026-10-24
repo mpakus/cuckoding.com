@@ -1,6 +1,7 @@
 defmodule CuckodingWeb.TaskEvidenceComponent do
   @moduledoc false
   use CuckodingWeb, :live_component
+  import CuckodingWeb.VerificationComponents
   alias Cuckoding.Battles.Evidence
 
   @impl true
@@ -122,6 +123,7 @@ defmodule CuckodingWeb.TaskEvidenceComponent do
           <summary>Frozen specification · revision {@run.snapshot["revision"]}</summary>
           <p class="draft-copy">{@run.snapshot["description"]}</p>
           <p class="draft-copy">{@run.snapshot["criteria"]}</p>
+          <.verification entries={Map.get(@run.snapshot, "verification", [])} />
           <p class="fine-print draft-copy">
             Criteria SHA-256: <code>{@run.snapshot["criteria_sha256"]}</code>
           </p>
