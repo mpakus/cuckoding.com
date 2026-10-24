@@ -749,3 +749,25 @@ never replay or inferred shutdown. Real dependencies/platforms, task-proposed to
 keeper recovery and provider/release acceptance remain separate. Unverified
 guest native attempts retain their global worker reservation; missing processes
 never release it.
+
+## D063 — Freeze planned check profiles with the task and Start
+
+2026-10-24, R050q. New brief-plan-v4 proposals include a closed verification list:
+fixed npm-test or mix-test profile, relative directory and timeout. The host owns
+literal executable/arguments and stable check identity. No arbitrary command,
+tool, install, shell or network capability comes from task text or a model field.
+Import profiles in the existing automatic-card transaction and edit them inside
+the task dialog; omitted fields on older drafts retain their exact prior meaning.
+
+One Start freezes those profiles, their task membership, optional configured
+Arena checks and the existing guest runtime grant. Each task runs its own profiles,
+profiles of already integrated tasks and all configured checks. Record integrated
+membership with the reviewed head transaction so combined candidates cannot drop
+earlier verification or run future tasks' checks early. Final checks include the retained task subset
+plus every configured check; explicit Skip never silently drops configured checks.
+Bind review to the original check attempt, exact scope/candidate and finite
+budgets. Older snapshots keep their original global check scope. Use an additive
+compatibility fence/backup before new records can be interpreted by older bundles.
+No extra setup page or routine per-task approval. Failure-output delivery,
+dependencies/platforms, native recovery and real-account/release acceptance stay
+separate, required work.
