@@ -107,7 +107,7 @@ fn main() {
         return;
     }
     if std::env::args().any(|arg| arg == "--smoke-test") {
-        if smoke().is_err() {
+        if smoke(args.iter().any(|arg| arg == "--wait-for-input")).is_err() {
             eprintln!("Cuckoding shell smoke test failed.");
             std::process::exit(1);
         }
@@ -198,21 +198,118 @@ fn data_root() -> Result<PathBuf, Box<dyn std::error::Error>> {
     Ok(PathBuf::from(home).join("Library/Application Support/CCoding Rebuild"))
 }
 
-fn smoke() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+type SmokeResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
+
+fn smoke(hold: bool) -> SmokeResult<()> {
     let release = PathBuf::from(std::env::var_os("CCODING_RELEASE_DIR").ok_or("release required")?);
     let root =
         PathBuf::from(std::env::var_os("CCODING_DATA_DIR").ok_or("data directory required")?);
-    let mut service = Service::launch(&release, &root, None)?;
+    let home = std::env::var("HOME").ok();
+    let mut service = Service::launch(&release, &root, if hold { home.as_deref() } else { None })?;
     service.heartbeat()?;
     service.smoke_browser()?;
     let url = service.open_url("/")?;
     if !url.starts_with(&format!("http://127.0.0.1:{}/open?token=", service.port)) {
         return Err("invalid open URL".into());
     }
+    let wait = if hold {
+        hold_smoke(&mut service)
+    } else {
+        Ok(())
+    };
     service.shutdown()?;
+    wait?;
     if std::net::TcpStream::connect(("127.0.0.1", service.port)).is_ok() {
         return Err("listener survived shutdown".into());
     }
     println!("PASS: bundled launch, bootstrap, browser cookie, handoff replay/origin refusal, heartbeat, graceful quit and listener cleanup");
     Ok(())
+}
+
+fn hold_smoke(service: &mut Service) -> SmokeResult<()> {
+    use std::io::{Read, Write};
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        if std::io::stdin().read(&mut [0]).is_ok() {
+            let _ = sender.send(());
+        }
+    });
+    writeln!(std::io::stdout(), "CCODING_SMOKE_HELD")?;
+    std::io::stdout().flush()?;
+    wait_smoke_controller(
+        receiver,
+        || service.heartbeat(),
+        Duration::from_secs(90),
+        Duration::from_secs(5),
+    )
+}
+
+fn wait_smoke_controller(
+    receiver: std::sync::mpsc::Receiver<()>,
+    mut heartbeat: impl FnMut() -> SmokeResult<()>,
+    limit: Duration,
+    interval: Duration,
+) -> SmokeResult<()> {
+    let deadline = std::time::Instant::now() + limit;
+    loop {
+        let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+        if remaining.is_zero() {
+            return Err("smoke controller timed out".into());
+        }
+        match receiver.recv_timeout(remaining.min(interval)) {
+            Ok(()) => return Ok(()),
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => heartbeat()?,
+            Err(_) => return Err("smoke controller unavailable".into()),
+        }
+    }
+}
+
+#[cfg(test)]
+mod smoke_tests {
+    use super::*;
+
+    #[test]
+    fn held_smoke_releases_on_input_and_heartbeats_without_authority() {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let mut calls = 0;
+        wait_smoke_controller(
+            receiver,
+            || {
+                calls += 1;
+                sender.send(())?;
+                Ok(())
+            },
+            Duration::from_secs(5),
+            Duration::from_millis(1),
+        )
+        .unwrap();
+        assert_eq!(calls, 1);
+    }
+
+    #[test]
+    fn held_smoke_refuses_timeout_controller_loss_and_heartbeat_failure() {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        assert!(
+            wait_smoke_controller(receiver, || Ok(()), Duration::ZERO, Duration::from_secs(5))
+                .is_err()
+        );
+        drop(sender);
+        let (sender, receiver) = std::sync::mpsc::channel();
+        drop(sender);
+        assert!(wait_smoke_controller(
+            receiver,
+            || Ok(()),
+            Duration::from_secs(5),
+            Duration::from_secs(5)
+        )
+        .is_err());
+        let (_sender, receiver) = std::sync::mpsc::channel();
+        assert!(wait_smoke_controller(
+            receiver,
+            || Err("fixture".into()),
+            Duration::from_secs(5),
+            Duration::from_millis(1)
+        )
+        .is_err());
+    }
 }

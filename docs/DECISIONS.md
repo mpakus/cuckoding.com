@@ -623,3 +623,21 @@ Phoenix retains five preparation identity fields; native `battle.json` also keep
 original request/intents and reject other status/extra-field mismatches. Native
 combination fixtures now use the real host shape, covering normal combination,
 verification/consumers and recovery together.
+
+## D055 — Hold only the existing smoke lifecycle for packaged recovery checks
+
+2026-10-23, R100d. An explicit `--smoke-test --wait-for-input` option keeps the
+existing owned native Service alive for at most ninety seconds, with ordinary
+five-second heartbeats. Emit one fixed nonsecret readiness marker. Input or EOF
+releases it to normal shutdown; timeout/error also closes the owned service.
+The pipe carries no URL/token, workflow command, fake-provider control or data.
+Ordinary smoke and tray behavior retain their protocols.
+
+A separate test-only fixture generator creates a fresh marked private workspace,
+uses actual native Git operations, and records explicitly synthetic provider
+replies before leaving one unsettled native claim. Its scope/empty-root guards
+refuse existing/default user data; it is absent from production release paths.
+The packaged app uses its normal boot, ownership and supervised recovery with
+no grant override. Read durable public metadata for proof, then close the pipe.
+This verifies that checkpoint boundary, not real providers, full recovery or
+physical sleep; existing gates and no-publication scope remain unchanged.
