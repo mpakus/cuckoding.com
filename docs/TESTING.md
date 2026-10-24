@@ -1,5 +1,19 @@
 # Verification and acceptance
 
+R100d adds `rtk proxy python3 test/packaged_recovery_smoke.py` after a sealed
+`bin/dev.build`. It creates only fresh private synthetic inputs, using actual
+native Git plus source-only provider replies, and launches normal packaged
+startup/OTP recovery. Assert a complete combination pauses before fresh review,
+while missing proof remains attention; preserve Interrupted attempts, exact
+requests/criteria/bindings, budgets/deadline, reviewed head, source/index and native
+proof. No new provider claim, native replay or missing receipt reconstruction is
+allowed. Input, EOF and the actual ninety-second timeout must close the owned
+backend and release the workspace lock. A second packaged boot of each fixture
+must preserve its checkpoint without automatic Resume or new claims. Populated
+and linked fixture roots refuse before writes. Native unit tests also cover
+heartbeat failure and controller loss. Logs/fixtures remain private and retained. This
+does not prove real-provider, physical sleep or full recovery acceptance.
+
 R060s covers exact complete retained combination recovery, repeated read/no replay,
 unchanged source/index/receipts, foreign/partial/linked/tampered/stale proof,
 fixed native budget/cancellation and missing-policy isolation. Host tests cover

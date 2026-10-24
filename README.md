@@ -51,6 +51,10 @@ Restart can inspect a complete retained combined candidate and pause for Resume,
 fresh configured checks and independent review. It never recombines or recreates
 missing proof; broader recovery and real-account acceptance remain open.
 This also fixes a format mismatch that prevented parallel results from combining.
+The repeatable packaged recovery check uses fresh synthetic workspaces and real
+native Git operations. It verifies the normal app's restart checkpoint and
+missing-proof refusal without provider calls; this is separate from real-account
+battle acceptance. See [packaged recovery checks](docs/TESTING.md).
 Before upgrading a recognized existing schema, startup verifies a private
 database copy and retains its dated receipt. Settings → Database copy details
 shows its location and recorded hash. Failed copies stop migration. Provider

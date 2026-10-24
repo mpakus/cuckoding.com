@@ -756,6 +756,11 @@ Depends on every previous slice.
   immutable receipt and dated Settings metadata. Fresh/current startup remains
   fast and failed copies refuse migration. Full restore/import/update and physical
   power-loss acceptance stay separate. [Task/evidence](../tasks/R100c-upgrade-backups.md).
+- [x] R100d repeatable sealed-app interrupted-combination checkpoint proof, using
+  fresh synthetic workspaces with actual native Git and normal startup/OTP recovery.
+  Preserve history/budgets/source and refuse missing proof/replay; verify bounded
+  input/EOF/timeout lifecycle cleanup. Real-account and complete recovery gates
+  remain separate. [Task/evidence](../tasks/R100d-packaged-recovery-proof.md).
 - [ ] Clean-machine install/launch/quit and login persistence; document provider
   prerequisites separately.
 - [ ] Prior-data backup/import or safe explicit separate-data behavior; verify

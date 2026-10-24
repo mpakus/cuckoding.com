@@ -484,6 +484,23 @@ The test DB is `.ccoding/test/foundation.db`; tests use rollback isolation.
 The smoke test creates a new private temporary root, checks the packaged native
 shell/release protocol and Quit, and prints its retained data location.
 
+For packaged recovery verification, run `rtk proxy python3
+test/packaged_recovery_smoke.py` after `bin/dev.build`, with the pinned Elixir/OTP
+toolchain on PATH. It accepts no user data-root argument. Its test-only source
+builder uses fresh marked private folders, synthetic role replies and real native
+Git operations; no provider account, profile copy or inference is used. Normal
+packaged boot then inspects an interrupted combination. A second fresh fixture
+removes its retained receipt and must remain in attention without recreating it.
+Private logs/fixtures are retained and `.ccoding/packaged-recovery-smoke.json`
+records the public assertions. This is local synthetic evidence, not release or
+real-account recovery acceptance.
+
+The harness uses `--smoke-test --wait-for-input` to keep the normal owned Service
+alive for at most ninety seconds with five-second heartbeats. Its pipe emits only
+`CCODING_SMOKE_HELD`; input or EOF requests normal shutdown. Timeout or heartbeat
+failure also shuts down. It carries no session token, URL or workflow action;
+ordinary `bin/smoke` behavior is unchanged.
+
 ## Working procedure
 
 1. Read [AGENTS](../AGENTS.md), the core contracts and one selected plan slice.

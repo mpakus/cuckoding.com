@@ -802,6 +802,14 @@ partial as proof, automatically restore/downgrade or overwrite newer facts.
 Settings reads only bounded fixed-pointer metadata and makes no fresh integrity
 claim. Full update/restore, uncertain mutation and physical power-loss gates remain.
 
+R100d adds only a bounded held smoke lifecycle for packaged recovery verification.
+Keep normal startup/bootstrap/session/heartbeat/shutdown and exclusive storage
+ownership; the pipe exposes a fixed readiness marker and accepts release only,
+with a ninety-second ceiling. Synthetic fixture generation stays test-only and
+refuses existing/default roots; never add a production provider/grant override.
+Actual packaged checkpoint proof is distinct from real-account, complete recovery,
+physical sleep and release acceptance. Preserve missing-proof refusal and history.
+
 ## UI
 
 For source UI development use `rtk proxy bin/dev.server` after building the native

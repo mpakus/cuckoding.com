@@ -1,5 +1,13 @@
 # Architecture
 
+R100d's optional held smoke mode extends only the existing native Service
+lifecycle, with fixed readiness, normal heartbeats and bounded release/shutdown.
+The source-only synthetic fixture builder leaves an unsettled native claim in a
+fresh private workspace. The sealed release runs its unchanged production OTP
+recovery; SQLite observations establish the result. No fake provider, workflow
+command or grant override is added to the release.
+[Decision](DECISIONS.md#d055--hold-only-the-existing-smoke-lifecycle-for-packaged-recovery-checks).
+
 R060s extends `Battles.CandidateRecovery` only under the new combination policy:
 one exact interrupted combination uses the existing exclusive supervised queue.
 `BattleExecutor` calls the fixed native retained read, which reuses combined-tree
