@@ -56,6 +56,12 @@ fn spec() -> String {
             include_bytes!("check_image/archive.rs"),
             include_bytes!("check_image/store.rs"),
             include_bytes!("check_image.rs"),
+            include_bytes!("arena_git/guest_check.rs"),
+            include_bytes!("arena_git.rs"),
+            include_bytes!("probe.rs"),
+            include_bytes!("../keeper/main.swift"),
+            include_bytes!("../keeper/entitlements.plist"),
+            include_bytes!("../build.rs"),
         ]
         .concat()
         .as_slice(),

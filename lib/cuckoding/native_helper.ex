@@ -10,10 +10,12 @@ defmodule Cuckoding.NativeHelper do
 
     try do
       active? = Keyword.get(options, :active?, fn -> Foundation.probe_active?(command) end)
+      grace = Keyword.get(options, :cancel_grace, 5_000)
+      true = grace in [5_000, 15_000]
 
       result =
         if active?.(),
-          do: run(active?, args, started + timeout, decode, limit, options[:input]),
+          do: run(active?, args, {started + timeout, grace}, decode, limit, options[:input]),
           else: %{"status" => "cancelled", "cleanup_verified" => true}
 
       Map.put(result, "elapsed_ms", System.monotonic_time(:millisecond) - started)
@@ -22,7 +24,7 @@ defmodule Cuckoding.NativeHelper do
     end
   end
 
-  defp run(active?, args, deadline, decode, limit, input) do
+  defp run(active?, args, {_, grace} = budget, decode, limit, input) do
     helper = Application.fetch_env!(:cuckoding, :native_helper)
     {:ok, _} = Cuckoding.Codex.executable(helper)
     root = Application.fetch_env!(:cuckoding, :data_dir)
@@ -53,9 +55,9 @@ defmodule Cuckoding.NativeHelper do
     try do
       if active?.() do
         if input, do: Port.command(port, input <> "\n")
-        collect(port, active?, deadline, decode, limit, "")
+        collect(port, active?, budget, decode, limit, "")
       else
-        cancel(port, decode, limit, "")
+        cancel(port, decode, limit, "", grace)
       end
     after
       if Port.info(port), do: Port.close(port)
@@ -70,21 +72,21 @@ defmodule Cuckoding.NativeHelper do
     _ -> %{"status" => "unavailable"}
   end
 
-  defp collect(port, active?, deadline, decode, limit, bytes) do
+  defp collect(port, active?, {deadline, grace} = budget, decode, limit, bytes) do
     cond do
       not active?.() ->
-        cancel(port, decode, limit, bytes)
+        cancel(port, decode, limit, bytes, grace)
 
       System.monotonic_time(:millisecond) > deadline ->
-        halt(port, "timeout", decode, limit, bytes)
+        halt(port, "timeout", decode, limit, bytes, grace)
 
       byte_size(bytes) > limit ->
-        halt(port, "unavailable", decode, limit, bytes)
+        halt(port, "unavailable", decode, limit, bytes, grace)
 
       true ->
         receive do
           {^port, {:data, chunk}} ->
-            collect(port, active?, deadline, decode, limit, bytes <> chunk)
+            collect(port, active?, budget, decode, limit, bytes <> chunk)
 
           {^port, {:exit_status, 0}} ->
             decode.(bytes)
@@ -95,13 +97,13 @@ defmodule Cuckoding.NativeHelper do
           {:EXIT, ^port, _} ->
             %{"status" => "cleanup_uncertain"}
         after
-          100 -> collect(port, active?, deadline, decode, limit, bytes)
+          100 -> collect(port, active?, budget, decode, limit, bytes)
         end
     end
   end
 
-  defp halt(port, status, decode, limit, bytes) do
-    case cancel(port, decode, limit, bytes) do
+  defp halt(port, status, decode, limit, bytes, grace) do
+    case cancel(port, decode, limit, bytes, grace) do
       %{"status" => "cancelled", "cleanup_verified" => true} = result ->
         Map.put(result, "status", status)
 
@@ -110,9 +112,9 @@ defmodule Cuckoding.NativeHelper do
     end
   end
 
-  defp cancel(port, decode, limit, bytes) do
+  defp cancel(port, decode, limit, bytes, grace) do
     Port.command(port, "\n")
-    wait_for_exit(port, System.monotonic_time(:millisecond) + 5_000, decode, limit, bytes)
+    wait_for_exit(port, System.monotonic_time(:millisecond) + grace, decode, limit, bytes)
   rescue
     ArgumentError -> %{"status" => "cleanup_uncertain"}
   end

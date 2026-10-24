@@ -162,3 +162,17 @@ fn vm_closure_is_exact_retained_scope_not_process_absence_or_worker_success() {
     )
     .is_err());
 }
+
+#[test]
+fn literal_check_binding_is_length_framed_and_matches_the_host() {
+    let check = json!({"request_id":"a", "check_id":"b", "input_key":"c", "candidate_sha":"d",
+      "manifest_sha256":"e", "image_spec_sha256":"f", "toolchain":"npm", "directory":"sub/路径",
+      "arguments":["test", "a b", "quote\"", "slash/"], "timeout_seconds":30});
+    assert_eq!(
+        binding(&check),
+        "11feff7b81335be7e814162c5812827bfdd56d341eda2de195ae92031ab66f55"
+    );
+    let mut changed = check.clone();
+    changed["arguments"][0] = json!("different");
+    assert_ne!(binding(&changed), binding(&check));
+}

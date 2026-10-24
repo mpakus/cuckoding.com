@@ -726,3 +726,26 @@ also verifies owned helper cleanup and the exact retained closure; process loss
 without that proof is uncertainty, never success. Hard keeper death/physical
 sleep remain recovery gates. The native primitive does not grant execution to
 historical or current Starts; frozen supervised OTP integration follows.
+
+## D062 — Admit isolated checks through the existing Arena worker
+
+2026-10-24, R050p. New Starts with an entirely npm/Mix declared check scope freeze
+a separate image/check policy. Derive the image specification at compilation from
+the same exact native image, VM owner, process-group and build inputs; refuse
+drift instead of using another image/runtime. An older helper cannot admit the
+new check grant before paid role turns.
+The existing admission worker may prepare a single-use image or verify an exact
+previous completed admission receipt. Never infer this authority from task text.
+Start displays the fixed first-use upstream download and offline guest scope; no
+second setup action is required. Historical system checks keep their original
+Codex sandbox grant, and mixed grants refuse rather than switch silently.
+
+Execute capsule/VM operations in the existing owned Task.Supervisor worker and
+bounded Port, preserving original stage/battle deadlines and cleanup uncertainty.
+Bind public receipts to attempt, candidate, capsule, image and literal check;
+independent review still owns completion. An additive schema fence/index prevents
+older bundles from interpreting the new grants. Interrupted checks require attention,
+never replay or inferred shutdown. Real dependencies/platforms, task-proposed tools,
+keeper recovery and provider/release acceptance remain separate. Unverified
+guest native attempts retain their global worker reservation; missing processes
+never release it.

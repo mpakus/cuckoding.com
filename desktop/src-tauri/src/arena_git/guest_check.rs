@@ -78,6 +78,35 @@ fn validate(request: &Value) -> Result<(&str, u64)> {
     }
     Ok((key, deadline))
 }
+fn binding(check: &Value) -> String {
+    let mut bytes = Vec::new();
+    let mut field = |value: &str| {
+        bytes.extend((value.len() as u32).to_be_bytes());
+        bytes.extend(value.as_bytes());
+    };
+    for key in [
+        "request_id",
+        "check_id",
+        "input_key",
+        "candidate_sha",
+        "manifest_sha256",
+        "image_spec_sha256",
+        "toolchain",
+        "directory",
+    ] {
+        field(check[key].as_str().unwrap());
+    }
+    let arguments = check["arguments"].as_array().unwrap();
+    bytes.extend((arguments.len() as u32).to_be_bytes());
+    for value in arguments {
+        let text = value.as_str().unwrap();
+        bytes.extend((text.len() as u32).to_be_bytes());
+        bytes.extend(text.as_bytes());
+    }
+    bytes.extend(check["timeout_seconds"].as_u64().unwrap().to_be_bytes());
+    initial::digest(&bytes)
+}
+
 fn config_archive(bytes: &[u8]) -> Vec<u8> {
     let mut result = Vec::new();
     for (index, (name, mode, data)) in [
@@ -238,7 +267,7 @@ pub(super) fn run(git: &Git<'_>, extra: &str, device: u64, inode: u64) -> Result
             return Ok(
                 json!({"contract":CONTRACT,"key":key,"request_id":request["check"]["request_id"],
             "check_id":request["check"]["check_id"],"input_key":request["check"]["input_key"],
-            "candidate_sha":request["check"]["candidate_sha"],"status":status,"native_started":false,"cleanup_verified":false}),
+            "candidate_sha":request["check"]["candidate_sha"],"check_sha256":binding(&request["check"]),"status":status,"native_started":false,"cleanup_verified":false}),
             )
         }
     };
@@ -266,7 +295,7 @@ pub(super) fn run(git: &Git<'_>, extra: &str, device: u64, inode: u64) -> Result
                     .is_ok_and(|bytes| bytes == admission.as_bytes());
             let mut row = json!({"contract":CONTRACT,"key":key,"request_id":request["check"]["request_id"],
             "check_id":request["check"]["check_id"],"input_key":request["check"]["input_key"],
-            "candidate_sha":request["check"]["candidate_sha"],"status":status,"native_started":launched,
+            "candidate_sha":request["check"]["candidate_sha"],"check_sha256":binding(&request["check"]),"status":status,"native_started":launched,
             "admission_sha256":initial::digest(admission.as_bytes()),"cleanup_verified":clean});
             if store
                 .write("receipt.json", row.to_string().as_bytes())
@@ -447,6 +476,7 @@ fn execute(
         if let Some(status) = reason {
             row["status"] = json!(status);
         }
+        row["check_sha256"] = json!(binding(check));
         row["cleanup_verified"] = json!(true);
         Ok(row)
     })();
@@ -458,7 +488,7 @@ fn execute(
         }
         Err(_) => Ok(
             json!({"contract":CONTRACT,"key":key,"request_id":check["request_id"],"check_id":check["check_id"],
-            "input_key":check["input_key"],"candidate_sha":check["candidate_sha"],"status":"cleanup_uncertain","cleanup_verified":false}),
+            "input_key":check["input_key"],"candidate_sha":check["candidate_sha"],"check_sha256":binding(check),"status":"cleanup_uncertain","cleanup_verified":false}),
         ),
     }
 }

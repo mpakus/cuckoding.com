@@ -56,6 +56,31 @@ defmodule Cuckoding.NativeHelperTest do
              NativeHelper.request(nil, [], 1_000, &Jason.decode!/1, 8192, active?: active)
   end
 
+  test "the guest cancellation budget waits for its bounded native shutdown acknowledgement", %{
+    path: path
+  } do
+    python = System.find_executable("python3")
+    assert is_binary(python)
+
+    File.write!(
+      path,
+      "#!#{python}\nimport sys,time\nsys.stdin.readline()\ntime.sleep(5.2)\nprint('{\"status\":\"cancelled\",\"cleanup_verified\":true}',flush=True)\n"
+    )
+
+    File.chmod!(path, 0o700)
+    counter = :atomics.new(1, [])
+    active = fn -> :atomics.add_get(counter, 1, 1) < 3 end
+    began = System.monotonic_time(:millisecond)
+
+    assert %{"status" => "cancelled", "cleanup_verified" => true} =
+             NativeHelper.request(nil, [], 1_000, &Jason.decode!/1, 8192,
+               active?: active,
+               cancel_grace: 15_000
+             )
+
+    assert System.monotonic_time(:millisecond) - began >= 5_000
+  end
+
   test "provider normalization cannot promote false or malformed closure on cancellation", %{
     path: path
   } do
