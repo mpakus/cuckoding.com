@@ -16,7 +16,8 @@ final class Probe: NSObject, @preconcurrency VZVirtualMachineDelegate {
         self.mode = mode
         let boot = VZLinuxBootLoader(kernelURL: root.appendingPathComponent("kernel"))
         boot.initialRamdiskURL = root.appendingPathComponent("probe.cpio.gz")
-        boot.commandLine = "console=hvc0 rdinit=/init panic=5 quiet"
+        boot.commandLine = "console=hvc0 rdinit=/init panic=5 quiet" +
+            (mode == "watchdog_memory" ? " cc_probe=memory" : "")
         let config = VZVirtualMachineConfiguration()
         config.platform = VZGenericPlatformConfiguration()
         config.cpuCount = 2
@@ -48,7 +49,9 @@ final class Probe: NSObject, @preconcurrency VZVirtualMachineDelegate {
                     let bytes = handle.availableData
                     handle.readabilityHandler = nil
                     Task { @MainActor in
-                        if self.mode == "paused" {
+                        if self.mode.hasPrefix("watchdog_") {
+                            self.emit(["event": "controller_lost", "guest_watchdog": true])
+                        } else if self.mode == "paused" {
                             self.machine.pause { result in
                                 switch result {
                                 case .success:
@@ -78,20 +81,25 @@ final class Probe: NSObject, @preconcurrency VZVirtualMachineDelegate {
         }
         machine.stop { error in
             if let error { self.fail(error) }
-            guard self.machine.state == .stopped else { exit(3) }
-            let value: [String: Any] = ["event": "stopped", "state": self.machine.state.rawValue,
-                                       "reason": reason, "elapsed": "\(self.began.duration(to: .now))"]
-            do {
-                let data = try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])
-                try data.write(to: self.root.appendingPathComponent("stop-\(self.mode).json"), options: .withoutOverwriting)
-                self.emit(value)
-                exit(0)
-            } catch { self.fail(error) }
+            self.recordStop(reason: reason)
         }
+    }
+
+    func recordStop(reason: String) {
+        guard machine.state == .stopped else { exit(3) }
+        let value: [String: Any] = ["event": "stopped", "state": machine.state.rawValue,
+                                   "reason": reason, "elapsed": "\(began.duration(to: .now))"]
+        do {
+            let data = try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])
+            try data.write(to: root.appendingPathComponent("stop-\(mode).json"), options: .withoutOverwriting)
+            emit(value)
+            exit(0)
+        } catch { fail(error) }
     }
 
     func guestDidStop(_ virtualMachine: VZVirtualMachine) {
         emit(["event": "guest_stopped", "state": virtualMachine.state.rawValue])
+        if mode.hasPrefix("watchdog_") && !stopping { recordStop(reason: "guest_shutdown") }
         if !stopping { exit(4) }
     }
 
@@ -118,10 +126,11 @@ func canonicalPath(_ path: String) -> String? {
 }
 
 let arguments = CommandLine.arguments
-guard arguments.count == 3, ["input", "eof", "deadline", "paused", "owner_loss"].contains(arguments[2]) else { exit(64) }
+guard arguments.count == 3, ["input", "eof", "deadline", "paused", "owner_loss", "watchdog_pids",
+    "watchdog_memory", "watchdog_eof", "watchdog_owner_loss"].contains(arguments[2]) else { exit(64) }
 let root = URL(fileURLWithPath: arguments[1], isDirectory: true)
 guard canonicalPath(arguments[1]) == arguments[1], root.deletingLastPathComponent().path == "/private/tmp",
-      root.lastPathComponent.hasPrefix("cuckoding-r050j-"),
+      ["cuckoding-r050j-", "cuckoding-r050k-"].contains(where: root.lastPathComponent.hasPrefix),
       root.path == arguments[1] else { exit(65) }
 guard VZVirtualMachine.isSupported else { exit(66) }
 do {

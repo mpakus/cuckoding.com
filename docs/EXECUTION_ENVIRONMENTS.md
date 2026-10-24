@@ -108,6 +108,18 @@ are trusted probes, not untrusted workload/watchdog enforcement. The shipping
 application has no new entitlement, guest, provider or toolchain grant.
 See [R050j evidence](../worklog/2026-10-23-R050j-guest-lifetime-prototype.md).
 
+R050k's opt-in `--watchdog` variant keeps root PID1 outside a nondelegated worker
+cgroup. UID1000 workers use no-new-privileges, zero effective/permitted/ambient
+capabilities and fixed 32-PID/64-MiB/half-core limits. Fixed probes observe denied
+watchdog signalling, limit changes and migration; session-changing descendants
+remain inside the group. PID refusal, CPU throttling and group OOM are observed.
+The guest deadline uses kernel group kill and requires zero live members before
+poweroff. Native guest shutdown is recorded separately by the surviving keeper.
+Client loss reaches that boundary; keeper death still has no verified receipt.
+Guest output remains diagnostic. This is not production toolchain/control-
+transport integration or full arbitrary-workload/recovery acceptance.
+[Decision](DECISIONS.md#d057--protect-the-guest-watchdog-separately-from-workload-resources).
+
 The target Arena exposes one **Start** action. Ordinary owned worktree creation,
 fresh inspection and stage dispatch belong to that bounded battle authority;
 users should not prepare every checkout manually. Current preparation/inspection

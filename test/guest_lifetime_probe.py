@@ -15,14 +15,17 @@ import shutil
 import stat
 import struct
 import subprocess
+import sys
 import tempfile
 import time
 
 project = Path(__file__).resolve().parent.parent
+assert sys.argv[1:] in ([], ['--watchdog'])
+watchdog = bool(sys.argv[1:])
 assert os.uname().sysname == 'Darwin' and os.uname().machine == 'arm64'
 assert shutil.disk_usage('/private/tmp').free >= 2 * 1024**3
 os.umask(0o077)
-root = Path(tempfile.mkdtemp(prefix='cuckoding-r050j-', dir='/private/tmp'))
+root = Path(tempfile.mkdtemp(prefix='cuckoding-r050k-' if watchdog else 'cuckoding-r050j-', dir='/private/tmp'))
 assert root.resolve() == root
 root.chmod(0o700)
 environment = {'HOME': str(root), 'TMPDIR': str(root), 'PATH': '/usr/bin:/bin:/usr/sbin:/sbin',
@@ -87,6 +90,11 @@ entries = [(name, stat.S_IFDIR | 0o755, b'') for name in ('bin', 'lib', 'dev', '
 entries += [(name, stat.S_IFREG | 0o755, data) for name, data in files.items()]
 entries += [('bin/sh', stat.S_IFLNK | 0o777, b'busybox'), ('init', stat.S_IFREG | 0o755, init),
             ('child', stat.S_IFREG | 0o755, child_script), ('TRAILER!!!', stat.S_IFREG, b'')]
+if watchdog:
+    from support import guest_watchdog
+    entries = [entry for entry in entries if entry[0] not in ('init', 'TRAILER!!!')]
+    entries += [('init', stat.S_IFREG | 0o555, guest_watchdog.init), *guest_watchdog.files,
+                ('TRAILER!!!', stat.S_IFREG, b'')]
 cpio = bytearray()
 for inode, (name, mode, data) in enumerate(entries, 1):
     encoded = name.encode() + b'\0'
@@ -120,7 +128,7 @@ def observe(mode):
     selector = selectors.DefaultSelector()
     selector.register(child.stdout, selectors.EVENT_READ)
     began = time.monotonic()
-    records, groups, ticks = [], {}, set()
+    records, groups, ticks, lines = [], {}, set(), []
     total, released, eof = 0, False, False
     try:
         with (root / ('mode-' + mode + '.log')).open('xb') as output:
@@ -135,6 +143,7 @@ def observe(mode):
                 assert len(line) <= 4096 and total <= 131072
                 output.write(line)
                 output.flush()
+                lines.append(line)
                 if line.startswith(b'HOST '):
                     records.append(json.loads(line[5:]))
                 if line.startswith(b'GUEST_CHILD '):
@@ -142,12 +151,14 @@ def observe(mode):
                     groups[parts[1]] = {k: int(v) for k, v in (field.split('=') for field in parts[2:])}
                 if line.rstrip(b'\r\n') in (b'GUEST_TICK A 1', b'GUEST_TICK B 1'):
                     ticks.add(line.split()[1].decode())
-                if ticks == {'A', 'B'} and mode != 'deadline' and not released:
-                    if mode == 'owner_loss':
+                ready = line.rstrip(b'\r\n') == b'WORKER_READY' if watchdog else ticks == {'A', 'B'}
+                release = mode in ('watchdog_eof', 'watchdog_owner_loss') if watchdog else mode != 'deadline'
+                if ready and release and not released:
+                    if mode in ('owner_loss', 'watchdog_owner_loss'):
                         # The owned leader is still unreaped; this cannot target a reused PID.
                         assert child.poll() is None
                         child.terminate()
-                    elif mode == 'eof':
+                    elif mode in ('eof', 'watchdog_eof'):
                         child.stdin.close()
                     else:
                         child.stdin.write(b'x')
@@ -162,34 +173,41 @@ def observe(mode):
             child.wait(timeout=45)
         selector.close()
         child.stdout.close()
-    assert ticks == {'A', 'B'} and set(groups) == {'A', 'B'}
-    assert all(value['pid'] == value['pgrp'] == value['session'] and value['ppid'] == 1
-               for value in groups.values())
-    assert groups['A']['session'] != groups['B']['session']
+    if watchdog:
+        guest_watchdog.verify(lines, mode)
+    else:
+        assert ticks == {'A', 'B'} and set(groups) == {'A', 'B'}
+        assert all(value['pid'] == value['pgrp'] == value['session'] and value['ppid'] == 1
+                   for value in groups.values())
+        assert groups['A']['session'] != groups['B']['session']
     receipt_path = root / ('stop-' + mode + '.json')
-    if mode == 'owner_loss':
+    if mode in ('owner_loss', 'watchdog_owner_loss'):
         assert child.returncode == -15 and not receipt_path.exists()
         verified = False  # EOF/owner absence is not VM cleanup proof.
     else:
         assert child.returncode == 0
         receipt = json.loads(receipt_path.read_bytes())
-        reason = {'input': 'controller_input', 'eof': 'controller_eof', 'deadline': 'deadline',
-                  'paused': 'paused_controller'}[mode]
+        reason = 'guest_shutdown' if watchdog else {'input': 'controller_input', 'eof': 'controller_eof',
+                                                   'deadline': 'deadline', 'paused': 'paused_controller'}[mode]
         assert receipt['state'] == 0 and receipt['reason'] == reason
         assert any(row.get('event') == 'stopped' and row.get('state') == 0 for row in records)
         if mode == 'paused':
             assert any(row.get('event') == 'paused' and row.get('state') == 2 for row in records)
+        if mode == 'watchdog_eof':
+            assert any(row.get('event') == 'controller_lost' for row in records)
         if mode == 'deadline':
             assert time.monotonic() - began >= 9
         verified = True
     result = {'mode': mode, 'seconds': round(time.monotonic() - began, 3),
-              'isolated_guest_sessions': True, 'native_stopped_observed': verified,
-              'missing_receipt_is_unverified': mode == 'owner_loss'}
+              'protected_watchdog': watchdog, 'native_stopped_observed': verified,
+              'missing_receipt_is_unverified': mode in ('owner_loss', 'watchdog_owner_loss')}
     print(json.dumps(result), flush=True)
     return result
 
 
-outcomes = [observe(mode) for mode in ('input', 'eof', 'deadline', 'paused', 'owner_loss')]
+modes = ('watchdog_pids', 'watchdog_memory', 'watchdog_eof', 'watchdog_owner_loss') if watchdog else (
+    'input', 'eof', 'deadline', 'paused', 'owner_loss')
+outcomes = [observe(mode) for mode in modes]
 result = {'fixture_root': str(root), 'inputs': inputs, 'cpus': 2, 'memory_mib': 512,
           'network': False, 'host_shares': False, 'shipping_grant_changed': False,
           'outcomes': outcomes, 'owner_loss_cleanup_authority': False,

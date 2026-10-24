@@ -61,6 +61,15 @@ compilation, canonical-path/mode refusal, Address Sanitizer path check and an
 inverted-Stopped-gate mutation cover the probe. Retain logs/inputs/public evidence;
 never count this as actual toolchain or full recovery acceptance.
 
+Run `rtk proxy python3 -B test/guest_lifetime_probe.py --watchdog` for R050k's
+four protected-worker cases. Require UID/GID1000, no-new-privileges, zero active
+capabilities, exact nondelegated membership/limits, denied root signalling and
+policy/migration, session containment, PID cap, CPU throttling, OOM group cleanup
+and zero live members before guest shutdown. EOF while the keeper lives reaches
+the independent guest deadline; hard keeper loss remains unverified. The original
+five cases must also pass. A root-worker mutation must fail even if native VM
+shutdown succeeds. All use fresh private fixtures and unchanged shipping grants.
+
 R020s admits exact Codex 0.163.0-alpha.11.2 after signed-binary/offline schema,
 fresh-profile setup/login-start/cancel, task/no-tools policy/thread preflight and
 actual two-workspace/single-process OS canaries. No browser, sign-in, inference or

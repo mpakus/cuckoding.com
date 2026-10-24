@@ -207,6 +207,9 @@ A separate disposable VM prototype verifies normal stop, controller loss and
 deadline handling for isolated guest sessions. Abrupt owner loss still lacks
 verified cleanup; it does not enable Mix/npm or change Start permissions.
 [Prototype evidence](tasks/R050j-guest-lifetime-prototype.md).
+The protected-worker probe also verifies non-root/no-new-privileges execution,
+PID/memory/CPU limits and an independent guest watchdog. These remain research
+checks; actual toolchain integration is pending. [Evidence](tasks/R050k-protected-guest-watchdog.md).
 **Pause** finishes the current stage and saves its result before holding the next
 stage. **Resume** keeps the same team, work and limits; paused time counts toward
 the original deadline. Clean paused battles survive restart. **Stop** cancels

@@ -653,3 +653,14 @@ The prototype adds no production dependency, entitlement, runtime tool or grant.
 It does not select a shipping guest/installer, establish helper-death recovery or
 enable Mix/npm. Those decisions require concrete lifetime, worktree/toolchain,
 licensing, packaging, cleanup and acceptance evidence first.
+
+## D057 — Protect the guest watchdog separately from workload resources
+
+2026-10-23, R050k. Extend only the opt-in disposable prototype: root PID1 owns
+the watchdog outside a nondelegated cgroup; workers drop to a distinct UID with
+no-new-privileges and finite PID/memory/CPU limits. Exercise fixed adverse
+workloads and kernel group-kill/populated observations, then native guest shutdown.
+Client EOF while the keeper lives and abrupt keeper loss are separate cases.
+Missing native stop proof stays unverified. Guest output is diagnostic evidence,
+never workflow authority. No shipping grant, runtime entitlement, guest transport,
+toolchain support or recovery privilege is established by this research slice.

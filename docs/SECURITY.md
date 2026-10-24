@@ -71,6 +71,15 @@ the application. Untrusted-worker confinement/watchdog, owner-loss reconciliatio
 candidate/toolchain transport and explicit versioned grants still need design
 and verification. [Evidence](../worklog/2026-10-23-R050j-guest-lifetime-prototype.md).
 
+R050k tests a protected root watchdog outside an unprivileged, nondelegated
+resource group in that guest. No-new-privileges, capabilities, signalling/policy/
+migration denial and PID/memory/CPU enforcement are observed under fixed pressure.
+Kernel group-empty data is diagnostic; only the separate native observation
+reports guest shutdown, and neither is current battle authority. Client EOF and
+abrupt keeper death remain distinct; the latter has no accepted cleanup proof.
+Privileged control-channel separation, real toolchains and production ownership/
+recovery are still required. [Evidence](../worklog/2026-10-23-R050k-protected-guest-watchdog.md).
+
 Start grants bounded local completion for frozen Codex roles/tasks/checks. Provider sessions retain host-only file tools and cannot run commands. The check runner uses a fresh empty Codex profile and private candidate clone, network denial, protected policy paths, bounded output hashing and frozen argv/executable identities. Its initial single-process grant forbids forks and tracks the inner session leader by PID/start identity; cleanup uncertainty is retained instead of claiming Stop. Toolchain/subprocess checks are unsupported. Native battle branch creation and candidate integration are exclusive, audited and compare-and-swap; no source checkout change or remote operation is authorized.
 
 R050f removes mandatory command configuration, not verification or execution

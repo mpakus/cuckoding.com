@@ -596,6 +596,13 @@ plus Stopped state is an observation only; owner loss/EOF without that receipt
 does not prove guest cleanup. Keep its Swift entitlement and downloaded images
 out of production. Untrusted-worker watchdog/ownership, worktree/toolchain/grant
 integration and release acceptance remain required before Mix/npm support.
+R050k extends only that probe: root PID1 stays outside a nondelegated worker
+cgroup; UID1000/no-new-privileges workers have fixed PID/memory/CPU limits.
+Kernel counters/group-kill/empty observations and native guest shutdown are
+separate evidence. Client EOF with a surviving keeper is not keeper death;
+missing native proof still refuses cleanup. Treat guest stdout as diagnostics,
+never completion authority. No shipping entitlement/grant or actual toolchain
+integration is implied by these fixed adverse-workload checks.
 See [Arena loop](docs/ARENA_LOOP.md) and [Plan](docs/PLAN.md).
 
 ## Mission and product contract
