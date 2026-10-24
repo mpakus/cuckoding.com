@@ -237,6 +237,8 @@ defmodule Cuckoding.Battles do
     transaction(fn ->
       battle = get(id) || Repo.rollback(:not_found)
 
+      limit_reason = claim_limit_reason(battle, now)
+
       cond do
         Backoff.pending?(battle) ->
           claim_backoff(battle, now)
@@ -250,16 +252,22 @@ defmodule Cuckoding.Battles do
         stage_busy?(battle) ->
           Repo.rollback(:busy)
 
-        expired?(battle.deadline_at, now) ->
-          attention(battle, "deadline_exceeded")
-
-        battle.turns_used >= battle.snapshot["limits"]["turns"] ->
-          attention(battle, "turn_limit")
+        limit_reason ->
+          attention(battle, limit_reason)
 
         true ->
           claim_work(battle, now)
       end
     end)
+  end
+
+  defp claim_limit_reason(battle, now) do
+    cond do
+      not Cuckoding.GuestChecks.runtime_current?(battle.snapshot) -> "check_runtime_changed"
+      expired?(battle.deadline_at, now) -> "deadline_exceeded"
+      battle.turns_used >= battle.snapshot["limits"]["turns"] -> "turn_limit"
+      true -> nil
+    end
   end
 
   defp stage_busy?(battle),
@@ -320,6 +328,17 @@ defmodule Cuckoding.Battles do
           else: Snapshot.final_criteria_digest(battle.snapshot, battle.context)
         )
     }
+
+    request =
+      if Cuckoding.GuestChecks.enabled?(battle.snapshot) and
+           battle.stage in ~w(checks final_checks),
+         do:
+           Map.put(
+             request,
+             "guest_check_runs",
+             Map.new(battle.snapshot["checks"], &{&1["id"], Ecto.UUID.generate()})
+           ),
+         else: request
 
     deadline =
       min_time(battle.deadline_at, DateTime.add(now, battle.snapshot["limits"]["stage_seconds"]))
@@ -635,12 +654,26 @@ defmodule Cuckoding.Battles do
       battle = control_battle(id, revision, "paused")
 
       cond do
-        timing_blocked?(battle) -> attention(battle, "timing_gap")
-        not quiescent?(battle) -> attention(battle, "cleanup_uncertain")
-        expired?(battle.deadline_at, now) -> attention(battle, "deadline_exceeded")
-        battle.turns_used >= battle.snapshot["limits"]["turns"] -> attention(battle, "turn_limit")
-        not current_team?(battle) -> Repo.rollback(:resume_binding_changed)
-        true -> resume_current(battle)
+        timing_blocked?(battle) ->
+          attention(battle, "timing_gap")
+
+        not quiescent?(battle) ->
+          attention(battle, "cleanup_uncertain")
+
+        expired?(battle.deadline_at, now) ->
+          attention(battle, "deadline_exceeded")
+
+        battle.turns_used >= battle.snapshot["limits"]["turns"] ->
+          attention(battle, "turn_limit")
+
+        not Cuckoding.GuestChecks.runtime_current?(battle.snapshot) ->
+          Repo.rollback(:check_runtime_changed)
+
+        not current_team?(battle) ->
+          Repo.rollback(:resume_binding_changed)
+
+        true ->
+          resume_current(battle)
       end
     end)
   end
@@ -655,10 +688,11 @@ defmodule Cuckoding.Battles do
   end
 
   defp current_team?(battle) do
-    Enum.all?(Slots.bindings(battle.snapshot), fn role ->
-      Foundation.verified_executable(role["agent_id"]) == {:ok, role["identity"]} and
-        Foundation.task_binding_current?(role)
-    end)
+    Cuckoding.GuestChecks.runtime_current?(battle.snapshot) and
+      Enum.all?(Slots.bindings(battle.snapshot), fn role ->
+        Foundation.verified_executable(role["agent_id"]) == {:ok, role["identity"]} and
+          Foundation.task_binding_current?(role)
+      end)
   end
 
   defp resume_current(battle) do

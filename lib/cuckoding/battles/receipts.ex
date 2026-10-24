@@ -2,11 +2,11 @@ defmodule Cuckoding.Battles.Receipts do
   @moduledoc "Attempt-bound receipt evidence; callers retain transaction and workflow authority."
   import Ecto.Query
   alias Cuckoding.Battles.{Attempt, Snapshot, Stages, Waves}
-  alias Cuckoding.{LocalGit, Repo, TaskTurn}
+  alias Cuckoding.{CheckImage, GuestChecks, LocalGit, Repo, TaskTurn}
 
   @envelope ~w(battle_id request_id task_id stage criteria_sha256)
   @result_fields @envelope ++
-                   ~w(status reason summary feedback head candidate_sha preparation native_candidate native_battle resolved_checks checks provider cleanup_verified)
+                   ~w(status reason summary feedback head candidate_sha preparation native_candidate native_battle resolved_checks checks provider cleanup_verified check_image)
 
   # Payload checks do not replace the closed envelope or confer settlement authority.
   def rejected_payload_valid?(_, %{"status" => "cancelled", "cleanup_verified" => cleanup}),
@@ -23,7 +23,11 @@ defmodule Cuckoding.Battles.Receipts do
   def payload_valid?(%Attempt{stage: "admission"} = attempt, %{"status" => "admitted"} = result),
     do:
       sha?(result["head"]) and is_map(result["native_battle"]) and
-        resolved_checks?(attempt, result["resolved_checks"])
+        resolved_checks?(attempt, result["resolved_checks"]) and
+        if(GuestChecks.enabled?(attempt.request["snapshot"]),
+          do: CheckImage.scope?(attempt, result["check_image"]),
+          else: is_nil(result["check_image"])
+        )
 
   def payload_valid?(%Attempt{stage: "prepare_worktree"}, %{"status" => "prepared"} = result),
     do: is_map(result["preparation"])
@@ -158,7 +162,8 @@ defmodule Cuckoding.Battles.Receipts do
 
     declared != [] and length(checks) == length(declared) and Enum.all?(checks, &is_map/1) and
       Enum.sort(Enum.map(checks, & &1["id"])) == Enum.sort(Enum.map(declared, & &1["id"])) and
-      Enum.all?(checks, &(&1["status"] == "passed" and &1["exit_code"] == 0))
+      Enum.all?(checks, &(&1["status"] == "passed" and &1["exit_code"] == 0)) and
+      guest_checks?(attempt, checks)
   end
 
   defp checks?(_, _), do: false
@@ -170,7 +175,7 @@ defmodule Cuckoding.Battles.Receipts do
       Enum.map(checks, & &1["id"]) ==
         declared |> Enum.take(length(checks)) |> Enum.map(& &1["id"]) and
       Enum.all?(Enum.drop(checks, -1), &(&1["status"] == "passed" and &1["exit_code"] == 0)) and
-      failed_check?(List.last(checks))
+      failed_check?(List.last(checks)) and guest_checks?(attempt, checks)
   end
 
   defp failed_checks?(_, _), do: false
@@ -188,10 +193,46 @@ defmodule Cuckoding.Battles.Receipts do
       Enum.map(
         resolved,
         &Map.take(&1, ~w(id name executable arguments directory timeout_seconds))
-      ) == declared
+      ) == declared and
+      (not GuestChecks.enabled?(attempt.request["snapshot"]) or resolved == declared)
   end
 
   defp resolved_checks?(_, _), do: false
+
+  defp guest_checks?(attempt, checks) do
+    cond do
+      not GuestChecks.enabled?(attempt.request["snapshot"]) ->
+        true
+
+      attempt.stage in ~w(checks final_checks) ->
+        Enum.all?(checks, &GuestChecks.valid_check?(attempt, &1))
+
+      true ->
+        retained_guest_checks?(attempt, checks)
+    end
+  end
+
+  defp retained_guest_checks?(attempt, checks) do
+    expected_stage = if attempt.task_id, do: "checks", else: "final_checks"
+
+    with [first | _] <- checks,
+         {:ok, id} <- Ecto.UUID.cast(first["request_id"]),
+         %Attempt{state: "completed", stage: ^expected_stage} = origin <- Repo.get(Attempt, id) do
+      same_guest_work?(origin, attempt) and
+        origin.result["status"] == "passed" and origin.result["cleanup_verified"] == true and
+        origin.result["checks"] == checks and candidate?(attempt, origin.result) and
+        Enum.all?(checks, &GuestChecks.valid_check?(origin, &1))
+    else
+      _ -> false
+    end
+  end
+
+  defp same_guest_work?(origin, attempt),
+    do:
+      origin.battle_id == attempt.battle_id and origin.task_id == attempt.task_id and
+        origin.request["criteria_sha256"] == attempt.request["criteria_sha256"] and
+        origin.request["snapshot"]["check_execution"] ==
+          attempt.request["snapshot"]["check_execution"]
 
   defp candidate?(attempt, result) do
     expected =

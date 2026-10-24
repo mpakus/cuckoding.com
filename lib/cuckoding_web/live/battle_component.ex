@@ -1,7 +1,7 @@
 defmodule CuckodingWeb.BattleComponent do
   @moduledoc false
   use CuckodingWeb, :live_component
-  alias Cuckoding.Battles
+  alias Cuckoding.{Battles, GuestChecks}
   alias Cuckoding.Battles.{Backoff, Slots, Stages, TaskBlocks, Waves}
 
   @impl true
@@ -254,9 +254,27 @@ defmodule CuckodingWeb.BattleComponent do
        do:
          "Every assigned Codex connection needs a verified task version (#{Enum.join(Cuckoding.Codex.task_versions(), " or ")}). Recheck the connection in Agents."
 
+  defp message("guest_check_scope_invalid"),
+    do:
+      "Keep guest checks within 16 arguments of 256 bytes each, a relative directory and the displayed timeout limits."
+
+  defp message("mixed_check_grants"),
+    do: "Keep npm/Mix checks separate from native system commands for this battle."
+
+  defp message("check_runtime_changed"),
+    do:
+      "This battle's frozen check runtime changed. Stop it after verified cleanup and start a new battle."
+
+  defp message("check_image_unavailable"),
+    do:
+      "The isolated check runtime could not be prepared or verified. Inspect the retained battle evidence."
+
+  defp message("guest_check_interrupted"),
+    do: "A guest check did not finish. Inspect its retained evidence before continuing."
+
   defp message("check_runtime_required"),
     do:
-      "Extra command checks currently require a Codex Implementor. Cursor can implement and review task criteria, but cannot run these commands yet."
+      "Native system checks require a supported Codex runtime. Offline npm/Mix checks work with Codex or Cursor roles."
 
   defp message("agent_unassigned"),
     do: "Choose an agent and model in Team, then use those assignments in Board team."
@@ -981,7 +999,13 @@ defmodule CuckodingWeb.BattleComponent do
               type="submit"
               disabled={@preview.blockers != []}
               aria-describedby={
-                if @preview.blockers == [], do: "arena-start-help", else: "battle-blockers"
+                if @preview.blockers == [],
+                  do:
+                    if(@preview.checks == [],
+                      do: "arena-start-help",
+                      else: "arena-start-help battle-command-scope"
+                    ),
+                  else: "battle-blockers"
               }
               phx-disable-with="Starting…"
             >Start</button>
@@ -990,9 +1014,15 @@ defmodule CuckodingWeb.BattleComponent do
         <div>
           <p :if={@preview.checks != []} id="battle-command-scope" class="fine-print">
             Start also authorizes the {length(@preview.checks)} extra commands saved in Advanced.
-            Declared checks run as single-process commands only; subprocess spawning is unavailable.
-            Mix/npm pipelines are not yet supported. Final checks and independent final Secutor review
-            must pass before completion; a failed final review needs attention.
+            <span :if={GuestChecks.enabled?(@preview.snapshot)} id="battle-guest-scope">
+              npm/Mix checks run offline in Linux. First use downloads verified toolchains;
+              project dependencies are not downloaded. The original checkout stays intact.
+            </span>
+            <span :if={not GuestChecks.enabled?(@preview.snapshot)}>
+              Declared checks run as single-process commands only; subprocess spawning is unavailable.
+              Mix/npm pipelines are not yet supported by this system-command grant.
+            </span>
+            Final checks and independent Secutor review must pass before completion.
           </p>
           <details
             id="battle-start-details"

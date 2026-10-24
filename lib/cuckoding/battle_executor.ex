@@ -6,9 +6,11 @@ defmodule Cuckoding.BattleExecutor do
     BattleChecks,
     BattleRepository,
     Battles,
+    CheckImage,
     Codex,
     Cursor,
     Foundation,
+    GuestChecks,
     LocalGit,
     Storage,
     TaskTurn
@@ -187,7 +189,7 @@ defmodule Cuckoding.BattleExecutor do
 
     with true <- active?.(),
          true <- Enum.all?(Slots.bindings(snapshot), &binding_current?/1),
-         {:ok, resolved} <- resolve_checks(snapshot, checker),
+         {:ok, resolved, image} <- admission_checks(attempt, checker, active?, adapters),
          %{"status" => "existing", "head" => head} <-
            git(attempt, "inspect", %{}, active?, adapters),
          %{"status" => "battle_created", "head" => ^head} = battle <-
@@ -205,8 +207,10 @@ defmodule Cuckoding.BattleExecutor do
         "resolved_checks" => resolved,
         "cleanup_verified" => true
       }
+      |> with_check_image(image)
     else
       false -> failure("admission_changed")
+      {:error, row} when is_map(row) -> failed_receipt(row)
       {:error, reason} -> failure(reason)
       %{"status" => status} when status in ~w(missing unborn) -> failure("git_required")
       result -> failed_receipt(result)
@@ -277,13 +281,7 @@ defmodule Cuckoding.BattleExecutor do
          {:ok, preparation} <- prepare(attempt, stage == "checks", active?, adapters),
          %{"status" => status, "candidate_sha" => head, "cleanup_verified" => true} = result
          when status in ~w(passed failed) <-
-           checker.run(
-             attempt,
-             workspace(attempt, preparation),
-             attempt.request["context"]["resolved_checks"],
-             role["identity"],
-             active?
-           ),
+           execute_checks(attempt, preparation, checker, role, active?, adapters),
          true <- head == preparation["head"] do
       receipt = %{
         "status" => check_outcome(status, result["checks"]),
@@ -384,6 +382,38 @@ defmodule Cuckoding.BattleExecutor do
     else
       false -> failure("independent_review_required")
       result -> failed_receipt(result)
+    end
+  end
+
+  defp with_check_image(row, nil), do: row
+  defp with_check_image(row, image), do: Map.put(row, "check_image", image)
+
+  defp admission_checks(attempt, checker, active?, adapters) do
+    snapshot = attempt.request["snapshot"]
+
+    if GuestChecks.enabled?(snapshot) do
+      image = Keyword.get(adapters, :image, CheckImage)
+
+      with true <- GuestChecks.current?(snapshot),
+           {:ok, receipt} <- image.ensure(attempt, active?),
+           do: {:ok, snapshot["checks"], receipt}
+    else
+      with {:ok, resolved} <- resolve_checks(snapshot, checker), do: {:ok, resolved, nil}
+    end
+  end
+
+  defp execute_checks(attempt, preparation, checker, role, active?, adapters) do
+    if GuestChecks.enabled?(attempt.request["snapshot"]) do
+      guest = Keyword.get(adapters, :guest_checks, GuestChecks)
+      guest.run(attempt, workspace(attempt, preparation), active?)
+    else
+      checker.run(
+        attempt,
+        workspace(attempt, preparation),
+        attempt.request["context"]["resolved_checks"],
+        role["identity"],
+        active?
+      )
     end
   end
 

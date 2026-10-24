@@ -19,6 +19,7 @@ defmodule Cuckoding.Battles.Snapshot do
     Command,
     Cursor,
     Foundation,
+    GuestChecks,
     ProjectChecks,
     Repo,
     Tabulae,
@@ -83,12 +84,7 @@ defmodule Cuckoding.Battles.Snapshot do
         columns(board) != @columns or Enum.map(roles, & &1["id"]) != @roles ++ step_roles,
         "unsupported_columns"
       )
-      |> block(check_limits?(checks.definition["checks"]), "check_timeout_limit")
-      |> block(
-        checks.definition["checks"] != [] and
-          not Enum.any?(roles, &(&1["id"] == "implementor" and &1["kind"] == "codex")),
-        "check_runtime_required"
-      )
+      |> check_blockers(checks.definition["checks"], roles)
       |> Kernel.++(
         (roles ++ additional)
         |> Enum.map(& &1["status"])
@@ -130,6 +126,11 @@ defmodule Cuckoding.Battles.Snapshot do
       "checks" => checks.definition["checks"],
       "limits" => @limits
     }
+
+    snapshot =
+      if policy = GuestChecks.policy_for(snapshot["checks"]),
+        do: Map.put(snapshot, "check_execution", policy),
+        else: snapshot
 
     %{
       snapshot: snapshot,
@@ -173,6 +174,20 @@ defmodule Cuckoding.Battles.Snapshot do
       |> Enum.reject(&Stages.custom_key?(&1["key"]))
       |> Enum.map(&{&1["key"], &1["role"]})
 
+  defp check_blockers(blockers, checks, roles) do
+    guest = not is_nil(GuestChecks.policy_for(checks))
+
+    blockers
+    |> block(check_limits?(checks), "check_timeout_limit")
+    |> block(GuestChecks.mixed?(checks), "mixed_check_grants")
+    |> block(guest and not GuestChecks.declarations_valid?(checks), "guest_check_scope_invalid")
+    |> block(
+      checks != [] and not guest and
+        not Enum.any?(roles, &(&1["id"] == "implementor" and &1["kind"] == "codex")),
+      "check_runtime_required"
+    )
+  end
+
   defp check_limits?(checks),
     do:
       Enum.any?(checks, &(&1["timeout_seconds"] > 300)) or
@@ -192,7 +207,8 @@ defmodule Cuckoding.Battles.Snapshot do
       "previous_implementation" => nil,
       "speculator_plan" => nil,
       "candidate_sha" => String.duplicate("a", 40),
-      "host_checks" => Enum.map(checks, &maximum_check/1),
+      "host_checks" =>
+        Enum.map(checks, &maximum_check(&1, not is_nil(GuestChecks.policy_for(checks)))),
       "declared_checks" => checks,
       "command_check_scope" => "not_configured",
       "result_scope" => "partial",
@@ -211,7 +227,10 @@ defmodule Cuckoding.Battles.Snapshot do
     Enum.all?(tasks, &prompt_fits?(&1, task_metadata)) and prompt_fits?(final, common)
   end
 
-  defp maximum_check(check),
+  defp maximum_check(check, true),
+    do: %{"id" => check["id"], "reserved" => String.duplicate("x", 2048)}
+
+  defp maximum_check(check, false),
     do: %{
       "id" => check["id"],
       "status" => "passed",

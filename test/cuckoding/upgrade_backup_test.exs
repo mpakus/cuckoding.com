@@ -50,12 +50,12 @@ defmodule Cuckoding.UpgradeBackupTest do
   } do
     before = prior(path)
     :ok = Database.migrate!(BackupRepo, path)
-    assert length(Ecto.Migrator.migrated_versions(BackupRepo)) == 18
+    assert length(Ecto.Migrator.migrated_versions(BackupRepo)) == 19
     assert BackupRepo.query!("SELECT * FROM events ORDER BY id").rows == before
     observation = UpgradeBackup.observation(root)
     assert observation["status"] == "recorded"
     assert length(observation["from_versions"]) == 17
-    assert length(observation["target_versions"]) == 18
+    assert length(observation["target_versions"]) == 19
     copy = Path.join(root, observation["relative_path"])
     assert Bitwise.band(File.stat!(copy).mode, 0o777) == 0o600
 
@@ -231,6 +231,31 @@ defmodule Cuckoding.UpgradeBackupTest do
     assert_raise RuntimeError, "invalid rebuild data marker", fn -> Storage.prepare!(root) end
   end
 
+  test "schema eighteen backs up before the new guest admission indexes", %{
+    root: root,
+    path: path
+  } do
+    ExUnit.CaptureIO.capture_io(:stderr, fn ->
+      assert length(Ecto.Migrator.run(BackupRepo, path, :up, to: 20_261_023_010_000, log: false)) ==
+               18
+    end)
+
+    BackupRepo.query!(
+      "INSERT INTO events(kind,data,occurred_at) VALUES ('eighteen-sentinel','{}',CURRENT_TIMESTAMP)"
+    )
+
+    before = BackupRepo.query!("SELECT * FROM events ORDER BY id").rows
+    :ok = Database.migrate!(BackupRepo, path)
+    assert BackupRepo.query!("SELECT * FROM events ORDER BY id").rows == before
+    receipt = UpgradeBackup.observation(root)
+    assert length(receipt["from_versions"]) == 18
+    assert length(receipt["target_versions"]) == 19
+
+    assert BackupRepo.query!(
+             "SELECT name FROM sqlite_schema WHERE name IN ('battle_attempts_check_images','battle_attempts_guest_reservations') ORDER BY name"
+           ).rows == [["battle_attempts_check_images"], ["battle_attempts_guest_reservations"]]
+  end
+
   test "a later migration failure preserves the verified earlier database", %{
     root: root,
     path: path
@@ -243,7 +268,7 @@ defmodule Cuckoding.UpgradeBackupTest do
       File.cp!(file, Path.join(migrations, Path.basename(file)))
     end
 
-    File.write!(Path.join(migrations, "20261024000000_fail_fixture.exs"), """
+    File.write!(Path.join(migrations, "20261025000000_fail_fixture.exs"), """
     defmodule Cuckoding.UpgradeBackupTest.FailFixture do
       use Ecto.Migration
       def up, do: raise("synthetic migration failure")
@@ -259,7 +284,7 @@ defmodule Cuckoding.UpgradeBackupTest do
     assert BackupRepo.query!("SELECT * FROM events ORDER BY id").rows == before
     observation = UpgradeBackup.observation(root)
     assert observation["status"] == "recorded"
-    assert length(observation["target_versions"]) == 19
+    assert length(observation["target_versions"]) == 20
     copy = Path.join(root, observation["relative_path"])
     {:ok, reader} = Exqlite.start_link(database: copy, mode: :readonly)
 

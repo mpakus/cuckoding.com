@@ -18,7 +18,15 @@ defmodule Cuckoding.BattleExecutorTest do
     TeamAssignments
   }
 
-  alias Cuckoding.Battles.{Attempt, Backoff, ProviderClosure, Snapshot, Writers}
+  alias Cuckoding.Battles.{
+    Attempt,
+    Backoff,
+    Capacity,
+    ProviderClosure,
+    Receipts,
+    Snapshot,
+    Writers
+  }
 
   # These adapters exercise the real executor/domain handoff without native or provider execution.
   defmodule Adapters do
@@ -133,6 +141,39 @@ defmodule Cuckoding.BattleExecutorTest do
     end
 
     defp git("recover_integration", id, payload), do: git("integrate_candidate", id, payload)
+
+    def ensure(attempt, active?) do
+      assert active?.()
+      remember(:image_calls, attempt.id)
+      {:ok, Cuckoding.GuestCheckFixtures.image(attempt.id)}
+    end
+
+    def run(attempt, workspace, active?) do
+      Cuckoding.GuestChecks.run(attempt, workspace, active?, fn current,
+                                                                operation,
+                                                                request,
+                                                                active? ->
+        assert current.id == attempt.id and active?.()
+        remember(:guest_calls, {operation, request})
+        guest_native(operation, current, request, workspace)
+      end)
+    end
+
+    defp guest_native("prepare_check_input", current, _, workspace) do
+      %{
+        "status" => "check_input_prepared",
+        "key" => current.id,
+        "worktree_key" => workspace["key"],
+        "candidate_sha" => workspace["head"],
+        "manifest_sha256" => String.duplicate("b", 64)
+      }
+    end
+
+    defp guest_native("run_guest_check", _, request, _) do
+      status = if Process.get(:guest_failure), do: "failed", else: "passed"
+      row = Cuckoding.GuestCheckFixtures.result(request, status)
+      if Process.get(:guest_lost_closure), do: Map.delete(row, "vm_closed"), else: row
+    end
 
     def resolve(checks) do
       assert checks != [], "Empty command scopes must never reach native command resolution"
@@ -350,6 +391,124 @@ defmodule Cuckoding.BattleExecutorTest do
     first = save_task(board, "First", [])
     second = save_task(board, "Second", [first.id])
     %{board: board, first: first, second: second, source: source, check: check}
+  end
+
+  test "one Start uses the isolated image, exact check runs and independent review", ctx do
+    guest = Map.merge(ctx.check, %{"executable" => "npm", "arguments" => ["test", "--offline"]})
+    {:ok, _} = ProjectChecks.save(Ecto.UUID.generate(), ctx.board.arena_id, 1, [guest], true)
+    battle = start(ctx.board)
+    assert Cuckoding.GuestChecks.enabled?(battle.snapshot)
+
+    options = [
+      git: Adapters,
+      provider: Adapters,
+      checks: Adapters,
+      image: Adapters,
+      guest_checks: Adapters
+    ]
+
+    final =
+      Enum.reduce_while(1..60, battle, fn _, battle ->
+        if battle.state == "completed" do
+          {:halt, battle}
+        else
+          {:ok, attempt} = Battles.claim_next(battle.id)
+          result = BattleExecutor.execute(attempt, options)
+
+          if attempt.stage in ~w(checks final_checks) do
+            assert result["status"] == "passed"
+            [row] = result["checks"]
+            assert row["key"] == attempt.request["guest_check_runs"][guest["id"]]
+            assert Cuckoding.GuestChecks.valid_check?(attempt, row)
+
+            forged =
+              put_in(result["checks"], [Map.put(row, "check_sha256", String.duplicate("e", 64))])
+
+            assert {:error, :invalid_result} =
+                     Battles.finish(attempt.id, attempt.claim_token, forged)
+          end
+
+          if attempt.stage in ~w(secutor final_secutor) do
+            context_key = if attempt.task_id, do: "task_context", else: "context"
+            rows = attempt.request[context_key]["checks"]
+            assert Enum.all?(rows, &(&1["request_id"] != attempt.id))
+
+            changed =
+              put_in(
+                attempt.request[context_key]["checks"],
+                Enum.map(rows, &Map.put(&1, "request_id", Ecto.UUID.generate()))
+              )
+
+            refute Receipts.payload_valid?(changed, result)
+          end
+
+          assert {:ok, _} = Battles.finish(attempt.id, attempt.claim_token, result),
+                 "Stage: #{attempt.stage}"
+
+          {:cont, Battles.get(battle.id)}
+        end
+      end)
+
+    assert final.state == "completed"
+    assert length(Process.get(:image_calls)) == 1
+    assert Process.get(:check_calls) == nil
+    assert Enum.count(Process.get(:guest_calls), fn {op, _} -> op == "run_guest_check" end) == 3
+
+    assert Enum.count(Process.get(:provider_calls), fn {prompt, _, _} ->
+             prompt["stage"] in ~w(secutor final_secutor)
+           end) == 3
+  end
+
+  test "lost guest closure cannot advance or release its global reservation", ctx do
+    guest = Map.put(ctx.check, "executable", "npm")
+    {:ok, _} = ProjectChecks.save(Ecto.UUID.generate(), ctx.board.arena_id, 1, [guest], true)
+    battle = start(ctx.board)
+
+    options = [
+      git: Adapters,
+      provider: Adapters,
+      checks: Adapters,
+      image: Adapters,
+      guest_checks: Adapters
+    ]
+
+    battle =
+      Enum.reduce_while(1..30, battle, fn _, battle ->
+        if battle.stage == "checks" do
+          {:halt, battle}
+        else
+          {:ok, a} = Battles.claim_next(battle.id)
+          {:ok, _} = Battles.finish(a.id, a.claim_token, BattleExecutor.execute(a, options))
+          {:cont, Battles.get(battle.id)}
+        end
+      end)
+
+    Process.put(:guest_lost_closure, true)
+    {:ok, a} = Battles.claim_next(battle.id)
+    result = BattleExecutor.execute(a, options)
+    assert result["status"] == "failed"
+    refute result["cleanup_verified"]
+    {:ok, _} = Battles.finish(a.id, a.claim_token, result)
+    assert Battles.get(battle.id).state == "needs_attention"
+    assert Enum.all?(Battles.tasks(battle.id), &(&1.state != "completed"))
+    assert {:error, _} = Battles.stop(battle.id)
+    assert Capacity.available?(battle.snapshot, nil)
+    refute Capacity.available?(Map.delete(battle.snapshot, "scheduler"), nil)
+    clone_id = Ecto.UUID.generate()
+
+    Repo.insert!(%Attempt{
+      id: clone_id,
+      battle_id: battle.id,
+      task_id: a.task_id,
+      stage: a.stage,
+      claim_token: Ecto.UUID.generate(),
+      state: "interrupted",
+      deadline_at: a.deadline_at,
+      request: Map.put(a.request, "request_id", clone_id),
+      result: %{}
+    })
+
+    refute Capacity.available?(battle.snapshot, nil)
   end
 
   defp save_task(board, title, dependencies) do
@@ -1071,7 +1230,12 @@ defmodule Cuckoding.BattleExecutorTest do
 
     {:ok, blocked} = Battles.preview(board.arena_id, board.id)
     assert "check_runtime_required" in blocked.blockers
-    {:ok, _} = ProjectChecks.save(Ecto.UUID.generate(), board.arena_id, 1, [], true)
+    guest = Map.merge(ctx.check, %{"executable" => "npm", "arguments" => ["test", "--offline"]})
+    {:ok, _} = ProjectChecks.save(Ecto.UUID.generate(), board.arena_id, 1, [guest], true)
+    {:ok, guest_preview} = Battles.preview(board.arena_id, board.id)
+    assert guest_preview.blockers == []
+    assert Cuckoding.GuestChecks.enabled?(guest_preview.snapshot)
+    {:ok, _} = ProjectChecks.save(Ecto.UUID.generate(), board.arena_id, 2, [], true)
     Process.put(:reject_first_review, true)
     battle = board |> start() |> drive()
     assert battle.state == "completed"

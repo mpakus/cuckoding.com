@@ -47,7 +47,7 @@ defmodule Cuckoding.BattleFixtures do
     check = %{
       "id" => Ecto.UUID.generate(),
       "name" => "Tests",
-      "executable" => "mix",
+      "executable" => "true",
       "arguments" => ["test"],
       "directory" => ".",
       "timeout_seconds" => 120

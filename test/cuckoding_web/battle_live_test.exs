@@ -159,6 +159,29 @@ defmodule CuckodingWeb.BattleLiveTest do
     refute has_element?(view, "#battle-task-blocks [role=status]", "Independent tasks continue")
   end
 
+  test "offline guest scope stays on the same single Start", ctx do
+    check = %{
+      "id" => Ecto.UUID.generate(),
+      "name" => "Tests",
+      "executable" => "npm",
+      "arguments" => ["test", "--offline"],
+      "directory" => ".",
+      "timeout_seconds" => 20
+    }
+
+    {:ok, _} = ProjectChecks.save(Ecto.UUID.generate(), ctx.arena.id, 1, [check], true)
+    {:ok, view, _} = ctx.conn |> sign_in() |> live(ctx.path)
+    assert has_element?(view, "#battle-guest-scope", "offline in Linux")
+    assert has_element?(view, "#battle-guest-scope", "First use downloads")
+    assert has_element?(view, "#arena-start:not([disabled])", "Start")
+    refute has_element?(view, "#battle-start-form input[type=checkbox]")
+    view |> form("#battle-start-form") |> render_submit()
+    battle = Battles.latest(ctx.arena.id, ctx.board.id)
+    assert Cuckoding.GuestChecks.enabled?(battle.snapshot)
+    assert battle.snapshot["checks"] == [check]
+    assert battle.state == "running"
+  end
+
   test "keyboard submission freezes one scope without checkboxes or a preview ceremony", ctx do
     %{conn: conn, path: path, arena: arena, board: board} = ctx
     signed = sign_in(conn)

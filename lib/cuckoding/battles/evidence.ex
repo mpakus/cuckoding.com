@@ -168,7 +168,7 @@ defmodule Cuckoding.Battles.Evidence do
       public_list(
         result["checks"],
         8,
-        ~w(id status exit_code stdout_sha256 stdout_bytes elapsed_ms cleanup_verified)
+        ~w(id status exit_code stdout_sha256 stdout_bytes elapsed_ms cleanup_verified contract candidate_sha check_sha256 input_manifest_sha256 image_spec_sha256 intent_sha256 native_state vm_closed source_unchanged observed_stdout_bytes native_started admission_sha256)
       )
     )
     |> Map.put("provider", %{
