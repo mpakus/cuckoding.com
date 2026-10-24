@@ -28,18 +28,22 @@ defmodule Cuckoding.GuestBattleFixture do
     Logger.configure(level: :warning)
     root = System.fetch_env!("CUCKODING_GUEST_FIXTURE_ROOT")
     mode = System.get_env("CUCKODING_GUEST_FIXTURE_MODE", "declared")
-    true = mode in ~w(declared planned feedback)
-    planned? = mode in ~w(planned feedback)
+    true = mode in ~w(declared planned feedback recovery)
+    planned? = mode != "declared"
     true = Path.expand(root) == root and Path.dirname(root) == "/private/tmp"
 
     true =
       String.starts_with?(
         Path.basename(root),
-        case mode do
-          "feedback" -> "cuckoding-r050r-"
-          "planned" -> "cuckoding-r050q-"
-          "declared" -> "cuckoding-r050p-"
-        end
+        Map.fetch!(
+          %{
+            "recovery" => "cuckoding-r060t-",
+            "feedback" => "cuckoding-r050r-",
+            "planned" => "cuckoding-r050q-",
+            "declared" => "cuckoding-r050p-"
+          },
+          mode
+        )
       )
 
     true = Enum.all?(components(root), &match?({:ok, %{type: :directory}}, File.lstat(&1)))
@@ -174,7 +178,7 @@ defmodule Cuckoding.GuestBattleFixture do
     evidence = %{
       "format" => 1,
       "feedback_stages" => observed_feedback,
-      "failure_feedback_verified" => mode == "feedback",
+      "failure_feedback_verified" => mode in ~w(feedback recovery),
       "verification_mode" => mode,
       "configured_check_revision" => ProjectChecks.current(arena.id).revision,
       "inference" => false,
@@ -217,7 +221,7 @@ defmodule Cuckoding.GuestBattleFixture do
     |> Enum.map(& &1.stage)
   end
 
-  defp verify_feedback_stages("feedback", stages) do
+  defp verify_feedback_stages(mode, stages) when mode in ~w(feedback recovery) do
     true = Enum.all?(~w(speculator implementor secutor), &(&1 in stages))
   end
 
@@ -562,7 +566,7 @@ defmodule Cuckoding.GuestBattleFixture.Provider do
   end
 
   defp verify_feedback(attempt, prompt) do
-    if System.get_env("CUCKODING_GUEST_FIXTURE_MODE") == "feedback" do
+    if System.get_env("CUCKODING_GUEST_FIXTURE_MODE") in ~w(feedback recovery) do
       expected = Cuckoding.CheckFeedback.prompt(attempt)
       ^expected = prompt["check_feedback"]
 

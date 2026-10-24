@@ -17,10 +17,12 @@ import tempfile
 import uuid
 
 os.umask(0o077)
-assert sys.argv[1:] in ([], ["--task-checks"], ["--check-feedback"])
-feedback = sys.argv[1:] == ["--check-feedback"]
+assert sys.argv[1:] in ([], ["--task-checks"], ["--check-feedback"], ["--check-recovery"])
+recovery = sys.argv[1:] == ["--check-recovery"]
+feedback = recovery or sys.argv[1:] == ["--check-feedback"]
 planned = bool(sys.argv[1:])
-tag = "r050r" if feedback else "r050q" if planned else "r050p"
+tag = "r060t" if recovery else "r050r" if feedback else "r050q" if planned else "r050p"
+mode = "recovery" if recovery else "feedback" if feedback else "planned" if planned else "declared"
 project = Path(__file__).resolve().parent.parent
 app = project / "desktop/src-tauri/target/release/bundle/macos/Cuckoding.app"
 helper = app / "Contents/MacOS/ccoding"
@@ -39,7 +41,7 @@ with (data / "shell.lock").open("xb") as lock, log.open("xb") as output:
     result = subprocess.run(["rtk", "proxy", "mix", "run", "--no-start", "test/support/guest_battle_fixture.exs"],
                             cwd=project, env={"HOME": os.environ["HOME"], "PATH": os.environ["PATH"], "LANG": "en_US.UTF-8", "TZ": "UTC",
                                  "MIX_ENV": "test", "CUCKODING_GUEST_FIXTURE_ROOT": str(root),
-                                 "CUCKODING_GUEST_FIXTURE_MODE": "feedback" if feedback else "planned" if planned else "declared"},
+                                 "CUCKODING_GUEST_FIXTURE_MODE": mode},
                             stdout=output, stderr=subprocess.STDOUT, timeout=720)
     assert result.returncode == 0, (result.returncode, log)
 evidence = json.loads((root / "evidence.json").read_bytes())
@@ -50,7 +52,7 @@ assert 1 in evidence["review_rounds"]
 checks = [row for stage in evidence["check_stages"] for row in stage["checks"]]
 assert len(checks) == (6 if planned else 7)
 if planned:
-    assert evidence["verification_mode"] == ("feedback" if feedback else "planned") and evidence["configured_check_revision"] == 0
+    assert evidence["verification_mode"] == mode and evidence["configured_check_revision"] == 0
 assert any(row["status"] == "failed" for row in checks)
 if feedback:
     assert set(evidence["feedback_stages"]) >= {"speculator", "implementor", "secutor"}
@@ -74,7 +76,8 @@ for row in checks:
                 **{key: row[key] for key in ("request_id", "candidate_sha", "stdout_sha256", "stdout_bytes")}}]
             events = [json.loads(item[0]) for item in db.execute("SELECT data FROM events")]
             assert all('"excerpt"' not in json.dumps(event) for event in events)
-old = json.loads((project / (".ccoding/" + tag + "-old-bundle.json")).read_bytes())
+old_tag = "r050r" if recovery else tag
+old = json.loads((project / (".ccoding/" + old_tag + "-old-bundle.json")).read_bytes())
 old_app = Path(old["root"]) / "Cuckoding.app"
 assert old["build"]["schema"] == (20 if feedback else 19 if planned else 18) and old_app.is_dir()
 subprocess.run(["/usr/bin/codesign", "--verify", "--strict", "--deep", str(old_app)], check=True, timeout=60)
@@ -105,6 +108,9 @@ with sqlite3.connect(f"file:{database}?mode=ro", uri=True) as db:
     assert db.execute("PRAGMA integrity_check").fetchone() == ("ok",)
 evidence.update({"build": info, "helper_sha256": hashlib.sha256(helper.read_bytes()).hexdigest(),
                  "actual_vm_count": len(checks), "old_schema_bundle_refused": old["build"]["schema"]})
+if recovery:
+    evidence["retained_check_inspection"] = runpy.run_path(
+        project / "test/support/guest_check_recovery_proof.py")["verify"](root, helper, checks)
 with (root / "verified.json").open("x") as output:
     json.dump(evidence, output, indent=2)
 print(json.dumps({"state": evidence["state"], "actual_vm_count": len(checks), "forced_review_return": True,
