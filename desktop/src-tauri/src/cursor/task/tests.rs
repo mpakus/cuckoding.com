@@ -97,6 +97,11 @@ for line in sys.stdin:
    assert payload['output_schema']['properties']['tasks']['items']['properties']['sources']['items']['maximum'] == 15
    assert len(payload['document_snapshots']) == 16
    answer = {'summary':'A bounded plan','tasks':[{'title':'Plan task','description':'Use snapshots only','criteria':'Inspect the exact expected result','depends_on':[],'sources':[]}]}
+   if 'verification' in payload['output_schema']['properties']['tasks']['items']['properties']:
+    shape = payload['output_schema']['properties']['tasks']['items']['properties']['verification']
+    assert shape['items']['additionalProperties'] is False and shape['maxItems'] == 4
+    assert 'verification_contract' in payload and 'npm-test' in payload['verification_contract']
+    answer['tasks'][0]['verification'] = [{'profile':'mix-test','directory':'.','timeout_seconds':60}]
   if mode == 'malformed': answer = {'outcome':'completed','summary':'Fixture result.','extra':True}
   update({'sessionUpdate':'agent_message_chunk','content':{'type':'text','text':json.dumps(answer)}},'foreign' if mode == 'foreign' else 'fixture-session')
   result = {'stopReason':'end_turn'}
@@ -157,53 +162,59 @@ fn exact_alias_parameters_scope_and_native_tool_refusal() {
 
 #[test]
 fn initial_planning_uses_no_host_file_service_and_keeps_exact_cursor_binding() {
-    for (mode, status) in [
-        ("plan_success", "planned"),
-        ("success", "invalid_response"),
-        ("native", "unexpected_tool"),
-        ("drift", "model_mismatch"),
-        ("policy", "unsupported_grant"),
-        ("alias", "model_mismatch"),
-        ("oversize", "invalid_output"),
-    ] {
-        let (root, binary, profile, scratch, task) = fixture(mode);
-        let mut request = json!({"request_id":task["request_id"],"brief":"Plan from supplied snapshots","instructions":"Keep all criteria","documents":[],"contract":"brief-plan-v3"});
-        if mode == "plan_success" {
-            use sha2::{Digest, Sha256};
-            let text = "\\\"\n".repeat(1365);
-            request["documents"]=json!((0..16).map(|index|json!({"path":format!("docs/source{index}.md"),"text":text,"bytes":text.len(),"sha256":format!("{:x}",Sha256::digest(text.as_bytes()))})).collect::<Vec<_>>());
-        }
-        let (_sender, cancel) = mpsc::channel();
-        let result = execute(
-            &binary,
-            &profile,
-            &scratch,
-            "cursor-test-xhigh",
-            Work::Plan(&request),
-            cancel,
-            Duration::from_secs(10),
-        )
-        .unwrap();
-        assert_eq!(result["status"], status, "{mode}: {result}");
-        assert_eq!(
-            fs::read_to_string(
-                Path::new(task["workspace"]["path"].as_str().unwrap()).join("source.txt")
+    for contract in ["brief-plan-v3", "brief-plan-v4"] {
+        for (mode, status) in [
+            ("plan_success", "planned"),
+            ("success", "invalid_response"),
+            ("native", "unexpected_tool"),
+            ("drift", "model_mismatch"),
+            ("policy", "unsupported_grant"),
+            ("alias", "model_mismatch"),
+            ("oversize", "invalid_output"),
+        ] {
+            let (root, binary, profile, scratch, task) = fixture(mode);
+            let mut request = json!({"request_id":task["request_id"],"brief":"Plan from supplied snapshots","instructions":"Keep all criteria","documents":[],"contract":contract});
+            if mode == "plan_success" {
+                use sha2::{Digest, Sha256};
+                let text = "\\\"\n".repeat(1365);
+                request["documents"]=json!((0..16).map(|index|json!({"path":format!("docs/source{index}.md"),"text":text,"bytes":text.len(),"sha256":format!("{:x}",Sha256::digest(text.as_bytes()))})).collect::<Vec<_>>());
+            }
+            let (_sender, cancel) = mpsc::channel();
+            let result = execute(
+                &binary,
+                &profile,
+                &scratch,
+                "cursor-test-xhigh",
+                Work::Plan(&request),
+                cancel,
+                Duration::from_secs(10),
             )
-            .unwrap(),
-            "before"
-        );
-        assert!(!scratch.join("tool-receipts.jsonl").exists());
-        assert!(!scratch.join("cursor-runtime").exists());
-        assert!(result.get("tools").is_none() && result.get("changes").is_none());
-        assert!(!result.to_string().contains("PRIVATE_THOUGHT_CANARY"));
-        if mode == "plan_success" {
-            assert_eq!(result["grant"], "cursor-plan-no-tools-v1");
-            assert_eq!(result["requested_model"], "cursor-test-xhigh");
-            assert_eq!(result["runtime_model"], "test");
-            assert_eq!(result["runtime_parameters"], json!({"effort":"xhigh"}));
-            assert_eq!(result["cleanup_verified"], true);
+            .unwrap();
+            assert_eq!(result["status"], status, "{mode}: {result}");
+            assert_eq!(
+                fs::read_to_string(
+                    Path::new(task["workspace"]["path"].as_str().unwrap()).join("source.txt")
+                )
+                .unwrap(),
+                "before"
+            );
+            assert!(!scratch.join("tool-receipts.jsonl").exists());
+            assert!(!scratch.join("cursor-runtime").exists());
+            assert!(result.get("tools").is_none() && result.get("changes").is_none());
+            assert!(!result.to_string().contains("PRIVATE_THOUGHT_CANARY"));
+            if mode == "plan_success" {
+                assert_eq!(result["grant"], "cursor-plan-no-tools-v1");
+                assert_eq!(
+                    result["proposal"]["tasks"][0].get("verification").is_some(),
+                    contract == "brief-plan-v4"
+                );
+                assert_eq!(result["requested_model"], "cursor-test-xhigh");
+                assert_eq!(result["runtime_model"], "test");
+                assert_eq!(result["runtime_parameters"], json!({"effort":"xhigh"}));
+                assert_eq!(result["cleanup_verified"], true);
+            }
+            fs::remove_dir_all(root).unwrap();
         }
-        fs::remove_dir_all(root).unwrap();
     }
 }
 

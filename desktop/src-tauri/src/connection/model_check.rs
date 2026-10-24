@@ -150,13 +150,15 @@ pub(crate) fn valid_request(request: &Value) -> bool {
     }) && (request.get("contract").is_none()
         || matches!(
             request["contract"].as_str(),
-            Some("brief-plan-v1" | "brief-plan-v2" | "brief-plan-v3")
+            Some("brief-plan-v1" | "brief-plan-v2" | "brief-plan-v3" | "brief-plan-v4")
         ))
         && (request.get("documents").is_none()
             || request["documents"] == json!([])
             || crate::arena_git::valid_documents(&request["documents"])
-            || (request["contract"] == "brief-plan-v3"
-                && crate::arena_git::valid_folder_documents(&request["documents"])))
+            || (matches!(
+                request["contract"].as_str(),
+                Some("brief-plan-v3" | "brief-plan-v4")
+            ) && crate::arena_git::valid_folder_documents(&request["documents"])))
         && request["request_id"].as_str().is_some_and(|id| {
             id.len() == 36
                 && id.bytes().enumerate().all(|(i, b)| {
@@ -175,7 +177,36 @@ pub(crate) fn valid_request(request: &Value) -> bool {
             .is_some_and(|s| s.len() <= 8_000)
 }
 
-pub(crate) fn proposal_schema(linked: bool, source_limit: usize) -> Value {
+pub(crate) const VERIFICATION_INSTRUCTIONS: &str = "Each task must include verification: an array of zero to four fixed profiles. npm-test means npm test --offline; mix-test means mix test. Give only profile, relative directory and timeout_seconds (1..300). Across the proposal allow at most eight distinct profile/directory/timeout combinations and at most 600 seconds of their total timeouts; reuse identical checks where appropriate. Choose checks supported by the supplied evidence and required by this task; use [] if no supported command applies. Never invent command arguments, installs, shell tools or runtime permission. Do not drop unsupported/external verification requirements from criteria. Start later authorizes bounded offline Linux execution; planning runs nothing.";
+
+#[cfg(test)]
+#[test]
+fn planned_checks_are_closed_data_in_v4_only() {
+    let request = json!({"request_id":"49eb8bd5-5c29-4ef6-a016-5d7058fd9498",
+        "brief":"Plan tests","instructions":"Keep all criteria","documents":[],"contract":"brief-plan-v4"});
+    assert!(valid_request(&request));
+    let schema = proposal_schema(true, 16, true);
+    let task = &schema["properties"]["tasks"]["items"];
+    assert!(task["required"]
+        .as_array()
+        .unwrap()
+        .contains(&json!("verification")));
+    let check = &task["properties"]["verification"];
+    assert_eq!(check["maxItems"], 4);
+    assert_eq!(check["items"]["additionalProperties"], false);
+    assert_eq!(
+        check["items"]["properties"]["profile"]["enum"],
+        json!(["npm-test", "mix-test"])
+    );
+    assert_eq!(check["items"]["properties"].as_object().unwrap().len(), 3);
+    assert!(
+        proposal_schema(true, 16, false)["properties"]["tasks"]["items"]["properties"]
+            .get("verification")
+            .is_none()
+    );
+}
+
+pub(crate) fn proposal_schema(linked: bool, source_limit: usize, verification: bool) -> Value {
     let text = |max| json!({"type":"string", "minLength":1, "maxLength":max});
     let mut schema = json!({"type":"object", "additionalProperties":false, "required":["summary","tasks"],
         "properties":{"summary":text(2000), "tasks":{"type":"array", "minItems":1, "maxItems":6,
@@ -192,6 +223,19 @@ pub(crate) fn proposal_schema(linked: bool, source_limit: usize) -> Value {
             task["properties"][field] = json!({"type":"array", "maxItems":max_items,
                 "items":{"type":"integer", "minimum":0, "maximum":maximum}});
         }
+    }
+    if verification {
+        let task = &mut schema["properties"]["tasks"]["items"];
+        task["required"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!("verification"));
+        task["properties"]["verification"] = json!({"type":"array","maxItems":4,
+            "items":{"type":"object","additionalProperties":false,
+                "required":["profile","directory","timeout_seconds"],"properties":{
+                    "profile":{"type":"string","enum":["npm-test","mix-test"]},
+                    "directory":{"type":"string","minLength":1,"maxLength":240},
+                    "timeout_seconds":{"type":"integer","minimum":1,"maximum":300}}}});
     }
     schema
 }
@@ -245,8 +289,11 @@ pub(super) fn check(
             if let Some(documents) = request.get("documents") {
                 input["document_snapshots"] = documents.clone();
             }
-            if matches!(request["contract"].as_str(), Some("brief-plan-v2" | "brief-plan-v3")) {
+            if matches!(request["contract"].as_str(), Some("brief-plan-v2" | "brief-plan-v3" | "brief-plan-v4")) {
                 input["reference_contract"] = json!("List tasks in prerequisite-first order. depends_on contains distinct zero-based indices of earlier tasks in this proposal only. sources contains distinct zero-based indices of the selected document_snapshots that support this task. Use empty arrays when none. References identify evidence, not permission or proof of implementation.");
+            }
+            if request["contract"] == "brief-plan-v4" {
+                input["verification_contract"] = json!(VERIFICATION_INSTRUCTIONS);
             }
             input.to_string()
         })
@@ -257,13 +304,17 @@ pub(super) fn check(
         params["outputSchema"] = proposal_schema(
             matches!(
                 request["contract"].as_str(),
-                Some("brief-plan-v2" | "brief-plan-v3")
+                Some("brief-plan-v2" | "brief-plan-v3" | "brief-plan-v4")
             ),
-            if request["contract"] == "brief-plan-v3" {
+            if matches!(
+                request["contract"].as_str(),
+                Some("brief-plan-v3" | "brief-plan-v4")
+            ) {
                 16
             } else {
                 4
             },
+            request["contract"] == "brief-plan-v4",
         );
     }
     let start = rpc.request("turn/start", params)?;
@@ -560,7 +611,10 @@ done
                 assert_eq!(result["proposal"]["tasks"].as_array().unwrap().len(), 1);
                 let turn: Value =
                     serde_json::from_slice(&fs::read(dir.join("turn-request")).unwrap()).unwrap();
-                assert_eq!(turn["params"]["outputSchema"], proposal_schema(false, 4));
+                assert_eq!(
+                    turn["params"]["outputSchema"],
+                    proposal_schema(false, 4, false)
+                );
                 let input: Value =
                     serde_json::from_str(turn["params"]["input"][0]["text"].as_str().unwrap())
                         .unwrap();
@@ -616,7 +670,10 @@ done
         assert_eq!(result["proposal"]["tasks"][1]["depends_on"], json!([0]));
         let turn: Value =
             serde_json::from_slice(&fs::read(dir.join("turn-request")).unwrap()).unwrap();
-        assert_eq!(turn["params"]["outputSchema"], proposal_schema(true, 4));
+        assert_eq!(
+            turn["params"]["outputSchema"],
+            proposal_schema(true, 4, false)
+        );
         let task = &turn["params"]["outputSchema"]["properties"]["tasks"]["items"];
         assert_eq!(task["required"].as_array().unwrap().len(), 5);
         assert_eq!(task["properties"]["depends_on"]["maxItems"], 5);
@@ -668,7 +725,10 @@ done
         assert_eq!(result["grant"], "scratch-read-only-v1");
         let turn: Value =
             serde_json::from_slice(&fs::read(dir.join("turn-request")).unwrap()).unwrap();
-        assert_eq!(turn["params"]["outputSchema"], proposal_schema(true, 16));
+        assert_eq!(
+            turn["params"]["outputSchema"],
+            proposal_schema(true, 16, false)
+        );
         let input: Value =
             serde_json::from_str(turn["params"]["input"][0]["text"].as_str().unwrap()).unwrap();
         assert_eq!(input["document_snapshots"], request["documents"]);
