@@ -46,8 +46,11 @@ defmodule Cuckoding.Database do
   @impl true
   def init(_) do
     repo = Cuckoding.Repo
-    migrations = Ecto.Migrator.migrations_path(repo)
+    migrate!(repo, Ecto.Migrator.migrations_path(repo))
+    {:ok, nil}
+  end
 
+  def migrate!(repo, migrations) do
     known =
       Path.wildcard(Path.join(migrations, "*.exs"))
       |> Enum.map(fn path ->
@@ -55,14 +58,25 @@ defmodule Cuckoding.Database do
         version
       end)
 
-    applied = Ecto.Migrator.migrated_versions(repo)
+    applied = Ecto.Migrator.migrated_versions(repo) |> Enum.sort()
 
     if Enum.any?(applied, &(&1 not in known)),
       do: raise("database schema is newer than this application")
 
-    Ecto.Migrator.run(repo, :up, all: true, log: false)
+    if applied == [] and
+         repo.query!(
+           "SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name != 'schema_migrations' AND name NOT LIKE 'sqlite_%' LIMIT 1",
+           [],
+           log: false
+         ).rows != [],
+       do: raise("database schema is unrecognized; migration refused")
+
+    if applied != [] and Enum.sort(known) != applied,
+      do: Cuckoding.UpgradeBackup.create!(repo, applied, Enum.sort(known))
+
+    Ecto.Migrator.run(repo, migrations, :up, all: true, log: false)
     repo.config()[:database] |> Path.dirname() |> Cuckoding.Storage.prepare!()
-    {:ok, nil}
+    :ok
   end
 end
 

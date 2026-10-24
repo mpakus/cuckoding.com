@@ -12,6 +12,8 @@ defmodule Cuckoding.Storage do
     marker = Path.join(root, @marker)
     reject_symlinks!(marker)
 
+    validate_marker!(marker)
+
     case File.read(marker) do
       {:ok, "ccoding-rebuild-v1\n"} ->
         :ok
@@ -34,12 +36,36 @@ defmodule Cuckoding.Storage do
     File.chmod!(root, 0o700)
 
     for name <- [@marker, "foundation.db", "foundation.db-wal", "foundation.db-shm"] do
-      path = Path.join(root, name)
-      reject_symlinks!(path)
-      if File.exists?(path), do: File.chmod!(path, 0o600)
+      secure_file!(Path.join(root, name))
     end
 
     :ok
+  end
+
+  defp validate_marker!(marker) do
+    case File.lstat(marker) do
+      {:ok, %{type: :regular, links: 1, size: size}}
+      when size == byte_size("ccoding-rebuild-v1\n") ->
+        :ok
+
+      {:error, :enoent} ->
+        :ok
+
+      _ ->
+        raise "invalid rebuild data marker"
+    end
+  end
+
+  # Fixed private storage filenames; refuse links and special files before chmod.
+  # sobelow_skip ["Traversal.FileModule"]
+  defp secure_file!(path) do
+    reject_symlinks!(path)
+
+    case File.lstat(path) do
+      {:ok, %{type: :regular, links: 1}} -> File.chmod!(path, 0o600)
+      {:error, :enoent} -> :ok
+      _ -> raise "unsafe private storage file"
+    end
   end
 
   # A new private scratch directory per consented check; no account profile is imported.
