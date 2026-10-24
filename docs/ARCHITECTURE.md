@@ -1,6 +1,21 @@
 # Architecture
 
-R050o adds native `arena_git::guest_check` as an unadmitted fixed operation. It
+R050p connects declared offline npm/Mix checks to the existing Arena stage worker.
+`GuestChecks` owns the frozen grant, literal command binding, exact-candidate
+capsule/VM calls and closed public receipt validation. `CheckImage` embeds the
+native image/keeper/process/build identity and queries only completed audited
+admissions for reuse. `BattleExecutor` performs installation/verification during
+admission, then checks through cancellable NativeHelper Ports in supervised tasks;
+the coordinator remains responsive. `Battles.Receipts` binds independent review
+to the exact original completed check attempt, never the reviewer's newer ID or
+another task. Unverified native attempts retain global capacity. Migration nineteen
+adds bounded image/reservation query indexes and the old-bundle fence. Start keeps
+one button and describes first-use downloads/offline limits. Historical system
+grants remain unchanged; automatic task-selected tools, dependencies/platforms,
+keeper recovery and real-provider/release acceptance remain open.
+[Decision](DECISIONS.md#d062--admit-isolated-checks-through-the-existing-arena-worker).
+
+R050o introduced native `arena_git::guest_check` as a fixed operation. It
 reuses image and committed-candidate verification, retains an exact scoped intent,
 and starts only the compiled embedded Swift keeper. `build.rs` compiles/signs that
 dedicated Apple Silicon/macOS13 helper; build identity also covers its source and
@@ -12,8 +27,8 @@ Only after both verify does Rust publish bounded public metadata. A single-use
 run namespace and admission are reserved before preflight; replay never closes
 an earlier run or overwrites its proof. Captured
 output remains a private hash-bound file. There is no new SQLite state/command,
-provider permission or Start grant; the existing check normalizer refuses this
-contract. Wrapper-loss VM-only observations never authorize recovery or release.
+provider permission or Start grant in that slice; R050p admits it only through
+its separate frozen policy. Wrapper-loss VM-only observations never authorize recovery or release.
 [Decision](DECISIONS.md#d061--keep-the-vm-owner-independent-until-native-shutdown-is-recorded).
 
 R050n puts the fixed image installer and production guest programs in native
@@ -24,8 +39,7 @@ input/source digests plus the original full receipt. Guest PID1/root control own
 deadlines and result framing outside the unprivileged resource group; only a
 fixed npm/Mix runtime receives bounded literal arguments. Worker output is separate
 data. The installer grants no VM launch or Start authority. R050o above supplies
-the native keeper; supervised OTP admission, frozen grants and application state
-remain separate.
+the native keeper; R050p above owns supervised OTP admission and frozen grants.
 [Decision](DECISIONS.md#d060--install-fixed-guest-inputs-and-keep-control-outside-project-execution).
 
 R050m implements isolated-check candidate transport inside the existing native

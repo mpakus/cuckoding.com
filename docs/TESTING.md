@@ -1,5 +1,34 @@
 # Verification and acceptance
 
+R050p: after `rtk proxy bin/dev.build`, run
+`rtk proxy python3 -B test/guest_battle_smoke.py`. The driver verifies the current
+sealed helper/source identity, creates only a fresh private fixture and runs the
+actual source OTP/domain loop with a source-only synthetic provider adapter.
+Before upgrading the build, retain an independently sealed schema-eighteen app
+in a fresh private directory; `.ccoding/r050p-old-bundle.json` records
+`{"root":"/private/tmp/cuckoding-r050p-old-bundle-<id>","build":<its --build-info JSON>}`.
+The copy must remain `root/Cuckoding.app`. Without that artifact the older-bundle
+refusal proof is unavailable; the driver fails instead of skipping it.
+One Start must finish two dependent tasks through real native Git/image/capsule
+operations and offline npm/Mix VMs, including a failed test, fresh correction and
+final checks. Validate exact original check bindings, private output bytes/hash,
+VM Stopped/helper cleanup, unchanged source/index and responsive coordinator.
+A second Start must verify/reuse the completed image, Pause after admission with
+no provider turn/VM, then Stop. An explicitly retained older schema-eighteen
+sealed bundle must refuse the resulting schema-nineteen DB without changing it.
+Verify its exact build metadata and the bounded private newer-schema failure
+reason; a generic failed launch is insufficient. Never export the raw failure dump.
+Keep all fixtures/failed attempts. This is actual VM-through-OTP evidence with
+synthetic providers, not real-account or packaged end-to-end acceptance.
+
+Focused tests cover first-use/reuse image scope, closed native frames/literal
+command digest, foreign/cross-attempt candidates, forged shutdown, failed-check
+review handoff, interrupted capacity and cancellation grace. Upgrade tests verify
+the eighteen-to-nineteen database-only backup and additive indexes. Run normal
+packaged lifecycle/recovery separately; hard keeper loss, real project dependency/
+platform support, task-proposed checks and release acceptance remain open.
+[Evidence](../worklog/2026-10-24-R050p-arena-guest-checks.md).
+
 R050o: `rtk proxy python3 -B test/keeper_protocol_test.py` compiles the production
 decoder/private-file code with a test-only compilation flag and Address Sanitizer.
 It checks foreign/extra/malformed frames, counts/hashes/exit/closure flags, bounded
@@ -14,8 +43,8 @@ validated output bytes/hash remain private. Source/index stay unchanged; replaye
 runs and foreign image/input receipts refuse. Preflight refusals retain exclusive
 admission and cannot be replayed to establish cleanup for an earlier run. `--debug` tests only the repository
 debug helper, without claiming sealed-artifact acceptance. Retain all fixtures;
-real project dependencies, provider acceptance, physical sleep and OTP/Start
-integration remain separate. [Evidence](../worklog/2026-10-24-R050o-native-check-keeper.md).
+real project dependencies, provider acceptance and physical sleep remain separate;
+R050p's OTP integration proof is above. [Evidence](../worklog/2026-10-24-R050o-native-check-keeper.md).
 
 R103 verifies the locked Tokio1.53.3 patch with the unsuppressed native audit,
 an exact Apple Silicon reverse/normal/build dependency graph, native tests/lints

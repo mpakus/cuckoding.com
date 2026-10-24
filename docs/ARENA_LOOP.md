@@ -320,12 +320,32 @@ active/uncertain battle; newly added tasks wait for a future battle.
 
 ## Checks and process ownership
 
-The first grant is `codex-check-single-process-v1`. Resolve only native executables
+New Starts whose explicitly saved check list contains only `npm`/`mix` freeze
+`isolated-guest-checks-v1` and the compiled image specification. The existing
+admission task installs pinned toolchains on first use or verifies a completed
+admission's exact image; this is part of Start, not an extra setup screen.
+Each check uses a single-use native run, an immutable committed-candidate capsule
+and offline Linux VM. Literal arguments/directory/timeout and exact attempt,
+candidate, capsule and image hashes bind its receipt. Both native VM Stopped and
+owned helper cleanup must verify. A failed test goes to Secutor, then a fresh
+Speculator/Implementor correction within the original review budget. Secutor and
+final Secutor validate the original completed check attempt and candidate before
+acceptance. Unverified admission/check closure reserves global capacity and needs
+inspection; missing processes cannot release it. Pause still drains the current
+stage, and Stop cancels through the same owned Port. No provider inference or new
+provider tools are used to run the checks.
+
+The image includes fixed Node/npm/OTP/Elixir, no project dependency download or
+host shares/network. Linux results do not establish macOS/browser equivalence.
+Automatic task-proposed commands and retained failure-log delivery remain open.
+Mixed system/guest lists refuse before effects; older snapshots keep their grants.
+
+The historical system grant is `codex-check-single-process-v1`. Resolve only native executables
 in `/usr/bin` or `/bin`, freeze identities and literal argv, then run through RTK
 inside the verified Codex CLI sandbox from an empty private profile. Each check
 has a maximum 300-second timeout; combined declared timeouts may not exceed 600
 seconds. Scripts, subprocess toolchains, Mix/npm pipelines and dependency installs
-are unsupported. No account or model is used to establish the command sandbox.
+are unsupported by that grant. No account or model is used to establish the command sandbox.
 
 A trusted inner supervisor creates one direct child, which becomes a session
 leader and applies a hard zero process limit before executing project code. A
@@ -350,8 +370,9 @@ Adapter fixtures exercise a two-task dependency chain with a forced check/review
 return, fresh correction checkout and final review. Native tests separately verify
 Git preservation, sandbox behavior and process lifetime. These do not substitute
 for a live signed-in two-task battle. Full restart/sleep
-reconciliation, parallel tasks, custom stages, general toolchain checks and the
-remaining providers stay open in [Plan](PLAN.md). No additional dependency is added.
+reconciliation, real-provider parallel/custom-stage acceptance, task-proposed checks,
+dependency/platform support and remaining providers stay open in [Plan](PLAN.md).
+No additional application dependency is added.
 
 ## Cursor role turns (R020p)
 

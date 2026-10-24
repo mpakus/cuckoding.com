@@ -49,7 +49,16 @@ cancellable local process queue, with native ownership/locks still authoritative
 Checks, independent review and integration run serially after implementation;
 combined candidates receive new review/check evidence. Old Starts remain
 sequential per board. R070e adds explicitly paired role bindings; real-provider
-parallel acceptance remains open. Each task starts from the last independently reviewed battle head; failed review creates a new worktree and returns through Speculator. Checks use a separate exact-candidate clone. The initial `codex-check-single-process-v1` grant supports native commands in `/usr/bin` or `/bin` only, with no subprocess spawning; scripts and Mix/npm toolchains are refused. The Implementor connection must have verified Codex `0.162.0-alpha.17.2` or `0.163.0-alpha.11.2`. Configured command checks and independent review gate completion. R050f v2 battles without extra commands skip command stages and rely on task/final criteria review; missing required runtime evidence blocks completion, never counts as a passing test. Restart never replays unfinished effects; full reconciliation and sleep/resume remain open.
+parallel acceptance remains open. Each task starts from the last independently
+reviewed battle head; failed review creates a new worktree and returns through
+Speculator. Checks use a separate exact-candidate clone. The historical
+`codex-check-single-process-v1` grant supports native `/usr/bin` or `/bin` commands
+without subprocess spawning and requires a verified Codex Implementor. R050p adds
+the separate guest grant below for entirely npm/Mix check lists. Configured checks
+and independent review gate completion. R050f v2 battles without extra commands
+skip command stages and rely on task/final criteria review; missing required
+runtime evidence blocks completion, never counts as a passing test. Restart never
+replays unfinished effects; full reconciliation and sleep/resume remain open.
 
 R040c's implemented Git setup uses a fixed native host helper, outside any agent
 session: inspect metadata or initialize a missing standalone repository after
@@ -75,8 +84,9 @@ locked detached registration, index and raw tracked bytes. It does not execute
 provider turns or project checks, modify files, or allocate runtime resources.
 Dated observations require fresh validation at future execution admission.
 
-The first runner is a supervised host process runner using Git worktrees.
-There are no containers, remote workers or claimed host sandbox boundaries.
+Provider turns use supervised host processes and Git worktrees. Guest checks use
+the separate offline VM boundary below; there are no remote workers or claimed
+sandbox boundaries around the whole host runner.
 
 ### Subprocess prerequisite (R050i)
 
@@ -179,15 +189,15 @@ R040j stores user-approved check declarations only. Each Arena revision retains
 literal argv, a relative working directory and finite timeout, with execution
 disabled. Configuration reads no files and launches no process. R050e binds an
 explicit saved revision to Start, verifies executable/worktree identity and retains
-receipts under the existing native single-process grant. General toolchains remain
-unavailable.
+receipts under the native single-process grant. R050p separately admits already
+declared npm/Mix commands; general project dependency/platform support remains open.
 
 R050m implements fixed native candidate-input preparation/verification for the
 future isolated-check runner. It exports exact immutable Git blobs and a bound
 manifest as a private deterministic newc archive; no host directory is shared.
 Verification is read-only and refuses partial, foreign or changed artifacts.
 The public result is bounded metadata, not an execution/check/completion grant.
-Native guest ownership and frozen Start/OTP integration remain required.
+R050n/o own the separate guest/image lifecycle; R050p owns frozen Start/OTP admission.
 [Transport contract](../tasks/R050m-candidate-check-input.md).
 
 R050n's explicit native image installer pins 24 official inputs, Node 24.22.1,
@@ -221,6 +231,32 @@ Wrapper loss may retain `vm_closed` but no overall native receipt; it never
 establishes cleanup, replay, recovery or task completion. Start/OTP/tool grants
 and real dependencies/platform/distribution acceptance remain separate.
 [Keeper contract/evidence](../tasks/R050o-native-check-keeper.md).
+
+R050p new Starts with entirely saved npm/Mix check lists freeze
+`isolated-guest-checks-v1` and the compiled image/keeper/process/build digest.
+`CheckImage` installs or verifies the exact audited image inside the existing
+admission worker, never ordinary app startup. First-use downloads and offline
+Linux scope are visible beside Start. A changed helper/image cohort refuses
+before role turns. Historical system grants and empty review-only scopes remain
+unchanged; mixed lists refuse rather than choose a different runtime.
+
+`GuestChecks` prepares one immutable candidate capsule per check stage and reserves
+one run UUID per declaration in the immutable attempt request. Length-framed
+command hashing binds attempt/check IDs, capsule key/manifest, candidate, image
+specification, toolchain, literal argv/directory and timeout. NativeHelper uses
+bounded cancellable Ports in the existing Task.Supervisor worker, with 15 seconds
+to observe the native keeper's bounded cancellation/owned cleanup. This grace
+does not extend successful work, the original deadline or the five-second shell
+cleanup sleep lease. Checks retain private output and public typed metadata;
+independent review validates the exact original completed check attempt.
+Interrupted admission/checks retain the global reservation until actual cleanup
+proof; no process-absence inference, native replay or new recovery is added.
+
+Projects needing downloaded dependencies, other runtimes, browser/macOS execution
+or host-platform equivalence are unsupported by this grant. Task-proposed checks,
+failure-log delivery, hard keeper-loss recovery, image distribution/licensing and
+real-provider/release verification remain separate acceptance work.
+[Integration contract/evidence](../tasks/R050p-arena-guest-checks.md).
 
 ## RTK and Ponytail
 

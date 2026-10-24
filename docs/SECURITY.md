@@ -131,8 +131,8 @@ worker is UID1000, has no capabilities, no-new-privileges and finite resources;
 it cannot write control frames. Literal argv selects only fixed npm/Mix, without
 host shares, network or provider credentials. Source reads reject links/mode/hash
 drift before/after verified group closure. Output is separately bounded/hashed;
-root result data still needs native Stopped and frozen host authority. The current
-shipping check normalizer does not accept it. Production keeper loss/recovery,
+root result data still needs native Stopped and frozen host authority. R050p adds
+the separate exact-policy normalizer below. Production keeper loss/recovery,
 image distribution/updates and real-project dependencies remain open.
 [Evidence](../worklog/2026-10-23-R050n-frozen-check-image.md).
 
@@ -153,7 +153,28 @@ Cancellation, clock failure/backward time and original expiry refuse work, with
 only bounded shutdown grace. No new historical/Start grant or automatic recovery.
 [Evidence](../worklog/2026-10-24-R050o-native-check-keeper.md).
 
-Start grants bounded local completion for frozen Codex roles/tasks/checks. Provider sessions retain host-only file tools and cannot run commands. The check runner uses a fresh empty Codex profile and private candidate clone, network denial, protected policy paths, bounded output hashing and frozen argv/executable identities. Its initial single-process grant forbids forks and tracks the inner session leader by PID/start identity; cleanup uncertainty is retained instead of claiming Stop. Toolchain/subprocess checks are unsupported. Native battle branch creation and candidate integration are exclusive, audited and compare-and-swap; no source checkout change or remote operation is authorized.
+R050p freezes a separate guest policy only for explicitly saved npm/Mix check
+lists. The compiled image specification covers image/control, native VM ownership,
+process-group and build sources. Installation/reuse requires a completed exact
+admission receipt; changed/partial/foreign images never repair themselves or gain
+authority from task text. Each immutable attempt reserves exact run UUIDs; the
+closed decoder binds length-framed literal command digest, request/candidate,
+capsule and image. Malformed closure, unrelated output, replay or false cleanup
+cannot settle work. Secutor validates the original completed check attempt,
+same task/battle/criteria/candidate and exact retained passed rows, never a newer
+coordinator/reviewer projection. Public evidence whitelists hashes/status/counts;
+private run/request/image identifiers and raw output stay outside downloads.
+Unknown admission/check shutdown reserves global capacity after interruption.
+No process absence, missing native receipt or VM-only closure proves release.
+Task-selected tools, dependency provisioning and new recovery remain ungranted.
+
+Start grants bounded local completion for frozen Codex/Cursor roles/tasks/checks.
+Provider sessions retain host-only file tools and cannot run commands. Historical
+system checks use the empty Codex profile/private candidate clone, denied network,
+protected paths and hard no-fork limit. Guest checks use the separate offline VM
+grant above, without provider profiles, host shares or project dependency access.
+Native branch creation/integration remain exclusive, audited and compare-and-swap;
+no source checkout change or remote operation is authorized.
 
 R050f removes mandatory command configuration, not verification or execution
 boundaries. Only a new `arena-loop-v2` empty command scope skips command stages;

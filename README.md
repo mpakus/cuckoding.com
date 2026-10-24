@@ -70,7 +70,7 @@ listed below. Arena registration opens its default board; technical setup stays 
 | Saved agent/model assignments for Speculator, Implementor, Secutor and Summa Rudis | Real mixed-runtime battle acceptance |
 | Folder registration with an automatic default board, direct Arena opening, scoped team editing, versioned column names, ordered custom read/write stages and editable drafts | Real-provider custom-stage acceptance |
 | Codex/Cursor planning from a brief or bounded folder snapshots (`docs/` first), automatically saved task cards, prerequisites and original source citations | Real-account planning acceptance across supported runtimes |
-| One bounded Start, independent task pipelines in waves of up to two, serialized independent review/integration and a retained local battle branch | Real-account end-to-end acceptance, general toolchain checks, full recovery and real-provider parallel acceptance |
+| One bounded Start, independent task pipelines in waves of up to two, serialized independent review/integration, declared offline npm/Mix checks and a retained local battle branch | Task-proposed checks, project dependencies/platform verification, real-account end-to-end acceptance, full recovery and real-provider parallel acceptance |
 | Global setup/planning/battle activity, selected-board team/progress and paginated events globally/per Arena | Timed real-account setup and broader dashboard/release acceptance |
 
 Tabula Gladiatorum shows up to 20 saved active setup/planning/battle records and
@@ -198,36 +198,22 @@ Secutor reviews the checks described in every task and the combined result.
 Missing required runtime/test evidence blocks completion; code inspection never
 proves tests ran. **Advanced → Extra command checks (optional)** adds explicit
 commands when needed; once configured, all must pass. Without them, no command
-tests run and no passing command receipt is invented. Extra commands currently
-require a Codex Implementor and support native system commands that run in one process;
-Mix/npm pipelines and other subprocess toolchains are not supported. A disposable
-macOS probe confirmed that allowing fork needs stronger cleanup containment than
-the original process group. [Toolchain prerequisite](tasks/R050i-toolchain-containment.md).
-A separate disposable VM prototype verifies normal stop, controller loss and
-deadline handling for isolated guest sessions. Abrupt owner loss still lacks
-verified cleanup; it does not enable Mix/npm or change Start permissions.
-[Prototype evidence](tasks/R050j-guest-lifetime-prototype.md).
-The protected-worker probe also verifies non-root/no-new-privileges execution,
-PID/memory/CPU limits and an independent guest watchdog. These remain research
-checks; actual toolchain integration is pending. [Evidence](tasks/R050k-protected-guest-watchdog.md).
-A disposable offline extension now runs real npm/ExUnit pass/fail tests against
-synthetic committed candidates, with separate privileged results and native
-shutdown observations. This remains a development probe; Arena toolchain support,
-image distribution and keeper-loss recovery are unfinished.
-[Toolchain evidence](tasks/R050l-offline-toolchain-checks.md).
-The native runner can now prepare and verify a private input archive for an exact
-committed candidate, preserving the user's checkout. This is the production
-transport prerequisite; Start still does not enable guest toolchain checks.
-[Candidate transport](tasks/R050m-candidate-check-input.md).
-The native installer now builds a private image from pinned upstream inputs;
-production guest control runs isolated offline npm/Mix checks against that exact
-candidate transport. Start integration remains pending, so the installer alone
-does not enable Arena toolchain commands.
-[Image/runtime evidence](tasks/R050n-frozen-check-image.md).
-The production native keeper now owns actual check VMs, bounded private output,
-cancellation and verified shutdown. It is a native primitive; Arena still needs
-the frozen OTP/Start integration before it can use guest toolchain checks.
-[Keeper implementation/evidence](tasks/R050o-native-check-keeper.md).
+tests run and no passing command receipt is invented. New Starts whose saved
+checks are entirely `npm`/`mix` use an isolated offline Linux VM for each exact
+candidate. Start prepares pinned toolchains on first use and reuses only a
+verified saved image; the UI explains that first-use download. Codex and Cursor
+roles keep their assigned bindings. Checks, failed-test correction and independent
+review run in the existing supervised Arena workers, with verified VM shutdown
+required before advancement. [Arena check integration](tasks/R050p-arena-guest-checks.md).
+
+These checks do not download project dependencies or reproduce macOS/browser
+environments. Automatic task-proposed checks and failure-log delivery remain
+unfinished. Native system checks retain the separate Codex single-process grant;
+mixing system and guest checks in one saved list is refused. Historical Starts
+keep their original grants. Interrupted checks and hard VM-owner loss need
+inspection; missing cleanup proof never releases capacity. Native containment and
+keeper evidence are recorded separately from real-provider/release acceptance.
+[Execution limits](docs/EXECUTION_ENVIRONMENTS.md), [native keeper](tasks/R050o-native-check-keeper.md).
 **Pause** finishes the current stage and saves its result before holding the next
 stage. **Resume** keeps the same team, work and limits; paused time counts toward
 the original deadline. Clean paused battles survive restart. **Stop** cancels

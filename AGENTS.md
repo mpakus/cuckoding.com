@@ -529,7 +529,8 @@ Only validated JSON proposals reach the existing host list/read/edit service.
 Retain effect receipts; remove private runtime session stores after owned cleanup.
 Never persist provider thought frames in Cuckoding receipts or UI. Hard-kill
 cleanup of interrupted provider session stores remains a recovery gate.
-No Cursor fallback to Codex. Command checks still require a Codex Implementor;
+No Cursor fallback to Codex. Historical system checks require a Codex Implementor;
+R050p's separate frozen offline guest checks do not use a provider runtime.
 Cursor initial task generation uses R020r below; general shell/toolchain execution remains open.
 Use synthetic provider acceptance separately from fixture or full Arena evidence.
 
@@ -625,8 +626,8 @@ closed binding/count/hash projections. Verification recomputes expected bytes
 as a read-only hash stream; never rebuild missing/partial artifacts or accept a
 forged archive/receipt pair. Retain all failures; cancellation/expiry cannot return
 success. This transport receipt grants no check, completion, recovery or Start
-authority. R050n/o supply the image/keeper below; frozen grants/OTP integration
-remain open.
+authority. R050n/o supply the image/keeper below; R050p owns its separate frozen
+Start grant and supervised integration.
 R050n adds explicit native `--prepare-check-image` / `--verify-check-image`, never
 ordinary startup downloads or VM launch. Use only compiled HTTPS input sizes/hashes,
 private exclusive descriptor-bound storage and the exact original image receipt;
@@ -635,7 +636,7 @@ memory without host extraction. Production guest root control stays outside the
 UID1000/no-new-privileges bounded worker group, validates exact candidate/check
 scope, separates worker output and requires source integrity plus group closure.
 Its result is data until the native keeper verifies shutdown and OTP admits
-the frozen grant. Start still rejects this guest contract. Image installation
+the frozen grant. Only R050p's separate Start policy admits this guest contract. Image installation
 itself grants no VM launch, dependency/network access or recovery authority.
 Synthetic npm/Mix evidence does not establish real-project or release acceptance.
 R050o adds only fixed native `run_guest_check`: exact image/candidate verification,
@@ -652,8 +653,30 @@ owned pre-launch refusals distinguish `native_started: false`; malformed scope a
 uncertain Git cleanup cannot establish work authority.
 After wrapper loss, private `vm_closed` alone is not overall cleanup or recovery:
 no public native receipt means no accepted work/capacity release. Keep Start and
-its old normalizer unchanged until frozen supervised OTP integration is verified.
+its old normalizer unchanged for historical grants; R050p adds a separate policy below.
 See [Arena loop](docs/ARENA_LOOP.md) and [Plan](docs/PLAN.md).
+
+R050p freezes `check_execution: isolated-guest-checks-v1` with the compiled image/
+VM-owner/process/build digest only for entirely declared npm/Mix lists. Mixed
+system/guest lists refuse before effects; empty/historical scopes keep their exact
+grants. The existing admission Task.Supervisor worker installs pinned inputs or
+verifies an exact completed admission's receipt; Start stays one button with
+visible first-use download/offline Linux scope. Never reuse failed/partial/foreign
+images or silently switch helpers. Checks use immutable candidate capsules and
+per-declaration run UUIDs reserved in the original attempt. Bind length-framed
+literal argv/directory/timeout, attempt/check/candidate/capsule/image identities
+and both VM/native-group closure. Independent review must read the original
+completed check attempt for the same task/criteria/candidate, never a reviewer ID
+or different coordinator task. Unknown/interrupted admission/check closure retains
+global worker capacity; process absence and VM-only proof never release it.
+Legacy exclusive battles wait until those reservations are closed too.
+NativeHelper's 15-second guest cancellation allowance observes shutdown only;
+original success/battle deadlines and five-second shell cleanup lease still apply.
+Migration nineteen is forward-only with backup/old-bundle fence and bounded
+image/reservation indexes. Public evidence contains only whitelisted hashes/
+counts/status, no private run/request/image IDs or raw output. No task-proposed
+tools, dependency downloads, platform equivalence, new recovery, provider
+acceptance or release authority follows from this grant.
 
 ## Mission and product contract
 

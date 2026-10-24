@@ -1,6 +1,6 @@
 # Implementation plan and checklist
 
-**Current implementation audit: 2026-10-23.** The source reset remains historical;
+**Current implementation audit: 2026-10-24.** The source reset remains historical;
 this checklist describes the current local preview. Setup, saved teams, folder
 analysis, automatic task cards and the bounded Codex/Cursor Arena loop with task waves
 are implemented. Pause/Resume, explicit provider Retry and Skip/Partial are also
@@ -27,7 +27,7 @@ attempts, inside the existing retry budget; interrupted/native recovery remains 
 | --- | --- | --- |
 | Agents and Team | Named Codex/Cursor connections, full bounded catalogs, model choices, default/custom planning roles, selected custom read/write stages, scoped team editing/adoption | Claude Code, Hermes and real-provider custom-stage acceptance |
 | Arena and tasks | Add folder/default board, versioned column names/ordered custom read/write stages, bounded docs-first analysis, optional saved planning role, automatic cards, prerequisites, citations and saved criteria | Real-account planning/custom-stage acceptance |
-| Execution | One Start, two independent task pipelines per wave within two global workers, serialized independent review/correction/integration and retained local result branch | General subprocess/toolchain checks, real mixed-provider and same-account parallel battle acceptance |
+| Execution | One Start, two independent task pipelines per wave within two global workers, serialized independent review/correction/integration, declared offline npm/Mix checks and retained local result branch | Task-proposed checks, dependency/platform verification, real mixed-provider and same-account parallel battle acceptance |
 | Controls/recovery | Stop, stage-boundary Pause/Resume, bounded provider Retry and automatic backoff, Skip with deferred dependents and Partial result; settled restart checkpoints, timing fence and bounded idle-sleep assertion | Unfinished native/process/Git reconciliation, sleep accounting and physical sleep tests |
 | Experience | Agent wizard/disconnect, Team editor, Arena controls/inspector with public JSON evidence downloads, global workers/progress and paginated global/Arena activity with follow control | Broader parallel activity, responsive/browser acceptance and timed ten-minute setup |
 | Release | Local bundle/build/smoke, separate preserved data root; Decimal/Bandit advisories fixed | Signing/notarization, clean-machine install, updates/rollback and full acceptance matrix |
@@ -36,10 +36,14 @@ Delivery order: finish uncertain-effect/toolchain recovery (R060), real-provider
 parallel and combined-result acceptance (R070), then complete the user-flow/runtime
 and release verification gates (R080–R100). The bounded implementation is in place;
 unchecked acceptance below remains required.
-General toolchain checks and consented live-provider acceptance can progress
+Task-proposed checks/dependency support and consented live-provider acceptance can progress
 alongside recovery. No fixture suite or successful local build substitutes for
 those provider/physical/clean-machine gates. Historical slice evidence stays
 linked below; completed implementation and remaining acceptance are separate.
+The next check slice must let task analysis propose bounded verification without
+requiring the optional Advanced editor, and make retained failure evidence useful
+to the assigned repair roles. R050p's declared offline checks are the runner for
+that work; they do not complete the ordinary task-owned verification flow.
 
 R015 adds the separately requested public site after R010; see [Site](SITE.md).
 
@@ -464,14 +468,16 @@ Depends on R030.
   accepted-spec validation remain separate from reference validation.
 - [x] Persist explicit check declarations separately from proposals (R040j);
   R050e freezes them under the bounded native single-process grant.
-- [ ] Add general subprocess/toolchain verification grants; Mix/npm pipelines
-  remain unavailable. Generated task text must not grant execution permission.
+- [ ] Complete task-proposed subprocess/toolchain verification, project dependency
+  provisioning and platform acceptance. R050p admits only already-declared offline
+  npm/Mix scopes; generated task text must not grant execution permission.
   R060o investigation confirmed the installed Apple SDK marks NOTE_TRACK child
   tracking unsupported; removing RLIMIT_NPROC would not establish ownership of
   escaped sessions. A verified containment/cleanup design remains required.
   R050i's disposable Darwin probe also observed child session/group escape under
   deny-default Seatbelt with fork enabled. Group cleanup alone is insufficient;
-  retain the current grant pending a proven descendant lifetime boundary.
+  retain the historical system grant's no-fork limit; guest checks use a separate
+  VM lifetime boundary and frozen policy.
   [Investigation](../tasks/R050i-toolchain-containment.md).
 - [x] R050j prototype a bounded isolated guest with pinned official inputs and
   no network/host shares. Actual native Stopped observations pass for input,
@@ -506,10 +512,17 @@ Depends on R030.
   SDK Stopped plus helper-group closure and retained exact receipt. VM-only closure
   after wrapper loss remains insufficient for overall cleanup/recovery.
   [Task/evidence](../tasks/R050o-native-check-keeper.md).
-- [ ] Integrate native guest checks into supervised OTP execution and a frozen
-  Start/tool grant, including task-owned verification without a new setup ceremony.
-  Verify interruption/owner-loss policy, dependency/platform limits and image
-  distribution/licensing before enabling Arena toolchains.
+- [x] R050p integrate already-declared offline npm/Mix checks into supervised OTP
+  execution and a frozen Start grant. Existing admission owns first-use image
+  installation/reuse; one Start, exact original check receipts and independent
+  review, no extra setup action. Preserve old grants and unknown-cleanup capacity.
+  Seven actual VM checks complete two dependent tasks with a forced review return;
+  providers are synthetic. Image reuse/Pause/Stop and old-bundle refusal pass.
+  [Task/evidence](../tasks/R050p-arena-guest-checks.md).
+- [ ] Add task-owned check proposals/tools without routine Advanced setup, expose
+  bounded failure evidence for repairs, provision project dependencies and verify
+  platform/distribution/licensing. Hard VM-owner loss requires recovery evidence;
+  synthetic checks never establish real-provider or release acceptance.
 
 - [x] R040j: explicit check preview/consent, immutable Arena revisions, idempotent
   audited saves, stale/recovered editor refusal and no implied execution authority.
@@ -575,7 +588,7 @@ Depends on R040. This is the first end-to-end product milestone.
   task lineage, lifetime counters and authorization.
 
 R050e code/fixture scope: Codex default stages, 20 tasks, three review returns,
-200 turns, two-hour wall limit; no ordinary per-task prompts. Host checks use
+200 turns, two-hour wall limit; no ordinary per-task prompts. Historical host checks use
 `codex-check-single-process-v1`: native system commands, no spawned toolchain
 processes. A failed final review requires attention. Source checkout stays intact;
 Start never pushes or merges into the user branch. Stop and fail-closed restart

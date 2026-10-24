@@ -1,5 +1,18 @@
 # Data model
 
+R050p adds forward-only migration nineteen. `battle_attempts_check_images` indexes
+completed admission image identity; reuse still requires the exact retained
+cleanup-verified receipt. `battle_attempts_guest_reservations` indexes new-policy
+native attempts without verified cleanup; interruption never frees that slot.
+New snapshots freeze `check_execution: isolated-guest-checks-v1` plus the compiled
+image specification. Admission stores the exact image receipt in existing context;
+immutable check attempt requests reserve one UUID per declared check. Command
+digests bind that attempt, candidate, capsule, image, literal argv, directory and
+timeout. Reviews read only the original completed check attempt and its retained
+result. No historical snapshot/attempt is rewritten. Existing upgrade backup and
+future-schema refusal run before dispatch; back up schema eighteen before upgrade.
+[Decision](DECISIONS.md#d062--admit-isolated-checks-through-the-existing-arena-worker).
+
 R060s adds no migration. New Starts freeze `combination_recovery:
 retained-combination-v1`; one exact interrupted combine may use the existing
 `candidate_recovery_pending` / single-member wave and `candidate_reconciliations`
