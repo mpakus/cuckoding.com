@@ -3,6 +3,55 @@ defmodule Cuckoding.TaskEvidenceTest do
   alias Cuckoding.Battles.{Attempt, Battle, Evidence, Task}
   alias Cuckoding.{Command, DashboardFixtures, Event, Tabulae}
 
+  test "check feedback text stays private and the storage fence rejects other shapes" do
+    f = DashboardFixtures.fixture("completed")
+
+    attempt =
+      Repo.insert!(%Attempt{
+        id: Ecto.UUID.generate(),
+        battle_id: f.battle.id,
+        task_id: f.task.task_id,
+        stage: "checks",
+        state: "completed",
+        claim_token: Ecto.UUID.generate(),
+        deadline_at: f.battle.deadline_at,
+        request: %{},
+        result: %{
+          "check_feedback" => [
+            %{
+              "check_id" => "check",
+              "excerpt" => "PRIVATE_TEST_OUTPUT",
+              "excerpt_bytes" => 19,
+              "excerpt_sha256" => String.duplicate("a", 64),
+              "request_id" => "PRIVATE_REQUEST"
+            }
+          ]
+        }
+      })
+
+    page = Evidence.attempts(f.arena.id, f.board.id, f.task.task_id, f.battle.id, nil)
+
+    assert hd(page.rows).result["check_feedback"] == [
+             %{
+               "check_id" => "check",
+               "excerpt_bytes" => 19,
+               "excerpt_sha256" => String.duplicate("a", 64)
+             }
+           ]
+
+    {:ok, export} = Evidence.export(f.arena.id, f.board.id, f.task.task_id, f.battle.id)
+    refute export =~ "PRIVATE_"
+
+    for rows <- [%{}, [%{}, %{}]] do
+      assert_raise Exqlite.Error, ~r/invalid check feedback shape/, fn ->
+        Repo.query!("UPDATE battle_attempts SET result=? WHERE id=?", [
+          Jason.encode!(%{"check_feedback" => rows}),
+          attempt.id
+        ])
+      end
+    end
+  end
+
   test "execution scope binds Arena, board, draft and selected battle without fallback" do
     f = DashboardFixtures.fixture("completed")
     other = DashboardFixtures.fixture("completed")

@@ -1,6 +1,6 @@
 defmodule Cuckoding.GuestChecks do
   @moduledoc "Fixed offline guest checks; no provider or task text grants execution."
-  alias Cuckoding.{Arenas, BattleRepository, CheckImage, LocalGit, NativeHelper}
+  alias Cuckoding.{Arenas, BattleRepository, CheckFeedback, CheckImage, LocalGit, NativeHelper}
   @policy "isolated-guest-checks-v1"
   @tools ~w(npm mix)
   @transport_ms 375_000
@@ -28,6 +28,7 @@ defmodule Cuckoding.GuestChecks do
   def current?(snapshot),
     do:
       snapshot["check_execution"] == policy_for(snapshot["checks"]) and
+        CheckFeedback.current?(snapshot) and
         declarations_valid?(snapshot["checks"])
 
   def declarations_valid?(checks) do
@@ -67,13 +68,14 @@ defmodule Cuckoding.GuestChecks do
 
   defp field(value), do: <<byte_size(value)::32, value::binary>>
 
-  @native_fields ~w(contract key request_id check_id input_key candidate_sha check_sha256 status cleanup_verified intent_sha256 native_state vm_closed source_unchanged stdout_bytes observed_stdout_bytes stdout_sha256 exit_code elapsed_ms native_started admission_sha256)
+  @native_fields ~w(contract key request_id check_id input_key candidate_sha check_sha256 status cleanup_verified intent_sha256 native_state vm_closed source_unchanged stdout_bytes observed_stdout_bytes stdout_sha256 exit_code elapsed_ms native_started admission_sha256 failure_output)
   @outputs ~w(source_unchanged stdout_bytes observed_stdout_bytes stdout_sha256)
   @statuses ~w(passed failed source_changed output_limit timeout cancelled launch_failed invalid_output)
   @preflight ~w(invalid_request timeout cancelled launch_failed image_changed image_incomplete image_exists unsafe_image check_input_mismatch check_input_incomplete worktree_mismatch folder_changed repository_changed repository_busy unsafe_tree tree_limit unsafe_config unsupported_layout cleanup_uncertain)
 
-  def normalize(bytes, request) when is_binary(bytes) and byte_size(bytes) <= 8192 do
-    with {:ok, row} <- Jason.decode(bytes),
+  def normalize(bytes, request) when is_binary(bytes) and byte_size(bytes) <= 16_384 do
+    with true <- byte_size(bytes) <= response_limit(request),
+         {:ok, row} <- Jason.decode(bytes),
          true <- is_map(row),
          true <- Map.keys(row) -- @native_fields == [],
          true <- row["contract"] == "isolated-guest-check-v1" and row["key"] == request["key"],
@@ -82,7 +84,8 @@ defmodule Cuckoding.GuestChecks do
              Map.take(request["check"], ~w(request_id check_id input_key candidate_sha)),
          true <- row["check_sha256"] == check_digest(request["check"]),
          true <- is_boolean(row["cleanup_verified"]) and optional_elapsed?(row),
-         true <- closure?(row) do
+         true <- closure?(row),
+         true <- CheckFeedback.native_valid?(row, request) do
       if row["cleanup_verified"],
         do: row,
         else:
@@ -178,6 +181,11 @@ defmodule Cuckoding.GuestChecks do
         "cleanup_verified" => true
       }
 
+      result =
+        if CheckFeedback.enabled?(attempt.request["snapshot"]),
+          do: Map.put(result, "check_feedback", []),
+          else: result
+
       Enum.reduce_while(
         Cuckoding.TaskChecks.for_attempt(attempt),
         result,
@@ -204,7 +212,7 @@ defmodule Cuckoding.GuestChecks do
   defp request(attempt, check, preparation, input) do
     image = attempt.request["context"]["check_image"]
 
-    %{
+    request = %{
       "contract" => "isolated-guest-check-v1",
       "key" => attempt.request["guest_check_runs"][check["id"]],
       "deadline_unix_ms" =>
@@ -220,13 +228,25 @@ defmodule Cuckoding.GuestChecks do
       },
       "check" => check_request(attempt, check, input["manifest_sha256"])
     }
+
+    if CheckFeedback.enabled?(attempt.request["snapshot"]),
+      do: Map.put(request, "feedback", CheckFeedback.policy()),
+      else: request
   end
 
   defp outcome(%{"status" => "passed", "cleanup_verified" => true} = row, _, result, request),
     do: {:cont, append(result, project(row, request))}
 
-  defp outcome(%{"status" => "failed", "cleanup_verified" => true} = row, _, result, request),
-    do: {:halt, append(result, project(row, request)) |> Map.put("status", "failed")}
+  defp outcome(%{"status" => "failed", "cleanup_verified" => true} = row, _, result, request) do
+    result = append(result, project(row, request)) |> Map.put("status", "failed")
+
+    result =
+      if row["failure_output"],
+        do: Map.put(result, "check_feedback", [CheckFeedback.project(row)]),
+        else: result
+
+    {:halt, result}
+  end
 
   defp outcome(rejected, receipt, result, request) do
     no_launch = receipt == %{"status" => "not_started", "cleanup_verified" => true}
@@ -279,7 +299,7 @@ defmodule Cuckoding.GuestChecks do
 
   defp project(row, request) do
     row
-    |> Map.drop(~w(check_id))
+    |> Map.drop(~w(check_id failure_output))
     |> Map.put("id", row["check_id"])
     |> Map.merge(%{
       "input_manifest_sha256" => request["check"]["manifest_sha256"],
@@ -361,11 +381,14 @@ defmodule Cuckoding.GuestChecks do
       ],
       @transport_ms,
       &normalize(&1, request),
-      8192,
+      response_limit(request),
       active?: active?,
       cancel_grace: @cancel_ms
     )
   end
+
+  defp response_limit(%{"feedback" => "bounded-guest-feedback-v1"}), do: 16_384
+  defp response_limit(_), do: 8192
 
   # Only the host's before-launch/queue paths return this unbound acknowledgement.
   # Native replies must first pass the exact decoder and cannot impersonate it.

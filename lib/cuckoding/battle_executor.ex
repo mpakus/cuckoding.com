@@ -290,7 +290,7 @@ defmodule Cuckoding.BattleExecutor do
         "cleanup_verified" => true
       }
 
-      check_failure_reason(receipt)
+      receipt |> Map.merge(Map.take(result, ["check_feedback"])) |> check_failure_reason()
     else
       false -> failure("check_scope_changed")
       {:error, result} -> failed_receipt(result)
@@ -495,12 +495,17 @@ defmodule Cuckoding.BattleExecutor do
         if(writer_plan?(attempt), do: nil, else: context["previous_implementation"]),
       "speculator_plan" => if(writer_plan?(attempt), do: context["speculator_plan"]),
       "candidate_sha" => context["candidate_sha"] || context["head"],
-      "host_checks" => context["checks"],
+      "host_checks" => prompt_checks(request["snapshot"], context["checks"]),
       "declared_checks" => Cuckoding.TaskChecks.for_attempt(attempt),
       "command_check_scope" => command_check_scope(attempt),
       "review_round" => request["review_round"],
       "local_result_reference" => request["context"]["native_battle"]["reference"]
     }
+
+    data =
+      if feedback = Cuckoding.CheckFeedback.prompt(attempt),
+        do: data |> Map.put("check_feedback", feedback) |> Map.put("prior_public_summary", nil),
+        else: data
 
     data |> check_environment(request["snapshot"]) |> Jason.encode!()
   end
@@ -511,6 +516,12 @@ defmodule Cuckoding.BattleExecutor do
          attempt.task_id,
          attempt.request["context"]
        ), do: "not_configured", else: "required"
+  end
+
+  defp prompt_checks(snapshot, rows) do
+    if Cuckoding.CheckFeedback.enabled?(snapshot),
+      do: Cuckoding.CheckFeedback.check_metadata(rows),
+      else: rows
   end
 
   defp check_environment(data, snapshot) do

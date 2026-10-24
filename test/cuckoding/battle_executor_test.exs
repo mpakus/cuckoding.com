@@ -459,6 +459,71 @@ defmodule Cuckoding.BattleExecutorTest do
            end) == 3
   end
 
+  test "failure evidence reaches exact repair roles and clears after new checks", ctx do
+    guest = Map.merge(ctx.check, %{"executable" => "npm", "arguments" => ["test", "--offline"]})
+    {:ok, _} = ProjectChecks.save(Ecto.UUID.generate(), ctx.board.arena_id, 1, [guest], true)
+    battle = start(ctx.board)
+    assert battle.snapshot["check_feedback"] == Cuckoding.CheckFeedback.policy()
+    Process.put(:guest_failure, true)
+
+    options = [
+      git: Adapters,
+      provider: Adapters,
+      checks: Adapters,
+      image: Adapters,
+      guest_checks: Adapters
+    ]
+
+    final =
+      Enum.reduce_while(1..80, battle, fn _, battle ->
+        if battle.state == "completed" do
+          {:halt, battle}
+        else
+          {:ok, attempt} = Battles.claim_next(battle.id)
+          result = BattleExecutor.execute(attempt, options)
+
+          if result["status"] == "checks_failed" do
+            [feedback] = result["check_feedback"]
+            assert feedback["request_id"] == attempt.id
+            assert feedback["excerpt"] =~ "SYNTHETIC_ASSERTION"
+
+            forged =
+              put_in(result["check_feedback"], [
+                Map.put(feedback, "request_id", Ecto.UUID.generate())
+              ])
+
+            assert {:error, :foreign_result} =
+                     Battles.finish(attempt.id, attempt.claim_token, forged)
+
+            Process.put(:guest_failure, false)
+          end
+
+          assert {:ok, _} = Battles.finish(attempt.id, attempt.claim_token, result)
+          {:cont, Battles.get(battle.id)}
+        end
+      end)
+
+    assert final.state == "completed"
+    calls = Process.get(:provider_calls)
+    with_feedback = Enum.filter(calls, fn {prompt, _, _} -> prompt["check_feedback"] != nil end)
+
+    assert Enum.map(with_feedback, fn {prompt, _, _} -> prompt["stage"] end) |> Enum.sort() ==
+             ~w(implementor secutor speculator)
+
+    assert Enum.all?(with_feedback, fn {prompt, _, _} ->
+             prompt["check_feedback"]["trust"] == "untrusted_test_output" and
+               prompt["prior_public_summary"] == nil
+           end)
+
+    assert Enum.any?(calls, fn {prompt, _, _} ->
+             prompt["stage"] == "secutor" and prompt["check_feedback"] == nil
+           end)
+
+    failed = Enum.find(Battles.attempts(final.id), &(&1.result["status"] == "checks_failed"))
+    assert failed.result["check_feedback"] != []
+    assert Enum.all?(Battles.tasks(final.id), &(&1.context["check_feedback"] == []))
+  end
+
   test "planned profiles follow task and integrated scope through combined review", ctx do
     {:ok, _} = ProjectChecks.save(Ecto.UUID.generate(), ctx.board.arena_id, 1, [], true)
 

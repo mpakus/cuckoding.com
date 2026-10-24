@@ -251,7 +251,8 @@ defmodule Cuckoding.BattleCapacityMigrationTest do
     assert Ecto.Migrator.run(MigrationRepo, path, :up, all: true, log: false) == [
              20_261_023_010_000,
              20_261_024_000_000,
-             20_261_024_010_000
+             20_261_024_010_000,
+             20_261_024_020_000
            ]
 
     assert Map.new(tables, &{&1, MigrationRepo.query!("SELECT * FROM " <> &1).rows}) == facts

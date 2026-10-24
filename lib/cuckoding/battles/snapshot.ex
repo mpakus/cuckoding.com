@@ -139,7 +139,11 @@ defmodule Cuckoding.Battles.Snapshot do
 
     snapshot =
       if policy = GuestChecks.policy_for(snapshot["checks"]),
-        do: Map.put(snapshot, "check_execution", policy),
+        do:
+          Map.merge(snapshot, %{
+            "check_execution" => policy,
+            "check_feedback" => Cuckoding.CheckFeedback.policy()
+          }),
         else: snapshot
 
     %{
@@ -239,11 +243,36 @@ defmodule Cuckoding.Battles.Snapshot do
       })
 
     final = Enum.map(tasks, &Map.take(&1, ~w(id title criteria criteria_sha256 verification)))
-    Enum.all?(tasks, &prompt_fits?(&1, task_metadata)) and prompt_fits?(final, common)
+
+    normal =
+      Enum.all?(tasks, &task_prompts_fit?(&1, task_metadata)) and prompt_fits?(final, common)
+
+    if GuestChecks.policy_for(checks) do
+      feedback = %{
+        "prior_public_summary" => nil,
+        "check_feedback" => Cuckoding.CheckFeedback.reserve()
+      }
+
+      normal and Enum.all?(tasks, &task_prompts_fit?(&1, Map.merge(task_metadata, feedback))) and
+        prompt_fits?(final, Map.merge(common, feedback))
+    else
+      normal
+    end
   end
 
+  defp task_prompts_fit?(task, metadata),
+    do:
+      prompt_fits?(task, metadata) and
+        prompt_fits?(
+          task,
+          Map.merge(metadata, %{
+            "previous_implementation" => nil,
+            "speculator_plan" => String.duplicate("\n", 4000)
+          })
+        )
+
   defp maximum_check(check, true),
-    do: %{"id" => check["id"], "reserved" => String.duplicate("x", 2048)}
+    do: Cuckoding.CheckFeedback.maximum_check(check)
 
   defp maximum_check(check, false),
     do: %{

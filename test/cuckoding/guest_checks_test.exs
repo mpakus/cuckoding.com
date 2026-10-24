@@ -160,6 +160,27 @@ defmodule Cuckoding.GuestChecksTest do
     end
   end
 
+  test "failure excerpts require the explicit policy, exact data and verified closure" do
+    {legacy, _} = wire()
+    request = Map.put(legacy, "feedback", Cuckoding.CheckFeedback.policy())
+    row = Cuckoding.GuestCheckFixtures.result(request, "failed")
+    assert GuestChecks.normalize(Jason.encode!(row), request) == row
+    refute GuestChecks.normalize(Jason.encode!(row), legacy)["cleanup_verified"]
+    missing = Map.delete(row, "failure_output")
+    refute GuestChecks.normalize(Jason.encode!(missing), request)["cleanup_verified"]
+
+    for changed <- [
+          put_in(row["failure_output"]["excerpt_bytes"], true),
+          put_in(row["failure_output"]["excerpt_sha256"], String.duplicate("e", 64)),
+          Map.put(row, "vm_closed", false),
+          Map.put(row, "cleanup_verified", false)
+        ] do
+      rejected = GuestChecks.normalize(Jason.encode!(changed), request)
+      refute rejected["cleanup_verified"]
+      refute inspect(rejected) =~ "SYNTHETIC_ASSERTION"
+    end
+  end
+
   test "preflight refusal is bound and distinct from missing VM shutdown" do
     {request, result} = wire()
 

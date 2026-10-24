@@ -169,22 +169,32 @@ defmodule Cuckoding.Battles.Evidence do
   defp receipt(result) do
     provider = result["provider"] || %{}
 
-    result
-    |> Map.take(~w(status reason summary feedback head candidate_sha cleanup_verified))
-    |> Map.put(
-      "checks",
-      public_list(
-        result["checks"],
-        8,
-        ~w(id status exit_code stdout_sha256 stdout_bytes elapsed_ms cleanup_verified contract candidate_sha check_sha256 input_manifest_sha256 image_spec_sha256 intent_sha256 native_state vm_closed source_unchanged observed_stdout_bytes native_started admission_sha256)
+    public =
+      result
+      |> Map.take(~w(status reason summary feedback head candidate_sha cleanup_verified))
+      |> Map.put(
+        "checks",
+        public_list(
+          result["checks"],
+          8,
+          ~w(id status exit_code stdout_sha256 stdout_bytes elapsed_ms cleanup_verified contract candidate_sha check_sha256 input_manifest_sha256 image_spec_sha256 intent_sha256 native_state vm_closed source_unchanged observed_stdout_bytes native_started admission_sha256)
+        )
       )
-    )
-    |> Map.put("provider", %{
-      "requested_model" => provider["requested_model"],
-      "observed_model" => provider["observed_model"],
-      "tools" => public_list(provider["tools"], 64, ~w(tool status path sha256)),
-      "changes" => public_list(provider["changes"], 64, ~w(path sha256))
-    })
+      |> Map.put("provider", %{
+        "requested_model" => provider["requested_model"],
+        "observed_model" => provider["observed_model"],
+        "tools" => public_list(provider["tools"], 64, ~w(tool status path sha256)),
+        "changes" => public_list(provider["changes"], 64, ~w(path sha256))
+      })
+
+    if Map.has_key?(result, "check_feedback"),
+      do:
+        Map.put(
+          public,
+          "check_feedback",
+          Cuckoding.CheckFeedback.public(result["check_feedback"])
+        ),
+      else: public
   end
 
   defp public_list(nil, _, _), do: []

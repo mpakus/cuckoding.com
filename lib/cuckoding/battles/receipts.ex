@@ -6,7 +6,7 @@ defmodule Cuckoding.Battles.Receipts do
 
   @envelope ~w(battle_id request_id task_id stage criteria_sha256)
   @result_fields @envelope ++
-                   ~w(status reason summary feedback head candidate_sha preparation native_candidate native_battle resolved_checks checks provider cleanup_verified check_image)
+                   ~w(status reason summary feedback head candidate_sha preparation native_candidate native_battle resolved_checks checks provider cleanup_verified check_image check_feedback)
 
   # Payload checks do not replace the closed envelope or confer settlement authority.
   def rejected_payload_valid?(_, %{"status" => "cancelled", "cleanup_verified" => cleanup}),
@@ -255,6 +255,7 @@ defmodule Cuckoding.Battles.Receipts do
   def bound?(attempt, result, extra) when is_map(result) do
     Map.keys(result) -- (@result_fields ++ extra) == [] and
       Map.take(result, @envelope) == Map.take(attempt.request, @envelope) and
+      Cuckoding.CheckFeedback.valid_result?(attempt, result) and
       match?({:ok, _}, Jason.encode(result)) and byte_size(Jason.encode!(result)) <= 131_072
   end
 

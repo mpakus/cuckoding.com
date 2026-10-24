@@ -10,6 +10,7 @@ use std::{
 mod tests;
 
 const CONTRACT: &str = "isolated-guest-check-v1";
+const FEEDBACK: &str = "bounded-guest-feedback-v1";
 const KEEPER: &[u8] = include_bytes!(env!("CCODING_CHECK_KEEPER"));
 fn now() -> Result<u64> {
     SystemTime::now()
@@ -29,7 +30,13 @@ fn relative(value: &str) -> bool {
         && value.split('/').all(|s| !["", ".", ".."].contains(&s))
 }
 fn validate(request: &Value) -> Result<(&str, u64)> {
-    if !request.as_object().is_some_and(|m| m.len() == 6) || request["contract"] != CONTRACT {
+    let feedback = request["feedback"] == FEEDBACK;
+    if !request
+        .as_object()
+        .is_some_and(|m| m.len() == 6 + usize::from(feedback))
+        || (request.get("feedback").is_some() && !feedback)
+        || request["contract"] != CONTRACT
+    {
         return Err("invalid_request");
     }
     let key = initial::uuid(&request["key"])?;
@@ -77,6 +84,57 @@ fn validate(request: &Value) -> Result<(&str, u64)> {
         }
     }
     Ok((key, deadline))
+}
+
+fn attach_feedback(row: &mut Value, request: &Value, output: Option<&[u8]>) {
+    if request["feedback"] != FEEDBACK
+        || row["status"] != "failed"
+        || row["cleanup_verified"] != true
+    {
+        return;
+    }
+    let Some(output) = output else { return };
+    let mut text = String::new();
+    let mut escape = 0;
+    for c in String::from_utf8_lossy(output).chars() {
+        match escape {
+            1 => {
+                escape = match c {
+                    '[' => 2,
+                    ']' => 3,
+                    _ => 0,
+                }
+            }
+            2 => {
+                if ('@'..='~').contains(&c) {
+                    escape = 0
+                }
+            }
+            3 => match c {
+                '\u{7}' => escape = 0,
+                '\u{1b}' => escape = 4,
+                _ => {}
+            },
+            4 => escape = if c == '\\' { 0 } else { 3 },
+            _ => {
+                if c == '\u{1b}' {
+                    escape = 1;
+                } else if (c == '\n' || c == '\t' || !c.is_control())
+                    && !matches!(c, '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
+                {
+                    text.push(c);
+                }
+            }
+        }
+    }
+    let truncated = text.len() > 4096;
+    let mut limit = text.len().min(4096);
+    while !text.is_char_boundary(limit) {
+        limit -= 1;
+    }
+    text.truncate(limit);
+    row["failure_output"] = json!({"version":FEEDBACK,"excerpt_sha256":initial::digest(text.as_bytes()),
+        "excerpt_bytes":text.len(),"excerpt":text,"truncated":truncated});
 }
 fn binding(check: &Value) -> String {
     let mut bytes = Vec::new();
@@ -451,11 +509,13 @@ fn execute(
             &intent,
             &initial::digest(intent_bytes.as_bytes()),
         )?;
+        let mut output = None;
         if let Some(count) = row["stdout_bytes"].as_u64() {
-            let output = store.read("output.log", 65536)?;
-            if output.len() as u64 != count || row["stdout_sha256"] != initial::digest(&output) {
+            let bytes = store.read("output.log", 65536)?;
+            if bytes.len() as u64 != count || row["stdout_sha256"] != initial::digest(&bytes) {
                 return Err("invalid_output");
             }
+            output = Some(bytes);
         }
         if store.read("kernel", 134_217_728)? != kernel
             || store.read("ramdisk.cpio.gz", 201_326_592)? != ramdisk
@@ -478,6 +538,7 @@ fn execute(
         }
         row["check_sha256"] = json!(binding(check));
         row["cleanup_verified"] = json!(true);
+        attach_feedback(&mut row, request, output.as_deref());
         Ok(row)
     })();
     match result {

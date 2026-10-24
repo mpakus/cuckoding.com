@@ -176,3 +176,45 @@ fn literal_check_binding_is_length_framed_and_matches_the_host() {
     changed["arguments"][0] = json!("different");
     assert_ne!(binding(&changed), binding(&check));
 }
+
+#[test]
+fn failure_excerpt_is_opt_in_bounded_utf8_and_never_applies_to_uncertain_results() {
+    let mut input = request();
+    input["feedback"] = json!(FEEDBACK);
+    assert!(validate(&input).is_ok());
+    input["feedback"] = json!("arbitrary-log-access");
+    assert!(validate(&input).is_err());
+    let mut row = json!({"status":"failed","cleanup_verified":true});
+    let mut enabled = request();
+    enabled["feedback"] = json!(FEEDBACK);
+    attach_feedback(
+        &mut row,
+        &enabled,
+        Some(b"\x1b[31mexpected yes\x1b[0m\n\x00\xff"),
+    );
+    assert_eq!(row["failure_output"]["excerpt"], "expected yes\n\u{fffd}");
+    assert_eq!(
+        row["failure_output"]["excerpt_sha256"],
+        initial::digest("expected yes\n\u{fffd}".as_bytes())
+    );
+    let long = "\u{1f600}".repeat(2000);
+    attach_feedback(&mut row, &enabled, Some(long.as_bytes()));
+    assert_eq!(row["failure_output"]["excerpt_bytes"], 4096);
+    assert_eq!(row["failure_output"]["truncated"], true);
+    for status in [
+        "passed",
+        "cancelled",
+        "timeout",
+        "invalid_output",
+        "cleanup_uncertain",
+    ] {
+        let mut refused = json!({"status":status,"cleanup_verified":true});
+        attach_feedback(&mut refused, &enabled, Some(b"never project this"));
+        assert!(refused.get("failure_output").is_none());
+    }
+    for (req, clean) in [(request(), true), (enabled, false)] {
+        let mut refused = json!({"status":"failed","cleanup_verified":clean});
+        attach_feedback(&mut refused, &req, Some(b"never project this"));
+        assert!(refused.get("failure_output").is_none());
+    }
+}
