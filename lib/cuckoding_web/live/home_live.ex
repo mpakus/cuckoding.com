@@ -24,6 +24,8 @@ defmodule CuckodingWeb.HomeLive do
      |> assign(
        agent_id: agent_id,
        build_info: Cuckoding.BuildInfo.current(),
+       upgrade_backup:
+         Cuckoding.UpgradeBackup.observation(Application.fetch_env!(:cuckoding, :data_dir)),
        agent_kind: kind,
        agent_name: if(agent, do: agent.name, else: Agents.label(kind)),
        new_agent: agent_id == "new",
@@ -908,6 +910,17 @@ defmodule CuckodingWeb.HomeLive do
           <div>
             <dt>Data</dt><dd>A separate rebuild workspace; previous app data stays intact.</dd>
           </div>
+          <div id="upgrade-backup-status">
+            <dt>Pre-upgrade database copy</dt>
+            <dd :if={@upgrade_backup["status"] == "recorded"}>
+              Verification recorded ·
+              <time datetime={@upgrade_backup["verified_at"]}>{@upgrade_backup["verified_at"]}</time>
+            </dd>
+            <dd :if={@upgrade_backup["status"] == "none"}>No upgrade copy recorded</dd>
+            <dd :if={@upgrade_backup["status"] == "unavailable"}>
+              Saved copy metadata is unavailable
+            </dd>
+          </div>
           <div>
             <dt>Defaults</dt><dd>RTK required · Ponytail full</dd>
           </div>
@@ -928,6 +941,26 @@ defmodule CuckodingWeb.HomeLive do
             </dd>
           </div>
         </dl>
+        <details
+          :if={@upgrade_backup["status"] == "recorded"}
+          id="upgrade-backup-details"
+          class="activity"
+          phx-mounted={Phoenix.LiveView.JS.ignore_attributes("open")}
+        >
+          <summary>Database copy details</summary>
+          <p>
+            Schema: {length(@upgrade_backup["from_versions"])} → {length(
+              @upgrade_backup["target_versions"]
+            )} migrations · {@upgrade_backup["bytes"]} bytes
+          </p>
+          <p>Workspace location: <code>{@upgrade_backup["relative_path"]}</code></p>
+          <p>Recorded SHA-256: <code>{@upgrade_backup["sha256"]}</code></p>
+          <p class="fine-print">
+            Database only. Provider profiles, project folders and native artifacts are excluded.
+            This dated record does not recheck the copy or authorize restoration. Quit before
+            inspecting a copy; never replace newer work with it automatically.
+          </p>
+        </details>
         <details
           :if={@build_info}
           id="build-details"
