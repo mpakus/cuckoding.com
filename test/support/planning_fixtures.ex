@@ -48,7 +48,7 @@ defmodule Cuckoding.PlanningFixtures do
   end
 
   def planning_receipt(id) do
-    %{
+    receipt = %{
       "status" => "planned",
       "request_id" => id,
       "requested_model" => "test-model",
@@ -71,6 +71,16 @@ defmodule Cuckoding.PlanningFixtures do
         ]
       }
     }
+
+    command = Cuckoding.Repo.get(Cuckoding.Command, id)
+
+    if command && command.payload["contract"] == "brief-plan-v4",
+      do:
+        update_in(
+          receipt["proposal"]["tasks"],
+          &Enum.map(&1, fn task -> Map.put(task, "verification", []) end)
+        ),
+      else: receipt
   end
 
   def add_planning_role(board) do

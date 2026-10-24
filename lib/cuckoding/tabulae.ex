@@ -50,7 +50,11 @@ defmodule Cuckoding.Tabulae do
         select: {t, r.content}
     )
     |> Enum.map(fn {task, content} ->
-      %{task | depends_on: Map.get(content, "depends_on", [])}
+      %{
+        task
+        | depends_on: Map.get(content, "depends_on", []),
+          verification: content["verification"]
+      }
     end)
   end
 
@@ -65,8 +69,14 @@ defmodule Cuckoding.Tabulae do
     )
   end
 
-  def content(task),
-    do: Map.new(@fields ++ ["depends_on"], &{&1, Map.fetch!(task, String.to_existing_atom(&1))})
+  def content(task) do
+    content =
+      Map.new(@fields ++ ["depends_on"], &{&1, Map.fetch!(task, String.to_existing_atom(&1))})
+
+    if is_nil(task.verification),
+      do: content,
+      else: Map.put(content, "verification", task.verification)
+  end
 
   # Called only by Specifications.finish inside its acceptance transaction, after revalidation.
   def accept_spec(%Command{kind: "accept_spec"} = command) do
@@ -209,7 +219,7 @@ defmodule Cuckoding.Tabulae do
       Enum.map(Map.get(task, "depends_on", []), &Map.get(imported, {payload["proposal_id"], &1}))
 
     task
-    |> Map.take(~w(title description criteria))
+    |> Map.take(~w(title description criteria verification))
     |> Map.merge(%{"column" => "specs", "depends_on" => dependencies})
   end
 
@@ -391,15 +401,22 @@ defmodule Cuckoding.Tabulae do
     previous = Repo.get(DraftTask, payload["task_id"])
     task = previous || %DraftTask{id: payload["task_id"], tabula_id: payload["tabula_id"]}
 
+    previous_content =
+      if previous,
+        do:
+          Repo.get_by!(DraftTaskRevision, task_id: task.id, revision: previous.revision).content,
+        else: %{}
+
     content =
       Map.put_new_lazy(payload["content"], "depends_on", fn ->
-        if previous do
-          Repo.get_by!(DraftTaskRevision, task_id: task.id, revision: previous.revision).content
-          |> Map.get("depends_on", [])
-        else
-          []
-        end
+        Map.get(previous_content, "depends_on", [])
       end)
+
+    content =
+      if not Map.has_key?(content, "verification") and
+           Map.has_key?(previous_content, "verification"),
+         do: Map.put(content, "verification", previous_content["verification"]),
+         else: content
 
     task
     |> Ecto.Changeset.change(Map.put(attrs, :revision, expected + 1))
@@ -428,7 +445,9 @@ defmodule Cuckoding.Tabulae do
   end
 
   defp valid_content?(attrs) when is_map(attrs) do
-    Enum.sort(Map.keys(Map.delete(attrs, "depends_on"))) == Enum.sort(@fields) and
+    Enum.sort(Map.keys(Map.drop(attrs, ~w(depends_on verification)))) == Enum.sort(@fields) and
+      (not Map.has_key?(attrs, "verification") or
+         Cuckoding.TaskChecks.valid?(attrs["verification"])) and
       valid_dependencies?(Map.get(attrs, "depends_on", [])) and
       text?(attrs["title"], 1, 120, false) and text?(attrs["description"], 0, 8_000, true) and
       text?(attrs["criteria"], 0, 4_000, true) and text?(attrs["column"], 1, 32, false)

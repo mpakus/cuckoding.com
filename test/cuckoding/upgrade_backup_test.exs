@@ -50,12 +50,12 @@ defmodule Cuckoding.UpgradeBackupTest do
   } do
     before = prior(path)
     :ok = Database.migrate!(BackupRepo, path)
-    assert length(Ecto.Migrator.migrated_versions(BackupRepo)) == 19
+    assert length(Ecto.Migrator.migrated_versions(BackupRepo)) == 20
     assert BackupRepo.query!("SELECT * FROM events ORDER BY id").rows == before
     observation = UpgradeBackup.observation(root)
     assert observation["status"] == "recorded"
     assert length(observation["from_versions"]) == 17
-    assert length(observation["target_versions"]) == 19
+    assert length(observation["target_versions"]) == 20
     copy = Path.join(root, observation["relative_path"])
     assert Bitwise.band(File.stat!(copy).mode, 0o777) == 0o600
 
@@ -249,11 +249,43 @@ defmodule Cuckoding.UpgradeBackupTest do
     assert BackupRepo.query!("SELECT * FROM events ORDER BY id").rows == before
     receipt = UpgradeBackup.observation(root)
     assert length(receipt["from_versions"]) == 18
-    assert length(receipt["target_versions"]) == 19
+    assert length(receipt["target_versions"]) == 20
 
     assert BackupRepo.query!(
              "SELECT name FROM sqlite_schema WHERE name IN ('battle_attempts_check_images','battle_attempts_guest_reservations') ORDER BY name"
            ).rows == [["battle_attempts_check_images"], ["battle_attempts_guest_reservations"]]
+  end
+
+  test "schema nineteen backs up before the task check compatibility fence", %{
+    root: root,
+    path: path
+  } do
+    ExUnit.CaptureIO.capture_io(:stderr, fn ->
+      assert length(Ecto.Migrator.run(BackupRepo, path, :up, to: 20_261_024_000_000, log: false)) ==
+               19
+    end)
+
+    BackupRepo.query!(
+      "INSERT INTO events(kind,data,occurred_at) VALUES ('nineteen-sentinel','{}',CURRENT_TIMESTAMP)"
+    )
+
+    before = BackupRepo.query!("SELECT * FROM events ORDER BY id").rows
+    :ok = Database.migrate!(BackupRepo, path)
+    assert BackupRepo.query!("SELECT * FROM events ORDER BY id").rows == before
+    receipt = UpgradeBackup.observation(root)
+    assert length(receipt["from_versions"]) == 19
+    assert length(receipt["target_versions"]) == 20
+
+    assert BackupRepo.query!(
+             "SELECT name FROM sqlite_schema WHERE name='draft_task_verification_shape'"
+           ).rows == [["draft_task_verification_shape"]]
+
+    assert_raise Exqlite.Error, ~r/invalid task verification shape/, fn ->
+      BackupRepo.query!(
+        "INSERT INTO draft_task_revisions(task_id,command_id,revision,content,inserted_at) VALUES (?,?,1,?,CURRENT_TIMESTAMP)",
+        [Ecto.UUID.generate(), Ecto.UUID.generate(), ~s({"verification":"not-an-array"})]
+      )
+    end
   end
 
   test "a later migration failure preserves the verified earlier database", %{
@@ -284,7 +316,7 @@ defmodule Cuckoding.UpgradeBackupTest do
     assert BackupRepo.query!("SELECT * FROM events ORDER BY id").rows == before
     observation = UpgradeBackup.observation(root)
     assert observation["status"] == "recorded"
-    assert length(observation["target_versions"]) == 20
+    assert length(observation["target_versions"]) == 21
     copy = Path.join(root, observation["relative_path"])
     {:ok, reader} = Exqlite.start_link(database: copy, mode: :readonly)
 

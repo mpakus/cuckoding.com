@@ -185,7 +185,7 @@ defmodule Cuckoding.PlanningTest do
     assert sys.argv[3].endswith('/agents/#{agent.id}')
     assert sys.argv[5]=='cursor-fixture'
     assert set(request)=={'request_id','brief','instructions','documents','contract'}
-    assert request['contract']=='brief-plan-v3'
+    assert request['contract']=='brief-plan-v4'
     print(json.dumps(json.loads(#{Jason.encode!(Jason.encode!(receipt))})))
     """)
 
@@ -433,7 +433,7 @@ defmodule Cuckoding.PlanningTest do
   test "linked proposals import in order and retain citations without overwriting edited prerequisites",
        %{board: board} do
     claim = document_plan_fixture(board) |> legacy_plan_fixture()
-    assert claim.payload["contract"] == "brief-plan-v3"
+    assert claim.payload["contract"] == "brief-plan-v4"
     {:ok, plan} = Foundation.finish(claim, linked_planning_receipt(claim.id))
     assert plan.state == "completed"
     event = Repo.get_by!(Event, command_id: plan.id, kind: "planning.completed")

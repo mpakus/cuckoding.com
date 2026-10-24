@@ -153,7 +153,7 @@ defmodule Cuckoding.PlanningDocumentsTest do
                command.id
              )
 
-    assert plan.payload["contract"] == "brief-plan-v3"
+    assert plan.payload["contract"] == "brief-plan-v4"
     assert plan.payload["documents"] == files
     refute plan.payload["path"]
     {:ok, claim} = Foundation.claim()

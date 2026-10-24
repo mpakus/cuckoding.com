@@ -71,7 +71,7 @@ defmodule Cuckoding.Planning do
           "tabula_id" => board.id,
           "grant" =>
             if(kind == "cursor", do: "cursor-plan-no-tools-v1", else: "scratch-read-only-v1"),
-          "contract" => "brief-plan-v3",
+          "contract" => "brief-plan-v4",
           "card_creation" => "automatic-v1",
           "document_preview_id" => preview_id,
           "documents" => elem(documents, 1)
@@ -353,28 +353,26 @@ defmodule Cuckoding.Planning do
   end
 
   defp scoped_proposal?(payload, proposal) do
-    size =
-      case payload["contract"] do
-        "brief-plan-v1" -> 3
-        "brief-plan-v2" -> 5
-        "brief-plan-v3" -> 5
-        _ -> 0
-      end
+    {size, source_limit} = proposal_contract(payload["contract"])
 
     Enum.all?(proposal["tasks"], fn task ->
       map_size(task) == size and
-        indexes?(
-          Map.get(task, "sources", []),
-          if(payload["contract"] == "brief-plan-v3", do: 16, else: 4)
-        ) and
+        indexes?(Map.get(task, "sources", []), source_limit) and
         indexes?(Map.get(task, "sources", []), length(payload["documents"] || []))
     end)
   end
+
+  defp proposal_contract("brief-plan-v1"), do: {3, 4}
+  defp proposal_contract("brief-plan-v2"), do: {5, 4}
+  defp proposal_contract("brief-plan-v3"), do: {5, 16}
+  defp proposal_contract("brief-plan-v4"), do: {6, 16}
+  defp proposal_contract(_), do: {0, 0}
 
   defp valid_proposal?(%{"summary" => summary, "tasks" => tasks} = proposal)
        when is_list(tasks) and length(tasks) in 1..6 do
     map_size(proposal) == 2 and text?(summary, 2_000) and
       Enum.all?(Enum.with_index(tasks), fn {task, index} -> valid_task?(task, index) end) and
+      Cuckoding.TaskChecks.plan_valid?(tasks) and
       length(Enum.uniq_by(tasks, &String.downcase(String.trim(&1["title"])))) == length(tasks)
   end
 
@@ -385,13 +383,30 @@ defmodule Cuckoding.Planning do
          index
        ),
        do:
-         (map_size(task) == 3 or
-            (map_size(task) == 5 and indexes?(task["depends_on"], index) and
-               indexes?(task["sources"], 16))) and
+         task_fields?(task, index) and
            text?(title, 120) and not String.contains?(title, ["\n", "\t"]) and
            text?(description, 4_000) and text?(criteria, 2_000)
 
   defp valid_task?(_, _), do: false
+
+  defp task_fields?(task, index) do
+    case Enum.sort(Map.keys(task)) do
+      ~w(criteria description title) ->
+        true
+
+      ~w(criteria depends_on description sources title) ->
+        linked_task?(task, index)
+
+      ~w(criteria depends_on description sources title verification) ->
+        linked_task?(task, index) and Cuckoding.TaskChecks.valid?(task["verification"])
+
+      _ ->
+        false
+    end
+  end
+
+  defp linked_task?(task, index),
+    do: indexes?(task["depends_on"], index) and indexes?(task["sources"], 16)
 
   defp indexes?(values, bound) when is_list(values),
     do:

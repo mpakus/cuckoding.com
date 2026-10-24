@@ -269,7 +269,7 @@ defmodule Cuckoding.Specifications do
           "\nSHA-256: #{doc["sha256"]}\n\n" <> literal(doc["text"])
       end)
 
-    """
+    markdown = """
     # Task specification
 
     Cuckoding specification format 1. Acceptance records intent, not execution or completion.
@@ -299,6 +299,13 @@ defmodule Cuckoding.Specifications do
 
     #{if documents == "", do: "No task-specific source snapshots.", else: documents}
     """
+
+    if Map.has_key?(content, "verification"),
+      do:
+        markdown <>
+          "\n## Planned verification profiles\n\n" <>
+          literal(Jason.encode!(content["verification"])),
+      else: markdown
   end
 
   # Literal fenced text keeps user/model Markdown, HTML and links inert in this artifact.
