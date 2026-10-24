@@ -147,6 +147,42 @@ fn reference(key: &str) -> String {
     format!("refs/ccoding/combined/{key}")
 }
 
+// Read the original intent and completed proof only; publication alone is not recoverable.
+pub(super) fn recover(git: &Git<'_>, request: &Value, device: u64, inode: u64) -> Result<Value> {
+    let key = initial::uuid(&request["key"])?;
+    if request.as_object().map(|fields| fields.len()) != Some(4)
+        || request["key"] == request["battle"]["battle_key"]
+    {
+        return Err("invalid_request");
+    }
+    current(git, &request["battle"], device, inode)?;
+    let directory = directory(git, &request["battle"], key, device, inode)?;
+    let intent = load(&directory, "intent.json")?;
+    let expected_intent = json!({"request":{"input":request,
+        "configuration_sha256":initial::digest(&configuration(git)?)},
+        "source_device":device,"source_inode":inode});
+    if intent != expected_intent {
+        return Err("candidate_mismatch");
+    }
+    let receipt = load(&directory, "receipt.json")?;
+    if receipt["key"] != key {
+        return Err("candidate_mismatch");
+    }
+    let verification = json!({"battle":request["battle"],
+        "preparation":request["preparation"],"candidate":receipt});
+    let mut verified = verify(git, &verification, device, inode)?;
+    verified["status"] = json!("candidate_combined");
+    if verified != receipt
+        || load(&directory, "intent.json")? != intent
+        || load(&directory, "publication.json")? != receipt
+        || load(&directory, "receipt.json")? != receipt
+    {
+        return Err("candidate_mismatch");
+    }
+    current(git, &request["battle"], device, inode)?;
+    Ok(receipt)
+}
+
 pub(super) fn verify(git: &Git<'_>, request: &Value, device: u64, inode: u64) -> Result<Value> {
     current(git, &request["battle"], device, inode)?;
     let receipt = verify_retained(git, request, device, inode)?;

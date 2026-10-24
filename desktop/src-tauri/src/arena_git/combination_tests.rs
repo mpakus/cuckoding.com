@@ -1,5 +1,6 @@
 use super::tests::{commit_fixture, fixture, git, operation};
 use super::*;
+use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
 fn key(n: usize) -> String {
@@ -312,5 +313,141 @@ fn combination_cancellation_retains_intent_without_advancing_the_battle() {
     assert_eq!(
         initial(&f.args, "verify_battle", json!({"battle":f.battle})).unwrap()["status"],
         "battle_verified"
+    );
+}
+
+#[test]
+fn combined_recovery_reads_exact_complete_proof_without_replaying_or_changing_source() {
+    let mut f = Fixture::new();
+    let (first, a) = f.candidate(71, "a.txt", "a result\n");
+    let (second, b) = f.candidate(72, "b.txt", "b result\n");
+    f.integrate(&first, &a, 91);
+    let request = json!({"key":key(101),"battle":f.battle,"preparation":second,"candidate":b});
+    let combined = initial(&f.args, "combine_candidate", request.clone()).unwrap();
+    fs::write(f.root.join("a.txt"), "USER_WORKING").unwrap();
+    let index = fs::read(f.root.join(".git/index")).unwrap();
+    let directory = f
+        .home
+        .join("battles")
+        .join(key(70))
+        .join(format!("combination-{}", key(101)));
+    let original: Vec<_> = ["intent.json", "publication.json", "receipt.json", "index"]
+        .iter()
+        .map(|name| fs::read(directory.join(name)).unwrap())
+        .collect();
+    for _ in 0..2 {
+        assert_eq!(
+            initial(&f.args, "recover_combined_candidate", request.clone()).unwrap(),
+            combined
+        );
+        assert_eq!(fs::read(f.root.join(".git/index")).unwrap(), index);
+        assert_eq!(fs::read(f.root.join("a.txt")).unwrap(), b"USER_WORKING");
+        for (name, bytes) in ["intent.json", "publication.json", "receipt.json", "index"]
+            .iter()
+            .zip(&original)
+        {
+            assert_eq!(&fs::read(directory.join(name)).unwrap(), bytes);
+        }
+    }
+    assert_eq!(
+        initial(&f.args, "combine_candidate", request),
+        Err("candidate_exists")
+    );
+    assert_eq!(
+        initial(&f.args, "verify_battle", json!({"battle":f.battle})).unwrap()["head"],
+        f.battle["head"]
+    );
+    assert_eq!(
+        fs::read(Path::new(second["path"].as_str().unwrap()).join("b.txt")).unwrap(),
+        b"b result\n"
+    );
+    assert!(!f.root.join("should-never-run").exists());
+}
+
+#[test]
+fn combined_recovery_refuses_foreign_partial_linked_changed_and_stale_evidence() {
+    let mut f = Fixture::new();
+    let (first, a) = f.candidate(71, "a.txt", "a result\n");
+    let (second, b) = f.candidate(72, "b.txt", "b result\n");
+    f.integrate(&first, &a, 91);
+    let request = json!({"key":key(101),"battle":f.battle,"preparation":second,"candidate":b});
+    let combined = initial(&f.args, "combine_candidate", request.clone()).unwrap();
+    for (field, value) in [
+        ("key", json!("../foreign")),
+        ("candidate", a),
+        ("preparation", first),
+        ("extra", json!(true)),
+    ] {
+        let mut foreign = request.clone();
+        foreign[field] = value;
+        assert!(initial(&f.args, "recover_combined_candidate", foreign).is_err());
+    }
+    let directory = f
+        .home
+        .join("battles")
+        .join(key(70))
+        .join(format!("combination-{}", key(101)));
+    let mut other_request = request.clone();
+    other_request["key"] = json!(key(102));
+    let other = initial(&f.args, "combine_candidate", other_request).unwrap();
+    for name in ["receipt.json", "publication.json"] {
+        fs::write(directory.join(name), other.to_string()).unwrap();
+    }
+    assert_eq!(
+        initial(&f.args, "recover_combined_candidate", request.clone()),
+        Err("candidate_mismatch")
+    );
+    for name in ["receipt.json", "publication.json"] {
+        fs::write(directory.join(name), combined.to_string()).unwrap();
+    }
+    for name in ["receipt.json", "publication.json", "intent.json"] {
+        let path = directory.join(name);
+        let bytes = fs::read(&path).unwrap();
+        fs::remove_file(&path).unwrap();
+        assert!(initial(&f.args, "recover_combined_candidate", request.clone()).is_err());
+        assert!(!path.exists());
+        std::os::unix::fs::symlink(directory.join("index"), &path).unwrap();
+        assert!(initial(&f.args, "recover_combined_candidate", request.clone()).is_err());
+        fs::remove_file(&path).unwrap();
+        fs::write(&path, b"{}").unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+        assert!(initial(&f.args, "recover_combined_candidate", request.clone()).is_err());
+        fs::write(&path, bytes).unwrap();
+    }
+    let file = Path::new(second["path"].as_str().unwrap()).join("b.txt");
+    fs::write(&file, "changed after capture").unwrap();
+    assert!(initial(&f.args, "recover_combined_candidate", request.clone()).is_err());
+    fs::write(&file, "b result\n").unwrap();
+    assert_eq!(
+        initial(&f.args, "recover_combined_candidate", request.clone()).unwrap(),
+        combined
+    );
+    f.integrate(&second, &combined, 103);
+    assert_eq!(
+        initial(&f.args, "recover_combined_candidate", request),
+        Err("battle_stale")
+    );
+}
+
+#[test]
+fn combined_recovery_uses_the_fixed_budget_and_cancellation_without_effects() {
+    assert_eq!(
+        operation_limit(&["recover_combined_candidate".into()]),
+        Duration::from_secs(60)
+    );
+    let f = Fixture::new();
+    let (preparation, candidate) = f.candidate(71, "a.txt", "result\n");
+    let request =
+        json!({"key":key(101),"battle":f.battle,"preparation":preparation,"candidate":candidate});
+    let combined = initial(&f.args, "combine_candidate", request.clone()).unwrap();
+    let mut args = f.args.clone();
+    args[0] = "recover_combined_candidate".into();
+    args.push(request.to_string());
+    let (sender, cancel) = mpsc::channel();
+    sender.send(()).unwrap();
+    assert_eq!(run(&args, cancel, operation_limit(&args)), Err("cancelled"));
+    assert_eq!(
+        initial(&f.args, "recover_combined_candidate", request).unwrap(),
+        combined
     );
 }

@@ -370,6 +370,7 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
         "recover_integration",
         "recover_battle_worktree",
         "recover_battle_candidate",
+        "recover_combined_candidate",
         "combine_candidate",
         "verify_combined_candidate",
         "verify_battle",
@@ -392,6 +393,7 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
                     "recover_integration",
                     "recover_battle_worktree",
                     "recover_battle_candidate",
+                    "recover_combined_candidate",
                     "combine_candidate",
                     "verify_combined_candidate",
                     "verify_battle",
@@ -447,6 +449,7 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
         "recover_integration",
         "recover_battle_worktree",
         "recover_battle_candidate",
+        "recover_combined_candidate",
         "combine_candidate",
         "verify_combined_candidate",
         "verify_battle",
@@ -497,7 +500,12 @@ fn run(args: &[String], cancel: Receiver<()>, limit: Duration) -> Result<Value> 
 fn operation_limit(args: &[String]) -> Duration {
     let combined = matches!(
         args.first().map(String::as_str),
-        Some("combine_candidate" | "verify_combined_candidate" | "recover_battle_candidate")
+        Some(
+            "combine_candidate"
+                | "verify_combined_candidate"
+                | "recover_battle_candidate"
+                | "recover_combined_candidate"
+        )
     ) || (matches!(
         args.first().map(String::as_str),
         Some("battle_worktree" | "integrate_candidate" | "recover_integration")
