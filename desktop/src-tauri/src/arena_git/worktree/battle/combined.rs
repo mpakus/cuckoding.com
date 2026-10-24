@@ -92,9 +92,13 @@ fn expected(
         .join(initial::uuid(&preparation["key"])?);
     let binding = load(&directory, "battle.json")?;
     let old_battle = &binding["request"]["battle"];
+    let mut stored_preparation = preparation.clone();
+    if stored_preparation.get("status").is_none() {
+        stored_preparation["status"] = json!("prepared");
+    }
     if binding
         != json!({"request":{"key":preparation["key"],"battle":old_battle},
-        "preparation":preparation,"source_device":device,"source_inode":inode})
+        "preparation":stored_preparation,"source_device":device,"source_inode":inode})
         || old_battle["battle_key"] != battle["battle_key"]
         || old_battle["base"] != battle["base"]
         || old_battle["head"] != candidate["base"]

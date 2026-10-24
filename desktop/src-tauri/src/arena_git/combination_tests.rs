@@ -58,12 +58,14 @@ impl Fixture {
     }
 
     fn candidate(&self, n: usize, path: &str, bytes: &str) -> (Value, Value) {
-        let preparation = initial(
+        let mut preparation = initial(
             &self.args,
             "battle_worktree",
             json!({"key":key(n),"battle":self.battle}),
         )
         .unwrap();
+        // Phoenix retains the five identity fields, not the native status projection.
+        preparation.as_object_mut().unwrap().remove("status");
         let file = Path::new(preparation["path"].as_str().unwrap()).join(path);
         fs::create_dir_all(file.parent().unwrap()).unwrap();
         fs::write(file, bytes).unwrap();
