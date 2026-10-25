@@ -42,9 +42,11 @@ rtk proxy env BOSS_DATA_DIR=/absolute/path/to/boss-data PORT=4001 mix phx.server
 ```
 
 The directory is private to the user (mode 0700). SQLite runs with foreign keys,
-WAL, full synchronization, one pool connection and a five-second busy timeout.
+WAL, full synchronization, two pool connections (required by Ecto migrations) and
+a five-second busy timeout.
 Migrations run on application startup, after obtaining ownership. A dedicated
-`.owner.sqlite3` transaction permits one BOSS instance per directory. A second
+`.owner.sqlite3` transaction permits one BOSS instance per directory. The lock
+is held in application callback state until all supervised children stop. A second
 instance fails explicitly; stopping the process releases the OS-held lock.
 There is no stale-PID signalling or lock-file deletion. Do not remove the lock
 file or run separate `mix ecto.*` commands against a running instance. Use a local

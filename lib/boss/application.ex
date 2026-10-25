@@ -7,7 +7,6 @@ defmodule Boss.Application do
     server? = Phoenix.Endpoint.server?(:boss, BossWeb.Endpoint)
 
     children = [
-      {Boss.DataDirectory, directory: Application.fetch_env!(:boss, :data_dir)},
       BossWeb.Telemetry,
       Boss.Repo,
       {Ecto.Migrator, repos: [Boss.Repo]},
@@ -16,9 +15,20 @@ defmodule Boss.Application do
       BossWeb.Endpoint
     ]
 
-    # Losing directory ownership must stop every later child before reacquiring it.
-    Supervisor.start_link(children, strategy: :rest_for_one, name: Boss.Supervisor)
+    with {:ok, lock} <- Boss.DataDirectory.acquire(Application.fetch_env!(:boss, :data_dir)) do
+      case Supervisor.start_link(children, strategy: :one_for_one, name: Boss.Supervisor) do
+        {:ok, supervisor} ->
+          {:ok, supervisor, lock}
+
+        {:error, reason} ->
+          Boss.DataDirectory.release(lock)
+          {:error, reason}
+      end
+    end
   end
+
+  @impl true
+  def stop(lock), do: Boss.DataDirectory.release(lock)
 
   @impl true
   def config_change(changed, _new, removed) do
