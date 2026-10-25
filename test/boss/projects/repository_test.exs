@@ -3,7 +3,14 @@ defmodule Boss.Projects.RepositoryTest do
   alias Boss.Projects.Repository
 
   setup do
-    root = Path.join(System.tmp_dir!(), "boss-project-#{System.unique_integer([:positive])}")
+    root =
+      Path.join(
+        System.tmp_dir!(),
+        "boss-project-#{Base.url_encode64(:crypto.strong_rand_bytes(12), padding: false)}"
+      )
+
+    File.mkdir!(root)
+    on_exit(fn -> File.rm_rf!(root) end)
     File.mkdir_p!(Path.join(root, "specs"))
     git!(root, ["init", "-b", "main"])
 
@@ -20,7 +27,6 @@ defmodule Boss.Projects.RepositoryTest do
 
     {physical, 0} = System.cmd("/bin/pwd", ["-P"], cd: root)
     root = String.trim(physical)
-    on_exit(fn -> File.rm_rf!(root) end)
     %{root: root}
   end
 
@@ -34,10 +40,9 @@ defmodule Boss.Projects.RepositoryTest do
   end
 
   test "a linked worktree resolves to the same repository identity", %{root: root} do
-    linked = root <> "-linked"
+    linked = Path.join(root, "linked")
     git!(root, ["worktree", "add", "-b", "linked", linked])
     File.mkdir!(Path.join(linked, "specs"))
-    on_exit(fn -> File.rm_rf!(linked) end)
     assert {:ok, first} = Repository.inspect(root, "specs")
     assert {:ok, second} = Repository.inspect(linked, "specs")
     assert first.git_common_dir == second.git_common_dir

@@ -74,7 +74,13 @@ defmodule Boss.Projects.Repository do
   end
 
   defp git(directory, args) do
-    env = Enum.map(~w(GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE), &{&1, nil})
+    env =
+      System.get_env()
+      |> Map.keys()
+      |> Enum.filter(&String.starts_with?(&1, "GIT_"))
+      |> Enum.map(&{&1, nil})
+
+    env = env ++ [{"GIT_CONFIG_GLOBAL", "/dev/null"}, {"GIT_CONFIG_NOSYSTEM", "1"}]
 
     case System.cmd("git", ["-C", directory | args], stderr_to_stdout: true, env: env) do
       {output, 0} -> {:ok, String.trim_trailing(output, "\n")}
