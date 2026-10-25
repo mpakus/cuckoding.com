@@ -87,3 +87,38 @@ Browser rendering and a connected real browser WebSocket await root smoke.
 Linux, network filesystems and release packaging were not tested. No provider
 run or runner selection is implied by this foundation. The first skeleton commit
 is 0a00e56; parent owns AGENTS/tasks/research updates, domain work and final merge.
+
+## Integration and review corrections
+
+- Final initial foundation checks: `mix test` 17 passed;
+  `mix compile --warnings-as-errors`, `mix format --check-formatted`,
+  `git diff --check` and `mix assets.deploy` passed. Auth commit: 56838a2.
+- Parent's first real project migration exposed a missing guard in the empty
+  skeleton: Ecto.Migrator requires two pool connections. Changed the global
+  pool size from 1 to 2 (see dependency source `ecto_sql/lib/ecto/migrator.ex:400`).
+  The combined application's real migration on every fresh test directory is
+  the regression check; no redundant synthetic migration test was added.
+- Independent runner-agent review found directory chmod occurred before lock
+  acquisition. The existing lock-refusal test was strengthened to preserve the
+  incumbent directory's permissions and failed as expected; chmod now occurs
+  only after successfully acquiring the lock. A denied contender leaves the
+  owner's directory permissions untouched.
+- Added narrow ignore patterns for `phx.digest`'s generated robots outputs.
+  npm/Mix build outputs remain disposable; no source specification was edited.
+
+- Peer crash-boundary experiment exposed a deeper ownership issue: killing the
+  owner GenServer could release its NIF handle while later supervised children
+  were still terminating. Replaced that child with a simpler application-held
+  handle: acquire before Supervisor.start_link; return `{:ok, pid, lock}`;
+  release in Application.stop/1, after child teardown; close on startup failure.
+  Actual Application.stop test holds a child in terminate, verifies contender
+  refusal, finishes teardown, reacquires the lock and restarts the application.
+  Sources: https://hexdocs.pm/elixir/1.20.3/Application.html#c:stop/1 and
+  https://hexdocs.pm/ecto_sql/3.14.0/Ecto.Migrator.html.
+- Parent observed two fresh Repo connections racing to set WAL before Exqlite's
+  busy timeout is installed. Initialize boss.db WAL once while holding ownership,
+  before starting the pool; return errors explicitly. Corrupt-database test
+  preserves the file, fails startup and proves ownership can be reacquired after
+  the disposable invalid file is removed.
+- After lifecycle/WAL corrections: 19 tests passed. Parent owns browser-driven
+  router/referrer changes; this branch does not duplicate them.
