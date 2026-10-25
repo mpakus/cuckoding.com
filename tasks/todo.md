@@ -112,15 +112,22 @@ generator создаёт согласованный skeleton; ручные featu
 
 ## BOSS-002b — spec identity, revisions и task
 
-**Зависимости:** 002a. **Область:** spec/revision/task schemas, migration, tests
-(5 файлов).
+**Зависимости:** 002a. **Область:** spec/revision/task schemas, Projects context,
+migration, domain + durable-pool tests (7 implementation/test файлов).
 
-- [ ] Уникальная identity внутри проекта, неизменяемые revisions;
+- [x] Уникальная identity внутри проекта, неизменяемые revisions;
   original text отдельно от будущих plan/refined text.
-- [ ] Task связан с конкретной revision; explicit ID conflict не сливает задачи.
+- [x] Task связан с конкретной revision; explicit ID conflict не сливает задачи.
 
 **Проверка:** schema/constraint tests, rollback и roundtrip после перезапуска Repo.
 **Сбой:** транзакция откатывается целиком; существующая history сохраняется.
+
+`Projects.record_spec/2` сохраняет одну observation, `list_spec_revisions/1` читает
+историю. 10 domain tests + 3 проверки на отдельной SQLite-базе с реальным pool:
+A→B→A, no-op, pin/title, conflicts, rollback, cross-spec FK, immutable history,
+8 одновременных вызовов, committed Repo restart и migration down/up. Удаление
+каждого из UPDATE/DELETE guards по отдельности было обнаружено тестом.
+Это backend persistence: чтение Markdown/YAML, rename/delete и UI ещё не сделаны.
 
 ## BOSS-003a — синхронизация Markdown
 
@@ -166,10 +173,10 @@ event schema, tests (5 файлов).
 - [ ] Три specs, edit, повтор Sync, restart и недопустимый переход проверены.
 - [x] Review текущего изменения выполнено; журнал содержит фактические результаты.
 
-Application suite: 39 tests после native picker; последние отдельные проверки
+Application suite: 52 tests после BOSS-002b; последние отдельные проверки
 spikes: 12 Git + 14 runner (предыдущий increment, их код не менялся).
-Checkpoint 1 ещё не завершён: 002b/003/004 и task board отсутствуют.
-Ближайший проход: spec identity/revisions и идемпотентный Markdown import;
+Checkpoint 1 ещё не завершён: 003/004 и task board отсутствуют.
+Ближайший проход: идемпотентный Markdown import поверх record_spec/2;
 runner reliability продолжать отдельным исследованием, не смешивать с importer.
 
 ## Следующие рабочие проходы

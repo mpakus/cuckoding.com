@@ -54,6 +54,13 @@
   form paths or browser file-upload names. Keep the selection server-side and
   revalidate it on registration. Resolve relative specs against the selected
   repository; preserve cancellation and bounded, single-dialog helper cleanup.
+- Record spec identity, append-only revision and initial task atomically with an
+  immediate SQLite transaction. Compare with the latest revision, not any older
+  matching hash; A→B→A must retain all three. Keep task revision/title pinned.
+  Explicit-ID/path conflicts are errors until the importer can reconcile renames.
+  Keep composite revision ownership and immutable-history database constraints.
+- Test committed durability/concurrency in an exclusively created scratch DB with
+  a real connection pool; a sandbox transaction alone is not restart evidence.
 - Live provider calls are opt-in and bounded; never repeat a paid smoke run
   automatically. Retain sanitized evidence, not raw private transcripts.
 - Git publication must not move a branch behind a user's checkout. The spike

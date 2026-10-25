@@ -3,8 +3,8 @@
 Local AI agent orchestration, rebuilt from [BOSS_PLAN.md](BOSS_PLAN.md).
 
 This increment provides a Phoenix LiveView server, local browser access,
-SQLite persistence and validated project registration. Spec import and agent
-execution are not implemented yet.
+validated project registration and transactional spec/revision/task persistence.
+Spec file import and agent execution are not implemented yet.
 
 ## Run locally
 
@@ -62,6 +62,30 @@ worktree returns an error. Projects survive tab closure and backend restart.
 Markdown files are not imported in this increment. Runner and Git research live
 in `spikes/`, separately from the application. The runner experiment is not a
 production adapter; its EOF, memory and descendant-cleanup gates remain open.
+
+## Spec persistence
+
+`Boss.Projects.record_spec(project_id, attrs)` records one source observation:
+`relative_path`, `original_text`, `title`, and optional `explicit_id`. It returns
+`{:ok, %{spec: spec, revision: revision, task: task, change: change}}`, where change
+is `:created`, `:unchanged` or `:revised`; invalid input returns an error changeset.
+This is a backend API, not a file importer or browser task-creation flow.
+
+Identity is project-scoped and uses an explicit ID or normalized relative Markdown
+path. A conflicting ID/path is rejected; rename reconciliation is not implemented.
+Original UTF-8 text is preserved exactly, up to 1 MiB, with its SHA-256 and source
+path. Repeating the latest text creates nothing; A→B→A creates three revisions.
+`Boss.Projects.list_spec_revisions(spec_id)` returns them in revision order.
+
+Each spec has one task, initially `new`, pinned to its first revision and title.
+Recording later source changes never advances that pin. Revision adoption and
+workflow transitions will be explicit later. SQLite rejects revision updates and
+deletes, and a task cannot reference another spec's revision. All recording writes
+use one immediate transaction; no filesystem reads or writes happen in this API.
+
+The additive migration runs at the next BOSS startup and preserves existing
+projects. Rolling this migration back drops the new spec/revision/task tables;
+the rollback test uses disposable data only, and existing project rows survive.
 
 ## Data and ownership
 
