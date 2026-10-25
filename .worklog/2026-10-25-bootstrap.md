@@ -122,3 +122,19 @@ is 0a00e56; parent owns AGENTS/tasks/research updates, domain work and final mer
   the disposable invalid file is removed.
 - After lifecycle/WAL corrections: 19 tests passed. Parent owns browser-driven
   router/referrer changes; this branch does not duplicate them.
+
+## Independent final review
+
+- Runner agent approved f46935b after independently running 15 focused tests.
+- Its actual supervisor-kill experiment observed the old slow child already dead
+  when another owner could acquire the lock. A reserved-supervisor startup failure
+  also released the lock. The reviewer made no source edits.
+- Installed Elixir 1.20.3 `Code.fetch_docs(Application)` confirmed callback state
+  is passed to stop/1 after the supervision tree stops (versioned web doc fetch
+  was unavailable). No undocumented shutdown-order assumption remains.
+- Parent owns the real-browser correction from `no-referrer` to `same-origin`
+  Referrer-Policy: actual browser form POST otherwise sends Origin:null, which
+  remains correctly rejected. This branch intentionally does not edit that
+  concurrently-owned router change.
+- Final bootstrap source hash: f46935b. Ready for parent combined verification,
+  local main merge and managed worktree cleanup.
