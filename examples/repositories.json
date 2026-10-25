@@ -1,0 +1,39 @@
+{
+  "purpose": "Read-only source references for BOSS; not application dependencies",
+  "recorded_on": "2026-10-25",
+  "xerj_prefix": "bossrefs",
+  "repositories": [
+    {
+      "directory": "agetor",
+      "url": "https://github.com/alamops/agetor",
+      "commit": "fbd68603afef778a618a94ca88e0c00997956afd",
+      "license": "MIT",
+      "license_file": "LICENSE",
+      "study": "CLI discovery, JSONL normalization, process loss, worktrees, loopback authentication"
+    },
+    {
+      "directory": "kander",
+      "url": "https://github.com/dualface/kander",
+      "commit": "dea0ba6b885c39a56ee769223f7fa5c054e68c70",
+      "license": "MIT",
+      "license_file": "LICENSE",
+      "study": "Independent review, evidence validation, commit-bound completion gates"
+    },
+    {
+      "directory": "agent-orchestrator",
+      "url": "https://github.com/OrchestratorInc/agent-orchestrator",
+      "commit": "7193eff4e08f1481944845ee058fe6fd18930b6d",
+      "license": "Apache-2.0",
+      "license_file": "LICENSE",
+      "study": "Derived Kanban state, session ownership, recovery"
+    },
+    {
+      "directory": "backlog",
+      "url": "https://github.com/osmove/backlog",
+      "commit": "3580cfbbb1be4144a5cca5b49190e1f8158e4cf7",
+      "license": "Apache-2.0",
+      "license_file": "LICENSE",
+      "study": "Dependency scheduling, overlap detection, claims and expiry"
+    }
+  ]
+}
