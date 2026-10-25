@@ -1,7 +1,7 @@
 # BOSS — план нового проекта
 
 Дата: 2026-10-25. Основа: [BOSS_PLAN.md](../BOSS_PLAN.md).
-Статус: первый проход готов — Git/runner эксперименты, Phoenix/SQLite и проекты.
+Статус: Git/runner эксперименты, Phoenix/SQLite, проекты и spec/revision/task persistence.
 Задачи: [todo.md](todo.md). Источники: [RESEARCH.md](../docs/RESEARCH.md).
 
 ## Вывод
@@ -100,8 +100,9 @@ projects, stable spec identity, revisions, tasks и task events; runs/checks/rev
 
 Первый проход закрепил Elixir 1.20.3/OTP 28, Phoenix 1.8.16, LiveView 1.2.13 и
 ecto_sqlite3 0.26.0 в lockfile. `asdf exec` обходит конфликт Homebrew PATH.
-Приложение имеет локальный вход и регистрацию проектов; исходный Git checkout
-не меняется. SQLite migrations стартуют под application-lifetime owner lock,
+Приложение имеет локальный вход, регистрацию проектов и backend API для хранения
+spec identity, точного source text, append-only revisions и pinned task. Исходный
+Git checkout не меняется. SQLite migrations стартуют под application-lifetime owner lock,
 WAL инициализируется до открытия пула из двух соединений.
 
 Git spike: 12 проверок, отказ при checked-out target и сохранение failed/dirty
@@ -109,7 +110,9 @@ worktrees. Runner spike: 14 проверок, один успешный harmless
 Claude 2.1.142 capability probe. erlexec остаётся экспериментом: bounded mailbox,
 независимый EOF и очистка всех потомков не доказаны. Coding runs в приложении
 не включены. Bootstrap и проекты не зависят от выбора runner и были завершены
-при открытом Phase 0 gate; task/revision/import workflow — следующий проход.
+при открытом Phase 0 gate. BOSS-002b проверен 13 новыми тестами, включая отдельный
+committed Repo restart, конкурентную запись и migration upgrade/down/up.
+Markdown import и workflow transitions — следующие проходы.
 
 Application tests, compile/format, assets build/deploy и browser login/project/
 restart проверены на macOS. IAB выдавал неатрибутированную MutationObserver
