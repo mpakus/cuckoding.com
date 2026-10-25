@@ -160,12 +160,14 @@ defmodule BossRunnerSpikeTest do
     assert intent |> File.read!() |> JSON.decode!() == started
   end
 
-  defp temp_path(name),
-    do:
-      Path.join(
-        System.tmp_dir!(),
-        "boss-runner-#{name}-#{System.unique_integer([:positive])}.json"
-      )
+  defp temp_path(name) do
+    root =
+      Path.join(System.tmp_dir!(), "boss-runner-#{Base.encode16(:crypto.strong_rand_bytes(12))}")
+
+    File.mkdir!(root)
+    on_exit(fn -> File.rm_rf!(root) end)
+    Path.join(root, "#{name}.json")
+  end
 
   defp port_output(port, data) do
     receive do
