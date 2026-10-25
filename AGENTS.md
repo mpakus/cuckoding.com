@@ -50,6 +50,10 @@
 - Keep local tokens out of URLs and persistent logs. Preserve `same-origin`
   referrer policy: `no-referrer` made legitimate browser form POSTs send a null
   Origin. Continue rejecting foreign/null origins; do not weaken the allowlist.
+- Repository/specs paths come from the native folder chooser, never editable
+  form paths or browser file-upload names. Keep the selection server-side and
+  revalidate it on registration. Resolve relative specs against the selected
+  repository; preserve cancellation and bounded, single-dialog helper cleanup.
 - Live provider calls are opt-in and bounded; never repeat a paid smoke run
   automatically. Retain sanitized evidence, not raw private transcripts.
 - Git publication must not move a branch behind a user's checkout. The spike

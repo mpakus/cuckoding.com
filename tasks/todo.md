@@ -100,8 +100,15 @@ generator создаёт согласованный skeleton; ручные featu
 **Сбой:** ошибка changeset без частичной регистрации.
 
 Добавлен минимальный LiveView consumer: список и форма проектов, inline errors,
-сброс после успеха. 8 core + 2 UI теста; реальные browser/restart сценарии.
+сброс после успеха. 8 core + 5 UI тестов; реальные browser/restart сценарии.
 Это узкое расширение области 002a, а не реализация task board 005.
+
+- [x] Repository и specs выбираются через OS dialog, поля путей read-only.
+  Server-side selection нельзя заменить form params; cancel/error сохраняют
+  форму. Один диалог, timeout и остановка owned helper при потере caller.
+  7 helper tests + 5 LiveView tests; полный application suite — 39 passed.
+  macOS browser показал путь, возвращённый настоящим chooser. Автоматический
+  выбор/Cancel в окне osascript и Linux GUI acceptance не подтверждены.
 
 ## BOSS-002b — spec identity, revisions и task
 
@@ -159,7 +166,8 @@ event schema, tests (5 файлов).
 - [ ] Три specs, edit, повтор Sync, restart и недопустимый переход проверены.
 - [x] Review текущего изменения выполнено; журнал содержит фактические результаты.
 
-Текущий `main`: 29 application tests + 12 Git spike + 14 runner spike.
+Application suite: 39 tests после native picker; последние отдельные проверки
+spikes: 12 Git + 14 runner (предыдущий increment, их код не менялся).
 Checkpoint 1 ещё не завершён: 002b/003/004 и task board отсутствуют.
 Ближайший проход: spec identity/revisions и идемпотентный Markdown import;
 runner reliability продолжать отдельным исследованием, не смешивать с importer.
