@@ -11,6 +11,8 @@ config :boss,
   ecto_repos: [Boss.Repo],
   generators: [timestamp_type: :utc_datetime]
 
+config :boss, Boss.Repo, pool_size: 1, busy_timeout: 5000, synchronous: :full
+
 # Configure the endpoint
 config :boss, BossWeb.Endpoint,
   url: [host: "localhost"],
@@ -37,18 +39,6 @@ config :esbuild,
     env: %{"NODE_PATH" => [Path.expand("../deps", __DIR__), Mix.Project.build_path()]}
   ]
 
-# Configure tailwind (the version is required)
-config :tailwind,
-  version: "4.3.0",
-  boss: [
-    args: ~w(
-      --input=assets/css/app.css
-      --output=priv/static/assets/css/app.css
-    ),
-    cd: Path.expand("..", __DIR__),
-    env: %{"NODE_PATH" => [Path.expand("../deps", __DIR__), Mix.Project.build_path()]}
-  ]
-
 # Configure Elixir's Logger
 config :logger, :default_formatter,
   format: "$time $metadata[$level] $message\n",
@@ -56,6 +46,7 @@ config :logger, :default_formatter,
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
+config :phoenix, :filter_parameters, ["token", "password", "secret"]
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

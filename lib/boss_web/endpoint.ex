@@ -8,12 +8,16 @@ defmodule BossWeb.Endpoint do
     store: :cookie,
     key: "_boss_key",
     signing_salt: "psr/7U+L",
-    same_site: "Lax"
+    same_site: "Strict",
+    http_only: true,
+    max_age: 43_200
   ]
 
   socket "/live", Phoenix.LiveView.Socket,
     websocket: [connect_info: [session: @session_options]],
-    longpoll: [connect_info: [session: @session_options]]
+    longpoll: false
+
+  plug BossWeb.LocalSession, :origin
 
   # Serve at "/" the static files from "priv/static" directory.
   #
@@ -42,7 +46,8 @@ defmodule BossWeb.Endpoint do
   plug Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],
-    json_decoder: Phoenix.json_library()
+    json_decoder: Phoenix.json_library(),
+    length: 1_000_000
 
   plug Plug.MethodOverride
   plug Plug.Head
