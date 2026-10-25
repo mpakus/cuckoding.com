@@ -1,0 +1,75 @@
+# BOSS
+
+Local AI agent orchestration, rebuilt from [BOSS_PLAN.md](BOSS_PLAN.md).
+
+This increment provides a Phoenix LiveView server, local browser access and
+SQLite persistence. Project import and agent execution are not implemented yet.
+
+## Run locally
+
+Use Elixir 1.20.3 compiled for OTP 28, an OTP 28 runtime, and Node.js 20+ with npm.
+`.tool-versions` pins Elixir; Erlang/OTP and Node come from your local installation.
+Check `elixir --version`: the compiled OTP version should match the running OTP.
+
+```sh
+rtk proxy mix setup
+rtk proxy mix phx.server
+```
+
+`mix setup` downloads dependencies, runs `npm ci` in `assets/` and builds assets.
+Tailwind uses the official npm CLI; standalone macOS binaries failed code-signature
+validation on the development machine. No system security setting is changed.
+
+Open **http://127.0.0.1:4000** and enter the one-use token printed in the terminal.
+It expires after ten minutes. The token is submitted with CSRF protection and is
+never included in the URL. The browser receives a signed, HttpOnly, SameSite=Strict
+cookie. Reopening the same browser works while the backend remains running;
+closing a tab does not stop BOSS. A server restart creates fresh signing/session
+secrets and requires another terminal token. Tokens and session grants stay in
+memory; LiveView session logging is disabled.
+
+For a replacement token without stopping an IEx server, run
+`Boss.LocalAccess.new_token()` in that server's local console. This invalidates
+any unused token and keeps existing browser sessions valid. Start an IEx server
+with `rtk proxy iex -S mix phx.server` when you need this capability.
+
+## Data and ownership
+
+Data defaults to `~/.boss/boss.db`. Override the entire data directory and/or port:
+
+```sh
+rtk proxy env BOSS_DATA_DIR=/absolute/path/to/boss-data PORT=4001 mix phx.server
+```
+
+The directory is private to the user (mode 0700). SQLite runs with foreign keys,
+WAL, full synchronization, two pool connections (required by Ecto migrations) and
+a five-second busy timeout.
+Migrations run on application startup, after obtaining ownership. A dedicated
+`.owner.sqlite3` transaction permits one BOSS instance per directory. The lock
+is held in application callback state until all supervised children stop. A second
+instance fails explicitly; stopping the process releases the OS-held lock.
+There is no stale-PID signalling or lock-file deletion. Do not remove the lock
+file or run separate `mix ecto.*` commands against a running instance. Use a local
+filesystem, since network filesystems may not honor SQLite locking correctly.
+
+The HTTP server always binds to `127.0.0.1`. Only `127.0.0.1` and `localhost` hosts
+and exact same-port origins are accepted. Both HTTP and LiveView mounts require
+the session; WebSocket origins are checked. This is a single-user local app, not
+a network service or a sandbox for future agent processes.
+
+## Verify
+
+```sh
+rtk proxy mix test
+rtk proxy mix compile --warnings-as-errors
+rtk proxy mix format --check-formatted
+rtk proxy mix assets.build
+rtk proxy mix assets.deploy
+```
+
+Tests ignore `BOSS_DATA_DIR`, exclusively create a random temporary data directory
+and delete only that directory after stopping the test application. No existing
+`~/.boss` data is used by tests. Live provider tests will be opt-in when implemented.
+
+See [tasks/plan.md](tasks/plan.md), [tasks/todo.md](tasks/todo.md) and
+[.worklog/](.worklog/) for scope, evidence and the next increment.
