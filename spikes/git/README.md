@@ -10,6 +10,8 @@ rtk proxy mix format --check-formatted spikes/git/safety_test.exs
 This standalone ExUnit experiment needs only Git and Elixir. It creates fresh
 temporary repositories, runs Git through `System.cmd/3` argument arrays, and
 removes its test-owned roots afterward. It accepts no repository/path arguments.
+Each root uses a cryptographically random name and exclusive directory creation;
+cleanup is registered only after creation succeeds, never for a pre-existing path.
 Inherited `GIT_*` variables and global Git configuration cannot redirect these
 scratch operations. The helper module is deliberately **not application code**.
 

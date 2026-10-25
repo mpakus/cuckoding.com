@@ -112,9 +112,13 @@ defmodule BossGitSpikeTest do
   alias BossGitSpike, as: Spike
 
   setup do
-    root = Path.join(System.tmp_dir!(), "boss-git-#{System.unique_integer([:positive])}")
+    suffix = Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)
+    root = Path.join(System.tmp_dir!(), "boss-git-#{suffix}")
+    File.mkdir!(root)
+    # Register deletion only after exclusively creating this test-owned root.
+    on_exit(fn -> File.rm_rf!(root) end)
     repo = Path.join(root, "source with spaces")
-    File.mkdir_p!(repo)
+    File.mkdir!(repo)
     git!(repo, ["init", "--initial-branch=main"])
     git!(repo, ["config", "user.name", "BOSS spike"])
     git!(repo, ["config", "user.email", "spike@example.invalid"])
@@ -122,8 +126,6 @@ defmodule BossGitSpikeTest do
     git!(repo, ["config", "core.hooksPath", Path.join(root, "no-hooks")])
     File.write!(Path.join(repo, ".gitignore"), "ignored.txt\n")
     base = commit(repo, "shared.txt", "base\n")
-    # This root is created exclusively by this test; never a user/project path.
-    on_exit(fn -> File.rm_rf!(root) end)
     {:ok, root: root, repo: repo, base: base}
   end
 
