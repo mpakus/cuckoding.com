@@ -63,8 +63,16 @@
 
 ## Outcome / next step
 
-- Ready for local-main integration and combined verification; cleanup recorded
-  in the daily log after completion. A previously running BOSS must be restarted
-  to start the newly supervised picker. No remote push requested.
+- Implementation 513f991 merged into local main as b67e8b3. Combined main checks:
+  39 application tests, compile --warnings-as-errors, format --check-formatted,
+  assets.deploy passed through RTK/asdf. A previously running BOSS must be
+  restarted to start the newly supervised picker. No remote push performed.
+- Stopped only the owned port-4320 server; confirmed port closed, removed its
+  exclusive scratch data/repo and closed its browser tab. Existing server untouched.
+- The app rejected worktree archival: "The task's primary checkout cannot be
+  removed." Reattachment did not resolve it; attaching the source main checkout
+  was rejected because it is not managed. No forced removal. Detached the clean
+  worktree at main and safely deleted the merged codex branch. The managed
+  boss-native-folders worktree remains attached until the app can release it.
 - Next product increment remains BOSS-002b spec identity/revisions, then importer;
   Linux desktop/native-dialog automation acceptance remains a separate open gate.
