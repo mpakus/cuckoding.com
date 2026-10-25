@@ -48,9 +48,11 @@ Elixir/OTP + Phoenix LiveView + SQLite соответствует этой за�
 - Coordinator появляется вместе с первым run; DynamicSupervisor управляет
   жизненным циклом. Durable решение хранится в БД, PubSub обновляет интерфейс.
 - Git и review выделяются при реализации соответствующего рабочего прохода.
-- UI сначала: добавление пути, board, детали task и понятные ошибки. Browser
-  не может молча читать произвольный локальный путь: вначале поле пути с серверной
-  проверкой, native folder picker — только при появлении desktop wrapper.
+- UI сначала: выбор папки проекта, board, детали task и понятные ошибки.
+  По уточнению пользователя пути выбираются системным диалогом на машине BOSS;
+  browser показывает их read-only. Локальный supervised helper вызывает macOS
+  chooser или Linux Zenity, без desktop wrapper. Выбор хранится на сервере,
+  регистрация повторно проверяет Git и границу specs внутри проекта.
 
 Не создавать сразу все 11 таблиц из исходного плана. В первой цепочке нужны
 projects, stable spec identity, revisions, tasks и task events; runs/checks/reviews

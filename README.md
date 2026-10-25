@@ -38,11 +38,21 @@ with `rtk proxy iex -S mix phx.server` when you need this capability.
 
 ## Register a project
 
-After connecting the browser, enter the repository path and its specs directory
-(default: `specs`). Both must already exist. BOSS accepts a local Git working tree
+After connecting the browser, click **Choose repository…** and select a folder in
+the operating system dialog. Paths are read-only in the browser. The specs folder
+defaults to `specs` inside that repository; use **Choose specs folder…** to change
+it. Both folders must already exist. BOSS accepts a local Git working tree
 with at least one commit; the optional base branch defaults to its current branch.
 The base must be an existing local branch. A detached checkout needs an explicit
 base branch. The optional project name defaults to the folder name.
+
+The dialog opens on the computer running BOSS: macOS uses its built-in folder
+chooser; Linux requires a graphical desktop session and `zenity` on PATH.
+A graphical desktop session is required; an unavailable picker reports an error.
+Only one dialog can be open at a time. Cancel keeps the form unchanged; a dialog
+times out after two minutes. Closing its requesting browser session or stopping
+BOSS terminates the owned picker helper. Selected paths stay in the LiveView
+process and are validated again before registration.
 
 BOSS stores canonical paths in its own database without editing the repository.
 The specs directory must be strictly inside the repository, with no symlink
@@ -90,6 +100,8 @@ rtk proxy mix assets.deploy
 Tests ignore `BOSS_DATA_DIR`, exclusively create a random temporary data directory
 and delete only that directory after stopping the test application. No existing
 `~/.boss` data is used by tests. Live provider tests will be opt-in when implemented.
+Folder-picker process tests use Python 3 fixtures; they do not open desktop dialogs.
+Linux/Zenity GUI behavior has not yet been verified on a Linux desktop.
 
 See [tasks/plan.md](tasks/plan.md), [tasks/todo.md](tasks/todo.md) and
 [.worklog/](.worklog/) for scope, evidence and the next increment.

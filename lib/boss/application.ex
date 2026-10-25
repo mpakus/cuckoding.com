@@ -12,6 +12,7 @@ defmodule Boss.Application do
       {Ecto.Migrator, repos: [Boss.Repo]},
       {Boss.LocalAccess, announce: server?},
       {Phoenix.PubSub, name: Boss.PubSub},
+      Boss.FolderPicker,
       BossWeb.Endpoint
     ]
 
