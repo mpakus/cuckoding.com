@@ -9,7 +9,7 @@ defmodule BossWeb.Router do
     plug :protect_from_forgery
 
     plug :put_secure_browser_headers, %{
-      "referrer-policy" => "no-referrer",
+      "referrer-policy" => "same-origin",
       "content-security-policy" =>
         "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws://127.0.0.1:* ws://localhost:*; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     }
