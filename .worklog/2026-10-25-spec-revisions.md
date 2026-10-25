@@ -64,8 +64,14 @@
 
 ## Outcome / next step
 
-- BOSS-002b verified on the branch; local main integration and cleanup follow.
+- BOSS-002b implementation 3fc931d merged into local main as 198d2fb. Combined
+  main verification: `rtk proxy asdf exec mix test` (52 passed), `mix compile
+  --warnings-as-errors`, `mix format --check-formatted` through RTK/asdf passed.
   No user database migrated and no remote publication performed.
+- Detached the clean reused worktree at main and deleted codex/boss-spec-revisions.
+  App archive again refused: "The task's primary checkout cannot be removed."
+  No forced removal and no new worktrees to clean. This checkout remains attached
+  and is advanced to the final documented main commit. No GUI/server was launched.
 - Next: BOSS-003a bounded Markdown scan, optional YAML parsing, complete-scan
   identity/rename/delete reconciliation, idempotent Sync and error preservation.
   Browser UI, polling, runner gates and workflow transitions remain open.
