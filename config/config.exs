@@ -11,7 +11,7 @@ config :boss,
   ecto_repos: [Boss.Repo],
   generators: [timestamp_type: :utc_datetime]
 
-config :boss, Boss.Repo, pool_size: 1, busy_timeout: 5000, synchronous: :full
+config :boss, Boss.Repo, pool_size: 2, busy_timeout: 5000, synchronous: :full
 
 # Configure the endpoint
 config :boss, BossWeb.Endpoint,

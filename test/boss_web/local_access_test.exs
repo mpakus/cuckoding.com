@@ -30,7 +30,7 @@ defmodule BossWeb.LocalAccessTest do
     assert cookie.http_only
     assert cookie.same_site == "Strict"
     assert {:ok, view, html} = live(local_recycle(signed_in), "/")
-    assert html =~ "Your workspace starts here"
+    assert html =~ "Projects"
     assert render(view) =~ "Closing this tab"
     assert {:ok, _view, _html} = live(local_recycle(signed_in), "/")
 
