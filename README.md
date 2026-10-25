@@ -2,14 +2,17 @@
 
 Local AI agent orchestration, rebuilt from [BOSS_PLAN.md](BOSS_PLAN.md).
 
-This increment provides a Phoenix LiveView server, local browser access and
-SQLite persistence. Project import and agent execution are not implemented yet.
+This increment provides a Phoenix LiveView server, local browser access,
+SQLite persistence and validated project registration. Spec import and agent
+execution are not implemented yet.
 
 ## Run locally
 
 Use Elixir 1.20.3 compiled for OTP 28, an OTP 28 runtime, and Node.js 20+ with npm.
 `.tool-versions` pins Elixir; Erlang/OTP and Node come from your local installation.
 Check `elixir --version`: the compiled OTP version should match the running OTP.
+If Homebrew takes precedence over asdf in PATH, use `rtk proxy asdf exec mix`
+instead of `rtk proxy mix` for the commands below.
 
 ```sh
 rtk proxy mix setup
@@ -32,6 +35,23 @@ For a replacement token without stopping an IEx server, run
 `Boss.LocalAccess.new_token()` in that server's local console. This invalidates
 any unused token and keeps existing browser sessions valid. Start an IEx server
 with `rtk proxy iex -S mix phx.server` when you need this capability.
+
+## Register a project
+
+After connecting the browser, enter the repository path and its specs directory
+(default: `specs`). Both must already exist. BOSS accepts a local Git working tree
+with at least one commit; the optional base branch defaults to its current branch.
+The base must be an existing local branch. A detached checkout needs an explicit
+base branch. The optional project name defaults to the folder name.
+
+BOSS stores canonical paths in its own database without editing the repository.
+The specs directory must be strictly inside the repository, with no symlink
+components. Registering the same repository through another path or linked
+worktree returns an error. Projects survive tab closure and backend restart.
+
+Markdown files are not imported in this increment. Runner and Git research live
+in `spikes/`, separately from the application. The runner experiment is not a
+production adapter; its EOF, memory and descendant-cleanup gates remain open.
 
 ## Data and ownership
 
