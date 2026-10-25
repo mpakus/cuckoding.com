@@ -1,40 +1,28 @@
 defmodule Boss.Application do
-  # See https://elixir.hexdocs.pm/Application.html
-  # for more information on OTP Applications
   @moduledoc false
-
   use Application
 
   @impl true
   def start(_type, _args) do
+    server? = Phoenix.Endpoint.server?(:boss, BossWeb.Endpoint)
+
     children = [
+      {Boss.DataDirectory, directory: Application.fetch_env!(:boss, :data_dir)},
       BossWeb.Telemetry,
       Boss.Repo,
-      {Ecto.Migrator,
-       repos: Application.fetch_env!(:boss, :ecto_repos), skip: skip_migrations?()},
+      {Ecto.Migrator, repos: [Boss.Repo]},
+      {Boss.LocalAccess, announce: server?},
       {Phoenix.PubSub, name: Boss.PubSub},
-      # Start a worker by calling: Boss.Worker.start_link(arg)
-      # {Boss.Worker, arg},
-      # Start to serve requests, typically the last entry
       BossWeb.Endpoint
     ]
 
-    # See https://elixir.hexdocs.pm/Supervisor.html
-    # for other strategies and supported options
-    opts = [strategy: :one_for_one, name: Boss.Supervisor]
-    Supervisor.start_link(children, opts)
+    # Losing directory ownership must stop every later child before reacquiring it.
+    Supervisor.start_link(children, strategy: :rest_for_one, name: Boss.Supervisor)
   end
 
-  # Tell Phoenix to update the endpoint configuration
-  # whenever the application is updated.
   @impl true
   def config_change(changed, _new, removed) do
     BossWeb.Endpoint.config_change(changed, removed)
     :ok
-  end
-
-  defp skip_migrations?() do
-    # By default, sqlite migrations are run when using a release
-    System.get_env("RELEASE_NAME") == nil
   end
 end
