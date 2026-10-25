@@ -1,7 +1,0 @@
-#!/bin/sh
-set -e
-echo $$ > /sys/fs/cgroup/work/cgroup.procs
-ulimit -c 0
-ulimit -n 128
-ulimit -f 131072
-exec /bin/busybox su -s /bin/sh -c 'exec /bin/busybox setpriv --nnp /usr/bin/node /worker.mjs' worker
