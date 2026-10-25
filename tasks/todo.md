@@ -1,7 +1,7 @@
 # BOSS — задачи
 
 Чекбокс означает проверенный результат. Детали решений — [plan.md](plan.md).
-Команды ниже для приложения — будущие acceptance checks, пока не выполнены.
+Отмечаем только выполненные acceptance checks; частичный эксперимент описываем отдельно.
 
 ## Подготовка
 
@@ -21,8 +21,13 @@
   descendant cancellation дают точный исход и ограниченную память.
 - [ ] Backend crash не даёт ложного success и не запускает новый процесс,
   пока принадлежность старого процесса не выяснена.
-- [ ] Один harmless Codex run в scratch worktree даёт streamed event и exit;
+- [x] Один harmless Codex run в scratch worktree даёт streamed event и exit;
   Claude capability probe записывает version/flags и не читает auth-файлы.
+
+Эксперимент: `spikes/runner/`, 14 проверок macOS. erlexec пока не выбран для
+production: transport mailbox и независимый EOF не доказаны; detached/stubborn
+descendants могут пережить остановку. Отмена хранит явную причину, потому что
+библиотека может вернуть exit 0. Два первых пункта остаются открыты.
 
 **Проверка:** assert-based spike с timeout, затем opt-in live smoke;
 результат и ограничения macOS/Linux записаны отдельно.
@@ -33,10 +38,13 @@
 
 **Зависимости:** подготовка. **Область:** `spikes/git/`, `.worklog/` (до 3 файлов).
 
-- [ ] Scratch repository: два worktree на записанных SHA; исходный checkout неизменен.
-- [ ] Повторное открытие сохраняет commits; dirty worktree не удаляется.
-- [ ] Конфликт и target drift блокируют интеграцию; проверяется policy для
+- [x] Scratch repository: два worktree на записанных SHA; исходный checkout неизменен.
+- [x] Повторное открытие сохраняет commits; dirty worktree не удаляется.
+- [x] Конфликт и target drift блокируют интеграцию; проверяется policy для
   target branch, уже checked out в пользовательской папке.
+
+Доказательство: 12 real-Git tests и mutation checks. Уже checked-out target
+отклоняется обычным `git worktree add`; очередь и crash recovery ещё не реализованы.
 
 **Проверка:** настоящие throwaway Git repos, argv arrays, assert-based сценарии.
 **Сбой:** сохранить failed worktree; никакого reset/clean существующих репозиториев.
@@ -44,7 +52,10 @@
 ## Checkpoint 0
 
 - [ ] Runner выбран по spike, ограничения записаны, source references найдены.
-- [ ] Безопасная integration policy сформулирована до реализации очереди.
+- [x] Безопасная integration policy сформулирована до реализации очереди.
+
+Независимый bootstrap/project слой готовится при открытом runner gate.
+Запуск coding agents в приложении до его закрытия не включать.
 
 ## BOSS-001a — Phoenix + SQLite bootstrap
 
@@ -52,9 +63,9 @@
 `mix.exs`, lockfile, config, Repo, `.tool-versions`. Исключение по числу файлов:
 generator создаёт согласованный skeleton; ручные feature-заготовки не добавлять.
 
-- [ ] Совместимый Elixir/OTP закреплён; Phoenix LiveView и SQLite запускаются
+- [x] Совместимый Elixir/OTP закреплён; Phoenix LiveView и SQLite запускаются
   без внешней БД, артефакты приложения лежат в пользовательском data directory.
-- [ ] Сервер слушает только loopback; restart сохраняет SQLite данные.
+- [x] Сервер слушает только loopback; restart сохраняет SQLite данные.
 
 **Проверка:** `rtk mix test`, `rtk mix compile --warnings-as-errors`, local boot.
 **Сбой:** ясная ошибка конфигурации/занятого data directory, без удаления БД.
@@ -64,24 +75,33 @@ generator создаёт согласованный skeleton; ручные featu
 **Зависимости:** 001a. **Область:** endpoint/router/session/bootstrap + focused tests
 (до 5 файлов).
 
-- [ ] Browser session проходит локальный bootstrap; mutating endpoints требуют
+- [x] Browser session проходит локальный bootstrap; mutating endpoints требуют
   session/CSRF; WebSocket проверяет origin; произвольный сайт не может запускать CLI.
-- [ ] Закрытие вкладки не останавливает backend, повторное открытие восстанавливает UI.
+- [x] Закрытие вкладки не останавливает backend, повторное открытие восстанавливает UI.
 
 **Проверка:** Phoenix request/LiveView tests и browser smoke чужого Origin.
 **Сбой:** отказ в доступе, без side effect. Токены не пишутся в логи.
+
+Одноразовый bootstrap token выводится только в терминал владельца. Request logs
+фильтруют token/CSRF/session. Real HTTP/WS probes и IAB login/reopen проверены.
+Неатрибутированная MutationObserver ошибка IAB отмечена в worklog; clean-console
+и отдельный Chrome/Firefox acceptance не заявляются.
 
 ## BOSS-002a — проекты
 
 **Зависимости:** 001b. **Область:** project schema, context, migration, tests (4 файла).
 
-- [ ] Принимается только доступный Git repository с проверенным base ref;
+- [x] Принимается только доступный Git repository с проверенным base ref;
   canonical root/common Git directory препятствует дублированию одного repo.
-- [ ] specs path остаётся внутри выбранного проекта; traversal/symlink escape
+- [x] specs path остаётся внутри выбранного проекта; traversal/symlink escape
   отвергается; unborn repository получает понятную ошибку.
 
 **Проверка:** focused ExUnit с temporary repos, включая linked worktree.
 **Сбой:** ошибка changeset без частичной регистрации.
+
+Добавлен минимальный LiveView consumer: список и форма проектов, inline errors,
+сброс после успеха. 8 core + 2 UI теста; реальные browser/restart сценарии.
+Это узкое расширение области 002a, а не реализация task board 005.
 
 ## BOSS-002b — spec identity, revisions и task
 
@@ -135,9 +155,14 @@ event schema, tests (5 файлов).
 
 ## Checkpoint 1
 
-- [ ] `mix test`, compile warnings, `mix format --check-formatted` проходят.
+- [x] `mix test`, compile warnings, `mix format --check-formatted` проходят.
 - [ ] Три specs, edit, повтор Sync, restart и недопустимый переход проверены.
-- [ ] Review изменения выполнено; журнал содержит фактические результаты.
+- [x] Review текущего изменения выполнено; журнал содержит фактические результаты.
+
+Текущий `main`: 29 application tests + 12 Git spike + 14 runner spike.
+Checkpoint 1 ещё не завершён: 002b/003/004 и task board отсутствуют.
+Ближайший проход: spec identity/revisions и идемпотентный Markdown import;
+runner reliability продолжать отдельным исследованием, не смешивать с importer.
 
 ## Следующие рабочие проходы
 

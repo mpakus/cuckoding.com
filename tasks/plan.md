@@ -1,7 +1,7 @@
 # BOSS — план нового проекта
 
 Дата: 2026-10-25. Основа: [BOSS_PLAN.md](../BOSS_PLAN.md).
-Статус: анализ и подготовка reference coding; приложение ещё не создано.
+Статус: первый проход готов — Git/runner эксперименты, Phoenix/SQLite и проекты.
 Задачи: [todo.md](todo.md). Источники: [RESEARCH.md](../docs/RESEARCH.md).
 
 ## Вывод
@@ -35,7 +35,7 @@ Elixir/OTP + Phoenix LiveView + SQLite соответствует этой за�
 | Pause/Resume обещают больше возможностей, чем есть у CLI | Pause останавливает выдачу новых runs; текущий заканчивает шаг. Stop отменяет process group и сохраняет worktree. Resume продолжает разрешённый persisted шаг; session resume доступен только при capability адаптера. |
 | Новый проект vs existing Git | Первый проход — existing Git с хотя бы одним commit. Для unborn/не-Git папки показывать причину. Создание репозитория — отдельный последующий сценарий. |
 
-Это предлагаемые правила реализации, не утверждение о готовом поведении.
+Это правила реализации; проверенные части отмечаются в `todo.md` и `.worklog/`.
 Исходный BOSS_PLAN.md сохранён без изменений.
 
 ## Минимальная архитектура
@@ -96,15 +96,24 @@ projects, stable spec identity, revisions, tasks и task events; runs/checks/rev
 
 ## Доказательства и открытые проверки
 
-На этой машине обнаружены Elixir 1.20.4 (сборка под OTP 29), запущенный OTP 28,
-Phoenix generator 1.8.13, Codex 0.146.0, Claude Code 2.1.142. Версии dependencies
-приложения пока не выбраны: `mix.exs` и lockfile отсутствуют. Согласованность
-Elixir/OTP проверить до bootstrap и закрепить toolchain; сам `--version` не
-доказывает работоспособность NIF/release.
+Первый проход закрепил Elixir 1.20.3/OTP 28, Phoenix 1.8.16, LiveView 1.2.13 и
+ecto_sqlite3 0.26.0 в lockfile. `asdf exec` обходит конфликт Homebrew PATH.
+Приложение имеет локальный вход и регистрацию проектов; исходный Git checkout
+не меняется. SQLite migrations стартуют под application-lifetime owner lock,
+WAL инициализируется до открытия пула из двух соединений.
 
-Проверены help-контракты CLI, но не authentication, live streaming, расход
-токенов, permissions, cancellation и packaging. Исследованные конкуренты не
-запускались и их тесты здесь не выполнялись. Source review не заменяет spike.
+Git spike: 12 проверок, отказ при checked-out target и сохранение failed/dirty
+worktrees. Runner spike: 14 проверок, один успешный harmless Codex 0.146.0 run,
+Claude 2.1.142 capability probe. erlexec остаётся экспериментом: bounded mailbox,
+независимый EOF и очистка всех потомков не доказаны. Coding runs в приложении
+не включены. Bootstrap и проекты не зависят от выбора runner и были завершены
+при открытом Phase 0 gate; task/revision/import workflow — следующий проход.
+
+Application tests, compile/format, assets build/deploy и browser login/project/
+restart проверены на macOS. IAB выдавал неатрибутированную MutationObserver
+ошибку при загрузке страницы; чистая консоль и другие браузеры пока не доказаны.
+Linux, release packaging и end-to-end agent→review→integration остаются открыты.
+Конкурентные repositories исследованы как source; их приложения и suites не запускались.
 
 Ключевые проверки до выбора runner: потеря backend после spawn до записи PID;
 потомок, переживший родителя; stderr flood; invalid/oversized JSONL; долгий тихий

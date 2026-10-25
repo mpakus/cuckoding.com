@@ -37,3 +37,22 @@
 - Preserve source specs and user changes. Never equate process exit, a model's
   "done" message or an old approval with verified delivery. Keep spec revision,
   run, checks, review and integration tied to the actual Git commits.
+- Verify the effective Elixir/OTP pair in `.tool-versions`. On this machine use
+  `rtk proxy asdf exec mix ...` when Homebrew takes precedence in PATH.
+  Application tests and the separate `spikes/` suites have different acceptance
+  scopes; a passing experiment is not a production adapter.
+- Create test scratch roots exclusively before registering recursive cleanup.
+  A VM-local counter is not a globally unique directory name. Never remove a
+  pre-existing directory to make a test pass.
+- Hold the data-directory lock in Application callback state until all children
+  stop. Initialize SQLite WAL before starting the two-connection Repo pool;
+  Ecto migrations require at least two connections. Tests must use fresh data.
+- Keep local tokens out of URLs and persistent logs. Preserve `same-origin`
+  referrer policy: `no-referrer` made legitimate browser form POSTs send a null
+  Origin. Continue rejecting foreign/null origins; do not weaken the allowlist.
+- Live provider calls are opt-in and bounded; never repeat a paid smoke run
+  automatically. Retain sanitized evidence, not raw private transcripts.
+- Git publication must not move a branch behind a user's checkout. The spike
+  refuses an already checked-out target and retains failed/dirty worktrees.
+  Production runner backpressure, independent EOF and descendant cleanup remain
+  open gates. erlexec may report exit 0 after cancellation: retain the cause.

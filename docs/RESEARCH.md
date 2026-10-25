@@ -132,3 +132,18 @@ role/configuration matrix Kander. Rejected→repair→approved ещё нужно
 Это smoke index coverage, не benchmark качества поиска по произвольному вопросу.
 До production code нужно искать конкретную задачу, читать тесты и заново
 проверять соответствие нашим constraints.
+
+## Implementation evidence — first increment
+
+The pinned references above remain unchanged. Source research led to executable
+checks in [Git spike](../spikes/git/README.md) and
+[runner spike](../spikes/runner/README.md). The first is a conservative policy
+experiment; the second leaves memory/EOF/descendant safety unresolved. Neither
+module is part of the application's runtime.
+
+Project registration additionally used Agetor's `identifier-input.ts` distinction
+between literal paths/refs and prose. The browser form disables autocorrection
+for these fields. Backlog's stable source identity informed the upcoming spec
+design; revisions/import have deliberately not been scaffolded prematurely.
+Exact queries, mutations and adopted/rejected tradeoffs are in
+[project worklog](../.worklog/2026-10-25-projects.md).
