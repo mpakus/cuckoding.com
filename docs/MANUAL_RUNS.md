@@ -63,7 +63,8 @@ A finished receipt requires actual exit code zero, genuine EOF on both streams,
 confirmed group cleanup and valid Codex turn completion. Cancellation takes
 precedence over a later zero exit. Malformed/failed protocol, timeout, nonzero exit
 or unresolved cleanup cannot produce success. **Codex finished — unverified**
-means the CLI finished; task state, [explicit candidate checks](MANUAL_CHECKS.md), review, integration
+means the CLI finished; task state, [explicit candidate checks](MANUAL_CHECKS.md),
+[manual review](MANUAL_REVIEWS.md), integration
 and Done remain separate. Any recorded workspace HEAD is diagnostic, not an approval receipt.
 
 ## Verification boundary

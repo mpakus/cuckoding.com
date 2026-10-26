@@ -12,6 +12,7 @@ defmodule Boss.Runs.Run do
     field :check_config, :map, default: %{}
     field :config_hash, :string
     field :candidate_commit, :string
+    field :review_report, :map, default: %{}
     field :status, :string, default: "preparing"
     field :cleanup, :string, default: "pending"
     field :workspace, :map, default: %{}

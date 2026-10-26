@@ -3,7 +3,8 @@
 Дата: 2026-10-25. Основа: [BOSS_PLAN.md](../BOSS_PLAN.md).
 Статус: Git/runner эксперименты, Phoenix/SQLite, проекты, revisions, автоматический
 Sync specs, persisted task commands, read-only board/drawer и CLI detection. Ручные Codex attempts на macOS теперь доступны в task drawer;
-проверки/review/integration и workflow evidence gates остаются закрыты.
+ручные commit-bound checks и review доступны отдельно от task workflow.
+Integration и workflow evidence gates остаются закрыты.
 Задачи: [todo.md](todo.md). Источники: [RESEARCH.md](../docs/RESEARCH.md).
 
 ## Вывод
@@ -191,3 +192,11 @@ Done, checks/review/integration evidence. Контракт и ограничен
 исходного run и проверяет неизменность Git tree после завершения. Это ручной
 receipt, не task transition или независимое review. Верификация, ограничения и
 точный следующий шаг фиксируются в todo/worklog; контракт — MANUAL_CHECKS.md.
+
+## BOSS-014a — ручное review проверенного commit
+
+Отдельный свежий Codex reviewer получает сохранённый spec, полный base→candidate
+diff и check receipt. Read-only sandbox, строгий JSON-отчёт, неизменность candidate
+и общий Stop/recovery отделяют model assessment от workflow approval.
+Refined plan, raw test output и автоматический fix-loop пока отсутствуют;
+полный BOSS review gate не заявлен. Контракт — [MANUAL_REVIEWS.md](../docs/MANUAL_REVIEWS.md).

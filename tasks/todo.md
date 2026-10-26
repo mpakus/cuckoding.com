@@ -329,6 +329,19 @@ Stop, keyboard and 320px layout using finite local fixtures only. All three merg
 branches removed; UI worktree archived. Codex still refuses to archive the clean
 snapshot writer and two previous writer worktrees as in use by another task.
 
+## BOSS-014a — ручное review проверенного candidate
+
+- [x] Source research through xerj; pinned source/test patterns and license recorded.
+- [x] Explicit fresh read-only Codex request; immutable check/spec/config/candidate pins.
+- [x] Bounded strict report, unique criteria and actionable issue coverage.
+- [x] Shared Stop/quarantine; actual native fixture success/rejection/drift/Repo-loss.
+- [x] Final storage regression, browser scenario and independent review.
+- [ ] Combined local-main verification, documentation and safe branch/worktree cleanup.
+
+Контракт — [MANUAL_REVIEWS.md](../docs/MANUAL_REVIEWS.md). Это model assessment по
+saved spec/full diff/check receipt; refined plan, raw test output, automatic fix
+loop, workflow approval и Done не заявлены. Provider calls остаются opt-in.
+
 ## Следующие рабочие проходы
 
 Детализировать перед реализацией; не генерировать все модули заранее.

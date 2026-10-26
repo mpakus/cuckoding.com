@@ -3,20 +3,31 @@ defmodule Boss.Agents.Codex do
   @line_limit 262_144
   @types ~w(thread.started turn.started turn.completed turn.failed error item.started item.updated item.completed)
 
-  def args,
-    do: [
-      "--ask-for-approval",
-      "never",
-      "exec",
-      "--ignore-user-config",
-      "--ephemeral",
-      "--sandbox",
-      "workspace-write",
-      "--json",
-      "--color",
-      "never",
-      "-"
-    ]
+  def args, do: command_args("workspace-write", [])
+
+  def args(:review, output_path),
+    do:
+      command_args("read-only", [
+        "--output-schema",
+        Application.app_dir(:boss, "priv/review_schema.json"),
+        "--output-last-message",
+        output_path
+      ])
+
+  defp command_args(sandbox, extra),
+    do:
+      [
+        "--ask-for-approval",
+        "never",
+        "exec",
+        "--ignore-user-config",
+        "--ephemeral",
+        "--sandbox",
+        sandbox,
+        "--json",
+        "--color",
+        "never"
+      ] ++ extra ++ ["-"]
 
   def prompt(source) do
     text =

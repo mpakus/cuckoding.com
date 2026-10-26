@@ -6,7 +6,8 @@ This increment provides a Phoenix LiveView server, local browser access,
 native folder selection, validated project registration, automatic Markdown sync,
 transactional spec/revision/task history and versioned task commands with immutable
 receipts, a Kanban board, a revision-aware task drawer, local CLI discovery and
-manual Codex attempts and explicit commit-bound checks in retained Git worktrees on macOS.
+manual Codex attempts, explicit commit-bound checks and fresh read-only Codex review
+in retained Git worktrees on macOS.
 
 ## Run locally
 
@@ -204,7 +205,7 @@ macOS. See [manual run behavior and limits](docs/MANUAL_RUNS.md).
 On a finished Codex attempt, enter a **Check command** and select **Snapshot and
 run checks**. BOSS captures current changes without altering the original run,
 then executes the explicitly entered command in a separate retained worktree.
-The receipt shows its candidate commit, arguments and exit status. Exit0 with
+The receipt shows its candidate commit, arguments and exit status. Exit 0 with
 modified files or a moved HEAD fails verification. **Checks passed — review
 required** applies only to that snapshot and does not make a task Done.
 
@@ -212,6 +213,17 @@ Commands run with your local account's access, without implicit shell expansion.
 Use trusted project commands; setup/dependencies must be handled by the command.
 Stop and restart quarantine apply to both Codex and checks. See
 [check behavior, limits and verification](docs/MANUAL_CHECKS.md).
+
+## Review a checked result
+
+After a passed check, choose **Review with Codex**. A separate read-only session
+reviews that exact snapshot against its saved specification and full diff. The
+drawer shows a structured **Model assessment**, acceptance evidence and issues.
+Review has the same Stop/history/restart guarantees and uses your Codex account.
+
+The report is advisory: it does not move the task, merge changes or mark Done.
+Refined plans, raw test output and automatic fix loops are not yet part of this
+manual flow. See [review inputs, validation and limits](docs/MANUAL_REVIEWS.md).
 
 ## Detect agents
 
