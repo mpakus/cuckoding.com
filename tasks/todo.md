@@ -266,6 +266,30 @@ reload reset и 320–1440 px проверены. Прежняя IAB MutationObs
 гарантии не заявлены. Role assignment, production adapters и запуск задач входят
 в следующие проходы. Ближайший шаг — BOSS-007 с закрытием runner gates.
 
+## BOSS-007a — проверка транспорта перед production runner
+
+**Зависимости:** 006 и runner spike. **Область:** отдельный `spikes/transport/`,
+fixtures, reference snapshots и документация. Application dependencies/UI не меняются.
+
+- [x] Отдельные bounded stdout/stderr reads и настоящий EOF каждого потока.
+- [x] Ранний EOF и уже завершившийся leader не теряют поздний inherited output;
+  сохраняется реальный nonzero status без обещания порядка уведомлений.
+- [x] Stalled consumer останавливает upstream output без растущей mailbox.
+- [x] Stop/timeout отвечают при stalled consumer; forced closure не считается EOF.
+- [ ] Независимое review, macOS fixture suite, merge/verification/cleanup.
+
+macOS suite: 12 transport tests прошли. При withheld ACKs producer остановился
+на 77,824 bytes, четыре sampled mailbox были пусты; при drain от 2 до 8 MiB
+stack samples оставались `[20, 8]` words. Это fixture evidence, не whole-VM memory
+proof. Независимые reader-failure / Stop-after-EOF / 100 sequential cancelled→binary
+проверки прошли; integer exit не классифицируется как доказанный signal.
+
+Производственный BOSS-007 остаётся открытым: process-tree ownership, backend/
+helper death, безопасная identity/recovery и committed launch intent пока не
+доказаны. Новый Exile/NetRunner source сохранён, но обновление xerj отказало до
+записи из-за disk flood-stage; это не подтверждение индексации новых snapshots.
+Подробности: [transport worklog](../.worklog/2026-10-25-runner-transport.md).
+
 ## Следующие рабочие проходы
 
 Детализировать перед реализацией; не генерировать все модули заранее.

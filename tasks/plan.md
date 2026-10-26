@@ -158,6 +158,15 @@ Committed Repo restart и полный owned-server restart с offline edit пр
 Linux, release packaging и end-to-end agent→review→integration остаются открыты.
 Конкурентные repositories исследованы как source; их приложения и suites не запускались.
 
+BOSS-007a выделен в отдельный fixture-only transport experiment:
+[spikes/transport/README.md](../spikes/transport/README.md). Два bounded demand
+reader проверяются отдельно от будущей process-tree ownership. Нельзя считать
+закрытие pipe настоящим EOF или выводить сигнал из одного integer exit status.
+Следующий gate — lifecycle: cleanup после выхода leader, backend/helper death,
+подтверждение ownership/cleanup до retry и committed launch-intent recovery.
+Exile/NetRunner source pinned; новый xerj index update отказал до записи из-за
+95% disk flood-stage. Старые datasets доступны; новые источники читаются через rg.
+
 Ключевые проверки до выбора runner: потеря backend после spawn до записи PID;
 потомок, переживший родителя; stderr flood; invalid/oversized JSONL; долгий тихий
 run; auth/quota error без бесконечного retry. До integration: target drift,

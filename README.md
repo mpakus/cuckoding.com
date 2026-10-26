@@ -61,8 +61,11 @@ The specs directory must be strictly inside the repository, with no symlink
 components. Registering the same repository through another path or linked
 worktree returns an error. Projects survive tab closure and backend restart.
 
-Runner and Git research live in `spikes/`, separately from the application. The runner experiment is not a
-production adapter; its EOF, memory and descendant-cleanup gates remain open.
+Runner and Git research live in `spikes/`, separately from the application.
+The [transport experiment](spikes/transport/README.md) evaluates demand-driven
+stdout/stderr, genuine EOF and bounded reader state with local fixtures. It is
+not a production adapter: descendant ownership, backend/helper death and durable
+recovery remain open before task execution can be enabled.
 
 ## Sync specs
 
