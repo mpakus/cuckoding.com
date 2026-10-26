@@ -5,7 +5,8 @@ Local AI agent orchestration, rebuilt from [BOSS_PLAN.md](BOSS_PLAN.md).
 This increment provides a Phoenix LiveView server, local browser access,
 native folder selection, validated project registration, automatic Markdown sync,
 transactional spec/revision/task history and versioned task commands with immutable
-receipts. Agent execution is not implemented yet.
+receipts, a Kanban board and a revision-aware task drawer. Agent execution is not
+implemented yet.
 
 ## Run locally
 
@@ -149,6 +150,27 @@ it never deletes those histories to make rollback succeed. The task-events migra
 also refuses rollback after any command has been recorded. Rolling back the
 older persistence migration drops spec/revision/task tables. Migration tests
 use disposable databases only.
+
+## Task board and details
+
+The project board groups saved tasks into Backlog, In Progress, Review,
+Needs Attention and Done. `ready_to_merge` stays in Needs Attention; only `done`
+belongs in Done. Empty columns remain visible. On narrow screens the board
+scrolls horizontally without widening the page.
+
+Open a card to read its pinned task snapshot, latest source metadata, selected
+source revision, current reason and latest 50 task transitions. Source Markdown
+is displayed as escaped text. Selecting a historical revision changes only the
+view; it never advances the task pin. The drawer URL supports reload and browser
+Back/Forward. Automatic sync keeps the selected task/revision open, including
+source edits, explicit-ID renames and missing files. Escape or Close returns
+focus to the task card.
+
+Details are scoped to the current project and read in one database snapshot.
+Loading/error states do not substitute a different revision's cached source.
+Run controls, logs, agent/check/review metadata and revision adoption will appear
+when their producers exist. Full state mapping and the read API are documented
+in [TASK_WORKFLOW.md](docs/TASK_WORKFLOW.md).
 
 ## Data and ownership
 

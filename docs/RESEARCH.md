@@ -223,3 +223,41 @@ BOSS использует SQLite version/CAS, task-scoped command IDs и append-
 полный review engine Kander не переносились. До появления собственных producers
 все execution/success gates закрыты; caller evidence отвергается. Исходники
 референса не копировались. Контракт: [TASK_WORKFLOW.md](TASK_WORKFLOW.md).
+
+## BOSS-005: board, scoped details и native drawer
+
+Запросы xerj: `TaskDetailDrawer` (miss), `drawer selectedTask`,
+`Kanban drawer focus DialogContent`, `kanbanColumn`, `task detail revision history`,
+`getTask taskId projectId`, `showModal focus return dialog`,
+`kanban columns status group tasks`. Слабые результаты дополнены чтением source/tests.
+
+- Agent Orchestrator (Apache-2.0),
+  `7193eff4e08f1481944845ee058fe6fd18930b6d`,
+  `backend/pkg/contract/kanban.go:5`, `packages/product-ui/src/SessionsBoardView.tsx:193`
+  и `SessionsBoardView.test.tsx:93`: группировать реальные states, стабильные IDs,
+  подписанные колонки. PR/mergeability семантика не заменяет BOSS completion gates.
+- Backlog (Apache-2.0), `3580cfbbb1be4144a5cca5b49190e1f8158e4cf7`,
+  `packages/server/src/routes/tasks.ts:187`, `board-multi-project.test.ts:26`:
+  project-scoped detail lookup. `packages/board-ui/src/lib/DialogShell.svelte:23`
+  не принят: одного aria-modal недостаточно для modality/inert/focus. Drag/drop
+  из App/Column не нужен read-only доске.
+- Kander (MIT), `dea0ba6b885c39a56ee769223f7fa5c054e68c70`,
+  `internal/board/snapshot.go:21`, `snapshot_context_test.go:36/196`: coherent read.
+  BOSS использует deferred SQLite transaction на одном Repo PID; файловые locks
+  и полный board/run snapshot не нужны.
+- Agetor (MIT), `fbd68603afef778a618a94ca88e0c00997956afd`,
+  `src/mainview/components/ui/dialog.tsx`: label/Escape/focus return. Собственный
+  focus trap не переносится; выбран native `<dialog>.showModal()`.
+- [MDN dialog](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/dialog)
+  и установленный LiveView `lib/phoenix_live_view/js.ex:1050`:
+  `JS.ignore_attributes("open")` сохраняет native modal при обновлении содержимого.
+  [Tailwind has](https://tailwindcss.com/docs/hover-focus-and-other-states#has)
+  расширяет общий layout только при наличии board, в том числе после live navigation.
+- LiveView `assets/js/phoenix_live_view/dom.ts:637` и `dom_patch.ts:477` сохраняют
+  focused SELECT вместе с атрибутами. Поэтому desired revision хранится на dialog,
+  а `updated` hook синхронизирует value без смены фокуса или нового change event.
+  Необходимость подтверждена browser Back/Forward regression.
+
+Код референсов не копировался; зависимости не добавлялись. UI показывает saved
+snapshot и latest source отдельно, последние 50 transitions, escaped Markdown;
+никакие agent/check/review данные не выдумываются.
