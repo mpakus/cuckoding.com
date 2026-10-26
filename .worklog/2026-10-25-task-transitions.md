@@ -92,6 +92,17 @@ stale/replay protection and Repo lifetime fencing. All producer-dependent forwar
 and recovery transitions remain closed. Positive commit-bound evidence validation
 is still open and is not marked complete in tasks/todo.md.
 
-Next: merge into local main, repeat the combined checks there and clean temporary
-writer worktrees/merged branches. Product increment after that: BOSS-005 board
-and task drawer; runner and positive quality gates require their later producers.
+Merged into local main as `daa1c0f` (documentation/implementation tip `0ae1ade`).
+On main, `rtk proxy asdf exec mix test` again passed **140 tests, 1 skipped**,
+seed 252557; compile with warnings-as-errors and formatter check also passed.
+
+Both writer worktrees were clean, then archived through Codex and confirmed absent
+from `git worktree list`; all three merged `codex/boss-transition-*` /
+`codex/boss-task-transitions` branches were deleted. The first branch-deletion
+attempt ran while archival was queued and correctly refused active checkouts;
+it succeeded after archival completed. The primary managed worktree remains
+clean/detached because Codex identifies it as the task's non-removable primary
+checkout (established in prior increments). No forced cleanup or remote push.
+
+Next product increment: BOSS-005 board and task drawer. Runner reliability and
+positive quality gates remain open until their later evidence producers exist.
