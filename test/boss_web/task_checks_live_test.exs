@@ -167,6 +167,34 @@ defmodule BossWeb.TaskChecksLiveTest do
     refute_receive {:checking, _, _}, 50
   end
 
+  test "ten check attempts keep their source action and nonzero exits never look passed", ctx do
+    for _ <- 1..11 do
+      {:ok, {:new, run}} =
+        Runs.admit_check(ctx.project.id, ctx.parent.id, Ecto.UUID.generate(), "mix test")
+
+      {:ok, _} =
+        Runs.update(run.id,
+          status: "failed",
+          cleanup: "group_empty",
+          exit_kind: "exit",
+          exit_code: 1
+        )
+    end
+
+    {:ok, view, _} = live(ctx.conn, task_path(ctx))
+    settle(view)
+    assert has_element?(view, "#check-form-#{ctx.parent.id}")
+    assert has_element?(view, "#task-runs", "Latest 10 attempts and source runs")
+    assert has_element?(view, "#run-attempts", "Checks failed")
+    assert has_element?(view, "#run-attempts", "Exit code: 1")
+    refute has_element?(view, "#run-attempts", "Checks passed")
+
+    assert render(view)
+           |> LazyHTML.from_document()
+           |> LazyHTML.query("#run-attempts > li")
+           |> Enum.count() == 11
+  end
+
   defp parent_run(project, task) do
     {:ok, {:new, run}} = Runs.admit(project.id, task.id, Ecto.UUID.generate())
 
