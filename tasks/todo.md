@@ -205,6 +205,29 @@ tests проходят, включая upgrade/down/up, committed same-file rest
 используют saved target; пока доступно только возвращение к `new`.
 UI действий/запуск агентов отсутствуют; [контракт](../docs/TASK_WORKFLOW.md).
 
+## BOSS-005 — board и task drawer
+
+**Зависимости:** 003, 004. **Область:** Tasks detail read, board/drawer,
+ProjectLive, hook/router/layout и focused/real-pool/UI tests (10 code/test файлов).
+
+- [x] Три specs дают три карточки; все сохранённые states имеют ровно одну колонку.
+- [x] Drawer показывает pinned/latest/selected source, current reason и настоящие
+  последние 50 events; чужие task/revision не раскрываются.
+- [x] URL, Back/Forward и reload сохраняют выбор; background refresh не закрывает
+  drawer и не меняет selected revision при edit/rename/missing/restore.
+- [x] Keyboard opening, native modal, Escape, возврат focus и горизонтальная
+  прокрутка на узком экране проверены в браузере.
+- [x] Wrong cached source, stale async results, cancelled reads, storage failure
+  и concurrent task/source commits проверены regression tests.
+
+8 detail tests, 1 новый real-pool snapshot test и 10 новых board LiveView tests;
+22 focused UI tests вместе с прежними Sync checks. Native dialog без новой UI
+зависимости; Markdown остаётся escaped text. Browser обнаружил focused SELECT,
+сохранявший revision 2 при Back к pin 1; hook синхронизации прошёл повторную проверку.
+Все состояния покрыты тестами, browser fixture использует реальные `new`/`needs_input`.
+Execution controls, agent/run/check/review metadata и global light/dark polish
+не добавлялись. Прежняя неатрибутированная IAB MutationObserver error сохраняется.
+
 ## Checkpoint 1
 
 - [x] `mix test`, compile warnings, `mix format --check-formatted` проходят.
@@ -212,11 +235,11 @@ UI действий/запуск агентов отсутствуют; [кон�
   недопустимые переходы проверены backend tests в 004.
 - [x] Review текущего изменения выполнено; журнал содержит фактические результаты.
 
-Application suite: 140 passed, 1 Linux-only skipped после основы BOSS-004; последние отдельные проверки
-spikes: 12 Git + 14 runner (предыдущий increment, их код не менялся).
-Storage/negative-transition проверки Checkpoint 1 выполнены; полноценный task board
-ещё отсутствует. Ближайший проход: BOSS-005 board + task drawer. Positive quality
-gates BOSS-004 остаются открыты до реализации producers; это не proof of Done.
+Application suite: 159 passed, 1 Linux-only skipped после BOSS-005; последние
+отдельные проверки spikes: 12 Git + 14 runner (их код не менялся).
+Storage/negative-transition и board проверки Checkpoint 1 выполнены. Ближайший
+проход: BOSS-006 detector/capability UI. Positive quality gates BOSS-004 остаются
+открыты до реализации producers; это не proof of Done.
 Runner reliability продолжать отдельным исследованием.
 
 ## Следующие рабочие проходы
@@ -225,9 +248,8 @@ Runner reliability продолжать отдельным исследован�
 
 | Порядок | Tickets | Зависит от | Проверяемый результат / отказ |
 |---|---|---|---|
-| 1 | 005: board + task drawer | 003, 004 | Три карточки, revisions, keyboard navigation; refresh не теряет состояние. |
-| 2 | 006–010: detector, runner, Codex, worktree, journal | 000, 004, 005 | Один isolated run, live events, Stop/Retry; crash → attention, source checkout цел. |
-| 3 | 011–014: plan, Claude, checks, review loop | 006–010 | Неполная реализация отвергается, исправленная проходит; invalid verdict и 3 исчерпанных цикла блокируют. |
-| 4 | 015: DAG и два worker | 011–014 | Independent tasks параллельны; cycle/missing/failed dependency запрещает запуск; повтор tick не дублирует run. |
-| 5 | 016: integration queue | 015, Git spike | Один repo интегрируется последовательно; target drift, conflict и failed checks не дают Done. |
-| 6 | 017–018: recovery matrix, packaging | 016 | Kill/restart на каждой опасной границе; fresh macOS/Linux установка и полный spec→review→integrate проход. |
+| 1 | 006–010: detector, runner, Codex, worktree, journal | 000, 004, 005 | Один isolated run, live events, Stop/Retry; crash → attention, source checkout цел. |
+| 2 | 011–014: plan, Claude, checks, review loop | 006–010 | Неполная реализация отвергается, исправленная проходит; invalid verdict и 3 исчерпанных цикла блокируют. |
+| 3 | 015: DAG и два worker | 011–014 | Independent tasks параллельны; cycle/missing/failed dependency запрещает запуск; повтор tick не дублирует run. |
+| 4 | 016: integration queue | 015, Git spike | Один repo интегрируется последовательно; target drift, conflict и failed checks не дают Done. |
+| 5 | 017–018: recovery matrix, packaging | 016 | Kill/restart на каждой опасной границе; fresh macOS/Linux установка и полный spec→review→integrate проход. |

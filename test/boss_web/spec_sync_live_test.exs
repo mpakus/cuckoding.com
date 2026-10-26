@@ -50,7 +50,7 @@ defmodule BossWeb.SpecSyncLiveTest do
     assert render(view) =~ "No specs imported yet"
     assert sync(view) =~ "3 created"
     assert length(Projects.list_spec_entries(project.id)) == 3
-    assert has_element?(view, "#spec-entries li h3", "Alpha")
+    assert has_element?(view, "#spec-entries li h4", "Alpha")
     assert has_element?(view, "#spec-entries li", "alpha.md")
     assert has_element?(view, "#spec-entries li", "New")
     assert has_element?(view, "#spec-entries li", "Source revision 1")
@@ -59,7 +59,7 @@ defmodule BossWeb.SpecSyncLiveTest do
     assert sync(view) =~ "3 unchanged"
     assert length(Projects.list_spec_entries(project.id)) == 3
     {:ok, reopened, _} = live(conn, "/projects/#{project.id}")
-    assert has_element?(reopened, "#spec-entries li h3", "Alpha")
+    assert has_element?(reopened, "#spec-entries li h4", "Alpha")
     refute has_element?(reopened, "button", "Start")
   end
 
@@ -78,7 +78,7 @@ defmodule BossWeb.SpecSyncLiveTest do
     File.rm!(Path.join(specs, "beta.md"))
     sync(view)
 
-    assert has_element?(view, "#spec-#{alpha.id} h3", "Alpha")
+    assert has_element?(view, "#spec-#{alpha.id} h4", "Alpha")
     assert has_element?(view, "#spec-#{alpha.id}", "Source revision 2")
     assert has_element?(view, "#spec-#{alpha.id}", "Task snapshot 1")
 
@@ -104,7 +104,7 @@ defmodule BossWeb.SpecSyncLiveTest do
     File.write!(Path.join(specs, "broken.md"), "---\nid: [\n---\nPRIVATE_SOURCE_CONTENT\n")
     html = sync(view)
     assert has_element?(view, "#sync-errors[role='alert']", "broken.md")
-    assert has_element?(view, "#spec-entries li h3", "Alpha")
+    assert has_element?(view, "#spec-entries li h4", "Alpha")
     refute has_element?(view, "#spec-entries li", "File missing")
     refute html =~ "PRIVATE_SOURCE_CONTENT"
     refute has_element?(view, "#sync-specs[disabled]")
@@ -125,13 +125,13 @@ defmodule BossWeb.SpecSyncLiveTest do
     write_specs(specs)
     assert {:ok, %{created: 3}} = SpecImporter.sync(project.id)
     assert refresh(view) =~ "3 created"
-    assert has_element?(view, "#spec-entries li h3", "Alpha")
+    assert has_element?(view, "#spec-entries li h4", "Alpha")
 
     File.write!(Path.join(specs, "broken.md"), "---\nid: [\n---\nPRIVATE_SOURCE_CONTENT\n")
     assert {:error, _} = SpecImporter.sync(project.id)
     html = refresh(view)
     assert has_element?(view, "#sync-errors", "broken.md")
-    assert has_element?(view, "#spec-entries li h3", "Alpha")
+    assert has_element?(view, "#spec-entries li h4", "Alpha")
     refute html =~ "PRIVATE_SOURCE_CONTENT"
 
     File.rm!(Path.join(specs, "broken.md"))
@@ -173,7 +173,7 @@ defmodule BossWeb.SpecSyncLiveTest do
     send(old_task, :release)
     assert_receive {:DOWN, ^monitor, :process, ^old_task, :normal}
     assert refresh(view) =~ "3 unchanged"
-    assert has_element?(view, "#spec-entries li h3", "Alpha")
+    assert has_element?(view, "#spec-entries li h4", "Alpha")
     refute render(view) =~ "Obsolete error"
   end
 
@@ -216,7 +216,7 @@ defmodule BossWeb.SpecSyncLiveTest do
     assert has_element?(view, "#sync-status", "3 created")
     refute has_element?(view, "#sync-status", "99 created")
     refute has_element?(view, "#sync-specs[disabled]")
-    assert has_element?(view, "#spec-entries li h3", "Alpha")
+    assert has_element?(view, "#spec-entries li h4", "Alpha")
   end
 
   test "a repeated event cannot replace an active sync or hide its errors", %{project: project} do
@@ -283,6 +283,12 @@ defmodule BossWeb.SpecSyncLiveTest do
         status: "Syncing specs…",
         entries: [],
         auto_sync: false,
+        drawer_open: false,
+        selection: nil,
+        details: nil,
+        detail_loading: false,
+        detail_pending: false,
+        detail_error: nil,
         errors: [%{path: "broken.md", message: "Invalid frontmatter"}]
       }
     }

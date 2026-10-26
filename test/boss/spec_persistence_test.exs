@@ -333,6 +333,81 @@ defmodule Boss.SpecPersistenceTest do
     assert Tasks.list_events(saved.task.id) == [first, second]
   end
 
+  @tag detail_snapshot: true
+  test "task details retain one read snapshot while another connection commits changes", %{
+    repo: repo,
+    project: project
+  } do
+    {:ok, saved} = Projects.record_spec(project.id, observation("Pinned source"))
+    {:ok, before_read} = Projects.record_spec(project.id, observation("Before read"))
+    observer = self()
+    handler = make_ref()
+
+    :ok =
+      :telemetry.attach(
+        handler,
+        [:boss, :repo, :query],
+        fn _, _, metadata, _ ->
+          if Process.get(handler, false) and metadata.source == "tasks" and
+               String.starts_with?(metadata.query, "SELECT") do
+            Process.put(handler, false)
+            send(observer, {handler, self()})
+
+            receive do
+              {:continue, ^handler} -> :ok
+            after
+              3000 -> send(observer, {handler, :gate_timeout})
+            end
+          end
+        end,
+        nil
+      )
+
+    on_exit(fn -> :telemetry.detach(handler) end)
+
+    reader =
+      Task.async(fn ->
+        Repo.put_dynamic_repo(repo)
+        Process.put(handler, true)
+        Tasks.get_details(project.id, saved.task.id)
+      end)
+
+    try do
+      assert_receive {^handler, worker}, 1000
+      assert worker == reader.pid
+
+      assert {:ok, event} =
+               Tasks.transition(
+                 saved.task.id,
+                 transition_command("during-detail-read", "block", 0, "Waiting")
+               )
+
+      {:ok, after_read} = Projects.record_spec(project.id, observation("After read began"))
+      send(worker, {:continue, handler})
+      assert {:ok, old} = Task.await(reader, 5000)
+      refute_received {^handler, :gate_timeout}
+      assert old.task == saved.task
+      assert old.task.state_version == 0
+      assert old.events == []
+      assert old.pinned_revision == saved.revision
+      assert old.selected_revision == saved.revision
+      assert old.latest_revision == before_read.revision
+      assert Enum.map(old.revisions, & &1.number) == [2, 1]
+
+      assert {:ok, current} = Tasks.get_details(project.id, saved.task.id)
+      assert current.task.state_version == 1
+      assert current.task.state == "blocked"
+      assert current.events == [event]
+      assert current.pinned_revision == saved.revision
+      assert current.selected_revision == saved.revision
+      assert current.latest_revision == after_read.revision
+      assert Enum.map(current.revisions, & &1.number) == [3, 2, 1]
+    after
+      :telemetry.detach(handler)
+      Task.shutdown(reader, :brutal_kill)
+    end
+  end
+
   @tag repo_restart_regression: true, repo_name: Boss.TransitionPersistenceRepo
   test "a transition cannot move from a stopped named Repo into its replacement pool", %{
     repo: repo,

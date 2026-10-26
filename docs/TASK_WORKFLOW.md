@@ -1,9 +1,10 @@
 # Task commands and history
 
 `Boss.Tasks.transition/2` is a backend command API. This increment does not
-start agents, run checks, approve reviews, integrate Git branches or expose task
-controls in the browser. Those producers must supply verified persisted evidence
-before their transitions can be enabled.
+start agents, run checks, approve reviews, integrate Git branches or expose
+state-changing task controls in the browser. The board and drawer are read-only.
+Those producers must supply verified persisted evidence before their transitions
+can be enabled.
 
 ## Command contract
 
@@ -94,3 +95,38 @@ validation, review cycle budgets and execution recovery remain future work.
 `Boss.Tasks.Transition.dependency_satisfied?/1` recognizes only `done`.
 `ready_to_merge`, cancelled, failed, interrupted and all other states return false.
 There is no dependency scheduler yet.
+
+## Board and detail reads
+
+| Column | Saved states |
+|---|---|
+| Backlog | `new`, `planning`, `ready` |
+| In Progress | `implementing`, `testing`, `integrating` |
+| Review | `reviewing`, `approved` |
+| Needs Attention | `ready_to_merge`, `blocked`, `needs_input`, `failed`, `interrupted`, `cancelled`, unrecognized states |
+| Done | `done` |
+
+`Boss.Tasks.get_details(project_id, task_id, revision_number \\ nil)` returns
+`{:ok, details}` or `{:error, :not_found | :storage_error}`. Project/task IDs and
+optional revision numbers must be positive signed 64-bit integers. A missing or
+foreign task/revision returns `:not_found` before exposing source or events.
+
+The result contains `task`, `spec`, `pinned_revision`, `latest_revision`,
+`selected_revision`, `revisions` (number/timestamp metadata, newest first) and
+`events` (latest 50 by descending state version). The default selection is the
+pinned revision. One deferred transaction, bound to the actual Repo PID, gives a
+coherent snapshot even when another connection commits a task transition or
+source revision concurrently. The existing command transaction remains immediate.
+
+`/projects/:id/tasks/:task_id?revision=:number` opens the native modal drawer.
+Omitting the query selects the task pin. Back/Forward and reload preserve URL
+selection; background refresh coalesces reads and rejects stale responses.
+Changing selection never mutates the task. A cached source is shown only when it
+matches the desired revision. Missing files retain their revisions and events.
+Only the dialog's `open` attribute is client-owned; LiveView updates its contents.
+The hook keeps a focused revision select aligned with server state after history
+navigation, since LiveView otherwise preserves that focused control's value.
+
+Revision metadata is not paginated yet. Task events refresh on the existing
+project refresh path; there is no runner event stream. Saved states that need
+execution/evidence producers remain unreachable through current commands.

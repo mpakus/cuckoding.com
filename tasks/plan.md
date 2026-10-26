@@ -2,7 +2,8 @@
 
 Дата: 2026-10-25. Основа: [BOSS_PLAN.md](../BOSS_PLAN.md).
 Статус: Git/runner эксперименты, Phoenix/SQLite, проекты, revisions, автоматический
-Sync specs и persisted task commands с закрытыми execution/evidence gates.
+Sync specs, persisted task commands и read-only board/drawer. Execution/evidence
+gates остаются закрыты до появления producers.
 Задачи: [todo.md](todo.md). Источники: [RESEARCH.md](../docs/RESEARCH.md).
 
 ## Вывод
@@ -124,21 +125,28 @@ Markdown/YAML import и список specs добавлены в BOSS-003a, ав
 сохраняет recovery target. Конкретный Repo PID закреплён на всю команду; смена
 зарегистрированного Repo не переносит остаток операции в новый pool. Task events
 неизменяемы; rollback миграции отказывается терять уже записанную историю.
-Полноценный board остаётся следующим проходом. Poller и ручной Sync используют один importer, фактические
+BOSS-005 добавляет пять колонок, project-scoped task drawer, pinned/selected/latest
+revisions и последние 50 events из одного согласованного DB snapshot. URL хранит
+выбор; refresh, Back/Forward и reload его сохраняют. Source остаётся escaped text.
+Poller и ручной Sync используют один importer, фактические
 scans сериализованы SQLite. PubSub публикует только после завершения транзакции.
 
-Application tests (140 passed, 1 Linux-only skipped) и compile/format проверены
-после BOSS-004 на macOS. Новые 13 policy + 7 context + 7 real-pool tests проверяют
+Application tests (159 passed, 1 Linux-only skipped) и compile/format проверены
+после BOSS-005 на macOS. В BOSS-004 добавлены 13 policy + 7 context + 7 real-pool tests:
+они проверяют
 таблицу отказов, replay/CAS, rollback и restart. Positive run/check/review/integration
 evidence ещё не производится: переходы, включая approved/done, закрыты и не
 принимают caller-provided evidence. Полная проверка commit-bound evidence остаётся
 за соответствующими рабочими проходами 006–016; контракт —
 [TASK_WORKFLOW.md](../docs/TASK_WORKFLOW.md).
 
-Assets build/deploy и browser automatic edit/delete/error/recovery/startup rescan
-проверены в BOSS-003b; в этом backend increment не повторялись. В последнем IAB
-прогоне снова появилась MutationObserver error без
-source URL; атрибуция остаётся открытой. Другие браузеры не проверялись.
+Assets.deploy повторно прошёл в BOSS-005. Browser подтвердил три карточки,
+keyboard/Escape/focus return, URL revision history/reload, refresh при edit/rename/
+missing/restore и отсутствие page overflow на 320/768/1024/1440 px. Исправлена
+рассинхронизация focused SELECT при Back/Forward. Startup rescan/offline edit
+проверены в 003b. В IAB снова появилась прежняя MutationObserver error без source
+URL; атрибуция остаётся открытой. Другие браузеры не проверялись. Следующий
+продуктовый проход — BOSS-006, detector/capability UI; runner gates остаются открыты.
 Committed Repo restart и полный owned-server restart с offline edit проверены.
 Linux, release packaging и end-to-end agent→review→integration остаются открыты.
 Конкурентные repositories исследованы как source; их приложения и suites не запускались.

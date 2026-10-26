@@ -82,7 +82,14 @@
 - Keep producer-dependent transitions closed until persisted commit-bound evidence
   is implemented. Caller-provided flags/verdicts are not evidence. Recovery uses
   the saved target, never a caller-selected state; only `done` satisfies dependencies.
-  See `docs/TASK_WORKFLOW.md` for the current backend-only contract.
+  See `docs/TASK_WORKFLOW.md` for commands and the read-only board contract.
+- Read task details through a project-scoped query and one Repo-pinned read
+  transaction. Keep source revisions immutable; bound event reads to the latest
+  50. A selected historical revision never changes the task snapshot.
+- The URL owns drawer/task/revision selection. Coalesce refresh reads and reject
+  stale results; never show cached source for a different desired revision.
+  Preserve native dialog modality/open state across patches, restore card focus
+  on close and synchronize a focused revision select after history navigation.
 - Live provider calls are opt-in and bounded; never repeat a paid smoke run
   automatically. Retain sanitized evidence, not raw private transcripts.
 - Git publication must not move a branch behind a user's checkout. The spike
