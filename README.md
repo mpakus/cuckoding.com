@@ -6,7 +6,7 @@ This increment provides a Phoenix LiveView server, local browser access,
 native folder selection, validated project registration, automatic Markdown sync,
 transactional spec/revision/task history and versioned task commands with immutable
 receipts, a Kanban board, a revision-aware task drawer, local CLI discovery and
-manual Codex attempts in retained Git worktrees on macOS.
+manual Codex attempts and explicit commit-bound checks in retained Git worktrees on macOS.
 
 ## Run locally
 
@@ -174,8 +174,8 @@ focus to the task card.
 
 Details are scoped to the current project and read in one database snapshot.
 Loading/error states do not substitute a different revision's cached source.
-The drawer also shows manual Codex runs, safe event metadata and Stop. Checks,
-review, integration and revision adoption remain future work. Full state mapping
+The drawer also shows manual Codex runs, explicit candidate checks, safe metadata
+and Stop. Review, integration and revision adoption remain future work. Full state mapping
 and the read API are documented
 in [TASK_WORKFLOW.md](docs/TASK_WORKFLOW.md).
 
@@ -198,6 +198,20 @@ After confirmed cleanup, **Start Codex** creates another fresh attempt. A backen
 interruption or unknown cleanup blocks new attempts conservatively; there is no
 automatic retry, PID-based recovery or force-unblock UI. Runs currently require
 macOS. See [manual run behavior and limits](docs/MANUAL_RUNS.md).
+
+## Check a Codex result
+
+On a finished Codex attempt, enter a **Check command** and select **Snapshot and
+run checks**. BOSS captures current changes without altering the original run,
+then executes the explicitly entered command in a separate retained worktree.
+The receipt shows its candidate commit, arguments and exit status. Exit0 with
+modified files or a moved HEAD fails verification. **Checks passed — review
+required** applies only to that snapshot and does not make a task Done.
+
+Commands run with your local account's access, without implicit shell expansion.
+Use trusted project commands; setup/dependencies must be handled by the command.
+Stop and restart quarantine apply to both Codex and checks. See
+[check behavior, limits and verification](docs/MANUAL_CHECKS.md).
 
 ## Detect agents
 

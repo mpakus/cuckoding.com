@@ -8,7 +8,8 @@ defmodule Boss.RunPersistenceTest do
     {20_261_025_220_000, Boss.Repo.Migrations.CreateSpecRevisions},
     {20_261_025_230_000, Boss.Repo.Migrations.TrackMissingSpecs},
     {20_261_026_010_000, Boss.Repo.Migrations.CreateTaskEvents},
-    {20_261_026_040_000, Boss.Repo.Migrations.CreateAgentRuns}
+    {20_261_026_040_000, Boss.Repo.Migrations.CreateAgentRuns},
+    {20_261_026_060_000, Boss.Repo.Migrations.AddManualChecks}
   ]
 
   setup do

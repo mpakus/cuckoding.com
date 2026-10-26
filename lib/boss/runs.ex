@@ -20,6 +20,9 @@ defmodule Boss.Runs do
   def start(project_id, task_id, command_id, server \\ Boss.Runs.Manager),
     do: GenServer.call(server, {:start, project_id, task_id, command_id}, 10_000)
 
+  def start_check(project_id, parent_id, command_id, text, server \\ Boss.Runs.Manager),
+    do: GenServer.call(server, {:check, project_id, parent_id, command_id, text}, 10_000)
+
   # Stop bypasses the manager's DB work: only the live, project-scoped owner is signalled.
   def stop(project_id, run_id, registry \\ Boss.Runs.Active) do
     case :ets.lookup(registry, run_id) do
@@ -35,12 +38,26 @@ defmodule Boss.Runs do
   end
 
   def list(project_id, task_id) do
-    Repo.all(
-      from r in Run,
-        where: r.project_id == ^project_id and r.task_id == ^task_id,
-        order_by: [desc: r.inserted_at, desc: r.id],
-        limit: 10
-    )
+    recent =
+      Repo.all(
+        from r in Run,
+          where: r.project_id == ^project_id and r.task_id == ^task_id,
+          order_by: [desc: r.inserted_at, desc: r.id],
+          limit: 10
+      )
+
+    missing = Enum.uniq(Enum.map(recent, & &1.parent_run_id)) -- Enum.map(recent, & &1.id)
+
+    parents =
+      Repo.all(
+        from r in Run,
+          where:
+            r.project_id == ^project_id and r.task_id == ^task_id and
+              r.id in ^Enum.reject(missing, &is_nil/1),
+          order_by: [desc: r.inserted_at, desc: r.id]
+      )
+
+    recent ++ parents
   end
 
   def get(project_id, id), do: Repo.get_by(Run, project_id: project_id, id: id)
@@ -50,8 +67,11 @@ defmodule Boss.Runs do
     if is_integer(project_id) and is_integer(task_id) and is_binary(command_id) and
          match?({:ok, _}, Ecto.UUID.cast(command_id)) do
       transaction(fn ->
-        Repo.get_by(Run, project_id: project_id, task_id: task_id, command_id: command_id) ||
-          Repo.rollback(:busy)
+        case Repo.get_by(Run, project_id: project_id, task_id: task_id, command_id: command_id) do
+          %Run{adapter: "codex"} = run -> run
+          %Run{} -> Repo.rollback(:idempotency_conflict)
+          nil -> Repo.rollback(:busy)
+        end
       end)
     else
       {:error, :invalid_command}
@@ -64,8 +84,11 @@ defmodule Boss.Runs do
          match?({:ok, _}, Ecto.UUID.cast(command_id)) do
       transaction(fn ->
         case Repo.get_by(Run, task_id: task_id, command_id: command_id) do
-          %Run{project_id: ^project_id} = run ->
+          %Run{project_id: ^project_id, adapter: "codex"} = run ->
             {:existing, run}
+
+          %Run{project_id: ^project_id} ->
+            Repo.rollback(:idempotency_conflict)
 
           %Run{} ->
             Repo.rollback(:not_found)
@@ -101,6 +124,67 @@ defmodule Boss.Runs do
       end)
     else
       {:error, :invalid_command}
+    end
+  end
+
+  @doc false
+  def admit_check(project_id, parent_id, command_id, text, replay_only \\ false) do
+    with true <-
+           is_integer(project_id) and project_id > 0 and project_id <= 9_223_372_036_854_775_807,
+         {:ok, _} <- Ecto.UUID.cast(parent_id),
+         {:ok, _} <- Ecto.UUID.cast(command_id),
+         {:ok, config, hash} <- Boss.Checks.Command.parse(text) do
+      transaction(fn ->
+        parent =
+          Repo.get_by(Run, project_id: project_id, id: parent_id) || Repo.rollback(:not_found)
+
+        case Repo.get_by(Run, task_id: parent.task_id, command_id: command_id) do
+          %Run{
+            adapter: "check",
+            parent_run_id: ^parent_id,
+            config_hash: ^hash,
+            check_config: ^config
+          } = saved ->
+            {:existing, saved}
+
+          %Run{} ->
+            Repo.rollback(:idempotency_conflict)
+
+          nil ->
+            unless parent.adapter == "codex" and parent.status == "finished" and
+                     parent.cleanup == "group_empty" and map_size(parent.workspace) > 0,
+                   do: Repo.rollback(:source_unavailable)
+
+            if replay_only or
+                 Repo.exists?(
+                   from r in Run, where: r.status in ^@active or r.cleanup == "unknown"
+                 ),
+               do: Repo.rollback(:busy)
+
+            task = Repo.get!(Tasks.Task, parent.task_id)
+
+            unless task.state in ~w(new ready failed interrupted cancelled blocked needs_input),
+              do: Repo.rollback(:task_unavailable)
+
+            saved =
+              Repo.insert!(%Run{
+                id: Ecto.UUID.generate(),
+                project_id: project_id,
+                task_id: parent.task_id,
+                spec_revision_id: parent.spec_revision_id,
+                admitted_version: task.state_version,
+                adapter: "check",
+                parent_run_id: parent.id,
+                command_id: command_id,
+                check_config: config,
+                config_hash: hash
+              })
+
+            {:new, saved}
+        end
+      end)
+    else
+      _ -> {:error, :invalid_command}
     end
   end
 

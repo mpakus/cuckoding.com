@@ -308,6 +308,20 @@ checks, review, интеграция, Done и Linux runner здесь не за�
 [MANUAL_RUNS.md](../docs/MANUAL_RUNS.md). После завершения этого прохода ближайшая
 продуктовая задача — commit-bound checks для retained workspace.
 
+## BOSS-013a — явные проверки immutable candidate
+
+- [x] User command → normalized argv/config hash; общий admission/Stop/recovery.
+- [x] Private-index snapshot сохраняет source HEAD/index/files; отдельный commit/ref/worktree.
+- [x] Exact clean HEAD/ref/tree до/после command; index flags не скрывают edits.
+- [x] Immutable parent/revision/config/candidate и idempotent replay без нового запуска.
+- [x] Real-pool checks success/failure/Stop/Repo-loss/migration and UI/browser verification.
+- [ ] Independent review, combined main checks and safe worktree cleanup.
+
+Без автоматического запуска команд из repo/model и без provider calls. Один
+explicit command на попытку; результат относится только к candidate SHA. Task
+workflow/check approval/review/integration gates остаются закрыты. Контракт:
+[MANUAL_CHECKS.md](../docs/MANUAL_CHECKS.md).
+
 ## Следующие рабочие проходы
 
 Детализировать перед реализацией; не генерировать все модули заранее.

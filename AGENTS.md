@@ -126,3 +126,18 @@
 - Keep Codex source on stdin, workspace-write sandbox and explicit Start. Persist
   only bounded event types/counts/usage, never raw model/tool/stderr text. Test
   production transport with finite fake CLIs; paid/provider calls remain opt-in.
+
+- Manual checks execute only explicitly entered user argv, never commands inferred
+  from model/spec/config text. Retain normalized argv/config hash and source run;
+  replay with another adapter/source/command is an idempotency conflict.
+- Capture checks with private Git indexes into a new retained commit/ref and
+  detached worktree. Preserve original run index/HEAD/files. Persist intent before
+  Git and candidate SHA before command execution. Verify exact clean HEAD/ref and
+  fresh reconstructed tree before/after checks; index flags cannot hide edits.
+- A passing check requires candidate SHA, actual exit 0, both EOFs, known group
+  cleanup and unchanged tree. It applies only to that commit/command, never future
+  edits or task Done. Codex/checks share global admission, Stop and quarantine.
+- Keep source Codex parents accessible exactly once after truncating check history;
+  deduplicate parent identities before subtracting recent IDs. An unknown
+  UI start retries identical argv and UUID; persisted receipts resolve uncertainty
+  even if the admission reply arrives late. Never persist raw check output.

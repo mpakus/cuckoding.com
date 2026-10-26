@@ -63,8 +63,8 @@ A finished receipt requires actual exit code zero, genuine EOF on both streams,
 confirmed group cleanup and valid Codex turn completion. Cancellation takes
 precedence over a later zero exit. Malformed/failed protocol, timeout, nonzero exit
 or unresolved cleanup cannot produce success. **Codex finished — unverified**
-means the CLI finished; task state, checks, review, integration and Done remain
-separate. Any recorded workspace HEAD is diagnostic, not an approval receipt.
+means the CLI finished; task state, [explicit candidate checks](MANUAL_CHECKS.md), review, integration
+and Done remain separate. Any recorded workspace HEAD is diagnostic, not an approval receipt.
 
 ## Verification boundary
 
@@ -73,4 +73,4 @@ command replay, requester death, Stop and restart quarantine. Browser smoke uses
 a finite local fake Codex only. No real model call was made for this increment.
 A C compiler is required to build `priv/native/boss_guardian` on macOS. Linux and
 Windows task execution, release packaging, detached-session containment and the
-full checks → independent review → integration workflow remain open.
+full automated checks → independent review → integration workflow remain open.
