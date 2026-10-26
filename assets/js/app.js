@@ -13,6 +13,12 @@ const TaskDrawer = {
     this.el.addEventListener("cancel", this.cancel)
     this.el.showModal()
   },
+  updated() {
+    const select = this.el.querySelector("#task-revision")
+    if (select && select.value !== this.el.dataset.revision) {
+      select.value = this.el.dataset.revision
+    }
+  },
   destroyed() {
     this.el.removeEventListener("cancel", this.cancel)
     this.el.close()
