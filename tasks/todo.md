@@ -291,6 +291,22 @@ helper death, безопасная identity/recovery и committed launch intent 
 записи из-за disk flood-stage; это не подтверждение индексации новых snapshots.
 Подробности: [transport worklog](../.worklog/2026-10-25-runner-transport.md).
 
+## BOSS-007b — первый ручной Codex run (macOS)
+
+- [x] Durable admission/replay, pinned revision/base commit before side effects.
+- [x] Fresh retained worktree; source checkout and local user edits preserved.
+- [x] Native group owner, bounded stdout/stderr, EOF/exit/signal distinction.
+- [x] Stop bypasses Manager/DB; requester death does not cancel the worker.
+- [x] Restart quarantines unfinished attempts and never automatically relaunches.
+- [x] Start/Stop/history/events in task drawer; keyboard/reload/320 px browser smoke.
+- [ ] Final native backpressure/recovery regression and combined main verification.
+
+Browser использовал только конечный fake CLI: Stop → retained edits и finished →
+unverified, source checkout цел. Ни одного model call. Task state остаётся new;
+checks, review, интеграция, Done и Linux runner здесь не заявлены. Контракт:
+[MANUAL_RUNS.md](../docs/MANUAL_RUNS.md). После завершения этого прохода ближайшая
+продуктовая задача — commit-bound checks для retained workspace.
+
 ## Следующие рабочие проходы
 
 Детализировать перед реализацией; не генерировать все модули заранее.

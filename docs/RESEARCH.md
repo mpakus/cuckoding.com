@@ -349,3 +349,20 @@ empty; sustained drain kept reader stacks constant after a meaningful RED/GREEN
 regression. Exit notification was delayed with descendant-held pipes, so the
 proof checks actual parent death and exact late bytes instead of assuming a
 notification order. These results do not approve a production runner.
+
+## BOSS-007b: manual Codex attempts
+
+Search `launch run worktree process group` in `bossrefs` produced weak matches;
+read pinned source instead. Agetor `fbd68603afef778a618a94ca88e0c00997956afd`,
+`src/bun/codex-tmux.ts:123-166` supplies the Codex event vocabulary. Adopted bounded
+allowlisted metadata; rejected forwarding raw tool/model output. NetRunner
+`5f12e06aabb70f2aafde023bf547aaaa6f8fcb36` shepherd ownership and Agent Orchestrator
+`7193eff4e08f1481944845ee058fe6fd18930b6d` Unix process-group cancellation informed
+an independently implemented macOS guardian. Retaining the unreaped leader closes
+PGID reuse before cleanup; process-group proof is explicitly narrower than all
+arbitrary detached descendants. No reference code became a runtime dependency.
+Workspace patterns use saved immutable base/branch/path intent and ordinary Git
+worktrees; review rejected executable filters/conditional includes rather than
+executing unknown checkout commands. Branch reviews and precise source/test
+pointers are in the 2026-10-26 writer worklogs. The newer Exile/NetRunner corpus
+update remains blocked by the shared xerj disk watermark; no indexing claim.

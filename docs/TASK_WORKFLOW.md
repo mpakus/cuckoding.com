@@ -1,10 +1,10 @@
 # Task commands and history
 
-`Boss.Tasks.transition/2` is a backend command API. This increment does not
-start agents, run checks, approve reviews, integrate Git branches or expose
-state-changing task controls in the browser. The board and drawer are read-only.
-Those producers must supply verified persisted evidence before their transitions
-can be enabled.
+`Boss.Tasks.transition/2` is a backend command API. Task workflow controls remain
+closed in the browser. The drawer separately supports [manual Codex attempts](MANUAL_RUNS.md)
+with retained workspaces and Stop; those attempts never advance task state.
+Checks, review and integration producers must supply verified commit-bound
+evidence before the workflow transitions below can be enabled.
 
 ## Command contract
 

@@ -6,7 +6,7 @@
 /examples/exile/
 /examples/net_runner/
 /priv/native/boss_guardian
-/priv/native/boss_guardian.tmp
+/priv/native/boss_guardian.*
 
 # The directory Mix will write compiled artifacts to.
 /_build/
