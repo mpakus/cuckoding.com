@@ -10,20 +10,27 @@ defmodule BossWeb.RunPanel do
   attr :available, :boolean, required: true
   attr :supported, :boolean, required: true
   attr :error, :any, default: nil
+  attr :check_requests, :map, default: %{}
 
   def panel(assigns) do
-    assigns = assign(assigns, :blocked, Enum.any?(assigns.runs, &(&1.cleanup == "unknown")))
+    assigns =
+      assigns
+      |> assign(:blocked, Enum.any?(assigns.runs, &(&1.cleanup == "unknown")))
+      |> assign(
+        :check_uncertain,
+        Enum.any?(assigns.check_requests, fn {_, request} -> request.locked end)
+      )
 
     ~H"""
     <section id="task-runs" aria-labelledby="task-runs-heading" class="border-y border-zinc-800 py-5">
       <div class="flex flex-wrap items-center justify-between gap-3">
-        <h3 id="task-runs-heading" class="font-semibold">Codex runs</h3>
+        <h3 id="task-runs-heading" class="font-semibold">Runs and checks</h3>
         <button
           id="start-codex"
           type="button"
           phx-click="start_run"
           phx-value-command-id={@command_id}
-          disabled={!@available}
+          disabled={!@available || @check_uncertain}
           aria-describedby="run-snapshot run-account"
           class="rounded-md bg-emerald-400 px-4 py-2 font-semibold text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:opacity-50"
         >{if @starting, do: "Starting…", else: "Start Codex"}</button>
@@ -38,15 +45,23 @@ defmodule BossWeb.RunPanel do
       <p :if={@blocked} id="run-cleanup-warning" role="alert" class="mt-3 text-sm text-amber-300">
         Process cleanup could not be confirmed. Workspace retained; new runs are blocked.
       </p>
+      <p
+        :if={@check_uncertain && !@starting}
+        id="check-start-pending"
+        role="status"
+        class="mt-3 text-sm text-amber-300"
+      >
+        A checks start is unresolved. Retry its saved command on the original task before starting other work.
+      </p>
       <p :if={@error} id="run-error" role="alert" class="mt-3 text-sm text-red-300">{@error}</p>
       <p :if={@runs == []} class="mt-4 text-sm text-zinc-400">No runs yet.</p>
       <p :if={@runs != []} class="mt-4 text-xs text-zinc-400">
-        Latest 10 attempts · results require review and checks
+        Latest 10 attempts and source runs · results require review and checks
       </p>
       <ol id="run-attempts" class="mt-2 divide-y divide-zinc-800">
         <li :for={run <- @runs} id={"run-#{run.id}"} class="space-y-2 py-4 text-sm">
           <div class="flex flex-wrap items-center justify-between gap-3">
-            <p role="status" class="font-medium">{status(run.status)}</p>
+            <p role="status" class="font-medium">{status(run.adapter, run.status)}</p>
             <button
               :if={Runs.active?(run)}
               id={"stop-run-#{run.id}"}
@@ -60,6 +75,19 @@ defmodule BossWeb.RunPanel do
           <time datetime={DateTime.to_iso8601(run.inserted_at)} class="block text-xs text-zinc-400">
             {Calendar.strftime(run.inserted_at, "%Y-%m-%d %H:%M:%S UTC")}
           </time>
+          <div :if={run.adapter == "check"} class="space-y-2 text-xs text-zinc-400">
+            <p :if={run.candidate_commit}>
+              Snapshot commit
+              <code class="block break-all text-zinc-300">{run.candidate_commit}</code>
+            </p>
+            <p :if={run.check_config["argv"]}>
+              Command arguments
+              <code class="block break-all text-zinc-300">{JSON.encode!(run.check_config["argv"])}</code>
+            </p>
+            <p :if={run.exit_kind == "exit"}>Exit code: {run.exit_code}</p>
+            <p :if={run.exit_kind == "signal"}>Terminated by signal: {run.signal}</p>
+            <p>Applies only to this snapshot. Later workspace edits have not been checked.</p>
+          </div>
           <p :if={run.reason} class="break-words text-amber-300">{run.reason}</p>
           <p :if={run.workspace["path"]} class="text-zinc-400">
             Retained workspace
@@ -86,11 +114,73 @@ defmodule BossWeb.RunPanel do
               </li>
             </ol>
           </details>
+          <.check_form
+            :if={run.adapter == "codex" && run.status == "finished" && run.cleanup == "group_empty"}
+            parent={run.id}
+            request={Map.get(@check_requests, run.id)}
+            available={
+              @available && (!@check_uncertain || Map.get(@check_requests, run.id, %{})[:locked])
+            }
+          />
         </li>
       </ol>
     </section>
     """
   end
+
+  attr :parent, :string, required: true
+  attr :request, :any, required: true
+  attr :available, :boolean, required: true
+
+  defp check_form(assigns) do
+    ~H"""
+    <form
+      :if={@request}
+      id={"check-form-#{@parent}"}
+      phx-change="edit_check"
+      phx-submit="start_check"
+      class="mt-4 space-y-2 rounded-md border border-zinc-700 p-3"
+    >
+      <input type="hidden" name="parent_id" value={@parent} />
+      <input type="hidden" name="command_id" value={@request.id} />
+      <label for={"check-command-#{@parent}"} class="block font-medium">Check command</label>
+      <input
+        id={"check-command-#{@parent}"}
+        name="command"
+        value={@request.text}
+        placeholder="mix test"
+        required
+        maxlength="4096"
+        readonly={@request.locked}
+        disabled={!@available}
+        autocomplete="off"
+        spellcheck="false"
+        aria-describedby={"check-help-#{@parent}"}
+        class="w-full min-w-0 rounded border border-zinc-600 bg-zinc-900 px-3 py-2 font-mono text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
+      />
+      <p id={"check-help-#{@parent}"} class="text-xs text-zinc-400">
+        Runs this command locally on a captured copy using your account's access. Use trusted commands;
+        do not put secrets in arguments. Arguments support quoting, without shell expansion.
+      </p>
+      <p :if={@request.locked} class="text-xs text-amber-300">
+        Retry keeps the same command while its start outcome is unresolved.
+      </p>
+      <button
+        type="submit"
+        disabled={!@available}
+        class="rounded border border-emerald-600 px-3 py-2 font-medium text-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:opacity-50"
+      >{if @request.locked, do: "Retry checks", else: "Snapshot and run checks"}</button>
+    </form>
+    """
+  end
+
+  defp status("check", "preparing"), do: "Capturing check snapshot"
+  defp status("check", "launching"), do: "Starting checks"
+  defp status("check", "running"), do: "Checks running"
+  defp status("check", "stopping"), do: "Stopping checks"
+  defp status("check", "finished"), do: "Checks passed — review required"
+  defp status("check", "failed"), do: "Checks failed"
+  defp status(_, status), do: status(status)
 
   defp status("preparing"), do: "Preparing workspace"
   defp status("launching"), do: "Starting Codex"
