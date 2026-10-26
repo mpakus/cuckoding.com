@@ -111,10 +111,17 @@ defmodule Boss.Projects.SpecDocument do
     end
   catch
     :unsupported_alias -> {:error, "Frontmatter aliases are not supported."}
+    :unsupported_binary -> {:error, "Frontmatter binary values are not supported."}
     _, _ -> {:error, "Frontmatter contains invalid YAML or an unsupported tag."}
   end
 
   defp check_token({:yamerl_alias, _, _, _}), do: throw(:unsupported_alias)
+
+  defp check_token(
+         {:yamerl_scalar, _, _, {:yamerl_tag, _, _, ~c"tag:yaml.org,2002:binary"}, _, _, _}
+       ),
+       do: throw(:unsupported_binary)
+
   defp check_token(_), do: :ok
 
   defp validate_metadata([{_, _} | _] = pairs) do
@@ -173,7 +180,7 @@ defmodule Boss.Projects.SpecDocument do
   defp valid_field?(key, value) when is_binary(value) do
     length = if key == "id", do: byte_size(value), else: String.length(value)
 
-    length in 1..200 and String.trim(value) == value and
+    String.valid?(value) and length in 1..200 and String.trim(value) == value and
       not String.contains?(value, [<<0>>, "\n", "\r"])
   end
 

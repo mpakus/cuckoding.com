@@ -128,6 +128,23 @@ defmodule Boss.Projects.SpecDocumentTest do
     end
   end
 
+  test "YAML binary tags cannot become string metadata, even when decoded bytes are UTF-8" do
+    for field <- ["title", "id", "unknown"],
+        tag <- ["!!binary", "!<tag:yaml.org,2002:binary>"],
+        encoded <- ["/w==", "YXV0aA=="] do
+      assert {:error, message} =
+               SpecDocument.parse("file.md", frontmatter("#{field}: #{tag} #{encoded}"))
+
+      assert message =~ "binary"
+    end
+
+    assert {:ok, %{explicit_id: "YXV0aA==", title: "!!binary /w=="}} =
+             SpecDocument.parse(
+               "file.md",
+               frontmatter("id: !!str YXV0aA==\ntitle: '!!binary /w=='")
+             )
+  end
+
   test "string-looking atoms remain strings and arbitrary metadata keys never become atoms" do
     key = "boss_document_atom_" <> Base.encode16(:crypto.strong_rand_bytes(12))
     assert_raise ArgumentError, fn -> String.to_existing_atom(key) end
