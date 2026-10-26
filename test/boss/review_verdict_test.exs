@@ -25,11 +25,42 @@ defmodule Boss.ReviewVerdictTest do
           report(),
           report("changes_requested", "failed", [issue()]),
           report("needs_spec_revision", "unclear", [issue()]),
-          Map.put(report(), "acceptance", List.duplicate(hd(report()["acceptance"]), 20)),
+          Map.put(
+            report(),
+            "acceptance",
+            for(n <- 1..20, do: %{hd(report()["acceptance"]) | "criterion" => "Criterion #{n}"})
+          ),
           report("changes_requested", "failed", List.duplicate(issue(), 20))
         ] do
       assert {:ok, ^value} = decode(value)
     end
+  end
+
+  test "issues must reference a declared criterion" do
+    value = report("changes_requested", "failed", [%{issue() | "criterion" => "Unknown"}])
+    assert {:error, :invalid_review} = decode(value)
+  end
+
+  test "issues cannot contradict a passed criterion" do
+    value = report("changes_requested", "failed", [issue(), %{issue() | "criterion" => "Passed"}])
+    passed = %{hd(report()["acceptance"]) | "criterion" => "Passed"}
+    value = Map.update!(value, "acceptance", &(&1 ++ [passed]))
+    assert {:error, :invalid_review} = decode(value)
+  end
+
+  test "every nonpassed criterion needs an issue" do
+    value = report("changes_requested", "failed", [issue()])
+    unclear = %{hd(report()["acceptance"]) | "criterion" => "Other", "status" => "unclear"}
+    value = Map.update!(value, "acceptance", &(&1 ++ [unclear]))
+    assert {:error, :invalid_review} = decode(value)
+
+    complete = Map.update!(value, "issues", &(&1 ++ [%{issue() | "criterion" => "Other"}]))
+    assert {:ok, ^complete} = decode(complete)
+  end
+
+  test "acceptance criteria identify one unambiguous result" do
+    value = Map.put(report(), "acceptance", List.duplicate(hd(report()["acceptance"]), 2))
+    assert {:error, :invalid_review} = decode(value)
   end
 
   test "rejects missing, unknown, duplicated and trailing JSON fields" do
@@ -105,17 +136,24 @@ defmodule Boss.ReviewVerdictTest do
           {["issues", Access.at(0), "criterion"], 1000},
           {["issues", Access.at(0), "message"], 2000}
         ] do
-      value =
-        put_in(
-          report("changes_requested", "failed", [issue()]),
-          path,
-          String.duplicate("a", limit)
-        )
+      change = fn text ->
+        value = put_in(report("changes_requested", "failed", [issue()]), path, text)
+
+        if List.last(path) == "criterion" do
+          value
+          |> put_in(["acceptance", Access.at(0), "criterion"], text)
+          |> put_in(["issues", Access.at(0), "criterion"], text)
+        else
+          value
+        end
+      end
+
+      value = change.(String.duplicate("a", limit))
 
       assert {:ok, ^value} = decode(value)
 
       assert {:error, :invalid_review} =
-               decode(put_in(value, path, String.duplicate("é", div(limit, 2) + 1)))
+               decode(change.(String.duplicate("é", div(limit, 2) + 1)))
     end
 
     for {key, item} <- [{"acceptance", hd(report()["acceptance"])}, {"issues", issue()}] do
@@ -126,13 +164,13 @@ defmodule Boss.ReviewVerdictTest do
       Map.put(
         report(),
         "acceptance",
-        List.duplicate(
-          %{
-            "criterion" => String.duplicate("a", 1000),
+        for(
+          n <- 1..20,
+          do: %{
+            "criterion" => String.pad_trailing("Criterion #{n}", 1000, "a"),
             "status" => "passed",
             "evidence" => String.duplicate("a", 2000)
-          },
-          20
+          }
         )
       )
 

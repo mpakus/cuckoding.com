@@ -42,3 +42,17 @@
   `rtk proxy asdf exec mix format --check-formatted`, `rtk git diff --check`: passed.
 - No provider call or live reviewer test. Root integration must verify missing/
   malformed output, real exit/EOF/cleanup, candidate drift, Stop and restart.
+
+## Independent review follow-up
+
+- Reviewer found that a failed acceptance row could have an issue referring to an
+  unrelated/passed criterion, or no issue while a different row did. Duplicate
+  criterion identities were also accepted. Four separate regressions reproduced
+  these failures before the fix (seed967614, 5 passed/4 failed).
+- Criterion strings must now be unique; the set of issue criteria must equal the
+  set of nonpassed acceptance criteria. Multiple actionable issues for one failed
+  or unclear criterion are allowed. Existing verdict status rules remain unchanged.
+- Updated valid20-row fixtures to use unique criteria and preserved crossreferences
+  in byte-limit fixtures, so field-boundary tests still test size independently.
+- Focused verdict/Codex suites:13 passed, seed402682. Compile --warnings-as-errors
+  and format --check-formatted passed. No provider calls or shared-file edits.
