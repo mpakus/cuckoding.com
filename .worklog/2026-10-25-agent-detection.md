@@ -132,7 +132,13 @@
 
 ## Outcome and next step
 
-BOSS-006 implementation and root verification complete. Pending local-main merge,
-combined checks, writer archival and deletion of merged temporary branches.
+BOSS-006 merged into local main `ef09ee7`. Combined main checks passed:
+`rtk proxy asdf exec mix test` — 181 passed / 1 Linux-only skipped, seed 382845
+(7.1 s); compile with warnings-as-errors, format and assets.deploy passed.
+Both writer worktrees were clean and confirmed archived through Codex. Removed
+`codex/boss-agent-detector`, `codex/boss-agents-ui` and `codex/boss-agent-detection`
+with `rtk proxy git branch -d`. Only main and the retained primary detached
+checkout remain. Primary cannot be archived as established in earlier increments.
+Remote publication was not performed; BOSS_PLAN/dependencies remain unchanged.
 Next: BOSS-007 production runner. Independent EOF, bounded transport/backpressure,
 descendant cleanup and recovery ownership must be resolved before agent execution.
