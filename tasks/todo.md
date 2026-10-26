@@ -299,8 +299,9 @@ helper death, безопасная identity/recovery и committed launch intent 
 - [x] Stop bypasses Manager/DB; requester death does not cancel the worker.
 - [x] Restart quarantines unfinished attempts and never automatically relaunches.
 - [x] Start/Stop/history/events in task drawer; keyboard/reload/320 px browser smoke.
-- [ ] Final native backpressure/recovery regression and combined main verification.
+- [x] Final native backpressure/recovery regression and combined main verification.
 
+Local main9d567cb:238 passed,1 Linux-only skip; compile/format/assets.deploy passed.
 Browser использовал только конечный fake CLI: Stop → retained edits и finished →
 unverified, source checkout цел. Ни одного model call. Task state остаётся new;
 checks, review, интеграция, Done и Linux runner здесь не заявлены. Контракт:
