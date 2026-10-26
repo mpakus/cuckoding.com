@@ -31,5 +31,11 @@ defmodule Boss.Repo.Migrations.CreateTaskEvents do
         "DROP TRIGGER #{name}"
       )
     end
+
+    execute(fn -> :ok end, fn ->
+      if repo().aggregate("task_events", :count) > 0 do
+        raise Ecto.MigrationError, "cannot discard retained task events"
+      end
+    end)
   end
 end

@@ -21,6 +21,8 @@ defmodule Boss.Tasks do
   IDs are scoped to a task. Reusing an ID with different input conflicts.
   On :storage_error, retry the same command ID to reconcile an unknown outcome.
   Execution and evidence-producing transitions remain unavailable.
+  Inside a caller's transaction, success is provisional until its outer commit;
+  the outer transaction also determines the SQLite transaction mode.
   """
   def transition(task_id, command) do
     if valid_command?(task_id, command) do
