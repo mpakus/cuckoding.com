@@ -46,7 +46,7 @@ defmodule Boss.Runs do
           limit: 10
       )
 
-    missing = Enum.map(recent, & &1.parent_run_id) -- Enum.map(recent, & &1.id)
+    missing = Enum.uniq(Enum.map(recent, & &1.parent_run_id)) -- Enum.map(recent, & &1.id)
 
     parents =
       Repo.all(

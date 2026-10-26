@@ -2,8 +2,9 @@
 
 `Boss.Tasks.transition/2` is a backend command API. Task workflow controls remain
 closed in the browser. The drawer separately supports [manual Codex attempts](MANUAL_RUNS.md)
-with retained workspaces and Stop; those attempts never advance task state.
-Checks, review and integration producers must supply verified commit-bound
+with retained workspaces and Stop, plus [manual candidate checks](MANUAL_CHECKS.md);
+these attempts never advance task state.
+Workflow checks, review and integration producers must supply verified commit-bound
 evidence before the workflow transitions below can be enabled.
 
 ## Command contract

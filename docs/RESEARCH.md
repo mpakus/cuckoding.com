@@ -366,3 +366,14 @@ worktrees; review rejected executable filters/conditional includes rather than
 executing unknown checkout commands. Branch reviews and precise source/test
 pointers are in the 2026-10-26 writer worklogs. The newer Exile/NetRunner corpus
 update remains blocked by the shared xerj disk watermark; no indexing claim.
+
+## BOSS-013a: candidate-bound checks
+
+`xerj search --prefix bossrefs verifyClosureHead -k 3 --full 2200` found Kander
+`dea0ba6b885c39a56ee769223f7fa5c054e68c70` (MIT),
+`internal/review/disposition.go:196-205`, repeated at237, and dirty-closure test
+`internal/review/disposition_test.go:60-70`. Adopt exact clean target checks on both
+sides of long-running work; reject importing the full role/closure protocol.
+Independent implementation additionally rebuilds a private index to detect tracked
+edits hidden by index flags. No competitor code copied. The existing four bossrefs
+corpora remain searchable; Exile/NetRunner indexing still awaits disk capacity.

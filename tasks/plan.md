@@ -183,3 +183,11 @@ Done, checks/review/integration evidence. Контракт и ограничен
 Следующий проход — проверяемые checks на retained workspace и привязка результатов
 к конкретному Git commit, затем независимый reviewer. Linux/release и безопасное
 разрешение interrupted quarantine остаются открыты.
+
+## BOSS-013a — явные проверки результата
+
+Первый checks producer хранит source run, pinned spec, config hash и candidate SHA.
+Пользователь явно задаёт команду; BOSS создаёт отдельный snapshot без изменения
+исходного run и проверяет неизменность Git tree после завершения. Это ручной
+receipt, не task transition или независимое review. Верификация, ограничения и
+точный следующий шаг фиксируются в todo/worklog; контракт — MANUAL_CHECKS.md.

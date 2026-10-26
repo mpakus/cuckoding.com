@@ -28,6 +28,17 @@ defmodule Boss.Repo.Migrations.AddManualChecks do
       OR (OLD.candidate_commit IS NOT NULL AND OLD.candidate_commit IS NOT NEW.candidate_commit)
     BEGIN SELECT RAISE(ABORT, 'check provenance is immutable'); END
     """)
+
+    for action <- ["INSERT", "UPDATE"] do
+      execute("""
+      CREATE TRIGGER agent_checks_complete_#{String.downcase(action)} BEFORE #{action} ON agent_runs
+      WHEN NEW.adapter = 'check' AND NEW.status = 'finished' AND
+        (NEW.candidate_commit IS NULL OR length(NEW.candidate_commit) NOT IN (40,64)
+         OR NEW.candidate_commit GLOB '*[^0-9a-f]*' OR NEW.cleanup != 'group_empty'
+         OR NEW.exit_kind IS NOT 'exit' OR NEW.exit_code IS NOT 0)
+      BEGIN SELECT RAISE(ABORT, 'passing checks require a complete candidate receipt'); END
+      """)
+    end
   end
 
   def down do
@@ -38,6 +49,8 @@ defmodule Boss.Repo.Migrations.AddManualChecks do
 
     execute("DROP TRIGGER agent_checks_parent")
     execute("DROP TRIGGER agent_checks_immutable")
+    execute("DROP TRIGGER agent_checks_complete_insert")
+    execute("DROP TRIGGER agent_checks_complete_update")
 
     alter table(:agent_runs) do
       remove :parent_run_id

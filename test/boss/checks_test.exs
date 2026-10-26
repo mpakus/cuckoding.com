@@ -89,7 +89,17 @@ defmodule Boss.ChecksTest do
     {:ok, {:new, check}} =
       Runs.admit_check(ctx.project.id, ctx.parent.id, Ecto.UUID.generate(), "mix test")
 
-    {:ok, _} = Runs.update(check.id, status: "finished", cleanup: "group_empty")
+    assert {:error, :storage_error} =
+             Runs.update(check.id, status: "finished", cleanup: "group_empty")
+
+    {:ok, _} =
+      Runs.update(check.id,
+        status: "finished",
+        cleanup: "group_empty",
+        candidate_commit: String.duplicate("a", 40),
+        exit_kind: "exit",
+        exit_code: 0
+      )
 
     assert {:error, :source_unavailable} =
              Runs.admit_check(ctx.project.id, check.id, Ecto.UUID.generate(), "mix test")
@@ -113,5 +123,18 @@ defmodule Boss.ChecksTest do
 
     assert {:error, :busy} =
              Runs.admit_check(ctx.project.id, ctx.parent.id, Ecto.UUID.generate(), "mix test")
+  end
+
+  test "repeated checks list their recent source only once", ctx do
+    for _ <- 1..2 do
+      {:ok, {:new, check}} =
+        Runs.admit_check(ctx.project.id, ctx.parent.id, Ecto.UUID.generate(), "mix test")
+
+      {:ok, _} = Runs.update(check.id, status: "failed", cleanup: "group_empty")
+    end
+
+    runs = Runs.list(ctx.project.id, ctx.task.id)
+    assert length(runs) == 3
+    assert Enum.count(runs, &(&1.id == ctx.parent.id)) == 1
   end
 end
