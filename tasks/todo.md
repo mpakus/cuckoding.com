@@ -313,8 +313,7 @@ checks, review, интеграция, Done и Linux runner здесь не за�
 
 | Порядок | Tickets | Зависит от | Проверяемый результат / отказ |
 |---|---|---|---|
-| 1 | 007–010: runner, Codex, worktree, journal | 000, 004, 006 | Один isolated run, live events, Stop/Retry; crash → attention, source checkout цел. |
-| 2 | 011–014: plan, Claude, checks, review loop | 006–010 | Неполная реализация отвергается, исправленная проходит; invalid verdict и 3 исчерпанных цикла блокируют. |
-| 3 | 015: DAG и два worker | 011–014 | Independent tasks параллельны; cycle/missing/failed dependency запрещает запуск; повтор tick не дублирует run. |
-| 4 | 016: integration queue | 015, Git spike | Один repo интегрируется последовательно; target drift, conflict и failed checks не дают Done. |
-| 5 | 017–018: recovery matrix, packaging | 016 | Kill/restart на каждой опасной границе; fresh macOS/Linux установка и полный spec→review→integrate проход. |
+| 1 | 011–014: plan, Claude, checks, review loop | 006–010 | Неполная реализация отвергается, исправленная проходит; invalid verdict и 3 исчерпанных цикла блокируют. |
+| 2 | 015: DAG и два worker | 011–014 | Independent tasks параллельны; cycle/missing/failed dependency запрещает запуск; повтор tick не дублирует run. |
+| 3 | 016: integration queue | 015, Git spike | Один repo интегрируется последовательно; target drift, conflict и failed checks не дают Done. |
+| 4 | 017–018: recovery matrix, packaging | 016 | Kill/restart на каждой опасной границе; fresh macOS/Linux установка и полный spec→review→integrate проход. |

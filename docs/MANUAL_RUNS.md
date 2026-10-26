@@ -36,7 +36,8 @@ not a resume of earlier edits. Every generated workspace is retained for inspect
 The application owns the run; closing a browser/requester does not cancel it.
 **Stop** routes to the actual live project-scoped worker through ETS, independently
 of Manager/SQLite availability. The macOS C guardian owns a fresh process group,
-keeps its leader unreaped until cleanup and supervises separate stdout/stderr.
+releases the CLI only after the parent establishes/verifies that group, keeps
+its leader unreaped until cleanup and supervises separate stdout/stderr.
 A blocked consumer bounds upstream credit; cancellation and absolute deadlines
 continue while callbacks are stalled. Control packets retry under pipe backpressure.
 

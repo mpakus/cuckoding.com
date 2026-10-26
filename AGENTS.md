@@ -118,6 +118,8 @@
   group cleanup, and distinguishes exit, signal, EOF and forced closure. Credits
   and Stop control writes must retry boundedly under stdin backpressure. Detached
   sessions are outside this guarantee; lost helper/Repo receipts quarantine runs.
+  Only the parent assigns PGID before releasing the pre-exec gate; concurrent
+  parent/child setpgid calls can fail with EPERM on macOS.
 - Stop must reach the live project-scoped worker without waiting on the Repo or
   Manager mailbox. Browser/requester death must not own the run. Repo loss kills
   the worker; restart never reuses a saved PID or automatically respawns work.
