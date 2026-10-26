@@ -22,7 +22,8 @@ defmodule Boss.Runs.Manager do
          registry: registry,
          active: nil,
          worker: Keyword.get(opts, :worker, &Boss.Runs.Worker.execute/3),
-         check_worker: Keyword.get(opts, :check_worker, &Boss.Checks.Worker.execute/3)
+         check_worker: Keyword.get(opts, :check_worker, &Boss.Checks.Worker.execute/3),
+         review_worker: Keyword.get(opts, :review_worker, &Boss.Reviews.Worker.execute/3)
        }}
     else
       _ -> {:stop, :run_recovery_failed}
@@ -41,6 +42,11 @@ defmodule Boss.Runs.Manager do
   def handle_call({:check, project, parent, command, text}, _from, state) do
     result = Runs.admit_check(project, parent, command, text, state.active != nil)
     launch(result, state.check_worker, state)
+  end
+
+  def handle_call({:review, project, parent, command}, _from, state) do
+    result = Runs.admit_review(project, parent, command, state.active != nil)
+    launch(result, state.review_worker, state)
   end
 
   defp launch({:ok, {:new, run}}, execute, state) do
