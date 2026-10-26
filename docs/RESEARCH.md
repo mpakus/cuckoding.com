@@ -147,3 +147,34 @@ for these fields. Backlog's stable source identity informed the upcoming spec
 design; revisions/import have deliberately not been scaffolded prematurely.
 Exact queries, mutations and adopted/rejected tradeoffs are in
 [project worklog](../.worklog/2026-10-25-projects.md).
+
+
+## BOSS-003a: полный scan, frontmatter и ручной Sync
+
+- Kander `dea0ba6b885c39a56ee769223f7fa5c054e68c70`,
+  `internal/board/scan.go:30`, `summary_refresh.go:17`,
+  `summary_cache_test.go:325`: публиковать только полный валидный scan.
+  `internal/fs/posix.go:222` и `fifo_unix_test.go:15` показывают более строгие
+  O_NOFOLLOW/O_NONBLOCK guards. BOSS проверяет типы и ограничивает чтение, но
+  portable Elixir implementation не равна этим OS-гарантиям.
+- Agent Orchestrator `7193eff4e08f1481944845ee058fe6fd18930b6d`,
+  `frontend/src/renderer/lib/markdown-frontmatter.ts` и тест: anchored delimiter,
+  BOM/CRLF и сохранение source. Не переносим handwritten subset YAML.
+- Backlog `3580cfbbb1be4144a5cca5b49190e1f8158e4cf7`,
+  `packages/server/src/routes/integrations.ts:164`, `IntegrationsView.svelte:545`,
+  `source-state.test.ts:128`: busy → counts → refresh. Cloud integration и raw
+  exception reflection не нужны локальному Sync.
+- [yaml-elixir 2.12.2 source](https://github.com/KamilLelonek/yaml-elixir/blob/4c5ee0408014a6e999dca4869e39eeca0e58a2c2/lib/yaml_elixir.ex),
+  MIT; yamerl 0.10.0 commit `39981b9cb9d9edc227cf43a3e19dd16869493553`, BSD-2-Clause.
+  Реальный parser используется с сохранением пар для проверки duplicate keys;
+  type-erasing binary tags и aliases отклоняются до Mapper. Regression tests
+  воспроизводят оба обнаруженных edge cases, atom creation отключён.
+- [OTP file docs](https://www.erlang.org/doc/apps/kernel/file.html#list_dir_all/1):
+  `list_dir` исключает raw names; `list_dir_all` включает их. BOSS отклоняет
+  non-UTF8 имена вместо молчаливого неполного scan. macOS сам запрещает такой
+  filename (`eilseq`); Linux-specific тест остаётся непроверенным на Linux.
+
+Запросы xerj: `frontmatter parse`, `scan duplicate identity`, `frontmatter`,
+`ScanTargets`, `RegularFileExists`, `importPulledTasks`. Слабые попадания первых
+запросов дополнены `rg` и чтением pinned source, не трактуются как доказательство.
+Собственный код реализует patterns; чужие source/tests не копировались.

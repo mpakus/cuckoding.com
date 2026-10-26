@@ -52,6 +52,7 @@ defmodule Boss.MixProject do
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:jason, "~> 1.2"},
+      {:yaml_elixir, "~> 2.12.2"},
       {:bandit, "~> 1.5"}
     ]
   end

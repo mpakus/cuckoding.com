@@ -1,7 +1,7 @@
 # BOSS — план нового проекта
 
 Дата: 2026-10-25. Основа: [BOSS_PLAN.md](../BOSS_PLAN.md).
-Статус: Git/runner эксперименты, Phoenix/SQLite, проекты и spec/revision/task persistence.
+Статус: Git/runner эксперименты, Phoenix/SQLite, проекты, revisions и ручной Sync specs.
 Задачи: [todo.md](todo.md). Источники: [RESEARCH.md](../docs/RESEARCH.md).
 
 ## Вывод
@@ -9,7 +9,7 @@
 План задаёт правильную основу: локальный детерминированный координатор,
 существующие CLI, Git worktrees, независимое review и проверяемый результат.
 Elixir/OTP + Phoenix LiveView + SQLite соответствует этой задаче. Перенос старой
-архитектуры Cuckoding не нужен: в текущей ветке нет кода приложения.
+архитектуры Cuckoding не нужен: BOSS строится отдельными проверяемыми проходами.
 
 Полный v0.1 — уже значительный продукт. Самый рискованный участок — управление
 процессами и переходами между БД, Git и агентом. Его надо доказать до расширения UI.
@@ -66,7 +66,10 @@ projects, stable spec identity, revisions, tasks и task events; runs/checks/rev
   ограниченная конкуренция записи, тесты busy/rollback.
 - Обычный Markdown хранится как текст. Markdown parser нужен при рендеринге,
   frontmatter parser — при включении optional metadata; не писать YAML regex-парсер.
-- Начать с явного Sync и небольшого polling с debounce. `FileSystem` добавлять,
+- Ручной Sync реализован с yaml_elixir 2.12.2/yamerl 0.10.0. Полный bounded scan
+  и запись выполняются в одной immediate-транзакции; explicit ID сохраняет identity
+  при move, missing не стирает history, task остаётся pinned. Следующий шаг — polling
+  с debounce. `FileSystem` добавлять,
   только если polling не удовлетворяет проверяемому требованию.
 - Прямой supervised process — первый кандидат. `ex_cmd` проверяется spike:
   backpressure полезен, но его public stream options не доказывают независимый
@@ -112,11 +115,13 @@ Claude 2.1.142 capability probe. erlexec остаётся эксперимент
 не включены. Bootstrap и проекты не зависят от выбора runner и были завершены
 при открытом Phase 0 gate. BOSS-002b проверен 13 новыми тестами, включая отдельный
 committed Repo restart, конкурентную запись и migration upgrade/down/up.
-Markdown import и workflow transitions — следующие проходы.
+Ручной Markdown/YAML import и список specs добавлены в BOSS-003a; автоматический
+refresh, workflow transitions и полноценный board остаются следующими проходами.
 
-Application tests, compile/format, assets build/deploy и browser login/project/
-restart проверены на macOS. IAB выдавал неатрибутированную MutationObserver
-ошибку при загрузке страницы; чистая консоль и другие браузеры пока не доказаны.
+Application tests (94 passed, 1 Linux-only skipped), compile/format, assets
+build/deploy и browser login/project/Sync/reload проверены на macOS. В текущем
+Sync-прогоне консоль IAB чистая; другие браузеры не проверялись. Committed Repo
+restart проверен отдельно от browser reload.
 Linux, release packaging и end-to-end agent→review→integration остаются открыты.
 Конкурентные repositories исследованы как source; их приложения и suites не запускались.
 
