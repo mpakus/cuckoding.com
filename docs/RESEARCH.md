@@ -261,3 +261,37 @@ BOSS использует SQLite version/CAS, task-scoped command IDs и append-
 Код референсов не копировался; зависимости не добавлялись. UI показывает saved
 snapshot и latest source отдельно, последние 50 transitions, escaped Markdown;
 никакие agent/check/review данные не выдумываются.
+
+## BOSS-006: локальное обнаружение CLI
+
+Запросы xerj: `detect agent cli version capability`, `detectCodex auth status`
+дали слабые общие попадания; `probeVersion`, `codexLoginMethod`,
+`claudeAuthReportFromOutput` уточнили конкретные источники. UI query
+`agent detect version authentication capabilities installed cli` привёл к
+`agent-select-options.test.ts`; каждое решение проверено по source/tests.
+
+- Agetor MIT `fbd68603afef778a618a94ca88e0c00997956afd`,
+  `src/bun/agent-status.ts:89/430`, `agent-status.test.ts:44`: короткий probe и
+  отдельное неизвестное auth-состояние. Не переносим available=true для /bin/echo,
+  чтение account/auth files, переопределение HOME или tmux-зависимость.
+- Agent Orchestrator Apache-2.0 `7193eff4e08f1481944845ee058fe6fd18930b6d`,
+  `backend/internal/adapters/agent/claudecode/auth.go:372`, `auth_test.go:139`:
+  credentials configured не означает authorized. `agent/codex/codex.go:320`
+  и `codex_test.go:73` показывают local status и unknown при непонятном ответе.
+  Credential-file/network fallback и account enrichment не нужны BOSS.
+- Тот же AO SHA, `frontend/src/renderer/lib/agent-select-options.ts:108`,
+  `agent-select-options.test.ts`, `CreateProjectAgentSheet.test.ts:199`:
+  configured/unknown показывать отдельно от verified availability. Не переносим
+  ranking, role selection или разрешение запуска из этой UI-модели.
+- `backend/internal/process/command.go:23`, `tree_test.go:17` демонстрируют
+  явную process-group ownership. BOSS metadata Port пока очищает только direct
+  child; это не доказательство полноценной очистки потомков production runner.
+- Проверены реальные `--version`/`--help` у Codex 0.146.0 и Claude Code 2.1.142,
+  Codex `exec --help`/`login --help`, Claude `auth --help`/`auth status --help`.
+  [Codex reference](https://developers.openai.com/codex/cli/reference/) и
+  [Claude reference](https://code.claude.com/docs/en/cli-reference) дополняют
+  installed help; новые онлайн-флаги не приписываются старому бинарнику.
+
+Код референсов не копировался, зависимости не добавлялись. Локальный status не
+доказывает доступ к модели/квоту; CLI-help не доказывает working adapter. Детали
+контракта и ограничений — [AGENT_DETECTION.md](AGENT_DETECTION.md).

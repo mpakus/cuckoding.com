@@ -116,7 +116,13 @@ defmodule BossWeb.HomeLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <p class="text-sm font-semibold tracking-widest text-emerald-400">BOSS · LOCAL</p>
+    <div class="flex items-center justify-between gap-4">
+      <p class="text-sm font-semibold tracking-widest text-emerald-400">BOSS · LOCAL</p>
+      <.link
+        navigate={~p"/agents"}
+        class="text-sm text-emerald-400 underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
+      >Agents</.link>
+    </div>
     <h1 class="mt-4 text-3xl font-semibold">Projects</h1>
     <p class="mt-3 text-zinc-300">
       Connect a local repository, then open it to sync specs and view its tasks.

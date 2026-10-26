@@ -5,8 +5,8 @@ Local AI agent orchestration, rebuilt from [BOSS_PLAN.md](BOSS_PLAN.md).
 This increment provides a Phoenix LiveView server, local browser access,
 native folder selection, validated project registration, automatic Markdown sync,
 transactional spec/revision/task history and versioned task commands with immutable
-receipts, a Kanban board and a revision-aware task drawer. Agent execution is not
-implemented yet.
+receipts, a Kanban board, a revision-aware task drawer and local CLI discovery.
+Agent execution is not implemented yet.
 
 ## Run locally
 
@@ -171,6 +171,24 @@ Loading/error states do not substitute a different revision's cached source.
 Run controls, logs, agent/check/review metadata and revision adoption will appear
 when their producers exist. Full state mapping and the read API are documented
 in [TASK_WORKFLOW.md](docs/TASK_WORKFLOW.md).
+
+## Detect agents
+
+Open **Agents** from Projects, then click **Detect agents**. BOSS checks Codex and
+Claude Code on its own PATH and shows recognized versions, local sign-in reports
+and capabilities advertised by their help. Detection does not run a model or
+change credentials. Follow the official setup/sign-in guidance if a tool is
+missing or reports that it is signed out, then detect again.
+
+A sign-in report does not verify model access or quota. Advertised flags do not
+mean a BOSS execution adapter is ready. Results are temporary; reloading the page
+requires another explicit scan. A failed rescan retains the previous results with
+a failure notice. Role assignment and task execution are future increments.
+
+Probes run outside registered projects with fixed commands, bounded time/output,
+one scan at a time and cleanup of the tracked direct child. BOSS never reads
+credential files or displays raw CLI output. See
+[agent discovery boundaries and verification](docs/AGENT_DETECTION.md).
 
 ## Data and ownership
 
