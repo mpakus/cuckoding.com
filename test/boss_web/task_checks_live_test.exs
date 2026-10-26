@@ -3,6 +3,7 @@ defmodule BossWeb.TaskChecksLiveTest do
   import Phoenix.LiveViewTest
   alias Boss.{LocalAccess, Projects, Repo, Runs}
   alias Boss.Runs.Manager
+  alias BossWeb.ProjectLive
 
   @moduletag skip: :os.type() != {:unix, :darwin}
 
@@ -155,6 +156,35 @@ defmodule BossWeb.TaskChecksLiveTest do
     refute has_element?(reconnected, "#run-#{run.id}", "Checks passed")
   end
 
+  test "a persisted terminal receipt suppresses a later unknown admission result", ctx do
+    {:ok, view, _} = live(ctx.conn, task_path(ctx))
+    settle(view)
+    id = command(view, ctx.parent.id)
+    render_submit(view, "start_check", input(ctx.parent.id, id, "mix test"))
+    assert_receive {:checking, worker, _}, 1_000
+    finish(worker)
+    settle(view)
+    renewed = command(view, ctx.parent.id)
+    refute renewed == id
+
+    for result <- [
+          {:ok, {ctx.saved.task.id, ctx.parent.id, id, {:error, :storage_error}}},
+          {:exit, :killed}
+        ] do
+      :sys.replace_state(view.pid, fn state ->
+        socket = Phoenix.Component.assign(state.socket, run_starting: {ctx.saved.task.id, id})
+        {:noreply, socket} = ProjectLive.handle_async(:start_check, result, socket)
+        %{state | socket: socket}
+      end)
+
+      settle(view)
+      assert command(view, ctx.parent.id) == renewed
+      refute has_element?(view, "#run-error")
+      refute has_element?(view, "#check-start-pending")
+      refute has_element?(view, "#check-command-#{ctx.parent.id}[readonly]")
+    end
+  end
+
   test "known invalid input remains editable and never starts a worker", ctx do
     {:ok, view, _} = live(ctx.conn, task_path(ctx))
     settle(view)
@@ -164,6 +194,9 @@ defmodule BossWeb.TaskChecksLiveTest do
     assert has_element?(view, "#run-error", "Enter one command")
     refute has_element?(view, "#check-command-#{ctx.parent.id}[readonly]")
     assert command(view, ctx.parent.id) == id
+    render_submit(view, "start_check", input(ctx.parent.id, id, String.duplicate("é", 2049)))
+    assert has_element?(view, "#run-error", "4096 bytes")
+    refute has_element?(view, "#check-command-#{ctx.parent.id}[readonly]")
     refute_receive {:checking, _, _}, 50
   end
 
