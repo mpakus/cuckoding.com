@@ -137,7 +137,13 @@
 
 ## Outcome and next step
 
-BOSS-005 implementation and verification are complete on the integration branch.
-Pending local-main merge/combined checks and archival of the two writer worktrees.
+BOSS-005 merged into local main `788e18d`. Combined main verification:
+`rtk proxy asdf exec mix test` — 159 passed / 1 skipped, seed 611750 (5.3 s);
+compile with warnings-as-errors, format check and assets.deploy all passed.
+Both writer worktrees were clean, archived through Codex and confirmed archived;
+`rtk proxy git branch -d` removed `codex/boss-task-details`, `codex/boss-task-board`
+and `codex/boss-board-integration`. Primary managed checkout retained detached at
+main; it cannot be archived as established in prior increments. No remote push.
+The only remaining worktrees are local main and that clean primary checkout.
 Next product slice: BOSS-006 detector/capability UI. Runner reliability and positive
 commit-bound run/check/review/integration evidence remain open gates.
