@@ -11,7 +11,8 @@ defmodule Boss.CheckPersistenceTest do
     {20_261_025_230_000, Boss.Repo.Migrations.TrackMissingSpecs},
     {20_261_026_010_000, Boss.Repo.Migrations.CreateTaskEvents},
     {20_261_026_040_000, Boss.Repo.Migrations.CreateAgentRuns},
-    {20_261_026_060_000, Boss.Repo.Migrations.AddManualChecks}
+    {20_261_026_060_000, Boss.Repo.Migrations.AddManualChecks},
+    {20_261_026_160_000, Boss.Repo.Migrations.AddManualReviews}
   ]
 
   setup do
@@ -268,11 +269,22 @@ defmodule Boss.CheckPersistenceTest do
 
   test "check migration preserves old runs on empty rollback and refuses to discard check history",
        ctx do
+    assert :ok =
+             Ecto.Migrator.down(Repo, 20_261_026_160_000, Boss.Repo.Migrations.AddManualReviews,
+               log: false
+             )
+
     version = 20_261_026_060_000
     module = Boss.Repo.Migrations.AddManualChecks
     assert :ok = Ecto.Migrator.down(Repo, version, module, log: false)
     assert [[1]] = Repo.query!("SELECT COUNT(*) FROM agent_runs").rows
     assert :ok = Ecto.Migrator.up(Repo, version, module, log: false)
+
+    assert :ok =
+             Ecto.Migrator.up(Repo, 20_261_026_160_000, Boss.Repo.Migrations.AddManualReviews,
+               log: false
+             )
+
     assert Runs.get(ctx.project.id, ctx.parent.id).parent_run_id == nil
 
     {:ok, {:new, check}} =

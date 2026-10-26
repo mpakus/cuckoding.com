@@ -51,6 +51,8 @@ The receipt describes **that commit and that command**. It does not attest the
 entire environment, dependencies or future source-worktree contents. It does not
 prove that the chosen command is an adequate test. Independent review, task
 workflow transitions, integration and Done remain separate closed gates.
+The passed receipt enables an explicit [Review with Codex](MANUAL_REVIEWS.md) action;
+its model assessment remains separate from workflow approval.
 
 One Codex/check attempt can be active globally. **Stop** uses the existing direct
 live-worker route; closing the drawer or browser does not stop work. Repo loss

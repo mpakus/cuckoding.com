@@ -377,3 +377,37 @@ sides of long-running work; reject importing the full role/closure protocol.
 Independent implementation additionally rebuilds a private index to detect tracked
 edits hidden by index flags. No competitor code copied. The existing four bossrefs
 corpora remain searchable; Exile/NetRunner indexing still awaits disk capacity.
+
+## BOSS-014a: strict independent review
+
+Searches used the existing authenticated `bossrefs` index: `review verdict schema`,
+`verifyClosureHead`, `DecodeReviewJSON`, `FinalizeReviewRun`,
+`reviewValidationError`. Weak lexical matches were followed by direct `rg` and
+source/test reads. The index map still records the four original repositories;
+Exile/NetRunner remain outside that index. A fresh disk check reports 96% used,
+44 GiB available; no flood-stage bypass, unrelated deletion or reindex was attempted.
+
+| Reference and pinned license | Useful source/test | Applied in BOSS / omitted |
+|---|---|---|
+| Kander `dea0ba6b885c39a56ee769223f7fa5c054e68c70`, MIT | `internal/review/validate.go:130–209`, `execute.go:103–126`, `codex_test.go:172–211` | Fresh read-only reviewer, exact candidate check before and after cleanup; reused BOSS's stronger fresh-index verifier. No role/launcher framework. |
+| Same Kander snapshot | `internal/board/review_findings.go:43–78,157+`, duplicate-key regression `review_gate_test.go:396–413` | Preserve JSON pairs until duplicate/unknown-key rejection; bounded exact schema and criterion/issue consistency. No Markdown-fence extraction, legacy interpretation or finding ledger. |
+| Same Kander snapshot | `internal/board/reviews.go:28–49,77–95,502–569`, `review_crash_test.go:22–90,139–161` | Immutable invocation pins; execution status distinct from verdict; final receipt after actual cleanup. No raw transcript archive. |
+| Agetor `fbd68603afef778a618a94ca88e0c00997956afd`, MIT | `src/bun/github.ts:627–637`, `github.test.ts:220–231` | Small allowlist and mandatory actionable rejection; no GitHub submission or PR model. |
+| Agent Orchestrator `7193eff4e08f1481944845ee058fe6fd18930b6d`, Apache-2.0 | `backend/internal/adapters/reviewer/codex/codex.go:49–67,123+` | Enforced read-only CLI flag. Omitted auto permissions, review publication and resumed developer context. |
+
+These patterns were independently implemented in Elixir; no competitor modules
+or code were copied and no runtime dependency was added. Reference applications
+and their test suites were not executed.
+
+Official Codex source for the installed 0.146.0, tag `rust-v0.146.0`, commit
+`e363b08c9175ac1cbe5893615dd2cb9ddf95043b`, clarified an important limit:
+[`exec_events.rs:138`](https://github.com/openai/codex/blob/e363b08c9175ac1cbe5893615dd2cb9ddf95043b/codex-rs/exec/src/exec_events.rs#L138)
+has no final-answer phase in JSONL agent messages. The
+[JSONL output processor](https://github.com/openai/codex/blob/e363b08c9175ac1cbe5893615dd2cb9ddf95043b/codex-rs/exec/src/event_processor_with_jsonl_output.rs#L514)
+allows last-message output after completed turns, clears it on failure/interruption,
+and writes it at shutdown. The
+[writer](https://github.com/openai/codex/blob/e363b08c9175ac1cbe5893615dd2cb9ddf95043b/codex-rs/exec/src/event_processor.rs#L31)
+may produce an empty file or merely log a write failure. BOSS therefore validates
+the explicit output artifact after protocol/exit/EOF/cleanup, rather than guessing
+which streamed message is final. This does not prove a `final_answer` phase or
+model correctness. Only local help/source and finite fixtures were verified.

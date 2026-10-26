@@ -141,3 +141,15 @@
   deduplicate parent identities before subtracting recent IDs. An unknown
   UI start retries identical argv and UUID; persisted receipts resolve uncertainty
   even if the admission reply arrives late. Never persist raw check output.
+- Manual reviews pin the passed check's candidate, config and spec; use a fresh
+  read-only Codex session and verify the same candidate before/after. Never infer
+  final review from a JSONL message or exit alone: validate the CLI last-message
+  artifact only after protocol completion, EOF and known cleanup.
+- Bound review input/report size without truncation. Preserve JSON object pairs
+  until duplicate/unknown keys are rejected; require criterion/issue consistency.
+  Keep execution status separate from model verdict and task approval/Done.
+- Hold the exclusively created report file descriptor and reject replacement paths.
+  One monitor owns cleanup and atomically invalidates the CLI path before unlinking;
+  filesystem failure or whole-VM crash can leave a temporary artifact. Never store
+  raw stream text. Preserve both source levels
+  (review -> check -> Codex) exactly once in bounded history.
