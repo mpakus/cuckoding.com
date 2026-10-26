@@ -6,6 +6,7 @@ defmodule Boss.Projects.Spec do
     belongs_to :project, Boss.Projects.Project
     field :identity_key, :string
     field :relative_path, :string
+    field :missing, :boolean, default: false
     field :explicit_id, :string, virtual: true
     timestamps(type: :utc_datetime_usec)
   end

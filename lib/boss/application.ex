@@ -13,6 +13,7 @@ defmodule Boss.Application do
       {Boss.LocalAccess, announce: server?},
       {Phoenix.PubSub, name: Boss.PubSub},
       Boss.FolderPicker,
+      {Task.Supervisor, name: Boss.SpecImportSupervisor, max_children: 4},
       BossWeb.Endpoint
     ]
 

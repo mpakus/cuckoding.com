@@ -42,6 +42,21 @@ defmodule Boss.Projects do
 
           spec = spec || insert_record(spec_changeset)
 
+          spec =
+            if spec.missing do
+              case spec
+                   |> Ecto.Changeset.change(missing: false)
+                   |> Ecto.Changeset.unique_constraint(:relative_path,
+                     name: :specs_project_id_relative_path_index
+                   )
+                   |> Repo.update() do
+                {:ok, present} -> present
+                {:error, error} -> Repo.rollback(error)
+              end
+            else
+              spec
+            end
+
           latest =
             Repo.one(
               from r in SpecRevision,
@@ -52,7 +67,8 @@ defmodule Boss.Projects do
 
           unchanged? =
             latest && latest.content_hash == source.content_hash &&
-              latest.original_text == source.original_text
+              latest.original_text == source.original_text &&
+              latest.relative_path == spec.relative_path
 
           revision =
             if unchanged? do
@@ -87,6 +103,35 @@ defmodule Boss.Projects do
 
   def list_spec_revisions(spec_id),
     do: Repo.all(from r in SpecRevision, where: r.spec_id == ^spec_id, order_by: r.number)
+
+  def list_spec_entries(project_id) do
+    latest =
+      from r in SpecRevision,
+        group_by: r.spec_id,
+        select: %{spec_id: r.spec_id, number: max(r.number)}
+
+    Repo.all(
+      from s in Spec,
+        join: t in Task,
+        on: t.spec_id == s.id,
+        join: pin in SpecRevision,
+        on: pin.id == t.spec_revision_id,
+        join: current in subquery(latest),
+        on: current.spec_id == s.id,
+        where: s.project_id == ^project_id,
+        order_by: s.id,
+        select: %{
+          id: s.id,
+          task_id: t.id,
+          title: t.title,
+          relative_path: s.relative_path,
+          state: t.state,
+          missing: s.missing,
+          latest_revision: current.number,
+          task_revision: pin.number
+        }
+    )
+  end
 
   defp insert_record(changeset) do
     case Repo.insert(changeset) do
