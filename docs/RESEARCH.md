@@ -178,3 +178,29 @@ Exact queries, mutations and adopted/rejected tradeoffs are in
 `ScanTargets`, `RegularFileExists`, `importPulledTasks`. Слабые попадания первых
 запросов дополнены `rg` и чтением pinned source, не трактуются как доказательство.
 Собственный код реализует patterns; чужие source/tests не копировались.
+
+
+## BOSS-003b: polling и согласованное обновление UI
+
+Запросы xerj `debounce watcher`, `debounce polling refresh watcher`, `serialPoll`,
+`subscribe refresh stale request` проверены по исходникам; найденный planning doc
+не считается доказательством реализации.
+
+- Agent Orchestrator `7193eff4e08f1481944845ee058fe6fd18930b6d`,
+  `packages/mobile/lib/session/serialPoll.ts:1`, `serialPoll.test.ts:27`: первый
+  read сразу, следующий timer после завершения, продолжение после ошибки. Fixed
+  interval с отменой медленного чтения может не дать применить ни одного результата.
+- Тот же SHA, `frontend/src/renderer/hooks/useUpdateStatus.ts:31` и
+  `useUpdateStatus.test.tsx:19/34/62`: подписка перед initial read, предыдущий
+  snapshot при ошибке и защита от устаревшего ответа. BOSS использует стандартные
+  LiveView async refs, один активный read и один ожидающий refresh.
+- Kander `dea0ba6b885c39a56ee769223f7fa5c054e68c70`,
+  `internal/tui/refresh.go:68`, `refresh_test.go:71`: объединение refresh requests,
+  latest-result handling и сохранение предыдущих данных при ошибке.
+
+BOSS не переносит React/IPC или filesystem watcher зависимости. Один связанный
+OTP Task обходит проекты; lifecycle/DB остаются в существующем приложении.
+Одинаковые counts не обозначают одинаковое состояние: публикуется каждый успех,
+подавляются только повторные одинаковые ошибки. No-op сравнивает точные present
+identity/path/source и не выполняет UPDATE. Полные чтения и settle pause остаются
+под SQLite write lock; это обозначенный компромисс локального MVP.

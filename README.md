@@ -3,7 +3,7 @@
 Local AI agent orchestration, rebuilt from [BOSS_PLAN.md](BOSS_PLAN.md).
 
 This increment provides a Phoenix LiveView server, local browser access,
-native folder selection, validated project registration, manual Markdown sync and
+native folder selection, validated project registration, automatic Markdown sync and
 transactional spec/revision/task history. Agent execution is not implemented yet.
 
 ## Run locally
@@ -64,10 +64,25 @@ production adapter; its EOF, memory and descendant-cleanup gates remain open.
 
 ## Sync specs
 
-Open a registered project and choose **Sync specs**. BOSS reads `.md` files,
-including subfolders, and shows the imported tasks, latest source revision and
-pinned task snapshot. Repeat Sync after editing files; automatic refresh is not
-implemented yet. Source Markdown is stored exactly and is never rewritten.
+BOSS reads registered projects' `.md` files automatically, including subfolders.
+Open a project to see imported tasks, the latest source revision and pinned task
+snapshot; **Sync specs** checks immediately. Source Markdown is stored exactly
+and is never rewritten.
+
+One background sweep starts with BOSS and processes projects sequentially. The
+next sweep starts two seconds after the previous one finishes; new projects join
+that sweep. Changed files are read again after 300 ms and must have the same
+identity/path/source before import. A changing or invalid scan keeps the previous
+snapshot and is retried on the next sweep. This coalesces short save bursts; it
+cannot observe every intermediate edit or guarantee an atomic filesystem snapshot.
+
+Set `config :boss, spec_poll_interval_ms: 2000` to change the gap between sweeps,
+or `spec_auto_sync: false` to use manual Sync only. Restart BOSS after changing
+configuration. A large or slow project increases the time until later projects
+are checked. Unchanged scans perform no database writes. Errors appear on the
+project page, including when it is opened after a failed background scan. Open
+pages reload saved entries after completed syncs, with one active read and at most
+one queued refresh. Repeated identical errors do not create repeated notifications.
 
 Frontmatter is optional. It must be one nonempty YAML mapping between opening
 and closing `---` lines. Optional `id` and `title` must be nonempty strings of at
@@ -92,9 +107,13 @@ a task from referencing another spec's revision.
 
 A failed scan preserves the previous snapshot, including missing flags. The
 complete scan and reconciliation share an immediate SQLite transaction, which
-holds the write lock during local reads. At most four import workers can run;
+holds the write lock during local reads and the settle pause for changed automatic
+scans. This also serializes actual manual and automatic scans. At most four import
+workers can run;
 each has a 10-second deadline and a memory ceiling. Workers stop before Repo on
-application shutdown. Interruption after commit can have an unknown result, so
+application shutdown. Stopping only the poller ends its owned sweep; an in-flight
+import may finish within its existing deadline. No remaining projects from that
+sweep are started. Interruption after commit can have an unknown result, so
 the UI reloads saved entries and asks for a retry instead of claiming rollback.
 
 Limits: 256 Markdown files, 1 MiB per file, 8 MiB total, 16 KiB frontmatter,
@@ -105,7 +124,8 @@ or an OS sandbox against hostile concurrent path replacement. Large retained
 histories are not paginated in this initial list.
 
 Backend APIs: `Boss.Projects.SpecImporter.sync(project_id)` returns counts or
-path-specific errors; `Boss.Projects.list_spec_entries(project_id)` reads the list;
+path-specific errors; its internal `settle_ms` option enables the second observation.
+`Boss.Projects.list_spec_entries(project_id)` reads the list;
 `Boss.Projects.list_spec_revisions(spec_id)` returns immutable history.
 `Boss.Projects.record_spec(project_id, attrs)` records one prevalidated observation
 (`relative_path`, `original_text`, `title`, optional `explicit_id`). Its result is

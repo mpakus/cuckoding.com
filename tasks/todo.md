@@ -137,7 +137,7 @@ context, supervised workers и ручной Sync UI. Область расшир
 implementation/test файлов: отдельные parser/UI writers, общий storage у parent.
 
 - [x] Три `.md` → три tasks; повторный ручной Sync → без дублей.
-  Watcher events относятся к следующему проходу 003b.
+  Автоматические проверки добавлены в следующем проходе 003b.
 - [x] Edit и A→B→A создают корректную последовательность revisions; активный
   snapshot не меняется; delete сохраняет history и помечает missing.
 - [x] Rename без ID создаёт новую identity; rename с ID сохраняет её;
@@ -152,18 +152,31 @@ implementation/test файлов: отдельные parser/UI writers, общи
 проверены. После interrupted outcome UI перечитывает БД. Browser: три specs,
 повторный Sync, edit/pinned snapshot, missing, duplicate-ID error/retry, reload;
 в текущем IAB прогоне нет console errors/warnings. Source никогда не перезаписывается.
-YAML priority/depends_on остаются source-only; polling/board/execution не включены.
+YAML priority/depends_on остаются source-only; board/execution не включены.
+Polling добавлен отдельным проходом 003b ниже.
 
 ## BOSS-003b — автоматический refresh
 
-**Зависимости:** 003a. **Область:** polling worker, supervisor, tests (3 файла).
+**Зависимости:** 003a. **Область:** polling worker, importer no-op/settle,
+app/config, LiveView notifications и focused/real-pool/UI tests (10 code/test файлов).
 
-- [ ] Изменение `.md` обнаруживается автоматически с debounce; burst событий
+- [x] Изменение `.md` обнаруживается автоматически с debounce; burst событий
   не создаёт дублей и не запускает две одновременные синхронизации проекта.
-- [ ] Restart делает безопасный rescan, ошибка доступа не считается удалением всех specs.
+- [x] Restart делает безопасный rescan, ошибка доступа не считается удалением всех specs.
 
 **Проверка:** timer/import integration tests; интервал вынесен в app config.
 **Сбой:** показать проблему и повторить scan с ограниченной частотой.
+
+10 watcher tests + 2 importer regressions + 2 real-pool checks + 5 новых UI tests.
+Один owned sweep; интервал 2000 ms после завершения, повторное чтение изменённого
+набора через 300 ms. No-op не меняет timestamps. Current worker может закончить
+bounded import после остановки только watcher; старый sweep не переходит к
+следующим проектам. Application shutdown завершает оба слоя до Repo.
+Реальный browser smoke: import/edit/delete/error/recovery без ручного Sync,
+затем stop → offline edit → restart → новая revision при прежнем task pin.
+Три UI guard mutations и importer settle mutation обнаружены тестами.
+IAB сообщил MutationObserver error без source URL; код приложения/bundle и
+live_reload/live_view assets такого вызова не содержат, происхождение не установлено.
 
 ## BOSS-004 — разрешённые переходы
 
@@ -185,10 +198,10 @@ event schema, tests (5 файлов).
 - [ ] Три specs, edit, повтор Sync, restart и недопустимый переход проверены.
 - [x] Review текущего изменения выполнено; журнал содержит фактические результаты.
 
-Application suite: 94 passed, 1 Linux-only skipped после BOSS-003a; последние отдельные проверки
+Application suite: 113 passed, 1 Linux-only skipped после BOSS-003b; последние отдельные проверки
 spikes: 12 Git + 14 runner (предыдущий increment, их код не менялся).
-Checkpoint 1 ещё не завершён: 003b/004 и полноценный task board отсутствуют.
-Ближайший проход: 003b bounded polling/debounce и безопасный startup rescan.
+Checkpoint 1 ещё не завершён: 004 и полноценный task board отсутствуют.
+Ближайший проход: BOSS-004 persisted transitions + task events.
 Runner reliability продолжать отдельным исследованием.
 
 ## Следующие рабочие проходы
