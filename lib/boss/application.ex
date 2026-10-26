@@ -14,6 +14,7 @@ defmodule Boss.Application do
       {Phoenix.PubSub, name: Boss.PubSub},
       Boss.FolderPicker,
       Boss.Agents.Detector,
+      Boss.Runs.Manager,
       {Task.Supervisor, name: Boss.SpecImportSupervisor, max_children: 4}
     ]
 
