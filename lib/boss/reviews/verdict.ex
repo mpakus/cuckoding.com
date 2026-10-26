@@ -9,6 +9,7 @@ defmodule Boss.Reviews.Verdict do
          true <- text?(report["summary"], 2000),
          {:ok, acceptance} <- objects(report["acceptance"], 1..20, &acceptance/1),
          {:ok, issues} <- objects(report["issues"], 0..20, &issue/1),
+         true <- covered?(acceptance, issues),
          true <- consistent?(report["verdict"], acceptance, issues) do
       {:ok, %{report | "acceptance" => acceptance, "issues" => issues}}
     else
@@ -63,6 +64,14 @@ defmodule Boss.Reviews.Verdict do
 
   defp text?(value, limit),
     do: is_binary(value) and byte_size(value) in 1..limit and String.trim(value) != ""
+
+  defp covered?(acceptance, issues) do
+    criteria = Enum.map(acceptance, & &1["criterion"])
+    nonpassed = Enum.reject(acceptance, &(&1["status"] == "passed"))
+
+    Enum.uniq(criteria) == criteria and
+      MapSet.new(nonpassed, & &1["criterion"]) == MapSet.new(issues, & &1["criterion"])
+  end
 
   defp consistent?("approved", acceptance, []),
     do: Enum.all?(acceptance, &(&1["status"] == "passed"))
