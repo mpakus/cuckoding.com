@@ -30,6 +30,7 @@ defmodule BossWeb.Router do
 
     live_session :local, on_mount: [{BossWeb.LocalSession, :default}] do
       live "/", HomeLive
+      live "/agents", AgentsLive
       live "/projects/:id", ProjectLive
       live "/projects/:id/tasks/:task_id", ProjectLive
     end
