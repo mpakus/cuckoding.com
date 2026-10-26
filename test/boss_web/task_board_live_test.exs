@@ -93,6 +93,7 @@ defmodule BossWeb.TaskBoardLiveTest do
     assert_patch(view, path)
     settle(view)
     assert has_element?(view, "#task-source", "# Updated source")
+    assert has_element?(view, "#task-drawer[data-revision='2']")
     assert has_element?(view, "#task-revision option[value='2'][selected]")
     {:ok, reopened, _} = live(conn, path)
     settle(reopened)
@@ -259,6 +260,7 @@ defmodule BossWeb.TaskBoardLiveTest do
     monitor = Process.monitor(pid)
     on_exit(fn -> Process.exit(pid, :kill) end)
     refute has_element?(view, "#task-source")
+    assert has_element?(view, "#task-drawer[data-revision='1']")
     assert has_element?(view, "#task-revision option[value='1'][selected]")
 
     :sys.replace_state(view.pid, fn state ->
@@ -268,6 +270,7 @@ defmodule BossWeb.TaskBoardLiveTest do
     assert_receive {:DOWN, ^monitor, :process, ^pid, :killed}
     settle(view)
     refute has_element?(view, "#task-source")
+    assert has_element?(view, "#task-drawer[data-revision='1']")
     assert has_element?(view, "#task-revision option[value='1'][selected]")
     assert has_element?(view, "#task-drawer-error", "could not be refreshed")
   end

@@ -114,6 +114,7 @@ defmodule BossWeb.TaskBoard do
       phx-hook="TaskDrawer"
       phx-mounted={JS.ignore_attributes("open")}
       data-return-focus={@return_focus}
+      data-revision={@desired}
       aria-labelledby="task-drawer-title"
       class="fixed inset-y-0 right-0 left-auto m-0 h-dvh max-h-none w-full max-w-2xl overflow-y-auto border-l border-zinc-800 bg-zinc-950 p-0 text-zinc-100 backdrop:bg-black/60"
     >
