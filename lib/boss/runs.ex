@@ -23,6 +23,9 @@ defmodule Boss.Runs do
   def start_check(project_id, parent_id, command_id, text, server \\ Boss.Runs.Manager),
     do: GenServer.call(server, {:check, project_id, parent_id, command_id, text}, 10_000)
 
+  def start_review(project_id, check_id, command_id, server \\ Boss.Runs.Manager),
+    do: GenServer.call(server, {:review, project_id, check_id, command_id}, 10_000)
+
   # Stop bypasses the manager's DB work: only the live, project-scoped owner is signalled.
   def stop(project_id, run_id, registry \\ Boss.Runs.Active) do
     case :ets.lookup(registry, run_id) do
@@ -46,18 +49,21 @@ defmodule Boss.Runs do
           limit: 10
       )
 
-    missing = Enum.uniq(Enum.map(recent, & &1.parent_run_id)) -- Enum.map(recent, & &1.id)
+    # A review's source chain is review -> check -> Codex, at most two levels.
+    Enum.reduce(1..2, recent, fn _, runs ->
+      missing = Enum.uniq(Enum.map(runs, & &1.parent_run_id)) -- Enum.map(runs, & &1.id)
 
-    parents =
-      Repo.all(
-        from r in Run,
-          where:
-            r.project_id == ^project_id and r.task_id == ^task_id and
-              r.id in ^Enum.reject(missing, &is_nil/1),
-          order_by: [desc: r.inserted_at, desc: r.id]
-      )
+      parents =
+        Repo.all(
+          from r in Run,
+            where:
+              r.project_id == ^project_id and r.task_id == ^task_id and
+                r.id in ^Enum.reject(missing, &is_nil/1),
+            order_by: [desc: r.inserted_at, desc: r.id]
+        )
 
-    recent ++ parents
+      runs ++ parents
+    end)
   end
 
   def get(project_id, id), do: Repo.get_by(Run, project_id: project_id, id: id)
@@ -178,6 +184,64 @@ defmodule Boss.Runs do
                 command_id: command_id,
                 check_config: config,
                 config_hash: hash
+              })
+
+            {:new, saved}
+        end
+      end)
+    else
+      _ -> {:error, :invalid_command}
+    end
+  end
+
+  @doc false
+  def admit_review(project_id, check_id, command_id, replay_only \\ false) do
+    with true <-
+           is_integer(project_id) and project_id > 0 and project_id <= 9_223_372_036_854_775_807,
+         {:ok, _} <- Ecto.UUID.cast(check_id),
+         {:ok, _} <- Ecto.UUID.cast(command_id) do
+      transaction(fn ->
+        parent =
+          Repo.get_by(Run, project_id: project_id, id: check_id) || Repo.rollback(:not_found)
+
+        case Repo.get_by(Run, task_id: parent.task_id, command_id: command_id) do
+          %Run{adapter: "review", parent_run_id: ^check_id} = saved ->
+            {:existing, saved}
+
+          %Run{} ->
+            Repo.rollback(:idempotency_conflict)
+
+          nil ->
+            unless parent.adapter == "check" and parent.status == "finished" and
+                     parent.cleanup == "group_empty" and is_binary(parent.candidate_commit) and
+                     map_size(parent.workspace) > 0,
+                   do: Repo.rollback(:source_unavailable)
+
+            if replay_only or
+                 Repo.exists?(
+                   from r in Run, where: r.status in ^@active or r.cleanup == "unknown"
+                 ),
+               do: Repo.rollback(:busy)
+
+            task = Repo.get!(Tasks.Task, parent.task_id)
+
+            unless task.state in ~w(new ready failed interrupted cancelled blocked needs_input),
+              do: Repo.rollback(:task_unavailable)
+
+            saved =
+              Repo.insert!(%Run{
+                id: Ecto.UUID.generate(),
+                project_id: project_id,
+                task_id: parent.task_id,
+                spec_revision_id: parent.spec_revision_id,
+                admitted_version: task.state_version,
+                adapter: "review",
+                parent_run_id: parent.id,
+                command_id: command_id,
+                check_config: parent.check_config,
+                config_hash: parent.config_hash,
+                candidate_commit: parent.candidate_commit,
+                workspace: parent.workspace
               })
 
             {:new, saved}
