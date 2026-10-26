@@ -57,7 +57,8 @@ defmodule Boss.Projects.SpecWatcher do
   def handle_info(:sweep, %{task: nil} = state) do
     # Resolve once: an old sweep must never find a replacement Repo by its name.
     repo = if is_atom(state.repo), do: Process.whereis(state.repo), else: state.repo
-    task = Task.async(fn -> sweep(repo, state.settle) end)
+    settle = state.settle
+    task = Task.async(fn -> sweep(repo, settle) end)
     {:noreply, %{state | task: task, timer: nil}}
   end
 
