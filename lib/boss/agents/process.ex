@@ -92,6 +92,7 @@ defmodule Boss.Agents.Process do
         callback_ref: callback_ref,
         caller_monitor: caller_monitor,
         pending: %{},
+        controls: [],
         receipt: nil,
         helper_exit: nil,
         cause: nil,
@@ -140,7 +141,7 @@ defmodule Boss.Agents.Process do
   end
 
   defp loop(state) do
-    state = check_deadline(state)
+    state = state |> check_deadline() |> flush_controls()
 
     cond do
       state.helper_exit != nil and state.receipt == nil ->
@@ -229,10 +230,7 @@ defmodule Boss.Agents.Process do
 
   defp packet(state, _), do: stop(state, :failed, :invalid_protocol)
 
-  defp dispatch(%{cause: cause} = state, stream, _) when cause != nil do
-    credit(state.port, stream)
-    state
-  end
+  defp dispatch(%{cause: cause} = state, _, _) when cause != nil, do: state
 
   defp dispatch(state, stream, event) do
     if stream in Map.values(state.pending) do
@@ -250,8 +248,7 @@ defmodule Boss.Agents.Process do
         state
 
       {stream, pending} ->
-        credit(state.port, stream)
-        %{state | pending: pending}
+        credit(%{state | pending: pending}, stream)
     end
   end
 
@@ -265,8 +262,20 @@ defmodule Boss.Agents.Process do
 
   defp exit_result(state, 0, _), do: state
 
-  defp credit(port, stream) when stream in [?O, ?E], do: command(port, <<?A, stream>>)
-  defp credit(_, _), do: :ok
+  defp credit(state, stream) when stream in [?O, ?E] do
+    control = <<?A, stream>>
+    %{state | controls: Enum.uniq(state.controls ++ [control])}
+  end
+
+  defp credit(state, _), do: state
+
+  defp flush_controls(%{controls: []} = state), do: state
+
+  defp flush_controls(%{controls: [control | rest]} = state) do
+    if command(state.port, control),
+      do: flush_controls(%{state | controls: rest}),
+      else: state
+  end
 
   defp command(port, data) do
     Port.command(port, data, [:nosuspend])
@@ -279,8 +288,15 @@ defmodule Boss.Agents.Process do
   defp stop(state, cause, reason) do
     Process.unlink(state.consumer)
     Process.exit(state.consumer, :kill)
-    command(state.port, <<?Q>>)
-    %{state | cause: cause, reason: reason, pending: %{}, deadline: now() + 3000}
+
+    %{
+      state
+      | cause: cause,
+        reason: reason,
+        pending: %{},
+        controls: [<<?Q>>],
+        deadline: now() + 3000
+    }
   end
 
   defp check_deadline(%{cause: nil} = state) do

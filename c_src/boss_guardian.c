@@ -149,24 +149,32 @@ int main(int argc, char **argv) {
     return 80;
   }
 
-  int command_in[2], command_out[2], command_err[2];
-  if (pipe(command_in) || pipe(command_out) || pipe(command_err)) return 80;
+  int command_in[2], command_out[2], command_err[2], start_gate[2];
+  if (pipe(command_in) || pipe(command_out) || pipe(command_err) || pipe(start_gate))
+    return 80;
   int fd_limit = getdtablesize();
   pid_t child = fork();
   if (child < 0) return 80;
   if (child == 0) {
+    close(start_gate[1]);
     signal(SIGPIPE, SIG_DFL);
     signal(SIGTERM, SIG_DFL);
     signal(SIGHUP, SIG_DFL);
     signal(SIGINT, SIG_DFL);
-    if (setpgid(0, 0) != 0 || dup2(command_in[0], 0) < 0 ||
+    if (dup2(command_in[0], 0) < 0 ||
         dup2(command_out[1], 1) < 0 || dup2(command_err[1], 2) < 0) _exit(127);
+    /* macOS rejects getpgid on zombies; do not exec before parent validation. */
+    unsigned char release;
+    ssize_t released;
+    do { released = read(start_gate[0], &release, 1); } while (released < 0 && errno == EINTR);
+    if (released != 1 || release != 'G' || getpgrp() != getpid()) _exit(127);
     /* In particular, descendants must not retain the BEAM control channel. */
     for (int fd = 3; fd < fd_limit; ++fd) close(fd);
     execv(argv[3], &argv[3]);
     _exit(127);
   }
 
+  close(start_gate[0]);
   close(command_in[0]);
   close(command_out[1]);
   close(command_err[1]);
@@ -181,12 +189,14 @@ int main(int argc, char **argv) {
   siginfo_t exit_info;
   memset(&exit_info, 0, sizeof(exit_info));
 
-  if ((setpgid(child, child) < 0 && errno != EACCES) || getpgid(child) != child ||
+  if (setpgid(child, child) != 0 || getpgid(child) != child ||
       nonblocking(0) || nonblocking(1) || nonblocking(input_fd) ||
-      nonblocking(streams[0]) || nonblocking(streams[1])) {
+      nonblocking(streams[0]) || nonblocking(streams[1]) ||
+      write(start_gate[1], "G", 1) != 1) {
     query_failed = 1;
     start_stop(child, 4, &cause, &kill_at, &finish_at);
   }
+  close(start_gate[1]);
 
   unsigned char started[5] = {'S'};
   uint32_t child_be = htonl((uint32_t)child);

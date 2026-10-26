@@ -66,3 +66,49 @@
 - Generated priv/native/boss_guardian is not committed; root owns its ignore rule.
 - Ready for root integration and combined suite. Keep unknown cleanup quarantined
   and retain the workspace; do not retry automatically.
+
+
+## Control backpressure follow-up
+
+- Post-commit review found `Port.command(..., [:nosuspend])` can reject a control
+  packet while the initial large stdin packet is queued. Dropping Stop/ACK was
+  safe only by later unknown-cleanup fallback, not the intended behavior.
+- Added maximum1MiB stdin plus immediately queued Stop regression. RED on the
+  original implementation: cancelled/cleanup_unknown after3.1s, no observed
+  exit/EOF. The fix keeps at most two pending credit packets or one prioritized
+  Stop packet and retries before each receive/20ms idle tick. Stop clears credits;
+  no credit is generated after cancellation. Native helper source is unchanged.
+- Independent review approved the bounded retry/Stop-priority control path.
+- `rtk proxy asdf exec mix test test/boss/agents/process_test.exs --seed 812290 --repeat-until-failure 4`:
+  21 tests passed in each of five runs after the retry fix. A separate fast-exit
+  failure triggered the startup investigation below; it was not dismissed as flaky.
+
+## Process-group startup follow-up
+
+- A controlled macOS probe confirmed that setpgid/getpgid return ESRCH for an
+  exited but unreaped child (5/5). Added a private pre-exec pipe: the child closes
+  its writer and waits; the parent establishes and verifies the process group,
+  releases one byte, and closes the pipe. EOF/failure prevents exec. The child
+  verifies its group after release and closes all private descriptors before exec.
+- Test-only DYLD interposition delays the parent's fork return by 100 ms. The
+  real Process API reproduced RED: process_failed/unknown despite exit 7. The
+  pre-exec gate passed that deterministic test.
+- The next full suite exposed a second startup failure: signal 15, no output,
+  process_failed/unknown. Independent scratch probes identified concurrent parent
+  and child setpgid calls returning EPERM despite the correct group: 2/5,000.
+  A parent-only assignment with a gated child passed 5,000/5,000.
+- Extended the scheduling fixture to reject redundant parent assignment with
+  EPERM. Dual assignment reproduced the exact signal-15 failure; the final helper
+  assigns the group only in the parent, before releasing the child. No exception
+  for EPERM or weakened ownership check was added. No production test hook exists.
+- Bounded diagnostic investigation used exclusively created scratch sources and
+  fixed syscall-stage/errno records only; all temporary sources/logs were removed.
+  Diagnostic helper was replaced by an explicit build of the final source.
+- Final `rtk proxy cc -std=c11 -D_DARWIN_C_SOURCE -Wall -Wextra -Werror -O2 c_src/boss_guardian.c -o priv/native/boss_guardian`
+  and `rtk proxy asdf exec mix test test/boss/agents/process_test.exs`:
+  **22 passed** in 9.5 seconds (seed 704960). No provider calls.
+- `rtk proxy asdf exec mix compile --warnings-as-errors`, focused
+  `mix format --check-formatted`, and `rtk proxy git diff --check`: passed.
+- Parent owns final combined application checks, documentation, main merge and
+  temporary-worktree cleanup. API, supported platform and group-only limits remain
+  as documented above.
