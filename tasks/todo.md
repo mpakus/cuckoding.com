@@ -181,27 +181,42 @@ live_reload/live_view assets такого вызова не содержат, п
 ## BOSS-004 — разрешённые переходы
 
 **Зависимости:** 002b. **Область:** transition module, Tasks context, event migration,
-event schema, tests (5 файлов).
+task/event schema, focused и real-pool tests (8 code/test файлов).
 
-- [ ] Разрешённые переходы и task event сохраняются одной транзакцией;
-  устаревшая команда и повтор completion не применяются дважды.
+- [x] Разрешённые команды и task event сохраняются одной транзакцией;
+  устаревшая команда и повтор команды не применяются дважды.
+- [x] До появления producers все execution/evidence transitions, включая
+  completion, закрыты. Поддельные flags/verdict/evidence не дают approval или Done.
 - [ ] Done требует commit-bound evidence; invalid/failed reviewer не даёт approval.
-- [ ] `ready_to_merge`, cancelled, failed и interrupted не разблокируют зависимости;
+  Положительный путь требует реальных producers из 006–016; пока проверен только
+  отказ без них. Источники evidence и полноценный review loop не созданы.
+- [x] `ready_to_merge`, cancelled, failed и interrupted не разблокируют зависимости;
   причины attention и разрешённые Retry/Resume определяются явно.
 
 **Проверка:** table-driven transition tests, concurrency/CAS и rollback.
-**Сбой:** сохраняется последнее подтверждённое состояние, ошибка возвращается вызывающему.
+**Сбой:** transaction failure сохраняет последнее подтверждённое состояние;
+при потере соединения исход может быть неизвестен — повторить тот же command ID/input.
+
+Основа завершена: 13 policy + 7 context + 7 новых real-pool tests. Все 14 real-pool
+tests проходят, включая upgrade/down/up, committed same-file restart, replay,
+конкурентные команды и отказ downgrade при сохранённой истории. Отдельная regression
+проверяет смену named Repo на копию committed DB: до PID pinning получалась task
+без event; после исправления новый pool не меняется. Retry/resume сохраняют pin и
+используют saved target; пока доступно только возвращение к `new`.
+UI действий/запуск агентов отсутствуют; [контракт](../docs/TASK_WORKFLOW.md).
 
 ## Checkpoint 1
 
 - [x] `mix test`, compile warnings, `mix format --check-formatted` проходят.
-- [ ] Три specs, edit, повтор Sync, restart и недопустимый переход проверены.
+- [x] Три specs, edit, повтор Sync и restart проверены browser smoke в 003;
+  недопустимые переходы проверены backend tests в 004.
 - [x] Review текущего изменения выполнено; журнал содержит фактические результаты.
 
-Application suite: 113 passed, 1 Linux-only skipped после BOSS-003b; последние отдельные проверки
+Application suite: 140 passed, 1 Linux-only skipped после основы BOSS-004; последние отдельные проверки
 spikes: 12 Git + 14 runner (предыдущий increment, их код не менялся).
-Checkpoint 1 ещё не завершён: 004 и полноценный task board отсутствуют.
-Ближайший проход: BOSS-004 persisted transitions + task events.
+Storage/negative-transition проверки Checkpoint 1 выполнены; полноценный task board
+ещё отсутствует. Ближайший проход: BOSS-005 board + task drawer. Positive quality
+gates BOSS-004 остаются открыты до реализации producers; это не proof of Done.
 Runner reliability продолжать отдельным исследованием.
 
 ## Следующие рабочие проходы

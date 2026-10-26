@@ -204,3 +204,22 @@ OTP Task обходит проекты; lifecycle/DB остаются в сущ�
 подавляются только повторные одинаковые ошибки. No-op сравнивает точные present
 identity/path/source и не выполняет UPDATE. Полные чтения и settle pause остаются
 под SQLite write lock; это обозначенный компромисс локального MVP.
+
+## BOSS-004: task commands и immutable events
+
+Запрос `transition expected state completion evidence` дал слабые updater/UI
+попадания; `verifyClosureHead`, `transition stale expected revision` и
+`TestDispatchIntentIdempotencyAndGlobalConflict` уточнены чтением pinned Kander
+`dea0ba6b885c39a56ee769223f7fa5c054e68c70` (MIT):
+
+- `internal/board/transaction.go:214` — expected revision/state перед изменением.
+- `internal/board/dispatch_test.go:54/110` — concurrent identical intents возвращают
+  одинаковый receipt; изменённый payload и stale completion отклоняются.
+- `internal/review/disposition.go:196` и `internal/board/review_closure.go:431` —
+  реальные Git/persisted review checks перед закрытием, без доверия одному verdict.
+
+BOSS использует SQLite version/CAS, task-scoped command IDs и append-only events
+в одной immediate-транзакции. File journal, dispatch authorization epochs и
+полный review engine Kander не переносились. До появления собственных producers
+все execution/success gates закрыты; caller evidence отвергается. Исходники
+референса не копировались. Контракт: [TASK_WORKFLOW.md](TASK_WORKFLOW.md).

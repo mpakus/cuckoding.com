@@ -31,8 +31,67 @@
   task schema and revision migration. Existing tasks have state `new`, no
   version or events; revisions are already append-only and tasks stay pinned.
 - Read-only agent reviewed policy, idempotency and missing-producer boundaries.
+- Confirmed effective Elixir 1.20.3/OTP 28 with
+  `rtk proxy asdf exec elixir --version`. Read installed adapter 0.26.0's
+  `deps/ecto_sqlite3/lib/ecto/adapters/sqlite3.ex:203` transaction-mode contract.
+- Context/schema/migration committed as `c2f5e0c`. The initial focused test
+  command failed to compile because the new Event/context did not exist yet;
+  policy integration and GREEN run are pending. No passing test claim yet.
+- Writers use separate managed `boss-transition-policy` and
+  `boss-transition-persistence` worktrees; ownership is respectively pure
+  policy/tests and the existing real-pool persistence test file. Reviewer is
+  read-only. Root owns shared docs and migration.
+- Policy commit `4257661` integrated after reading both module and tests.
+  `rtk proxy asdf exec mix test test/boss/tasks_test.exs test/boss/tasks/transition_test.exs`
+  passes 20 tests on root. Policy writer's earlier full run found 7 failures in
+  the old real-pool fixture migration list; its owner is updating that list and
+  migration rollback expectations (not a product database failure).
+- Independent review found that resolving a registered Repo name again inside
+  the command could reach a replacement pool after restart. `f898f1c` pins the
+  actual Repo PID and restores the caller's selector; missing/dead Repo returns
+  `:storage_error`. Writer is reproducing the defect and checking the fix against
+  a real named scratch Repo. Never claim rollback for unknown connection outcomes.
+- Source review of nested DBConnection transactions confirms exceptions/rollback
+  abort the outer transaction; documented that success is provisional until outer
+  commit and outer transaction mode is inherited.
+
+## Verification and review
+
+- Persistence writer commit `8e87e7e` integrated after source review. Its focused
+  `rtk proxy asdf exec mix test test/boss/spec_persistence_test.exs` passed 14/14.
+  Seven new cases cover concurrent exact receipts, distinct-command CAS, committed
+  same-file restart/replay, named Repo replacement, unavailable selectors,
+  pre-existing task upgrade/down/up and retained-history downgrade refusal.
+- Meaningful regression RED on `4257661`: after a named Repo was replaced,
+  transition returned `:storage_error` and zero events, but the replacement task
+  had become blocked/version 1. GREEN on `aeb5307`: task/event unchanged, caller
+  selector restored, identical command retry succeeds after removing the injected
+  event failure. The fixture uses a `VACUUM INTO` copy and keeps the old query-cache
+  ETS alive for the paused SELECT's bookkeeping; it isolates name rebinding from
+  SQLite's still-held old-file lock. Same-file restart is a separate passing test.
+- The initial snapshot fixture produced a lock warning before WAL initialization;
+  the final fixture initializes WAL before the two-connection replacement pool.
+  Final focused/root runs have no such warning.
+- `aeb5307` also refuses migration rollback when any task event exists. The
+  regression verifies unchanged task/recovery/version, event, migration version
+  and immutable-history triggers after refusal. Empty-history down/up works.
+- Root `rtk proxy asdf exec mix test`: **140 passed, 1 skipped**, seed 755117.
+  `rtk proxy asdf exec mix compile --warnings-as-errors`,
+  `rtk proxy asdf exec mix format --check-formatted` and
+  `rtk proxy git diff --check` passed. The skip is the existing Linux-only test.
+- Independent reviewer checked context/policy/migration plus regression evidence;
+  final verdict has no remaining blockers. Reviewer did not run additional tests.
+- Updated AGENTS, README, research, task plan/status and TASK_WORKFLOW contract.
+  BOSS_PLAN remains unchanged. No new dependency, UI/browser/asset run, paid
+  provider call, remote publication or spike retest in this backend increment.
 
 ## Outcome and next step
 
-In progress: settle a small command contract, implement policy plus transactional
-storage, verify replay/concurrency/rollback/restart, then review and integrate.
+Backend foundation is verified: commands and immutable receipts, saved recovery,
+stale/replay protection and Repo lifetime fencing. All producer-dependent forward
+and recovery transitions remain closed. Positive commit-bound evidence validation
+is still open and is not marked complete in tasks/todo.md.
+
+Next: merge into local main, repeat the combined checks there and clean temporary
+writer worktrees/merged branches. Product increment after that: BOSS-005 board
+and task drawer; runner and positive quality gates require their later producers.
