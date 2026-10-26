@@ -175,17 +175,27 @@ defmodule Boss.Agents.DetectorTest do
   end
 
   test "whole scan has an independent deadline and shutdown cleans child", %{root: root} do
-    executable = sleeper(root, "exec /bin/sleep 30")
+    short_root = Path.join(root, "short-deadline")
+    File.mkdir!(short_root)
 
-    detector =
+    short_detector =
       detector_with(
-        executables: %{codex: executable},
+        executables: %{codex: sleeper(short_root, "exec /bin/sleep 30")},
         probe_timeout_ms: 1000,
         scan_timeout_ms: 100
       )
 
+    # The real deadline may expire before the child can write its startup marker.
+    short_scan = Task.async(fn -> Detector.scan(short_detector) end)
+    assert {:error, :unavailable} = Task.await(short_scan)
+    assert :sys.get_state(short_detector).active == nil
+
+    detector = detector_with(executables: %{codex: sleeper(root, "exec /bin/sleep 30")})
     task = Task.async(fn -> Detector.scan(detector) end)
     pid = wait_for_pid(root)
+    %{active: %{monitor: monitor, scan_timer: timer}} = :sys.get_state(detector)
+    assert Process.cancel_timer(timer) != false
+    send(detector, {:scan_timeout, monitor})
     assert {:error, :unavailable} = Task.await(task)
     assert_stopped(pid)
 
