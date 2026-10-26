@@ -56,3 +56,20 @@
   in byte-limit fixtures, so field-boundary tests still test size independently.
 - Focused verdict/Codex suites:13 passed, seed402682. Compile --warnings-as-errors
   and format --check-formatted passed. No provider calls or shared-file edits.
+
+## Detector test diagnosis requested by root
+
+- Root's integrated suite and focused run failed the existing detector deadline
+  test while waiting for the child's PID marker. The unchanged test also failed
+  alone in this worktree (`mix test test/boss/agents_detector_test.exs:177
+  --seed 1381`): "Probe did not start",1.3s. This is independent of review tests.
+- Detector arms its100ms scan timer before Port.open/child startup; expiry may
+  correctly terminate the owned child before the shell writes the PID. The test
+  incorrectly required observable startup before testing a shorter overall deadline.
+- Test-only correction: exercise the actual100ms timer without requiring a marker,
+  then use a separate fixture directory and normal deadlines, wait for startup,
+  cancel the saved scan timer and deliver its exact monitor-scoped expiry message.
+  This proves deadline cleanup and shutdown cleanup without racing process startup.
+  Production Detector and its timeout values are unchanged.
+- `rtk proxy asdf exec mix test test/boss/agents_detector_test.exs --seed 1381`:
+  17 passed,6.7s. Both the actual deadline reply and active=nil were verified.
