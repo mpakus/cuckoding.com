@@ -119,7 +119,7 @@ defmodule BossWeb.HomeLive do
     <p class="text-sm font-semibold tracking-widest text-emerald-400">BOSS · LOCAL</p>
     <h1 class="mt-4 text-3xl font-semibold">Projects</h1>
     <p class="mt-3 text-zinc-300">
-      Connect a local repository to your workspace. Spec import and agent runs are coming next.
+      Connect a local repository, then open it to sync specs and view its tasks.
     </p>
     <p :if={@message} role="status" class="mt-6 text-sm text-emerald-300">{@message}</p>
     <section aria-label="Registered projects" class="mt-8">
@@ -131,7 +131,14 @@ defmodule BossWeb.HomeLive do
       </p>
       <ul id="projects" class="divide-y divide-zinc-800">
         <li :for={project <- @projects} id={"project-#{project.id}"} class="py-5 first:pt-0">
-          <h2 class="font-semibold">{project.name}</h2>
+          <h2 class="font-semibold">
+            <.link
+              navigate={~p"/projects/#{project.id}"}
+              class="text-emerald-300 underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-400"
+            >
+              {project.name}
+            </.link>
+          </h2>
           <p class="mt-2 break-all font-mono text-sm text-zinc-300">{project.root_path}</p>
           <dl class="mt-3 space-y-1 text-sm text-zinc-400">
             <div class="flex gap-2">
