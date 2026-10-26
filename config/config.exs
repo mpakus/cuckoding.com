@@ -9,6 +9,8 @@ import Config
 
 config :boss,
   ecto_repos: [Boss.Repo],
+  spec_auto_sync: true,
+  spec_poll_interval_ms: 2000,
   generators: [timestamp_type: :utc_datetime]
 
 config :boss, Boss.Repo, pool_size: 2, busy_timeout: 5000, synchronous: :full

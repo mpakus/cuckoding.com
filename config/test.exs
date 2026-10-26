@@ -1,5 +1,7 @@
 import Config
 
+config :boss, spec_auto_sync: false
+
 config :boss, Boss.Repo, pool: Ecto.Adapters.SQL.Sandbox
 config :boss, BossWeb.Endpoint, server: false
 config :logger, level: :warning

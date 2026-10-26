@@ -65,6 +65,13 @@
   workers supervised and bound to the actual Repo PID. Interrupted outcomes may
   already be committed: reload persisted entries, never promise rollback on timeout.
   Preserve raw source; reject ambiguous YAML types/aliases and raw non-UTF8 names.
+- Automatic refresh uses one owned sequential sweep, with the next timer armed
+  after completion or failure. Resolve Repo once per sweep; never let an old sweep
+  resolve a replacement Repo. Compare exact present identity/path/source sets;
+  unchanged polls must not write timestamps. Changed automatic scans must settle.
+- Publish successful results only after transaction return. Equal counts may describe different
+  changes: never suppress successful notifications by count equality. Subscribe UI
+  before reading and coalesce entry reloads; cached success must not hide interruption.
 - Test committed durability/concurrency in an exclusively created scratch DB with
   a real connection pool; a sandbox transaction alone is not restart evidence.
 - Live provider calls are opt-in and bounded; never repeat a paid smoke run

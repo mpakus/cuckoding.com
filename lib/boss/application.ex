@@ -13,9 +13,16 @@ defmodule Boss.Application do
       {Boss.LocalAccess, announce: server?},
       {Phoenix.PubSub, name: Boss.PubSub},
       Boss.FolderPicker,
-      {Task.Supervisor, name: Boss.SpecImportSupervisor, max_children: 4},
-      BossWeb.Endpoint
+      {Task.Supervisor, name: Boss.SpecImportSupervisor, max_children: 4}
     ]
+
+    children =
+      children ++
+        if(Application.get_env(:boss, :spec_auto_sync, true),
+          do: [Boss.Projects.SpecWatcher],
+          else: []
+        ) ++
+        [BossWeb.Endpoint]
 
     with {:ok, lock} <- Boss.DataDirectory.acquire(Application.fetch_env!(:boss, :data_dir)) do
       case Supervisor.start_link(children, strategy: :one_for_one, name: Boss.Supervisor) do

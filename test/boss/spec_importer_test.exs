@@ -51,6 +51,82 @@ defmodule Boss.SpecImporterTest do
     assert Repo.aggregate("spec_revisions", :count) == 3
   end
 
+  test "unchanged polls do not write timestamps or retained missing rows", %{
+    project: project,
+    specs: specs
+  } do
+    File.write!(Path.join(specs, "keep.md"), "# Keep")
+    File.write!(Path.join(specs, "gone.md"), "# Gone")
+    assert {:ok, _} = SpecImporter.sync(project.id)
+    File.rm!(Path.join(specs, "gone.md"))
+    assert {:ok, %{missing: 1}} = SpecImporter.sync(project.id)
+    before = Repo.all(Boss.Projects.Spec)
+    observer = self()
+    handler = make_ref()
+
+    :telemetry.attach(
+      handler,
+      [:boss, :repo, :query],
+      fn _, _, metadata, _ ->
+        if Regex.match?(~r/^(UPDATE|INSERT|DELETE) /, metadata.query),
+          do: send(observer, :database_write)
+      end,
+      nil
+    )
+
+    on_exit(fn -> :telemetry.detach(handler) end)
+
+    assert {:ok, %{created: 0, revised: 0, unchanged: 1, missing: 1}} =
+             SpecImporter.sync(project.id)
+
+    assert Repo.all(Boss.Projects.Spec) == before
+    refute_receive :database_write, 20
+  end
+
+  test "changed observations must settle before a revision is imported", %{
+    project: project,
+    specs: specs
+  } do
+    path = Path.join(specs, "one.md")
+    File.write!(path, "# Initial")
+    assert {:ok, _} = SpecImporter.sync(project.id)
+    previous = Projects.list_spec_entries(project.id)
+    File.write!(path, "# Intermediate")
+    observer = self()
+    handler = make_ref()
+
+    :telemetry.attach(
+      handler,
+      [:boss, :repo, :query],
+      fn _, _, metadata, _ ->
+        if metadata.source == "specs" and String.contains?(metadata.query, "original_text") and
+             not Process.get(handler, false) do
+          Process.put(handler, true)
+          send(observer, {:observed, self()})
+
+          receive do
+            :continue_scan -> :ok
+          end
+        end
+      end,
+      nil
+    )
+
+    on_exit(fn -> :telemetry.detach(handler) end)
+    pending = Task.async(fn -> SpecImporter.sync(project.id, settle_ms: 20) end)
+    assert_receive {:observed, worker}, 1000
+    File.write!(path, "# Final")
+    send(worker, :continue_scan)
+    assert {:error, [%{message: message}]} = Task.await(pending)
+    assert message =~ "changed during sync"
+    :telemetry.detach(handler)
+    assert Projects.list_spec_entries(project.id) == previous
+    assert {:ok, %{revised: 1}} = SpecImporter.sync(project.id, settle_ms: 20)
+    assert [entry] = Projects.list_spec_entries(project.id)
+    assert entry.latest_revision == 2 and entry.task_revision == 1
+    assert List.last(Projects.list_spec_revisions(entry.id)).original_text == "# Final"
+  end
+
   test "edits and A to B to A append history without changing task snapshot", %{
     project: project,
     specs: specs

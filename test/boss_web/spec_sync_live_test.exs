@@ -1,7 +1,9 @@
 defmodule BossWeb.SpecSyncLiveTest do
   use BossWeb.ConnCase, async: false
   import Phoenix.LiveViewTest
+  require Phoenix.LiveView
   alias Boss.Projects
+  alias Boss.Projects.{SpecImporter, SpecWatcher}
   alias BossWeb.ProjectLive
 
   setup %{conn: conn} do
@@ -112,6 +114,111 @@ defmodule BossWeb.SpecSyncLiveTest do
     assert has_element?(view, "#spec-entries li", "File missing")
   end
 
+  test "background notifications refresh entries and recover from errors", %{
+    conn: conn,
+    project: project,
+    specs: specs
+  } do
+    start_watcher(project)
+    {:ok, view, _} = live(conn, "/projects/#{project.id}")
+    refute render(view) =~ "refresh automatically"
+    write_specs(specs)
+    assert {:ok, %{created: 3}} = SpecImporter.sync(project.id)
+    assert refresh(view) =~ "3 created"
+    assert has_element?(view, "#spec-entries li h3", "Alpha")
+
+    File.write!(Path.join(specs, "broken.md"), "---\nid: [\n---\nPRIVATE_SOURCE_CONTENT\n")
+    assert {:error, _} = SpecImporter.sync(project.id)
+    html = refresh(view)
+    assert has_element?(view, "#sync-errors", "broken.md")
+    assert has_element?(view, "#spec-entries li h3", "Alpha")
+    refute html =~ "PRIVATE_SOURCE_CONTENT"
+
+    File.rm!(Path.join(specs, "broken.md"))
+    assert {:ok, _} = SpecImporter.sync(project.id)
+    assert refresh(view) =~ "3 unchanged"
+    refute has_element?(view, "#sync-errors")
+  end
+
+  test "opening after a background failure displays its status and enabled copy", %{
+    conn: conn,
+    project: project,
+    specs: specs
+  } do
+    previous = Application.fetch_env!(:boss, :spec_auto_sync)
+    Application.put_env(:boss, :spec_auto_sync, true)
+    on_exit(fn -> Application.put_env(:boss, :spec_auto_sync, previous) end)
+    File.write!(Path.join(specs, "broken.md"), "---\nid: [\n---\n")
+    assert {:error, _} = start_watcher(project)
+    {:ok, view, _} = live(conn, "/projects/#{project.id}")
+    assert has_element?(view, "#sync-help", "refresh automatically")
+    assert has_element?(view, "#sync-errors", "broken.md")
+  end
+
+  test "notifications coalesce without cancelling a slow read and load the latest entries", %{
+    conn: conn,
+    project: project,
+    specs: specs
+  } do
+    start_watcher(project)
+    {:ok, view, _} = live(conn, "/projects/#{project.id}")
+    old_result = {[], {:error, [%{path: "old.md", message: "Obsolete error"}]}}
+    {old_task, monitor} = hold_async(view, :refresh, old_result)
+    write_specs(specs)
+
+    for _ <- 1..3, do: assert({:ok, _} = SpecImporter.sync(project.id))
+
+    render(view)
+    assert {_, ^old_task, _} = :sys.get_state(view.pid).socket.private.live_async.refresh
+    send(old_task, :release)
+    assert_receive {:DOWN, ^monitor, :process, ^old_task, :normal}
+    assert refresh(view) =~ "3 unchanged"
+    assert has_element?(view, "#spec-entries li h3", "Alpha")
+    refute render(view) =~ "Obsolete error"
+  end
+
+  test "a killed manual sync cannot display a cached successful result", %{
+    conn: conn,
+    project: project
+  } do
+    assert {:ok, _} = start_watcher(project)
+    {:ok, view, _} = live(conn, "/projects/#{project.id}")
+    assert has_element?(view, "#sync-status", "Sync complete")
+    {manual_task, monitor} = hold_async(view, :sync, {:ok, %{}})
+
+    :sys.replace_state(view.pid, fn state ->
+      %{state | socket: Phoenix.LiveView.cancel_async(state.socket, :sync, :kill)}
+    end)
+
+    assert_receive {:DOWN, ^monitor, :process, ^manual_task, :killed}
+    refresh(view)
+    assert has_element?(view, "#sync-status", "Sync was interrupted")
+    refute has_element?(view, "#sync-status", "Sync complete")
+    refute has_element?(view, "#sync-specs[disabled]")
+  end
+
+  test "automatic refresh does not release manual busy state or restore its older summary", %{
+    conn: conn,
+    project: project,
+    specs: specs
+  } do
+    start_watcher(project)
+    {:ok, view, _} = live(conn, "/projects/#{project.id}")
+    old_result = {:ok, %{created: 99, revised: 0, unchanged: 0, missing: 0}}
+    {manual_task, monitor} = hold_async(view, :sync, old_result)
+    write_specs(specs)
+    assert {:ok, _} = SpecImporter.sync(project.id)
+    assert refresh_while_syncing(view) =~ "3 created"
+    assert has_element?(view, "#sync-specs[disabled]")
+    send(manual_task, :release)
+    assert_receive {:DOWN, ^monitor, :process, ^manual_task, :normal}
+    refresh(view)
+    assert has_element?(view, "#sync-status", "3 created")
+    refute has_element?(view, "#sync-status", "99 created")
+    refute has_element?(view, "#sync-specs[disabled]")
+    assert has_element?(view, "#spec-entries li h3", "Alpha")
+  end
+
   test "a repeated event cannot replace an active sync or hide its errors", %{project: project} do
     socket = busy_socket(project)
     assert {:noreply, ^socket} = ProjectLive.handle_event("sync", %{}, socket)
@@ -133,13 +240,13 @@ defmodule BossWeb.SpecSyncLiveTest do
     assert {:noreply, reloading} =
              ProjectLive.handle_async(:sync, {:exit, "PRIVATE_CRASH_DETAILS"}, socket)
 
-    assert reloading.assigns.syncing
+    refute reloading.assigns.syncing
     refute reloading.assigns.status =~ "PRIVATE_CRASH_DETAILS"
 
     assert {:noreply, socket} =
              ProjectLive.handle_async(
-               :reload,
-               {:ok, Projects.list_spec_entries(project.id)},
+               :refresh,
+               {:ok, {Projects.list_spec_entries(project.id), :interrupted}},
                reloading
              )
 
@@ -152,10 +259,10 @@ defmodule BossWeb.SpecSyncLiveTest do
   test "failed reload preserves the last visible entries and errors", %{project: project} do
     socket = busy_socket(project)
     entries = [%{id: 123, title: "Last loaded task"}]
-    socket = %{socket | assigns: Map.put(socket.assigns, :entries, entries)}
+    socket = Phoenix.Component.assign(socket, entries: entries, syncing: false)
 
     assert {:noreply, failed} =
-             ProjectLive.handle_async(:reload, {:exit, "PRIVATE_DATABASE_DETAILS"}, socket)
+             ProjectLive.handle_async(:refresh, {:exit, "PRIVATE_DATABASE_DETAILS"}, socket)
 
     refute failed.assigns.syncing
     assert failed.assigns.entries == entries
@@ -171,8 +278,11 @@ defmodule BossWeb.SpecSyncLiveTest do
         __changed__: %{},
         project: project,
         syncing: true,
+        refreshing: false,
+        refresh_pending: nil,
         status: "Syncing specs…",
         entries: [],
+        auto_sync: false,
         errors: [%{path: "broken.md", message: "Invalid frontmatter"}]
       }
     }
@@ -187,6 +297,61 @@ defmodule BossWeb.SpecSyncLiveTest do
   defp sync(view) do
     view |> element("#sync-specs") |> render_click()
     render_async(view)
+    render_async(view)
+  end
+
+  defp refresh(view) do
+    render(view)
+    render_async(view)
+    render_async(view)
+  end
+
+  defp refresh_while_syncing(view) do
+    render(view)
+
+    case :sys.get_state(view.pid).socket.private[:live_async][:refresh] do
+      {_, pid, _} ->
+        monitor = Process.monitor(pid)
+        assert_receive {:DOWN, ^monitor, :process, ^pid, _}, 1_000
+
+      nil ->
+        :ok
+    end
+
+    render(view)
+  end
+
+  defp start_watcher(project) do
+    SpecWatcher.subscribe(project.id)
+    start_supervised!({SpecWatcher, interval_ms: 60_000, settle_ms: 0})
+    id = project.id
+    assert_receive {:spec_sync, ^id, result}, 2_000
+    result
+  end
+
+  # Control task completion order without adding timing hooks to production code.
+  defp hold_async(view, key, result) do
+    test_pid = self()
+
+    :sys.replace_state(view.pid, fn state ->
+      socket =
+        state.socket
+        |> Phoenix.Component.assign(syncing: key == :sync, refreshing: key == :refresh)
+        |> Phoenix.LiveView.start_async(key, fn ->
+          Process.flag(:trap_exit, true)
+          send(test_pid, {:held_task, self()})
+
+          receive do
+            :release -> result
+          end
+        end)
+
+      %{state | socket: socket}
+    end)
+
+    assert_receive {:held_task, pid}
+    on_exit(fn -> Process.exit(pid, :kill) end)
+    {pid, Process.monitor(pid)}
   end
 
   defp git!(root, args) do

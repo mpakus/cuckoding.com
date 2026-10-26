@@ -1,7 +1,7 @@
 # BOSS — план нового проекта
 
 Дата: 2026-10-25. Основа: [BOSS_PLAN.md](../BOSS_PLAN.md).
-Статус: Git/runner эксперименты, Phoenix/SQLite, проекты, revisions и ручной Sync specs.
+Статус: Git/runner эксперименты, Phoenix/SQLite, проекты, revisions и автоматический Sync specs.
 Задачи: [todo.md](todo.md). Источники: [RESEARCH.md](../docs/RESEARCH.md).
 
 ## Вывод
@@ -68,8 +68,10 @@ projects, stable spec identity, revisions, tasks и task events; runs/checks/rev
   frontmatter parser — при включении optional metadata; не писать YAML regex-парсер.
 - Ручной Sync реализован с yaml_elixir 2.12.2/yamerl 0.10.0. Полный bounded scan
   и запись выполняются в одной immediate-транзакции; explicit ID сохраняет identity
-  при move, missing не стирает history, task остаётся pinned. Следующий шаг — polling
-  с debounce. `FileSystem` добавлять,
+  при move, missing не стирает history, task остаётся pinned. Polling с debounce
+  использует один owned sweep: повтор через 2 секунды после завершения, changed
+  source проверяется повторным полным scan через 300 ms. No-op не пишет в БД.
+  `FileSystem` добавлять,
   только если polling не удовлетворяет проверяемому требованию.
 - Прямой supervised process — первый кандидат. `ex_cmd` проверяется spike:
   backpressure полезен, но его public stream options не доказывают независимый
@@ -115,13 +117,16 @@ Claude 2.1.142 capability probe. erlexec остаётся эксперимент
 не включены. Bootstrap и проекты не зависят от выбора runner и были завершены
 при открытом Phase 0 gate. BOSS-002b проверен 13 новыми тестами, включая отдельный
 committed Repo restart, конкурентную запись и migration upgrade/down/up.
-Ручной Markdown/YAML import и список specs добавлены в BOSS-003a; автоматический
-refresh, workflow transitions и полноценный board остаются следующими проходами.
+Markdown/YAML import и список specs добавлены в BOSS-003a, автоматический refresh
+и startup rescan — в BOSS-003b. Workflow transitions и полноценный board остаются
+следующими проходами. Poller и ручной Sync используют один importer, фактические
+scans сериализованы SQLite. PubSub публикует только после завершения транзакции.
 
-Application tests (94 passed, 1 Linux-only skipped), compile/format, assets
-build/deploy и browser login/project/Sync/reload проверены на macOS. В текущем
-Sync-прогоне консоль IAB чистая; другие браузеры не проверялись. Committed Repo
-restart проверен отдельно от browser reload.
+Application tests (113 passed, 1 Linux-only skipped), compile/format, assets
+build/deploy и browser automatic edit/delete/error/recovery/startup rescan проверены
+на macOS. В последнем IAB прогоне снова появилась MutationObserver error без
+source URL; атрибуция остаётся открытой. Другие браузеры не проверялись.
+Committed Repo restart и полный owned-server restart с offline edit проверены.
 Linux, release packaging и end-to-end agent→review→integration остаются открыты.
 Конкурентные repositories исследованы как source; их приложения и suites не запускались.
 
