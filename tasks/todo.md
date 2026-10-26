@@ -336,11 +336,21 @@ snapshot writer and two previous writer worktrees as in use by another task.
 - [x] Bounded strict report, unique criteria and actionable issue coverage.
 - [x] Shared Stop/quarantine; actual native fixture success/rejection/drift/Repo-loss.
 - [x] Final storage regression, browser scenario and independent review.
-- [ ] Combined local-main verification, documentation and safe branch/worktree cleanup.
+- [x] Combined local-main verification, documentation and merged-branch cleanup.
+- [ ] Archive two review writer worktrees after Codex releases their active-task hold.
 
 Контракт — [MANUAL_REVIEWS.md](../docs/MANUAL_REVIEWS.md). Это model assessment по
 saved spec/full diff/check receipt; refined plan, raw test output, automatic fix
 loop, workflow approval и Done не заявлены. Provider calls остаются opt-in.
+
+Local main `b365058`:293 passed,1 existing Linux-only skip (seed36841); compile,
+format, assets.deploy and diff checks passed. Browser:approved/rejected report,
+Stop after reload, keyboard/focus,320px, source/task preservation. All three merged
+review branches deleted. Codex refused archival of both clean/detached review
+writers and the three older worktrees as still used by another active task.
+
+Следующий продуктовый шаг — BOSS-011: typed Architect plan и измеримые acceptance
+criteria, сохранённые отдельно от original spec и привязанные к его revision.
 
 ## Следующие рабочие проходы
 
