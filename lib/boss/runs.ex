@@ -46,6 +46,19 @@ defmodule Boss.Runs do
   def get(project_id, id), do: Repo.get_by(Run, project_id: project_id, id: id)
 
   @doc false
+  def replay(project_id, task_id, command_id) do
+    if is_integer(project_id) and is_integer(task_id) and is_binary(command_id) and
+         match?({:ok, _}, Ecto.UUID.cast(command_id)) do
+      transaction(fn ->
+        Repo.get_by(Run, project_id: project_id, task_id: task_id, command_id: command_id) ||
+          Repo.rollback(:busy)
+      end)
+    else
+      {:error, :invalid_command}
+    end
+  end
+
+  @doc false
   def admit(project_id, task_id, command_id) do
     if is_integer(project_id) and is_integer(task_id) and is_binary(command_id) and
          match?({:ok, _}, Ecto.UUID.cast(command_id)) do

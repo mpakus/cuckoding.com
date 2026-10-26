@@ -29,13 +29,8 @@ defmodule Boss.Runs.Manager do
   end
 
   @impl true
-  def handle_call({:start, project, task, command}, _from, %{active: {run, _}} = state) do
-    reply =
-      if run.project_id == project and run.task_id == task and run.command_id == command,
-        do: {:ok, run},
-        else: {:error, :busy}
-
-    {:reply, reply, state}
+  def handle_call({:start, project, task, command}, _from, %{active: {_, _}} = state) do
+    {:reply, Runs.replay(project, task, command), state}
   end
 
   def handle_call({:start, project, task, command}, _from, state) do

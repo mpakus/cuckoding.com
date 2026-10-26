@@ -48,4 +48,40 @@ defmodule Boss.CodexTest do
     assert List.last(Codex.args()) == "-"
     refute Enum.any?(Codex.args(), &String.contains?(&1, "bypass"))
   end
+
+  test "CLI terminal event cannot replace exit, EOF, cleanup or a recorded cancellation" do
+    parser =
+      Codex.feed(Codex.new(), {:stdout, ~s({"type":"turn.started"}\n{"type":"turn.completed"}\n)})
+
+    result = %{
+      outcome: :exited,
+      cleanup: :group_empty,
+      exit_kind: :exit,
+      exit_code: 0,
+      signal: nil,
+      eof: %{stdout: true, stderr: true},
+      reason: nil
+    }
+
+    assert Boss.Runs.Worker.receipt(result, parser)[:status] == "finished"
+
+    for invalid <- [
+          %{result | exit_code: 7},
+          %{result | eof: %{stdout: false, stderr: true}},
+          %{result | exit_kind: :signal, exit_code: nil, signal: 9}
+        ] do
+      assert Boss.Runs.Worker.receipt(invalid, parser)[:status] == "failed"
+    end
+
+    assert Boss.Runs.Worker.receipt(%{result | cleanup: :unknown}, parser)[:status] ==
+             "interrupted"
+
+    cancelled = %{result | outcome: :cancelled, reason: :stopped}
+    assert Boss.Runs.Worker.receipt(cancelled, parser)[:status] == "cancelled"
+    invalid = Codex.feed(Codex.new(), {:stdout, "invalid\n"})
+    assert Boss.Runs.Worker.receipt(cancelled, invalid)[:status] == "cancelled"
+
+    assert Boss.Runs.Worker.receipt(%{cancelled | reason: :consumer_stopped}, invalid)[:status] ==
+             "failed"
+  end
 end

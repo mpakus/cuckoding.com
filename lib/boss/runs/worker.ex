@@ -90,7 +90,6 @@ defmodule Boss.Runs.Worker do
   defp invoke(run, executable, prompt, manager) do
     table = :ets.new(__MODULE__, [:public, :set])
     :ets.insert(table, {:parser, Codex.new()})
-    owner = self()
 
     try do
       # One progress message can be outstanding; DB stalls never grow a run mailbox.
@@ -98,7 +97,6 @@ defmodule Boss.Runs.Worker do
         [{:parser, parser}] = :ets.lookup(table, :parser)
         parser = Codex.feed(parser, event)
         :ets.insert(table, {:parser, parser})
-        if parser.error, do: send(owner, :stop)
 
         pid =
           case event do
@@ -108,6 +106,7 @@ defmodule Boss.Runs.Worker do
 
         if pid, do: :ets.insert(table, [{:os_pid, pid}, {:started_at, DateTime.utc_now()}])
         progress(manager, run.id, table, parser)
+        if parser.error, do: :stop, else: :ok
       end
 
       result =
@@ -208,7 +207,17 @@ defmodule Boss.Runs.Worker do
       cond do
         result.cleanup != :group_empty ->
           {"interrupted",
-           "Process-group cleanup is unknown. Workspace retained; no automatic restart."}
+           if(result.outcome == :cancelled,
+             do:
+               "Stop was requested, but process-group cleanup is unknown. Workspace retained; no automatic restart.",
+             else: "Process-group cleanup is unknown. Workspace retained; no automatic restart."
+           )}
+
+        result.outcome == :cancelled and Map.get(result, :reason) != :consumer_stopped ->
+          {"cancelled", "Stopped. Workspace retained."}
+
+        result.outcome == :timeout ->
+          {"failed", "Run exceeded its time limit. Workspace retained."}
 
         parser.error ->
           {"failed",
@@ -216,9 +225,6 @@ defmodule Boss.Runs.Worker do
 
         result.outcome == :cancelled ->
           {"cancelled", "Stopped. Workspace retained."}
-
-        result.outcome == :timeout ->
-          {"failed", "Run exceeded its time limit. Workspace retained."}
 
         result.outcome == :exited and result.exit_kind == :exit and result.exit_code == 0 and
           result.eof == %{stdout: true, stderr: true} and Codex.complete?(parser) ->
