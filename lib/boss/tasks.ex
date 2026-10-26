@@ -1,12 +1,30 @@
 defmodule Boss.Tasks do
   import Ecto.Query
   alias Boss.Repo
+  alias Boss.Projects.{Spec, SpecRevision}
   alias Boss.Tasks.{Event, Task, Transition}
 
   def get_task!(id), do: Repo.get!(Task, id)
 
   def list_events(task_id),
     do: Repo.all(from e in Event, where: e.task_id == ^task_id, order_by: e.version)
+
+  @doc """
+  Reads project-scoped task details in one snapshot, defaulting to the pinned source.
+  Revision metadata is newest first; events are the latest 50, newest first.
+  Source text is returned unchanged and must be displayed as plain text.
+  """
+  def get_details(project_id, task_id, revision_number \\ nil) do
+    if valid_id?(project_id) and valid_id?(task_id) and
+         (is_nil(revision_number) or valid_id?(revision_number)) do
+      with_repo_transaction(
+        fn -> read_details(project_id, task_id, revision_number) end,
+        :deferred
+      )
+    else
+      {:error, :not_found}
+    end
+  end
 
   @doc """
   Applies a named action and records its receipt in one transaction.
@@ -33,6 +51,18 @@ defmodule Boss.Tasks do
   end
 
   defp execute(task_id, command) do
+    with_repo_transaction(
+      fn ->
+        case Repo.get_by(Event, task_id: task_id, command_id: command.command_id) do
+          nil -> apply_transition(task_id, command)
+          event -> replay(event, command)
+        end
+      end,
+      :immediate
+    )
+  end
+
+  defp with_repo_transaction(operation, mode) do
     selector = Repo.get_dynamic_repo()
     repo = if is_atom(selector), do: Process.whereis(selector), else: selector
 
@@ -41,15 +71,7 @@ defmodule Boss.Tasks do
       Repo.put_dynamic_repo(repo)
 
       try do
-        Repo.transaction(
-          fn ->
-            case Repo.get_by(Event, task_id: task_id, command_id: command.command_id) do
-              nil -> apply_transition(task_id, command)
-              event -> replay(event, command)
-            end
-          end,
-          mode: :immediate
-        )
+        Repo.transaction(operation, mode: mode)
       rescue
         _error in [Exqlite.Error, Ecto.ConstraintError, DBConnection.ConnectionError] ->
           {:error, :storage_error}
@@ -70,6 +92,57 @@ defmodule Boss.Tasks do
       {:error, :storage_error}
     end
   end
+
+  defp read_details(project_id, task_id, revision_number) do
+    {task, spec} =
+      Repo.one(
+        from t in Task,
+          join: s in Spec,
+          on: t.spec_id == s.id,
+          where: t.id == ^task_id and s.project_id == ^project_id,
+          select: {t, s}
+      ) || Repo.rollback(:not_found)
+
+    pinned =
+      Repo.get_by(SpecRevision, id: task.spec_revision_id, spec_id: spec.id) ||
+        Repo.rollback(:not_found)
+
+    latest =
+      Repo.one(
+        from r in SpecRevision, where: r.spec_id == ^spec.id, order_by: [desc: r.number], limit: 1
+      ) || Repo.rollback(:not_found)
+
+    selected =
+      cond do
+        is_nil(revision_number) or revision_number == pinned.number -> pinned
+        revision_number == latest.number -> latest
+        true -> Repo.get_by(SpecRevision, spec_id: spec.id, number: revision_number)
+      end || Repo.rollback(:not_found)
+
+    %{
+      task: task,
+      spec: spec,
+      pinned_revision: pinned,
+      latest_revision: latest,
+      selected_revision: selected,
+      revisions:
+        Repo.all(
+          from r in SpecRevision,
+            where: r.spec_id == ^spec.id,
+            order_by: [desc: r.number],
+            select: %{number: r.number, inserted_at: r.inserted_at}
+        ),
+      events:
+        Repo.all(
+          from e in Event,
+            where: e.task_id == ^task.id,
+            order_by: [desc: e.version],
+            limit: 50
+        )
+    }
+  end
+
+  defp valid_id?(id), do: is_integer(id) and id > 0 and id <= 9_223_372_036_854_775_807
 
   defp apply_transition(task_id, command) do
     task = Repo.get(Task, task_id) || Repo.rollback(:not_found)
