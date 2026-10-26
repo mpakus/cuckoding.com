@@ -37,6 +37,7 @@ defmodule BossWeb.ProjectLive do
        run_stopping: nil,
        run_error: nil,
        run_supported: :os.type() == {:unix, :darwin},
+       check_requests: %{},
        status: nil,
        errors: []
      )
@@ -105,7 +106,8 @@ defmodule BossWeb.ProjectLive do
   end
 
   def handle_event("start_run", %{"command-id" => command}, socket) do
-    if command == socket.assigns.run_command_id && run_available?(socket.assigns) do
+    if command == socket.assigns.run_command_id && run_available?(socket.assigns) &&
+         !checks_uncertain?(socket.assigns) do
       {task_id, _} = socket.assigns.selection
       project_id = socket.assigns.project.id
 
@@ -121,6 +123,57 @@ defmodule BossWeb.ProjectLive do
   end
 
   def handle_event("start_run", _, socket), do: {:noreply, socket}
+
+  def handle_event(
+        "edit_check",
+        %{"parent_id" => parent, "command_id" => id, "command" => text},
+        socket
+      ) do
+    case Map.get(socket.assigns.check_requests, parent) do
+      %{id: ^id, locked: false} = request when is_binary(text) and byte_size(text) <= 4096 ->
+        if check_available?(socket.assigns, parent) do
+          {:noreply, put_check_request(socket, parent, %{request | text: text})}
+        else
+          {:noreply, socket}
+        end
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("edit_check", _, socket), do: {:noreply, socket}
+
+  def handle_event(
+        "start_check",
+        %{"parent_id" => parent, "command_id" => id, "command" => text},
+        socket
+      ) do
+    request = Map.get(socket.assigns.check_requests, parent)
+
+    if check_available?(socket.assigns, parent) && request && request.id == id &&
+         is_binary(text) &&
+         (!request.locked || request.text == text) do
+      if byte_size(text) > 4096 do
+        {:noreply, assign(socket, run_error: check_error({:error, :invalid_command}))}
+      else
+        {task_id, _} = socket.assigns.selection
+        project = socket.assigns.project.id
+
+        {:noreply,
+         socket
+         |> put_check_request(parent, %{request | text: text, locked: true})
+         |> assign(run_starting: {task_id, id}, run_error: nil)
+         |> start_async(:start_check, fn ->
+           {task_id, parent, id, start_check(project, parent, id, text)}
+         end)}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("start_check", _, socket), do: {:noreply, socket}
 
   def handle_event("stop_run", %{"run-id" => id}, socket) do
     if Enum.any?(socket.assigns.runs, &(&1.id == id && Runs.active?(&1))) do
@@ -154,6 +207,39 @@ defmodule BossWeb.ProjectLive do
       case {socket.assigns.run_starting, socket.assigns.selection} do
         {{id, _}, {id, _}} -> run_error(:unknown)
         _ -> socket.assigns.run_error
+      end
+
+    {:noreply, socket |> assign(run_starting: nil, run_error: error) |> refresh_details()}
+  end
+
+  def handle_async(:start_check, {:ok, {task_id, parent, id, result}}, socket) do
+    socket = assign(socket, run_starting: nil)
+    request = Map.get(socket.assigns.check_requests, parent)
+    confirmed = check_admitted?(socket.assigns, id) || is_nil(request) || request.id != id
+
+    socket =
+      if request && request.id == id && (confirmed || check_input_resolved?(result)),
+        do: put_check_request(socket, parent, %{request | locked: false}),
+        else: socket
+
+    case socket.assigns.selection do
+      {^task_id, _} ->
+        error = if confirmed, do: nil, else: check_error(result)
+        {:noreply, socket |> assign(run_error: error) |> refresh_details()}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_async(:start_check, _failure, socket) do
+    error =
+      case {socket.assigns.run_starting, socket.assigns.selection} do
+        {{id, command}, {id, _}} ->
+          if check_admitted?(socket.assigns, command), do: nil, else: check_error(:unknown)
+
+        _ ->
+          socket.assigns.run_error
       end
 
     {:noreply, socket |> assign(run_starting: nil, run_error: error) |> refresh_details()}
@@ -201,6 +287,7 @@ defmodule BossWeb.ProjectLive do
           socket
           |> assign(details: details, detail_error: nil, runs: Map.get(details, :runs, []))
           |> renew_run_command()
+          |> renew_check_requests()
 
         {:error, :not_found} ->
           assign(socket, details: nil, runs: [], detail_error: :not_found)
@@ -340,6 +427,99 @@ defmodule BossWeb.ProjectLive do
       assigns.details.task.state in ~w(new ready failed interrupted cancelled blocked needs_input) &&
       !Enum.any?(assigns.runs, &(Runs.active?(&1) || &1.cleanup == "unknown"))
   end
+
+  defp check_available?(assigns, parent) do
+    request = Map.get(assigns.check_requests, parent)
+
+    run_available?(assigns) &&
+      (!checks_uncertain?(assigns) || (request && request.locked)) &&
+      Enum.any?(assigns.runs, &eligible_check_parent?(&1, parent))
+  end
+
+  defp eligible_check_parent?(run, id),
+    do:
+      run.id == id && run.adapter == "codex" && run.status == "finished" &&
+        run.cleanup == "group_empty"
+
+  defp put_check_request(socket, parent, request),
+    do: assign(socket, check_requests: Map.put(socket.assigns.check_requests, parent, request))
+
+  defp renew_check_requests(socket) do
+    confirmed =
+      Enum.any?(socket.assigns.check_requests, fn {_, request} ->
+        request.locked && check_admitted?(socket.assigns, request.id)
+      end)
+
+    requests =
+      Enum.reduce(socket.assigns.runs, socket.assigns.check_requests, fn run, requests ->
+        if eligible_check_parent?(run, run.id) do
+          request = Map.get(requests, run.id)
+          receipt = request && Enum.find(socket.assigns.runs, &(&1.command_id == request.id))
+
+          cond do
+            is_nil(request) || (receipt && !Runs.active?(receipt)) ->
+              Map.put(requests, run.id, %{
+                id: Ecto.UUID.generate(),
+                text: if(request, do: request.text, else: ""),
+                locked: false
+              })
+
+            receipt ->
+              Map.put(requests, run.id, %{request | locked: false})
+
+            true ->
+              requests
+          end
+        else
+          requests
+        end
+      end)
+
+    socket = assign(socket, check_requests: requests)
+
+    if confirmed && socket.assigns.run_error == check_error(:unknown),
+      do: assign(socket, run_error: nil),
+      else: socket
+  end
+
+  defp check_admitted?(assigns, command),
+    do: Enum.any?(assigns.runs, &(&1.adapter == "check" && &1.command_id == command))
+
+  defp start_check(project, parent, id, command) do
+    Runs.start_check(project, parent, id, command)
+  rescue
+    _ -> {:error, :storage_error}
+  catch
+    :exit, _ -> {:error, :storage_error}
+  end
+
+  defp check_input_resolved?({:ok, _}), do: true
+
+  defp check_input_resolved?({:error, reason}),
+    do: reason in [:busy, :invalid_command, :not_found, :task_unavailable, :source_unavailable]
+
+  defp check_input_resolved?(_), do: false
+
+  defp checks_uncertain?(assigns),
+    do: Enum.any?(Map.get(assigns, :check_requests, %{}), fn {_, request} -> request.locked end)
+
+  defp check_error({:ok, _}), do: nil
+  defp check_error({:error, :busy}), do: run_error({:error, :busy})
+
+  defp check_error({:error, :invalid_command}),
+    do: "Enter one command with arguments, up to 4096 bytes. Shell expansion is unavailable."
+
+  defp check_error({:error, :idempotency_conflict}),
+    do:
+      "This request already belongs to another command. Keep the original command when retrying."
+
+  defp check_error({:error, reason})
+       when reason in [:not_found, :task_unavailable, :source_unavailable],
+       do: "This saved Codex result is no longer available for checks. Refresh the task."
+
+  defp check_error(_),
+    do:
+      "The checks start outcome could not be confirmed. Retry with the same saved command to check the original request."
 
   defp start_run(project_id, task_id, command) do
     Runs.start(project_id, task_id, command)
@@ -510,6 +690,7 @@ defmodule BossWeb.ProjectLive do
             available={@run_available}
             supported={@run_supported}
             error={@run_error}
+            check_requests={Map.get(assigns, :check_requests, %{})}
           />
         </:run_panel>
       </TaskBoard.drawer>
