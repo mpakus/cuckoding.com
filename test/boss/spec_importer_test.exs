@@ -39,7 +39,7 @@ defmodule Boss.SpecImporterTest do
   } do
     File.mkdir!(Path.join(specs, "nested"))
 
-    for file <- ["one.md", "two.MD", "nested/three.md"],
+    for file <- ["one.md", "two.MD", "nested/три.md"],
         do: File.write!(Path.join(specs, file), "# #{file}\n")
 
     File.write!(Path.join(specs, "ignored.txt"), "not a spec")
@@ -286,6 +286,23 @@ defmodule Boss.SpecImporterTest do
              SpecImporter.sync(project.id)
 
     assert Projects.list_spec_entries(project.id) == []
+  end
+
+  @tag skip: :os.type() != {:unix, :linux}
+  test "raw Linux filenames reject the scan rather than silently marking history missing", %{
+    project: project,
+    specs: specs
+  } do
+    File.write!(Path.join(specs, "keep.md"), "# Keep")
+    assert {:ok, _} = SpecImporter.sync(project.id)
+    previous = Projects.list_spec_entries(project.id)
+    File.rm!(Path.join(specs, "keep.md"))
+    raw_path = Path.join(specs, <<255>> <> ".md")
+    File.write!(raw_path, "# Raw")
+    on_exit(fn -> File.rm(raw_path) end)
+    assert {:error, [%{message: message}]} = SpecImporter.sync(project.id)
+    assert message =~ "UTF-8"
+    assert Projects.list_spec_entries(project.id) == previous
   end
 
   test "unknown project returns an error" do

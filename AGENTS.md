@@ -57,8 +57,14 @@
 - Record spec identity, append-only revision and initial task atomically with an
   immediate SQLite transaction. Compare with the latest revision, not any older
   matching hash; A→B→A must retain all three. Keep task revision/title pinned.
-  Explicit-ID/path conflicts are errors until the importer can reconcile renames.
+  Direct record calls reject ID/path conflicts; the full importer reconciles moves
+  and path swaps. Missing history may share a path, but present specs may not.
   Keep composite revision ownership and immutable-history database constraints.
+- Import only complete validated scans; scan and reconciliation share an immediate
+  transaction. Bound traversal, bytes, YAML and worker count/time/memory. Keep
+  workers supervised and bound to the actual Repo PID. Interrupted outcomes may
+  already be committed: reload persisted entries, never promise rollback on timeout.
+  Preserve raw source; reject ambiguous YAML types/aliases and raw non-UTF8 names.
 - Test committed durability/concurrency in an exclusively created scratch DB with
   a real connection pool; a sandbox transaction alone is not restart evidence.
 - Live provider calls are opt-in and bounded; never repeat a paid smoke run

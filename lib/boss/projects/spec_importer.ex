@@ -95,8 +95,8 @@ defmodule Boss.Projects.SpecImporter do
     if before.type != :directory, do: fail(relative, "Expected a directory without symlinks.")
 
     names =
-      case File.ls(path) do
-        {:ok, names} -> Enum.sort(names)
+      case :file.list_dir_all(path) do
+        {:ok, names} -> names |> Enum.map(&IO.chardata_to_string/1) |> Enum.sort()
         {:error, reason} -> fail(relative, to_string(:file.format_error(reason)))
       end
 
@@ -107,6 +107,9 @@ defmodule Boss.Projects.SpecImporter do
 
     state =
       Enum.reduce(names, state, fn name, state ->
+        unless String.valid?(name),
+          do: fail(relative, "Specs contain a filename that is not valid UTF-8.")
+
         child = if relative == "", do: name, else: Path.join(relative, name)
         absolute = Path.join(project.specs_path, child)
         stat = lstat(absolute, child)

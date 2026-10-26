@@ -24,7 +24,8 @@
   do not claim protection against all hostile concurrent filesystem replacements.
 - Keep scan and commit within one bounded immediate SQLite transaction so slower
   scans cannot publish stale observations after newer ones. This deliberately
-  holds the write lock during local reads; failure/timeout rolls back the import.
+  holds the write lock during local reads; failures before commit roll back the
+  import, while interruption after commit has an unknown observed outcome.
 - Current path uniqueness applies only to present specs. Missing histories retain
   identity/revisions/tasks, enabling path reuse and explicit-ID path swaps without
   merging histories. Only a complete valid manifest can set missing flags.
@@ -55,3 +56,56 @@
   test/boss/application_test.exs` (all mix commands through rtk proxy asdf exec).
 - Review found explicit YAML binary tags can erase type into invalid UTF-8; parser
   owner is adding regression and boundary checks before final integration.
+
+
+## Integrated verification
+
+- Parser 3b53bec plus review fix c315f37; scanner 1ef1ac8; UI 96f889b.
+  Parser reference: Agent Orchestrator 7193eff4e08f1481944845ee058fe6fd18930b6d,
+  frontend/src/renderer/lib/markdown-frontmatter.ts and test; adopted anchored
+  delimiter/BOM/CRLF/raw source separation, rejected handwritten YAML subset.
+  yaml_elixir 2.12.2 MIT commit 4c5ee0408014a6e999dca4869e39eeca0e58a2c2 and
+  yamerl 0.10.0 BSD-2-Clause commit 39981b9cb9d9edc227cf43a3e19dd16869493553.
+- Parser rejects binary tags before Mapper strips YAML types and checks UTF-8.
+  Aliases are rejected after a reproduced upstream flow-collection alias defect.
+  Parser has an independent 500ms timer and 2-million-word heap ceiling.
+- UI reference: Backlog 3580cfbbb1be4144a5cca5b49190e1f8158e4cf7,
+  packages/server/src/routes/integrations.ts:164, IntegrationsView.svelte:545/1064,
+  source-state.test.ts:128. Query importPulledTasks. Adopted busy/counts/refresh;
+  rejected cloud integration and raw exception messages. Busy-guard mutation in
+  memory was caught by the UI test. Seven new UI tests; no full Kanban claim.
+- Review of raw filename behavior led to :file.list_dir_all + explicit UTF-8
+  rejection. OTP official docs distinguish list_dir omission from list_dir_all.
+  macOS probe returned eilseq before creating the file. Linux-only regression
+  remains skipped here; no Linux execution claimed.
+- Combined worktree: `rtk proxy asdf exec mix test` — 94 passed, 1 skipped;
+  `mix compile --warnings-as-errors`, `mix format --check-formatted`,
+  `mix assets.build`, `mix assets.deploy`, `rtk git diff --check` passed
+  (mix commands through rtk proxy asdf exec).
+- Browser smoke used its own exclusively created repo/data directory and server.
+  Project registered through backend setup; this run tests Sync, not native chooser
+  acceptance. Browser login, empty list, three-file import, repeat no-op, edit with
+  source2/task1, retained missing task, duplicate-ID rejection, retry and reload
+  verified through visible UI. Console errors/warnings: none in this IAB run.
+  Screenshot: /Users/mpak/.codex/visualizations/2026/10/25/01a173ec-2089-7ff3-88a7-142cfa5d8f78/boss-spec-sync.png.
+- Closed smoke tab, stopped only owned process group 37202, removed owned temporary
+  data/repository and the earlier test scratch remainder. One-use test token was
+  consumed and its mode0600 temporary transfer file removed; no token logged.
+- Updated AGENTS, README, plan/todo and reference research to shipped behavior.
+  BOSS_PLAN unchanged. Source files are never rewritten. No provider calls/push.
+
+## Limitations and next step
+
+- Manual Sync only; priority/depends_on remain source metadata. Task revision/title
+  remain pinned. Next is BOSS-003b bounded polling/debounce + startup rescan, then
+  BOSS-004 transitions. Runner reliability gates remain open.
+- Portable file checks cannot prevent every hostile concurrent filesystem swap or
+  provide an atomic filesystem snapshot. Scan holds the SQLite write lock while
+  reading bounded local files. Retained history list has no pagination yet.
+- Migration down refuses reused paths rather than deleting history. Interruption
+  can occur after commit; UI reloads rather than claiming nothing changed.
+- Final local main verification and managed worktree cleanup recorded below after
+  integration; completion is not inferred from agent reports alone.
+
+- Final independent read-only review: no blocking findings in integrated code.
+  Combined tests and browser evidence above were run by root, not inferred from review.

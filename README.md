@@ -3,8 +3,8 @@
 Local AI agent orchestration, rebuilt from [BOSS_PLAN.md](BOSS_PLAN.md).
 
 This increment provides a Phoenix LiveView server, local browser access,
-validated project registration and transactional spec/revision/task persistence.
-Spec file import and agent execution are not implemented yet.
+native folder selection, validated project registration, manual Markdown sync and
+transactional spec/revision/task history. Agent execution is not implemented yet.
 
 ## Run locally
 
@@ -59,33 +59,66 @@ The specs directory must be strictly inside the repository, with no symlink
 components. Registering the same repository through another path or linked
 worktree returns an error. Projects survive tab closure and backend restart.
 
-Markdown files are not imported in this increment. Runner and Git research live
-in `spikes/`, separately from the application. The runner experiment is not a
+Runner and Git research live in `spikes/`, separately from the application. The runner experiment is not a
 production adapter; its EOF, memory and descendant-cleanup gates remain open.
 
-## Spec persistence
+## Sync specs
 
-`Boss.Projects.record_spec(project_id, attrs)` records one source observation:
-`relative_path`, `original_text`, `title`, and optional `explicit_id`. It returns
-`{:ok, %{spec: spec, revision: revision, task: task, change: change}}`, where change
-is `:created`, `:unchanged` or `:revised`; invalid input returns an error changeset.
-This is a backend API, not a file importer or browser task-creation flow.
+Open a registered project and choose **Sync specs**. BOSS reads `.md` files,
+including subfolders, and shows the imported tasks, latest source revision and
+pinned task snapshot. Repeat Sync after editing files; automatic refresh is not
+implemented yet. Source Markdown is stored exactly and is never rewritten.
 
-Identity is project-scoped and uses an explicit ID or normalized relative Markdown
-path. A conflicting ID/path is rejected; rename reconciliation is not implemented.
-Original UTF-8 text is preserved exactly, up to 1 MiB, with its SHA-256 and source
-path. Repeating the latest text creates nothing; A→B→A creates three revisions.
-`Boss.Projects.list_spec_revisions(spec_id)` returns them in revision order.
+Frontmatter is optional. It must be one nonempty YAML mapping between opening
+and closing `---` lines. Optional `id` and `title` must be nonempty strings of at
+most 200 bytes and 200 characters respectively. The title otherwise comes from
+the first H1 outside fenced code, then the filename. BOM and CRLF are supported.
+Duplicate keys, aliases, keys starting with `<<`, custom tags and binary tags are
+rejected.
+`priority` and `depends_on` are retained in the source only, with no workflow effect.
+
+Identity is scoped to the project: an explicit ID survives moves; without an ID,
+a renamed file creates a new task and the old identity becomes **File missing**.
+Deleting a file retains its task and all revisions. Reusing a missing path for a
+new explicit ID creates a separate history. Duplicate IDs abort the entire scan.
+Moving an explicit-ID file records a revision even when its text is unchanged,
+so the historical source path remains accurate.
 
 Each spec has one task, initially `new`, pinned to its first revision and title.
-Recording later source changes never advances that pin. Revision adoption and
-workflow transitions will be explicit later. SQLite rejects revision updates and
-deletes, and a task cannot reference another spec's revision. All recording writes
-use one immediate transaction; no filesystem reads or writes happen in this API.
+Later source changes never advance that pin. Repeating the latest text/path is
+a no-op; A→B→A creates three revisions. Revision adoption and workflow transitions
+will be explicit later. SQLite rejects updates/deletes of revisions and prevents
+a task from referencing another spec's revision.
 
-The additive migration runs at the next BOSS startup and preserves existing
-projects. Rolling this migration back drops the new spec/revision/task tables;
-the rollback test uses disposable data only, and existing project rows survive.
+A failed scan preserves the previous snapshot, including missing flags. The
+complete scan and reconciliation share an immediate SQLite transaction, which
+holds the write lock during local reads. At most four import workers can run;
+each has a 10-second deadline and a memory ceiling. Workers stop before Repo on
+application shutdown. Interruption after commit can have an unknown result, so
+the UI reloads saved entries and asks for a retry instead of claiming rollback.
+
+Limits: 256 Markdown files, 1 MiB per file, 8 MiB total, 16 KiB frontmatter,
+1,000 directory entries and nesting depth 16. Files and filenames must be UTF-8.
+Symlinks and special files anywhere under the specs folder reject the scan.
+These checks suit local files; they do not provide an atomic filesystem snapshot
+or an OS sandbox against hostile concurrent path replacement. Large retained
+histories are not paginated in this initial list.
+
+Backend APIs: `Boss.Projects.SpecImporter.sync(project_id)` returns counts or
+path-specific errors; `Boss.Projects.list_spec_entries(project_id)` reads the list;
+`Boss.Projects.list_spec_revisions(spec_id)` returns immutable history.
+`Boss.Projects.record_spec(project_id, attrs)` records one prevalidated observation
+(`relative_path`, `original_text`, `title`, optional `explicit_id`). Its result is
+`{:ok, %{spec: spec, revision: revision, task: task, change: change}}`, where change
+is `:created`, `:unchanged` or `:revised`. Rename reconciliation belongs to the full
+importer; a direct record call rejects an ID already assigned to another path.
+
+Migrations run at the next startup and preserve existing projects/history. The
+missing-state migration makes path uniqueness apply only to present files.
+Rolling it back fails atomically if retained histories share a reused path;
+it never deletes those histories to make rollback succeed. Rolling back the
+older persistence migration drops spec/revision/task tables. Migration tests
+use disposable databases only.
 
 ## Data and ownership
 

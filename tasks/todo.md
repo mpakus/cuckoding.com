@@ -127,20 +127,32 @@ migration, domain + durable-pool tests (7 implementation/test файлов).
 A→B→A, no-op, pin/title, conflicts, rollback, cross-spec FK, immutable history,
 8 одновременных вызовов, committed Repo restart и migration down/up. Удаление
 каждого из UPDATE/DELETE guards по отдельности было обнаружено тестом.
-Это backend persistence: чтение Markdown/YAML, rename/delete и UI ещё не сделаны.
+В 002b завершён backend persistence; чтение Markdown/YAML, rename/delete и UI
+добавлены следующим проходом 003a.
 
 ## BOSS-003a — синхронизация Markdown
 
-**Зависимости:** 002b. **Область:** importer, context, tests/fixtures (до 5 файлов).
+**Зависимости:** 002b. **Область:** importer, parser/dependency, missing migration,
+context, supervised workers и ручной Sync UI. Область расширена до 16
+implementation/test файлов: отдельные parser/UI writers, общий storage у parent.
 
-- [ ] Три `.md` → три tasks; повторный Sync и дубли watcher events → без дублей.
-- [ ] Edit и A→B→A создают корректную последовательность revisions; активный
+- [x] Три `.md` → три tasks; повторный ручной Sync → без дублей.
+  Watcher events относятся к следующему проходу 003b.
+- [x] Edit и A→B→A создают корректную последовательность revisions; активный
   snapshot не меняется; delete сохраняет history и помечает missing.
-- [ ] Rename без ID создаёт новую identity; rename с ID сохраняет её;
+- [x] Rename без ID создаёт новую identity; rename с ID сохраняет её;
   duplicate IDs/нечитаемый файл не вызывают массовое удаление tasks.
 
 **Проверка:** focused importer tests с настоящими временными файлами.
 **Сбой:** ошибка файла видна, предыдущая валидная revision остаётся.
+
+19 parser tests, 14 importer tests (ещё один Linux-only пропущен на macOS),
+5 real-pool persistence tests и 7 новых UI tests. Complete scan и reconciliation
+сериализованы одной immediate-транзакцией; пределы traversal/bytes/parser/worker
+проверены. После interrupted outcome UI перечитывает БД. Browser: три specs,
+повторный Sync, edit/pinned snapshot, missing, duplicate-ID error/retry, reload;
+в текущем IAB прогоне нет console errors/warnings. Source никогда не перезаписывается.
+YAML priority/depends_on остаются source-only; polling/board/execution не включены.
 
 ## BOSS-003b — автоматический refresh
 
@@ -173,11 +185,11 @@ event schema, tests (5 файлов).
 - [ ] Три specs, edit, повтор Sync, restart и недопустимый переход проверены.
 - [x] Review текущего изменения выполнено; журнал содержит фактические результаты.
 
-Application suite: 52 tests после BOSS-002b; последние отдельные проверки
+Application suite: 94 passed, 1 Linux-only skipped после BOSS-003a; последние отдельные проверки
 spikes: 12 Git + 14 runner (предыдущий increment, их код не менялся).
-Checkpoint 1 ещё не завершён: 003/004 и task board отсутствуют.
-Ближайший проход: идемпотентный Markdown import поверх record_spec/2;
-runner reliability продолжать отдельным исследованием, не смешивать с importer.
+Checkpoint 1 ещё не завершён: 003b/004 и полноценный task board отсутствуют.
+Ближайший проход: 003b bounded polling/debounce и безопасный startup rescan.
+Runner reliability продолжать отдельным исследованием.
 
 ## Следующие рабочие проходы
 
