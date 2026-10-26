@@ -2,7 +2,9 @@
 
 Read-only source snapshots live here. URLs, full commit SHAs and root licenses
 are pinned in [repositories.json](repositories.json). Agetor and Kander were
-already present; agent-orchestrator and Backlog were cloned on 2026-10-25.
+already present; agent-orchestrator, Backlog, Exile and NetRunner were cloned on
+2026-10-25. Exile v0.15.0 and NetRunner are transport/lifecycle research inputs;
+neither is an application dependency.
 The checkouts are ignored by the parent repository; this guide and manifest are
 kept in version control. `.xerjignore` excludes these operational files from the
 source index; adding a root README to an existing multi-repository index otherwise
@@ -65,3 +67,10 @@ data directory. On another machine, create a persistent data directory **outside
 License labels are observations from the root LICENSE files, not blanket
 permission for every vendored file. Check the exact file before source reuse.
 No competitor code was copied into BOSS during research.
+
+
+Current indexing limitation (2026-10-25): the existing node refused the Exile /
+NetRunner incremental update before any file walk/write at its 95% disk flood-stage
+watermark. Those two snapshots are pinned and directly readable, but not indexed.
+The previous four datasets remain searchable. Resolve capacity before retrying;
+do not disable the watermark or delete unrelated data as an automatic workaround.

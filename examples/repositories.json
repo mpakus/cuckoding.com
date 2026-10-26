@@ -34,6 +34,22 @@
       "license": "Apache-2.0",
       "license_file": "LICENSE",
       "study": "Dependency scheduling, overlap detection, claims and expiry"
+    },
+    {
+      "directory": "exile",
+      "url": "https://github.com/akash-akya/exile",
+      "commit": "a4f29f31adc3c6bd2fe43ac62dc07a9eeb3bf413",
+      "license": "Apache-2.0",
+      "license_file": "LICENSE.md",
+      "study": "Demand-driven separate stdout/stderr, genuine EOF and direct-process ownership limits"
+    },
+    {
+      "directory": "net_runner",
+      "url": "https://github.com/nyo16/net_runner",
+      "commit": "5f12e06aabb70f2aafde023bf547aaaa6f8fcb36",
+      "license": "Apache-2.0",
+      "license_file": "LICENSE",
+      "study": "Native guardian, process groups, cgroups and teardown evidence"
     }
   ]
 }

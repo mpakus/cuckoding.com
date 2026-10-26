@@ -3,6 +3,8 @@
 /examples/kander/
 /examples/agent-orchestrator/
 /examples/backlog/
+/examples/exile/
+/examples/net_runner/
 
 # The directory Mix will write compiled artifacts to.
 /_build/

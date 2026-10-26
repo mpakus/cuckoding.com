@@ -295,3 +295,50 @@ snapshot и latest source отдельно, последние 50 transitions, e
 Код референсов не копировался, зависимости не добавлялись. Локальный status не
 доказывает доступ к модели/квоту; CLI-help не доказывает working adapter. Детали
 контракта и ограничений — [AGENT_DETECTION.md](AGENT_DETECTION.md).
+
+
+## BOSS-007a: demand-driven transport and lifecycle boundaries
+
+Before implementation, xerj query `process stdout stderr backpressure EOF cancellation`
+located Agent Orchestrator's process wrappers. `ConfigureTreeCancellation WaitDelay`
+then located `backend/internal/process/command.go`. At pinned Apache-2.0 SHA
+`7193eff4e08f1481944845ee058fe6fd18930b6d`, read
+`backend/pkg/agentruntime/process.go`, `backend/internal/process/tree_unix.go`
+and `backend/internal/session_manager/workspace_cleanup.go`. Adopt independent
+stream/exit observations and explicit group cleanup; reject treating leader exit
+or a forced pipe-close timeout as success. Source patterns were not copied.
+
+Two additional clean read-only snapshots are pinned in
+[repositories.json](../examples/repositories.json):
+
+| Candidate | Source evidence | Decision for this slice |
+|---|---|---|
+| Exile 0.15.0, Apache-2.0, `a4f29f31adc3c6bd2fe43ac62dc07a9eeb3bf413` | `lib/exile/process.ex:468/548`, `c_src/exile.c:258/330`, `test/exile/process_test.exs:89/103`: separate demand reads and actual zero-byte read EOF. `await_exit` closes caller-owned pipes. `c_src/spawner.c:199` execs the command; `lib/exile/watcher.ex:26` watches only a direct PID. | Evaluate separate one-credit readers in an isolated fixture experiment. Do not select it as the production runner or infer EOF from await/close. |
+| NetRunner, Apache-2.0, `5f12e06aabb70f2aafde023bf547aaaa6f8fcb36` | `c_src/shepherd.c:492/700`: native guardian observes BEAM connection loss, but escalation waits only for the direct child; normal exit does not clear a macOS process group. `cgroup_cleanup` logs failures without a cleanup-result acknowledgment. `test/robustness_test.exs` includes manually killed orphans. | Useful ownership reference, not a complete solution to stubborn children after leader exit or helper death. No dependency or runtime comparison added. |
+
+Versioned Exile source: [Process API](https://github.com/akash-akya/exile/blob/a4f29f31adc3c6bd2fe43ac62dc07a9eeb3bf413/lib/exile/process.ex),
+[NIF](https://github.com/akash-akya/exile/blob/a4f29f31adc3c6bd2fe43ac62dc07a9eeb3bf413/c_src/exile.c),
+[tests](https://github.com/akash-akya/exile/blob/a4f29f31adc3c6bd2fe43ac62dc07a9eeb3bf413/test/exile/process_test.exs).
+NetRunner [guardian](https://github.com/nyo16/net_runner/blob/5f12e06aabb70f2aafde023bf547aaaa6f8fcb36/c_src/shepherd.c)
+and [robustness tests](https://github.com/nyo16/net_runner/blob/5f12e06aabb70f2aafde023bf547aaaa6f8fcb36/test/robustness_test.exs).
+
+Exile's default GenServer state retains arguments/environment and pending writes;
+no `format_status` redaction was found. Its socket binds directly under `System.tmp_dir` without creating its own
+private directory; platform directory permissions and peer identity need review.
+These need separate secret-handling/ownership validation before any
+real prompts or credentials. A wrapper cannot sanitize a dependency's own crash
+report. Public Port exit status also cannot distinguish every explicit exit code
+from a signal-derived code; do not decode 137 as proven SIGKILL. This experiment
+uses only public synthetic fixture data.
+
+The reference reindex command refused before walking/writing because the existing
+node reached its 95% disk flood-stage watermark (45.8 GB free). Old `bossrefs`
+queries still succeeded, but the new snapshots are **not indexed**. Read the new
+sources directly with `rg` until disk capacity is resolved and reindex can run.
+No watermark was weakened and no unrelated index or data was deleted.
+
+Production acceptance still needs OS ownership beyond direct PIDs, descendant
+cleanup after leader exit, backend/helper failure handling, private IPC/redaction,
+and committed launch intent plus safe reconciliation. Process groups alone do
+not contain a child that creates a new session. Transport exit/EOF cannot stand
+in for adapter completion, checks, review or verified delivery.
