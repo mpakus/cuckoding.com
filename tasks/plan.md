@@ -1,7 +1,8 @@
 # BOSS — план нового проекта
 
 Дата: 2026-10-25. Основа: [BOSS_PLAN.md](../BOSS_PLAN.md).
-Статус: Git/runner эксперименты, Phoenix/SQLite, проекты, revisions и автоматический Sync specs.
+Статус: Git/runner эксперименты, Phoenix/SQLite, проекты, revisions, автоматический
+Sync specs и persisted task commands с закрытыми execution/evidence gates.
 Задачи: [todo.md](todo.md). Источники: [RESEARCH.md](../docs/RESEARCH.md).
 
 ## Вывод
@@ -118,13 +119,25 @@ Claude 2.1.142 capability probe. erlexec остаётся эксперимент
 при открытом Phase 0 gate. BOSS-002b проверен 13 новыми тестами, включая отдельный
 committed Repo restart, конкурентную запись и migration upgrade/down/up.
 Markdown/YAML import и список specs добавлены в BOSS-003a, автоматический refresh
-и startup rescan — в BOSS-003b. Workflow transitions и полноценный board остаются
-следующими проходами. Poller и ручной Sync используют один importer, фактические
+и startup rescan — в BOSS-003b. Основа BOSS-004 сохраняет state/version/event одной
+транзакцией, проверяет stale commands, возвращает исходный receipt при replay и
+сохраняет recovery target. Конкретный Repo PID закреплён на всю команду; смена
+зарегистрированного Repo не переносит остаток операции в новый pool. Task events
+неизменяемы; rollback миграции отказывается терять уже записанную историю.
+Полноценный board остаётся следующим проходом. Poller и ручной Sync используют один importer, фактические
 scans сериализованы SQLite. PubSub публикует только после завершения транзакции.
 
-Application tests (113 passed, 1 Linux-only skipped), compile/format, assets
-build/deploy и browser automatic edit/delete/error/recovery/startup rescan проверены
-на macOS. В последнем IAB прогоне снова появилась MutationObserver error без
+Application tests (140 passed, 1 Linux-only skipped) и compile/format проверены
+после BOSS-004 на macOS. Новые 13 policy + 7 context + 7 real-pool tests проверяют
+таблицу отказов, replay/CAS, rollback и restart. Positive run/check/review/integration
+evidence ещё не производится: переходы, включая approved/done, закрыты и не
+принимают caller-provided evidence. Полная проверка commit-bound evidence остаётся
+за соответствующими рабочими проходами 006–016; контракт —
+[TASK_WORKFLOW.md](../docs/TASK_WORKFLOW.md).
+
+Assets build/deploy и browser automatic edit/delete/error/recovery/startup rescan
+проверены в BOSS-003b; в этом backend increment не повторялись. В последнем IAB
+прогоне снова появилась MutationObserver error без
 source URL; атрибуция остаётся открытой. Другие браузеры не проверялись.
 Committed Repo restart и полный owned-server restart с offline edit проверены.
 Linux, release packaging и end-to-end agent→review→integration остаются открыты.

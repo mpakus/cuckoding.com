@@ -74,6 +74,15 @@
   before reading and coalesce entry reloads; cached success must not hide interruption.
 - Test committed durability/concurrency in an exclusively created scratch DB with
   a real connection pool; a sandbox transaction alone is not restart evidence.
+- Apply task commands through `Boss.Tasks.transition/2`: expected version plus a
+  task-scoped command ID, one task/event transaction, immutable receipts. Replay
+  returns the original event, not the current task. Pin the actual Repo PID for
+  the whole command and restore the caller's selector; never cross a Repo restart.
+  Retry unknown storage outcomes with identical input and the same command ID.
+- Keep producer-dependent transitions closed until persisted commit-bound evidence
+  is implemented. Caller-provided flags/verdicts are not evidence. Recovery uses
+  the saved target, never a caller-selected state; only `done` satisfies dependencies.
+  See `docs/TASK_WORKFLOW.md` for the current backend-only contract.
 - Live provider calls are opt-in and bounded; never repeat a paid smoke run
   automatically. Retain sanitized evidence, not raw private transcripts.
 - Git publication must not move a branch behind a user's checkout. The spike

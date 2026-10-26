@@ -3,8 +3,9 @@
 Local AI agent orchestration, rebuilt from [BOSS_PLAN.md](BOSS_PLAN.md).
 
 This increment provides a Phoenix LiveView server, local browser access,
-native folder selection, validated project registration, automatic Markdown sync and
-transactional spec/revision/task history. Agent execution is not implemented yet.
+native folder selection, validated project registration, automatic Markdown sync,
+transactional spec/revision/task history and versioned task commands with immutable
+receipts. Agent execution is not implemented yet.
 
 ## Run locally
 
@@ -101,8 +102,8 @@ so the historical source path remains accurate.
 
 Each spec has one task, initially `new`, pinned to its first revision and title.
 Later source changes never advance that pin. Repeating the latest text/path is
-a no-op; A→B→A creates three revisions. Revision adoption and workflow transitions
-will be explicit later. SQLite rejects updates/deletes of revisions and prevents
+a no-op; A→B→A creates three revisions. Revision adoption remains future work.
+SQLite rejects updates/deletes of revisions and prevents
 a task from referencing another spec's revision.
 
 A failed scan preserves the previous snapshot, including missing flags. The
@@ -133,10 +134,19 @@ path-specific errors; its internal `settle_ms` option enables the second observa
 is `:created`, `:unchanged` or `:revised`. Rename reconciliation belongs to the full
 importer; a direct record call rejects an ID already assigned to another path.
 
+Task commands are available through `Boss.Tasks.transition/2`, with a unique
+command ID and expected state version. Attention/cancellation and safe recovery
+to `new` persist together with an immutable event. Exact retries return the same
+receipt; stale commands and conflicting reuse are rejected. Execution, checks,
+review and integration transitions remain closed until their evidence producers
+exist. There are no task action controls in the browser yet. See the
+[command contract and transition table](docs/TASK_WORKFLOW.md).
+
 Migrations run at the next startup and preserve existing projects/history. The
 missing-state migration makes path uniqueness apply only to present files.
 Rolling it back fails atomically if retained histories share a reused path;
-it never deletes those histories to make rollback succeed. Rolling back the
+it never deletes those histories to make rollback succeed. The task-events migration
+also refuses rollback after any command has been recorded. Rolling back the
 older persistence migration drops spec/revision/task tables. Migration tests
 use disposable databases only.
 

@@ -7,6 +7,9 @@ defmodule Boss.Tasks.Task do
     belongs_to :spec_revision, Boss.Projects.SpecRevision
     field :title, :string
     field :state, :string, default: "new"
+    field :state_version, :integer, default: 0
+    field :attention_reason, :string
+    field :recovery_state, :string
     timestamps(type: :utc_datetime_usec)
   end
 
