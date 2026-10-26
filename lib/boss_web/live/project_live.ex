@@ -1,13 +1,17 @@
 defmodule BossWeb.ProjectLive do
   use BossWeb, :live_view
-  alias Boss.{Projects, Tasks}
+  alias Boss.{Projects, Repo, Runs, Tasks}
   alias Boss.Projects.{SpecImporter, SpecWatcher}
-  alias BossWeb.TaskBoard
+  alias BossWeb.{RunPanel, TaskBoard}
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
     project = find_project(id)
-    if project && connected?(socket), do: SpecWatcher.subscribe(project.id)
+
+    if project && connected?(socket) do
+      SpecWatcher.subscribe(project.id)
+      Runs.subscribe(project.id)
+    end
 
     {:ok,
      socket
@@ -26,6 +30,13 @@ defmodule BossWeb.ProjectLive do
        detail_loading: false,
        detail_pending: false,
        detail_error: nil,
+       runs: [],
+       run_commands: %{},
+       run_command_id: nil,
+       run_starting: nil,
+       run_stopping: nil,
+       run_error: nil,
+       run_supported: :os.type() == {:unix, :darwin},
        status: nil,
        errors: []
      )
@@ -59,6 +70,8 @@ defmodule BossWeb.ProjectLive do
            drawer_open: false,
            selection: nil,
            details: nil,
+           runs: [],
+           run_error: nil,
            detail_loading: false,
            detail_pending: false,
            detail_error: nil
@@ -91,7 +104,61 @@ defmodule BossWeb.ProjectLive do
      |> start_async(:sync, fn -> SpecImporter.sync(id) end)}
   end
 
+  def handle_event("start_run", %{"command-id" => command}, socket) do
+    if command == socket.assigns.run_command_id && run_available?(socket.assigns) do
+      {task_id, _} = socket.assigns.selection
+      project_id = socket.assigns.project.id
+
+      {:noreply,
+       socket
+       |> assign(run_starting: {task_id, command}, run_error: nil)
+       |> start_async(:start_run, fn ->
+         {task_id, command, start_run(project_id, task_id, command)}
+       end)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("start_run", _, socket), do: {:noreply, socket}
+
+  def handle_event("stop_run", %{"run-id" => id}, socket) do
+    if Enum.any?(socket.assigns.runs, &(&1.id == id && Runs.active?(&1))) do
+      case Runs.stop(socket.assigns.project.id, id) do
+        :ok -> {:noreply, assign(socket, run_stopping: id, run_error: nil)}
+        _ -> {:noreply, refresh_details(socket)}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("stop_run", _, socket), do: {:noreply, socket}
+
   @impl true
+  def handle_async(:start_run, {:ok, {task_id, command, result}}, socket) do
+    socket = assign(socket, run_starting: nil)
+
+    case socket.assigns.selection do
+      {^task_id, _} ->
+        socket = assign(socket, run_command_id: command, run_error: run_error(result))
+        {:noreply, refresh_details(socket)}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_async(:start_run, _failure, socket) do
+    error =
+      case {socket.assigns.run_starting, socket.assigns.selection} do
+        {{id, _}, {id, _}} -> run_error(:unknown)
+        _ -> socket.assigns.run_error
+      end
+
+    {:noreply, socket |> assign(run_starting: nil, run_error: error) |> refresh_details()}
+  end
+
   def handle_async(:sync, {:ok, result}, socket),
     do: {:noreply, socket |> assign(syncing: false) |> refresh(result)}
 
@@ -130,9 +197,16 @@ defmodule BossWeb.ProjectLive do
       ) do
     socket =
       case result do
-        {:ok, details} -> assign(socket, details: details, detail_error: nil)
-        {:error, :not_found} -> assign(socket, details: nil, detail_error: :not_found)
-        _ -> assign(socket, detail_error: :storage_error)
+        {:ok, details} ->
+          socket
+          |> assign(details: details, detail_error: nil, runs: Map.get(details, :runs, []))
+          |> renew_run_command()
+
+        {:error, :not_found} ->
+          assign(socket, details: nil, runs: [], detail_error: :not_found)
+
+        _ ->
+          assign(socket, detail_error: :storage_error)
       end
 
     {:noreply, finish_details(socket)}
@@ -150,6 +224,11 @@ defmodule BossWeb.ProjectLive do
   def handle_async(:details, _obsolete, socket), do: {:noreply, socket}
 
   @impl true
+  def handle_info({:run_changed, id}, %{assigns: %{project: %{id: id}}} = socket),
+    do: {:noreply, refresh_details(socket)}
+
+  def handle_info({:run_changed, _}, socket), do: {:noreply, socket}
+
   def handle_info({:spec_sync, id, result}, %{assigns: %{project: %{id: id}}} = socket),
     do: {:noreply, refresh(socket, result)}
 
@@ -171,6 +250,8 @@ defmodule BossWeb.ProjectLive do
         drawer_open: true,
         selection: selection,
         details: if(same_task, do: socket.assigns.details),
+        runs: if(same_task, do: socket.assigns.runs, else: []),
+        run_error: if(same_task, do: socket.assigns.run_error),
         detail_loading: false,
         detail_pending: false,
         detail_error: nil
@@ -178,7 +259,7 @@ defmodule BossWeb.ProjectLive do
 
     if selection == :invalid,
       do: assign(socket, detail_error: :not_found),
-      else: load_details(socket)
+      else: socket |> select_run_command() |> load_details()
   end
 
   defp refresh_details(
@@ -198,9 +279,88 @@ defmodule BossWeb.ProjectLive do
     socket
     |> assign(detail_loading: true, detail_pending: false)
     |> start_async(:details, fn ->
-      {selection, Tasks.get_details(project_id, task_id, revision)}
+      {selection, read_details(project_id, task_id, revision)}
     end)
   end
+
+  defp read_details(project_id, task_id, revision) do
+    selector = Repo.get_dynamic_repo()
+    repo = if is_atom(selector), do: Process.whereis(selector), else: selector
+
+    if is_pid(repo) do
+      Repo.put_dynamic_repo(repo)
+
+      try do
+        Repo.transaction(
+          fn ->
+            case Tasks.get_details(project_id, task_id, revision) do
+              {:ok, details} -> Map.put(details, :runs, Runs.list(project_id, task_id))
+              {:error, reason} -> Repo.rollback(reason)
+            end
+          end,
+          mode: :deferred
+        )
+      after
+        Repo.put_dynamic_repo(selector)
+      end
+    else
+      {:error, :storage_error}
+    end
+  end
+
+  defp select_run_command(socket) do
+    {task_id, _} = socket.assigns.selection
+    command = Map.get(socket.assigns.run_commands, task_id) || Ecto.UUID.generate()
+
+    assign(socket,
+      run_command_id: command,
+      run_commands: Map.put(socket.assigns.run_commands, task_id, command)
+    )
+  end
+
+  defp renew_run_command(socket) do
+    if is_nil(socket.assigns.run_starting) &&
+         Enum.any?(
+           socket.assigns.runs,
+           &(&1.command_id == socket.assigns.run_command_id && !Runs.active?(&1))
+         ) do
+      {task_id, _} = socket.assigns.selection
+
+      socket
+      |> assign(run_commands: Map.delete(socket.assigns.run_commands, task_id))
+      |> select_run_command()
+    else
+      socket
+    end
+  end
+
+  defp run_available?(assigns) do
+    assigns.run_supported && assigns.details != nil && assigns.detail_error == nil &&
+      !assigns.detail_loading && is_nil(assigns.run_starting) &&
+      assigns.details.task.state in ~w(new ready failed interrupted cancelled blocked needs_input) &&
+      !Enum.any?(assigns.runs, &(Runs.active?(&1) || &1.cleanup == "unknown"))
+  end
+
+  defp start_run(project_id, task_id, command) do
+    Runs.start(project_id, task_id, command)
+  rescue
+    _ -> {:error, :storage_error}
+  catch
+    :exit, _ -> {:error, :storage_error}
+  end
+
+  defp run_error({:ok, _}), do: nil
+
+  defp run_error({:error, :busy}),
+    do: "Another run is active or its cleanup needs attention. New runs are blocked."
+
+  defp run_error({:error, :task_unavailable}),
+    do: "This task cannot start a run in its current state."
+
+  defp run_error({:error, :not_found}), do: "This task is no longer available in this project."
+
+  defp run_error(_),
+    do: "The start outcome could not be confirmed. Retry Start Codex to check the same request."
 
   defp finish_details(socket) do
     pending = socket.assigns.detail_pending
@@ -265,6 +425,8 @@ defmodule BossWeb.ProjectLive do
 
   @impl true
   def render(assigns) do
+    assigns = assign(assigns, :run_available, run_available?(assigns))
+
     ~H"""
     <.link
       navigate={~p"/"}
@@ -336,7 +498,21 @@ defmodule BossWeb.ProjectLive do
         details={@details}
         loading={@detail_loading}
         error={@detail_error}
-      />
+      >
+        <:run_panel>
+          <RunPanel.panel
+            :if={@details}
+            details={@details}
+            runs={@runs}
+            command_id={@run_command_id}
+            starting={!is_nil(@run_starting)}
+            stopping={@run_stopping}
+            available={@run_available}
+            supported={@run_supported}
+            error={@run_error}
+          />
+        </:run_panel>
+      </TaskBoard.drawer>
     </div>
     """
   end

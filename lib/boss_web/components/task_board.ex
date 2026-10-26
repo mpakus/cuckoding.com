@@ -84,6 +84,7 @@ defmodule BossWeb.TaskBoard do
   attr :details, :any, default: nil
   attr :loading, :boolean, default: false
   attr :error, :any, default: nil
+  slot :run_panel
 
   def drawer(assigns) do
     requested =
@@ -178,6 +179,7 @@ defmodule BossWeb.TaskBoard do
           >
             Source changed; the task keeps its saved snapshot.
           </p>
+          {render_slot(@run_panel)}
           <section aria-labelledby="task-source-heading">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <h3 id="task-source-heading" class="font-semibold">Source</h3>
