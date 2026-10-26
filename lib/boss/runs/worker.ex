@@ -37,7 +37,8 @@ defmodule Boss.Runs.Worker do
          :ok <- continue?(),
          {:ok, _} <- Workspace.prepare(intent),
          :ok <- continue?(),
-         {:ok, run} <- Runs.update(run.id, status: "launching") do
+         {:ok, run} <- Runs.update(run.id, status: "launching"),
+         :ok <- continue?() do
       Runs.broadcast(run)
       invoke(run, executable, prompt, manager)
     else
@@ -124,8 +125,12 @@ defmodule Boss.Runs.Worker do
 
       attrs =
         case :ets.lookup(table, :os_pid) do
-          [{_, pid}] -> Keyword.put(attrs, :os_pid, pid)
-          _ -> attrs
+          [{_, pid}] ->
+            [{_, started}] = :ets.lookup(table, :started_at)
+            attrs |> Keyword.put(:os_pid, pid) |> Keyword.put(:started_at, started)
+
+          _ ->
+            attrs
         end
 
       # A lost helper is never followed by another command in the retained workspace.
