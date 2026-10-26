@@ -24,23 +24,49 @@ defmodule Boss.Tasks do
   """
   def transition(task_id, command) do
     if valid_command?(task_id, command) do
-      command = Map.put_new(command, :reason, nil)
-
-      Repo.transaction(
-        fn ->
-          case Repo.get_by(Event, task_id: task_id, command_id: command.command_id) do
-            nil -> apply_transition(task_id, command)
-            event -> replay(event, command)
-          end
-        end,
-        mode: :immediate
-      )
+      execute(task_id, Map.put_new(command, :reason, nil))
     else
       {:error, :invalid_command}
     end
-  rescue
-    _error in [Exqlite.Error, Ecto.ConstraintError, DBConnection.ConnectionError] ->
+  end
+
+  defp execute(task_id, command) do
+    selector = Repo.get_dynamic_repo()
+    repo = if is_atom(selector), do: Process.whereis(selector), else: selector
+
+    if is_pid(repo) and Process.alive?(repo) do
+      # Every query must use the same pool, even if its registered name restarts.
+      Repo.put_dynamic_repo(repo)
+
+      try do
+        Repo.transaction(
+          fn ->
+            case Repo.get_by(Event, task_id: task_id, command_id: command.command_id) do
+              nil -> apply_transition(task_id, command)
+              event -> replay(event, command)
+            end
+          end,
+          mode: :immediate
+        )
+      rescue
+        _error in [Exqlite.Error, Ecto.ConstraintError, DBConnection.ConnectionError] ->
+          {:error, :storage_error}
+
+        error in [ArgumentError, RuntimeError] ->
+          if Process.alive?(repo),
+            do: reraise(error, __STACKTRACE__),
+            else: {:error, :storage_error}
+      catch
+        :exit, reason ->
+          if Process.alive?(repo),
+            do: :erlang.raise(:exit, reason, __STACKTRACE__),
+            else: {:error, :storage_error}
+      after
+        Repo.put_dynamic_repo(selector)
+      end
+    else
       {:error, :storage_error}
+    end
   end
 
   defp apply_transition(task_id, command) do
