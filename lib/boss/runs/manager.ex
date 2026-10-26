@@ -21,7 +21,8 @@ defmodule Boss.Runs.Manager do
          repo_monitor: Process.monitor(repo),
          registry: registry,
          active: nil,
-         worker: Keyword.get(opts, :worker, &Boss.Runs.Worker.execute/3)
+         worker: Keyword.get(opts, :worker, &Boss.Runs.Worker.execute/3),
+         check_worker: Keyword.get(opts, :check_worker, &Boss.Checks.Worker.execute/3)
        }}
     else
       _ -> {:stop, :run_recovery_failed}
@@ -34,27 +35,30 @@ defmodule Boss.Runs.Manager do
   end
 
   def handle_call({:start, project, task, command}, _from, state) do
-    case Runs.admit(project, task, command) do
-      {:ok, {:new, run}} ->
-        manager = self()
-
-        worker =
-          spawn_link(fn ->
-            Repo.put_dynamic_repo(state.repo)
-            state.worker.(run, state.repo, manager)
-          end)
-
-        :ets.insert(state.registry, {run.id, project, worker})
-        Runs.broadcast(run)
-        {:reply, {:ok, run}, %{state | active: {run, worker}}}
-
-      {:ok, {:existing, run}} ->
-        {:reply, {:ok, run}, state}
-
-      error ->
-        {:reply, error, state}
-    end
+    launch(Runs.admit(project, task, command), state.worker, state)
   end
+
+  def handle_call({:check, project, parent, command, text}, _from, state) do
+    result = Runs.admit_check(project, parent, command, text, state.active != nil)
+    launch(result, state.check_worker, state)
+  end
+
+  defp launch({:ok, {:new, run}}, execute, state) do
+    manager = self()
+
+    worker =
+      spawn_link(fn ->
+        Repo.put_dynamic_repo(state.repo)
+        execute.(run, state.repo, manager)
+      end)
+
+    :ets.insert(state.registry, {run.id, run.project_id, worker})
+    Runs.broadcast(run)
+    {:reply, {:ok, run}, %{state | active: {run, worker}}}
+  end
+
+  defp launch({:ok, {:existing, run}}, _, state), do: {:reply, {:ok, run}, state}
+  defp launch(error, _, state), do: {:reply, error, state}
 
   @impl true
   def handle_info({:run_progress, id, callback, ref, attrs}, %{active: {%{id: id}, _}} = state) do

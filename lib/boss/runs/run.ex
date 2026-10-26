@@ -8,6 +8,10 @@ defmodule Boss.Runs.Run do
     field :admitted_version, :integer
     field :command_id, :string
     field :adapter, :string, default: "codex"
+    field :parent_run_id, :string
+    field :check_config, :map, default: %{}
+    field :config_hash, :string
+    field :candidate_commit, :string
     field :status, :string, default: "preparing"
     field :cleanup, :string, default: "pending"
     field :workspace, :map, default: %{}
