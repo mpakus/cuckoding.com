@@ -315,12 +315,19 @@ checks, review, интеграция, Done и Linux runner здесь не за�
 - [x] Exact clean HEAD/ref/tree до/после command; index flags не скрывают edits.
 - [x] Immutable parent/revision/config/candidate и idempotent replay без нового запуска.
 - [x] Real-pool checks success/failure/Stop/Repo-loss/migration and UI/browser verification.
-- [ ] Independent review, combined main checks and safe worktree cleanup.
+- [x] Independent review and combined local-main checks.
+- [ ] Archive remaining app-held writer worktrees after Codex releases them.
 
 Без автоматического запуска команд из repo/model и без provider calls. Один
 explicit command на попытку; результат относится только к candidate SHA. Task
 workflow/check approval/review/integration gates остаются закрыты. Контракт:
 [MANUAL_CHECKS.md](../docs/MANUAL_CHECKS.md).
+
+Local main `a42899e`: 264 passed, 1 existing Linux-only skip; compile/format/assets
+passed. Browser verified passing checks, dirty-candidate exit-0 failure, reload,
+Stop, keyboard and 320px layout using finite local fixtures only. All three merged
+branches removed; UI worktree archived. Codex still refuses to archive the clean
+snapshot writer and two previous writer worktrees as in use by another task.
 
 ## Следующие рабочие проходы
 
