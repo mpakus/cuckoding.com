@@ -40,11 +40,11 @@
 
 ## Acceptance and evidence
 
-- [ ] Separate binary stdout/stderr, bounded reads and genuine independent EOF.
-- [ ] Early stream close and inherited late output are observed accurately.
-- [ ] Stalled consumption backpressures the fixture without output mailbox growth.
-- [ ] Timeout/stop stays responsive while data consumption is stalled.
-- [ ] Limitations and process cleanup are explicit; no live provider calls.
+- [x] Separate binary stdout/stderr, bounded reads and genuine independent EOF.
+- [x] Early stream close and inherited late output are observed accurately.
+- [x] Stalled consumption backpressures the fixture without output mailbox growth.
+- [x] Timeout/stop stays responsive while data consumption is stalled.
+- [x] Limitations and process cleanup are explicit; no live provider calls.
 - [ ] Independent review, local-main merge, verification and temporary cleanup.
 
 ## Review in progress
@@ -67,7 +67,46 @@
   Prompt leader-exit notification is not claimed; completion still requires all
   actual stream EOFs and observed exit status.
 
+- Sustained ACK/drain regression reproduced reader stack growth: 2 MiB samples
+  `[3602, 512]` words grew to `[14354, 2048]` at 8 MiB before the catch scope fix.
+  NetRunner `test/teardown_test.exs:17` at the pinned SHA independently documents
+  the same recursion/catch hazard. Adopt the bounded-stack acceptance pattern,
+  not its implementation. GREEN evidence follows after final review.
+
+- Independent adversarial checks on writer source passed: killed reader while
+  ACK withheld → `failed` / `incomplete`, neither EOF fabricated and no exit
+  fabricated; Stop after both real EOFs → `cancelled` / actual status 143.
+  100 cancelled-flood→binary pairs in the same default trap_exit:false caller
+  retained exact bytes/hashes/status 7, caller survived and mailbox was empty.
+  Reviewer compiled an exclusive scratch fixture with `cc` and used
+  `rtk proxy asdf exec elixir -r spikes/transport/transport.exs -e ...`;
+  only its owned scratch was cleaned. These checks did not call providers.
+- Source/documentation review independently found no overclaim in the pinned
+  reference findings. Final independent review accepted the fixture-only branch.
+- Writer commit `b2284fe83808b1da653d9aa0ab49f1b824d1460f` integrated sequentially
+  into the root branch after its 12-test GREEN run (seed 712199), direct formatter
+  check and staged diff check. All source remains outside the application.
+
+## Writer verification
+
+- `rtk proxy asdf exec elixir spikes/transport/transport_test.exs`: 12 passed,
+  1.4s. After the catch-scope fix, reader stacks stayed `[20, 8]` words at both
+  2 MiB and 8 MiB. Withheld-ACK progress plateaued at 77,824 bytes and four
+  sampled mailbox lengths were zero; at most two chunks were outstanding.
+- Results are bounded fixture evidence, not a universal kernel pipe capacity,
+  a whole-VM benchmark, Linux validation or production lifecycle acceptance.
+- `rtk proxy asdf exec elixir --version` reconfirmed root Elixir 1.20.3 / OTP28.
+  Six reference checkouts match the manifest, are clean and have their recorded
+  license files. Existing xerj query still works; new-reference indexing is open.
+- Code ownership: writer only `spikes/transport/` and its agent log; root only
+  reference manifest/ignores, AGENTS, README, plan/todo, research, old-spike warning
+  and worklogs. No application code, dependencies, source specs or user data changed.
+
 ## Next step
 
-Implement and run the isolated transport proof, then record measured outcomes
-and exact remaining production gates. No result is claimed yet.
+Verify the combined local main and archive the clean writer checkout, then
+record final integration/cleanup. Next implementation gate is OS lifecycle:
+evaluate the pinned guardian against stubborn descendants after leader exit and
+helper/backend loss, with explicit cleanup acknowledgment and preserved worktrees.
+Keep real providers disabled until ownership, secrecy and durable launch/recovery
+contracts are proved. Retry xerj indexing only after disk capacity is resolved.

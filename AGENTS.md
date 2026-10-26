@@ -106,5 +106,6 @@
   automatically. Retain sanitized evidence, not raw private transcripts.
 - Git publication must not move a branch behind a user's checkout. The spike
   refuses an already checked-out target and retains failed/dirty worktrees.
-  Production runner backpressure, independent EOF and descendant cleanup remain
-  open gates. erlexec may report exit 0 after cancellation: retain the cause.
+  The Exile fixture experiment verifies demand/EOF only; production integration,
+  descendant cleanup and durable recovery remain open gates. erlexec may report
+  exit 0 after cancellation: retain the cause.

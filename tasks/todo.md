@@ -271,12 +271,18 @@ reload reset и 320–1440 px проверены. Прежняя IAB MutationObs
 **Зависимости:** 006 и runner spike. **Область:** отдельный `spikes/transport/`,
 fixtures, reference snapshots и документация. Application dependencies/UI не меняются.
 
-- [ ] Отдельные bounded stdout/stderr reads и настоящий EOF каждого потока.
-- [ ] Ранний EOF и уже завершившийся leader не теряют поздний inherited output;
+- [x] Отдельные bounded stdout/stderr reads и настоящий EOF каждого потока.
+- [x] Ранний EOF и уже завершившийся leader не теряют поздний inherited output;
   сохраняется реальный nonzero status без обещания порядка уведомлений.
-- [ ] Stalled consumer останавливает upstream output без растущей mailbox.
-- [ ] Stop/timeout отвечают при stalled consumer; forced closure не считается EOF.
+- [x] Stalled consumer останавливает upstream output без растущей mailbox.
+- [x] Stop/timeout отвечают при stalled consumer; forced closure не считается EOF.
 - [ ] Независимое review, macOS fixture suite, merge/verification/cleanup.
+
+macOS suite: 12 transport tests прошли. При withheld ACKs producer остановился
+на 77,824 bytes, четыре sampled mailbox были пусты; при drain от 2 до 8 MiB
+stack samples оставались `[20, 8]` words. Это fixture evidence, не whole-VM memory
+proof. Независимые reader-failure / Stop-after-EOF / 100 sequential cancelled→binary
+проверки прошли; integer exit не классифицируется как доказанный signal.
 
 Производственный BOSS-007 остаётся открытым: process-tree ownership, backend/
 helper death, безопасная identity/recovery и committed launch intent пока не

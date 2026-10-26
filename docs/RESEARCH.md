@@ -313,7 +313,7 @@ Two additional clean read-only snapshots are pinned in
 
 | Candidate | Source evidence | Decision for this slice |
 |---|---|---|
-| Exile 0.15.0, Apache-2.0, `a4f29f31adc3c6bd2fe43ac62dc07a9eeb3bf413` | `lib/exile/process.ex:468/548`, `c_src/exile.c:258/330`, `test/exile/process_test.exs:89/103`: separate demand reads and actual zero-byte read EOF. `await_exit` closes caller-owned pipes. `c_src/spawner.c:199` execs the command; `lib/exile/watcher.ex:26` watches only a direct PID. | Evaluate separate one-credit readers in an isolated fixture experiment. Do not select it as the production runner or infer EOF from await/close. |
+| Exile 0.15.0, Apache-2.0, `a4f29f31adc3c6bd2fe43ac62dc07a9eeb3bf413` | `lib/exile/process.ex:468/548`, `c_src/exile.c:258/330`, `test/exile/process_test.exs:89/103`: separate demand reads and actual zero-byte read EOF. `await_exit` closes caller-owned pipes. `c_src/spawner.c:199` execs the command; `lib/exile/watcher.ex:26` watches only a direct PID. | Separate one-credit readers passed the isolated 12-test fixture suite. Do not select it as the production runner or infer EOF from await/close. |
 | NetRunner, Apache-2.0, `5f12e06aabb70f2aafde023bf547aaaa6f8fcb36` | `c_src/shepherd.c:492/700`: native guardian observes BEAM connection loss, but escalation waits only for the direct child; normal exit does not clear a macOS process group. `cgroup_cleanup` logs failures without a cleanup-result acknowledgment. `test/robustness_test.exs` includes manually killed orphans. | Useful ownership reference, not a complete solution to stubborn children after leader exit or helper death. No dependency or runtime comparison added. |
 
 Versioned Exile source: [Process API](https://github.com/akash-akya/exile/blob/a4f29f31adc3c6bd2fe43ac62dc07a9eeb3bf413/lib/exile/process.ex),
@@ -342,3 +342,10 @@ cleanup after leader exit, backend/helper failure handling, private IPC/redactio
 and committed launch intent plus safe reconciliation. Process groups alone do
 not contain a child that creates a new session. Transport exit/EOF cannot stand
 in for adapter completion, checks, review or verified delivery.
+
+The [transport experiment](../spikes/transport/README.md) passed 12 local macOS
+tests. With ACKs withheld, producer progress plateaued and sampled queues stayed
+empty; sustained drain kept reader stacks constant after a meaningful RED/GREEN
+regression. Exit notification was delayed with descendant-held pipes, so the
+proof checks actual parent death and exact late bytes instead of assuming a
+notification order. These results do not approve a production runner.

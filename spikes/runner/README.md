@@ -70,6 +70,13 @@ the test suite.
 - **Platform coverage:** local Apple Silicon macOS only. Linux, packaging,
   helper-crash/host-crash behavior and clean-machine compilation are unverified.
 
+- **Post-stop cleanup deadline:** source review found that this old loop checks
+  its cleanup timeout only in `receive after`; continuously queued output can
+  postpone that branch. Its runtime deadline checks stop once a cause is saved.
+  The separate [BOSS-007a transport experiment](../transport/README.md) checks
+  deadlines before each receive and exercises stalled/flooding output. This old
+  spike remains unchanged and must not supply production timeout guarantees.
+
 Do not move this script into the application unchanged. BOSS-007 needs an
 explicit transport/backpressure decision, stream completion proof and a
 strategy for surviving descendants before production acceptance.
