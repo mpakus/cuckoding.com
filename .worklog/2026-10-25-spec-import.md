@@ -109,3 +109,21 @@
 
 - Final independent read-only review: no blocking findings in integrated code.
   Combined tests and browser evidence above were run by root, not inferred from review.
+
+
+## Local main and cleanup
+
+- Merged reviewed branch into local main at 21a5b39. Verified on main:
+  `rtk proxy asdf exec mix test` — 94 passed, 1 Linux-only skipped;
+  `mix compile --warnings-as-errors`, `mix format --check-formatted` and
+  `mix assets.deploy` passed (same rtk proxy asdf exec prefix).
+- Parser and UI managed worktrees archived through Codex with recoverable snapshots;
+  list_artifacts confirms archived_worktree, git worktree list excludes both.
+  Deleted merged codex/boss-spec-import, codex/boss-spec-parser and
+  codex/boss-spec-sync-ui branches. No remote push.
+- Reused boss-native-folders checkout detached at main and clean. Archive attempt
+  still returns "The task's primary checkout cannot be removed." Preserved it
+  without forced removal. Only main source checkout plus this primary managed
+  checkout remain; no temporary writer branches remain.
+- Outcome: BOSS-003a complete within documented scope. Next: BOSS-003b bounded
+  polling/debounce and startup rescan, with failed scans preserving current state.
