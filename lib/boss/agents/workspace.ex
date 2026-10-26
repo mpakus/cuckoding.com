@@ -24,7 +24,7 @@ defmodule Boss.Agents.Workspace do
          branch when is_binary(branch) <- Map.get(project, :base_branch),
          true <- valid_path?(repo) and valid_path?(common) and valid_text?(branch),
          :ok <- repository(repo, common, opts),
-         :ok <- filters(repo, opts),
+         :ok <- safe_config(repo, opts),
          {:ok, _} <- git(repo, ["check-ref-format", "refs/heads/#{branch}"], opts),
          {:ok, base} <-
            git(
@@ -54,7 +54,7 @@ defmodule Boss.Agents.Workspace do
 
   def prepare(value, opts \\ []) do
     with {:ok, intent} <- validate(value, opts),
-         :ok <- filters(intent.repo_path, opts) do
+         :ok <- safe_config(intent.repo_path, opts) do
       case File.lstat(intent.path) do
         {:ok, %{type: :directory}} -> inspect_valid(intent, opts)
         {:error, :enoent} -> create(intent, opts)
@@ -167,7 +167,8 @@ defmodule Boss.Agents.Workspace do
     end
   end
 
-  defp filters(repo, opts) do
+  @doc false
+  def safe_config(repo, opts \\ []) do
     with :ok <- conditional_config(repo, opts) do
       filter_drivers(repo, opts)
     end
@@ -306,7 +307,8 @@ defmodule Boss.Agents.Workspace do
   defp full_sha?(sha),
     do: is_binary(sha) and Regex.match?(~r/\A(?:[0-9a-f]{40}|[0-9a-f]{64})\z/, sha)
 
-  defp git(directory, args, opts) do
+  @doc false
+  def git(directory, args, opts \\ []) do
     case System.find_executable("git") do
       nil -> {:error, :git_unavailable}
       executable -> command(executable, directory, args, opts)
@@ -338,7 +340,7 @@ defmodule Boss.Agents.Workspace do
           input: "",
           timeout_ms: 15_000,
           output_limit: @output_limit,
-          env: git_env(),
+          env: git_env() ++ Keyword.get(opts, :git_env, []),
           on_event: callback
         )
 
