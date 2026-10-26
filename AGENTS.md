@@ -90,6 +90,13 @@
   stale results; never show cached source for a different desired revision.
   Preserve native dialog modality/open state across patches, restore card focus
   on close and synchronize a focused revision select after history navigation.
+- Agent discovery executes only fixed version/help and advertised local status
+  commands from BOSS's PATH, outside project repositories. Never read auth files
+  or retain raw probe/account/key output. A configured CLI status is not verified
+  model access; advertised help flags are not a working adapter or usage proof.
+- Keep detection explicit, one scan at a time, with bounded time/output and
+  requester-owned direct-child cleanup. Do not claim wrapper-descendant cleanup
+  or promote this metadata probe into the production runner.
 - Live provider calls are opt-in and bounded; never repeat a paid smoke run
   automatically. Retain sanitized evidence, not raw private transcripts.
 - Git publication must not move a branch behind a user's checkout. The spike

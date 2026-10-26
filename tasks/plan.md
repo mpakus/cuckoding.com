@@ -2,7 +2,7 @@
 
 Дата: 2026-10-25. Основа: [BOSS_PLAN.md](../BOSS_PLAN.md).
 Статус: Git/runner эксперименты, Phoenix/SQLite, проекты, revisions, автоматический
-Sync specs, persisted task commands и read-only board/drawer. Execution/evidence
+Sync specs, persisted task commands, read-only board/drawer и CLI detection. Execution/evidence
 gates остаются закрыты до появления producers.
 Задачи: [todo.md](todo.md). Источники: [RESEARCH.md](../docs/RESEARCH.md).
 
@@ -131,8 +131,8 @@ revisions и последние 50 events из одного согласован
 Poller и ручной Sync используют один importer, фактические
 scans сериализованы SQLite. PubSub публикует только после завершения транзакции.
 
-Application tests (159 passed, 1 Linux-only skipped) и compile/format проверены
-после BOSS-005 на macOS. В BOSS-004 добавлены 13 policy + 7 context + 7 real-pool tests:
+Application tests (181 passed, 1 Linux-only skipped) и compile/format проверены
+после BOSS-006 на macOS. В BOSS-004 добавлены 13 policy + 7 context + 7 real-pool tests:
 они проверяют
 таблицу отказов, replay/CAS, rollback и restart. Positive run/check/review/integration
 evidence ещё не производится: переходы, включая approved/done, закрыты и не
@@ -146,7 +146,14 @@ missing/restore и отсутствие page overflow на 320/768/1024/1440 px.
 рассинхронизация focused SELECT при Back/Forward. Startup rescan/offline edit
 проверены в 003b. В IAB снова появилась прежняя MutationObserver error без source
 URL; атрибуция остаётся открытой. Другие браузеры не проверялись. Следующий
-продуктовый проход — BOSS-006, detector/capability UI; runner gates остаются открыты.
+продуктовый проход — BOSS-007, production runner; его reliability gates остаются открыты.
+BOSS-006 проверяет только локальные metadata/status по явному Detect agents:
+Codex 0.146.0 и Claude Code 2.1.142 распознаны в browser smoke. Configured не равно
+provider-ready, help flags не доказывают working adapter; usage остаётся Unknown.
+Один supervised scan, time/output bounds, private scratch cwd, fixed argv и
+redacted diagnostics. 17 новых backend + 5 UI tests, production assets и browser
+keyboard/reload/320–1440 px проверены; нет model calls и credential-file reads.
+Контракт и границы: [AGENT_DETECTION.md](../docs/AGENT_DETECTION.md).
 Committed Repo restart и полный owned-server restart с offline edit проверены.
 Linux, release packaging и end-to-end agent→review→integration остаются открыты.
 Конкурентные repositories исследованы как source; их приложения и suites не запускались.

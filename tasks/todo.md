@@ -235,30 +235,36 @@ Execution controls, agent/run/check/review metadata и global light/dark polish
   недопустимые переходы проверены backend tests в 004.
 - [x] Review текущего изменения выполнено; журнал содержит фактические результаты.
 
-Application suite: 159 passed, 1 Linux-only skipped после BOSS-005; последние
+Application suite: 181 passed, 1 Linux-only skipped после BOSS-006; последние
 отдельные проверки spikes: 12 Git + 14 runner (их код не менялся).
 Storage/negative-transition и board проверки Checkpoint 1 выполнены. Ближайший
-проход: BOSS-006 detector/capability UI. Positive quality gates BOSS-004 остаются
+проход: BOSS-007 production runner с закрытием reliability gates. Positive quality gates BOSS-004 остаются
 открыты до реализации producers; это не proof of Done.
 Runner reliability продолжать отдельным исследованием.
 
-## BOSS-006 — agent detector и capability probe UI (in progress)
+## BOSS-006 — agent detector и capability probe UI
 
 **Зависимости:** 005. **Область:** detector/metadata process lifecycle, AgentsLive,
 Home navigation, application/router и focused fixtures/tests; без DB migrations.
 
-- [ ] Detect agents явно проверяет Codex и Claude, показывает path и распознанную
+- [x] Detect agents явно проверяет Codex и Claude, показывает path и распознанную
   version; отсутствующий/неизвестный CLI не выглядит готовым к работе.
-- [ ] Capabilities отражают только advertised help flags. Local auth status
+- [x] Capabilities отражают только advertised help flags. Local auth status
   показывается отдельно от model/quota proof; непонятный ответ остаётся Unknown.
-- [ ] Нет чтения credential files, model/install/login/doctor команд или raw output
+- [x] Нет чтения credential files, model/install/login/doctor команд или raw output
   в браузере/логах. Setup/sign-in guidance ведёт к официальным инструкциям.
-- [ ] Один scan, ограниченные время/output; timeout/overflow/caller down/shutdown
+- [x] Один scan, ограниченные время/output; timeout/overflow/caller down/shutdown
   освобождают owned direct child. Process-tree guarantees остаются runner gate.
-- [ ] Loading/busy/partial failure/retry и navigation проверены тестами; реальные
+- [x] Loading/busy/partial failure/retry и navigation проверены тестами; реальные
   metadata probes, keyboard/focus и narrow UI проверены в браузере.
 
-Role assignment, production adapters и запуск задач входят в следующие проходы.
+17 backend tests и 5 Agents LiveView tests; root suite 181 passed / 1 Linux-only
+skip. Реальный macOS browser detect: Codex 0.146.0 и Claude Code 2.1.142, оба CLI
+сообщили configured; пять capabilities advertised, usage Unknown. Keyboard,
+reload reset и 320–1440 px проверены. Прежняя IAB MutationObserver error остаётся
+неатрибутированной. Direct-child cleanup проверен fixtures; descendant/VM crash
+гарантии не заявлены. Role assignment, production adapters и запуск задач входят
+в следующие проходы. Ближайший шаг — BOSS-007 с закрытием runner gates.
 
 ## Следующие рабочие проходы
 
@@ -266,7 +272,7 @@ Role assignment, production adapters и запуск задач входят в 
 
 | Порядок | Tickets | Зависит от | Проверяемый результат / отказ |
 |---|---|---|---|
-| 1 | 006–010: detector, runner, Codex, worktree, journal | 000, 004, 005 | Один isolated run, live events, Stop/Retry; crash → attention, source checkout цел. |
+| 1 | 007–010: runner, Codex, worktree, journal | 000, 004, 006 | Один isolated run, live events, Stop/Retry; crash → attention, source checkout цел. |
 | 2 | 011–014: plan, Claude, checks, review loop | 006–010 | Неполная реализация отвергается, исправленная проходит; invalid verdict и 3 исчерпанных цикла блокируют. |
 | 3 | 015: DAG и два worker | 011–014 | Independent tasks параллельны; cycle/missing/failed dependency запрещает запуск; повтор tick не дублирует run. |
 | 4 | 016: integration queue | 015, Git spike | Один repo интегрируется последовательно; target drift, conflict и failed checks не дают Done. |
