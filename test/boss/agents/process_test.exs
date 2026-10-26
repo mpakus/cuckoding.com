@@ -16,7 +16,17 @@ defmodule Boss.Agents.ProcessTest do
                stderr_to_stdout: true
              )
 
-    %{fixture: fixture}
+    fork_delay = Path.join(root, "fork_delay.dylib")
+    delay_source = Path.expand("../../support/fixtures/fork_delay.c", __DIR__)
+
+    assert {"", 0} =
+             System.cmd(
+               "cc",
+               ["-Wall", "-Wextra", "-Werror", "-dynamiclib", delay_source, "-o", fork_delay],
+               stderr_to_stdout: true
+             )
+
+    %{fixture: fixture, fork_delay: fork_delay}
   end
 
   setup do
@@ -39,7 +49,7 @@ defmodule Boss.Agents.ProcessTest do
 
   test "separate binary bytes, genuine EOF and nonzero exit survive transport", ctx do
     {result, output} = capture(ctx, "binary")
-    assert result.outcome == :exited
+    assert result.outcome == :exited, inspect(result)
     assert result.exit_kind == :exit
     assert result.exit_code == 7
     assert result.signal == nil
@@ -64,6 +74,16 @@ defmodule Boss.Agents.ProcessTest do
              signal: 9,
              cleanup: :group_empty
            } = run(ctx, "signal")
+  end
+
+  test "the parent establishes group ownership before a fast command may execute", ctx do
+    {result, output} = capture(ctx, "binary", env: [{"DYLD_INSERT_LIBRARIES", ctx.fork_delay}])
+    assert result.outcome == :exited, inspect(result)
+    assert result.exit_kind == :exit
+    assert result.exit_code == 7
+    assert result.cleanup == :group_empty
+    assert result.eof == %{stdout: true, stderr: true}
+    assert output == %{stdout: <<0, 255, "out">>, stderr: <<254, 0, "err">>}
   end
 
   test "large stdin is delivered exactly once and all callbacks finish before return", ctx do
@@ -154,6 +174,20 @@ defmodule Boss.Agents.ProcessTest do
                Task.await(task, 4000)
 
       assert kind in [:exit, :signal]
+    end)
+  end
+
+  test "immediate Stop is retained while a maximum stdin packet is queued", ctx do
+    input = :binary.copy("x", 1_048_576)
+
+    Enum.each(1..4, fn _ ->
+      task =
+        Task.async(fn ->
+          send(self(), :stop)
+          run(ctx, "quiet", input: input)
+        end)
+
+      assert %{outcome: :cancelled, cleanup: :group_empty} = Task.await(task, 4000)
     end)
   end
 
