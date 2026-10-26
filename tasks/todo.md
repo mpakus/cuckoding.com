@@ -276,8 +276,9 @@ fixtures, reference snapshots и документация. Application dependenc
   сохраняется реальный nonzero status без обещания порядка уведомлений.
 - [x] Stalled consumer останавливает upstream output без растущей mailbox.
 - [x] Stop/timeout отвечают при stalled consumer; forced closure не считается EOF.
-- [ ] Независимое review, macOS fixture suite, merge/verification/cleanup.
+- [x] Независимое review, macOS fixture suite, merge/verification/cleanup.
 
+Local main `4f5a317`: 181 application tests прошли / 1 Linux-only skip;
 macOS suite: 12 transport tests прошли. При withheld ACKs producer остановился
 на 77,824 bytes, четыре sampled mailbox были пусты; при drain от 2 до 8 MiB
 stack samples оставались `[20, 8]` words. Это fixture evidence, не whole-VM memory

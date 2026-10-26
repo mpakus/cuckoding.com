@@ -45,7 +45,7 @@
 - [x] Stalled consumption backpressures the fixture without output mailbox growth.
 - [x] Timeout/stop stays responsive while data consumption is stalled.
 - [x] Limitations and process cleanup are explicit; no live provider calls.
-- [ ] Independent review, local-main merge, verification and temporary cleanup.
+- [x] Independent review, local-main merge, verification and temporary cleanup.
 
 ## Review in progress
 
@@ -102,10 +102,28 @@
   reference manifest/ignores, AGENTS, README, plan/todo, research, old-spike warning
   and worklogs. No application code, dependencies, source specs or user data changed.
 
+## Local main integration and cleanup
+
+- Integrated to local main `4f5a3175682e54e793c0c0e8d52d632be235136c` after
+  independent writer/source review. No remote push.
+- On main, `rtk proxy asdf exec mix test`: 181 passed, 1 existing Linux-only skip,
+  6.9s, seed 52599. Tests exclusively create fresh data; no user DB was used.
+- On main, `rtk proxy asdf exec elixir spikes/transport/transport_test.exs`:
+  12 passed, 1.5s, seed 15416. Same 77,824-byte plateau, four empty mailboxes,
+  two pending chunks and stable `[20, 8]` reader stacks at 2/8 MiB.
+- `rtk proxy asdf exec mix compile --warnings-as-errors`,
+  `rtk proxy asdf exec mix format --check-formatted`, and explicit format check
+  of both transport `.exs` files passed. `git diff --check` and changed-document
+  local-link validation passed. Assets/browser and the unchanged older spike
+  suites were not rerun for this fixture-only increment.
+- Clean writer worktree archived using the Codex app. Git now lists only main
+  and the retained primary managed checkout; deleted both merged `codex/` branches.
+  Primary checkout is clean/detached at main, retained because the app designates
+  it primary. Reference checkouts and external Mix cache remain available.
+
 ## Next step
 
-Verify the combined local main and archive the clean writer checkout, then
-record final integration/cleanup. Next implementation gate is OS lifecycle:
+Completed the isolated transport proof. Next implementation gate is OS lifecycle:
 evaluate the pinned guardian against stubborn descendants after leader exit and
 helper/backend loss, with explicit cleanup acknowledgment and preserved worktrees.
 Keep real providers disabled until ownership, secrecy and durable launch/recovery
