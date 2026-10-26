@@ -1,3 +1,5 @@
+Code.require_file("mix/compile_guardian.exs", __DIR__)
+
 defmodule Boss.MixProject do
   use Mix.Project
 
@@ -10,7 +12,7 @@ defmodule Boss.MixProject do
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),
-      compilers: [:phoenix_live_view] ++ Mix.compilers(),
+      compilers: [:phoenix_live_view] ++ Mix.compilers() ++ [:boss_guardian],
       listeners: [Phoenix.CodeReloader]
     ]
   end
