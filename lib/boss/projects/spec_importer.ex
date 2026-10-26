@@ -2,39 +2,52 @@ defmodule Boss.Projects.SpecImporter do
   @moduledoc "Bounded full-directory import. A failed scan never replaces the persisted snapshot."
   import Ecto.Query
   alias Boss.{Projects, Repo}
-  alias Boss.Projects.{Project, Repository, Spec, SpecDocument}
+  alias Boss.Projects.{Project, Repository, Spec, SpecDocument, SpecRevision, SpecWatcher}
   require Logger
 
   @timeout 10_000
   @file_bytes 1_048_576
   @total_bytes 8_388_608
 
-  def sync(project_id) do
+  def sync(project_id, opts \\ []) do
+    settle_ms = Keyword.get(opts, :settle_ms, 0)
+
+    unless is_integer(settle_ms) and settle_ms in 0..1000,
+      do: raise(ArgumentError, "settle_ms must be between 0 and 1000")
+
     parent = self()
     ref = make_ref()
     repo = Repo.get_dynamic_repo()
     repo = if is_atom(repo), do: Process.whereis(repo), else: repo
 
-    case Task.Supervisor.start_child(Boss.SpecImportSupervisor, fn ->
-           Process.flag(:max_heap_size, %{size: 8_000_000, kill: true, error_logger: false})
-           Repo.put_dynamic_repo(repo)
-           {:ok, timer} = :timer.kill_after(@timeout, self())
+    result =
+      case Task.Supervisor.start_child(Boss.SpecImportSupervisor, fn ->
+             Process.flag(:max_heap_size, %{size: 8_000_000, kill: true, error_logger: false})
+             Repo.put_dynamic_repo(repo)
+             {:ok, timer} = :timer.kill_after(@timeout, self())
 
-           try do
-             result = Repo.transaction(fn -> scan_and_apply(project_id) end, mode: :immediate)
-             send(parent, {ref, result})
-           rescue
-             error ->
-               Logger.warning("Spec sync failed (#{inspect(error.__struct__)})")
-               send(parent, {ref, {:error, errors(".", "Sync could not complete. Try again.")}})
-           after
-             :timer.cancel(timer)
-           end
-         end) do
-      {:ok, pid} -> await_result(pid, ref)
-      {:error, :max_children} -> {:error, errors(".", "Sync is busy. Try again shortly.")}
-      {:error, _} -> {:error, errors(".", "Sync is unavailable. Try again.")}
-    end
+             try do
+               result =
+                 Repo.transaction(fn -> scan_and_apply(project_id, settle_ms) end,
+                   mode: :immediate
+                 )
+
+               send(parent, {ref, result})
+             rescue
+               error ->
+                 Logger.warning("Spec sync failed (#{inspect(error.__struct__)})")
+                 send(parent, {ref, {:error, errors(".", "Sync could not complete. Try again.")}})
+             after
+               :timer.cancel(timer)
+             end
+           end) do
+        {:ok, pid} -> await_result(pid, ref)
+        {:error, :max_children} -> {:error, errors(".", "Sync is busy. Try again shortly.")}
+        {:error, _} -> {:error, errors(".", "Sync is unavailable. Try again.")}
+      end
+
+    SpecWatcher.report(project_id, result)
+    result
   end
 
   defp await_result(pid, ref) do
@@ -55,11 +68,58 @@ defmodule Boss.Projects.SpecImporter do
     end
   end
 
-  defp scan_and_apply(project_id) do
+  defp scan_and_apply(project_id, settle_ms) do
     project = Repo.get(Project, project_id) || fail(".", "Project not found.")
+    state = scan(project)
+
+    if snapshot(state) == current_snapshot(project_id) do
+      counts(project_id, %{created: 0, revised: 0, unchanged: length(state.files)})
+    else
+      if settle_ms > 0 do
+        Process.sleep(settle_ms)
+
+        unless snapshot(scan(project)) == snapshot(state),
+          do: fail(".", "Specs changed during sync. Try again shortly.")
+      end
+
+      apply_scan(project_id, state)
+    end
+  end
+
+  defp scan(project) do
     validate_root(project)
     state = walk(project, "", 0, %{entries: 0, bytes: 0, files: [], keys: MapSet.new()})
     validate_root(project)
+    state
+  end
+
+  defp snapshot(state) do
+    state.files
+    |> Enum.map(fn {attrs, input} ->
+      {input.identity_key, input.relative_path, attrs.original_text}
+    end)
+    |> Enum.sort()
+  end
+
+  defp current_snapshot(project_id) do
+    latest =
+      from r in SpecRevision,
+        group_by: r.spec_id,
+        select: %{spec_id: r.spec_id, number: max(r.number)}
+
+    Repo.all(
+      from s in Spec,
+        join: current in subquery(latest),
+        on: current.spec_id == s.id,
+        join: r in SpecRevision,
+        on: r.spec_id == s.id and r.number == current.number,
+        where: s.project_id == ^project_id and not s.missing,
+        select: {s.identity_key, s.relative_path, r.original_text}
+    )
+    |> Enum.sort()
+  end
+
+  defp apply_scan(project_id, state) do
     now = DateTime.utc_now()
 
     Repo.update_all(from(s in Spec, where: s.project_id == ^project_id and not s.missing),
@@ -82,6 +142,10 @@ defmodule Boss.Projects.SpecImporter do
         end
       end)
 
+    counts(project_id, counts)
+  end
+
+  defp counts(project_id, counts) do
     missing =
       Repo.aggregate(from(s in Spec, where: s.project_id == ^project_id and s.missing), :count)
 
