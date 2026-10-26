@@ -154,6 +154,91 @@ defmodule Boss.SpecPersistenceTest do
     assert Repo.aggregate("spec_revisions", :count) == 1
   end
 
+  test "manual and automatic scans cannot overlap inside SQLite", %{repo: repo, project: project} do
+    File.write!(Path.join(project.specs_path, "one.md"), "# Shared")
+    observer = self()
+    handler = make_ref()
+    first = :atomics.new(1, [])
+
+    :telemetry.attach(
+      handler,
+      [:boss, :repo, :query],
+      fn _, _, metadata, _ ->
+        if metadata.source == "projects" and String.starts_with?(metadata.query, "SELECT") do
+          send(observer, {:scan_started, self()})
+
+          if :atomics.compare_exchange(first, 1, 0, 1) == :ok do
+            receive do
+              :continue_scan -> :ok
+            end
+          end
+        end
+      end,
+      nil
+    )
+
+    on_exit(fn -> :telemetry.detach(handler) end)
+
+    automatic =
+      Task.async(fn ->
+        Repo.put_dynamic_repo(repo)
+        Boss.Projects.SpecImporter.sync(project.id, settle_ms: 20)
+      end)
+
+    assert_receive {:scan_started, worker}, 1000
+
+    manual =
+      Task.async(fn ->
+        Repo.put_dynamic_repo(repo)
+        Boss.Projects.SpecImporter.sync(project.id)
+      end)
+
+    refute_receive {:scan_started, _}, 50
+    send(worker, :continue_scan)
+    assert {:ok, %{created: 1}} = Task.await(automatic)
+    assert_receive {:scan_started, _}, 1000
+    assert {:ok, %{unchanged: 1}} = Task.await(manual)
+    assert Repo.aggregate("spec_revisions", :count) == 1
+  end
+
+  test "watcher startup after committed Repo restart rescans and retains inaccessible history", %{
+    repo: repo,
+    opts: opts,
+    project: project
+  } do
+    path = Path.join(project.specs_path, "one.md")
+    File.write!(path, "# Before restart")
+    assert {:ok, _} = Boss.Projects.SpecImporter.sync(project.id)
+    [first] = Projects.list_spec_entries(project.id)
+    assert :ok = stop_supervised(Repo)
+    restarted = start_supervised!({Repo, opts})
+    assert restarted != repo
+    Repo.put_dynamic_repo(restarted)
+    File.write!(path, "# After restart")
+    Boss.Projects.SpecWatcher.subscribe(project.id)
+
+    start_supervised!(
+      {Boss.Projects.SpecWatcher, repo: restarted, interval_ms: 10_000, settle_ms: 10}
+    )
+
+    assert_receive {:spec_sync, _, {:ok, %{revised: 1}}}, 2000
+
+    assert [%{id: id, latest_revision: 2, task_revision: 1}] =
+             Projects.list_spec_entries(project.id)
+
+    assert id == first.id
+    assert :ok = stop_supervised(Boss.Projects.SpecWatcher)
+    File.rename!(project.specs_path, project.specs_path <> "-unavailable")
+
+    start_supervised!(
+      {Boss.Projects.SpecWatcher, repo: restarted, interval_ms: 10_000, settle_ms: 10}
+    )
+
+    assert_receive {:spec_sync, _, {:error, [_ | _]}}, 2000
+    assert [%{missing: false, latest_revision: 2}] = Projects.list_spec_entries(project.id)
+    assert Repo.aggregate("spec_revisions", :count) == 2
+  end
+
   # Exqlite close_v2 defers statement finalization; WAL sidecars can outlive Repo briefly.
   # Retry only this test's exclusively created root, after supervised children stop.
   defp remove_scratch(directory, retries) do

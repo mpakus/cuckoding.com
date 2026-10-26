@@ -100,7 +100,7 @@ defmodule Boss.SpecImporterTest do
       [:boss, :repo, :query],
       fn _, _, metadata, _ ->
         if metadata.source == "specs" and String.contains?(metadata.query, "original_text") and
-             not Process.get(handler) do
+             not Process.get(handler, false) do
           Process.put(handler, true)
           send(observer, {:observed, self()})
 
