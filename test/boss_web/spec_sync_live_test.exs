@@ -289,6 +289,13 @@ defmodule BossWeb.SpecSyncLiveTest do
         detail_loading: false,
         detail_pending: false,
         detail_error: nil,
+        runs: [],
+        run_commands: %{},
+        run_command_id: nil,
+        run_starting: nil,
+        run_stopping: nil,
+        run_error: nil,
+        run_supported: true,
         errors: [%{path: "broken.md", message: "Invalid frontmatter"}]
       }
     }

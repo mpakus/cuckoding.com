@@ -106,6 +106,23 @@
   automatically. Retain sanitized evidence, not raw private transcripts.
 - Git publication must not move a branch behind a user's checkout. The spike
   refuses an already checked-out target and retains failed/dirty worktrees.
-  The Exile fixture experiment verifies demand/EOF only; production integration,
-  descendant cleanup and durable recovery remain open gates. erlexec may report
+  The Exile fixture experiment verifies demand/EOF only; its own production
+  integration, descendant cleanup and durable recovery remain open gates. erlexec may report
   exit 0 after cancellation: retain the cause.
+
+- Manual Codex attempts are separate from task state: persist admission and pinned
+  workspace intent before effects; command replay must return the saved attempt
+  even while another runs. Keep one global active/unknown attempt. Never call a
+  CLI terminal event task approval, Done, or integration evidence.
+- The macOS native guardian owns a fresh process group, retains the leader until
+  group cleanup, and distinguishes exit, signal, EOF and forced closure. Credits
+  and Stop control writes must retry boundedly under stdin backpressure. Detached
+  sessions are outside this guarantee; lost helper/Repo receipts quarantine runs.
+  Only the parent assigns PGID before releasing the pre-exec gate; concurrent
+  parent/child setpgid calls can fail with EPERM on macOS.
+- Stop must reach the live project-scoped worker without waiting on the Repo or
+  Manager mailbox. Browser/requester death must not own the run. Repo loss kills
+  the worker; restart never reuses a saved PID or automatically respawns work.
+- Keep Codex source on stdin, workspace-write sandbox and explicit Start. Persist
+  only bounded event types/counts/usage, never raw model/tool/stderr text. Test
+  production transport with finite fake CLIs; paid/provider calls remain opt-in.

@@ -291,14 +291,29 @@ helper death, безопасная identity/recovery и committed launch intent 
 записи из-за disk flood-stage; это не подтверждение индексации новых snapshots.
 Подробности: [transport worklog](../.worklog/2026-10-25-runner-transport.md).
 
+## BOSS-007b — первый ручной Codex run (macOS)
+
+- [x] Durable admission/replay, pinned revision/base commit before side effects.
+- [x] Fresh retained worktree; source checkout and local user edits preserved.
+- [x] Native group owner, bounded stdout/stderr, EOF/exit/signal distinction.
+- [x] Stop bypasses Manager/DB; requester death does not cancel the worker.
+- [x] Restart quarantines unfinished attempts and never automatically relaunches.
+- [x] Start/Stop/history/events in task drawer; keyboard/reload/320 px browser smoke.
+- [ ] Final native backpressure/recovery regression and combined main verification.
+
+Browser использовал только конечный fake CLI: Stop → retained edits и finished →
+unverified, source checkout цел. Ни одного model call. Task state остаётся new;
+checks, review, интеграция, Done и Linux runner здесь не заявлены. Контракт:
+[MANUAL_RUNS.md](../docs/MANUAL_RUNS.md). После завершения этого прохода ближайшая
+продуктовая задача — commit-bound checks для retained workspace.
+
 ## Следующие рабочие проходы
 
 Детализировать перед реализацией; не генерировать все модули заранее.
 
 | Порядок | Tickets | Зависит от | Проверяемый результат / отказ |
 |---|---|---|---|
-| 1 | 007–010: runner, Codex, worktree, journal | 000, 004, 006 | Один isolated run, live events, Stop/Retry; crash → attention, source checkout цел. |
-| 2 | 011–014: plan, Claude, checks, review loop | 006–010 | Неполная реализация отвергается, исправленная проходит; invalid verdict и 3 исчерпанных цикла блокируют. |
-| 3 | 015: DAG и два worker | 011–014 | Independent tasks параллельны; cycle/missing/failed dependency запрещает запуск; повтор tick не дублирует run. |
-| 4 | 016: integration queue | 015, Git spike | Один repo интегрируется последовательно; target drift, conflict и failed checks не дают Done. |
-| 5 | 017–018: recovery matrix, packaging | 016 | Kill/restart на каждой опасной границе; fresh macOS/Linux установка и полный spec→review→integrate проход. |
+| 1 | 011–014: plan, Claude, checks, review loop | 006–010 | Неполная реализация отвергается, исправленная проходит; invalid verdict и 3 исчерпанных цикла блокируют. |
+| 2 | 015: DAG и два worker | 011–014 | Independent tasks параллельны; cycle/missing/failed dependency запрещает запуск; повтор tick не дублирует run. |
+| 3 | 016: integration queue | 015, Git spike | Один repo интегрируется последовательно; target drift, conflict и failed checks не дают Done. |
+| 4 | 017–018: recovery matrix, packaging | 016 | Kill/restart на каждой опасной границе; fresh macOS/Linux установка и полный spec→review→integrate проход. |

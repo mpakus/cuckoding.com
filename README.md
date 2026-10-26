@@ -5,13 +5,15 @@ Local AI agent orchestration, rebuilt from [BOSS_PLAN.md](BOSS_PLAN.md).
 This increment provides a Phoenix LiveView server, local browser access,
 native folder selection, validated project registration, automatic Markdown sync,
 transactional spec/revision/task history and versioned task commands with immutable
-receipts, a Kanban board, a revision-aware task drawer and local CLI discovery.
-Agent execution is not implemented yet.
+receipts, a Kanban board, a revision-aware task drawer, local CLI discovery and
+manual Codex attempts in retained Git worktrees on macOS.
 
 ## Run locally
 
 Use Elixir 1.20.3 compiled for OTP 28, an OTP 28 runtime, and Node.js 20+ with npm.
 `.tool-versions` pins Elixir; Erlang/OTP and Node come from your local installation.
+macOS task runs also require a C compiler (Xcode Command Line Tools); `mix compile`
+builds the bundled process guardian.
 Check `elixir --version`: the compiled OTP version should match the running OTP.
 If Homebrew takes precedence over asdf in PATH, use `rtk proxy asdf exec mix`
 instead of `rtk proxy mix` for the commands below.
@@ -64,8 +66,8 @@ worktree returns an error. Projects survive tab closure and backend restart.
 Runner and Git research live in `spikes/`, separately from the application.
 The [transport experiment](spikes/transport/README.md) evaluates demand-driven
 stdout/stderr, genuine EOF and bounded reader state with local fixtures. It is
-not a production adapter: descendant ownership, backend/helper death and durable
-recovery remain open before task execution can be enabled.
+separate from the macOS native process-group owner used by manual task runs.
+Its fixture results do not certify other adapters or detached process trees.
 
 ## Sync specs
 
@@ -143,7 +145,8 @@ command ID and expected state version. Attention/cancellation and safe recovery
 to `new` persist together with an immutable event. Exact retries return the same
 receipt; stale commands and conflicting reuse are rejected. Execution, checks,
 review and integration transitions remain closed until their evidence producers
-exist. There are no task action controls in the browser yet. See the
+exist. Manual Codex attempts have a separate lifecycle and do not advance task
+workflow state. See the
 [command contract and transition table](docs/TASK_WORKFLOW.md).
 
 Migrations run at the next startup and preserve existing projects/history. The
@@ -171,9 +174,30 @@ focus to the task card.
 
 Details are scoped to the current project and read in one database snapshot.
 Loading/error states do not substitute a different revision's cached source.
-Run controls, logs, agent/check/review metadata and revision adoption will appear
-when their producers exist. Full state mapping and the read API are documented
+The drawer also shows manual Codex runs, safe event metadata and Stop. Checks,
+review, integration and revision adoption remain future work. Full state mapping
+and the read API are documented
 in [TASK_WORKFLOW.md](docs/TASK_WORKFLOW.md).
+
+## Run Codex on a task
+
+Open a project, open a task card, then choose **Start Codex**. Install and sign in
+through the official Codex CLI first; BOSS uses the `codex` on its own PATH.
+Starting an actual run uses your local account and may incur provider charges.
+BOSS runs the task's pinned revision even when another source revision is selected.
+
+One manual attempt runs at a time. Each gets a fresh `codex/boss-run-…` branch and
+worktree under the BOSS data directory. Closing the drawer, reloading or closing
+the browser does not stop the attempt. **Stop** cancels the owned process group
+and retains files. The drawer shows the last ten attempts, retained paths, event
+types and reported token counts; it does not retain private model/tool transcripts.
+**Codex finished — unverified** requires review and checks; it never makes a task
+Done or merges changes into your source checkout.
+
+After confirmed cleanup, **Start Codex** creates another fresh attempt. A backend
+interruption or unknown cleanup blocks new attempts conservatively; there is no
+automatic retry, PID-based recovery or force-unblock UI. Runs currently require
+macOS. See [manual run behavior and limits](docs/MANUAL_RUNS.md).
 
 ## Detect agents
 
@@ -186,7 +210,8 @@ missing or reports that it is signed out, then detect again.
 A sign-in report does not verify model access or quota. Advertised flags do not
 mean a BOSS execution adapter is ready. Results are temporary; reloading the page
 requires another explicit scan. A failed rescan retains the previous results with
-a failure notice. Role assignment and task execution are future increments.
+a failure notice. Role assignment remains future work; explicit Codex task runs
+are available from the task drawer on macOS.
 
 Probes run outside registered projects with fixed commands, bounded time/output,
 one scan at a time and cleanup of the tracked direct child. BOSS never reads

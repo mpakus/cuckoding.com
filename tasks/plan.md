@@ -2,8 +2,8 @@
 
 Дата: 2026-10-25. Основа: [BOSS_PLAN.md](../BOSS_PLAN.md).
 Статус: Git/runner эксперименты, Phoenix/SQLite, проекты, revisions, автоматический
-Sync specs, persisted task commands, read-only board/drawer и CLI detection. Execution/evidence
-gates остаются закрыты до появления producers.
+Sync specs, persisted task commands, read-only board/drawer и CLI detection. Ручные Codex attempts на macOS теперь доступны в task drawer;
+проверки/review/integration и workflow evidence gates остаются закрыты.
 Задачи: [todo.md](todo.md). Источники: [RESEARCH.md](../docs/RESEARCH.md).
 
 ## Вывод
@@ -115,8 +115,8 @@ WAL инициализируется до открытия пула из дву�
 Git spike: 12 проверок, отказ при checked-out target и сохранение failed/dirty
 worktrees. Runner spike: 14 проверок, один успешный harmless Codex 0.146.0 run,
 Claude 2.1.142 capability probe. erlexec остаётся экспериментом: bounded mailbox,
-независимый EOF и очистка всех потомков не доказаны. Coding runs в приложении
-не включены. Bootstrap и проекты не зависят от выбора runner и были завершены
+независимый EOF и очистка всех потомков не доказаны. На историческом checkpoint006 coding runs ещё не были включены;
+текущий ручной Codex проход описан в007b ниже. Bootstrap и проекты не зависят от выбора runner и были завершены
 при открытом Phase 0 gate. BOSS-002b проверен 13 новыми тестами, включая отдельный
 committed Repo restart, конкурентную запись и migration upgrade/down/up.
 Markdown/YAML import и список specs добавлены в BOSS-003a, автоматический refresh
@@ -171,3 +171,15 @@ Exile/NetRunner source pinned; новый xerj index update отказал до 
 потомок, переживший родителя; stderr flood; invalid/oversized JSONL; долгий тихий
 run; auth/quota error без бесконечного retry. До integration: target drift,
 checked-out target, dirty checkout, конфликт и падение checks после публикации.
+
+## BOSS-007b — ручной Codex запуск
+
+Добавлены native macOS process-group guardian, durable admission/replay/recovery,
+проверяемое создание Git worktree, bounded Codex JSONL и Start/Stop в task drawer.
+Это первый ручной проход, отдельный от task workflow: завершённый CLI не даёт
+Done, checks/review/integration evidence. Контракт и ограничения —
+[MANUAL_RUNS.md](../docs/MANUAL_RUNS.md). Исторические ограничения 007a выше
+относятся к Exile spike; новый guardian проверяется в application suite.
+Следующий проход — проверяемые checks на retained workspace и привязка результатов
+к конкретному Git commit, затем независимый reviewer. Linux/release и безопасное
+разрешение interrupted quarantine остаются открыты.
