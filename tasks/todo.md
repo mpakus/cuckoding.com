@@ -242,6 +242,24 @@ Storage/negative-transition и board проверки Checkpoint 1 выполн�
 открыты до реализации producers; это не proof of Done.
 Runner reliability продолжать отдельным исследованием.
 
+## BOSS-006 — agent detector и capability probe UI (in progress)
+
+**Зависимости:** 005. **Область:** detector/metadata process lifecycle, AgentsLive,
+Home navigation, application/router и focused fixtures/tests; без DB migrations.
+
+- [ ] Detect agents явно проверяет Codex и Claude, показывает path и распознанную
+  version; отсутствующий/неизвестный CLI не выглядит готовым к работе.
+- [ ] Capabilities отражают только advertised help flags. Local auth status
+  показывается отдельно от model/quota proof; непонятный ответ остаётся Unknown.
+- [ ] Нет чтения credential files, model/install/login/doctor команд или raw output
+  в браузере/логах. Setup/sign-in guidance ведёт к официальным инструкциям.
+- [ ] Один scan, ограниченные время/output; timeout/overflow/caller down/shutdown
+  освобождают owned direct child. Process-tree guarantees остаются runner gate.
+- [ ] Loading/busy/partial failure/retry и navigation проверены тестами; реальные
+  metadata probes, keyboard/focus и narrow UI проверены в браузере.
+
+Role assignment, production adapters и запуск задач входят в следующие проходы.
+
 ## Следующие рабочие проходы
 
 Детализировать перед реализацией; не генерировать все модули заранее.
