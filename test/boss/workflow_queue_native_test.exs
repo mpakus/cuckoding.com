@@ -1,7 +1,7 @@
 defmodule Boss.WorkflowQueueNativeTest do
   use ExUnit.Case, async: false
   alias Boss.{Deliveries, Projects, Repo, Tasks}
-  alias Boss.Deliveries.Queue
+  alias Boss.Deliveries.{Queue, Scheduling}
   alias Boss.Runs.Manager
   @moduletag skip: :os.type() != {:unix, :darwin}
   @moduletag capture_log: true
@@ -20,7 +20,8 @@ defmodule Boss.WorkflowQueueNativeTest do
     {20_261_027_020_000, Boss.Repo.Migrations.PreserveHistoricalRunPins},
     {20_261_027_030_000, Boss.Repo.Migrations.PinDeliveryReviewer},
     {20_261_027_040_000, Boss.Repo.Migrations.AddWorkflowQueue},
-    {20_261_027_050_000, Boss.Repo.Migrations.AddMergeIntegrationEvidence}
+    {20_261_027_050_000, Boss.Repo.Migrations.AddMergeIntegrationEvidence},
+    {20_261_027_060_000, Boss.Repo.Migrations.AddDeliveryScheduling}
   ]
 
   setup do
@@ -251,6 +252,116 @@ defmodule Boss.WorkflowQueueNativeTest do
     assert request(ctx, three).delivery_id == nil
     assert :sys.get_state(manager).active == %{}
     assert length(File.ls!(ctx.gates)) == 2
+  end
+
+  test "overlap waits before writes without churn; Stop bypasses a suspended Manager", ctx do
+    predict(ctx, %{"one" => scope("src"), "two" => scope("SRC/file.ex")})
+    manager = start_manager(ctx.repo)
+    [one] = enqueue(%{ctx | tasks: Enum.take(ctx.tasks, 1)}, manager)
+    first = waiting(ctx, one)
+    [two] = enqueue(%{ctx | tasks: Enum.slice(ctx.tasks, 1, 1)}, manager)
+    second = planned(ctx, two)
+    assert implementation_path(second) == nil
+    before = Deliveries.steps(second.id)
+    Process.sleep(1_100)
+    assert Deliveries.steps(second.id) == before
+    assert Deliveries.get(ctx.project.id, second.id) == second
+    assert length(File.ls!(ctx.gates)) == 1
+    assert {:ok, %{max_parallel_tasks: 2}} = Scheduling.get()
+
+    :ok = :sys.suspend(manager)
+
+    try do
+      assert :ok = Deliveries.stop(ctx.project.id, second.id, @registry)
+      assert terminal(ctx, second.id).status == "cancelled"
+      assert alive?(pid(ctx, first))
+      assert implementation_path(second) == nil
+    after
+      :sys.resume(manager)
+    end
+
+    assert :ok = Deliveries.stop(ctx.project.id, first.id, @registry)
+    assert terminal(ctx, first.id).status == "cancelled"
+  end
+
+  test "overlap releases after checks and review; one and three workers honor persisted capacity",
+       ctx do
+    predict(ctx, %{
+      "one" => scope("src"),
+      "two" => scope("src/file.ex"),
+      "three" => scope("other")
+    })
+
+    manager = start_manager(ctx.repo)
+    assert {:ok, settings} = Scheduling.get()
+    assert {:ok, one_worker} = Scheduling.set(settings.version, 1, manager)
+    [one, two, three] = enqueue(ctx, manager)
+    first = waiting(ctx, one)
+    assert request(ctx, two).status == "queued"
+    assert request(ctx, three).status == "queued"
+    assert {:ok, three_workers} = Scheduling.set(one_worker.version, 3, manager)
+    second = planned(ctx, two)
+    third = waiting(ctx, three)
+    assert map_size(:sys.get_state(manager).active) == 3
+    assert {:error, :workers_active} = Scheduling.set(three_workers.version, 1, manager)
+    assert implementation_path(second) == nil
+    release(ctx, first)
+    assert terminal(ctx, first.id).status == "ready_to_merge"
+    second = waiting(ctx, two)
+    assert alive?(pid(ctx, third))
+    assert first.intent["base_commit"] == second.intent["base_commit"]
+
+    for delivery <- [second, third] do
+      assert :ok = Deliveries.stop(ctx.project.id, delivery.id, @registry)
+      assert terminal(ctx, delivery.id).status == "cancelled"
+    end
+
+    eventually(fn -> :sys.get_state(manager).active == %{} end)
+    assert {:ok, _} = Scheduling.set(three_workers.version, 1, manager)
+  end
+
+  test "Repo loss kills a scope waiter and writer; restart never replays either", ctx do
+    predict(ctx, %{"one" => scope("src"), "two" => scope("src/file.ex")})
+    manager = start_manager(ctx.repo)
+    [one] = enqueue(%{ctx | tasks: Enum.take(ctx.tasks, 1)}, manager)
+    first = waiting(ctx, one)
+    [two] = enqueue(%{ctx | tasks: Enum.slice(ctx.tasks, 1, 1)}, manager)
+    second = planned(ctx, two)
+    state = :sys.get_state(manager)
+    {_, waiter} = state.active[second.id]
+    waiter_monitor = Process.monitor(waiter)
+    manager_monitor = Process.monitor(manager)
+    writer_pid = pid(ctx, first)
+    stop_supervised!(Repo)
+    assert_receive {:DOWN, ^waiter_monitor, :process, ^waiter, _}, 5_000
+    assert_receive {:DOWN, ^manager_monitor, :process, ^manager, _}, 5_000
+    eventually(fn -> not alive?(writer_pid) end)
+    repo = start_repo(ctx.opts)
+    Repo.put_dynamic_repo(repo)
+    restarted = start_manager(repo)
+
+    for delivery <- [first, second] do
+      saved = Deliveries.get(ctx.project.id, delivery.id)
+      assert saved.status == "interrupted" and saved.cleanup == "unknown"
+    end
+
+    assert implementation_path(second) == nil
+    assert :sys.get_state(restarted).active == %{}
+    assert length(File.ls!(ctx.gates)) == 1
+  end
+
+  defp scope(path), do: [%{"path" => path, "kind" => "file"}]
+
+  defp predict(ctx, scopes),
+    do: File.write!(Path.join(ctx.root, "scopes.json"), JSON.encode!(scopes))
+
+  defp planned(ctx, request) do
+    eventually(fn ->
+      id = request(ctx, request).delivery_id
+      id && Enum.any?(Deliveries.steps(id), &(&1.kind == "plan" and &1.status == "finished"))
+    end)
+
+    Deliveries.get(ctx.project.id, request(ctx, request).delivery_id)
   end
 
   defp enqueue(ctx, manager) do

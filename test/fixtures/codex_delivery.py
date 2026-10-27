@@ -50,7 +50,13 @@ else:
     assert args[args.index("--sandbox") + 1] == "read-only"
     output = Path(args[args.index("--output-last-message") + 1])
     if kind == "plan":
-        report = {"summary": "Create the result", "steps": ["Write result.txt"], "acceptance": ["Create result.txt"]}
+        report = {"summary": "Create the result", "steps": ["Write result.txt"], "acceptance": ["Create result.txt"], "file_scopes": None}
+        scope_file = root / "scopes.json"
+        if scope_file.exists():
+            predictions = json.loads(scope_file.read_text())
+            selected = [value for name, value in predictions.items() if f"# {name}\n" in data["specification"]]
+            assert len(selected) == 1
+            report["file_scopes"] = selected[0]
         if mode == "plan_dirty":
             Path("result.txt").write_text("planner changed tracked file")
         if mode == "plan_invalid":
