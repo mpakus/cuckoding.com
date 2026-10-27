@@ -63,3 +63,25 @@
   diamond node, and missing-root retained-source regression.
 - `rtk proxy git diff --check` passed. The time budget is cooperative between
   bounded calls, not a hard wall-clock interrupt for database scheduling.
+
+## Final handoff
+
+- `rtk proxy asdf exec mix compile --warnings-as-errors` passed; formatting check
+  passed for all four owned source/test files.
+- Mutation check temporarily accepted Ready alongside Done. The focused direct
+  edge test failed (`[true, true, false, false]` versus expected
+  `[true, false, false, false]`); restored the production predicate immediately.
+- Final command: `rtk proxy asdf exec mix test test/boss/spec_document_test.exs
+  test/boss/task_dependencies_test.exs test/boss/spec_importer_test.exs` —
+  51 passed, 1 existing platform skip, 3.6s, seed 511031. This includes explicit
+  rejection of both empty/nonempty dependency mappings and import regressions.
+- Commits: `5fa8e24` foundation, `14f7afb` pre-read limits and review fixes;
+  final log/parser-test follow-up recorded in Git history.
+- Outcome: strict metadata plus a project-scoped, read-only dependency snapshot
+  and admission helper are ready for root's sequential integration. No migration,
+  application dependency, provider invocation or scheduler added.
+- Removed only the temporary `deps` symlink after verifying its target; the
+  original dependency directory was not changed or deleted.
+- Next step: root merges these commits with run/delivery admission and UI,
+  verifies the combined result, then merges local main and cleans writer branches.
+  Global admission remains sequential; this branch makes no concurrency claim.
