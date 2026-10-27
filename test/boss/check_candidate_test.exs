@@ -243,6 +243,119 @@ defmodule Boss.Checks.CandidateTest do
     end
   end
 
+  for format <- [:sha1, :sha256] do
+    @tag sha256: format == :sha256
+    test "retains a two-parent #{format} merge without changing either original checkout", c do
+      {approved, original} = approved_candidate(c)
+      File.write!(Path.join(c.source, "target.txt"), "parallel result")
+      git!(c.source, ["add", "target.txt"])
+      git!(c.source, ["commit", "-m", "advance target"])
+      target = git!(c.source, ["rev-parse", "HEAD"])
+      File.write!(Path.join(c.source, "tracked.txt"), "staged user edit")
+      git!(c.source, ["add", "tracked.txt"])
+      File.write!(Path.join(c.source, "tracked.txt"), "unstaged user edit")
+      index = Path.join(c.source, ".git/index")
+      index_before = File.read!(index)
+      status = git!(c.source, ["status", "--porcelain"])
+      {:ok, merged} = Candidate.plan(c.run, Ecto.UUID.generate(), c.opts)
+
+      assert {:ok, %{candidate_commit: sha}} =
+               Candidate.prepare_merge(merged, target, original, c.opts)
+
+      assert byte_size(sha) == byte_size(target)
+
+      assert git!(c.source, ["rev-list", "--parents", "-n", "1", sha]) ==
+               "#{sha} #{target} #{original}"
+
+      assert File.read!(Path.join(merged["path"], "agent.txt")) == "approved result"
+      assert File.read!(Path.join(merged["path"], "target.txt")) == "parallel result"
+      assert File.read!(Path.join(merged["path"], "tracked.txt")) == "base"
+      assert :ok = Candidate.verify_merge(merged, sha, target, original, c.opts)
+
+      assert {:error, :candidate_changed} =
+               Candidate.verify_merge(merged, sha, original, target, c.opts)
+
+      assert :ok = Candidate.verify(approved, original, c.opts)
+      assert File.read!(index) == index_before
+      assert git!(c.source, ["status", "--porcelain"]) == status
+      assert git!(c.source, ["rev-parse", "HEAD"]) == target
+      assert git!(c.source, ["symbolic-ref", "HEAD"]) == "refs/heads/main"
+      assert git!(c.run.path, ["rev-parse", "HEAD"]) == c.run.base_commit
+
+      assert {:error, :candidate_exists} =
+               Candidate.prepare_merge(merged, target, original, c.opts)
+    end
+  end
+
+  test "conflict output never becomes a retained merge candidate", c do
+    File.write!(Path.join(c.run.path, "tracked.txt"), "agent change")
+    {_approved, original} = approved_candidate(c)
+    File.write!(Path.join(c.source, "tracked.txt"), "target change")
+    git!(c.source, ["add", "tracked.txt"])
+    git!(c.source, ["commit", "-m", "conflicting target"])
+    target = git!(c.source, ["rev-parse", "HEAD"])
+    {:ok, merged} = Candidate.plan(c.run, Ecto.UUID.generate(), c.opts)
+    assert {:error, :merge_conflict} = Candidate.prepare_merge(merged, target, original, c.opts)
+    refute File.exists?(merged["path"])
+    assert git!(c.source, ["for-each-ref", "--format=%(objectname)", merged["ref"]]) == ""
+    assert git!(c.source, ["rev-parse", "HEAD"]) == target
+    refute File.exists?(Path.join(c.source, ".git/MERGE_HEAD"))
+  end
+
+  test "a configured merge driver is rejected before any merge effect", c do
+    File.write!(Path.join(c.run.path, ".gitattributes"), "tracked.txt merge=unsafe\n")
+    File.write!(Path.join(c.run.path, "tracked.txt"), "agent change")
+    {_approved, original} = approved_candidate(c)
+    File.write!(Path.join(c.source, "tracked.txt"), "target change")
+    git!(c.source, ["add", "tracked.txt"])
+    git!(c.source, ["commit", "-m", "advance"])
+    target = git!(c.source, ["rev-parse", "HEAD"])
+    {:ok, merged} = Candidate.plan(c.run, Ecto.UUID.generate(), c.opts)
+    marker = Path.join(c.root, "driver-ran")
+    git!(c.source, ["config", "merge.unsafe.driver", "touch '#{marker}'"])
+
+    assert {:error, :unsupported_git_merge_driver} =
+             Candidate.prepare_merge(merged, target, original, c.opts)
+
+    refute File.exists?(marker)
+    refute File.exists?(merged["path"])
+  end
+
+  test "merge rejects aliases, duplicate parents and unknown cleanup without retry", c do
+    {_approved, original} = approved_candidate(c)
+    {:ok, merged} = Candidate.plan(c.run, Ecto.UUID.generate(), c.opts)
+
+    assert {:error, :invalid_candidate} =
+             Candidate.prepare_merge(merged, "main", original, c.opts)
+
+    assert {:error, :invalid_candidate} =
+             Candidate.prepare_merge(merged, original, original, c.opts)
+
+    runner = fn executable, args, opts ->
+      if "merge-tree" in args,
+        do: %{cleanup: :unknown, outcome: :failed},
+        else: Boss.Agents.Process.run(executable, args, opts)
+    end
+
+    assert {:error, :cleanup_unknown} =
+             Candidate.prepare_merge(
+               merged,
+               c.run.base_commit,
+               original,
+               Keyword.put(c.opts, :runner, runner)
+             )
+
+    refute File.exists?(merged["path"])
+    assert git!(c.source, ["for-each-ref", "--format=%(objectname)", merged["ref"]]) == ""
+  end
+
+  defp approved_candidate(c) do
+    File.write!(Path.join(c.run.path, "agent.txt"), "approved result")
+    {:ok, intent} = Candidate.plan(c.run, Ecto.UUID.generate(), c.opts)
+    {:ok, %{candidate_commit: sha}} = Candidate.prepare(intent, c.opts)
+    {intent, sha}
+  end
+
   defp git!(path, args) do
     {out, code} =
       System.cmd("git", args,
