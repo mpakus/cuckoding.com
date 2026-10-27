@@ -242,6 +242,125 @@ defmodule Boss.Agents.WorkspaceTest do
              Workspace.plan(c.project, "unknown-stop", Keyword.put(c.opts, :runner, unknown))
   end
 
+  test "concurrent run and candidate worktrees share fresh parents without losing ownership", c do
+    parent = self()
+
+    barrier = fn executable, args, opts ->
+      result = fixture_runner(executable, args, opts)
+
+      if "show-ref" in args and result.exit_code == 1 do
+        send(parent, {:parents_ready, self()})
+
+        receive do
+          :create_parents -> :ok
+        after
+          5_000 -> flunk("parent creation barrier expired")
+        end
+      end
+
+      result
+    end
+
+    for round <- 1..2 do
+      opts = Keyword.put(c.opts, :data_dir, Path.join(c.data, "round#{round}"))
+
+      intents =
+        for n <- 1..8 do
+          {:ok, intent} = Workspace.plan(c.project, "parallel-#{round}-#{n}", opts)
+          intent
+        end
+
+      results =
+        parallel_parents(intents, &Workspace.prepare(&1, Keyword.put(opts, :runner, barrier)))
+
+      assert Enum.all?(results, &match?({:ok, _}, &1)), inspect(results)
+      assert length(Enum.uniq_by(intents, & &1.path)) == 8
+
+      candidates =
+        for intent <- intents do
+          {:ok, candidate} = Boss.Checks.Candidate.plan(intent, Ecto.UUID.generate(), opts)
+          candidate
+        end
+
+      results =
+        parallel_parents(
+          candidates,
+          &Boss.Checks.Candidate.prepare(&1, Keyword.put(opts, :runner, barrier))
+        )
+
+      assert Enum.all?(results, &match?({:ok, _}, &1)), inspect(results)
+
+      for {intent, {:ok, candidate}} <- Enum.zip(candidates, results) do
+        assert :ok = Boss.Checks.Candidate.verify(intent, candidate.candidate_commit, opts)
+        assert File.read!(Path.join(candidate.path, "source.txt")) == "base"
+      end
+    end
+
+    assert git!(c.repo, ["status", "--porcelain"]) == ""
+  end
+
+  test "late shared parents preserve existing modes and reject files or symlinks", c do
+    for kind <- [:directory, :file, :symlink] do
+      opts = Keyword.put(c.opts, :data_dir, Path.join(c.data, to_string(kind)))
+      {:ok, intent} = Workspace.plan(c.project, "late-#{kind}", opts)
+      shared = Path.join(opts[:data_dir], "projects")
+
+      runner = fn executable, args, options ->
+        result = fixture_runner(executable, args, options)
+
+        if "show-ref" in args and result.exit_code == 1 do
+          File.mkdir!(opts[:data_dir])
+
+          case kind do
+            :directory ->
+              File.mkdir!(shared)
+              File.chmod!(shared, 0o751)
+
+            :file ->
+              File.write!(shared, "preserve file")
+
+            :symlink ->
+              File.ln_s!(c.repo, shared)
+          end
+        end
+
+        result
+      end
+
+      case kind do
+        :directory ->
+          assert {:ok, _} = Workspace.prepare(intent, Keyword.put(opts, :runner, runner))
+          assert Bitwise.band(File.stat!(shared).mode, 0o777) == 0o751
+
+        :file ->
+          assert {:error, :workspace_unwritable} =
+                   Workspace.prepare(intent, Keyword.put(opts, :runner, runner))
+
+          assert File.read!(shared) == "preserve file"
+
+        :symlink ->
+          assert {:error, :workspace_unwritable} =
+                   Workspace.prepare(intent, Keyword.put(opts, :runner, runner))
+
+          assert File.lstat!(shared).type == :symlink
+          refute File.exists?(Path.join(c.repo, "1"))
+      end
+    end
+  end
+
+  defp parallel_parents(intents, fun) do
+    jobs = Enum.map(intents, &Task.async(fn -> fun.(&1) end))
+
+    pids =
+      for _ <- intents do
+        assert_receive {:parents_ready, pid}, 5_000
+        pid
+      end
+
+    Enum.each(pids, &send(&1, :create_parents))
+    Enum.map(jobs, &Task.await(&1, 20_000))
+  end
+
   defp fixture_runner(executable, args, opts) do
     {output, code} =
       System.cmd(executable, args, cd: opts[:cd], env: opts[:env], stderr_to_stdout: true)
