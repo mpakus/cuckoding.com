@@ -2,7 +2,7 @@ defmodule Boss.Deliveries do
   @moduledoc "Explicit managed delivery, with immutable stage receipts and manual publication."
   import Ecto.Query
   alias Boss.{Repo, Runs, Tasks}
-  alias Boss.Deliveries.{Delivery, Step}
+  alias Boss.Deliveries.{Delivery, Scheduling, Step}
   alias Boss.Projects.{Project, Spec, SpecRevision}
   @active ~w(planning implementing testing reviewing integrating)
   @terminal ~w(done blocked needs_input failed cancelled interrupted)
@@ -201,7 +201,8 @@ defmodule Boss.Deliveries do
   @doc false
   def managed_busy? do
     Repo.exists?(from d in Delivery, where: d.status == "integrating" or d.cleanup == "unknown") or
-      Repo.aggregate(from(d in Delivery, where: d.status in ^@active), :count) >= 2
+      Repo.aggregate(from(d in Delivery, where: d.status in ^@active), :count) >=
+        Scheduling.capacity!()
   end
 
   @doc false
@@ -305,6 +306,9 @@ defmodule Boss.Deliveries do
 
         unless valid_next?(delivery, previous, kind, cycle, input),
           do: Repo.rollback(:invalid_step)
+
+        if kind == "implement" and Scheduling.blockers(delivery) != [],
+          do: Repo.rollback(:scope_conflict)
 
         number = if previous, do: previous.number + 1, else: 1
         if number > 20, do: Repo.rollback(:budget_exhausted)
@@ -631,12 +635,8 @@ defmodule Boss.Deliveries do
       r["exit_kind"] == "exit" and r["exit_code"] == 0 and
         r["eof"] == %{"stdout" => true, "stderr" => true}
 
-  defp valid_plan?(%{"summary" => summary, "steps" => steps, "acceptance" => acceptance} = report) do
-    map_size(report) == 3 and text?(summary, 2000) and is_list(steps) and length(steps) in 1..20 and
-      Enum.all?(steps, &text?(&1, 2000)) and is_list(acceptance) and length(acceptance) in 1..20 and
-      Enum.all?(acceptance, &text?(&1, 1000)) and
-      length(Enum.uniq(acceptance)) == length(acceptance)
-  end
+  defp valid_plan?(report) when is_map(report),
+    do: match?({:ok, _}, Boss.Deliveries.Protocol.plan(JSON.encode!(report)))
 
   defp valid_plan?(_), do: false
 
@@ -843,6 +843,7 @@ defmodule Boss.Deliveries do
 
   defp broadcast_result({:ok, %Step{} = step} = result) do
     Runs.broadcast(%{project_id: step.project_id})
+    Scheduling.claims_changed()
     result
   end
 
@@ -850,6 +851,7 @@ defmodule Boss.Deliveries do
     do:
       (
         broadcast(d)
+        Scheduling.claims_changed()
         result
       )
 
