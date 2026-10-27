@@ -448,7 +448,7 @@ restart the running BOSS server for the new reviewer migration.
 - [x] Two managed workers; exclusive manual/integration; unknown-cleanup quarantine.
 - [x] Explicit Queue UI, frozen uncertain action/input and persisted history.
 - [x] Independent review, native process/SQLite tests, browser and combined full suite.
-- [ ] Merge local main, verify combined result and remove merged branches.
+- [x] Merge local main, verify combined result and remove merged branches.
 - [ ] Archive the two queue writer worktrees.
 
 Combined root suite:483 passed/1 existing Linux-only skip,seed276199,741.0s.
@@ -457,7 +457,12 @@ closed-owner regressions. Native acceptance also exposed shared-directory mkdir
 races, fixed with directory-only revalidation and independently proven mutation
 tests. Browser verified queue/cancel/history, two processes, Stop freeing a slot,
 restart pause/Resume, Ready waiting, Done dispatch and refusal after target drift.
-Compile, format, assets and diff checks passed. Local-main verification follows.
+Local main447754a: combined queue/native/LiveView lifecycle focus39 passed,
+seed803248,38.8s. Compile, format, assets and diff checks passed. Three merged
+branches removed. Both clean detached queue writer worktrees remain app-held:
+Codex refused archive because another active task still uses them. No force removal.
+Restart BOSS to apply the new queue migration; user server/data were not restarted
+or modified by this development run.
 
 No automatic divergent integration, typed file-scope prediction, configurable worker
 count or actual provider calls in this increment.
