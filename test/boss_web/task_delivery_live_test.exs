@@ -79,6 +79,7 @@ defmodule BossWeb.TaskDeliveryLiveTest do
     settle(view)
     assert delivery.spec_revision_id == c.saved.task.spec_revision_id
     assert delivery.check_config["argv"] == ["mix", "test"]
+    assert delivery.reviewer == "codex"
     assert has_element?(view, "#delivery-#{delivery.id}", "Preparing plan")
     assert has_element?(view, "#start-codex[disabled]")
     start(view, id)
@@ -89,14 +90,51 @@ defmodule BossWeb.TaskDeliveryLiveTest do
     assert has_element?(view, "#delivery-#{delivery.id}", "Workflow stopped")
   end
 
-  test "unknown start retries identical UUID and text, blocking other task and manual starts",
+  test "Claude is explicitly selected and history keeps its saved reviewer after changing the form",
+       c do
+    {:ok, view, _} = live(c.conn, task_path(c))
+    settle(view)
+    assert has_element?(view, "label[for='delivery-reviewer']", "Workflow reviewer")
+    assert has_element?(view, "#delivery-reviewer option[value='codex'][selected]")
+    id = command(view)
+
+    view
+    |> form("#delivery-form", %{"command" => "mix test", "reviewer" => "claude"})
+    |> render_change()
+
+    assert has_element?(view, "#delivery-reviewer option[value='claude'][selected]")
+    assert has_element?(view, "#delivery-reviewer-help", "no agent tools or repository access")
+    assert has_element?(view, "#delivery-reviewer-help", "Planning and implementation use Codex")
+    refute_receive {:workflow, _, _}, 50
+    start(view, id, "mix test", "claude")
+    assert_receive {:workflow, worker, delivery}, 1_000
+    assert delivery.reviewer == "claude"
+    finish(worker, :cancelled)
+    settle(view)
+    assert has_element?(view, "#delivery-#{delivery.id}", "Reviewer: Claude")
+    assert has_element?(view, "#delivery-reviewer option[value='claude'][selected]")
+
+    view
+    |> form("#delivery-form", %{"command" => "mix test", "reviewer" => "codex"})
+    |> render_change()
+
+    assert has_element?(view, "#delivery-reviewer option[value='codex'][selected]")
+    assert has_element?(view, "#delivery-reviewer-help", "source read-only")
+    assert has_element?(view, "#delivery-#{delivery.id}", "Reviewer: Claude")
+    {:ok, reconnected, _} = live(c.conn, task_path(c))
+    settle(reconnected)
+    assert has_element?(reconnected, "#delivery-#{delivery.id}", "Reviewer: Claude")
+    assert has_element?(reconnected, "#delivery-reviewer option[value='codex'][selected]")
+  end
+
+  test "unknown start retries identical UUID, text and reviewer, blocking other starts",
        c do
     other = spec(c.project, "other")
     {:ok, view, _} = live(c.conn, task_path(c))
     settle(view)
     id = command(view)
     :sys.suspend(Manager)
-    start(view, id)
+    start(view, id, "mix test", "claude")
     key = :sys.get_state(view.pid).socket.assigns.delivery_starting
 
     :sys.replace_state(view.pid, fn state ->
@@ -106,23 +144,53 @@ defmodule BossWeb.TaskDeliveryLiveTest do
     settle(view)
     assert command(view) == id
     assert has_element?(view, "#delivery-command[readonly][value='mix test']")
+    assert has_element?(view, "#delivery-reviewer[disabled] option[value='claude'][selected]")
+    assert has_element?(view, "input[type='hidden'][name='reviewer'][value='claude']")
     assert has_element?(view, "#start-delivery", "Retry workflow start")
     assert has_element?(view, "#start-codex[disabled]")
-    start(view, id, "changed command")
+    start(view, id, "changed command", "claude")
+    start(view, id, "mix test", "codex")
+
+    render_change(view, "edit_delivery", %{
+      "command_id" => id,
+      "command" => "mix test",
+      "reviewer" => "codex"
+    })
+
     assert has_element?(view, "#delivery-command[value='mix test']")
+    assert has_element?(view, "#delivery-reviewer option[value='claude'][selected]")
     render_patch(view, "/projects/#{c.project.id}/tasks/#{other.task.id}")
     settle(view)
     assert has_element?(view, "#start-delivery[disabled]")
     assert has_element?(view, "#start-codex[disabled]")
     render_patch(view, task_path(c))
     settle(view)
-    start(view, id)
+    assert has_element?(view, "#delivery-reviewer option[value='claude'][selected]")
+    start(view, id, "mix test", "claude")
     :sys.resume(Manager)
     assert_receive {:workflow, worker, delivery}, 1_000
     settle(view)
     assert delivery.command_id == id
+    assert delivery.reviewer == "claude"
     refute_receive {:workflow, _, _}, 50
     assert length(Deliveries.list(c.project.id, c.saved.task.id)) == 1
+    finish(worker, :cancelled)
+  end
+
+  test "invalid reviewer cannot start or replace the saved selection", c do
+    {:ok, view, _} = live(c.conn, task_path(c))
+    settle(view)
+    id = command(view)
+    payload = %{"command_id" => id, "command" => "mix test", "reviewer" => "other"}
+    render_change(view, "edit_delivery", payload)
+    render_submit(view, "start_delivery", payload)
+    refute_receive {:workflow, _, _}, 50
+    assert has_element?(view, "#delivery-reviewer option[value='codex'][selected]")
+    refute has_element?(view, "#delivery-request-pending")
+    assert command(view) == id
+    start(view, id)
+    assert_receive {:workflow, worker, delivery}, 1_000
+    assert delivery.reviewer == "codex"
     finish(worker, :cancelled)
   end
 
@@ -283,7 +351,9 @@ defmodule BossWeb.TaskDeliveryLiveTest do
       socket =
         Phoenix.Component.assign(state.socket,
           delivery_starting: new_key,
-          delivery_requests: %{c.saved.task.id => %{id: current, text: "mix test", locked: true}}
+          delivery_requests: %{
+            c.saved.task.id => %{id: current, text: "mix test", reviewer: "codex", locked: true}
+          }
         )
 
       {:noreply, socket} = ProjectLive.handle_async(old_key, {:exit, :killed}, socket)
@@ -559,8 +629,13 @@ defmodule BossWeb.TaskDeliveryLiveTest do
     saved
   end
 
-  defp start(view, id, text \\ "mix test"),
-    do: render_submit(view, "start_delivery", %{"command_id" => id, "command" => text})
+  defp start(view, id, text \\ "mix test", reviewer \\ "codex"),
+    do:
+      render_submit(view, "start_delivery", %{
+        "command_id" => id,
+        "command" => text,
+        "reviewer" => reviewer
+      })
 
   defp task_path(c), do: "/projects/#{c.project.id}/tasks/#{c.saved.task.id}"
 

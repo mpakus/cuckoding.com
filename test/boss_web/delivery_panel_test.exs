@@ -12,6 +12,9 @@ defmodule BossWeb.DeliveryPanelTest do
     assert html =~ "without shell expansion"
     assert html =~ "Keep secrets out of arguments and output"
     assert html =~ ~s(name="command_id" value="start-request")
+    assert html =~ ~s(for="delivery-reviewer")
+    assert html =~ ~s(value="codex" selected)
+    assert html =~ "Codex plans and implements"
   end
 
   test "active workflow exposes Stop and its saved command and candidate" do
@@ -48,12 +51,18 @@ defmodule BossWeb.DeliveryPanelTest do
 
   test "unknown request keeps the command read-only and offers an identical retry" do
     html =
-      panel([], request: %{id: "start-request", text: "mix test", locked: true}, uncertain: true)
+      panel([],
+        request: %{id: "start-request", text: "mix test", reviewer: "claude", locked: true},
+        uncertain: true
+      )
 
     assert html =~ "Retry workflow start"
     assert html =~ "readonly"
     assert html =~ "workflow request is unresolved"
     assert html =~ ~s(value="mix test")
+    assert html =~ ~s(name="reviewer" disabled)
+    assert html =~ ~s(type="hidden" name="reviewer" value="claude")
+    assert html =~ "no agent tools or repository access"
   end
 
   test "Done is rendered only for saved terminal state" do
@@ -74,7 +83,7 @@ defmodule BossWeb.DeliveryPanelTest do
             revisions: [%{id: 7, number: 1}]
           },
           deliveries: deliveries,
-          request: %{id: "start-request", text: "", locked: false},
+          request: %{id: "start-request", text: "", reviewer: "codex", locked: false},
           integration_requests: %{"delivery" => %{id: "integration-request", locked: false}},
           start_available: true,
           integrate_available: true,
@@ -90,6 +99,7 @@ defmodule BossWeb.DeliveryPanelTest do
     %{
       id: "delivery",
       spec_revision_id: 7,
+      reviewer: "codex",
       status: status,
       cycle: 2,
       reason: nil,

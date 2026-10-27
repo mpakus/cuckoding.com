@@ -265,7 +265,12 @@ defmodule BossWeb.TaskDependenciesLiveTest do
   defp start(view, :manual, id, _), do: render_click(view, "start_run", %{"command-id" => id})
 
   defp start(view, :workflow, id, text),
-    do: render_submit(view, "start_delivery", %{"command_id" => id, "command" => text})
+    do:
+      render_submit(view, "start_delivery", %{
+        "command_id" => id,
+        "command" => text,
+        "reviewer" => "codex"
+      })
 
   defp refresh(view, c) do
     send(view.pid, {:run_changed, c.project.id})
