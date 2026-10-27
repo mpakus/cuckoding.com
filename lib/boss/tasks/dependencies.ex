@@ -32,7 +32,7 @@ defmodule Boss.Tasks.Dependencies do
     }
 
     case Repo.one(
-           from [task, spec] in node_query(),
+           from [task, spec] in node_query(context),
              where: task.id == ^task_id and spec.project_id == ^project_id
          ) do
       nil ->
@@ -54,7 +54,9 @@ defmodule Boss.Tasks.Dependencies do
 
   def snapshot(_, _), do: {:error, :not_found}
 
-  defp node_query do
+  defp node_query(context) do
+    remaining_bytes = @max_source_bytes - context.source_bytes
+
     from task in Task,
       join: spec in Spec,
       on: spec.id == task.spec_id,
@@ -66,7 +68,14 @@ defmodule Boss.Tasks.Dependencies do
         state: task.state,
         missing: spec.missing,
         identity_key: spec.identity_key,
-        source: revision.original_text
+        source_bytes: fragment("length(CAST(? AS BLOB))", revision.original_text),
+        source:
+          fragment(
+            "CASE WHEN length(CAST(? AS BLOB)) <= ? THEN ? ELSE NULL END",
+            revision.original_text,
+            ^remaining_bytes,
+            revision.original_text
+          )
       }
   end
 
@@ -78,7 +87,7 @@ defmodule Boss.Tasks.Dependencies do
       map_size(context.nodes) >= @max_nodes ->
         {nil, halt(context, "Dependency graph exceeds 64 tasks.")}
 
-      context.source_bytes + source_size(row.source) > @max_source_bytes ->
+      context.source_bytes + (row.source_bytes || 0) > @max_source_bytes ->
         {nil, halt(context, "Dependency graph source exceeds 8 MiB.")}
 
       expired?(context) ->
@@ -91,7 +100,7 @@ defmodule Boss.Tasks.Dependencies do
         context = %{
           context
           | nodes: Map.put(context.nodes, node.task_id, node),
-            source_bytes: context.source_bytes + source_size(row.source)
+            source_bytes: context.source_bytes + (row.source_bytes || 0)
         }
 
         context =
@@ -109,20 +118,20 @@ defmodule Boss.Tasks.Dependencies do
     end
   end
 
-  defp source_size(source) when is_binary(source), do: byte_size(source)
-  defp source_size(_), do: 0
-
   defp resolve(reference, context) do
     case Map.fetch(context.references, reference) do
       {:ok, task_id} ->
         {context.nodes[task_id], context}
+
+      :error when map_size(context.nodes) >= @max_nodes ->
+        {nil, halt(context, "Dependency graph exceeds 64 tasks.")}
 
       :error ->
         identity = "id:" <> reference
         project_id = context.project_id
 
         case Repo.one(
-               from [_, spec] in node_query(),
+               from [_, spec] in node_query(context),
                  where: spec.project_id == ^project_id and spec.identity_key == ^identity
              ) do
           nil ->
@@ -155,7 +164,7 @@ defmodule Boss.Tasks.Dependencies do
 
       true ->
         context =
-          if node.missing and node.state != "done",
+          if reference != nil and node.missing and node.state != "done",
             do:
               issue(
                 context,

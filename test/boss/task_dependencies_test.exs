@@ -95,7 +95,9 @@ defmodule Boss.Tasks.DependenciesTest do
     task(project, "unrelated", ["unrelated"])
     root = task(project, "root", ["left", "right"])
 
+    trace = observe_queries()
     assert {:ok, %{ready?: true, issues: [], dependencies: [_, _]}} = snapshot(project, root)
+    assert length(queries(trace)) == 4
   end
 
   test "self cycles and transitive cycles through Done tasks block", %{project: project} do
@@ -132,6 +134,82 @@ defmodule Boss.Tasks.DependenciesTest do
              snapshot(project, root)
 
     assert task_id == unfinished.id
+  end
+
+  test "a missing selected source can still use its retained snapshot", %{project: project} do
+    root = task(project, "root")
+    missing(root)
+    assert {:ok, %{ready?: true, dependencies: [], issues: []}} = snapshot(project, root)
+  end
+
+  test "the 64-task boundary blocks before querying a 65th node", %{project: project} do
+    tasks =
+      for number <- 1..65 do
+        dependencies = if number == 65, do: [], else: ["chain-#{number + 1}"]
+        task(project, "chain-#{number}", dependencies, "done")
+      end
+
+    trace = observe_queries()
+    assert {:ok, %{ready?: true}} = snapshot(project, Enum.at(tasks, 1))
+    assert length(queries(trace)) == 64
+
+    assert {:ok, %{ready?: false, dependencies: [], issues: [%{kind: :limit, message: message}]}} =
+             snapshot(project, hd(tasks))
+
+    assert message =~ "64 tasks"
+    assert length(queries(trace)) == 64
+  end
+
+  test "the source byte boundary never transfers more than 8 MiB", %{project: project} do
+    tasks =
+      for number <- 1..9 do
+        id = "huge-#{number}"
+        dependencies = if number == 9, do: [], else: ["huge-#{number + 1}"]
+        source = source(id, dependencies)
+        source = source <> String.duplicate("x", 1_048_576 - byte_size(source))
+
+        {:ok, record} =
+          Projects.record_spec(project.id, %{
+            relative_path: "#{id}.md",
+            explicit_id: id,
+            original_text: source,
+            title: id
+          })
+
+        set_state(record.task, "done")
+        record.task
+      end
+
+    trace = observe_queries()
+    assert {:ok, %{ready?: true}} = snapshot(project, Enum.at(tasks, 1))
+    assert Enum.sum(queries(trace)) == 8 * 1_048_576
+
+    assert {:ok, %{ready?: false, dependencies: [], issues: [%{kind: :limit, message: message}]}} =
+             snapshot(project, hd(tasks))
+
+    assert message =~ "8 MiB"
+    assert Enum.sum(queries(trace)) == 8 * 1_048_576
+  end
+
+  test "a spent traversal budget fails closed after a slow read", %{project: project} do
+    root = task(project, "root")
+    observe_queries(1_050)
+
+    assert {:ok, %{ready?: false, dependencies: [], issues: [%{kind: :limit, message: message}]}} =
+             snapshot(project, root)
+
+    assert message =~ "time budget"
+  end
+
+  test "unknown references are cached and issues are bounded", %{project: project} do
+    absent = Enum.map(1..32, &"absent-#{&1}")
+    task(project, "left", absent, "done")
+    task(project, "right", absent, "done")
+    root = task(project, "root", ["left", "right"])
+    trace = observe_queries()
+    assert {:ok, %{ready?: false, issues: issues}} = snapshot(project, root)
+    assert length(issues) == 33
+    assert length(queries(trace)) == 35
   end
 
   test "malformed pinned source and unknown nested IDs block even through Done", %{
@@ -176,18 +254,59 @@ defmodule Boss.Tasks.DependenciesTest do
   end
 
   defp record(project, id, dependencies) do
-    source =
-      "---\nid: #{Jason.encode!(id)}\ndepends_on: #{Jason.encode!(dependencies)}\n---\n# #{id}"
-
     {:ok, record} =
       Projects.record_spec(project.id, %{
         relative_path: "#{id}.md",
         explicit_id: id,
-        original_text: source,
+        original_text: source(id, dependencies),
         title: id
       })
 
     record
+  end
+
+  defp source(id, dependencies),
+    do:
+      "---\nid: #{Jason.encode!(id)}\ndepends_on: #{Jason.encode!(dependencies)}\n---\n# #{id}\n"
+
+  defp observe_queries(delay \\ 0) do
+    ref = make_ref()
+
+    :ok =
+      :telemetry.attach(
+        ref,
+        [:boss, :repo, :query],
+        &__MODULE__.observe_query/4,
+        {self(), ref, delay}
+      )
+
+    on_exit(fn -> :telemetry.detach(ref) end)
+    ref
+  end
+
+  def observe_query(_event, _measurements, metadata, {owner, ref, delay}) do
+    if self() == owner and String.contains?(metadata.query, ~s(FROM "tasks")) do
+      if delay > 0, do: Process.sleep(delay)
+      {:ok, result} = metadata.result
+
+      bytes =
+        for row <- result.rows || [],
+            value <- row,
+            is_binary(value) and byte_size(value) > 100_000,
+            reduce: 0 do
+          bytes -> bytes + byte_size(value)
+        end
+
+      send(owner, {ref, bytes})
+    end
+  end
+
+  defp queries(ref) do
+    receive do
+      {^ref, bytes} -> [bytes | queries(ref)]
+    after
+      0 -> []
+    end
   end
 
   # These read-model fixtures represent persisted states; they do not produce delivery evidence.
