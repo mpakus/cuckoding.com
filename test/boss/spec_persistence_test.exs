@@ -6,7 +6,8 @@ defmodule Boss.SpecPersistenceTest do
     {20_261_025_180_000, Boss.Repo.Migrations.CreateProjects},
     {20_261_025_220_000, Boss.Repo.Migrations.CreateSpecRevisions},
     {20_261_025_230_000, Boss.Repo.Migrations.TrackMissingSpecs},
-    {20_261_026_010_000, Boss.Repo.Migrations.CreateTaskEvents}
+    {20_261_026_010_000, Boss.Repo.Migrations.CreateTaskEvents},
+    {20_261_027_010_000, Boss.Repo.Migrations.AddTaskRevisionAdoption}
   ]
 
   setup context do
@@ -45,7 +46,7 @@ defmodule Boss.SpecPersistenceTest do
       })
 
     Ecto.Migrator.run(Repo, @migrations, :up,
-      to: Map.get(context, :migrate_to, 20_261_026_010_000),
+      to: Map.get(context, :migrate_to, 20_261_027_010_000),
       log: false
     )
 
@@ -99,7 +100,7 @@ defmodule Boss.SpecPersistenceTest do
   test "migration rollback and reapply preserve the pre-existing project", %{project: project} do
     {:ok, _} = Projects.record_spec(project.id, observation("A"))
 
-    assert [20_261_026_010_000, 20_261_025_230_000, 20_261_025_220_000] =
+    assert [20_261_027_010_000, 20_261_026_010_000, 20_261_025_230_000, 20_261_025_220_000] =
              Ecto.Migrator.run(Repo, @migrations, :down,
                to_exclusive: 20_261_025_180_000,
                log: false
@@ -107,7 +108,7 @@ defmodule Boss.SpecPersistenceTest do
 
     assert Projects.get_project!(project.id) == project
 
-    assert [20_261_025_220_000, 20_261_025_230_000, 20_261_026_010_000] =
+    assert [20_261_025_220_000, 20_261_025_230_000, 20_261_026_010_000, 20_261_027_010_000] =
              Ecto.Migrator.run(Repo, @migrations, :up, all: true, log: false)
 
     assert {:ok, %{change: :created}} = Projects.record_spec(project.id, observation("A"))
@@ -122,7 +123,7 @@ defmodule Boss.SpecPersistenceTest do
     {:ok, second} =
       Projects.record_spec(project.id, Map.put(observation("B"), :explicit_id, "replacement"))
 
-    assert [20_261_026_010_000] =
+    assert [20_261_027_010_000, 20_261_026_010_000] =
              Ecto.Migrator.run(Repo, @migrations, :down,
                to_exclusive: 20_261_025_230_000,
                log: false
@@ -567,7 +568,7 @@ defmodule Boss.SpecPersistenceTest do
         [spec.id, revision.id, timestamp, timestamp]
       )
 
-    assert [20_261_026_010_000] =
+    assert [20_261_026_010_000, 20_261_027_010_000] =
              Ecto.Migrator.run(Repo, @migrations, :up, all: true, log: false)
 
     task = Tasks.get_task!(id)
@@ -579,7 +580,7 @@ defmodule Boss.SpecPersistenceTest do
     assert task.spec_revision_id == revision.id
     assert Tasks.list_events(id) == []
 
-    assert [20_261_026_010_000] =
+    assert [20_261_027_010_000, 20_261_026_010_000] =
              Ecto.Migrator.run(Repo, @migrations, :down,
                to_exclusive: 20_261_025_230_000,
                log: false
@@ -590,7 +591,7 @@ defmodule Boss.SpecPersistenceTest do
 
     assert revision_id == revision.id
 
-    assert [20_261_026_010_000] =
+    assert [20_261_026_010_000, 20_261_027_010_000] =
              Ecto.Migrator.run(Repo, @migrations, :up, all: true, log: false)
 
     assert Tasks.get_task!(id) == task
