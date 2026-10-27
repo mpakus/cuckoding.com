@@ -652,6 +652,11 @@ defmodule BossWeb.ProjectLive do
   defp renew_delivery_requests(socket) do
     socket =
       Enum.reduce(socket.assigns.deliveries, socket, fn delivery, socket ->
+        socket =
+          if socket.assigns.delivery_stopping == delivery.id && !delivery_active?(delivery),
+            do: assign(socket, delivery_stopping: nil),
+            else: socket
+
         request = socket.assigns.delivery_requests[delivery.task_id]
 
         socket =

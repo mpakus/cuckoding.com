@@ -168,6 +168,61 @@ defmodule BossWeb.TaskDeliveryLiveTest do
     assert Tasks.get_task!(c.saved.task.id).state == "done"
     assert has_element?(view, "#column-done #task-#{c.saved.task.id}")
     refute has_element?(view, "#integrate-delivery-#{delivery.id}")
+    next = spec(c.project, "next")
+    render_patch(view, "/projects/#{c.project.id}/tasks/#{next.task.id}")
+    settle(view)
+    refute has_element?(view, "#start-delivery[disabled]")
+    start(view, command(view))
+    assert_receive {:workflow, next_worker, next_delivery}, 1_000
+    assert next_delivery.task_id == next.task.id
+    finish(next_worker, :cancelled)
+  end
+
+  test "a late Stop before Ready does not disable Stop for the subsequent integration", c do
+    owner = self()
+
+    :sys.replace_state(Manager, fn state ->
+      %{
+        state
+        | delivery_worker: fn delivery, _, manager ->
+            send(owner, {:workflow, self(), delivery})
+
+            receive do
+              :stop -> :ok
+            after
+              10_000 -> :ok
+            end
+
+            # Model a Stop received after the last cancellation checkpoint.
+            ready = ready_delivery(c.project, delivery)
+            send(manager, {:delivery_finished, delivery.id, {:ok, ready}})
+            send(owner, {:fixture_finished, delivery.id})
+          end
+      }
+    end)
+
+    {:ok, view, _} = live(c.conn, task_path(c))
+    settle(view)
+    start(view, command(view))
+    assert_receive {:workflow, _, delivery}, 1_000
+    settle(view)
+    view |> element("#stop-delivery-#{delivery.id}") |> render_click()
+    assert_receive {:fixture_finished, _}, 1_000
+    settle(view)
+    assert has_element?(view, "#delivery-#{delivery.id}", "Ready to integrate")
+    view |> element("#integrate-delivery-#{delivery.id}") |> render_click()
+    assert_receive {:integration, worker, _}, 1_000
+    settle(view)
+    stop_enabled = has_element?(view, "#stop-delivery-#{delivery.id}:not([disabled])")
+
+    if stop_enabled,
+      do: view |> element("#stop-delivery-#{delivery.id}") |> render_click(),
+      else: send(worker, :stop)
+
+    assert_receive {:fixture_finished, _}, 1_000
+    settle(view)
+    assert stop_enabled
+    assert has_element?(view, "#delivery-#{delivery.id}", "Workflow stopped")
   end
 
   test "unknown integration retries the same request without accepting a stale delivery ID", c do
@@ -353,11 +408,15 @@ defmodule BossWeb.TaskDeliveryLiveTest do
     {:ok, {:new, delivery}} =
       Deliveries.admit(c.project.id, c.saved.task.id, Ecto.UUID.generate(), "mix test")
 
+    ready_delivery(c.project, delivery)
+  end
+
+  defp ready_delivery(project, delivery) do
     intent = %{
-      "project_id" => to_string(c.project.id),
+      "project_id" => to_string(project.id),
       "run_id" => delivery.id,
-      "repo_path" => c.project.root_path,
-      "git_common_dir" => c.project.git_common_dir,
+      "repo_path" => project.root_path,
+      "git_common_dir" => project.git_common_dir,
       "base_branch" => "main",
       "base_commit" => @base,
       "path" => "/retained/workflow"

@@ -49,3 +49,29 @@
   branches, run combined checks and browser inspection, then remove this temporary
   worktree/branch. Parent owns AGENTS/task/shared-documentation updates.
 
+
+## Combined UI review follow-up
+
+- Reviewed combined root `3bcb9fb` read-only: request replay/late replies, task
+  selection, manual/managed exclusion, native dialog hook and explicit integration.
+  Found one actionable race: a Stop arriving after the worker's final cancellation
+  checkpoint can leave Ready with `delivery_stopping` still set. Integration reuses
+  that delivery ID, so its Stop button remained disabled.
+- Parent authorized a narrow fix. Refresh now clears the Stop indicator only when
+  the matching persisted delivery is no longer active. Regression drives real
+  LiveView Start → late Stop → persisted Ready → Integrate → enabled Stop using
+  finite fake workers. It failed before the fix (seed 224756, `stop_enabled` false).
+- Extended persisted-Done UI regression to open a different task and explicitly
+  start its workflow, confirming old request/phase locks no longer prevent work.
+- The same eight-file UI test command above passed 66 tests, seed 625165. All
+  production workers were merged for this run; no provider invocation.
+- Reviewed `assets/js/app.js`/TaskBoard dialog: native showModal, preserved `open`,
+  focused revision synchronization and return focus to the moved task card remain
+  intact in source. Browser validation remains parent-owned, not inferred.
+- Browser fixture recommendation uses existing `test/fixtures/codex_delivery.py`
+  and `delivery_check.py`, following `delivery_worker_test.exs` setup. Earlier
+  scratch startup scripts were removed per the parent worklog; avoid blocking
+  token FIFO (previous fixture blocked Erlang file service). Use an exclusively
+  created root, fixture CLI first in PATH, local check argv, and free target main.
+- Follow-up `mix compile --warnings-as-errors`, focused format check and
+  `git diff --check` passed. Temporary deps symlink removed before commit.
