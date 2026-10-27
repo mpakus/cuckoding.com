@@ -1,6 +1,7 @@
 # Workflow queue
 
-Implementation in progress for BOSS-015b; verification is recorded in `.worklog/`.
+BOSS-015b is verified with finite native CLI fixtures on macOS. Commands and
+browser/full-suite evidence are recorded in `.worklog/`.
 
 The task drawer offers **Start workflow** for immediate admission and **Queue
 workflow** for an explicit saved request that can wait for a free worker or

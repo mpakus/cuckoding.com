@@ -441,14 +441,23 @@ restart the running BOSS server for the new reviewer migration.
 
 ## BOSS-015b — явная очередь и два managed worker
 
-В работе. Контракт: [WORKFLOW_QUEUE.md](../docs/WORKFLOW_QUEUE.md).
+Контракт: [WORKFLOW_QUEUE.md](../docs/WORKFLOW_QUEUE.md).
 
-- [ ] Durable queued/paused request, exact replay, cancellation and source/version pins.
-- [ ] Atomic dispatch, Done dependencies, bounded fair scan and restart pause/Resume.
-- [ ] Two managed workers; exclusive manual/integration; unknown-cleanup quarantine.
-- [ ] Explicit Queue UI, frozen uncertain action/input and persisted history.
-- [ ] Independent review, native process/SQLite tests, browser and combined full suite.
-- [ ] Merge local main, verify combined result and remove merged branches/worktrees.
+- [x] Durable queued/paused request, exact replay, cancellation and source/version pins.
+- [x] Atomic dispatch, Done dependencies, bounded fair scan and restart pause/Resume.
+- [x] Two managed workers; exclusive manual/integration; unknown-cleanup quarantine.
+- [x] Explicit Queue UI, frozen uncertain action/input and persisted history.
+- [x] Independent review, native process/SQLite tests, browser and combined full suite.
+- [ ] Merge local main, verify combined result and remove merged branches.
+- [ ] Archive the two queue writer worktrees.
+
+Combined root suite:483 passed/1 existing Linux-only skip,seed276199,741.0s.
+The first full run exposed a test-Sandbox timer leak; the final run includes its
+closed-owner regressions. Native acceptance also exposed shared-directory mkdir
+races, fixed with directory-only revalidation and independently proven mutation
+tests. Browser verified queue/cancel/history, two processes, Stop freeing a slot,
+restart pause/Resume, Ready waiting, Done dispatch and refusal after target drift.
+Compile, format, assets and diff checks passed. Local-main verification follows.
 
 No automatic divergent integration, typed file-scope prediction, configurable worker
 count or actual provider calls in this increment.
@@ -460,6 +469,6 @@ count or actual provider calls in this increment.
 | Порядок | Tickets | Зависит от | Проверяемый результат / отказ |
 |---|---|---|---|
 | 1 | 012: provider acceptance | Claude reviewer 012a | Реальный opt-in проход с сохранёнными provenance/cleanup gates; никакого paid auto-retry. Claude implementer требует отдельной проверенной границы записи. |
-| 2 | 015b: DAG scheduler и два worker | 015a, revision adoption | Independent tasks параллельны; duplicate tick не дублирует run; новый source принимается явно. |
-| 3 | 016b: divergent integration queue | 015, 016a | Новая база требует нового checked/reviewed merge candidate; drift/conflict/failed checks не дают Done. |
+| 2 | 016b: divergent integration queue | 015b, 016a | Новая база требует нового checked/reviewed merge candidate; drift/conflict/failed checks не дают Done. |
+| 3 | 015c: file scopes и настройка capacity | 015b, typed plan extension | Известные пересечения сериализуются, неизвестные остаются явно обозначенными; configurable1–3 не ослабляет admission. |
 | 4 | 017–018: recovery matrix, packaging | 016 | Kill/restart на каждой опасной границе; fresh macOS/Linux установка и полный spec→review→integrate проход. |
