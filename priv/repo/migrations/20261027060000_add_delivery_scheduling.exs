@@ -13,6 +13,16 @@ defmodule Boss.Repo.Migrations.AddDeliveryScheduling do
 
     execute("INSERT INTO delivery_settings VALUES(1,2,0)")
 
+    execute(
+      "CREATE TRIGGER delivery_settings_insert BEFORE INSERT ON delivery_settings WHEN EXISTS(SELECT 1 FROM delivery_settings) BEGIN SELECT RAISE(ABORT, 'worker capacity cannot be replaced'); END"
+    )
+
+    execute("""
+    CREATE TRIGGER delivery_steps_no_replace BEFORE INSERT ON delivery_steps
+    WHEN EXISTS(SELECT 1 FROM delivery_steps WHERE id=NEW.id OR (delivery_id=NEW.delivery_id AND number=NEW.number))
+    BEGIN SELECT RAISE(ABORT, 'delivery evidence cannot be replaced'); END
+    """)
+
     execute("""
     CREATE TRIGGER delivery_settings_update BEFORE UPDATE ON delivery_settings
     WHEN NEW.id!=OLD.id OR NEW.version!=OLD.version+1
@@ -30,7 +40,8 @@ defmodule Boss.Repo.Migrations.AddDeliveryScheduling do
       execute("""
       CREATE TRIGGER delivery_plan_scopes_#{String.downcase(operation)} BEFORE #{operation} ON delivery_steps
       WHEN NEW.kind='plan' AND NEW.status='finished' AND (
-        COALESCE(json_type(NEW.receipt,'$.report.file_scopes'),'null') NOT IN ('null','array')
+        EXISTS (SELECT 1 FROM json_tree(NEW.receipt) WHERE key IS NOT NULL GROUP BY parent,key HAVING COUNT(*)>1)
+        OR         COALESCE(json_type(NEW.receipt,'$.report.file_scopes'),'null') NOT IN ('null','array')
         OR (json_type(NEW.receipt,'$.report.file_scopes')='array' AND (
           json_array_length(NEW.receipt,'$.report.file_scopes') NOT BETWEEN 1 AND 64
           OR EXISTS (SELECT 1 FROM json_each(NEW.receipt,'$.report.file_scopes') s WHERE
@@ -80,8 +91,10 @@ defmodule Boss.Repo.Migrations.AddDeliveryScheduling do
 
     execute("""
     CREATE TRIGGER delivery_scope_admission BEFORE INSERT ON delivery_steps
-    WHEN NEW.kind='implement' AND EXISTS
-      (SELECT 1 FROM delivery_scope_conflicts WHERE delivery_id=NEW.delivery_id)
+    WHEN NEW.kind='implement' AND (
+      EXISTS (SELECT 1 FROM deliveries WHERE cleanup='unknown')
+      OR EXISTS (SELECT 1 FROM agent_runs WHERE cleanup='unknown')
+      OR EXISTS (SELECT 1 FROM delivery_scope_conflicts WHERE delivery_id=NEW.delivery_id))
     BEGIN SELECT RAISE(ABORT, 'predicted file scope is held'); END
     """)
   end
@@ -90,11 +103,15 @@ defmodule Boss.Repo.Migrations.AddDeliveryScheduling do
     if repo().query!("SELECT COUNT(*) FROM deliveries WHERE #{@active}").rows |> hd() |> hd() > 2,
       do: raise("Refusing to discard live scheduling evidence")
 
+    if repo().query!("SELECT max_parallel_tasks FROM delivery_settings WHERE id=1").rows != [[2]],
+      do: raise("Refusing to discard configured worker capacity")
+
     if repo().query!(
          "SELECT COUNT(*) FROM delivery_steps WHERE kind='plan' AND json_type(receipt,'$.report.file_scopes') IS NOT NULL"
        ).rows != [[0]],
        do: raise("Refusing to discard typed scope history")
 
+    execute("DROP TRIGGER delivery_steps_no_replace")
     execute("DROP TRIGGER delivery_scope_admission")
     execute("DROP VIEW delivery_scope_conflicts")
     execute("DROP TRIGGER delivery_plan_scopes_insert")

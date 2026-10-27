@@ -37,6 +37,7 @@ defmodule Boss.DeliverySchedulingTest do
              Repo.query("UPDATE delivery_settings SET max_parallel_tasks=2,version=version+1")
 
     assert {:error, _} = Repo.query("DELETE FROM delivery_settings")
+    assert {:error, _} = Repo.query("INSERT OR REPLACE INTO delivery_settings VALUES(1,1,0)")
 
     assert {:error, _} =
              Repo.query("UPDATE delivery_settings SET max_parallel_tasks=4,version=version+1")
@@ -55,6 +56,15 @@ defmodule Boss.DeliverySchedulingTest do
     assert Scheduling.blockers(first.delivery) == []
     assert Scheduling.blockers(second.delivery) == []
     assert {:ok, implementation} = implement(first)
+
+    for step <- [first.plan, implementation] do
+      assert {:error, _} =
+               Repo.query(
+                 "INSERT OR REPLACE INTO delivery_steps SELECT id,delivery_id,project_id,number,kind,cycle,input,'{}','running',inserted_at,updated_at FROM delivery_steps WHERE id=?",
+                 [step.id]
+               )
+    end
+
     assert Scheduling.blockers(second.delivery) == [first.delivery.id]
     saved = Deliveries.get(c.project.id, second.delivery.id)
     task = Tasks.get_task!(second.delivery.task_id)
@@ -120,12 +130,57 @@ defmodule Boss.DeliverySchedulingTest do
     assert {:ok, _} = implement(second)
   end
 
-  test "unknown cleanup retains a scope claim; an untyped legacy plan stays unknown", c do
-    first = planned(c.project, "one", scope("lib"))
+  test "unknown cleanup blocks a first write even with unknown or disjoint predicted scopes", c do
+    first = planned(c.project, "one", nil)
     second = planned(c.project, "two", scope("lib/file"))
     assert {:ok, _} = implement(first)
     assert {:ok, _} = Deliveries.interrupt(first.delivery.id)
-    assert {:error, :scope_conflict} = implement(second)
+    assert Scheduling.blockers(second.delivery) == []
+    assert {:error, :execution_quarantined} = implement(second)
+    assert {:error, _} = raw_implement(second)
+  end
+
+  test "quarantine also blocks disjoint predictions in another repository", c do
+    other =
+      Repo.insert!(%Projects.Project{
+        name: "Other",
+        root_path: "/other",
+        git_common_dir: "/other/.git",
+        specs_path: "/other/specs",
+        base_branch: "main"
+      })
+
+    first = planned(c.project, "one", scope("lib"))
+    second = planned(other, "two", scope("different/file"))
+    assert {:ok, _} = implement(first)
+    assert {:ok, _} = Deliveries.interrupt(first.delivery.id)
+    assert Scheduling.blockers(second.delivery) == []
+    assert {:error, :execution_quarantined} = implement(second)
+    assert {:error, _} = raw_implement(second)
+  end
+
+  test "duplicate JSON keys cannot hide a predicted scope from SQL admission", c do
+    data = planned_start(c.project, "duplicates")
+    suffix = ~s(,"summary":"Plan","steps":["Implement"],"acceptance":["Pass"]})
+    report = ~s({"file_scopes":null,"file_scopes":[{"path":"lib","kind":"directory"}]) <> suffix
+    received = JSON.encode!(receipt(%{"report" => nil}))
+
+    for ambiguous <- [
+          String.replace(received, ~s("report":null), ~s("report":) <> report),
+          String.replace(
+            received,
+            ~s("report":null),
+            ~s("report":null,"report":) <> JSON.encode!(plan())
+          )
+        ] do
+      assert {:error, _} =
+               Repo.query("UPDATE delivery_steps SET status='finished',receipt=? WHERE id=?", [
+                 ambiguous,
+                 data.plan.id
+               ])
+    end
+
+    assert Repo.get!(Boss.Deliveries.Step, data.plan.id).status == "running"
   end
 
   test "invalid typed predictions cannot be persisted through context or raw SQL", c do

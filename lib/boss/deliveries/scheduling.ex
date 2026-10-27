@@ -55,6 +55,13 @@ defmodule Boss.Deliveries.Scheduling do
   def update(_, _, _), do: {:error, :invalid_capacity}
 
   @doc false
+  def quarantined? do
+    Repo.query!(
+      "SELECT EXISTS(SELECT 1 FROM deliveries WHERE cleanup='unknown') OR EXISTS(SELECT 1 FROM agent_runs WHERE cleanup='unknown')"
+    ).rows == [[1]]
+  end
+
+  @doc false
   def blockers(%Deliveries.Delivery{id: id}) do
     Repo.query!(
       "SELECT blocker_id FROM delivery_scope_conflicts WHERE delivery_id=? ORDER BY blocker_id",
