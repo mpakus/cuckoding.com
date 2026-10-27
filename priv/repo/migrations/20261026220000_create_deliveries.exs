@@ -54,11 +54,19 @@ defmodule Boss.Repo.Migrations.CreateDeliveries do
 
     execute("""
     CREATE TRIGGER delivery_pin BEFORE INSERT ON deliveries
-    WHEN NEW.admitted_version!=NEW.task_version OR NOT EXISTS
+    WHEN NEW.status!='planning' OR NEW.cleanup!='pending' OR NEW.cycle!=0
+      OR NEW.intent!='{}' OR NEW.integration_intent!='{}' OR NEW.integration_command_id IS NOT NULL
+      OR NEW.admitted_version!=NEW.task_version OR NOT EXISTS
       (SELECT 1 FROM tasks t JOIN specs s ON s.id=t.spec_id WHERE t.id=NEW.task_id
       AND s.project_id=NEW.project_id AND t.spec_revision_id=NEW.spec_revision_id
       AND t.state_version=NEW.task_version)
     BEGIN SELECT RAISE(ABORT, 'delivery snapshot mismatch'); END
+    """)
+
+    execute("""
+    CREATE TRIGGER delivery_step_initial BEFORE INSERT ON delivery_steps
+    WHEN NEW.status!='running' OR NEW.receipt!='{}'
+    BEGIN SELECT RAISE(ABORT, 'delivery step must start before effects'); END
     """)
 
     execute("""

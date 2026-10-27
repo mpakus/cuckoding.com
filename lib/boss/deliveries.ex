@@ -530,8 +530,9 @@ defmodule Boss.Deliveries do
     post = List.last(all)
     publish = Enum.find(all, &(&1.kind == "publish"))
 
-    unless ((d.status == "integrating" and d.integration_command_id != nil and publish) && post &&
-              post.kind == "post_check") and post.status == "finished" and
+    unless d.status == "integrating" and d.integration_command_id != nil and
+             match?(%Step{kind: "publish"}, publish) and match?(%Step{kind: "post_check"}, post) and
+             post.status == "finished" and
              publish.status == "finished" and
              post.input["publish_step_id"] == publish.id and
              post.input["intent"] == d.integration_intent and
@@ -564,6 +565,17 @@ defmodule Boss.Deliveries do
   defp save!(record, attrs), do: record |> Ecto.Changeset.change(attrs) |> Repo.update!()
 
   defp sync_task!(d, suffix, allow_external_change \\ false) do
+    task = Repo.get!(Tasks.Task, d.task_id)
+
+    if allow_external_change and
+         (task.state_version != d.task_version or task.spec_revision_id != d.spec_revision_id) do
+      d
+    else
+      transition_task!(d, suffix)
+    end
+  end
+
+  defp transition_task!(d, suffix) do
     case Tasks.transition(d.task_id, %{
            command_id: "#{d.id}:#{suffix}",
            expected_version: d.task_version,
@@ -572,7 +584,6 @@ defmodule Boss.Deliveries do
          }) do
       {:ok, _event} when d.status in @terminal -> d
       {:ok, event} -> save!(d, task_version: event.version)
-      {:error, :stale_state} when allow_external_change -> d
       {:error, reason} -> Repo.rollback(reason)
     end
   end
