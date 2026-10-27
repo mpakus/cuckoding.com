@@ -11,8 +11,12 @@ defmodule BossWeb.WorkflowCapacity do
   end
 
   @impl true
-  def update(%{settings: settings} = assigns, socket),
-    do: {:ok, socket |> assign(Map.take(assigns, [:id])) |> receive_settings(settings)}
+  def update(%{settings: settings} = assigns, socket) do
+    socket = assign(socket, Map.take(assigns, [:id]))
+
+    {:ok,
+     if(socket.assigns.settings == settings, do: socket, else: receive_settings(socket, settings))}
+  end
 
   def update(assigns, socket), do: {:ok, assign(socket, assigns)}
 
@@ -29,15 +33,13 @@ defmodule BossWeb.WorkflowCapacity do
       when is_map(request),
       do: {:noreply, save(socket, request)}
 
-  def handle_event("save", %{"capacity" => value}, socket) when is_binary(value) do
-    case {socket.assigns.settings, Integer.parse(value)} do
-      {%{version: version}, {capacity, ""}} when capacity in 1..3 ->
-        {:noreply, save(socket, %{version: version, capacity: capacity})}
-
-      _ ->
-        {:noreply, assign(socket, error: "Choose 1, 2 or 3 workers.")}
-    end
-  end
+  def handle_event(
+        "save",
+        %{"capacity" => value},
+        %{assigns: %{settings: %{version: version}}} = socket
+      )
+      when value in ~w(1 2 3),
+      do: {:noreply, save(socket, %{version: version, capacity: String.to_integer(value)})}
 
   def handle_event("save", _, socket),
     do: {:noreply, assign(socket, error: "Choose 1, 2 or 3 workers.")}
@@ -157,12 +159,12 @@ defmodule BossWeb.WorkflowCapacity do
         {@error}
       </p>
       <button
-        :if={!@settings && @error}
+        :if={@error && !@pending}
         type="button"
         phx-target={@myself}
         phx-click="reload"
         class="mt-2 rounded border border-zinc-600 px-3 py-2 text-sm"
-      >Retry loading</button>
+      >Reload capacity</button>
     </section>
     """
   end
