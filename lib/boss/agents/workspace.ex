@@ -273,8 +273,17 @@ defmodule Boss.Agents.Workspace do
 
           {:error, :enoent} ->
             case File.mkdir(next) do
-              :ok -> File.chmod(next, 0o700)
-              _ -> {:error, :workspace_unwritable}
+              :ok ->
+                File.chmod(next, 0o700)
+
+              {:error, :eexist} ->
+                case File.lstat(next) do
+                  {:ok, %{type: :directory}} -> :ok
+                  _ -> {:error, :workspace_unwritable}
+                end
+
+              _ ->
+                {:error, :workspace_unwritable}
             end
 
           _ ->

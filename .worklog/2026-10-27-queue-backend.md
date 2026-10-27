@@ -89,3 +89,35 @@ its global Manager timers before sandbox teardown. Suggested deterministic check
 retain an old timer tag, reset fixture while owner is alive, deliver the stale tick,
 and verify same Manager PID/no timer/no active or finished owners. Combined rerun
 remains parent-owned; no new passing result is claimed for that failing seed here.
+
+Concurrent native follow-up: root seed258090 recorded workspace_unwritable for
+the second planner. Root cause was lstat(:enoent) / mkdir(:eexist) on common parent
+directories. The same race existed in Candidate.parents; its successful mkdir also
+ignored chmod errors. Both now accept eexist only after fresh lstat confirms a real
+directory, preserving another creator's mode; fresh candidate chmod failures abort.
+Exclusive scratch-directory mkdir semantics and integration code are unchanged.
+
+Reference lookup: `rtk proxy xerj search --prefix bossrefs MkdirAll -k 2 --full 1000`,
+then rg and source at agent-orchestrator
+`backend/internal/adapters/workspace/gitworktree/workspace.go:1248-1258`, SHA
+`7193eff4e08f1481944845ee058fe6fd18930b6d`, Apache-2.0. Existing directory acceptance
+is useful; generic MkdirAll lacks BOSS descendant symlink policy, so retained the
+component-wise lstat validation. No source copied.
+
+A real-filesystem barrier before parent creation launches eight unique sibling
+run worktrees, then eight checked snapshots, across two fresh hierarchies. Both
+fixed suites initially passed26 tests. Mutation checks restored each old function
+separately: old Workspace failed7/8 preparations with workspace_unwritable; old
+Candidate failed7/8 captures with candidate_unwritable. Fixed files were restored
+in finally blocks. Added late-parent directory mode/file/symlink checks to both
+paths; final focused rerun pending. Native two-worker/full combined reruns remain
+parent-owned.
+
+Final filesystem-fix verification:
+`rtk proxy asdf exec mix test test/boss/agent_workspace_test.exs
+test/boss/check_candidate_test.exs` — **29 passed** in46.8seconds, seed274068.
+Focused format check and git diff --check passed. Read-only reviewer confirmed
+fresh directory validation, chmod failure propagation and exclusive scratch
+semantics. The owned dependency symlink was removed again after test completion.
+Next step: parent merges this fix, reruns production two-worker native acceptance
+and the combined full suite after the independent web fixture cleanup.
