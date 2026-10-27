@@ -42,6 +42,69 @@ defmodule Boss.Checks.Candidate do
     end
   end
 
+  @doc "Retains a clean merge of two exact commits without changing their branches or indexes."
+  def prepare_merge(intent, target, approved, opts \\ []) do
+    with true <- sha?(target) and sha?(approved) and target != approved,
+         :ok <- valid_intent(intent, opts),
+         source = intent["run_workspace"]["path"],
+         :ok <- supported(source, opts),
+         :ok <- absent(intent["path"]),
+         :ok <- unused_ref(source, intent["ref"], opts),
+         :ok <- parents(Path.dirname(intent["path"])),
+         {:ok, tree} <- merge_tree(source, target, approved, opts),
+         true <- sha?(tree),
+         {:ok, sha} <-
+           git(
+             source,
+             [
+               "-c",
+               "user.name=BOSS",
+               "-c",
+               "user.email=boss@localhost",
+               "-c",
+               "commit.gpgSign=false",
+               "commit-tree",
+               tree,
+               "-p",
+               target,
+               "-p",
+               approved,
+               "-m",
+               "BOSS merge #{intent["check_id"]}"
+             ],
+             opts
+           ),
+         true <- sha?(sha),
+         {:ok, _} <-
+           git(source, ["update-ref", "--no-deref", intent["ref"], sha, zeros(sha)], opts),
+         {:ok, _} <- git(source, ["worktree", "add", "--detach", "--", intent["path"], sha], opts),
+         :ok <- verify_merge(intent, sha, target, approved, opts) do
+      {:ok, %{candidate_commit: sha, path: intent["path"]}}
+    else
+      {:error, _} = error -> error
+      _ -> {:error, :invalid_candidate}
+    end
+  end
+
+  def verify_merge(intent, sha, target, approved, opts \\ []) do
+    with true <- sha?(target) and sha?(approved) and target != approved,
+         :ok <- verify(intent, sha, opts),
+         expected = "#{sha} #{target} #{approved}",
+         {:ok, ^expected} <- git(intent["path"], ["rev-list", "--parents", "-n", "1", sha], opts) do
+      :ok
+    else
+      {:error, _} = error -> error
+      _ -> {:error, :candidate_changed}
+    end
+  end
+
+  defp merge_tree(source, target, approved, opts) do
+    case git(source, ["merge-tree", "--write-tree", "--no-messages", target, approved], opts) do
+      {:error, {:git_exit, 1}} -> {:error, :merge_conflict}
+      result -> result
+    end
+  end
+
   def verify(intent, sha, opts \\ []) do
     with true <- sha?(sha),
          :ok <- valid_intent(intent, opts),
