@@ -17,7 +17,8 @@ defmodule Boss.WorkflowQueuePersistenceTest do
     {20_261_027_010_000, Boss.Repo.Migrations.AddTaskRevisionAdoption},
     {20_261_027_020_000, Boss.Repo.Migrations.PreserveHistoricalRunPins},
     {20_261_027_030_000, Boss.Repo.Migrations.PinDeliveryReviewer},
-    {20_261_027_040_000, Boss.Repo.Migrations.AddWorkflowQueue}
+    {20_261_027_040_000, Boss.Repo.Migrations.AddWorkflowQueue},
+    {20_261_027_050_000, Boss.Repo.Migrations.AddMergeIntegrationEvidence}
   ]
 
   setup do
@@ -85,7 +86,7 @@ defmodule Boss.WorkflowQueuePersistenceTest do
     assert {:ok, {:existing, ^saved, _}} = Queue.claim(request.id)
 
     assert_raise RuntimeError, "Refusing to discard queue history", fn ->
-      Ecto.Migrator.run(Repo, @migrations, :down, step: 1, log: false)
+      Ecto.Migrator.run(Repo, @migrations, :down, to: 20_261_027_040_000, log: false)
     end
   end
 
@@ -265,7 +266,7 @@ defmodule Boss.WorkflowQueuePersistenceTest do
     end
 
     assert_raise RuntimeError, "Refusing to discard concurrent delivery capacity", fn ->
-      Ecto.Migrator.run(Repo, @migrations, :down, step: 1, log: false)
+      Ecto.Migrator.run(Repo, @migrations, :down, to: 20_261_027_040_000, log: false)
     end
   end
 
