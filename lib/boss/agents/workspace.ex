@@ -169,8 +169,9 @@ defmodule Boss.Agents.Workspace do
 
   @doc false
   def safe_config(repo, opts \\ []) do
-    with :ok <- conditional_config(repo, opts) do
-      filter_drivers(repo, opts)
+    with :ok <- conditional_config(repo, opts),
+         :ok <- filter_drivers(repo, opts) do
+      merge_drivers(repo, opts)
     end
   end
 
@@ -188,6 +189,15 @@ defmodule Boss.Agents.Workspace do
     case git(repo, ["config", "--get-regexp", "^filter\\..*\\.(clean|smudge|process)$"], opts) do
       {:error, {:git_exit, 1}} -> :ok
       {:ok, _} -> {:error, :unsupported_git_filter}
+      {:error, {:git_exit, _}} -> {:error, :git_failed}
+      error -> error
+    end
+  end
+
+  defp merge_drivers(repo, opts) do
+    case git(repo, ["config", "--get-regexp", "^merge\\..*\\.driver$"], opts) do
+      {:error, {:git_exit, 1}} -> :ok
+      {:ok, _} -> {:error, :unsupported_git_merge_driver}
       {:error, {:git_exit, _}} -> {:error, :git_failed}
       error -> error
     end
