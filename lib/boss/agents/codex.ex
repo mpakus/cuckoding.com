@@ -14,6 +14,15 @@ defmodule Boss.Agents.Codex do
         output_path
       ])
 
+  def args(:plan, output_path),
+    do:
+      command_args("read-only", [
+        "--output-schema",
+        Application.app_dir(:boss, "priv/plan_schema.json"),
+        "--output-last-message",
+        output_path
+      ])
+
   defp command_args(sandbox, extra),
     do:
       [
