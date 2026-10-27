@@ -43,7 +43,7 @@ defmodule BossWeb.DeliveryPanel do
         Queue a workflow to start when its prerequisites are Done and capacity is available.
         Up to two independent workflows can run at once. File conflicts are not predicted.
         Queued work pauses after restart and needs Resume. Source changes require explicit adoption.
-        If the target branch changes, integration needs a fresh workflow.
+        If the target advances, integration checks and reviews a new merge candidate before publication.
       </p>
       <p :if={!@supported} class="mt-3 text-sm text-amber-300">
         Task workflows currently require macOS.
@@ -205,7 +205,7 @@ defmodule BossWeb.DeliveryPanel do
           class="space-y-3 py-4 text-sm"
         >
           <div class="flex flex-wrap items-center justify-between gap-3">
-            <p role="status" class="font-medium">{status(delivery.status)}</p>
+            <p role="status" class="font-medium">{status(delivery)}</p>
             <button
               :if={active?(delivery)}
               id={"stop-delivery-#{delivery.id}"}
@@ -228,7 +228,7 @@ defmodule BossWeb.DeliveryPanel do
             Saved check command
             <code class="block break-all text-zinc-300">{JSON.encode!(delivery.check_config["argv"])}</code>
           </p>
-          <p :if={candidate(delivery)} class="text-xs text-zinc-400">
+          <p :if={!merge_stage(delivery) && candidate(delivery)} class="text-xs text-zinc-400">
             Candidate commit <code class="block break-all text-zinc-300">{candidate(delivery)}</code>
           </p>
           <p :if={delivery.reason} class="whitespace-pre-wrap break-words text-amber-300">
@@ -238,7 +238,21 @@ defmodule BossWeb.DeliveryPanel do
             Cleanup or publication could not be confirmed. Workspaces are retained; automatic restart is blocked.
           </p>
           <.plan :if={report(delivery, "plan")} report={report(delivery, "plan")} />
-          <.review :if={report(delivery, "review")} report={report(delivery, "review")} />
+          <.integration_candidate :if={merge_stage(delivery)} step={merge_stage(delivery)} />
+          <.review
+            :if={report(delivery, "review")}
+            report={report(delivery, "review")}
+            label={if merge_stage(delivery), do: "Original review", else: "Review"}
+            candidate={
+              if merge_stage(delivery), do: report_candidate(delivery, "review") || "Unavailable"
+            }
+          />
+          <.review
+            :if={report(delivery, "merge_review")}
+            report={report(delivery, "merge_review")}
+            label="Integration review"
+            candidate={report_candidate(delivery, "merge_review") || "Unavailable"}
+          />
           <div
             :if={delivery.status == "ready_to_merge"}
             class="space-y-2 rounded border border-emerald-800 p-3"
@@ -247,10 +261,14 @@ defmodule BossWeb.DeliveryPanel do
               Ready to integrate into <strong class="break-all">{delivery.intent["base_branch"]}</strong>.
             </p>
             <p class="text-xs text-zinc-400">
-              Saved target commit <code class="break-all">{delivery.intent["base_commit"]}</code>
+              Original base commit <code class="break-all">{delivery.intent["base_commit"]}</code>
             </p>
             <p class="text-xs text-zinc-400">
-              Integration only fast-forwards the unchanged target to this approved commit.
+              An unchanged target fast-forwards to this approved commit. If the target has advanced,
+              BOSS prepares a merge candidate, reruns the saved checks and requests a fresh review
+              from {reviewer(delivery.reviewer)} before publication.
+              Conflicts, failed checks, a rejected review or another target change block integration
+              without automatic repair or retry.
               The target branch must not be checked out in your working folders.
               Done requires successful checks after publication.
             </p>
@@ -302,12 +320,55 @@ defmodule BossWeb.DeliveryPanel do
     """
   end
 
+  attr :step, :map, required: true
+
+  defp integration_candidate(assigns) do
+    ~H"""
+    <section
+      aria-label="Integration candidate"
+      class="space-y-2 rounded border border-zinc-700 p-3 text-xs"
+    >
+      <h4 class="text-sm font-medium">Integration candidate</h4>
+      <p class="text-zinc-400">The original approval stays attached to its original commit.</p>
+      <dl class="space-y-2 text-zinc-400">
+        <div>
+          <dt>Original approved commit</dt>
+          <dd class="break-all font-mono text-zinc-300">
+            {commit(@step.input["original_candidate"])}
+          </dd>
+        </div>
+        <div>
+          <dt>Target pinned for integration</dt>
+          <dd class="break-all font-mono text-zinc-300">{commit(@step.input["target_commit"])}</dd>
+        </div>
+        <div :if={@step.status == "finished"}>
+          <dt>Merge candidate commit</dt>
+          <dd class="break-all font-mono text-zinc-300">
+            {commit(@step.receipt["candidate_commit"])}
+          </dd>
+        </div>
+      </dl>
+      <p :if={@step.status != "finished"} class="text-zinc-400">
+        A merge candidate has not been recorded.
+      </p>
+    </section>
+    """
+  end
+
   attr :report, :map, required: true
+  attr :label, :string, default: "Review"
+  attr :candidate, :any, default: nil
 
   defp review(assigns) do
     ~H"""
-    <section aria-label="Workflow review" class="space-y-2 rounded border border-zinc-700 p-3">
-      <p class="font-medium">Review: {verdict(@report["verdict"])}</p>
+    <section
+      aria-label={if @label == "Review", do: "Workflow review", else: @label}
+      class="space-y-2 rounded border border-zinc-700 p-3"
+    >
+      <p class="font-medium">{@label}: {verdict(@report["verdict"])}</p>
+      <p :if={@candidate} class="text-xs text-zinc-400">
+        Reviewed commit <code class="block break-all text-zinc-300">{commit(@candidate)}</code>
+      </p>
       <p class="whitespace-pre-wrap break-words">{@report["summary"]}</p>
       <details>
         <summary class="cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-400">
@@ -334,9 +395,25 @@ defmodule BossWeb.DeliveryPanel do
     delivery.steps
     |> Enum.reverse()
     |> Enum.find_value(fn step ->
-      if step.kind == kind && step.status == "finished", do: step.receipt["report"]
+      if step.kind == kind && step.status == "finished" && is_map(step.receipt["report"]),
+        do: step.receipt["report"]
     end)
   end
+
+  defp report_candidate(delivery, kind) do
+    delivery.steps
+    |> Enum.reverse()
+    |> Enum.find_value(fn step ->
+      if step.kind == kind && step.status == "finished" && is_map(step.receipt["report"]),
+        do: step.receipt["candidate_commit"] || step.input["candidate_commit"]
+    end)
+  end
+
+  defp merge_stage(delivery),
+    do: delivery.steps |> Enum.reverse() |> Enum.find(&(&1.kind == "merge"))
+
+  defp commit(value) when is_binary(value), do: value
+  defp commit(_), do: "Unavailable"
 
   defp candidate(delivery) do
     delivery.steps
@@ -368,9 +445,23 @@ defmodule BossWeb.DeliveryPanel do
   defp stage("snapshot"), do: "Snapshot"
   defp stage("check"), do: "Checks"
   defp stage("review"), do: "Review"
+  defp stage("merge"), do: "Merge candidate"
+  defp stage("merge_check"), do: "Merge checks"
+  defp stage("merge_review"), do: "Merge review"
   defp stage("publish"), do: "Publication"
   defp stage("post_check"), do: "Post-integration checks"
   defp stage(kind), do: kind
+
+  defp status(%{status: "integrating", steps: steps}) do
+    case List.last(steps) do
+      %{kind: "merge", status: "running"} -> "Preparing merge candidate"
+      %{kind: "merge_check", status: "running"} -> "Checking merge candidate"
+      %{kind: "merge_review", status: "running"} -> "Reviewing merge candidate"
+      _ -> status("integrating")
+    end
+  end
+
+  defp status(%{status: status}), do: status(status)
   defp status("planning"), do: "Preparing plan"
   defp status("implementing"), do: "Implementing task"
   defp status("testing"), do: "Checking candidate"
