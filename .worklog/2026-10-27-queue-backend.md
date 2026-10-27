@@ -50,3 +50,18 @@ Full backend and finite production run/check/review regression suites running.
 No live model calls; provider quota, file-scope prediction and divergent integration
 remain outside this backend increment. Parent owns actual native two-worker smoke,
 combined review/full suite and local main cleanup.
+
+Final focused verification:
+- Queue context + real-pool lifecycle suites: 15 passed after UUID guard and
+  scheduling index changes.
+- `rtk proxy asdf exec mix test test/boss/run_persistence_test.exs
+  test/boss/check_persistence_test.exs test/boss/review_persistence_test.exs`:
+  19 passed in 60.8 seconds, including production transport running status before
+  Stop. No paid providers.
+- `rtk proxy asdf exec mix format --check-formatted`: passed.
+- `rtk proxy git diff --check`: passed.
+- Both reference checkout HEADs verified against pinned manifest SHAs.
+
+Queue has an index on status/inserted_at/id so a 32-row pending sweep does not scan
+unbounded immutable terminal history. No speculative file-overlap prediction,
+automatic integration or settings/dependency changes were added.
