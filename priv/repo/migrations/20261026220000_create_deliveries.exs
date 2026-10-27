@@ -111,6 +111,37 @@ defmodule Boss.Repo.Migrations.CreateDeliveries do
     WHEN EXISTS (SELECT 1 FROM deliveries WHERE #{active})
     BEGIN SELECT RAISE(ABORT, 'delivery owns execution'); END
     """)
+
+    execute("""
+    CREATE TRIGGER delivery_ready_evidence BEFORE UPDATE ON deliveries
+    WHEN NEW.status='ready_to_merge' AND (NEW.cleanup!='group_empty' OR NOT EXISTS (
+      SELECT 1 FROM delivery_steps r JOIN delivery_steps c ON c.id=json_extract(r.input,'$.check_step_id')
+      JOIN delivery_steps p ON p.id=json_extract(r.input,'$.plan_step_id')
+      WHERE r.delivery_id=NEW.id AND c.delivery_id=NEW.id AND p.delivery_id=NEW.id
+        AND r.kind='review' AND c.kind='check' AND p.kind='plan'
+        AND r.status='finished' AND c.status='finished' AND p.status='finished'
+        AND r.cycle=NEW.cycle AND c.cycle=NEW.cycle
+        AND json_extract(r.receipt,'$.report.verdict')='approved'
+        AND json_extract(r.input,'$.candidate_commit')=json_extract(c.input,'$.candidate_commit')
+        AND json_extract(c.input,'$.config_hash')=NEW.config_hash
+        AND r.number=(SELECT MAX(number) FROM delivery_steps WHERE delivery_id=NEW.id)))
+    BEGIN SELECT RAISE(ABORT, 'ready requires current checked review'); END
+    """)
+
+    execute("""
+    CREATE TRIGGER delivery_done_evidence BEFORE UPDATE ON deliveries
+    WHEN NEW.status='done' AND (OLD.status!='integrating' OR NEW.cleanup!='group_empty'
+      OR NEW.integration_command_id IS NULL OR NOT EXISTS (
+      SELECT 1 FROM delivery_steps c JOIN delivery_steps p ON p.id=json_extract(c.input,'$.publish_step_id')
+      WHERE c.delivery_id=NEW.id AND p.delivery_id=NEW.id
+        AND c.kind='post_check' AND p.kind='publish' AND c.status='finished' AND p.status='finished'
+        AND c.cycle=NEW.cycle AND p.cycle=NEW.cycle
+        AND json_extract(c.input,'$.config_hash')=NEW.config_hash
+        AND json_extract(c.receipt,'$.candidate_commit')=json_extract(NEW.integration_intent,'$.candidate_commit')
+        AND json_extract(p.receipt,'$.candidate_commit')=json_extract(NEW.integration_intent,'$.candidate_commit')
+        AND c.number=(SELECT MAX(number) FROM delivery_steps WHERE delivery_id=NEW.id)))
+    BEGIN SELECT RAISE(ABORT, 'done requires published checked commit'); END
+    """)
   end
 
   def down do
