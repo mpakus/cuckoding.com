@@ -149,7 +149,10 @@ defmodule Boss.Tasks do
     if task.state_version != command.expected_version, do: Repo.rollback(:stale_state)
 
     changes =
-      case Transition.apply(task, command.action, command.reason) do
+      case if(command.action == "delivery_progress",
+             do: Boss.Deliveries.transition_changes(task, command),
+             else: Transition.apply(task, command.action, command.reason)
+           ) do
         {:ok, changes} -> changes
         {:error, reason} -> Repo.rollback(reason)
       end
@@ -197,7 +200,14 @@ defmodule Boss.Tasks do
        ) do
     is_integer(task_id) and task_id > 0 and task_id <= 9_223_372_036_854_775_807 and
       is_integer(version) and version >= 0 and version < 9_223_372_036_854_775_807 and
-      Enum.all?(Map.keys(command), &(&1 in [:command_id, :expected_version, :action, :reason])) and
+      Enum.all?(
+        Map.keys(command),
+        &(&1 in [:command_id, :expected_version, :action, :reason, :delivery_id])
+      ) and
+      ((action == "delivery_progress" and match?({:ok, _}, Ecto.UUID.cast(command[:delivery_id])) and
+          is_binary(id) and String.starts_with?(id, command.delivery_id <> ":") and
+          is_nil(command[:reason])) or
+         (action != "delivery_progress" and not Map.has_key?(command, :delivery_id))) and
       valid_text?(id, 128) and valid_text?(action, 64) and
       (is_nil(command[:reason]) or valid_text?(command[:reason], 1000))
   end
