@@ -3,7 +3,7 @@
 In a task's workflow form, choose **Claude** as reviewer and enter the trusted
 check command, then **Start workflow**. Codex still plans and implements/fixes.
 Both local CLI accounts may incur usage charges. The existing manual Codex
-run/check/review flow is unchanged. Restart BOSS for the reviewer migration.
+run/check/review flow is unchanged. Restart BOSS to apply pending migrations.
 
 Admission stores the selected reviewer before effects. It cannot change during
 execution or retries: the same command UUID with a different reviewer conflicts.
@@ -17,6 +17,12 @@ directory. stdin carries the immutable original spec, typed plan, complete diff
 from original base to candidate, check configuration/receipt, complete bounded
 check stdout/stderr and prior feedback. Input is capped at 1 MiB without truncation.
 Candidate identity/tree are checked before and after review as for Codex.
+
+If the target advanced, explicit **Integrate approved result** invokes the saved
+reviewer again on a new merge candidate and may incur additional charges. Claude
+also receives the complete current-target diff, original approval identity and
+new check evidence. The original approval cannot authorize the new merge; there
+is no automatic review retry after target drift or rejection.
 
 Claude assesses this supplied evidence only. `--tools ""`, `dontAsk`, disabled
 slash commands, empty strict MCP configuration and an MCP deny rule remove model
@@ -44,8 +50,9 @@ truncated output and failed terminal results cannot approve a candidate.
 The same native macOS guardian owns the process group. A normal exit0, both
 actual EOFs, known group cleanup and valid protocol/report are all required.
 Stop, output/time limits, missing receipts and Repo loss keep the existing
-failure/quarantine rules. A model approval leads to Ready; explicit integration
-and postchecks are still required for Done.
+failure/quarantine rules. An implementation approval leads to Ready. A fresh
+integration approval authorizes only its exact merge candidate; publication and
+postchecks are still required for Done.
 
 ## Compatibility evidence
 

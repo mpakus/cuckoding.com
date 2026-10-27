@@ -833,10 +833,15 @@ defmodule BossWeb.TaskDeliveryLiveTest do
   end
 
   defp integrated(delivery) do
+    steps = Deliveries.steps(delivery.id)
+    review = Enum.find(steps, &(&1.kind == "review"))
+    check = Enum.find(steps, &(&1.id == review.input["check_step_id"]))
+
     intent = %{
       "delivery_id" => delivery.id,
       "base_commit" => @base,
       "candidate_commit" => @candidate,
+      "candidate" => check.input["workspace"],
       "repo_path" => delivery.intent["repo_path"],
       "base_branch" => "main"
     }
@@ -844,7 +849,9 @@ defmodule BossWeb.TaskDeliveryLiveTest do
     {:ok, _} = Deliveries.set_integration_intent(delivery.id, intent)
 
     publish =
-      stage(delivery, "publish", 1, %{"intent" => intent}, %{"candidate_commit" => @candidate})
+      stage(delivery, "publish", 1, %{"intent" => intent, "review_step_id" => review.id}, %{
+        "candidate_commit" => @candidate
+      })
 
     stage(
       delivery,

@@ -19,7 +19,8 @@ defmodule Boss.WorkflowQueueNativeTest do
     {20_261_027_010_000, Boss.Repo.Migrations.AddTaskRevisionAdoption},
     {20_261_027_020_000, Boss.Repo.Migrations.PreserveHistoricalRunPins},
     {20_261_027_030_000, Boss.Repo.Migrations.PinDeliveryReviewer},
-    {20_261_027_040_000, Boss.Repo.Migrations.AddWorkflowQueue}
+    {20_261_027_040_000, Boss.Repo.Migrations.AddWorkflowQueue},
+    {20_261_027_050_000, Boss.Repo.Migrations.AddMergeIntegrationEvidence}
   ]
 
   setup do
@@ -196,10 +197,23 @@ defmodule Boss.WorkflowQueueNativeTest do
     assert {:ok, _} =
              Deliveries.integrate(ctx.project.id, third.id, Ecto.UUID.generate(), manager)
 
-    blocked = terminal(ctx, third.id)
-    assert blocked.status == "blocked" and blocked.reason =~ "changed"
-    assert git(ctx.source, ["rev-parse", "main"]) == published
-    refute Repo.get!(Tasks.Task, third.task_id).state == "done"
+    integrated = terminal(ctx, third.id)
+    assert integrated.status == "done", inspect({integrated, Deliveries.steps(third.id)})
+    steps = Deliveries.steps(third.id)
+    original = Enum.find(steps, &(&1.kind == "review"))
+    merged = Enum.find(steps, &(&1.kind == "merge"))
+    fresh_review = Enum.find(steps, &(&1.kind == "merge_review"))
+    assert fresh_review.receipt["report"]["verdict"] == "approved"
+    assert fresh_review.input["original_review_step_id"] == original.id
+    assert integrated.integration_intent["base_commit"] == published
+    sha = integrated.integration_intent["candidate_commit"]
+    assert sha == merged.receipt["candidate_commit"]
+    assert git(ctx.source, ["rev-parse", "main"]) == sha
+
+    assert git(ctx.source, ["rev-list", "--parents", "-n", "1", sha]) ==
+             "#{sha} #{published} #{original.input["candidate_commit"]}"
+
+    assert Repo.get!(Tasks.Task, third.task_id).state == "done"
     assert File.read!(Path.join(ctx.source, "result.txt")) == "base"
   end
 

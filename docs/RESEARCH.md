@@ -411,3 +411,28 @@ may produce an empty file or merely log a write failure. BOSS therefore validate
 the explicit output artifact after protocol/exit/EOF/cleanup, rather than guessing
 which streamed message is final. This does not prove a `final_answer` phase or
 model correctness. Only local help/source and finite fixtures were verified.
+
+## BOSS-016b: merge validation before publication
+
+`xerj search --prefix bossrefs verifyClosureHead -k 2 --full 1000` led to Kander
+`internal/review/disposition.go:196–240` and `disposition_test.go:30–92`, pinned at
+`dea0ba6b885c39a56ee769223f7fa5c054e68c70` (MIT). Keep exact clean HEAD checks
+around lengthy validation and historical approval identity; omit its batch/role
+journal. Broad merge queries returned weak results, so research also used direct
+`rg` and source/test reads.
+
+Agent Orchestrator `cloud/internal/worker/reuse_checkout.go:327–374` and its tests
+523–592 at `7193eff4e08f1481944845ee058fe6fd18930b6d` (Apache-2.0) informed
+expected-old CAS and preservation of other checkouts. BOSS does not adopt reverse
+CAS rollback or automatic retry. Backlog's direct checkout merge at
+`packages/server/src/routes/commits.ts:1098–1144`, test269,
+`3580cfbbb1be4144a5cca5b49190e1f8158e4cf7` (Apache-2.0), does not provide the
+required prepublication review boundary.
+
+[Git merge-tree 2.51.1](https://git-scm.com/docs/git-merge-tree/2.51.1) documents
+index/worktree-free merging and conflict exit1; even a printed tree is unusable on
+that exit. BOSS independently constructs a two-parent commit with
+[commit-tree](https://git-scm.com/docs/git-commit-tree), retains it, and reruns
+checks/review before publication. This avoids detached `merge --no-commit` index
+and abort state. External merge drivers are rejected. No reference code or new
+runtime dependency was added; reference test suites were not executed.

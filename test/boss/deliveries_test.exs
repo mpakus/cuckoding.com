@@ -142,7 +142,7 @@ defmodule Boss.DeliveriesTest do
 
   test "only the complete checked plan and explicit publication can produce Done", c do
     {d, plan, check} = checked(c)
-    review(d, plan, check)
+    reviewed = review(d, plan, check)
     assert {:ok, ready} = Deliveries.complete(d.id, "ready_to_merge")
     assert Tasks.get_task!(c.task.id).state == "ready_to_merge"
     assert {:error, :not_active} = Deliveries.complete(d.id, "done")
@@ -155,6 +155,7 @@ defmodule Boss.DeliveriesTest do
       "delivery_id" => d.id,
       "base_commit" => @base,
       "candidate_commit" => @candidate,
+      "candidate" => check.input["workspace"],
       "repo_path" => c.project.root_path,
       "base_branch" => c.project.base_branch
     }
@@ -163,7 +164,12 @@ defmodule Boss.DeliveriesTest do
              Deliveries.set_integration_intent(d.id, %{intent | "candidate_commit" => @base})
 
     assert {:ok, _} = Deliveries.set_integration_intent(d.id, intent)
-    publish = stage(d, "publish", 1, %{"intent" => intent}, %{"candidate_commit" => @candidate})
+
+    publish =
+      stage(d, "publish", 1, %{"intent" => intent, "review_step_id" => reviewed.id}, %{
+        "candidate_commit" => @candidate
+      })
+
     assert {:error, :missing_evidence} = Deliveries.complete(d.id, "done")
 
     input = %{
@@ -255,6 +261,7 @@ defmodule Boss.DeliveriesTest do
       "delivery_id" => delivery.id,
       "base_commit" => @base,
       "candidate_commit" => @candidate,
+      "candidate" => check.input["workspace"],
       "repo_path" => c.project.root_path,
       "base_branch" => c.project.base_branch
     }
@@ -414,6 +421,342 @@ defmodule Boss.DeliveriesTest do
     refute Tasks.get_task!(c.task.id).state == "done"
   end
 
+  test "merge must preserve original lineage and cannot publish an unreviewed new target", c do
+    {d, plan, check, original} = integrating(c)
+    input = merge_input(d, plan, check, original)
+
+    for changed <- [
+          Map.put(input, "original_candidate", @base),
+          Map.put(input, "target_commit", @base),
+          Map.put(input, "original_review_step_id", Ecto.UUID.generate()),
+          Map.put(input, "workspace", check.input["workspace"])
+        ] do
+      assert {:error, :invalid_step} = Deliveries.begin_step(d.id, "merge", 1, changed)
+      assert {:error, _} = raw_stage(d, "merge", changed)
+    end
+
+    assert {:ok, merge} = Deliveries.begin_step(d.id, "merge", 1, input)
+
+    assert {:error, :invalid_receipt} =
+             Deliveries.finish_step(
+               merge.id,
+               process_receipt(%{
+                 "candidate_commit" => input["target_commit"],
+                 "workspace" => input["workspace"]
+               })
+             )
+
+    assert {:ok, merge} =
+             Deliveries.finish_step(
+               merge.id,
+               process_receipt(%{
+                 "candidate_commit" => String.duplicate("e", 40),
+                 "workspace" => input["workspace"]
+               })
+             )
+
+    old_intent = integration_intent(d, check.input["workspace"], @base, @candidate)
+    assert {:error, :missing_evidence} = Deliveries.set_integration_intent(d.id, old_intent)
+
+    assert {:error, _} =
+             Repo.query("UPDATE deliveries SET integration_intent=? WHERE id=?", [
+               JSON.encode!(old_intent),
+               d.id
+             ])
+
+    assert {:error, :invalid_step} =
+             Deliveries.begin_step(d.id, "publish", 1, %{
+               "intent" => old_intent,
+               "review_step_id" => original.id
+             })
+
+    assert {:error, _} = raw_stage(d, "merge_review", %{"merge_step_id" => merge.id})
+    assert Tasks.get_task!(c.task.id).state == "integrating"
+  end
+
+  test "fresh merge check and review bind exact hash, complete output and original approval", c do
+    {d, plan, original_check, original} = integrating(c)
+    {merge, check} = merge_checked(d, plan, original_check, original)
+    input = merge_review_input(d, plan, merge, check, original)
+
+    for changed <- [
+          Map.put(input, "candidate_commit", @candidate),
+          Map.put(input, "output_hash", String.duplicate("f", 64)),
+          Map.put(input, "merge_check_step_id", original_check.id),
+          Map.put(input, "original_review_step_id", Ecto.UUID.generate())
+        ] do
+      assert {:error, :invalid_step} = Deliveries.begin_step(d.id, "merge_review", 1, changed)
+      assert {:error, _} = raw_stage(d, "merge_review", changed)
+    end
+
+    reviewed =
+      stage(d, "merge_review", 1, input, %{
+        "candidate_commit" => merge.receipt["candidate_commit"],
+        "report" => original.receipt["report"]
+      })
+
+    intent =
+      integration_intent(
+        d,
+        merge.receipt["workspace"],
+        merge.input["target_commit"],
+        merge.receipt["candidate_commit"]
+      )
+
+    assert {:error, :invalid_intent} =
+             Deliveries.set_integration_intent(
+               d.id,
+               Map.put(intent, "candidate", original_check.input["workspace"])
+             )
+
+    assert {:ok, _} = Deliveries.set_integration_intent(d.id, intent)
+
+    assert {:error, :invalid_step} =
+             Deliveries.begin_step(d.id, "publish", 1, %{
+               "intent" => intent,
+               "review_step_id" => original.id
+             })
+
+    assert {:error, _} =
+             raw_stage(d, "publish", %{"intent" => intent, "review_step_id" => original.id})
+
+    assert {:ok, pub} =
+             Deliveries.begin_step(d.id, "publish", 1, %{
+               "intent" => intent,
+               "review_step_id" => reviewed.id
+             })
+
+    assert :ok = Deliveries.authorize_publication(d.id)
+
+    assert {:ok, pub} =
+             Deliveries.finish_step(
+               pub.id,
+               process_receipt(%{"candidate_commit" => intent["candidate_commit"]})
+             )
+
+    assert {:error, :missing_evidence} = Deliveries.authorize_publication(d.id)
+    assert {:error, :missing_evidence} = Deliveries.complete(d.id, "done")
+
+    stage(
+      d,
+      "post_check",
+      1,
+      %{"intent" => intent, "publish_step_id" => pub.id, "config_hash" => d.config_hash},
+      %{
+        "candidate_commit" => intent["candidate_commit"],
+        "output_complete" => true,
+        "output_hash" => @hash
+      }
+    )
+
+    assert {:ok, %{status: "done"}} = Deliveries.complete(d.id, "done")
+
+    assert Enum.find(Deliveries.steps(d.id), &(&1.id == original.id)) == %{
+             original
+             | project_id: nil
+           }
+  end
+
+  test "SQL cannot finalize an approved merge report containing issues, missing issues or non-arrays",
+       c do
+    {d, plan, original_check, original} = integrating(c)
+    {merge, check} = merge_checked(d, plan, original_check, original)
+
+    {:ok, reviewed} =
+      Deliveries.begin_step(
+        d.id,
+        "merge_review",
+        1,
+        merge_review_input(d, plan, merge, check, original)
+      )
+
+    for issues <- [[%{"criterion" => "Saved criterion", "message" => "Still broken"}], nil, %{}] do
+      report = Map.put(original.receipt["report"], "issues", issues)
+
+      receipt =
+        process_receipt(%{
+          "candidate_commit" => merge.receipt["candidate_commit"],
+          "report" => report
+        })
+
+      assert {:error, :invalid_receipt} = Deliveries.finish_step(reviewed.id, receipt)
+
+      assert {:error, _} =
+               Repo.query("UPDATE delivery_steps SET status='finished', receipt=? WHERE id=?", [
+                 JSON.encode!(receipt),
+                 reviewed.id
+               ])
+    end
+
+    receipt =
+      process_receipt(%{
+        "candidate_commit" => merge.receipt["candidate_commit"],
+        "report" => Map.delete(original.receipt["report"], "issues")
+      })
+
+    assert {:error, _} =
+             Repo.query("UPDATE delivery_steps SET status='finished', receipt=? WHERE id=?", [
+               JSON.encode!(receipt),
+               reviewed.id
+             ])
+
+    intent =
+      integration_intent(
+        d,
+        merge.receipt["workspace"],
+        merge.input["target_commit"],
+        merge.receipt["candidate_commit"]
+      )
+
+    assert {:error, :missing_evidence} = Deliveries.set_integration_intent(d.id, intent)
+    assert {:error, :missing_evidence} = Deliveries.authorize_publication(d.id)
+    refute Tasks.get_task!(c.task.id).state == "done"
+  end
+
+  test "persisted legacy review is revalidated before Ready or integration approval", c do
+    {d, plan, check} = checked(c)
+    {:ok, reviewed} = Deliveries.begin_step(d.id, "review", 1, review_input(d, plan, check))
+
+    invalid = %{
+      "verdict" => "approved",
+      "summary" => "Inconsistent",
+      "acceptance" => [
+        %{"criterion" => "Saved criterion", "status" => "passed", "evidence" => "Checked"}
+      ],
+      "issues" => [%{"criterion" => "Saved criterion", "message" => "Still broken"}]
+    }
+
+    # The legacy receipt trigger allowed this; publication must revalidate persisted data.
+    Repo.query!("UPDATE delivery_steps SET status='finished',receipt=? WHERE id=?", [
+      JSON.encode!(process_receipt(%{"report" => invalid})),
+      reviewed.id
+    ])
+
+    assert {:error, :missing_evidence} = Deliveries.complete(d.id, "ready_to_merge")
+
+    assert {:error, :busy} =
+             Deliveries.admit_integration(c.project.id, d.id, Ecto.UUID.generate())
+
+    assert {:error, _} =
+             Repo.query(
+               "UPDATE deliveries SET status='ready_to_merge',cleanup='group_empty' WHERE id=?",
+               [d.id]
+             )
+
+    refute Tasks.get_task!(c.task.id).state == "done"
+  end
+
+  defp integrating(c) do
+    {d, plan, check} = checked(c)
+    original = review(d, plan, check)
+    {:ok, _} = Deliveries.complete(d.id, "ready_to_merge")
+    {:ok, {:new, d}} = Deliveries.admit_integration(c.project.id, d.id, Ecto.UUID.generate())
+    {d, plan, check, original}
+  end
+
+  defp merge_input(d, plan, check, original),
+    do: %{
+      "original_review_step_id" => original.id,
+      "original_check_step_id" => check.id,
+      "plan_step_id" => plan.id,
+      "original_candidate" => @candidate,
+      "original_base" => @base,
+      "target_commit" => String.duplicate("d", 40),
+      "workspace" => candidate_workspace(check.input["workspace"]["run_workspace"]),
+      "config_hash" => d.config_hash,
+      "spec_revision_id" => d.spec_revision_id
+    }
+
+  defp merge_checked(d, plan, original_check, original) do
+    input = merge_input(d, plan, original_check, original)
+
+    merge =
+      stage(d, "merge", 1, input, %{
+        "candidate_commit" => String.duplicate("e", 40),
+        "workspace" => input["workspace"]
+      })
+
+    check =
+      stage(
+        d,
+        "merge_check",
+        1,
+        %{
+          "merge_step_id" => merge.id,
+          "candidate_commit" => merge.receipt["candidate_commit"],
+          "target_commit" => input["target_commit"],
+          "workspace" => input["workspace"],
+          "config_hash" => d.config_hash,
+          "spec_revision_id" => d.spec_revision_id
+        },
+        %{
+          "candidate_commit" => merge.receipt["candidate_commit"],
+          "output_complete" => true,
+          "output_hash" => @hash
+        }
+      )
+
+    {merge, check}
+  end
+
+  defp merge_review_input(d, plan, merge, check, original),
+    do: %{
+      "merge_step_id" => merge.id,
+      "merge_check_step_id" => check.id,
+      "original_review_step_id" => original.id,
+      "plan_step_id" => plan.id,
+      "candidate_commit" => merge.receipt["candidate_commit"],
+      "target_commit" => merge.input["target_commit"],
+      "original_base" => @base,
+      "config_hash" => d.config_hash,
+      "spec_revision_id" => d.spec_revision_id,
+      "input_hash" => @hash,
+      "output_hash" => @hash
+    }
+
+  defp integration_intent(d, candidate, base, sha),
+    do: %{
+      "delivery_id" => d.id,
+      "candidate" => candidate,
+      "base_commit" => base,
+      "candidate_commit" => sha,
+      "repo_path" => d.intent["repo_path"],
+      "base_branch" => d.intent["base_branch"]
+    }
+
+  defp candidate_workspace(workspace) do
+    id = Ecto.UUID.generate()
+
+    %{
+      "check_id" => id,
+      "path" => "/checks/" <> id,
+      "ref" => "refs/boss/checks/" <> id,
+      "run_workspace" => workspace
+    }
+  end
+
+  defp raw_stage(d, kind, input) do
+    number = length(Deliveries.steps(d.id)) + 1
+
+    Repo.query(
+      "INSERT INTO delivery_steps(id,delivery_id,number,kind,cycle,input,inserted_at,updated_at) VALUES(?,?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
+      [Ecto.UUID.generate(), d.id, number, kind, d.cycle, JSON.encode!(input)]
+    )
+  end
+
+  defp process_receipt(attrs),
+    do:
+      Map.merge(
+        %{
+          "status" => "finished",
+          "cleanup" => "group_empty",
+          "exit_kind" => "exit",
+          "exit_code" => 0,
+          "eof" => %{"stdout" => true, "stderr" => true}
+        },
+        attrs
+      )
+
   defp checked(c) do
     {:ok, {:new, d}} = Deliveries.admit(c.project.id, c.task.id, Ecto.UUID.generate(), "true")
 
@@ -443,9 +786,11 @@ defmodule Boss.DeliveriesTest do
         "head_commit" => @base
       })
 
+    candidate = candidate_workspace(intent)
+
     snapshot =
       stage(d, "snapshot", 1, %{"implementation_step_id" => implementation.id}, %{
-        "workspace" => intent,
+        "workspace" => candidate,
         "candidate_commit" => @candidate
       })
 
@@ -456,7 +801,7 @@ defmodule Boss.DeliveriesTest do
         1,
         %{
           "snapshot_step_id" => snapshot.id,
-          "workspace" => intent,
+          "workspace" => candidate,
           "candidate_commit" => @candidate,
           "config_hash" => d.config_hash
         },

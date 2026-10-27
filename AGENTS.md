@@ -151,8 +151,8 @@
   Unknown cleanup is a global admission barrier, but its failure receipt must be
   persistable while a peer still runs. Match completion/EXIT to the owned ID/PID;
   Repo loss stops every owned worker, normal Stop affects only its selected one.
-  Unique worktrees do not prove conflict freedom; typed file scopes and divergent
-  integration remain open. See docs/WORKFLOW_QUEUE.md.
+  Unique worktrees do not prove conflict freedom; typed file scopes remain open.
+  See docs/WORKFLOW_QUEUE.md.
 - Concurrent worktrees/candidates may share newly created parent directories.
   Accept mkdir EEXIST only after fresh lstat confirms a real directory; preserve
   existing modes and reject files/symlinks. Propagate failed chmod. Keep UUID
@@ -162,11 +162,23 @@
   worktree at the rejected candidate; review the full original-base diff. Maximum
   three cycles; repeated unchanged failure, invalid input, Stop or unknown cleanup
   halts. Do not persist raw output or truncate prompts to manufacture approval.
-- First integration is unchanged-target fast-forward only. Reserve an ordinary
+- Unchanged-target integration fast-forwards the original approved candidate.
+  An advanced target needs immutable merge/check/fresh-review stages, all kept
+  `integrating`; preserve the original approval. Pin target and selected reviewer,
+  reject rewritten history and stop on new drift/conflict/failure without retry.
+  Only the new exact merge lineage can authorize its publication. Reserve an ordinary
   BOSS-owned target worktree, reject user-checked-out targets, authorize immediately
   before expected-old-SHA CAS, rerun saved checks, then detach only that owned
   checkout without deleting files. Postpublication failure retains the target and
   evidence; unknown receipts quarantine, never automatically retry/reset.
+- Construct merge candidates with exact commit IDs, merge-tree exit success and
+  ordered parents `[target, approved candidate]`. Never accept a conflict tree,
+  mutate a user index/checkout or execute configured external merge drivers.
+  Retain fresh refs/workspaces and verify exact parent/ref/HEAD/tree identity.
+- Revalidate persisted review reports before authorizing publication. An approved
+  report requires complete passed criteria and an explicit empty issues array;
+  SQL guards must reject nonempty, absent, null or incorrectly typed issues.
+  A merge candidate must have a fresh check ID/path/ref, never the original one.
 - Preserve external task cancellation without poisoning the outer transaction.
   A new explicit workflow can retire a stale Ready approval; never reuse it.
   Clear UI Stop state after a persisted inactive delivery so later integration

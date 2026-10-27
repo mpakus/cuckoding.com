@@ -4,7 +4,8 @@
 Статус: Phoenix/SQLite, native folder selection, immutable source revisions,
 автоматический Sync specs, task board/drawer, CLI detection и ручные Codex runs,
 checks/review. Managed macOS workflow включает plan, checks, bounded fixes,
-review, explicit fast-forward integration и Done. Pinned dependencies блокируют
+review, explicit integration и Done. При изменившемся target новый merge candidate
+проходит сохранённые checks и свежий review до публикации. Pinned dependencies блокируют
 новый Start до завершения prerequisite. Явная очередь сохраняет параметры и допускает
 два managed worker; после restart ожидающие заявки требуют Resume. Manual runs и
 интеграция остаются эксклюзивными. Linux/provider/recovery/release gates
@@ -284,7 +285,24 @@ integration остаются эксклюзивными. Unknown cleanup мож�
 останавливает обоих. Рабочие каталоги и private indexes различаются. Общие родительские
 директории создаются с повторной проверкой типа при конкурентном mkdir.
 
-Typed file scopes ещё отсутствуют; предсказание пересечений не заявлено. После
-интеграции одной параллельной задачи другой старый candidate требует нового workflow
-на новом base. Divergent merge/rebase, настройки числа worker и реальные provider
-acceptance остаются отдельными проходами. Контракт: [WORKFLOW_QUEUE.md](../docs/WORKFLOW_QUEUE.md).
+Typed file scopes ещё отсутствуют; предсказание пересечений не заявлено. В проходе
+015b другой старый candidate после публикации соседа требовал нового workflow;
+016b добавляет отдельную merge/check/review цепочку. Автоматический rebase,
+настройки числа worker и реальные provider acceptance остаются отдельными проходами.
+Контракт: [WORKFLOW_QUEUE.md](../docs/WORKFLOW_QUEUE.md).
+
+## BOSS-016b — интеграция при изменившемся target
+
+Явная Integrate сохраняет исходное одобрение и pin текущего target. Новый
+двухродительский merge candidate проходит сохранённые checks и свежий выбранный
+reviewer; публикация разрешена только этой новой цепочкой evidence. Все этапы
+остаются `integrating`, сохраняя глобальную эксклюзивность. Новый drift, конфликт,
+отклонение review или failed checks останавливают попытку без повторного запуска
+и без отката target. Неизменившийся target сохраняет существующий fast-forward.
+
+Git helper:34 native Git/workspace tests и mutation guard. Контекст/протокол/pooled
+persistence:31 tests; новые native merge lifecycle + LiveView:30; combined queue,
+protocol/Git integration:19. Независимый review проверил исходники и SQL; браузерный
+проход завершил две задачи через FF и свежий merge до Done. Полный общий прогон:
+510 passed/1 existing Linux-only skip,seed798224,816.5s. Реальные provider calls,
+автоматическое исправление merge-конфликтов, file scopes и packaging остаются открыты.

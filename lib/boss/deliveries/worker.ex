@@ -442,10 +442,11 @@ defmodule Boss.Deliveries.Worker do
     end
   end
 
-  defp run_reviewer("codex", path, prompt, decode),
+  @doc false
+  def run_reviewer("codex", path, prompt, decode),
     do: run_agent(:review, path, prompt, decode)
 
-  defp run_reviewer("claude", _path, prompt, decode) do
+  def run_reviewer("claude", _path, prompt, decode) do
     continue!()
     executable = System.find_executable("claude") || throw({:halt, :claude_unavailable})
     # No repository discovery: this reviewer receives its entire evidence on stdin.
@@ -589,14 +590,15 @@ defmodule Boss.Deliveries.Worker do
     }
   end
 
-  defp verify_agent(%{"status" => "finished"} = receipt, verify) do
+  @doc false
+  def verify_agent(%{"status" => "finished"} = receipt, verify) do
     case verify.() do
       :ok -> receipt
       {:error, reason} -> receipt |> Map.delete("report") |> Map.merge(failure(reason))
     end
   end
 
-  defp verify_agent(receipt, _), do: receipt
+  def verify_agent(receipt, _), do: receipt
 
   defp step(delivery, kind, cycle, input, run) do
     continue!()

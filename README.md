@@ -205,13 +205,16 @@ separate worktrees. **Cancel queue** withdraws an unstarted request; pending wor
 pauses on restart and needs **Resume**. Source adoption remains explicit. Shared
 file conflicts are not predicted. See [queue behavior](docs/WORKFLOW_QUEUE.md).
 
-An approved result waits for **Integrate approved result**. The target branch
-must be unchanged and not checked out by you. BOSS publishes the exact reviewed
-commit, reruns the checks, retains its checkout and frees the branch. Only then
-does the task move to **Done**. Failed postchecks retain the published result for
-inspection; BOSS never resets your checkout. Current execution: macOS, two managed
-workflows and exclusive fast-forward integration. A parallel result based on the
-old target needs a fresh workflow after that target advances. See
+An approved result waits for **Integrate approved result**. The target branch must
+not be checked out by you. If it advanced, BOSS creates a merge candidate and runs
+the saved checks and a fresh selected review before publication. The original
+approval stays in history. An unchanged target fast-forwards to its approved commit.
+Integrating an advanced target makes another reviewer call and may incur charges.
+BOSS publishes only the validated commit, reruns checks, retains its checkout and
+frees the branch before **Done**. Conflicts, failed validation or further target
+drift stop the attempt. Failed postchecks retain the published result for inspection;
+BOSS never resets your checkout. Current execution: macOS, two managed workflows
+and exclusive integration. See
 [managed delivery behavior and limits](docs/MANAGED_DELIVERIES.md).
 
 ## Run Codex manually on a task

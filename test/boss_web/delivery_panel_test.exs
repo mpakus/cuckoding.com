@@ -32,7 +32,10 @@ defmodule BossWeb.DeliveryPanelTest do
     html = panel([delivery("ready_to_merge")])
     assert html =~ "Ready to integrate"
     assert html =~ "Integrate approved result"
-    assert html =~ "only fast-forwards the unchanged target"
+    assert html =~ "An unchanged target fast-forwards"
+    assert html =~ "requests a fresh review"
+    assert html =~ "without automatic repair or retry"
+    assert html =~ "Original base commit"
     assert html =~ "must not be checked out"
     assert html =~ "Done requires successful checks after publication"
     refute html =~ "Done — integrated and checks passed"
@@ -147,6 +150,174 @@ defmodule BossWeb.DeliveryPanelTest do
     assert html =~ ~s(value="start" disabled)
     assert html =~ ~s(name="intent" value="queue")
     assert html =~ ~s(name="reviewer" disabled)
+  end
+
+  test "each integration stage stays stoppable and shows its current work" do
+    for {kind, label} <- [
+          {"merge", "Preparing merge candidate"},
+          {"merge_check", "Checking merge candidate"},
+          {"merge_review", "Reviewing merge candidate"}
+        ] do
+      saved = merged_delivery("integrating")
+
+      steps =
+        Enum.take_while(saved.steps, &(&1.kind != kind)) ++
+          [%{Enum.find(saved.steps, &(&1.kind == kind)) | status: "running", receipt: %{}}]
+
+      html = panel([%{saved | steps: steps}], start_available: false, integrate_available: false)
+      assert html =~ label
+      assert html =~ "Stop workflow"
+      assert html =~ "Original review: Approved"
+      refute html =~ "Integration review: Approved"
+      refute html =~ "Integrate approved result"
+      refute html =~ "Done — integrated"
+    end
+  end
+
+  test "merge rejection preserves the original approval and displays each exact commit separately" do
+    saved = merged_delivery("blocked")
+
+    steps =
+      List.update_at(saved.steps, -1, fn step ->
+        put_in(step.receipt["report"], %{
+          "verdict" => "changes_requested",
+          "summary" => "Combined behavior needs correction.",
+          "acceptance" => [
+            %{
+              "criterion" => "Keep source immutable",
+              "status" => "failed",
+              "evidence" => "Merge changed behavior"
+            }
+          ],
+          "issues" => [
+            %{"criterion" => "Keep source immutable", "message" => "Requires correction"}
+          ]
+        })
+      end)
+
+    html =
+      panel([
+        %{
+          saved
+          | reviewer: "claude",
+            steps: steps,
+            reason: "Integration review rejected this merge candidate."
+        }
+      ])
+
+    assert section(html, "Original review") =~ "Original review: Approved"
+    assert section(html, "Original review") =~ String.duplicate("a", 40)
+    assert section(html, "Integration review") =~ "Integration review: Changes requested"
+    assert section(html, "Integration review") =~ String.duplicate("c", 40)
+    refute section(html, "Integration review") =~ String.duplicate("a", 40)
+    assert section(html, "Integration candidate") =~ "Original approved commit"
+    assert section(html, "Integration candidate") =~ "Target pinned for integration"
+    assert section(html, "Integration candidate") =~ String.duplicate("b", 40)
+    assert section(html, "Integration candidate") =~ "Merge candidate commit"
+    assert html =~ "Reviewer: Claude"
+    assert html =~ "Merge checks · finished"
+    assert html =~ "Merge review · finished"
+    refute html =~ "Done — integrated"
+    refute html =~ "Integrate approved result"
+    refute html =~ "Stop workflow"
+  end
+
+  test "conflict history never presents the original candidate as a successful merge" do
+    saved = merged_delivery("blocked")
+
+    steps =
+      Enum.take(saved.steps, 3) |> List.update_at(-1, &%{&1 | status: "failed", receipt: %{}})
+
+    html = panel([%{saved | steps: steps, reason: "Merge conflicts require attention."}])
+    assert section(html, "Integration candidate") =~ "A merge candidate has not been recorded"
+    refute section(html, "Integration candidate") =~ "Merge candidate commit"
+    assert html =~ "Merge conflicts require attention"
+    assert html =~ "Original review: Approved"
+    refute html =~ "Integration review: Approved"
+    refute html =~ "Done — integrated"
+  end
+
+  test "incomplete integration history stays explicit and cannot turn a malformed report into approval" do
+    saved = merged_delivery("blocked")
+
+    steps =
+      saved.steps
+      |> List.update_at(2, fn step ->
+        %{
+          step
+          | input: %{"original_candidate" => %{}, "target_commit" => nil},
+            receipt: %{"candidate_commit" => %{}}
+        }
+      end)
+      |> List.update_at(-1, &%{&1 | receipt: %{"report" => "approved"}})
+
+    html = panel([%{saved | steps: steps}])
+    assert section(html, "Integration candidate") =~ "Unavailable"
+    refute section(html, "Integration candidate") =~ String.duplicate("a", 40)
+    assert html =~ "Original review: Approved"
+    refute html =~ ~s(aria-label="Integration review")
+    refute html =~ "Done — integrated"
+  end
+
+  test "recorded merge review alone never changes the delivery's saved terminal status" do
+    html = panel([merged_delivery("integrating")])
+    assert html =~ "Integration review: Approved"
+    assert html =~ "Stop workflow"
+    refute html =~ "Done — integrated"
+    done = panel([merged_delivery("done")])
+    assert done =~ "Done — integrated and checks passed"
+    assert section(done, "Integration review") =~ String.duplicate("c", 40)
+    refute done =~ "Stop workflow"
+  end
+
+  defp section(html, label) do
+    html
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.query(~s(section[aria-label="#{label}"]))
+    |> LazyHTML.to_html()
+  end
+
+  defp merged_delivery(status) do
+    saved = delivery(status)
+    original = String.duplicate("a", 40)
+    target = String.duplicate("b", 40)
+    candidate = String.duplicate("c", 40)
+
+    %{
+      saved
+      | steps:
+          saved.steps ++
+            [
+              %{
+                number: 3,
+                kind: "merge",
+                status: "finished",
+                input: %{"original_candidate" => original, "target_commit" => target},
+                receipt: %{"candidate_commit" => candidate}
+              },
+              %{
+                number: 4,
+                kind: "merge_check",
+                status: "finished",
+                input: %{"candidate_commit" => candidate, "target_commit" => target},
+                receipt: %{}
+              },
+              %{
+                number: 5,
+                kind: "merge_review",
+                status: "finished",
+                input: %{"candidate_commit" => candidate, "target_commit" => target},
+                receipt: %{
+                  "report" => %{
+                    "verdict" => "approved",
+                    "summary" => "Merged behavior reviewed.",
+                    "acceptance" => [],
+                    "issues" => []
+                  }
+                }
+              }
+            ]
+    }
   end
 
   defp panel(deliveries, opts \\ []) do

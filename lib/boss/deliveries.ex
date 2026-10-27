@@ -12,6 +12,9 @@ defmodule Boss.Deliveries do
     "snapshot" => "testing",
     "check" => "testing",
     "review" => "reviewing",
+    "merge" => "integrating",
+    "merge_check" => "integrating",
+    "merge_review" => "integrating",
     "publish" => "integrating",
     "post_check" => "integrating"
   }
@@ -269,11 +272,12 @@ defmodule Boss.Deliveries do
           save!(delivery, [{field, value}])
 
         field == :integration_intent and delivery.status == "integrating" ->
-          review = approved!(delivery)
+          review = publication_approved!(delivery)
 
           unless value["delivery_id"] == delivery.id and
-                   value["base_commit"] == delivery.intent["base_commit"] and
+                   value["base_commit"] == publication_base(delivery, review) and
                    value["candidate_commit"] == review.input["candidate_commit"] and
+                   value["candidate"] == publication_candidate(review) and
                    value["repo_path"] == delivery.intent["repo_path"] and
                    value["base_branch"] == delivery.intent["base_branch"],
                  do: Repo.rollback(:invalid_intent)
@@ -384,10 +388,13 @@ defmodule Boss.Deliveries do
     case transaction(fn ->
            d = owned!(id)
            current_task!(d)
-           approved!(d)
+           review = publication_approved!(d)
+           publish = latest(id)
 
            unless d.status == "integrating" and d.integration_intent != %{} and
-                    match?(%Step{kind: "publish", status: "running"}, latest(id)),
+                    match?(%Step{kind: "publish", status: "running"}, publish) and
+                    publish.input["review_step_id"] == review.id and
+                    publish.input["intent"] == d.integration_intent,
                   do: Repo.rollback(:missing_evidence)
          end) do
       {:ok, _} -> :ok
@@ -516,14 +523,49 @@ defmodule Boss.Deliveries do
 
   defp valid_next?(
          d,
-         %Step{kind: "review", status: "finished", cycle: cycle},
-         "publish",
+         %Step{kind: "review", status: "finished", cycle: cycle} = review,
+         "merge",
+         cycle,
+         i
+       ) do
+    check = Repo.get(Step, review.input["check_step_id"])
+
+    d.status == "integrating" and d.integration_intent == %{} and
+      approved!(d).id == review.id and merge_input?(d, review, check, i)
+  end
+
+  defp valid_next?(
+         d,
+         %Step{kind: "merge", status: "finished", cycle: cycle} = merge,
+         "merge_check",
          cycle,
          i
        ),
+       do: merge_check_input?(d, merge, i)
+
+  defp valid_next?(
+         d,
+         %Step{kind: "merge_check", status: "finished", cycle: cycle} = check,
+         "merge_review",
+         cycle,
+         i
+       ) do
+    merge = Repo.get(Step, check.input["merge_step_id"])
+    merge_review_input?(d, merge, check, i)
+  end
+
+  defp valid_next?(
+         d,
+         %Step{kind: kind, status: "finished", cycle: cycle, id: id},
+         "publish",
+         cycle,
+         i
+       )
+       when kind in ["review", "merge_review"],
        do:
          d.status == "integrating" and d.integration_intent != %{} and
-           i["intent"] == d.integration_intent
+           i["intent"] == d.integration_intent and i["review_step_id"] == id and
+           publication_approved!(d).id == id
 
   defp valid_next?(
          d,
@@ -548,6 +590,21 @@ defmodule Boss.Deliveries do
 
   defp success_receipt?(%Step{kind: "snapshot"}, r),
     do: sha?(r["candidate_commit"]) and is_map(r["workspace"])
+
+  defp success_receipt?(%Step{kind: "merge", input: input}, r),
+    do:
+      sha?(r["candidate_commit"]) and
+        r["candidate_commit"] not in [input["target_commit"], input["original_candidate"]] and
+        r["workspace"] == input["workspace"]
+
+  defp success_receipt?(%Step{kind: kind, input: input}, r)
+       when kind in ["merge_check", "merge_review"] do
+    r["candidate_commit"] == input["candidate_commit"] and process_passed?(r) and
+      case kind do
+        "merge_check" -> r["output_complete"] == true and hash?(r["output_hash"])
+        "merge_review" -> match?({:ok, _}, Boss.Reviews.Verdict.decode(JSON.encode!(r["report"])))
+      end
+  end
 
   defp success_receipt?(%Step{kind: "publish", input: input}, r),
     do: r["candidate_commit"] == input["intent"]["candidate_commit"]
@@ -596,11 +653,17 @@ defmodule Boss.Deliveries do
     plan =
       Enum.find(all, &(&1.id == review.input["plan_step_id"])) || Repo.rollback(:missing_evidence)
 
-    report = review.receipt["report"] || %{}
-    criteria = Enum.map(report["acceptance"] || [], & &1["criterion"])
+    report = decoded_review!(review.receipt["report"])
+    criteria = Enum.map(report["acceptance"], & &1["criterion"])
 
     unless review.status == "finished" and check.kind == "check" and check.status == "finished" and
-             plan.kind == "plan" and plan.status == "finished" and report["verdict"] == "approved" and
+             plan.kind == "plan" and plan.status == "finished" and
+             valid_plan?(plan.receipt["report"]) and
+             process_passed?(review.receipt) and process_passed?(check.receipt) and
+             process_passed?(plan.receipt) and
+             review.receipt["cleanup"] == "group_empty" and
+             check.receipt["cleanup"] == "group_empty" and
+             report["verdict"] == "approved" and
              review.cycle == d.cycle and check.cycle == d.cycle and
              check.input["config_hash"] == d.config_hash and
              review.input["config_hash"] == d.config_hash and
@@ -614,8 +677,105 @@ defmodule Boss.Deliveries do
     review
   end
 
+  defp merge_input?(d, review, check, i) do
+    match?(%Step{kind: "check", status: "finished"}, check) and
+      i["original_review_step_id"] == review.id and i["original_check_step_id"] == check.id and
+      i["plan_step_id"] == review.input["plan_step_id"] and
+      i["original_candidate"] == review.input["candidate_commit"] and
+      i["original_base"] == d.intent["base_commit"] and i["config_hash"] == d.config_hash and
+      i["spec_revision_id"] == d.spec_revision_id and sha?(i["target_commit"]) and
+      i["target_commit"] not in [i["original_base"], i["original_candidate"]] and
+      is_map(i["workspace"]) and is_map(get_in(i, ["workspace", "run_workspace"])) and
+      match?({:ok, _}, Ecto.UUID.cast(get_in(i, ["workspace", "check_id"]))) and
+      get_in(i, ["workspace", "check_id"]) != get_in(check.input, ["workspace", "check_id"]) and
+      get_in(i, ["workspace", "path"]) != get_in(check.input, ["workspace", "path"]) and
+      get_in(i, ["workspace", "ref"]) != get_in(check.input, ["workspace", "ref"]) and
+      get_in(i, ["workspace", "run_workspace"]) ==
+        get_in(check.input, ["workspace", "run_workspace"])
+  end
+
+  defp merge_check_input?(d, merge, i),
+    do:
+      d.status == "integrating" and merge.kind == "merge" and merge.status == "finished" and
+        i["merge_step_id"] == merge.id and
+        i["candidate_commit"] == merge.receipt["candidate_commit"] and
+        i["workspace"] == merge.receipt["workspace"] and
+        i["target_commit"] == merge.input["target_commit"] and
+        i["config_hash"] == d.config_hash and i["spec_revision_id"] == d.spec_revision_id
+
+  defp merge_review_input?(d, %Step{} = merge, check, i),
+    do:
+      merge_check_input?(d, merge, check.input) and i["merge_step_id"] == merge.id and
+        i["merge_check_step_id"] == check.id and
+        i["candidate_commit"] == check.input["candidate_commit"] and
+        i["target_commit"] == merge.input["target_commit"] and
+        i["original_base"] == d.intent["base_commit"] and
+        i["original_review_step_id"] == merge.input["original_review_step_id"] and
+        i["plan_step_id"] == merge.input["plan_step_id"] and i["config_hash"] == d.config_hash and
+        i["spec_revision_id"] == d.spec_revision_id and check.receipt["output_complete"] == true and
+        hash?(check.receipt["output_hash"]) and i["output_hash"] == check.receipt["output_hash"] and
+        hash?(i["input_hash"])
+
+  defp merge_review_input?(_, _, _, _), do: false
+
+  defp publication_approved!(d) do
+    original = approved!(d)
+    all = steps(d.id)
+
+    if Enum.any?(all, &(&1.kind == "merge")) do
+      merge = Enum.find(all, &(&1.kind == "merge"))
+      check = Enum.find(all, &(&1.kind == "merge_check"))
+      review = Enum.find(all, &(&1.kind == "merge_review"))
+      original_check = Enum.find(all, &(&1.id == original.input["check_step_id"]))
+      plan = Enum.find(all, &(&1.id == original.input["plan_step_id"]))
+
+      report =
+        if review,
+          do: decoded_review!(review.receipt["report"]),
+          else: Repo.rollback(:missing_evidence)
+
+      criteria = Enum.map(report["acceptance"], & &1["criterion"])
+
+      unless match?(%Step{status: "finished"}, merge) and match?(%Step{status: "finished"}, check) and
+               match?(%Step{status: "finished"}, review) and
+               merge_input?(d, original, original_check, merge.input) and
+               merge_review_input?(d, merge, check, review.input) and
+               report["verdict"] == "approved" and
+               review.receipt["candidate_commit"] == merge.receipt["candidate_commit"] and
+               check.receipt["candidate_commit"] == merge.receipt["candidate_commit"] and
+               merge.number == original.number + 1 and check.number == merge.number + 1 and
+               review.number == check.number + 1 and
+               Enum.all?(
+                 [merge, check, review],
+                 &(&1.cycle == d.cycle and &1.receipt["cleanup"] == "group_empty")
+               ) and
+               MapSet.new(criteria) == MapSet.new(plan.receipt["report"]["acceptance"]),
+             do: Repo.rollback(:missing_evidence)
+
+      review
+    else
+      original
+    end
+  end
+
+  defp decoded_review!(report) do
+    case Boss.Reviews.Verdict.decode(JSON.encode!(report)) do
+      {:ok, decoded} -> decoded
+      _ -> Repo.rollback(:missing_evidence)
+    end
+  end
+
+  defp publication_base(_d, %Step{kind: "merge_review", input: input}), do: input["target_commit"]
+  defp publication_base(d, _review), do: d.intent["base_commit"]
+
+  defp publication_candidate(%Step{kind: "merge_review", input: input}),
+    do: Repo.get!(Step, input["merge_step_id"]).receipt["workspace"]
+
+  defp publication_candidate(%Step{input: input}),
+    do: Repo.get!(Step, input["check_step_id"]).input["workspace"]
+
   defp integrated!(d) do
-    approved!(d)
+    review = publication_approved!(d)
     all = steps(d.id)
     post = List.last(all)
     publish = Enum.find(all, &(&1.kind == "publish"))
@@ -624,6 +784,9 @@ defmodule Boss.Deliveries do
              match?(%Step{kind: "publish"}, publish) and match?(%Step{kind: "post_check"}, post) and
              post.status == "finished" and
              publish.status == "finished" and
+             publish.input["review_step_id"] == review.id and
+             d.integration_intent["base_commit"] == publication_base(d, review) and
+             d.integration_intent["candidate_commit"] == review.input["candidate_commit"] and
              post.input["publish_step_id"] == publish.id and
              post.input["intent"] == d.integration_intent and
              publish.input["intent"] == d.integration_intent and

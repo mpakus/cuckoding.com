@@ -60,12 +60,13 @@ snapshot index. Worktree separation does not predict overlapping edits or semant
 conflicts. The current typed plan has no file scopes, so BOSS does not claim to
 serialize workflows by predicted file ownership.
 
-Integration remains an explicit globally exclusive operation and supports only
-the unchanged-target fast-forward path in [Managed delivery](MANAGED_DELIVERIES.md).
-After one parallel candidate is integrated, another candidate based on the old
-target cannot reuse its approval to publish. It requires a new workflow on the new
-base. Divergent integration, automatic rebase, configurable worker count and
-file-scope prediction are separate work.
+Integration remains an explicit globally exclusive operation. After one parallel
+candidate is integrated, another candidate based on the old target gets a fresh
+merge candidate, saved checks and selected review before publication. Its original
+approval remains historical. Conflicts, check/review failure or another target
+change stop the attempt; no automatic repair or retry occurs. The unchanged-target
+fast-forward path remains available. See [Managed delivery](MANAGED_DELIVERIES.md).
+Automatic rebase, configurable worker count and file-scope prediction are separate work.
 
 Tests use finite fake CLIs, real Git and isolated SQLite pools. They are not
 real-provider authentication or paid model acceptance. Linux execution and broader
