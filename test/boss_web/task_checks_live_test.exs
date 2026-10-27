@@ -3,28 +3,21 @@ defmodule BossWeb.TaskChecksLiveTest do
   import Phoenix.LiveViewTest
   alias Boss.{LocalAccess, Projects, Repo, Runs}
   alias Boss.Runs.Manager
+  alias BossWeb.ManagerFixture
   alias BossWeb.ProjectLive
 
   @moduletag skip: :os.type() != {:unix, :darwin}
 
   setup %{conn: conn} do
     owner = self()
-    original = :sys.get_state(Manager).check_worker
+    original = :sys.get_state(Manager)
     assert :sys.get_state(Manager).active == %{}
 
     :sys.replace_state(Manager, fn state ->
       %{state | check_worker: fn run, _repo, manager -> fake_worker(owner, run, manager) end}
     end)
 
-    on_exit(fn ->
-      for {_, {_, pid}} <- :sys.get_state(Manager).active do
-        ref = Process.monitor(pid)
-        send(pid, :stop)
-        assert_receive {:DOWN, ^ref, :process, ^pid, _}, 1_000
-      end
-
-      :sys.replace_state(Manager, &%{&1 | check_worker: original})
-    end)
+    on_exit(fn -> ManagerFixture.restore(original, [:check_worker]) end)
 
     project =
       Repo.insert!(%Projects.Project{

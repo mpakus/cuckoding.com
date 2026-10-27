@@ -4,6 +4,7 @@ defmodule BossWeb.TaskDependenciesLiveTest do
   import Ecto.Query
   alias Boss.{LocalAccess, Projects, Repo, Runs, Deliveries}
   alias Boss.Runs.Manager
+  alias BossWeb.ManagerFixture
 
   setup %{conn: conn} do
     owner = self()
@@ -18,13 +19,7 @@ defmodule BossWeb.TaskDependenciesLiveTest do
       }
     end)
 
-    on_exit(fn ->
-      :sys.resume(Manager)
-
-      :sys.replace_state(Manager, fn state ->
-        %{state | worker: original.worker, delivery_worker: original.delivery_worker}
-      end)
-    end)
+    on_exit(fn -> ManagerFixture.restore(original, [:worker, :delivery_worker]) end)
 
     project =
       Repo.insert!(%Projects.Project{

@@ -3,6 +3,7 @@ defmodule BossWeb.TaskDeliveryLiveTest do
   import Phoenix.LiveViewTest
   alias Boss.{Deliveries, LocalAccess, Projects, Repo, Runs, Tasks}
   alias Boss.Runs.Manager
+  alias BossWeb.ManagerFixture
   alias Boss.Deliveries.Queue
   import Ecto.Query
   alias BossWeb.ProjectLive
@@ -31,23 +32,7 @@ defmodule BossWeb.TaskDeliveryLiveTest do
     end)
 
     on_exit(fn ->
-      :sys.resume(Manager)
-
-      for {_, {_, pid}} <- :sys.get_state(Manager).active do
-        ref = Process.monitor(pid)
-        send(pid, :stop)
-        assert_receive {:DOWN, ^ref, :process, ^pid, _}, 1_000
-      end
-
-      :sys.replace_state(
-        Manager,
-        &%{
-          &1
-          | delivery_worker: original.delivery_worker,
-            integration_worker: original.integration_worker,
-            worker: original.worker
-        }
-      )
+      ManagerFixture.restore(original, [:delivery_worker, :integration_worker, :worker])
     end)
 
     project =
