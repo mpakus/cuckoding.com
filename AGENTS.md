@@ -151,6 +151,14 @@
   project, from every task's pinned source; never infer filenames or use latest
   revisions. Only Done satisfies an edge. Retained missing Done is valid; missing
   unfinished prerequisites, invalid declarations and reachable cycles block.
+- Adopt source revisions only through a project-scoped `adopt_revision` task
+  command with fixed target, expected version and immutable command ID. Preserve
+  both old/target revisions in the event and all earlier run/check/review history.
+  Atomically reset an eligible idle task to New and retire unintegrated Ready
+  approval. Never reopen Done or hide active/unknown work or an unfinished
+  integration intent. Historical manual checks/reviews keep their parent pins.
+  Selecting a source is read-only; uncertain adoption retries the original command.
+  Publish notifications only after committed top-level success. See docs/TASK_REVISIONS.md.
 - Keep dependency graph reads bounded and lazy; refuse limits instead of accepting
   partial readiness. Preserve YAML sequence/map types, including [] versus {}.
   Dependency reads never mutate task state. Unknown start requests must still

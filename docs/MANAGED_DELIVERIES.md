@@ -14,6 +14,9 @@ normalized check argv/config hash and command UUID in an immediate transaction.
 One global active or unknown execution is allowed across manual and managed work.
 Identical request retries return the original delivery, including after completion;
 changed input with the same UUID conflicts. A saved Ready result survives restart.
+[Explicit source adoption](TASK_REVISIONS.md) retires an unintegrated Ready
+approval and resets the task to New; the old plan/review remains historical.
+Active/unknown execution or an unfinished integration intent prevents adoption.
 New starts also require [dependency readiness](TASK_DEPENDENCIES.md) from the task's
 pinned source. Only Done satisfies prerequisites; replay precedes that check.
 A fresh explicit start after an external task cancellation retires the stale
