@@ -244,12 +244,18 @@ defmodule BossWeb.ProjectLive do
 
   def handle_event("stop_run", _, socket), do: {:noreply, socket}
 
-  def handle_event("edit_delivery", %{"command_id" => id, "command" => text}, socket) do
+  def handle_event(
+        "edit_delivery",
+        %{"command_id" => id, "command" => text, "reviewer" => reviewer},
+        socket
+      ) do
     with {task, _} <- socket.assigns.selection,
          %{id: ^id, locked: false} = request <- socket.assigns.delivery_requests[task],
+         true <- reviewer in ~w(codex claude),
          true <-
            is_binary(text) && byte_size(text) <= 4096 && delivery_start_available?(socket.assigns) do
-      {:noreply, put_delivery_request(socket, :start, task, %{request | text: text})}
+      {:noreply,
+       put_delivery_request(socket, :start, task, %{request | text: text, reviewer: reviewer})}
     else
       _ -> {:noreply, socket}
     end
@@ -257,21 +263,33 @@ defmodule BossWeb.ProjectLive do
 
   def handle_event("edit_delivery", _, socket), do: {:noreply, socket}
 
-  def handle_event("start_delivery", %{"command_id" => id, "command" => text}, socket) do
+  def handle_event(
+        "start_delivery",
+        %{"command_id" => id, "command" => text, "reviewer" => reviewer},
+        socket
+      ) do
     with {task, _} <- socket.assigns.selection,
          %{id: ^id} = request <- socket.assigns.delivery_requests[task],
          true <- delivery_start_available?(socket.assigns),
+         true <- reviewer in ~w(codex claude),
          true <- is_binary(text) && byte_size(text) <= 4096,
-         true <- !request.locked || request.text == text do
+         true <- !request.locked || (request.text == text && request.reviewer == reviewer) do
       project = socket.assigns.project.id
       key = {:delivery_request, task, :start, task, id}
 
       {:noreply,
        socket
-       |> put_delivery_request(:start, task, %{request | text: text, locked: true})
+       |> put_delivery_request(:start, task, %{
+         request
+         | text: text,
+           reviewer: reviewer,
+           locked: true
+       })
        |> assign(delivery_starting: key, delivery_error: nil)
        |> start_async(key, fn ->
-         delivery_call(fn -> Deliveries.start(project, task, id, text) end)
+         delivery_call(fn ->
+           Deliveries.start(project, task, id, text, reviewer, Boss.Runs.Manager)
+         end)
        end)}
     else
       _ -> {:noreply, socket}
@@ -711,8 +729,8 @@ defmodule BossWeb.ProjectLive do
     put_delivery_request(socket, :start, task, request)
   end
 
-  defp new_delivery_request(text \\ ""),
-    do: %{id: Ecto.UUID.generate(), text: text, locked: false}
+  defp new_delivery_request(text \\ "", reviewer \\ "codex"),
+    do: %{id: Ecto.UUID.generate(), text: text, reviewer: reviewer, locked: false}
 
   defp delivery_request(assigns, :start, target), do: assigns.delivery_requests[target]
   defp delivery_request(assigns, :integrate, target), do: assigns.integration_requests[target]
@@ -752,7 +770,7 @@ defmodule BossWeb.ProjectLive do
             request =
               if delivery_active?(delivery),
                 do: %{request | locked: false},
-                else: new_delivery_request(request.text)
+                else: new_delivery_request(request.text, request.reviewer)
 
             put_delivery_request(socket, :start, delivery.task_id, request)
           else

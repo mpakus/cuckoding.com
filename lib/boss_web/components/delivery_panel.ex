@@ -24,12 +24,15 @@ defmodule BossWeb.DeliveryPanel do
       <h3 id="task-deliveries-heading" class="font-semibold">Task workflow</h3>
       <p id="delivery-help" class="mt-2 text-sm text-zinc-300">
         Plan, implement, check and review task snapshot revision {@details.pinned_revision.number}.
-        Codex can make fixes within a maximum of three implementation/check/review cycles.
+        Codex plans and implements, with a maximum of three implementation/check/review cycles.
         An approved result waits for you to integrate it.
       </p>
       <p id="delivery-account" class="mt-2 text-xs text-zinc-400">
-        Uses your local Codex account and may incur charges for multiple runs.
-        Source, plans, diffs and check output are sent to Codex. Closing this drawer keeps the workflow active.
+        Uses your local {if @request.reviewer == "claude",
+          do: "Codex and Claude accounts",
+          else: "Codex account"} and may incur charges for multiple runs.
+        Source, plans, diffs, check output and prior feedback are sent to the selected agents.
+        Closing this drawer keeps the workflow active.
       </p>
       <p :if={!@supported} class="mt-3 text-sm text-amber-300">
         Task workflows currently require macOS.
@@ -42,6 +45,26 @@ defmodule BossWeb.DeliveryPanel do
         class="mt-4 space-y-2"
       >
         <input type="hidden" name="command_id" value={@request.id} />
+        <label for="delivery-reviewer" class="block text-sm font-medium">Workflow reviewer</label>
+        <select
+          id="delivery-reviewer"
+          name="reviewer"
+          disabled={!@start_available || @request.locked}
+          aria-describedby="delivery-reviewer-help delivery-account"
+          class="w-full min-w-0 rounded border border-zinc-600 bg-zinc-900 px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:opacity-50"
+        >
+          <option value="codex" selected={@request.reviewer == "codex"}>Codex</option>
+          <option value="claude" selected={@request.reviewer == "claude"}>Claude</option>
+        </select>
+        <input :if={@request.locked} type="hidden" name="reviewer" value={@request.reviewer} />
+        <p id="delivery-reviewer-help" class="text-xs text-zinc-400">
+          <%= if @request.reviewer == "claude" do %>
+            Claude reviews the supplied spec, plan, full diff, check output and prior feedback.
+            It has no model filesystem or shell tools. Planning and implementation use Codex.
+          <% else %>
+            Codex reviews the supplied evidence and can inspect the candidate's source read-only.
+          <% end %>
+        </p>
         <label for="delivery-command" class="block text-sm font-medium">Workflow check command</label>
         <input
           id="delivery-command"
@@ -106,6 +129,9 @@ defmodule BossWeb.DeliveryPanel do
             <span :if={delivery.spec_revision_id != @details.pinned_revision.id}> · historical snapshot</span>
           </p>
           <p class="text-xs text-zinc-400">Cycle {delivery.cycle} of 3</p>
+          <p class="text-xs text-zinc-400">
+            Planner and implementer: Codex · Reviewer: {reviewer(delivery.reviewer)}
+          </p>
           <p :if={delivery.check_config["argv"]} class="text-xs text-zinc-400">
             Saved check command
             <code class="block break-all text-zinc-300">{JSON.encode!(delivery.check_config["argv"])}</code>
@@ -229,6 +255,10 @@ defmodule BossWeb.DeliveryPanel do
   end
 
   defp active?(delivery), do: delivery.status in @active
+
+  defp reviewer("codex"), do: "Codex"
+  defp reviewer("claude"), do: "Claude"
+  defp reviewer(_), do: "Unavailable"
 
   defp verdict("approved"), do: "Approved"
   defp verdict("changes_requested"), do: "Changes requested"
