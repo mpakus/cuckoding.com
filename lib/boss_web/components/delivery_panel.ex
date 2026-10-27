@@ -28,9 +28,8 @@ defmodule BossWeb.DeliveryPanel do
         An approved result waits for you to integrate it.
       </p>
       <p id="delivery-account" class="mt-2 text-xs text-zinc-400">
-        Uses your local {if @request.reviewer == "claude",
-          do: "Codex and Claude accounts",
-          else: "Codex account"} and may incur charges for multiple runs.
+        Uses your local Codex account for planning and implementation, and the selected reviewer's account for review.
+        These calls may incur charges for multiple runs.
         Source, plans, diffs, check output and prior feedback are sent to the selected agents.
         Closing this drawer keeps the workflow active.
       </p>

@@ -49,6 +49,25 @@ defmodule BossWeb.DeliveryPanelTest do
     assert html =~ "Saved stages"
   end
 
+  test "Ready Claude history explains both roles even when a fresh request defaults to Codex" do
+    saved = %{delivery("ready_to_merge") | reviewer: "claude"}
+
+    html =
+      panel([saved],
+        details: %{
+          task: %{state: "ready_to_merge"},
+          pinned_revision: %{id: 7, number: 1},
+          revisions: [%{id: 7, number: 1}]
+        }
+      )
+
+    assert html =~ "Reviewer: Claude"
+    assert html =~ "Codex account for planning and implementation"
+    assert html =~ "selected reviewer's account for review"
+    refute html =~ "Uses your local Codex account and may incur charges"
+    refute html =~ ~s(id="delivery-form")
+  end
+
   test "unknown request keeps the command read-only and offers an identical retry" do
     html =
       panel([],
