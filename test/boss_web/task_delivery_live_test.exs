@@ -103,7 +103,7 @@ defmodule BossWeb.TaskDeliveryLiveTest do
     |> render_change()
 
     assert has_element?(view, "#delivery-reviewer option[value='claude'][selected]")
-    assert has_element?(view, "#delivery-reviewer-help", "no agent tools or repository access")
+    assert has_element?(view, "#delivery-reviewer-help", "no model filesystem or shell tools")
     assert has_element?(view, "#delivery-reviewer-help", "Planning and implementation use Codex")
     refute_receive {:workflow, _, _}, 50
     start(view, id, "mix test", "claude")

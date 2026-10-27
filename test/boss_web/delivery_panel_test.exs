@@ -62,7 +62,7 @@ defmodule BossWeb.DeliveryPanelTest do
     assert html =~ ~s(value="mix test")
     assert html =~ ~s(name="reviewer" disabled)
     assert html =~ ~s(type="hidden" name="reviewer" value="claude")
-    assert html =~ "no agent tools or repository access"
+    assert html =~ "no model filesystem or shell tools"
   end
 
   test "Done is rendered only for saved terminal state" do

@@ -60,7 +60,7 @@ defmodule BossWeb.DeliveryPanel do
         <p id="delivery-reviewer-help" class="text-xs text-zinc-400">
           <%= if @request.reviewer == "claude" do %>
             Claude reviews the supplied spec, plan, full diff, check output and prior feedback.
-            It has no agent tools or repository access. Planning and implementation use Codex.
+            It has no model filesystem or shell tools. Planning and implementation use Codex.
           <% else %>
             Codex reviews the supplied evidence and can inspect the candidate's source read-only.
           <% end %>
