@@ -127,6 +127,26 @@
   only bounded event types/counts/usage, never raw model/tool/stderr text. Test
   production transport with finite fake CLIs; paid/provider calls remain opt-in.
 
+- Managed deliveries own task progress through persisted plan/stage evidence;
+  manual run/check/review receipts remain advisory. Save each intent before effects,
+  pin original spec/base/plan/config and link every snapshot/check/review. Ready
+  requires full criterion coverage; Done requires explicit exact-SHA publication,
+  passing postchecks and verified retained checkout. Never accept caller-selected
+  state or insert completed delivery/stage rows to bypass these gates.
+- Fixes get complete transient check output/receipt and prior feedback in a fresh
+  worktree at the rejected candidate; review the full original-base diff. Maximum
+  three cycles; repeated unchanged failure, invalid input, Stop or unknown cleanup
+  halts. Do not persist raw output or truncate prompts to manufacture approval.
+- First integration is unchanged-target fast-forward only. Reserve an ordinary
+  BOSS-owned target worktree, reject user-checked-out targets, authorize immediately
+  before expected-old-SHA CAS, rerun saved checks, then detach only that owned
+  checkout without deleting files. Postpublication failure retains the target and
+  evidence; unknown receipts quarantine, never automatically retry/reset.
+- Preserve external task cancellation without poisoning the outer transaction.
+  A new explicit workflow can retire a stale Ready approval; never reuse it.
+  Clear UI Stop state after a persisted inactive delivery so later integration
+  of the same delivery retains a working Stop. See docs/MANAGED_DELIVERIES.md.
+
 - Manual checks execute only explicitly entered user argv, never commands inferred
   from model/spec/config text. Retain normalized argv/config hash and source run;
   replay with another adapter/source/command is an idempotency conflict.

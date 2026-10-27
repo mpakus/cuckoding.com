@@ -205,3 +205,26 @@ BOSS-014a проверен на local main b365058:293 application tests passed/
 native CLI fixtures и browser smoke. Следующий проход возвращается к BOSS-011:
 сохранённый typed Architect plan с критериями, без изменения original spec.
 Только после полного набора producer evidence открывать workflow/fix-loop gates.
+
+## BOSS-011/014b/016a — управляемый Codex workflow
+
+Добавлен минимальный последовательный путь: typed read-only Architect plan,
+реализация, immutable snapshot, заданные пользователем checks, независимый fresh
+review и до трёх циклов исправления. Fix начинается от отклонённого commit;
+review получает исходный spec, plan/criteria, полный diff от original base,
+полные bounded check output/receipt и предыдущую обратную связь. Raw output
+существует только в памяти. Исходный spec и старые worktree сохраняются.
+
+Готовый результат ждёт ручного Integrate. Первый вариант — fast-forward точного
+reviewed SHA при неизменном target, без checkout пользователя на этой ветке.
+Сохранённый intent, резервирующий worktree, expected-old-SHA CAS и postchecks
+предшествуют Done; собственный checkout затем detach с сохранением файлов.
+После публикации ошибки не откатывают target. Unknown receipt/Repo loss дают
+quarantine без restart/retry. Stale approval не переиспользуется.
+
+Область включает shared delivery migration/context/task events/Manager,
+независимые pipeline/Git/UI writers и связанные regression tests. Это осознанное
+объединение зависимых producers для полного пользовательского результата, а не
+реализация DAG, Claude, двух worker или divergent integration queue. Эти задачи,
+Linux/provider/release acceptance и безопасное снятие quarantine остаются открыты.
+Контракт: [MANAGED_DELIVERIES.md](../docs/MANAGED_DELIVERIES.md).

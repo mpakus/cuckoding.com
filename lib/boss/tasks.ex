@@ -38,7 +38,8 @@ defmodule Boss.Tasks do
   that original transition, not the current task; read get_task!/1 for that.
   IDs are scoped to a task. Reusing an ID with different input conflicts.
   On :storage_error, retry the same command ID to reconcile an unknown outcome.
-  Execution and evidence-producing transitions remain unavailable.
+  Generic workflow edges remain closed. The producer-owned delivery_progress
+  action accepts a delivery_id and derives progress from persisted evidence.
   Inside a caller's transaction, success is provisional until its outer commit;
   the outer transaction also determines the SQLite transaction mode.
   """

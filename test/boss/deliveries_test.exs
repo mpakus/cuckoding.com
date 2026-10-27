@@ -178,6 +178,32 @@ defmodule Boss.DeliveriesTest do
     assert Tasks.get_task!(task.id).state == "cancelled"
   end
 
+  test "fresh explicit start retires a stale approval without reusing its evidence", c do
+    {d, plan, check} = checked(c)
+    review(d, plan, check)
+    {:ok, ready} = Deliveries.complete(d.id, "ready_to_merge")
+
+    assert {:ok, _} =
+             Tasks.transition(c.task.id, %{
+               command_id: "cancel-approved",
+               expected_version: ready.task_version,
+               action: "cancel",
+               reason: "Start again"
+             })
+
+    assert {:error, :stale_state} =
+             Deliveries.admit_integration(c.project.id, d.id, Ecto.UUID.generate())
+
+    assert {:ok, {:new, fresh}} =
+             Deliveries.admit(c.project.id, c.task.id, Ecto.UUID.generate(), "true")
+
+    refute fresh.id == d.id
+    assert Deliveries.get(c.project.id, d.id).status == "cancelled"
+    assert Deliveries.steps(fresh.id) == []
+    assert Tasks.get_task!(c.task.id).state == "planning"
+    assert {:error, :missing_evidence} = Deliveries.complete(fresh.id, "done")
+  end
+
   test "database refuses forged terminal state and immutable history updates", c do
     {d, _plan, check} = checked(c)
 

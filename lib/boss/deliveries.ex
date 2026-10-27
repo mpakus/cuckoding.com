@@ -85,10 +85,23 @@ defmodule Boss.Deliveries do
             unless task.state in ~w(new failed cancelled blocked needs_input interrupted),
               do: Repo.rollback(:task_unavailable)
 
-            if Repo.exists?(
-                 from d in Delivery, where: d.task_id == ^task.id and d.status == "ready_to_merge"
-               ),
-               do: Repo.rollback(:task_unavailable)
+            case Repo.one(
+                   from d in Delivery,
+                     where: d.task_id == ^task.id and d.status == "ready_to_merge"
+                 ) do
+              nil ->
+                :ok
+
+              %Delivery{task_version: version} = saved when version != task.state_version ->
+                save!(saved,
+                  status: "cancelled",
+                  reason:
+                    "Task changed after approval. A fresh explicit workflow replaced this approval."
+                )
+
+              _ ->
+                Repo.rollback(:task_unavailable)
+            end
 
             delivery =
               Repo.insert!(%Delivery{
