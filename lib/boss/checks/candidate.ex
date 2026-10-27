@@ -47,14 +47,32 @@ defmodule Boss.Checks.Candidate do
          :ok <- valid_intent(intent, opts),
          :ok <- linked_workspace(intent, opts),
          path = intent["path"],
-         :ok <- supported(path, opts),
-         {:ok, ^sha} <- git(path, ["rev-parse", "--verify", "HEAD"], opts),
          {:ok, ^sha} <- git(path, ["rev-parse", "--verify", intent["ref"]], opts),
          {:error, {:git_exit, 1}} <- git(path, ["symbolic-ref", "-q", "HEAD"], opts),
+         :ok <- verify_tree(path, sha, opts) do
+      :ok
+    else
+      {:error, :cleanup_unknown} = error -> error
+      {:error, :cancelled} = error -> error
+      {:error, :unsupported_platform} = error -> error
+      _ -> {:error, :candidate_changed}
+    end
+  end
+
+  @doc "Verifies exact HEAD and a fresh tree, without trusting the worktree's index flags."
+  def verify_tree(path, sha, opts \\ []) do
+    with true <- is_binary(path) and Path.type(path) == :absolute and Path.expand(path) == path,
+         true <- sha?(sha),
+         :ok <- safe_directories(path),
+         :ok <- supported(path, opts),
+         {:ok, ^path} <- git(path, ["rev-parse", "--show-toplevel"], opts),
+         {:ok, ^sha} <- git(path, ["rev-parse", "--verify", "HEAD"], opts),
          {:ok, ""} <- git(path, ["status", "--porcelain=v1", "-z", "--untracked-files=all"], opts),
          {:ok, tree} <- git(path, ["rev-parse", "#{sha}^{tree}"], opts),
          {:ok, ^tree} <-
-           private_indexes(intent, fn indexes -> capture(path, sha, hd(indexes), opts) end),
+           private_indexes(%{"path" => path}, fn indexes ->
+             capture(path, sha, hd(indexes), opts)
+           end),
          {:ok, ^sha} <- git(path, ["rev-parse", "--verify", "HEAD"], opts) do
       :ok
     else
