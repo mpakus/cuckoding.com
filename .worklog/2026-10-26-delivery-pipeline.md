@@ -58,3 +58,27 @@
 - Outcome: worker ready for parent integration/review; commitsb446b74 and follow-up.
   Paid provider, browser/UI and publication checks belong to parent and were not
   claimed by this branch. Removed only our temporary deps symlink after testing.
+
+## Integration-worker end-to-end verification
+
+- Parent assigned only new test/boss/delivery_integration_worker_test.exs and this
+  log. Merged2dfb94f with Git publisher and final release-before-Done worker.
+  Reused existing finite Codex fixture and check script; extended check behavior
+  inside the exclusively created scratch repository, without runtime edits.
+- Seven real transport scenarios cover approved publication/Done/target release
+  and replay, checked-out target, target drift, failed post-check, Stop with
+  suspended Manager, lost publication receipt after CAS, and Repo loss after
+  publication. No provider calls or shared implementation changes.
+- Initial happy case reached Done and all Git/file assertions; corrected test-only
+  assertion that expected git switch output to be empty (it reports the switch).
+  Full new suite is running with seed340346; outcome recorded after completion.
+
+- Final command `rtk proxy asdf exec mix test
+  test/boss/delivery_integration_worker_test.exs`:7 passed125.9s seed340346.
+  `rtk proxy asdf exec mix format --check-formatted
+  test/boss/delivery_integration_worker_test.exs` and `rtk git diff --check` passed.
+  No production defects exposed by these seven paths. Post-publication Stop is
+  intentionally blocked with cancelled check receipt, preserving the moved target.
+- Outcome: real Ready→Done, target checkout release, no-op durable replay and
+  fail-closed publication boundaries verified. Parent owns combined-suite merge
+  and browser checks. Removed only our recreated deps symlink after verification.
