@@ -7,21 +7,17 @@ defmodule BossWeb.TaskRunLiveTest do
   setup %{conn: conn} do
     test_pid = self()
     original = :sys.get_state(Manager).worker
-    assert :sys.get_state(Manager).active == nil
+    assert :sys.get_state(Manager).active == %{}
 
     :sys.replace_state(Manager, fn state ->
       %{state | worker: fn run, _repo, manager -> fake_worker(test_pid, run, manager) end}
     end)
 
     on_exit(fn ->
-      case :sys.get_state(Manager).active do
-        {_, pid} ->
-          ref = Process.monitor(pid)
-          send(pid, :stop)
-          assert_receive {:DOWN, ^ref, :process, ^pid, _}, 1_000
-
-        nil ->
-          :ok
+      for {_, {_, pid}} <- :sys.get_state(Manager).active do
+        ref = Process.monitor(pid)
+        send(pid, :stop)
+        assert_receive {:DOWN, ^ref, :process, ^pid, _}, 1_000
       end
 
       :sys.replace_state(Manager, &%{&1 | worker: original})
@@ -234,7 +230,7 @@ defmodule BossWeb.TaskRunLiveTest do
         )
       )
 
-    send(manager, {:run_finished, run.id, result})
+    send(manager, {:run_finished, run.id, self(), result})
     send(test_pid, {:fixture_finished, run.id})
   end
 

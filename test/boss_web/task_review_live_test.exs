@@ -10,21 +10,17 @@ defmodule BossWeb.TaskReviewLiveTest do
   setup %{conn: conn} do
     owner = self()
     original = :sys.get_state(Manager).review_worker
-    assert :sys.get_state(Manager).active == nil
+    assert :sys.get_state(Manager).active == %{}
 
     :sys.replace_state(Manager, fn state ->
       %{state | review_worker: fn run, _repo, manager -> fake_worker(owner, run, manager) end}
     end)
 
     on_exit(fn ->
-      case :sys.get_state(Manager).active do
-        {_, pid} ->
-          ref = Process.monitor(pid)
-          send(pid, :stop)
-          assert_receive {:DOWN, ^ref, :process, ^pid, _}, 1_000
-
-        nil ->
-          :ok
+      for {_, {_, pid}} <- :sys.get_state(Manager).active do
+        ref = Process.monitor(pid)
+        send(pid, :stop)
+        assert_receive {:DOWN, ^ref, :process, ^pid, _}, 1_000
       end
 
       :sys.replace_state(Manager, &%{&1 | review_worker: original})
@@ -354,7 +350,7 @@ defmodule BossWeb.TaskReviewLiveTest do
         )
       )
 
-    send(manager, {:run_finished, run.id, result})
+    send(manager, {:run_finished, run.id, self(), result})
     send(owner, {:fixture_finished, run.id})
   end
 

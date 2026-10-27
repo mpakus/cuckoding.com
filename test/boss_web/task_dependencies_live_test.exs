@@ -8,7 +8,7 @@ defmodule BossWeb.TaskDependenciesLiveTest do
   setup %{conn: conn} do
     owner = self()
     original = :sys.get_state(Manager)
-    assert original.active == nil
+    assert original.active == %{}
 
     :sys.replace_state(Manager, fn state ->
       %{
