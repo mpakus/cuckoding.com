@@ -155,6 +155,17 @@ defmodule Boss.Checks.CandidateTest do
     refute File.exists?(intent["path"])
   end
 
+  test "generic tree verification allows an attached exact HEAD but rejects hidden edits", c do
+    assert :ok = Candidate.verify_tree(c.run.path, c.run.base_commit, c.opts)
+    git!(c.run.path, ["update-index", "--assume-unchanged", "tracked.txt"])
+    File.write!(Path.join(c.run.path, "tracked.txt"), "hidden planner mutation")
+
+    assert {:error, :candidate_changed} =
+             Candidate.verify_tree(c.run.path, c.run.base_commit, c.opts)
+
+    assert {:error, :candidate_changed} = Candidate.verify_tree(".", c.run.base_commit, c.opts)
+  end
+
   test "changing source between private captures refuses the snapshot", c do
     {:ok, intent} = Candidate.plan(c.run, Ecto.UUID.generate(), c.opts)
 
