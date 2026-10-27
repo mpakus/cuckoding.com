@@ -405,8 +405,16 @@ worktrees remain app-held: Codex refused archive as used by another active task.
 - [x] Historical check/review pins preserved by a constrained migration.
 - [x] Explicit source action, immutable pending request, refresh and accessible drawer.
 - [x] Focused durability/concurrency/UI tests, independent review and browser verification.
-- [ ] Combined local-main verification and merged-branch cleanup.
+- [x] Combined local-main verification and merged-branch cleanup.
 - [ ] Archive adoption writer worktrees.
+
+Local main `21deb31`: full suite 416 passed / 1 existing Linux-only skip
+(seed 756580); combined main 46 passed (seed 927416). Compile without warnings,
+format, assets and diff checks passed. Browser verified Ready retirement,
+dependency repair, two-tab refresh, active/Stop gating, historical checks/review,
+reload/old-source selection and 320px/Escape focus. Three branches deleted;
+two clean detached writer worktrees remain held by Codex's active-task check.
+Restart the running BOSS server to apply the new startup migrations.
 
 ## Следующие рабочие проходы
 
