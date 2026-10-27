@@ -65,3 +65,15 @@ Final focused verification:
 Queue has an index on status/inserted_at/id so a 32-row pending sweep does not scan
 unbounded immutable terminal history. No speculative file-overlap prediction,
 automatic integration or settings/dependency changes were added.
+
+Outcome: broad `rtk proxy asdf exec mix test test/boss` completed with **357 passed,
+1 skipped** in 507.9 seconds. It began at foundation d07b674 before the seven new
+persistence tests were created; final queue behavior is additionally verified by
+the separate 15-test queue suite after the later UUID guard/index changes. The
+native process suites remained finite fake CLIs. Parent reruns combined UI/native
+acceptance and full suite against integrated final source.
+
+Final next step: merge backend commits through final worklog commit into the parent
+integration branch, review combined UI/native evidence, then parent merges local
+main and removes temporary branches/worktrees. The owned dependency symlink was
+removed after tests; no reference checkout or shared documentation was modified.
