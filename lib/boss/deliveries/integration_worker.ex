@@ -81,8 +81,13 @@ defmodule Boss.Deliveries.IntegrationWorker do
             case receipt do
               %{"status" => "finished"} ->
                 with :ok <- continue(),
+                     :ok <- Integration.release(intent),
                      :ok <- Integration.verify_published(intent),
-                     do: Deliveries.complete(delivery.id, "done")
+                     :ok <- continue() do
+                  Deliveries.complete(delivery.id, "done")
+                else
+                  {:error, reason} -> stop(delivery, reason)
+                end
 
               %{"cleanup" => "unknown"} ->
                 Deliveries.interrupt(delivery.id)
