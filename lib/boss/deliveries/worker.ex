@@ -629,6 +629,9 @@ defmodule Boss.Deliveries.Worker do
           500 -> begin_step(delivery, kind, cycle, input)
         end
 
+      {:error, :execution_quarantined} when kind == "implement" and cycle == 1 ->
+        throw({:halt, :execution_quarantined})
+
       result ->
         stored!(result)
     end
@@ -662,6 +665,10 @@ defmodule Boss.Deliveries.Worker do
         :input_too_large ->
           {"failed", "group_empty",
            "Complete delivery input exceeds the 1 MiB limit. Nothing was truncated."}
+
+        :execution_quarantined ->
+          {"failed", "group_empty",
+           "Another execution has unknown cleanup. Implementation was not started; inspect the interrupted workflow."}
 
         :claude_unavailable ->
           {"failed", "not_started",
