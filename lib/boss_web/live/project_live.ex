@@ -2,7 +2,7 @@ defmodule BossWeb.ProjectLive do
   use BossWeb, :live_view
   alias Boss.{Deliveries, Projects, Repo, Runs, Tasks}
   alias Boss.Projects.{SpecImporter, SpecWatcher}
-  alias BossWeb.{DeliveryPanel, RunPanel, TaskBoard, TaskDependencies}
+  alias BossWeb.{DeliveryPanel, RunPanel, TaskBoard, TaskDependencies, TaskRevision}
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
@@ -11,6 +11,7 @@ defmodule BossWeb.ProjectLive do
     if project && connected?(socket) do
       SpecWatcher.subscribe(project.id)
       Runs.subscribe(project.id)
+      Tasks.subscribe(project.id)
     end
 
     {:ok,
@@ -30,6 +31,8 @@ defmodule BossWeb.ProjectLive do
        detail_loading: false,
        detail_pending: false,
        detail_error: nil,
+       adoption_requests: %{},
+       adoption_starting: nil,
        deliveries: [],
        delivery_requests: %{},
        integration_requests: %{},
@@ -100,6 +103,26 @@ defmodule BossWeb.ProjectLive do
       _ -> {:noreply, socket}
     end
   end
+
+  def handle_event("adopt_revision", %{"command-id" => id}, socket) do
+    with {task, _} <- socket.assigns.selection,
+         %{id: ^id} = request <- socket.assigns.adoption_requests[task],
+         true <- adoption_available?(socket.assigns) do
+      key = {:adopt_revision, task, id}
+
+      {:noreply,
+       socket
+       |> put_adoption_request(task, %{request | locked: true, error: nil})
+       |> assign(adoption_starting: key)
+       |> start_async(key, fn ->
+         delivery_call(fn -> Tasks.transition(task, request.command) end)
+       end)}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("adopt_revision", _, socket), do: {:noreply, socket}
 
   def handle_event("sync", _, %{assigns: %{syncing: true}} = socket), do: {:noreply, socket}
   def handle_event("sync", _, %{assigns: %{project: nil}} = socket), do: {:noreply, socket}
@@ -298,6 +321,33 @@ defmodule BossWeb.ProjectLive do
   def handle_event("stop_delivery", _, socket), do: {:noreply, socket}
 
   @impl true
+  def handle_async({:adopt_revision, task, id} = key, reply, socket) do
+    result =
+      case reply do
+        {:ok, result} -> result
+        _ -> :unknown
+      end
+
+    socket =
+      if socket.assigns.adoption_starting == key,
+        do: assign(socket, adoption_starting: nil),
+        else: socket
+
+    case socket.assigns.adoption_requests[task] do
+      %{id: ^id, locked: true} = request ->
+        request = %{
+          request
+          | locked: !TaskRevision.resolved?(result),
+            error: TaskRevision.error(result)
+        }
+
+        {:noreply, socket |> put_adoption_request(task, request) |> refresh(:delivery_update)}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
   def handle_async({:delivery_request, task, kind, target, id} = key, reply, socket) do
     result =
       case reply do
@@ -479,6 +529,7 @@ defmodule BossWeb.ProjectLive do
           |> renew_review_requests()
           |> renew_delivery_requests()
           |> renew_manual_pending()
+          |> renew_adoption_request()
 
         {:error, :not_found} ->
           assign(socket, details: nil, runs: [], deliveries: [], detail_error: :not_found)
@@ -502,6 +553,11 @@ defmodule BossWeb.ProjectLive do
   def handle_async(:details, _obsolete, socket), do: {:noreply, finish_details(socket)}
 
   @impl true
+  def handle_info({:task_changed, id}, %{assigns: %{project: %{id: id}}} = socket),
+    do: {:noreply, refresh(socket, :delivery_update)}
+
+  def handle_info({:task_changed, _}, socket), do: {:noreply, socket}
+
   def handle_info({:run_changed, id}, %{assigns: %{project: %{id: id}}} = socket),
     do: {:noreply, refresh(socket, :delivery_update)}
 
@@ -588,6 +644,38 @@ defmodule BossWeb.ProjectLive do
       end
     else
       {:error, :storage_error}
+    end
+  end
+
+  defp put_adoption_request(socket, task, request),
+    do:
+      assign(socket, adoption_requests: Map.put(socket.assigns.adoption_requests, task, request))
+
+  defp renew_adoption_request(socket) do
+    details = socket.assigns.details
+    request = socket.assigns.adoption_requests[details.task.id]
+    request = TaskRevision.renew(request, details, socket.assigns.project.id)
+    put_adoption_request(socket, details.task.id, request)
+  end
+
+  defp adoption_pending?(assigns),
+    do: Enum.any?(assigns.adoption_requests, fn {_, request} -> request.locked end)
+
+  defp adoption_available?(assigns) do
+    with {task, revision} <- assigns.selection,
+         %{task: %{id: ^task}} = details <- assigns.details,
+         request when not is_nil(request) <- assigns.adoption_requests[task] do
+      selected = revision || details.pinned_revision.number
+
+      !assigns.detail_loading && is_nil(assigns.detail_error) &&
+        selected == details.selected_revision.number && is_nil(assigns.adoption_starting) &&
+        (request.locked ||
+           (details.adoption.available? && !adoption_pending?(assigns) &&
+              is_nil(assigns.run_starting) && map_size(assigns.manual_pending) == 0 &&
+              !verification_uncertain?(assigns) && !delivery_busy?(assigns) &&
+              !delivery_uncertain?(assigns)))
+    else
+      _ -> false
     end
   end
 
@@ -736,6 +824,7 @@ defmodule BossWeb.ProjectLive do
     assigns.run_supported && assigns.details != nil && assigns.detail_error == nil &&
       !assigns.detail_loading && is_nil(assigns.run_starting) && !delivery_busy?(assigns) &&
       map_size(assigns.manual_pending) == 0 && !verification_uncertain?(assigns) &&
+      !adoption_pending?(assigns) &&
       !Enum.any?(assigns.runs, &(Runs.active?(&1) || &1.cleanup == "unknown"))
   end
 
@@ -813,7 +902,7 @@ defmodule BossWeb.ProjectLive do
   defp run_available?(assigns) do
     assigns.run_supported && assigns.details != nil && assigns.detail_error == nil &&
       !assigns.detail_loading && is_nil(assigns.run_starting) &&
-      !delivery_busy?(assigns) && !delivery_uncertain?(assigns) &&
+      !delivery_busy?(assigns) && !delivery_uncertain?(assigns) && !adoption_pending?(assigns) &&
       assigns.details.task.state in ~w(new ready failed interrupted cancelled blocked needs_input) &&
       !Enum.any?(assigns.runs, &(Runs.active?(&1) || &1.cleanup == "unknown"))
   end
@@ -1090,6 +1179,7 @@ defmodule BossWeb.ProjectLive do
   def render(assigns) do
     assigns =
       assigns
+      |> assign(:adoption_available, adoption_available?(assigns))
       |> assign(:run_available, run_available?(assigns))
       |> assign(:run_start_available, run_start_available?(assigns))
       |> assign(:delivery_start_available, delivery_start_available?(assigns))
@@ -1168,6 +1258,18 @@ defmodule BossWeb.ProjectLive do
         loading={@detail_loading}
         error={@detail_error}
       >
+        <:source_actions>
+          <TaskRevision.panel
+            :if={@details}
+            details={@details}
+            request={@adoption_requests[@details.task.id]}
+            available={@adoption_available}
+            starting={
+              @adoption_starting ==
+                {:adopt_revision, @details.task.id, @adoption_requests[@details.task.id].id}
+            }
+          />
+        </:source_actions>
         <:run_panel>
           <TaskDependencies.panel
             :if={@details}
