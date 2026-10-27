@@ -5,7 +5,9 @@
 автоматический Sync specs, task board/drawer, CLI detection и ручные Codex runs,
 checks/review. Managed macOS workflow включает plan, checks, bounded fixes,
 review, explicit fast-forward integration и Done. Pinned dependencies блокируют
-новый Start до завершения prerequisite. Linux/provider/recovery/release gates
+новый Start до завершения prerequisite. Явная очередь сохраняет параметры и допускает
+два managed worker; после restart ожидающие заявки требуют Resume. Manual runs и
+интеграция остаются эксклюзивными. Linux/provider/recovery/release gates
 остаются открыты; подробные verified increments приведены ниже.
 Задачи: [todo.md](todo.md). Источники: [RESEARCH.md](../docs/RESEARCH.md).
 
@@ -267,3 +269,22 @@ exit/EOF/cleanup и exact candidate. Permissions Claude не выдаются з
 managed host startup policy остаётся внешней границей. Контракт:
 [CLAUDE_REVIEW.md](../docs/CLAUDE_REVIEW.md). Реальные provider calls — отдельный opt-in;
 Claude implementer, scheduler/two-worker и divergent integration не входят в 012a.
+
+## BOSS-015b — явная очередь и два managed worker
+
+Queue workflow сохраняет UUID, source revision/task version, reviewer и checks
+до effects. Atomic claim связывает заявку с delivery; replay и Cancel не создают
+второй запуск. Bounded rotating sweep ждёт Done dependencies и свободного места.
+После restart незапущенные заявки становятся Paused и требуют Resume с прежними
+параметрами. Pending заявка блокирует другой Start и source adoption той же задачи.
+
+Manager держит максимум два managed worker до фактического EXIT; manual work и
+integration остаются эксклюзивными. Unknown cleanup можно сохранить при работающем
+соседе, но он блокирует новый запуск. Stop адресует отдельного live owner; Repo loss
+останавливает обоих. Рабочие каталоги и private indexes различаются. Общие родительские
+директории создаются с повторной проверкой типа при конкурентном mkdir.
+
+Typed file scopes ещё отсутствуют; предсказание пересечений не заявлено. После
+интеграции одной параллельной задачи другой старый candidate требует нового workflow
+на новом base. Divergent merge/rebase, настройки числа worker и реальные provider
+acceptance остаются отдельными проходами. Контракт: [WORKFLOW_QUEUE.md](../docs/WORKFLOW_QUEUE.md).

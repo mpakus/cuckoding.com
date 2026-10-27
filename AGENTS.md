@@ -140,6 +140,24 @@
   requires full criterion coverage; Done requires explicit exact-SHA publication,
   passing postchecks and verified retained checkout. Never accept caller-selected
   state or insert completed delivery/stage rows to bypass these gates.
+- Queue only explicit saved workflow requests: pin revision/version/checks/reviewer
+  and UUID before effects, claim and link a delivery in one immediate transaction.
+  Replay/cancellation must precede dispatch; never silently turn direct Start into
+  queue authorization. Pending requests block same-task Start and source adoption.
+  Pause unstarted requests on restart; Resume retains the original inputs. A
+  started request never returns to the queue or automatically respawns a stage.
+- Limit managed workers to two; manual execution and integration remain exclusive.
+  Keep one bounded rotating queue sweep and no writes for unchanged waiting state.
+  Unknown cleanup is a global admission barrier, but its failure receipt must be
+  persistable while a peer still runs. Match completion/EXIT to the owned ID/PID;
+  Repo loss stops every owned worker, normal Stop affects only its selected one.
+  Unique worktrees do not prove conflict freedom; typed file scopes and divergent
+  integration remain open. See docs/WORKFLOW_QUEUE.md.
+- Concurrent worktrees/candidates may share newly created parent directories.
+  Accept mkdir EEXIST only after fresh lstat confirms a real directory; preserve
+  existing modes and reject files/symlinks. Propagate failed chmod. Keep UUID
+  scratch/report directories exclusive. Test Manager timers must end before their
+  Sandbox owner; never rescue ownership errors in production to hide fixture leaks.
 - Fixes get complete transient check output/receipt and prior feedback in a fresh
   worktree at the rejected candidate; review the full original-base diff. Maximum
   three cycles; repeated unchanged failure, invalid input, Stop or unknown cleanup

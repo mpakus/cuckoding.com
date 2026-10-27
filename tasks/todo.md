@@ -439,6 +439,20 @@ Three merged branches deleted. Both clean detached writer worktrees are retained
 Codex refused archive as another active task still uses them. No provider calls;
 restart the running BOSS server for the new reviewer migration.
 
+## BOSS-015b — явная очередь и два managed worker
+
+В работе. Контракт: [WORKFLOW_QUEUE.md](../docs/WORKFLOW_QUEUE.md).
+
+- [ ] Durable queued/paused request, exact replay, cancellation and source/version pins.
+- [ ] Atomic dispatch, Done dependencies, bounded fair scan and restart pause/Resume.
+- [ ] Two managed workers; exclusive manual/integration; unknown-cleanup quarantine.
+- [ ] Explicit Queue UI, frozen uncertain action/input and persisted history.
+- [ ] Independent review, native process/SQLite tests, browser and combined full suite.
+- [ ] Merge local main, verify combined result and remove merged branches/worktrees.
+
+No automatic divergent integration, typed file-scope prediction, configurable worker
+count or actual provider calls in this increment.
+
 ## Следующие рабочие проходы
 
 Детализировать перед реализацией; не генерировать все модули заранее.

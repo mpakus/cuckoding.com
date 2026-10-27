@@ -24,7 +24,9 @@ Admission saves the exact check parent, task/spec revision, candidate SHA,
 workspace and check configuration before launch. These inputs are immutable.
 The same command UUID replays its original attempt, including after completion;
 a new explicit click creates a new review. Codex, checks and reviews share one
-global active attempt, Stop and unknown-cleanup quarantine.
+globally exclusive manual attempt, Stop and unknown-cleanup quarantine. Managed
+workflows and integration cannot overlap it, and a pending queued workflow owns
+its task until cancellation or dispatch.
 
 A finished review requires successful Codex protocol completion, actual exit 0,
 both stream EOFs, confirmed process-group cleanup, a valid final report and exact

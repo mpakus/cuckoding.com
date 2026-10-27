@@ -55,8 +55,9 @@ with its own plan, check and review evidence; this manual receipt cannot unlock 
 The passed receipt enables an explicit [Review with Codex](MANUAL_REVIEWS.md) action;
 its model assessment remains separate from workflow approval.
 
-One Codex/check attempt can be active globally. **Stop** uses the existing direct
-live-worker route; closing the drawer or browser does not stop work. Repo loss
+Manual Codex/check attempts remain exclusive with managed workflows and
+integration; a pending queued workflow also owns its task. **Stop** uses the
+existing direct live-worker route; closing the drawer or browser does not stop work. Repo loss
 or missing cleanup receipt produces interrupted/unknown quarantine and never
 an automatic rerun. Candidate changes and failed checks retain their worktrees.
 

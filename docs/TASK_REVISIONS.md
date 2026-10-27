@@ -41,8 +41,10 @@ Only idle New, Ready, failed, interrupted, cancelled, blocked, needs-input and
 Ready-to-merge tasks are eligible. Done remains closed because other tasks may
 already depend on its integration evidence. Full persisted history, including
 records outside the visible recent list, is checked for active or unknown runs
-and workflows. An unfinished integration intent also blocks adoption: publication
-or retained target work may need reconciliation even after an execution stopped.
+and workflows. A queued or paused workflow request also blocks adoption; cancel
+that request before accepting a new source. An unfinished integration intent also
+blocks adoption: publication or retained target work may need reconciliation even
+after an execution stopped.
 Changing the source cannot clear those conditions. Unrelated task activity does
 not prevent this metadata operation.
 
