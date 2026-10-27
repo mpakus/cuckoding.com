@@ -8,6 +8,7 @@ defmodule BossWeb.RunPanel do
   attr :starting, :boolean, required: true
   attr :stopping, :any, default: nil
   attr :available, :boolean, required: true
+  attr :start_available, :boolean, default: true
   attr :supported, :boolean, required: true
   attr :error, :any, default: nil
   attr :check_requests, :map, default: %{}
@@ -35,7 +36,7 @@ defmodule BossWeb.RunPanel do
           type="button"
           phx-click="start_run"
           phx-value-command-id={@command_id}
-          disabled={!@available || @check_uncertain || @review_uncertain}
+          disabled={!@available || !@start_available || @check_uncertain || @review_uncertain}
           aria-describedby="run-snapshot run-account"
           class="rounded-md bg-emerald-400 px-4 py-2 font-semibold text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:opacity-50"
         >{if @starting, do: "Starting…", else: "Start Codex"}</button>
