@@ -39,6 +39,9 @@ if kind == "implement":
     if cycle > 1:
         assert Path("first-only.txt").read_text() == "retained first attempt\n"
         assert data["previous_feedback"]["kind"] in ("checks", "review")
+        check = data["previous_feedback"]["check_receipt"]
+        assert check["output_complete"] is True and len(check["output_hash"]) == 64
+        assert check["stdout_bytes"] > 0 and check["stderr_bytes"] > 0
     Path("first-only.txt").write_text("retained first attempt\n")
     contents = "unchanged" if mode in ("repeated", "check_repeated") else f"candidate-{cycle}"
     Path("result.txt").write_text(contents + "\n")

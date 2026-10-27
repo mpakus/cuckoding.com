@@ -47,3 +47,14 @@
 - No runtime dependency added. No paid/provider invocation. Parent owns combined
   context/integration/UI validation and main merge; integration code not yet in
   this branch emits the expected missing IntegrationWorker compile warning.
+
+- Follow-up review supplied the complete check receipt (hash/counts/exit/EOF) to
+  fixes along with transient output. Failure fingerprints deliberately exclude
+  per-attempt candidate commit IDs so identical failed trees stop after two cycles.
+  Added finite failed-check repetition fixture. After context hardening6d12007,
+  mix test test/boss/delivery_worker_test.exs:122 :150 :189 (each location with
+  full file path):3 passed12 excluded40.3s seed981469. Fixture asserts fixes
+  receive complete output metadata; repeated review whitespace also verified.
+- Outcome: worker ready for parent integration/review; commitsb446b74 and follow-up.
+  Paid provider, browser/UI and publication checks belong to parent and were not
+  claimed by this branch. Removed only our temporary deps symlink after testing.
