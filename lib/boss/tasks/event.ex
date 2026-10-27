@@ -4,6 +4,7 @@ defmodule Boss.Tasks.Event do
   schema "task_events" do
     belongs_to :task, Boss.Tasks.Task
     belongs_to :spec_revision, Boss.Projects.SpecRevision
+    belongs_to :target_spec_revision, Boss.Projects.SpecRevision
     field :command_id, :string
     field :version, :integer
     field :action, :string
