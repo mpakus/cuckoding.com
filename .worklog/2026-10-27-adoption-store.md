@@ -33,3 +33,19 @@
   scratch SQLite pool concurrency/admission race, restart replay, postcommit and
   nested rollback notification, and migration protection. One unused test binding
   warning was then removed. No provider calls or UI/browser verification here.
+
+## Final focused verification
+
+- Intentional mutation changed the manual active-owner task predicate from == to
+  !=. The active/unknown adoption refusal test failed by accepting adoption
+  (seed747547,exit2). An initial line148 command selected the adjacent unrelated
+  test and stayed green; corrected location137 exercised the intended regression.
+  Restored exact original source SHA256
+  265c960b2c3fee5ce65d6117e09f106ae8b28ca673c117f37ad00490b27ec5c6.
+- Added real-pool competing different-target CAS regression and direct SQL pin
+  regression: historical check/review remains valid, new Codex cannot use the
+  pre-adoption source, and normal current-revision admission still succeeds.
+- Final seven-file suite above:61 passed,seed362045,1.0s; no warnings. Dev compile
+  --warnings-as-errors, format --check-formatted and git diff --check passed.
+- Writer scope complete. Parent owns integration/full suite/browser/docs/main.
+  No provider calls, recovery UI, reopening Done or scheduler were added.

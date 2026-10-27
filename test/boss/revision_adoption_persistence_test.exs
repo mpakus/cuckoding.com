@@ -92,6 +92,22 @@ defmodule Boss.RevisionAdoptionPersistenceTest do
     assert Tasks.get_task!(c.first.task.id).state_version == 1
   end
 
+  test "different target revisions racing the same version cannot both advance the task", c do
+    {:ok, third} = record(c.project.id, "# Third")
+    other = %{c.command | command_id: Ecto.UUID.generate(), spec_revision_id: third.revision.id}
+
+    results =
+      concurrent(c.repo, [
+        fn -> Tasks.transition(c.first.task.id, c.command) end,
+        fn -> Tasks.transition(c.first.task.id, other) end
+      ])
+
+    assert Enum.count(results, &match?({:ok, _}, &1)) == 1
+    assert {:error, :stale_state} in results
+    assert [event] = Tasks.list_events(c.first.task.id)
+    assert Tasks.get_task!(c.first.task.id).spec_revision_id == event.target_spec_revision_id
+  end
+
   test "adoption racing manual admission cannot rebind an admitted attempt", c do
     results =
       concurrent(c.repo, [
