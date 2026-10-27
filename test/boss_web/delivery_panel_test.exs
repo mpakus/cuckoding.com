@@ -112,7 +112,7 @@ defmodule BossWeb.DeliveryPanelTest do
     assert html =~ "Resume uses the saved source"
     assert html =~ ~s(id="resume-queue-queued")
     assert html =~ ~s(id="cancel-queue-queued")
-    assert html =~ "File conflicts are not predicted"
+    assert html =~ "Unknown or incomplete predictions can still cause conflicts"
   end
 
   test "started queue history does not promise its workflow is still in bounded history" do
@@ -318,6 +318,50 @@ defmodule BossWeb.DeliveryPanelTest do
               }
             ]
     }
+  end
+
+  test "saved scope predictions distinguish files and directories and escape paths" do
+    delivery = delivery("planning")
+    [plan | rest] = delivery.steps
+
+    report =
+      Map.put(plan.receipt["report"], "file_scopes", [
+        %{"path" => "lib/boss", "kind" => "directory"},
+        %{"path" => "test/<scope>.exs", "kind" => "file"}
+      ])
+
+    delivery = %{delivery | steps: [%{plan | receipt: %{"report" => report}} | rest]}
+    html = panel([delivery])
+    assert html =~ "Predicted file scopes"
+    assert html =~ "Directory:"
+    assert html =~ "lib/boss"
+    assert html =~ "File:"
+    assert html =~ "test/&lt;scope&gt;.exs"
+    assert html =~ "unpredicted edits or semantic conflicts"
+    refute html =~ "File scope is unknown"
+    refute html =~ "Waiting for an overlapping workflow"
+  end
+
+  test "legacy or unknown scopes warn without claiming conflict freedom" do
+    delivery = delivery("planning")
+    assert panel([delivery]) =~ "File scope is unknown"
+
+    [plan | rest] = delivery.steps
+    report = Map.put(plan.receipt["report"], "file_scopes", nil)
+    delivery = %{delivery | steps: [%{plan | receipt: %{"report" => report}} | rest]}
+    assert panel([delivery]) =~ "potential conflicts remain"
+    refute panel([delivery]) =~ "Waiting for an overlapping workflow"
+  end
+
+  test "only a reported overlap shows waiting and preserves Stop" do
+    delivery = delivery("planning")
+    html = panel([delivery], scope_blockers: %{delivery.id => ["peer"]})
+    assert html =~ "Waiting for file scope"
+    refute html =~ "Preparing plan"
+    assert html =~ "Waiting for an overlapping workflow to finish"
+    assert html =~ "Implementation has not started"
+    assert html =~ ~s(id="stop-delivery-#{delivery.id}")
+    refute panel([delivery], scope_blockers: %{}) =~ "Waiting for an overlapping workflow"
   end
 
   defp panel(deliveries, opts \\ []) do
