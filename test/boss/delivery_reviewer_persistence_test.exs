@@ -14,7 +14,8 @@ defmodule Boss.DeliveryReviewerPersistenceTest do
     {20_261_026_220_000, Boss.Repo.Migrations.CreateDeliveries},
     {20_261_027_010_000, Boss.Repo.Migrations.AddTaskRevisionAdoption},
     {20_261_027_020_000, Boss.Repo.Migrations.PreserveHistoricalRunPins},
-    {20_261_027_030_000, Boss.Repo.Migrations.PinDeliveryReviewer}
+    {20_261_027_030_000, Boss.Repo.Migrations.PinDeliveryReviewer},
+    {20_261_027_040_000, Boss.Repo.Migrations.AddWorkflowQueue}
   ]
 
   test "migration preserves Codex history and pinned Claude request survives restart" do
@@ -77,7 +78,7 @@ defmodule Boss.DeliveryReviewerPersistenceTest do
     assert {:ok, _} = Deliveries.complete(legacy_id, "cancelled")
 
     # A reversible empty-Claude downgrade also proves the new trigger has no stale references.
-    Ecto.Migrator.run(Repo, migrations, :down, step: 1, log: false)
+    Ecto.Migrator.run(Repo, migrations, :down, to: @version, log: false)
     Ecto.Migrator.run(Repo, migrations, :up, all: true, log: false)
     assert Deliveries.get(project.id, legacy_id).reviewer == "codex"
 
@@ -100,7 +101,7 @@ defmodule Boss.DeliveryReviewerPersistenceTest do
     assert Tasks.get_task!(task.id).state == "planning"
 
     assert_raise RuntimeError, "Refusing to discard Claude reviewer history", fn ->
-      Ecto.Migrator.run(Repo, migrations, :down, step: 1, log: false)
+      Ecto.Migrator.run(Repo, migrations, :down, to: @version, log: false)
     end
 
     assert Deliveries.get(project.id, saved.id).reviewer == "claude"

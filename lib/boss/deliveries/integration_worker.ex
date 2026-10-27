@@ -15,7 +15,7 @@ defmodule Boss.Deliveries.IntegrationWorker do
         _, _ -> Deliveries.interrupt(delivery.id)
       end
 
-    send(manager, {:delivery_finished, delivery.id, result})
+    send(manager, {:delivery_finished, delivery.id, self(), result})
   end
 
   defp perform(delivery) do

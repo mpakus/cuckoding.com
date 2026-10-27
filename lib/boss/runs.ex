@@ -112,6 +112,8 @@ defmodule Boss.Runs do
             unless task.state in ~w(new ready failed interrupted cancelled blocked needs_input),
               do: Repo.rollback(:task_unavailable)
 
+            if Boss.Deliveries.Queue.pending?(task_id), do: Repo.rollback(:task_queued)
+
             if Boss.Deliveries.busy?() or
                  Repo.exists?(
                    from r in Run, where: r.status in ^@active or r.cleanup == "unknown"
@@ -169,6 +171,8 @@ defmodule Boss.Runs do
                      parent.cleanup == "group_empty" and map_size(parent.workspace) > 0,
                    do: Repo.rollback(:source_unavailable)
 
+            if Boss.Deliveries.Queue.pending?(parent.task_id), do: Repo.rollback(:task_queued)
+
             if replay_only or Boss.Deliveries.busy?() or
                  Repo.exists?(
                    from r in Run, where: r.status in ^@active or r.cleanup == "unknown"
@@ -224,6 +228,8 @@ defmodule Boss.Runs do
                      parent.cleanup == "group_empty" and is_binary(parent.candidate_commit) and
                      map_size(parent.workspace) > 0,
                    do: Repo.rollback(:source_unavailable)
+
+            if Boss.Deliveries.Queue.pending?(parent.task_id), do: Repo.rollback(:task_queued)
 
             if replay_only or Boss.Deliveries.busy?() or
                  Repo.exists?(
