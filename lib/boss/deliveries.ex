@@ -20,7 +20,10 @@ defmodule Boss.Deliveries do
   def active?(%Delivery{status: status}), do: status in @active
 
   def start(project, task, command, text, server \\ Boss.Runs.Manager),
-    do: GenServer.call(server, {:delivery_start, project, task, command, text}, 10_000)
+    do: start(project, task, command, text, "codex", server)
+
+  def start(project, task, command, text, reviewer, server),
+    do: GenServer.call(server, {:delivery_start, project, task, command, text, reviewer}, 10_000)
 
   def integrate(project, id, command, server \\ Boss.Runs.Manager),
     do: GenServer.call(server, {:delivery_integrate, project, id, command}, 10_000)
@@ -58,13 +61,22 @@ defmodule Boss.Deliveries do
       )
 
   @doc false
-  def admit(project, task, command, text, replay_only \\ false) do
+  def admit(project, task, command, text, replay_only \\ false),
+    do: admit(project, task, command, text, "codex", replay_only)
+
+  def admit(project, task, command, text, reviewer, replay_only) do
     with true <- valid_id?(project) and valid_id?(task),
+         true <- reviewer in ["codex", "claude"] and is_boolean(replay_only),
          {:ok, _} <- Ecto.UUID.cast(command),
          {:ok, config, hash} <- Boss.Checks.Command.parse(text) do
       transaction(fn ->
         case Repo.get_by(Delivery, task_id: task, command_id: command) do
-          %Delivery{project_id: ^project, check_config: ^config, config_hash: ^hash} = saved ->
+          %Delivery{
+            project_id: ^project,
+            check_config: ^config,
+            config_hash: ^hash,
+            reviewer: ^reviewer
+          } = saved ->
             {:existing, saved}
 
           %Delivery{} ->
@@ -117,6 +129,7 @@ defmodule Boss.Deliveries do
                 admitted_version: task.state_version,
                 task_version: task.state_version,
                 command_id: command,
+                reviewer: reviewer,
                 check_config: config,
                 config_hash: hash
               })

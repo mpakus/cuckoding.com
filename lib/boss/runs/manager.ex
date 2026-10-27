@@ -52,9 +52,12 @@ defmodule Boss.Runs.Manager do
     launch(result, state.review_worker, state)
   end
 
-  def handle_call({:delivery_start, project, task, command, text}, _from, state) do
+  def handle_call({:delivery_start, project, task, command, text}, from, state),
+    do: handle_call({:delivery_start, project, task, command, text, "codex"}, from, state)
+
+  def handle_call({:delivery_start, project, task, command, text, reviewer}, _from, state) do
     launch(
-      Deliveries.admit(project, task, command, text, state.active != nil),
+      Deliveries.admit(project, task, command, text, reviewer, state.active != nil),
       state.delivery_worker,
       state
     )
