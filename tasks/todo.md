@@ -422,12 +422,22 @@ Restart the running BOSS server to apply the new startup migrations.
 - [x] Fresh-pool upgrade/restart/downgrade/quarantine verification.
 - [x] Выбор reviewer, locked request и исторические labels; focused UI regressions.
 - [x] Bounded Claude structured stream, native fixture pipeline/Stop and independent review.
-- [ ] Browser, combined suite, local main merge and branch/worktree cleanup.
+- [x] Browser, combined suite, local main merge and merged-branch cleanup.
+- [ ] Archive the two clean Claude reviewer worktrees after Codex releases them.
 - [ ] Real-provider acceptance (отдельный opt-in).
 
 Codex остаётся planner/implementer/fixer; manual Codex flow прежний. Claude
 reviewer получает полные saved evidence без model filesystem/shell tools.
 Контракт: [CLAUDE_REVIEW.md](../docs/CLAUDE_REVIEW.md).
+
+Local main4319960: full suite448 passed/1 existing Linux-only skip(seed616578).
+Only final account-copy/regression followed; focused root44 passed(seed616639),
+combined main44 passed(seed342131). Compile without warnings, format, assets and
+diff checks passed. Browser verified Claude rejection→Codex fix→Claude approval→
+Ready→explicit Integrate/postchecks→Done, restart/history, Stop, keyboard and320px.
+Three merged branches deleted. Both clean detached writer worktrees are retained:
+Codex refused archive as another active task still uses them. No provider calls;
+restart the running BOSS server for the new reviewer migration.
 
 ## Следующие рабочие проходы
 
