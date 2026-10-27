@@ -7,13 +7,13 @@ defmodule Boss.Runs.Worker do
   def execute(run, repo, manager) do
     Repo.put_dynamic_repo(repo)
     result = perform(run, manager)
-    send(manager, {:run_finished, run.id, result})
+    send(manager, {:run_finished, run.id, self(), result})
   catch
     # An unexpected storage/worker failure must never produce a guessed receipt.
     _, _ ->
       send(
         manager,
-        {:run_finished, run.id,
+        {:run_finished, run.id, self(),
          terminal(
            run,
            "interrupted",
@@ -88,6 +88,7 @@ defmodule Boss.Runs.Worker do
   end
 
   defp invoke(run, executable, prompt, manager) do
+    owner = self()
     table = :ets.new(__MODULE__, [:public, :set])
     :ets.insert(table, {:parser, Codex.new()})
 
@@ -105,7 +106,7 @@ defmodule Boss.Runs.Worker do
           end
 
         if pid, do: :ets.insert(table, [{:os_pid, pid}, {:started_at, DateTime.utc_now()}])
-        progress(manager, run.id, table, parser)
+        progress(manager, run.id, owner, table, parser)
         if parser.error, do: :stop, else: :ok
       end
 
@@ -163,7 +164,7 @@ defmodule Boss.Runs.Worker do
     end
   end
 
-  defp progress(manager, id, table, parser) do
+  defp progress(manager, id, owner, table, parser) do
     pending = Process.get(:boss_progress)
 
     pending =
@@ -191,7 +192,7 @@ defmodule Boss.Runs.Worker do
             attrs
         end
 
-      send(manager, {:run_progress, id, self(), ref, attrs})
+      send(manager, {:run_progress, id, owner, self(), ref, attrs})
       Process.put(:boss_progress, ref)
       Process.put(:boss_progress_time, now)
     else

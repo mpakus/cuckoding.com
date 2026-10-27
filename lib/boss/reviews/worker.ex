@@ -18,7 +18,7 @@ defmodule Boss.Reviews.Worker do
         _, _ -> terminal(run, :storage_error)
       end
 
-    send(manager, {:run_finished, run.id, result})
+    send(manager, {:run_finished, run.id, self(), result})
   end
 
   defp prepare(run, manager) do
@@ -105,6 +105,7 @@ defmodule Boss.Reviews.Worker do
   end
 
   defp invoke(run, executable, prompt, path, file, manager) do
+    owner = self()
     table = :ets.new(__MODULE__, [:public, :set])
     :ets.insert(table, {:parser, Codex.new()})
     started = DateTime.utc_now()
@@ -121,7 +122,7 @@ defmodule Boss.Reviews.Worker do
 
             send(
               manager,
-              {:run_progress, run.id, self(), make_ref(),
+              {:run_progress, run.id, owner, self(), make_ref(),
                [status: "running", os_pid: pid, started_at: started]}
             )
 

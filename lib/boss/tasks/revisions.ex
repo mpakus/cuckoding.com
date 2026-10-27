@@ -56,6 +56,9 @@ defmodule Boss.Tasks.Revisions do
       target.spec_id != task.spec_id or target.number <= pinned.number ->
         {:error, :revision_unavailable}
 
+      Boss.Deliveries.Queue.pending?(task.id) ->
+        {:error, :busy}
+
       task.state not in @idle ->
         {:error, :task_unavailable}
 
