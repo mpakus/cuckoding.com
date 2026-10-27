@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import subprocess
 import sys
 import time
 
@@ -62,7 +63,8 @@ else:
         assert data["check_receipt"]["exit_code"] == 0
         assert "first-only.txt" in data["diff"] and "result.txt" in data["diff"]
         if "target_commit" in data:
-            assert "target_diff" in data and "result.txt" in data["target_diff"]
+            expected = subprocess.check_output(["git", "diff", "--no-ext-diff", "--no-textconv", "--binary", "--full-index", data["target_commit"], data["candidate_commit"], "--"], text=True).rstrip("\n")
+            assert data["target_diff"] == expected
             assert data["original_review"]["verdict"] == "approved"
             assert len(data["original_candidate"]) in (40, 64)
             assert "fresh integration review" in prompt
