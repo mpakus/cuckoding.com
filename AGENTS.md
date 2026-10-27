@@ -126,6 +126,13 @@
 - Keep Codex source on stdin, workspace-write sandbox and explicit Start. Persist
   only bounded event types/counts/usage, never raw model/tool/stderr text. Test
   production transport with finite fake CLIs; paid/provider calls remain opt-in.
+- Pin the managed reviewer before effects; changing Codex/Claude with the same
+  command UUID conflicts. Existing deliveries default to Codex. Claude is an
+  evidence-only reviewer with no model filesystem/shell tools, fresh scratch cwd
+  and stdin input; its internal StructuredOutput formatter is expected. Validate
+  the terminal structured result plus transport and candidate identity. Never
+  fall back to another provider or treat Claude CLI permissions as an OS sandbox.
+  Host-managed startup policy remains outside ordinary hook/settings suppression.
 
 - Managed deliveries own task progress through persisted plan/stage evidence;
   manual run/check/review receipts remain advisory. Save each intent before effects,

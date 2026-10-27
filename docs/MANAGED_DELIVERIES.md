@@ -1,16 +1,21 @@
 # Managed task delivery
 
-The task drawer's **Start workflow** runs a complete Codex workflow on macOS:
+The task drawer's **Start workflow** runs a managed workflow on macOS:
 plan → implement → snapshot → checks → fresh review → optional fixes. Enter one
 trusted check command first. **Integrate approved result** is a separate explicit
 action. Only successful publication and post-integration checks move the task to
 **Done**. The older manual runs/checks/reviews remain advisory and cannot be
 promoted into this workflow.
 
+Codex plans, implements and fixes. Select **Codex** (default) or **Claude** as
+the independent reviewer before Start. The selection is saved for the whole
+workflow, including every fix cycle. Install/sign in to the selected CLI on BOSS's
+PATH; there is no automatic provider fallback. See [Claude review](CLAUDE_REVIEW.md).
+
 ## Inputs and stages
 
 Admission saves the task's immutable source revision, current task version,
-normalized check argv/config hash and command UUID in an immediate transaction.
+normalized check argv/config hash, reviewer and command UUID in an immediate transaction.
 One global active or unknown execution is allowed across manual and managed work.
 Identical request retries return the original delivery, including after completion;
 changed input with the same UUID conflicts. A saved Ready result survives restart.
@@ -34,15 +39,17 @@ ref, clean index/files and actual tree must still match the candidate. Only a
 normal process exit with both EOFs, confirmed group cleanup and complete UTF-8
 output can produce passing checks or feedback for a fix.
 
-A fresh read-only Codex review receives original source, saved plan, complete
+A fresh review receives original source, saved plan, complete
 original-base→candidate diff, check configuration/receipt, complete bounded check
 stdout/stderr and previous feedback. Its structured acceptance set must exactly
 match the plan. Approval requires all criteria passed and no issues. Candidate
 identity and tree are verified before and after review. This is model assessment
 plus the configured checks; its coverage is limited by the actual command and
 criteria, not a general proof that arbitrary code is correct.
+Codex can inspect the candidate through its read-only sandbox. Claude assesses
+only supplied evidence, without model filesystem or shell tools.
 
-Check text is transient and sent to Codex; it is not stored in SQLite or browser
+Check text is transient and sent to the selected reviewer and Codex fixer; it is not stored in SQLite or browser
 history. Persisted receipts contain sanitized counts/hashes, typed plan/review
 reports, Git identity, exit/EOF/cleanup and stage links. Do not put secrets in
 commands, source or output. Complete prompt input is limited to 1 MiB; reports
@@ -59,7 +66,7 @@ There are at most **three implementation/check/review cycles**. Repeated normali
 failure on the same tree/config blocks earlier. Exhaustion becomes `blocked`;
 `needs_spec_revision` becomes `needs_input`. Invalid reports, changed snapshots,
 truncated/non-UTF8 output, launch/provider failures and Stop do not trigger retries.
-Plan and each Codex invocation have a 20-minute bound; checks retain their saved
+Plan and each agent invocation have a 20-minute bound; checks retain their saved
 command limits. No paid/provider smoke run is repeated automatically by development
 verification.
 
