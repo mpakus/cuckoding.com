@@ -146,6 +146,16 @@
   A new explicit workflow can retire a stale Ready approval; never reuse it.
   Clear UI Stop state after a persisted inactive delivery so later integration
   of the same delivery retains a working Stop. See docs/MANAGED_DELIVERIES.md.
+- New managed/manual starts check dependencies inside their admission transaction,
+  after replay and before effects. Resolve literal explicit IDs only within the
+  project, from every task's pinned source; never infer filenames or use latest
+  revisions. Only Done satisfies an edge. Retained missing Done is valid; missing
+  unfinished prerequisites, invalid declarations and reachable cycles block.
+- Keep dependency graph reads bounded and lazy; refuse limits instead of accepting
+  partial readiness. Preserve YAML sequence/map types, including [] versus {}.
+  Dependency reads never mutate task state. Unknown start requests must still
+  reconcile the same UUID even if readiness changed. Existing saved checks/reviews
+  are independent of the new-start gate. See docs/TASK_DEPENDENCIES.md.
 
 - Manual checks execute only explicitly entered user argv, never commands inferred
   from model/spec/config text. Retain normalized argv/config hash and source run;

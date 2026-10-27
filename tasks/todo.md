@@ -377,6 +377,20 @@ rejected→fix→Ready→Integrate→Done, повторное открытие, 
 320px/focus. Четыре merged branches удалены. Три новых и пять старых чистых
 writer worktree удерживаются Codex; force removal не выполнялся.
 
+## BOSS-015a — готовность зависимостей перед Start
+
+- [x] Strict depends_on sequence, literal project-local IDs and immutable source pins.
+- [x] Reachable cycle/missing/invalid/limit detection; only Done satisfies an edge.
+- [x] New manual/managed admission checks atomically before effects, after replay.
+- [x] Drawer reasons/links and Start guards; unknown request reconciliation retained.
+- [x] Focused regressions, independent review, browser/full-suite verification.
+- [ ] Merge local main, verify combined result and clean merged branches.
+- [ ] Archive dependency writer worktrees after Codex releases them.
+
+Один глобальный worker остаётся. Нет новых таблиц, автоматического scheduler,
+provider calls или implicit revision adoption. Контракт:
+[TASK_DEPENDENCIES.md](../docs/TASK_DEPENDENCIES.md).
+
 ## Следующие рабочие проходы
 
 Детализировать перед реализацией; не генерировать все модули заранее.
@@ -384,6 +398,6 @@ writer worktree удерживаются Codex; force removal не выполн�
 | Порядок | Tickets | Зависит от | Проверяемый результат / отказ |
 |---|---|---|---|
 | 1 | 012: Claude и provider acceptance | managed Codex | Реальный opt-in проход и второй adapter с теми же provenance/cleanup gates; никакого paid auto-retry. |
-| 2 | 015: DAG и два worker | 011–014 | Independent tasks параллельны; cycle/missing/failed dependency запрещает запуск; повтор tick не дублирует run. |
+| 2 | 015b: DAG scheduler и два worker | 015a, revision adoption | Independent tasks параллельны; duplicate tick не дублирует run; новый source принимается явно. |
 | 3 | 016b: divergent integration queue | 015, 016a | Новая база требует нового checked/reviewed merge candidate; drift/conflict/failed checks не дают Done. |
 | 4 | 017–018: recovery matrix, packaging | 016 | Kill/restart на каждой опасной границе; fresh macOS/Linux установка и полный spec→review→integrate проход. |
