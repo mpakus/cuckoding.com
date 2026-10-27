@@ -137,6 +137,17 @@ defmodule BossWeb.WorkflowCapacityLiveTest do
     assert frozen.assigns.pending == uncertain.assigns.pending
   end
 
+  test "an unchanged broadcast preserves an unsaved capacity choice" do
+    settings = %{max_parallel_tasks: 2, version: 1}
+
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{__changed__: %{}, settings: settings, value: "3", pending: nil}
+    }
+
+    {:ok, updated} = WorkflowCapacity.update(%{settings: settings}, socket)
+    assert updated.assigns.value == "3"
+  end
+
   defp start(project, name) do
     {:ok, saved} =
       Projects.record_spec(project.id, %{
