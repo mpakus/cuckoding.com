@@ -192,7 +192,7 @@ defmodule BossWeb.DeliveryPanel do
               >{if @queue_actions[request.id] == :cancel, do: "Retry Cancel", else: "Cancel queue"}</button>
             </div>
             <p :if={request.status == "started"} class="text-xs text-zinc-400">
-              The saved workflow is shown below. Stop it there while it is active.
+              This request started a workflow. Active workflows can be stopped below.
             </p>
           </li>
         </ol>
