@@ -201,6 +201,7 @@ defmodule Boss.Deliveries do
       transaction(fn ->
         delivery = owned!(id)
         current_task!(delivery)
+        if delivery.cleanup == "unknown", do: Repo.rollback(:cleanup_unknown)
 
         unless Map.has_key?(@stages, kind) and is_integer(cycle) and cycle in 0..3 and
                  bounded_map?(input, 65_536),
@@ -218,6 +219,7 @@ defmodule Boss.Deliveries do
           Repo.insert!(%Step{
             id: Ecto.UUID.generate(),
             delivery_id: id,
+            project_id: delivery.project_id,
             number: number,
             kind: kind,
             cycle: cycle,
@@ -241,7 +243,9 @@ defmodule Boss.Deliveries do
           do: Repo.rollback(:invalid_receipt)
 
         if receipt["cleanup"] == "unknown", do: save!(delivery, cleanup: "unknown")
+
         save!(step, receipt: receipt, status: receipt["status"])
+        |> Map.put(:project_id, delivery.project_id)
       end)
 
     broadcast_result(result)
@@ -259,9 +263,16 @@ defmodule Boss.Deliveries do
         if pending && pending.status == "running", do: Repo.rollback(:step_running)
 
         cond do
-          status == "ready_to_merge" -> approved!(delivery)
-          status == "done" -> integrated!(delivery)
-          true -> :ok
+          status == "ready_to_merge" ->
+            current_task!(delivery)
+            approved!(delivery)
+
+          status == "done" ->
+            current_task!(delivery)
+            integrated!(delivery)
+
+          true ->
+            :ok
         end
 
         unknown = delivery.cleanup == "unknown" or status == "interrupted"
@@ -272,54 +283,73 @@ defmodule Boss.Deliveries do
           reason: reason,
           cleanup: if(unknown, do: "unknown", else: "group_empty")
         )
-        |> sync_task!("complete", true)
+        |> sync_task!("complete:#{status}", true)
       end)
 
     broadcast_result(result)
   end
 
   @doc false
-  def interrupt(id) do
-    transaction(fn ->
-      delivery = Repo.get(Delivery, id) || Repo.rollback(:not_found)
+  def authorize_publication(id) do
+    case transaction(fn ->
+           d = owned!(id)
+           current_task!(d)
+           approved!(d)
 
-      if active?(delivery) do
-        case latest(id) do
-          %Step{status: "running"} = step ->
-            save!(step,
-              status: "interrupted",
-              receipt: %{"status" => "interrupted", "cleanup" => "unknown"}
-            )
+           unless d.status == "integrating" and d.integration_intent != %{} and
+                    match?(%Step{kind: "publish", status: "running"}, latest(id)),
+                  do: Repo.rollback(:missing_evidence)
+         end) do
+      {:ok, _} -> :ok
+      error -> error
+    end
+  end
 
-          _ ->
-            :ok
-        end
+  @doc false
+  def interrupt(id), do: transaction(fn -> interrupt_record(id) end) |> broadcast_result()
 
-        delivery
-        |> save!(
-          status: "interrupted",
-          cleanup: "unknown",
-          reason:
-            "Execution stopped without a final receipt. No automatic restart or publication retry."
-        )
-        |> sync_task!("interrupt", true)
-      else
-        delivery
+  defp interrupt_record(id) do
+    delivery = Repo.get(Delivery, id) || Repo.rollback(:not_found)
+
+    if active?(delivery) do
+      case latest(id) do
+        %Step{status: "running"} = step ->
+          save!(step,
+            status: "interrupted",
+            receipt: %{"status" => "interrupted", "cleanup" => "unknown"}
+          )
+
+        _ ->
+          :ok
       end
-    end)
-    |> broadcast_result()
+
+      delivery
+      |> save!(
+        status: "interrupted",
+        cleanup: "unknown",
+        reason:
+          "Execution stopped without a final receipt. No automatic restart or publication retry."
+      )
+      |> sync_task!("interrupt", true)
+    else
+      delivery
+    end
   end
 
   @doc false
   def reconcile do
-    transaction(fn ->
-      for id <- Repo.all(from d in Delivery, where: d.status in ^@active, select: d.id) do
-        case interrupt(id) do
-          {:ok, _} -> :ok
-          _ -> Repo.rollback(:storage_error)
-        end
-      end
-    end)
+    result =
+      transaction(fn ->
+        for id <- Repo.all(from d in Delivery, where: d.status in ^@active, select: d.id),
+            do: interrupt_record(id)
+      end)
+
+    case result do
+      {:ok, deliveries} -> Enum.each(deliveries, &broadcast/1)
+      _ -> :ok
+    end
+
+    result
   end
 
   @doc false
@@ -358,7 +388,7 @@ defmodule Boss.Deliveries do
        do: i["implementation_step_id"] == id
 
   defp valid_next?(
-         _,
+         d,
          %Step{kind: "snapshot", status: "finished", id: id, cycle: cycle, receipt: r},
          "check",
          cycle,
@@ -366,7 +396,7 @@ defmodule Boss.Deliveries do
        ),
        do:
          i["snapshot_step_id"] == id and i["candidate_commit"] == r["candidate_commit"] and
-           i["workspace"] == r["workspace"]
+           i["workspace"] == r["workspace"] and i["config_hash"] == d.config_hash
 
   defp valid_next?(
          d,
@@ -385,6 +415,8 @@ defmodule Boss.Deliveries do
        when kind in ["check", "review"] do
     next == cycle + 1 and next <= 3 and i["parent_step_id"] == previous.id and
       ((kind == "check" and previous.status == "failed" and
+          previous.receipt["output_complete"] == true and
+          previous.receipt["outcome"] == "checks_failed" and
           previous.receipt["exit_kind"] == "exit" and
           is_integer(previous.receipt["exit_code"]) and previous.receipt["exit_code"] != 0) or
          (kind == "review" and previous.status == "finished" and
@@ -546,7 +578,7 @@ defmodule Boss.Deliveries do
   end
 
   defp broadcast_result({:ok, %Step{} = step} = result) do
-    Repo.get(Delivery, step.delivery_id) |> broadcast()
+    Runs.broadcast(%{project_id: step.project_id})
     result
   end
 
