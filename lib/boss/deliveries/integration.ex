@@ -34,6 +34,25 @@ defmodule Boss.Deliveries.Integration do
     end
   end
 
+  @doc false
+  def preflight(project, delivery_id, expected, opts \\ []) do
+    with {:ok, workspace} <- Workspace.plan(project, delivery_id, opts),
+         true <- workspace.base_commit == expected,
+         intent = %{
+           "repo_path" => workspace.repo_path,
+           "git_common_dir" => workspace.git_common_dir,
+           "base_branch" => workspace.base_branch,
+           "path" => integration_path(workspace)
+         },
+         :ok <- paths(intent),
+         :ok <- target(intent, expected, opts) do
+      available_target(intent, nil, opts)
+    else
+      false -> {:error, :target_changed}
+      error -> error
+    end
+  end
+
   def prepare(intent, opts \\ []) do
     with :ok <- valid_intent(intent, opts),
          :ok <- Candidate.verify(intent["candidate"], intent["candidate_commit"], opts),

@@ -19,7 +19,7 @@ schema = Path(args[args.index("--output-schema") + 1]) if "--output-schema" in a
 kind = "plan" if schema and schema.name == "plan_schema.json" else "review" if schema else "implement"
 cycle = data.get("cycle", 0)
 with (root / "calls").open("a") as calls:
-    calls.write(json.dumps({"kind": kind, "cycle": cycle, "cwd": str(Path.cwd())}) + "\n")
+    calls.write(json.dumps({"kind": kind, "cycle": cycle, "cwd": str(Path.cwd()), "target_commit": data.get("target_commit")}) + "\n")
 
 def emit(value):
     print(json.dumps(value), flush=True)
@@ -61,6 +61,15 @@ else:
         assert data["check_receipt"]["output_complete"] is True
         assert data["check_receipt"]["exit_code"] == 0
         assert "first-only.txt" in data["diff"] and "result.txt" in data["diff"]
+        if "target_commit" in data:
+            assert "target_diff" in data and "result.txt" in data["target_diff"]
+            assert data["original_review"]["verdict"] == "approved"
+            assert len(data["original_candidate"]) in (40, 64)
+            assert "fresh integration review" in prompt
+            if mode == "integration_wait":
+                (root / "integration-review-wait").write_text(str(os.getpid()))
+                while not (root / "integration-review-release").exists():
+                    time.sleep(0.05)
         first = Path("result.txt").read_text() == "candidate-1\n"
         reject = mode in ("reject_always", "repeated") or (mode == "reject_once" and first)
         unclear = mode == "needs_spec"
