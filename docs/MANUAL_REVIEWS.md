@@ -72,7 +72,8 @@ Browser closure does not cancel it. Repo loss terminates the worker; restart
 quarantines the attempt without reusing a PID or rerunning it. Candidate worktrees
 remain retained. See [MANUAL_RUNS.md](MANUAL_RUNS.md) for process-group limits.
 
-This is useful manual review, not the full BOSS quality gate: automated fixes,
-refined-plan/test-output evidence, approval transitions, integration and Done
-remain future work. Tests use local finite CLI fixtures; live provider compatibility
-is not claimed without an explicit provider smoke run.
+This manual assessment cannot approve a task. The separate
+[managed delivery](MANAGED_DELIVERIES.md) supplies saved plan/test-output evidence,
+bounded fixes, explicit integration and Done through its own linked stage receipts.
+Tests use local finite CLI fixtures; live provider compatibility is not claimed
+without an explicit provider smoke run.

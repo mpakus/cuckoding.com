@@ -136,7 +136,7 @@ Application tests (181 passed, 1 Linux-only skipped) и compile/format пров�
 после BOSS-006 на macOS. В BOSS-004 добавлены 13 policy + 7 context + 7 real-pool tests:
 они проверяют
 таблицу отказов, replay/CAS, rollback и restart. Positive run/check/review/integration
-evidence ещё не производится: переходы, включая approved/done, закрыты и не
+evidence на том checkpoint ещё не производилось: переходы, включая approved/done, были закрыты и не
 принимают caller-provided evidence. Полная проверка commit-bound evidence остаётся
 за соответствующими рабочими проходами 006–016; контракт —
 [TASK_WORKFLOW.md](../docs/TASK_WORKFLOW.md).

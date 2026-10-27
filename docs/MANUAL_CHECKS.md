@@ -49,8 +49,9 @@ command exits 0. Ignored build products are permitted.
 
 The receipt describes **that commit and that command**. It does not attest the
 entire environment, dependencies or future source-worktree contents. It does not
-prove that the chosen command is an adequate test. Independent review, task
-workflow transitions, integration and Done remain separate closed gates.
+prove that the chosen command is an adequate test. Task workflow transitions,
+integration and Done belong to the separate [managed delivery](MANAGED_DELIVERIES.md)
+with its own plan, check and review evidence; this manual receipt cannot unlock them.
 The passed receipt enables an explicit [Review with Codex](MANUAL_REVIEWS.md) action;
 its model assessment remains separate from workflow approval.
 

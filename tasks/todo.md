@@ -361,12 +361,21 @@ assessments по-прежнему не дают Done.
 - [x] Освобождение target через detach собственного checkout; source/failed worktrees сохраняются.
 - [x] Native real-Git/real-pool fixtures: replay, Stop, drift, checked-out target, postcheck failure, Repo/receipt loss.
 - [x] UI: saved plan/report, Start/Stop/Integrate, unknown-request replay, late Stop и следующая задача после Done.
-- [ ] Итоговая browser/full-suite проверка, local main merge и уборка веток.
+- [x] Итоговая browser/full-suite проверка, local main merge и уборка веток.
+- [ ] Архивировать 3 delivery worktree после снятия Codex active-task hold.
 
 Контракт: [MANAGED_DELIVERIES.md](../docs/MANAGED_DELIVERIES.md).
 Проверки используют конечный fake CLI; реальные model calls не выполнялись.
 macOS, один активный workflow, unchanged-target fast-forward. DAG/Claude/Linux,
 divergent merge, automatic crash recovery и packaging пока не включены.
+
+Local main `b4145ea`: root full suite361 passed/1 Linux skip (seed678162),
+последние context/UI изменения30 passed (seed298435), combined main37 passed
+(seed163005), включая7 реальных Git/SQLite/native integration scenarios.
+Compile без warnings, format, assets и diff checks прошли. Browser показал
+rejected→fix→Ready→Integrate→Done, повторное открытие, следующую задачу и Stop,
+320px/focus. Четыре merged branches удалены. Три новых и пять старых чистых
+writer worktree удерживаются Codex; force removal не выполнялся.
 
 ## Следующие рабочие проходы
 
