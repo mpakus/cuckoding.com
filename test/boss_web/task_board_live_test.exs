@@ -164,9 +164,11 @@ defmodule BossWeb.TaskBoardLiveTest do
     {:ok, first_details} = Tasks.get_details(project.id, first.task.id)
     {old, monitor} = hold_details(view, {{first.task.id, nil}, {:ok, first_details}})
     render_patch(view, "/projects/#{project.id}/tasks/#{second.task.id}")
-    settle(view)
+    refute has_element?(view, "#task-source")
+    assert {_, ^old, _} = :sys.get_state(view.pid).socket.private.live_async.details
     send(old, :release)
     assert_receive {:DOWN, ^monitor, :process, ^old, :normal}
+    settle(view)
     assert has_element?(view, "#task-source", "SECOND_SOURCE")
     refute has_element?(view, "#task-source", "FIRST_SOURCE")
 
