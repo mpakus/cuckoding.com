@@ -64,4 +64,31 @@ defmodule Boss.DeliveryProtocolTest do
                Protocol.prompt(kind, %{"source" => String.duplicate("x", 1_048_576)})
     end
   end
+
+  test "fresh integration review preserves both complete diffs and refuses oversized combined evidence" do
+    input = %{
+      "specification" => "Saved source",
+      "plan" => @plan,
+      "original_candidate" => String.duplicate("a", 40),
+      "target_commit" => String.duplicate("b", 40),
+      "candidate_commit" => String.duplicate("c", 40),
+      "diff" => "original base diff",
+      "target_diff" => "current target diff",
+      "check_output" => %{"stdout" => "complete output", "stderr" => "complete errors"}
+    }
+
+    for kind <- [:merge_review, :claude_merge_review] do
+      assert {:ok, prompt} = Protocol.prompt(kind, input)
+      assert prompt =~ "fresh integration review"
+      [_, serialized] = String.split(prompt, "BOSS delivery input (JSON):\n", parts: 2)
+      assert JSON.decode!(serialized) == input
+
+      assert {:error, :input_too_large} =
+               Protocol.prompt(kind, %{
+                 input
+                 | "diff" => String.duplicate("x", 600_000),
+                   "target_diff" => String.duplicate("y", 600_000)
+               })
+    end
+  end
 end

@@ -98,6 +98,13 @@ defmodule Boss.Repo.Migrations.AddMergeIntegrationEvidence do
     """)
 
     execute("""
+    CREATE TRIGGER delivery_ready_report BEFORE UPDATE ON deliveries
+    WHEN NEW.status='ready_to_merge' AND NOT EXISTS (
+      SELECT 1 FROM delivery_publication_evidence e WHERE e.delivery_id=NEW.id)
+    BEGIN SELECT RAISE(ABORT, 'ready requires valid approved report'); END
+    """)
+
+    execute("""
     CREATE TRIGGER delivery_done_lineage BEFORE UPDATE ON deliveries
     WHEN NEW.status='done' AND NOT EXISTS (
       SELECT 1 FROM delivery_publication_evidence e JOIN delivery_steps pub
@@ -120,7 +127,7 @@ defmodule Boss.Repo.Migrations.AddMergeIntegrationEvidence do
        do: raise("Refusing to discard merge integration evidence")
 
     for name <-
-          ~w(merge_input merge_check_input merge_review_input merge_receipt merge_check_receipt merge_review_receipt delivery_integration_evidence publication_review_pin delivery_done_lineage),
+          ~w(merge_input merge_check_input merge_review_input merge_receipt merge_check_receipt merge_review_receipt delivery_integration_evidence publication_review_pin delivery_done_lineage delivery_ready_report),
         do: execute("DROP TRIGGER #{name}")
 
     execute("DROP VIEW delivery_publication_evidence")
@@ -183,7 +190,11 @@ defmodule Boss.Repo.Migrations.AddMergeIntegrationEvidence do
     AND #{sha("json_extract(#{m}.input,'$.target_commit')")}
     AND json_extract(#{m}.input,'$.target_commit')!=json_extract(#{m}.input,'$.original_base')
     AND json_extract(#{m}.input,'$.target_commit')!=json_extract(#{m}.input,'$.original_candidate')
+    AND json_type(#{m}.input,'$.workspace.run_workspace')='object'
     AND json_extract(#{m}.input,'$.workspace.run_workspace')=json_extract(c.input,'$.workspace.run_workspace')
+    AND json_extract(#{m}.input,'$.workspace.check_id')!=json_extract(c.input,'$.workspace.check_id')
+    AND json_extract(#{m}.input,'$.workspace.path')!=json_extract(c.input,'$.workspace.path')
+    AND json_extract(#{m}.input,'$.workspace.ref')!=json_extract(c.input,'$.workspace.ref')
     """
   end
 
