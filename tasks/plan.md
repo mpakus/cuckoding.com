@@ -228,3 +228,20 @@ quarantine без restart/retry. Stale approval не переиспользуе�
 реализация DAG, Claude, двух worker или divergent integration queue. Эти задачи,
 Linux/provider/release acceptance и безопасное снятие quarantine остаются открыты.
 Контракт: [MANAGED_DELIVERIES.md](../docs/MANAGED_DELIVERIES.md).
+
+## BOSS-015a — зависимости перед явным запуском
+
+Первый проход BOSS-015 добавляет проверку готовности без автоматического scheduler
+или расширения concurrency. `depends_on` из pinned source задаёт до 32 уникальных
+explicit IDs в своём проекте. Исходник уже неизменяем и сохранён, поэтому отдельная
+таблица edges и backfill не нужны. Текущий filename не используется как alias.
+
+Новые manual/managed starts проверяют bounded reachable graph внутри admission
+transaction: только Done удовлетворяет dependency; missing/invalid/cycle/limit
+отказывают до записи run/delivery/event. Replay имеет приоритет. Drawer показывает
+причины и ссылки на известные задачи, используя pinned revision, а не открытую
+в селекторе. При ожидании task state не меняется автоматически.
+
+Отдельно остаются explicit revision adoption, DAG scheduler, два worker и
+divergent integration. Изменение latest source пока не исправляет ошибку в
+прикреплённом snapshot. Контракт: [TASK_DEPENDENCIES.md](../docs/TASK_DEPENDENCIES.md).

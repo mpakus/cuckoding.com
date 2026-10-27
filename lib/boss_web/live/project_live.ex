@@ -2,7 +2,7 @@ defmodule BossWeb.ProjectLive do
   use BossWeb, :live_view
   alias Boss.{Deliveries, Projects, Repo, Runs, Tasks}
   alias Boss.Projects.{SpecImporter, SpecWatcher}
-  alias BossWeb.{DeliveryPanel, RunPanel, TaskBoard}
+  alias BossWeb.{DeliveryPanel, RunPanel, TaskBoard, TaskDependencies}
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
@@ -114,7 +114,7 @@ defmodule BossWeb.ProjectLive do
   end
 
   def handle_event("start_run", %{"command-id" => command}, socket) do
-    if command == socket.assigns.run_command_id && run_available?(socket.assigns) &&
+    if command == socket.assigns.run_command_id && run_start_available?(socket.assigns) &&
          !verification_uncertain?(socket.assigns) do
       {task_id, _} = socket.assigns.selection
       project_id = socket.assigns.project.id
@@ -744,7 +744,17 @@ defmodule BossWeb.ProjectLive do
 
     delivery_integrate_available?(assigns) && request &&
       assigns.details.task.state in ~w(new failed interrupted cancelled blocked needs_input) &&
+      (dependencies_ready?(assigns) || request.locked) &&
       (!delivery_uncertain?(assigns) || request.locked)
+  end
+
+  defp dependencies_ready?(%{details: %{dependencies: %{ready?: true}}}), do: true
+  defp dependencies_ready?(_), do: false
+
+  defp run_start_available?(assigns) do
+    run_available?(assigns) &&
+      (dependencies_ready?(assigns) ||
+         assigns.manual_pending[assigns.details.task.id] == assigns.run_command_id)
   end
 
   defp delivery_call(fun) do
@@ -754,6 +764,8 @@ defmodule BossWeb.ProjectLive do
   catch
     :exit, _ -> {:error, :storage_error}
   end
+
+  defp delivery_input_resolved?({:error, {:dependencies_blocked, _}}), do: true
 
   defp delivery_input_resolved?({:error, reason}),
     do:
@@ -777,6 +789,8 @@ defmodule BossWeb.ProjectLive do
     do: "Another run or workflow is active, or cleanup needs attention."
 
   defp delivery_error({:error, :invalid_command}), do: check_error({:error, :invalid_command})
+
+  defp delivery_error({:error, {:dependencies_blocked, _}}), do: dependency_error()
 
   defp delivery_error({:error, reason})
        when reason in [
@@ -934,6 +948,7 @@ defmodule BossWeb.ProjectLive do
   end
 
   defp check_input_resolved?({:ok, _}), do: true
+  defp check_input_resolved?({:error, {:dependencies_blocked, _}}), do: true
 
   defp check_input_resolved?({:error, reason}),
     do: reason in [:busy, :invalid_command, :not_found, :task_unavailable, :source_unavailable]
@@ -999,8 +1014,13 @@ defmodule BossWeb.ProjectLive do
 
   defp run_error({:error, :not_found}), do: "This task is no longer available in this project."
 
+  defp run_error({:error, {:dependencies_blocked, _}}), do: dependency_error()
+
   defp run_error(_),
     do: "The start outcome could not be confirmed. Retry Start Codex to check the same request."
+
+  defp dependency_error,
+    do: "Dependencies are not ready. Review the Dependencies section before starting again."
 
   defp finish_details(socket) do
     pending = socket.assigns.detail_pending
@@ -1071,6 +1091,7 @@ defmodule BossWeb.ProjectLive do
     assigns =
       assigns
       |> assign(:run_available, run_available?(assigns))
+      |> assign(:run_start_available, run_start_available?(assigns))
       |> assign(:delivery_start_available, delivery_start_available?(assigns))
       |> assign(:delivery_integrate_available, delivery_integrate_available?(assigns))
       |> assign(:delivery_uncertain, delivery_uncertain?(assigns))
@@ -1148,6 +1169,12 @@ defmodule BossWeb.ProjectLive do
         error={@detail_error}
       >
         <:run_panel>
+          <TaskDependencies.panel
+            :if={@details}
+            snapshot={@details.dependencies}
+            project_id={@project.id}
+            revision={@details.pinned_revision.number}
+          />
           <DeliveryPanel.panel
             :if={@details}
             details={@details}
@@ -1170,6 +1197,7 @@ defmodule BossWeb.ProjectLive do
             starting={!is_nil(@run_starting)}
             stopping={@run_stopping}
             available={@run_available}
+            start_available={@run_start_available}
             supported={@run_supported}
             error={@run_error}
             check_requests={Map.get(assigns, :check_requests, %{})}

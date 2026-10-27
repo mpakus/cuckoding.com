@@ -103,6 +103,11 @@ is preserved when a worker subsequently records its terminal outcome.
 `ready_to_merge`, cancelled, failed, interrupted and all other states return false.
 There is no dependency scheduler yet.
 
+New manual and managed task starts now enforce [dependency readiness](TASK_DEPENDENCIES.md)
+inside their admission transaction. The drawer shows the pinned revision's direct
+dependencies and blockers. Waiting does not change task state; existing command
+replays still return their original receipts. Automatic scheduling remains separate.
+
 ## Board and detail reads
 
 | Column | Saved states |

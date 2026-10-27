@@ -14,6 +14,8 @@ normalized check argv/config hash and command UUID in an immediate transaction.
 One global active or unknown execution is allowed across manual and managed work.
 Identical request retries return the original delivery, including after completion;
 changed input with the same UUID conflicts. A saved Ready result survives restart.
+New starts also require [dependency readiness](TASK_DEPENDENCIES.md) from the task's
+pinned source. Only Done satisfies prerequisites; replay precedes that check.
 A fresh explicit start after an external task cancellation retires the stale
 Ready approval atomically; its review is never reused for the new workflow.
 

@@ -16,6 +16,9 @@ including after completion or while another attempt runs. The global database
 constraint permits one active attempt and blocks new work after unknown cleanup.
 The current manual eligible task states are new, ready, failed, interrupted,
 cancelled, blocked and needs_input. This action does not change task state.
+New attempts also check [pinned dependency readiness](TASK_DEPENDENCIES.md) inside
+the admission transaction; only Done satisfies prerequisites. Identical command
+replay returns its saved attempt before this new-start gate.
 
 Before creating Git state, BOSS stores a resolved base commit, fresh branch and
 worktree path. It starts from the project's configured base branch commit;
@@ -73,5 +76,6 @@ Application tests exercise native fixtures, real Git worktrees, fresh SQLite poo
 command replay, requester death, Stop and restart quarantine. Browser smoke uses
 a finite local fake Codex only. No real model call was made for this increment.
 A C compiler is required to build `priv/native/boss_guardian` on macOS. Linux and
-Windows task execution, release packaging, detached-session containment and the
-full automated checks → independent review → integration workflow remain open.
+Windows task execution, release packaging and detached-session containment remain
+open. The separate macOS [managed workflow](MANAGED_DELIVERIES.md) now provides
+plan, checks, review, bounded fixes and explicit integration before Done.

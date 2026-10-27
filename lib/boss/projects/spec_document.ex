@@ -4,6 +4,14 @@ defmodule Boss.Projects.SpecDocument do
   @max_document_bytes 1_048_576
   @max_header_bytes 16_384
   @parser_timeout 500
+  @yaml_options [
+    atoms: false,
+    merge_anchors: false,
+    schema: :core,
+    ignore_unrecognized_tags: false,
+    erlang_atom_only_if_exist: true,
+    erlang_atom_autodetection: false
+  ]
 
   def parse(relative_path, original_text)
       when is_binary(relative_path) and is_binary(original_text) do
@@ -19,6 +27,15 @@ defmodule Boss.Projects.SpecDocument do
   end
 
   def parse(_, _), do: {:error, "The document must contain UTF-8 Markdown text."}
+
+  def dependencies(original_text) when is_binary(original_text) do
+    with :ok <- validate_source(original_text),
+         {:ok, metadata, _body} <- split_document(strip_bom(original_text)) do
+      {:ok, Map.get(metadata, :depends_on, [])}
+    end
+  end
+
+  def dependencies(_), do: {:error, "The document must contain UTF-8 Markdown text."}
 
   defp validate_source(text) do
     cond do
@@ -91,17 +108,12 @@ defmodule Boss.Projects.SpecDocument do
     # Reject aliases as tokens, so quoted '*' text remains an ordinary string.
     :yamerl_parser.string(header, token_fun: &check_token/1)
 
-    case YamlElixir.read_all_from_string(header,
-           maps_as_keywords: true,
-           atoms: false,
-           merge_anchors: false,
-           schema: :core,
-           ignore_unrecognized_tags: false,
-           erlang_atom_only_if_exist: true,
-           erlang_atom_autodetection: false
-         ) do
+    case YamlElixir.read_all_from_string(header, [maps_as_keywords: true] ++ @yaml_options) do
       {:ok, [[{_, _} | _] = pairs]} ->
-        with :ok <- validate_metadata(pairs), do: extract_metadata(pairs)
+        with :ok <- validate_metadata(pairs),
+             {:ok, metadata} <- extract_metadata(pairs) do
+          validate_empty_dependencies(header, metadata)
+        end
 
       {:ok, _} ->
         {:error, "Frontmatter must be one nonempty YAML mapping."}
@@ -114,6 +126,16 @@ defmodule Boss.Projects.SpecDocument do
     :unsupported_binary -> {:error, "Frontmatter binary values are not supported."}
     _, _ -> {:error, "Frontmatter contains invalid YAML or an unsupported tag."}
   end
+
+  defp validate_empty_dependencies(header, %{depends_on: []} = metadata) do
+    # Keyword mapping mode represents both [] and {} as []; retain their YAML type.
+    case YamlElixir.read_all_from_string(header, @yaml_options) do
+      {:ok, [%{"depends_on" => []}]} -> {:ok, metadata}
+      _ -> {:error, "Frontmatter depends_on must be a YAML sequence."}
+    end
+  end
+
+  defp validate_empty_dependencies(_, metadata), do: {:ok, metadata}
 
   defp check_token({:yamerl_alias, _, _, _}), do: throw(:unsupported_alias)
 
@@ -162,6 +184,17 @@ defmodule Boss.Projects.SpecDocument do
 
   defp extract_metadata(pairs) do
     Enum.reduce_while(pairs, {:ok, %{}}, fn
+      {"depends_on", values}, {:ok, attrs} ->
+        if is_list(values) and length(values) <= 32 and
+             Enum.all?(values, &valid_field?("id", &1)) and
+             MapSet.size(MapSet.new(values)) == length(values) do
+          {:cont, {:ok, Map.put(attrs, :depends_on, values)}}
+        else
+          {:halt,
+           {:error,
+            "Frontmatter depends_on must be a list of at most 32 unique, nonempty IDs of at most 200 bytes each."}}
+        end
+
       {key, value}, {:ok, attrs} when key in ["id", "title"] ->
         if valid_field?(key, value) do
           field = if key == "id", do: :explicit_id, else: :title

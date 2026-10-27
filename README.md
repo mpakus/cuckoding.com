@@ -98,7 +98,10 @@ most 200 bytes and 200 characters respectively. The title otherwise comes from
 the first H1 outside fenced code, then the filename. BOM and CRLF are supported.
 Duplicate keys, aliases, keys starting with `<<`, custom tags and binary tags are
 rejected.
-`priority` and `depends_on` are retained in the source only, with no workflow effect.
+`priority` remains source-only. `depends_on` accepts up to 32 unique explicit
+frontmatter IDs from this project. Only Done satisfies a dependency; missing IDs,
+invalid declarations and cycles block new task starts. See
+[dependency readiness and pinned-revision limits](docs/TASK_DEPENDENCIES.md).
 
 Identity is scoped to the project: an explicit ID survives moves; without an ID,
 a renamed file creates a new task and the old identity becomes **File missing**.

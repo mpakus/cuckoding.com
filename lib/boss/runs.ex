@@ -118,6 +118,11 @@ defmodule Boss.Runs do
                  ),
                do: Repo.rollback(:busy)
 
+            case Tasks.Dependencies.check(project_id, task_id) do
+              :ok -> :ok
+              {:error, reason} -> Repo.rollback(reason)
+            end
+
             run =
               Repo.insert!(%Run{
                 id: Ecto.UUID.generate(),
