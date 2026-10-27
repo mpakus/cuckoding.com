@@ -307,6 +307,9 @@ defmodule Boss.Deliveries do
         unless valid_next?(delivery, previous, kind, cycle, input),
           do: Repo.rollback(:invalid_step)
 
+        if kind == "implement" and Scheduling.quarantined?(),
+          do: Repo.rollback(:execution_quarantined)
+
         if kind == "implement" and Scheduling.blockers(delivery) != [],
           do: Repo.rollback(:scope_conflict)
 
