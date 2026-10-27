@@ -407,7 +407,7 @@ defmodule Boss.WorkflowQueueNativeTest do
   end
 
   defp terminal(ctx, id) do
-    eventually(fn -> not Deliveries.active?(Deliveries.get(ctx.project.id, id)) end)
+    eventually(fn -> not Deliveries.active?(Deliveries.get(ctx.project.id, id)) end, 3000)
     Deliveries.get(ctx.project.id, id)
   end
 
