@@ -1,7 +1,7 @@
 defmodule Boss.Deliveries.Worker do
   @moduledoc false
   alias Boss.{Deliveries, Repo}
-  alias Boss.Agents.{Codex, ReportFile, Workspace}
+  alias Boss.Agents.{Claude, Codex, ReportFile, Workspace}
   alias Boss.Agents.Process, as: Runner
   alias Boss.Checks.Candidate
   alias Boss.Deliveries.Protocol
@@ -25,6 +25,10 @@ defmodule Boss.Deliveries.Worker do
   defp perform(delivery) do
     {project, revision} = Deliveries.inputs(delivery)
     continue!()
+
+    if delivery.reviewer == "claude" and is_nil(System.find_executable("claude")),
+      do: throw({:halt, :claude_unavailable})
+
     intent = ok!(Workspace.plan(project, delivery.id)) |> string_keys()
     delivery = stored!(Deliveries.set_intent(delivery.id, intent))
     input = %{"specification" => revision.original_text, "base_commit" => intent["base_commit"]}
@@ -234,10 +238,12 @@ defmodule Boss.Deliveries.Worker do
       "check_config" => delivery.check_config,
       "check_receipt" => check.receipt,
       "check_output" => output,
-      "previous_feedback" => feedback
+      "previous_feedback" => feedback,
+      "reviewer" => delivery.reviewer
     }
 
-    prompt = ok!(Protocol.prompt(:review, input))
+    kind = if delivery.reviewer == "claude", do: :claude_review, else: :review
+    prompt = ok!(Protocol.prompt(kind, input))
 
     {review, report} =
       step(
@@ -258,7 +264,7 @@ defmodule Boss.Deliveries.Worker do
         fn ->
           continue!()
           ok!(Candidate.verify(candidate, sha))
-          receipt = run_agent(:review, path, prompt, &Protocol.review(&1, plan))
+          receipt = run_reviewer(delivery.reviewer, path, prompt, &Protocol.review(&1, plan))
           receipt = verify_agent(receipt, fn -> Candidate.verify(candidate, sha) end)
           {Map.put(receipt, "candidate_commit", sha), receipt["report"]}
         end
@@ -436,6 +442,70 @@ defmodule Boss.Deliveries.Worker do
     end
   end
 
+  defp run_reviewer("codex", path, prompt, decode),
+    do: run_agent(:review, path, prompt, decode)
+
+  defp run_reviewer("claude", _path, prompt, decode) do
+    continue!()
+    executable = System.find_executable("claude") || throw({:halt, :claude_unavailable})
+    # No repository discovery: this reviewer receives its entire evidence on stdin.
+    scratch = Path.join(System.tmp_dir!(), "boss-claude-review-#{Ecto.UUID.generate()}")
+    ok!(File.mkdir(scratch))
+
+    ok!(File.chmod(scratch, 0o700))
+    receipt = claude_process(executable, scratch, prompt, decode)
+    # Unknown ownership or a crashed worker leaves scratch intact for inspection.
+    if receipt["cleanup"] != "unknown", do: File.rm_rf(scratch)
+    receipt
+  end
+
+  defp claude_process(executable, path, prompt, decode) do
+    parser = :ets.new(:delivery_claude, [:set, :public])
+    :ets.insert(parser, {:state, Claude.new()})
+
+    try do
+      callback = fn event ->
+        [{:state, state}] = :ets.lookup(parser, :state)
+        state = Claude.feed(state, event)
+        :ets.insert(parser, {:state, state})
+        if state.error, do: :stop, else: :ok
+      end
+
+      result =
+        Runner.run(executable, Claude.args(),
+          cd: path,
+          input: prompt,
+          timeout_ms: 1_200_000,
+          output_limit: 8_388_608,
+          on_event: callback
+        )
+
+      [{:state, state}] = :ets.lookup(parser, :state)
+      receipt = process_receipt(result) |> Map.put("summary", Claude.summary(state))
+
+      cond do
+        receipt["status"] in ["interrupted", "cancelled"] ->
+          receipt
+
+        result.outcome == :exited and result.exit_kind == :exit and result.exit_code == 0 and
+          result.eof == %{stdout: true, stderr: true} and Claude.complete?(state) ->
+          case decode.(state.report) do
+            {:ok, report} -> Map.merge(receipt, %{"status" => "finished", "report" => report})
+            _ -> Map.merge(receipt, failure(:invalid_report))
+          end
+
+        true ->
+          Map.put(
+            receipt,
+            "reason",
+            "Claude review did not finish with a valid structured result and clean exit. No fallback was started."
+          )
+      end
+    after
+      :ets.delete(parser)
+    end
+  end
+
   defp run_agent(kind, path, prompt, decode) do
     continue!()
     executable = System.find_executable("codex") || throw({:halt, :codex_unavailable})
@@ -574,6 +644,10 @@ defmodule Boss.Deliveries.Worker do
         :input_too_large ->
           {"failed", "group_empty",
            "Complete delivery input exceeds the 1 MiB limit. Nothing was truncated."}
+
+        :claude_unavailable ->
+          {"failed", "not_started",
+           "Claude is unavailable in BOSS's PATH. No fallback was started."}
 
         :codex_unavailable ->
           {"failed", "not_started", "Codex is unavailable in BOSS's PATH."}

@@ -12,7 +12,8 @@ defmodule Boss.RevisionAdoptionPersistenceTest do
     {20_261_026_160_000, Boss.Repo.Migrations.AddManualReviews},
     {20_261_026_220_000, Boss.Repo.Migrations.CreateDeliveries},
     {20_261_027_010_000, Boss.Repo.Migrations.AddTaskRevisionAdoption},
-    {20_261_027_020_000, Boss.Repo.Migrations.PreserveHistoricalRunPins}
+    {20_261_027_020_000, Boss.Repo.Migrations.PreserveHistoricalRunPins},
+    {20_261_027_030_000, Boss.Repo.Migrations.PinDeliveryReviewer}
   ]
 
   setup do
@@ -161,7 +162,13 @@ defmodule Boss.RevisionAdoptionPersistenceTest do
     assert {:ok, receipt} = Tasks.transition(c.first.task.id, c.command)
 
     assert_raise Ecto.MigrationError, "cannot invalidate historical verification pins", fn ->
-      Ecto.Migrator.run(Repo, @migrations, :down, step: 1, log: false)
+      Ecto.Migrator.run(
+        Repo,
+        [{20_261_027_020_000, Boss.Repo.Migrations.PreserveHistoricalRunPins}],
+        :down,
+        all: true,
+        log: false
+      )
     end
 
     assert_raise Ecto.MigrationError, "cannot discard retained task events", fn ->

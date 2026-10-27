@@ -6,6 +6,7 @@ defmodule Boss.Deliveries.Delivery do
     belongs_to :task, Boss.Tasks.Task
     belongs_to :spec_revision, Boss.Projects.SpecRevision
     field :command_id, :string
+    field :reviewer, :string, default: "codex"
     field :admitted_version, :integer
     field :task_version, :integer
     field :check_config, :map

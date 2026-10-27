@@ -12,6 +12,9 @@ defmodule BossWeb.DeliveryPanelTest do
     assert html =~ "without shell expansion"
     assert html =~ "Keep secrets out of arguments and output"
     assert html =~ ~s(name="command_id" value="start-request")
+    assert html =~ ~s(for="delivery-reviewer")
+    assert html =~ ~s(value="codex" selected)
+    assert html =~ "Codex plans and implements"
   end
 
   test "active workflow exposes Stop and its saved command and candidate" do
@@ -46,14 +49,39 @@ defmodule BossWeb.DeliveryPanelTest do
     assert html =~ "Saved stages"
   end
 
+  test "Ready Claude history explains both roles even when a fresh request defaults to Codex" do
+    saved = %{delivery("ready_to_merge") | reviewer: "claude"}
+
+    html =
+      panel([saved],
+        details: %{
+          task: %{state: "ready_to_merge"},
+          pinned_revision: %{id: 7, number: 1},
+          revisions: [%{id: 7, number: 1}]
+        }
+      )
+
+    assert html =~ "Reviewer: Claude"
+    assert html =~ "Codex account for planning and implementation"
+    assert html =~ "selected reviewer's account for review"
+    refute html =~ "Uses your local Codex account and may incur charges"
+    refute html =~ ~s(id="delivery-form")
+  end
+
   test "unknown request keeps the command read-only and offers an identical retry" do
     html =
-      panel([], request: %{id: "start-request", text: "mix test", locked: true}, uncertain: true)
+      panel([],
+        request: %{id: "start-request", text: "mix test", reviewer: "claude", locked: true},
+        uncertain: true
+      )
 
     assert html =~ "Retry workflow start"
     assert html =~ "readonly"
     assert html =~ "workflow request is unresolved"
     assert html =~ ~s(value="mix test")
+    assert html =~ ~s(name="reviewer" disabled)
+    assert html =~ ~s(type="hidden" name="reviewer" value="claude")
+    assert html =~ "no model filesystem or shell tools"
   end
 
   test "Done is rendered only for saved terminal state" do
@@ -74,7 +102,7 @@ defmodule BossWeb.DeliveryPanelTest do
             revisions: [%{id: 7, number: 1}]
           },
           deliveries: deliveries,
-          request: %{id: "start-request", text: "", locked: false},
+          request: %{id: "start-request", text: "", reviewer: "codex", locked: false},
           integration_requests: %{"delivery" => %{id: "integration-request", locked: false}},
           start_available: true,
           integrate_available: true,
@@ -90,6 +118,7 @@ defmodule BossWeb.DeliveryPanelTest do
     %{
       id: "delivery",
       spec_revision_id: 7,
+      reviewer: "codex",
       status: status,
       cycle: 2,
       reason: nil,

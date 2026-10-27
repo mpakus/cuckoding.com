@@ -31,7 +31,7 @@ defmodule Boss.Deliveries.Protocol do
     end
   end
 
-  def prompt(kind, input) when kind in [:plan, :implement, :review] do
+  def prompt(kind, input) when kind in [:plan, :implement, :review, :claude_review] do
     role =
       case kind do
         :plan ->
@@ -54,6 +54,21 @@ defmodule Boss.Deliveries.Protocol do
           Do not commit, merge, push or start background processes. BOSS will execute
           the user's saved check command and independent review after you finish.
           Your completion message is not proof that the task is complete.
+          """
+
+        :claude_review ->
+          """
+          Independently review this exact candidate using only the supplied saved
+          specification, typed plan, complete original-base diff, full bounded check
+          output/receipt and previous feedback. No repository, shell, web or other
+          external tools are available. Do not claim to have inspected any other
+          source or run tests. If supplied evidence cannot establish a criterion,
+          mark it unclear and explain the missing evidence rather than approving it.
+          Return only the required JSON report, using the internal StructuredOutput
+          formatter. Cover every plan acceptance criterion exactly once with its exact
+          string and concrete supplied evidence. Use needs_spec_revision when the
+          specification is unclear. Approval is a model assessment; BOSS must still
+          integrate and verify delivery.
           """
 
         :review ->

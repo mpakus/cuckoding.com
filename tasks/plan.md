@@ -256,3 +256,14 @@ divergent integration. Изменение latest source пока не испра
 неинтегрированный Ready result. Done, active/unknown cleanup и незавершённый
 integration intent блокируют adoption. Старые manual checks/reviews продолжают
 использовать свои parent snapshots. Подробности: [TASK_REVISIONS.md](../docs/TASK_REVISIONS.md).
+
+## BOSS-012a — Claude как независимый reviewer
+
+Managed workflow сохраняет reviewer Codex/Claude при admission и не позволяет
+сменить его через replay. Codex продолжает plan/implement/fix; manual flow прежний.
+Claude получает полные сохранённые evidence через stdin без model filesystem/shell
+tools в private scratch cwd. Terminal structured output валидируется отдельно от
+exit/EOF/cleanup и exact candidate. Permissions Claude не выдаются за OS sandbox;
+managed host startup policy остаётся внешней границей. Контракт:
+[CLAUDE_REVIEW.md](../docs/CLAUDE_REVIEW.md). Реальные provider calls — отдельный opt-in;
+Claude implementer, scheduler/two-worker и divergent integration не входят в 012a.

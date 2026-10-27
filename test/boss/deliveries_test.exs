@@ -59,6 +59,61 @@ defmodule Boss.DeliveriesTest do
     assert Tasks.get_task!(c.task.id).state == "new"
   end
 
+  test "reviewer is pinned before effects and changed reviewer cannot replay a command", c do
+    command = Ecto.UUID.generate()
+
+    assert {:ok, {:new, d}} =
+             Deliveries.admit(c.project.id, c.task.id, command, "true", "claude", false)
+
+    assert d.reviewer == "claude"
+    assert Deliveries.steps(d.id) == []
+
+    assert {:ok, {:existing, ^d}} =
+             Deliveries.admit(c.project.id, c.task.id, command, "true", "claude", true)
+
+    assert {:error, :idempotency_conflict} =
+             Deliveries.admit(c.project.id, c.task.id, command, "true")
+
+    assert {:ok, cancelled} = Deliveries.complete(d.id, "cancelled")
+
+    assert {:ok, {:new, next}} =
+             Deliveries.admit(c.project.id, c.task.id, Ecto.UUID.generate(), "true")
+
+    assert next.reviewer == "codex"
+
+    assert {:ok, {:existing, ^cancelled}} =
+             Deliveries.admit(c.project.id, c.task.id, command, "true", "claude", true)
+
+    assert length(Tasks.list_events(c.task.id)) == 3
+  end
+
+  test "invalid reviewer has no effects and stored reviewer cannot be changed", c do
+    for reviewer <- [nil, "", "Claude", "unknown", :claude] do
+      assert {:error, :invalid_command} =
+               Deliveries.admit(
+                 c.project.id,
+                 c.task.id,
+                 Ecto.UUID.generate(),
+                 "true",
+                 reviewer,
+                 false
+               )
+    end
+
+    assert Tasks.get_task!(c.task.id).state == "new"
+    assert Deliveries.list(c.project.id, c.task.id) == []
+    assert Tasks.list_events(c.task.id) == []
+
+    {:ok, {:new, d}} = Deliveries.admit(c.project.id, c.task.id, Ecto.UUID.generate(), "true")
+
+    for reviewer <- ["claude", "unknown", nil] do
+      assert {:error, %Exqlite.Error{}} =
+               Repo.query("UPDATE deliveries SET reviewer=? WHERE id=?", [reviewer, d.id])
+    end
+
+    assert Deliveries.get(c.project.id, d.id).reviewer == "codex"
+  end
+
   test "workflow transitions cannot take caller-selected states or evidence", c do
     {:ok, {:new, d}} = Deliveries.admit(c.project.id, c.task.id, Ecto.UUID.generate(), "true")
 

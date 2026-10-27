@@ -8,6 +8,9 @@ transactional spec/revision/task history and versioned task commands with immuta
 receipts, a Kanban board, a revision-aware task drawer, local CLI discovery and
 manual Codex attempts, explicit commit-bound checks and fresh read-only Codex review
 in retained Git worktrees on macOS.
+Managed workflows add a typed plan, bounded fixes, Codex or Claude independent
+review, explicit integration and postchecks before Done. Task source adoption
+and Done-only dependency readiness keep execution pinned to reviewed inputs.
 
 ## Run locally
 
@@ -181,17 +184,20 @@ focus to the task card.
 Details are scoped to the current project and read in one database snapshot.
 Loading/error states do not substitute a different revision's cached source.
 The drawer also provides managed workflows, explicit integration, manual Codex
-runs/checks/reviews, saved evidence and Stop. Revision adoption remains future work. Full state mapping
+runs/checks/reviews, saved evidence, explicit newer source adoption and Stop. Full state mapping
 and the read API are documented
 in [TASK_WORKFLOW.md](docs/TASK_WORKFLOW.md).
 
-## Complete a task with Codex
+## Complete a task with a managed workflow
 
-Open a task, enter a trusted **Workflow check command**, then choose **Start
+Open a task, enter a trusted **Workflow check command**, select a reviewer, then choose **Start
 workflow**. BOSS saves a plan, implements in an isolated worktree, checks the
 snapshot and requests a fresh review. Failed checks or requested changes can
-trigger fixes, up to three cycles. This uses your Codex account and may incur
-charges for multiple runs. Closing the browser keeps the workflow running.
+trigger fixes, up to three cycles. Codex plans/implements/fixes; the independent
+reviewer is Codex by default or explicitly Claude. Claude assesses supplied
+evidence without model filesystem/shell tools. Your selected local CLI accounts
+may incur charges for multiple runs. Closing the browser keeps the workflow running.
+See [Claude review and its limits](docs/CLAUDE_REVIEW.md).
 
 An approved result waits for **Integrate approved result**. The target branch
 must be unchanged and not checked out by you. BOSS publishes the exact reviewed
