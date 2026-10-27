@@ -46,3 +46,20 @@
   filename rejection, diamonds, cycles, missing and malformed source.
 - Formatter passed for the four owned source/test files. Resource-limit boundary
   and cache-query evidence are the next focused test increment; not claimed yet.
+
+## Review and resource-bound verification
+
+- Root review found the first implementation fetched source before testing the
+  accumulated byte/node budget. Changed the query to return source only when its
+  SQLite byte length fits the remaining budget; uncached-node limit now runs
+  before another query. Added query telemetry assertions for actual row payload
+  bytes and query counts. No raw source is placed in the graph result.
+- Preserve retained-source execution: the selected root being marked missing is
+  not itself a dependency blocker. Referenced unfinished missing tasks still block.
+- `rtk proxy asdf exec mix test test/boss/spec_document_test.exs
+  test/boss/task_dependencies_test.exs`: 35 passed, 2.1s, seed 434291.
+  Added exact 64/65-task boundary, exact 8-MiB/9-MiB boundary (only 8 MiB returned
+  from SQLite), spent time budget, <=33 issues, one lookup per unknown ID and
+  diamond node, and missing-root retained-source regression.
+- `rtk proxy git diff --check` passed. The time budget is cooperative between
+  bounded calls, not a hard wall-clock interrupt for database scheduling.
