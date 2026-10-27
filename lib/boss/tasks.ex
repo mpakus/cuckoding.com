@@ -120,12 +120,19 @@ defmodule Boss.Tasks do
         true -> Repo.get_by(SpecRevision, spec_id: spec.id, number: revision_number)
       end || Repo.rollback(:not_found)
 
+    dependencies =
+      case Boss.Tasks.Dependencies.snapshot(project_id, task_id) do
+        {:ok, result} -> result
+        {:error, reason} -> Repo.rollback(reason)
+      end
+
     %{
       task: task,
       spec: spec,
       pinned_revision: pinned,
       latest_revision: latest,
       selected_revision: selected,
+      dependencies: dependencies,
       revisions:
         Repo.all(
           from r in SpecRevision,

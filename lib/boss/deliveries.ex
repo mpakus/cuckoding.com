@@ -85,6 +85,11 @@ defmodule Boss.Deliveries do
             unless task.state in ~w(new failed cancelled blocked needs_input interrupted),
               do: Repo.rollback(:task_unavailable)
 
+            case Tasks.Dependencies.check(project, task.id) do
+              :ok -> :ok
+              {:error, reason} -> Repo.rollback(reason)
+            end
+
             case Repo.one(
                    from d in Delivery,
                      where: d.task_id == ^task.id and d.status == "ready_to_merge"
