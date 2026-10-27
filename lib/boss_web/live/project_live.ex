@@ -1,8 +1,8 @@
 defmodule BossWeb.ProjectLive do
   use BossWeb, :live_view
-  alias Boss.{Projects, Repo, Runs, Tasks}
+  alias Boss.{Deliveries, Projects, Repo, Runs, Tasks}
   alias Boss.Projects.{SpecImporter, SpecWatcher}
-  alias BossWeb.{RunPanel, TaskBoard}
+  alias BossWeb.{DeliveryPanel, RunPanel, TaskBoard}
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
@@ -30,6 +30,13 @@ defmodule BossWeb.ProjectLive do
        detail_loading: false,
        detail_pending: false,
        detail_error: nil,
+       deliveries: [],
+       delivery_requests: %{},
+       integration_requests: %{},
+       delivery_starting: nil,
+       delivery_stopping: nil,
+       delivery_error: nil,
+       manual_pending: %{},
        runs: [],
        run_commands: %{},
        run_command_id: nil,
@@ -67,14 +74,14 @@ defmodule BossWeb.ProjectLive do
       true ->
         {:noreply,
          socket
-         |> cancel_async(:details)
          |> assign(
            drawer_open: false,
            selection: nil,
            details: nil,
            runs: [],
+           deliveries: [],
+           delivery_error: nil,
            run_error: nil,
-           detail_loading: false,
            detail_pending: false,
            detail_error: nil
          )}
@@ -114,7 +121,11 @@ defmodule BossWeb.ProjectLive do
 
       {:noreply,
        socket
-       |> assign(run_starting: {task_id, command}, run_error: nil)
+       |> assign(
+         run_starting: {task_id, command},
+         manual_pending: Map.put(socket.assigns.manual_pending, task_id, command),
+         run_error: nil
+       )
        |> start_async(:start_run, fn ->
          {task_id, command, start_run(project_id, task_id, command)}
        end)}
@@ -210,9 +221,122 @@ defmodule BossWeb.ProjectLive do
 
   def handle_event("stop_run", _, socket), do: {:noreply, socket}
 
+  def handle_event("edit_delivery", %{"command_id" => id, "command" => text}, socket) do
+    with {task, _} <- socket.assigns.selection,
+         %{id: ^id, locked: false} = request <- socket.assigns.delivery_requests[task],
+         true <-
+           is_binary(text) && byte_size(text) <= 4096 && delivery_start_available?(socket.assigns) do
+      {:noreply, put_delivery_request(socket, :start, task, %{request | text: text})}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("edit_delivery", _, socket), do: {:noreply, socket}
+
+  def handle_event("start_delivery", %{"command_id" => id, "command" => text}, socket) do
+    with {task, _} <- socket.assigns.selection,
+         %{id: ^id} = request <- socket.assigns.delivery_requests[task],
+         true <- delivery_start_available?(socket.assigns),
+         true <- is_binary(text) && byte_size(text) <= 4096,
+         true <- !request.locked || request.text == text do
+      project = socket.assigns.project.id
+      key = {:delivery_request, task, :start, task, id}
+
+      {:noreply,
+       socket
+       |> put_delivery_request(:start, task, %{request | text: text, locked: true})
+       |> assign(delivery_starting: key, delivery_error: nil)
+       |> start_async(key, fn ->
+         delivery_call(fn -> Deliveries.start(project, task, id, text) end)
+       end)}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("start_delivery", _, socket), do: {:noreply, socket}
+
+  def handle_event("integrate_delivery", %{"delivery-id" => delivery, "command-id" => id}, socket) do
+    with {task, _} <- socket.assigns.selection,
+         %{id: ^id} = request <- socket.assigns.integration_requests[delivery],
+         true <- delivery_integrate_available?(socket.assigns),
+         true <- !delivery_uncertain?(socket.assigns) || request.locked,
+         true <-
+           Enum.any?(
+             socket.assigns.deliveries,
+             &(&1.id == delivery && &1.status == "ready_to_merge")
+           ) do
+      project = socket.assigns.project.id
+      key = {:delivery_request, task, :integrate, delivery, id}
+
+      {:noreply,
+       socket
+       |> put_delivery_request(:integrate, delivery, %{request | locked: true})
+       |> assign(delivery_starting: key, delivery_error: nil)
+       |> start_async(key, fn ->
+         delivery_call(fn -> Deliveries.integrate(project, delivery, id) end)
+       end)}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("integrate_delivery", _, socket), do: {:noreply, socket}
+
+  def handle_event("stop_delivery", %{"delivery-id" => id}, socket) do
+    if Enum.any?(socket.assigns.deliveries, &(&1.id == id && delivery_active?(&1))) do
+      case Deliveries.stop(socket.assigns.project.id, id) do
+        :ok -> {:noreply, assign(socket, delivery_stopping: id, delivery_error: nil)}
+        _ -> {:noreply, refresh_details(socket)}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("stop_delivery", _, socket), do: {:noreply, socket}
+
   @impl true
+  def handle_async({:delivery_request, task, kind, target, id} = key, reply, socket) do
+    result =
+      case reply do
+        {:ok, result} -> result
+        _ -> :unknown
+      end
+
+    request = delivery_request(socket.assigns, kind, target)
+    confirmed = delivery_admitted?(socket.assigns, kind, id)
+    current = socket.assigns.delivery_starting == key
+    obsolete = is_nil(request) || request.id != id || (!request.locked && !current)
+
+    socket = if current, do: assign(socket, delivery_starting: nil), else: socket
+
+    socket =
+      if !obsolete && (confirmed || delivery_input_resolved?(result)),
+        do: put_delivery_request(socket, kind, target, %{request | locked: false}),
+        else: socket
+
+    case socket.assigns.selection do
+      {^task, _} when not obsolete ->
+        error = if confirmed, do: nil, else: delivery_error(result)
+        {:noreply, socket |> assign(delivery_error: error) |> refresh_details()}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
   def handle_async(:start_run, {:ok, {task_id, command, result}}, socket) do
-    socket = assign(socket, run_starting: nil)
+    socket =
+      if socket.assigns.run_starting == {task_id, command},
+        do: assign(socket, run_starting: nil),
+        else: socket
+
+    socket =
+      if check_input_resolved?(result) && socket.assigns.manual_pending[task_id] == command,
+        do: assign(socket, manual_pending: Map.delete(socket.assigns.manual_pending, task_id)),
+        else: socket
 
     case socket.assigns.selection do
       {^task_id, _} ->
@@ -344,13 +468,20 @@ defmodule BossWeb.ProjectLive do
       case result do
         {:ok, details} ->
           socket
-          |> assign(details: details, detail_error: nil, runs: Map.get(details, :runs, []))
+          |> assign(
+            details: details,
+            detail_error: nil,
+            runs: Map.get(details, :runs, []),
+            deliveries: Map.get(details, :deliveries, [])
+          )
           |> renew_run_command()
           |> renew_check_requests()
           |> renew_review_requests()
+          |> renew_delivery_requests()
+          |> renew_manual_pending()
 
         {:error, :not_found} ->
-          assign(socket, details: nil, runs: [], detail_error: :not_found)
+          assign(socket, details: nil, runs: [], deliveries: [], detail_error: :not_found)
 
         _ ->
           assign(socket, detail_error: :storage_error)
@@ -359,7 +490,7 @@ defmodule BossWeb.ProjectLive do
     {:noreply, finish_details(socket)}
   end
 
-  def handle_async(:details, {:ok, _obsolete}, socket), do: {:noreply, socket}
+  def handle_async(:details, {:ok, _obsolete}, socket), do: {:noreply, finish_details(socket)}
 
   def handle_async(
         :details,
@@ -368,11 +499,11 @@ defmodule BossWeb.ProjectLive do
       ),
       do: {:noreply, socket |> assign(detail_error: :storage_error) |> finish_details()}
 
-  def handle_async(:details, _obsolete, socket), do: {:noreply, socket}
+  def handle_async(:details, _obsolete, socket), do: {:noreply, finish_details(socket)}
 
   @impl true
   def handle_info({:run_changed, id}, %{assigns: %{project: %{id: id}}} = socket),
-    do: {:noreply, refresh_details(socket)}
+    do: {:noreply, refresh(socket, :delivery_update)}
 
   def handle_info({:run_changed, _}, socket), do: {:noreply, socket}
 
@@ -392,21 +523,21 @@ defmodule BossWeb.ProjectLive do
 
     socket =
       socket
-      |> cancel_async(:details)
       |> assign(
         drawer_open: true,
         selection: selection,
         details: if(same_task, do: socket.assigns.details),
         runs: if(same_task, do: socket.assigns.runs, else: []),
+        deliveries: if(same_task, do: socket.assigns.deliveries, else: []),
+        delivery_error: if(same_task, do: socket.assigns.delivery_error),
         run_error: if(same_task, do: socket.assigns.run_error),
-        detail_loading: false,
         detail_pending: false,
         detail_error: nil
       )
 
     if selection == :invalid,
       do: assign(socket, detail_error: :not_found),
-      else: socket |> select_run_command() |> load_details()
+      else: socket |> select_run_command() |> select_delivery_request() |> refresh_details()
   end
 
   defp refresh_details(
@@ -441,8 +572,13 @@ defmodule BossWeb.ProjectLive do
         Repo.transaction(
           fn ->
             case Tasks.get_details(project_id, task_id, revision) do
-              {:ok, details} -> Map.put(details, :runs, Runs.list(project_id, task_id))
-              {:error, reason} -> Repo.rollback(reason)
+              {:ok, details} ->
+                details
+                |> Map.put(:runs, Runs.list(project_id, task_id))
+                |> Map.put(:deliveries, Deliveries.list(project_id, task_id))
+
+              {:error, reason} ->
+                Repo.rollback(reason)
             end
           end,
           mode: :deferred
@@ -481,9 +617,184 @@ defmodule BossWeb.ProjectLive do
     end
   end
 
+  defp select_delivery_request(socket) do
+    {task, _} = socket.assigns.selection
+    request = socket.assigns.delivery_requests[task] || new_delivery_request()
+    put_delivery_request(socket, :start, task, request)
+  end
+
+  defp new_delivery_request(text \\ ""),
+    do: %{id: Ecto.UUID.generate(), text: text, locked: false}
+
+  defp delivery_request(assigns, :start, target), do: assigns.delivery_requests[target]
+  defp delivery_request(assigns, :integrate, target), do: assigns.integration_requests[target]
+
+  defp put_delivery_request(socket, :start, target, request),
+    do:
+      assign(socket,
+        delivery_requests: Map.put(socket.assigns.delivery_requests, target, request)
+      )
+
+  defp put_delivery_request(socket, :integrate, target, request),
+    do:
+      assign(socket,
+        integration_requests: Map.put(socket.assigns.integration_requests, target, request)
+      )
+
+  defp delivery_admitted?(assigns, kind, command) do
+    Enum.any?(assigns.deliveries, fn delivery ->
+      if kind == :start,
+        do: delivery.command_id == command,
+        else: delivery.integration_command_id == command
+    end)
+  end
+
+  defp renew_delivery_requests(socket) do
+    socket =
+      Enum.reduce(socket.assigns.deliveries, socket, fn delivery, socket ->
+        request = socket.assigns.delivery_requests[delivery.task_id]
+
+        socket =
+          if request && request.id == delivery.command_id do
+            request =
+              if delivery_active?(delivery),
+                do: %{request | locked: false},
+                else: new_delivery_request(request.text)
+
+            put_delivery_request(socket, :start, delivery.task_id, request)
+          else
+            socket
+          end
+
+        request = socket.assigns.integration_requests[delivery.id]
+
+        cond do
+          request && request.id == delivery.integration_command_id ->
+            put_delivery_request(socket, :integrate, delivery.id, %{request | locked: false})
+
+          is_nil(request) && delivery.status == "ready_to_merge" ->
+            put_delivery_request(socket, :integrate, delivery.id, %{
+              id: Ecto.UUID.generate(),
+              locked: false
+            })
+
+          true ->
+            socket
+        end
+      end)
+
+    socket =
+      case socket.assigns.delivery_starting do
+        {:delivery_request, _, kind, _, command} ->
+          if delivery_admitted?(socket.assigns, kind, command),
+            do: assign(socket, delivery_starting: nil),
+            else: socket
+
+        _ ->
+          socket
+      end
+
+    if !delivery_uncertain?(socket.assigns) &&
+         socket.assigns.delivery_error == delivery_error(:unknown),
+       do: assign(socket, delivery_error: nil),
+       else: socket
+  end
+
+  defp renew_manual_pending(socket) do
+    pending =
+      Map.reject(socket.assigns.manual_pending, fn {_, command} ->
+        Enum.any?(socket.assigns.runs, &(&1.command_id == command))
+      end)
+
+    assign(socket, manual_pending: pending)
+  end
+
+  defp delivery_active?(delivery),
+    do: delivery.status in ~w(planning implementing testing reviewing integrating)
+
+  defp delivery_busy?(assigns),
+    do:
+      !is_nil(Map.get(assigns, :delivery_starting)) ||
+        Enum.any?(
+          Map.get(assigns, :deliveries, []),
+          &(delivery_active?(&1) || &1.cleanup == "unknown")
+        )
+
+  defp delivery_uncertain?(assigns),
+    do:
+      Enum.any?(Map.get(assigns, :delivery_requests, %{}), fn {_, request} -> request.locked end) ||
+        Enum.any?(Map.get(assigns, :integration_requests, %{}), fn {_, request} ->
+          request.locked
+        end)
+
+  defp delivery_integrate_available?(assigns) do
+    assigns.run_supported && assigns.details != nil && assigns.detail_error == nil &&
+      !assigns.detail_loading && is_nil(assigns.run_starting) && !delivery_busy?(assigns) &&
+      map_size(assigns.manual_pending) == 0 && !verification_uncertain?(assigns) &&
+      !Enum.any?(assigns.runs, &(Runs.active?(&1) || &1.cleanup == "unknown"))
+  end
+
+  defp delivery_start_available?(assigns) do
+    request = assigns.details && assigns.delivery_requests[assigns.details.task.id]
+
+    delivery_integrate_available?(assigns) && request &&
+      assigns.details.task.state in ~w(new failed interrupted cancelled blocked needs_input) &&
+      (!delivery_uncertain?(assigns) || request.locked)
+  end
+
+  defp delivery_call(fun) do
+    fun.()
+  rescue
+    _ -> {:error, :storage_error}
+  catch
+    :exit, _ -> {:error, :storage_error}
+  end
+
+  defp delivery_input_resolved?({:error, reason}),
+    do:
+      reason in [
+        :busy,
+        :invalid_command,
+        :not_found,
+        :task_unavailable,
+        :source_unavailable,
+        :not_ready,
+        :stale_state,
+        :missing_evidence
+      ]
+
+  defp delivery_input_resolved?({:ok, _}), do: true
+  defp delivery_input_resolved?(_), do: false
+
+  defp delivery_error({:ok, _}), do: nil
+
+  defp delivery_error({:error, :busy}),
+    do: "Another run or workflow is active, or cleanup needs attention."
+
+  defp delivery_error({:error, :invalid_command}), do: check_error({:error, :invalid_command})
+
+  defp delivery_error({:error, reason})
+       when reason in [
+              :not_found,
+              :task_unavailable,
+              :source_unavailable,
+              :not_ready,
+              :stale_state,
+              :missing_evidence
+            ],
+       do: "This task or workflow cannot accept that action. Refresh its saved state."
+
+  defp delivery_error({:error, :idempotency_conflict}),
+    do: "This saved request belongs to different input. Retry its original command."
+
+  defp delivery_error(_),
+    do:
+      "The workflow request outcome could not be confirmed. Retry the same saved request before starting other work."
+
   defp run_available?(assigns) do
     assigns.run_supported && assigns.details != nil && assigns.detail_error == nil &&
       !assigns.detail_loading && is_nil(assigns.run_starting) &&
+      !delivery_busy?(assigns) && !delivery_uncertain?(assigns) &&
       assigns.details.task.state in ~w(new ready failed interrupted cancelled blocked needs_input) &&
       !Enum.any?(assigns.runs, &(Runs.active?(&1) || &1.cleanup == "unknown"))
   end
@@ -692,8 +1003,10 @@ defmodule BossWeb.ProjectLive do
     if pending, do: refresh_details(socket), else: socket
   end
 
-  defp refresh(%{assigns: %{refreshing: true}} = socket, result),
-    do: assign(socket, refresh_pending: result)
+  defp refresh(%{assigns: %{refreshing: true}} = socket, result) do
+    pending = if socket.assigns.refresh_pending == :interrupted, do: :interrupted, else: result
+    assign(socket, refresh_pending: pending)
+  end
 
   defp refresh(socket, fallback) do
     id = socket.assigns.project.id
@@ -730,6 +1043,7 @@ defmodule BossWeb.ProjectLive do
         status: "Sync was interrupted. Saved entries have been refreshed. Try Sync again."
       )
 
+  defp show_result(socket, :delivery_update), do: socket
   defp show_result(socket, nil), do: socket
 
   defp find_project(id) do
@@ -749,7 +1063,12 @@ defmodule BossWeb.ProjectLive do
 
   @impl true
   def render(assigns) do
-    assigns = assign(assigns, :run_available, run_available?(assigns))
+    assigns =
+      assigns
+      |> assign(:run_available, run_available?(assigns))
+      |> assign(:delivery_start_available, delivery_start_available?(assigns))
+      |> assign(:delivery_integrate_available, delivery_integrate_available?(assigns))
+      |> assign(:delivery_uncertain, delivery_uncertain?(assigns))
 
     ~H"""
     <.link
@@ -824,6 +1143,20 @@ defmodule BossWeb.ProjectLive do
         error={@detail_error}
       >
         <:run_panel>
+          <DeliveryPanel.panel
+            :if={@details}
+            details={@details}
+            deliveries={@deliveries}
+            request={@delivery_requests[@details.task.id]}
+            integration_requests={@integration_requests}
+            start_available={@delivery_start_available}
+            integrate_available={@delivery_integrate_available}
+            uncertain={@delivery_uncertain}
+            starting={@delivery_starting}
+            stopping={@delivery_stopping}
+            error={@delivery_error}
+            supported={@run_supported}
+          />
           <RunPanel.panel
             :if={@details}
             details={@details}
