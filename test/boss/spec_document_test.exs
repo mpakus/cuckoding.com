@@ -65,6 +65,7 @@ defmodule Boss.Projects.SpecDocumentTest do
   test "dependencies reject invalid YAML types and IDs without coercing or deduplicating" do
     for yaml <- [
           "{}",
+          "{one: two}",
           "null",
           "false",
           "42",
