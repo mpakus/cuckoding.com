@@ -1,18 +1,25 @@
 defmodule Boss.Deliveries.Protocol do
   @moduledoc false
   alias Boss.Reviews.Verdict
+  alias Boss.Deliveries.FileScopes
 
   def plan(text) when is_binary(text) and byte_size(text) in 1..32_768 do
     with true <- String.valid?(text),
          {:ok, %Jason.OrderedObject{values: pairs}} <-
            Jason.decode(text, objects: :ordered_objects),
-         true <- Enum.sort(Enum.map(pairs, &elem(&1, 0))) == ~w(acceptance steps summary),
+         true <-
+           Enum.sort(Enum.map(pairs, &elem(&1, 0))) in [
+             ~w(acceptance steps summary),
+             ~w(acceptance file_scopes steps summary)
+           ],
          plan = Map.new(pairs),
          true <- text?(plan["summary"], 2000),
          true <- strings?(plan["steps"], 2000),
          true <- strings?(plan["acceptance"], 1000),
-         true <- Enum.uniq(plan["acceptance"]) == plan["acceptance"] do
-      {:ok, plan}
+         true <- Enum.uniq(plan["acceptance"]) == plan["acceptance"],
+         {:ok, scopes} <- FileScopes.validate(plan["file_scopes"]) do
+      {:ok,
+       if(Map.has_key?(plan, "file_scopes"), do: Map.put(plan, "file_scopes", scopes), else: plan)}
     else
       _ -> {:error, :invalid_plan}
     end
@@ -48,7 +55,13 @@ defmodule Boss.Deliveries.Protocol do
           Inspect relevant source read-only. Do not edit files, run checks, install
           dependencies, commit, merge, push or start background processes.
           Return only the JSON object required by the output schema: summary,
-          implementation steps, and distinct measurable acceptance criterion strings.
+          implementation steps, distinct measurable acceptance criterion strings,
+          and file_scopes. Predict files or directories this task may change as
+          objects with path and kind (file or directory). Use 1–64 literal repository-
+          relative paths without empty/dot/parent segments, .git, glob characters,
+          backslashes, colons or control characters; no trailing slash. Use null
+          when you cannot confidently bound the changes; never use an empty list.
+          These predictions coordinate workers, not permissions or correctness proof.
           Preserve every requirement of the original specification. If it is ambiguous,
           include the unresolved question in the acceptance criteria; do not invent consent.
           """
