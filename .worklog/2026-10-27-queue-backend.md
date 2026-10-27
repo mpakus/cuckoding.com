@@ -77,3 +77,15 @@ Final next step: merge backend commits through final worklog commit into the par
 integration branch, review combined UI/native evidence, then parent merges local
 main and removes temporary branches/worktrees. The owned dependency symlink was
 removed after tests; no reference checkout or shared documentation was modified.
+
+Combined-suite follow-up: root seed 276199 exposed a web sandbox fixture leak: an
+application-global Manager timer queried after its SQL Sandbox owner ended, causing
+restart-intensity failure. Backend caller audit (`rtk proxy rg` for Manager,
+Queue.enqueue/resume and Runs/Deliveries.start under test/boss) found only isolated
+start_supervised Managers with dedicated real pools; backend DataCase queue tests
+use direct admission/claim helpers and never arm a timer. No backend test or
+production exception handler change is warranted. UI writer owns clearing/draining
+its global Manager timers before sandbox teardown. Suggested deterministic check:
+retain an old timer tag, reset fixture while owner is alive, deliver the stale tick,
+and verify same Manager PID/no timer/no active or finished owners. Combined rerun
+remains parent-owned; no new passing result is claimed for that failing seed here.
