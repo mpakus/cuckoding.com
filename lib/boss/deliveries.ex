@@ -83,63 +83,116 @@ defmodule Boss.Deliveries do
             Repo.rollback(:idempotency_conflict)
 
           nil ->
-            {task, _} =
-              Repo.one(
-                from t in Tasks.Task,
-                  join: s in Spec,
-                  on: s.id == t.spec_id,
-                  where: t.id == ^task and s.project_id == ^project,
-                  select: {t, s}
-              ) || Repo.rollback(:not_found)
-
-            if replay_only or busy?() or run_busy?(), do: Repo.rollback(:busy)
-
-            unless task.state in ~w(new failed cancelled blocked needs_input interrupted),
-              do: Repo.rollback(:task_unavailable)
-
-            case Tasks.Dependencies.check(project, task.id) do
-              :ok -> :ok
-              {:error, reason} -> Repo.rollback(reason)
-            end
-
-            case Repo.one(
-                   from d in Delivery,
-                     where: d.task_id == ^task.id and d.status == "ready_to_merge"
-                 ) do
-              nil ->
-                :ok
-
-              %Delivery{task_version: version} = saved when version != task.state_version ->
-                save!(saved,
-                  status: "cancelled",
-                  reason:
-                    "Task changed after approval. A fresh explicit workflow replaced this approval."
-                )
-
-              _ ->
-                Repo.rollback(:task_unavailable)
-            end
-
-            delivery =
-              Repo.insert!(%Delivery{
-                id: Ecto.UUID.generate(),
-                project_id: project,
-                task_id: task.id,
-                spec_revision_id: task.spec_revision_id,
-                admitted_version: task.state_version,
-                task_version: task.state_version,
-                command_id: command,
-                reviewer: reviewer,
-                check_config: config,
-                config_hash: hash
-              })
-
-            {:new, sync_task!(delivery, "admit")}
+            if Boss.Deliveries.Queue.pending?(task), do: Repo.rollback(:task_queued)
+            task = queued_task!(project, task)
+            {:new, admit_new!(project, task, command, config, hash, reviewer, replay_only)}
         end
       end)
     else
       _ -> {:error, :invalid_command}
     end
+  end
+
+  @doc false
+  def claim(request_id) do
+    alias Boss.Deliveries.{Queue, Request}
+
+    transaction(fn ->
+      request = Repo.get(Request, request_id) || Repo.rollback(:not_found)
+      task = queued_task!(request.project_id, request.task_id)
+
+      cond do
+        request.status == "started" ->
+          {:existing, request, Repo.get!(Delivery, request.delivery_id)}
+
+        request.status != "queued" ->
+          Repo.rollback(:request_unavailable)
+
+        task.spec_revision_id != request.spec_revision_id or
+          task.state_version != request.admitted_version or
+            task.state not in ~w(new failed cancelled blocked needs_input interrupted) ->
+          saved =
+            Queue.save!(request,
+              status: "stale",
+              reason: "Task changed after this request was queued."
+            )
+
+          {:stale, saved}
+
+        true ->
+          delivery =
+            admit_new!(
+              request.project_id,
+              task,
+              request.command_id,
+              request.check_config,
+              request.config_hash,
+              request.reviewer,
+              false
+            )
+
+          saved = Queue.save!(request, status: "started", delivery_id: delivery.id)
+          {:started, saved, delivery}
+      end
+    end)
+  end
+
+  defp queued_task!(project, id) do
+    Repo.one(
+      from t in Tasks.Task,
+        join: s in Spec,
+        on: s.id == t.spec_id,
+        where: t.id == ^id and s.project_id == ^project,
+        select: t
+    ) || Repo.rollback(:not_found)
+  end
+
+  defp admit_new!(project, task, command, config, hash, reviewer, replay_only) do
+    if replay_only or managed_busy?() or run_busy?(), do: Repo.rollback(:busy)
+
+    unless task.state in ~w(new failed cancelled blocked needs_input interrupted),
+      do: Repo.rollback(:task_unavailable)
+
+    case Tasks.Dependencies.check(project, task.id) do
+      :ok -> :ok
+      {:error, reason} -> Repo.rollback(reason)
+    end
+
+    case Repo.one(
+           from d in Delivery, where: d.task_id == ^task.id and d.status == "ready_to_merge"
+         ) do
+      nil ->
+        :ok
+
+      %Delivery{task_version: version} = saved when version != task.state_version ->
+        save!(saved,
+          status: "cancelled",
+          reason: "Task changed after approval. A fresh explicit workflow replaced this approval."
+        )
+
+      _ ->
+        Repo.rollback(:task_unavailable)
+    end
+
+    Repo.insert!(%Delivery{
+      id: Ecto.UUID.generate(),
+      project_id: project,
+      task_id: task.id,
+      spec_revision_id: task.spec_revision_id,
+      admitted_version: task.state_version,
+      task_version: task.state_version,
+      command_id: command,
+      reviewer: reviewer,
+      check_config: config,
+      config_hash: hash
+    })
+    |> sync_task!("admit")
+  end
+
+  @doc false
+  def managed_busy? do
+    Repo.exists?(from d in Delivery, where: d.status == "integrating" or d.cleanup == "unknown") or
+      Repo.aggregate(from(d in Delivery, where: d.status in ^@active), :count) >= 2
   end
 
   @doc false

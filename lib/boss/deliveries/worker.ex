@@ -19,7 +19,7 @@ defmodule Boss.Deliveries.Worker do
         _, _ -> halt(delivery, :storage_error)
       end
 
-    send(manager, {:delivery_finished, delivery.id, result})
+    send(manager, {:delivery_finished, delivery.id, self(), result})
   end
 
   defp perform(delivery) do

@@ -16,7 +16,8 @@ defmodule Boss.RunRecoveryTest do
     {20_261_026_220_000, Boss.Repo.Migrations.CreateDeliveries},
     {20_261_027_010_000, Boss.Repo.Migrations.AddTaskRevisionAdoption},
     {20_261_027_020_000, Boss.Repo.Migrations.PreserveHistoricalRunPins},
-    {20_261_027_030_000, Boss.Repo.Migrations.PinDeliveryReviewer}
+    {20_261_027_030_000, Boss.Repo.Migrations.PinDeliveryReviewer},
+    {20_261_027_040_000, Boss.Repo.Migrations.AddWorkflowQueue}
   ]
 
   test "Repo loss kills a real run group and restart quarantines its committed attempt" do
@@ -82,7 +83,7 @@ defmodule Boss.RunRecoveryTest do
     pids = marker |> File.read!() |> JSON.decode!()
     on_exit(fn -> cleanup_fixture(pids, root) end)
     assert Enum.all?(pids, fn {_, pid} -> alive?(pid) end)
-    {_, worker} = :sys.get_state(manager).active
+    [{_, worker}] = Map.values(:sys.get_state(manager).active)
     worker_ref = Process.monitor(worker)
     manager_ref = Process.monitor(manager)
     before_loss = Runs.get(project.id, run.id)
@@ -115,7 +116,7 @@ defmodule Boss.RunRecoveryTest do
     assert {:error, :busy} =
              Runs.start(project.id, record.task.id, Ecto.UUID.generate(), restarted_manager)
 
-    assert :sys.get_state(restarted_manager).active == nil
+    assert :sys.get_state(restarted_manager).active == %{}
     assert Repo.aggregate(Runs.Run, :count) == 1
     assert File.read!(Path.join(root, "launches")) == "launch\n"
   end
