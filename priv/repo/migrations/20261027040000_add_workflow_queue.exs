@@ -22,6 +22,7 @@ defmodule Boss.Repo.Migrations.AddWorkflowQueue do
 
     create unique_index(:delivery_requests, [:task_id, :command_id])
     create unique_index(:delivery_requests, [:delivery_id])
+    create index(:delivery_requests, [:status, :inserted_at, :id])
 
     execute(
       "CREATE UNIQUE INDEX delivery_requests_pending ON delivery_requests(task_id) WHERE status IN ('queued','paused')"
