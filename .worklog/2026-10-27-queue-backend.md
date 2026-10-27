@@ -26,3 +26,27 @@ Review found worker completion messages could release a slot before process deat
 Manager now retains finished receipts until the matching worker EXIT. Real pool
 concurrency/restart and lifecycle regression coverage still in progress.
 
+
+Second reference: Kander `examples/kander/internal/board/dispatch.go:234-260`,
+SHA `dea0ba6b885c39a56ee769223f7fa5c054e68c70`, MIT. Existing immutable intent
+replay precedes current evidence/readiness validation. Adopted the ordering and
+rejected filesystem registry/state replication; SQLite already owns BOSS admission.
+No source copied.
+
+Frozen foundation review (`d07b674`) corrected two lifecycle risks: terminal
+message keeps owner/ETS until actual EXIT; run progress carries explicit worker
+owner independently from the process transport's consumer callback. A follow-up
+review fixed cancelled/stale queue UUID reuse through direct Start at context and
+SQL boundaries.
+
+`rtk proxy asdf exec mix test test/boss/workflow_queue_test.exs
+test/boss/workflow_queue_persistence_test.exs` — 15 passed. Includes real two-
+connection SQLite duplicate enqueue/claim races, claim-versus-cancel, committed
+restart, two-slot contention, explicit resume, late/wrong-PID completion, ownership
+until EXIT, adoption API/SQL guard and downgrade refusal. The first adoption test
+used the wrong command key (type rather than action); corrected fixture and reran.
+
+Full backend and finite production run/check/review regression suites running.
+No live model calls; provider quota, file-scope prediction and divergent integration
+remain outside this backend increment. Parent owns actual native two-worker smoke,
+combined review/full suite and local main cleanup.
