@@ -167,6 +167,7 @@ defmodule Boss.Deliveries.Worker do
         feedback = %{
           "kind" => "checks",
           "exit_code" => check.receipt["exit_code"],
+          "check_receipt" => check.receipt,
           "output" => output
         }
 
@@ -278,7 +279,12 @@ defmodule Boss.Deliveries.Worker do
         )
 
       "changes_requested" ->
-        feedback = %{"kind" => "review", "report" => report, "check_output" => output}
+        feedback = %{
+          "kind" => "review",
+          "report" => report,
+          "check_receipt" => check.receipt,
+          "check_output" => output
+        }
 
         repeat(
           delivery,
@@ -311,7 +317,12 @@ defmodule Boss.Deliveries.Worker do
        ) do
     continue!()
     tree = ok!(Workspace.git(candidate["path"], ["rev-parse", "#{sha}^{tree}"]))
-    findings = if feedback["kind"] == "review", do: feedback["report"]["issues"], else: feedback
+
+    findings =
+      if feedback["kind"] == "review",
+        do: feedback["report"]["issues"],
+        else: Map.take(feedback, ["exit_code", "output"])
+
     fingerprint = Protocol.digest([tree, delivery.config_hash, normalize_feedback(findings)])
 
     cond do

@@ -186,6 +186,18 @@ defmodule Boss.DeliveryWorkerTest do
     assert length(Enum.filter(calls(ctx), &(&1["kind"] == "implement"))) == 3
   end
 
+  test "repeated complete check failure stops on the unchanged tree despite fresh commit IDs",
+       ctx do
+    System.put_env("BOSS_DELIVERY_MODE", "check_repeated")
+    manager = start_manager(ctx.repo)
+    {:ok, run} = start(ctx, manager)
+    saved = await_delivery(ctx, run.id)
+    assert saved.status == "blocked", inspect(saved)
+    assert saved.cycle == 2 and saved.reason =~ "same failure"
+    assert Enum.count(calls(ctx), &(&1["kind"] == "implement")) == 2
+    refute Enum.any?(calls(ctx), &(&1["kind"] == "review"))
+  end
+
   for mode <- ~w(plan_dirty plan_invalid coverage check_invalid_utf8 check_dirty) do
     @mode mode
     test "#{mode} halts without automatic repair", ctx do
