@@ -13,7 +13,9 @@ from detection; a failed launch retains an explicit attempt result.
 Admission uses one immediate SQLite transaction, a task-scoped UUID command ID,
 the task's saved revision and state version. Replays return the original attempt,
 including after completion or while another attempt runs. The global database
-constraint permits one active attempt and blocks new work after unknown cleanup.
+constraint permits one manual attempt, exclusive with managed workflows and
+integration, and blocks new work after unknown cleanup. A pending queued workflow
+also prevents a new manual start on that task; cancel the queued request first.
 The current manual eligible task states are new, ready, failed, interrupted,
 cancelled, blocked and needs_input. This action does not change task state.
 New attempts also check [pinned dependency readiness](TASK_DEPENDENCIES.md) inside

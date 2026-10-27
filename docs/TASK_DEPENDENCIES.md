@@ -38,8 +38,10 @@ the drawer; admission remains authoritative if displayed readiness is stale.
 Identical command retries resolve their original receipt before readiness is
 checked, so a lost admission reply cannot accidentally create another attempt.
 Checks/reviews of saved candidates and integration of an admitted workflow retain
-their original evidence contracts. This gate adds no automatic starts or worker
-concurrency; the single global active/unknown execution rule remains.
+their original evidence contracts. **Queue workflow** explicitly authorizes a saved
+request to wait for Done prerequisites and a worker slot. The queue rechecks this
+same dependency gate in its atomic dispatch transaction; a blocked head does not
+prevent independent queued work. See [workflow queue](WORKFLOW_QUEUE.md).
 
 ## Pinned source and graph limits
 

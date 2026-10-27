@@ -18,7 +18,7 @@ defmodule Boss.Checks.Worker do
           finish(run, "interrupted", "unknown", "Check outcome is unknown. Workspace retained.")
       end
 
-    send(manager, {:run_finished, run.id, result})
+    send(manager, {:run_finished, run.id, self(), result})
   end
 
   defp prepare(run, manager) do
@@ -69,6 +69,7 @@ defmodule Boss.Checks.Worker do
 
   defp invoke(run, executable, args, manager) do
     started = DateTime.utc_now()
+    owner = self()
     table = :ets.new(__MODULE__, [:public, :set])
 
     try do
@@ -78,7 +79,7 @@ defmodule Boss.Checks.Worker do
 
           send(
             manager,
-            {:run_progress, run.id, self(), make_ref(),
+            {:run_progress, run.id, owner, self(), make_ref(),
              [status: "running", os_pid: pid, started_at: started]}
           )
 

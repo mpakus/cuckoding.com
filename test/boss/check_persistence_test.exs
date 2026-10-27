@@ -16,7 +16,8 @@ defmodule Boss.CheckPersistenceTest do
     {20_261_026_220_000, Boss.Repo.Migrations.CreateDeliveries},
     {20_261_027_010_000, Boss.Repo.Migrations.AddTaskRevisionAdoption},
     {20_261_027_020_000, Boss.Repo.Migrations.PreserveHistoricalRunPins},
-    {20_261_027_030_000, Boss.Repo.Migrations.PinDeliveryReviewer}
+    {20_261_027_030_000, Boss.Repo.Migrations.PinDeliveryReviewer},
+    {20_261_027_040_000, Boss.Repo.Migrations.AddWorkflowQueue}
   ]
 
   setup do
@@ -317,7 +318,7 @@ defmodule Boss.CheckPersistenceTest do
     Runs.get(ctx.project.id, id)
   end
 
-  defp wait_idle(manager), do: eventually(fn -> :sys.get_state(manager).active == nil end)
+  defp wait_idle(manager), do: eventually(fn -> :sys.get_state(manager).active == %{} end)
   defp eventually(predicate, left \\ 500)
   defp eventually(_, 0), do: flunk("Check did not settle within its fixture deadline")
 

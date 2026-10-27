@@ -3,6 +3,9 @@ defmodule BossWeb.TaskDeliveryLiveTest do
   import Phoenix.LiveViewTest
   alias Boss.{Deliveries, LocalAccess, Projects, Repo, Runs, Tasks}
   alias Boss.Runs.Manager
+  alias BossWeb.ManagerFixture
+  alias Boss.Deliveries.Queue
+  import Ecto.Query
   alias BossWeb.ProjectLive
 
   @moduletag skip: :os.type() != {:unix, :darwin}
@@ -13,7 +16,7 @@ defmodule BossWeb.TaskDeliveryLiveTest do
   setup %{conn: conn} do
     owner = self()
     original = :sys.get_state(Manager)
-    assert original.active == nil
+    assert original.active == %{}
 
     :sys.replace_state(Manager, fn state ->
       %{
@@ -29,27 +32,7 @@ defmodule BossWeb.TaskDeliveryLiveTest do
     end)
 
     on_exit(fn ->
-      :sys.resume(Manager)
-
-      case :sys.get_state(Manager).active do
-        {_, pid} ->
-          ref = Process.monitor(pid)
-          send(pid, :stop)
-          assert_receive {:DOWN, ^ref, :process, ^pid, _}, 1_000
-
-        nil ->
-          :ok
-      end
-
-      :sys.replace_state(
-        Manager,
-        &%{
-          &1
-          | delivery_worker: original.delivery_worker,
-            integration_worker: original.integration_worker,
-            worker: original.worker
-        }
-      )
+      ManagerFixture.restore(original, [:delivery_worker, :integration_worker, :worker])
     end)
 
     project =
@@ -263,7 +246,7 @@ defmodule BossWeb.TaskDeliveryLiveTest do
 
             # Model a Stop received after the last cancellation checkpoint.
             ready = ready_delivery(c.project, delivery)
-            send(manager, {:delivery_finished, delivery.id, {:ok, ready}})
+            send(manager, {:delivery_finished, delivery.id, self(), {:ok, ready}})
             send(owner, {:fixture_finished, delivery.id})
           end
       }
@@ -443,6 +426,294 @@ defmodule BossWeb.TaskDeliveryLiveTest do
     refute has_element?(view, "#delivery-#{delivery.id}")
   end
 
+  test "Queue waits for dependencies with saved pins and Cancel releases task controls", c do
+    c = waiting_task(c)
+    spec(c.project, "waiting", "# New source")
+    {:ok, view, _} = live(c.conn, task_path(c) <> "?revision=2")
+    settle(view)
+    assert has_element?(view, "#start-delivery[disabled]")
+    refute has_element?(view, "#queue-delivery[disabled]")
+    refute has_element?(view, "#delivery-command[disabled]")
+    queue(view, command(view), "mix test saved_test.exs", "claude")
+    settle(view)
+    [saved] = Queue.list(c.project.id, c.saved.task.id)
+    assert saved.status == "queued"
+    assert saved.spec_revision_id == c.saved.task.spec_revision_id
+    assert saved.reviewer == "claude"
+    assert saved.check_config["argv"] == ["mix", "test", "saved_test.exs"]
+    assert has_element?(view, "#queued-workflow-#{saved.id}", "Waiting for prerequisites")
+    assert has_element?(view, "#queued-workflow-#{saved.id}", "Source revision 1")
+    assert has_element?(view, "#queued-workflow-#{saved.id}", "Reviewer: Claude")
+    assert has_element?(view, "#queue-delivery[disabled]")
+    assert has_element?(view, "#start-codex[disabled]")
+    assert has_element?(view, "#adopt-revision[disabled]")
+    refute_receive {:workflow, _, _}, 50
+    assert Tasks.get_task!(c.saved.task.id).state == "new"
+    render_click(view, "cancel_queue", %{"queue-id" => Ecto.UUID.generate()})
+    assert hd(Queue.list(c.project.id, c.saved.task.id)).status == "queued"
+    view |> element("#cancel-queue-#{saved.id}") |> render_click()
+    settle(view)
+    assert has_element?(view, "#queued-workflow-#{saved.id}", "Queue cancelled")
+    refute has_element?(view, "#queue-delivery[disabled]")
+    refute has_element?(view, "#adopt-revision[disabled]")
+    assert has_element?(view, "#queued-workflow-#{saved.id}", "Reviewer: Claude")
+  end
+
+  test "unknown Queue freezes UUID, command, reviewer and action across navigation", c do
+    c = waiting_task(c)
+    other = spec(c.project, "other")
+    {:ok, view, _} = live(c.conn, task_path(c))
+    settle(view)
+    id = command(view)
+    :sys.suspend(Manager)
+    queue(view, id, "mix test", "claude")
+    key = :sys.get_state(view.pid).socket.assigns.delivery_starting
+
+    :sys.replace_state(view.pid, fn state ->
+      %{state | socket: Phoenix.LiveView.cancel_async(state.socket, key, :kill)}
+    end)
+
+    settle(view)
+    assert has_element?(view, "#queue-delivery", "Retry queue request")
+    assert has_element?(view, "#start-delivery[disabled]")
+    assert has_element?(view, "#delivery-command[readonly]")
+    queue(view, id, "mix test changed", "claude")
+    queue(view, id, "mix test", "codex")
+    start(view, id, "mix test", "claude")
+
+    assert :sys.get_state(view.pid).socket.assigns.delivery_requests[c.saved.task.id].action ==
+             :queue
+
+    assert :sys.get_state(view.pid).socket.assigns.delivery_requests[c.saved.task.id].text ==
+             "mix test"
+
+    render_patch(view, "/projects/#{c.project.id}/tasks/#{other.task.id}")
+    settle(view)
+    assert has_element?(view, "#queue-delivery[disabled]")
+    assert has_element?(view, "#start-codex[disabled]")
+    render_patch(view, task_path(c))
+    settle(view)
+    queue(view, id, "mix test", "claude")
+    :sys.resume(Manager)
+    settle(view)
+    [saved] = Queue.list(c.project.id, c.saved.task.id)
+    assert saved.command_id == id
+    assert saved.reviewer == "claude"
+    refute_receive {:workflow, _, _}, 50
+    refute has_element?(view, "#delivery-request-pending")
+    current = command(view)
+    refute current == id
+
+    :sys.replace_state(view.pid, fn state ->
+      {:noreply, socket} = ProjectLive.handle_async(key, {:exit, :killed}, state.socket)
+      %{state | socket: socket}
+    end)
+
+    settle(view)
+    assert command(view) == current
+    refute has_element?(view, "#delivery-error")
+    {:ok, _} = Queue.cancel(c.project.id, saved.id)
+  end
+
+  test "paused queue explicitly resumes its saved provider and revision", c do
+    c = waiting_task(c)
+
+    {:ok, saved} =
+      Queue.enqueue(
+        c.project.id,
+        c.saved.task.id,
+        Ecto.UUID.generate(),
+        "mix test old_test.exs",
+        "claude"
+      )
+
+    {:ok, [_]} = Queue.pause()
+    spec(c.project, "waiting", "# New source")
+    {:ok, view, _} = live(c.conn, task_path(c) <> "?revision=2")
+    settle(view)
+    assert has_element?(view, "#queued-workflow-#{saved.id}", "Paused")
+    assert has_element?(view, "#queued-workflow-#{saved.id}", "Source revision 1")
+    assert has_element?(view, "#queued-workflow-#{saved.id}", "Reviewer: Claude")
+    view |> element("#resume-queue-#{saved.id}") |> render_click()
+    settle(view)
+    [resumed] = Queue.list(c.project.id, c.saved.task.id)
+    assert resumed.id == saved.id
+    assert resumed.command_id == saved.command_id
+    assert resumed.spec_revision_id == saved.spec_revision_id
+    assert resumed.check_config == saved.check_config
+    assert resumed.reviewer == "claude"
+    assert resumed.status == "queued"
+    assert has_element?(view, "#queued-workflow-#{saved.id}", "Queued")
+    refute has_element?(view, "#resume-queue-#{saved.id}")
+    {:ok, _} = Queue.cancel(c.project.id, saved.id)
+  end
+
+  test "unknown Resume keeps Cancel disabled and a saved receipt defeats late errors", c do
+    c = waiting_task(c)
+
+    {:ok, saved} =
+      Queue.enqueue(c.project.id, c.saved.task.id, Ecto.UUID.generate(), "mix test", "claude")
+
+    {:ok, [_]} = Queue.pause()
+    {:ok, view, _} = live(c.conn, task_path(c))
+    settle(view)
+    :sys.suspend(Manager)
+    view |> element("#resume-queue-#{saved.id}") |> render_click()
+    key = :sys.get_state(view.pid).socket.assigns.queue_starting
+
+    :sys.replace_state(view.pid, fn state ->
+      %{state | socket: Phoenix.LiveView.cancel_async(state.socket, key, :kill)}
+    end)
+
+    settle(view)
+    assert has_element?(view, "#resume-queue-#{saved.id}", "Retry Resume")
+    assert has_element?(view, "#cancel-queue-#{saved.id}[disabled]")
+    render_click(view, "cancel_queue", %{"queue-id" => saved.id})
+    assert hd(Queue.list(c.project.id, c.saved.task.id)).status == "paused"
+    view |> element("#resume-queue-#{saved.id}") |> render_click()
+    :sys.resume(Manager)
+    settle(view)
+    assert hd(Queue.list(c.project.id, c.saved.task.id)).status == "queued"
+    refute has_element?(view, "#cancel-queue-#{saved.id}[disabled]")
+
+    :sys.replace_state(view.pid, fn state ->
+      {:noreply, socket} = ProjectLive.handle_async(key, {:exit, :killed}, state.socket)
+      %{state | socket: socket}
+    end)
+
+    settle(view)
+    refute has_element?(view, "#queue-error")
+    refute has_element?(view, "#delivery-request-pending")
+    {:ok, _} = Queue.cancel(c.project.id, saved.id)
+  end
+
+  test "unknown manual admission blocks Resume on another task until its receipt is reconciled",
+       c do
+    c = waiting_task(c)
+    other = spec(c.project, "manual")
+
+    {:ok, saved} =
+      Queue.enqueue(c.project.id, c.saved.task.id, Ecto.UUID.generate(), "mix test", "codex")
+
+    {:ok, [_]} = Queue.pause()
+    {:ok, view, _} = live(c.conn, "/projects/#{c.project.id}/tasks/#{other.task.id}")
+    settle(view)
+    :sys.suspend(Manager)
+    view |> element("#start-codex") |> render_click()
+
+    :sys.replace_state(view.pid, fn state ->
+      %{state | socket: Phoenix.LiveView.cancel_async(state.socket, :start_run, :kill)}
+    end)
+
+    settle(view)
+    render_patch(view, task_path(c))
+    settle(view)
+    assert has_element?(view, "#resume-queue-#{saved.id}[disabled]")
+    render_click(view, "resume_queue", %{"queue-id" => saved.id})
+    assert hd(Queue.list(c.project.id, c.saved.task.id)).status == "paused"
+    :sys.resume(Manager)
+    assert_receive {:manual, worker, _}, 1_000
+    send(worker, :stop)
+    assert_receive {:manual_finished, _}, 1_000
+    render_patch(view, "/projects/#{c.project.id}/tasks/#{other.task.id}")
+    settle(view)
+    render_patch(view, task_path(c))
+    settle(view)
+    refute has_element?(view, "#resume-queue-#{saved.id}[disabled]")
+    {:ok, _} = Queue.cancel(c.project.id, saved.id)
+  end
+
+  test "a queue dispatched during Cancel refreshes the saved workflow and offers Stop", c do
+    c = waiting_task(c)
+    {:ok, view, _} = live(c.conn, task_path(c))
+    settle(view)
+    queue(view, command(view))
+    settle(view)
+    [saved] = Queue.list(c.project.id, c.saved.task.id)
+
+    Repo.update_all(from(t in Tasks.Task, where: t.id == ^c.dependency.task.id),
+      set: [state: "done"]
+    )
+
+    assert_receive {:workflow, worker, delivery}, 1_500
+
+    :sys.replace_state(view.pid, fn state ->
+      socket =
+        Phoenix.Component.assign(state.socket,
+          queued_workflows: [saved],
+          detail_loading: false,
+          queue_starting: nil
+        )
+
+      {:noreply, socket} =
+        ProjectLive.handle_event("cancel_queue", %{"queue-id" => saved.id}, socket)
+
+      %{state | socket: socket}
+    end)
+
+    settle(view)
+    assert has_element?(view, "#queued-workflow-#{saved.id}", "Started workflow")
+    refute has_element?(view, "#cancel-queue-#{saved.id}")
+    assert has_element?(view, "#stop-delivery-#{delivery.id}", "Stop workflow")
+    assert Process.alive?(worker)
+    view |> element("#stop-delivery-#{delivery.id}") |> render_click()
+    assert_receive {:fixture_finished, _}, 1_000
+    settle(view)
+    assert has_element?(view, "#delivery-#{delivery.id}", "Workflow stopped")
+  end
+
+  test "two workflows run independently and a queued third starts when one finishes", c do
+    second = spec(c.project, "second")
+    third = spec(c.project, "third")
+    {:ok, view, _} = live(c.conn, task_path(c))
+    settle(view)
+    start(view, command(view))
+    assert_receive {:workflow, first_worker, _}, 1_000
+    settle(view)
+    render_patch(view, "/projects/#{c.project.id}/tasks/#{second.task.id}")
+    settle(view)
+    start(view, command(view))
+    assert_receive {:workflow, second_worker, _}, 1_000
+    settle(view)
+    render_patch(view, "/projects/#{c.project.id}/tasks/#{third.task.id}")
+    settle(view)
+    queue(view, command(view))
+    settle(view)
+    [saved] = Queue.list(c.project.id, third.task.id)
+    assert saved.status == "queued"
+    assert map_size(:sys.get_state(Manager).active) == 2
+    finish(first_worker, :cancelled)
+    assert_receive {:workflow, third_worker, third_delivery}, 1_500
+    settle(view)
+    assert Process.alive?(second_worker)
+    assert has_element?(view, "#queued-workflow-#{saved.id}", "Started workflow")
+    assert has_element?(view, "#stop-delivery-#{third_delivery.id}")
+    finish(second_worker, :cancelled)
+    finish(third_worker, :cancelled)
+  end
+
+  defp waiting_task(c) do
+    {:ok, dependency} =
+      Projects.record_spec(c.project.id, %{
+        explicit_id: "prerequisite",
+        relative_path: "prerequisite.md",
+        title: "Prerequisite",
+        original_text: "---\nid: prerequisite\n---\n# Prerequisite"
+      })
+
+    saved = spec(c.project, "waiting", "---\ndepends_on: [prerequisite]\n---\n# Waiting")
+    Map.merge(c, %{saved: saved, dependency: dependency})
+  end
+
+  defp queue(view, id, text \\ "mix test", reviewer \\ "codex"),
+    do:
+      render_submit(view, "start_delivery", %{
+        "command_id" => id,
+        "command" => text,
+        "reviewer" => reviewer,
+        "intent" => "queue"
+      })
+
   defp fake_manual_worker(owner, run, manager) do
     send(owner, {:manual, self(), run})
 
@@ -453,7 +724,7 @@ defmodule BossWeb.TaskDeliveryLiveTest do
     end
 
     result = Runs.update(run.id, status: "cancelled", cleanup: "group_empty")
-    send(manager, {:run_finished, run.id, result})
+    send(manager, {:run_finished, run.id, self(), result})
     send(owner, {:manual_finished, run.id})
   end
 
@@ -469,7 +740,7 @@ defmodule BossWeb.TaskDeliveryLiveTest do
         10_000 -> Deliveries.complete(delivery.id, "cancelled")
       end
 
-    send(manager, {:delivery_finished, delivery.id, result})
+    send(manager, {:delivery_finished, delivery.id, self(), result})
     if !match?({:ok, _}, result), do: send(owner, {:fixture_error, result})
     send(owner, {:fixture_finished, delivery.id})
   end

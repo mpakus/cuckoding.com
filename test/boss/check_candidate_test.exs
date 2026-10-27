@@ -196,6 +196,53 @@ defmodule Boss.Checks.CandidateTest do
     assert :ok = Candidate.verify(intent, sha, c.opts)
   end
 
+  for kind <- [:directory, :file, :symlink] do
+    @tag parent_kind: kind
+    test "late candidate parent #{kind} is revalidated without changing its owner", c do
+      {:ok, intent} = Candidate.plan(c.run, Ecto.UUID.generate(), c.opts)
+      shared = Path.dirname(intent["path"])
+      source_mode = File.stat!(c.source).mode
+
+      runner = fn executable, args, opts ->
+        result = Boss.Agents.Process.run(executable, args, opts)
+
+        if "show-ref" in args and result.exit_code == 1 do
+          case c.parent_kind do
+            :directory ->
+              File.mkdir!(shared)
+              File.chmod!(shared, 0o751)
+
+            :file ->
+              File.write!(shared, "preserve file")
+
+            :symlink ->
+              File.ln_s!(c.source, shared)
+          end
+        end
+
+        result
+      end
+
+      result = Candidate.prepare(intent, Keyword.put(c.opts, :runner, runner))
+
+      case c.parent_kind do
+        :directory ->
+          assert {:ok, _} = result
+          assert Bitwise.band(File.stat!(shared).mode, 0o777) == 0o751
+
+        :file ->
+          assert {:error, :candidate_path} = result
+          assert File.read!(shared) == "preserve file"
+
+        :symlink ->
+          assert {:error, :candidate_path} = result
+          assert File.lstat!(shared).type == :symlink
+          refute File.exists?(Path.join(c.source, intent["check_id"]))
+          assert File.stat!(c.source).mode == source_mode
+      end
+    end
+  end
+
   defp git!(path, args) do
     {out, code} =
       System.cmd("git", args,

@@ -199,13 +199,20 @@ evidence without model filesystem/shell tools. Your selected local CLI accounts
 may incur charges for multiple runs. Closing the browser keeps the workflow running.
 See [Claude review and its limits](docs/CLAUDE_REVIEW.md).
 
+Choose **Queue workflow** to save the command and reviewer while waiting for
+capacity or Done prerequisites. Up to two managed workflows can run at once in
+separate worktrees. **Cancel queue** withdraws an unstarted request; pending work
+pauses on restart and needs **Resume**. Source adoption remains explicit. Shared
+file conflicts are not predicted. See [queue behavior](docs/WORKFLOW_QUEUE.md).
+
 An approved result waits for **Integrate approved result**. The target branch
 must be unchanged and not checked out by you. BOSS publishes the exact reviewed
 commit, reruns the checks, retains its checkout and frees the branch. Only then
 does the task move to **Done**. Failed postchecks retain the published result for
-inspection; BOSS never resets your checkout. First version: macOS, one active
-workflow, fast-forward integration only. See [managed delivery behavior and
-limits](docs/MANAGED_DELIVERIES.md).
+inspection; BOSS never resets your checkout. Current execution: macOS, two managed
+workflows and exclusive fast-forward integration. A parallel result based on the
+old target needs a fresh workflow after that target advances. See
+[managed delivery behavior and limits](docs/MANAGED_DELIVERIES.md).
 
 ## Run Codex manually on a task
 
@@ -214,8 +221,9 @@ through the official Codex CLI first; BOSS uses the `codex` on its own PATH.
 Starting an actual run uses your local account and may incur provider charges.
 BOSS runs the task's pinned revision even when another source revision is selected.
 
-One manual attempt runs at a time. Each gets a fresh `codex/boss-run-…` branch and
-worktree under the BOSS data directory. Closing the drawer, reloading or closing
+Manual execution remains exclusive with managed workflows and integration.
+Each attempt gets a fresh `codex/boss-run-…` branch and worktree under the BOSS
+data directory. Closing the drawer, reloading or closing
 the browser does not stop the attempt. **Stop** cancels the owned process group
 and retains files. The drawer shows the last ten attempts, retained paths, event
 types and reported token counts; it does not retain private model/tool transcripts.

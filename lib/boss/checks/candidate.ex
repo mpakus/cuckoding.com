@@ -257,8 +257,16 @@ defmodule Boss.Checks.Candidate do
         {:error, :enoent} ->
           case File.mkdir(next) do
             :ok ->
-              File.chmod(next, 0o700)
-              {:cont, {:ok, next}}
+              case File.chmod(next, 0o700) do
+                :ok -> {:cont, {:ok, next}}
+                _ -> {:halt, {:error, :candidate_unwritable}}
+              end
+
+            {:error, :eexist} ->
+              case File.lstat(next) do
+                {:ok, %{type: :directory}} -> {:cont, {:ok, next}}
+                _ -> {:halt, {:error, :candidate_path}}
+              end
 
             _ ->
               {:halt, {:error, :candidate_unwritable}}

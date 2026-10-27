@@ -14,7 +14,8 @@ defmodule Boss.RunPersistenceTest do
     {20_261_026_220_000, Boss.Repo.Migrations.CreateDeliveries},
     {20_261_027_010_000, Boss.Repo.Migrations.AddTaskRevisionAdoption},
     {20_261_027_020_000, Boss.Repo.Migrations.PreserveHistoricalRunPins},
-    {20_261_027_030_000, Boss.Repo.Migrations.PinDeliveryReviewer}
+    {20_261_027_030_000, Boss.Repo.Migrations.PinDeliveryReviewer},
+    {20_261_027_040_000, Boss.Repo.Migrations.AddWorkflowQueue}
   ]
 
   setup do
@@ -116,7 +117,7 @@ defmodule Boss.RunPersistenceTest do
               finished_at: DateTime.utc_now()
             )
 
-          send(manager, {:run_finished, run.id, result})
+          send(manager, {:run_finished, run.id, self(), result})
       end
     end
 

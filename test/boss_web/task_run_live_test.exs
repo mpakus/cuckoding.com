@@ -3,29 +3,18 @@ defmodule BossWeb.TaskRunLiveTest do
   import Phoenix.LiveViewTest
   alias Boss.{LocalAccess, Projects, Repo, Runs}
   alias Boss.Runs.Manager
+  alias BossWeb.ManagerFixture
 
   setup %{conn: conn} do
     test_pid = self()
-    original = :sys.get_state(Manager).worker
-    assert :sys.get_state(Manager).active == nil
+    original = :sys.get_state(Manager)
+    assert :sys.get_state(Manager).active == %{}
 
     :sys.replace_state(Manager, fn state ->
       %{state | worker: fn run, _repo, manager -> fake_worker(test_pid, run, manager) end}
     end)
 
-    on_exit(fn ->
-      case :sys.get_state(Manager).active do
-        {_, pid} ->
-          ref = Process.monitor(pid)
-          send(pid, :stop)
-          assert_receive {:DOWN, ^ref, :process, ^pid, _}, 1_000
-
-        nil ->
-          :ok
-      end
-
-      :sys.replace_state(Manager, &%{&1 | worker: original})
-    end)
+    on_exit(fn -> ManagerFixture.restore(original, [:worker]) end)
 
     project = project("run-ui")
     saved = spec(project, "one", "PINNED_SOURCE")
@@ -234,7 +223,7 @@ defmodule BossWeb.TaskRunLiveTest do
         )
       )
 
-    send(manager, {:run_finished, run.id, result})
+    send(manager, {:run_finished, run.id, self(), result})
     send(test_pid, {:fixture_finished, run.id})
   end
 

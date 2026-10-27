@@ -3,32 +3,21 @@ defmodule BossWeb.TaskReviewLiveTest do
   import Phoenix.LiveViewTest
   alias Boss.{LocalAccess, Projects, Repo, Runs}
   alias Boss.Runs.Manager
+  alias BossWeb.ManagerFixture
   alias BossWeb.ProjectLive
 
   @moduletag skip: :os.type() != {:unix, :darwin}
 
   setup %{conn: conn} do
     owner = self()
-    original = :sys.get_state(Manager).review_worker
-    assert :sys.get_state(Manager).active == nil
+    original = :sys.get_state(Manager)
+    assert :sys.get_state(Manager).active == %{}
 
     :sys.replace_state(Manager, fn state ->
       %{state | review_worker: fn run, _repo, manager -> fake_worker(owner, run, manager) end}
     end)
 
-    on_exit(fn ->
-      case :sys.get_state(Manager).active do
-        {_, pid} ->
-          ref = Process.monitor(pid)
-          send(pid, :stop)
-          assert_receive {:DOWN, ^ref, :process, ^pid, _}, 1_000
-
-        nil ->
-          :ok
-      end
-
-      :sys.replace_state(Manager, &%{&1 | review_worker: original})
-    end)
+    on_exit(fn -> ManagerFixture.restore(original, [:review_worker]) end)
 
     project =
       Repo.insert!(%Projects.Project{
@@ -354,7 +343,7 @@ defmodule BossWeb.TaskReviewLiveTest do
         )
       )
 
-    send(manager, {:run_finished, run.id, result})
+    send(manager, {:run_finished, run.id, self(), result})
     send(owner, {:fixture_finished, run.id})
   end
 

@@ -2,6 +2,7 @@ defmodule BossWeb.ProjectLive do
   use BossWeb, :live_view
   alias Boss.{Deliveries, Projects, Repo, Runs, Tasks}
   alias Boss.Projects.{SpecImporter, SpecWatcher}
+  alias Boss.Deliveries.Queue
   alias BossWeb.{DeliveryPanel, RunPanel, TaskBoard, TaskDependencies, TaskRevision}
 
   @impl true
@@ -34,6 +35,10 @@ defmodule BossWeb.ProjectLive do
        adoption_requests: %{},
        adoption_starting: nil,
        deliveries: [],
+       queued_workflows: [],
+       queue_actions: %{},
+       queue_starting: nil,
+       queue_error: nil,
        delivery_requests: %{},
        integration_requests: %{},
        delivery_starting: nil,
@@ -83,6 +88,8 @@ defmodule BossWeb.ProjectLive do
            details: nil,
            runs: [],
            deliveries: [],
+           queued_workflows: [],
+           queue_error: nil,
            delivery_error: nil,
            run_error: nil,
            detail_pending: false,
@@ -253,7 +260,7 @@ defmodule BossWeb.ProjectLive do
          %{id: ^id, locked: false} = request <- socket.assigns.delivery_requests[task],
          true <- reviewer in ~w(codex claude),
          true <-
-           is_binary(text) && byte_size(text) <= 4096 && delivery_start_available?(socket.assigns) do
+           is_binary(text) && byte_size(text) <= 4096 && delivery_form_available?(socket.assigns) do
       {:noreply,
        put_delivery_request(socket, :start, task, %{request | text: text, reviewer: reviewer})}
     else
@@ -265,30 +272,36 @@ defmodule BossWeb.ProjectLive do
 
   def handle_event(
         "start_delivery",
-        %{"command_id" => id, "command" => text, "reviewer" => reviewer},
+        %{"command_id" => id, "command" => text, "reviewer" => reviewer} = params,
         socket
       ) do
+    action = if params["intent"] == "queue", do: :queue, else: :start
+
     with {task, _} <- socket.assigns.selection,
          %{id: ^id} = request <- socket.assigns.delivery_requests[task],
-         true <- delivery_start_available?(socket.assigns),
+         true <- delivery_action_available?(socket.assigns, action),
          true <- reviewer in ~w(codex claude),
          true <- is_binary(text) && byte_size(text) <= 4096,
-         true <- !request.locked || (request.text == text && request.reviewer == reviewer) do
+         true <-
+           !request.locked ||
+             (request.text == text && request.reviewer == reviewer &&
+                Map.get(request, :action, :start) == action) do
       project = socket.assigns.project.id
-      key = {:delivery_request, task, :start, task, id}
+      key = {:delivery_request, task, action, task, id}
 
       {:noreply,
        socket
-       |> put_delivery_request(:start, task, %{
-         request
-         | text: text,
-           reviewer: reviewer,
-           locked: true
-       })
+       |> put_delivery_request(
+         action,
+         task,
+         Map.merge(request, %{text: text, reviewer: reviewer, locked: true, action: action})
+       )
        |> assign(delivery_starting: key, delivery_error: nil)
        |> start_async(key, fn ->
          delivery_call(fn ->
-           Deliveries.start(project, task, id, text, reviewer, Boss.Runs.Manager)
+           if action == :queue,
+             do: Queue.enqueue(project, task, id, text, reviewer),
+             else: Deliveries.start(project, task, id, text, reviewer, Boss.Runs.Manager)
          end)
        end)}
     else
@@ -297,6 +310,37 @@ defmodule BossWeb.ProjectLive do
   end
 
   def handle_event("start_delivery", _, socket), do: {:noreply, socket}
+
+  def handle_event(action, %{"queue-id" => id}, socket)
+      when action in ["cancel_queue", "resume_queue"] do
+    kind = if action == "cancel_queue", do: :cancel, else: :resume
+
+    with {task, _} <- socket.assigns.selection,
+         request when not is_nil(request) <-
+           Enum.find(socket.assigns.queued_workflows, &(&1.id == id)),
+         true <- queue_action_available?(socket.assigns, request, kind) do
+      project = socket.assigns.project.id
+      key = {:queue_action, task, id, kind}
+
+      {:noreply,
+       socket
+       |> assign(
+         queue_actions: Map.put(socket.assigns.queue_actions, id, kind),
+         queue_starting: key,
+         queue_error: nil
+       )
+       |> start_async(key, fn ->
+         delivery_call(fn ->
+           if kind == :cancel, do: Queue.cancel(project, id), else: Queue.resume(project, id)
+         end)
+       end)}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event(action, _, socket) when action in ["cancel_queue", "resume_queue"],
+    do: {:noreply, socket}
 
   def handle_event("integrate_delivery", %{"delivery-id" => delivery, "command-id" => id}, socket) do
     with {task, _} <- socket.assigns.selection,
@@ -363,6 +407,35 @@ defmodule BossWeb.ProjectLive do
 
       _ ->
         {:noreply, socket}
+    end
+  end
+
+  def handle_async({:queue_action, task, id, kind} = key, reply, socket) do
+    result =
+      case reply do
+        {:ok, result} -> result
+        _ -> :unknown
+      end
+
+    current = socket.assigns.queue_starting == key
+    pending = socket.assigns.queue_actions[id] == kind
+    socket = if current, do: assign(socket, queue_starting: nil), else: socket
+
+    if pending do
+      socket =
+        if delivery_input_resolved?(result),
+          do: assign(socket, queue_actions: Map.delete(socket.assigns.queue_actions, id)),
+          else: socket
+
+      case socket.assigns.selection do
+        {^task, _} ->
+          {:noreply, socket |> assign(queue_error: delivery_error(result)) |> refresh_details()}
+
+        _ ->
+          {:noreply, socket}
+      end
+    else
+      {:noreply, socket}
     end
   end
 
@@ -540,17 +613,25 @@ defmodule BossWeb.ProjectLive do
             details: details,
             detail_error: nil,
             runs: Map.get(details, :runs, []),
-            deliveries: Map.get(details, :deliveries, [])
+            deliveries: Map.get(details, :deliveries, []),
+            queued_workflows: Map.get(details, :queued_workflows, [])
           )
           |> renew_run_command()
           |> renew_check_requests()
           |> renew_review_requests()
+          |> renew_queue_actions()
           |> renew_delivery_requests()
           |> renew_manual_pending()
           |> renew_adoption_request()
 
         {:error, :not_found} ->
-          assign(socket, details: nil, runs: [], deliveries: [], detail_error: :not_found)
+          assign(socket,
+            details: nil,
+            runs: [],
+            deliveries: [],
+            queued_workflows: [],
+            detail_error: :not_found
+          )
 
         _ ->
           assign(socket, detail_error: :storage_error)
@@ -603,6 +684,8 @@ defmodule BossWeb.ProjectLive do
         details: if(same_task, do: socket.assigns.details),
         runs: if(same_task, do: socket.assigns.runs, else: []),
         deliveries: if(same_task, do: socket.assigns.deliveries, else: []),
+        queued_workflows: if(same_task, do: socket.assigns.queued_workflows, else: []),
+        queue_error: if(same_task, do: socket.assigns.queue_error),
         delivery_error: if(same_task, do: socket.assigns.delivery_error),
         run_error: if(same_task, do: socket.assigns.run_error),
         detail_pending: false,
@@ -650,6 +733,7 @@ defmodule BossWeb.ProjectLive do
                 details
                 |> Map.put(:runs, Runs.list(project_id, task_id))
                 |> Map.put(:deliveries, Deliveries.list(project_id, task_id))
+                |> Map.put(:queued_workflows, Queue.list(project_id, task_id))
 
               {:error, reason} ->
                 Repo.rollback(reason)
@@ -730,12 +814,14 @@ defmodule BossWeb.ProjectLive do
   end
 
   defp new_delivery_request(text \\ "", reviewer \\ "codex"),
-    do: %{id: Ecto.UUID.generate(), text: text, reviewer: reviewer, locked: false}
+    do: %{id: Ecto.UUID.generate(), text: text, reviewer: reviewer, locked: false, action: nil}
 
-  defp delivery_request(assigns, :start, target), do: assigns.delivery_requests[target]
+  defp delivery_request(assigns, kind, target) when kind in [:start, :queue],
+    do: assigns.delivery_requests[target]
+
   defp delivery_request(assigns, :integrate, target), do: assigns.integration_requests[target]
 
-  defp put_delivery_request(socket, :start, target, request),
+  defp put_delivery_request(socket, kind, target, request) when kind in [:start, :queue],
     do:
       assign(socket,
         delivery_requests: Map.put(socket.assigns.delivery_requests, target, request)
@@ -747,6 +833,9 @@ defmodule BossWeb.ProjectLive do
         integration_requests: Map.put(socket.assigns.integration_requests, target, request)
       )
 
+  defp delivery_admitted?(assigns, :queue, command),
+    do: Enum.any?(assigns.queued_workflows, &(&1.command_id == command))
+
   defp delivery_admitted?(assigns, kind, command) do
     Enum.any?(assigns.deliveries, fn delivery ->
       if kind == :start,
@@ -756,6 +845,22 @@ defmodule BossWeb.ProjectLive do
   end
 
   defp renew_delivery_requests(socket) do
+    socket =
+      Enum.reduce(socket.assigns.queued_workflows, socket, fn saved, socket ->
+        case socket.assigns.delivery_requests[saved.task_id] do
+          %{id: id} = request when id == saved.command_id ->
+            put_delivery_request(
+              socket,
+              :queue,
+              saved.task_id,
+              new_delivery_request(request.text, request.reviewer)
+            )
+
+          _ ->
+            socket
+        end
+      end)
+
     socket =
       Enum.reduce(socket.assigns.deliveries, socket, fn delivery, socket ->
         socket =
@@ -825,7 +930,7 @@ defmodule BossWeb.ProjectLive do
 
   defp delivery_busy?(assigns),
     do:
-      !is_nil(Map.get(assigns, :delivery_starting)) ||
+      !is_nil(Map.get(assigns, :delivery_starting)) || queue_pending?(assigns) ||
         Enum.any?(
           Map.get(assigns, :deliveries, []),
           &(delivery_active?(&1) || &1.cleanup == "unknown")
@@ -833,7 +938,8 @@ defmodule BossWeb.ProjectLive do
 
   defp delivery_uncertain?(assigns),
     do:
-      Enum.any?(Map.get(assigns, :delivery_requests, %{}), fn {_, request} -> request.locked end) ||
+      map_size(Map.get(assigns, :queue_actions, %{})) > 0 ||
+        Enum.any?(Map.get(assigns, :delivery_requests, %{}), fn {_, request} -> request.locked end) ||
         Enum.any?(Map.get(assigns, :integration_requests, %{}), fn {_, request} ->
           request.locked
         end)
@@ -846,13 +952,68 @@ defmodule BossWeb.ProjectLive do
       !Enum.any?(assigns.runs, &(Runs.active?(&1) || &1.cleanup == "unknown"))
   end
 
-  defp delivery_start_available?(assigns) do
+  defp delivery_start_available?(assigns), do: delivery_action_available?(assigns, :start)
+
+  defp delivery_form_available?(assigns),
+    do: delivery_action_available?(assigns, :start) || delivery_action_available?(assigns, :queue)
+
+  defp delivery_action_available?(assigns, action) do
     request = assigns.details && assigns.delivery_requests[assigns.details.task.id]
 
     delivery_integrate_available?(assigns) && request &&
       assigns.details.task.state in ~w(new failed interrupted cancelled blocked needs_input) &&
-      (dependencies_ready?(assigns) || request.locked) &&
+      (action == :queue || dependencies_ready?(assigns) || request.locked) &&
+      (!request.locked || Map.get(request, :action, :start) == action) &&
       (!delivery_uncertain?(assigns) || request.locked)
+  end
+
+  defp queue_pending?(assigns),
+    do: Enum.any?(Map.get(assigns, :queued_workflows, []), &(&1.status in ~w(queued paused)))
+
+  defp queue_action_available?(assigns, request, kind) do
+    saved = assigns.queue_actions[request.id]
+    eligible = request.status in if kind == :cancel, do: ~w(queued paused), else: ~w(paused)
+
+    queue_controls_available?(assigns) && is_nil(assigns.queue_starting) && eligible &&
+      (kind == :cancel || assigns.run_supported) &&
+      (saved == kind || !delivery_uncertain?(assigns))
+  end
+
+  defp queue_controls_available?(assigns) do
+    assigns.details != nil && !assigns.detail_loading && is_nil(assigns.detail_error) &&
+      is_nil(assigns.delivery_starting) && is_nil(assigns.run_starting) &&
+      !adoption_pending?(assigns) && !verification_uncertain?(assigns) &&
+      map_size(assigns.manual_pending) == 0
+  end
+
+  defp renew_queue_actions(socket) do
+    actions =
+      Enum.reduce(socket.assigns.queued_workflows, socket.assigns.queue_actions, fn request,
+                                                                                    actions ->
+        resolved =
+          case actions[request.id] do
+            :cancel -> request.status not in ~w(queued paused)
+            :resume -> request.status != "paused"
+            _ -> false
+          end
+
+        if resolved, do: Map.delete(actions, request.id), else: actions
+      end)
+
+    socket = assign(socket, queue_actions: actions)
+
+    socket =
+      case socket.assigns.queue_starting do
+        {:queue_action, _, id, _} ->
+          if Map.has_key?(actions, id), do: socket, else: assign(socket, queue_starting: nil)
+
+        _ ->
+          socket
+      end
+
+    if map_size(actions) == 0 && socket.assigns.queue_error == delivery_error(:unknown),
+      do: assign(socket, queue_error: nil),
+      else: socket
   end
 
   defp dependencies_ready?(%{details: %{dependencies: %{ready?: true}}}), do: true
@@ -878,6 +1039,12 @@ defmodule BossWeb.ProjectLive do
     do:
       reason in [
         :busy,
+        :queue_full,
+        :task_queued,
+        :already_started,
+        :request_finished,
+        :invalid_check_command,
+        :invalid_reviewer,
         :invalid_command,
         :not_found,
         :task_unavailable,
@@ -893,7 +1060,24 @@ defmodule BossWeb.ProjectLive do
   defp delivery_error({:ok, _}), do: nil
 
   defp delivery_error({:error, :busy}),
-    do: "Another run or workflow is active, or cleanup needs attention."
+    do: "Workflow capacity is occupied, an exclusive run is active, or cleanup needs attention."
+
+  defp delivery_error({:error, :queue_full}),
+    do: "The workflow queue is full. Try again after queued work finishes."
+
+  defp delivery_error({:error, :task_queued}),
+    do: "This task already has a queued workflow. Cancel it before changing the task."
+
+  defp delivery_error({:error, :already_started}), do: nil
+
+  defp delivery_error({:error, :request_finished}),
+    do: "This queue request has finished. Refresh its saved state."
+
+  defp delivery_error({:error, :invalid_check_command}),
+    do: check_error({:error, :invalid_command})
+
+  defp delivery_error({:error, :invalid_reviewer}),
+    do: "Choose Codex or Claude as the workflow reviewer."
 
   defp delivery_error({:error, :invalid_command}), do: check_error({:error, :invalid_command})
 
@@ -1058,7 +1242,15 @@ defmodule BossWeb.ProjectLive do
   defp check_input_resolved?({:error, {:dependencies_blocked, _}}), do: true
 
   defp check_input_resolved?({:error, reason}),
-    do: reason in [:busy, :invalid_command, :not_found, :task_unavailable, :source_unavailable]
+    do:
+      reason in [
+        :busy,
+        :task_queued,
+        :invalid_command,
+        :not_found,
+        :task_unavailable,
+        :source_unavailable
+      ]
 
   defp check_input_resolved?(_), do: false
 
@@ -1073,6 +1265,7 @@ defmodule BossWeb.ProjectLive do
 
   defp review_error({:ok, _}), do: nil
   defp review_error({:error, :busy}), do: run_error({:error, :busy})
+  defp review_error({:error, :task_queued}), do: delivery_error({:error, :task_queued})
 
   defp review_error({:error, reason})
        when reason in [:not_found, :task_unavailable, :source_unavailable],
@@ -1087,6 +1280,7 @@ defmodule BossWeb.ProjectLive do
 
   defp check_error({:ok, _}), do: nil
   defp check_error({:error, :busy}), do: run_error({:error, :busy})
+  defp check_error({:error, :task_queued}), do: delivery_error({:error, :task_queued})
 
   defp check_error({:error, :invalid_command}),
     do: "Enter one command with arguments, up to 4096 bytes. Shell expansion is unavailable."
@@ -1112,6 +1306,7 @@ defmodule BossWeb.ProjectLive do
   end
 
   defp run_error({:ok, _}), do: nil
+  defp run_error({:error, :task_queued}), do: delivery_error({:error, :task_queued})
 
   defp run_error({:error, :busy}),
     do: "Another run is active or its cleanup needs attention. New runs are blocked."
@@ -1201,6 +1396,8 @@ defmodule BossWeb.ProjectLive do
       |> assign(:run_available, run_available?(assigns))
       |> assign(:run_start_available, run_start_available?(assigns))
       |> assign(:delivery_start_available, delivery_start_available?(assigns))
+      |> assign(:delivery_queue_available, delivery_action_available?(assigns, :queue))
+      |> assign(:queue_controls_available, queue_controls_available?(assigns))
       |> assign(:delivery_integrate_available, delivery_integrate_available?(assigns))
       |> assign(:delivery_uncertain, delivery_uncertain?(assigns))
 
@@ -1299,6 +1496,12 @@ defmodule BossWeb.ProjectLive do
             :if={@details}
             details={@details}
             deliveries={@deliveries}
+            queued_workflows={@queued_workflows}
+            queue_actions={@queue_actions}
+            queue_starting={@queue_starting}
+            queue_error={@queue_error}
+            queue_available={@delivery_queue_available}
+            queue_controls_available={@queue_controls_available}
             request={@delivery_requests[@details.task.id]}
             integration_requests={@integration_requests}
             start_available={@delivery_start_available}

@@ -16,16 +16,23 @@ PATH; there is no automatic provider fallback. See [Claude review](CLAUDE_REVIEW
 
 Admission saves the task's immutable source revision, current task version,
 normalized check argv/config hash, reviewer and command UUID in an immediate transaction.
-One global active or unknown execution is allowed across manual and managed work.
+At most two managed workflows can run together. Manual execution and integration
+remain globally exclusive; unknown cleanup blocks every new execution.
 Identical request retries return the original delivery, including after completion;
 changed input with the same UUID conflicts. A saved Ready result survives restart.
 [Explicit source adoption](TASK_REVISIONS.md) retires an unintegrated Ready
 approval and resets the task to New; the old plan/review remains historical.
-Active/unknown execution or an unfinished integration intent prevents adoption.
+Active/unknown execution, a pending queued request or an unfinished integration
+intent prevents adoption.
 New starts also require [dependency readiness](TASK_DEPENDENCIES.md) from the task's
 pinned source. Only Done satisfies prerequisites; replay precedes that check.
 A fresh explicit start after an external task cancellation retires the stale
 Ready approval atomically; its review is never reused for the new workflow.
+
+**Queue workflow** saves the same explicit inputs while waiting for capacity or
+Done prerequisites. The queue does not change task state until actual admission.
+Unstarted requests pause after restart and need explicit Resume. See the
+[workflow queue](WORKFLOW_QUEUE.md) for cancellation, source pins and recovery.
 
 The read-only Architect receives original source and returns a bounded, strict
 JSON plan: summary, implementation steps and unique acceptance criteria. Original
@@ -93,7 +100,7 @@ reserved checkout and reruns the saved checks against that published SHA.
 After passing postchecks, BOSS detaches only its own publication checkout at the
 same SHA, retaining all files and freeing the target for the next task. Final
 identity verification plus persisted publication/postcheck receipts allow Done.
-Only Done satisfies the existing dependency predicate; no DAG scheduler exists yet.
+Only Done satisfies dependencies and allows an explicitly queued dependent to start.
 
 Checked-out targets, drift, dirty/mismatched candidates or failed checks cannot
 become Done. If failure or Stop occurs after publication, the target may already
@@ -119,6 +126,6 @@ caller-provided verdicts/SHAs cannot directly command a terminal task state.
 Tests use finite fake CLIs, real Git, native macOS transport and exclusively created
 SQLite databases with real pools. They cover rejection/fixes, full feedback, budget,
 Stop, restart/replay, source preservation, target reservation, exact publication,
-postcheck failure and unknown receipt/Repo loss. Linux execution, real-provider
-acceptance, DAG/concurrent workers, divergent merges and packaging remain separate
+postcheck failure, two managed workers and unknown receipt/Repo loss. Linux
+execution, real-provider acceptance, file-scope prediction, divergent merges and packaging remain separate
 open work. See `.worklog/` for actual commands and browser/full-suite evidence.
