@@ -449,7 +449,7 @@ restart the running BOSS server for the new reviewer migration.
 - [x] Explicit Queue UI, frozen uncertain action/input and persisted history.
 - [x] Independent review, native process/SQLite tests, browser and combined full suite.
 - [x] Merge local main, verify combined result and remove merged branches.
-- [ ] Archive the two queue writer worktrees.
+- [x] Archive the two queue writer worktrees (reused and archived during BOSS-016b).
 
 Combined root suite:483 passed/1 existing Linux-only skip,seed276199,741.0s.
 The first full run exposed a test-Sandbox timer leak; the final run includes its
@@ -477,7 +477,14 @@ count or actual provider calls in this increment.
   Native Codex/Claude lifecycle + web:30 passed(seed530960); browser2 Done verified.
 - [x] Native lifecycle, persistence, browser and combined-suite verification.
   Full combined suite510 passed/1 existing Linux-only skip,seed798224,816.5s.
-- [ ] Update contracts, merge local main and clean merged branches/worktrees.
+- [x] Update contracts, merge local main and clean merged branches/worktrees.
+  Main86873db:41 focused context/pooled/native queue/LiveView tests passed,
+  seed852899,54.4s; compile/format/assets passed. Three merged branches deleted,
+  both reused writer worktrees archived and confirmed absent from Git worktree list.
+
+Restart BOSS to apply migration20261027050000. No real-provider calls or remote
+publishing were performed. Next development increment:015c typed file scopes and
+capacity controls, preserving explicit inputs and integration evidence.
 
 ## Следующие рабочие проходы
 
