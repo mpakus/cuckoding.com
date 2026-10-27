@@ -41,7 +41,7 @@ defmodule Boss.Deliveries.FileScopes do
        when map_size(scope) == 2 and kind in ["file", "directory"] and is_binary(path) do
     byte_size(path) in 1..1024 and String.valid?(path) and String.trim(path) == path and
       not String.match?(path, ~r/[\x00-\x1f\x7f\\:*?\[\]{}]/) and
-      Enum.all?(String.split(path, "/"), &(&1 not in ["", ".", "..", ".git"]))
+      Enum.all?(String.split(path, "/"), &(String.downcase(&1) not in ["", ".", "..", ".git"]))
   end
 
   defp valid?(_), do: false
