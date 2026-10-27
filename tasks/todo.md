@@ -467,6 +467,18 @@ or modified by this development run.
 No automatic divergent integration, typed file-scope prediction, configurable worker
 count or actual provider calls in this increment.
 
+## BOSS-016b — current-target merge evidence
+
+- [x] Reference research and isolated two-parent Git candidate with conflict/driver guards.
+  Native Git/workspace focus34 passed; independent review and guard mutation verified.
+- [x] Immutable merge/check/review lineage and migration guards.
+  Context/SQL and fresh pooled upgrade/restart tests:31 passed(seed50302).
+- [x] Fresh saved-reviewer validation before expected-old target publication.
+  Native Codex/Claude lifecycle + web:30 passed(seed530960); browser2 Done verified.
+- [x] Native lifecycle, persistence, browser and combined-suite verification.
+  Full combined suite510 passed/1 existing Linux-only skip,seed798224,816.5s.
+- [ ] Update contracts, merge local main and clean merged branches/worktrees.
+
 ## Следующие рабочие проходы
 
 Детализировать перед реализацией; не генерировать все модули заранее.
@@ -474,6 +486,5 @@ count or actual provider calls in this increment.
 | Порядок | Tickets | Зависит от | Проверяемый результат / отказ |
 |---|---|---|---|
 | 1 | 012: provider acceptance | Claude reviewer 012a | Реальный opt-in проход с сохранёнными provenance/cleanup gates; никакого paid auto-retry. Claude implementer требует отдельной проверенной границы записи. |
-| 2 | 016b: divergent integration queue | 015b, 016a | Новая база требует нового checked/reviewed merge candidate; drift/conflict/failed checks не дают Done. |
-| 3 | 015c: file scopes и настройка capacity | 015b, typed plan extension | Известные пересечения сериализуются, неизвестные остаются явно обозначенными; configurable1–3 не ослабляет admission. |
-| 4 | 017–018: recovery matrix, packaging | 016 | Kill/restart на каждой опасной границе; fresh macOS/Linux установка и полный spec→review→integrate проход. |
+| 2 | 015c: file scopes и настройка capacity | 015b, 016b, typed plan extension | Известные пересечения сериализуются, неизвестные остаются явно обозначенными; configurable1–3 не ослабляет admission. |
+| 3 | 017–018: recovery matrix, packaging | 016 | Kill/restart на каждой опасной границе; fresh macOS/Linux установка и полный spec→review→integrate проход. |

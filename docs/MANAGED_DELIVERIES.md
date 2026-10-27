@@ -85,11 +85,30 @@ There is no force-unblock or automatic crash-resume interface yet.
 
 ## Explicit integration and Done
 
-Ready waits for **Integrate approved result**. Initial integration supports only
-an unchanged target and fast-forward to the **exact reviewed commit**. A target
-that advanced needs a new workflow on the new base; divergent merges/rebases are
-not implemented. The target branch must be free of user worktrees. Switch your
-checkout to another branch before integrating; BOSS will not switch it for you.
+Ready waits for **Integrate approved result**. An unchanged target fast-forwards
+to the **exact reviewed commit**. If the target advanced from the original base,
+BOSS pins its current SHA and constructs a separate merge candidate with two
+parents: that target and the originally approved candidate. It retains the
+original approval, runs the saved checks on the merge, then requests a fresh
+review from the saved Codex/Claude reviewer. The drawer shows both approvals and
+their distinct commit identities.
+
+When the target advanced, choosing Integrate invokes the saved reviewer again
+and may consume provider quota or incur charges.
+
+The fresh review receives the original source/plan, complete original-base and
+current-target diffs, original approval and new complete check output/receipt.
+Exact candidate/ref/parents/tree and target are verified around validation.
+A clean Git merge alone is not approval. Conflicts, rewritten target history,
+failed checks, review rejection or another target change stop integration. There
+is no automatic merge repair, rebase or review retry; retained history remains
+available for inspection and a fresh workflow. A request for specification
+clarification becomes Needs input.
+
+The target branch must be free of user worktrees before validation starts. Switch
+your checkout to another branch before integrating; BOSS will not switch it for
+you. Merge construction does not change the user index or files; executable Git
+merge drivers are rejected before effects.
 
 Publication intent saves the expected target SHA and approved candidate before
 effects. An ordinary BOSS-owned worktree reserves the target branch. After
@@ -127,5 +146,5 @@ Tests use finite fake CLIs, real Git, native macOS transport and exclusively cre
 SQLite databases with real pools. They cover rejection/fixes, full feedback, budget,
 Stop, restart/replay, source preservation, target reservation, exact publication,
 postcheck failure, two managed workers and unknown receipt/Repo loss. Linux
-execution, real-provider acceptance, file-scope prediction, divergent merges and packaging remain separate
+execution, real-provider acceptance, file-scope prediction and packaging remain separate
 open work. See `.worklog/` for actual commands and browser/full-suite evidence.
