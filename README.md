@@ -8,6 +8,9 @@ transactional spec/revision/task history and versioned task commands with immuta
 receipts, a Kanban board, a revision-aware task drawer, local CLI discovery and
 manual Codex attempts, explicit commit-bound checks and fresh read-only Codex review
 in retained Git worktrees on macOS.
+Managed workflows add a typed plan, bounded fixes, Codex or Claude independent
+review, explicit integration and postchecks before Done. Task source adoption
+and Done-only dependency readiness keep execution pinned to reviewed inputs.
 
 ## Run locally
 

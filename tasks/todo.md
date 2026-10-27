@@ -416,13 +416,26 @@ reload/old-source selection and 320px/Escape focus. Three branches deleted;
 two clean detached writer worktrees remain held by Codex's active-task check.
 Restart the running BOSS server to apply the new startup migrations.
 
+## BOSS-012a — выбор Claude reviewer в managed workflow
+
+- [x] Reviewer сохраняется до effects; allowlist/immutable migration, точный replay.
+- [x] Fresh-pool upgrade/restart/downgrade/quarantine verification.
+- [x] Выбор reviewer, locked request и исторические labels; focused UI regressions.
+- [ ] Bounded Claude structured stream, native fixture pipeline/Stop and independent review.
+- [ ] Browser, combined suite, local main merge and branch/worktree cleanup.
+- [ ] Real-provider acceptance (отдельный opt-in).
+
+Codex остаётся planner/implementer/fixer; manual Codex flow прежний. Claude
+reviewer получает полные saved evidence без model filesystem/shell tools.
+Контракт: [CLAUDE_REVIEW.md](../docs/CLAUDE_REVIEW.md).
+
 ## Следующие рабочие проходы
 
 Детализировать перед реализацией; не генерировать все модули заранее.
 
 | Порядок | Tickets | Зависит от | Проверяемый результат / отказ |
 |---|---|---|---|
-| 1 | 012: Claude и provider acceptance | managed Codex | Реальный opt-in проход и второй adapter с теми же provenance/cleanup gates; никакого paid auto-retry. |
+| 1 | 012: provider acceptance | Claude reviewer 012a | Реальный opt-in проход с сохранёнными provenance/cleanup gates; никакого paid auto-retry. Claude implementer требует отдельной проверенной границы записи. |
 | 2 | 015b: DAG scheduler и два worker | 015a, revision adoption | Independent tasks параллельны; duplicate tick не дублирует run; новый source принимается явно. |
 | 3 | 016b: divergent integration queue | 015, 016a | Новая база требует нового checked/reviewed merge candidate; drift/conflict/failed checks не дают Done. |
 | 4 | 017–018: recovery matrix, packaging | 016 | Kill/restart на каждой опасной границе; fresh macOS/Linux установка и полный spec→review→integrate проход. |
