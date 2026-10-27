@@ -142,7 +142,7 @@ defmodule Boss.DeliveriesTest do
 
   test "only the complete checked plan and explicit publication can produce Done", c do
     {d, plan, check} = checked(c)
-    review(d, plan, check)
+    reviewed = review(d, plan, check)
     assert {:ok, ready} = Deliveries.complete(d.id, "ready_to_merge")
     assert Tasks.get_task!(c.task.id).state == "ready_to_merge"
     assert {:error, :not_active} = Deliveries.complete(d.id, "done")
@@ -155,6 +155,7 @@ defmodule Boss.DeliveriesTest do
       "delivery_id" => d.id,
       "base_commit" => @base,
       "candidate_commit" => @candidate,
+      "candidate" => check.input["workspace"],
       "repo_path" => c.project.root_path,
       "base_branch" => c.project.base_branch
     }
@@ -163,7 +164,7 @@ defmodule Boss.DeliveriesTest do
              Deliveries.set_integration_intent(d.id, %{intent | "candidate_commit" => @base})
 
     assert {:ok, _} = Deliveries.set_integration_intent(d.id, intent)
-    publish = stage(d, "publish", 1, %{"intent" => intent}, %{"candidate_commit" => @candidate})
+    publish = stage(d, "publish", 1, %{"intent" => intent, "review_step_id" => reviewed.id}, %{"candidate_commit" => @candidate})
     assert {:error, :missing_evidence} = Deliveries.complete(d.id, "done")
 
     input = %{
@@ -255,6 +256,7 @@ defmodule Boss.DeliveriesTest do
       "delivery_id" => delivery.id,
       "base_commit" => @base,
       "candidate_commit" => @candidate,
+      "candidate" => check.input["workspace"],
       "repo_path" => c.project.root_path,
       "base_branch" => c.project.base_branch
     }

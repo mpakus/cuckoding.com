@@ -15,7 +15,8 @@ defmodule Boss.DeliveryReviewerPersistenceTest do
     {20_261_027_010_000, Boss.Repo.Migrations.AddTaskRevisionAdoption},
     {20_261_027_020_000, Boss.Repo.Migrations.PreserveHistoricalRunPins},
     {20_261_027_030_000, Boss.Repo.Migrations.PinDeliveryReviewer},
-    {20_261_027_040_000, Boss.Repo.Migrations.AddWorkflowQueue}
+    {20_261_027_040_000, Boss.Repo.Migrations.AddWorkflowQueue},
+    {20_261_027_050_000, Boss.Repo.Migrations.AddMergeIntegrationEvidence}
   ]
 
   test "migration preserves Codex history and pinned Claude request survives restart" do

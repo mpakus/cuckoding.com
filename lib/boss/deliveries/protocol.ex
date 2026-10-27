@@ -31,7 +31,15 @@ defmodule Boss.Deliveries.Protocol do
     end
   end
 
-  def prompt(kind, input) when kind in [:plan, :implement, :review, :claude_review] do
+  def prompt(kind, input)
+      when kind in [
+             :plan,
+             :implement,
+             :review,
+             :claude_review,
+             :merge_review,
+             :claude_merge_review
+           ] do
     role =
       case kind do
         :plan ->
@@ -56,7 +64,7 @@ defmodule Boss.Deliveries.Protocol do
           Your completion message is not proof that the task is complete.
           """
 
-        :claude_review ->
+        kind when kind in [:claude_review, :claude_merge_review] ->
           """
           Independently review this exact candidate using only the supplied saved
           specification, typed plan, complete original-base diff, full bounded check
@@ -71,7 +79,7 @@ defmodule Boss.Deliveries.Protocol do
           integrate and verify delivery.
           """
 
-        :review ->
+        kind when kind in [:review, :merge_review] ->
           """
           Independently review this exact candidate against the saved specification
           and typed plan. Inspect relevant source read-only and the complete diff
@@ -84,6 +92,17 @@ defmodule Boss.Deliveries.Protocol do
           or unclear criterion. Use needs_spec_revision for an unclear specification.
           Approval is a model assessment; BOSS must still integrate and verify delivery.
           """
+      end
+
+    role =
+      if kind in [:merge_review, :claude_merge_review] do
+        role <>
+          "\nThis is a fresh integration review. The original approval applies only to original_candidate. " <>
+          "Review the new merge candidate against BOTH the complete original-base diff (diff) and " <>
+          "the current-target diff (target_diff), including interactions with concurrent target changes. " <>
+          "Do not inherit the original approval or treat a conflict-free merge as correctness evidence.\n"
+      else
+        role
       end
 
     prompt =

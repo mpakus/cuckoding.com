@@ -16,7 +16,8 @@ defmodule Boss.DeliveryIntegrationWorkerTest do
     {20_261_027_010_000, Boss.Repo.Migrations.AddTaskRevisionAdoption},
     {20_261_027_020_000, Boss.Repo.Migrations.PreserveHistoricalRunPins},
     {20_261_027_030_000, Boss.Repo.Migrations.PinDeliveryReviewer},
-    {20_261_027_040_000, Boss.Repo.Migrations.AddWorkflowQueue}
+    {20_261_027_040_000, Boss.Repo.Migrations.AddWorkflowQueue},
+    {20_261_027_050_000, Boss.Repo.Migrations.AddMergeIntegrationEvidence}
   ]
 
   setup do
@@ -177,21 +178,41 @@ defmodule Boss.DeliveryIntegrationWorkerTest do
     refute Repo.get!(Tasks.Task, ctx.task.id).state == "done"
   end
 
-  test "changed target invalidates old approval without moving the user's branch", ctx do
+  test "changed target gets a fresh checked reviewed merge before exact publication", ctx do
     {manager, delivery, _} = ready(ctx, false)
-    git(ctx.source, ["commit", "--allow-empty", "-m", "user commit"])
-    changed = git(ctx.source, ["rev-parse", "main"])
+    original = candidate(delivery)
+    File.write!(Path.join(ctx.source, "parallel.txt"), "preserve parallel task")
+    git(ctx.source, ["add", "parallel.txt"])
+    git(ctx.source, ["commit", "-m", "parallel task"])
+    target = git(ctx.source, ["rev-parse", "main"])
     git(ctx.source, ["switch", "--detach"])
-
-    assert {:ok, _} =
-             Deliveries.integrate(ctx.project.id, delivery.id, Ecto.UUID.generate(), manager)
-
+    command = Ecto.UUID.generate()
+    assert {:ok, _} = Deliveries.integrate(ctx.project.id, delivery.id, command, manager)
     saved = await_delivery(ctx, delivery.id)
-    assert saved.status == "blocked", inspect(saved)
-    assert saved.reason =~ "changed"
-    assert git(ctx.source, ["rev-parse", "main"]) == changed
-    assert calls(ctx, "check-calls") |> length() == 1
-    refute Repo.get!(Tasks.Task, ctx.task.id).state == "done"
+    assert saved.status == "done", inspect({saved, Deliveries.steps(delivery.id)})
+    merged = saved.integration_intent["candidate_commit"]
+    assert merged not in [original, target]
+    assert git(ctx.source, ["rev-parse", "main"]) == merged
+
+    assert git(ctx.source, ["rev-list", "--parents", "-n", "1", merged]) ==
+             "#{merged} #{target} #{original}"
+
+    assert File.read!(Path.join(saved.integration_intent["path"], "parallel.txt")) ==
+             "preserve parallel task"
+
+    assert saved.integration_intent["base_commit"] == target
+    assert candidate(delivery) == original
+
+    assert Enum.map(Deliveries.steps(delivery.id), & &1.kind) ==
+             ~w(plan implement snapshot check review merge merge_check merge_review publish post_check)
+
+    assert length(calls(ctx, "check-calls")) == 3
+    assert length(calls(ctx, "calls")) == 4
+    assert List.last(calls(ctx, "calls"))["target_commit"] == target
+    refute inspect(Deliveries.steps(delivery.id), limit: :infinity) =~ "SECRET_SENTINEL"
+    wait_idle(manager)
+    assert {:ok, ^saved} = Deliveries.integrate(ctx.project.id, delivery.id, command, manager)
+    assert length(calls(ctx, "calls")) == 4
   end
 
   test "failed post-check keeps publication and blocks Done without rollback", ctx do
