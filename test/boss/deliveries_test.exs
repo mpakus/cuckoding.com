@@ -142,6 +142,90 @@ defmodule Boss.DeliveriesTest do
     assert Enum.count(events, &(&1.to_state == "ready_to_merge")) == 1
   end
 
+  test "adoption retires a Ready approval atomically and it cannot integrate the new source", c do
+    {delivery, plan, check} = checked(c)
+    review(delivery, plan, check)
+    {:ok, ready} = Deliveries.complete(delivery.id, "ready_to_merge")
+
+    {:ok, next} =
+      Projects.record_spec(c.project.id, %{
+        relative_path: "one.md",
+        original_text: "# Revised",
+        title: "Revised"
+      })
+
+    command = %{
+      command_id: Ecto.UUID.generate(),
+      action: "adopt_revision",
+      project_id: c.project.id,
+      spec_revision_id: next.revision.id,
+      expected_version: ready.task_version
+    }
+
+    before_steps = Deliveries.steps(delivery.id)
+
+    Repo.query!(
+      "CREATE TRIGGER reject_adoption BEFORE INSERT ON task_events WHEN NEW.action='adopt_revision' BEGIN SELECT RAISE(ABORT, 'fixture'); END"
+    )
+
+    assert {:error, :storage_error} = Tasks.transition(c.task.id, command)
+    assert Deliveries.get(c.project.id, delivery.id) == ready
+    Repo.query!("DROP TRIGGER reject_adoption")
+    assert {:ok, _} = Tasks.transition(c.task.id, command)
+    retired = Deliveries.get(c.project.id, delivery.id)
+    assert retired.status == "cancelled"
+    assert retired.reason =~ "newer task source"
+    assert retired.spec_revision_id == c.task.spec_revision_id
+    assert Deliveries.steps(delivery.id) == before_steps
+    assert Tasks.get_task!(c.task.id).state == "new"
+
+    assert {:error, :not_ready} =
+             Deliveries.admit_integration(c.project.id, delivery.id, Ecto.UUID.generate())
+
+    assert {:ok, {:new, fresh}} =
+             Deliveries.admit(c.project.id, c.task.id, Ecto.UUID.generate(), "true")
+
+    assert fresh.spec_revision_id == next.revision.id
+  end
+
+  test "an unresolved integration intent blocks source adoption after known cleanup", c do
+    {delivery, plan, check} = checked(c)
+    review(delivery, plan, check)
+    {:ok, _} = Deliveries.complete(delivery.id, "ready_to_merge")
+
+    {:ok, {:new, _}} =
+      Deliveries.admit_integration(c.project.id, delivery.id, Ecto.UUID.generate())
+
+    intent = %{
+      "delivery_id" => delivery.id,
+      "base_commit" => @base,
+      "candidate_commit" => @candidate,
+      "repo_path" => c.project.root_path,
+      "base_branch" => c.project.base_branch
+    }
+
+    {:ok, _} = Deliveries.set_integration_intent(delivery.id, intent)
+    {:ok, _stopped} = Deliveries.complete(delivery.id, "cancelled", "Stopped during integration")
+
+    {:ok, next} =
+      Projects.record_spec(c.project.id, %{
+        relative_path: "one.md",
+        original_text: "# Revised",
+        title: "Revised"
+      })
+
+    assert {:error, :integration_unresolved} =
+             Tasks.transition(c.task.id, %{
+               command_id: Ecto.UUID.generate(),
+               action: "adopt_revision",
+               project_id: c.project.id,
+               spec_revision_id: next.revision.id,
+               expected_version: Tasks.get_task!(c.task.id).state_version
+             })
+
+    assert Tasks.get_task!(c.task.id).spec_revision_id == c.task.spec_revision_id
+  end
+
   test "different candidate, configuration or plan criteria cannot borrow a passing check", c do
     {d, plan, check} = checked(c)
     input = review_input(d, plan, check)
