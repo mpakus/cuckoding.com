@@ -26,8 +26,10 @@ The API accepts atom keys and string actions. `command_id` is nonblank UTF-8 of
 at most 128 bytes; `expected_version` is a nonnegative integer below SQLite's
 maximum signed integer. Optional `reason` is nonblank UTF-8 of at most 1000 bytes.
 NUL is rejected. Text is preserved exactly; omitted reason equals `nil`. Unknown
-keys, including `evidence`, `verified`, a target state or an alternative revision,
-are rejected with `:invalid_command`.
+keys, including `evidence`, `verified` or a target state, are rejected with
+`:invalid_command`. Only `adopt_revision` accepts project/source target IDs; only
+`delivery_progress` accepts its producer delivery ID. These fields cannot be
+attached to generic state commands.
 
 `{:ok, event}` is a receipt for the original command. An identical repeat returns
 the same event even after later commands; it does not restore the old task state.
@@ -40,7 +42,10 @@ The task update and event insert share one immediate SQLite transaction. Every
 accepted command advances `state_version` once. Events record source/target
 state, version, action, reason and the task's pinned spec revision; SQLite rejects
 their update or deletion. Existing tasks start at version zero with no fabricated
-history. Commands never change the task title or pinned revision.
+history. Generic state commands never change the task title or pinned revision.
+The explicit [adopt_revision command](TASK_REVISIONS.md) validates a newer saved
+source, records old and target revision IDs, updates title/pin and resets an idle
+task to New. It uses the same expected-version and immutable-receipt contract.
 Rolling back the task-events migration is refused once any event exists; an
 unused migration can still be reversed without deleting existing tasks.
 The command pins the actual Repo process for its whole transaction and restores
@@ -124,7 +129,8 @@ optional revision numbers must be positive signed 64-bit integers. A missing or
 foreign task/revision returns `:not_found` before exposing source or events.
 
 The result contains `task`, `spec`, `pinned_revision`, `latest_revision`,
-`selected_revision`, `revisions` (number/timestamp metadata, newest first) and
+`selected_revision`, `dependencies`, `adoption`, `revisions` (ID/number/timestamp
+metadata, newest first) and
 `events` (latest 50 by descending state version). The default selection is the
 pinned revision. One deferred transaction, bound to the actual Repo PID, gives a
 coherent snapshot even when another connection commits a task transition or

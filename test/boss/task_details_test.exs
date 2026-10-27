@@ -25,11 +25,11 @@ defmodule Boss.TaskDetailsTest do
     assert detail.events == []
 
     assert detail.revisions == [
-             %{number: 2, inserted_at: second.revision.inserted_at},
-             %{number: 1, inserted_at: first.revision.inserted_at}
+             %{id: second.revision.id, number: 2, inserted_at: second.revision.inserted_at},
+             %{id: first.revision.id, number: 1, inserted_at: first.revision.inserted_at}
            ]
 
-    assert Enum.all?(detail.revisions, &(Enum.sort(Map.keys(&1)) == [:inserted_at, :number]))
+    assert Enum.all?(detail.revisions, &(Enum.sort(Map.keys(&1)) == [:id, :inserted_at, :number]))
   end
 
   test "a selected historical revision belongs to the same spec and does not change the pin", %{

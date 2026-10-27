@@ -45,10 +45,10 @@ concurrency; the single global active/unknown execution rule remains.
 
 Dependencies come from the pinned revision of every reachable task. Selecting a
 historical revision, importing newer text or moving a source does not silently
-change that snapshot. **Explicit adoption of a newer task revision is not yet
-implemented.** Editing the latest file alone therefore cannot repair a malformed
-declaration or cycle in an already-pinned task. Missing referenced IDs can be
-resolved by importing the corresponding task in the same project.
+change that snapshot. Use [explicit revision adoption](TASK_REVISIONS.md) to
+accept a newer saved declaration for an eligible idle task. Editing the file alone
+still does not change its snapshot. Missing referenced IDs can also be resolved
+by importing the corresponding task in the same project.
 
 Self-dependencies and transitive cycles are rejected, including cycles through
 historical Done tasks. Only the selected task's reachable graph is inspected;

@@ -77,6 +77,58 @@ defmodule Boss.ReviewsTest do
     assert Tasks.list_events(ctx.task.id) == []
   end
 
+  test "historical manual checks and reviews keep old source after explicit adoption", ctx do
+    {:ok, next} =
+      Projects.record_spec(ctx.project.id, %{
+        relative_path: "one.md",
+        original_text: "# New source",
+        title: "New source"
+      })
+
+    assert {:ok, _} =
+             Tasks.transition(ctx.task.id, %{
+               command_id: Ecto.UUID.generate(),
+               action: "adopt_revision",
+               project_id: ctx.project.id,
+               spec_revision_id: next.revision.id,
+               expected_version: 0
+             })
+
+    assert {:ok, {:new, review}} =
+             Runs.admit_review(ctx.project.id, ctx.check.id, Ecto.UUID.generate())
+
+    assert review.spec_revision_id == ctx.task.spec_revision_id
+    assert review.admitted_version == 1
+    assert {:ok, _} = Runs.update(review.id, status: "cancelled", cleanup: "not_started")
+
+    assert {:ok, {:new, check}} =
+             Runs.admit_check(ctx.project.id, ctx.source.id, Ecto.UUID.generate(), "true")
+
+    assert check.spec_revision_id == ctx.task.spec_revision_id
+    assert check.admitted_version == 1
+    assert Runs.get(ctx.project.id, ctx.source.id) == ctx.source
+    assert Runs.get(ctx.project.id, ctx.check.id) == ctx.check
+    assert Tasks.get_task!(ctx.task.id).spec_revision_id == next.revision.id
+    assert {:ok, _} = Runs.update(check.id, status: "cancelled", cleanup: "not_started")
+
+    attrs = %{
+      id: Ecto.UUID.generate(),
+      project_id: ctx.project.id,
+      task_id: ctx.task.id,
+      spec_revision_id: ctx.task.spec_revision_id,
+      admitted_version: 1,
+      command_id: Ecto.UUID.generate(),
+      adapter: "codex"
+    }
+
+    assert_raise Exqlite.Error, ~r/run snapshot mismatch/, fn ->
+      Repo.insert!(struct(Runs.Run, attrs))
+    end
+
+    assert {:ok, {:new, current}} = Runs.admit(ctx.project.id, ctx.task.id, Ecto.UUID.generate())
+    assert current.spec_revision_id == next.revision.id
+  end
+
   test "unknown, foreign, unpassed and nested parents cannot authorize review", ctx do
     assert {:error, :not_found} =
              Runs.admit_review(ctx.project.id + 1, ctx.check.id, Ecto.UUID.generate())

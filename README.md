@@ -112,7 +112,10 @@ so the historical source path remains accurate.
 
 Each spec has one task, initially `new`, pinned to its first revision and title.
 Later source changes never advance that pin. Repeating the latest text/path is
-a no-op; A→B→A creates three revisions. Revision adoption remains future work.
+a no-op; A→B→A creates three revisions. To update an eligible idle task, inspect a
+newer source in its drawer and select **Use revision N**. This resets it to New
+and retires an unintegrated approval while retaining all history. See
+[explicit revision adoption](docs/TASK_REVISIONS.md).
 SQLite rejects updates/deletes of revisions and prevents
 a task from referencing another spec's revision.
 

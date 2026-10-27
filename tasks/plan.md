@@ -1,10 +1,12 @@
 # BOSS — план нового проекта
 
 Дата: 2026-10-25. Основа: [BOSS_PLAN.md](../BOSS_PLAN.md).
-Статус: Git/runner эксперименты, Phoenix/SQLite, проекты, revisions, автоматический
-Sync specs, persisted task commands, read-only board/drawer и CLI detection. Ручные Codex attempts на macOS теперь доступны в task drawer;
-ручные commit-bound checks и review доступны отдельно от task workflow.
-Integration и workflow evidence gates остаются закрыты.
+Статус: Phoenix/SQLite, native folder selection, immutable source revisions,
+автоматический Sync specs, task board/drawer, CLI detection и ручные Codex runs,
+checks/review. Managed macOS workflow включает plan, checks, bounded fixes,
+review, explicit fast-forward integration и Done. Pinned dependencies блокируют
+новый Start до завершения prerequisite. Linux/provider/recovery/release gates
+остаются открыты; подробные verified increments приведены ниже.
 Задачи: [todo.md](todo.md). Источники: [RESEARCH.md](../docs/RESEARCH.md).
 
 ## Вывод
@@ -245,3 +247,12 @@ transaction: только Done удовлетворяет dependency; missing/in
 Отдельно остаются explicit revision adoption, DAG scheduler, два worker и
 divergent integration. Изменение latest source пока не исправляет ошибку в
 прикреплённом snapshot. Контракт: [TASK_DEPENDENCIES.md](../docs/TASK_DEPENDENCIES.md).
+
+## Explicit task revision adoption
+
+Новая исходная revision принимается отдельной командой после просмотра source.
+Одна immediate transaction проверяет task version/target ownership/idle history,
+сохраняет old+target receipt, меняет title/pin, сбрасывает task в New и отменяет
+неинтегрированный Ready result. Done, active/unknown cleanup и незавершённый
+integration intent блокируют adoption. Старые manual checks/reviews продолжают
+использовать свои parent snapshots. Подробности: [TASK_REVISIONS.md](../docs/TASK_REVISIONS.md).

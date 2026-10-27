@@ -398,14 +398,23 @@ Integrate/postchecks → Done unlocks the open dependent drawer, reload, new Sta
 Stop, keyboard links and 320px. Three branches deleted. Two clean detached
 worktrees remain app-held: Codex refused archive as used by another active task.
 
+## Explicit task revision adoption
+
+- [x] Atomic expected-version command, old/target revision receipt and exact replay.
+- [x] Idle-task admission; Ready retirement; active/unknown/integration-intent refusal.
+- [x] Historical check/review pins preserved by a constrained migration.
+- [x] Explicit source action, immutable pending request, refresh and accessible drawer.
+- [x] Focused durability/concurrency/UI tests, independent review and browser verification.
+- [ ] Combined local-main verification and merged-branch cleanup.
+- [ ] Archive adoption writer worktrees.
+
 ## Следующие рабочие проходы
 
 Детализировать перед реализацией; не генерировать все модули заранее.
 
 | Порядок | Tickets | Зависит от | Проверяемый результат / отказ |
 |---|---|---|---|
-| 1 | Explicit task revision adoption | 015a | Новая revision принимается явно; старые runs/evidence остаются immutable, active work блокирует adoption. |
-| 2 | 012: Claude и provider acceptance | managed Codex | Реальный opt-in проход и второй adapter с теми же provenance/cleanup gates; никакого paid auto-retry. |
-| 3 | 015b: DAG scheduler и два worker | 015a, revision adoption | Independent tasks параллельны; duplicate tick не дублирует run; новый source принимается явно. |
-| 4 | 016b: divergent integration queue | 015, 016a | Новая база требует нового checked/reviewed merge candidate; drift/conflict/failed checks не дают Done. |
-| 5 | 017–018: recovery matrix, packaging | 016 | Kill/restart на каждой опасной границе; fresh macOS/Linux установка и полный spec→review→integrate проход. |
+| 1 | 012: Claude и provider acceptance | managed Codex | Реальный opt-in проход и второй adapter с теми же provenance/cleanup gates; никакого paid auto-retry. |
+| 2 | 015b: DAG scheduler и два worker | 015a, revision adoption | Independent tasks параллельны; duplicate tick не дублирует run; новый source принимается явно. |
+| 3 | 016b: divergent integration queue | 015, 016a | Новая база требует нового checked/reviewed merge candidate; drift/conflict/failed checks не дают Done. |
+| 4 | 017–018: recovery matrix, packaging | 016 | Kill/restart на каждой опасной границе; fresh macOS/Linux установка и полный spec→review→integrate проход. |

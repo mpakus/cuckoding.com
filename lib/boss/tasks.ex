@@ -2,7 +2,12 @@ defmodule Boss.Tasks do
   import Ecto.Query
   alias Boss.Repo
   alias Boss.Projects.{Spec, SpecRevision}
-  alias Boss.Tasks.{Event, Task, Transition}
+  alias Boss.Tasks.{Event, Revisions, Task, Transition}
+
+  def subscribe(project_id), do: Phoenix.PubSub.subscribe(Boss.PubSub, "tasks:#{project_id}")
+
+  def broadcast(project_id),
+    do: Phoenix.PubSub.broadcast(Boss.PubSub, "tasks:#{project_id}", {:task_changed, project_id})
 
   def get_task!(id), do: Repo.get!(Task, id)
 
@@ -40,6 +45,8 @@ defmodule Boss.Tasks do
   On :storage_error, retry the same command ID to reconcile an unknown outcome.
   Generic workflow edges remain closed. The producer-owned delivery_progress
   action accepts a delivery_id and derives progress from persisted evidence.
+  adopt_revision accepts project_id and spec_revision_id, with no reason; its
+  receipt retains both old spec_revision_id and target_spec_revision_id.
   Inside a caller's transaction, success is provisional until its outer commit;
   the outer transaction also determines the SQLite transaction mode.
   """
@@ -59,11 +66,12 @@ defmodule Boss.Tasks do
           event -> replay(event, command)
         end
       end,
-      :immediate
+      :immediate,
+      if(command.action == "adopt_revision", do: command.project_id)
     )
   end
 
-  defp with_repo_transaction(operation, mode) do
+  defp with_repo_transaction(operation, mode, notify_project \\ nil) do
     selector = Repo.get_dynamic_repo()
     repo = if is_atom(selector), do: Process.whereis(selector), else: selector
 
@@ -72,7 +80,14 @@ defmodule Boss.Tasks do
       Repo.put_dynamic_repo(repo)
 
       try do
-        Repo.transaction(operation, mode: mode)
+        nested? = Repo.in_transaction?()
+        result = Repo.transaction(operation, mode: mode)
+
+        if notify_project && not nested? && match?({:ok, _}, result) do
+          broadcast(notify_project)
+        end
+
+        result
       rescue
         _error in [Exqlite.Error, Ecto.ConstraintError, DBConnection.ConnectionError] ->
           {:error, :storage_error}
@@ -133,12 +148,13 @@ defmodule Boss.Tasks do
       latest_revision: latest,
       selected_revision: selected,
       dependencies: dependencies,
+      adoption: Revisions.status(task, spec, pinned, selected),
       revisions:
         Repo.all(
           from r in SpecRevision,
             where: r.spec_id == ^spec.id,
             order_by: [desc: r.number],
-            select: %{number: r.number, inserted_at: r.inserted_at}
+            select: %{id: r.id, number: r.number, inserted_at: r.inserted_at}
         ),
       events:
         Repo.all(
@@ -154,13 +170,11 @@ defmodule Boss.Tasks do
 
   defp apply_transition(task_id, command) do
     task = Repo.get(Task, task_id) || Repo.rollback(:not_found)
+    if command.action == "adopt_revision", do: Revisions.ensure_project!(task, command.project_id)
     if task.state_version != command.expected_version, do: Repo.rollback(:stale_state)
 
     changes =
-      case if(command.action == "delivery_progress",
-             do: Boss.Deliveries.transition_changes(task, command),
-             else: Transition.apply(task, command.action, command.reason)
-           ) do
+      case transition_changes(task, command) do
         {:ok, changes} -> changes
         {:error, reason} -> Repo.rollback(reason)
       end
@@ -181,6 +195,8 @@ defmodule Boss.Tasks do
     case Repo.insert(%Event{
            task_id: task.id,
            spec_revision_id: task.spec_revision_id,
+           target_spec_revision_id:
+             if(command.action == "adopt_revision", do: command.spec_revision_id),
            command_id: command.command_id,
            version: version,
            action: command.action,
@@ -193,7 +209,24 @@ defmodule Boss.Tasks do
     end
   end
 
+  defp transition_changes(task, %{action: "adopt_revision"} = command),
+    do: Revisions.changes(task, command)
+
+  defp transition_changes(task, %{action: "delivery_progress"} = command),
+    do: Boss.Deliveries.transition_changes(task, command)
+
+  defp transition_changes(task, command),
+    do: Transition.apply(task, command.action, command.reason)
+
   defp replay(event, command) do
+    if command.action == "adopt_revision" do
+      task = Repo.get(Task, event.task_id) || Repo.rollback(:not_found)
+      Revisions.ensure_project!(task, command.project_id)
+
+      if event.target_spec_revision_id != command.spec_revision_id,
+        do: Repo.rollback(:idempotency_conflict)
+    end
+
     if event.version == command.expected_version + 1 and event.action == command.action and
          event.reason == command.reason do
       event
@@ -210,17 +243,39 @@ defmodule Boss.Tasks do
       is_integer(version) and version >= 0 and version < 9_223_372_036_854_775_807 and
       Enum.all?(
         Map.keys(command),
-        &(&1 in [:command_id, :expected_version, :action, :reason, :delivery_id])
+        &(&1 in [
+            :command_id,
+            :expected_version,
+            :action,
+            :reason,
+            :delivery_id,
+            :project_id,
+            :spec_revision_id
+          ])
       ) and
-      ((action == "delivery_progress" and match?({:ok, _}, Ecto.UUID.cast(command[:delivery_id])) and
-          is_binary(id) and String.starts_with?(id, command.delivery_id <> ":") and
-          is_nil(command[:reason])) or
-         (action != "delivery_progress" and not Map.has_key?(command, :delivery_id))) and
+      valid_action_fields?(command) and
       valid_text?(id, 128) and valid_text?(action, 64) and
       (is_nil(command[:reason]) or valid_text?(command[:reason], 1000))
   end
 
   defp valid_command?(_, _), do: false
+
+  defp valid_action_fields?(%{action: "adopt_revision"} = command) do
+    valid_id?(command[:project_id]) and valid_id?(command[:spec_revision_id]) and
+      not Map.has_key?(command, :delivery_id) and is_nil(command[:reason])
+  end
+
+  defp valid_action_fields?(%{action: "delivery_progress"} = command) do
+    not Map.has_key?(command, :project_id) and not Map.has_key?(command, :spec_revision_id) and
+      match?({:ok, _}, Ecto.UUID.cast(command[:delivery_id])) and
+      is_binary(command.command_id) and
+      String.starts_with?(command.command_id, command.delivery_id <> ":") and
+      is_nil(command[:reason])
+  end
+
+  defp valid_action_fields?(command),
+    do:
+      Enum.all?([:delivery_id, :project_id, :spec_revision_id], &(not Map.has_key?(command, &1)))
 
   defp valid_text?(value, limit),
     do:

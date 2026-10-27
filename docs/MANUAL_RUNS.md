@@ -33,6 +33,9 @@ Each attempt pins the task snapshot, independent of the revision currently viewe
 in the drawer. Prompt plus source is limited to 1 MiB and rejected, never truncated,
 when too large. A subsequent **Start Codex** creates a new attempt from the base,
 not a resume of earlier edits. Every generated workspace is retained for inspection.
+[Explicit source adoption](TASK_REVISIONS.md) changes only future task attempts.
+Existing runs and their subsequent manual checks/reviews retain their original
+source revision and candidate lineage.
 
 ## Process ownership and cancellation
 

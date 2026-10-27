@@ -85,6 +85,7 @@ defmodule BossWeb.TaskBoard do
   attr :loading, :boolean, default: false
   attr :error, :any, default: nil
   slot :run_panel
+  slot :source_actions
 
   def drawer(assigns) do
     requested =
@@ -201,6 +202,7 @@ defmodule BossWeb.TaskBoard do
                 </select>
               </form>
             </div>
+            {render_slot(@source_actions)}
             <pre
               :if={@source_ready}
               id="task-source"
@@ -217,6 +219,12 @@ defmodule BossWeb.TaskBoard do
                   Version {event.version} · {state_label(event.from_state)} → {state_label(
                     event.to_state
                   )}
+                </p>
+                <p :if={event.action == "adopt_revision"} class="mt-1 text-zinc-300">
+                  Source revision {BossWeb.TaskRevision.number(@details, event.spec_revision_id)} → {BossWeb.TaskRevision.number(
+                    @details,
+                    event.target_spec_revision_id
+                  )} adopted.
                 </p>
                 <p :if={event.reason} class="mt-1 break-words text-zinc-300">{event.reason}</p>
                 <time
