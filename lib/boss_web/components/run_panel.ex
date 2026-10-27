@@ -86,6 +86,10 @@ defmodule BossWeb.RunPanel do
               class="rounded border border-zinc-600 px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:opacity-50"
             >{if @stopping == run.id || run.status == "stopping", do: "Stopping…", else: "Stop"}</button>
           </div>
+          <p class="text-xs text-zinc-400">
+            Source revision {BossWeb.TaskRevision.number(@details, run.spec_revision_id)}
+            <span :if={run.spec_revision_id != @details.pinned_revision.id}> · historical snapshot</span>
+          </p>
           <time datetime={DateTime.to_iso8601(run.inserted_at)} class="block text-xs text-zinc-400">
             {Calendar.strftime(run.inserted_at, "%Y-%m-%d %H:%M:%S UTC")}
           </time>

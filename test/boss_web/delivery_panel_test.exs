@@ -68,7 +68,11 @@ defmodule BossWeb.DeliveryPanelTest do
       &DeliveryPanel.panel/1,
       Keyword.merge(
         [
-          details: %{task: %{state: "new"}, pinned_revision: %{number: 1}},
+          details: %{
+            task: %{state: "new"},
+            pinned_revision: %{id: 7, number: 1},
+            revisions: [%{id: 7, number: 1}]
+          },
           deliveries: deliveries,
           request: %{id: "start-request", text: "", locked: false},
           integration_requests: %{"delivery" => %{id: "integration-request", locked: false}},
@@ -85,6 +89,7 @@ defmodule BossWeb.DeliveryPanelTest do
   defp delivery(status) do
     %{
       id: "delivery",
+      spec_revision_id: 7,
       status: status,
       cycle: 2,
       reason: nil,

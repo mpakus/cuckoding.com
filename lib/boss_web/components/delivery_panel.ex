@@ -101,6 +101,10 @@ defmodule BossWeb.DeliveryPanel do
               class="rounded border border-zinc-600 px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:opacity-50"
             >{if @stopping == delivery.id, do: "Stopping…", else: "Stop workflow"}</button>
           </div>
+          <p class="text-xs text-zinc-400">
+            Source revision {BossWeb.TaskRevision.number(@details, delivery.spec_revision_id)}
+            <span :if={delivery.spec_revision_id != @details.pinned_revision.id}> · historical snapshot</span>
+          </p>
           <p class="text-xs text-zinc-400">Cycle {delivery.cycle} of 3</p>
           <p :if={delivery.check_config["argv"]} class="text-xs text-zinc-400">
             Saved check command
