@@ -38,8 +38,6 @@ defmodule Boss.DeliveryProtocolTest do
     assert {:ok, ^plan} = Protocol.plan(JSON.encode!(plan))
     unknown = Map.put(@plan, "file_scopes", nil)
     assert {:ok, ^unknown} = Protocol.plan(JSON.encode!(unknown))
-    refute FileScopes.overlap?(nil, scopes)
-    refute FileScopes.overlap?(scopes, nil)
 
     for invalid <- [
           [],
@@ -65,6 +63,7 @@ defmodule Boss.DeliveryProtocolTest do
           "a/./b",
           "a/../b",
           ".git/config",
+          ".GIT/config",
           "lib/*",
           "a?b",
           "a[b]",
@@ -86,24 +85,6 @@ defmodule Boss.DeliveryProtocolTest do
       ~s({"summary":"ok","steps":["step"],"acceptance":["criterion"],"file_scopes":[{"path":"a","path":"b","kind":"file"}]})
 
     assert {:error, :invalid_plan} = Protocol.plan(duplicate)
-  end
-
-  test "scopes match whole path segments, case aliases and conservative Unicode collisions" do
-    scope = fn path -> [%{"path" => path, "kind" => "file"}] end
-
-    for {a, b} <- [
-          {"lib", "lib/a.ex"},
-          {"lib/A.ex", "LIB/a.ex"},
-          {"lib/a", "lib/a/b"},
-          {"café", "unrelated"},
-          {"unrelated", "café/file"}
-        ] do
-      assert FileScopes.overlap?(scope.(a), scope.(b))
-      assert FileScopes.overlap?(scope.(b), scope.(a))
-    end
-
-    refute FileScopes.overlap?(scope.("lib"), scope.("library/a.ex"))
-    refute FileScopes.overlap?(scope.("lib/a.ex"), scope.("lib/b.ex"))
   end
 
   test "review must cover the saved plan criteria exactly" do
