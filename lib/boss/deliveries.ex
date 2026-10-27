@@ -685,7 +685,11 @@ defmodule Boss.Deliveries do
       i["original_base"] == d.intent["base_commit"] and i["config_hash"] == d.config_hash and
       i["spec_revision_id"] == d.spec_revision_id and sha?(i["target_commit"]) and
       i["target_commit"] not in [i["original_base"], i["original_candidate"]] and
-      is_map(i["workspace"]) and
+      is_map(i["workspace"]) and is_map(get_in(i, ["workspace", "run_workspace"])) and
+      match?({:ok, _}, Ecto.UUID.cast(get_in(i, ["workspace", "check_id"]))) and
+      get_in(i, ["workspace", "check_id"]) != get_in(check.input, ["workspace", "check_id"]) and
+      get_in(i, ["workspace", "path"]) != get_in(check.input, ["workspace", "path"]) and
+      get_in(i, ["workspace", "ref"]) != get_in(check.input, ["workspace", "ref"]) and
       get_in(i, ["workspace", "run_workspace"]) ==
         get_in(check.input, ["workspace", "run_workspace"])
   end
