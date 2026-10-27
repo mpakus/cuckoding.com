@@ -112,8 +112,11 @@ defmodule Boss.Runs do
             unless task.state in ~w(new ready failed interrupted cancelled blocked needs_input),
               do: Repo.rollback(:task_unavailable)
 
-            if Repo.exists?(from r in Run, where: r.status in ^@active or r.cleanup == "unknown"),
-              do: Repo.rollback(:busy)
+            if Boss.Deliveries.busy?() or
+                 Repo.exists?(
+                   from r in Run, where: r.status in ^@active or r.cleanup == "unknown"
+                 ),
+               do: Repo.rollback(:busy)
 
             run =
               Repo.insert!(%Run{
@@ -161,7 +164,7 @@ defmodule Boss.Runs do
                      parent.cleanup == "group_empty" and map_size(parent.workspace) > 0,
                    do: Repo.rollback(:source_unavailable)
 
-            if replay_only or
+            if replay_only or Boss.Deliveries.busy?() or
                  Repo.exists?(
                    from r in Run, where: r.status in ^@active or r.cleanup == "unknown"
                  ),
@@ -217,7 +220,7 @@ defmodule Boss.Runs do
                      map_size(parent.workspace) > 0,
                    do: Repo.rollback(:source_unavailable)
 
-            if replay_only or
+            if replay_only or Boss.Deliveries.busy?() or
                  Repo.exists?(
                    from r in Run, where: r.status in ^@active or r.cleanup == "unknown"
                  ),

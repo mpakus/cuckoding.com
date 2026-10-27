@@ -349,8 +349,24 @@ Stop after reload, keyboard/focus,320px, source/task preservation. All three mer
 review branches deleted. Codex refused archival of both clean/detached review
 writers and the three older worktrees as still used by another active task.
 
-Следующий продуктовый шаг — BOSS-011: typed Architect plan и измеримые acceptance
-criteria, сохранённые отдельно от original spec и привязанные к его revision.
+Этот исторический проход дополнен managed workflow ниже; отдельные manual
+assessments по-прежнему не дают Done.
+
+## BOSS-011/014b/016a — managed workflow, fixes и ручная интеграция
+
+- [x] Typed Architect plan/criteria сохранены отдельно от pinned original source.
+- [x] Полные source/plan/diff/check output/receipt/feedback в fresh review; raw output не хранится.
+- [x] Исправление от rejected candidate, полный base diff, максимум 3 цикла и остановка повторной ошибки.
+- [x] Ready только при matching evidence; ручной Integrate точного SHA, reservation/CAS и postchecks перед Done.
+- [x] Освобождение target через detach собственного checkout; source/failed worktrees сохраняются.
+- [x] Native real-Git/real-pool fixtures: replay, Stop, drift, checked-out target, postcheck failure, Repo/receipt loss.
+- [x] UI: saved plan/report, Start/Stop/Integrate, unknown-request replay, late Stop и следующая задача после Done.
+- [ ] Итоговая browser/full-suite проверка, local main merge и уборка веток.
+
+Контракт: [MANAGED_DELIVERIES.md](../docs/MANAGED_DELIVERIES.md).
+Проверки используют конечный fake CLI; реальные model calls не выполнялись.
+macOS, один активный workflow, unchanged-target fast-forward. DAG/Claude/Linux,
+divergent merge, automatic crash recovery и packaging пока не включены.
 
 ## Следующие рабочие проходы
 
@@ -358,7 +374,7 @@ criteria, сохранённые отдельно от original spec и прив
 
 | Порядок | Tickets | Зависит от | Проверяемый результат / отказ |
 |---|---|---|---|
-| 1 | 011–014: plan, Claude, checks, review loop | 006–010 | Неполная реализация отвергается, исправленная проходит; invalid verdict и 3 исчерпанных цикла блокируют. |
+| 1 | 012: Claude и provider acceptance | managed Codex | Реальный opt-in проход и второй adapter с теми же provenance/cleanup gates; никакого paid auto-retry. |
 | 2 | 015: DAG и два worker | 011–014 | Independent tasks параллельны; cycle/missing/failed dependency запрещает запуск; повтор tick не дублирует run. |
-| 3 | 016: integration queue | 015, Git spike | Один repo интегрируется последовательно; target drift, conflict и failed checks не дают Done. |
+| 3 | 016b: divergent integration queue | 015, 016a | Новая база требует нового checked/reviewed merge candidate; drift/conflict/failed checks не дают Done. |
 | 4 | 017–018: recovery matrix, packaging | 016 | Kill/restart на каждой опасной границе; fresh macOS/Linux установка и полный spec→review→integrate проход. |

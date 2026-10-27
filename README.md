@@ -144,10 +144,9 @@ importer; a direct record call rejects an ID already assigned to another path.
 Task commands are available through `Boss.Tasks.transition/2`, with a unique
 command ID and expected state version. Attention/cancellation and safe recovery
 to `new` persist together with an immutable event. Exact retries return the same
-receipt; stale commands and conflicting reuse are rejected. Execution, checks,
-review and integration transitions remain closed until their evidence producers
-exist. Manual Codex attempts have a separate lifecycle and do not advance task
-workflow state. See the
+receipt; stale commands and conflicting reuse are rejected. Managed workflow
+producers advance tasks only with persisted stage evidence. Manual Codex attempts
+have a separate lifecycle and do not advance task workflow state. See the
 [command contract and transition table](docs/TASK_WORKFLOW.md).
 
 Migrations run at the next startup and preserve existing projects/history. The
@@ -175,12 +174,28 @@ focus to the task card.
 
 Details are scoped to the current project and read in one database snapshot.
 Loading/error states do not substitute a different revision's cached source.
-The drawer also shows manual Codex runs, explicit candidate checks, safe metadata
-and Stop. Review, integration and revision adoption remain future work. Full state mapping
+The drawer also provides managed workflows, explicit integration, manual Codex
+runs/checks/reviews, saved evidence and Stop. Revision adoption remains future work. Full state mapping
 and the read API are documented
 in [TASK_WORKFLOW.md](docs/TASK_WORKFLOW.md).
 
-## Run Codex on a task
+## Complete a task with Codex
+
+Open a task, enter a trusted **Workflow check command**, then choose **Start
+workflow**. BOSS saves a plan, implements in an isolated worktree, checks the
+snapshot and requests a fresh review. Failed checks or requested changes can
+trigger fixes, up to three cycles. This uses your Codex account and may incur
+charges for multiple runs. Closing the browser keeps the workflow running.
+
+An approved result waits for **Integrate approved result**. The target branch
+must be unchanged and not checked out by you. BOSS publishes the exact reviewed
+commit, reruns the checks, retains its checkout and frees the branch. Only then
+does the task move to **Done**. Failed postchecks retain the published result for
+inspection; BOSS never resets your checkout. First version: macOS, one active
+workflow, fast-forward integration only. See [managed delivery behavior and
+limits](docs/MANAGED_DELIVERIES.md).
+
+## Run Codex manually on a task
 
 Open a project, open a task card, then choose **Start Codex**. Install and sign in
 through the official Codex CLI first; BOSS uses the `codex` on its own PATH.

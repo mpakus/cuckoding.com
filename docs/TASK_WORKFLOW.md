@@ -1,12 +1,13 @@
 # Task commands and history
 
-`Boss.Tasks.transition/2` is a backend command API. Task workflow controls remain
-closed in the browser. The drawer separately supports [manual Codex attempts](MANUAL_RUNS.md)
+`Boss.Tasks.transition/2` is a backend command API. The drawer supports
+[managed delivery](MANAGED_DELIVERIES.md), including bounded fixes, explicit
+integration and verified Done. It separately supports [manual Codex attempts](MANUAL_RUNS.md)
 with retained workspaces and Stop, plus [manual candidate checks](MANUAL_CHECKS.md)
 and [read-only Codex assessments](MANUAL_REVIEWS.md);
 these attempts never advance task state.
-Workflow checks, review and integration producers must supply verified commit-bound
-evidence before the workflow transitions below can be enabled.
+Managed progress is derived from persisted commit-bound stage evidence; generic
+caller-selected workflow edges below remain closed.
 
 ## Command contract
 
@@ -70,12 +71,12 @@ Recovery accepts no new reason or target. Only return to `new` currently succeed
 clearing the current reason and recovery state. Recovery to a producer-dependent
 phase remains unavailable. It never repeats a process or Git operation.
 
-## Closed quality gates
+## Producer-owned quality gates
 
 The declared workflow edges follow `BOSS_PLAN.md`; each currently returns
 `{:error, {:gate_unavailable, producer}}` from its valid source state:
 
-| Action | Source → destination | Missing producer |
+| Generic action | Source → destination | Required producer |
 |---|---|---|
 | `start_planning` | new → planning | runner |
 | `finish_planning` | planning → ready | runner |
@@ -90,9 +91,13 @@ The declared workflow edges follow `BOSS_PLAN.md`; each currently returns
 | `finish_integration` | integrating → done | integration |
 
 Caller-provided SHAs, flags or a model's verdict cannot unlock these gates.
-The future producers must bind checks/review/integration to the actual spec
-revision, base and candidate commits and check configuration. Positive evidence
-validation, review cycle budgets and execution recovery remain future work.
+`Boss.Deliveries` owns the implemented path. Its internal `delivery_progress`
+command includes a delivery UUID and a command ID prefixed by that UUID. It reads
+the persisted delivery matching task/revision/expected version; it accepts no
+caller-selected destination or evidence. Plan/check/review lineage, cycle budget,
+exact candidate, publication and postcheck receipts gate Ready and Done. The
+delivery update and task event share one transaction. External task cancellation
+is preserved when a worker subsequently records its terminal outcome.
 
 `Boss.Tasks.Transition.dependency_satisfied?/1` recognizes only `done`.
 `ready_to_merge`, cancelled, failed, interrupted and all other states return false.
@@ -129,6 +134,7 @@ Only the dialog's `open` attribute is client-owned; LiveView updates its content
 The hook keeps a focused revision select aligned with server state after history
 navigation, since LiveView otherwise preserves that focused control's value.
 
-Revision metadata is not paginated yet. Task events refresh on the existing
-project refresh path; there is no runner event stream. Saved states that need
-execution/evidence producers remain unreachable through current commands.
+Revision metadata is not paginated yet. Committed run/delivery notifications
+coalesce board/detail refreshes. In-flight snapshot reads finish; obsolete results
+are discarded before loading the latest URL selection, avoiding cancellation in
+the middle of a database transaction.
