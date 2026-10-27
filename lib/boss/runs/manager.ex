@@ -2,7 +2,7 @@ defmodule Boss.Runs.Manager do
   @moduledoc false
   use GenServer
   alias Boss.{Deliveries, Repo, Runs}
-  alias Boss.Deliveries.Queue
+  alias Boss.Deliveries.{Queue, Scheduling}
 
   def start_link(opts \\ []),
     do: GenServer.start_link(__MODULE__, opts, name: Keyword.get(opts, :name, __MODULE__))
@@ -81,6 +81,11 @@ defmodule Boss.Runs.Manager do
         state
       )
 
+  def handle_call({:scheduling_set, version, capacity}, _from, state) do
+    result = Scheduling.update(version, capacity, map_size(state.active))
+    queue_reply(result, state)
+  end
+
   def handle_call({:queue_enqueue, project, task, command, text, reviewer}, _from, state) do
     result = Queue.admit(project, task, command, text, reviewer)
     queue_reply(result, state)
@@ -120,7 +125,7 @@ defmodule Boss.Runs.Manager do
   end
 
   defp managed_locked?(state) do
-    map_size(state.active) >= 2 or
+    map_size(state.active) >= Scheduling.capacity!() or
       Enum.any?(state.active, fn
         {_, {%Deliveries.Delivery{status: status}, _}} -> status == "integrating"
         _ -> true
