@@ -76,7 +76,7 @@ defmodule Boss.Repo.Migrations.AddWorkflowQueue do
 
     execute("""
     CREATE TRIGGER queued_delivery_guard BEFORE INSERT ON deliveries
-    WHEN EXISTS (SELECT 1 FROM delivery_requests WHERE task_id=NEW.task_id AND status IN ('queued','paused'))
+    WHEN EXISTS (SELECT 1 FROM delivery_requests WHERE task_id=NEW.task_id AND (status IN ('queued','paused') OR command_id=NEW.command_id))
       AND NOT EXISTS (SELECT 1 FROM delivery_requests q WHERE q.task_id=NEW.task_id AND q.status='queued'
         AND q.project_id=NEW.project_id AND q.command_id=NEW.command_id
         AND q.spec_revision_id=NEW.spec_revision_id AND q.admitted_version=NEW.admitted_version

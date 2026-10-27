@@ -36,7 +36,7 @@ defmodule Boss.WorkflowQueueTest do
     assert {:error, :task_queued} =
              Queue.admit(p.id, task.id, Ecto.UUID.generate(), "true", "codex")
 
-    assert {:error, :task_queued} =
+    assert {:error, :idempotency_conflict} =
              Deliveries.admit(p.id, task.id, command, "true", "claude", false)
 
     assert {:error, :task_queued} = Runs.admit(p.id, task.id, Ecto.UUID.generate())
@@ -104,6 +104,10 @@ defmodule Boss.WorkflowQueueTest do
     assert saved.status == "stale"
     assert saved.reason == "Task changed after this request was queued."
     assert {:error, :request_finished} = Queue.resume_saved(p.id, saved.id)
+
+    assert {:error, :idempotency_conflict} =
+             Deliveries.admit(p.id, a.id, saved.command_id, "true")
+
     assert {:ok, ^saved} = Queue.admit(p.id, a.id, request.command_id, "true", "codex")
     assert Deliveries.list(p.id, a.id) == []
   end
@@ -122,6 +126,10 @@ defmodule Boss.WorkflowQueueTest do
     assert {:ok, cancelled} = Queue.cancel(p.id, request.id)
     assert {:ok, ^cancelled} = Queue.cancel(p.id, request.id)
     assert {:error, :request_finished} = Queue.resume_saved(p.id, request.id)
+
+    assert {:error, :idempotency_conflict} =
+             Deliveries.admit(p.id, a.id, request.command_id, "true")
+
     assert Tasks.get_task!(a.id).state == "new"
   end
 

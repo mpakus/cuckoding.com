@@ -83,6 +83,12 @@ defmodule Boss.Deliveries do
             Repo.rollback(:idempotency_conflict)
 
           nil ->
+            if Repo.exists?(
+                 from r in Boss.Deliveries.Request,
+                   where: r.task_id == ^task and r.command_id == ^command
+               ),
+               do: Repo.rollback(:idempotency_conflict)
+
             if Boss.Deliveries.Queue.pending?(task), do: Repo.rollback(:task_queued)
             task = queued_task!(project, task)
             {:new, admit_new!(project, task, command, config, hash, reviewer, replay_only)}
