@@ -421,7 +421,7 @@ Restart the running BOSS server to apply the new startup migrations.
 - [x] Reviewer сохраняется до effects; allowlist/immutable migration, точный replay.
 - [x] Fresh-pool upgrade/restart/downgrade/quarantine verification.
 - [x] Выбор reviewer, locked request и исторические labels; focused UI regressions.
-- [ ] Bounded Claude structured stream, native fixture pipeline/Stop and independent review.
+- [x] Bounded Claude structured stream, native fixture pipeline/Stop and independent review.
 - [ ] Browser, combined suite, local main merge and branch/worktree cleanup.
 - [ ] Real-provider acceptance (отдельный opt-in).
 
