@@ -109,6 +109,24 @@ defmodule Boss.ReviewsTest do
     assert Runs.get(ctx.project.id, ctx.source.id) == ctx.source
     assert Runs.get(ctx.project.id, ctx.check.id) == ctx.check
     assert Tasks.get_task!(ctx.task.id).spec_revision_id == next.revision.id
+    assert {:ok, _} = Runs.update(check.id, status: "cancelled", cleanup: "not_started")
+
+    attrs = %{
+      id: Ecto.UUID.generate(),
+      project_id: ctx.project.id,
+      task_id: ctx.task.id,
+      spec_revision_id: ctx.task.spec_revision_id,
+      admitted_version: 1,
+      command_id: Ecto.UUID.generate(),
+      adapter: "codex"
+    }
+
+    assert_raise Exqlite.Error, ~r/run snapshot mismatch/, fn ->
+      Repo.insert!(struct(Runs.Run, attrs))
+    end
+
+    assert {:ok, {:new, current}} = Runs.admit(ctx.project.id, ctx.task.id, Ecto.UUID.generate())
+    assert current.spec_revision_id == next.revision.id
   end
 
   test "unknown, foreign, unpassed and nested parents cannot authorize review", ctx do
