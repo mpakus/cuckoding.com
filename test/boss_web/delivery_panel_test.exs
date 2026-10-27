@@ -112,6 +112,21 @@ defmodule BossWeb.DeliveryPanelTest do
     assert html =~ "File conflicts are not predicted"
   end
 
+  test "started queue history does not promise its workflow is still in bounded history" do
+    saved = %{
+      id: "queued",
+      status: "started",
+      spec_revision_id: 7,
+      reviewer: "codex",
+      check_config: %{"argv" => ["mix", "test"]},
+      reason: nil
+    }
+
+    html = panel([], queued_workflows: [saved])
+    assert html =~ "This request started a workflow. Active workflows can be stopped below."
+    refute html =~ "The saved workflow is shown below"
+  end
+
   test "unknown Queue request freezes the action as well as its input" do
     html =
       panel([],
