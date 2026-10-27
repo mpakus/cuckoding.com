@@ -974,10 +974,16 @@ defmodule BossWeb.ProjectLive do
     saved = assigns.queue_actions[request.id]
     eligible = request.status in if kind == :cancel, do: ~w(queued paused), else: ~w(paused)
 
-    !assigns.detail_loading && is_nil(assigns.detail_error) && is_nil(assigns.queue_starting) &&
-      is_nil(assigns.delivery_starting) && is_nil(assigns.adoption_starting) &&
-      is_nil(assigns.run_starting) && eligible && (kind == :cancel || assigns.run_supported) &&
+    queue_controls_available?(assigns) && is_nil(assigns.queue_starting) && eligible &&
+      (kind == :cancel || assigns.run_supported) &&
       (saved == kind || !delivery_uncertain?(assigns))
+  end
+
+  defp queue_controls_available?(assigns) do
+    assigns.details != nil && !assigns.detail_loading && is_nil(assigns.detail_error) &&
+      is_nil(assigns.delivery_starting) && is_nil(assigns.run_starting) &&
+      !adoption_pending?(assigns) && !verification_uncertain?(assigns) &&
+      map_size(assigns.manual_pending) == 0
   end
 
   defp renew_queue_actions(socket) do
@@ -1391,6 +1397,7 @@ defmodule BossWeb.ProjectLive do
       |> assign(:run_start_available, run_start_available?(assigns))
       |> assign(:delivery_start_available, delivery_start_available?(assigns))
       |> assign(:delivery_queue_available, delivery_action_available?(assigns, :queue))
+      |> assign(:queue_controls_available, queue_controls_available?(assigns))
       |> assign(:delivery_integrate_available, delivery_integrate_available?(assigns))
       |> assign(:delivery_uncertain, delivery_uncertain?(assigns))
 
@@ -1494,10 +1501,7 @@ defmodule BossWeb.ProjectLive do
             queue_starting={@queue_starting}
             queue_error={@queue_error}
             queue_available={@delivery_queue_available}
-            queue_controls_available={
-              !@detail_loading && is_nil(@detail_error) && is_nil(@delivery_starting) &&
-                is_nil(@adoption_starting) && is_nil(@run_starting)
-            }
+            queue_controls_available={@queue_controls_available}
             request={@delivery_requests[@details.task.id]}
             integration_requests={@integration_requests}
             start_available={@delivery_start_available}

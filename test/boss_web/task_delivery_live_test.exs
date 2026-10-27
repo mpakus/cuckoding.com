@@ -602,6 +602,42 @@ defmodule BossWeb.TaskDeliveryLiveTest do
     {:ok, _} = Queue.cancel(c.project.id, saved.id)
   end
 
+  test "unknown manual admission blocks Resume on another task until its receipt is reconciled",
+       c do
+    c = waiting_task(c)
+    other = spec(c.project, "manual")
+
+    {:ok, saved} =
+      Queue.enqueue(c.project.id, c.saved.task.id, Ecto.UUID.generate(), "mix test", "codex")
+
+    {:ok, [_]} = Queue.pause()
+    {:ok, view, _} = live(c.conn, "/projects/#{c.project.id}/tasks/#{other.task.id}")
+    settle(view)
+    :sys.suspend(Manager)
+    view |> element("#start-codex") |> render_click()
+
+    :sys.replace_state(view.pid, fn state ->
+      %{state | socket: Phoenix.LiveView.cancel_async(state.socket, :start_run, :kill)}
+    end)
+
+    settle(view)
+    render_patch(view, task_path(c))
+    settle(view)
+    assert has_element?(view, "#resume-queue-#{saved.id}[disabled]")
+    render_click(view, "resume_queue", %{"queue-id" => saved.id})
+    assert hd(Queue.list(c.project.id, c.saved.task.id)).status == "paused"
+    :sys.resume(Manager)
+    assert_receive {:manual, worker, _}, 1_000
+    send(worker, :stop)
+    assert_receive {:manual_finished, _}, 1_000
+    render_patch(view, "/projects/#{c.project.id}/tasks/#{other.task.id}")
+    settle(view)
+    render_patch(view, task_path(c))
+    settle(view)
+    refute has_element?(view, "#resume-queue-#{saved.id}[disabled]")
+    {:ok, _} = Queue.cancel(c.project.id, saved.id)
+  end
+
   test "a queue dispatched during Cancel refreshes the saved workflow and offers Stop", c do
     c = waiting_task(c)
     {:ok, view, _} = live(c.conn, task_path(c))
