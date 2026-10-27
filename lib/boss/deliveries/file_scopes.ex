@@ -14,23 +14,6 @@ defmodule Boss.Deliveries.FileScopes do
 
   def validate(_), do: {:error, :invalid_file_scopes}
 
-  def overlap?(nil, _), do: false
-  def overlap?(_, nil), do: false
-
-  def overlap?(left, right) do
-    paths = Enum.map(left ++ right, & &1["path"])
-
-    # SQLite only folds ASCII; serialize Unicode predictions conservatively too.
-    Enum.any?(paths, &(not String.match?(&1, ~r/\A[\x00-\x7f]*\z/))) or
-      Enum.any?(left, fn a ->
-        Enum.any?(right, fn b ->
-          a = String.downcase(a["path"])
-          b = String.downcase(b["path"])
-          a == b or String.starts_with?(a, b <> "/") or String.starts_with?(b, a <> "/")
-        end)
-      end)
-  end
-
   defp object(%Jason.OrderedObject{values: pairs}) do
     if Enum.sort(Enum.map(pairs, &elem(&1, 0))) == ~w(kind path), do: Map.new(pairs)
   end
