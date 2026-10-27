@@ -46,8 +46,69 @@ defmodule Boss.Projects.SpecDocumentTest do
              relative_path: "file.md",
              original_text: source,
              explicit_id: "42",
+             depends_on: ["other"],
              title: "Chosen title"
            }
+  end
+
+  test "dependencies preserve declaration order and explicit string IDs" do
+    ids = ["second", "42", "Задача", String.duplicate("é", 100)]
+    source = frontmatter("depends_on: " <> Jason.encode!(ids))
+    assert {:ok, ^ids} = SpecDocument.dependencies(source)
+    assert {:ok, %{depends_on: ^ids}} = SpecDocument.parse("task.md", source)
+    assert {:ok, []} = SpecDocument.dependencies("# Plain")
+    assert {:ok, []} = SpecDocument.dependencies(frontmatter("id: task"))
+    assert {:ok, []} = SpecDocument.dependencies(frontmatter("depends_on: []"))
+    assert {:ok, []} = SpecDocument.dependencies("\uFEFF---\r\ndepends_on: []\r\n---\r\n")
+  end
+
+  test "dependencies reject invalid YAML types and IDs without coercing or deduplicating" do
+    for yaml <- [
+          "{}",
+          "null",
+          "false",
+          "42",
+          "one",
+          "[42]",
+          "[true]",
+          "[null]",
+          "[{}]",
+          "[[]]",
+          "[one, one]",
+          "['']",
+          "[' ' ]",
+          "[' padded']",
+          "['padded ']",
+          ~s(["line\\nline"]),
+          ~s(["line\\rline"]),
+          ~s(["nul\\0byte"]),
+          Jason.encode!([String.duplicate("é", 101)])
+        ] do
+      source = frontmatter("depends_on: " <> yaml)
+      assert {:error, _} = SpecDocument.dependencies(source), yaml
+      assert {:error, _} = SpecDocument.parse("task.md", source), yaml
+    end
+  end
+
+  test "dependencies enforce count and the existing document and YAML boundaries" do
+    ids = Enum.map(1..32, &"task-#{&1}")
+
+    assert {:ok, ^ids} =
+             SpecDocument.dependencies(frontmatter("depends_on: " <> Jason.encode!(ids)))
+
+    for source <- [
+          frontmatter("depends_on: " <> Jason.encode!(["extra" | ids])),
+          frontmatter("depends_on: []\ndepends_on: []"),
+          frontmatter("depends_on: &ids [one]\nother: *ids"),
+          frontmatter("unknown: {duplicate: 1, duplicate: 2}"),
+          frontmatter("depends_on: [unterminated"),
+          String.duplicate("x", 1_048_577),
+          <<255>>,
+          <<0>>,
+          nil
+        ] do
+      assert {:error, _} = SpecDocument.dependencies(source)
+    end
   end
 
   test "quoted markup remains plain title text and literal alias characters remain strings" do
