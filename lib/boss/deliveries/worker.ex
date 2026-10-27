@@ -25,6 +25,10 @@ defmodule Boss.Deliveries.Worker do
   defp perform(delivery) do
     {project, revision} = Deliveries.inputs(delivery)
     continue!()
+
+    if delivery.reviewer == "claude" and is_nil(System.find_executable("claude")),
+      do: throw({:halt, :claude_unavailable})
+
     intent = ok!(Workspace.plan(project, delivery.id)) |> string_keys()
     delivery = stored!(Deliveries.set_intent(delivery.id, intent))
     input = %{"specification" => revision.original_text, "base_commit" => intent["base_commit"]}

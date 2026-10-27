@@ -122,6 +122,26 @@ defmodule Boss.ClaudeTest do
     assert parse([@init, event]).error == :unexpected_tool
   end
 
+  test "permitted rate notices retain only metadata and rejected limits stop" do
+    for status <- ["allowed", "allowed_warning"] do
+      notice = %{
+        "type" => "rate_limit_event",
+        "rate_limit_info" => %{"status" => status, "private" => "SECRET_SENTINEL"}
+      }
+
+      state = parse([@init, notice, @result])
+      assert Claude.complete?(state)
+      assert Enum.any?(state.events, &(&1["type"] == "rate_limit_event"))
+      refute inspect(state) =~ "SECRET_SENTINEL"
+    end
+
+    for info <- [%{"status" => "rejected"}, %{"status" => "unknown"}, %{}, nil] do
+      state = parse([@init, %{"type" => "rate_limit_event", "rate_limit_info" => info}, @result])
+      refute Claude.complete?(state)
+      assert state.error == :rate_limit
+    end
+  end
+
   test "error, refusal, missing schema result and denied tools never complete" do
     for result <- [
           Map.put(@result, "subtype", "error_max_turns"),
@@ -135,6 +155,36 @@ defmodule Boss.ClaudeTest do
       state = parse([@init, result])
       refute Claude.complete?(state)
       assert state.report == nil
+    end
+  end
+
+  test "explicit refusal, truncation, aborted or deferred terminal reasons cannot approve" do
+    for stop <- ["refusal", "max_tokens", "pause_turn", "unexpected"] do
+      refute Claude.complete?(parse([@init, Map.put(@result, "stop_reason", stop)]))
+    end
+
+    for reason <- [
+          "aborted_tools",
+          "hook_stopped",
+          "tool_deferred",
+          "max_turns",
+          "budget_exhausted",
+          "unexpected"
+        ] do
+      refute Claude.complete?(parse([@init, Map.put(@result, "terminal_reason", reason)]))
+    end
+
+    refute Claude.complete?(
+             parse([@init, Map.put(@result, "deferred_tool_use", %{"name" => "Bash"})])
+           )
+
+    for stop <- ["end_turn", "tool_use", "stop_sequence"] do
+      assert Claude.complete?(
+               parse([
+                 @init,
+                 Map.merge(@result, %{"stop_reason" => stop, "terminal_reason" => "completed"})
+               ])
+             )
     end
   end
 

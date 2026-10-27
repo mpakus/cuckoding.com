@@ -66,6 +66,7 @@ report = {
                     "evidence": "Complete supplied diff and check output"}],
     "issues": [{"criterion": criterion, "message": "Correct result.txt contents" if rejected else "Clarify expected output"}] if rejected or unclear else []
 }
+emit({"type": "rate_limit_event", "rate_limit_info": {"status": "allowed"}})
 emit({"type": "assistant", "message": {"content": [
     {"type": "text", "text": "CLAUDE_MODEL_SECRET_SENTINEL"},
     {"type": "tool_use", "id": "structured1", "name": "StructuredOutput", "input": report}
@@ -75,6 +76,10 @@ result = {"type": "result", "subtype": "error_max_turns" if mode == "error" else
           "is_error": mode == "error", "permission_denials": [{"tool_name": "Bash"}] if mode == "denied" else [],
           "structured_output": report, "usage": {"input_tokens": 12, "output_tokens": 4},
           "result": "CLAUDE_RESULT_SECRET_SENTINEL"}
+if mode == "refusal":
+    result["stop_reason"] = "refusal"
+if mode == "aborted":
+    result["terminal_reason"] = "aborted_tools"
 if mode == "missing_report":
     del result["structured_output"]
 if mode == "truncated":

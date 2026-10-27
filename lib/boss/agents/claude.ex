@@ -153,9 +153,21 @@ defmodule Boss.Agents.Claude do
     end
   end
 
+  defp dispatch(state, %{"type" => "rate_limit_event", "rate_limit_info" => info}) do
+    with {:ok, info} <- object(info),
+         status when status in ["allowed", "allowed_warning"] <- info["status"] do
+      record(state, "rate_limit_event")
+    else
+      _ -> fail(state, :rate_limit)
+    end
+  end
+
   defp dispatch(state, %{"type" => "result"} = event) do
     with "success" <- event["subtype"],
          false <- event["is_error"],
+         true <- event["stop_reason"] in [nil, "end_turn", "tool_use", "stop_sequence"],
+         true <- event["terminal_reason"] in [nil, "completed"],
+         nil <- event["deferred_tool_use"],
          [] <- event["permission_denials"],
          %Jason.OrderedObject{} = report <- event["structured_output"],
          text = Jason.encode!(report),

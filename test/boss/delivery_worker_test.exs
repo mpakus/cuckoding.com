@@ -148,6 +148,20 @@ defmodule Boss.DeliveryWorkerTest do
     assert length(calls(ctx)) == 3
   end
 
+  test "missing selected Claude fails before any Codex work or workspace preparation", ctx do
+    bin = Path.join(ctx.root, "bin")
+    File.rename!(Path.join(bin, "claude"), Path.join(bin, "claude-disabled"))
+    System.put_env("PATH", bin <> ":/usr/bin:/bin")
+    assert is_nil(System.find_executable("claude"))
+    manager = start_manager(ctx.repo)
+    {:ok, run} = start_claude(ctx, manager)
+    saved = await_delivery(ctx, run.id)
+    assert saved.status == "failed" and saved.reason =~ "Claude is unavailable"
+    assert saved.intent == %{}
+    assert Deliveries.steps(run.id) == []
+    refute File.exists?(Path.join(ctx.root, "calls"))
+  end
+
   test "Claude rejection feeds Codex fix and another fresh Claude review", ctx do
     System.put_env("BOSS_CLAUDE_MODE", "reject_once")
     manager = start_manager(ctx.repo)
@@ -169,7 +183,7 @@ defmodule Boss.DeliveryWorkerTest do
   end
 
   for mode <-
-        ~w(malformed oversized unsafe_init external_tool denied error missing_report coverage duplicate truncated nonzero) do
+        ~w(malformed oversized unsafe_init external_tool denied error missing_report coverage duplicate truncated nonzero refusal aborted) do
     @claude_mode mode
     test "Claude #{@claude_mode} halts without fallback or automatic repair", ctx do
       System.put_env("BOSS_CLAUDE_MODE", @claude_mode)
