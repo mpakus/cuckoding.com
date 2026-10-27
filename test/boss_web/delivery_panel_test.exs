@@ -91,6 +91,49 @@ defmodule BossWeb.DeliveryPanelTest do
     refute html =~ "Stop workflow"
   end
 
+  test "queued history preserves saved source, reviewer and command independent of the form" do
+    saved = %{
+      id: "queued",
+      status: "paused",
+      spec_revision_id: 6,
+      reviewer: "claude",
+      check_config: %{"argv" => ["mix", "test", "old_test.exs"]},
+      reason: "BOSS restarted. Resume explicitly."
+    }
+
+    html = panel([], queued_workflows: [saved])
+    assert html =~ "Paused — waiting for Resume"
+    assert html =~ "historical snapshot"
+    assert html =~ "Reviewer: Claude"
+    assert html =~ "old_test.exs"
+    assert html =~ "Resume uses the saved source"
+    assert html =~ ~s(id="resume-queue-queued")
+    assert html =~ ~s(id="cancel-queue-queued")
+    assert html =~ "File conflicts are not predicted"
+  end
+
+  test "unknown Queue request freezes the action as well as its input" do
+    html =
+      panel([],
+        queue_available: true,
+        start_available: false,
+        uncertain: true,
+        request: %{
+          id: "queue-request",
+          text: "mix test",
+          reviewer: "claude",
+          locked: true,
+          action: :queue
+        }
+      )
+
+    assert html =~ "Retry queue request"
+    refute html =~ "Retry workflow start"
+    assert html =~ ~s(value="start" disabled)
+    assert html =~ ~s(name="intent" value="queue")
+    assert html =~ ~s(name="reviewer" disabled)
+  end
+
   defp panel(deliveries, opts \\ []) do
     render_component(
       &DeliveryPanel.panel/1,

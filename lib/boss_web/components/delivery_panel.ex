@@ -5,6 +5,12 @@ defmodule BossWeb.DeliveryPanel do
   attr :details, :map, required: true
   attr :deliveries, :list, required: true
   attr :request, :map, required: true
+  attr :queued_workflows, :list, default: []
+  attr :queue_actions, :map, default: %{}
+  attr :queue_starting, :any, default: nil
+  attr :queue_error, :any, default: nil
+  attr :queue_available, :boolean, default: false
+  attr :queue_controls_available, :boolean, default: true
   attr :integration_requests, :map, required: true
   attr :start_available, :boolean, required: true
   attr :integrate_available, :boolean, required: true
@@ -33,6 +39,12 @@ defmodule BossWeb.DeliveryPanel do
         Source, plans, diffs, check output and prior feedback are sent to the selected agents.
         Closing this drawer keeps the workflow active.
       </p>
+      <p id="delivery-queue-help" class="mt-2 text-xs text-zinc-400">
+        Queue a workflow to start when its prerequisites are Done and capacity is available.
+        Up to two independent workflows can run at once. File conflicts are not predicted.
+        Queued work pauses after restart and needs Resume. Source changes require explicit adoption.
+        If the target branch changes, integration needs a fresh workflow.
+      </p>
       <p :if={!@supported} class="mt-3 text-sm text-amber-300">
         Task workflows currently require macOS.
       </p>
@@ -48,7 +60,7 @@ defmodule BossWeb.DeliveryPanel do
         <select
           id="delivery-reviewer"
           name="reviewer"
-          disabled={!@start_available || @request.locked}
+          disabled={(!@start_available && !@queue_available) || @request.locked}
           aria-describedby="delivery-reviewer-help delivery-account"
           class="w-full min-w-0 rounded border border-zinc-600 bg-zinc-900 px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:opacity-50"
         >
@@ -72,7 +84,7 @@ defmodule BossWeb.DeliveryPanel do
           required
           maxlength="4096"
           readonly={@request.locked}
-          disabled={!@start_available}
+          disabled={!@start_available && !@queue_available}
           autocomplete="off"
           spellcheck="false"
           placeholder="mix test"
@@ -86,13 +98,28 @@ defmodule BossWeb.DeliveryPanel do
         <button
           id="start-delivery"
           type="submit"
+          name="intent"
+          value="start"
           disabled={!@start_available}
           aria-describedby="delivery-help delivery-account"
           class="rounded-md bg-emerald-400 px-4 py-2 font-semibold text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:opacity-50"
         >{cond do
-          @starting -> "Starting workflow…"
-          @request.locked -> "Retry workflow start"
+          @starting && Map.get(@request, :action, :start) == :start -> "Starting workflow…"
+          @request.locked && Map.get(@request, :action, :start) == :start -> "Retry workflow start"
           true -> "Start workflow"
+        end}</button>
+        <button
+          id="queue-delivery"
+          type="submit"
+          name="intent"
+          value="queue"
+          disabled={!@queue_available}
+          aria-describedby="delivery-queue-help delivery-account"
+          class="rounded-md border border-emerald-600 px-4 py-2 font-semibold text-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:opacity-50"
+        >{cond do
+          @starting && Map.get(@request, :action) == :queue -> "Adding to queue…"
+          @request.locked && Map.get(@request, :action) == :queue -> "Retry queue request"
+          true -> "Queue workflow"
         end}</button>
       </form>
       <p
@@ -104,6 +131,72 @@ defmodule BossWeb.DeliveryPanel do
         A workflow request is unresolved. Retry its saved request on the original task before starting other work.
       </p>
       <p :if={@error} id="delivery-error" role="alert" class="mt-3 text-sm text-red-300">{@error}</p>
+      <section
+        :if={@queued_workflows != []}
+        id="workflow-queue"
+        aria-label="Workflow queue"
+        class="mt-4"
+      >
+        <h4 class="text-sm font-semibold">Workflow queue</h4>
+        <p :if={@queue_error} id="queue-error" role="alert" class="mt-2 text-sm text-red-300">
+          {@queue_error}
+        </p>
+        <ol class="divide-y divide-zinc-800">
+          <li
+            :for={request <- @queued_workflows}
+            id={"queued-workflow-#{request.id}"}
+            class="space-y-2 py-3 text-sm"
+          >
+            <p role="status" class="font-medium">{queue_status(request.status)}</p>
+            <p :if={request.status == "queued"} class="text-xs text-zinc-400">
+              Waiting for prerequisites to be Done and available workflow capacity.
+            </p>
+            <p :if={request.status == "paused"} class="text-xs text-zinc-400">
+              Resume uses the saved source, reviewer and command. It does not adopt newer source.
+            </p>
+            <p class="text-xs text-zinc-400">
+              Source revision {BossWeb.TaskRevision.number(@details, request.spec_revision_id)}
+              <span :if={request.spec_revision_id != @details.pinned_revision.id}> · historical snapshot</span>
+              · Reviewer: {reviewer(request.reviewer)}
+            </p>
+            <p class="text-xs text-zinc-400">
+              Saved check command
+              <code class="block break-all text-zinc-300">{JSON.encode!(request.check_config["argv"])}</code>
+            </p>
+            <p :if={request.reason} class="whitespace-pre-wrap break-words text-amber-300">
+              {request.reason}
+            </p>
+            <div :if={request.status in ~w(queued paused)} class="flex flex-wrap gap-2">
+              <button
+                :if={request.status == "paused"}
+                id={"resume-queue-#{request.id}"}
+                type="button"
+                phx-click="resume_queue"
+                phx-value-queue-id={request.id}
+                disabled={
+                  !@supported || !@queue_controls_available || @queue_starting != nil ||
+                    (@uncertain && @queue_actions[request.id] != :resume)
+                }
+                class="rounded border border-emerald-600 px-3 py-2 text-emerald-300 disabled:opacity-50"
+              >{if @queue_actions[request.id] == :resume, do: "Retry Resume", else: "Resume"}</button>
+              <button
+                id={"cancel-queue-#{request.id}"}
+                type="button"
+                phx-click="cancel_queue"
+                phx-value-queue-id={request.id}
+                disabled={
+                  !@queue_controls_available || @queue_starting != nil ||
+                    (@uncertain && @queue_actions[request.id] != :cancel)
+                }
+                class="rounded border border-zinc-600 px-3 py-2 disabled:opacity-50"
+              >{if @queue_actions[request.id] == :cancel, do: "Retry Cancel", else: "Cancel queue"}</button>
+            </div>
+            <p :if={request.status == "started"} class="text-xs text-zinc-400">
+              The saved workflow is shown below. Stop it there while it is active.
+            </p>
+          </li>
+        </ol>
+      </section>
       <p :if={@deliveries == []} class="mt-4 text-sm text-zinc-400">No workflows yet.</p>
       <ol id="delivery-attempts" class="mt-3 divide-y divide-zinc-800">
         <li
@@ -252,6 +345,13 @@ defmodule BossWeb.DeliveryPanel do
       step.receipt["candidate_commit"] || step.input["candidate_commit"]
     end)
   end
+
+  defp queue_status("queued"), do: "Queued — waiting to start"
+  defp queue_status("paused"), do: "Paused — waiting for Resume"
+  defp queue_status("started"), do: "Started workflow"
+  defp queue_status("cancelled"), do: "Queue cancelled"
+  defp queue_status("stale"), do: "Queue source or task changed — start a fresh workflow"
+  defp queue_status(_), do: "Queue status unavailable"
 
   defp active?(delivery), do: delivery.status in @active
 
