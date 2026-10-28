@@ -146,13 +146,23 @@
   queue authorization. Pending requests block same-task Start and source adoption.
   Pause unstarted requests on restart; Resume retains the original inputs. A
   started request never returns to the queue or automatically respawns a stage.
-- Limit managed workers to two; manual execution and integration remain exclusive.
+- Persist global managed capacity 1–3 (default two); compare settings versions and
+  refuse shrink below actual owned workers until EXIT. Context, Manager and SQL
+  must use the same saved capacity; manual execution and integration stay exclusive.
   Keep one bounded rotating queue sweep and no writes for unchanged waiting state.
   Unknown cleanup is a global admission barrier, but its failure receipt must be
   persistable while a peer still runs. Match completion/EXIT to the owned ID/PID;
   Repo loss stops every owned worker, normal Stop affects only its selected one.
-  Unique worktrees do not prove conflict freedom; typed file scopes remain open.
+  Typed file scopes are predictions, never write permissions or correctness proof.
   See docs/WORKFLOW_QUEUE.md.
+- Preserve missing/null legacy scopes as unknown. Validate bounded literal relative
+  file/directory predictions; reject ambiguous JSON, glob/dot/parent/.git paths.
+  Acquire scope admission with the first implement step in an immediate transaction;
+  compare saved repository identity and active acquired claims, never planning-only
+  peers. Hold through fixes/checks/review. Use one SQL overlap policy for context,
+  UI and database guards; serialize non-ASCII known paths conservatively. Waiting
+  must not write timestamps or rerun a model; direct Stop and Repo-loss cleanup remain
+  available. Unknown predictions never imply safe parallel changes.
 - Concurrent worktrees/candidates may share newly created parent directories.
   Accept mkdir EEXIST only after fresh lstat confirms a real directory; preserve
   existing modes and reject files/symlinks. Propagate failed chmod. Keep UUID

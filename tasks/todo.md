@@ -486,6 +486,27 @@ Restart BOSS to apply migration20261027050000. No real-provider calls or remote
 publishing were performed. Next development increment:015c typed file scopes and
 capacity controls, preserving explicit inputs and integration evidence.
 
+## BOSS-015c — predicted file scopes и capacity1–3
+
+- [x] Bounded typed scopes, legacy/null unknown, native wait before first write.
+  Protocol5 passed(seed100900); parser mutation caught and restored.
+- [x] Persisted capacity CAS, atomic claims, SQL quarantine/JSON/REPLACE guards.
+  Backend21 passed(seed846041), real-pool concurrency/restart included; corrected
+  raw SQL probes assert the intended guards, with independent mutation proof.
+- [x] Capacity controls, saved predictions, true wait state, live release refresh.
+  Full web127 passed(seed929551); browser capacity1→3, overlap wait/release,
+  unknown warning, Stop, two-tab sync, reload and320px verified with finite CLIs.
+- [x] Peer loss before first write and before a later fix preserves known own cleanup.
+  Native lifecycle2 passed(seed11250,11.0s); isolated final native/SQL/pool18
+  passed(seed213515,81.5s). Later-fix guard mutation failed, restored rerun passed.
+- [ ] Complete combined suite, final review and documentation evidence.
+- [ ] Merge local main, verify combined result and clean temporary branches/worktrees.
+
+Scope predictions are advisory. Unknown scopes may still overlap; Unicode known
+scopes serialize conservatively. Waiting uses a worker slot. No provider calls,
+Linux acceptance or automatic quarantine recovery. Migration20261027060000 requires
+BOSS restart. Contract: [WORKFLOW_QUEUE.md](../docs/WORKFLOW_QUEUE.md).
+
 ## Следующие рабочие проходы
 
 Детализировать перед реализацией; не генерировать все модули заранее.
@@ -493,5 +514,5 @@ capacity controls, preserving explicit inputs and integration evidence.
 | Порядок | Tickets | Зависит от | Проверяемый результат / отказ |
 |---|---|---|---|
 | 1 | 012: provider acceptance | Claude reviewer 012a | Реальный opt-in проход с сохранёнными provenance/cleanup gates; никакого paid auto-retry. Claude implementer требует отдельной проверенной границы записи. |
-| 2 | 015c: file scopes и настройка capacity | 015b, 016b, typed plan extension | Известные пересечения сериализуются, неизвестные остаются явно обозначенными; configurable1–3 не ослабляет admission. |
-| 3 | 017–018: recovery matrix, packaging | 016 | Kill/restart на каждой опасной границе; fresh macOS/Linux установка и полный spec→review→integrate проход. |
+| 2 | 017: recovery acceptance | 015c, 016b | Подтверждённый отказ/restart на каждой границе, без повторного платного запуска и без потери истории. |
+| 3 | 018: packaging | 017 | Fresh macOS/Linux установка и полный spec→review→integrate проход. |
