@@ -350,6 +350,49 @@ defmodule Boss.WorkflowQueueNativeTest do
     assert length(File.ls!(ctx.gates)) == 1
   end
 
+  test "lost peer cleanup stops a scope waiter before its first write", ctx do
+    predict(ctx, %{"one" => scope("src"), "two" => scope("src/file.ex")})
+    manager = start_manager(ctx.repo)
+    [one] = enqueue(%{ctx | tasks: Enum.take(ctx.tasks, 1)}, manager)
+    peer = waiting(ctx, one)
+    [two] = enqueue(%{ctx | tasks: Enum.slice(ctx.tasks, 1, 1)}, manager)
+    survivor = planned(ctx, two)
+    lose_owner(ctx, manager, peer)
+    stopped = terminal(ctx, survivor.id)
+    assert stopped.status == "failed" and stopped.cleanup == "group_empty"
+    assert stopped.reason =~ "No further implementation started"
+    assert implementation_path(stopped) == nil
+    assert length(File.ls!(ctx.gates)) == 1
+  end
+
+  test "lost peer cleanup stops a later fix without misclassifying the survivor cleanup", ctx do
+    System.put_env("BOSS_DELIVERY_MODE", "reject_once")
+    manager = start_manager(ctx.repo)
+    [one, two] = enqueue(%{ctx | tasks: Enum.take(ctx.tasks, 2)}, manager)
+    peer = waiting(ctx, one)
+    survivor = waiting(ctx, two)
+    lose_owner(ctx, manager, peer)
+    release(ctx, survivor)
+    stopped = terminal(ctx, survivor.id)
+    assert stopped.status == "failed" and stopped.cleanup == "group_empty"
+    assert stopped.reason =~ "No further implementation started"
+    steps = Deliveries.steps(stopped.id)
+    assert Enum.count(steps, &(&1.kind == "implement")) == 1
+    review = Enum.find(steps, &(&1.kind == "review"))
+    assert review.receipt["report"]["verdict"] == "changes_requested"
+    eventually(fn -> not alive?(pid(ctx, survivor)) end)
+    assert Deliveries.get(ctx.project.id, peer.id).cleanup == "unknown"
+    assert File.read!(Path.join(ctx.source, "result.txt")) == "base"
+  end
+
+  defp lose_owner(ctx, manager, delivery) do
+    {_, owner} = :sys.get_state(manager).active[delivery.id]
+    native_pid = pid(ctx, delivery)
+    Process.exit(owner, :kill)
+    assert terminal(ctx, delivery.id).cleanup == "unknown"
+    eventually(fn -> not alive?(native_pid) end)
+  end
+
   defp scope(path), do: [%{"path" => path, "kind" => "file"}]
 
   defp predict(ctx, scopes),

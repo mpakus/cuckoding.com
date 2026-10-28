@@ -629,7 +629,7 @@ defmodule Boss.Deliveries.Worker do
           500 -> begin_step(delivery, kind, cycle, input)
         end
 
-      {:error, :execution_quarantined} when kind == "implement" and cycle == 1 ->
+      {:error, :execution_quarantined} when kind == "implement" ->
         throw({:halt, :execution_quarantined})
 
       result ->
@@ -668,7 +668,7 @@ defmodule Boss.Deliveries.Worker do
 
         :execution_quarantined ->
           {"failed", "group_empty",
-           "Another execution has unknown cleanup. Implementation was not started; inspect the interrupted workflow."}
+           "Another execution has unknown cleanup. No further implementation started; inspect the interrupted workflow."}
 
         :claude_unavailable ->
           {"failed", "not_started",
