@@ -499,7 +499,9 @@ capacity controls, preserving explicit inputs and integration evidence.
 - [x] Peer loss before first write and before a later fix preserves known own cleanup.
   Native lifecycle2 passed(seed11250,11.0s); isolated final native/SQL/pool18
   passed(seed213515,81.5s). Later-fix guard mutation failed, restored rerun passed.
-- [ ] Complete combined suite, final review and documentation evidence.
+- [x] Complete combined suite, final review and documentation evidence.
+  Full535 passed/1 existing skip(seed418426,836.9s); final narrow worker/SQL
+  refinements verified separately in native/SQL/pool18(seed213515).
 - [ ] Merge local main, verify combined result and clean temporary branches/worktrees.
 
 Scope predictions are advisory. Unknown scopes may still overlap; Unicode known

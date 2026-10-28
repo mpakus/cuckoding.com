@@ -63,7 +63,7 @@ snapshot index. The read-only planner returns `file_scopes`: either `null` for a
 unknown prediction or 1–64 objects with `path` and `kind` (`file` or `directory`).
 Paths are literal repository-relative UTF-8 names, at most 1024 bytes each; no
 empty/dot/parent segments, `.git` (including case aliases), glob characters,
-backslashes, colons, control characters or trailing slash. Older saved plans that
+backslashes, colons, ASCII control characters or trailing slash. Older saved plans that
 omit this field remain unknown. Predictions appear in the workflow history.
 
 Immediately before the first implement step, an atomic check compares its saved
