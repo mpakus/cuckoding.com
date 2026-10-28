@@ -28,6 +28,7 @@ defmodule Boss.Runs.Manager do
          finished: %{},
          queue_timer: nil,
          queue_cursor: nil,
+         autopilot_cursor: nil,
          worker: Keyword.get(opts, :worker, &Boss.Runs.Worker.execute/3),
          check_worker: Keyword.get(opts, :check_worker, &Boss.Checks.Worker.execute/3),
          review_worker: Keyword.get(opts, :review_worker, &Boss.Reviews.Worker.execute/3),
@@ -221,16 +222,21 @@ defmodule Boss.Runs.Manager do
     do: {:noreply, schedule(state, 500)}
 
   defp autopilot_tick(state) do
-    case Autopilot.advance() do
+    case Autopilot.advance(state.autopilot_cursor) do
       {:ok, {:launch, kind, run, batch}} ->
         execute = if kind == :integrate, do: state.integration_worker, else: state.delivery_worker
-        {:noreply, schedule(start_worker(run, execute, state, batch), 500)}
+
+        {:noreply,
+         schedule(start_worker(run, execute, %{state | autopilot_cursor: nil}, batch), 500)}
 
       {:error, :storage_error} ->
         {:stop, :run_storage_lost, state}
 
+      {:ok, {:waiting, cursor}} ->
+        {:noreply, schedule(%{state | autopilot_cursor: cursor}, 500)}
+
       _ ->
-        {:noreply, schedule(state, 500)}
+        {:noreply, schedule(%{state | autopilot_cursor: nil}, 500)}
     end
   end
 
