@@ -12,6 +12,7 @@ defmodule Boss.Repo.Migrations.AddDeliveryScheduling do
     """)
 
     execute("INSERT INTO delivery_settings VALUES(1,2,0)")
+    # REPLACE may bypass DELETE triggers; these rows retain scheduling ownership.
 
     execute(
       "CREATE TRIGGER delivery_settings_insert BEFORE INSERT ON delivery_settings WHEN EXISTS(SELECT 1 FROM delivery_settings) BEGIN SELECT RAISE(ABORT, 'worker capacity cannot be replaced'); END"
@@ -19,7 +20,7 @@ defmodule Boss.Repo.Migrations.AddDeliveryScheduling do
 
     execute("""
     CREATE TRIGGER delivery_steps_no_replace BEFORE INSERT ON delivery_steps
-    WHEN EXISTS(SELECT 1 FROM delivery_steps WHERE id=NEW.id OR (delivery_id=NEW.delivery_id AND number=NEW.number))
+    WHEN EXISTS(SELECT 1 FROM delivery_steps WHERE id=NEW.id OR (delivery_id=NEW.delivery_id AND (number=NEW.number OR status='running')))
     BEGIN SELECT RAISE(ABORT, 'delivery evidence cannot be replaced'); END
     """)
 
@@ -67,6 +68,7 @@ defmodule Boss.Repo.Migrations.AddDeliveryScheduling do
       """)
     end
 
+    # SQLite folds ASCII only; Unicode predictions conservatively conflict.
     execute("""
     CREATE VIEW delivery_scope_conflicts AS
     SELECT DISTINCT incoming.id AS delivery_id, claimed.id AS blocker_id

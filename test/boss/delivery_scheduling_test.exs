@@ -58,13 +58,22 @@ defmodule Boss.DeliverySchedulingTest do
     assert {:ok, implementation} = implement(first)
 
     for step <- [first.plan, implementation] do
-      assert {:error, _} =
+      assert {:error, error} =
                Repo.query(
-                 "INSERT OR REPLACE INTO delivery_steps SELECT id,delivery_id,project_id,number,kind,cycle,input,'{}','running',inserted_at,updated_at FROM delivery_steps WHERE id=?",
+                 "INSERT OR REPLACE INTO delivery_steps(id,delivery_id,number,kind,cycle,input,receipt,status,inserted_at,updated_at) SELECT id,delivery_id,number,kind,cycle,input,'{}','running',inserted_at,updated_at FROM delivery_steps WHERE id=?",
                  [step.id]
                )
+
+      assert Exception.message(error) =~ "delivery evidence cannot be replaced"
     end
 
+    assert {:error, error} =
+             Repo.query(
+               "INSERT OR REPLACE INTO delivery_steps(id,delivery_id,number,kind,cycle,input,receipt,status,inserted_at,updated_at) SELECT ?,delivery_id,99,'review',1,'{}','{}','running',inserted_at,updated_at FROM delivery_steps WHERE id=?",
+               [Ecto.UUID.generate(), implementation.id]
+             )
+
+    assert Exception.message(error) =~ "delivery evidence cannot be replaced"
     assert Scheduling.blockers(second.delivery) == [first.delivery.id]
     saved = Deliveries.get(c.project.id, second.delivery.id)
     task = Tasks.get_task!(second.delivery.task_id)
@@ -72,7 +81,7 @@ defmodule Boss.DeliverySchedulingTest do
     assert Deliveries.get(c.project.id, second.delivery.id) == saved
     assert Tasks.get_task!(second.delivery.task_id) == task
     assert length(Deliveries.steps(second.delivery.id)) == 1
-    assert {:error, _} = raw_implement(second)
+    assert_raw_scope_refusal(second)
 
     assert {:ok, _} =
              Deliveries.finish_step(
@@ -106,7 +115,7 @@ defmodule Boss.DeliverySchedulingTest do
 
       if blocked do
         assert {:error, :scope_conflict} = implement(second)
-        assert {:error, _} = raw_implement(second)
+        assert_raw_scope_refusal(second)
       else
         assert {:ok, _} = implement(second)
       end
@@ -137,7 +146,7 @@ defmodule Boss.DeliverySchedulingTest do
     assert {:ok, _} = Deliveries.interrupt(first.delivery.id)
     assert Scheduling.blockers(second.delivery) == []
     assert {:error, :execution_quarantined} = implement(second)
-    assert {:error, _} = raw_implement(second)
+    assert_raw_scope_refusal(second)
   end
 
   test "quarantine also blocks disjoint predictions in another repository", c do
@@ -156,7 +165,7 @@ defmodule Boss.DeliverySchedulingTest do
     assert {:ok, _} = Deliveries.interrupt(first.delivery.id)
     assert Scheduling.blockers(second.delivery) == []
     assert {:error, :execution_quarantined} = implement(second)
-    assert {:error, _} = raw_implement(second)
+    assert_raw_scope_refusal(second)
   end
 
   test "duplicate JSON keys cannot hide a predicted scope from SQL admission", c do
@@ -294,14 +303,18 @@ defmodule Boss.DeliverySchedulingTest do
         attrs
       )
 
+  defp assert_raw_scope_refusal(data) do
+    assert {:error, error} = raw_implement(data)
+    assert Exception.message(error) =~ "predicted file scope is held"
+  end
+
   defp raw_implement(data),
     do:
       Repo.query(
-        "INSERT INTO delivery_steps(id,delivery_id,project_id,number,kind,cycle,input,receipt,status,inserted_at,updated_at) VALUES(?,?,?,2,'implement',1,?,'{}','running',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
+        "INSERT INTO delivery_steps(id,delivery_id,number,kind,cycle,input,receipt,status,inserted_at,updated_at) VALUES(?,?,2,'implement',1,?,'{}','running',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
         [
           Ecto.UUID.generate(),
           data.delivery.id,
-          data.delivery.project_id,
           JSON.encode!(%{"plan_step_id" => data.plan.id})
         ]
       )
