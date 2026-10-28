@@ -524,13 +524,17 @@ BOSS restart. Contract: [WORKFLOW_QUEUE.md](../docs/WORKFLOW_QUEUE.md).
   review rejection → repair, selected Stop and preflight refusal before model calls.
   Root3 passed(seed695059,100.7s); combined context/UI/native19(seed715326,105.6s).
   Backend42(seed669880), final Autopilot16(seed179266), full web135(seed411624).
-- [ ] Finish combined regression, browser acceptance and final documentation.
+- [x] Complete regression diagnosis, browser acceptance and final documentation.
+  Browser:2 Done, review repair, Pause/Resume/reload and320px. Full561/565 passed,
+  1 skipped,4 fixture failures(seed887626); after fixture-only fixes all4 reruns
+  passed(seed610996), complete web/context/pool152 and upgrade pool21 passed.
+  Compile/format/assets/diff passed. Full suite not repeated after fixture fixes.
 - [ ] Merge local main, verify and restart localhost:4000 with no active runs.
 - [ ] Remove merged temporary branches and archive owned writer worktrees.
 
-The first combined run exposed stale Autopilot aliases in a test Manager fixture.
-The fixture-only fix passed the complete web/context/pool regression152(seed723155);
-final combined acceptance is pending. Real-provider calls remain opt-in.
+The first combined run exposed stale fixture aliases and an incomplete legacy
+migration fixture; both are fixed without weakening production gates. Combined
+main acceptance is pending. Real-provider calls remain opt-in.
 Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 
 ## Следующие рабочие проходы
