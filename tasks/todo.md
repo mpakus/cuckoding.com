@@ -555,7 +555,12 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
   Broader affected suites195(seed907420,102.9s); combined web/native/recovery173
   (seed675757,46.1s). Browser confirms Manager restart → Paused/Resume without
   reload or provider effects. Full suite not rerun for this increment.
-- [ ] Merge local main, verify combined result and clean owned temporary branches/worktrees.
+- [x] Merge local main (`9f9042d`) and verify the combined result:53 passed,
+  seed175589,40.5s; compile warnings-as-errors and format passed. Local server updated.
+- [x] Delete both merged recovery branches; retain clean detached checkouts.
+- [ ] Archive the reused writer worktrees once the app releases its ownership hold.
+  Both archive attempts were refused because another active task still uses them;
+  no forced deletion.
 
 ## Следующие рабочие проходы
 
