@@ -28,7 +28,9 @@ defmodule Boss.Deliveries.Queue do
   def queued do
     Repo.all(
       from r in Request,
-        where: r.status == "queued",
+        where:
+          r.status == "queued" and
+            fragment("NOT EXISTS (SELECT 1 FROM autopilot_items a WHERE a.request_id=?)", r.id),
         order_by: [asc: r.inserted_at, asc: r.id],
         limit: 32
     )
@@ -88,8 +90,18 @@ defmodule Boss.Deliveries.Queue do
                  ),
                do: Repo.rollback(:busy)
 
-            if Repo.aggregate(from(r in Request, where: r.status in ^@pending), :count) >= 32,
-              do: Repo.rollback(:queue_full)
+            if Repo.aggregate(
+                 from(r in Request,
+                   where:
+                     r.status in ^@pending and
+                       fragment(
+                         "NOT EXISTS (SELECT 1 FROM autopilot_items a WHERE a.request_id=?)",
+                         r.id
+                       )
+                 ),
+                 :count
+               ) >= 32,
+               do: Repo.rollback(:queue_full)
 
             Repo.insert!(%Request{
               id: Ecto.UUID.generate(),
@@ -120,6 +132,8 @@ defmodule Boss.Deliveries.Queue do
       transaction(fn ->
         request = Repo.get_by(Request, project_id: project, id: id) || Repo.rollback(:not_found)
 
+        if Boss.Deliveries.Autopilot.owns_request?(id), do: Repo.rollback(:autopilot_owned)
+
         case {action, request.status} do
           {:cancel, status} when status in @pending ->
             save!(request, status: "cancelled", reason: "Queued workflow cancelled.")
@@ -149,7 +163,13 @@ defmodule Boss.Deliveries.Queue do
   @doc false
   def pause do
     transaction(fn ->
-      Repo.all(from r in Request, where: r.status == "queued", limit: 32)
+      Repo.all(
+        from r in Request,
+          where:
+            r.status == "queued" and
+              fragment("NOT EXISTS (SELECT 1 FROM autopilot_items a WHERE a.request_id=?)", r.id),
+          limit: 32
+      )
       |> Enum.map(
         &save!(&1,
           status: "paused",
@@ -166,7 +186,7 @@ defmodule Boss.Deliveries.Queue do
   def save!(request, attrs), do: request |> Ecto.Changeset.change(attrs) |> Repo.update!()
 
   defp broadcast_result({:ok, request} = result) do
-    Runs.broadcast(request)
+    unless Repo.in_transaction?(), do: Runs.broadcast(request)
     result
   end
 

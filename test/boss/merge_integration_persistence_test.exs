@@ -21,7 +21,8 @@ defmodule Boss.MergeIntegrationPersistenceTest do
     {20_261_027_030_000, Boss.Repo.Migrations.PinDeliveryReviewer},
     {20_261_027_040_000, Boss.Repo.Migrations.AddWorkflowQueue},
     {20_261_027_050_000, Boss.Repo.Migrations.AddMergeIntegrationEvidence},
-    {20_261_027_060_000, Boss.Repo.Migrations.AddDeliveryScheduling}
+    {20_261_027_060_000, Boss.Repo.Migrations.AddDeliveryScheduling},
+    {20_261_027_070_000, Boss.Repo.Migrations.AddAutopilot}
   ]
 
   test "upgrade preserves legacy approval and publication; durable merge intent forbids downgrade and restart replay" do
