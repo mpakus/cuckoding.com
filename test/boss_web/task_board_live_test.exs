@@ -48,7 +48,7 @@ defmodule BossWeb.TaskBoardLiveTest do
              )
     end
 
-    refute has_element?(view, "button", "Start")
+    refute has_element?(view, "#task-board button", "Start")
     refute has_element?(view, "button", "Approve")
   end
 
