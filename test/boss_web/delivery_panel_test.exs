@@ -94,6 +94,26 @@ defmodule BossWeb.DeliveryPanelTest do
     refute html =~ "Stop workflow"
   end
 
+  test "historical failed check explains candidate changes despite exit zero" do
+    saved = delivery("failed")
+
+    step = %{
+      number: 3,
+      kind: "check",
+      status: "failed",
+      input: %{},
+      receipt: %{"exit_code" => 0, "outcome" => "candidate_changed"}
+    }
+
+    html = panel([%{saved | steps: saved.steps ++ [step]}])
+    assert html =~ "Checks · failed"
+    assert html =~ "Process exit code: 0"
+    assert html =~ "retained ref changed during verification"
+    assert html =~ "generated build/test files"
+    assert html =~ "Do not ignore source or tests"
+    refute html =~ "Done — integrated"
+  end
+
   test "queued history preserves saved source, reviewer and command independent of the form" do
     saved = %{
       id: "queued",

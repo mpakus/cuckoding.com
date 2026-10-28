@@ -74,6 +74,9 @@ defmodule Boss.Deliveries.Protocol do
           those concrete failures; this worktree starts at the rejected candidate.
           Do not commit, merge, push or start background processes. BOSS will execute
           the user's saved check command and independent review after you finish.
+          The input includes check_config: prepare the project for that exact command.
+          Ignore only appropriate generated build/test artifacts in repository rules;
+          checks must leave source, tests and other candidate files unchanged.
           Your completion message is not proof that the task is complete.
           """
 

@@ -5,6 +5,7 @@ defmodule BossWeb.ProjectLive do
   alias Boss.Deliveries.{Queue, Scheduling}
 
   alias BossWeb.{
+    Autopilot,
     DeliveryPanel,
     RunPanel,
     TaskBoard,
@@ -108,6 +109,11 @@ defmodule BossWeb.ProjectLive do
   end
 
   @impl true
+  def handle_event("open_autopilot", _, socket) do
+    send_update(Autopilot, id: "autopilot", open: true)
+    {:noreply, socket}
+  end
+
   def handle_event("select_revision", %{"revision" => value}, socket) do
     with {task_id, _} <- socket.assigns.selection,
          revision when is_integer(revision) <- positive_id(value) do
@@ -673,8 +679,10 @@ defmodule BossWeb.ProjectLive do
 
   def handle_info({:task_changed, _}, socket), do: {:noreply, socket}
 
-  def handle_info({:run_changed, id}, %{assigns: %{project: %{id: id}}} = socket),
-    do: {:noreply, refresh(socket, :delivery_update)}
+  def handle_info({:run_changed, id}, %{assigns: %{project: %{id: id}}} = socket) do
+    send_update(Autopilot, id: "autopilot", refresh: true)
+    {:noreply, refresh(socket, :delivery_update)}
+  end
 
   def handle_info({:run_changed, _}, socket), do: {:noreply, socket}
 
@@ -1440,16 +1448,25 @@ defmodule BossWeb.ProjectLive do
           <p class="text-sm font-semibold tracking-widest text-emerald-400">BOSS · LOCAL</p>
           <h1 class="mt-2 break-words text-3xl font-semibold">{@project.name}</h1>
         </div>
-        <button
-          id="sync-specs"
-          type="button"
-          phx-click="sync"
-          disabled={@syncing}
-          aria-describedby="sync-help"
-          class="shrink-0 rounded-md bg-emerald-400 px-5 py-3 font-semibold text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:opacity-50"
-        >
-          {if @syncing, do: "Syncing…", else: "Sync specs"}
-        </button>
+        <div class="flex flex-wrap gap-3">
+          <button
+            id="project-autopilot"
+            type="button"
+            phx-click="open_autopilot"
+            aria-controls="autopilot-content"
+            class="shrink-0 rounded-md bg-emerald-400 px-5 py-3 font-semibold text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
+          >Autopilot</button>
+          <button
+            id="sync-specs"
+            type="button"
+            phx-click="sync"
+            disabled={@syncing}
+            aria-describedby="sync-help"
+            class="shrink-0 rounded-md border border-zinc-600 px-5 py-3 font-semibold text-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:opacity-50"
+          >
+            {if @syncing, do: "Syncing…", else: "Sync specs"}
+          </button>
+        </div>
       </div>
       <p id="sync-help" class="mt-5 text-sm text-zinc-300">
         <%= if @auto_sync do %>
@@ -1459,6 +1476,13 @@ defmodule BossWeb.ProjectLive do
         <% end %>
       </p>
       <p class="mt-2 break-all font-mono text-sm text-zinc-400">{@project.specs_path}</p>
+      <.live_component
+        module={Autopilot}
+        id="autopilot"
+        project={@project}
+        entries={@entries}
+        supported={@run_supported}
+      />
       <.live_component module={WorkflowCapacity} id="workflow-capacity" />
       <p id="sync-status" role="status" class="mt-4 min-h-5 text-sm text-zinc-300">{@status}</p>
       <div

@@ -307,7 +307,20 @@ defmodule BossWeb.DeliveryPanel do
               Saved stages
             </summary>
             <ol class="mt-2 space-y-1 text-xs text-zinc-400">
-              <li :for={step <- delivery.steps}>{step.number}. {stage(step.kind)} · {step.status}</li>
+              <li :for={step <- delivery.steps} class="space-y-1">
+                <p>{step.number}. {stage(step.kind)} · {step.status}</p>
+                <%= if step.status == "failed" do %>
+                  <p :if={is_integer(step.receipt["exit_code"])}>
+                    Process exit code: {step.receipt["exit_code"]}
+                  </p>
+                  <p
+                    :if={Boss.Deliveries.Diagnostics.message(step.receipt["outcome"])}
+                    class="text-amber-300"
+                  >
+                    {Boss.Deliveries.Diagnostics.message(step.receipt["outcome"])}
+                  </p>
+                <% end %>
+              </li>
             </ol>
           </details>
         </li>

@@ -14,6 +14,7 @@ assert "--ephemeral" in args and "--ignore-user-config" in args
 assert args[args.index("--ask-for-approval") + 1] == "never"
 prompt = sys.stdin.read()
 data = json.loads(prompt.split("BOSS delivery input (JSON):\n", 1)[1])
+assert isinstance(data["check_config"]["argv"], list) and data["check_config"]["argv"]
 mode = os.environ.get("BOSS_DELIVERY_MODE", "approved")
 root = Path(os.environ["BOSS_DELIVERY_FIXTURE"])
 schema = Path(args[args.index("--output-schema") + 1]) if "--output-schema" in args else None

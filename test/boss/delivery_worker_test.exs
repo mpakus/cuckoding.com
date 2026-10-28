@@ -308,6 +308,10 @@ defmodule Boss.DeliveryWorkerTest do
       {:ok, run} = start(ctx, manager)
       saved = await_delivery(ctx, run.id)
       assert saved.status == "failed", inspect(saved)
+
+      if @mode in ~w(plan_dirty check_dirty),
+        do: assert(saved.reason =~ "files, HEAD or retained ref changed")
+
       assert length(Enum.filter(calls(ctx), &(&1["kind"] == "implement"))) <= 1
       assert_no_raw(Deliveries.steps(run.id))
     end
