@@ -70,6 +70,14 @@ defmodule BossWeb.ManagerFixtureTest do
     assert_receive {:working, first_pid, first_delivery}, 1_000
     assert_receive {:working, second_pid, second_delivery}, 1_000
     manager = Process.whereis(Manager)
+    batch = Ecto.UUID.generate()
+
+    :sys.replace_state(manager, fn state ->
+      :ets.insert(state.registry, {{:autopilot, batch}, c.project.id, first_pid})
+      %{state | autopilot_cursor: {batch, 0, 1}}
+    end)
+
+    assert :ets.lookup(Boss.Runs.Active, {:autopilot, batch}) != []
     ManagerFixture.restore(c.original, [:delivery_worker])
     refute Process.alive?(first_pid)
     refute Process.alive?(second_pid)
@@ -92,6 +100,7 @@ defmodule BossWeb.ManagerFixtureTest do
     assert state.finished == %{}
     assert state.queue_timer == nil
     assert state.queue_cursor == nil
+    assert state.autopilot_cursor == nil
     assert :ets.tab2list(state.registry) == []
   end
 

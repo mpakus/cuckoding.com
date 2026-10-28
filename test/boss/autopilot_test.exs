@@ -121,9 +121,8 @@ defmodule Boss.AutopilotTest do
     assert {:ok, {:existing, _, ^first}} = Queue.claim(a.request_id)
     assert {:error, :busy} = Queue.claim(b.request_id)
 
-    assert {:error, :busy} =
+    assert {:error, :task_queued} =
              Deliveries.admit(c.project.id, b.task_id, Ecto.UUID.generate(), "true")
-             |> busy_or_queued()
 
     extra = task(c.project.id, "extra")
     assert {:error, :busy} = Runs.admit(c.project.id, extra.id, Ecto.UUID.generate())
@@ -247,7 +246,4 @@ defmodule Boss.AutopilotTest do
 
     task
   end
-
-  defp busy_or_queued({:error, :task_queued}), do: {:error, :busy}
-  defp busy_or_queued(result), do: result
 end
