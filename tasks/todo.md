@@ -502,7 +502,12 @@ capacity controls, preserving explicit inputs and integration evidence.
 - [x] Complete combined suite, final review and documentation evidence.
   Full535 passed/1 existing skip(seed418426,836.9s); final narrow worker/SQL
   refinements verified separately in native/SQL/pool18(seed213515).
-- [ ] Merge local main, verify combined result and clean temporary branches/worktrees.
+- [x] Merge local main and verify the final combined result.
+  Main b7e028a:39 passed(seed151074,77.7s), compile/format/assets/diff passed.
+- [x] Delete three merged temporary branches.
+- [ ] Archive the two clean detached scope writer worktrees. Codex refused twice
+  because another active task still uses them, including after agent completion
+  and primary reattachment. No force deletion; retry after its hold is released.
 
 Scope predictions are advisory. Unknown scopes may still overlap; Unicode known
 scopes serialize conservatively. Waiting uses a worker slot. No provider calls,
