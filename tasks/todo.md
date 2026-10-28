@@ -529,12 +529,16 @@ BOSS restart. Contract: [WORKFLOW_QUEUE.md](../docs/WORKFLOW_QUEUE.md).
   1 skipped,4 fixture failures(seed887626); after fixture-only fixes all4 reruns
   passed(seed610996), complete web/context/pool152 and upgrade pool21 passed.
   Compile/format/assets/diff passed. Full suite not repeated after fixture fixes.
-- [ ] Merge local main, verify and restart localhost:4000 with no active runs.
-- [ ] Remove merged temporary branches and archive owned writer worktrees.
+- [x] Merge local main, verify and restart localhost:4000 with no active runs.
+  Main dcf72f9:169 passed(seed352781,113.1s), compile/format/assets passed.
+  Backup saved before migration20261027070000; actual project page shows button.
+- [x] Delete all three merged temporary Autopilot branches.
+- [ ] Archive both clean detached writer worktrees. Codex refuses because another
+  active task still holds them, including after parent reattachment. Preserved safely.
 
 The first combined run exposed stale fixture aliases and an incomplete legacy
 migration fixture; both are fixed without weakening production gates. Combined
-main acceptance is pending. Real-provider calls remain opt-in.
+main acceptance passed169 tests. Real-provider calls remain opt-in.
 Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 
 ## Следующие рабочие проходы

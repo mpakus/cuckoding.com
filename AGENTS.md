@@ -176,7 +176,9 @@
   Accept mkdir EEXIST only after fresh lstat confirms a real directory; preserve
   existing modes and reject files/symlinks. Propagate failed chmod. Keep UUID
   scratch/report directories exclusive. Test Manager timers must end before their
-  Sandbox owner; never rescue ownership errors in production to hide fixture leaks.
+  Sandbox owner. Fixture teardown removes every registry alias owned by its exact
+  worker PIDs and resets both queue cursors; never rescue ownership errors in
+  production to hide fixture leaks.
 - Fixes get complete transient check output/receipt and prior feedback in a fresh
   worktree at the rejected candidate; review the full original-base diff. Maximum
   three cycles; repeated unchanged failure, invalid input, Stop or unknown cleanup
