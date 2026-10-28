@@ -541,6 +541,17 @@ migration fixture; both are fixed without weakening production gates. Combined
 main acceptance passed169 tests. Real-provider calls remain opt-in.
 Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 
+## BOSS-017a — backend crash и recovery UI
+
+- [x] Reproduce missing notifications and misleading refusal with10 failing
+  regressions(seed290114); fix after top-level commit without weakening quarantine.
+- [x] Real-pool rollback/commit/no-op and connected UI verification:59 passed,
+  seed898791,10.5s. Manual, managed, queue and Autopilot recovery are covered.
+- [ ] Actual child BEAM SIGKILL during implementation and after publication;
+  restart must preserve history/checkout, stop descendants and refuse automatic retry.
+- [ ] Independent review, combined focused acceptance and final documentation.
+- [ ] Merge local main, verify combined result and clean owned temporary branches/worktrees.
+
 ## Следующие рабочие проходы
 
 Детализировать перед реализацией; не генерировать все модули заранее.

@@ -282,7 +282,8 @@ defmodule Boss.Runs do
   @doc false
   def reconcile do
     transaction(fn ->
-      Repo.update_all(from(r in Run, where: r.status in ^@active),
+      Repo.update_all(
+        from(r in Run, where: r.status in ^@active, select: %{project_id: r.project_id}),
         set: [
           status: "interrupted",
           cleanup: "unknown",
@@ -293,6 +294,16 @@ defmodule Boss.Runs do
         ]
       )
     end)
+    |> case do
+      {:ok, {count, runs}} ->
+        unless Repo.in_transaction?(),
+          do: runs |> Enum.uniq_by(& &1.project_id) |> Enum.each(&broadcast/1)
+
+        {:ok, {count, nil}}
+
+      error ->
+        error
+    end
   end
 
   defp transaction(fun) do

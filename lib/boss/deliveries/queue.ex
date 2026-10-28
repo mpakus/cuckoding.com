@@ -184,6 +184,7 @@ defmodule Boss.Deliveries.Queue do
         )
       )
     end)
+    |> broadcast_result()
   end
 
   @doc false
@@ -191,6 +192,13 @@ defmodule Boss.Deliveries.Queue do
 
   @doc false
   def save!(request, attrs), do: request |> Ecto.Changeset.change(attrs) |> Repo.update!()
+
+  defp broadcast_result({:ok, requests} = result) when is_list(requests) do
+    unless Repo.in_transaction?(),
+      do: requests |> Enum.uniq_by(& &1.project_id) |> Enum.each(&Runs.broadcast/1)
+
+    result
+  end
 
   defp broadcast_result({:ok, request} = result) do
     unless Repo.in_transaction?(), do: Runs.broadcast(request)

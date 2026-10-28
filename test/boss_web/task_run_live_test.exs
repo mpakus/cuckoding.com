@@ -146,6 +146,19 @@ defmodule BossWeb.TaskRunLiveTest do
     refute_receive {:working, _, _}, 50
   end
 
+  test "recovery refreshes an already open manual attempt without reloading", ctx do
+    {:ok, {:new, run}} = Runs.admit(ctx.project.id, ctx.saved.task.id, Ecto.UUID.generate())
+    {:ok, view, _} = live(ctx.conn, task_path(ctx))
+    settle(view)
+    assert has_element?(view, "#stop-run-#{run.id}")
+    assert {:ok, {1, _}} = Runs.reconcile()
+    settle(view)
+    assert has_element?(view, "#run-#{run.id}", "Run interrupted")
+    assert has_element?(view, "#run-cleanup-warning")
+    refute has_element?(view, "#stop-run-#{run.id}")
+    refute_receive {:working, _, _}, 30
+  end
+
   test "history is bounded and unsupported platforms have no enabled Start", ctx do
     for _ <- 1..12 do
       {:ok, {:new, run}} = Runs.admit(ctx.project.id, ctx.saved.task.id, Ecto.UUID.generate())
