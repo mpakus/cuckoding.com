@@ -68,9 +68,10 @@ defmodule Boss.Deliveries.Autopilot do
         not running?()
 
       %{status: "running"} = batch ->
-        not Enum.any?(rows(batch.id), fn {_, r, d, _} ->
-          r.status == "started" and d.status != "done"
-        end)
+        complete?(batch) and
+          not Enum.any?(rows(batch.id), fn {_, r, d, _} ->
+            r.status == "started" and d.status != "done"
+          end)
 
       _ ->
         false
@@ -85,10 +86,10 @@ defmodule Boss.Deliveries.Autopilot do
              join: b in AutopilotBatch,
              on: b.id == i.autopilot_id,
              where: r.delivery_id == ^delivery.id,
-             select: {b.status, i.integration_command_id}
+             select: {b, i.integration_command_id}
          ) do
-      {"running", ^command} -> true
-      {status, _} when status in ~w(running paused) -> false
+      {%{status: "running"} = batch, ^command} -> complete?(batch)
+      {%{status: status}, _} when status in ~w(running paused) -> false
       _ -> not running?()
     end
   end
@@ -240,25 +241,34 @@ defmodule Boss.Deliveries.Autopilot do
   @doc false
   def pause_on_restart do
     transaction(fn ->
-      for batch <- Repo.all(from b in AutopilotBatch, where: b.status == "running"),
-          do:
-            save(
-              batch,
-              "paused",
-              "BOSS restarted. Resume this saved Autopilot selection explicitly."
-            )
+      for batch <- Repo.all(from b in AutopilotBatch, where: b.status == "running") do
+        for {_, request, _, _} <- rows(batch.id),
+            request.status == "queued",
+            do:
+              Queue.save!(request,
+                status: "paused",
+                reason: "BOSS restarted. Resume the saved Autopilot selection explicitly."
+              )
+
+        save(batch, "paused", "BOSS restarted. Resume this saved Autopilot selection explicitly.")
+      end
     end)
   end
 
   @doc false
-  def advance do
-    preflight = preflight()
+  def advance(cursor \\ nil) do
+    pinned(fn ->
+      preflight = preflight()
 
-    transaction(fn ->
-      case Repo.one(from b in AutopilotBatch, where: b.status == "running") do
-        nil -> :idle
-        batch -> advance_batch(batch, preflight)
-      end
+      Repo.transaction(
+        fn ->
+          case Repo.one(from b in AutopilotBatch, where: b.status == "running") do
+            nil -> :idle
+            batch -> advance_batch(batch, preflight, cursor)
+          end
+        end,
+        mode: :immediate
+      )
     end)
     |> broadcast()
   end
@@ -282,7 +292,8 @@ defmodule Boss.Deliveries.Autopilot do
     end
   end
 
-  defp advance_batch(batch, preflight) do
+  defp advance_batch(batch, preflight, cursor) do
+    unless complete?(batch), do: Repo.rollback(:incomplete_autopilot)
     entries = rows(batch.id)
     unfinished = Enum.reject(entries, fn {_, _, d, _} -> d && d.status == "done" end)
 
@@ -326,12 +337,12 @@ defmodule Boss.Deliveries.Autopilot do
                 )
 
           nil ->
-            start_next(batch, unfinished, preflight)
+            start_next(batch, unfinished, preflight, cursor)
         end
     end
   end
 
-  defp start_next(batch, entries, preflight) do
+  defp start_next(batch, entries, preflight, cursor) do
     cond do
       Boss.Deliveries.Scheduling.quarantined?() ->
         block(
@@ -359,13 +370,34 @@ defmodule Boss.Deliveries.Autopilot do
         )
 
       true ->
+        offset =
+          case cursor do
+            {id, offset} when id == batch.id and is_integer(offset) -> offset
+            _ -> 0
+          end
+
+        deadline = System.monotonic_time(:millisecond) + 1_000
+
         selected =
-          Enum.find(entries, fn {_, r, _, _} ->
-            Tasks.Dependencies.check(batch.project_id, r.task_id) == :ok
+          entries
+          |> Enum.drop(offset)
+          |> Enum.reduce_while({:scanned, offset}, fn entry, {:scanned, index} ->
+            if System.monotonic_time(:millisecond) >= deadline do
+              {:halt, {:scanned, index}}
+            else
+              {_, request, _, _} = entry
+
+              if Tasks.Dependencies.check(batch.project_id, request.task_id) == :ok,
+                do: {:halt, entry},
+                else: {:cont, {:scanned, index + 1}}
+            end
           end)
 
         case selected do
-          nil ->
+          {:scanned, count} when count < length(entries) ->
+            {:waiting, {batch.id, count}}
+
+          {:scanned, _} ->
             block(
               batch,
               "No selected task is ready. Resolve missing, unfinished or cyclic prerequisites, then start a fresh selection."
@@ -463,7 +495,14 @@ defmodule Boss.Deliveries.Autopilot do
 
   defp broadcast(result), do: result
 
-  defp transaction(fun) do
+  defp complete?(batch),
+    do:
+      Repo.aggregate(from(i in AutopilotItem, where: i.autopilot_id == ^batch.id), :count) ==
+        length(batch.task_ids)
+
+  defp transaction(fun), do: pinned(fn -> Repo.transaction(fun, mode: :immediate) end)
+
+  defp pinned(fun) do
     selector = Repo.get_dynamic_repo()
     pid = if is_atom(selector), do: Process.whereis(selector), else: selector
 
@@ -471,7 +510,7 @@ defmodule Boss.Deliveries.Autopilot do
       Repo.put_dynamic_repo(pid)
 
       try do
-        Repo.transaction(fun, mode: :immediate)
+        fun.()
       rescue
         _ in [Exqlite.Error, Ecto.ConstraintError, DBConnection.ConnectionError] ->
           {:error, :storage_error}

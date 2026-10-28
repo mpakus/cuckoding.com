@@ -119,6 +119,7 @@ defmodule Boss.Repo.Migrations.AddAutopilot do
         WHERE b.status='running' AND r.task_id=NEW.task_id AND r.command_id=NEW.command_id))
       OR EXISTS (SELECT 1 FROM autopilot_items i JOIN autopilots b ON b.id=i.autopilot_id JOIN delivery_requests r ON r.id=i.request_id
         WHERE r.task_id=NEW.task_id AND r.command_id=NEW.command_id AND (b.status!='running'
+          OR (SELECT COUNT(*) FROM autopilot_items WHERE autopilot_id=b.id)!=json_array_length(b.task_ids)
           OR EXISTS (SELECT 1 FROM autopilot_items j JOIN delivery_requests q ON q.id=j.request_id JOIN deliveries d ON d.id=q.delivery_id
             WHERE j.autopilot_id=b.id AND d.status!='done')))
     BEGIN SELECT RAISE(ABORT, 'autopilot sequence unavailable'); END
@@ -129,7 +130,8 @@ defmodule Boss.Repo.Migrations.AddAutopilot do
     WHEN NEW.status='integrating' AND OLD.status!='integrating' AND (
       (EXISTS (SELECT 1 FROM autopilots WHERE status='running') AND NOT EXISTS
         (SELECT 1 FROM autopilot_items i JOIN autopilots b ON b.id=i.autopilot_id JOIN delivery_requests r ON r.id=i.request_id
-          WHERE b.status='running' AND r.delivery_id=NEW.id AND i.integration_command_id=NEW.integration_command_id))
+          WHERE b.status='running' AND r.delivery_id=NEW.id AND i.integration_command_id=NEW.integration_command_id
+            AND (SELECT COUNT(*) FROM autopilot_items WHERE autopilot_id=b.id)=json_array_length(b.task_ids)))
       OR EXISTS (SELECT 1 FROM autopilot_items i JOIN autopilots b ON b.id=i.autopilot_id JOIN delivery_requests r ON r.id=i.request_id
         WHERE r.delivery_id=NEW.id AND b.status='paused'))
     BEGIN SELECT RAISE(ABORT, 'autopilot integration not authorized'); END
