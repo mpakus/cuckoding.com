@@ -172,6 +172,10 @@
   worktree at the rejected candidate; review the full original-base diff. Maximum
   three cycles; repeated unchanged failure, invalid input, Stop or unknown cleanup
   halts. Do not persist raw output or truncate prompts to manufacture approval.
+- Give planning and implementation the saved check configuration before execution.
+  Preserve candidate-change diagnostics through the final failure and display old
+  failed-stage receipts without rewriting them. Exit zero with changed files/HEAD/ref
+  remains a failure; never silently exclude generated paths or ignore source/tests.
 - Unchanged-target integration fast-forwards the original approved candidate.
   An advanced target needs immutable merge/check/fresh-review stages, all kept
   `integrating`; preserve the original approval. Pin target and selected reviewer,

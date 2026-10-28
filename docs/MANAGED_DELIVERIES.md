@@ -41,12 +41,21 @@ JSON plan: summary, implementation steps and unique acceptance criteria. Origina
 Markdown is never rewritten. The implementation receives source and saved plan in
 a fresh worktree. A private-index snapshot produces an immutable candidate commit
 without modifying the implementation workspace or the user's checkout.
+Planning and implementation also receive the saved check configuration, so they
+can prepare for the exact command before the first check.
 
 The entered command runs without implicit shell expansion, with the same saved
 timeout/output bounds on every candidate. Exit 0 is insufficient: exact HEAD,
 ref, clean index/files and actual tree must still match the candidate. Only a
 normal process exit with both EOFs, confirmed group cleanup and complete UTF-8
 output can produce passing checks or feedback for a fix.
+
+If checks create unignored files (for example `_build/` in a new Mix project),
+even exit 0 fails candidate verification. **Saved stages** shows the exit code and
+explains the `candidate_changed` outcome, including historical receipts. Inspect
+the retained worktree's Git status and add appropriate generated-artifact ignore
+rules before a fresh workflow. Never ignore source/tests to make verification pass.
+Raw check output is not retained and cannot be reconstructed from its hash.
 
 A fresh review receives original source, saved plan, complete
 original-base→candidate diff, check configuration/receipt, complete bounded check
