@@ -7,6 +7,10 @@ action. Only successful publication and post-integration checks move the task to
 **Done**. The older manual runs/checks/reviews remain advisory and cannot be
 promoted into this workflow.
 
+Project-level [Autopilot](AUTOPILOT.md) explicitly authorizes automatic integration
+for the saved whole-Backlog batch. It reuses these same stages and gates, running
+one task through Done before starting the next. Ordinary Start/Queue remains manual.
+
 Codex plans, implements and fixes. Select **Codex** (default) or **Claude** as
 the independent reviewer before Start. The selection is saved for the whole
 workflow, including every fix cycle. Install/sign in to the selected CLI on BOSS's

@@ -455,3 +455,21 @@ peers never hold claims; unknown scopes remain explicit and advisory. Unicode
 known paths serialize conservatively because SQLite case folding is ASCII-only.
 Omit glob heuristics, leases/heartbeats, shared claim modes and scheduling scores.
 No dependencies, reference checkout changes or reindex were needed.
+
+## Autopilot: sequential completion and changed-candidate diagnosis
+
+Queries `autopilot`, `auto merge` and `dirty worktree` in the existing `bossrefs`
+index gave weak or cleanup-only matches; `verifyClosureHead` located the useful
+candidate boundary. Direct source/test reads followed each weak search.
+
+- Kander `dea0ba6b885c39a56ee769223f7fa5c054e68c70` (MIT),
+  `internal/review/disposition.go:174–240`, `disposition_test.go:29–96`: verify
+  exact clean HEAD around effects and retain historical approval identity.
+- Backlog `3580cfbbb1be4144a5cca5b49190e1f8158e4cf7` (core: Apache-2.0),
+  `packages/core/src/run-service.ts:470–624`, `run-service.test.ts:301–345`:
+  completion follows successful integration; retain failed work for inspection.
+
+BOSS independently layers a saved sequential authorization over existing workflow
+and integration receipts. It does not import a scheduler framework, auto-commit
+dirty files, push branches, create PRs or reuse approval for another commit.
+No reference code was copied, dependencies added, checkouts updated or indexes rebuilt.

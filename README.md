@@ -190,6 +190,13 @@ in [TASK_WORKFLOW.md](docs/TASK_WORKFLOW.md).
 
 ## Complete a task with a managed workflow
 
+To process the whole current Backlog, choose **Autopilot** beside **Sync specs** on
+the project page. Enter the check command and reviewer, then **Start Autopilot**.
+Tasks run one at a time through fixes, review, integration and verified Done;
+unresolved failure stops the sequence. Watch the saved task list and board, or use
+Pause/Resume/Stop. Later imports are excluded. The target branch must not be checked
+out in your working folders. See [Autopilot](docs/AUTOPILOT.md) for recovery and limits.
+
 Open a task, enter a trusted **Workflow check command**, select a reviewer, then choose **Start
 workflow**. BOSS saves a plan, implements in an isolated worktree, checks the
 snapshot and requests a fresh review. Failed checks or requested changes can
@@ -207,7 +214,7 @@ pauses on restart and needs **Resume**. Source adoption remains explicit. Unknow
 scope predictions show a conflict warning; predictions cannot guarantee safe merges.
 See [queue behavior](docs/WORKFLOW_QUEUE.md).
 
-An approved result waits for **Integrate approved result**. The target branch must
+With manual Start/Queue, an approved result waits for **Integrate approved result**. The target branch must
 not be checked out by you. If it advanced, BOSS creates a merge candidate and runs
 the saved checks and a fresh selected review before publication. The original
 approval stays in history. An unchanged target fast-forwards to its approved commit.

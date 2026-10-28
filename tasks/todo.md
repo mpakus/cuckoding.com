@@ -514,6 +514,25 @@ scopes serialize conservatively. Waiting uses a worker slot. No provider calls,
 Linux acceptance or automatic quarantine recovery. Migration20261027060000 requires
 BOSS restart. Contract: [WORKFLOW_QUEUE.md](../docs/WORKFLOW_QUEUE.md).
 
+## Autopilot — текущий Backlog до Done
+
+- [x] Atomic full-Backlog snapshot, exact replay, bounded dependency ordering.
+- [x] Sequential existing delivery → review → integration → postchecks → Done.
+- [x] Pause/Resume/Stop, restart pause and immutable SQL ownership guards.
+- [x] Prominent project button, frozen uncertain inputs, saved progress and task links.
+- [x] Native finite-CLI acceptance: dependency order, two verified Done commits,
+  review rejection → repair, selected Stop and preflight refusal before model calls.
+  Root3 passed(seed695059,100.7s); combined context/UI/native19(seed715326,105.6s).
+  Backend42(seed669880), final Autopilot16(seed179266), full web135(seed411624).
+- [ ] Finish combined regression, browser acceptance and final documentation.
+- [ ] Merge local main, verify and restart localhost:4000 with no active runs.
+- [ ] Remove merged temporary branches and archive owned writer worktrees.
+
+The first combined run exposed stale Autopilot aliases in a test Manager fixture.
+The fixture-only fix passed the complete web/context/pool regression152(seed723155);
+final combined acceptance is pending. Real-provider calls remain opt-in.
+Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
+
 ## Следующие рабочие проходы
 
 Детализировать перед реализацией; не генерировать все модули заранее.

@@ -146,6 +146,15 @@
   queue authorization. Pending requests block same-task Start and source adoption.
   Pause unstarted requests on restart; Resume retains the original inputs. A
   started request never returns to the queue or automatically respawns a stage.
+- Autopilot requires an explicit whole-current-Backlog snapshot (present New tasks,
+  max256), immutable request links and integration UUIDs. Replay precedes readiness;
+  require every member before dispatch. Only one task advances through verified
+  Done before another starts, regardless of saved worker capacity. Bound dependency
+  sweeps without waiting writes; reset the sweep cursor after Resume. Pause prevents
+  new tasks/integration but lets admitted work finish. Stop withdraws the batch and
+  signals its owned worker directly. Restart pauses; terminal failure halts without
+  fresh retries. Check target availability before model effects and at publication.
+  See docs/AUTOPILOT.md; ordinary Start/Queue never imply automatic integration.
 - Persist global managed capacity 1–3 (default two); compare settings versions and
   refuse shrink below actual owned workers until EXIT. Context, Manager and SQL
   must use the same saved capacity; manual execution and integration stay exclusive.
