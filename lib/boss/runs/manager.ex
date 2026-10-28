@@ -2,7 +2,7 @@ defmodule Boss.Runs.Manager do
   @moduledoc false
   use GenServer
   alias Boss.{Deliveries, Repo, Runs}
-  alias Boss.Deliveries.{Queue, Scheduling}
+  alias Boss.Deliveries.{Autopilot, Queue, Scheduling}
 
   def start_link(opts \\ []),
     do: GenServer.start_link(__MODULE__, opts, name: Keyword.get(opts, :name, __MODULE__))
@@ -17,7 +17,8 @@ defmodule Boss.Runs.Manager do
 
     with {:ok, _} <- Runs.reconcile(),
          {:ok, _} <- Deliveries.reconcile(),
-         {:ok, _} <- Queue.pause() do
+         {:ok, _} <- Queue.pause(),
+         {:ok, _} <- Autopilot.pause_on_restart() do
       {:ok,
        %{
          repo: repo,
@@ -27,6 +28,7 @@ defmodule Boss.Runs.Manager do
          finished: %{},
          queue_timer: nil,
          queue_cursor: nil,
+         autopilot_cursor: nil,
          worker: Keyword.get(opts, :worker, &Boss.Runs.Worker.execute/3),
          check_worker: Keyword.get(opts, :check_worker, &Boss.Checks.Worker.execute/3),
          review_worker: Keyword.get(opts, :review_worker, &Boss.Reviews.Worker.execute/3),
@@ -94,6 +96,16 @@ defmodule Boss.Runs.Manager do
   def handle_call({:queue_resume, project, id}, _from, state),
     do: queue_reply(Queue.resume_saved(project, id), state)
 
+  def handle_call({:autopilot_start, project, command, tasks, text, reviewer}, _from, state),
+    do:
+      queue_reply(
+        Autopilot.admit(project, command, tasks, text, reviewer, map_size(state.active) > 0),
+        state
+      )
+
+  def handle_call({:autopilot_resume, project, id, version}, _from, state),
+    do: queue_reply(Autopilot.resume_saved(project, id, version), state)
+
   defp queue_reply({:error, :storage_error} = result, state),
     do: {:stop, :run_storage_lost, result, state}
 
@@ -110,16 +122,26 @@ defmodule Boss.Runs.Manager do
 
   defp launch(error, _, state), do: {:reply, error, state}
 
-  defp start_worker(run, execute, state) do
+  defp start_worker(run, execute, state, autopilot \\ nil) do
     manager = self()
 
     worker =
       spawn_link(fn ->
         Repo.put_dynamic_repo(state.repo)
-        execute.(run, state.repo, manager)
+
+        receive do
+          :execute -> execute.(run, state.repo, manager)
+        end
       end)
 
     :ets.insert(state.registry, {run.id, run.project_id, worker})
+
+    if autopilot do
+      :ets.insert(state.registry, {{:autopilot, autopilot}, run.project_id, worker})
+      if Autopilot.cancelled?(autopilot), do: send(worker, :stop)
+    end
+
+    send(worker, :execute)
     Runs.broadcast(run)
     %{state | active: Map.put(state.active, run.id, {run, worker})}
   end
@@ -135,45 +157,11 @@ defmodule Boss.Runs.Manager do
   @impl true
   def handle_info({:queue_tick, tag}, %{queue_timer: {_, tag}} = state) do
     state = %{state | queue_timer: nil}
-    requests = Queue.queued()
-    {before, after_cursor} = Enum.split_while(requests, &(&1.id != state.queue_cursor))
 
-    ordered =
-      case after_cursor do
-        [cursor | rest] -> rest ++ before ++ [cursor]
-        [] -> requests
-      end
-
-    deadline = System.monotonic_time(:millisecond) + 1_000
-
-    result =
-      Enum.reduce_while(ordered, {:ok, state}, fn request, {:ok, state} ->
-        if System.monotonic_time(:millisecond) >= deadline or managed_locked?(state) do
-          {:halt, {:ok, state}}
-        else
-          state = %{state | queue_cursor: request.id}
-
-          case Queue.claim(request.id) do
-            {:ok, {:started, saved, delivery}} ->
-              Runs.broadcast(saved)
-              {:cont, {:ok, start_worker(delivery, state.delivery_worker, state)}}
-
-            {:ok, {:stale, saved}} ->
-              Runs.broadcast(saved)
-              {:cont, {:ok, state}}
-
-            {:error, :storage_error} ->
-              {:halt, {:error, state}}
-
-            _ ->
-              {:cont, {:ok, state}}
-          end
-        end
-      end)
-
-    case result do
-      {:ok, state} -> {:noreply, if(requests == [], do: state, else: schedule(state, 500))}
-      {:error, state} -> {:stop, :run_storage_lost, state}
+    if Autopilot.running?() do
+      autopilot_tick(state)
+    else
+      queue_tick(state)
     end
   end
 
@@ -230,6 +218,71 @@ defmodule Boss.Runs.Manager do
 
   def handle_info(_, state), do: {:noreply, state}
 
+  defp autopilot_tick(state) when map_size(state.active) > 0,
+    do: {:noreply, schedule(state, 500)}
+
+  defp autopilot_tick(state) do
+    case Autopilot.advance(state.autopilot_cursor) do
+      {:ok, {:launch, kind, run, batch}} ->
+        execute = if kind == :integrate, do: state.integration_worker, else: state.delivery_worker
+
+        {:noreply,
+         schedule(start_worker(run, execute, %{state | autopilot_cursor: nil}, batch), 500)}
+
+      {:error, :storage_error} ->
+        {:stop, :run_storage_lost, state}
+
+      {:ok, {:waiting, cursor}} ->
+        {:noreply, schedule(%{state | autopilot_cursor: cursor}, 500)}
+
+      _ ->
+        {:noreply, schedule(%{state | autopilot_cursor: nil}, 500)}
+    end
+  end
+
+  defp queue_tick(state) do
+    requests = Queue.queued()
+    {before, after_cursor} = Enum.split_while(requests, &(&1.id != state.queue_cursor))
+
+    ordered =
+      case after_cursor do
+        [cursor | rest] -> rest ++ before ++ [cursor]
+        [] -> requests
+      end
+
+    deadline = System.monotonic_time(:millisecond) + 1_000
+
+    result =
+      Enum.reduce_while(ordered, {:ok, state}, fn request, {:ok, state} ->
+        if System.monotonic_time(:millisecond) >= deadline or managed_locked?(state) do
+          {:halt, {:ok, state}}
+        else
+          state = %{state | queue_cursor: request.id}
+
+          case Queue.claim(request.id) do
+            {:ok, {:started, saved, delivery}} ->
+              Runs.broadcast(saved)
+              {:cont, {:ok, start_worker(delivery, state.delivery_worker, state)}}
+
+            {:ok, {:stale, saved}} ->
+              Runs.broadcast(saved)
+              {:cont, {:ok, state}}
+
+            {:error, :storage_error} ->
+              {:halt, {:error, state}}
+
+            _ ->
+              {:cont, {:ok, state}}
+          end
+        end
+      end)
+
+    case result do
+      {:ok, state} -> {:noreply, if(requests == [], do: state, else: schedule(state, 500))}
+      {:error, state} -> {:stop, :run_storage_lost, state}
+    end
+  end
+
   defp finish(original, result, state) do
     saved =
       case result do
@@ -241,6 +294,11 @@ defmodule Boss.Runs.Manager do
       {:ok, run} ->
         Runs.broadcast(run)
         :ets.delete(state.registry, original.id)
+
+        :ets.match_delete(
+          state.registry,
+          {{:autopilot, :_}, original.project_id, elem(Map.fetch!(state.active, original.id), 1)}
+        )
 
         {:noreply,
          schedule(

@@ -19,7 +19,8 @@ defmodule Boss.DeliveryWorkerTest do
     {20_261_027_030_000, Boss.Repo.Migrations.PinDeliveryReviewer},
     {20_261_027_040_000, Boss.Repo.Migrations.AddWorkflowQueue},
     {20_261_027_050_000, Boss.Repo.Migrations.AddMergeIntegrationEvidence},
-    {20_261_027_060_000, Boss.Repo.Migrations.AddDeliveryScheduling}
+    {20_261_027_060_000, Boss.Repo.Migrations.AddDeliveryScheduling},
+    {20_261_027_070_000, Boss.Repo.Migrations.AddAutopilot}
   ]
 
   setup do
@@ -307,6 +308,10 @@ defmodule Boss.DeliveryWorkerTest do
       {:ok, run} = start(ctx, manager)
       saved = await_delivery(ctx, run.id)
       assert saved.status == "failed", inspect(saved)
+
+      if @mode in ~w(plan_dirty check_dirty),
+        do: assert(saved.reason =~ "files, HEAD or retained ref changed")
+
       assert length(Enum.filter(calls(ctx), &(&1["kind"] == "implement"))) <= 1
       assert_no_raw(Deliveries.steps(run.id))
     end

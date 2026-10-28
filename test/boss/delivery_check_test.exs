@@ -43,6 +43,8 @@ defmodule Boss.DeliveryCheckTest do
       end)
 
     assert receipt["outcome"] == "candidate_changed"
+    assert receipt["reason"] =~ "files, HEAD or retained ref changed"
+    assert receipt["reason"] =~ "Do not ignore source or tests"
   end
 
   test "invalid UTF8 and output overflow never return partial evidence", ctx do

@@ -60,7 +60,7 @@ defmodule BossWeb.SpecSyncLiveTest do
     assert length(Projects.list_spec_entries(project.id)) == 3
     {:ok, reopened, _} = live(conn, "/projects/#{project.id}")
     assert has_element?(reopened, "#spec-entries li h4", "Alpha")
-    refute has_element?(reopened, "button", "Start")
+    refute has_element?(reopened, "#task-board button", "Start")
   end
 
   test "source changes and missing files keep their task snapshot visible", %{

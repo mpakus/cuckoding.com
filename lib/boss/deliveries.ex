@@ -157,7 +157,9 @@ defmodule Boss.Deliveries do
   end
 
   defp admit_new!(project, task, command, config, hash, reviewer, replay_only) do
-    if replay_only or managed_busy?() or run_busy?(), do: Repo.rollback(:busy)
+    if replay_only or managed_busy?() or run_busy?() or
+         not Boss.Deliveries.Autopilot.admission_allowed?(task.id, command),
+       do: Repo.rollback(:busy)
 
     unless task.state in ~w(new failed cancelled blocked needs_input interrupted),
       do: Repo.rollback(:task_unavailable)
@@ -220,7 +222,8 @@ defmodule Boss.Deliveries do
           delivery.integration_command_id != nil ->
             Repo.rollback(:idempotency_conflict)
 
-          replay_only or busy?() or run_busy?() ->
+          replay_only or busy?() or run_busy?() or
+              not Boss.Deliveries.Autopilot.integration_allowed?(delivery, command) ->
             Repo.rollback(:busy)
 
           delivery.status != "ready_to_merge" ->

@@ -317,3 +317,20 @@ scope до Ready/terminal; planning-only peers не блокируют друг 
 ожидает без новых записей или model calls, с работающим Stop. Неизвестные и
 неполные прогнозы не гарантируют отсутствие конфликтов. Проверки:
 [todo.md](todo.md), контракт [WORKFLOW_QUEUE.md](../docs/WORKFLOW_QUEUE.md).
+
+## Autopilot — весь текущий Backlog последовательно
+
+Явный Start сохраняет полный набор присутствующих New задач (до 256), pinned
+revision/version, checks, reviewer и UUID. Один workflow проходит plan, implement,
+checks, исправления и review; затем существующая exact-SHA integration с postchecks
+доводит его до Done. Только после этого начинается следующий. Готовность зависимостей
+может менять порядок; новые импорты и Failed задачи автоматически не добавляются.
+
+Pause позволяет текущему workflow дойти до approval, затем запрещает интеграцию и
+следующий запуск. Stop адресует live worker и отменяет остаток batch. Restart
+приостанавливает незапущенную работу; неизвестные последствия не повторяются.
+Неполный batch, изменившийся Backlog, занятый target, terminal failure и неизвестный
+cleanup дают явный отказ. Ручная Queue сохраняет прежнюю семантику.
+
+Кнопка Autopilot находится рядом с Sync specs; панель показывает сохранённые задачи
+и переходы, drawer — plan, проверки и review. Контракт: [AUTOPILOT.md](../docs/AUTOPILOT.md).

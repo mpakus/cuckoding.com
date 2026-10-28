@@ -31,7 +31,13 @@ defmodule Boss.Deliveries.Worker do
 
     intent = ok!(Workspace.plan(project, delivery.id)) |> string_keys()
     delivery = stored!(Deliveries.set_intent(delivery.id, intent))
-    input = %{"specification" => revision.original_text, "base_commit" => intent["base_commit"]}
+
+    input = %{
+      "specification" => revision.original_text,
+      "base_commit" => intent["base_commit"],
+      "check_config" => delivery.check_config
+    }
+
     prompt = ok!(Protocol.prompt(:plan, input))
 
     {plan_step, plan} =
@@ -65,6 +71,7 @@ defmodule Boss.Deliveries.Worker do
       "plan" => plan,
       "cycle" => cycle,
       "base_commit" => base,
+      "check_config" => delivery.check_config,
       "previous_feedback" => feedback
     }
 
@@ -640,6 +647,10 @@ defmodule Boss.Deliveries.Worker do
   defp successful!(%{receipt: %{"status" => "finished"}}), do: :ok
   defp successful!(%{receipt: %{"status" => "cancelled"}}), do: throw({:halt, :cancelled})
   defp successful!(%{receipt: %{"status" => "interrupted"}}), do: throw({:halt, :cleanup_unknown})
+
+  defp successful!(%{receipt: %{"outcome" => "candidate_changed"}}),
+    do: throw({:halt, :candidate_changed})
+
   defp successful!(_), do: throw({:halt, :stage_failed})
 
   defp halt(delivery, reason) do
@@ -665,6 +676,9 @@ defmodule Boss.Deliveries.Worker do
         :input_too_large ->
           {"failed", "group_empty",
            "Complete delivery input exceeds the 1 MiB limit. Nothing was truncated."}
+
+        :candidate_changed ->
+          {"failed", "group_empty", Boss.Deliveries.Diagnostics.message("candidate_changed")}
 
         :execution_quarantined ->
           {"failed", "group_empty",
