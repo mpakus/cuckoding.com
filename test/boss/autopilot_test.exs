@@ -246,5 +246,4 @@ defmodule Boss.AutopilotTest do
 
     task
   end
-
 end

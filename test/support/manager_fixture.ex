@@ -25,11 +25,18 @@ defmodule BossWeb.ManagerFixture do
       :sys.replace_state(Manager, fn state ->
         if state.queue_timer, do: Process.cancel_timer(elem(state.queue_timer, 0))
         drain(Map.new(workers, &{&1, true}))
-        Enum.each(state.active, fn {id, _} -> :ets.delete(state.registry, id) end)
+        # This fixture bypasses Manager.finish, including its Autopilot alias cleanup.
+        Enum.each(workers, &:ets.match_delete(state.registry, {:_, :_, &1}))
 
         state
         |> Map.merge(Map.take(original, worker_keys))
-        |> Map.merge(%{active: %{}, finished: %{}, queue_timer: nil, queue_cursor: nil})
+        |> Map.merge(%{
+          active: %{},
+          finished: %{},
+          queue_timer: nil,
+          queue_cursor: nil,
+          autopilot_cursor: nil
+        })
       end)
 
       :sys.resume(Manager)
