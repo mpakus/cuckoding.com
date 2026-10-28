@@ -1,6 +1,6 @@
 defmodule Boss.AutopilotPersistenceTest do
   use ExUnit.Case, async: false
-  alias Boss.{Deliveries, Projects, Repo}
+  alias Boss.{Deliveries, Projects, Repo, Runs}
   alias Boss.Deliveries.{Autopilot, AutopilotBatch, AutopilotItem, Queue, Request}
   alias Boss.Runs.Manager
   @moduletag capture_log: true
@@ -252,6 +252,65 @@ defmodule Boss.AutopilotPersistenceTest do
              Autopilot.admit(c.project.id, Ecto.UUID.generate(), ids(c), "true", "codex")
 
     assert length(batch.items) == 4
+  end
+
+  for kind <- [:manual, :managed, :queue, :autopilot] do
+    test "#{kind} recovery notifies each project after commit, never for rollback or no-op", c do
+      {recover, schema} = recovery_fixture(unquote(kind), c)
+      before_recovery = Repo.all(schema)
+      project = c.project.id
+      Runs.subscribe(project)
+
+      assert {:error, :rollback} =
+               Repo.transaction(fn ->
+                 assert {:ok, _} = recover.()
+                 refute_receive {:run_changed, ^project}, 30
+                 Repo.rollback(:rollback)
+               end)
+
+      assert Repo.all(schema) == before_recovery
+      assert {:ok, _} = recover.()
+      assert_receive {:run_changed, ^project}, 500
+      refute_receive {:run_changed, ^project}, 30
+
+      persisted =
+        Task.async(fn ->
+          Repo.put_dynamic_repo(c.repo)
+          Repo.all(schema)
+        end)
+        |> Task.await()
+
+      assert Enum.all?(persisted, &(&1.status in ~w(paused interrupted)))
+      assert {:ok, _} = recover.()
+      refute_receive {:run_changed, ^project}, 30
+      assert Repo.all(schema) == persisted
+    end
+  end
+
+  defp recovery_fixture(:manual, c) do
+    {:ok, {:new, _}} = Runs.admit(c.project.id, hd(c.tasks).id, Ecto.UUID.generate())
+    {&Runs.reconcile/0, Runs.Run}
+  end
+
+  defp recovery_fixture(:managed, c) do
+    for task <- Enum.take(c.tasks, 2) do
+      {:ok, {:new, _}} = Deliveries.admit(c.project.id, task.id, Ecto.UUID.generate(), "true")
+    end
+
+    {&Deliveries.reconcile/0, Deliveries.Delivery}
+  end
+
+  defp recovery_fixture(:queue, c) do
+    for task <- Enum.take(c.tasks, 2) do
+      {:ok, _} = Queue.admit(c.project.id, task.id, Ecto.UUID.generate(), "true", "codex")
+    end
+
+    {&Queue.pause/0, Request}
+  end
+
+  defp recovery_fixture(:autopilot, c) do
+    {:ok, _} = Autopilot.admit(c.project.id, Ecto.UUID.generate(), ids(c), "true", "codex")
+    {&Autopilot.pause_on_restart/0, AutopilotBatch}
   end
 
   defp ids(c), do: Enum.map(c.tasks, & &1.id)

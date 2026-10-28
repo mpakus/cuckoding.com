@@ -8,7 +8,8 @@ review, explicit integration и Done. При изменившемся target н�
 проходит сохранённые checks и свежий review до публикации. Pinned dependencies блокируют
 новый Start до завершения prerequisite. Явная очередь сохраняет параметры и допускает
 1–3 managed worker (default2); после restart ожидающие заявки требуют Resume. Manual runs и
-интеграция остаются эксклюзивными. Linux/provider/recovery/release gates
+интеграция остаются эксклюзивными. Явный Autopilot последовательно доводит текущий
+Backlog до проверенного Done через те же delivery/integration gates. Linux/provider/recovery/release gates
 остаются открыты; подробные verified increments приведены ниже.
 Задачи: [todo.md](todo.md). Источники: [RESEARCH.md](../docs/RESEARCH.md).
 
@@ -334,3 +335,17 @@ cleanup дают явный отказ. Ручная Queue сохраняет п
 
 Кнопка Autopilot находится рядом с Sync specs; панель показывает сохранённые задачи
 и переходы, drawer — plan, проверки и review. Контракт: [AUTOPILOT.md](../docs/AUTOPILOT.md).
+
+## BOSS-017a — авария backend и видимое восстановление
+
+Расширить существующие Repo-loss проверки настоящим SIGKILL отдельной BEAM VM:
+во время implementation и после публикации перед финальным postcheck receipt.
+Новый экземпляр приложения должен удержать историю и worktrees, пометить неизвестный
+исход, приостановить Autopilot и не повторять CLI или публикацию. Только собственные
+временные Git/SQLite и конечные тестовые CLI; пользовательский сервер не является fixture.
+
+Исправить подтверждённые ошибки UI: после coordinator-only restart сохранённые
+Interrupted/Paused должны дойти до открытых страниц; вложенная или откатившаяся
+транзакция не может сообщить о committed success. Отказ Autopilot должен учитывать
+paused ownership и unknown cleanup, без совета просто подождать. Автоматическое
+снятие quarantine не входит в этот проход. Контракт: [RECOVERY.md](../docs/RECOVERY.md).

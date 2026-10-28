@@ -205,6 +205,72 @@ defmodule BossWeb.AutopilotLiveTest do
     assert {:ok, nil} = Engine.current(c.project.id)
   end
 
+  test "restart pause updates the open panel without a page reload", c do
+    {:ok, _} =
+      Engine.admit(
+        c.project.id,
+        Ecto.UUID.generate(),
+        [c.first.task.id, c.second.task.id],
+        "true",
+        "codex"
+      )
+
+    {:ok, view, _} = live(c.conn, "/projects/#{c.project.id}")
+    settle(view)
+    assert has_element?(view, "#autopilot-status", "Running")
+    assert {:ok, [_]} = Engine.pause_on_restart()
+    settle(view)
+    assert has_element?(view, "#autopilot-status", "Paused")
+    assert has_element?(view, "#resume-autopilot")
+    refute_receive {:started, _, _}, 30
+  end
+
+  for blocker <- [:manual, :managed, :paused] do
+    test "#{blocker} ownership elsewhere refuses Start without suggesting waiting clears quarantine",
+         c do
+      other = project("Other project")
+      saved = task(other, "Other task")
+
+      case unquote(blocker) do
+        :manual ->
+          {:ok, {:new, _}} = Runs.admit(other.id, saved.task.id, Ecto.UUID.generate())
+          {:ok, _} = Runs.reconcile()
+
+        :managed ->
+          {:ok, {:new, delivery}} =
+            Deliveries.admit(other.id, saved.task.id, Ecto.UUID.generate(), "true")
+
+          {:ok, _} = Deliveries.interrupt(delivery.id)
+
+        :paused ->
+          {:ok, batch} =
+            Engine.admit(other.id, Ecto.UUID.generate(), [saved.task.id], "true", "codex")
+
+          {:ok, _} = Engine.pause(other.id, batch.id, batch.version)
+      end
+
+      schemas = [
+        Runs.Run,
+        Deliveries.Delivery,
+        Boss.Deliveries.AutopilotBatch,
+        Boss.Deliveries.Request
+      ]
+
+      before_start = Enum.map(schemas, &Repo.all/1)
+      {:ok, view, _} = live(c.conn, "/projects/#{c.project.id}")
+      settle(view)
+      view |> element("#project-autopilot") |> render_click()
+      view |> form("#autopilot-form", params()) |> render_submit()
+      settle(view)
+      assert has_element?(view, "#autopilot-error", "running or paused")
+      assert has_element?(view, "#autopilot-error", "cleanup is unconfirmed")
+      refute has_element?(view, "#autopilot-error", "Wait or pause it first")
+      assert Enum.map(schemas, &Repo.all/1) == before_start
+      assert {:ok, nil} = Engine.current(c.project.id)
+      refute_receive {:started, _, _}, 30
+    end
+  end
+
   defp project(name) do
     root = Path.join(System.tmp_dir!(), "boss-autopilot-ui-#{Ecto.UUID.generate()}")
     File.mkdir!(root)

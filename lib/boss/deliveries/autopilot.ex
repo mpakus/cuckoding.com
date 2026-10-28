@@ -275,6 +275,7 @@ defmodule Boss.Deliveries.Autopilot do
         save(batch, "paused", "BOSS restarted. Resume this saved Autopilot selection explicitly.")
       end
     end)
+    |> broadcast()
   end
 
   @doc false
@@ -508,6 +509,11 @@ defmodule Boss.Deliveries.Autopilot do
         last_action: action
       )
       |> Repo.update!()
+
+  defp broadcast({:ok, batches} = result) when is_list(batches) do
+    unless Repo.in_transaction?(), do: Enum.each(batches, &Runs.broadcast/1)
+    result
+  end
 
   defp broadcast({:ok, %{project_id: _} = batch} = result) do
     unless Repo.in_transaction?(), do: Runs.broadcast(batch)

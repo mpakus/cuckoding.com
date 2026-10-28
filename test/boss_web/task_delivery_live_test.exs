@@ -515,6 +515,22 @@ defmodule BossWeb.TaskDeliveryLiveTest do
     {:ok, _} = Queue.cancel(c.project.id, saved.id)
   end
 
+  test "restart pause refreshes the open queue and exposes Resume without reloading", c do
+    c = waiting_task(c)
+
+    {:ok, request} =
+      Queue.admit(c.project.id, c.saved.task.id, Ecto.UUID.generate(), "true", "codex")
+
+    {:ok, view, _} = live(c.conn, task_path(c))
+    settle(view)
+    assert has_element?(view, "#queued-workflow-#{request.id}", "Queued")
+    assert {:ok, [_]} = Queue.pause()
+    settle(view)
+    assert has_element?(view, "#queued-workflow-#{request.id}", "Paused")
+    assert has_element?(view, "#resume-queue-#{request.id}")
+    refute_receive {:workflow, _, _}, 30
+  end
+
   test "paused queue explicitly resumes its saved provider and revision", c do
     c = waiting_task(c)
 

@@ -195,7 +195,10 @@ defmodule BossWeb.Autopilot do
       assigns.supported and assigns.loaded and !assigns.acting and is_nil(assigns.pending) and
         (is_nil(assigns.batch) or assigns.batch.status in ~w(blocked completed cancelled))
 
-  defp error(:busy), do: "Another execution or Autopilot is active. Wait or pause it first."
+  defp error(:busy),
+    do:
+      "Another execution is active, another Autopilot is running or paused, or previous process cleanup is unconfirmed. Review the affected task or Autopilot; waiting or restarting does not clear unconfirmed cleanup."
+
   defp error(:task_queued), do: "A selected task is already queued. Review its saved request."
   defp error(:queue_full), do: "The workflow queue is full. Finish or cancel pending requests."
 

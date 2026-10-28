@@ -452,8 +452,12 @@ defmodule Boss.Deliveries do
       end)
 
     case result do
-      {:ok, deliveries} -> Enum.each(deliveries, &broadcast/1)
-      _ -> :ok
+      {:ok, deliveries} ->
+        unless Repo.in_transaction?(),
+          do: deliveries |> Enum.uniq_by(& &1.project_id) |> Enum.each(&broadcast/1)
+
+      _ ->
+        :ok
     end
 
     result

@@ -45,11 +45,13 @@ the browser does not stop the workers.
   A stale Stop still withdraws this batch; it cannot stop a different batch.
 - After a server restart, unstarted work pauses and needs explicit Resume.
   Interrupted workers are quarantined, never respawned from saved PIDs or status.
+  Connected pages receive the persisted pause even when only the coordinator restarts.
 
 Running Autopilot reserves global dispatch for its sequential work. The ordinary
 workflow capacity setting stays unchanged. Existing manual Start/Queue requests
 do not gain automatic integration. Paused requests still reserve their tasks;
 unknown process cleanup remains a global admission barrier.
+Waiting or restarting does not clear it; see [recovery behavior](RECOVERY.md).
 
 Codex plans, implements and fixes; the selected Codex or Claude reviewer receives
 the saved evidence. These calls use configured local accounts and may incur

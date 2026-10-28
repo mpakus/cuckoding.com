@@ -123,6 +123,10 @@
 - Stop must reach the live project-scoped worker without waiting on the Repo or
   Manager mailbox. Browser/requester death must not own the run. Repo loss kills
   the worker; restart never reuses a saved PID or automatically respawns work.
+- Recovery must notify connected pages after committed top-level changes, once
+  per affected project; no-op, nested transaction or rollback must stay silent.
+  Preserve unknown-cleanup quarantine and show it honestly; waiting or restarting
+  does not resolve it. See docs/RECOVERY.md for evidence and remaining gates.
 - Keep Codex source on stdin, workspace-write sandbox and explicit Start. Persist
   only bounded event types/counts/usage, never raw model/tool/stderr text. Test
   production transport with finite fake CLIs; paid/provider calls remain opt-in.
