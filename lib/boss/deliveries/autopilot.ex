@@ -14,11 +14,17 @@ defmodule Boss.Deliveries.Autopilot do
   def pause(project, id, version), do: change(project, id, :pause, version)
 
   def cancel(project, id, version, registry \\ Boss.Runs.Active) do
-    # The alias is registered before releasing the worker; Stop never waits for storage.
-    Runs.stop(project, {:autopilot, id}, registry)
-    result = change(project, id, :cancel, version)
-    Runs.stop(project, {:autopilot, id}, registry)
-    result
+    with true <- is_integer(project) and project > 0 and is_integer(version) and version >= 0,
+         {:ok, _} <- Ecto.UUID.cast(id) do
+      # Stop is terminal for this immutable batch, even when the browser's version is stale.
+      # Signal both sides of persistence so a raced admission cannot escape cancellation.
+      Runs.stop(project, {:autopilot, id}, registry)
+      result = change(project, id, :cancel, version)
+      Runs.stop(project, {:autopilot, id}, registry)
+      result
+    else
+      _ -> {:error, :invalid_command}
+    end
   end
 
   def current(project) do
@@ -38,6 +44,22 @@ defmodule Boss.Deliveries.Autopilot do
   def running?, do: Repo.exists?(from b in AutopilotBatch, where: b.status == "running")
 
   def owns_request?(id), do: Repo.get(AutopilotItem, id) != nil
+
+  @doc false
+  def awaiting_request?(project, task, config, hash, reviewer) do
+    Repo.exists?(
+      from b in AutopilotBatch,
+        where:
+          b.status == "running" and b.project_id == ^project and b.check_config == ^config and
+            b.config_hash == ^hash and b.reviewer == ^reviewer and
+            fragment("EXISTS (SELECT 1 FROM json_each(?) WHERE value=?)", b.task_ids, ^task) and
+            fragment(
+              "NOT EXISTS (SELECT 1 FROM autopilot_items i JOIN delivery_requests r ON r.id=i.request_id WHERE i.autopilot_id=? AND r.task_id=?)",
+              b.id,
+              ^task
+            )
+    )
+  end
 
   def owner(delivery) do
     Repo.one(
@@ -372,8 +394,12 @@ defmodule Boss.Deliveries.Autopilot do
       true ->
         offset =
           case cursor do
-            {id, offset} when id == batch.id and is_integer(offset) -> offset
-            _ -> 0
+            {id, version, offset}
+            when id == batch.id and version == batch.version and is_integer(offset) ->
+              offset
+
+            _ ->
+              0
           end
 
         deadline = System.monotonic_time(:millisecond) + 1_000
@@ -395,7 +421,7 @@ defmodule Boss.Deliveries.Autopilot do
 
         case selected do
           {:scanned, count} when count < length(entries) ->
-            {:waiting, {batch.id, count}}
+            {:waiting, {batch.id, batch.version, count}}
 
           {:scanned, _} ->
             block(

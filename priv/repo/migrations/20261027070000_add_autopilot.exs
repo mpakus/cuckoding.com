@@ -46,7 +46,11 @@ defmodule Boss.Repo.Migrations.AddAutopilot do
         AND t.state_version=NEW.admitted_version AND t.state IN ('new','failed','cancelled','blocked','needs_input','interrupted'))
       OR EXISTS (SELECT 1 FROM deliveries WHERE task_id=NEW.task_id AND (command_id=NEW.command_id OR status IN ('planning','implementing','testing','reviewing','integrating') OR cleanup='unknown'))
       OR EXISTS (SELECT 1 FROM agent_runs WHERE task_id=NEW.task_id AND (status IN ('preparing','launching','running','stopping') OR cleanup='unknown'))
-      OR (SELECT COUNT(*) FROM delivery_requests q WHERE status IN ('queued','paused') AND NOT EXISTS (SELECT 1 FROM autopilot_items i WHERE i.request_id=q.id))>=32
+      OR ((SELECT COUNT(*) FROM delivery_requests q WHERE status IN ('queued','paused') AND NOT EXISTS (SELECT 1 FROM autopilot_items i WHERE i.request_id=q.id))>=32
+        AND NOT EXISTS (SELECT 1 FROM autopilots b WHERE b.status='running' AND b.project_id=NEW.project_id
+          AND b.check_config=NEW.check_config AND b.config_hash=NEW.config_hash AND b.reviewer=NEW.reviewer
+          AND EXISTS (SELECT 1 FROM json_each(b.task_ids) WHERE value=NEW.task_id)
+          AND NOT EXISTS (SELECT 1 FROM autopilot_items i JOIN delivery_requests r ON r.id=i.request_id WHERE i.autopilot_id=b.id AND r.task_id=NEW.task_id)))
     BEGIN SELECT RAISE(ABORT, 'invalid queued authorization'); END
     """)
 

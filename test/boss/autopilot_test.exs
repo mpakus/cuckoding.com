@@ -71,6 +71,26 @@ defmodule Boss.AutopilotTest do
              Queue.admit(c.project.id, extra.id, Ecto.UUID.generate(), "true", "codex")
   end
 
+  test "a full ordinary queue in another project does not consume frozen batch capacity", c do
+    other =
+      Repo.insert!(%Projects.Project{
+        name: "Other",
+        root_path: "/other",
+        git_common_dir: "/other/.git",
+        specs_path: "/other/specs",
+        base_branch: "main"
+      })
+
+    for n <- 1..32 do
+      task = task(other.id, "queued#{n}")
+      assert {:ok, _} = Queue.admit(other.id, task.id, Ecto.UUID.generate(), "true", "codex")
+    end
+
+    assert {:ok, batch} = admit(c, c.tasks)
+    assert length(batch.items) == 3
+    assert length(Queue.queued()) == 32
+  end
+
   test "pause and resume use version CAS; Stop is terminal for the selected batch", c do
     {:ok, batch} = admit(c, c.tasks)
     assert {:ok, paused} = Autopilot.pause(c.project.id, batch.id, 0)

@@ -100,7 +100,14 @@ defmodule Boss.Deliveries.Queue do
                        )
                  ),
                  :count
-               ) >= 32,
+               ) >= 32 and
+                 not Boss.Deliveries.Autopilot.awaiting_request?(
+                   project,
+                   task,
+                   config,
+                   hash,
+                   reviewer
+                 ),
                do: Repo.rollback(:queue_full)
 
             Repo.insert!(%Request{
