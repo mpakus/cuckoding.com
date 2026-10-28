@@ -609,13 +609,32 @@ defmodule Boss.Deliveries.Worker do
         "config_hash" => delivery.config_hash
       })
 
-    step = stored!(Deliveries.begin_step(delivery.id, kind, cycle, input))
+    step = begin_step(delivery, kind, cycle, input)
     Process.put(:delivery_step, step.id)
     continue!()
     {receipt, value} = run.()
     saved = stored!(Deliveries.finish_step(step.id, receipt))
     Process.delete(:delivery_step)
     {saved, value}
+  end
+
+  defp begin_step(delivery, kind, cycle, input) do
+    continue!()
+
+    case Deliveries.begin_step(delivery.id, kind, cycle, input) do
+      {:error, :scope_conflict} when kind == "implement" and cycle == 1 ->
+        receive do
+          :stop -> throw({:halt, :cancelled})
+        after
+          500 -> begin_step(delivery, kind, cycle, input)
+        end
+
+      {:error, :execution_quarantined} when kind == "implement" ->
+        throw({:halt, :execution_quarantined})
+
+      result ->
+        stored!(result)
+    end
   end
 
   defp successful!(%{receipt: %{"status" => "finished"}}), do: :ok
@@ -646,6 +665,10 @@ defmodule Boss.Deliveries.Worker do
         :input_too_large ->
           {"failed", "group_empty",
            "Complete delivery input exceeds the 1 MiB limit. Nothing was truncated."}
+
+        :execution_quarantined ->
+          {"failed", "group_empty",
+           "Another execution has unknown cleanup. No further implementation started; inspect the interrupted workflow."}
 
         :claude_unavailable ->
           {"failed", "not_started",

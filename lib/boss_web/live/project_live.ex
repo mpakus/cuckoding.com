@@ -2,8 +2,16 @@ defmodule BossWeb.ProjectLive do
   use BossWeb, :live_view
   alias Boss.{Deliveries, Projects, Repo, Runs, Tasks}
   alias Boss.Projects.{SpecImporter, SpecWatcher}
-  alias Boss.Deliveries.Queue
-  alias BossWeb.{DeliveryPanel, RunPanel, TaskBoard, TaskDependencies, TaskRevision}
+  alias Boss.Deliveries.{Queue, Scheduling}
+
+  alias BossWeb.{
+    DeliveryPanel,
+    RunPanel,
+    TaskBoard,
+    TaskDependencies,
+    TaskRevision,
+    WorkflowCapacity
+  }
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
@@ -13,6 +21,7 @@ defmodule BossWeb.ProjectLive do
       SpecWatcher.subscribe(project.id)
       Runs.subscribe(project.id)
       Tasks.subscribe(project.id)
+      Scheduling.subscribe()
     end
 
     {:ok,
@@ -652,6 +661,13 @@ defmodule BossWeb.ProjectLive do
   def handle_async(:details, _obsolete, socket), do: {:noreply, finish_details(socket)}
 
   @impl true
+  def handle_info({:scheduling_updated, settings}, socket) do
+    send_update(WorkflowCapacity, id: "workflow-capacity", settings: settings)
+    {:noreply, socket}
+  end
+
+  def handle_info({:scope_claims_changed}, socket), do: {:noreply, refresh_details(socket)}
+
   def handle_info({:task_changed, id}, %{assigns: %{project: %{id: id}}} = socket),
     do: {:noreply, refresh(socket, :delivery_update)}
 
@@ -730,9 +746,15 @@ defmodule BossWeb.ProjectLive do
           fn ->
             case Tasks.get_details(project_id, task_id, revision) do
               {:ok, details} ->
+                deliveries = Deliveries.list(project_id, task_id)
+
                 details
                 |> Map.put(:runs, Runs.list(project_id, task_id))
-                |> Map.put(:deliveries, Deliveries.list(project_id, task_id))
+                |> Map.put(:deliveries, deliveries)
+                |> Map.put(
+                  :scope_blockers,
+                  Map.new(deliveries, &{&1.id, Scheduling.blockers(&1)})
+                )
                 |> Map.put(:queued_workflows, Queue.list(project_id, task_id))
 
               {:error, reason} ->
@@ -1437,6 +1459,7 @@ defmodule BossWeb.ProjectLive do
         <% end %>
       </p>
       <p class="mt-2 break-all font-mono text-sm text-zinc-400">{@project.specs_path}</p>
+      <.live_component module={WorkflowCapacity} id="workflow-capacity" />
       <p id="sync-status" role="status" class="mt-4 min-h-5 text-sm text-zinc-300">{@status}</p>
       <div
         :if={@errors != []}
@@ -1496,6 +1519,7 @@ defmodule BossWeb.ProjectLive do
             :if={@details}
             details={@details}
             deliveries={@deliveries}
+            scope_blockers={Map.get(@details, :scope_blockers, %{})}
             queued_workflows={@queued_workflows}
             queue_actions={@queue_actions}
             queue_starting={@queue_starting}

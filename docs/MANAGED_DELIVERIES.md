@@ -16,7 +16,9 @@ PATH; there is no automatic provider fallback. See [Claude review](CLAUDE_REVIEW
 
 Admission saves the task's immutable source revision, current task version,
 normalized check argv/config hash, reviewer and command UUID in an immediate transaction.
-At most two managed workflows can run together. Manual execution and integration
+The persisted global capacity allows 1–3 managed workflows, default two. Predicted
+file overlaps wait before implementation; unknown predictions are visibly flagged.
+See [workflow scheduling](WORKFLOW_QUEUE.md). Manual execution and integration
 remain globally exclusive; unknown cleanup blocks every new execution.
 Identical request retries return the original delivery, including after completion;
 changed input with the same UUID conflicts. A saved Ready result survives restart.
@@ -145,6 +147,6 @@ caller-provided verdicts/SHAs cannot directly command a terminal task state.
 Tests use finite fake CLIs, real Git, native macOS transport and exclusively created
 SQLite databases with real pools. They cover rejection/fixes, full feedback, budget,
 Stop, restart/replay, source preservation, target reservation, exact publication,
-postcheck failure, two managed workers and unknown receipt/Repo loss. Linux
-execution, real-provider acceptance, file-scope prediction and packaging remain separate
+postcheck failure, configured capacity, overlapping scopes and unknown receipt/Repo loss. Linux
+execution, real-provider acceptance and packaging remain separate
 open work. See `.worklog/` for actual commands and browser/full-suite evidence.

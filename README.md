@@ -200,10 +200,12 @@ may incur charges for multiple runs. Closing the browser keeps the workflow runn
 See [Claude review and its limits](docs/CLAUDE_REVIEW.md).
 
 Choose **Queue workflow** to save the command and reviewer while waiting for
-capacity or Done prerequisites. Up to two managed workflows can run at once in
-separate worktrees. **Cancel queue** withdraws an unstarted request; pending work
-pauses on restart and needs **Resume**. Source adoption remains explicit. Shared
-file conflicts are not predicted. See [queue behavior](docs/WORKFLOW_QUEUE.md).
+capacity or Done prerequisites. **Workflow capacity** sets the global limit to 1–3
+(default 2). Workflows use separate worktrees and wait before implementation when
+their saved predicted file scopes overlap. **Cancel queue** withdraws an unstarted request; pending work
+pauses on restart and needs **Resume**. Source adoption remains explicit. Unknown
+scope predictions show a conflict warning; predictions cannot guarantee safe merges.
+See [queue behavior](docs/WORKFLOW_QUEUE.md).
 
 An approved result waits for **Integrate approved result**. The target branch must
 not be checked out by you. If it advanced, BOSS creates a merge candidate and runs
@@ -213,7 +215,7 @@ Integrating an advanced target makes another reviewer call and may incur charges
 BOSS publishes only the validated commit, reruns checks, retains its checkout and
 frees the branch before **Done**. Conflicts, failed validation or further target
 drift stop the attempt. Failed postchecks retain the published result for inspection;
-BOSS never resets your checkout. Current execution: macOS, two managed workflows
+BOSS never resets your checkout. Current execution: macOS, up to three managed workflows
 and exclusive integration. See
 [managed delivery behavior and limits](docs/MANAGED_DELIVERIES.md).
 

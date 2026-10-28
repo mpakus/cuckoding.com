@@ -1,6 +1,7 @@
 defmodule Boss.DeliveryProtocolTest do
   use ExUnit.Case, async: true
   alias Boss.Deliveries.Protocol
+  alias Boss.Deliveries.FileScopes
   alias Boss.Agents.Codex
 
   @plan %{
@@ -25,6 +26,65 @@ defmodule Boss.DeliveryProtocolTest do
         ] do
       assert {:error, :invalid_plan} = Protocol.plan(invalid)
     end
+  end
+
+  test "typed file predictions preserve paths; legacy and null scopes are unknown" do
+    scopes = [
+      %{"path" => "lib/Hello.ex", "kind" => "file"},
+      %{"path" => "test", "kind" => "directory"}
+    ]
+
+    plan = Map.put(@plan, "file_scopes", scopes)
+    assert {:ok, ^plan} = Protocol.plan(JSON.encode!(plan))
+    unknown = Map.put(@plan, "file_scopes", nil)
+    assert {:ok, ^unknown} = Protocol.plan(JSON.encode!(unknown))
+
+    for invalid <- [
+          [],
+          %{},
+          true,
+          ["lib"],
+          scopes ++ scopes,
+          [%{"path" => "lib", "kind" => "glob"}],
+          [%{"path" => "lib", "kind" => "file", "extra" => 1}],
+          Enum.map(1..65, &%{"path" => "file#{&1}", "kind" => "file"})
+        ] do
+      assert {:error, :invalid_plan} =
+               Protocol.plan(JSON.encode!(Map.put(@plan, "file_scopes", invalid)))
+    end
+
+    for path <- [
+          "",
+          "/lib",
+          "lib/",
+          "lib//a",
+          ".",
+          "../lib",
+          "a/./b",
+          "a/../b",
+          ".git/config",
+          ".GIT/config",
+          "lib/*",
+          "a?b",
+          "a[b]",
+          "a{b}",
+          "C:lib",
+          "a\\b",
+          "a\nb",
+          "a\0b",
+          "a\x7fb",
+          " a",
+          "a ",
+          String.duplicate("a", 1025)
+        ] do
+      assert {:error, :invalid_file_scopes} =
+               FileScopes.validate([%{"path" => path, "kind" => "file"}])
+    end
+
+    duplicate =
+      ~s({"summary":"ok","steps":["step"],"acceptance":["criterion"],"file_scopes":[{"path":"a","path":"b","kind":"file"}]})
+
+    assert {:error, :invalid_plan} = Protocol.plan(duplicate)
   end
 
   test "review must cover the saved plan criteria exactly" do

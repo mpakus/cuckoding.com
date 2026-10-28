@@ -7,7 +7,7 @@ checks/review. Managed macOS workflow включает plan, checks, bounded fix
 review, explicit integration и Done. При изменившемся target новый merge candidate
 проходит сохранённые checks и свежий review до публикации. Pinned dependencies блокируют
 новый Start до завершения prerequisite. Явная очередь сохраняет параметры и допускает
-два managed worker; после restart ожидающие заявки требуют Resume. Manual runs и
+1–3 managed worker (default2); после restart ожидающие заявки требуют Resume. Manual runs и
 интеграция остаются эксклюзивными. Linux/provider/recovery/release gates
 остаются открыты; подробные verified increments приведены ниже.
 Задачи: [todo.md](todo.md). Источники: [RESEARCH.md](../docs/RESEARCH.md).
@@ -37,7 +37,7 @@ Elixir/OTP + Phoenix LiveView + SQLite соответствует этой за�
 | «Ready to Merge» неоднозначен | По умолчанию manual integration: `ready_to_merge` ждёт действия, не считается Done и не разблокирует зависимые задачи. Done — только после интеграции и проверок результата. |
 | Постинтеграционный тест падает уже после изменения target | Сначала собрать merge candidate в отдельном integration worktree и проверить. Публиковать только при совпадении ожидаемого target; сохранять before/after SHA. Если проверка после публикации упала — blocked, без автоматического reset пользовательской ветки. |
 | Два экземпляра Boss / два Project указывают на один репозиторий | Первый MVP допускает одного владельца data directory. Идентичность репозитория определяется canonical Git common directory; очередь интеграции общая для его worktrees. Второй владелец получает явную ошибку. |
-| Предсказанные file scopes не гарантируют безопасность | Сначала один worker; затем максимум 2 по плану. DAG + одна integration queue обязательны. Известные пересечения сериализуются; неизвестные scopes показывают риск, merge checks остаются обязательными. |
+| Предсказанные file scopes не гарантируют безопасность | Default2, configurable1–3. DAG + эксклюзивная интеграция обязательны. Известные пересечения ожидают до implementation; неизвестные scopes показывают риск, merge checks обязательны. |
 | Importer не определяет rename/delete/дубликаты ID | Explicit ID уникален внутри проекта; без ID ключ — относительный путь. Rename без ID — новая identity. Delete помечает missing, сохраняет историю; активный snapshot неизменяем. Ошибка одного файла не стирает предыдущий импорт. |
 | Повтор A → B → A нельзя потерять из-за уникальности hash | Новая ревизия создаётся при изменении текущего содержимого. Hash обнаруживает no-op, но не заменяет последовательность revisions и stable spec identity. |
 | Pause/Resume обещают больше возможностей, чем есть у CLI | Pause останавливает выдачу новых runs; текущий заканчивает шаг. Stop отменяет process group и сохраняет worktree. Resume продолжает разрешённый persisted шаг; session resume доступен только при capability адаптера. |
@@ -305,4 +305,15 @@ persistence:31 tests; новые native merge lifecycle + LiveView:30; combined 
 protocol/Git integration:19. Независимый review проверил исходники и SQL; браузерный
 проход завершил две задачи через FF и свежий merge до Done. Полный общий прогон:
 510 passed/1 existing Linux-only skip,seed798224,816.5s. Реальные provider calls,
-автоматическое исправление merge-конфликтов, file scopes и packaging остаются открыты.
+автоматическое исправление merge-конфликтов и packaging остаются открыты.
+
+## BOSS-015c — file scopes и настройка capacity
+
+Сохранённый глобальный лимит1–3(default2) согласован между Manager, admission и SQL.
+Настройки обновляются по ожидаемой версии; уменьшение ниже числа живых workers
+отклоняется. Typed plan содержит file_scopes: null или bounded literal file/directory
+paths. Старые планы остаются unknown. Первый implement-step атомарно закрепляет
+scope до Ready/terminal; planning-only peers не блокируют друг друга. Пересечение
+ожидает без новых записей или model calls, с работающим Stop. Неизвестные и
+неполные прогнозы не гарантируют отсутствие конфликтов. Проверки:
+[todo.md](todo.md), контракт [WORKFLOW_QUEUE.md](../docs/WORKFLOW_QUEUE.md).

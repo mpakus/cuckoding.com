@@ -426,7 +426,7 @@ Agent Orchestrator `cloud/internal/worker/reuse_checkout.go:327–374` and its t
 expected-old CAS and preservation of other checkouts. BOSS does not adopt reverse
 CAS rollback or automatic retry. Backlog's direct checkout merge at
 `packages/server/src/routes/commits.ts:1098–1144`, test269,
-`3580cfbbb1be4144a5cca5b49190e1f8158e4cf7` (Apache-2.0), does not provide the
+`3580cfbbb1be4144a5cca5b49190e1f8158e4cf7` (server package: BUSL-1.1; root: Apache-2.0), does not provide the
 required prepublication review boundary.
 
 [Git merge-tree 2.51.1](https://git-scm.com/docs/git-merge-tree/2.51.1) documents
@@ -436,3 +436,22 @@ that exit. BOSS independently constructs a two-parent commit with
 checks/review before publication. This avoids detached `merge --no-commit` index
 and abort state. External merge drivers are rejected. No reference code or new
 runtime dependency was added; reference test suites were not executed.
+
+## BOSS-015c: predicted scope admission
+
+`xerj search --prefix bossrefs scopesOverlap -k 2 --full 1400` found Backlog
+`packages/claims/src/overlap-detector.ts:1–40`; read
+`packages/core/src/scheduler.test.ts:77–104`, with peer research of
+`claim-store.ts:164–179` and `scheduler.ts:412–435`. Snapshot
+`3580cfbbb1be4144a5cca5b49190e1f8158e4cf7` remains pinned. Root/claims/core use
+Apache-2.0; the server package has a separate BUSL-1.1 license, so the repository
+license must not be applied to every package. No code was copied.
+
+Adopt repository-scoped literal equality/whole-segment overlap and reservation
+inside one scheduling decision. BOSS reuses its immutable successful plan and
+first implement step as the durable claim, with an immediate SQLite transaction.
+One SQL view serves admission, UI blockers and database guards. Planning-only
+peers never hold claims; unknown scopes remain explicit and advisory. Unicode
+known paths serialize conservatively because SQLite case folding is ASCII-only.
+Omit glob heuristics, leases/heartbeats, shared claim modes and scheduling scores.
+No dependencies, reference checkout changes or reindex were needed.

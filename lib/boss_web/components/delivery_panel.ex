@@ -4,6 +4,7 @@ defmodule BossWeb.DeliveryPanel do
   @active ~w(planning implementing testing reviewing integrating)
   attr :details, :map, required: true
   attr :deliveries, :list, required: true
+  attr :scope_blockers, :map, default: %{}
   attr :request, :map, required: true
   attr :queued_workflows, :list, default: []
   attr :queue_actions, :map, default: %{}
@@ -41,7 +42,8 @@ defmodule BossWeb.DeliveryPanel do
       </p>
       <p id="delivery-queue-help" class="mt-2 text-xs text-zinc-400">
         Queue a workflow to start when its prerequisites are Done and capacity is available.
-        Up to two independent workflows can run at once. File conflicts are not predicted.
+        Workflow capacity is shared across projects. Known overlapping file predictions wait before implementation.
+        Unknown or incomplete predictions can still cause conflicts.
         Queued work pauses after restart and needs Resume. Source changes require explicit adoption.
         If the target advances, integration checks and reviews a new merge candidate before publication.
       </p>
@@ -205,7 +207,11 @@ defmodule BossWeb.DeliveryPanel do
           class="space-y-3 py-4 text-sm"
         >
           <div class="flex flex-wrap items-center justify-between gap-3">
-            <p role="status" class="font-medium">{status(delivery)}</p>
+            <p role="status" class="font-medium">
+              {if Map.get(@scope_blockers, delivery.id, []) != [],
+                do: "Waiting for file scope",
+                else: status(delivery)}
+            </p>
             <button
               :if={active?(delivery)}
               id={"stop-delivery-#{delivery.id}"}
@@ -237,6 +243,15 @@ defmodule BossWeb.DeliveryPanel do
           <p :if={delivery.cleanup == "unknown"} class="text-amber-300">
             Cleanup or publication could not be confirmed. Workspaces are retained; automatic restart is blocked.
           </p>
+          <p
+            :if={Map.get(@scope_blockers, delivery.id, []) != []}
+            id={"scope-wait-#{delivery.id}"}
+            role="status"
+            class="text-amber-300"
+          >
+            Waiting for an overlapping workflow to finish. Implementation has not started; Stop remains available.
+          </p>
+          <.file_scopes :if={report(delivery, "plan")} report={report(delivery, "plan")} />
           <.plan :if={report(delivery, "plan")} report={report(delivery, "plan")} />
           <.integration_candidate :if={merge_stage(delivery)} step={merge_stage(delivery)} />
           <.review
@@ -297,6 +312,31 @@ defmodule BossWeb.DeliveryPanel do
           </details>
         </li>
       </ol>
+    </section>
+    """
+  end
+
+  attr :report, :map, required: true
+
+  defp file_scopes(assigns) do
+    ~H"""
+    <section aria-label="Predicted file scopes" class="space-y-2 text-xs text-zinc-400">
+      <h4 class="font-medium text-zinc-300">Predicted file scopes</h4>
+      <%= if is_list(@report["file_scopes"]) && @report["file_scopes"] != [] do %>
+        <ul class="space-y-1">
+          <li :for={scope <- @report["file_scopes"]} class="break-all">
+            <span>{if scope["kind"] == "directory", do: "Directory", else: "File"}:</span>
+            <code>{scope["path"]}</code>
+          </li>
+        </ul>
+        <p>
+          Predictions serialize known overlaps. They do not prevent unpredicted edits or semantic conflicts.
+        </p>
+      <% else %>
+        <p>
+          File scope is unknown. This workflow may overlap other work; potential conflicts remain.
+        </p>
+      <% end %>
     </section>
     """
   end
