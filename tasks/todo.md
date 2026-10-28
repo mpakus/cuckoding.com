@@ -547,9 +547,14 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
   regressions(seed290114); fix after top-level commit without weakening quarantine.
 - [x] Real-pool rollback/commit/no-op and connected UI verification:59 passed,
   seed898791,10.5s. Manual, managed, queue and Autopilot recovery are covered.
-- [ ] Actual child BEAM SIGKILL during implementation and after publication;
-  restart must preserve history/checkout, stop descendants and refuse automatic retry.
-- [ ] Independent review, combined focused acceptance and final documentation.
+- [x] Actual child BEAM SIGKILL during implementation and after publication;
+  restart preserves history/checkout, stops owned descendants and refuses automatic retry.
+  New backend2 + manual recovery1 + pooled Autopilot7 passed10(seed580569,35.6s).
+  Removing startup pause failed both new tests(seed129180); source restored.
+- [x] Independent review, combined focused acceptance and final documentation.
+  Broader affected suites195(seed907420,102.9s); combined web/native/recovery173
+  (seed675757,46.1s). Browser confirms Manager restart → Paused/Resume without
+  reload or provider effects. Full suite not rerun for this increment.
 - [ ] Merge local main, verify combined result and clean owned temporary branches/worktrees.
 
 ## Следующие рабочие проходы

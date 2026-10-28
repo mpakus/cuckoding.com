@@ -46,10 +46,18 @@ review. The current increment adds real-pool commit/rollback/no-op notification
 checks and connected LiveView regressions. Exact commands/results are recorded in
 [the worklog](../.worklog/2026-10-28.md).
 
-Whole-backend SIGKILL acceptance is being added with finite local CLI fixtures;
-it must complete before that boundary is claimed as verified. Linux, real-provider
-acceptance, arbitrary detached sessions and safe release of unknown-cleanup
-quarantine remain separate gates. No test fixture is a live-provider guarantee.
+`test/boss/backend_recovery_test.exs` kills a real child BEAM during implementation
+and after publication while postchecks are running. A fresh application reacquires
+the data-directory lock, retains the old receipts and exact target SHA, pauses the
+batch and refuses new effects through both command replay and explicit Resume.
+The tests verify cleanup of the finite CLI, its forked child and the native guardian
+before their fallback deadline, preserving the user's dirty checkout. Removing
+startup pause makes both tests fail their saved-state assertion.
+
+These are two verified crash boundaries, not the complete recovery matrix. Linux,
+real-provider acceptance, arbitrary detached sessions and safe release of
+unknown-cleanup quarantine remain separate gates. No test fixture is a
+live-provider guarantee.
 
 Related contracts: [Autopilot](AUTOPILOT.md), [managed deliveries](MANAGED_DELIVERIES.md),
 [queue](WORKFLOW_QUEUE.md), [manual runs](MANUAL_RUNS.md).

@@ -473,3 +473,20 @@ BOSS independently layers a saved sequential authorization over existing workflo
 and integration receipts. It does not import a scheduler framework, auto-commit
 dirty files, push branches, create PRs or reuse approval for another commit.
 No reference code was copied, dependencies added, checkouts updated or indexes rebuilt.
+
+## BOSS-017a: crash checkpoints and truthful recovery state
+
+`xerj search --prefix bossrefs review_crash -k 3 --full 1600` returned SVG matches;
+peer queries `ReviewKillRestartBoundaries` and `recovery interrupted` also needed
+direct source/test fallback. Kander `internal/board/review_crash_test.go:22–166`,
+pin `dea0ba6b885c39a56ee769223f7fa5c054e68c70` (MIT), tests child death at saved
+boundaries and distinguishes prepared evidence from final reports. BOSS adopts
+checkpoint-based whole-process acceptance, without its locks/journal or multi-card
+publication framework.
+
+Agent Orchestrator `backend/internal/session_manager/status_readiness.go:28–100`
+and `status_readiness_test.go:13–174`, pin
+`7193eff4e08f1481944845ee058fe6fd18930b6d` (Apache-2.0), inform explicit unavailable
+states while actual ownership is unresolved. BOSS fixes its existing post-commit
+PubSub notifications and truthful refusal copy; it does not import runtime resume
+or treat old process IDs as authority. No competitor source was copied.
