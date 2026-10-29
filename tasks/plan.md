@@ -402,3 +402,8 @@ information. Dependency-free HTML/CSS/JS, responsive layouts, native FAQs,
 interactive illustrative workflow and bounded reduced-motion-aware parallax.
 Deployment remains main-only with a site-only artifact. See docs/SITE.md and
 .worklog/2026-10-29-marketing.md; this is not runtime/release acceptance.
+
+Publication completed after explicit website-only authorization: commitdcdb0a3,
+GitHub Pages run40939216125,9 exact HTTPS resource matches and live browser smoke.
+The public application history remains based oncc71b4f; local BOSS changes were
+excluded. Future website-only updates must retain this publication boundary.
