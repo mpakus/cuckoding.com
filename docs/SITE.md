@@ -87,3 +87,19 @@ elegant photographic art direction, real metallic reflections, tactile cotton
 texture, sophisticated absurdism, subtly analog grain. Match a Mediterranean
 resort magazine style. No text, no logo, no watermark, no sexual content. Leave
 head well inside crop.
+
+## Verified publication — 2026-10-29
+
+Published website-only commit `dcdb0a3d9b4776f182dcaac78ad9de6c93279d76`
+as one child of the former public main `cc71b4f4cc6028dbe5b6bf984cbe1e98132cd36e`.
+The local BOSS restart was not pushed. Changes were limited to site/, Pages CI,
+standalone site checks, superseded check removal and this site's documentation.
+Existing robots.txt, sitemap.xml, CNAME and .nojekyll were preserved.
+
+[GitHub Pages run40939216125](https://github.com/mpakus/cuckoding.com/actions/runs/40939216125)
+passed both check and deploy. All9 public page/code/image/crawler resources at
+https://cuckoding.com/ matched the published files byte-for-byte over validated
+HTTPS. Browser confirmed loaded artwork, workflow interaction and a clean
+warning/error console. No DNS, application deployment or release action occurred.
+A rollback would revert this website commit on current public main and rerun Pages;
+do not reset unrelated later remote work or publish the local BOSS history.
