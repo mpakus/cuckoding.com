@@ -659,6 +659,10 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 - [ ] Complete new-runtime regression after CI2e:585 passed,2 failed,1 skipped.
   Shared-Sandbox UI completion and native unknown-cleanup diagnosis are separate;
   no retry-only acceptance or relaxed cleanup/deadline checks.
+- [x] CI340 queue receipt waits reproduced with250ms fixture; only2 explicit1_500ms
+  waits changed. Terminal-control race reproduced with actualD: retire all controls
+  and requirehelperexit0; true81/SIGKILL remainunknown. Combined198 passed26.8s,
+  seed223494;200 raw native rounds passed. Next fullCI/package acceptance pending.
 - [ ] Retain final remote package result/artifact identity after this correction.
 - [x] One approved real Codex workflow in an exclusive scratch repository:
   max7 calls/10minutes, verified checks/review/integration/Done or honest failure.

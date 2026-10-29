@@ -145,6 +145,9 @@
   sessions are outside this guarantee; lost helper/Repo receipts quarantine runs.
   Only the parent assigns PGID before releasing the pre-exec gate; concurrent
   parent/child setpgid calls can fail with EPERM on macOS.
+- A valid terminal guardian receipt retires every pending ACK/Stop control write.
+  Continue waiting for actual helper exit0; nonzero/lost helper status stays unknown
+  even after a receipt. Do not confuse helper status with the CLI's own exit code.
 - Retry the final native child reap only for EINTR within the existing absolute
   cleanup/natural deadline; require the actual saved child PID to be returned.
   Other errors, persistent interruption, expiry and query uncertainty stay unknown.

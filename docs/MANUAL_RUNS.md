@@ -48,6 +48,9 @@ releases the CLI only after the parent establishes/verifies that group, keeps
 its leader unreaped until cleanup and supervises separate stdout/stderr.
 A blocked consumer bounds upstream credit; cancellation and absolute deadlines
 continue while callbacks are stalled. Control packets retry under pipe backpressure.
+A valid terminal guardian receipt ends control writes, including queued ACK/Stop
+packets. Completion still waits for actual helper exit0; a nonzero/lost helper
+remains unknown even after a receipt. The CLI's exit code is separate.
 The final reap retries an interrupted `waitpid` only within the already established
 cleanup/natural deadline. It must return the reserved child's actual PID; a
 persistent interruption, other error or expired budget remains unknown cleanup.

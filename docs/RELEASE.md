@@ -1,13 +1,13 @@
 # BOSS 0.1.0-rc.1
 
 Earlier source a0b9715 passed full remote regression (587 passed,1 skipped).
-The corrected runtime and local archive passed build,14 focused checks, actual
-smoke and independent notice/native review. Latest full CI at2e74816 failed two
-cases (585 passed,2 failed,1 skipped): shared-Sandbox workflow UI contention and
-stalled-callback cleanup returning unknown. Final CI/package/signing acceptance
-awaits a new full run after the reviewed Sandbox fixture correction and bounded
-EINTR reap hardening. Combined focused acceptance passed180 tests. The original
-native CI syscall cause remains unproven; no cleanup limit was relaxed.
+The corrected runtime/local archives passed build, native/notice review and actual
+smoke. Latest full CI at34053fd failed two cases (589 passed,2 failed,1 skipped):
+an implicit100ms queue receipt wait and unknown cleanup after output_limit.
+Reviewed corrections add bounded fixture waits and retire controls after terminal
+receipt while requiring helper exit0. Combined acceptance passed198 tests and200
+raw native stress runs. A new macOS14 early-native/full pipeline remains pending;
+original CI message ordering is not established retrospectively.
 Earlier Developer ID signed5570d3f is held from distribution: its OpenSSL3.6.3
 predates published upstream fixes. Valid signatures do not close this gate.
 No public release, tag or notarization is implied. Results and remaining gates are

@@ -630,3 +630,19 @@ versions are recorded in the worklog, not inferred from this research.
   only EINTR inside existing deadlines and retains unknown for every unproven
   outcome. No reference code copied. Controlled failure matches the CI receipt
   shape; the original CI syscall cause is not established from that receipt.
+
+
+## Terminal control and port completion — 2026-10-29
+
+Xerj `process cleanup trace waitpid proc_listpids` could not reach local9200;
+NetRunner5f12e06aabb70f2aafde023bf547aaaa6f8fcb36 (Apache2), shepherd447–520 remains
+an absolute-cleanup reference. No competitor source copied. Pinned official OTP
+[sys_drivers.c](https://github.com/erlang/otp/blob/882bc060aca3f9491ba6345da56c5076793d31e2/erts/emulator/sys/unix/sys_drivers.c)
+blob bdd6528412393d3bb85b2d4ac64a27a226a1a1d3,1106–1111/1177–1182/1483–1488,
+verified in the hashed release source, routes write errors other than EINTR/EAGAIN
+through driver_failure_posix. A redundant control write after terminal D can cause
+EPIPE/port loss. Adopt terminal control retirement and independent actual helper
+exit0; reject treating receipt alone or a nonzero helper status as success.
+Controlled actual-source red/green proves this fault; it does not establish the
+old CI's exact OS message ordering. Observer-induced exit delay can hide the race,
+so final stress uses no observer or trace. Unneeded diagnostic drafts removed.
