@@ -675,3 +675,9 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
   Explicit user authorization; public dcdb0a3 has sole parentcc71b4f.
   Run40939216125 passed checks/deploy;9 HTTPS resources match exact bytes,
   live browser workflow/artwork/console passed. No BOSS history pushed.
+
+- [x] Add two Deus Machina/human-servitude scenes and the exact Austin footer link.
+  Independent review approved; checker33 references and all6 motion tests pass.
+  Browser320/768/1024/1440px has no overflow; readable crops, loaded images,
+  all4 images pause/resume together, empty warning/error console.
+- [ ] Publish and verify the Deus Machina website-only increment.

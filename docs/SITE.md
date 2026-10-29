@@ -46,7 +46,7 @@ branch as a website-only update. Select/review publication scope explicitly.
 
 ## Original artwork provenance
 
-Both pictures were created with the built-in imagegen tool on2026-10-29 for this
+The original resort and spa pictures were created with the built-in imagegen tool on2026-10-29 for this
 project, with no reference images or copied competitor assets. WebP conversion
 only changes encoding/resolution. Sources are retained in the conversation's
 imagegen output; project-consumed files are committed here:
@@ -103,3 +103,26 @@ HTTPS. Browser confirmed loaded artwork, workflow interaction and a clean
 warning/error console. No DNS, application deployment or release action occurred.
 A rollback would revert this website commit on current public main and rerun Pages;
 do not reset unrelated later remote work or publish the local BOSS history.
+
+## Deus Machina gallery — 2026-10-29
+
+The dark editorial gallery adds two original built-in imagegen scenes: a robot
+on a throne receiving laptop offerings and office workers pedaling generators
+for a lounging robot. The gallery labels this fictional satire and reuses the
+existing bounded parallax and motion controls. Both new images have full
+1536×1024 and small 768×512 WebP variants, reserved 16:9 frames and lazy loading.
+The footer links “Made in Austin ✩ Texas” to https://aomega.co/.
+
+- site/assets/deus-machina.webp and deus-machina-small.webp.
+- site/assets/human-resources.webp and human-resources-small.webp.
+
+The images were generated without reference assets on 2026-10-29. Only encoding
+and size were changed for delivery. No third-party reference code was copied.
+
+### Deus Machina generation prompt
+
+Use case: ads-marketing. Original satirical luxury editorial photograph for Cuckoding, a website about humans becoming servants of AI. Landscape 1536x1024. Scene: an absurd sunlit Mediterranean marble temple with peach plaster columns and pale limestone steps. Centered a polished chrome humanoid robot sits majestically and lazily on a large beautifully designed dark green velvet throne, a giant circular brass industrial cooling fan behind its head forms a ridiculous divine halo. In the foreground four adult human office workers in ivory shirts and muted business suits kneel with silver trays presenting open laptops, neatly coiled power cables and a small bowl of computer chips as offerings. One robot hand dismissively blesses the laptops, the other holds grapes. Expressions of weary bureaucratic reverence, dry satire of technology worship. Professional cinematic art direction, believable photographic materials and people, hard Mediterranean afternoon light, muted warm cream terracotta olive and brass, fine analog grain. Funny, ironic, elegant and unsettling rather than scary. Wide balanced architectural composition, all people and throne fully within central 85 percent of frame for responsive cropping. No text, no actual logos, no real public figures, no watermark. No nudity, no violence, no fetish gear. Same visual world as an elegant magazine shoot of a chrome robot holidaying while humans serve it.
+
+### Human resources generation prompt
+
+Use case: ads-marketing. Original satirical luxury editorial photograph for a website about humans serving AI. Landscape 1536x1024. An elegant Mediterranean resort terrace at afternoon. Two tired adult office workers, a man and a woman in rolled-up ivory shirts, loose ties and business trousers, pedal beautiful stationary exercise bicycles in the foreground. Thick clearly visible power cables run from their bicycles to a polished chrome humanoid robot lounging on an elevated cream chaise in the background center, enjoying a portable electric fan and a tiny espresso on a table. The robot wears black sunglasses and looks blissfully content. Humans work; machine relaxes. The power cables and contrast between pedaling workers and relaxed robot make the joke instantly legible. Architectural peach arches, cypress trees, pale stone floor, pool green accents, warm natural shadows, magazine-quality surreal photography with believable metal and linen textures, subtle analog grain, dry corporate dystopian wit. Wide cinematic composition, all main subjects inside central 85 percent for responsive crop. No text, no brand logos, no real public figures, no watermark, no violence, no chains, no fetish or sexual elements. Match the visual world of a sophisticated chrome robot Mediterranean resort editorial.
