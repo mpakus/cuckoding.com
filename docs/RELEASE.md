@@ -1,8 +1,9 @@
 # BOSS 0.1.0-rc.1
 
-Status: local macOS release candidate verified on the build host. No public release, tag,
-signature/notarization or remote CI result is implied by this document. Results
-and remaining gates are recorded in [.worklog/2026-10-29.md](../.worklog/2026-10-29.md).
+Status: macOS release candidate preparation. The original archive9596162 was
+verified locally; the subsequent Git-registration runtime fix awaits final full
+regression and rebuilt-package acceptance. No public release, tag or notarization
+is implied. Results and remaining gates are in [.worklog/2026-10-29.md](../.worklog/2026-10-29.md).
 
 [Draft RC PR #1](https://github.com/mpakus/cuckoding.com/pull/1) publishes the reviewed
 source on a separate branch; remote main and the existing site are preserved.
@@ -12,10 +13,12 @@ found concurrent Git registration failure and a dependency-test budget coupling.
 Those fixes are under verification. Neither run produced a package. PR merge
 checkout differs from branch head and must match the final artifact's `BUILD_INFO`.
 
-Local application regression passed585 tests with1 platform-specific skip
-(seed329391). The unpacked archive passed native-helper execution, private browser
-authentication/assets, connected LiveView board/Autopilot/drawer and durable restart.
-Public distribution still requires the open gates below.
+Historical baseline regression passed585 tests with1 platform-specific skip
+(seed329391,018a). Original archive9596162 passed native-helper execution, private
+browser authentication/assets, connected board/Autopilot/drawer and durable restart.
+The new Git-runtime fix passed49 related cases and640 concurrent adds; combined
+workspace/dependency verification passed32. Final full CI and the new package are
+pending. Public distribution requires the remaining gates below.
 
 One explicitly authorized real Codex0.146.0 packaged workflow passed in100.875s
 with3 CLI invocations: plan, implement, checks, independent Codex review, exact
