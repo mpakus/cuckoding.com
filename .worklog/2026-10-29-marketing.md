@@ -103,3 +103,50 @@ Next: review the saved preview and choose remote publication scope. A future
 site-only publication must avoid inadvertently pushing the322 pre-existing BOSS
 commits, rerun the standalone checks and verify the actual Pages deployment and
 custom domain. This increment performs no push, tag, public release or DNS edit.
+
+## Explicit website-only publication
+
+User authorized publishing cuckoding.com through GitHub Pages while excluding
+unrelated BOSS changes. Rechecked GitHub public main at
+cc71b4f4cc6028dbe5b6bf984cbe1e98132cd36e and fetched origin/main. Reuse the clean
+Pages worktree on codex/cuckoding-pages-publish, based directly on that public
+commit. Copy only site/, Pages workflow, standalone checks and docs/SITE.md;
+remove the two superseded website check files. Preserve robots.txt/sitemap.xml.
+No BOSS task/docs/worklog/runtime/dependency/release files enter the public commit.
+Parent keeps all shared evidence on codex/cuckoding-publication-evidence locally.
+
+Independent reviewer will verify the exact ancestry/path allowlist and run site
+checks before the normal non-force main push. The original remote SHA remains
+available for a revert of the website commit if deployed checks fail. No DNS
+change or app/release publication is implied. Existing GitHub certificate state
+reports dns_changed; verify real HTTPS independently after deployment rather than
+assuming that metadata means success or failure.
+
+Publication candidate dcdb0a3d9b4776f182dcaac78ad9de6c93279d76 passed independent
+review: one parentcc71b4f,25 allowed website-only paths,26 local references,
+10 malformed checker fixtures and6 motion tests. Normal non-force push of that
+exact SHA to refs/heads/main succeeded; GitHub API independently confirmed SHA,
+sole parent and changed-file list. No local main push occurred. GitHub Pages
+push run40939216125 is now running. Before deployment the custom domain returned
+HTTPS200 with normal certificate verification despite stale certificate metadata.
+
+### Publication outcome
+
+`rtk proxy gh run watch 40939216125 --repo mpakus/cuckoding.com --exit-status
+--interval 10` completed success; `gh run view` confirmed both check/deploy jobs
+successful for dcdb0a3. Deployment finished2026-10-29 at14:20:58 America/Chicago.
+A bounded four-worker Python/curl verification fetched the public root, CSS,
+JS, favicon,3 WebP images, robots and sitemap with normal TLS verification; all9
+were byte-for-byte equal to the publication checkout. Browser at public HTTPS
+confirmed CTA -> review panel, image loading, motion active, no overflow and
+empty warning/error console; desktop1440px also had exact viewport width and
+loaded images. Saved live screenshot and left the published site open.
+
+Local publication-history reconciliation adds no remote effects. Restored the
+publicly preserved robots/sitemap into local BOSS site's tree; updated only local
+AGENTS, site documentation, task status and this worklog. Independent reviewer
+approved the exact public commit before its normal fast-forward push. No local
+BOSS runtime, dependency, migration, release or shared documentation was pushed.
+Next: no publication work remains; future BOSS release acceptance is a separate
+workflow. Temporary branches will be removed after local merge; app-held clean
+worktrees remain unless normal archive succeeds.

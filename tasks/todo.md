@@ -671,5 +671,7 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
   Independent review approved after hover contrast correction.
 - [x] Merge locally and rerun the combined site checks; local main062f537.
   Both merged branches removed; app-held clean writer retained without force.
-- [ ] Publish to GitHub Pages and verify remote deployment/domain.
-  Local design verification does not authorize publishing the entire BOSS restart.
+- [x] Publish only the website and verify GitHub Pages/custom domain.
+  Explicit user authorization; public dcdb0a3 has sole parentcc71b4f.
+  Run40939216125 passed checks/deploy;9 HTTPS resources match exact bytes,
+  live browser workflow/artwork/console passed. No BOSS history pushed.

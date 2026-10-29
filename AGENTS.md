@@ -287,3 +287,8 @@
   with `scripts/check_site.py` and `test/site_motion_test.mjs`; do not deploy the
   application or imply signing/provider/Linux acceptance from a website check.
   See docs/SITE.md; remote publishing remains separate from local merges.
+
+- Website-only publication must start from freshly fetched remote main, use an
+  explicit website/check/documentation path allowlist, and verify commit ancestry
+  before pushing. Never push the local BOSS main for a site-only request. Verify
+  the exact Pages run and live HTTPS bytes; retain publication SHA/run evidence.
