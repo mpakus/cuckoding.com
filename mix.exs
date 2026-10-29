@@ -1,4 +1,5 @@
 Code.require_file("mix/compile_guardian.exs", __DIR__)
+Code.require_file("rel/package.exs", __DIR__)
 
 defmodule Boss.MixProject do
   use Mix.Project
@@ -6,7 +7,15 @@ defmodule Boss.MixProject do
   def project do
     [
       app: :boss,
-      version: "0.1.0",
+      version: "0.1.0-rc.1",
+      releases: [
+        boss: [
+          include_erts: true,
+          include_executables_for: [:unix],
+          steps: [:assemble, &Boss.ReleasePackage.prepare/1, :tar]
+        ]
+      ],
+      test_ignore_filters: ["test/fixtures/boss_backend_recovery.exs"],
       elixir: "~> 1.20",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -29,7 +38,7 @@ defmodule Boss.MixProject do
 
   def cli do
     [
-      preferred_envs: [precommit: :test]
+      preferred_envs: [precommit: :test, "release.build": :prod]
     ]
   end
 
@@ -55,7 +64,7 @@ defmodule Boss.MixProject do
       {:telemetry_poller, "~> 1.0"},
       {:jason, "~> 1.2"},
       {:yaml_elixir, "~> 2.12.2"},
-      {:bandit, "~> 1.5"}
+      {:bandit, "~> 1.14.1"}
     ]
   end
 
@@ -75,6 +84,7 @@ defmodule Boss.MixProject do
         "esbuild boss --minify",
         "phx.digest"
       ],
+      "release.build": ["assets.deploy", "release boss --overwrite"],
       precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"]
     ]
   end
