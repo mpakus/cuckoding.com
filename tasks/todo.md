@@ -572,7 +572,12 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
   fail with missing receipts; paused integration guard mutation fails the Ready case.
   Restored combined native/persistence18 passed(seed615806,86.8s); format, compile
   warnings-as-errors, Python AST and diff passed. Contracts updated.
-- [ ] Merge local main, verify the combined result and clean temporary branches/worktree.
+- [x] Merge local main (`1e04ef8`) and verify: native6 + persistence11 passed17
+  (seed277660,66.1s), format/diff passed; no recovery fixture VM remains.
+- [x] Delete both merged temporary recovery branches.
+- [ ] Archive the clean detached reused writer worktree when the app releases its
+  ownership hold. Archive refused again because another active task uses it;
+  no forced deletion.
 
 ## Следующие рабочие проходы
 
