@@ -349,3 +349,13 @@ Interrupted/Paused должны дойти до открытых страниц;
 транзакция не может сообщить о committed success. Отказ Autopilot должен учитывать
 paused ownership и unknown cleanup, без совета просто подождать. Автоматическое
 снятие quarantine не входит в этот проход. Контракт: [RECOVERY.md](../docs/RECOVERY.md).
+
+## BOSS-017b — незавершённые этапы и сохранённый Ready
+
+Расширить native crash acceptance на plan/check/review. Валидный файл отчёта и
+терминальное событие CLI без exit/EOF/cleanup не дают одобрение. Отдельный сценарий
+завершает workflow до Ready, аварийно останавливает backend и проверяет сохранность
+точного review/check/candidate. До явного Resume интеграция запрещена, включая
+сохранённый UUID; после Resume неизменившийся target получает исходный approved SHA
+и обязательный postcheck без повторного model call. Это проверка существующего
+контракта; автоматическое снятие quarantine и повторение interrupted stages не добавляются.

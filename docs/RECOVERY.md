@@ -46,18 +46,35 @@ review. The current increment adds real-pool commit/rollback/no-op notification
 checks and connected LiveView regressions. Exact commands/results are recorded in
 [the worklog](../.worklog/2026-10-28.md).
 
-`test/boss/backend_recovery_test.exs` kills a real child BEAM during implementation
-and after publication while postchecks are running. A fresh application reacquires
-the data-directory lock, retains the old receipts and exact target SHA, pauses the
-batch and refuses new effects through both command replay and explicit Resume.
-The tests verify cleanup of the finite CLI, its forked child and the native guardian
-before their fallback deadline, preserving the user's dirty checkout. Removing
-startup pause makes both tests fail their saved-state assertion.
+`test/boss/backend_recovery_test.exs` kills a real child BEAM at these checkpoints:
 
-These are two verified crash boundaries, not the complete recovery matrix. Linux,
-real-provider acceptance, arbitrary detached sessions and safe release of
-unknown-cleanup quarantine remain separate gates. No test fixture is a
-live-provider guarantee.
+| Checkpoint | Required result after restart |
+|---|---|
+| Plan | The valid report and terminal CLI event cannot replace missing exit/EOF/cleanup. No implementation starts. |
+| Implementation | Uncommitted candidate files remain; no check or approval is invented. |
+| Check | The captured candidate commit/ref and earlier receipts remain; no review starts. |
+| Review | The valid approved report and terminal CLI event remain incomplete execution, never a Ready approval. |
+| Published target, postcheck running | The published SHA and retained checkout remain; no reset, repeated check or Done. |
+| Completed Ready, paused before integration | Exact approval, checks, task events and saved request UUIDs survive. Only explicit Resume publishes the original candidate and runs the postcheck. |
+
+For the five interrupted stages a fresh application reacquires the data-directory
+lock, preserves earlier receipts and candidate identity, pauses the batch and
+refuses new effects through command replay or Resume. The finite CLI, forked child
+and native guardian must stop before the fixture's fallback deadline. Report
+artifacts are confined to the test's exclusive scratch TMPDIR. A whole-VM crash may
+leave a temporary report; restart never imports it as approval.
+
+The Ready case completes ordinary review and cleanup before the crash. Recovery
+preserves that finished evidence unchanged, including the reviewer/configuration
+pins. Direct integration with the saved Autopilot UUID is refused while paused.
+After Resume with an unchanged target, no model or earlier check repeats; only the
+postcheck is new. Publication retains the exact approved SHA in a detached owned
+checkout and leaves the user's dirty checkout untouched.
+
+These checkpoints do not complete the recovery matrix. Offline candidate/target
+drift, narrower intent/effect/receipt gaps, merge-stage crashes, Linux, real-provider
+acceptance, arbitrary detached sessions and safe release of unknown-cleanup
+quarantine remain separate gates. No fixture is a live-provider guarantee.
 
 Related contracts: [Autopilot](AUTOPILOT.md), [managed deliveries](MANAGED_DELIVERIES.md),
 [queue](WORKFLOW_QUEUE.md), [manual runs](MANUAL_RUNS.md).
