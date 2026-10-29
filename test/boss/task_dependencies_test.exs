@@ -201,15 +201,28 @@ defmodule Boss.Tasks.DependenciesTest do
     assert message =~ "time budget"
   end
 
-  test "unknown references are cached and issues are bounded", %{project: project} do
-    absent = Enum.map(1..32, &"absent-#{&1}")
+  test "unknown references are cached without suppressing missing issues", %{project: project} do
+    absent = Enum.map(1..3, &"absent-#{&1}")
     task(project, "left", absent, "done")
     task(project, "right", absent, "done")
     root = task(project, "root", ["left", "right"])
     trace = observe_queries()
     assert {:ok, %{ready?: false, issues: issues}} = snapshot(project, root)
+
+    assert Enum.map(issues, &{&1.kind, &1.reference}) ==
+             Enum.map(absent ++ absent, &{:missing, &1})
+
+    assert length(queries(trace)) == 6
+  end
+
+  test "dependency issues are capped at 33", %{project: project} do
+    ids = Enum.map(1..9, &"cycle-#{&1}")
+    tasks = for id <- ids, do: task(project, id, List.delete(ids, id), "done")
+    trace = observe_queries()
+    assert {:ok, %{ready?: false, issues: issues}} = snapshot(project, hd(tasks))
     assert length(issues) == 33
-    assert length(queries(trace)) == 35
+    assert Enum.all?(issues, &(&1.kind == :cycle))
+    assert length(queries(trace)) == 9
   end
 
   test "malformed pinned source and unknown nested IDs block even through Done", %{
