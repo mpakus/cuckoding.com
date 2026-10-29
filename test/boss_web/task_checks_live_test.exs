@@ -294,8 +294,8 @@ defmodule BossWeb.TaskChecksLiveTest do
 
   defp settle(view) do
     render(view)
-    render_async(view)
-    render_async(view)
-    render_async(view)
+    render_async(view, 2_000)
+    render_async(view, 2_000)
+    render_async(view, 2_000)
   end
 end

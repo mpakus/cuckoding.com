@@ -953,6 +953,6 @@ defmodule BossWeb.TaskDeliveryLiveTest do
 
   defp settle(view) do
     render(view)
-    for _ <- 1..5, do: render_async(view)
+    for _ <- 1..5, do: render_async(view, 2_000)
   end
 end
