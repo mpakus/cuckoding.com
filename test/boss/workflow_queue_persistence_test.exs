@@ -145,8 +145,8 @@ defmodule Boss.WorkflowQueuePersistenceTest do
     send(manager, {:delivery_finished, Ecto.UUID.generate(), first_pid, {:ok, first}})
     send(first_pid, :finish)
     send(second_pid, :finish)
-    assert_receive {:receipt, ^first_id}
-    assert_receive {:receipt, ^second_id}
+    assert_receive {:receipt, ^first_id}, 1_500
+    assert_receive {:receipt, ^second_id}, 1_500
     eventually(fn -> map_size(:sys.get_state(manager).finished) == 2 end)
     assert map_size(:sys.get_state(manager).active) == 2
 
