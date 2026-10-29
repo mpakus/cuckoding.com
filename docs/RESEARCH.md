@@ -552,3 +552,27 @@ uses MAP_JIT on macOS ARM64. Keep only allow-jit on BEAM and sign bundled NIFs a
 OpenSSL with the same Team; do not infer a need for broad runtime exceptions from
 the failed ad-hoc hardened-runtime experiment. Actual Developer ID acceptance is
 still required. No source code was copied.
+
+
+## RC CI: concurrent Git registration and dependency-budget fixtures
+
+The Git failure reproduced while a worktree command read another registration's
+unfinished commondir. `xerj search --prefix bossrefs 'worktree lock concurrent'`
+returned weak teardown/data-lock matches. Fallback read Agent Orchestrator
+`backend/internal/adapters/workspace/gitworktree/workspace.go:33–64` and
+`workspace_integration_test.go:625–670`, pinned
+`7193eff4e08f1481944845ee058fe6fd18930b6d` (Apache-2.0). Adopt repository-scoped
+metadata exclusion and honest failure; reject its growing mutex map, teardown /
+prune / recreate framework and generic Git retry. BOSS independently uses OTP
+node-local nonblocking locks with bounded, Stop-aware waiting. Owner-death release
+proves availability; original process cleanup and unknown quarantine remain separate.
+Official [global lock documentation](https://www.erlang.org/doc/apps/kernel/global.html#set_lock/3)
+describes retries0 and automatic owner-death release; behavioral checks ran on OTP28.
+
+The old dependency fixture coupled35 SQL reads to a1s production deadline. Split
+small exact missing-ID cache assertions from an actual33-issue cap case, preserving
+production limits and the slow-read fail-closed regression. `dependencyReasons`
+search/read used Backlog `packages/core/src/scheduler.ts:108–130` and its
+`scheduler.test.ts:48–78`, pinned
+`3580cfbbb1be4144a5cca5b49190e1f8158e4cf7` (Apache-2.0). Adopt focused reason tests;
+reject importing the whole-workspace in-memory scheduler. No reference code copied.

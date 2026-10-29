@@ -161,7 +161,7 @@ Tests use finite fake CLIs, real Git, native macOS transport and exclusively cre
 SQLite databases with real pools. They cover rejection/fixes, full feedback, budget,
 Stop, restart/replay, source preservation, target reservation, exact publication,
 postcheck failure, configured capacity, overlapping scopes and unknown receipt/Repo loss.
-One bounded packaged real Codex workflow with Codex review passed through verified
+One bounded original packaged real Codex workflow with Codex review passed through verified
 Done (3calls/100.875s,5/5 criteria); this is a tiny smoke, not general task or Claude
 acceptance. Linux execution, clean-machine acceptance and public signing remain
 open. See [release evidence](RELEASE.md) and `.worklog/` for exact scope/results.

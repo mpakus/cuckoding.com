@@ -25,7 +25,10 @@ target inspection found only the exact `hello.txt` addition and preserved the
 original `user-work` checkout. This tiny smoke covers the selected Codex reviewer;
 it does not establish arbitrary task, Claude-provider or clean-machine acceptance.
 Sanitized [receipts and usage](../.worklog/evidence/2026-10-29-codex-rc-smoke.json)
-exclude model/tool text and report prose. No second paid workflow was started.
+exclude model/tool text and report prose. They pin archive build9596162 and
+SHA256a958c8d8ee81b22eb77413f0dc01defd34db3fc67c08a32ce119753e15bff57f.
+Fresh provider acceptance of the subsequent Git-registration runtime change remains
+a separate opt-in gate. No second paid workflow was started.
 
 BOSS uses Apache-2.0, selected by the project owner. The archive
 includes the unchanged project license as `LICENSES/BOSS-LICENSE`; dependency
@@ -189,7 +192,7 @@ restore must not silently discard work created after the backup.
 | Package | Actual unpacked startup, unlock/assets, native helper and durable restart with bundled runtime; checksum and provenance. |
 | Dependency audit | Hex and npm audit pass without suppressing findings. |
 | Clean-machine macOS | Supported architecture/OS acceptance with user-installed Git and CLI; actual folder chooser and provider workflow. |
-| Provider | Passed one bounded packaged Codex workflow with Codex review through checks/integration/Done (3calls/100.875s). Other providers and arbitrary tasks need separate evidence. |
+| Provider | Baseline archive9596162 passed one Codex/Codex-review workflow through Done (3calls/100.875s). Fresh acceptance after the Git-registration runtime fix and other providers remain separate gates. |
 | Distribution | Apache-2.0 selected and included; public signing/notarization and download acceptance remain open. Third-party notices retain their original licenses. |
 | Remote CI | Pinned macOS workflow runs successfully on the published commit; local YAML validation is not a remote result. |
 | Linux stable support | Linux process ownership/cleanup, native chooser and complete workflow acceptance. Current runner rejects non-macOS execution. |

@@ -199,6 +199,9 @@
   UI and database guards; serialize non-ASCII known paths conservatively. Waiting
   must not write timestamps or rerun a model; direct Stop and Repo-loss cleanup remain
   available. Unknown predictions never imply safe parallel changes.
+- Coordinate BOSS Git worktree metadata operations by the actual common directory
+  within this VM. Keep lock waits bounded and Stop-aware; lock release is not
+  native cleanup or external-Git exclusion. Preserve unknown-outcome quarantine.
 - Concurrent worktrees/candidates may share newly created parent directories.
   Accept mkdir EEXIST only after fresh lstat confirms a real directory; preserve
   existing modes and reject files/symlinks. Propagate failed chmod. Keep UUID
