@@ -680,4 +680,7 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
   Independent review approved; checker33 references and all6 motion tests pass.
   Browser320/768/1024/1440px has no overflow; readable crops, loaded images,
   all4 images pause/resume together, empty warning/error console.
-- [ ] Publish and verify the Deus Machina website-only increment.
+- [x] Publish and verify the Deus Machina website-only increment.
+  Public45e83e3 is one child of dcdb0a3 with exactly7 site/documentation files.
+  Pages40947674513 passed; all13 HTTPS resources match; live browser confirms
+  loaded art, exact footer, no overflow and empty warning/error console.

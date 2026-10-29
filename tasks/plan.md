@@ -422,3 +422,7 @@ The Deus Machina gallery extends the satire with laptop offerings and human
 power generation; the footer credits Austin, Texas. Publish these site changes
 from current origin/main with an explicit path allowlist, excluding local BOSS
 history and task/worklog documentation.
+
+Deus Machina publication verified: public45e83e3, Pages40947674513 passed,
+13 exact HTTPS resources and live browser smoke. Only seven website/artwork
+documentation files were published; local BOSS history remains excluded.
