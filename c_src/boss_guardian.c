@@ -313,7 +313,16 @@ int main(int argc, char **argv) {
   close_fd(&streams[0]);
   close_fd(&streams[1]);
   free(input);
-  if (leader_exited && waitpid(child, NULL, WNOHANG) != child) cleanup_ok = 0;
+  if (leader_exited) {
+    int64_t reap_at = finish_at ? finish_at : natural_at;
+    pid_t reaped = waitpid(child, NULL, WNOHANG);
+    while (reaped < 0 && errno == EINTR && now_ms() < reap_at) {
+      (void)poll(NULL, 0, 1);
+      if (now_ms() >= reap_at) break;
+      reaped = waitpid(child, NULL, WNOHANG);
+    }
+    if (reaped != child) cleanup_ok = 0;
+  }
   unsigned char done[9] = {'D', (unsigned char)cause, (unsigned char)cleanup_ok,
                            (unsigned char)(eof[0] | (eof[1] << 1)), 0, 0, 0, 0, 0};
   if (leader_exited) {

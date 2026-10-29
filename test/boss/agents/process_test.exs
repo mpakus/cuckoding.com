@@ -26,7 +26,17 @@ defmodule Boss.Agents.ProcessTest do
                stderr_to_stdout: true
              )
 
-    %{fixture: fixture, fork_delay: fork_delay}
+    reap_interrupt = Path.join(root, "reap_interrupt.dylib")
+    reap_source = Path.expand("../../support/fixtures/reap_interrupt.c", __DIR__)
+
+    assert {"", 0} =
+             System.cmd(
+               "cc",
+               ["-Wall", "-Wextra", "-Werror", "-dynamiclib", reap_source, "-o", reap_interrupt],
+               stderr_to_stdout: true
+             )
+
+    %{fixture: fixture, fork_delay: fork_delay, reap_interrupt: reap_interrupt}
   end
 
   setup do
@@ -235,28 +245,50 @@ defmodule Boss.Agents.ProcessTest do
   end
 
   test "runtime deadline also stops a stalled callback", ctx do
-    parent = self()
+    assert %{outcome: :timeout, cleanup: :group_empty} = stalled_run(ctx)
+    assert_dead(pids(ctx.root)["leader"])
+  end
 
-    task =
-      Task.async(fn ->
-        run(ctx, "flood",
-          timeout_ms: 300,
-          on_event: fn
-            {:started, _} ->
-              :ok
+  test "an interrupted final reap preserves natural group cleanup", ctx do
+    assert %{outcome: :exited, exit_code: 7, cleanup: :group_empty} =
+             run(ctx, "binary", env: reap_env(ctx, "once"))
 
-            _ ->
-              send(parent, :stalled)
+    assert File.read!(Path.join(ctx.root, "reap")) == "IR"
+    assert_dead(pids(ctx.root)["leader"])
+  end
 
-              receive do
-                :never -> :ok
-              end
-          end
-        )
-      end)
+  test "an interrupted final reap preserves cleanup after a stalled callback times out", ctx do
+    assert %{
+             outcome: :timeout,
+             cleanup: :group_empty,
+             signal: 15,
+             eof: %{stdout: true, stderr: true}
+           } = stalled_run(ctx, env: reap_env(ctx, "once"))
 
-    assert_receive :stalled, 2000
-    assert %{outcome: :timeout, cleanup: :group_empty} = Task.await(task, 4000)
+    assert File.read!(Path.join(ctx.root, "reap")) == "IR"
+    assert_dead(pids(ctx.root)["leader"])
+  end
+
+  test "persistent final reap interruption keeps cleanup unknown within existing deadlines",
+       ctx do
+    env = reap_env(ctx, "always")
+    started = System.monotonic_time(:millisecond)
+    assert %{outcome: :failed, cleanup: :unknown} = run(ctx, "binary", env: env)
+    assert System.monotonic_time(:millisecond) - started < 1500
+    assert File.read!(Path.join(ctx.root, "reap")) == "II"
+
+    started = System.monotonic_time(:millisecond)
+    assert %{outcome: :timeout, cleanup: :unknown} = stalled_run(ctx, env: env)
+    assert System.monotonic_time(:millisecond) - started < 2900
+    assert File.read!(Path.join(ctx.root, "reap")) == "IIII"
+    assert_dead(pids(ctx.root)["leader"])
+  end
+
+  test "a non-interruption final reap error is never retried or accepted", ctx do
+    assert %{outcome: :failed, cleanup: :unknown} =
+             run(ctx, "binary", env: reap_env(ctx, "error"))
+
+    assert File.read!(Path.join(ctx.root, "reap")) == "I"
     assert_dead(pids(ctx.root)["leader"])
   end
 
@@ -354,6 +386,37 @@ defmodule Boss.Agents.ProcessTest do
       end)
 
     refute log =~ secret
+  end
+
+  defp reap_env(ctx, mode),
+    do: [
+      {"DYLD_INSERT_LIBRARIES", ctx.reap_interrupt},
+      {"BOSS_TEST_REAP_MODE", mode},
+      {"BOSS_TEST_REAP_MARKER", Path.join(ctx.root, "reap")}
+    ]
+
+  defp stalled_run(ctx, opts \\ []) do
+    parent = self()
+
+    callback = fn
+      {:started, _} ->
+        :ok
+
+      _ ->
+        send(parent, :stalled)
+
+        receive do
+          :never -> :ok
+        end
+    end
+
+    task =
+      Task.async(fn ->
+        run(ctx, "flood", Keyword.merge([timeout_ms: 300, on_event: callback], opts))
+      end)
+
+    assert_receive :stalled, 2000
+    Task.await(task, 4000)
   end
 
   defp run(ctx, mode, opts \\ []),
