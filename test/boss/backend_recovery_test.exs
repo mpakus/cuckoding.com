@@ -154,88 +154,194 @@ defmodule Boss.BackendRecoveryTest do
     end
   end
 
-  test "completed approval survives backend death and publishes only after explicit Resume", c do
-    vm = boot(c.root, "ready", "start")
-    before = wait_json(c.root, "before", vm)
-    {:os_pid, pid} = Port.info(vm, :os_pid)
-    assert before["vm_pid"] == to_string(pid)
-    assert before["active"] == 0
-    assert before["batch"]["status"] == "paused"
-    [delivery] = before["deliveries"]
-    assert delivery["status"] == "ready_to_merge"
-    assert delivery["cleanup"] == "group_empty"
-    assert delivery["integration_command_id"] == nil
-    assert delivery["integration_intent"] == %{}
-    assert Enum.all?(before["steps"], &(&1["status"] == "finished"))
-    review = Enum.find(before["steps"], &(&1["kind"] == "review"))
-    check = Enum.find(before["steps"], &(&1["id"] == review["input"]["check_step_id"]))
-    assert review["receipt"]["report"]["verdict"] == "approved"
-    assert review["receipt"]["report"]["issues"] == []
-    sha = review["input"]["candidate_commit"]
-    candidate = check["input"]["workspace"]
-    assert sha == check["input"]["candidate_commit"]
-    assert Path.wildcard(Path.join(c.root, "tmp/boss-review-*")) == []
-    assert calls(c.root, "calls") == ~w(plan implement review)
-    [first_check] = calls(c.root, "check-calls")
-    assert first_check == candidate["path"]
-    assert git(c.source, ["rev-parse", "main"]) == c.base
+  for drift <- ~w(unchanged dirty ref advanced rewritten) do
+    @tag drift: drift
+    test "Ready restart with #{drift} Git state preserves evidence before explicit Resume", c do
+      drift = unquote(drift)
+      boundary = if drift == "unchanged", do: "ready", else: "ready_" <> drift
+      vm = boot(c.root, boundary, "start")
+      before = wait_json(c.root, "before", vm)
+      {:os_pid, pid} = Port.info(vm, :os_pid)
+      assert before["vm_pid"] == to_string(pid)
+      assert before["active"] == 0
+      assert before["batch"]["status"] == "paused"
+      [delivery] = before["deliveries"]
+      assert delivery["status"] == "ready_to_merge"
+      assert delivery["cleanup"] == "group_empty"
+      assert delivery["integration_command_id"] == nil
+      assert delivery["integration_intent"] == %{}
+      assert Enum.all?(before["steps"], &(&1["status"] == "finished"))
+      review = Enum.find(before["steps"], &(&1["kind"] == "review"))
+      check = Enum.find(before["steps"], &(&1["id"] == review["input"]["check_step_id"]))
+      assert review["receipt"]["report"]["verdict"] == "approved"
+      assert review["receipt"]["report"]["issues"] == []
+      sha = review["input"]["candidate_commit"]
+      candidate = check["input"]["workspace"]
+      assert sha == check["input"]["candidate_commit"]
+      assert Path.wildcard(Path.join(c.root, "tmp/boss-review-*")) == []
+      assert calls(c.root, "calls") == ~w(plan implement review)
+      [first_check] = calls(c.root, "check-calls")
+      assert first_check == candidate["path"]
+      assert git(c.source, ["rev-parse", "main"]) == c.base
 
-    kill_vm(vm)
-    assert_receive {^vm, {:exit_status, status}}, 5_000
-    refute status == 0
-    replacement = boot(c.root, "ready", "recover")
-    recovered = wait_json(c.root, "recovered", replacement)
-    paused = wait_json(c.root, "paused_replay", replacement)
-    refute recovered["vm_pid"] == before["vm_pid"]
+      kill_vm(vm)
+      assert_receive {^vm, {:exit_status, status}}, 5_000
+      refute status == 0
+      offline_target = change_offline(c, drift, candidate, sha)
+      replacement = boot(c.root, boundary, "recover")
+      recovered = wait_json(c.root, "recovered", replacement)
+      paused = wait_json(c.root, "paused_replay", replacement)
+      refute recovered["vm_pid"] == before["vm_pid"]
 
-    for saved <- [recovered, paused] do
-      assert saved["active"] == 0
+      for saved <- [recovered, paused] do
+        assert saved["active"] == 0
 
-      for key <- ~w(batch deliveries tasks requests items steps events),
-          do: assert(saved[key] == before[key])
+        for key <- ~w(batch deliveries tasks requests items steps events),
+            do: assert(saved[key] == before[key])
+      end
+
+      assert git(c.source, ["rev-parse", "main"]) == offline_target
+      assert calls(c.root, "calls") == ~w(plan implement review)
+      assert calls(c.root, "check-calls") == [first_check]
+      File.write!(Path.join(c.root, "resume"), "")
+      final = wait_json(c.root, "after_resume", replacement)
+      assert_receive {^replacement, {:exit_status, 0}}, 5_000
+      assert final["active"] == 0
+      [finished] = final["deliveries"]
+      [item] = before["items"]
+      assert finished["cleanup"] == "group_empty"
+      assert finished["integration_command_id"] == item["integration_command_id"]
+      assert final["items"] == before["items"]
+      assert final["requests"] == before["requests"]
+      assert Enum.all?(before["steps"], &(&1 in final["steps"]))
+      assert Enum.all?(before["events"], &(&1 in final["events"]))
+
+      if drift in ~w(dirty ref rewritten) do
+        assert final["batch"]["status"] == "blocked"
+        assert finished["status"] == "blocked"
+        assert Enum.map(final["tasks"], & &1["state"]) == ["blocked"]
+        assert finished["integration_intent"] == %{}
+        assert length(final["steps"]) == length(before["steps"])
+        assert final["steps"] == before["steps"]
+        assert calls(c.root, "calls") == ~w(plan implement review)
+        assert calls(c.root, "check-calls") == [first_check]
+        assert git(c.source, ["rev-parse", "main"]) == offline_target
+
+        if drift == "rewritten",
+          do: assert(finished["reason"] =~ "no longer descends from the original base"),
+          else: assert(finished["reason"] =~ "could not verify the saved candidate")
+      else
+        assert_published(c, drift, final, check, review, offline_target)
+      end
+
+      assert git(candidate["path"], ["rev-parse", "HEAD"]) == sha
+      expected_ref = if drift == "ref", do: c.base, else: sha
+      assert git(c.source, ["rev-parse", candidate["ref"]]) == expected_ref
+      expected_file = if drift == "dirty", do: "offline tamper\n", else: "candidate-1\n"
+      assert File.read!(Path.join(candidate["path"], "result.txt")) == expected_file
+
+      if drift == "dirty",
+        do: assert(git(candidate["path"], ["ls-files", "-v", "result.txt"]) == "h result.txt")
+
+      assert Path.wildcard(Path.join(c.root, "tmp/boss-review-*")) == []
+      assert git(c.source, ["rev-parse", "HEAD"]) == c.base
+      assert git(c.source, ["branch", "--show-current"]) == "user-work"
+      assert git(c.source, ["status", "--porcelain"]) == "?? user.txt"
+      assert File.read!(Path.join(c.source, "user.txt")) == "preserve local edits"
     end
+  end
 
-    assert git(c.source, ["rev-parse", "main"]) == c.base
-    assert calls(c.root, "calls") == ~w(plan implement review)
-    assert calls(c.root, "check-calls") == [first_check]
-    File.write!(Path.join(c.root, "resume"), "")
-    final = wait_json(c.root, "after_resume", replacement)
-    assert_receive {^replacement, {:exit_status, 0}}, 5_000
+  defp change_offline(c, "unchanged", _, _), do: c.base
+
+  defp change_offline(c, "dirty", candidate, _) do
+    git(candidate["path"], ["update-index", "--assume-unchanged", "result.txt"])
+    File.write!(Path.join(candidate["path"], "result.txt"), "offline tamper\n")
+    assert git(candidate["path"], ["status", "--porcelain"]) == ""
+    c.base
+  end
+
+  defp change_offline(c, "ref", candidate, sha) do
+    git(c.source, ["update-ref", candidate["ref"], c.base, sha])
+    c.base
+  end
+
+  defp change_offline(c, "advanced", _, _) do
+    path = Path.join(c.root, "offline")
+    git(c.source, ["worktree", "add", "--detach", path, c.base])
+    File.write!(Path.join(path, "offline.txt"), "offline change\n")
+    git(path, ["add", "offline.txt"])
+    git(path, ["commit", "-m", "offline change"])
+    target = git(path, ["rev-parse", "HEAD"])
+    git(c.source, ["update-ref", "refs/heads/main", target, c.base])
+    target
+  end
+
+  defp change_offline(c, "rewritten", _, _) do
+    tree = git(c.source, ["rev-parse", c.base <> "^{tree}"])
+    target = git(c.source, ["commit-tree", tree, "-m", "rewritten root"])
+    git(c.source, ["update-ref", "refs/heads/main", target, c.base])
+    target
+  end
+
+  defp assert_published(c, drift, final, check, review, offline_target) do
     assert final["batch"]["status"] == "completed"
-    assert final["active"] == 0
     [done] = final["deliveries"]
-    assert done["status"] == "done" and done["cleanup"] == "group_empty"
-    [item] = before["items"]
-    assert done["integration_command_id"] == item["integration_command_id"]
-    assert done["integration_intent"]["candidate_commit"] == sha
-    assert final["items"] == before["items"]
-    assert final["requests"] == before["requests"]
-    assert Enum.all?(before["steps"], &(&1 in final["steps"]))
-    assert Enum.all?(before["events"], &(&1 in final["events"]))
-
-    assert Enum.sort_by(final["steps"], & &1["number"]) |> Enum.map(& &1["kind"]) ==
-             ~w(plan implement snapshot check review publish post_check)
-
+    assert done["status"] == "done"
+    assert Enum.map(final["tasks"], & &1["state"]) == ["done"]
+    sha = done["integration_intent"]["candidate_commit"]
     publish = Enum.find(final["steps"], &(&1["kind"] == "publish"))
     postcheck = Enum.find(final["steps"], &(&1["kind"] == "post_check"))
-    assert publish["input"]["review_step_id"] == review["id"]
     assert postcheck["input"]["publish_step_id"] == publish["id"]
     assert postcheck["receipt"]["status"] == "finished"
     assert postcheck["receipt"]["candidate_commit"] == sha
-    assert Enum.map(final["tasks"], & &1["state"]) == ["done"]
-    assert calls(c.root, "calls") == ~w(plan implement review)
-    assert calls(c.root, "check-calls") == [first_check, done["integration_intent"]["path"]]
-    assert git(c.source, ["rev-parse", "main"]) == sha
-    assert git(candidate["path"], ["rev-parse", "HEAD"]) == sha
-    assert git(c.source, ["rev-parse", candidate["ref"]]) == sha
     target = done["integration_intent"]["path"]
+    assert git(c.source, ["rev-parse", "main"]) == sha
     assert git(target, ["rev-parse", "HEAD"]) == sha
     assert git(target, ["branch", "--show-current"]) == ""
     assert git(target, ["status", "--porcelain"]) == ""
-    assert git(c.source, ["rev-parse", "HEAD"]) == c.base
-    assert git(c.source, ["branch", "--show-current"]) == "user-work"
-    assert git(c.source, ["status", "--porcelain"]) == "?? user.txt"
-    assert File.read!(Path.join(c.source, "user.txt")) == "preserve local edits"
+    steps = Enum.sort_by(final["steps"], & &1["number"]) |> Enum.map(& &1["kind"])
+
+    if drift == "advanced" do
+      merge = Enum.find(final["steps"], &(&1["kind"] == "merge"))
+      fresh_check = Enum.find(final["steps"], &(&1["kind"] == "merge_check"))
+      fresh_review = Enum.find(final["steps"], &(&1["kind"] == "merge_review"))
+      fresh = merge["receipt"]["workspace"]
+      original = check["input"]["workspace"]
+      approved = review["input"]["candidate_commit"]
+      assert sha != approved and sha != offline_target
+
+      assert git(target, ["rev-list", "--parents", "-n", "1", sha]) ==
+               "#{sha} #{offline_target} #{approved}"
+
+      assert File.read!(Path.join(target, "offline.txt")) == "offline change\n"
+      assert File.read!(Path.join(target, "result.txt")) == "candidate-1\n"
+      for key <- ~w(check_id path ref), do: refute(fresh[key] == original[key])
+      assert git(fresh["path"], ["rev-parse", "HEAD"]) == sha
+      assert git(c.source, ["rev-parse", fresh["ref"]]) == sha
+      assert git(fresh["path"], ["status", "--porcelain"]) == ""
+      assert fresh_check["input"]["workspace"] == fresh
+      assert fresh_check["input"]["merge_step_id"] == merge["id"]
+      assert fresh_check["status"] == "finished"
+      assert fresh_check["receipt"]["candidate_commit"] == sha
+      assert fresh_review["input"]["merge_check_step_id"] == fresh_check["id"]
+      assert fresh_review["input"]["original_review_step_id"] == review["id"]
+      assert fresh_review["receipt"]["candidate_commit"] == sha
+      assert fresh_review["status"] == "finished"
+      assert fresh_review["receipt"]["report"]["verdict"] == "approved"
+      assert publish["input"]["review_step_id"] == fresh_review["id"]
+
+      assert steps ==
+               ~w(plan implement snapshot check review merge merge_check merge_review publish post_check)
+
+      assert calls(c.root, "calls") == ~w(plan implement review merge_review)
+      assert calls(c.root, "check-calls") == [original["path"], fresh["path"], target]
+    else
+      assert sha == review["input"]["candidate_commit"]
+      assert publish["input"]["review_step_id"] == review["id"]
+      assert steps == ~w(plan implement snapshot check review publish post_check)
+      assert calls(c.root, "calls") == ~w(plan implement review)
+      assert calls(c.root, "check-calls") == [check["input"]["workspace"]["path"], target]
+    end
   end
 
   defp boot(root, boundary, mode) do
