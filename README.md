@@ -13,8 +13,10 @@ review, explicit integration and postchecks before Done. Task source adoption
 and Done-only dependency readiness keep execution pinned to reviewed inputs.
 
 Release preparation: [0.1.0-rc.1 build, installation and acceptance](docs/RELEASE.md).
-The macOS candidate is under verification; signing, clean-machine/provider acceptance
-and Linux task execution remain separate gates. See [CHANGELOG.md](CHANGELOG.md).
+The macOS candidate is under verification. Full remote regression passed, but
+packaging requires a corrected pinned OpenSSL runtime. Earlier signed5570 is held
+from distribution. Notarization, clean-machine/provider acceptance and Linux task
+execution remain separate gates. See [CHANGELOG.md](CHANGELOG.md).
 
 ## Run locally
 

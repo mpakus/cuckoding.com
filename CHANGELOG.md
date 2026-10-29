@@ -19,6 +19,8 @@ release gates tracked in [docs/RELEASE.md](docs/RELEASE.md).
   migrations. Agent CLIs and Git remain user-installed runtime tools.
 - Update Bandit to1.14.1 after the dependency audit identified advisories in1.13.1.
 - License BOSS under Apache-2.0 and include its full text in release archives.
+- Pin isolated OTP28.5.0.8/static OpenSSL3.5.9 source builds, preserve embedded
+  native component notices and reject stale/mismatched release runtimes.
 
 Linux task execution, public signing/notarization and complete recovery-boundary
 acceptance remain open. See [docs/RECOVERY.md](docs/RECOVERY.md).

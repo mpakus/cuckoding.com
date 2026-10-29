@@ -6,7 +6,8 @@
     "architecture": "arm64",
     "elixir": "1.20.3",
     "otp": "28",
-    "erts": "16.4"
+    "erts": "16.4",
+    "openssl": "3.6.3"
   },
   "archive": {
     "bytes": 13934018,
@@ -40,5 +41,11 @@
   "notarization": "not_performed",
   "gatekeeper_download_acceptance": "pending",
   "fresh_provider_acceptance": "pending",
-  "remote_ci": "pending"
+  "remote_ci": "pending",
+  "distribution_status": "held_pending_native_crypto_update",
+  "native_dependency_audit": {
+    "status": "outdated_openssl",
+    "replacement": "OpenSSL 3.5.9 LTS isolated build pending",
+    "boss_exploitability": "not_established"
+  }
 }

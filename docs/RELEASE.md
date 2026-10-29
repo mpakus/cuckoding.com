@@ -1,25 +1,33 @@
 # BOSS 0.1.0-rc.1
 
-Status: local macOS27 arm64 candidate5570d3f rebuilt and Developer ID signed.
-Unsigned and signed-payload smokes passed; final remote regression remains pending.
+Status: source a0b9715 passed full remote regression (587 passed,1 skipped).
+Packaging is blocked pending an isolated patched OTP/OpenSSL runtime and notices.
+Earlier Developer ID signed5570d3f is held from distribution: its OpenSSL3.6.3
+predates published upstream fixes. Valid signatures do not close this gate.
 No public release, tag or notarization is implied. Results and remaining gates are
 in [.worklog/2026-10-29.md](../.worklog/2026-10-29.md).
 
 [Draft RC PR #1](https://github.com/mpakus/cuckoding.com/pull/1) publishes the reviewed
 source on a separate branch; remote main and the existing site are preserved.
-Earlier remote CI runs stopped during source verification. Git registration and
-dependency-budget regressions passed after their fixes; the5570 run failed only on
-another implicit100ms UI wait. A full caller inventory now covers all28 async waits
-with explicit bounded deadlines; the updated web suite passed142 tests. Final full
-CI/package acceptance is still required. PR merge checkout differs from branch
-head and must match the final artifact's `BUILD_INFO`.
+[CI40953808199](https://github.com/mpakus/cuckoding.com/actions/runs/40953808199)
+passed all587 tests (1 skipped), audits and signing fixtures. Packaging then
+rejected the prebuilt runtime: its crypto NIF statically embeds OpenSSL3.5.6,
+and the binary distribution lacks upstream notices. No CI archive was produced.
+The actual tested merge is a9af06bf077e9bec967558db3df63e9cfbff9638; its tree equals
+PR head a0b9715. A replacement isolated source build targets OTP28.5.0.8 with
+OpenSSL3.5.9 LTS; build/package acceptance remains pending. See
+[OpenSSL releases](https://www.openssl-library.org/source/) and
+[advisory ranges](https://www.openssl-library.org/news/vulnerabilities-3.6/index.html).
+These library findings do not establish a remotely exploitable BOSS issue.
+PR head, tested merge SHA and final artifact `BUILD_INFO` remain separate facts.
 
 Historical baseline regression passed585 tests with1 platform-specific skip
 (seed329391,018a). Original archive9596162 passed native-helper execution, private
 browser authentication/assets, connected board/Autopilot/drawer and durable restart.
 The new Git-runtime fix passed49 related cases and640 concurrent adds; combined
-workspace/dependency verification passed32. The rebuilt5570 package passed unsigned and signed-payload smoke; final full CI is
-pending. Public distribution requires the remaining gates below.
+workspace/dependency verification passed32. The rebuilt5570 package passed unsigned
+and signed-payload smoke, but its native crypto now blocks distribution. Public
+distribution requires a corrected package and the remaining gates below.
 
 One explicitly authorized real Codex0.146.0 packaged workflow passed in100.875s
 with3 CLI invocations: plan, implement, checks, independent Codex review, exact
@@ -40,24 +48,38 @@ notices retain their original licenses.
 
 ## Build and inspect
 
-Use the pinned Elixir1.20.3/OTP28 pair, Node20+ with npm, Git, Python3.12+ and Xcode
-Command Line Tools on macOS. Runtime dependencies must be built on the intended
-OS/architecture; this is not a universal or cross-compiled archive.
+Release builds require native macOS arm64, Python3.12+, Xcode Command Line Tools,
+Git, Node20+ with npm and Elixir1.20.3 compiled for OTP28. Build the pinned
+OTP28.5.0.8/OpenSSL3.5.9 runtime in an exclusively new prefix; this does not change
+Homebrew or asdf installations. Existing output directories are refused and failed
+outputs are retained with their build logs. Choose a new output name for another
+build. Runtime dependencies must be built on the intended OS/architecture.
 
 ```sh
-mix setup
-mix hex.audit
-npm --prefix assets audit --audit-level=high
-mix format --check-formatted
-mix compile --warnings-as-errors
-mix test
-MIX_ENV=prod mix release.build
-python3 scripts/smoke_release.py _build/prod/boss-0.1.0-rc.1.tar.gz
-shasum -a 256 _build/prod/boss-0.1.0-rc.1.tar.gz
+rtk proxy python3 -B scripts/test_build_release_runtime.py
+rtk proxy python3 -B scripts/build_release_runtime.py --output "$PWD/_build/release-runtime" --jobs 3
+export PATH="$PWD/_build/release-runtime/otp/bin:$PATH"
+rtk proxy elixir --version
+rtk proxy elixir rel/test_package.exs
+rtk proxy mix setup
+rtk proxy mix hex.audit
+rtk proxy npm --prefix assets audit --audit-level=high
+rtk proxy mix format --check-formatted
+rtk proxy mix format --check-formatted rel/package.exs rel/test_package.exs
+rtk proxy mix compile --warnings-as-errors
+rtk proxy mix test
+rtk proxy env MIX_ENV=prod mix release.build
+rtk proxy python3 -B scripts/smoke_release.py _build/prod/boss-0.1.0-rc.1.tar.gz
+rtk proxy shasum -a 256 _build/prod/boss-0.1.0-rc.1.tar.gz
 ```
 
-On this development machine run Mix through `rtk proxy asdf exec mix`. Use RTK
-for other terminal commands as described in AGENTS.md.
+The selected Elixir must be1.20.3-otp-28; put that installation's `bin` after the
+new OTP `bin` if PATH chooses another Elixir. On this host that is
+`/Users/mpak/.asdf/installs/elixir/1.20.3-otp-28/bin`. The effective `erl` must stay
+inside the new prefix for every build/test command; do not silently revert to the
+Homebrew/asdf default Erlang. The packaging gate verifies the actual runtime,
+exact crypto NIF bytes and source manifest. CI applies the same prefix before
+installing dependencies and running the complete suite.
 
 Inspect the archive's `BUILD_INFO` and `LICENSES` before distribution. The package
 contains ERTS, Elixir/application code, native guardian, compiled assets, migrations
@@ -68,10 +90,14 @@ The current development host is macOS27.0.1 arm64; its native minimum-OS headers
 do not establish compatibility with older macOS versions. CI-built archives have
 their own provenance and require acceptance on their intended machines.
 
-The included OpenSSL library is relocated into the release; assembly rejects
-remaining external non-system native-library dependencies. Ad-hoc signatures used
-after relocation support local loading. They do not provide Developer ID trust or
-Apple notarization.
+This RC accepts only the pinned source-built static OpenSSL runtime. Assembly
+rejects stale/unsupported versions, a changed crypto NIF, missing notices and
+external non-system native dependencies, including hidden images and escaping
+loader paths. `RUNTIME_INFO.json` records source/archive hashes, configure options,
+actual versions and genuine notice hashes; `BUILD_INFO` pins that manifest.
+OTP's separate builtin MD5-only OpenSSL3.6.1 source component is recorded distinctly
+from the effective full OpenSSL3.5.9 crypto library. System zlib is provided by
+macOS. Build signatures do not provide Developer ID trust or Apple notarization.
 
 Inspection of the local macOS27 archive found26 arm64 native images: guardian
 requires macOS27.0,24 images require26.0 and Exqlite requires14.0. This archive
@@ -79,13 +105,14 @@ therefore requires macOS27.0 or later; a different CI build needs its own inspec
 
 ## Explicit macOS distribution preparation
 
-Local candidate5570d3f has independent strict verification of its DMG and all26
+Historical local candidate5570d3f has independent strict verification of its DMG and all26
 arm64 native images under the selected Developer ID TeamG4HV2FL5N2, with secure
 timestamps, hardened runtime and only BEAM allow-jit. The signed payload passed
 unpacked startup/auth/assets/native-helper/restart smoke. See sanitized
 [signing evidence](../.worklog/evidence/2026-10-29-signed-macos-rc.json).
+This is historical signing evidence; OpenSSL3.6.3 blocks its distribution.
 Notarization, quarantined download/Gatekeeper, clean-machine and fresh provider
-acceptance of this runtime remain open.
+acceptance of the corrected runtime remain open.
 
 
 The optional signing step requires a maintainer-approved Developer ID Application

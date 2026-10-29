@@ -46,6 +46,11 @@
   distribution disabled for the local launcher. A local package/smoke is not
   clean-machine, signing, provider, Linux or remote-CI acceptance. Never hide
   dependency advisories or publish a prerelease as stable; see docs/RELEASE.md.
+- Release runtime pins include the actual OpenSSL version, not only OTP/Elixir.
+  Reject stale crypto before packaging; retain upstream notice provenance and
+  native closure checks. This RC requires source-built OTP28.5.0.8 with static
+  OpenSSL3.5.9; record OTP's MD5-only vendor component separately. Build runtimes
+  in an isolated prefix; do not mutate the host toolchain to make a package pass.
 - BOSS uses Apache-2.0 in root LICENSE. Preserve its exact text in release
   LICENSES/BOSS-LICENSE and retain separate third-party notices; reference licenses
   do not replace the project's chosen license.

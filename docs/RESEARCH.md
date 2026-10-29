@@ -576,3 +576,36 @@ search/read used Backlog `packages/core/src/scheduler.ts:108–130` and its
 `scheduler.test.ts:48–78`, pinned
 `3580cfbbb1be4144a5cca5b49190e1f8158e4cf7` (Apache-2.0). Adopt focused reason tests;
 reject importing the whole-workspace in-memory scheduler. No reference code copied.
+
+
+## Release runtime and native notices — 2026-10-29
+
+`xerj search --prefix bossrefs 'OpenSSL' -k 3 --full 1000` could not reach the
+authenticated local node at localhost:9200; no insecure replacement node was
+started. Fallback `rg` and direct pinned source reads found:
+
+- Agent Orchestrator, Apache-2.0,7193eff4e08f1481944845ee058fe6fd18930b6d:
+  `scripts/bootstrap-self-hosted.sh:52–73` pins/downloads/checksums before extraction;
+  `scripts/setup-self-hosted.sh:115–145` rejects missing/mismatched artifact digests;
+  `scripts/setup-self-hosted.test.sh:62–88` exercises missing/bad digest fixtures.
+  Adopt fixed sources and hash-before-execution, exclusively owned scratch and
+  explicit failure. Reject its global installer/system service changes and reuse
+  of an unverified pre-existing tool prefix. No reference code was copied.
+- [Official OTP28 build guide](https://github.com/erlang/otp/blob/882bc060aca3f9491ba6345da56c5076793d31e2/HOWTO/INSTALL.md)
+  and [OTP28.5.0.8 release](https://github.com/erlang/otp/releases/tag/OTP-28.5.0.8):
+  build an isolated prefix against explicit static OpenSSL, retain full OTP patch
+  identity. OTP source commit882bc060aca3f9491ba6345da56c5076793d31e2; official
+  source archive SHA2568a696e15bcbe5d57197b1f4c03c92d415f9fd9af70f9222a05911c8a5463cba6.
+- [Official OpenSSL downloads](https://www.openssl-library.org/source/):3.5.9 LTS,
+  supported through2030-04-08; source45e844fa2a14ec92d146bd8f5778ac130b6625fb,
+  archive SHA256603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a.
+  [Published3.6 advisories](https://www.openssl-library.org/news/vulnerabilities-3.6/index.html)
+  include fixes after the historical local3.6.3. The official erlef OTP28 macOS
+  binaries currently contain at most3.5.8. Neither OTP version alone nor a valid
+  Developer ID signature proves current crypto. No BOSS exploitability inferred.
+
+Root upstream `LICENSE.txt` hashes: OTP809fa1ed21450f59827d1e9aec720bbc4b687434fa22283c6cb5dd82a47ab9c0;
+OpenSSL7d5450cb2d142651b8afa315b5f238efc805dad827d91ba367d8516bc9d49e7a.
+ERTS embeds separate third-party components; their genuine source notices must
+travel with the package as well. The build/packager tests and actual resulting
+versions are recorded in the worklog, not inferred from this research.
