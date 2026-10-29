@@ -533,8 +533,10 @@ BOSS restart. Contract: [WORKFLOW_QUEUE.md](../docs/WORKFLOW_QUEUE.md).
   Main dcf72f9:169 passed(seed352781,113.1s), compile/format/assets passed.
   Backup saved before migration20261027070000; actual project page shows button.
 - [x] Delete all three merged temporary Autopilot branches.
-- [ ] Archive both clean detached writer worktrees. Codex refuses because another
-  active task still holds them, including after parent reattachment. Preserved safely.
+- [x] Archive the engine writer worktree during BOSS-017c; app attachment and Git
+  inventory confirm removal.
+- [ ] Archive the remaining clean detached UI writer worktree. The app still refuses
+  because another active task holds it; preserved safely.
 
 The first combined run exposed stale fixture aliases and an incomplete legacy
 migration fixture; both are fixed without weakening production gates. Combined
@@ -558,9 +560,8 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 - [x] Merge local main (`9f9042d`) and verify the combined result:53 passed,
   seed175589,40.5s; compile warnings-as-errors and format passed. Local server updated.
 - [x] Delete both merged recovery branches; retain clean detached checkouts.
-- [ ] Archive the reused writer worktrees once the app releases its ownership hold.
-  Both archive attempts were refused because another active task still uses them;
-  no forced deletion.
+- [ ] Finish archiving the reused writer worktrees once the app releases its hold.
+  Engine archived in017c; the older UI checkout is still held. No forced deletion.
 
 ## BOSS-017b — interruption versus completed approval
 
@@ -575,9 +576,8 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 - [x] Merge local main (`1e04ef8`) and verify: native6 + persistence11 passed17
   (seed277660,66.1s), format/diff passed; no recovery fixture VM remains.
 - [x] Delete both merged temporary recovery branches.
-- [ ] Archive the clean detached reused writer worktree when the app releases its
-  ownership hold. Archive refused again because another active task uses it;
-  no forced deletion.
+- [x] Archive the clean detached reused engine writer worktree: completed in017c
+  after the earlier app ownership hold was released.
 
 ## BOSS-017c — offline candidate и target drift
 
@@ -589,7 +589,10 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
   (seed130744,168.1s); ancestry mutation caught the extra merge step
   (seed52840,16.4s), production restored. Baseline integration/persistence16 passed
   (seed777880,143.7s). Format/diff passed; no runtime changes.
-- [ ] Merge local main, verify and clean owned temporary branches/worktree.
+- [x] Merge local main (`a018a9e`): Ready drift5 passed(seed910197,118.6s), merge
+  persistence2 passed(seed485152,0.4s), compile warnings-as-errors/format/diff passed.
+- [x] Delete both merged branches and archive the clean engine writer worktree.
+  App reports archived; directory and Git registration are absent. No fixture VM remains.
 
 ## Следующие рабочие проходы
 
