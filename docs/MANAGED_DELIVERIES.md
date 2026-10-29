@@ -160,6 +160,8 @@ caller-provided verdicts/SHAs cannot directly command a terminal task state.
 Tests use finite fake CLIs, real Git, native macOS transport and exclusively created
 SQLite databases with real pools. They cover rejection/fixes, full feedback, budget,
 Stop, restart/replay, source preservation, target reservation, exact publication,
-postcheck failure, configured capacity, overlapping scopes and unknown receipt/Repo loss. Linux
-execution, real-provider acceptance and packaging remain separate
-open work. See `.worklog/` for actual commands and browser/full-suite evidence.
+postcheck failure, configured capacity, overlapping scopes and unknown receipt/Repo loss.
+One bounded packaged real Codex workflow with Codex review passed through verified
+Done (3calls/100.875s,5/5 criteria); this is a tiny smoke, not general task or Claude
+acceptance. Linux execution, clean-machine acceptance and public signing remain
+open. See [release evidence](RELEASE.md) and `.worklog/` for exact scope/results.

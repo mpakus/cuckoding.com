@@ -4,10 +4,25 @@ Status: local macOS release candidate verified on the build host. No public rele
 signature/notarization or remote CI result is implied by this document. Results
 and remaining gates are recorded in [.worklog/2026-10-29.md](../.worklog/2026-10-29.md).
 
+[Draft RC PR #1](https://github.com/mpakus/cuckoding.com/pull/1) publishes the reviewed
+source on a separate branch; remote main and the existing site are preserved.
+Remote CI is in progress. Its PR merge checkout is distinct from the branch head
+and must be matched to the final artifact's `BUILD_INFO` before claiming acceptance.
+
 Local application regression passed585 tests with1 platform-specific skip
 (seed329391). The unpacked archive passed native-helper execution, private browser
 authentication/assets, connected LiveView board/Autopilot/drawer and durable restart.
 Public distribution still requires the open gates below.
+
+One explicitly authorized real Codex0.146.0 packaged workflow passed in100.875s
+with3 CLI invocations: plan, implement, checks, independent Codex review, exact
+publication and postchecks reached Done. Review passed5/5 criteria with0 issues;
+all process receipts confirmed exit0, both EOFs and group cleanup. Independent
+target inspection found only the exact `hello.txt` addition and preserved the
+original `user-work` checkout. This tiny smoke covers the selected Codex reviewer;
+it does not establish arbitrary task, Claude-provider or clean-machine acceptance.
+Sanitized [receipts and usage](../.worklog/evidence/2026-10-29-codex-rc-smoke.json)
+exclude model/tool text and report prose. No second paid workflow was started.
 
 BOSS uses Apache-2.0, selected by the project owner. The archive
 includes the unchanged project license as `LICENSES/BOSS-LICENSE`; dependency
@@ -171,7 +186,7 @@ restore must not silently discard work created after the backup.
 | Package | Actual unpacked startup, unlock/assets, native helper and durable restart with bundled runtime; checksum and provenance. |
 | Dependency audit | Hex and npm audit pass without suppressing findings. |
 | Clean-machine macOS | Supported architecture/OS acceptance with user-installed Git and CLI; actual folder chooser and provider workflow. |
-| Provider | Explicit bounded Codex workflow and selected reviewer through checks/integration/Done; sanitized receipts only. |
+| Provider | Passed one bounded packaged Codex workflow with Codex review through checks/integration/Done (3calls/100.875s). Other providers and arbitrary tasks need separate evidence. |
 | Distribution | Apache-2.0 selected and included; public signing/notarization and download acceptance remain open. Third-party notices retain their original licenses. |
 | Remote CI | Pinned macOS workflow runs successfully on the published commit; local YAML validation is not a remote result. |
 | Linux stable support | Linux process ownership/cleanup, native chooser and complete workflow acceptance. Current runner rejects non-macOS execution. |

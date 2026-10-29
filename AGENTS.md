@@ -54,6 +54,10 @@
   Keep signing, notarization Accepted, stapling and clean-machine acceptance as
   separate evidence. Never bypass library validation/Gatekeeper or resubmit an
   unknown notarization outcome; reconcile its saved submission ID first.
+- Remote RC evidence must distinguish PR head, tested merge SHA and packaged
+  BUILD_INFO. Keep opt-in provider budgets outside model-writable paths, preserve
+  the selected account and leave cleanup time inside the deadline. A failed paid
+  acceptance run never authorizes an automatic second workflow or CI provider call.
 - Create test scratch roots exclusively before registering recursive cleanup.
   A VM-local counter is not a globally unique directory name. Never remove a
   pre-existing directory to make a test pass.

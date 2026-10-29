@@ -393,3 +393,13 @@ allow-jit. После строгой проверки и packaged smoke созд
 шаг без приватного ключа, а не заменяют реальную signing/provider acceptance.
 Локальный merge6a29dac проверен4 fixture tests, AST и CI YAML; runtime/dependency
 tree не изменён. Реальная Developer ID подпись/нотарификация ещё не выполнялась.
+
+## BOSS-018d — опубликованный RC и ограниченная provider acceptance
+
+Пользователь разрешил отдельную RC-ветку/draft PR/CI и один реальный Codex workflow
+до7 CLI вызовов/10минут. Remote main/site сохранить. Использовать проверенный
+распакованный archive, новый repository/data/TMPDIR, реальный выбранный CLI account,
+сохранённый check и независимый review. Счётчик вне model-writable paths, общий
+deadline и прямой Stop защищают бюджет; terminal failure не даёт нового paid retry.
+Сохранять только sanitized receipts/SHAs/usage и проверять actual target/Done,
+checkout пользователя, cleanup и точную идентичность CI head/merge/artifact.

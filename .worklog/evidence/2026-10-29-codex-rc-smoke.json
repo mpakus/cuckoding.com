@@ -1,0 +1,395 @@
+{
+  "source_archive_sha256": "a958c8d8ee81b22eb77413f0dc01defd34db3fc67c08a32ce119753e15bff57f",
+  "cli_version": "0.146.0",
+  "base_sha": "69c601bc39603478492b254564672a873d06e717",
+  "target_sha": "68199759d8b65bbff1ef53b641335360760df1bf",
+  "calls": 3,
+  "elapsed_seconds": 100.875,
+  "user_checkout_preserved": true,
+  "exact_target_verified": true,
+  "process_exit": 0,
+  "receipt": {
+    "delivery": {
+      "id": "6cd1ba1c-7744-49e3-83e5-079586f54df5",
+      "status": "done",
+      "cycle": 1,
+      "cleanup": "group_empty",
+      "config_hash": "dc14be0d667a549704560e99835046c60f32b9d979d854f9a799ac6359e14fb5",
+      "spec_revision_id": 1
+    },
+    "task": {
+      "id": 1,
+      "state": "done",
+      "spec_revision_id": 1,
+      "state_version": 11
+    },
+    "steps": [
+      {
+        "id": "c98263ee-a515-479a-ae8b-1df8cb243acf",
+        "status": "finished",
+        "number": 1,
+        "cycle": 0,
+        "kind": "plan",
+        "receipt": {
+          "cleanup": "group_empty",
+          "eof": {
+            "stderr": true,
+            "stdout": true
+          },
+          "exit_code": 0,
+          "exit_kind": "exit",
+          "outcome": "exited",
+          "signal": null,
+          "status": "finished",
+          "summary": {
+            "event_count": 10,
+            "events": [
+              {
+                "sequence": 1,
+                "type": "thread.started"
+              },
+              {
+                "sequence": 2,
+                "type": "turn.started"
+              },
+              {
+                "sequence": 3,
+                "type": "item.completed"
+              },
+              {
+                "sequence": 4,
+                "type": "item.completed"
+              },
+              {
+                "sequence": 5,
+                "type": "item.started"
+              },
+              {
+                "sequence": 6,
+                "type": "item.completed"
+              },
+              {
+                "sequence": 7,
+                "type": "item.started"
+              },
+              {
+                "sequence": 8,
+                "type": "item.completed"
+              },
+              {
+                "sequence": 9,
+                "type": "item.completed"
+              },
+              {
+                "sequence": 10,
+                "type": "turn.completed"
+              }
+            ],
+            "usage": {
+              "cached_input_tokens": 37376,
+              "input_tokens": 57658,
+              "output_tokens": 844
+            }
+          }
+        },
+        "assessment": {
+          "verdict": null,
+          "acceptance_count": 5,
+          "acceptance_statuses": {},
+          "issue_count": 0
+        }
+      },
+      {
+        "id": "eae8352b-224b-48d2-acf6-2dea15f11b2b",
+        "status": "finished",
+        "number": 2,
+        "cycle": 1,
+        "kind": "implement",
+        "receipt": {
+          "cleanup": "group_empty",
+          "eof": {
+            "stderr": true,
+            "stdout": true
+          },
+          "exit_code": 0,
+          "exit_kind": "exit",
+          "head_commit": "69c601bc39603478492b254564672a873d06e717",
+          "outcome": "exited",
+          "signal": null,
+          "status": "finished",
+          "summary": {
+            "event_count": 16,
+            "events": [
+              {
+                "sequence": 1,
+                "type": "thread.started"
+              },
+              {
+                "sequence": 2,
+                "type": "turn.started"
+              },
+              {
+                "sequence": 3,
+                "type": "item.completed"
+              },
+              {
+                "sequence": 4,
+                "type": "item.completed"
+              },
+              {
+                "sequence": 5,
+                "type": "item.started"
+              },
+              {
+                "sequence": 6,
+                "type": "item.completed"
+              },
+              {
+                "sequence": 7,
+                "type": "item.completed"
+              },
+              {
+                "sequence": 8,
+                "type": "item.started"
+              },
+              {
+                "sequence": 9,
+                "type": "item.completed"
+              },
+              {
+                "sequence": 10,
+                "type": "item.started"
+              },
+              {
+                "sequence": 11,
+                "type": "item.completed"
+              },
+              {
+                "sequence": 12,
+                "type": "item.completed"
+              },
+              {
+                "sequence": 13,
+                "type": "item.started"
+              },
+              {
+                "sequence": 14,
+                "type": "item.completed"
+              },
+              {
+                "sequence": 15,
+                "type": "item.completed"
+              },
+              {
+                "sequence": 16,
+                "type": "turn.completed"
+              }
+            ],
+            "usage": {
+              "cached_input_tokens": 94464,
+              "input_tokens": 106107,
+              "output_tokens": 1038
+            }
+          }
+        },
+        "assessment": {
+          "verdict": null,
+          "acceptance_count": 0,
+          "acceptance_statuses": {},
+          "issue_count": 0
+        }
+      },
+      {
+        "id": "f6951cd0-58ef-4ad9-bf61-bcc8ad6138ac",
+        "status": "finished",
+        "number": 3,
+        "cycle": 1,
+        "kind": "snapshot",
+        "receipt": {
+          "candidate_commit": "68199759d8b65bbff1ef53b641335360760df1bf",
+          "cleanup": "group_empty",
+          "status": "finished",
+          "summary": {}
+        },
+        "assessment": {
+          "verdict": null,
+          "acceptance_count": 0,
+          "acceptance_statuses": {},
+          "issue_count": 0
+        }
+      },
+      {
+        "id": "89fa06bb-0439-4898-a19b-2b9dcb8c6b3c",
+        "status": "finished",
+        "number": 4,
+        "cycle": 1,
+        "kind": "check",
+        "receipt": {
+          "candidate_commit": "68199759d8b65bbff1ef53b641335360760df1bf",
+          "cleanup": "group_empty",
+          "eof": {
+            "stderr": true,
+            "stdout": true
+          },
+          "exit_code": 0,
+          "exit_kind": "exit",
+          "outcome": null,
+          "output_complete": true,
+          "output_hash": "54b2847daddcbee70b33682a530dbb5041c329b1ae21e974cb930b9f08ba8989",
+          "signal": null,
+          "status": "finished",
+          "stderr_bytes": 0,
+          "stdout_bytes": 21,
+          "summary": {}
+        },
+        "assessment": {
+          "verdict": null,
+          "acceptance_count": 0,
+          "acceptance_statuses": {},
+          "issue_count": 0
+        }
+      },
+      {
+        "id": "15afcba5-82de-4673-a9ce-d4f2f44d499c",
+        "status": "finished",
+        "number": 5,
+        "cycle": 1,
+        "kind": "review",
+        "receipt": {
+          "candidate_commit": "68199759d8b65bbff1ef53b641335360760df1bf",
+          "cleanup": "group_empty",
+          "eof": {
+            "stderr": true,
+            "stdout": true
+          },
+          "exit_code": 0,
+          "exit_kind": "exit",
+          "outcome": "exited",
+          "signal": null,
+          "status": "finished",
+          "summary": {
+            "event_count": 11,
+            "events": [
+              {
+                "sequence": 1,
+                "type": "thread.started"
+              },
+              {
+                "sequence": 2,
+                "type": "turn.started"
+              },
+              {
+                "sequence": 3,
+                "type": "item.completed"
+              },
+              {
+                "sequence": 4,
+                "type": "item.started"
+              },
+              {
+                "sequence": 5,
+                "type": "item.completed"
+              },
+              {
+                "sequence": 6,
+                "type": "item.started"
+              },
+              {
+                "sequence": 7,
+                "type": "item.completed"
+              },
+              {
+                "sequence": 8,
+                "type": "item.started"
+              },
+              {
+                "sequence": 9,
+                "type": "item.completed"
+              },
+              {
+                "sequence": 10,
+                "type": "item.completed"
+              },
+              {
+                "sequence": 11,
+                "type": "turn.completed"
+              }
+            ],
+            "usage": {
+              "cached_input_tokens": 55552,
+              "input_tokens": 74451,
+              "output_tokens": 1743
+            }
+          }
+        },
+        "assessment": {
+          "verdict": "approved",
+          "acceptance_count": 5,
+          "acceptance_statuses": {
+            "passed": 5
+          },
+          "issue_count": 0
+        }
+      },
+      {
+        "id": "2da1e664-ade8-44aa-8e27-38b13cd8eee6",
+        "status": "finished",
+        "number": 6,
+        "cycle": 1,
+        "kind": "publish",
+        "receipt": {
+          "candidate_commit": "68199759d8b65bbff1ef53b641335360760df1bf",
+          "cleanup": "group_empty",
+          "status": "finished",
+          "summary": {}
+        },
+        "assessment": {
+          "verdict": null,
+          "acceptance_count": 0,
+          "acceptance_statuses": {},
+          "issue_count": 0
+        }
+      },
+      {
+        "id": "1155bc9b-de7a-47fa-9cef-4120951d1cc2",
+        "status": "finished",
+        "number": 7,
+        "cycle": 1,
+        "kind": "post_check",
+        "receipt": {
+          "candidate_commit": "68199759d8b65bbff1ef53b641335360760df1bf",
+          "cleanup": "group_empty",
+          "eof": {
+            "stderr": true,
+            "stdout": true
+          },
+          "exit_code": 0,
+          "exit_kind": "exit",
+          "outcome": null,
+          "output_complete": true,
+          "output_hash": "54b2847daddcbee70b33682a530dbb5041c329b1ae21e974cb930b9f08ba8989",
+          "signal": null,
+          "status": "finished",
+          "stderr_bytes": 0,
+          "stdout_bytes": 21,
+          "summary": {}
+        },
+        "assessment": {
+          "verdict": null,
+          "acceptance_count": 0,
+          "acceptance_statuses": {},
+          "issue_count": 0
+        }
+      }
+    ],
+    "manager_idle": true
+  },
+  "reviewed_rc_source": "23061d263042d2e7d714f693e203749a96aebba7",
+  "archive_build_source": "9596162b4217f83b8c1e4ab899d4d03a2206e9f7",
+  "runtime_tree_matches_reviewed_rc": true,
+  "usage_totals": {
+    "input_tokens": 238216,
+    "cached_input_tokens": 187392,
+    "output_tokens": 3625
+  }
+}
