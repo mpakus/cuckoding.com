@@ -630,8 +630,9 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 
 - [x] Read-only GitHub/signing inventory and actual native deployment-floor inspection.
   Remote main/site remain the old product; local archive requires macOS27.
-- [ ] Explicit signing-copy → signed-payload smoke → signed UDZO DMG step, focused
-  failure fixtures, independent review and local merge.
+- [x] Explicit signing-copy → signed-payload smoke → signed UDZO DMG step, focused
+  failure fixtures, independent review and local merge6a29dac. Combined main4
+  fixture tests passed0.070s; AST/CI/diff checks passed. No real identity was used.
 - [ ] Actual approved Developer ID smoke, notarization Accepted, staple/Gatekeeper
   and quarantined clean-machine download acceptance. Fixture success is insufficient.
 - [ ] Approved RC branch/draft PR/remote CI and bounded real Codex acceptance.

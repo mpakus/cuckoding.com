@@ -391,3 +391,5 @@ allow-jit. После строгой проверки и packaged smoke созд
 Нотарификация, staple/Gatekeeper и clean-machine проверяются отдельно; частичный
 результат и timeout не становятся успешным релизом. Fixture tests проверяют сам
 шаг без приватного ключа, а не заменяют реальную signing/provider acceptance.
+Локальный merge6a29dac проверен4 fixture tests, AST и CI YAML; runtime/dependency
+tree не изменён. Реальная Developer ID подпись/нотарификация ещё не выполнялась.
