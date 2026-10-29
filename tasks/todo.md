@@ -608,7 +608,12 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 - [x] Full integrated application regression:585 passed/1 skipped(seed329391,1023.8s).
   Independent packaging review approved; archive smoke/guard mutation, compile,
   format, Python AST and workflow validation passed.
-- [ ] Merge local main, rebuild verified artifact/checksum and clean temporary branch/worktree.
+- [x] Merge local main41efa84, rebuild clean-source RC and pass final unpacked smoke.
+  Main compile/format passed; application/packaging/dependency sources exactly match
+  the full-suite tree6d84f4. Artifact/checksum are recorded in2026-10-29 worklog.
+- [x] Delete both merged release branches; original parent checkout detached at main.
+- [ ] Archive the clean detached release writer. App refuses because another active
+  task holds it; preserved without force deletion. No release/recovery fixture VM remains.
 - [ ] Remote macOS CI, clean-machine/provider acceptance, project license and public signing.
   Preparation is local; no tag/upload/publication is authorized by these checkboxes.
 
