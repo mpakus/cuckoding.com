@@ -1,6 +1,6 @@
 defmodule BossBackendRecoveryFixture do
   alias Boss.{Deliveries, Projects, Repo, Tasks}
-  alias Boss.Deliveries.{Autopilot, AutopilotBatch, Request}
+  alias Boss.Deliveries.{Autopilot, AutopilotBatch, AutopilotItem, Request}
 
   def run(root, boundary, mode) do
     spawn(fn ->
@@ -31,6 +31,7 @@ defmodule BossBackendRecoveryFixture do
     )
 
     Logger.configure(level: :warning)
+    System.put_env("TMPDIR", Path.join(root, "tmp"))
     System.put_env("PATH", Path.join(root, "bin") <> ":" <> System.fetch_env!("PATH"))
     System.put_env("BOSS_BACKEND_RECOVERY_ROOT", root)
     System.put_env("BOSS_BACKEND_RECOVERY_BOUNDARY", boundary)
@@ -48,8 +49,10 @@ defmodule BossBackendRecoveryFixture do
           base_branch: "main"
         })
 
+      names = if boundary == "ready", do: ~w(one), else: ~w(one two)
+
       tasks =
-        for name <- ~w(one two) do
+        for name <- names do
           {:ok, entry} =
             Projects.record_spec(project.id, %{
               relative_path: "#{name}.md",
@@ -65,7 +68,20 @@ defmodule BossBackendRecoveryFixture do
       {:ok, _} =
         Autopilot.start(project.id, Ecto.UUID.generate(), tasks, "python3 check.py", "codex")
 
-      eventually(fn -> File.exists?(Path.join(root, "processes.json")) end)
+      if boundary == "ready" do
+        eventually(fn -> File.exists?(Path.join(root, "review.waiting")) end)
+        batch = Repo.one!(AutopilotBatch)
+        {:ok, _} = Autopilot.pause(project.id, batch.id, batch.version)
+        File.write!(Path.join(root, "review.release"), "")
+
+        eventually(fn ->
+          Repo.one!(Deliveries.Delivery).status == "ready_to_merge" and
+            :sys.get_state(Boss.Runs.Manager).active == %{}
+        end)
+      else
+        eventually(fn -> File.exists?(Path.join(root, "processes.json")) end)
+      end
+
       write(root, "before", snapshot())
       Process.sleep(:infinity)
     else
@@ -103,11 +119,27 @@ defmodule BossBackendRecoveryFixture do
           )
       end
 
-      {:error, :busy} =
-        Deliveries.start(delivery.project_id, delivery.task_id, Ecto.UUID.generate(), "true")
+      if boundary == "ready" do
+        item = Repo.one!(AutopilotItem)
+
+        {:error, :busy} =
+          Deliveries.integrate(delivery.project_id, delivery.id, item.integration_command_id)
+
+        write(root, "paused_replay", snapshot())
+        eventually(fn -> File.exists?(Path.join(root, "resume")) end)
+      else
+        {:error, :busy} =
+          Deliveries.start(delivery.project_id, delivery.task_id, Ecto.UUID.generate(), "true")
+      end
 
       {:ok, _} = Autopilot.resume(batch.project_id, batch.id, batch.version)
-      eventually(fn -> Repo.one!(AutopilotBatch).status == "blocked" end)
+      terminal = if boundary == "ready", do: "completed", else: "blocked"
+
+      eventually(fn ->
+        Repo.one!(AutopilotBatch).status == terminal and
+          :sys.get_state(Boss.Runs.Manager).active == %{}
+      end)
+
       write(root, "after_resume", snapshot())
       :ok = Application.stop(:boss)
     end
@@ -127,6 +159,9 @@ defmodule BossBackendRecoveryFixture do
             :task_id,
             :spec_revision_id,
             :command_id,
+            :reviewer,
+            :check_config,
+            :config_hash,
             :status,
             :cleanup,
             :intent,
@@ -141,6 +176,11 @@ defmodule BossBackendRecoveryFixture do
         ),
       requests:
         Enum.map(Repo.all(Request), &Map.take(&1, [:id, :task_id, :status, :delivery_id])),
+      items:
+        Enum.map(
+          Repo.all(AutopilotItem),
+          &Map.take(&1, [:request_id, :autopilot_id, :position, :integration_command_id])
+        ),
       steps:
         Enum.map(
           Repo.all(Deliveries.Step),

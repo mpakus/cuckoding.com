@@ -127,6 +127,10 @@
   per affected project; no-op, nested transaction or rollback must stay silent.
   Preserve unknown-cleanup quarantine and show it honestly; waiting or restarting
   does not resolve it. See docs/RECOVERY.md for evidence and remaining gates.
+- Preserve completed Ready evidence across restart; a paused Autopilot must reject
+  even its saved integration UUID until explicit Resume. A report artifact plus
+  terminal CLI text without exit/EOF/cleanup is still unfinished. Confine crash-test
+  TMPDIR to its exclusively owned scratch root; do not sweep unrelated temp files.
 - Keep Codex source on stdin, workspace-write sandbox and explicit Start. Persist
   only bounded event types/counts/usage, never raw model/tool/stderr text. Test
   production transport with finite fake CLIs; paid/provider calls remain opt-in.

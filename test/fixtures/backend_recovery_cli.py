@@ -12,7 +12,7 @@ root = Path(os.environ["BOSS_BACKEND_RECOVERY_ROOT"])
 boundary = os.environ["BOSS_BACKEND_RECOVERY_BOUNDARY"]
 
 
-def checkpoint():
+def checkpoint(report_path=None):
     signal.signal(signal.SIGTERM, signal.SIG_IGN)
     child = os.fork()
     if child == 0:
@@ -21,7 +21,9 @@ def checkpoint():
             time.sleep(0.05)
     marker = root / "processes.tmp"
     marker.write_text(json.dumps({"leader": os.getpid(), "child": child,
-                                 "guardian": os.getppid(), "cwd": str(Path.cwd())}))
+                                 "guardian": os.getppid(), "cwd": str(Path.cwd()),
+                                 "report_path": report_path,
+                                 "terminal_emitted": report_path is not None}))
     marker.rename(root / "processes.json")
     while True:
         time.sleep(0.05)
@@ -32,7 +34,8 @@ if Path(sys.argv[0]).name == "check.py":
     calls = root / "check-calls"
     with calls.open("a") as output:
         output.write(str(Path.cwd()) + "\n")
-    if boundary == "post_check" and len(calls.read_text().splitlines()) == 2:
+    if (boundary == "check" or
+            boundary == "post_check" and len(calls.read_text().splitlines()) == 2):
         checkpoint()
     sys.exit(0)
 
@@ -63,5 +66,13 @@ else:
         report = {"verdict": "approved", "summary": "Checked result",
                   "acceptance": [{"criterion": "Create result.txt", "status": "passed",
                                   "evidence": "Inspected result.txt"}], "issues": []}
-    Path(args[args.index("--output-last-message") + 1]).write_text(json.dumps(report))
+    report_path = args[args.index("--output-last-message") + 1]
+    Path(report_path).write_text(json.dumps(report))
+    if boundary == "ready" and kind == "review":
+        (root / "review.waiting").touch()
+        while not (root / "review.release").exists():
+            time.sleep(0.02)
+    if boundary == kind:
+        print(json.dumps({"type": "turn.completed", "usage": {"input_tokens": 1, "output_tokens": 1}}), flush=True)
+        checkpoint(report_path)
 print(json.dumps({"type": "turn.completed", "usage": {"input_tokens": 1, "output_tokens": 1}}), flush=True)

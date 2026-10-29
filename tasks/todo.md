@@ -562,6 +562,18 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
   Both archive attempts were refused because another active task still uses them;
   no forced deletion.
 
+## BOSS-017b — interruption versus completed approval
+
+- [x] Kill the actual backend during plan/check/review; preserve earlier evidence,
+  reject incomplete approval and retain cleanup quarantine without repeated effects.
+- [x] Kill after a complete Ready result; restart preserves its exact report/commit,
+  does nothing until explicit Resume, then integrates through existing gates.
+- [x] Independent review and guard mutations: three unfinished-stage regressions
+  fail with missing receipts; paused integration guard mutation fails the Ready case.
+  Restored combined native/persistence18 passed(seed615806,86.8s); format, compile
+  warnings-as-errors, Python AST and diff passed. Contracts updated.
+- [ ] Merge local main, verify the combined result and clean temporary branches/worktree.
+
 ## Следующие рабочие проходы
 
 Детализировать перед реализацией; не генерировать все модули заранее.

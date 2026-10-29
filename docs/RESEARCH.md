@@ -490,3 +490,14 @@ and `status_readiness_test.go:13–174`, pin
 states while actual ownership is unresolved. BOSS fixes its existing post-commit
 PubSub notifications and truthful refusal copy; it does not import runtime resume
 or treat old process IDs as authority. No competitor source was copied.
+
+## BOSS-017b: unfinished report versus completed approval
+
+The exact xerj query `TestReviewKillRestartBoundaries` found Kander
+`internal/board/review_crash_test.go:89`; the shorter symbol missed. The same pinned
+MIT snapshot above covers unfinished and finalized artifacts independently.
+BOSS extends its existing finite child-VM fixture to plan/check/review and completed
+Ready, retaining its own transport, SQLite and exact-commit publication contracts.
+A valid report file alone is insufficient; an already completed immutable approval
+can survive restart without rerunning the reviewer. No competitor journal, lock
+framework, source copy, dependency or reindex was introduced.
