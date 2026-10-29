@@ -280,3 +280,10 @@
   filesystem failure or whole-VM crash can leave a temporary artifact. Never store
   raw stream text. Preserve both source levels
   (review -> check -> Codex) exactly once in bounded history.
+
+- The public Cuckoding marketing page is the standalone `site/` GitHub Pages
+  artifact. Keep its claims tied to current BOSS evidence, label illustrative
+  workflows, preserve reduced-motion/no-JS access and relative assets. Validate
+  with `scripts/check_site.py` and `test/site_motion_test.mjs`; do not deploy the
+  application or imply signing/provider/Linux acceptance from a website check.
+  See docs/SITE.md; remote publishing remains separate from local merges.

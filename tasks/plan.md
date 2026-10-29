@@ -403,3 +403,12 @@ tree не изменён. Реальная Developer ID подпись/нота�
 deadline и прямой Stop защищают бюджет; terminal failure не даёт нового paid retry.
 Сохранять только sanitized receipts/SHAs/usage и проверять actual target/Done,
 checkout пользователя, cleanup и точную идентичность CI head/merge/artifact.
+
+## Cuckoding marketing site — 2026-10-29
+
+Separate static GitHub Pages presentation in site/ for the current BOSS restart.
+User-directed satire pairs original robot-resort artwork with truthful workflow
+information. Dependency-free HTML/CSS/JS, responsive layouts, native FAQs,
+interactive illustrative workflow and bounded reduced-motion-aware parallax.
+Deployment remains main-only with a site-only artifact. See docs/SITE.md and
+.worklog/2026-10-29-marketing.md; this is not runtime/release acceptance.
