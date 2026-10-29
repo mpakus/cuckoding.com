@@ -1,109 +1,89 @@
-# Public site — cuckoding.com
+# Cuckoding marketing site
 
-`site/` is the complete GitHub Pages document root. It is native HTML/CSS/JS,
-independent of the Phoenix app and Tauri bundle. No build, package installation,
-third-party fonts, analytics or client-side routing is required.
+The standalone `site/` directory is the GitHub Pages artifact for cuckoding.com.
+It has no build dependencies, external font requests, analytics or application
+connection. BOSS runtime/assets and local user data are outside this artifact.
 
 ## Design and content
 
-R018 replaces the parchment playbill with an original cybernetic Arena: near-black
-`#050807`, electric green `#82ff52`, black chrome, orbital architecture and quiet
-HUD framing. Bold system sans headings and monospace labels need no font network
-requests. The Roman vocabulary and satire remain. The internal app shares the
-palette, sharp panels, green focus/selection and navigation treatment, without
-bringing cinematic decoration into forms.
+The user-directed satire imagines AI enjoying the rewards while people supervise
+and serve it. Warm editorial typography and original robot-resort/spa artwork
+carry the joke. The BOSS section describes verified local behavior: Markdown
+specifications, isolated Git worktrees, user checks, independent review and
+explicit integration. Its interactive four-stage example is labeled illustrative.
+No fake usage metrics, testimonials or public installer are presented. Update
+release/provider/platform statements only against corresponding acceptance evidence.
 
-R019 draws composition and scroll pacing from the user-requested
-[1367 Studio](https://www.1367studio.com/) reference, visually inspected on
-2026-10-10: a full-viewport portrait, scrolling camera approach, floating navigation
-and spacious editorial sections. Its assets, code, copy and fonts are not reused.
-Cuckoding uses original black/green emissary and orbital-vault artwork, oversized
-background lettering, a full-width duel and staggered role portraits. Readable
-copy and controls remain stationary within their sections.
-
-R019a adds sci-fi gothic architecture and alternative fashion: pointed cathedral
-arches, studded leather, harness hardware, silver rings and ornamental chains.
-The fully clothed emissary, Pan and robot duo keep their poses and green accents;
-the treatment is non-explicit stage/club fashion. The existing finale keeps its
-separate satirical meaning. The built-in image editor revised our own originals.
-R019b brings the Arena spectators closer into view, with adult crowds in leather
-harnesses, studded collars, chrome cuffs and decorative chains. They remain in
-the stands, leaving the floor clear for independent foreground characters.
-
-Four scenes use independent layers: an emissary hero, a sticky sword/morgenstern
-duel, cybernetic Pan and dancing robots, then chained melancholy humans beneath
-robot leisure. Seven foreground instances use two background plates. Static role
-cards reuse the earlier sentinel and gladiators. The hero is eager;
-below-fold scenes/cards are lazy. Generated PNG outputs are retained without
-pixel post-processing; revision prompts and prior versions remain documented.
-The artwork and board are explicitly illustrative, never evidence of shipped UI.
-
-Transforms are bounded, use one coalesced animation frame per scroll/resize, and
-never run an idle animation loop. A fixed native button pauses every layer and
-remembers the choice when storage works. OS reduced motion takes precedence,
-including live changes, and removes the extended sticky scenes. The camera scales
-the emissary up to 1.42 and the vault up to 1.28, reversing directly with native
-scrolling. Sticky distance is shorter on narrow screens. User pause resets every
-layer without changing page height; extended sticky geometry is enabled only
-after JavaScript initializes and the system allows motion. Without JavaScript,
-content, anchors and the keyboard-scrollable board remain usable; the unavailable
-motion control stays hidden. No flashing, autoplay, or animated text.
-
-Status copy reflects implemented named Codex/Cursor connections, model selection,
-Team bindings, Arenas/Tabulas/draft planning, and isolated worktree preparation and
-inspection. Codex planning uses the scoped provider path; Cursor inference is not
-enabled. Model listings do not prove access. Real-account acceptance, repository
-execution, independent review, automatic task movement and autonomous battle
-coordination remain open. Ten-minute setup is a target, not measured acceptance.
-There is no public download claim or signed/notarized release claim.
+All content is present without JavaScript; native FAQs and ordinary anchor links
+remain usable. JavaScript progressively shows one workflow example at a time,
+retains deep links and adds decorative parallax. It coalesces scroll events,
+clamps movement within image overscan and cancels pending frames on page exit.
+The OS reduced-motion preference wins, including live changes; a page toggle
+lets visitors pause movement independently. No scroll hijacking or continuous
+idle animation loop is used. Images use responsive WebP and reserved dimensions.
 
 ## Preview and checks
 
 From the repository root:
 
 ```sh
-rtk proxy python3 -m http.server 4387 --bind 127.0.0.1 --directory site
-rtk proxy python3 bin/check-site
-rtk proxy node --test test/site_test.mjs
-rtk git diff --check
+rtk proxy python3 -m http.server 8765 --bind 127.0.0.1 --directory site
+rtk proxy python3 -B scripts/check_site.py --self-test
+rtk proxy python3 -B scripts/check_site.py
+rtk proxy node --test test/site_motion_test.mjs
 ```
 
-Open `http://127.0.0.1:4387/`. Check desktop and narrow views, all section links,
-horizontal board scrolling, visible keyboard focus, parallax/pause/reload, and
-reduced motion. The structural check validates published assets, local anchors,
-scope/provenance labels and workflow boundary. The Node tests exercise bounded
-motion, reversible bounded camera depth, stable pause geometry, frame coalescing,
-pause persistence, system preference changes and denied
-storage without adding a browser-testing dependency.
+Open http://127.0.0.1:8765. Check320/768/1024/1440px, keyboard navigation,
+workflow selection/deep links, FAQs, motion pause and browser console. Local
+checks are independent of Elixir application and release acceptance suites.
 
-## GitHub Pages deployment
+`.github/workflows/pages.yml` uses pinned official GitHub actions, checks PRs,
+and deploys only main after checks. Its upload is exactly site/. CNAME preserves
+cuckoding.com; .nojekyll disables Jekyll. Relative resources support a project
+subpath too. No custom domain/DNS or remote deployment was changed by design work.
+The local main also contains the BOSS restart: do not describe pushing that whole
+branch as a website-only update. Select/review publication scope explicitly.
 
-`.github/workflows/pages.yml` checks pull requests and relevant pushes; only
-`main` can deploy, after checks pass. The artifact contains only `site/`. Official
-actions are pinned to verified commit hashes. The deploy job alone gets Pages
-and identity-token write permissions. Local merging does not publish the site.
+## Original artwork provenance
 
-When publication is explicitly requested, push the reviewed main revision and
-select **GitHub Actions** in the repository's Pages publishing settings. Configure
-the custom domain `cuckoding.com` in Pages, verify its DNS and enable HTTPS once
-GitHub provisions the certificate. The committed CNAME/canonical/robots/sitemap
-express the intended domain; they do not establish current DNS or deployment.
-Assets use relative paths and also work below a project Pages prefix.
+Both pictures were created with the built-in imagegen tool on2026-10-29 for this
+project, with no reference images or copied competitor assets. WebP conversion
+only changes encoding/resolution. Sources are retained in the conversation's
+imagegen output; project-consumed files are committed here:
 
-Source: [GitHub's custom Pages workflow documentation](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages).
-Motion APIs: [matchMedia](https://developer.mozilla.org/en-US/docs/Web/API/Window/matchMedia)
-and [prefers-reduced-motion](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/At-rules/@media/prefers-reduced-motion).
-No third-party application implementation was copied.
+- site/assets/robot-resort.webp (1536×1024) and robot-resort-small.webp (768×512).
+- site/assets/robot-spa.webp (800×1200).
+- site/assets/mark.svg is an independently drawn simple eye mark.
 
-## Artwork provenance
+### Resort generation prompt
 
-The full display name is **Cuckoding**, abbreviated **CC**. **Emperor** is always
-capitalized in public copy. The icon is a playful C whose curling sperm/devil tail
-ends in a furcina. `desktop/mark.svg` is the source; run `rtk proxy bin/brand-icons`
-to regenerate the site mark, both favicons, native PNG/ICNS and monochrome tray.
-ICNS chunks are sorted for reproducible exports. Display renaming does not migrate
-private data paths or alter internal protocol/environment identifiers.
+Use case: ads-marketing. Create an original high-end editorial surreal photograph
+for a satirical AI coding website, landscape1536x1024. Scene: a retro-futurist
+chrome humanoid robot in black oval sunglasses lounging languidly in a dark green
+mid-century deckchair by a turquoise swimming pool at an elegant Mediterranean
+resort. The robot is holding a tiny coupe of motor oil as though it were a
+cocktail. A small politely resigned human office worker in an ivory shirt and
+loosened tie stands in the background holding a silver tray with a laptop. The
+robot is visibly enjoying leisure while the human serves. Dry visual humor,
+absurd corporate dystopia, stylish not threatening, no sexual elements.
+Composition: robot dominates center-right, pool in foreground, sun-washed
+terracotta and pale plaster architecture, cypress tree and distant hills,
+generous upper left sky. Rich real material textures, hard afternoon shadows,
+muted mint, apricot, butter yellow, analog film grain, premium magazine photography
+with playful cinematic art direction. No text, no logos, no watermark. All people
+adults. This image will fill a wide right-side hero panel.
 
-[Artwork](ARTWORK.md) records the layer map, original prompts and provenance.
-The current vault supplies the static social preview. Superseded painted assets
-are retained in Git history, not shipped in the Pages directory.
+### Spa generation prompt
+
+Use case: ads-marketing. Original satirical luxury editorial portrait for an AI
+coding website. Portrait-oriented1024x1536 photograph, centered bust of a shiny
+retro-futurist chrome humanoid robot wearing a beautiful cream bathrobe and a
+cream towel wrapped elegantly around its head, reclining at a luxury spa,
+cucumber slices over its mechanical eyes. A human attendant's adult hand from
+the side delicately polishes the robot's shoulder with a cloth. Robot has a tiny
+contented smile. Visual joke is that AI has taken the leisure and humans have
+become the staff. Pale buttery yellow background, soft warm studio daylight,
+elegant photographic art direction, real metallic reflections, tactile cotton
+texture, sophisticated absurdism, subtly analog grain. Match a Mediterranean
+resort magazine style. No text, no logo, no watermark, no sexual content. Leave
+head well inside crop.

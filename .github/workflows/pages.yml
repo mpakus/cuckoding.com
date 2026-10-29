@@ -3,9 +3,9 @@ name: Public site
 on:
   push:
     branches: [main]
-    paths: ["site/**", "bin/check-site", "test/site_test.mjs", ".github/workflows/pages.yml"]
+    paths: ["site/**", "scripts/check_site.py", "test/site_motion_test.mjs", ".github/workflows/pages.yml"]
   pull_request:
-    paths: ["site/**", "bin/check-site", "test/site_test.mjs", ".github/workflows/pages.yml"]
+    paths: ["site/**", "scripts/check_site.py", "test/site_motion_test.mjs", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
@@ -20,10 +20,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
       - name: Check static site
         run: |
-          python3 bin/check-site
-          node --test test/site_test.mjs
+          python3 scripts/check_site.py --self-test
+          python3 scripts/check_site.py
+          node --test test/site_motion_test.mjs
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     needs: check
@@ -37,6 +40,8 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
       - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:
