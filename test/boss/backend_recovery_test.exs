@@ -12,6 +12,7 @@ defmodule Boss.BackendRecoveryTest do
     source = Path.join(root, "source")
     File.mkdir!(source)
     File.mkdir!(Path.join(root, "bin"))
+    File.mkdir!(Path.join(root, "tmp"))
     fixture = Path.expand("../fixtures/backend_recovery_cli.py", __DIR__)
     File.cp!(fixture, Path.join(root, "bin/codex"))
     File.chmod!(Path.join(root, "bin/codex"), 0o700)
@@ -32,7 +33,7 @@ defmodule Boss.BackendRecoveryTest do
     %{root: root, source: source, base: git(source, ["rev-parse", "main"])}
   end
 
-  for boundary <- ~w(implement post_check) do
+  for boundary <- ~w(plan implement check review post_check) do
     test "whole backend death during #{boundary} preserves evidence and never respawns", c do
       boundary = unquote(boundary)
       vm = boot(c.root, boundary, "start")
@@ -47,29 +48,47 @@ defmodule Boss.BackendRecoveryTest do
       assert Enum.all?(identities, fn {_, value} -> value != nil end)
       on_exit(fn -> cleanup_owned(identities) end)
       [delivery] = before["deliveries"]
-      interrupted_kind = if boundary == "implement", do: "implement", else: "post_check"
-      running = Enum.find(before["steps"], &(&1["kind"] == interrupted_kind))
+      running = Enum.find(before["steps"], &(&1["kind"] == boundary))
       assert running["status"] == "running"
+      assert running["receipt"] == %{}
       finished = Enum.filter(before["steps"], &(&1["status"] == "finished"))
       assert before["batch"]["status"] == "running"
-      assert File.read!(Path.join(owned["cwd"], "result.txt")) == "candidate-1\n"
+      result = if boundary == "plan", do: "base", else: "candidate-1\n"
+      assert File.read!(Path.join(owned["cwd"], "result.txt")) == result
       calls = calls(c.root, "calls")
       check_calls = calls(c.root, "check-calls")
       target = git(c.source, ["rev-parse", "main"])
 
-      if boundary == "implement" do
-        assert target == c.base
-        assert calls == ~w(plan implement)
-        assert check_calls == []
-      else
+      {expected_calls, expected_checks} =
+        case boundary do
+          "plan" -> {~w(plan), 0}
+          "implement" -> {~w(plan implement), 0}
+          "check" -> {~w(plan implement), 1}
+          "review" -> {~w(plan implement review), 1}
+          "post_check" -> {~w(plan implement review), 2}
+        end
+
+      assert calls == expected_calls
+      assert length(check_calls) == expected_checks
+
+      if boundary in ~w(plan review) do
+        # A complete report and terminal JSONL event still lack exit/EOF/cleanup evidence.
+        assert owned["terminal_emitted"]
+        assert String.starts_with?(owned["report_path"], Path.join(c.root, "tmp") <> "/")
+        report = owned["report_path"] |> File.read!() |> JSON.decode!()
+        assert report["summary"] != ""
+        if boundary == "review", do: assert(report["verdict"] == "approved")
+      end
+
+      if boundary == "post_check" do
         assert target != c.base
         assert target == delivery["integration_intent"]["candidate_commit"]
 
         assert Enum.find(finished, &(&1["kind"] == "publish"))["receipt"]["candidate_commit"] ==
                  target
-
-        assert calls == ~w(plan implement review)
-        assert length(check_calls) == 2
+      else
+        assert target == c.base
+        assert delivery["integration_intent"] == %{}
       end
 
       kill_vm(vm)
@@ -89,11 +108,14 @@ defmodule Boss.BackendRecoveryTest do
       assert interrupted["status"] == "interrupted" and interrupted["cleanup"] == "unknown"
 
       for key <-
-            ~w(id task_id spec_revision_id command_id intent integration_intent integration_command_id),
+            ~w(id task_id spec_revision_id command_id reviewer check_config config_hash intent integration_intent integration_command_id),
           do: assert(interrupted[key] == delivery[key])
 
-      assert Enum.find(recovered["steps"], &(&1["id"] == running["id"]))["status"] ==
-               "interrupted"
+      assert Enum.find(recovered["steps"], &(&1["id"] == running["id"])) ==
+               Map.merge(running, %{
+                 "status" => "interrupted",
+                 "receipt" => %{"status" => "interrupted", "cleanup" => "unknown"}
+               })
 
       assert Enum.all?(finished, &(&1 in recovered["steps"]))
       assert Enum.all?(before["events"], &(&1 in recovered["events"]))
@@ -114,8 +136,21 @@ defmodule Boss.BackendRecoveryTest do
       assert git(c.source, ["branch", "--show-current"]) == "user-work"
       assert git(c.source, ["status", "--porcelain"]) == "?? user.txt"
       assert File.read!(Path.join(c.source, "user.txt")) == "preserve local edits"
-      assert File.read!(Path.join(owned["cwd"], "result.txt")) == "candidate-1\n"
-      refute Enum.any?(final["tasks"], &(&1["state"] == "done"))
+      assert File.read!(Path.join(owned["cwd"], "result.txt")) == result
+
+      if boundary in ~w(check review post_check) do
+        snapshot = Enum.find(finished, &(&1["kind"] == "snapshot"))
+        candidate = snapshot["receipt"]["workspace"]
+        sha = snapshot["receipt"]["candidate_commit"]
+        assert git(candidate["path"], ["rev-parse", "HEAD"]) == sha
+        assert git(c.source, ["rev-parse", candidate["ref"]]) == sha
+        assert git(candidate["path"], ["status", "--porcelain"]) == ""
+
+        if boundary in ~w(check review),
+          do: assert(running["input"]["candidate_commit"] == sha)
+      end
+
+      refute Enum.any?(final["tasks"], &(&1["state"] in ~w(ready_to_merge done)))
     end
   end
 

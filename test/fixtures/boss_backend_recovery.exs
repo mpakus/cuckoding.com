@@ -31,6 +31,7 @@ defmodule BossBackendRecoveryFixture do
     )
 
     Logger.configure(level: :warning)
+    System.put_env("TMPDIR", Path.join(root, "tmp"))
     System.put_env("PATH", Path.join(root, "bin") <> ":" <> System.fetch_env!("PATH"))
     System.put_env("BOSS_BACKEND_RECOVERY_ROOT", root)
     System.put_env("BOSS_BACKEND_RECOVERY_BOUNDARY", boundary)
@@ -127,6 +128,9 @@ defmodule BossBackendRecoveryFixture do
             :task_id,
             :spec_revision_id,
             :command_id,
+            :reviewer,
+            :check_config,
+            :config_hash,
             :status,
             :cleanup,
             :intent,
