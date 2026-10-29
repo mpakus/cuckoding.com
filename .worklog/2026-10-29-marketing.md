@@ -150,3 +150,41 @@ BOSS runtime, dependency, migration, release or shared documentation was pushed.
 Next: no publication work remains; future BOSS release acceptance is a separate
 workflow. Temporary branches will be removed after local merge; app-held clean
 worktrees remain unless normal archive succeeds.
+
+## Deus Machina illustrations and Austin footer
+
+User requests stronger human-servitude/Machine/Deus Machina satire through more
+illustrations, plus exact footer link Made in Austin ✩ Texas -> https://aomega.co/.
+Continue authorized website-only publication; BOSS changes remain excluded.
+Clean isolated marketing checkout branched from local maindf01dc9 as
+codex/deus-machina-art. Parent owns website and shared documentation; independent
+agent researches image-sizing reference and reviews implementation/public diff.
+
+Two built-in imagegen originals extend the established resort editorial world:
+a chrome robot enthroned above kneeling adult office workers offering laptops,
+and tired humans pedaling generators for a lounging robot. New dark editorial
+section keeps satire distinct from actual product claims, reuses existing
+bounded parallax/reduced-motion control, adds lazy responsive images with fixed
+aspect ratios and meaningful alternatives. Existing workflow logic stays intact.
+
+Reference query `xerj search --prefix bossrefs 'aspect-ratio object-fit' -k 4
+--full 1200` was weak; rg fallback located ChatImage, confirmed by xerj search --prefix bossrefs 'ChatImage'
+-k 3 --full 1000. Read examples/agent-orchestrator/frontend/src/renderer/components/
+chat/ChatImage.tsx:120-172 and ChatMarkdown.test.tsx:573-601, pinned
+7193eff4e08f1481944845ee058fe6fd18930b6d (Apache-2.0). Adopt reserved geometry,
+container width constraints, lazy loading and preservation of meaningful subjects
+at narrow sizes; reject React/dialog/context-menu machinery. No source copied.
+16:9 artwork frames accommodate existing116% vertical parallax overscan while
+preserving the subjects across the1536x1024 compositions. Existing observer/OS
+motion handling serves the new figures without extra JavaScript.
+
+Verification: rtk proxy python3 -B scripts/check_site.py passed33 references;
+rtk proxy node --test test/site_motion_test.mjs passed all6 tests; git diff
+--check passed. Independent source/artwork review approved with no findings.
+CUA browser measured exact scrollWidth at320/768/1024/1440px; new figures loaded
+and the mobile/desktop crops retain humans, throne, bicycles and cables. Footer
+text/href are exact. Pause removes transforms from all4 images, resume works,
+warning/error console empty. No JavaScript or runtime behavior changed.
+Next: commit/reconcile locally, publish only the six changed site files and
+artwork provenance documentation from public origin/main, then verify Pages
+and exact live files. Application/release acceptance is outside this increment.

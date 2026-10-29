@@ -417,3 +417,8 @@ Publication completed after explicit website-only authorization: commitdcdb0a3,
 GitHub Pages run40939216125,9 exact HTTPS resource matches and live browser smoke.
 The public application history remains based oncc71b4f; local BOSS changes were
 excluded. Future website-only updates must retain this publication boundary.
+
+The Deus Machina gallery extends the satire with laptop offerings and human
+power generation; the footer credits Austin, Texas. Publish these site changes
+from current origin/main with an explicit path allowlist, excluding local BOSS
+history and task/worklog documentation.

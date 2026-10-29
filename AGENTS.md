@@ -290,6 +290,8 @@
   with `scripts/check_site.py` and `test/site_motion_test.mjs`; do not deploy the
   application or imply signing/provider/Linux acceptance from a website check.
   See docs/SITE.md; remote publishing remains separate from local merges.
+  Additional satire artwork must preserve readable human–machine interactions at
+  narrow widths; share the existing motion control and retain image provenance.
 
 - Website-only publication must start from freshly fetched remote main, use an
   explicit website/check/documentation path allowlist, and verify commit ancestry
