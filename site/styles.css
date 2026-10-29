@@ -830,6 +830,92 @@ details a {
   border-bottom:1px solid currentColor;
   font-size:10px
 }
+.devotion {
+  background:var(--ink);
+  color:var(--paper);
+}
+.devotion .section-shell {
+  padding-top:80px;
+  padding-bottom:44px;
+}
+.devotion-heading {
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-end;
+  gap:48px;
+  margin-bottom:52px;
+}
+.devotion-heading h2 {
+  margin:24px 0 0;
+}
+.devotion-heading>p {
+  max-width:270px;
+  margin:0 0 4px;
+  color:#d2d5ca;
+  font-size:16px;
+  line-height:1.8;
+}
+.devotion-gallery {
+  display:grid;
+  grid-template-columns:1.25fr 1fr;
+  gap:36px;
+  align-items:start;
+}
+.devotion-figure {
+  margin:0;
+  min-width:0;
+}
+.devotion-figure:nth-child(2) {
+  margin-top:100px;
+}
+.devotion-art {
+  width:100%;
+  aspect-ratio:16/9;
+  background:#4e5546;
+}
+.devotion-figure figcaption {
+  padding-top:24px;
+}
+.devotion-figure .eyebrow {
+  color:#d2d5ca;
+  font-size:8px;
+  letter-spacing:1.4px;
+}
+.devotion-figure h3 {
+  font-size:clamp(22px,2.1vw,31px);
+  line-height:1.2;
+  font-weight:500;
+  letter-spacing:-.8px;
+  margin:14px 0 14px;
+}
+.devotion-figure figcaption>p:last-child {
+  color:#d2d5ca;
+  font-size:14px;
+  line-height:1.8;
+  max-width:430px;
+  margin-bottom:0;
+}
+.devotion-disclaimer {
+  font-size:8px;
+  line-height:1.8;
+  letter-spacing:1.5px;
+  color:#d2d5ca;
+  border-top:1px solid #555e50;
+  margin:48px 0 0;
+  padding-top:24px;
+}
+.site-footer .made-in {
+  display:inline-block;
+  font-size:11px;
+  line-height:1.6;
+  color:var(--ink);
+  margin-top:6px;
+  padding:4px 0;
+  text-underline-offset:4px;
+}
+.site-footer .made-in:hover {
+  text-decoration:underline;
+}
 body[data-motion="paused"] .parallax-image {
   transform:none;
   will-change:auto
@@ -964,6 +1050,41 @@ html:has(body[data-motion="paused"]) {
   }
 }
 @media(max-width:900px) {
+  .devotion .section-shell {
+    padding-top:56px;
+    padding-bottom:32px;
+  }
+  .devotion-heading {
+    display:block;
+    margin-bottom:32px;
+  }
+  .devotion-heading h2 {
+    font-size:clamp(34px,6vw,48px);
+    letter-spacing:-1.8px;
+    margin:20px 0 24px;
+  }
+  .devotion-heading>p {
+    max-width:400px;
+    font-size:15px;
+  }
+  .devotion-gallery {
+    grid-template-columns:minmax(0,1fr);
+    gap:40px;
+  }
+  .devotion-figure:nth-child(2) {
+    margin-top:0;
+  }
+  .devotion-figure h3 {
+    font-size:26px;
+  }
+  .devotion-figure figcaption {
+    padding-top:20px;
+  }
+  .devotion-disclaimer {
+    margin-top:32px;
+    font-size:7px;
+  }
+
   html {
     scroll-padding-top:16px
   }
