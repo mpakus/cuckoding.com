@@ -49,6 +49,11 @@
 - BOSS uses Apache-2.0 in root LICENSE. Preserve its exact text in release
   LICENSES/BOSS-LICENSE and retain separate third-party notices; reference licenses
   do not replace the project's chosen license.
+- Signing is explicit and works on a copy: one Developer ID Team for every native
+  image, hardened runtime and only BEAM allow-jit, followed by packaged smoke.
+  Keep signing, notarization Accepted, stapling and clean-machine acceptance as
+  separate evidence. Never bypass library validation/Gatekeeper or resubmit an
+  unknown notarization outcome; reconcile its saved submission ID first.
 - Create test scratch roots exclusively before registering recursive cleanup.
   A VM-local counter is not a globally unique directory name. Never remove a
   pre-existing directory to make a test pass.

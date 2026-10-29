@@ -47,6 +47,7 @@ jobs:
           mix format --check-formatted
           mix format --check-formatted rel/package.exs
           python3 -c 'import ast,pathlib; ast.parse(pathlib.Path("scripts/smoke_release.py").read_text())'
+          python3 -B scripts/test_sign_macos_release.py
           mix compile --warnings-as-errors
           mix test
       - name: Assemble host-specific candidate
