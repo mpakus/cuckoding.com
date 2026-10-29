@@ -369,3 +369,14 @@ candidate ref, линейно продвинувшийся target или пер�
 checks/review. Продвинувшийся target требует отдельного merge с родителями
 `[target, original candidate]`, свежими checks/review и публикацией только нового
 проверенного SHA. Сохранить прежнее одобрение и пользовательский checkout.
+
+## BOSS-018a — подготовка macOS release candidate
+
+По запросу пользователя перейти к упаковке0.1.0-rc.1 и проверке готовности релиза.
+Собрать OTP archive с ERTS, native guardian, assets и миграциями; проверить запуск
+распакованного пакета и устранить внешние Homebrew library paths. Сохранить notices
+и факты сборки. Устранить найденные dependency advisories, выполнить полный набор
+application tests и подготовить macOS CI/инструкции установки и обновления.
+Публичная публикация, выбор лицензии, signing/notarization, чистая машина, реальные
+provider calls и Linux execution требуют собственного подтверждения, а не нового
+названия для незакрытого gate. Контракт: [RELEASE.md](../docs/RELEASE.md).

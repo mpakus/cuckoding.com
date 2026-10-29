@@ -594,6 +594,19 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 - [x] Delete both merged branches and archive the clean engine writer worktree.
   App reports archived; directory and Git registration are absent. No fixture VM remains.
 
+## BOSS-018a — macOS0.1.0-rc.1
+
+- [x] Audit release blockers and official build/runtime contracts. Bandit1.13.1
+  advisory findings require1.14.1; npm audit found0 vulnerabilities.
+- [x] Update only Bandit lock to1.14.1; Hex audit now reports no retired/advisory packages.
+- [ ] Assemble ERTS/guardian/assets/migrations with relocated native dependencies,
+  notices, platform facts and source provenance.
+- [ ] Actual unpacked package smoke, isolated restart/durability and no-build-tools runtime.
+- [ ] Full final application regression, focused release checks and independent review.
+- [ ] Merge local main, rebuild verified artifact/checksum and clean temporary branch/worktree.
+- [ ] Remote macOS CI, clean-machine/provider acceptance, project license and public signing.
+  Preparation is local; no tag/upload/publication is authorized by these checkboxes.
+
 ## Следующие рабочие проходы
 
 Детализировать перед реализацией; не генерировать все модули заранее.
