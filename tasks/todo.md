@@ -621,8 +621,10 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 ## BOSS-018b — Apache-2.0 selection
 
 - [x] Add unchanged official ASF Apache-2.0 text; update project/release licensing docs.
-- [ ] Independent byte-for-byte review, clean-main archive rebuild and smoke/checksum.
-- [ ] Local merge and temporary branch cleanup. No public tag/push/release.
+- [x] Independent byte-for-byte review and clean-main9596162 archive rebuild.
+  LICENSES/BOSS-LICENSE matches canonical ASF text; all36 third-party notice files
+  are unchanged. Unpacked smoke and updated SHA256SUMS verification passed.
+- [x] Local merge and temporary branch cleanup. No public tag/push/release.
 
 ## Следующие рабочие проходы
 
