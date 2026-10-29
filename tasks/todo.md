@@ -651,6 +651,9 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
   passed107.476s with7 native notices and exact provenance. Builder5 + package9
   focused tests passed; guard mutations caught. Historical signed5570 uses stale
   3.6.3 and is held from distribution. Actual combined package/CI remains open.
+- [ ] Complete new-runtime regression after CI2e:585 passed,2 failed,1 skipped.
+  Shared-Sandbox UI completion and native unknown-cleanup diagnosis are separate;
+  no retry-only acceptance or relaxed cleanup/deadline checks.
 - [ ] Retain final remote package result/artifact identity after this correction.
 - [x] One approved real Codex workflow in an exclusive scratch repository:
   max7 calls/10minutes, verified checks/review/integration/Done or honest failure.

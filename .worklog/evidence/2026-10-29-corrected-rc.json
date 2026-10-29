@@ -1,0 +1,57 @@
+{
+  "reviewed_source_commit": "2e74816701cf1c4c74a5e5983b9f3181447ea198",
+  "local_main_at_publication": "2e74816701cf1c4c74a5e5983b9f3181447ea198",
+  "remote_rc_head": "2e74816701cf1c4c74a5e5983b9f3181447ea198",
+  "ci": {
+    "run_id": 40963324835,
+    "job_id": 123761403459,
+    "status": "failed",
+    "tested_merge_commit": "f97aa23c5534bf4db2519fd1e6db7795c60fab96",
+    "tree": "043e045b5e7f8557285109f5bfc2c777b9979f40",
+    "whole_tree_equals_reviewed_head": true,
+    "failure_step": "Verify source",
+    "application_tests": {
+      "passed": 585,
+      "failed": 2,
+      "skipped": 1,
+      "seed": 284012,
+      "max_cases": 6,
+      "seconds": 827.9
+    },
+    "artifact": "not_produced"
+  },
+  "local_archive": {
+    "bytes": 16321542,
+    "sha256": "953a1852c918842ee4250eb8e736c78401c37cd158d0305027d4a6323cd5e701",
+    "source_clean": true,
+    "macos": "27.0.1",
+    "architecture": "arm64",
+    "native_images": 24,
+    "native_minimum_os_counts": {
+      "27.0": 23,
+      "14.0": 1
+    },
+    "minimum_macos": "27.0",
+    "unsigned_smoke": "passed",
+    "build_prefix_unavailable_smoke": "passed",
+    "independent_archive_review": "approved",
+    "distribution_status": "held_pending_ci_failure_diagnosis"
+  },
+  "runtime": {
+    "otp": "28.5.0.8",
+    "erts": "16.4.0.7",
+    "openssl": "3.5.9",
+    "crypto_linkage": "static",
+    "manifest_sha256": "533bf8f1ae07c307589e864846c0b436aab45026cf3bef63f52f08a50329d9e9",
+    "upstream_notices": 7,
+    "hex_dependency_notice_sets": 26,
+    "known_private_data_found": false
+  },
+  "fresh_provider_acceptance": "pending_explicit_authorization",
+  "notarization": "not_performed",
+  "clean_machine_gui_download_acceptance": "pending",
+  "cleanup": {
+    "new_writer_branches": "merged_and_deleted",
+    "two_clean_detached_writer_worktrees": "app_active_task_hold_preserved"
+  }
+}

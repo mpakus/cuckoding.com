@@ -1,0 +1,98 @@
+{
+  "architecture": "arm64",
+  "configure": {
+    "openssl": [
+      "darwin64-arm64-cc",
+      "no-shared",
+      "no-module",
+      "no-tests",
+      "--libdir=lib",
+      "--prefix=${OUTPUT}/openssl",
+      "--openssldir=${OUTPUT}/openssl/ssl"
+    ],
+    "otp": [
+      "--prefix=${OUTPUT}/otp",
+      "--with-ssl=${OUTPUT}/openssl",
+      "--disable-dynamic-ssl-lib",
+      "--with-ssl-rpath=no",
+      "--without-wx",
+      "--without-javac",
+      "--without-odbc"
+    ]
+  },
+  "crypto_linkage": "static",
+  "crypto_sha256": "e819a022f72ce512612491ed542cf4c1b37128bdc5cad90e8f805c2780713e67",
+  "elapsed_seconds": 107.476,
+  "erts_version": "16.4.0.7",
+  "generated_erts_flags": {
+    "ERTS_USE_BUILTIN_ERRNO_ID": "1",
+    "ERTS_USE_BUILTIN_OPENSSL": "1",
+    "ERTS_USE_BUILTIN_RYU": "1",
+    "ERTS_USE_BUILTIN_ZSTD": "1"
+  },
+  "licenses": {
+    "openssl": "7d5450cb2d142651b8afa315b5f238efc805dad827d91ba367d8516bc9d49e7a",
+    "otp": "809fa1ed21450f59827d1e9aec720bbc4b687434fa22283c6cb5dd82a47ab9c0"
+  },
+  "notices": {
+    "OTP/asmjit/LICENSE.md": "13870bd53bce53fb9a9bd72e72dcceeffc547c84d9a00d3d4833737a79651828",
+    "OTP/pcre/LICENCE": "197d8a73ffee0d6b09adba2f9c677b5f5aede24edf89258a68e48248d010d811",
+    "OTP/ryu/LICENSE-Apache2": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+    "OTP/ryu/LICENSE-Boost": "c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566",
+    "OTP/ryu/to_chars-LICENSE.txt": "88179226df8e99eb708ced24b28f3a18f5cde5edbd0e315655308cb9575ad0fc",
+    "OTP/tcl/erl_posix_str-LICENSE.txt": "2b7bde88a5a2b0543d299d69d0f40e8212cd7606d12c0180346e3a72b25cf460",
+    "OTP/zstd/LICENSE": "7055266497633c9025b777c78eb7235af13922117480ed5c674677adc381c9d8"
+  },
+  "openssl_version": "3.5.9",
+  "otp_vendor_components": {
+    "asmjit": {
+      "source_commit": "5fe1940275d04432da841896bac0a66cc2375551",
+      "vendor_info_sha256": "c9b3df9bfe7a2caf0c11ddbff91f6e74533fdff5eda7118ac455e788f76131c6",
+      "version": "5fe1940275d04432da841896bac0a66cc2375551"
+    },
+    "openssl_md5": {
+      "scope": "ERTS builtin MD5 only",
+      "source_commit": "c9a9e5b10105ad850b6e4d1122c645c67767c341",
+      "vendor_info_sha256": "2cd07b25f6481070b9e0dca23b08cf08c1073ea94ff6458a1c4f9f920e34767a",
+      "version": "3.6.1"
+    },
+    "pcre": {
+      "source_commit": "f454e231fe5006dd7ff8f4693fd2b8eb94333429",
+      "vendor_info_sha256": "c7411ef5151e1aac84c689277ebff53ca3aa9b5b24e046ad0e2907191a372b4d",
+      "version": "10.47"
+    },
+    "ryu": {
+      "source_commit": "4c0618b0e44f7ef027ebae05d2cc7812048f7c8f",
+      "vendor_info_sha256": "00ca749e57057147283f996ee777f8a1f3f14b1bba08a4fbd2a6290abcee6991",
+      "version": "4c0618b0e44f7ef027ebae05d2cc7812048f7c8f"
+    },
+    "zstd": {
+      "source_commit": "f8745da6ff1ad1e7bab384bd1f9d742439278e99",
+      "vendor_info_sha256": "70a9bdcbc87954646b08f2ed07eedacd99c40dc34320edab563f0c74bf8c41b5",
+      "version": "v1.5.7"
+    }
+  },
+  "otp_version": "28.5.0.8",
+  "platform": "darwin",
+  "runtime_openssl": "OpenSSL 3.5.9 29 Sep 2026",
+  "schema_version": 1,
+  "sources": {
+    "openssl": {
+      "bytes": 53279637,
+      "commit": "45e844fa2a14ec92d146bd8f5778ac130b6625fb",
+      "directory": "openssl-3.5.9",
+      "sha256": "603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a",
+      "url": "https://github.com/openssl/openssl/releases/download/openssl-3.5.9/openssl-3.5.9.tar.gz",
+      "version": "3.5.9"
+    },
+    "otp": {
+      "bytes": 105458074,
+      "commit": "882bc060aca3f9491ba6345da56c5076793d31e2",
+      "directory": "otp_src_28.5.0.8",
+      "sha256": "8a696e15bcbe5d57197b1f4c03c92d415f9fd9af70f9222a05911c8a5463cba6",
+      "url": "https://github.com/erlang/otp/releases/download/OTP-28.5.0.8/otp_src_28.5.0.8.tar.gz",
+      "version": "28.5.0.8"
+    }
+  },
+  "system_zlib": "/usr/lib/libz.1.dylib"
+}

@@ -1,8 +1,11 @@
 # BOSS 0.1.0-rc.1
 
 Earlier source a0b9715 passed full remote regression (587 passed,1 skipped).
-The corrected pinned runtime passed a fresh local build and14 focused checks.
-Actual corrected package and full remote CI acceptance remain pending.
+The corrected runtime and local archive passed build,14 focused checks, actual
+smoke and independent notice/native review. Latest full CI at2e74816 failed two
+cases (585 passed,2 failed,1 skipped): shared-Sandbox workflow UI contention and
+stalled-callback cleanup returning unknown. Final CI/package/signing acceptance
+remains open while these are diagnosed.
 Earlier Developer ID signed5570d3f is held from distribution: its OpenSSL3.6.3
 predates published upstream fixes. Valid signatures do not close this gate.
 No public release, tag or notarization is implied. Results and remaining gates are
@@ -20,6 +23,10 @@ OpenSSL3.5.9 LTS; build/package acceptance remains pending. See
 [OpenSSL releases](https://www.openssl-library.org/source/) and
 [advisory ranges](https://www.openssl-library.org/news/vulnerabilities-3.6/index.html).
 These library findings do not establish a remotely exploitable BOSS issue.
+The subsequent [patched-runtime CI40963324835](https://github.com/mpakus/cuckoding.com/actions/runs/40963324835)
+passed runtime/build/audits and focused package/signing checks, then failed the two
+application cases above. No remote artifact was produced. Local2e packaging proof
+remains valid; that archive is held from distribution pending combined acceptance.
 PR head, tested merge SHA and final artifact `BUILD_INFO` remain separate facts.
 
 Historical baseline regression passed585 tests with1 platform-specific skip
