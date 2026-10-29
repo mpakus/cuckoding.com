@@ -599,10 +599,15 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 - [x] Audit release blockers and official build/runtime contracts. Bandit1.13.1
   advisory findings require1.14.1; npm audit found0 vulnerabilities.
 - [x] Update only Bandit lock to1.14.1; Hex audit now reports no retired/advisory packages.
-- [ ] Assemble ERTS/guardian/assets/migrations with relocated native dependencies,
+- [x] Assemble ERTS/guardian/assets/migrations with relocated native dependencies,
   notices, platform facts and source provenance.
-- [ ] Actual unpacked package smoke, isolated restart/durability and no-build-tools runtime.
-- [ ] Full final application regression, focused release checks and independent review.
+- [x] Actual unpacked package smoke, isolated restart/durability and no-build-tools runtime.
+  Parent clean-tree archive6d84f4 passed auth/assets, native guardian, dump suppression,
+  restart/integrity and graceful stop. Production browser board/Autopilot/drawer
+  connected without console warnings/errors; owned fixture stopped and removed.
+- [x] Full integrated application regression:585 passed/1 skipped(seed329391,1023.8s).
+  Independent packaging review approved; archive smoke/guard mutation, compile,
+  format, Python AST and workflow validation passed.
 - [ ] Merge local main, rebuild verified artifact/checksum and clean temporary branch/worktree.
 - [ ] Remote macOS CI, clean-machine/provider acceptance, project license and public signing.
   Preparation is local; no tag/upload/publication is authorized by these checkboxes.

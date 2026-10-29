@@ -1,8 +1,13 @@
 # BOSS 0.1.0-rc.1
 
-Status: local macOS release candidate under verification. No public release, tag,
+Status: local macOS release candidate verified on the build host. No public release, tag,
 signature/notarization or remote CI result is implied by this document. Results
 and remaining gates are recorded in [.worklog/2026-10-29.md](../.worklog/2026-10-29.md).
+
+Local application regression passed585 tests with1 platform-specific skip
+(seed329391). The unpacked archive passed native-helper execution, private browser
+authentication/assets, connected LiveView board/Autopilot/drawer and durable restart.
+Public distribution still requires the open gates below.
 
 ## Build and inspect
 

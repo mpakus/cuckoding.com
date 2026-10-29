@@ -30,6 +30,9 @@ jobs:
         with:
           node-version: '24'
           package-manager-cache: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
       - name: Install locked dependencies and build assets
         run: |
           mix local.hex --force
@@ -42,6 +45,8 @@ jobs:
       - name: Verify source
         run: |
           mix format --check-formatted
+          mix format --check-formatted rel/package.exs
+          python3 -c 'import ast,pathlib; ast.parse(pathlib.Path("scripts/smoke_release.py").read_text())'
           mix compile --warnings-as-errors
           mix test
       - name: Assemble host-specific candidate

@@ -2,7 +2,7 @@
 
 Local AI agent orchestration, rebuilt from [BOSS_PLAN.md](BOSS_PLAN.md).
 
-This increment provides a Phoenix LiveView server, local browser access,
+BOSS provides a Phoenix LiveView server, local browser access,
 native folder selection, validated project registration, automatic Markdown sync,
 transactional spec/revision/task history and versioned task commands with immutable
 receipts, a Kanban board, a revision-aware task drawer, local CLI discovery and
