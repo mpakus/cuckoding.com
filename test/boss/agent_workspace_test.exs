@@ -299,6 +299,90 @@ defmodule Boss.Agents.WorkspaceTest do
     assert git!(c.repo, ["status", "--porcelain"]) == ""
   end
 
+  test "registration waits share the common directory, allow Stop and release on owner death",
+       c do
+    {:ok, run} = Workspace.plan(c.project, "registration-source", c.opts)
+    {:ok, _} = Workspace.prepare(run, c.opts)
+    other = Path.join(c.root, "other-repository")
+    File.mkdir!(other)
+    git!(other, ["init", "-b", "main"])
+    git!(other, ["config", "user.name", "BOSS test"])
+    git!(other, ["config", "user.email", "test@example.invalid"])
+    git!(other, ["config", "commit.gpgSign", "false"])
+    other_base = commit(other, "source.txt", "other")
+    holder_path = Path.join(c.root, "held-registration")
+    stopped_path = Path.join(c.root, "stopped-registration")
+    parent = self()
+
+    runner = fn executable, args, opts ->
+      if "worktree" in args do
+        send(parent, {:registration_entered, self()})
+
+        if holder_path in args do
+          receive do
+            :release_registration -> :ok
+          after
+            30_000 -> flunk("registration holder was not released")
+          end
+        end
+      end
+
+      fixture_runner(executable, args, opts)
+    end
+
+    opts = Keyword.put(c.opts, :runner, runner)
+    add = fn path, sha -> ["worktree", "add", "--detach", "--", path, sha] end
+
+    {holder, monitor} =
+      spawn_monitor(fn -> Workspace.git(c.repo, add.(holder_path, c.base), opts) end)
+
+    assert_receive {:registration_entered, ^holder}, 2_000
+
+    waiter =
+      Task.async(fn ->
+        Workspace.git(run.path, ["-c", "core.filemode=true" | add.(stopped_path, c.base)], opts)
+      end)
+
+    reader =
+      Task.async(fn -> Workspace.git(run.path, ["worktree", "list", "--porcelain"], opts) end)
+
+    timed =
+      Task.async(fn -> Workspace.git(run.path, ["worktree", "list", "--porcelain"], opts) end)
+
+    try do
+      waiter_pid = waiter.pid
+      refute_receive {:registration_entered, ^waiter_pid}, 500
+      send(waiter.pid, :stop)
+      assert {:error, :cancelled} = Task.await(waiter, 2_000)
+      refute File.exists?(stopped_path)
+      reader_pid = reader.pid
+      refute_receive {:registration_entered, ^reader_pid}, 0
+      send(reader.pid, :stop)
+      assert {:error, :cancelled} = Task.await(reader, 2_000)
+
+      assert {:ok, _} =
+               Workspace.git(other, add.(Path.join(c.root, "other-worktree"), other_base), opts)
+
+      assert {:error, :git_busy} = Task.await(timed, 20_000)
+      assert Process.alive?(holder)
+      timed_pid = timed.pid
+      refute_receive {:registration_entered, ^timed_pid}, 0
+      Process.exit(holder, :kill)
+      assert_receive {:DOWN, ^monitor, :process, ^holder, :killed}, 2_000
+      assert {:ok, _} = Workspace.git(run.path, add.(holder_path, c.base), c.opts)
+      assert File.read!(Path.join(holder_path, "source.txt")) == "base"
+      assert git!(c.repo, ["status", "--porcelain"]) == ""
+    after
+      for task <- [waiter, reader, timed] do
+        if Process.alive?(task.pid),
+          do: Task.yield(task, 2_000) || Task.shutdown(task, :brutal_kill)
+      end
+
+      if Process.alive?(holder), do: Process.exit(holder, :kill)
+      Process.demonitor(monitor, [:flush])
+    end
+  end
+
   test "late shared parents preserve existing modes and reject files or symlinks", c do
     for kind <- [:directory, :file, :symlink] do
       opts = Keyword.put(c.opts, :data_dir, Path.join(c.data, to_string(kind)))

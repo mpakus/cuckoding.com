@@ -329,8 +329,58 @@ defmodule Boss.Agents.Workspace do
   @doc false
   def git(directory, args, opts \\ []) do
     case System.find_executable("git") do
-      nil -> {:error, :git_unavailable}
-      executable -> command(executable, directory, args, opts)
+      nil ->
+        {:error, :git_unavailable}
+
+      executable ->
+        if worktree_command?(args),
+          do: worktree_command(executable, directory, args, opts),
+          else: command(executable, directory, args, opts)
+    end
+  end
+
+  defp worktree_command?(["-c", _ | args]), do: worktree_command?(args)
+  defp worktree_command?(["worktree" | _]), do: true
+  defp worktree_command?(_), do: false
+
+  # Git can enumerate another add's half-written registration; serialize metadata in this VM.
+  defp worktree_command(executable, directory, args, opts) do
+    with {:ok, common} <-
+           command(
+             executable,
+             directory,
+             ["rev-parse", "--path-format=absolute", "--git-common-dir"],
+             opts
+           ),
+         lock = {{__MODULE__, :worktree, Path.expand(common)}, self()},
+         :ok <- registration_lock(lock, System.monotonic_time(:millisecond) + 15_000) do
+      try do
+        command(executable, directory, args, opts)
+      after
+        :global.del_lock(lock, [node()])
+      end
+    end
+  end
+
+  defp registration_lock(lock, deadline) do
+    receive do
+      :stop -> {:error, :cancelled}
+    after
+      0 ->
+        cond do
+          System.monotonic_time(:millisecond) >= deadline ->
+            {:error, :git_busy}
+
+          :global.set_lock(lock, [node()], 0) ->
+            :ok
+
+          true ->
+            receive do
+              :stop -> {:error, :cancelled}
+            after
+              20 -> registration_lock(lock, deadline)
+            end
+        end
     end
   end
 
