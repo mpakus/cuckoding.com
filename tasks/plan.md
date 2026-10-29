@@ -393,3 +393,12 @@ allow-jit. После строгой проверки и packaged smoke созд
 шаг без приватного ключа, а не заменяют реальную signing/provider acceptance.
 Локальный merge6a29dac проверен4 fixture tests, AST и CI YAML; runtime/dependency
 tree не изменён. Реальная Developer ID подпись/нотарификация ещё не выполнялась.
+
+## Cuckoding marketing site — 2026-10-29
+
+Separate static GitHub Pages presentation in site/ for the current BOSS restart.
+User-directed satire pairs original robot-resort artwork with truthful workflow
+information. Dependency-free HTML/CSS/JS, responsive layouts, native FAQs,
+interactive illustrative workflow and bounded reduced-motion-aware parallax.
+Deployment remains main-only with a site-only artifact. See docs/SITE.md and
+.worklog/2026-10-29-marketing.md; this is not runtime/release acceptance.

@@ -646,3 +646,15 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 | 1 | 012: provider acceptance | Claude reviewer 012a | Реальный opt-in проход с сохранёнными provenance/cleanup gates; никакого paid auto-retry. Claude implementer требует отдельной проверенной границы записи. |
 | 2 | 017: recovery acceptance | 015c, 016b | Подтверждённый отказ/restart на каждой границе, без повторного платного запуска и без потери истории. |
 | 3 | 018: packaging | 017 | Fresh macOS/Linux установка и полный spec→review→integrate проход. |
+
+## Cuckoding marketing site — 2026-10-29
+
+- [x] Original satirical robot-resort/spa artwork and professional static design.
+- [x] Responsive page, native FAQs, linked workflow demo and motion controls.
+  Browser: 320/768/1024/1440 widths, loaded images, no horizontal overflow,
+  four workflow stages, keyboard Enter, hash reload, FAQ and pause/resume.
+- [x] Restore Pages main-only/site-only workflow and focused validation.
+  Static checker26 references; valid +10 malformed fixtures; motion6 tests pass.
+  Independent review approved after hover contrast correction.
+- [ ] Publish to GitHub Pages and verify remote deployment/domain.
+  Local design verification does not authorize publishing the entire BOSS restart.
