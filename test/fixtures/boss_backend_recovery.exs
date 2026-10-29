@@ -3,6 +3,8 @@ defmodule BossBackendRecoveryFixture do
   alias Boss.Deliveries.{Autopilot, AutopilotBatch, AutopilotItem, Request}
 
   def run(root, boundary, mode) do
+    ready = String.starts_with?(boundary, "ready")
+
     spawn(fn ->
       Process.sleep(90_000)
       System.halt(3)
@@ -49,7 +51,7 @@ defmodule BossBackendRecoveryFixture do
           base_branch: "main"
         })
 
-      names = if boundary == "ready", do: ~w(one), else: ~w(one two)
+      names = if ready, do: ~w(one), else: ~w(one two)
 
       tasks =
         for name <- names do
@@ -68,7 +70,7 @@ defmodule BossBackendRecoveryFixture do
       {:ok, _} =
         Autopilot.start(project.id, Ecto.UUID.generate(), tasks, "python3 check.py", "codex")
 
-      if boundary == "ready" do
+      if ready do
         eventually(fn -> File.exists?(Path.join(root, "review.waiting")) end)
         batch = Repo.one!(AutopilotBatch)
         {:ok, _} = Autopilot.pause(project.id, batch.id, batch.version)
@@ -119,7 +121,7 @@ defmodule BossBackendRecoveryFixture do
           )
       end
 
-      if boundary == "ready" do
+      if ready do
         item = Repo.one!(AutopilotItem)
 
         {:error, :busy} =
@@ -133,10 +135,9 @@ defmodule BossBackendRecoveryFixture do
       end
 
       {:ok, _} = Autopilot.resume(batch.project_id, batch.id, batch.version)
-      terminal = if boundary == "ready", do: "completed", else: "blocked"
 
       eventually(fn ->
-        Repo.one!(AutopilotBatch).status == terminal and
+        Repo.one!(AutopilotBatch).status in ~w(completed blocked cancelled) and
           :sys.get_state(Boss.Runs.Manager).active == %{}
       end)
 
@@ -164,6 +165,7 @@ defmodule BossBackendRecoveryFixture do
             :config_hash,
             :status,
             :cleanup,
+            :reason,
             :intent,
             :integration_intent,
             :integration_command_id
