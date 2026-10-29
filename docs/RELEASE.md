@@ -1,7 +1,8 @@
 # BOSS 0.1.0-rc.1
 
-Status: source a0b9715 passed full remote regression (587 passed,1 skipped).
-Packaging is blocked pending an isolated patched OTP/OpenSSL runtime and notices.
+Earlier source a0b9715 passed full remote regression (587 passed,1 skipped).
+The corrected pinned runtime passed a fresh local build and14 focused checks.
+Actual corrected package and full remote CI acceptance remain pending.
 Earlier Developer ID signed5570d3f is held from distribution: its OpenSSL3.6.3
 predates published upstream fixes. Valid signatures do not close this gate.
 No public release, tag or notarization is implied. Results and remaining gates are
@@ -99,7 +100,7 @@ OTP's separate builtin MD5-only OpenSSL3.6.1 source component is recorded distin
 from the effective full OpenSSL3.5.9 crypto library. System zlib is provided by
 macOS. Build signatures do not provide Developer ID trust or Apple notarization.
 
-Inspection of the local macOS27 archive found26 arm64 native images: guardian
+Historical5570 archive inspection found26 arm64 native images: guardian
 requires macOS27.0,24 images require26.0 and Exqlite requires14.0. This archive
 therefore requires macOS27.0 or later; a different CI build needs its own inspection.
 

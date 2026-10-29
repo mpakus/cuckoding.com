@@ -647,9 +647,10 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
   cases,640 concurrent adds,14 budget cases/mutations; combined32 passed26.5s.
 - [x] Full remote regression at a0b9715:587 passed,1 skipped (872.3s); exact merge
   a9af06b has the same tree. Audits, compile/format and4 signing fixtures passed.
-- [ ] Correct native runtime/package: prebuilt CI statically embeds stale3.5.6
-  and lacks notices. Build isolated OTP28.5.0.8/OpenSSL3.5.9, then rerun CI/smoke.
-  Historical signed5570 uses stale3.6.3 and is held from distribution.
+- [x] Correct native runtime source build: isolated OTP28.5.0.8/static OpenSSL3.5.9
+  passed107.476s with7 native notices and exact provenance. Builder5 + package9
+  focused tests passed; guard mutations caught. Historical signed5570 uses stale
+  3.6.3 and is held from distribution. Actual combined package/CI remains open.
 - [ ] Retain final remote package result/artifact identity after this correction.
 - [x] One approved real Codex workflow in an exclusive scratch repository:
   max7 calls/10minutes, verified checks/review/integration/Done or honest failure.
