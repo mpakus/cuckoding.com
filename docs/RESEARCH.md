@@ -501,3 +501,17 @@ Ready, retaining its own transport, SQLite and exact-commit publication contract
 A valid report file alone is insufficient; an already completed immutable approval
 can survive restart without rerunning the reviewer. No competitor journal, lock
 framework, source copy, dependency or reindex was introduced.
+
+## BOSS-017c: offline candidate and target drift
+
+`xerj search --prefix bossrefs verifyClosureHead -k 3 --full 1300` found Kander
+`internal/review/disposition.go:196`. Read its ancestry checks/caller at174–240
+and `disposition_test.go:29–96`, pin
+`dea0ba6b885c39a56ee769223f7fa5c054e68c70` (MIT). Its current clean-HEAD check and
+historical closure distinction inform BOSS's offline-change acceptance: retain
+old approval, recheck current Git and bind new evidence to the actual commit.
+
+BOSS keeps its own private-index verification, immutable SQLite receipts and fresh
+merge/check/review lineage. The test includes an edit hidden by `assume-unchanged`;
+porcelain status alone is insufficient. No closure framework, source copy,
+reference update or runtime dependency was introduced.

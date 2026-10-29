@@ -359,3 +359,13 @@ paused ownership и unknown cleanup, без совета просто подож
 сохранённый UUID; после Resume неизменившийся target получает исходный approved SHA
 и обязательный postcheck без повторного model call. Это проверка существующего
 контракта; автоматическое снятие quarantine и повторение interrupted stages не добавляются.
+
+## BOSS-017c — Git изменился во время остановки BOSS
+
+После настоящего backend kill в Ready изменить только тестовый Git: candidate tree,
+candidate ref, линейно продвинувшийся target или переписанную историю target.
+До явного Resume старые receipts и UUID должны оставаться неизменными, без новых
+процессов. Изменённый candidate и переписанный target должны блокироваться до новых
+checks/review. Продвинувшийся target требует отдельного merge с родителями
+`[target, original candidate]`, свежими checks/review и публикацией только нового
+проверенного SHA. Сохранить прежнее одобрение и пользовательский checkout.
