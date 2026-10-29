@@ -34,6 +34,8 @@ if Path(sys.argv[0]).name == "check.py":
     calls = root / "check-calls"
     with calls.open("a") as output:
         output.write(str(Path.cwd()) + "\n")
+    if boundary == "ready_advanced" and len(calls.read_text().splitlines()) > 1:
+        assert Path("offline.txt").read_text() == "offline change\n"
     if (boundary == "check" or
             boundary == "post_check" and len(calls.read_text().splitlines()) == 2):
         checkpoint()
@@ -47,6 +49,8 @@ data = json.loads(sys.stdin.read().split("BOSS delivery input (JSON):\n", 1)[1])
 assert data["check_config"]["argv"] == ["python3", "check.py"]
 schema = Path(args[args.index("--output-schema") + 1]) if "--output-schema" in args else None
 kind = "plan" if schema and schema.name == "plan_schema.json" else "review" if schema else "implement"
+if kind == "review" and "original_candidate" in data:
+    kind = "merge_review"
 with (root / "calls").open("a") as output:
     output.write(kind + "\n")
 print(json.dumps({"type": "turn.started"}), flush=True)
@@ -63,12 +67,19 @@ else:
     else:
         assert data["check_receipt"]["exit_code"] == 0
         assert "result.txt" in data["diff"]
+        if kind == "merge_review":
+            assert data["candidate_commit"] != data["original_candidate"]
+            assert data["check_receipt"]["candidate_commit"] == data["candidate_commit"]
+            assert data["original_review"]["verdict"] == "approved"
+            assert "offline.txt" in data["diff"]
+            assert "result.txt" in data["target_diff"]
+            assert Path("offline.txt").read_text() == "offline change\n"
         report = {"verdict": "approved", "summary": "Checked result",
                   "acceptance": [{"criterion": "Create result.txt", "status": "passed",
                                   "evidence": "Inspected result.txt"}], "issues": []}
     report_path = args[args.index("--output-last-message") + 1]
     Path(report_path).write_text(json.dumps(report))
-    if boundary == "ready" and kind == "review":
+    if boundary.startswith("ready") and kind == "review":
         (root / "review.waiting").touch()
         while not (root / "review.release").exists():
             time.sleep(0.02)

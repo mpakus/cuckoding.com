@@ -579,6 +579,18 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
   ownership hold. Archive refused again because another active task uses it;
   no forced deletion.
 
+## BOSS-017c — offline candidate и target drift
+
+- [x] Native restart after dirty candidate/moved candidate ref: no stale publication,
+  model/check rerun or change to the user's checkout.
+- [x] Advanced target requires fresh merge/check/review and exact new SHA publication;
+  rewritten target history blocks without repeating work or resetting Git.
+- [x] Independent review, guard mutation and documentation. Final native10 passed
+  (seed130744,168.1s); ancestry mutation caught the extra merge step
+  (seed52840,16.4s), production restored. Baseline integration/persistence16 passed
+  (seed777880,143.7s). Format/diff passed; no runtime changes.
+- [ ] Merge local main, verify and clean owned temporary branches/worktree.
+
 ## Следующие рабочие проходы
 
 Детализировать перед реализацией; не генерировать все модули заранее.

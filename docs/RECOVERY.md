@@ -40,10 +40,10 @@ the workers, and a missing notification cannot authorize execution.
 
 ## Acceptance evidence and limits
 
-The existing native suites cover Repo loss during manual execution, checks, review,
+The native suites also cover Repo loss during manual execution, checks, review,
 managed implementation and integration, including a published target and merge
-review. The current increment adds real-pool commit/rollback/no-op notification
-checks and connected LiveView regressions. Exact commands/results are recorded in
+review. Real-pool commit/rollback/no-op notification tests and connected LiveView
+regressions cover coordinator-only recovery. Exact commands/results are recorded in
 [the worklog](../.worklog/2026-10-28.md).
 
 `test/boss/backend_recovery_test.exs` kills a real child BEAM at these checkpoints:
@@ -71,8 +71,27 @@ After Resume with an unchanged target, no model or earlier check repeats; only t
 postcheck is new. Publication retains the exact approved SHA in a detached owned
 checkout and leaves the user's dirty checkout untouched.
 
-These checkpoints do not complete the recovery matrix. Offline candidate/target
-drift, narrower intent/effect/receipt gaps, merge-stage crashes, Linux, real-provider
+### Git changes while BOSS is stopped
+
+Ready retains its historical approval; restarting does not rebind it to whatever
+Git now contains. The restart fixture kills the backend, changes only its scratch
+repository while no backend is running, then boots a fresh application. Saved
+rows and call counts remain unchanged until explicit Resume.
+
+| Offline change | Result after Resume |
+|---|---|
+| Candidate file changed, even with `assume-unchanged` hiding it from status | Block before new checks/review/publication. Preserve the changed file and the old evidence. |
+| Candidate retention ref moved | Block before new checks/review/publication; preserve the moved ref and original candidate HEAD. |
+| Target advances with a compatible independent change | Create a distinct two-parent merge candidate, run fresh checks and review, then publish that exact new SHA and run postchecks. Preserve the original approval. |
+| Target history rewritten | Block before merge effects; retain the rewritten target without resetting it. |
+
+The advanced-target case verifies ordered parents `[current target, original
+candidate]`, distinct candidate path/ref/check ID, fresh check/review linkage,
+both sets of file changes and the exact published SHA. All cases preserve the
+user's separate dirty checkout. Model/check calls are finite local fixtures.
+
+These checkpoints do not complete the recovery matrix. Narrower intent/effect/receipt
+gaps, merge-stage crashes, further drift during resumed work, Linux, real-provider
 acceptance, arbitrary detached sessions and safe release of unknown-cleanup
 quarantine remain separate gates. No fixture is a live-provider guarantee.
 
