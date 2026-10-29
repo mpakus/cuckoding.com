@@ -6,10 +6,11 @@ and remaining gates are recorded in [.worklog/2026-10-29.md](../.worklog/2026-10
 
 [Draft RC PR #1](https://github.com/mpakus/cuckoding.com/pull/1) publishes the reviewed
 source on a separate branch; remote main and the existing site are preserved.
-The first remote CI run failed two initial LiveView async-wait tests at the
-implicit100ms test deadline; packaging did not run. A bounded test-helper correction
-passed68 affected local tests; a new CI result is pending. PR merge checkout is distinct from the
-branch head and must match the final artifact's `BUILD_INFO` before acceptance.
+Two remote CI runs stopped during source verification. The initial LiveView
+async-wait failures were absent after a bounded helper correction; the second run
+found concurrent Git registration failure and a dependency-test budget coupling.
+Those fixes are under verification. Neither run produced a package. PR merge
+checkout differs from branch head and must match the final artifact's `BUILD_INFO`.
 
 Local application regression passed585 tests with1 platform-specific skip
 (seed329391). The unpacked archive passed native-helper execution, private browser
