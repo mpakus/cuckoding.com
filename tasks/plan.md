@@ -377,6 +377,7 @@ checks/review. Продвинувшийся target требует отдельн
 распакованного пакета и устранить внешние Homebrew library paths. Сохранить notices
 и факты сборки. Устранить найденные dependency advisories, выполнить полный набор
 application tests и подготовить macOS CI/инструкции установки и обновления.
-Публичная публикация, выбор лицензии, signing/notarization, чистая машина, реальные
+Пользователь выбрал Apache-2.0; полный текст хранится в LICENSE и включается в пакет.
+Публичная публикация, signing/notarization, чистая машина, реальные
 provider calls и Linux execution требуют собственного подтверждения, а не нового
 названия для незакрытого gate. Контракт: [RELEASE.md](../docs/RELEASE.md).

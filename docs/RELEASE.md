@@ -9,6 +9,10 @@ Local application regression passed585 tests with1 platform-specific skip
 authentication/assets, connected LiveView board/Autopilot/drawer and durable restart.
 Public distribution still requires the open gates below.
 
+BOSS uses Apache-2.0, selected by the project owner. The archive
+includes the unchanged project license as `LICENSES/BOSS-LICENSE`; dependency
+notices retain their original licenses.
+
 ## Build and inspect
 
 Use the pinned Elixir1.20.3/OTP28 pair, Node20+ with npm, Git, Python3.12+ and Xcode
@@ -105,7 +109,7 @@ restore must not silently discard work created after the backup.
 | Dependency audit | Hex and npm audit pass without suppressing findings. |
 | Clean-machine macOS | Supported architecture/OS acceptance with user-installed Git and CLI; actual folder chooser and provider workflow. |
 | Provider | Explicit bounded Codex workflow and selected reviewer through checks/integration/Done; sanitized receipts only. |
-| Distribution | Project license chosen, third-party notices reviewed, signing/notarization completed and download acceptance. |
+| Distribution | Apache-2.0 selected and included; public signing/notarization and download acceptance remain open. Third-party notices retain their original licenses. |
 | Remote CI | Pinned macOS workflow runs successfully on the published commit; local YAML validation is not a remote result. |
 | Linux stable support | Linux process ownership/cleanup, native chooser and complete workflow acceptance. Current runner rejects non-macOS execution. |
 

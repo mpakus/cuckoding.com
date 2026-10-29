@@ -614,8 +614,15 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 - [x] Delete both merged release branches; original parent checkout detached at main.
 - [ ] Archive the clean detached release writer. App refuses because another active
   task holds it; preserved without force deletion. No release/recovery fixture VM remains.
-- [ ] Remote macOS CI, clean-machine/provider acceptance, project license and public signing.
+- [x] Project owner selected Apache-2.0; canonical root LICENSE and documentation added.
+- [ ] Remote macOS CI, clean-machine/provider acceptance and public signing.
   Preparation is local; no tag/upload/publication is authorized by these checkboxes.
+
+## BOSS-018b — Apache-2.0 selection
+
+- [x] Add unchanged official ASF Apache-2.0 text; update project/release licensing docs.
+- [ ] Independent byte-for-byte review, clean-main archive rebuild and smoke/checksum.
+- [ ] Local merge and temporary branch cleanup. No public tag/push/release.
 
 ## Следующие рабочие проходы
 

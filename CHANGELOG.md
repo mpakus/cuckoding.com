@@ -18,6 +18,7 @@ release gates tracked in [docs/RELEASE.md](docs/RELEASE.md).
 - Assemble an OTP release containing ERTS, native guardian, static assets and
   migrations. Agent CLIs and Git remain user-installed runtime tools.
 - Update Bandit to1.14.1 after the dependency audit identified advisories in1.13.1.
+- License BOSS under Apache-2.0 and include its full text in release archives.
 
 Linux task execution, public signing/notarization and complete recovery-boundary
 acceptance remain open. See [docs/RECOVERY.md](docs/RECOVERY.md).

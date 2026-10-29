@@ -46,6 +46,9 @@
   distribution disabled for the local launcher. A local package/smoke is not
   clean-machine, signing, provider, Linux or remote-CI acceptance. Never hide
   dependency advisories or publish a prerelease as stable; see docs/RELEASE.md.
+- BOSS uses Apache-2.0 in root LICENSE. Preserve its exact text in release
+  LICENSES/BOSS-LICENSE and retain separate third-party notices; reference licenses
+  do not replace the project's chosen license.
 - Create test scratch roots exclusively before registering recursive cleanup.
   A VM-local counter is not a globally unique directory name. Never remove a
   pre-existing directory to make a test pass.

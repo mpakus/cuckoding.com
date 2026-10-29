@@ -337,3 +337,10 @@ Linux/Zenity GUI behavior has not yet been verified on a Linux desktop.
 
 See [tasks/plan.md](tasks/plan.md), [tasks/todo.md](tasks/todo.md) and
 [.worklog/](.worklog/) for scope, evidence and the next increment.
+
+## License
+
+BOSS is licensed under the [Apache License, Version 2.0](LICENSE).
+Third-party components retain their own licenses and notices, included in the
+release archive's `LICENSES/` directory. Reference repositories in `examples/`
+remain separately licensed research inputs.
