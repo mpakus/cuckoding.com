@@ -147,6 +147,9 @@ defmodule Boss.Agents.Process do
       state.helper_exit != nil and state.receipt == nil ->
         finish(state, :unknown, :helper_lost)
 
+      state.helper_exit != nil and state.helper_exit != 0 ->
+        finish(state, :unknown, :helper_lost)
+
       state.helper_exit != nil and map_size(state.pending) == 0 ->
         finish(state, state.receipt.cleanup, state.receipt.reason)
 
@@ -268,6 +271,9 @@ defmodule Boss.Agents.Process do
   end
 
   defp credit(state, _), do: state
+
+  defp flush_controls(%{receipt: receipt} = state) when receipt != nil,
+    do: %{state | controls: []}
 
   defp flush_controls(%{controls: []} = state), do: state
 

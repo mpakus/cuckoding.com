@@ -36,7 +36,30 @@ defmodule Boss.Agents.ProcessTest do
                stderr_to_stdout: true
              )
 
-    %{fixture: fixture, fork_delay: fork_delay, reap_interrupt: reap_interrupt}
+    terminal_control = Path.join(root, "terminal_control.dylib")
+    terminal_source = Path.expand("../../support/fixtures/terminal_control.c", __DIR__)
+
+    assert {"", 0} =
+             System.cmd(
+               "cc",
+               [
+                 "-Wall",
+                 "-Wextra",
+                 "-Werror",
+                 "-dynamiclib",
+                 terminal_source,
+                 "-o",
+                 terminal_control
+               ],
+               stderr_to_stdout: true
+             )
+
+    %{
+      fixture: fixture,
+      fork_delay: fork_delay,
+      reap_interrupt: reap_interrupt,
+      terminal_control: terminal_control
+    }
   end
 
   setup do
@@ -249,6 +272,33 @@ defmodule Boss.Agents.ProcessTest do
     assert_dead(pids(ctx.root)["leader"])
   end
 
+  test "a final receipt retires controls while the helper's closed input awaits exit", ctx do
+    assert %{outcome: :timeout, cleanup: :group_empty} =
+             stalled_run(ctx, env: terminal_env(ctx))
+
+    assert File.read!(Path.join(ctx.root, "terminal")) == "DE"
+    assert_dead(pids(ctx.root)["leader"])
+    assert_dead(pids(ctx.root)["guardian"])
+  end
+
+  test "a final receipt cannot bless a nonzero helper exit", ctx do
+    assert %{outcome: :timeout, cleanup: :unknown} =
+             stalled_run(ctx, env: terminal_env(ctx) ++ [{"BOSS_TEST_HELPER_FAILURE", "1"}])
+
+    assert File.read!(Path.join(ctx.root, "terminal")) == "DE"
+    assert_dead(pids(ctx.root)["leader"])
+    assert_dead(pids(ctx.root)["guardian"])
+  end
+
+  test "a final receipt cannot bless a helper killed before exit", ctx do
+    assert %{outcome: :timeout, cleanup: :unknown} =
+             stalled_run(ctx, env: terminal_env(ctx) ++ [{"BOSS_TEST_HELPER_FAILURE", "signal"}])
+
+    assert File.read!(Path.join(ctx.root, "terminal")) == "DE"
+    assert_dead(pids(ctx.root)["leader"])
+    assert_dead(pids(ctx.root)["guardian"])
+  end
+
   test "an interrupted final reap preserves natural group cleanup", ctx do
     assert %{outcome: :exited, exit_code: 7, cleanup: :group_empty} =
              run(ctx, "binary", env: reap_env(ctx, "once"))
@@ -387,6 +437,12 @@ defmodule Boss.Agents.ProcessTest do
 
     refute log =~ secret
   end
+
+  defp terminal_env(ctx),
+    do: [
+      {"DYLD_INSERT_LIBRARIES", ctx.terminal_control},
+      {"BOSS_TEST_TERMINAL_MARKER", Path.join(ctx.root, "terminal")}
+    ]
 
   defp reap_env(ctx, mode),
     do: [
