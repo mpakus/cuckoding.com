@@ -609,3 +609,24 @@ OpenSSL7d5450cb2d142651b8afa315b5f238efc805dad827d91ba367d8516bc9d49e7a.
 ERTS embeds separate third-party components; their genuine source notices must
 travel with the package as well. The build/packager tests and actual resulting
 versions are recorded in the worklog, not inferred from this research.
+
+
+## Release CI: shared Sandbox phases and final reap — 2026-10-29
+
+- Query `shared transaction fixture completion` was weak; precise xerj query
+  `transition started before message committed` found Agent Orchestrator
+  `cloud/internal/postgres/session_interface_transition_store_test.go:63–125` and
+  `notification_store_test.go:137–210`, pinned7193eff4e08f1481944845ee058fe6fd18930b6d,
+  Apache-2.0. Adopt explicit barrier/release, exclusion-before-release and final
+  persisted-state checks. Reject PostgreSQL fixture/pool copying and whole-app
+  restart for this capacity-only UI case. EctoSQL3.14.0 `sandbox.ex:133–150`
+  confirms a shared single checkout; production pool/queue limits stay unchanged.
+- Xerj `cleanup deadline group_empty stalled callback` returned weak hits;
+  fallback NetRunner `c_src/shepherd.c:447–520`, `test/teardown_test.exs:61–85`,
+  pinned5f12e06aabb70f2aafde023bf547aaaa6f8fcb36, Apache-2.0. Adopt an absolute
+  monotonic reap budget and finite interposition. Reject direct-PID/ECHILD fallback
+  and signalling a reaped PGID. [Official Apple wait(2)](https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/wait.2.html)
+  documents EINTR, actual PID success and WNOHANG zero distinction. The fix retries
+  only EINTR inside existing deadlines and retains unknown for every unproven
+  outcome. No reference code copied. Controlled failure matches the CI receipt
+  shape; the original CI syscall cause is not established from that receipt.

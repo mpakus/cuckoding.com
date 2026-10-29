@@ -145,6 +145,9 @@
   sessions are outside this guarantee; lost helper/Repo receipts quarantine runs.
   Only the parent assigns PGID before releasing the pre-exec gate; concurrent
   parent/child setpgid calls can fail with EPERM on macOS.
+- Retry the final native child reap only for EINTR within the existing absolute
+  cleanup/natural deadline; require the actual saved child PID to be returned.
+  Other errors, persistent interruption, expiry and query uncertainty stay unknown.
 - Stop must reach the live project-scoped worker without waiting on the Repo or
   Manager mailbox. Browser/requester death must not own the run. Repo loss kills
   the worker; restart never reuses a saved PID or automatically respawns work.
@@ -217,6 +220,9 @@
   Sandbox owner. Fixture teardown removes every registry alias owned by its exact
   worker PIDs and resets both queue cursors; never rescue ownership errors in
   production to hide fixture leaks.
+- Shared Sandbox's single checkout is not a real two-connection concurrency pool.
+  Keep capacity-only UI fixtures phased without weakening live UI/peer assertions;
+  correlate completion with the actual worker and restore suspended views in after.
 - Fixes get complete transient check output/receipt and prior feedback in a fresh
   worktree at the rejected candidate; review the full original-base diff. Maximum
   three cycles; repeated unchanged failure, invalid input, Stop or unknown cleanup

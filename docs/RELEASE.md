@@ -5,7 +5,9 @@ The corrected runtime and local archive passed build,14 focused checks, actual
 smoke and independent notice/native review. Latest full CI at2e74816 failed two
 cases (585 passed,2 failed,1 skipped): shared-Sandbox workflow UI contention and
 stalled-callback cleanup returning unknown. Final CI/package/signing acceptance
-remains open while these are diagnosed.
+awaits a new full run after the reviewed Sandbox fixture correction and bounded
+EINTR reap hardening. Combined focused acceptance passed180 tests. The original
+native CI syscall cause remains unproven; no cleanup limit was relaxed.
 Earlier Developer ID signed5570d3f is held from distribution: its OpenSSL3.6.3
 predates published upstream fixes. Valid signatures do not close this gate.
 No public release, tag or notarization is implied. Results and remaining gates are

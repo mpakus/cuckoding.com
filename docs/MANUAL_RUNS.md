@@ -48,6 +48,9 @@ releases the CLI only after the parent establishes/verifies that group, keeps
 its leader unreaped until cleanup and supervises separate stdout/stderr.
 A blocked consumer bounds upstream credit; cancellation and absolute deadlines
 continue while callbacks are stalled. Control packets retry under pipe backpressure.
+The final reap retries an interrupted `waitpid` only within the already established
+cleanup/natural deadline. It must return the reserved child's actual PID; a
+persistent interruption, other error or expired budget remains unknown cleanup.
 
 Cleanup proves the owned process group is empty, not arbitrary descendants that
 escape with a new session/group. Detached daemons are unsupported. Worker death requests bounded group cleanup;

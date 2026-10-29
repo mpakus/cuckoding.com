@@ -651,6 +651,11 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
   passed107.476s with7 native notices and exact provenance. Builder5 + package9
   focused tests passed; guard mutations caught. Historical signed5570 uses stale
   3.6.3 and is held from distribution. Actual combined package/CI remains open.
+- [x] Reproduce Sandbox UI contention and phase only fixture persistence/reads;
+ 153 web/real-pool queue/capacity cases and exclusion mutation passed.
+- [x] Reproduce final-reap EINTR unknown, retry only within existing deadlines;
+ 26 process cases, recovery1, mutation and100 stalled runs passed. Original native
+ CI syscall cause remains unproven. Combined180 passed25.2s, seed284012.
 - [ ] Complete new-runtime regression after CI2e:585 passed,2 failed,1 skipped.
   Shared-Sandbox UI completion and native unknown-cleanup diagnosis are separate;
   no retry-only acceptance or relaxed cleanup/deadline checks.
