@@ -381,3 +381,13 @@ application tests и подготовить macOS CI/инструкции уст
 Публичная публикация, signing/notarization, чистая машина, реальные
 provider calls и Linux execution требуют собственного подтверждения, а не нового
 названия для незакрытого gate. Контракт: [RELEASE.md](../docs/RELEASE.md).
+
+## BOSS-018c — явная подготовка подписанного macOS пакета
+
+Проверить доступность GitHub/Developer ID без remote writes, подписания и provider
+effects. Подготовить отдельный opt-in шаг: исходный tar неизменяем, каждый native
+image получает один Developer ID Team и runtime flags, только BEAM получает
+allow-jit. После строгой проверки и packaged smoke создать подписанный UDZO DMG.
+Нотарификация, staple/Gatekeeper и clean-machine проверяются отдельно; частичный
+результат и timeout не становятся успешным релизом. Fixture tests проверяют сам
+шаг без приватного ключа, а не заменяют реальную signing/provider acceptance.

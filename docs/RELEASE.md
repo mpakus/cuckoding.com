@@ -48,6 +48,69 @@ remaining external non-system native-library dependencies. Ad-hoc signatures use
 after relocation support local loading. They do not provide Developer ID trust or
 Apple notarization.
 
+Inspection of the local macOS27 archive found26 arm64 native images: guardian
+requires macOS27.0,24 images require26.0 and Exqlite requires14.0. This archive
+therefore requires macOS27.0 or later; a different CI build needs its own inspection.
+
+## Explicit macOS distribution preparation
+
+The optional signing step requires a maintainer-approved Developer ID Application
+identity and private-key access. Inspect available public identity metadata with
+`security find-identity -v -p codesigning`; select the exact40-character certificate
+fingerprint, rather than automatically using the first identity. Signing uses
+Apple's secure timestamp service. From a reviewed clean source checkout:
+
+```sh
+python3 scripts/sign_macos_release.py /absolute/boss-0.1.0-rc.1.tar.gz \
+  --identity CERTIFICATE_SHA1 --output /absolute/new-boss-distribution
+```
+
+The output directory must not already exist. The step preserves the input archive,
+signs each native file with hardened runtime and the same Developer ID Team, grants
+only `com.apple.security.cs.allow-jit` to `beam.smp`, verifies the signatures and
+runs the existing unpacked smoke on the signed payload. It then creates and signs
+a read-only UDZO `boss.dmg` containing a copyable `boss/` folder. The completed
+output includes `SIGNING_INFO.json` and `SHA256SUMS`. The original `BUILD_INFO`
+describes assembly; `SIGNING_INFO.json` records the subsequent signing step.
+Failure may leave a partial output directory; preserve it for diagnosis and use
+a different fresh destination after correcting the cause.
+
+This step does not submit anything for notarization. Its fixture tests verify
+command selection and failure handling; real Developer ID smoke remains a separate
+acceptance gate. An ad-hoc hardened-runtime experiment failed macOS library
+validation while loading crypto: ad-hoc images have no common signing Team.
+That failure does not justify disabling library validation or widening entitlements.
+The unmodified local archive's earlier successful smoke is separate evidence.
+
+After explicit upload authorization and Keychain-profile setup, submit the signed
+DMG once using the approved profile. No passwords, API keys or credential files
+belong in this repository, command history or logs:
+
+```sh
+xcrun notarytool submit /absolute/new-boss-distribution/boss.dmg \
+  --keychain-profile APPROVED_PROFILE --wait --timeout 20m --output-format json
+```
+
+Retain the submission ID and require final `Accepted` status. Timeout or lost
+output does not prove rejection or cancellation: reconcile the same submission
+through `notarytool info`/`wait` (or account history if its ID was lost), rather than
+submitting again. An `Invalid` result requires diagnosis from that submission's
+log and a new explicitly reviewed artifact. After acceptance:
+
+```sh
+xcrun stapler staple /absolute/new-boss-distribution/boss.dmg
+xcrun stapler validate /absolute/new-boss-distribution/boss.dmg
+spctl -a -vv -t open --context context:primary-signature /absolute/new-boss-distribution/boss.dmg
+```
+
+Stapling changes the delivered bytes: regenerate and verify `SHA256SUMS` afterward.
+Keep notarization/submission evidence separate from the pre-upload signing record.
+Test the actual quarantined download on a supported clean Mac, copy `boss/` out of
+the mounted image and follow the launch instructions below, including native
+folder selection and an authorized provider workflow. Local signatures or an
+online Gatekeeper lookup alone do not prove a stapled offline delivery works.
+Do not remove quarantine or disable Gatekeeper to pass this gate.
+
 ## Install and run locally
 
 Extract into a new application folder; keep the archive/checksum and avoid
@@ -122,3 +185,5 @@ release. Existing recovery limits remain in [RECOVERY.md](RECOVERY.md).
 Implementation references: [Mix release](https://mix.hexdocs.pm/Mix.Tasks.Release.html),
 [setup-beam](https://github.com/erlef/setup-beam),
 [Bandit fixed-version advisory](https://github.com/mtrudel/bandit/security/advisories/GHSA-cpx7-qf6w-jc63).
+Signing references: [Apple distribution packaging](https://developer.apple.com/documentation/xcode/packaging-mac-software-for-distribution/),
+[Apple silicon JIT](https://developer.apple.com/documentation/apple-silicon/porting-just-in-time-compilers-to-apple-silicon).

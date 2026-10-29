@@ -530,3 +530,25 @@ bundled runtime/platform constraints and distribution controls. BOSS uses those
 existing OTP facilities rather than adding a desktop wrapper or installer service.
 Dependency load paths and minimum-OS headers are inspected in the actual artifact;
 README portability claims alone are insufficient. No reference code was copied.
+
+## BOSS-018c: explicit macOS signing and container verification
+
+`xerj search --prefix bossrefs 'notarization entitlements' -k 2 --full 1200`
+returned Agetor `scripts/build-cli.ts:47–97`, pinned
+`fbd68603afef778a618a94ca88e0c00997956afd` (MIT). Direct source fallback read
+Agent Orchestrator `frontend/scripts/verify-mac-artifact.sh:17–46`, pinned
+`7193eff4e08f1481944845ee058fe6fd18930b6d` (Apache-2.0). Adopt explicit submission
+identity and separate signature, runtime, notarization and stapling checks.
+Reject credential-absent success, quarantine bypass and the reference's release
+framework. BOSS independently prepares an explicitly signed copy and DMG.
+
+[Apple packaging](https://developer.apple.com/documentation/xcode/packaging-mac-software-for-distribution/)
+documents signed UDZO disk images protecting non-code payloads, and separate
+notarization/stapling. [Apple JIT guidance](https://developer.apple.com/documentation/apple-silicon/porting-just-in-time-compilers-to-apple-silicon)
+documents allow-jit for MAP_JIT and the incompatibility of jit-write-allowlist with
+pthread_jit_write_protect_np. The packaged BEAM imports that function; official
+[OTP-28.5 virtmem.cpp](https://github.com/erlang/otp/blob/OTP-28.5/erts/emulator/asmjit/core/virtmem.cpp#L691-L766)
+uses MAP_JIT on macOS ARM64. Keep only allow-jit on BEAM and sign bundled NIFs and
+OpenSSL with the same Team; do not infer a need for broad runtime exceptions from
+the failed ad-hoc hardened-runtime experiment. Actual Developer ID acceptance is
+still required. No source code was copied.

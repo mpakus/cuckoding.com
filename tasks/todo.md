@@ -626,6 +626,16 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
   are unchanged. Unpacked smoke and updated SHA256SUMS verification passed.
 - [x] Local merge and temporary branch cleanup. No public tag/push/release.
 
+## BOSS-018c — distribution preflight and explicit signing step
+
+- [x] Read-only GitHub/signing inventory and actual native deployment-floor inspection.
+  Remote main/site remain the old product; local archive requires macOS27.
+- [ ] Explicit signing-copy → signed-payload smoke → signed UDZO DMG step, focused
+  failure fixtures, independent review and local merge.
+- [ ] Actual approved Developer ID smoke, notarization Accepted, staple/Gatekeeper
+  and quarantined clean-machine download acceptance. Fixture success is insufficient.
+- [ ] Approved RC branch/draft PR/remote CI and bounded real Codex acceptance.
+
 ## Следующие рабочие проходы
 
 Детализировать перед реализацией; не генерировать все модули заранее.
