@@ -641,13 +641,16 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 ## BOSS-018d — approved RC publication and bounded provider acceptance
 
 - [x] Publish separate RC branch and draft PR1 at23061d2; remote main/site preserved.
+- [x] Review Git metadata race fix and deterministic dependency proofs:49 related
+  cases,640 concurrent adds,14 budget cases/mutations; combined32 passed26.5s.
 - [ ] Run remote macOS CI on the exact PR source, diagnose actual failures and
   retain the final result/artifact identity.
 - [x] One approved real Codex workflow in an exclusive scratch repository:
   max7 calls/10minutes, verified checks/review/integration/Done or honest failure.
   Passed3calls/100.875s,5/5 criteria, exact target/clean retained checkout,
   user-work unchanged, group_empty. Independent evidence review approved;
-  sanitized receipts retained, no automatic paid repeat.
+  sanitized receipts retained, no automatic paid repeat. This pins original
+  archive959; fresh provider acceptance after the Git runtime fix stays open.
 - [ ] Independent review, documentation, local merge and temporary branch cleanup.
 
 ## Следующие рабочие проходы
