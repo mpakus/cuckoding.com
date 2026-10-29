@@ -1,0 +1,76 @@
+{
+  "reviewed_source_commit": "34053fd3afe98b4b75eeacfa603523efdcf00e7e",
+  "local_main_at_publication": "34053fd3afe98b4b75eeacfa603523efdcf00e7e",
+  "ci": {
+    "run_id": 40969599429,
+    "job_id": 123782721575,
+    "head": "34053fd3afe98b4b75eeacfa603523efdcf00e7e",
+    "tested_merge_commit": "7918d9184d9f1cfa54bb8692f33574103bbb5974",
+    "tree": "97981edce8bfa2afa58fa0add4a340a115a8b915",
+    "whole_tree_equals_reviewed_head": true,
+    "status": "failed",
+    "application_tests": {
+      "passed": 589,
+      "failed": 2,
+      "skipped": 1,
+      "seed": 223494,
+      "max_cases": 6,
+      "seconds": 830.2
+    },
+    "artifact": "not_produced"
+  },
+  "focused_acceptance": {
+    "passed": 180,
+    "seconds": 25.2,
+    "seed": 284012,
+    "max_cases": 6,
+    "real_stalled_stress": {
+      "passed": 100,
+      "rounds": 100,
+      "elapsed_ms_min": 316,
+      "elapsed_ms_max": 350
+    }
+  },
+  "native_reap": {
+    "retry_only": "EINTR",
+    "existing_deadlines_preserved": true,
+    "actual_child_reap_required": true,
+    "other_or_persistent_errors_remain_unknown": true,
+    "original_ci_syscall_origin": "unproven"
+  },
+  "local_archive": {
+    "bytes": 16320112,
+    "sha256": "df240cf6c30af73e953d5fb609c74ab4e6e2b7da4d5e5e059ec3de0d92d2ab6e",
+    "source_clean": true,
+    "macos": "27.0.1",
+    "architecture": "arm64",
+    "guardian_sha256": "39f9330723e33df3b8d68a921d8f8133aabe81e161cf6385a866d1255011a9d5",
+    "guardian_equals_tested_binary": true,
+    "smoke": "passed",
+    "independent_archive_review": "approved",
+    "native_images": 24,
+    "minimum_macos": "27.0",
+    "license_files": 45,
+    "delta_from_2e": {
+      "changed_files": [
+        "BUILD_INFO",
+        "README.md",
+        "native_guardian",
+        "asset_cache_manifest"
+      ],
+      "asset_delta": "three mtime fields only; mappings and bytes unchanged",
+      "runtime_crypto_notices": "byte_identical"
+    },
+    "distribution_status": "held_pending_terminal_control_fix_and_ci"
+  },
+  "runtime": {
+    "otp": "28.5.0.8",
+    "erts": "16.4.0.7",
+    "openssl": "3.5.9",
+    "crypto_linkage": "static",
+    "manifest_sha256": "533bf8f1ae07c307589e864846c0b436aab45026cf3bef63f52f08a50329d9e9"
+  },
+  "paid_workflow": "not_repeated",
+  "notarization": "not_performed",
+  "signing": "awaiting_verified_ci_artifact"
+}

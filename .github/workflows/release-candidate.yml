@@ -60,7 +60,10 @@ jobs:
           python3 -c 'import ast,pathlib; ast.parse(pathlib.Path("scripts/smoke_release.py").read_text())'
           python3 -B scripts/test_sign_macos_release.py
           mix compile --warnings-as-errors
-          mix test
+      - name: Verify native process lifecycle
+        run: mix test test/boss/agents/process_test.exs
+      - name: Run full application regression
+        run: mix test
       - name: Assemble host-specific candidate
         run: MIX_ENV=prod mix release.build
       - name: Verify unpacked candidate
