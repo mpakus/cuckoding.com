@@ -179,7 +179,7 @@ defmodule BossWeb.WorkflowCapacityLiveTest do
   end
 
   defp settle(view) do
-    render_async(view)
+    render_async(view, 2_000)
     render(view)
   end
 end

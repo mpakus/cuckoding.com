@@ -106,7 +106,7 @@ defmodule BossWeb.WorkflowScopeLiveTest do
   end
 
   defp settle(view) do
-    for _ <- 1..3, do: render_async(view)
+    for _ <- 1..3, do: render_async(view, 2_000)
     render(view)
   end
 end

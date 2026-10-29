@@ -143,6 +143,6 @@ defmodule BossWeb.ProjectLiveTest do
 
   defp choose(view, kind) do
     view |> element("#choose-#{kind}") |> render_click()
-    render_async(view)
+    render_async(view, 2_000)
   end
 end

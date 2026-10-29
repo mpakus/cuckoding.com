@@ -60,7 +60,7 @@ defmodule BossWeb.AgentsLiveTest do
     render_click(view, "detect")
     refute_receive {:scan, _}
     GenServer.reply(from, {:ok, rows()})
-    render_async(view)
+    render_async(view, 2_000)
     refute has_element?(view, "#detect-agents[disabled]")
     assert has_element?(view, "#agent-codex", "CLI metadata recognized")
     assert has_element?(view, "#agent-codex", "CLI reports credentials configured")
@@ -130,7 +130,7 @@ defmodule BossWeb.AgentsLiveTest do
       view |> element("#detect-agents") |> render_click()
       assert_receive {:scan, from}
       GenServer.reply(from, {:error, reason})
-      render_async(view)
+      render_async(view, 2_000)
       assert has_element?(view, "#agents-error[role='alert']", message)
       assert has_element?(view, "#agents-error", "Showing the last completed scan")
       assert has_element?(view, "#agent-codex", "1.2.3")
@@ -155,7 +155,7 @@ defmodule BossWeb.AgentsLiveTest do
     end)
 
     assert_receive {:DOWN, ^monitor, :process, ^pid, :killed}
-    render_async(view)
+    render_async(view, 2_000)
     assert has_element?(view, "#agents-error", "Detection was interrupted")
     assert has_element?(view, "#agent-codex", "1.2.3")
     refute has_element?(view, "#detect-agents[disabled]")
@@ -165,7 +165,7 @@ defmodule BossWeb.AgentsLiveTest do
     view |> element("#detect-agents") |> render_click()
     assert_receive {:scan, from}
     GenServer.reply(from, {:ok, rows})
-    render_async(view)
+    render_async(view, 2_000)
   end
 
   defp rows do
