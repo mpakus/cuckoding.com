@@ -154,6 +154,90 @@ defmodule Boss.BackendRecoveryTest do
     end
   end
 
+  test "completed approval survives backend death and publishes only after explicit Resume", c do
+    vm = boot(c.root, "ready", "start")
+    before = wait_json(c.root, "before", vm)
+    {:os_pid, pid} = Port.info(vm, :os_pid)
+    assert before["vm_pid"] == to_string(pid)
+    assert before["active"] == 0
+    assert before["batch"]["status"] == "paused"
+    [delivery] = before["deliveries"]
+    assert delivery["status"] == "ready_to_merge"
+    assert delivery["cleanup"] == "group_empty"
+    assert delivery["integration_command_id"] == nil
+    assert delivery["integration_intent"] == %{}
+    assert Enum.all?(before["steps"], &(&1["status"] == "finished"))
+    review = Enum.find(before["steps"], &(&1["kind"] == "review"))
+    check = Enum.find(before["steps"], &(&1["id"] == review["input"]["check_step_id"]))
+    assert review["receipt"]["report"]["verdict"] == "approved"
+    assert review["receipt"]["report"]["issues"] == []
+    sha = review["input"]["candidate_commit"]
+    candidate = check["input"]["workspace"]
+    assert sha == check["input"]["candidate_commit"]
+    assert Path.wildcard(Path.join(c.root, "tmp/boss-review-*")) == []
+    assert calls(c.root, "calls") == ~w(plan implement review)
+    [first_check] = calls(c.root, "check-calls")
+    assert first_check == candidate["path"]
+    assert git(c.source, ["rev-parse", "main"]) == c.base
+
+    kill_vm(vm)
+    assert_receive {^vm, {:exit_status, status}}, 5_000
+    refute status == 0
+    replacement = boot(c.root, "ready", "recover")
+    recovered = wait_json(c.root, "recovered", replacement)
+    paused = wait_json(c.root, "paused_replay", replacement)
+    refute recovered["vm_pid"] == before["vm_pid"]
+
+    for saved <- [recovered, paused] do
+      assert saved["active"] == 0
+
+      for key <- ~w(batch deliveries tasks requests items steps events),
+          do: assert(saved[key] == before[key])
+    end
+
+    assert git(c.source, ["rev-parse", "main"]) == c.base
+    assert calls(c.root, "calls") == ~w(plan implement review)
+    assert calls(c.root, "check-calls") == [first_check]
+    File.write!(Path.join(c.root, "resume"), "")
+    final = wait_json(c.root, "after_resume", replacement)
+    assert_receive {^replacement, {:exit_status, 0}}, 5_000
+    assert final["batch"]["status"] == "completed"
+    assert final["active"] == 0
+    [done] = final["deliveries"]
+    assert done["status"] == "done" and done["cleanup"] == "group_empty"
+    [item] = before["items"]
+    assert done["integration_command_id"] == item["integration_command_id"]
+    assert done["integration_intent"]["candidate_commit"] == sha
+    assert final["items"] == before["items"]
+    assert final["requests"] == before["requests"]
+    assert Enum.all?(before["steps"], &(&1 in final["steps"]))
+    assert Enum.all?(before["events"], &(&1 in final["events"]))
+
+    assert Enum.sort_by(final["steps"], & &1["number"]) |> Enum.map(& &1["kind"]) ==
+             ~w(plan implement snapshot check review publish post_check)
+
+    publish = Enum.find(final["steps"], &(&1["kind"] == "publish"))
+    postcheck = Enum.find(final["steps"], &(&1["kind"] == "post_check"))
+    assert publish["input"]["review_step_id"] == review["id"]
+    assert postcheck["input"]["publish_step_id"] == publish["id"]
+    assert postcheck["receipt"]["status"] == "finished"
+    assert postcheck["receipt"]["candidate_commit"] == sha
+    assert Enum.map(final["tasks"], & &1["state"]) == ["done"]
+    assert calls(c.root, "calls") == ~w(plan implement review)
+    assert calls(c.root, "check-calls") == [first_check, done["integration_intent"]["path"]]
+    assert git(c.source, ["rev-parse", "main"]) == sha
+    assert git(candidate["path"], ["rev-parse", "HEAD"]) == sha
+    assert git(c.source, ["rev-parse", candidate["ref"]]) == sha
+    target = done["integration_intent"]["path"]
+    assert git(target, ["rev-parse", "HEAD"]) == sha
+    assert git(target, ["branch", "--show-current"]) == ""
+    assert git(target, ["status", "--porcelain"]) == ""
+    assert git(c.source, ["rev-parse", "HEAD"]) == c.base
+    assert git(c.source, ["branch", "--show-current"]) == "user-work"
+    assert git(c.source, ["status", "--porcelain"]) == "?? user.txt"
+    assert File.read!(Path.join(c.source, "user.txt")) == "preserve local edits"
+  end
+
   defp boot(root, boundary, mode) do
     fixture = Path.expand("../fixtures/boss_backend_recovery.exs", __DIR__)
     libraries = Path.join(Path.dirname(Application.app_dir(:boss)), "*/ebin")

@@ -68,6 +68,10 @@ else:
                                   "evidence": "Inspected result.txt"}], "issues": []}
     report_path = args[args.index("--output-last-message") + 1]
     Path(report_path).write_text(json.dumps(report))
+    if boundary == "ready" and kind == "review":
+        (root / "review.waiting").touch()
+        while not (root / "review.release").exists():
+            time.sleep(0.02)
     if boundary == kind:
         print(json.dumps({"type": "turn.completed", "usage": {"input_tokens": 1, "output_tokens": 1}}), flush=True)
         checkpoint(report_path)
