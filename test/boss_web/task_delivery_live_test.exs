@@ -698,14 +698,29 @@ defmodule BossWeb.TaskDeliveryLiveTest do
     [saved] = Queue.list(c.project.id, third.task.id)
     assert saved.status == "queued"
     assert map_size(:sys.get_state(Manager).active) == 2
-    finish(first_worker, :cancelled)
-    assert_receive {:workflow, third_worker, third_delivery}, 1_500
+
+    {third_worker, third_delivery} =
+      with_suspended_view(view, fn ->
+        hold_next_detail_read(view)
+        send(view.pid, {:run_changed, c.project.id})
+        refute_receive {:detail_reader_held, _}, 50
+        finish(first_worker, :cancelled)
+        assert_receive {:workflow, third_worker, third_delivery}, 1_500
+        assert Process.alive?(second_worker)
+        {third_worker, third_delivery}
+      end)
+
+    assert_receive {:detail_reader_held, reader}, 1_000
+    send(reader, :release_detail_reader)
     settle(view)
     assert Process.alive?(second_worker)
     assert has_element?(view, "#queued-workflow-#{saved.id}", "Started workflow")
     assert has_element?(view, "#stop-delivery-#{third_delivery.id}")
-    finish(second_worker, :cancelled)
-    finish(third_worker, :cancelled)
+
+    with_suspended_view(view, fn ->
+      finish(second_worker, :cancelled)
+      finish(third_worker, :cancelled)
+    end)
   end
 
   defp waiting_task(c) do
@@ -757,8 +772,8 @@ defmodule BossWeb.TaskDeliveryLiveTest do
       end
 
     send(manager, {:delivery_finished, delivery.id, self(), result})
-    if !match?({:ok, _}, result), do: send(owner, {:fixture_error, result})
-    send(owner, {:fixture_finished, delivery.id})
+    if !match?({:ok, _}, result), do: send(owner, {:fixture_error, {self(), result}})
+    send(owner, {:fixture_finished, {self(), delivery.id}})
   end
 
   defp ready(c) do
@@ -905,9 +920,53 @@ defmodule BossWeb.TaskDeliveryLiveTest do
     step
   end
 
+  defp with_suspended_view(view, fun) do
+    # Shared Sandbox has one checkout; separate fake persistence from UI refresh reads.
+    settle(view)
+    :sys.suspend(view.pid)
+
+    try do
+      fun.()
+    after
+      :sys.resume(view.pid)
+    end
+  end
+
+  defp hold_next_detail_read(view) do
+    owner = self()
+    gate = :atomics.new(1, [])
+    handler = {__MODULE__, make_ref()}
+
+    :ok =
+      :telemetry.attach(
+        handler,
+        [:boss, :repo, :query],
+        fn _, _, metadata, _ ->
+          if metadata[:source] == "tasks" and Repo.in_transaction?() and
+               view.pid in Process.get(:"$callers", []) and
+               :atomics.compare_exchange(gate, 1, 0, 1) == :ok do
+            ref = Process.monitor(owner)
+            send(owner, {:detail_reader_held, self()})
+
+            receive do
+              :release_detail_reader -> :ok
+              {:DOWN, ^ref, :process, ^owner, _} -> :ok
+            after
+              3_000 -> :ok
+            end
+
+            Process.demonitor(ref, [:flush])
+          end
+        end,
+        nil
+      )
+
+    on_exit(fn -> :telemetry.detach(handler) end)
+  end
+
   defp finish(worker, status) do
     send(worker, {:finish, status})
-    assert_receive {:fixture_finished, _}, 1_000
+    assert_receive {:fixture_finished, {^worker, _}}, 1_000
     refute_receive {:fixture_error, _}, 10
     :sys.get_state(Manager)
   end
