@@ -309,14 +309,14 @@ defmodule BossWeb.SpecSyncLiveTest do
 
   defp sync(view) do
     view |> element("#sync-specs") |> render_click()
-    render_async(view)
-    render_async(view)
+    render_async(view, 2_000)
+    render_async(view, 2_000)
   end
 
   defp refresh(view) do
     render(view)
-    render_async(view)
-    render_async(view)
+    render_async(view, 2_000)
+    render_async(view, 2_000)
   end
 
   defp refresh_while_syncing(view) do
