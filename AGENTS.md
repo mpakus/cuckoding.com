@@ -41,6 +41,11 @@
   `rtk proxy asdf exec mix ...` when Homebrew takes precedence in PATH.
   Application tests and the separate `spikes/` suites have different acceptance
   scopes; a passing experiment is not a production adapter.
+- Release candidates must bundle and verify native library closure, notices and
+  build provenance; test the extracted archive with private fresh data. Keep
+  distribution disabled for the local launcher. A local package/smoke is not
+  clean-machine, signing, provider, Linux or remote-CI acceptance. Never hide
+  dependency advisories or publish a prerelease as stable; see docs/RELEASE.md.
 - Create test scratch roots exclusively before registering recursive cleanup.
   A VM-local counter is not a globally unique directory name. Never remove a
   pre-existing directory to make a test pass.

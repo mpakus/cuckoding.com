@@ -2,7 +2,7 @@
 
 Local AI agent orchestration, rebuilt from [BOSS_PLAN.md](BOSS_PLAN.md).
 
-This increment provides a Phoenix LiveView server, local browser access,
+BOSS provides a Phoenix LiveView server, local browser access,
 native folder selection, validated project registration, automatic Markdown sync,
 transactional spec/revision/task history and versioned task commands with immutable
 receipts, a Kanban board, a revision-aware task drawer, local CLI discovery and
@@ -11,6 +11,10 @@ in retained Git worktrees on macOS.
 Managed workflows add a typed plan, bounded fixes, Codex or Claude independent
 review, explicit integration and postchecks before Done. Task source adoption
 and Done-only dependency readiness keep execution pinned to reviewed inputs.
+
+Release preparation: [0.1.0-rc.1 build, installation and acceptance](docs/RELEASE.md).
+The macOS candidate is under verification; signing, clean-machine/provider acceptance
+and Linux task execution remain separate gates. See [CHANGELOG.md](CHANGELOG.md).
 
 ## Run locally
 

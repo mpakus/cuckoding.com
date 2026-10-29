@@ -515,3 +515,18 @@ BOSS keeps its own private-index verification, immutable SQLite receipts and fre
 merge/check/review lineage. The test includes an edit hidden by `assume-unchanged`;
 porcelain status alone is insufficient. No closure framework, source copy,
 reference update or runtime dependency was introduced.
+
+## BOSS-018a: release packaging and publication boundaries
+
+`xerj search --prefix bossrefs 'release launcher' -k 3 --full 1400` returned weak
+launcher/test matches. Direct fallback read of Agent Orchestrator
+`.github/workflows/release-latest-guard.yml:22–56`, pinned
+`7193eff4e08f1481944845ee058fe6fd18930b6d` (Apache-2.0), distinguishes prerelease
+assets from stable Latest. Adopt explicit candidate status and artifact checks;
+omit its updater feeds, scheduled guard and GitHub publication framework.
+
+Official [Mix release](https://mix.hexdocs.pm/Mix.Tasks.Release.html) documents
+bundled runtime/platform constraints and distribution controls. BOSS uses those
+existing OTP facilities rather than adding a desktop wrapper or installer service.
+Dependency load paths and minimum-OS headers are inspected in the actual artifact;
+README portability claims alone are insufficient. No reference code was copied.
