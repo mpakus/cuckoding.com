@@ -188,3 +188,24 @@ warning/error console empty. No JavaScript or runtime behavior changed.
 Next: commit/reconcile locally, publish only the six changed site files and
 artwork provenance documentation from public origin/main, then verify Pages
 and exact live files. Application/release acceptance is outside this increment.
+
+Outcome: implementation ece4a4d merged into clean local main as5225b0c; combined
+checker33 references and6 motion tests passed. Public45e83e331563f9e271729a76d14fc925af5f89e2
+has sole parentdcdb0a3 and exactly seven allowlisted files (six site assets/code
+plus docs/SITE.md); site tree equals reviewed implementation. Independent final
+publication review approved; self-test valid+10malformed fixtures, static33,
+motion6 and diff checks passed. Normal exact-SHA push succeeded; no BOSS history.
+
+rtk proxy gh run watch 40947674513 --repo mpakus/cuckoding.com --exit-status
+--interval 10 completed success (check5s, deploy22s). Runner/action deprecation
+annotations were nonfatal; unchanged Pages actions ran on Node24. A bounded
+four-worker curl comparison over verified HTTPS matched all13 public resources
+byte-for-byte. Live CUA browser confirmed loaded new images, exact Austin
+link, width1280/scrollWidth1280 and no warning/error logs. Saved gallery screenshot
+deus-machina-published.jpg plus full-page source; live tab retained.
+
+Publication history was reconciled locally without further remote effects.
+Next: no website work remains; commit verification records, fast-forward the
+verified clean local main, remove merged temporary branches and stop this task
+preview server. Existing app-held worktrees remain clean/detached because prior
+normal archive attempts reported primary/active-task ownership; do not force them.

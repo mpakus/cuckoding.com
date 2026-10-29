@@ -126,3 +126,15 @@ Use case: ads-marketing. Original satirical luxury editorial photograph for Cuck
 ### Human resources generation prompt
 
 Use case: ads-marketing. Original satirical luxury editorial photograph for a website about humans serving AI. Landscape 1536x1024. An elegant Mediterranean resort terrace at afternoon. Two tired adult office workers, a man and a woman in rolled-up ivory shirts, loose ties and business trousers, pedal beautiful stationary exercise bicycles in the foreground. Thick clearly visible power cables run from their bicycles to a polished chrome humanoid robot lounging on an elevated cream chaise in the background center, enjoying a portable electric fan and a tiny espresso on a table. The robot wears black sunglasses and looks blissfully content. Humans work; machine relaxes. The power cables and contrast between pedaling workers and relaxed robot make the joke instantly legible. Architectural peach arches, cypress trees, pale stone floor, pool green accents, warm natural shadows, magazine-quality surreal photography with believable metal and linen textures, subtle analog grain, dry corporate dystopian wit. Wide cinematic composition, all main subjects inside central 85 percent for responsive crop. No text, no brand logos, no real public figures, no watermark, no violence, no chains, no fetish or sexual elements. Match the visual world of a sophisticated chrome robot Mediterranean resort editorial.
+
+### Verified gallery publication
+
+Published `45e83e331563f9e271729a76d14fc925af5f89e2` as one child of
+`dcdb0a3d9b4776f182dcaac78ad9de6c93279d76`. Exactly seven files changed:
+index, styles, four new WebP assets and this artwork documentation. Independent
+review and focused validation passed. [Pages run 40947674513](https://github.com/mpakus/cuckoding.com/actions/runs/40947674513)
+passed check and deploy. All thirteen public resources match the committed bytes
+over verified HTTPS. Browser confirmed both new illustrations loaded, exact Austin
+footer text/destination, no horizontal overflow and no warning/error console logs.
+Local responsive testing covered 320/768/1024/1440px and pause/resume of all four
+images. No BOSS runtime or unrelated local history was published.
