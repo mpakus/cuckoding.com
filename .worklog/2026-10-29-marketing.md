@@ -90,8 +90,8 @@ references and6 motion tests passed. `git diff --exit-code23061d2 -- lib config
 rel c_src assets mix.exs mix.lock` confirmed runtime and dependencies unchanged.
 Both temporary branches were safely deleted with git branch -d. The Pages writer
 is clean/detached; Codex archive refused because another active task holds it,
-so it is retained without force removal. Owner archive follows this final evidence
-commit. The exact task-owned Python preview PID77490 was stopped with SIGTERM.
+so it is retained without force removal. Owner archive also refused because Codex treats it as this task’s primary
+checkout; both clean detached checkouts are retained without force deletion. The exact task-owned Python preview PID77490 was stopped with SIGTERM.
 
 Portable single-file HTML, exact site ZIP, artwork/design notes and desktop/mobile
 screenshots are in the chat visualization output. Browser security disallows
