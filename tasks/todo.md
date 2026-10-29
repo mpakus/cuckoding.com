@@ -633,8 +633,10 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 - [x] Explicit signing-copy → signed-payload smoke → signed UDZO DMG step, focused
   failure fixtures, independent review and local merge6a29dac. Combined main4
   fixture tests passed0.070s; AST/CI/diff checks passed. No real identity was used.
-- [ ] Actual approved Developer ID smoke, notarization Accepted, staple/Gatekeeper
-  and quarantined clean-machine download acceptance. Fixture success is insufficient.
+- [x] Actual approved Developer ID signing/signed-payload smoke for5570d3f;
+  independent strict verification of DMG/all26 native files and exact selected key.
+- [ ] Notarization Accepted, staple/Gatekeeper and quarantined clean-machine
+  download acceptance. Local signatures are insufficient for these gates.
 - [ ] Complete remote CI acceptance (018d). RC branch/draft PR are published;
   the bounded packaged real Codex workflow passed through Done.
 

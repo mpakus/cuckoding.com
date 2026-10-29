@@ -1,23 +1,24 @@
 # BOSS 0.1.0-rc.1
 
-Status: macOS release candidate preparation. The original archive9596162 was
-verified locally; the subsequent Git-registration runtime fix awaits final full
-regression and rebuilt-package acceptance. No public release, tag or notarization
-is implied. Results and remaining gates are in [.worklog/2026-10-29.md](../.worklog/2026-10-29.md).
+Status: local macOS27 arm64 candidate5570d3f rebuilt and Developer ID signed.
+Unsigned and signed-payload smokes passed; final remote regression remains pending.
+No public release, tag or notarization is implied. Results and remaining gates are
+in [.worklog/2026-10-29.md](../.worklog/2026-10-29.md).
 
 [Draft RC PR #1](https://github.com/mpakus/cuckoding.com/pull/1) publishes the reviewed
 source on a separate branch; remote main and the existing site are preserved.
-Two remote CI runs stopped during source verification. The initial LiveView
-async-wait failures were absent after a bounded helper correction; the second run
-found concurrent Git registration failure and a dependency-test budget coupling.
-Those fixes are under verification. Neither run produced a package. PR merge
-checkout differs from branch head and must match the final artifact's `BUILD_INFO`.
+Earlier remote CI runs stopped during source verification. Git registration and
+dependency-budget regressions passed after their fixes; the5570 run failed only on
+another implicit100ms UI wait. A full caller inventory now covers all28 async waits
+with explicit bounded deadlines; the updated web suite passed142 tests. Final full
+CI/package acceptance is still required. PR merge checkout differs from branch
+head and must match the final artifact's `BUILD_INFO`.
 
 Historical baseline regression passed585 tests with1 platform-specific skip
 (seed329391,018a). Original archive9596162 passed native-helper execution, private
 browser authentication/assets, connected board/Autopilot/drawer and durable restart.
 The new Git-runtime fix passed49 related cases and640 concurrent adds; combined
-workspace/dependency verification passed32. Final full CI and the new package are
+workspace/dependency verification passed32. The rebuilt5570 package passed unsigned and signed-payload smoke; final full CI is
 pending. Public distribution requires the remaining gates below.
 
 One explicitly authorized real Codex0.146.0 packaged workflow passed in100.875s
@@ -78,6 +79,15 @@ therefore requires macOS27.0 or later; a different CI build needs its own inspec
 
 ## Explicit macOS distribution preparation
 
+Local candidate5570d3f has independent strict verification of its DMG and all26
+arm64 native images under the selected Developer ID TeamG4HV2FL5N2, with secure
+timestamps, hardened runtime and only BEAM allow-jit. The signed payload passed
+unpacked startup/auth/assets/native-helper/restart smoke. See sanitized
+[signing evidence](../.worklog/evidence/2026-10-29-signed-macos-rc.json).
+Notarization, quarantined download/Gatekeeper, clean-machine and fresh provider
+acceptance of this runtime remain open.
+
+
 The optional signing step requires a maintainer-approved Developer ID Application
 identity and private-key access. Inspect available public identity metadata with
 `security find-identity -v -p codesigning`; select the exact40-character certificate
@@ -85,7 +95,7 @@ fingerprint, rather than automatically using the first identity. Signing uses
 Apple's secure timestamp service. From a reviewed clean source checkout:
 
 ```sh
-python3 scripts/sign_macos_release.py /absolute/boss-0.1.0-rc.1.tar.gz \
+python3 -B scripts/sign_macos_release.py /absolute/boss-0.1.0-rc.1.tar.gz \
   --identity CERTIFICATE_SHA1 --output /absolute/new-boss-distribution
 ```
 
@@ -196,7 +206,7 @@ restore must not silently discard work created after the backup.
 | Dependency audit | Hex and npm audit pass without suppressing findings. |
 | Clean-machine macOS | Supported architecture/OS acceptance with user-installed Git and CLI; actual folder chooser and provider workflow. |
 | Provider | Baseline archive9596162 passed one Codex/Codex-review workflow through Done (3calls/100.875s). Fresh acceptance after the Git-registration runtime fix and other providers remain separate gates. |
-| Distribution | Apache-2.0 selected and included; public signing/notarization and download acceptance remain open. Third-party notices retain their original licenses. |
+| Distribution | Apache-2.0 included; local Developer ID signing and signed-payload smoke verified. Notarization and download acceptance remain open. Third-party notices retain their original licenses. |
 | Remote CI | Pinned macOS workflow runs successfully on the published commit; local YAML validation is not a remote result. |
 | Linux stable support | Linux process ownership/cleanup, native chooser and complete workflow acceptance. Current runner rejects non-macOS execution. |
 

@@ -58,6 +58,9 @@
   BUILD_INFO. Keep opt-in provider budgets outside model-writable paths, preserve
   the selected account and leave cleanup time inside the deadline. A failed paid
   acceptance run never authorizes an automatic second workflow or CI provider call.
+- LiveView test async drains use explicit bounded render_async(view, 2_000) waits.
+  Search every caller across test/, retain assertions/loop counts and intentional
+  timing checks, and never raise global ExUnit or production deadlines for CI.
 - Create test scratch roots exclusively before registering recursive cleanup.
   A VM-local counter is not a globally unique directory name. Never remove a
   pre-existing directory to make a test pass.

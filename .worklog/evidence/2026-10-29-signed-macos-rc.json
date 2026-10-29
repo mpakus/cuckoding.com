@@ -1,0 +1,44 @@
+{
+  "source_commit": "5570d3f9f1fec7c674c809b8065db244d35ceffd",
+  "source_clean": true,
+  "platform": {
+    "macos": "27.0.1",
+    "architecture": "arm64",
+    "elixir": "1.20.3",
+    "otp": "28",
+    "erts": "16.4"
+  },
+  "archive": {
+    "bytes": 13934018,
+    "sha256": "7b88cdaa62d41410493b0f685b41a9a32a75ac24be9e0035641c036672e60da7"
+  },
+  "dmg": {
+    "bytes": 24446927,
+    "sha256": "2d85ebe7e2d8ec6831545440ef061d80de7ea053b6eb06acacf2e0d314e0f22c"
+  },
+  "signing": {
+    "team_id": "G4HV2FL5N2",
+    "certificate_sha1": "8652753D50EE045DC63F725BB5B1D3E914F657A1",
+    "native_images": 26,
+    "strict_all_architectures_verified": true,
+    "all_native_hardened_runtime": true,
+    "secure_timestamps_verified": true,
+    "beam_entitlements": {
+      "com.apple.security.cs.allow-jit": true
+    },
+    "other_native_entitlements": {},
+    "dmg_signature_verified": true
+  },
+  "validation": {
+    "unsigned_unpacked_smoke": "passed",
+    "signed_payload_smoke": "passed",
+    "independent_read_only_mount": "passed",
+    "non_native_files_unchanged": 1789,
+    "project_license_sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "mount_detached_and_scratch_removed": true
+  },
+  "notarization": "not_performed",
+  "gatekeeper_download_acceptance": "pending",
+  "fresh_provider_acceptance": "pending",
+  "remote_ci": "pending"
+}
