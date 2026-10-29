@@ -656,5 +656,7 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 - [x] Restore Pages main-only/site-only workflow and focused validation.
   Static checker26 references; valid +10 malformed fixtures; motion6 tests pass.
   Independent review approved after hover contrast correction.
+- [x] Merge locally and rerun the combined site checks; local main062f537.
+  Both merged branches removed; app-held clean writer retained without force.
 - [ ] Publish to GitHub Pages and verify remote deployment/domain.
   Local design verification does not authorize publishing the entire BOSS restart.

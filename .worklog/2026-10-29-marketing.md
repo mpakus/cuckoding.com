@@ -58,7 +58,7 @@ AGENTS.md, docs/SITE.md and appended task documentation. No runtime, migration,
 release script, provider account, user data or source-spec change.
 
 Generated original artwork with built-in imagegen. Converted to WebP using
-`rtk proxy cwebp -quiet -q82` (hero1536px/spa800px) and q80 hero768px.
+`rtk proxy cwebp -quiet -q 82` (hero1536px/spa800px) and q80 hero768px.
 All assets total448KiB. System fonts avoid external requests. Exact prompts and
 asset paths recorded in docs/SITE.md.
 
@@ -81,3 +81,25 @@ Actual commands and outcomes:
 Browser screenshots are retained in the chat visualization output. No remote
 write or deployment; current domain/certificate health is not claimed. This
 static site does not need another Elixir/application acceptance run.
+
+## Outcome and exact next step
+
+Website implementation489fe09 and Pages infrastructure96adebd merged to local
+main062f537e7636da2bc5b396a165a647c9a345cf78. Combined main static check26
+references and6 motion tests passed. `git diff --exit-code23061d2 -- lib config
+rel c_src assets mix.exs mix.lock` confirmed runtime and dependencies unchanged.
+Both temporary branches were safely deleted with git branch -d. The Pages writer
+is clean/detached; Codex archive refused because another active task holds it,
+so it is retained without force removal. Owner archive follows this final evidence
+commit. The exact task-owned Python preview PID77490 was stopped with SIGTERM.
+
+Portable single-file HTML, exact site ZIP, artwork/design notes and desktop/mobile
+screenshots are in the chat visualization output. Browser security disallows
+file: URLs, so the standalone export was not browser-opened; HTTP source was
+verified. No workaround or change to browser protections. Original release
+checkout remains on its release branch with its concurrent changes preserved.
+
+Next: review the saved preview and choose remote publication scope. A future
+site-only publication must avoid inadvertently pushing the322 pre-existing BOSS
+commits, rerun the standalone checks and verify the actual Pages deployment and
+custom domain. This increment performs no push, tag, public release or DNS edit.
