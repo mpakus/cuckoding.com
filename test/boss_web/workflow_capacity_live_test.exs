@@ -81,8 +81,8 @@ defmodule BossWeb.WorkflowCapacityLiveTest do
     assert Process.alive?(second)
     send(first, :stop)
     send(second, :stop)
-    assert_receive {:finished, _}
-    assert_receive {:finished, _}
+    assert_receive {:finished, ^first, _}, 1_500
+    assert_receive {:finished, ^second, _}, 1_500
   end
 
   test "late settings cannot overwrite a newer confirmed limit or unlock an uncertain request" do
@@ -175,7 +175,7 @@ defmodule BossWeb.WorkflowCapacityLiveTest do
 
     result = Deliveries.complete(delivery.id, "cancelled")
     send(manager, {:delivery_finished, delivery.id, self(), result})
-    send(owner, {:finished, delivery.id})
+    send(owner, {:finished, self(), delivery.id})
   end
 
   defp settle(view) do
