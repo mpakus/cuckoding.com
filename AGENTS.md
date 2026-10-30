@@ -62,6 +62,10 @@
   Keep unsigned BUILD_INFO/runtime hashes as assembly provenance; signing receipts
   bind the input archive and new DMG bytes. Native minimum-OS headers alone do not
   establish clean-machine or Gatekeeper acceptance.
+  Validate the explicitly selected notarization Keychain profile before submit.
+  A Developer ID certificate or account name does not prove the profile exists;
+  a missing profile is a local credential preflight failure, not Apple rejection.
+  Preserve upload authorization and never choose another account automatically.
 - Remote RC evidence must distinguish PR head, tested merge SHA and packaged
   BUILD_INFO. Keep opt-in provider budgets outside model-writable paths, preserve
   the selected account and leave cleanup time inside the deadline. A failed paid

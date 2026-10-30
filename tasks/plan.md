@@ -441,3 +441,13 @@ Keep notarization, staple/Gatekeeper,
 clean-machine, fresh provider and Linux acceptance as separate open gates. No paid
 workflow repeat or stable release/tag. Detailed receipts: docs/RELEASE.md and
 .worklog/evidence/2026-10-29-release-acceptance.json.
+
+### BOSS-018e — notarization credential preflight
+
+Owner authorized one upload of the exact signed DMG266d4abd…03043 and supplied a
+Keychain profile. Read-only notarytool history returned exit69/missing profile;
+no submit/upload occurred. Keep the signed image unchanged. Resume the already
+authorized upload after the owner configures the selected profile or gives its
+correct existing name; never infer it from the signing identity/account name.
+Persist exact-hash intent and submission ID before polling. Accepted, copy-only
+stapling/validation, Gatekeeper and clean-machine acceptance remain distinct.

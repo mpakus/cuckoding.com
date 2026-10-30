@@ -168,28 +168,68 @@ validation while loading crypto: ad-hoc images have no common signing Team.
 That failure does not justify disabling library validation or widening entitlements.
 The unmodified local archive's earlier successful smoke is separate evidence.
 
-After explicit upload authorization and Keychain-profile setup, submit the signed
-DMG once using the approved profile. No passwords, API keys or credential files
-belong in this repository, command history or logs:
+Upload of the exact current signed DMG is authorized. Credential preflight on
+2026-10-29 returned exit69: the requested profile could not be resolved in the
+available Keychain. No submission/upload occurred; the original signed image is
+unchanged. The owner must supply the correct existing profile or configure it
+locally. Preserve this authorization; do not select another account automatically.
+See [preflight evidence](../.worklog/evidence/2026-10-29-notarization-preflight.json).
+
+Create a profile locally with Apple's interactive prompts (no credential values
+in the command line or chat):
 
 ```sh
-xcrun notarytool submit /absolute/new-boss-distribution/boss.dmg \
-  --keychain-profile APPROVED_PROFILE --wait --timeout 20m --output-format json
+rtk proxy xcrun notarytool store-credentials PROFILE_NAME
 ```
 
-Retain the submission ID and require final `Accepted` status. Timeout or lost
-output does not prove rejection or cancellation: reconcile the same submission
+Then validate that explicitly selected profile with `notarytool history` before
+submitting. A Developer ID signing identity is distinct from a notarization
+Keychain credential profile. After authorization and successful profile setup,
+submit the signed DMG once using the approved profile. No passwords, API keys or
+credential files belong in this repository, command history or logs:
+
+```sh
+rtk proxy xcrun notarytool submit /absolute/new-boss-distribution/boss.dmg \
+  --keychain-profile APPROVED_PROFILE --no-wait --output-format json
+```
+
+Durably save the returned submission ID before polling that ID with `info` or
+bounded `wait` calls; require final `Accepted` status. Timeout or lost output
+does not prove rejection or cancellation: reconcile the same submission
 through `notarytool info`/`wait` (or account history if its ID was lost), rather than
 submitting again. An `Invalid` result requires diagnosis from that submission's
-log and a new explicitly reviewed artifact. After acceptance:
+log and a newly reviewed artifact with fresh explicit upload authorization before
+another submission. The current authorization covers one upload of the exact
+approved bytes. After `Accepted`, retain the submitted
+signed original unchanged. Create a byte-identical copy in a different, exclusively
+new private output directory; stop on any error or pre-staple hash mismatch:
 
 ```sh
-xcrun stapler staple /absolute/new-boss-distribution/boss.dmg
-xcrun stapler validate /absolute/new-boss-distribution/boss.dmg
-spctl -a -vv -t open --context context:primary-signature /absolute/new-boss-distribution/boss.dmg
+rtk proxy python3 - <<'PYTHON'
+from pathlib import Path
+import hashlib, shutil
+source = Path("/absolute/new-boss-distribution/boss.dmg")
+target = Path("/absolute/new-boss-notarized/boss.dmg")
+expected = "266d4abd590e59b5dd2061219bdd16bb3575c40d93dae97308deeab47ce03043"
+assert hashlib.file_digest(source.open("rb"), "sha256").hexdigest() == expected
+target.parent.mkdir(mode=0o700)  # Refuse an existing destination directory.
+with source.open("rb") as incoming, target.open("xb") as outgoing:
+    shutil.copyfileobj(incoming, outgoing)
+assert hashlib.file_digest(source.open("rb"), "sha256").hexdigest() == expected
+assert hashlib.file_digest(target.open("rb"), "sha256").hexdigest() == expected
+PYTHON
 ```
 
-Stapling changes the delivered bytes: regenerate and verify `SHA256SUMS` afterward.
+Only after the copy matches the approved submitted hash, staple and assess it:
+
+```sh
+rtk proxy xcrun stapler staple /absolute/new-boss-notarized/boss.dmg
+rtk proxy xcrun stapler validate /absolute/new-boss-notarized/boss.dmg
+rtk proxy spctl -a -vv -t open --context context:primary-signature /absolute/new-boss-notarized/boss.dmg
+```
+
+Stapling changes the copy's delivered bytes: regenerate and verify its own
+`SHA256SUMS` afterward; preserve the original's signing receipt and checksums.
 Keep notarization/submission evidence separate from the pre-upload signing record.
 Test the actual quarantined download on a supported clean Mac, copy `boss/` out of
 the mounted image and follow the launch instructions below, including native

@@ -691,6 +691,16 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 - [ ] Archive the clean helper checkouts when their existing app ownership holds end;
   preserve them without force deletion. Final acceptance docs remain local.
 
+## BOSS-018e — authorized notarization preflight
+
+- [x] Revalidate exact approved signed DMG hash and existing submission receipts.
+- [x] Run selected-profile read-only credential preflight; exit69/missing profile.
+  No upload, submission ID, staple, signature change or provider call occurred.
+- [ ] Resolve the selected Keychain profile with owner input/local setup.
+- [ ] Persist exact-hash intent, submit once, save ID and require Accepted.
+- [ ] Staple a copy, validate, verify signatures/Gatekeeper and new checksums.
+  Clean-machine, fresh provider and Linux acceptance remain separate.
+
 ## Следующие рабочие проходы
 
 Детализировать перед реализацией; не генерировать все модули заранее.

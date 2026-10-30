@@ -1,0 +1,25 @@
+{
+  "authorization": "one exact signed DMG submission; user supplied a Keychain profile",
+  "artifact": {
+    "source_commit": "5cbe5906d32f667613e9a00572ba287f17a0cd39",
+    "bytes": 26714083,
+    "sha256": "266d4abd590e59b5dd2061219bdd16bb3575c40d93dae97308deeab47ce03043",
+    "unchanged": true
+  },
+  "credential_preflight": {
+    "command": "notarytool history",
+    "output_format": "json",
+    "profile_label": "not retained",
+    "exit_code": 69,
+    "result": "no Keychain password item found for requested profile",
+    "account_output_retained": false
+  },
+  "submission_count": 0,
+  "submission_id": null,
+  "notarization_status": "not submitted; awaiting configured selected profile",
+  "stapling": "not performed",
+  "gatekeeper": "not performed",
+  "provider_calls": 0,
+  "credentials_read_or_stored_by_agent": false,
+  "next_action": "resolve selected profile, repeat read-only preflight, persist exact-hash intent, submit once and save ID before polling"
+}
