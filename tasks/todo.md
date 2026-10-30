@@ -741,3 +741,15 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
   Public45e83e3 is one child of dcdb0a3 with exactly7 site/documentation files.
   Pages40947674513 passed; all13 HTTPS resources match; live browser confirms
   loaded art, exact footer, no overflow and empty warning/error console.
+
+## Local build/run and Autopilot target recovery — 2026-10-29
+
+- [x] Clean3d2a249 secure-runtime local archive; actual unpacked-release smoke passed.
+  Retained archive16,326,479B/SHAe3e47f22…9be53; no new signature/notarization.
+- [x] Independent port4001 launch with fresh private data; unlock HTTP200 verified.
+  Existing server/data preserved; no model workflow launched by this operation.
+- [x] Inspect registered target and all worktrees; switch only its clean main
+  checkout to `codex/boss-observe-20261029` at unchanged690c525.
+- [x] Verify clean checkout, unchanged HEAD/tree/main, zero main holders and actual
+  packaged `Integration.preflight/4 == :ok`; independent review approved repair.
+  Historical blocked batches/receipts retained; next workflow needs a new Start.

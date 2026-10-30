@@ -92,6 +92,9 @@
 - Hold the data-directory lock in Application callback state until all children
   stop. Initialize SQLite WAL before starting the two-connection Repo pool;
   Ecto migrations require at least two connections. Tests must use fresh data.
+- For an independent local build/run, preserve an occupied port's server and data
+  unless its restart/backup is explicitly authorized. Use a free port and fresh
+  private data; keep bootstrap tokens only in the owner's Terminal.
 - Keep local tokens out of URLs and persistent logs. Preserve `same-origin`
   referrer policy: `no-referrer` made legitimate browser form POSTs send a null
   Origin. Continue rejecting foreign/null origins; do not weaken the allowlist.
@@ -216,6 +219,10 @@
   signals its owned worker directly. Restart pauses; terminal failure halts without
   fresh retries. Check target availability before model effects and at publication.
   See docs/AUTOPILOT.md; ordinary Start/Queue never imply automatic integration.
+  For an explicitly requested checked-out-target repair, inspect every worktree
+  and preserve files/ref tips. A clean checkout can move to a new observer branch
+  at the same commit; keep it off the target while Autopilot integrates. A blocked
+  batch needs a fresh explicit Start, never an automatic paid retry.
 - Persist global managed capacity 1–3 (default two); compare settings versions and
   refuse shrink below actual owned workers until EXIT. Context, Manager and SQL
   must use the same saved capacity; manual execution and integration stay exclusive.

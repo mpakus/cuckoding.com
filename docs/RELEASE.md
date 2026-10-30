@@ -328,3 +328,24 @@ Implementation references: [Mix release](https://mix.hexdocs.pm/Mix.Tasks.Releas
 [Bandit fixed-version advisory](https://github.com/mtrudel/bandit/security/advisories/GHSA-cpx7-qf6w-jc63).
 Signing references: [Apple distribution packaging](https://developer.apple.com/documentation/xcode/packaging-mac-software-for-distribution/),
 [Apple silicon JIT](https://developer.apple.com/documentation/apple-silicon/porting-just-in-time-compilers-to-apple-silicon).
+
+### Independent local build and launch — 2026-10-29
+
+A clean local build from `3d2a24944604add37d55c9d3bc567c2ad3429a01`
+uses Elixir1.20.3, OTP28.5.0.8/ERTS16.4.0.7 and static OpenSSL3.5.9.
+The archive is retained under
+`_build/local/boss-0.1.0-rc.1-3d2a249/boss-0.1.0-rc.1-3d2a249-macos27-arm64.tar.gz`,
+16,326,479 bytes, SHA256
+`e3e47f22ad2219d237341f1a7a2cde510f7a26311efbdca46e7dd63edbd9be53`.
+This host build is labeled macOS27/arm64; it is separate from the macOS14 CI
+artifact and the approved signed DMG. It has no Developer ID signature or
+notarization. Source/runtime provenance remains in its `BUILD_INFO`.
+
+Actual unpacked-release smoke passed runtime/guardian, login/assets, persisted
+state, restart and graceful stop. The extracted local build runs on
+`http://127.0.0.1:4001` with a separate private `local-data` directory alongside
+the archive; the unlock page returned HTTP200. It uses the owner Terminal for
+bootstrap output without retaining that output. No task/model call was launched
+as part of packaging or startup. The previous server/data were left in place.
+See `.worklog/evidence/2026-10-29-local-build.json` for the sanitized snapshot;
+this is local-host evidence, not clean-machine or provider acceptance.

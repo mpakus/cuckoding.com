@@ -1,0 +1,60 @@
+{
+  "date": "2026-10-29",
+  "source_commit": "3d2a24944604add37d55c9d3bc567c2ad3429a01",
+  "source_local_changes": false,
+  "artifact": {
+    "path": "_build/local/boss-0.1.0-rc.1-3d2a249/boss-0.1.0-rc.1-3d2a249-macos27-arm64.tar.gz",
+    "bytes": 16326479,
+    "sha256": "e3e47f22ad2219d237341f1a7a2cde510f7a26311efbdca46e7dd63edbd9be53",
+    "developer_id_signed": false,
+    "notarized": false
+  },
+  "runtime": {
+    "elixir": "1.20.3",
+    "otp": "28.5.0.8",
+    "erts": "16.4.0.7",
+    "openssl": "3.5.9",
+    "crypto_linkage": "static",
+    "host_macos": "27.0.1",
+    "architecture": "arm64"
+  },
+  "unpacked_smoke": {
+    "result": "passed",
+    "checks": [
+      "bundled_runtime",
+      "native_guardian",
+      "login_assets",
+      "persisted_state",
+      "restart",
+      "graceful_stop"
+    ]
+  },
+  "local_launch": {
+    "port": 4001,
+    "launch_pid": 82259,
+    "initial_data": "fresh_private_directory",
+    "terminal_output_captured": false,
+    "unlock_http_status": 200,
+    "old_server_stopped": false,
+    "old_data_copied": false
+  },
+  "target_recovery": {
+    "project_id": 1,
+    "target_branch": "main",
+    "observer_branch": "codex/boss-observe-20261029",
+    "before_after_commit": "690c5251fbdba3b93731c92dd88b0aa60a21d994",
+    "before_after_tree": "a2c74cc14b505732053840b106359279203fb3fc",
+    "working_tree_clean": true,
+    "target_checkout_count": 0,
+    "packaged_integration_preflight": "ok",
+    "blocked_batch_restarted": false
+  },
+  "provider_calls_by_this_operation": 0,
+  "notarization_submissions_by_this_operation": 0,
+  "limitations": [
+    "local_host_only",
+    "no_fresh_provider_acceptance",
+    "no_new_signing_or_notarization",
+    "requires_user_fresh_autopilot_start"
+  ]
+}

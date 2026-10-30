@@ -458,3 +458,16 @@ Terminal; the third guarded setup subsequently exited1. The latest explicit
 profile name remains unresolved in both service and Terminal contexts. Obtain only
 its safe save-confirmation line or separate Keychain location, then revalidate
 actual authentication before the unused authorized upload.
+
+### Local package/run and checked-out-target recovery — 2026-10-29
+
+Clean source3d2a249 was packaged with the retained secure runtime; unpacked-release
+smoke passed. The local macOS27/arm64 archive and independent port4001 launch use
+fresh private data, preserving the occupied old server/data. No new signing,
+notarization or provider workflow. Evidence: `docs/RELEASE.md` and worklog JSON.
+
+The reported Autopilot blocker was the registered project's clean main checkout.
+An explicitly authorized switch to a new observer branch at the same commit freed
+main without moving its ref or changing files. The packaged integration preflight
+then returned `:ok`. A blocked batch requires a new user Start; recovery does not
+restart agents or change task receipts. Runbook: `docs/AUTOPILOT.md`.

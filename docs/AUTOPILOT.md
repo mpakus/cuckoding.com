@@ -58,3 +58,28 @@ the saved evidence. These calls use configured local accounts and may incur
 charges. Development acceptance uses finite fake CLIs; it does not establish
 real-provider quality or Linux support. No raw CLI transcript or check output is
 retained; fixed diagnostics and sanitized receipts explain failures.
+
+## Recover a checked-out target
+
+When the panel reports “The integration target branch is checked out”, inspect
+`git worktree list --porcelain` in the registered repository. Find every checkout
+whose branch matches the project's saved integration target, often `main`.
+For a clean checkout, explicitly switch it to a new observer branch at the same
+commit; for example, with a new unused branch name:
+
+```sh
+rtk proxy git -C /path/to/checkout status --short
+rtk proxy git -c core.hooksPath=/dev/null -C /path/to/checkout switch --no-track -c codex/boss-observe
+rtk proxy git -C /path/to/checkout worktree list --porcelain
+```
+
+Inspect dirty work before changing it; do not force/reset/stash it as part of
+this repair. Verify unchanged HEAD, target ref and working files, and no checkout
+still attached to the target. Keep the observer branch checked out while Autopilot
+runs: its files stay at the original commit while BOSS advances the target in its
+own integration worktree. Switching back to the target restores the blocker.
+
+This early refusal blocks the batch and cancels its unstarted requests. After
+repair, use a **new Start Autopilot** with the current Backlog and trusted checks;
+Resume or replaying the old Start UUID does not create a fresh workflow. Historical
+blocked/cancelled entries remain truthful. The repair itself starts no model calls.
