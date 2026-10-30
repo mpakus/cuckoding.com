@@ -1,0 +1,61 @@
+{
+  "reviewed_source_commit": "d8c980cf9c1a66bfe627a5a34bcd4b003ff70f72",
+  "ci": {
+    "run_id": 40975521903,
+    "job_id": 123802465789,
+    "head": "d8c980cf9c1a66bfe627a5a34bcd4b003ff70f72",
+    "tested_merge_commit": "c0b148cf24154abcc6e62903b40afeb6e12d4e4a",
+    "tree": "da8da64253e8ecce3bd64e72c67935e1c508894e",
+    "whole_tree_equals_reviewed_head": true,
+    "status": "failed",
+    "native_preflight": "passed",
+    "native_full_regression": "passed",
+    "application_tests": {
+      "passed": 593,
+      "failed": 1,
+      "skipped": 1,
+      "seconds": 942.6,
+      "seed": 720740,
+      "max_cases": 6
+    },
+    "failure": "WorkflowCapacityLiveTest implicit100ms completion reply",
+    "artifact": "not_produced"
+  },
+  "focused_acceptance": {
+    "passed": 198,
+    "seconds": 26.8,
+    "seed": 223494,
+    "max_cases": 6
+  },
+  "uninstrumented_native_stress": {
+    "output_limit_passed": 100,
+    "stalled_timeout_passed": 100,
+    "observer_or_trace": false
+  },
+  "terminal_contract": {
+    "all_pending_controls_retired": true,
+    "actual_helper_exit_zero_required": true,
+    "true_helper_loss_quarantined": true,
+    "original_ci_ordering": "not_retrospectively_proven"
+  },
+  "local_archive": {
+    "bytes": 16321203,
+    "sha256": "b4eba705b71eee268540803763042722fec9a821f65eb208f2120139155b65dc",
+    "source_clean": true,
+    "macos": "27.0.1",
+    "architecture": "arm64",
+    "guardian_sha256": "39f9330723e33df3b8d68a921d8f8133aabe81e161cf6385a866d1255011a9d5",
+    "smoke": "passed",
+    "distribution_status": "held_pending_final_fixture_bounds_and_ci"
+  },
+  "runtime": {
+    "otp": "28.5.0.8",
+    "erts": "16.4.0.7",
+    "openssl": "3.5.9",
+    "crypto_linkage": "static",
+    "manifest_sha256": "533bf8f1ae07c307589e864846c0b436aab45026cf3bef63f52f08a50329d9e9"
+  },
+  "paid_workflow": "not_repeated",
+  "notarization": "not_performed",
+  "signing": "awaiting_verified_ci_artifact"
+}
