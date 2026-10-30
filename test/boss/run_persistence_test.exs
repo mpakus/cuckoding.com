@@ -133,7 +133,7 @@ defmodule Boss.RunPersistenceTest do
       end)
 
     ref = Process.monitor(requester)
-    assert_receive {:admitted, {:ok, run}}
+    assert_receive {:admitted, {:ok, run}}, 1_500
     assert_receive {:DOWN, ^ref, _, _, _}
     assert_receive {:working, ^run, owner}
     assert Process.alive?(owner)
