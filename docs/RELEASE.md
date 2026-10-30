@@ -2,12 +2,14 @@
 
 Earlier source a0b9715 passed full remote regression (587 passed,1 skipped).
 The corrected runtime/local archives passed build, native/notice review and actual
-smoke. Latest full CI at34053fd failed two cases (589 passed,2 failed,1 skipped):
-an implicit100ms queue receipt wait and unknown cleanup after output_limit.
-Reviewed corrections add bounded fixture waits and retire controls after terminal
-receipt while requiring helper exit0. Combined acceptance passed198 tests and200
-raw native stress runs. A new macOS14 early-native/full pipeline remains pending;
-original CI message ordering is not established retrospectively.
+smoke. Latest [macOS14 CI40975521903](https://github.com/mpakus/cuckoding.com/actions/runs/40975521903)
+at d8c980c passed every native lifecycle case both before and inside the full
+regression. The full result was593 passed,1 failed,1 skipped (942.6s): the sole
+failure was a fixture completion reply using an implicit100ms wait. Reviewed
+corrections correlate the actual worker and explicitly bound completion/admission
+replies at1_500ms. All204 related cases passed; production deadlines and the200ms
+Stop assertion remain unchanged. The next complete CI/package pipeline is pending.
+The original native CI message ordering is not established retrospectively.
 Earlier Developer ID signed5570d3f is held from distribution: its OpenSSL3.6.3
 predates published upstream fixes. Valid signatures do not close this gate.
 No public release, tag or notarization is implied. Results and remaining gates are

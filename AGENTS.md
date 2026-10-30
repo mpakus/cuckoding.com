@@ -66,6 +66,9 @@
 - LiveView test async drains use explicit bounded render_async(view, 2_000) waits.
   Search every caller across test/, retain assertions/loop counts and intentional
   timing checks, and never raise global ExUnit or production deadlines for CI.
+- Async fixture replies after persistence use explicit bounded waits and match the
+  actual worker. Preserve intentional Stop/deadline and exclusion assertions;
+  do not replace all mailbox waits or change a production timeout to fix a fixture.
 - Create test scratch roots exclusively before registering recursive cleanup.
   A VM-local counter is not a globally unique directory name. Never remove a
   pre-existing directory to make a test pass.

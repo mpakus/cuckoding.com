@@ -656,14 +656,18 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 - [x] Reproduce final-reap EINTR unknown, retry only within existing deadlines;
  26 process cases, recovery1, mutation and100 stalled runs passed. Original native
  CI syscall cause remains unproven. Combined180 passed25.2s, seed284012.
-- [ ] Complete new-runtime regression after CI2e:585 passed,2 failed,1 skipped.
-  Shared-Sandbox UI completion and native unknown-cleanup diagnosis are separate;
-  no retry-only acceptance or relaxed cleanup/deadline checks.
+- [x] CI d8c980c confirms all native lifecycle cases in early and full macOS14 runs.
+  Full regression593 passed,1 failed,1 skipped (942.6s); sole remaining failure
+  was a fixture completion reply using the default100ms assertion wait.
 - [x] CI340 queue receipt waits reproduced with250ms fixture; only2 explicit1_500ms
   waits changed. Terminal-control race reproduced with actualD: retire all controls
   and requirehelperexit0; true81/SIGKILL remainunknown. Combined198 passed26.8s,
   seed223494;200 raw native rounds passed. Next fullCI/package acceptance pending.
-- [ ] Retain final remote package result/artifact identity after this correction.
+- [x] Correct the2 capacity completion waits and1 durable admission wait only;
+  exact worker matching and1_500ms bounds passed204 related cases, seed720740.
+  Controlled250ms delays caught both old waits; diagnostic delays removed.
+  All remaining40 implicit waits audited; intentional Stop200ms preserved.
+- [ ] Retain final full remote CI/package result and exact artifact identity.
 - [x] One approved real Codex workflow in an exclusive scratch repository:
   max7 calls/10minutes, verified checks/review/integration/Done or honest failure.
   Passed3calls/100.875s,5/5 criteria, exact target/clean retained checkout,
