@@ -1,0 +1,125 @@
+{
+  "reviewed_source_commit": "1ef9f9533896465669ed32ed7d2083acfdc292e1",
+  "ci": {
+    "run_id": 40980336307,
+    "job_id": 123818512712,
+    "status": "success",
+    "tested_merge_commit": "5cbe5906d32f667613e9a00572ba287f17a0cd39",
+    "base_commit": "45e83e331563f9e271729a76d14fc925af5f89e2",
+    "tree": "d6df3328ffd779385c248300f25d55619bb096fc",
+    "whole_tree_equals_reviewed_head": true,
+    "application_tests": {
+      "passed": 594,
+      "skipped": 1,
+      "failed": 0,
+      "seconds": 765.7,
+      "seed": 904925,
+      "max_cases": 6,
+      "skipped_case": "Linux-only raw non-UTF8 filenames (test/boss/spec_importer_test.exs:367)"
+    },
+    "early_native_and_workflow_tests": {
+      "passed": 48,
+      "seconds": 19.9,
+      "seed": 286908
+    },
+    "builder_tests": 5,
+    "package_tests": 9,
+    "signing_fixture_tests": 4,
+    "audits": "passed",
+    "package": "passed",
+    "extracted_smoke": "passed",
+    "artifact_upload": "passed"
+  },
+  "artifact": {
+    "id": 12945386437,
+    "name": "boss-rc-macOS-ARM64-5cbe5906d32f667613e9a00572ba287f17a0cd39",
+    "zip_bytes": 16001711,
+    "zip_sha256": "637c625916dd35013e86bf1ff8d2a8026e020e8400feb88cc607e7a6bb87cbb5",
+    "tar_bytes": 16001340,
+    "tar_sha256": "23f3b8a3942e6330b6f6e2e4a45aee0751b1e4cd231e806d8f92cbaaeb12a0a8",
+    "source_clean": true,
+    "build_host_macos": "14.8.9",
+    "architecture": "arm64",
+    "runtime_manifest_sha256": "62e32f89c1d4676890287d8e0b2bacfedf0c89b6a7b574b0cb47f0cd60fd3d05",
+    "crypto_sha256": "35236967e7d5200200cfed61cee5fb3efec96090f0dc70b7ac1bf15ade2e1fa9",
+    "independent_review": "approved",
+    "downloaded_smoke": "passed",
+    "native_images": 24,
+    "native_architecture": "arm64",
+    "native_minimum_macos": "14.0",
+    "native_dependency_closure": "verified",
+    "license_files": 45,
+    "hex_notice_sets": 26,
+    "native_notice_files": 7
+  },
+  "local_main_full_regression": {
+    "source": "1ef9f9533896465669ed32ed7d2083acfdc292e1",
+    "passed": 594,
+    "skipped": 1,
+    "failed": 0,
+    "seconds": 1496.0,
+    "async_seconds": 2.7,
+    "sync_seconds": 1493.3,
+    "seed": 720740,
+    "max_cases": 6
+  },
+  "signing": {
+    "status": "signed and independently approved",
+    "approved_certificate_sha1": "8652753D50EE045DC63F725BB5B1D3E914F657A1",
+    "notarization": "not_performed",
+    "team_id": "G4HV2FL5N2",
+    "certificate_sha1": "8652753D50EE045DC63F725BB5B1D3E914F657A1",
+    "native_images": 24,
+    "hardened_runtime": true,
+    "beam_entitlements": {
+      "com.apple.security.cs.allow-jit": true
+    },
+    "source_archive_sha256": "23f3b8a3942e6330b6f6e2e4a45aee0751b1e4cd231e806d8f92cbaaeb12a0a8",
+    "signed_payload_smoke": "passed",
+    "input_archive_unchanged": true,
+    "signer_strict_verification": "passed",
+    "dmg_bytes": 26714083,
+    "dmg_sha256": "266d4abd590e59b5dd2061219bdd16bb3575c40d93dae97308deeab47ce03043",
+    "signing_info_sha256": "a9c878cf73766cfe83fe06ca0eddca1e9adcec64c60702609ae6282a4b249985",
+    "independent_review": "approved",
+    "strict_apple_anchor_verification": "passed for24 native images and DMG",
+    "exact_leaf_certificate_all_objects": true,
+    "secure_timestamps_all_objects": true,
+    "only_beam_has_allow_jit": true,
+    "all_other_native_entitlements_empty": true,
+    "original_non_native_ci_files_byte_identical": 1772,
+    "inner_signing_info_equals_sidecar": true,
+    "read_only_mount": "verified",
+    "normal_detach": "verified; current device identified by image and owned mount",
+    "review_scratch_cleanup": "completed",
+    "dmg_unchanged_after_review": true,
+    "finder_metadata": {
+      "status": "explicitly reviewed and retained as benign additions",
+      "bytes_each": 6148,
+      "records_each": 4,
+      "leaf_nodes_each": 1,
+      "record_names": {
+        "container": "boss",
+        "payload": "lib"
+      },
+      "record_keys": {
+        "lg1S": "comp8-byte",
+        "ph1S": "comp8-byte",
+        "moDD": "blob8-byte",
+        "modD": "blob8-byte"
+      },
+      "alias_path_plist_records": false,
+      "private_ci_staging_account_marker_scan": "negative UTF8 and UTF16",
+      "container_ds_store_sha256": "e2e725aedd1937481101f5576e1de1871b2058016e96d3a459a5f7afce41d825",
+      "payload_ds_store_sha256": "537e2a08fffc730b48fd52df68428ecbb86379532927df9848c639935ba48269"
+    }
+  },
+  "paid_workflow": "not_repeated; historical9596162 acceptance only",
+  "open_gates": [
+    "notarization_accepted",
+    "stapling_gatekeeper",
+    "clean_machine_acceptance",
+    "fresh_provider_acceptance",
+    "linux_acceptance"
+  ]
+}

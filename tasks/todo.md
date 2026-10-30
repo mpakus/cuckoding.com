@@ -615,8 +615,9 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 - [ ] Archive the clean detached release writer. App refuses because another active
   task holds it; preserved without force deletion. No release/recovery fixture VM remains.
 - [x] Project owner selected Apache-2.0; canonical root LICENSE and documentation added.
-- [ ] Remote macOS CI, clean-machine/provider acceptance and public signing.
-  Preparation is local; no tag/upload/publication is authorized by these checkboxes.
+- [x] Remote macOS CI and actual local Developer ID signing completed in018d.
+- [ ] Clean-machine/fresh provider acceptance and notarized public distribution.
+  These checkboxes do not authorize a tag or further upload/publication.
 
 ## BOSS-018b — Apache-2.0 selection
 
@@ -637,8 +638,9 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
   independent strict verification of DMG/all26 native files and exact selected key.
 - [ ] Notarization Accepted, staple/Gatekeeper and quarantined clean-machine
   download acceptance. Local signatures are insufficient for these gates.
-- [ ] Complete remote CI acceptance (018d). RC branch/draft PR are published;
-  the bounded packaged real Codex workflow passed through Done.
+- [x] Complete remote CI acceptance (018d): run40980336307 passed full regression,
+  package and unpacked smoke; actual CI archive identity independently verified.
+  The earlier bounded packaged real Codex workflow remains pinned to9596162.
 
 ## BOSS-018d — approved RC publication and bounded provider acceptance
 
@@ -650,7 +652,8 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 - [x] Correct native runtime source build: isolated OTP28.5.0.8/static OpenSSL3.5.9
   passed107.476s with7 native notices and exact provenance. Builder5 + package9
   focused tests passed; guard mutations caught. Historical signed5570 uses stale
-  3.6.3 and is held from distribution. Actual combined package/CI remains open.
+  3.6.3 and is held from distribution. This increment preceded the successful
+  combined CI/package acceptance recorded below.
 - [x] Reproduce Sandbox UI contention and phase only fixture persistence/reads;
  153 web/real-pool queue/capacity cases and exclusion mutation passed.
 - [x] Reproduce final-reap EINTR unknown, retry only within existing deadlines;
@@ -662,19 +665,31 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 - [x] CI340 queue receipt waits reproduced with250ms fixture; only2 explicit1_500ms
   waits changed. Terminal-control race reproduced with actualD: retire all controls
   and requirehelperexit0; true81/SIGKILL remainunknown. Combined198 passed26.8s,
-  seed223494;200 raw native rounds passed. Next fullCI/package acceptance pending.
+  seed223494;200 raw native rounds passed. These focused results preceded the
+  successful full CI/package acceptance recorded below.
 - [x] Correct the2 capacity completion waits and1 durable admission wait only;
   exact worker matching and1_500ms bounds passed204 related cases, seed720740.
   Controlled250ms delays caught both old waits; diagnostic delays removed.
   All remaining40 implicit waits audited; intentional Stop200ms preserved.
-- [ ] Retain final full remote CI/package result and exact artifact identity.
+- [x] Retain final full remote CI/package result: run40980336307 passed594 tests,
+  1 skipped (765.7s). Early48, runtime-builder5, package9 and signing-fixture4
+  passed; audits/format/compile/package/unpacked smoke/upload successful.
+  PR head1ef9, tested merge/BUILD_INFO5cbe590, equal whole trees. ZIP/tar digests,
+  static crypto,24 arm64/minOS14.0 images and45 licenses independently verified.
+- [x] Sign the approved CI archive copy with the selected Developer ID; signed
+  payload smoke and independent strict Apple-anchor/25-signature/readonly-mounted
+  payload review passed. Exact certificate/entitlements and benign Finder metadata
+  verified; normal detach and unchanged DMG confirmed.
 - [x] One approved real Codex workflow in an exclusive scratch repository:
   max7 calls/10minutes, verified checks/review/integration/Done or honest failure.
   Passed3calls/100.875s,5/5 criteria, exact target/clean retained checkout,
   user-work unchanged, group_empty. Independent evidence review approved;
   sanitized receipts retained, no automatic paid repeat. This pins original
   archive959; fresh provider acceptance after the Git runtime fix stays open.
-- [ ] Independent review, documentation, local merge and temporary branch cleanup.
+- [x] Independent runtime/artifact/signature/evidence review and application source
+  integration into local main1ef9. Temporary receipt-fix branch deleted after merge.
+- [ ] Archive the clean helper checkouts when their existing app ownership holds end;
+  preserve them without force deletion. Final acceptance docs remain local.
 
 ## Следующие рабочие проходы
 

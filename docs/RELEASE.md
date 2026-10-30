@@ -1,37 +1,33 @@
 # BOSS 0.1.0-rc.1
 
-Earlier source a0b9715 passed full remote regression (587 passed,1 skipped).
-The corrected runtime/local archives passed build, native/notice review and actual
-smoke. Latest [macOS14 CI40975521903](https://github.com/mpakus/cuckoding.com/actions/runs/40975521903)
-at d8c980c passed every native lifecycle case both before and inside the full
-regression. The full result was593 passed,1 failed,1 skipped (942.6s): the sole
-failure was a fixture completion reply using an implicit100ms wait. Reviewed
-corrections correlate the actual worker and explicitly bound completion/admission
-replies at1_500ms. All204 related cases passed; production deadlines and the200ms
-Stop assertion remain unchanged. The next complete CI/package pipeline is pending.
-The original native CI message ordering is not established retrospectively.
-Earlier Developer ID signed5570d3f is held from distribution: its OpenSSL3.6.3
-predates published upstream fixes. Valid signatures do not close this gate.
-No public release, tag or notarization is implied. Results and remaining gates are
-in [.worklog/2026-10-29.md](../.worklog/2026-10-29.md).
+Reviewed source `1ef9f9533896465669ed32ed7d2083acfdc292e1` passed the complete
+[macOS14 CI40980336307](https://github.com/mpakus/cuckoding.com/actions/runs/40980336307):
+594 application tests passed,1 skipped (765.7s), plus48 early native/workflow
+cases,5 runtime-builder tests,9 package tests and4 signing fixtures. Audits,
+format/compile, package assembly, unpacked smoke and artifact upload all passed.
 
-[Draft RC PR #1](https://github.com/mpakus/cuckoding.com/pull/1) publishes the reviewed
-source on a separate branch; remote main and the existing site are preserved.
-[CI40953808199](https://github.com/mpakus/cuckoding.com/actions/runs/40953808199)
-passed all587 tests (1 skipped), audits and signing fixtures. Packaging then
-rejected the prebuilt runtime: its crypto NIF statically embeds OpenSSL3.5.6,
-and the binary distribution lacks upstream notices. No CI archive was produced.
-The actual tested merge is a9af06bf077e9bec967558db3df63e9cfbff9638; its tree equals
-PR head a0b9715. A replacement isolated source build targets OTP28.5.0.8 with
-OpenSSL3.5.9 LTS; build/package acceptance remains pending. See
-[OpenSSL releases](https://www.openssl-library.org/source/) and
-[advisory ranges](https://www.openssl-library.org/news/vulnerabilities-3.6/index.html).
-These library findings do not establish a remotely exploitable BOSS issue.
-The subsequent [patched-runtime CI40963324835](https://github.com/mpakus/cuckoding.com/actions/runs/40963324835)
-passed runtime/build/audits and focused package/signing checks, then failed the two
-application cases above. No remote artifact was produced. Local2e packaging proof
-remains valid; that archive is held from distribution pending combined acceptance.
-PR head, tested merge SHA and final artifact `BUILD_INFO` remain separate facts.
+The actual tested merge and packaged `BUILD_INFO` pin
+`5cbe5906d32f667613e9a00572ba287f17a0cd39`, whose complete tree equals the reviewed
+PR head. Artifact12945386437 was independently downloaded and reviewed: ZIP digest,
+inner tar checksum, static OpenSSL3.5.9 provenance, native closure and45 license
+files verified. All24 native images are arm64 with a minimum macOS14.0 header.
+The downloaded archive also passed startup/auth/assets/guardian/persistence/restart
+smoke on the development host. This is separate from clean-machine acceptance.
+
+The CI archive has now been locally signed with the approved Developer ID and
+packaged as `boss.dmg`; the signed payload passed unpacked smoke. Independent
+strict Apple-anchor/signature and mounted-payload review approved the exact image.
+Notarization, stapling/Gatekeeper, a quarantined
+clean-machine download, fresh provider and Linux acceptance remain open. No stable
+release or tag has been created. Historical signed5570d3f is held because its
+OpenSSL3.6.3 predates upstream fixes; its signatures do not clear that gate.
+
+[Draft RC PR #1](https://github.com/mpakus/cuckoding.com/pull/1) remains on a separate
+branch; remote main and the marketing site are preserved. Exact source, test,
+artifact and signing identities are recorded in the sanitized
+[acceptance evidence](../.worklog/evidence/2026-10-29-release-acceptance.json) and
+[worklog](../.worklog/2026-10-29.md). Local acceptance-documentation commits do not
+change the frozen RC or its artifact source.
 
 Historical baseline regression passed585 tests with1 platform-specific skip
 (seed329391,018a). Original archive9596162 passed native-helper execution, private
@@ -116,6 +112,23 @@ requires macOS27.0,24 images require26.0 and Exqlite requires14.0. This archive
 therefore requires macOS27.0 or later; a different CI build needs its own inspection.
 
 ## Explicit macOS distribution preparation
+
+Current CI candidate5cbe590 was signed using the explicitly approved certificate
+`8652753D50EE045DC63F725BB5B1D3E914F657A1`, TeamG4HV2FL5N2. The signed payload
+passed startup/auth/assets/native-helper/persistence/restart/stop smoke; the signer
+verified all24 hardened native images, BEAM-only allow-jit and the signed DMG.
+The immutable input tar SHA256 is
+`23f3b8a3942e6330b6f6e2e4a45aee0751b1e4cd231e806d8f92cbaaeb12a0a8`.
+The pre-notarization DMG SHA256 is
+`266d4abd590e59b5dd2061219bdd16bb3575c40d93dae97308deeab47ce03043`.
+Independent strict Apple-anchor verification approved all25 signatures, including
+the exact certificate, timestamps, hardened runtime and BEAM-only entitlement.
+All1,772 original non-native CI files are byte-identical. The signed image also
+contains the signing receipt and two explicitly inspected benign Finder metadata
+files (container and payload `.DS_Store`); neither contains path/account/alias
+records. Their hashes and parsed record types are retained in the acceptance
+JSON. The image was mounted read-only, normally detached and remained unchanged.
+Later distribution gates remain distinct.
 
 Historical local candidate5570d3f has independent strict verification of its DMG and all26
 arm64 native images under the selected Developer ID TeamG4HV2FL5N2, with secure

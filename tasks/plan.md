@@ -392,7 +392,9 @@ allow-jit. После строгой проверки и packaged smoke созд
 результат и timeout не становятся успешным релизом. Fixture tests проверяют сам
 шаг без приватного ключа, а не заменяют реальную signing/provider acceptance.
 Локальный merge6a29dac проверен4 fixture tests, AST и CI YAML; runtime/dependency
-tree не изменён. Реальная Developer ID подпись/нотарификация ещё не выполнялась.
+tree не изменён. На момент этого fixture increment реальная Developer ID подпись
+ещё не выполнялась; последующее подписание CI-пакета записано в018d ниже.
+Нотарификация остаётся отдельным открытым этапом.
 
 ## BOSS-018d — опубликованный RC и ограниченная provider acceptance
 
@@ -426,3 +428,16 @@ history and task/worklog documentation.
 Deus Machina publication verified: public45e83e3, Pages40947674513 passed,
 13 exact HTTPS resources and live browser smoke. Only seven website/artwork
 documentation files were published; local BOSS history remains excluded.
+
+### BOSS-018d acceptance snapshot — 2026-10-29
+
+Frozen RC head1ef9f9533896465669ed32ed7d2083acfdc292e1 passed CI40980336307:
+594 application cases,1 skipped, all package/smoke/upload gates. Tested merge and
+BUILD_INFO5cbe5906d32f667613e9a00572ba287f17a0cd39 have the same complete tree.
+Actual downloaded CI tar passed independent closure/license/provenance review and
+host smoke. Approved Developer ID signing produced a DMG and passed signed-payload
+smoke; independent strict signature/mounted-payload review approved the exact DMG.
+Keep notarization, staple/Gatekeeper,
+clean-machine, fresh provider and Linux acceptance as separate open gates. No paid
+workflow repeat or stable release/tag. Detailed receipts: docs/RELEASE.md and
+.worklog/evidence/2026-10-29-release-acceptance.json.

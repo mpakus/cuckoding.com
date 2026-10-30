@@ -59,6 +59,9 @@
   Keep signing, notarization Accepted, stapling and clean-machine acceptance as
   separate evidence. Never bypass library validation/Gatekeeper or resubmit an
   unknown notarization outcome; reconcile its saved submission ID first.
+  Keep unsigned BUILD_INFO/runtime hashes as assembly provenance; signing receipts
+  bind the input archive and new DMG bytes. Native minimum-OS headers alone do not
+  establish clean-machine or Gatekeeper acceptance.
 - Remote RC evidence must distinguish PR head, tested merge SHA and packaged
   BUILD_INFO. Keep opt-in provider budgets outside model-writable paths, preserve
   the selected account and leave cleanup time inside the deadline. A failed paid
