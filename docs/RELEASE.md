@@ -174,16 +174,17 @@ available Keychain. No submission/upload occurred; the original signed image is
 unchanged. The owner must supply the correct existing profile or configure it
 locally. Preserve this authorization; do not select another account automatically.
 See [preflight evidence](../.worklog/evidence/2026-10-29-notarization-preflight.json).
-Six read-only checks of four owner-supplied selectors have returned the same
-missing-item error, including an existing-profile check in the user's Terminal.
-Two user-controlled interactive setup attempts exited1; the owner reported401.
+Nine read-only checks of five owner-supplied selectors have returned the same
+missing-item error. The latest user-named profile also failed in both service and
+user Terminal contexts; both see `login.keychain-db` under the artifact owner.
+All three completed interactive setup attempts exited1; the owner reported401.
 No profile is confirmed ready. These are credential/profile failures before
 submission, not an Apple verdict on BOSS. The owner has now confirmed that the
-supplied name is an Apple Account App-Specific Passwords label. A fresh private
-Terminal setup is awaiting the generated password value; successful local profile
-setup and authentication must still be verified. The label is distinct from a
-locally saved `notarytool` Keychain profile. A seventh read-only check before this
-setup still returned69; no upload has occurred.
+earlier supplied name is an Apple Account App-Specific Passwords label. Its next
+private Terminal setup also exited1. The latest claimed local profile remains
+unresolved; a safe save-confirmation line or an explicit separate Keychain location
+is now required. A confirmation line alone must still be followed by a live
+selected-profile authentication check. No upload has occurred.
 
 Set up credentials privately using Apple's interactive `notarytool
 store-credentials` prompt in a real user Terminal. The private helper must inherit

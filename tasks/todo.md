@@ -694,14 +694,15 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 ## BOSS-018e — authorized notarization preflight
 
 - [x] Revalidate exact approved signed DMG hash and existing submission receipts.
-- [x] Run six read-only checks of four owner-supplied selectors, including user
-  Terminal context; all exit69/missing item. Two interactive setups exited1;
+- [x] Run nine read-only checks of five owner-supplied selectors, including user
+  Terminal context; all exit69/missing item. Three interactive setups exited1;
   owner reported401. Direct helper verified three TTYs; no raw Terminal I/O read.
   Invoking-user/default-keychain metadata checked; private helper scratch removed.
   No upload, submission ID, staple, signature change or provider call occurred.
 - [x] Owner clarified the supplied name is an Apple Account app-password label.
-- [ ] Resolve the selected Keychain profile with the generated value entered only
-  into Apple's private Terminal prompt; latest read-only preflight still69.
+- [ ] Resolve the latest user-named local profile: require its safe save-confirmation
+  line or separate Keychain location, then live authentication. Both current
+  service/Terminal checks returned69; no further profile guesses or setup retries.
 - [ ] Persist exact-hash intent, submit once, save ID and require Accepted.
 - [ ] Staple a copy, validate, verify signatures/Gatekeeper and new checksums.
   Clean-machine, fresh provider and Linux acceptance remain separate.

@@ -452,7 +452,9 @@ correct existing name; never infer it from the signing identity/account name.
 Persist exact-hash intent and submission ID before polling. Accepted, copy-only
 stapling/validation, Gatekeeper and clean-machine acceptance remain distinct.
 
-018e continuation: owner confirmed the name belongs to Apple Account's App-Specific
-Passwords list. Generated value entry is private in user Terminal; a fresh guarded
-setup is pending. Do not treat this clarification or a done message as configured
-credentials. Revalidate the saved local profile before the unused authorized upload.
+018e continuation: owner confirmed the earlier name belongs to Apple Account's
+App-Specific Passwords list. Generated value entry was reserved for private user
+Terminal; the third guarded setup subsequently exited1. The latest explicit
+profile name remains unresolved in both service and Terminal contexts. Obtain only
+its safe save-confirmation line or separate Keychain location, then revalidate
+actual authentication before the unused authorized upload.

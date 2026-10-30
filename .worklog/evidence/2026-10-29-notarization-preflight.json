@@ -13,7 +13,7 @@
     "exit_code": 69,
     "result": "no Keychain password item found for requested profile",
     "account_output_retained": false,
-    "read_only_attempts": 7,
+    "read_only_attempts": 9,
     "latest_selector_supplied_by_owner": true,
     "keychain_visibility": {
       "process_user_matches_artifact_owner": true,
@@ -24,23 +24,30 @@
       "credential_values_read": false
     },
     "other_profile_names_guessed": false,
-    "distinct_owner_supplied_selectors": 4,
+    "distinct_owner_supplied_selectors": 5,
     "results": "all unresolved in available Keychain; exit69",
     "user_terminal_existing_profile_check": {
       "exit_code": 69,
-      "profile_resolved": false
+      "profile_resolved": false,
+      "process_user_matches_artifact_owner": true,
+      "default_keychain_basename": "login.keychain-db",
+      "search_list_basenames": [
+        "login.keychain-db"
+      ]
     },
-    "account_address_retained": false
+    "account_address_retained": false,
+    "latest_user_named_profile": "Cuckoding-v3"
   },
   "submission_count": 0,
   "submission_id": null,
-  "notarization_status": "not submitted; password-label ambiguity resolved; local profile setup pending",
+  "notarization_status": "not submitted; latest user-named local profile unresolved in service and Terminal contexts",
   "stapling": "not performed",
   "gatekeeper": "not performed",
   "provider_calls": 0,
-  "next_action": "verify private helper completion and selected-profile authentication; then persist exact-hash intent before one no-wait upload",
+  "next_action": "obtain save-confirmation line or explicit separate Keychain location, then revalidate authentication before one authorized upload",
   "interactive_setup": {
     "exit_codes": [
+      1,
       1,
       1
     ],
@@ -52,12 +59,12 @@
       "stderr": true
     },
     "terminal_io_read_or_retained_by_agent": false,
-    "private_helper_scratch_removed": false,
+    "private_helper_scratch_removed": true,
     "successful_profile_setup_confirmed": false,
     "completed_attempts_before_clarification": 2,
-    "new_attempt": "pending private user input after clarification",
-    "completed_human_controlled_attempts": 2,
-    "pending_helper_launches": 1
+    "new_attempt": "completed with exit1; no successful setup confirmed",
+    "completed_human_controlled_attempts": 3,
+    "pending_helper_launches": 0
   },
   "tty_probe": {
     "rtk_proxy": {
