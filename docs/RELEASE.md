@@ -178,8 +178,12 @@ Six read-only checks of four owner-supplied selectors have returned the same
 missing-item error, including an existing-profile check in the user's Terminal.
 Two user-controlled interactive setup attempts exited1; the owner reported401.
 No profile is confirmed ready. These are credential/profile failures before
-submission, not an Apple verdict on BOSS. A name in Apple Account's App-Specific
-Passwords list is distinct from a locally saved `notarytool` Keychain profile.
+submission, not an Apple verdict on BOSS. The owner has now confirmed that the
+supplied name is an Apple Account App-Specific Passwords label. A fresh private
+Terminal setup is awaiting the generated password value; successful local profile
+setup and authentication must still be verified. The label is distinct from a
+locally saved `notarytool` Keychain profile. A seventh read-only check before this
+setup still returned69; no upload has occurred.
 
 Set up credentials privately using Apple's interactive `notarytool
 store-credentials` prompt in a real user Terminal. The private helper must inherit

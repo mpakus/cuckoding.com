@@ -72,6 +72,8 @@
   Interactive credential helpers must inherit a real Terminal on all three streams;
   keep RTK around launch operations, not between that TTY and Apple's prompt.
   Retain only exit/TTY receipts, never terminal I/O or supplied account addresses.
+  An app-password label cannot authenticate: the owner enters the generated value
+  only into Apple's private prompt; never request that value in chat.
 - Remote RC evidence must distinguish PR head, tested merge SHA and packaged
   BUILD_INFO. Keep opt-in provider budgets outside model-writable paths, preserve
   the selected account and leave cleanup time inside the deadline. A failed paid

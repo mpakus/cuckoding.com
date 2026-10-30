@@ -699,7 +699,9 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
   owner reported401. Direct helper verified three TTYs; no raw Terminal I/O read.
   Invoking-user/default-keychain metadata checked; private helper scratch removed.
   No upload, submission ID, staple, signature change or provider call occurred.
-- [ ] Resolve the selected Keychain profile with owner input/local setup.
+- [x] Owner clarified the supplied name is an Apple Account app-password label.
+- [ ] Resolve the selected Keychain profile with the generated value entered only
+  into Apple's private Terminal prompt; latest read-only preflight still69.
 - [ ] Persist exact-hash intent, submit once, save ID and require Accepted.
 - [ ] Staple a copy, validate, verify signatures/Gatekeeper and new checksums.
   Clean-machine, fresh provider and Linux acceptance remain separate.

@@ -451,3 +451,8 @@ authorized upload after the owner configures the selected profile or gives its
 correct existing name; never infer it from the signing identity/account name.
 Persist exact-hash intent and submission ID before polling. Accepted, copy-only
 stapling/validation, Gatekeeper and clean-machine acceptance remain distinct.
+
+018e continuation: owner confirmed the name belongs to Apple Account's App-Specific
+Passwords list. Generated value entry is private in user Terminal; a fresh guarded
+setup is pending. Do not treat this clarification or a done message as configured
+credentials. Revalidate the saved local profile before the unused authorized upload.

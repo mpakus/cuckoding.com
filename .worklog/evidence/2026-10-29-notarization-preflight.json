@@ -13,7 +13,7 @@
     "exit_code": 69,
     "result": "no Keychain password item found for requested profile",
     "account_output_retained": false,
-    "read_only_attempts": 6,
+    "read_only_attempts": 7,
     "latest_selector_supplied_by_owner": true,
     "keychain_visibility": {
       "process_user_matches_artifact_owner": true,
@@ -34,13 +34,12 @@
   },
   "submission_count": 0,
   "submission_id": null,
-  "notarization_status": "not submitted; credential setup failed; clarifying local profile versus Apple app-password label",
+  "notarization_status": "not submitted; password-label ambiguity resolved; local profile setup pending",
   "stapling": "not performed",
   "gatekeeper": "not performed",
   "provider_calls": 0,
-  "next_action": "clarify supplied name type, resolve or configure selected profile privately, then persist exact-hash intent and submit once",
+  "next_action": "verify private helper completion and selected-profile authentication; then persist exact-hash intent before one no-wait upload",
   "interactive_setup": {
-    "human_controlled_attempts": 2,
     "exit_codes": [
       1,
       1
@@ -53,8 +52,12 @@
       "stderr": true
     },
     "terminal_io_read_or_retained_by_agent": false,
-    "private_helper_scratch_removed": true,
-    "successful_profile_setup_confirmed": false
+    "private_helper_scratch_removed": false,
+    "successful_profile_setup_confirmed": false,
+    "completed_attempts_before_clarification": 2,
+    "new_attempt": "pending private user input after clarification",
+    "completed_human_controlled_attempts": 2,
+    "pending_helper_launches": 1
   },
   "tty_probe": {
     "rtk_proxy": {
@@ -69,5 +72,9 @@
     },
     "original_exit1_cause_proven": false
   },
-  "raw_credential_material_accessed_by_agent": false
+  "raw_credential_material_accessed_by_agent": false,
+  "name_type_clarification": {
+    "confirmed_by_owner": "Apple Account App-Specific Passwords label",
+    "local_keychain_profile_distinct": true
+  }
 }
