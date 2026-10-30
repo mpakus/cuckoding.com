@@ -13,9 +13,8 @@
     "exit_code": 69,
     "result": "no Keychain password item found for requested profile",
     "account_output_retained": false,
-    "read_only_attempts": 2,
+    "read_only_attempts": 6,
     "latest_selector_supplied_by_owner": true,
-    "both_results": "requested profile unresolved; exit69",
     "keychain_visibility": {
       "process_user_matches_artifact_owner": true,
       "default_keychain_lookup_exit": 0,
@@ -24,14 +23,51 @@
       "searchable_keychain_count": 1,
       "credential_values_read": false
     },
-    "other_profile_names_guessed": false
+    "other_profile_names_guessed": false,
+    "distinct_owner_supplied_selectors": 4,
+    "results": "all unresolved in available Keychain; exit69",
+    "user_terminal_existing_profile_check": {
+      "exit_code": 69,
+      "profile_resolved": false
+    },
+    "account_address_retained": false
   },
   "submission_count": 0,
   "submission_id": null,
-  "notarization_status": "not submitted; awaiting configured selected profile",
+  "notarization_status": "not submitted; credential setup failed; clarifying local profile versus Apple app-password label",
   "stapling": "not performed",
   "gatekeeper": "not performed",
   "provider_calls": 0,
-  "credentials_read_or_stored_by_agent": false,
-  "next_action": "resolve selected profile, repeat read-only preflight, persist exact-hash intent, submit once and save ID before polling"
+  "next_action": "clarify supplied name type, resolve or configure selected profile privately, then persist exact-hash intent and submit once",
+  "interactive_setup": {
+    "human_controlled_attempts": 2,
+    "exit_codes": [
+      1,
+      1
+    ],
+    "owner_reported_error": "HTTP401",
+    "exact_authentication_failure_cause": "not established",
+    "second_attempt_terminal_stdio": {
+      "stdin": true,
+      "stdout": true,
+      "stderr": true
+    },
+    "terminal_io_read_or_retained_by_agent": false,
+    "private_helper_scratch_removed": true,
+    "successful_profile_setup_confirmed": false
+  },
+  "tty_probe": {
+    "rtk_proxy": {
+      "stdin": true,
+      "stdout": false,
+      "stderr": false
+    },
+    "nested_pty": {
+      "stdin": true,
+      "stdout": true,
+      "stderr": true
+    },
+    "original_exit1_cause_proven": false
+  },
+  "raw_credential_material_accessed_by_agent": false
 }

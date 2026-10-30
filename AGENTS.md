@@ -68,6 +68,10 @@
   Preserve upload authorization and never choose another account automatically.
   Diagnose profile visibility using invoking-user/keychain search metadata only;
   never enumerate credential payloads or guess another saved profile.
+  Distinguish an Apple Account/app-password label from a local notarytool profile.
+  Interactive credential helpers must inherit a real Terminal on all three streams;
+  keep RTK around launch operations, not between that TTY and Apple's prompt.
+  Retain only exit/TTY receipts, never terminal I/O or supplied account addresses.
 - Remote RC evidence must distinguish PR head, tested merge SHA and packaged
   BUILD_INFO. Keep opt-in provider budgets outside model-writable paths, preserve
   the selected account and leave cleanup time inside the deadline. A failed paid

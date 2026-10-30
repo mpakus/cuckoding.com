@@ -694,8 +694,10 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 ## BOSS-018e — authorized notarization preflight
 
 - [x] Revalidate exact approved signed DMG hash and existing submission receipts.
-- [x] Run two owner-selected profile read-only preflights; both exit69/missing item.
-  Invoking-user/default-keychain search metadata checked; no credential values read.
+- [x] Run six read-only checks of four owner-supplied selectors, including user
+  Terminal context; all exit69/missing item. Two interactive setups exited1;
+  owner reported401. Direct helper verified three TTYs; no raw Terminal I/O read.
+  Invoking-user/default-keychain metadata checked; private helper scratch removed.
   No upload, submission ID, staple, signature change or provider call occurred.
 - [ ] Resolve the selected Keychain profile with owner input/local setup.
 - [ ] Persist exact-hash intent, submit once, save ID and require Accepted.

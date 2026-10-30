@@ -174,18 +174,23 @@ available Keychain. No submission/upload occurred; the original signed image is
 unchanged. The owner must supply the correct existing profile or configure it
 locally. Preserve this authorization; do not select another account automatically.
 See [preflight evidence](../.worklog/evidence/2026-10-29-notarization-preflight.json).
-Two owner-selected names have now returned the same missing-item error. The
-invoking user matches the artifact owner; the available search list contains
-`login.keychain-db`. This does not rule out a profile stored in a separate
-Keychain. Supply that location explicitly rather than guessing another account;
-no credential values were inspected.
+Six read-only checks of four owner-supplied selectors have returned the same
+missing-item error, including an existing-profile check in the user's Terminal.
+Two user-controlled interactive setup attempts exited1; the owner reported401.
+No profile is confirmed ready. These are credential/profile failures before
+submission, not an Apple verdict on BOSS. A name in Apple Account's App-Specific
+Passwords list is distinct from a locally saved `notarytool` Keychain profile.
 
-Create a profile locally with Apple's interactive prompts (no credential values
-in the command line or chat):
-
-```sh
-rtk proxy xcrun notarytool store-credentials PROFILE_NAME
-```
+Set up credentials privately using Apple's interactive `notarytool
+store-credentials` prompt in a real user Terminal. The private helper must inherit
+all three Terminal streams and never capture/log terminal input or output.
+Our RTK probe showed stdin remained a TTY while stdout/stderr became pipes;
+keep RTK around helper preparation/launch, then invoke Apple's CLI directly inside
+the user Terminal. This observation does not establish the cause of the first
+exit1. The corrected helper verified all three TTYs but also exited1.
+Create an app-specific password using [Apple's instructions](https://support.apple.com/en-us/102654)
+if needed; enter it only into Apple's prompt. Keep credential values out of
+repository files and chat, and personal account addresses out of public evidence.
 
 Then validate that explicitly selected profile with `notarytool history` before
 submitting. A Developer ID signing identity is distinct from a notarization
