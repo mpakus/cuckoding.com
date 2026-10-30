@@ -12,7 +12,19 @@
     "profile_label": "not retained",
     "exit_code": 69,
     "result": "no Keychain password item found for requested profile",
-    "account_output_retained": false
+    "account_output_retained": false,
+    "read_only_attempts": 2,
+    "latest_selector_supplied_by_owner": true,
+    "both_results": "requested profile unresolved; exit69",
+    "keychain_visibility": {
+      "process_user_matches_artifact_owner": true,
+      "default_keychain_lookup_exit": 0,
+      "default_keychain_basename": "login.keychain-db",
+      "user_search_list_exit": 0,
+      "searchable_keychain_count": 1,
+      "credential_values_read": false
+    },
+    "other_profile_names_guessed": false
   },
   "submission_count": 0,
   "submission_id": null,

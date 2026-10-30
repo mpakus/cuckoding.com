@@ -694,7 +694,8 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 ## BOSS-018e — authorized notarization preflight
 
 - [x] Revalidate exact approved signed DMG hash and existing submission receipts.
-- [x] Run selected-profile read-only credential preflight; exit69/missing profile.
+- [x] Run two owner-selected profile read-only preflights; both exit69/missing item.
+  Invoking-user/default-keychain search metadata checked; no credential values read.
   No upload, submission ID, staple, signature change or provider call occurred.
 - [ ] Resolve the selected Keychain profile with owner input/local setup.
 - [ ] Persist exact-hash intent, submit once, save ID and require Accepted.

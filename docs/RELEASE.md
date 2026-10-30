@@ -174,6 +174,11 @@ available Keychain. No submission/upload occurred; the original signed image is
 unchanged. The owner must supply the correct existing profile or configure it
 locally. Preserve this authorization; do not select another account automatically.
 See [preflight evidence](../.worklog/evidence/2026-10-29-notarization-preflight.json).
+Two owner-selected names have now returned the same missing-item error. The
+invoking user matches the artifact owner; the available search list contains
+`login.keychain-db`. This does not rule out a profile stored in a separate
+Keychain. Supply that location explicitly rather than guessing another account;
+no credential values were inspected.
 
 Create a profile locally with Apple's interactive prompts (no credential values
 in the command line or chat):

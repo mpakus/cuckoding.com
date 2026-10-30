@@ -66,6 +66,8 @@
   A Developer ID certificate or account name does not prove the profile exists;
   a missing profile is a local credential preflight failure, not Apple rejection.
   Preserve upload authorization and never choose another account automatically.
+  Diagnose profile visibility using invoking-user/keychain search metadata only;
+  never enumerate credential payloads or guess another saved profile.
 - Remote RC evidence must distinguish PR head, tested merge SHA and packaged
   BUILD_INFO. Keep opt-in provider budgets outside model-writable paths, preserve
   the selected account and leave cleanup time inside the deadline. A failed paid
