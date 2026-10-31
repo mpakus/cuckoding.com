@@ -131,7 +131,9 @@ defmodule BossWeb.Autopilot do
             batch && batch.status in ~w(running paused blocked) &&
               (is_nil(socket.assigns.batch) || socket.assigns.batch.id != batch.id)
 
-          assign(socket, batch: batch, loaded: true, open: socket.assigns.open || !!reveal)
+          socket
+          |> assign(batch: batch, loaded: true, open: socket.assigns.open || !!reveal)
+          |> confirm_start(batch)
 
         _ ->
           assign(socket, loaded: false, error: "Could not load Autopilot. Retry loading.")
@@ -159,13 +161,35 @@ defmodule BossWeb.Autopilot do
 
       _ ->
         {:noreply,
-         assign(socket,
+         socket
+         |> assign(
            error: "The request could not be confirmed. Retry the same saved Autopilot request."
-         )}
+         )
+         |> load()}
     end
   end
 
   def handle_async(_, _, socket), do: {:noreply, socket}
+
+  defp confirm_start(socket, batch) do
+    with %{kind: :start, id: id, tasks: tasks, text: text, reviewer: reviewer} <-
+           socket.assigns.pending,
+         %{id: project} when is_integer(project) and project > 0 <- socket.assigns.project,
+         true <- is_binary(id) and is_list(tasks) and reviewer in ~w(codex claude),
+         {:ok, config, hash} <- Boss.Checks.Command.parse(text),
+         %{
+           command_id: ^id,
+           project_id: ^project,
+           task_ids: ^tasks,
+           check_config: ^config,
+           config_hash: ^hash,
+           reviewer: ^reviewer
+         } <- batch do
+      assign(socket, pending: nil, error: nil, command: Ecto.UUID.generate())
+    else
+      _ -> socket
+    end
+  end
 
   defp load(%{assigns: %{project: nil}} = socket), do: socket
   defp load(%{assigns: %{acting: true}} = socket), do: assign(socket, load_again: true)

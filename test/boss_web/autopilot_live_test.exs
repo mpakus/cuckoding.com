@@ -158,6 +158,7 @@ defmodule BossWeb.AutopilotLiveTest do
       assigns: %{
         __changed__: %{},
         pending: request,
+        project: nil,
         acting: true,
         error: nil,
         selected: ["10"],
@@ -191,6 +192,109 @@ defmodule BossWeb.AutopilotLiveTest do
     socket = %Phoenix.LiveView.Socket{assigns: %{__changed__: %{}, generation: 3, batch: batch}}
     {:noreply, same} = Autopilot.handle_async({:load, 2}, {:ok, {:ok, nil}}, socket)
     assert same.assigns.batch == batch
+  end
+
+  test "a matching persisted Start restores controls after an unknown reply", c do
+    {socket, request, batch} = uncertain_start(c)
+
+    for status <- ~w(running paused blocked completed cancelled) do
+      saved = %{batch | status: status}
+
+      {:noreply, confirmed} =
+        Autopilot.handle_async({:load, 3}, {:ok, {:ok, saved}}, socket)
+
+      assert confirmed.assigns.batch == saved
+      assert confirmed.assigns.pending == nil
+      assert confirmed.assigns.error == nil
+      refute confirmed.assigns.command == request.id
+
+      if status == "running" do
+        html = render_component(&Autopilot.render/1, confirmed.assigns)
+
+        assert html
+               |> LazyHTML.from_document()
+               |> LazyHTML.query("#stop-autopilot:not([disabled])")
+               |> Enum.count() == 1
+      end
+
+      {:noreply, late} =
+        Autopilot.handle_async({:action, request.id}, {:ok, {:error, :busy}}, confirmed)
+
+      assert late.assigns == confirmed.assigns
+    end
+  end
+
+  test "unrelated or mismatched reads preserve the original uncertain Start", c do
+    {socket, request, batch} = uncertain_start(c)
+
+    for saved <- [
+          nil,
+          %{batch | command_id: Ecto.UUID.generate()},
+          %{batch | project_id: c.project.id + 1},
+          %{batch | task_ids: Enum.reverse(batch.task_ids)},
+          %{batch | reviewer: "codex"},
+          %{batch | config_hash: "other"},
+          %{batch | check_config: Map.put(batch.check_config, "timeout_ms", 1)},
+          %{batch | check_config: nil}
+        ] do
+      {:noreply, uncertain} =
+        Autopilot.handle_async({:load, 3}, {:ok, {:ok, saved}}, socket)
+
+      assert uncertain.assigns.pending == request
+      assert uncertain.assigns.error == socket.assigns.error
+      assert uncertain.assigns.command == request.id
+    end
+
+    {:noreply, stale} = Autopilot.handle_async({:load, 2}, {:ok, {:ok, batch}}, socket)
+    assert stale.assigns == socket.assigns
+
+    for changed <- [
+          %{request | id: nil},
+          %{request | tasks: "all"},
+          %{request | text: nil},
+          %{request | reviewer: :claude},
+          %{request | kind: :pause},
+          %{request | kind: :resume},
+          %{request | kind: :cancel}
+        ] do
+      original = %{socket | assigns: %{socket.assigns | pending: changed}}
+
+      {:noreply, uncertain} =
+        Autopilot.handle_async({:load, 3}, {:ok, {:ok, batch}}, original)
+
+      assert uncertain.assigns.pending == changed
+      assert uncertain.assigns.command == request.id
+    end
+  end
+
+  test "an unknown action drains a refresh without retrying Start", c do
+    {socket, request, _} = uncertain_start(c)
+
+    socket = %{
+      socket
+      | assigns: %{socket.assigns | acting: true, loading: false, load_again: true}
+    }
+
+    {:noreply, uncertain} =
+      Autopilot.handle_async({:action, request.id}, {:exit, :timeout}, socket)
+
+    assert uncertain.assigns.pending == request
+    assert uncertain.assigns.acting == false
+    assert uncertain.assigns.loading == true
+    assert uncertain.assigns.load_again == false
+    assert uncertain.assigns.generation == 4
+    assert uncertain.assigns.command == request.id
+    assert uncertain.assigns.error =~ "Retry the same saved"
+
+    {:noreply, unread} =
+      Autopilot.handle_async({:load, 4}, {:exit, :timeout}, uncertain)
+
+    assert unread.assigns.pending == request
+    assert unread.assigns.generation == 4
+    assert unread.assigns.loading == false
+    assert unread.assigns.load_again == false
+    assert {:ok, nil} = Engine.current(c.project.id)
+    assert Repo.aggregate(Deliveries.Delivery, :count) == 0
   end
 
   test "unchanged project renders preserve an unsaved command", c do
@@ -311,6 +415,57 @@ defmodule BossWeb.AutopilotLiveTest do
   end
 
   defp params, do: %{"command" => "mix test", "reviewer" => "codex"}
+
+  defp uncertain_start(c) do
+    request = %{
+      kind: :start,
+      id: Ecto.UUID.generate(),
+      tasks: [c.first.task.id, c.second.task.id],
+      text: "  mix   test  ",
+      reviewer: "claude"
+    }
+
+    {:ok, config, hash} = Boss.Checks.Command.parse(request.text)
+
+    batch = %{
+      id: Ecto.UUID.generate(),
+      project_id: c.project.id,
+      command_id: request.id,
+      task_ids: request.tasks,
+      check_config: config,
+      config_hash: hash,
+      reviewer: request.reviewer,
+      status: "running",
+      version: 0,
+      reason: nil,
+      items: []
+    }
+
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        id: "autopilot",
+        myself: %Phoenix.LiveComponent.CID{cid: 1},
+        project: c.project,
+        entries: [],
+        supported: true,
+        pending: request,
+        acting: false,
+        command: request.id,
+        generation: 3,
+        batch: nil,
+        open: true,
+        load_again: false,
+        loading: true,
+        loaded: false,
+        text: request.text,
+        reviewer: request.reviewer,
+        error: "The request could not be confirmed. Retry the same saved Autopilot request."
+      }
+    }
+
+    {socket, request, batch}
+  end
 
   defp hold(owner, delivery, manager) do
     send(owner, {:started, self(), delivery.id})
