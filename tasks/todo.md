@@ -784,5 +784,7 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 - [x] Reproduce a host Mix->erl selection failure in the packaged smoke.
 - [x] Preserve exact launch PATH before VM startup, restore it before workers and
   consume the private marker. Native29 tests and independent code review passed.
-- [ ] Verify packaged regression, actual saved candidate in a fresh private copy,
-  relevant combined suites and independent review before local merge/cleanup.
+- [x] Expanded package smoke passes; exact latest-candidate tree in a private copy
+  passes31 tests through the new packaged worker, source unchanged, no models.
+- [x] Combined startup/data/discovery/transport/check/Autopilot suite95 passed,
+  independent review approved. Local4001 restored with preserved data and backup.
