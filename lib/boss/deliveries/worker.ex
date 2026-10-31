@@ -4,7 +4,7 @@ defmodule Boss.Deliveries.Worker do
   alias Boss.Agents.{Claude, Codex, ReportFile, Workspace}
   alias Boss.Agents.Process, as: Runner
   alias Boss.Checks.Candidate
-  alias Boss.Deliveries.Protocol
+  alias Boss.Deliveries.{Protocol, Retry}
 
   def execute(delivery, repo, manager) do
     Repo.put_dynamic_repo(repo)
@@ -24,12 +24,20 @@ defmodule Boss.Deliveries.Worker do
 
   defp perform(delivery) do
     {project, revision} = Deliveries.inputs(delivery)
+    source = ok!(Retry.source(delivery))
     continue!()
 
     if delivery.reviewer == "claude" and is_nil(System.find_executable("claude")),
       do: throw({:halt, :claude_unavailable})
 
+    ok!(Retry.verify(source))
     intent = ok!(Workspace.plan(project, delivery.id)) |> string_keys()
+
+    intent =
+      if source,
+        do: Map.put(intent, "base_commit", source.parent.intent["base_commit"]),
+        else: intent
+
     delivery = stored!(Deliveries.set_intent(delivery.id, intent))
 
     input = %{
@@ -38,6 +46,8 @@ defmodule Boss.Deliveries.Worker do
       "check_config" => delivery.check_config
     }
 
+    input = retry_plan_input(input, source)
+
     prompt = ok!(Protocol.prompt(:plan, input))
 
     {plan_step, plan} =
@@ -45,19 +55,152 @@ defmodule Boss.Deliveries.Worker do
         delivery,
         "plan",
         0,
-        %{"workspace" => intent, "input_hash" => Protocol.digest(input)},
+        retry_input(%{"workspace" => intent, "input_hash" => Protocol.digest(input)}, delivery),
         fn ->
           continue!()
           ok!(Workspace.prepare(intent))
-          verify = fn -> Candidate.verify_tree(intent["path"], intent["base_commit"]) end
-          receipt = run_agent(:plan, intent["path"], prompt, &Protocol.plan/1)
+
+          verify = fn ->
+            with :ok <- Candidate.verify_tree(intent["path"], intent["base_commit"]),
+                 do: Retry.verify(source)
+          end
+
+          previous_plan = if source, do: source.plan.receipt["report"]
+          receipt = run_agent(:plan, intent["path"], prompt, &Protocol.plan(&1, previous_plan))
           receipt = verify_agent(receipt, verify)
           {Map.put(receipt, "workspace", intent), receipt["report"]}
         end
       )
 
     successful!(plan_step)
-    cycle(delivery, project, revision.original_text, plan_step, plan, 1, nil, nil, MapSet.new())
+    {previous, feedback} = retry_seed(delivery, project, plan_step, source)
+
+    cycle(
+      delivery,
+      project,
+      revision.original_text,
+      plan_step,
+      plan,
+      1,
+      previous,
+      feedback,
+      MapSet.new()
+    )
+  end
+
+  defp retry_plan_input(input, nil), do: input
+
+  defp retry_plan_input(input, source) do
+    diff =
+      ok!(
+        Workspace.git(source.parent.intent["repo_path"], [
+          "diff",
+          "--no-ext-diff",
+          "--no-textconv",
+          "--binary",
+          "--full-index",
+          source.parent.intent["base_commit"],
+          source.review.input["candidate_commit"],
+          "--"
+        ])
+      )
+
+    unless String.valid?(diff), do: throw({:halt, :invalid_input})
+
+    Map.merge(input, %{
+      "previous_plan" => source.plan.receipt["report"],
+      "previous_review" => source.review.receipt["report"],
+      "previous_candidate_commit" => source.review.input["candidate_commit"],
+      "previous_diff" => diff
+    })
+  end
+
+  defp retry_seed(_, _, _, nil), do: {nil, nil}
+
+  defp retry_seed(delivery, project, plan, source) do
+    continue!()
+    ok!(Retry.verify(source))
+    source_sha = source.review.input["candidate_commit"]
+    seed = ok!(Workspace.plan(project, Ecto.UUID.generate())) |> string_keys()
+    seed = Map.put(seed, "base_commit", source_sha)
+    check_id = Ecto.UUID.generate()
+
+    {snapshot, {candidate, sha}} =
+      step(
+        delivery,
+        "retry_snapshot",
+        0,
+        %{
+          "run_workspace" => seed,
+          "check_id" => check_id,
+          "source_review_id" => source.review.id,
+          "source_candidate_commit" => source_sha,
+          "plan_step_id" => plan.id
+        },
+        fn ->
+          continue!()
+          ok!(Workspace.prepare(seed))
+          candidate = ok!(Candidate.plan(seed, check_id))
+          saved = ok!(Candidate.prepare(candidate))
+
+          {%{
+             "status" => "finished",
+             "cleanup" => "group_empty",
+             "candidate_commit" => saved.candidate_commit,
+             "workspace" => candidate
+           }, {candidate, saved.candidate_commit}}
+        end
+      )
+
+    {check, output} =
+      step(
+        delivery,
+        "retry_check",
+        0,
+        %{
+          "snapshot_step_id" => snapshot.id,
+          "plan_step_id" => plan.id,
+          "source_review_id" => source.review.id,
+          "workspace" => candidate,
+          "candidate_commit" => sha,
+          "config_hash" => delivery.config_hash
+        },
+        fn ->
+          {receipt, output} =
+            run_check(candidate["path"], delivery.check_config, fn ->
+              with :ok <- Candidate.verify(candidate, sha), do: Retry.verify(source)
+            end)
+
+          {Map.put(receipt, "candidate_commit", sha), output}
+        end
+      )
+
+    case check.receipt do
+      %{"status" => "finished"} ->
+        :ok
+
+      %{"outcome" => "checks_failed", "output_complete" => true, "cleanup" => "group_empty"} ->
+        :ok
+
+      _ ->
+        successful!(check)
+    end
+
+    {%{candidate_commit: sha, step_id: check.id},
+     %{
+       "kind" => "review",
+       "source_review_id" => source.review.id,
+       "report" => source.review.receipt["report"],
+       "check_receipt" => check.receipt,
+       "check_output" => output
+     }}
+  end
+
+  defp retry_input(input, delivery) do
+    case Map.get(delivery, :retry_review_id) do
+      nil -> input
+      id -> Map.put(input, "source_review_id", id)
+    end
   end
 
   defp cycle(delivery, project, source, plan_step, plan, cycle, previous, feedback, failures) do
@@ -82,16 +225,20 @@ defmodule Boss.Deliveries.Worker do
         delivery,
         "implement",
         cycle,
-        %{
-          "workspace" => workspace,
-          "plan_step_id" => plan_step.id,
-          "parent_step_id" => if(previous, do: previous.step_id, else: plan_step.id),
-          "feedback_hash" => Protocol.digest(feedback),
-          "input_hash" => Protocol.digest(input)
-        },
+        retry_input(
+          %{
+            "workspace" => workspace,
+            "plan_step_id" => plan_step.id,
+            "parent_step_id" => if(previous, do: previous.step_id, else: plan_step.id),
+            "feedback_hash" => Protocol.digest(feedback),
+            "input_hash" => Protocol.digest(input)
+          },
+          delivery
+        ),
         fn ->
           continue!()
           ok!(Workspace.prepare(workspace))
+          if cycle == 1, do: ok!(Retry.verify(ok!(Retry.source(delivery))))
           receipt = run_agent(:implement, workspace["path"], prompt, nil)
 
           receipt =

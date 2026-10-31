@@ -28,6 +28,20 @@ defmodule Boss.DeliveryProtocolTest do
     end
   end
 
+  test "a retry plan retains every original criterion without adding or weakening it" do
+    changed_steps = %{@plan | "steps" => ["Fix the saved review findings"]}
+    assert {:ok, ^changed_steps} = Protocol.plan(JSON.encode!(changed_steps), @plan)
+
+    for acceptance <- [[], ["Says goodbye"], ["Says hello", "Another criterion"]] do
+      assert {:error, :invalid_plan} =
+               Protocol.plan(JSON.encode!(%{@plan | "acceptance" => acceptance}), @plan)
+    end
+
+    original = %{@plan | "acceptance" => ["Says hello", "Handles errors"]}
+    reordered = %{original | "acceptance" => Enum.reverse(original["acceptance"])}
+    assert {:ok, ^reordered} = Protocol.plan(JSON.encode!(reordered), original)
+  end
+
   test "typed file predictions preserve paths; legacy and null scopes are unknown" do
     scopes = [
       %{"path" => "lib/Hello.ex", "kind" => "file"},

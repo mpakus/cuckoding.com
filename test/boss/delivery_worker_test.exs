@@ -20,7 +20,8 @@ defmodule Boss.DeliveryWorkerTest do
     {20_261_027_040_000, Boss.Repo.Migrations.AddWorkflowQueue},
     {20_261_027_050_000, Boss.Repo.Migrations.AddMergeIntegrationEvidence},
     {20_261_027_060_000, Boss.Repo.Migrations.AddDeliveryScheduling},
-    {20_261_027_070_000, Boss.Repo.Migrations.AddAutopilot}
+    {20_261_027_070_000, Boss.Repo.Migrations.AddAutopilot},
+    {20_261_031_220_000, Boss.Repo.Migrations.AddReviewRetries}
   ]
 
   setup do
@@ -288,6 +289,94 @@ defmodule Boss.DeliveryWorkerTest do
     assert length(Enum.filter(calls(ctx), &(&1["kind"] == "implement"))) == 3
   end
 
+  test "explicit retry retains rejected content and review with fresh plan and check output",
+       ctx do
+    manager = start_manager(ctx.repo)
+    parent = rejected_delivery(ctx, manager)
+    parent_steps = Deliveries.steps(parent.id)
+    old_review = List.last(parent_steps)
+    old_sha = old_review.input["candidate_commit"]
+    old_workspace = old_review.input["workspace"]
+    System.delete_env("BOSS_DELIVERY_MODE")
+
+    {:ok, retry} = retry(ctx, manager, parent.id)
+    saved = await_delivery(ctx, retry.id)
+    steps = Deliveries.steps(saved.id)
+    assert saved.status == "ready_to_merge", inspect({saved, steps})
+    assert saved.cycle == 1 and saved.retry_review_id == old_review.id
+    assert saved.intent["base_commit"] == parent.intent["base_commit"]
+
+    assert Enum.map(steps, & &1.kind) ==
+             ~w(plan retry_snapshot retry_check implement snapshot check review)
+
+    [plan, snapshot, check, implementation, _, final_check, review] = steps
+    assert Enum.all?(steps, &(&1.status == "finished"))
+
+    assert plan.receipt["report"]["acceptance"] ==
+             hd(parent_steps).receipt["report"]["acceptance"]
+
+    assert snapshot.input["source_candidate_commit"] == old_sha
+    assert check.input["snapshot_step_id"] == snapshot.id
+    assert check.receipt["output_complete"] and check.receipt["exit_code"] == 0
+    assert check.receipt["stdout_bytes"] > 0 and check.receipt["stderr_bytes"] > 0
+    assert implementation.input["parent_step_id"] == check.id
+    assert implementation.input["workspace"]["base_commit"] == check.input["candidate_commit"]
+    assert implementation.input["source_review_id"] == old_review.id
+    assert review.input["original_base"] == parent.intent["base_commit"]
+    assert review.input["check_step_id"] == final_check.id
+    assert Deliveries.get(ctx.project.id, parent.id) == parent
+    assert Deliveries.steps(parent.id) == parent_steps
+    assert :ok = Candidate.verify(old_workspace, old_sha)
+    assert_no_raw(steps)
+
+    retry_calls = Enum.drop(calls(ctx), 7)
+    assert Enum.map(retry_calls, & &1["kind"]) == ~w(plan implement review)
+    assert hd(retry_calls)["has_previous_review"]
+    assert hd(retry_calls)["previous_candidate_commit"] == old_sha
+    assert Enum.at(retry_calls, 1)["source_review_id"] == old_review.id
+    assert File.read!(Path.join(ctx.source, "result.txt")) == "base"
+  end
+
+  test "retry plan cannot weaken the original accepted criteria before implementation", ctx do
+    manager = start_manager(ctx.repo)
+    parent = rejected_delivery(ctx, manager)
+    System.put_env("BOSS_DELIVERY_MODE", "retry_plan_changed")
+    {:ok, retry} = retry(ctx, manager, parent.id)
+    saved = await_delivery(ctx, retry.id)
+    assert saved.status == "failed", inspect(saved)
+    assert Enum.map(Deliveries.steps(saved.id), & &1.kind) == ~w(plan)
+    assert Enum.map(Enum.drop(calls(ctx), 7), & &1["kind"]) == ~w(plan)
+    assert_no_raw(Deliveries.steps(saved.id))
+  end
+
+  test "incomplete retry check output halts before a paid implementation", ctx do
+    manager = start_manager(ctx.repo)
+    parent = rejected_delivery(ctx, manager)
+    System.put_env("BOSS_DELIVERY_MODE", "check_invalid_utf8")
+    {:ok, retry} = retry(ctx, manager, parent.id)
+    saved = await_delivery(ctx, retry.id)
+    assert saved.status == "failed", inspect(saved)
+
+    assert Enum.map(Deliveries.steps(saved.id), & &1.kind) ==
+             ~w(plan retry_snapshot retry_check)
+
+    assert Enum.map(Enum.drop(calls(ctx), 7), & &1["kind"]) == ~w(plan)
+    assert_no_raw(Deliveries.steps(saved.id))
+  end
+
+  test "an explicit retry has at most three implementation cycles", ctx do
+    manager = start_manager(ctx.repo)
+    parent = rejected_delivery(ctx, manager)
+    {:ok, retry} = retry(ctx, manager, parent.id)
+    saved = await_delivery(ctx, retry.id)
+    assert saved.status == "blocked" and saved.cycle == 3
+    assert saved.reason =~ "budget"
+    retry_calls = Enum.drop(calls(ctx), 7)
+    assert Enum.count(retry_calls, &(&1["kind"] == "implement")) == 3
+    assert Enum.count(retry_calls, &(&1["kind"] == "review")) == 3
+    assert length(Deliveries.steps(saved.id)) == 15
+  end
+
   test "repeated complete check failure stops on the unchanged tree despite fresh commit IDs",
        ctx do
     System.put_env("BOSS_DELIVERY_MODE", "check_repeated")
@@ -391,6 +480,28 @@ defmodule Boss.DeliveryWorkerTest do
 
   defp start(ctx, manager, command \\ Ecto.UUID.generate()),
     do: Deliveries.start(ctx.project.id, ctx.task.id, command, "python3 check.py", manager)
+
+  defp rejected_delivery(ctx, manager) do
+    System.put_env("BOSS_DELIVERY_MODE", "reject_always")
+    {:ok, run} = start(ctx, manager)
+    saved = await_delivery(ctx, run.id)
+    assert saved.status == "blocked" and saved.cycle == 3
+    saved
+  end
+
+  defp retry(ctx, manager, parent, command \\ Ecto.UUID.generate(), remaining \\ 100)
+  defp retry(_, _, _, _, 0), do: flunk("Previous fixture worker did not exit")
+
+  defp retry(ctx, manager, parent, command, remaining) do
+    case Boss.Deliveries.Retry.start(ctx.project.id, parent, command, manager) do
+      {:error, :busy} ->
+        Process.sleep(20)
+        retry(ctx, manager, parent, command, remaining - 1)
+
+      result ->
+        result
+    end
+  end
 
   defp start_claude(ctx, manager, command \\ Ecto.UUID.generate()),
     do:

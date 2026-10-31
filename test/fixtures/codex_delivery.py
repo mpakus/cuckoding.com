@@ -21,7 +21,10 @@ schema = Path(args[args.index("--output-schema") + 1]) if "--output-schema" in a
 kind = "plan" if schema and schema.name == "plan_schema.json" else "review" if schema else "implement"
 cycle = data.get("cycle", 0)
 with (root / "calls").open("a") as calls:
-    calls.write(json.dumps({"kind": kind, "cycle": cycle, "cwd": str(Path.cwd()), "target_commit": data.get("target_commit")}) + "\n")
+    calls.write(json.dumps({"kind": kind, "cycle": cycle, "cwd": str(Path.cwd()), "target_commit": data.get("target_commit"),
+                           "base_commit": data.get("base_commit"), "previous_candidate_commit": data.get("previous_candidate_commit"),
+                           "has_previous_review": bool(data.get("previous_review")),
+                           "source_review_id": (data.get("previous_feedback") or {}).get("source_review_id")}) + "\n")
 
 def emit(value):
     print(json.dumps(value), flush=True)
@@ -38,6 +41,15 @@ if mode == "wait" and kind == "implement":
 if kind == "implement":
     assert args[args.index("--sandbox") + 1] == "workspace-write"
     assert data["plan"]["acceptance"] == ["Create result.txt"]
+    if cycle == 1 and (data.get("previous_feedback") or {}).get("source_review_id"):
+        assert Path("result.txt").read_text() == "candidate-3\n"
+        assert Path("first-only.txt").read_text() == "retained first attempt\n"
+        feedback = data["previous_feedback"]
+        assert feedback["report"]["verdict"] == "changes_requested"
+        assert feedback["report"]["issues"][0]["message"] == "Correct result.txt contents"
+        assert feedback["check_receipt"]["output_complete"] is True
+        assert "CHECK_STDOUT_SECRET_SENTINEL" in feedback["check_output"]["stdout"]
+        assert "CHECK_STDERR_SECRET_SENTINEL" in feedback["check_output"]["stderr"]
     if cycle > 1:
         assert Path("first-only.txt").read_text() == "retained first attempt\n"
         assert data["previous_feedback"]["kind"] in ("checks", "review")
@@ -52,6 +64,15 @@ else:
     output = Path(args[args.index("--output-last-message") + 1])
     if kind == "plan":
         report = {"summary": "Create the result", "steps": ["Write result.txt"], "acceptance": ["Create result.txt"], "file_scopes": None}
+        if data.get("previous_plan"):
+            assert data["previous_plan"]["acceptance"] == report["acceptance"]
+            assert data["previous_review"]["verdict"] == "changes_requested"
+            assert data["previous_review"]["issues"][0]["message"] == "Correct result.txt contents"
+            assert len(data["previous_candidate_commit"]) == 40
+            assert "first-only.txt" in data["previous_diff"] and "result.txt" in data["previous_diff"]
+            assert data["base_commit"] != data["previous_candidate_commit"]
+            if mode == "retry_plan_changed":
+                report["acceptance"] = ["Weaker replacement criterion"]
         scope_file = root / "scopes.json"
         if scope_file.exists():
             predictions = json.loads(scope_file.read_text())

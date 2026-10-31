@@ -27,6 +27,17 @@ defmodule Boss.Deliveries.Protocol do
 
   def plan(_), do: {:error, :invalid_plan}
 
+  def plan(text, nil), do: plan(text)
+
+  def plan(text, previous) when is_map(previous) do
+    with {:ok, plan} <- plan(text),
+         true <- MapSet.new(plan["acceptance"]) == MapSet.new(previous["acceptance"]) do
+      {:ok, plan}
+    else
+      _ -> {:error, :invalid_plan}
+    end
+  end
+
   def review(text, plan) do
     with {:ok, report} <- Verdict.decode(text),
          true <-
@@ -64,6 +75,9 @@ defmodule Boss.Deliveries.Protocol do
           These predictions coordinate workers, not permissions or correctness proof.
           Preserve every requirement of the original specification. If it is ambiguous,
           include the unresolved question in the acceptance criteria; do not invent consent.
+          If previous_plan is supplied, retain exactly its acceptance criterion strings;
+          use previous_review and previous_diff to update implementation steps and scopes.
+          Do not remove, paraphrase or add acceptance criteria for a repeated workflow.
           """
 
         :implement ->
@@ -75,6 +89,9 @@ defmodule Boss.Deliveries.Protocol do
           Do not commit, merge, push or start background processes. BOSS will execute
           the user's saved check command and independent review after you finish.
           The input includes check_config: prepare the project for that exact command.
+          Checks run in a fresh worktree without ignored dependency or build caches.
+          Keep production dependencies and adapters covered by tests; do not exclude
+          production paths or replace required adapter regressions with mocks to pass.
           Ignore only appropriate generated build/test artifacts in repository rules;
           checks must leave source, tests and other candidate files unchanged.
           Your completion message is not proof that the task is complete.
