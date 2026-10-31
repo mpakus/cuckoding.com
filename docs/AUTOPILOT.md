@@ -93,3 +93,14 @@ This early refusal blocks the batch and cancels its unstarted requests. After
 repair, use a **new Start Autopilot** with the current Backlog and trusted checks;
 Resume or replaying the old Start UUID does not create a fresh workflow. Historical
 blocked/cancelled entries remain truthful. The repair itself starts no model calls.
+
+
+## Verify a retried task before continuing the Backlog
+
+For an explicitly requested retry of a stopped task, open its details and choose
+**Start workflow** with the selected reviewer and trusted check command. Preserve
+the stopped delivery and its evidence. Follow the new plan/check/review stages;
+**Ready** still requires **Integrate approved result** for this manual workflow.
+Verify exact publication, postchecks and **Done**, then start a new Autopilot for
+the current Backlog. The task just completed is excluded from that snapshot.
+A terminal refusal stops this sequence; it does not authorize another fresh retry.

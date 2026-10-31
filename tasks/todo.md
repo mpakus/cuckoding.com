@@ -763,8 +763,8 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
   Current diagnostics/check input already address it; no source change required.
 - [x] Correct stale README package/OpenSSL status against retained release evidence
   and link root-check/generated-artifact requirements. Original artifacts unchanged.
-- [ ] Fresh user-authorized workflow after correct project bootstrap; current
-  instance still has46 New tasks and no deliveries. No automatic paid retry.
+- [ ] Owner-authorized fresh workflow acceptance is tracked below. Earlier
+  46New/zero-delivery snapshot is historical; no automatic paid retry.
 
 ## Autopilot — confirmed Start after an uncertain reply
 
@@ -788,3 +788,14 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
   passes31 tests through the new packaged worker, source unchanged, no models.
 - [x] Combined startup/data/discovery/transport/check/Autopilot suite95 passed,
   independent review approved. Local4001 restored with preserved data and backup.
+
+
+## Live Task1 → Done → Backlog Autopilot
+
+- [x] Explicit owner authorization and independent read-only preflight: saved
+  Codex/mix test, no active/unknown work, free target main, Task1rev1/version12.
+- [ ] Connect the browser and admit exactly one new Task1 workflow.
+- [ ] Verify passing checks and independent review tied to its exact candidate.
+- [ ] Publish through existing integration, verify postchecks/retained checkout/Done.
+- [ ] Start the whole-current-Backlog Autopilot after Done and verify initial progress.
+- [ ] Record verified receipts, update docs and merge/clean only owned docs branch.

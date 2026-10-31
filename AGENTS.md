@@ -233,6 +233,8 @@
   Reconcile an uncertain Start only with its exact committed batch and pinned
   inputs. Drain a refresh received during the action; stale or unrelated reads
   cannot unlock it. An active confirmed batch must restore Stop without dispatching again.
+  For owner-ordered task-then-Backlog acceptance, verify that task's exact
+  publication/postchecks/Done before starting the next Autopilot snapshot.
 - Persist global managed capacity 1–3 (default two); compare settings versions and
   refuse shrink below actual owned workers until EXIT. Context, Manager and SQL
   must use the same saved capacity; manual execution and integration stay exclusive.

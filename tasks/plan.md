@@ -498,3 +498,12 @@ Preserve the exact incoming PATH before the VM starts and restore it before BOSS
 starts tool discovery/workers. Verify via a fake host Mix->erl package regression
 and a fresh copy of the actual pinned candidate; never mutate its old evidence,
 change the selected toolchain, extend the retry budget or restart paid work.
+
+
+### Live acceptance — task1 before remaining Backlog
+
+Owner explicitly authorizes a fresh task1 workflow through verified Done, followed
+by Autopilot for the current remaining Backlog. Keep saved Codex/mix test inputs,
+three-cycle bounds and all candidate/review/publication/postcheck receipts. Start
+the new batch only after task1Done. Current preflight is ready; IAB login awaits
+owner token entry. No automatic provider/account substitution or state edits.
