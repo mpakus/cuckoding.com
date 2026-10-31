@@ -773,4 +773,5 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 - [x] Verify stale/mismatched reads remain uncertain and no duplicate dispatch.
 - [x] Focused15 tests, independent review, combined168 tests and real browser
   lost-reply/Pause/Resume/Stop acceptance; exactly one fake worker, zero model calls.
-- [ ] Build/smoke the reviewed local package; merge locally and clean owned branches.
+- [x] Clean local package b816739 and unpacked smoke; user-approved4001 update
+  preserves the database/project/46 tasks and starts no models. SQLite backup retained.
