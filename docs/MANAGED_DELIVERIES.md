@@ -1,5 +1,21 @@
 # Managed task delivery
 
+An explicit owner-local review retry is available through
+`Boss.Deliveries.Retry.start(project_id, blocked_delivery_id, new_command_uuid)`.
+It derives the saved checks/reviewer/spec from the latest rejected review; callers
+cannot substitute evidence or a base commit. This creates a new attempt and uses
+the configured provider account, so it requires fresh explicit authorization.
+Ordinary **Start workflow** retains its existing fresh-start behavior.
+
+The retry pins the parent's final committed task event, revalidates its retained
+candidate and preserves every original acceptance string. A genuine new plan and
+fresh snapshot/check precede implementation, which receives the complete saved
+review plus fresh transient check output. Historical raw output is not invented
+or persisted. Three repair cycles and twenty total stages remain the limit;
+unchanged repeated findings stop sooner. Old deliveries, stages and approvals are
+never reopened or copied as new success. Ready/Done still require new checks,
+review and exact publication/postchecks through the usual gates.
+
 The task drawer's **Start workflow** runs a managed workflow on macOS:
 plan → implement → snapshot → checks → fresh review → optional fixes. Enter one
 trusted check command first. **Integrate approved result** is a separate explicit

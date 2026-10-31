@@ -494,6 +494,8 @@ defmodule BossWeb.DeliveryPanel do
   defp verdict("needs_spec_revision"), do: "Specification needs clarification"
   defp verdict(_), do: "Unavailable"
   defp stage("plan"), do: "Planning"
+  defp stage("retry_snapshot"), do: "Preparing retained candidate"
+  defp stage("retry_check"), do: "Rechecking retained candidate"
   defp stage("implement"), do: "Implementation"
   defp stage("snapshot"), do: "Snapshot"
   defp stage("check"), do: "Checks"

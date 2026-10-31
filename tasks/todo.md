@@ -802,3 +802,12 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 - [ ] Start the whole-current-Backlog Autopilot after Done and verify initial progress.
 - [x] Record terminal Blocked receipts and update independently reviewed docs.
   Three-cycle budget exhausted before approval; publication/Backlog remain gated.
+
+## Explicit bounded review retry
+
+- [x] Owner authorizes one additional same-account, three-cycle Task1 attempt.
+- [ ] Verify immutable parent review/terminal-event admission, replay and SQL guards.
+- [ ] Verify retained candidate, unchanged criteria and fresh-output finite worker path.
+- [ ] Review/build/smoke, preserve data and update idle4001.
+- [ ] Execute one new bounded retry; verify actual Ready/publication/postchecks/Done.
+- [ ] Only after Done, admit remaining current Backlog and observe Autopilot progress.

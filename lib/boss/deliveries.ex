@@ -8,6 +8,8 @@ defmodule Boss.Deliveries do
   @terminal ~w(done blocked needs_input failed cancelled interrupted)
   @stages %{
     "plan" => "planning",
+    "retry_snapshot" => "planning",
+    "retry_check" => "planning",
     "implement" => "implementing",
     "snapshot" => "testing",
     "check" => "testing",
@@ -78,7 +80,8 @@ defmodule Boss.Deliveries do
             project_id: ^project,
             check_config: ^config,
             config_hash: ^hash,
-            reviewer: ^reviewer
+            reviewer: ^reviewer,
+            retry_review_id: nil
           } = saved ->
             {:existing, saved}
 
@@ -99,6 +102,66 @@ defmodule Boss.Deliveries do
       end)
     else
       _ -> {:error, :invalid_command}
+    end
+  end
+
+  @doc false
+  def admit_retry(project, parent_id, command, replay_only \\ false) do
+    with true <- valid_id?(project) and is_boolean(replay_only),
+         {:ok, _} <- Ecto.UUID.cast(parent_id),
+         {:ok, _} <- Ecto.UUID.cast(command) do
+      transaction(fn ->
+        parent = get(project, parent_id) || Repo.rollback(:not_found)
+
+        case Repo.get_by(Delivery, task_id: parent.task_id, command_id: command) do
+          %Delivery{retry_review_id: review_id} = saved when is_binary(review_id) ->
+            case Repo.get(Step, review_id) do
+              %Step{delivery_id: ^parent_id} -> {:existing, saved}
+              _ -> Repo.rollback(:idempotency_conflict)
+            end
+
+          %Delivery{} ->
+            Repo.rollback(:idempotency_conflict)
+
+          nil ->
+            task = queued_task!(project, parent.task_id)
+            {:ok, source} = retry_source!(parent)
+
+            unless task.state == "blocked" and task.state_version == source.terminal.version,
+              do: Repo.rollback(:retry_unavailable)
+
+            if Boss.Deliveries.Queue.pending?(task.id), do: Repo.rollback(:task_queued)
+
+            if Repo.exists?(
+                 from r in Boss.Deliveries.Request,
+                   where: r.task_id == ^task.id and r.command_id == ^command
+               ),
+               do: Repo.rollback(:idempotency_conflict)
+
+            delivery =
+              admit_new!(
+                project,
+                task,
+                command,
+                parent.check_config,
+                parent.config_hash,
+                parent.reviewer,
+                replay_only,
+                source.review.id
+              )
+
+            {:new, delivery}
+        end
+      end)
+    else
+      _ -> {:error, :invalid_command}
+    end
+  end
+
+  defp retry_source!(parent) do
+    case Boss.Deliveries.Retry.parent(parent) do
+      {:ok, _} = result -> result
+      {:error, reason} -> Repo.rollback(reason)
     end
   end
 
@@ -156,7 +219,16 @@ defmodule Boss.Deliveries do
     ) || Repo.rollback(:not_found)
   end
 
-  defp admit_new!(project, task, command, config, hash, reviewer, replay_only) do
+  defp admit_new!(
+         project,
+         task,
+         command,
+         config,
+         hash,
+         reviewer,
+         replay_only,
+         retry_review_id \\ nil
+       ) do
     if replay_only or managed_busy?() or run_busy?() or
          not Boss.Deliveries.Autopilot.admission_allowed?(task.id, command),
        do: Repo.rollback(:busy)
@@ -193,6 +265,7 @@ defmodule Boss.Deliveries do
       admitted_version: task.state_version,
       task_version: task.state_version,
       command_id: command,
+      retry_review_id: retry_review_id,
       reviewer: reviewer,
       check_config: config,
       config_hash: hash
@@ -272,6 +345,17 @@ defmodule Boss.Deliveries do
                    value["git_common_dir"] == project.git_common_dir and
                    value["base_branch"] == project.base_branch and sha?(value["base_commit"]),
                  do: Repo.rollback(:invalid_intent)
+
+          if delivery.retry_review_id do
+            source =
+              case Boss.Deliveries.Retry.source(delivery) do
+                {:ok, source} -> source
+                {:error, reason} -> Repo.rollback(reason)
+              end
+
+            unless value["base_commit"] == source.parent.intent["base_commit"],
+              do: Repo.rollback(:invalid_intent)
+          end
 
           save!(delivery, [{field, value}])
 
@@ -482,12 +566,19 @@ defmodule Boss.Deliveries do
   end
 
   defp valid_next?(d, nil, "plan", 0, i),
-    do: d.status == "planning" and d.intent != %{} and i["workspace"] == d.intent
+    do:
+      d.status == "planning" and d.intent != %{} and i["workspace"] == d.intent and
+        (is_nil(d.retry_review_id) or i["source_review_id"] == d.retry_review_id)
 
   defp valid_next?(_, %Step{status: "running"}, _, _, _), do: false
 
-  defp valid_next?(_, %Step{kind: "plan", status: "finished", id: id}, "implement", 1, i),
-    do: i["plan_step_id"] == id
+  defp valid_next?(d, %Step{kind: "plan", status: "finished", id: id}, "implement", 1, i),
+    do: is_nil(d.retry_review_id) and i["plan_step_id"] == id
+
+  defp valid_next?(d, previous, kind, cycle, input)
+       when kind in ["retry_snapshot", "retry_check"] or
+              (kind == "implement" and cycle == 1),
+       do: Boss.Deliveries.Retry.valid_next?(d, previous, kind, cycle, input)
 
   defp valid_next?(
          _,
@@ -623,12 +714,22 @@ defmodule Boss.Deliveries do
   defp success_receipt?(%Step{kind: "publish", input: input}, r),
     do: r["candidate_commit"] == input["intent"]["candidate_commit"]
 
+  defp success_receipt?(%Step{kind: "retry_snapshot", input: input}, r),
+    do: Boss.Deliveries.Retry.snapshot_receipt?(input, r)
+
+  defp success_receipt?(%Step{kind: "retry_check", input: input}, r),
+    do:
+      process_passed?(r) and r["candidate_commit"] == input["candidate_commit"] and
+        r["output_complete"] == true and hash?(r["output_hash"])
+
+  defp success_receipt?(%Step{kind: "plan"} = step, r),
+    do:
+      process_passed?(r) and valid_plan?(r["report"]) and
+        Boss.Deliveries.Retry.preserved_plan?(step.delivery_id, r["report"])
+
   defp success_receipt?(%Step{kind: kind}, r) do
     process_passed?(r) and
       case kind do
-        "plan" ->
-          valid_plan?(r["report"])
-
         "review" ->
           match?({:ok, _}, Boss.Reviews.Verdict.decode(JSON.encode!(r["report"])))
 

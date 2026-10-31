@@ -74,6 +74,7 @@ defmodule Boss.Deliveries.Worker do
 
     successful!(plan_step)
     {previous, feedback} = retry_seed(delivery, project, plan_step, source)
+    failures = retry_failures(delivery, source)
 
     cycle(
       delivery,
@@ -84,7 +85,7 @@ defmodule Boss.Deliveries.Worker do
       1,
       previous,
       feedback,
-      MapSet.new()
+      failures
     )
   end
 
@@ -115,6 +116,15 @@ defmodule Boss.Deliveries.Worker do
     })
   end
 
+  defp retry_failures(_, nil), do: MapSet.new()
+
+  defp retry_failures(delivery, source) do
+    sha = source.review.input["candidate_commit"]
+    tree = ok!(Workspace.git(source.parent.intent["repo_path"], ["rev-parse", "#{sha}^{tree}"]))
+    findings = source.review.receipt["report"]["issues"]
+    MapSet.new([Protocol.digest([tree, delivery.config_hash, normalize_feedback(findings)])])
+  end
+
   defp retry_seed(_, _, _, nil), do: {nil, nil}
 
   defp retry_seed(delivery, project, plan, source) do
@@ -139,9 +149,7 @@ defmodule Boss.Deliveries.Worker do
         },
         fn ->
           continue!()
-          ok!(Workspace.prepare(seed))
-          candidate = ok!(Candidate.plan(seed, check_id))
-          saved = ok!(Candidate.prepare(candidate))
+          {candidate, saved} = prepare_retry_snapshot(seed, check_id, source_sha)
 
           {%{
              "status" => "finished",
@@ -194,6 +202,35 @@ defmodule Boss.Deliveries.Worker do
        "check_receipt" => check.receipt,
        "check_output" => output
      }}
+  end
+
+  @doc false
+  def prepare_retry_snapshot(seed, check_id, source_sha) do
+    ok!(Workspace.prepare(seed))
+    ok!(Candidate.verify_tree(seed["path"], source_sha))
+    candidate = ok!(Candidate.plan(seed, check_id))
+    saved = ok!(Candidate.prepare(candidate))
+
+    parents =
+      ok!(
+        Workspace.git(candidate["path"], [
+          "rev-list",
+          "--parents",
+          "-n",
+          "1",
+          saved.candidate_commit
+        ])
+      )
+
+    source_tree = ok!(Workspace.git(candidate["path"], ["rev-parse", "#{source_sha}^{tree}"]))
+
+    snapshot_tree =
+      ok!(Workspace.git(candidate["path"], ["rev-parse", "#{saved.candidate_commit}^{tree}"]))
+
+    unless parents == "#{saved.candidate_commit} #{source_sha}" and source_tree == snapshot_tree,
+      do: throw({:halt, :candidate_changed})
+
+    {candidate, saved}
   end
 
   defp retry_input(input, delivery) do

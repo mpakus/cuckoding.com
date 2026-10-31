@@ -289,6 +289,7 @@ defmodule Boss.DeliveryWorkerTest do
     assert length(Enum.filter(calls(ctx), &(&1["kind"] == "implement"))) == 3
   end
 
+  @tag timeout: 120_000
   test "explicit retry retains rejected content and review with fresh plan and check output",
        ctx do
     manager = start_manager(ctx.repo)
@@ -300,7 +301,7 @@ defmodule Boss.DeliveryWorkerTest do
     System.delete_env("BOSS_DELIVERY_MODE")
 
     {:ok, retry} = retry(ctx, manager, parent.id)
-    saved = await_delivery(ctx, retry.id)
+    saved = await_retry(ctx, retry.id)
     steps = Deliveries.steps(saved.id)
     assert saved.status == "ready_to_merge", inspect({saved, steps})
     assert saved.cycle == 1 and saved.retry_review_id == old_review.id
@@ -335,26 +336,69 @@ defmodule Boss.DeliveryWorkerTest do
     assert hd(retry_calls)["previous_candidate_commit"] == old_sha
     assert Enum.at(retry_calls, 1)["source_review_id"] == old_review.id
     assert File.read!(Path.join(ctx.source, "result.txt")) == "base"
+    count = length(calls(ctx))
+    :ok = stop_supervised(Manager)
+    :ok = stop_supervised(Repo)
+    repo = start_repo(ctx.opts)
+    Repo.put_dynamic_repo(repo)
+    manager = start_manager(repo)
+
+    assert {:ok, ^saved} =
+             Boss.Deliveries.Retry.start(ctx.project.id, parent.id, saved.command_id, manager)
+
+    assert {:ok, _} = Boss.Deliveries.Retry.source(saved)
+    assert length(calls(ctx)) == count
   end
 
+  test "retry snapshot refuses a dirty or advanced seed before capture", ctx do
+    for kind <- [:dirty, :advanced] do
+      {:ok, seed} = Boss.Agents.Workspace.plan(ctx.project, Ecto.UUID.generate())
+      seed = Map.new(seed, fn {key, value} -> {to_string(key), value} end)
+      {:ok, _} = Boss.Agents.Workspace.prepare(seed)
+      File.write!(Path.join(seed["path"], "result.txt"), "unexpected seed change")
+
+      if kind == :advanced do
+        {:ok, _} = Boss.Agents.Workspace.git(seed["path"], ["add", "result.txt"])
+
+        {:ok, _} =
+          Boss.Agents.Workspace.git(seed["path"], ["commit", "-m", "unexpected seed advance"])
+      end
+
+      check_id = Ecto.UUID.generate()
+
+      assert catch_throw(
+               Boss.Deliveries.Worker.prepare_retry_snapshot(seed, check_id, seed["base_commit"])
+             ) ==
+               {:halt, :candidate_changed}
+
+      assert {:error, {:git_exit, 1}} =
+               Boss.Agents.Workspace.git(
+                 ctx.source,
+                 ["show-ref", "--verify", "--quiet", "refs/boss/checks/#{check_id}"]
+               )
+    end
+  end
+
+  @tag timeout: 120_000
   test "retry plan cannot weaken the original accepted criteria before implementation", ctx do
     manager = start_manager(ctx.repo)
     parent = rejected_delivery(ctx, manager)
     System.put_env("BOSS_DELIVERY_MODE", "retry_plan_changed")
     {:ok, retry} = retry(ctx, manager, parent.id)
-    saved = await_delivery(ctx, retry.id)
+    saved = await_retry(ctx, retry.id)
     assert saved.status == "failed", inspect(saved)
     assert Enum.map(Deliveries.steps(saved.id), & &1.kind) == ~w(plan)
     assert Enum.map(Enum.drop(calls(ctx), 7), & &1["kind"]) == ~w(plan)
     assert_no_raw(Deliveries.steps(saved.id))
   end
 
+  @tag timeout: 120_000
   test "incomplete retry check output halts before a paid implementation", ctx do
     manager = start_manager(ctx.repo)
     parent = rejected_delivery(ctx, manager)
     System.put_env("BOSS_DELIVERY_MODE", "check_invalid_utf8")
     {:ok, retry} = retry(ctx, manager, parent.id)
-    saved = await_delivery(ctx, retry.id)
+    saved = await_retry(ctx, retry.id)
     assert saved.status == "failed", inspect(saved)
 
     assert Enum.map(Deliveries.steps(saved.id), & &1.kind) ==
@@ -364,17 +408,32 @@ defmodule Boss.DeliveryWorkerTest do
     assert_no_raw(Deliveries.steps(saved.id))
   end
 
+  @tag timeout: 120_000
   test "an explicit retry has at most three implementation cycles", ctx do
     manager = start_manager(ctx.repo)
     parent = rejected_delivery(ctx, manager)
+    System.put_env("BOSS_DELIVERY_MODE", "retry_reject_always")
     {:ok, retry} = retry(ctx, manager, parent.id)
-    saved = await_delivery(ctx, retry.id)
+    saved = await_retry(ctx, retry.id)
     assert saved.status == "blocked" and saved.cycle == 3
     assert saved.reason =~ "budget"
     retry_calls = Enum.drop(calls(ctx), 7)
     assert Enum.count(retry_calls, &(&1["kind"] == "implement")) == 3
     assert Enum.count(retry_calls, &(&1["kind"] == "review")) == 3
     assert length(Deliveries.steps(saved.id)) == 15
+  end
+
+  @tag timeout: 120_000
+  test "an unchanged retry rejection starts no second automatic fix", ctx do
+    manager = start_manager(ctx.repo)
+    parent = rejected_delivery(ctx, manager)
+    System.put_env("BOSS_DELIVERY_MODE", "retry_unchanged")
+    {:ok, retry} = retry(ctx, manager, parent.id)
+    saved = await_retry(ctx, retry.id)
+    assert saved.status == "blocked" and saved.cycle == 1
+    assert saved.reason =~ "same failure"
+    assert length(Deliveries.steps(saved.id)) == 7
+    assert Enum.map(Enum.drop(calls(ctx), 7), & &1["kind"]) == ~w(plan implement review)
   end
 
   test "repeated complete check failure stops on the unchanged tree despite fresh commit IDs",
@@ -484,7 +543,7 @@ defmodule Boss.DeliveryWorkerTest do
   defp rejected_delivery(ctx, manager) do
     System.put_env("BOSS_DELIVERY_MODE", "reject_always")
     {:ok, run} = start(ctx, manager)
-    saved = await_delivery(ctx, run.id)
+    saved = await_retry(ctx, run.id)
     assert saved.status == "blocked" and saved.cycle == 3
     saved
   end
@@ -539,6 +598,26 @@ defmodule Boss.DeliveryWorkerTest do
   defp await_delivery(ctx, id) do
     eventually(fn -> not Deliveries.active?(Deliveries.get(ctx.project.id, id)) end)
     Deliveries.get(ctx.project.id, id)
+  end
+
+  # Retry fixtures run two complete workflows; bound each owned stage's progress.
+  defp await_retry(ctx, id, previous_number \\ 0) do
+    eventually(fn ->
+      delivery = Deliveries.get(ctx.project.id, id)
+
+      not Deliveries.active?(delivery) or
+        Enum.any?(Deliveries.steps(id), &(&1.number > previous_number))
+    end)
+
+    delivery = Deliveries.get(ctx.project.id, id)
+
+    if Deliveries.active?(delivery) do
+      number = Deliveries.steps(id) |> List.last() |> Map.fetch!(:number)
+      assert number in 1..20
+      await_retry(ctx, id, number)
+    else
+      delivery
+    end
   end
 
   defp eventually(predicate, left \\ 1500)

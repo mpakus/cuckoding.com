@@ -57,7 +57,12 @@ if kind == "implement":
         assert check["output_complete"] is True and len(check["output_hash"]) == 64
         assert check["stdout_bytes"] > 0 and check["stderr_bytes"] > 0
     Path("first-only.txt").write_text("retained first attempt\n")
-    contents = "unchanged" if mode in ("repeated", "check_repeated") else f"candidate-{cycle}"
+    if mode == "retry_unchanged":
+        contents = Path("result.txt").read_text().rstrip("\n")
+    elif mode == "retry_reject_always":
+        contents = f"retry-candidate-{cycle}"
+    else:
+        contents = "unchanged" if mode in ("repeated", "check_repeated") else f"candidate-{cycle}"
     Path("result.txt").write_text(contents + "\n")
 else:
     assert args[args.index("--sandbox") + 1] == "read-only"
@@ -101,7 +106,7 @@ else:
                 while not (root / "integration-review-release").exists():
                     time.sleep(0.05)
         first = Path("result.txt").read_text() == "candidate-1\n"
-        reject = mode in ("reject_always", "repeated") or (mode == "reject_once" and first)
+        reject = mode in ("reject_always", "repeated", "retry_unchanged", "retry_reject_always") or (mode == "reject_once" and first)
         unclear = mode == "needs_spec"
         criterion = "Another criterion" if mode == "coverage" else "Create result.txt"
         report = {

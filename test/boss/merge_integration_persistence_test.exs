@@ -22,7 +22,8 @@ defmodule Boss.MergeIntegrationPersistenceTest do
     {20_261_027_040_000, Boss.Repo.Migrations.AddWorkflowQueue},
     {20_261_027_050_000, Boss.Repo.Migrations.AddMergeIntegrationEvidence},
     {20_261_027_060_000, Boss.Repo.Migrations.AddDeliveryScheduling},
-    {20_261_027_070_000, Boss.Repo.Migrations.AddAutopilot}
+    {20_261_027_070_000, Boss.Repo.Migrations.AddAutopilot},
+    {20_261_031_220_000, Boss.Repo.Migrations.AddReviewRetries}
   ]
 
   test "upgrade preserves legacy approval and publication; durable merge intent forbids downgrade and restart replay" do
@@ -247,11 +248,12 @@ defmodule Boss.MergeIntegrationPersistenceTest do
     repo = start_supervised!({Repo, opts})
     Repo.put_dynamic_repo(repo)
     Ecto.Migrator.run(Repo, @migrations, :up, to: version, log: false)
-    # Current admission reads scheduling and Autopilot; install those independent
+    # Current admission reads scheduling, Autopilot and retry metadata; install those independent
     # migrations while retaining the old merge schema exercised by this fixture.
     for {version, module} <- [
           {20_261_027_060_000, Boss.Repo.Migrations.AddDeliveryScheduling},
-          {20_261_027_070_000, Boss.Repo.Migrations.AddAutopilot}
+          {20_261_027_070_000, Boss.Repo.Migrations.AddAutopilot},
+          {20_261_031_220_000, Boss.Repo.Migrations.AddReviewRetries}
         ],
         do: Ecto.Migrator.up(Repo, version, module, log: false)
 

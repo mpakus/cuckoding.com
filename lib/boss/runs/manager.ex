@@ -83,6 +83,14 @@ defmodule Boss.Runs.Manager do
         state
       )
 
+  def handle_call({:delivery_retry, project, parent, command}, _from, state),
+    do:
+      launch(
+        Deliveries.admit_retry(project, parent, command, managed_locked?(state)),
+        state.delivery_worker,
+        state
+      )
+
   def handle_call({:scheduling_set, version, capacity}, _from, state) do
     result = Scheduling.update(version, capacity, map_size(state.active))
     queue_reply(result, state)

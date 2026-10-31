@@ -514,3 +514,16 @@ The final candidate03e93ae0 passed saved checks, but independent review rejected
 four of14 criteria. Task remains Blocked; no publication/postchecks/Done and no
 Backlog admission. Preserve the retained workspaces and unchanged targetmain;
 another paid workflow needs a new explicit Start, not an operator retry.
+
+### Explicit retry after a rejected review
+
+An owner-authorized retry creates a new delivery UUID pinned to the exact rejected
+review and its committed terminal task event. Keep the original specification,
+base, checks, reviewer and acceptance strings. A real new plan receives the old
+plan/report and full original-base diff; fresh retained-candidate snapshot/check
+stages supply complete transient output before fixes. Implementation starts from
+that verified tree. Preserve old rows/workspaces and the three-cycle/twenty-stage
+limits; an unchanged repeated failure halts without another automatic fix.
+No approval is inherited. The same exact-SHA integration/postcheck gates still own
+Done and subsequent Backlog admission. Current implementation has fixture/SQL and
+private-copy migration evidence; full suite/package/live retry remain pending.

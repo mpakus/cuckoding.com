@@ -18,7 +18,8 @@ defmodule Boss.DeliveryReviewerPersistenceTest do
     {20_261_027_040_000, Boss.Repo.Migrations.AddWorkflowQueue},
     {20_261_027_050_000, Boss.Repo.Migrations.AddMergeIntegrationEvidence},
     {20_261_027_060_000, Boss.Repo.Migrations.AddDeliveryScheduling},
-    {20_261_027_070_000, Boss.Repo.Migrations.AddAutopilot}
+    {20_261_027_070_000, Boss.Repo.Migrations.AddAutopilot},
+    {20_261_031_220_000, Boss.Repo.Migrations.AddReviewRetries}
   ]
 
   test "migration preserves Codex history and pinned Claude request survives restart" do
@@ -104,7 +105,7 @@ defmodule Boss.DeliveryReviewerPersistenceTest do
     assert Tasks.get_task!(task.id).state == "planning"
 
     assert_raise RuntimeError, "Refusing to discard Claude reviewer history", fn ->
-      Ecto.Migrator.run(Repo, migrations, :down, to: @version, log: false)
+      Ecto.Migrator.down(Repo, @version, Boss.Repo.Migrations.PinDeliveryReviewer, log: false)
     end
 
     assert Deliveries.get(project.id, saved.id).reviewer == "claude"

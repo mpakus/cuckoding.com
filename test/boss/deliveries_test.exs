@@ -5,6 +5,113 @@ defmodule Boss.DeliveriesTest do
   @candidate String.duplicate("b", 40)
   @hash String.duplicate("c", 64)
 
+  test "explicit review retry pins source and replays before changed readiness", c do
+    {parent, plan, check, rejected} = rejected(c)
+    command = Ecto.UUID.generate()
+    assert {:ok, {:new, child}} = Deliveries.admit_retry(c.project.id, parent.id, command)
+    assert child.retry_review_id == rejected.id
+    assert child.spec_revision_id == parent.spec_revision_id
+    assert child.check_config == parent.check_config
+    assert child.reviewer == parent.reviewer
+    assert Deliveries.steps(child.id) == []
+    assert {:ok, source} = Boss.Deliveries.Retry.source(child)
+    assert source.parent == parent
+    assert source.plan == %{plan | project_id: nil}
+    assert source.check == %{check | project_id: nil}
+    assert source.review == %{rejected | project_id: nil}
+
+    assert {:ok, {:existing, ^child}} =
+             Deliveries.admit_retry(c.project.id, parent.id, command, true)
+
+    assert {:error, :idempotency_conflict} =
+             Deliveries.admit(c.project.id, c.task.id, command, "true")
+
+    assert {:error, :retry_unavailable} =
+             Deliveries.admit_retry(c.project.id, parent.id, Ecto.UUID.generate())
+
+    assert {:error, :not_found} =
+             Deliveries.admit_retry(c.project.id + 1, parent.id, Ecto.UUID.generate())
+
+    assert Deliveries.get(c.project.id, parent.id) == parent
+
+    assert {:error, _} =
+             Repo.query("UPDATE deliveries SET retry_review_id=NULL WHERE id=?", [child.id])
+
+    assert {:ok, cancelled} = Deliveries.complete(child.id, "cancelled")
+
+    assert {:ok, {:existing, ^cancelled}} =
+             Deliveries.admit_retry(c.project.id, parent.id, command)
+  end
+
+  test "review retry cannot skip fresh snapshot and checks or change old criteria", c do
+    {parent, _plan, _check, _review} = rejected(c)
+    {:ok, {:new, child}} = Deliveries.admit_retry(c.project.id, parent.id, Ecto.UUID.generate())
+    intent = Map.put(parent.intent, "run_id", child.id)
+    changed_base = Map.put(intent, "base_commit", @candidate)
+    assert {:error, :invalid_intent} = Deliveries.set_intent(child.id, changed_base)
+
+    assert {:error, _} =
+             Repo.query("UPDATE deliveries SET intent=? WHERE id=?", [
+               JSON.encode!(changed_base),
+               child.id
+             ])
+
+    {:ok, child} = Deliveries.set_intent(child.id, intent)
+
+    {:ok, plan} =
+      Deliveries.begin_step(child.id, "plan", 0, %{
+        "workspace" => intent,
+        "source_review_id" => child.retry_review_id
+      })
+
+    weakened = %{
+      "summary" => "New plan",
+      "steps" => ["Implement"],
+      "acceptance" => ["Weaker criterion"]
+    }
+
+    assert {:error, :invalid_receipt} =
+             Deliveries.finish_step(plan.id, process_receipt(%{"report" => weakened}))
+
+    assert {:error, _} =
+             Repo.query(
+               "UPDATE delivery_steps SET status='finished',receipt=? WHERE id=?",
+               [JSON.encode!(process_receipt(%{"report" => weakened})), plan.id]
+             )
+
+    report = %{
+      "summary" => "Fix retained findings",
+      "steps" => ["Implement"],
+      "acceptance" => ["Saved criterion"]
+    }
+
+    {:ok, plan} = Deliveries.finish_step(plan.id, process_receipt(%{"report" => report}))
+
+    assert {:error, :invalid_step} =
+             Deliveries.begin_step(child.id, "implement", 1, %{"plan_step_id" => plan.id})
+
+    for cycle <- 0..3 do
+      assert {:error, _} = raw_stage(child, "implement", %{"plan_step_id" => plan.id}, cycle)
+    end
+
+    assert {:error, :missing_evidence} = Deliveries.complete(child.id, "ready_to_merge")
+  end
+
+  test "ordinary start UUID cannot be reinterpreted as a review retry", c do
+    {parent, _, _, _} = rejected(c)
+    command = Ecto.UUID.generate()
+    {:ok, {:new, ordinary}} = Deliveries.admit(c.project.id, c.task.id, command, "true")
+
+    assert {:error, :idempotency_conflict} =
+             Deliveries.admit_retry(c.project.id, parent.id, command)
+
+    assert {:error, _} =
+             Repo.query("UPDATE deliveries SET retry_review_id=? WHERE id=?", [
+               "invalid",
+               ordinary.id
+             ])
+  end
+
   setup do
     project =
       Repo.insert!(%Projects.Project{
@@ -654,6 +761,36 @@ defmodule Boss.DeliveriesTest do
     {d, plan, check, original}
   end
 
+  defp rejected(c) do
+    {d, plan, check} = checked(c)
+
+    rejected =
+      stage(d, "review", 1, review_input(d, plan, check), %{
+        "candidate_commit" => @candidate,
+        "report" => %{
+          "verdict" => "changes_requested",
+          "summary" => "Needs correction",
+          "acceptance" => [
+            %{
+              "criterion" => "Saved criterion",
+              "status" => "failed",
+              "evidence" => "Still missing"
+            }
+          ],
+          "issues" => [
+            %{"criterion" => "Saved criterion", "message" => "Fix the missing behavior"}
+          ]
+        }
+      })
+
+    {:ok, d} = Deliveries.complete(d.id, "blocked", "Review repair budget exhausted")
+
+    assert {:ok, _} = Boss.Deliveries.Retry.parent(d),
+           inspect({d, plan, check, rejected}, limit: :infinity)
+
+    {d, plan, check, rejected}
+  end
+
   defp merge_input(d, plan, check, original),
     do: %{
       "original_review_step_id" => original.id,
@@ -735,12 +872,12 @@ defmodule Boss.DeliveriesTest do
     }
   end
 
-  defp raw_stage(d, kind, input) do
+  defp raw_stage(d, kind, input, cycle \\ nil) do
     number = length(Deliveries.steps(d.id)) + 1
 
     Repo.query(
       "INSERT INTO delivery_steps(id,delivery_id,number,kind,cycle,input,inserted_at,updated_at) VALUES(?,?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
-      [Ecto.UUID.generate(), d.id, number, kind, d.cycle, JSON.encode!(input)]
+      [Ecto.UUID.generate(), d.id, number, kind, cycle || d.cycle, JSON.encode!(input)]
     )
   end
 
@@ -835,6 +972,12 @@ defmodule Boss.DeliveriesTest do
   end
 
   defp stage(d, kind, cycle, input, receipt) do
+    input =
+      Map.merge(
+        %{"spec_revision_id" => d.spec_revision_id, "config_hash" => d.config_hash},
+        input
+      )
+
     assert {:ok, step} = Deliveries.begin_step(d.id, kind, cycle, input)
 
     assert {:ok, step} =

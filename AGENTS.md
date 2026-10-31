@@ -218,6 +218,12 @@
   requires full criterion coverage; Done requires explicit exact-SHA publication,
   passing postchecks and verified retained checkout. Never accept caller-selected
   state or insert completed delivery/stage rows to bypass these gates.
+- Explicit review retries create a new delivery/UUID from an immutable rejected
+  review. Preserve original spec/base/config/reviewer and exact acceptance strings;
+  revalidate the retained candidate. Pin the parent's committed terminal task event
+  (terminal delivery.task_version is the preceding version). Fresh cycle0 snapshot
+  and check must supply complete transient output before fixes; never manufacture
+  old output or inherit approval. Keep three cycles and twenty total stages.
 - Queue only explicit saved workflow requests: pin revision/version/checks/reviewer
   and UUID before effects, claim and link a delivery in one immediate transaction.
   Replay/cancellation must precede dispatch; never silently turn direct Start into
