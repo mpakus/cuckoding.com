@@ -1,0 +1,43 @@
+{
+  "delivery_id": "5f68c795-bba2-48b6-a572-0328b7ab9785",
+  "status": "failed",
+  "cycle": 3,
+  "task_id": 1,
+  "task_version": 40,
+  "cleanup": "group_empty",
+  "candidate": "7e84056d48e1912e561a5d2b415a8ec3ed568c40",
+  "last_check_id": "42021dd2-d05c-4bc1-bd04-9a41938231f3",
+  "last_check_exit": 0,
+  "final_review_present": false,
+  "original_base_diff_utf8_bytes": 4653233,
+  "vendored_files": 437,
+  "integration_submitted": false,
+  "autopilot_started": false,
+  "remaining_new_tasks": 45,
+  "original_main": "690c5251fbdba3b93731c92dd88b0aa60a21d994",
+  "offline_candidate_is_approval": false,
+  "offline_draft": {
+    "commit": "c079887c3a0b15f1ef0fbc7e40faeec322eaedc8",
+    "branch": "codex/task1-final-fixes",
+    "full_diff_utf8_bytes": 95515,
+    "tracked_vendor_files": 0,
+    "spec_source_diff_empty": true,
+    "application_tests_passed": 46,
+    "seed": 607996,
+    "fresh_checkout_tests_passed": 46,
+    "format_passed": true,
+    "private_postgresql_receipt_probe": {
+      "version": "18.1",
+      "cancelled_jobs": 1,
+      "executor_calls": 1,
+      "sanitized": true,
+      "repo_restart_retained_receipt": true,
+      "migration_roundtrip": "up/down/up",
+      "scratch_cleaned": true
+    },
+    "independent_source_review": "passed",
+    "is_managed_approval": false,
+    "published_to_target": false,
+    "retry_api_accepts_external_candidate": false
+  }
+}

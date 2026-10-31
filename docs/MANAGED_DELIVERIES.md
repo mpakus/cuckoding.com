@@ -6,6 +6,10 @@ It derives the saved checks/reviewer/spec from the latest rejected review; calle
 cannot substitute evidence or a base commit. This creates a new attempt and uses
 the configured provider account, so it requires fresh explicit authorization.
 Ordinary **Start workflow** retains its existing fresh-start behavior.
+Only a current Blocked task with its final rejected review qualifies for this
+API. A Failed delivery ending before its final review is not a retry source.
+An operator-prepared branch cannot be promoted into saved check/review evidence;
+there is no external-candidate resume interface in this increment.
 
 The retry pins the parent's final committed task event, revalidates its retained
 candidate and preserves every original acceptance string. A genuine new plan and

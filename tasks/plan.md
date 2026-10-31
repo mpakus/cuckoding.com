@@ -527,3 +527,18 @@ limits; an unchanged repeated failure halts without another automatic fix.
 No approval is inherited. The same exact-SHA integration/postcheck gates still own
 Done and subsequent Backlog admission. Current implementation has fixture/SQL and
 private-copy migration evidence; full suite/package/live retry remain pending.
+
+## Task1 retry acceptance outcome — 2026-10-31
+
+The second authorized workflow ended Failed before final review: the last model
+cycle vendored dependencies and exceeded the unchanged complete-review input
+limit. Its passing check does not authorize publication. A separately reviewed
+compact repair draft c079887 passed46 tests, fresh-checkout dependency setup and
+a private real-PostgreSQL Oban receipt/restart/migration probe. It remains an
+external candidate, not managed approval. Task1Failed/version40 and45New remain;
+no Backlog batch or additional provider workflow was started.
+
+A fresh workflow must produce its own pinned plan/check/review/publication and
+postchecks. Current review retry only admits Blocked with a final rejected review;
+it cannot resume Failed-before-review or promote an arbitrary external branch.
+Preserve the tested draft and old history while choosing that explicit next path.

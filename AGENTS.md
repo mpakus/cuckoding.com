@@ -282,6 +282,10 @@
   worktree at the rejected candidate; review the full original-base diff. Maximum
   three cycles; repeated unchanged failure, invalid input, Stop or unknown cleanup
   halts. Do not persist raw output or truncate prompts to manufacture approval.
+- Fresh check worktrees must install actual locked dependencies through the explicit
+  repository check command; never vendor dependencies or exclude the real adapter
+  from tests to manufacture a passing check. Oversized review input remains a
+  closed gate; keep the full original-base diff within bounds without truncation.
 - Give planning and implementation the saved check configuration before execution.
   Preserve candidate-change diagnostics through the final failure and display old
   failed-stage receipts without rewriting them. Exit zero with changed files/HEAD/ref

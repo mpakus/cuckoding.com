@@ -811,6 +811,11 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 - [x] Verify retained candidate, unchanged criteria and fresh-output finite worker path.
   Full602passed/5legacyfixturefailures; repaired5/5rerunpassed,1existingOSskip.
 - [x] Review/build/smoke clean388c5f2; unsigned local artifact retained.
-- [ ] Preserve data and update idle4001 with verified package.
-- [ ] Execute one new bounded retry; verify actual Ready/publication/postchecks/Done.
+- [x] Preserve data and update free4001 with verified package (oldPID already absent).
+- [x] Admit exactly one retry5f68c795; exact14criteria and fresh same-tree snapshot/check verified.
+- [x] Record terminal Failed/cycle3, passing last check and oversized diff; no final review.
+- [x] Prepare compact offline candidate with real TLS/IPv6 tests, honest Oban
+  cancellation, standard migration and redirect/IP security fixes; independent review passed.
+  Combined46tests pass; private real-PostgreSQL receipt/restart/migration probe passed.
+- [ ] Obtain new explicit bounded workflow authorization; verify actual Ready/Done.
 - [ ] Only after Done, admit remaining current Backlog and observe Autopilot progress.
