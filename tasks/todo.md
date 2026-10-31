@@ -765,3 +765,12 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
   and link root-check/generated-artifact requirements. Original artifacts unchanged.
 - [ ] Fresh user-authorized workflow after correct project bootstrap; current
   instance still has46 New tasks and no deliveries. No automatic paid retry.
+
+## Autopilot — confirmed Start after an uncertain reply
+
+- [x] Reproduce lost Start reply followed by matching saved batch and disabled Stop.
+- [x] Reconcile only the exact committed Start and drain its pending refresh.
+- [x] Verify stale/mismatched reads remain uncertain and no duplicate dispatch.
+- [x] Focused15 tests, independent review, combined168 tests and real browser
+  lost-reply/Pause/Resume/Stop acceptance; exactly one fake worker, zero model calls.
+- [ ] Build/smoke the reviewed local package; merge locally and clean owned branches.

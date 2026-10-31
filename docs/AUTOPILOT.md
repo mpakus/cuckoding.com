@@ -36,6 +36,11 @@ with plan, reviewer findings and saved stages. The board refreshes as tasks move
 Active and paused batches reopen their controls after a browser reload. Closing
 the browser does not stop the workers.
 
+If the Start reply cannot be confirmed, BOSS keeps the original request and its
+inputs. A current read of that exact saved batch confirms admission and restores
+the controls for its saved status without launching another workflow. Unrelated or stale reads keep the
+request uncertain; retry uses its saved inputs and UUID.
+
 - **Pause Autopilot** lets the admitted workflow finish through review approval;
   it prevents the next task or integration from starting. An integration already
   admitted may finish. Pause does not suspend a CLI in the middle of its work.

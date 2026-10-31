@@ -226,6 +226,9 @@
   and preserve files/ref tips. A clean checkout can move to a new observer branch
   at the same commit; keep it off the target while Autopilot integrates. A blocked
   batch needs a fresh explicit Start, never an automatic paid retry.
+  Reconcile an uncertain Start only with its exact committed batch and pinned
+  inputs. Drain a refresh received during the action; stale or unrelated reads
+  cannot unlock it. An active confirmed batch must restore Stop without dispatching again.
 - Persist global managed capacity 1–3 (default two); compare settings versions and
   refuse shrink below actual owned workers until EXIT. Context, Manager and SQL
   must use the same saved capacity; manual execution and integration stay exclusive.

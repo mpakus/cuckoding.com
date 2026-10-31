@@ -480,3 +480,11 @@ without ignore rules; the current saved-check prompt and diagnostics already
 cover this refusal. Preserve the receipts and require a fresh explicit workflow.
 README now matches recorded secure-runtime packaging/signing evidence and links
 check-integrity setup. No new application change or provider acceptance claim.
+
+### Autopilot — lost Start reply and available Stop
+
+A lost admission reply must not leave Stop disabled after the exact committed batch
+is loaded. Reconcile UUID/project/tasks/check config/reviewer in the current read,
+then clear uncertainty and renew the next Start UUID. Preserve mismatched/null/
+stale reads and other uncertain actions. Drain refreshes held during the action;
+confirmation is read-only and never creates a second request or provider effect.
