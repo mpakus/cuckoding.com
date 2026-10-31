@@ -95,6 +95,9 @@
 - For an independent local build/run, preserve an occupied port's server and data
   unless its restart/backup is explicitly authorized. Use a free port and fresh
   private data; keep bootstrap tokens only in the owner's Terminal.
+- Tie local failure evidence to the serving port and data root. A legacy database's
+  failed attempts are not fresh-instance runs; a passing current preflight never
+  rewrites an earlier blocked batch or approves an old changed candidate.
 - Keep local tokens out of URLs and persistent logs. Preserve `same-origin`
   referrer policy: `no-referrer` made legitimate browser form POSTs send a null
   Origin. Continue rejecting foreign/null origins; do not weaken the allowlist.

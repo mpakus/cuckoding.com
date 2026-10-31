@@ -753,3 +753,15 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 - [x] Verify clean checkout, unchanged HEAD/tree/main, zero main holders and actual
   packaged `Integration.preflight/4 == :ok`; independent review approved repair.
   Historical blocked batches/receipts retained; next workflow needs a new Start.
+
+## Autopilot readiness follow-up — 2026-10-31
+
+- [x] Recheck port4001 HTTP200 and actual packaged integration preflight`:ok`;
+  observer branch stays clean and main remains free.
+- [x] Independently inspect legacy failed-stage receipts and retained candidates:
+  exit0 plus23/25 untracked build outputs is a correct candidate_changed refusal.
+  Current diagnostics/check input already address it; no source change required.
+- [x] Correct stale README package/OpenSSL status against retained release evidence
+  and link root-check/generated-artifact requirements. Original artifacts unchanged.
+- [ ] Fresh user-authorized workflow after correct project bootstrap; current
+  instance still has46 New tasks and no deliveries. No automatic paid retry.

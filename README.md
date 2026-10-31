@@ -13,10 +13,10 @@ review, explicit integration and postchecks before Done. Task source adoption
 and Done-only dependency readiness keep execution pinned to reviewed inputs.
 
 Release preparation: [0.1.0-rc.1 build, installation and acceptance](docs/RELEASE.md).
-The macOS candidate is under verification. Full remote regression passed, but
-packaging requires a corrected pinned OpenSSL runtime. Earlier signed5570 is held
-from distribution. Notarization, clean-machine/provider acceptance and Linux task
-execution remain separate gates. See [CHANGELOG.md](CHANGELOG.md).
+The macOS CI candidate passed full regression and packaging with pinned
+OpenSSL 3.5.9. Local Developer ID signing and packaged smoke also passed.
+Notarization, stapling/Gatekeeper, clean-machine, fresh provider acceptance and
+Linux task execution remain open gates. See [CHANGELOG.md](CHANGELOG.md).
 
 ## Run locally
 
@@ -202,6 +202,12 @@ Tasks run one at a time through fixes, review, integration and verified Done;
 unresolved failure stops the sequence. Watch the saved task list and board, or use
 Pause/Resume/Stop. Later imports are excluded. The target branch must not be checked
 out in your working folders. See [Autopilot](docs/AUTOPILOT.md) for recovery and limits.
+
+The saved check runs from the candidate's repository root. For a new project,
+prepare that root for the exact command and include appropriate generated-artifact
+ignore rules before verification. Tests must preserve source and test files;
+exit 0 alone cannot approve a changed candidate. See
+[check integrity and recovery](docs/MANAGED_DELIVERIES.md).
 
 Open a task, enter a trusted **Workflow check command**, select a reviewer, then choose **Start
 workflow**. BOSS saves a plan, implements in an isolated worktree, checks the

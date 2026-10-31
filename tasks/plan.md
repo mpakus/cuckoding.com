@@ -471,3 +471,12 @@ An explicitly authorized switch to a new observer branch at the same commit free
 main without moving its ref or changing files. The packaged integration preflight
 then returned `:ok`. A blocked batch requires a new user Start; recovery does not
 restart agents or change task receipts. Runbook: `docs/AUTOPILOT.md`.
+
+### Autopilot readiness follow-up — 2026-10-31
+
+Port4001 and packaged integration preflight remain healthy; no fresh workflow has
+started since the branch repair. Legacy failures came from candidate build output
+without ignore rules; the current saved-check prompt and diagnostics already
+cover this refusal. Preserve the receipts and require a fresh explicit workflow.
+README now matches recorded secure-runtime packaging/signing evidence and links
+check-integrity setup. No new application change or provider acceptance claim.
