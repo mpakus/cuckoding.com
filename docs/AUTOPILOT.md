@@ -112,3 +112,14 @@ restart only an explicitly authorized idle instance with a consistent private
 database backup and its original data directory. `bin/boss start_iex` keeps a
 local console attached without enabling distribution/RPC. Never capture its
 Terminal I/O, put tokens in URLs, or weaken browser authentication.
+
+The 2026-10-31 owner-authorized Task1 run reached a passing check on candidate
+`03e93ae0c0715d0d875b17d9a0057fd351376e0a`, then stopped Blocked at the
+three-cycle limit. Review returned `changes_requested`: independent egress
+enforcement, Oban resend prevention, production-adapter security regressions and
+broader IP property tests remained incomplete (10/14 criteria passed). Earlier
+check failures were missing Req in fresh check worktrees; the final test setup
+excludes Req from the test environment, so passing fake-transport tests do not
+establish production-adapter coverage. No result was integrated and the remaining
+45 New tasks were not admitted to Autopilot. This is failure-path evidence,
+not full Task1-to-Done or full-Backlog acceptance.

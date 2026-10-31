@@ -508,3 +508,9 @@ three-cycle bounds and all candidate/review/publication/postcheck receipts. Star
 the new batch only after task1Done. With browser token unavailable, the owner-local
 console admitted one workflow through the same public APIs/Manager; IAB observation
 still requires token entry. No provider/account substitution or direct state edits.
+
+Actual attemptc3bb4a6d completed three implementation/check cycles and one review.
+The final candidate03e93ae0 passed saved checks, but independent review rejected
+four of14 criteria. Task remains Blocked; no publication/postchecks/Done and no
+Backlog admission. Preserve the retained workspaces and unchanged targetmain;
+another paid workflow needs a new explicit Start, not an operator retry.

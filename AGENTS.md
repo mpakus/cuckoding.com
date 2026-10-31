@@ -109,6 +109,9 @@
   authorized idle-instance restart with consistent backup/original data. Local
   console operations use public Manager APIs and saved UUIDs; browser observation
   still requires authentication. Never capture Terminal I/O or enable RPC for it.
+  A console requester's terminal receipt is not worker completion. Check the
+  saved stage/review evidence; exhausted cycles and changes_requested keep the
+  task Blocked and its following Backlog gate closed even when checks passed.
 - Repository/specs paths come from the native folder chooser, never editable
   form paths or browser file-upload names. Keep the selection server-side and
   revalidate it on registration. Resolve relative specs against the selected

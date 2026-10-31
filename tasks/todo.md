@@ -796,7 +796,9 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
   Codex/mix test, no active/unknown work, free target main, Task1rev1/version12.
 - [x] Admit exactly one new Task1 workflow via owner-local public APIs after
   private backup/restart; HTTP authentication remains required for observation.
-- [ ] Verify passing checks and independent review tied to its exact candidate.
+- [x] Verify passing checks and independent review tied to candidate03e93ae0:
+  checkexit0/EOF/group_empty; review changes_requested (10passed/4failed).
 - [ ] Publish through existing integration, verify postchecks/retained checkout/Done.
 - [ ] Start the whole-current-Backlog Autopilot after Done and verify initial progress.
-- [ ] Record verified receipts, update docs and merge/clean only owned docs branch.
+- [x] Record terminal Blocked receipts and update independently reviewed docs.
+  Three-cycle budget exhausted before approval; publication/Backlog remain gated.
