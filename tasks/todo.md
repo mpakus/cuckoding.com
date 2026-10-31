@@ -806,8 +806,11 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 ## Explicit bounded review retry
 
 - [x] Owner authorizes one additional same-account, three-cycle Task1 attempt.
-- [ ] Verify immutable parent review/terminal-event admission, replay and SQL guards.
-- [ ] Verify retained candidate, unchanged criteria and fresh-output finite worker path.
-- [ ] Review/build/smoke, preserve data and update idle4001.
+- [x] Verify immutable parent review/terminal-event admission, replay and SQL guards.
+  Private actual-data-copy upgrade/down/up, refusal and committed restart/replay pass.
+- [x] Verify retained candidate, unchanged criteria and fresh-output finite worker path.
+  Full602passed/5legacyfixturefailures; repaired5/5rerunpassed,1existingOSskip.
+- [x] Review/build/smoke clean388c5f2; unsigned local artifact retained.
+- [ ] Preserve data and update idle4001 with verified package.
 - [ ] Execute one new bounded retry; verify actual Ready/publication/postchecks/Done.
 - [ ] Only after Done, admit remaining current Backlog and observe Autopilot progress.
