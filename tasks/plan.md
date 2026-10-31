@@ -488,3 +488,13 @@ is loaded. Reconcile UUID/project/tasks/check config/reviewer in the current rea
 then clear uncertainty and renew the next Start UUID. Preserve mismatched/null/
 stale reads and other uncertain actions. Drain refreshes held during the action;
 confirmation is read-only and never creates a second request or provider effect.
+
+
+### Packaged check startup — original host PATH
+
+The new owner-started workflow stopped before review because every host Mix check
+launched the bundled private erl and looked for a missing package boot file.
+Preserve the exact incoming PATH before the VM starts and restore it before BOSS
+starts tool discovery/workers. Verify via a fake host Mix->erl package regression
+and a fresh copy of the actual pinned candidate; never mutate its old evidence,
+change the selected toolchain, extend the retry budget or restart paid work.

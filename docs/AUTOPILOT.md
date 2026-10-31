@@ -58,6 +58,11 @@ do not gain automatic integration. Paused requests still reserve their tasks;
 unknown process cleanup remains a global admission barrier.
 Waiting or restarting does not clear it; see [recovery behavior](RECOVERY.md).
 
+Checks use the installed tools from the PATH that launched BOSS; the bundled
+runtime runs BOSS itself. The project still needs its own compatible toolchain.
+A corrected runner does not retry an old blocked batch: inspect its task details
+and explicitly start a fresh workflow. Previous failed receipts stay unchanged.
+
 Codex plans, implements and fixes; the selected Codex or Claude reviewer receives
 the saved evidence. These calls use configured local accounts and may incur
 charges. Development acceptance uses finite fake CLIs; it does not establish

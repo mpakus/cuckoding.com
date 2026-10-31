@@ -41,6 +41,10 @@
   `rtk proxy asdf exec mix ...` when Homebrew takes precedence in PATH.
   Application tests and the separate `spikes/` suites have different acceptance
   scopes; a passing experiment is not a production adapter.
+  A packaged VM must preserve the incoming host PATH before Erlang prepends its
+  private ERTS directory, restore it before tool discovery/worker startup and
+  consume the handoff marker. Child overrides must not inherit a stale snapshot.
+  Do not substitute the BOSS runtime for a project's selected CLI/toolchain.
 - Release candidates must bundle and verify native library closure, notices and
   build provenance; test the extracted archive with private fresh data. Keep
   distribution disabled for the local launcher. A local package/smoke is not

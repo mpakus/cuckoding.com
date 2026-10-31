@@ -349,3 +349,14 @@ bootstrap output without retaining that output. No task/model call was launched
 as part of packaging or startup. The previous server/data were left in place.
 See `.worklog/evidence/2026-10-29-local-build.json` for the sanitized snapshot;
 this is local-host evidence, not clean-machine or provider acceptance.
+
+
+### Host tools from a packaged BOSS
+
+Erlang prepends its private ERTS directory to the VM's PATH. The release captures
+the incoming host PATH before that happens; BOSS restores it before discovery
+and worker startup. This keeps a project's Mix/Elixir/erl on its selected host
+toolchain instead of resolving a descendant `erl` inside the application package.
+The packaged smoke includes a separate finite host-tool probe; the ordinary
+build-tool-free startup check remains unchanged. Real provider acceptance is
+still separate. See the dated worklog for verification and exact build identity.

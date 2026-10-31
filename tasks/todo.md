@@ -775,3 +775,14 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
   lost-reply/Pause/Resume/Stop acceptance; exactly one fake worker, zero model calls.
 - [x] Clean local package b816739 and unpacked smoke; user-approved4001 update
   preserves the database/project/46 tasks and starts no models. SQLite backup retained.
+
+
+## Packaged host toolchain PATH
+
+- [x] Match the new three-cycle check failure with a harmless packaged version probe:
+  exact207 stderr bytes/output hash, missing bundled bin/start.boot.
+- [x] Reproduce a host Mix->erl selection failure in the packaged smoke.
+- [x] Preserve exact launch PATH before VM startup, restore it before workers and
+  consume the private marker. Native29 tests and independent code review passed.
+- [ ] Verify packaged regression, actual saved candidate in a fresh private copy,
+  relevant combined suites and independent review before local merge/cleanup.
