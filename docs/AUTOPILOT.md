@@ -104,3 +104,11 @@ the stopped delivery and its evidence. Follow the new plan/check/review stages;
 Verify exact publication, postchecks and **Done**, then start a new Autopilot for
 the current Backlog. The task just completed is excluded from that snapshot.
 A terminal refusal stops this sequence; it does not authorize another fresh retry.
+
+For a lost or expired browser token, an existing local IEx console can issue
+`Boss.LocalAccess.new_token()`; enter its result directly in the unlock form.
+The token is one-use and expires after ten minutes. If no console is available,
+restart only an explicitly authorized idle instance with a consistent private
+database backup and its original data directory. `bin/boss start_iex` keeps a
+local console attached without enabling distribution/RPC. Never capture its
+Terminal I/O, put tokens in URLs, or weaken browser authentication.

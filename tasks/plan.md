@@ -505,5 +505,6 @@ change the selected toolchain, extend the retry budget or restart paid work.
 Owner explicitly authorizes a fresh task1 workflow through verified Done, followed
 by Autopilot for the current remaining Backlog. Keep saved Codex/mix test inputs,
 three-cycle bounds and all candidate/review/publication/postcheck receipts. Start
-the new batch only after task1Done. Current preflight is ready; IAB login awaits
-owner token entry. No automatic provider/account substitution or state edits.
+the new batch only after task1Done. With browser token unavailable, the owner-local
+console admitted one workflow through the same public APIs/Manager; IAB observation
+still requires token entry. No provider/account substitution or direct state edits.

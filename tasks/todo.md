@@ -794,7 +794,8 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 
 - [x] Explicit owner authorization and independent read-only preflight: saved
   Codex/mix test, no active/unknown work, free target main, Task1rev1/version12.
-- [ ] Connect the browser and admit exactly one new Task1 workflow.
+- [x] Admit exactly one new Task1 workflow via owner-local public APIs after
+  private backup/restart; HTTP authentication remains required for observation.
 - [ ] Verify passing checks and independent review tied to its exact candidate.
 - [ ] Publish through existing integration, verify postchecks/retained checkout/Done.
 - [ ] Start the whole-current-Backlog Autopilot after Done and verify initial progress.

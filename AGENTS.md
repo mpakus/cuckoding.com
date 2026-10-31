@@ -105,6 +105,10 @@
 - Keep local tokens out of URLs and persistent logs. Preserve `same-origin`
   referrer policy: `no-referrer` made legitimate browser form POSTs send a null
   Origin. Continue rejecting foreign/null origins; do not weaken the allowlist.
+- Token recovery uses the owner-local IEx `Boss.LocalAccess.new_token()` or an
+  authorized idle-instance restart with consistent backup/original data. Local
+  console operations use public Manager APIs and saved UUIDs; browser observation
+  still requires authentication. Never capture Terminal I/O or enable RPC for it.
 - Repository/specs paths come from the native folder chooser, never editable
   form paths or browser file-upload names. Keep the selection server-side and
   revalidate it on registration. Resolve relative specs against the selected
