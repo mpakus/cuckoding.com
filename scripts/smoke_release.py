@@ -79,6 +79,36 @@ def main(archive):
                                stderr=subprocess.DEVNULL, timeout=10)
         assert crash.returncode != 0, "Deliberate crash probe unexpectedly succeeded"
         assert not (cwd / "erl_crash.dump").exists(), "Release wrote a BEAM memory dump"
+        # A host CLI must find its own runtime, not the release's injected ERTS path.
+        host_binary = root / "host tools"
+        host_binary.mkdir()
+        for name, script in {
+            "mix": '#!/bin/sh\n[ "$1" = "test" ] || exit 64\nexec erl\n',
+            "erl": "#!/bin/sh\nprintf 'BOSS_HOST_ERL_OK\\n'\n",
+        }.items():
+            tool = host_binary / name
+            tool.write_text(script)
+            tool.chmod(0o700)
+        host_environment = dict(environment, PATH=f"{host_binary}{os.pathsep}{os.pathsep}{binary}{os.pathsep}",
+                                BOSS_DATA_DIR=str(root / "host-path-data"))
+        host_expression = (
+            "{:ok, _} = Application.ensure_all_started(:boss); "
+            "{receipt, output} = Boss.Deliveries.Worker.run_check("
+            f"{json.dumps(str(cwd))}, "
+            '%{"argv" => ["mix", "test"], "timeout_ms" => 5000, "output_limit" => 8192}, '
+            "fn -> :ok end); "
+            '%{"status" => "finished", "exit_code" => 0, "eof" => %{"stdout" => true, '
+            '"stderr" => true}, "cleanup" => "group_empty"} = receipt; '
+            '\"BOSS_HOST_ERL_OK\\n\" = output["stdout"]; '
+            f"true = System.get_env(\"PATH\") == {json.dumps(host_environment['PATH'])}; "
+            "nil = System.get_env(\"BOSS_HOST_PATH\"); "
+            f"{json.dumps(str(host_binary / 'erl'))} = System.find_executable(\"erl\"); "
+            "IO.puts(\"BOSS_SMOKE_HOST_PATH_OK\")"
+        )
+        host_probe = subprocess.run([executable, "eval", host_expression], cwd=cwd,
+                                    env=host_environment, stdout=subprocess.PIPE,
+                                    stderr=subprocess.STDOUT, text=True, timeout=30)
+        assert host_probe.returncode == 0 and "BOSS_SMOKE_HOST_PATH_OK" in host_probe.stdout, "Host CLI PATH probe failed"
         process = None
 
         def stop():
@@ -177,7 +207,7 @@ def main(archive):
                 assert database.execute("PRAGMA integrity_check").fetchone() == ("ok",)
                 assert database.execute("PRAGMA foreign_key_check").fetchall() == []
                 assert database.execute("SELECT count(*) FROM tasks").fetchone() == (1,)
-            print("Release smoke passed: unpack, bundled runtime/guardian, login/assets, persisted state, restart, graceful stop")
+            print("Release smoke passed: unpack, bundled runtime/guardian, host CLI PATH, login/assets, persisted state, restart, graceful stop")
         finally:
             if process is not None:
                 try:

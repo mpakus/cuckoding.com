@@ -4,6 +4,11 @@ defmodule Boss.Application do
 
   @impl true
   def start(_type, _args) do
+    if path = System.get_env("BOSS_HOST_PATH") do
+      System.put_env("PATH", path)
+      System.delete_env("BOSS_HOST_PATH")
+    end
+
     server? = Phoenix.Endpoint.server?(:boss, BossWeb.Endpoint)
 
     children = [
