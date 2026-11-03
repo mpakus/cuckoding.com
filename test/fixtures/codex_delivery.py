@@ -36,12 +36,23 @@ emit({"type": "turn.started"})
 emit({"type": "item.completed", "item": {"type": "agent_message", "text": "RAW_MODEL_SECRET_SENTINEL"}})
 print("RAW_AGENT_STDERR_SECRET_SENTINEL", file=sys.stderr, flush=True)
 
-if (mode == "autonomy_model_unavailable" and kind == "plan" and not data.get("resolution")) or \
+if mode == "autonomy_zero_error":
+    emit({"type": "error", "message": "RAW_MODEL_SECRET_SENTINEL failed with zero exit"})
+    sys.exit(0)
+if mode == "autonomy_malformed_wait":
+    print("{invalid", flush=True)
+    while True:
+        time.sleep(0.1)
+
+if (mode == "autonomy_persistent_sol" and model == "gpt-6.1-sol") or \
+   (mode == "autonomy_models_exhausted" and model in ("gpt-6.1-sol", "gpt-6-astra")) or \
+   (mode == "autonomy_model_unavailable" and kind == "plan" and not data.get("resolution")) or \
    (mode == "autonomy_resolver_unavailable" and kind == "resolve" and data["resolution_attempt"] == 1) or \
    (mode == "autonomy_review_unavailable" and kind == "review" and Path("result.txt").read_text() == "candidate-1\n"):
+    emit({"type": "error", "message": "RAW_MODEL_SECRET_SENTINEL unavailable model"})
     sys.exit(7)
 
-if (mode == "wait" and kind == "implement") or (mode == "autonomy_wait_resolve" and kind == "resolve"):
+if (mode == "wait" and kind == "implement") or (mode in ("autonomy_wait_resolve", "autonomy_partial_wait_resolve") and kind == "resolve"):
     (root / ("waiting" if kind == "implement" else "resolver-waiting")).write_text(str(os.getpid()))
     while True:
         time.sleep(0.1)
@@ -49,6 +60,11 @@ if (mode == "wait" and kind == "implement") or (mode == "autonomy_wait_resolve" 
 if kind == "implement":
     assert args[args.index("--sandbox") + 1] == "workspace-write"
     assert data["plan"]["acceptance"] == ["Create result.txt"]
+    if mode in ("autonomy_partial", "autonomy_luna_unavailable", "autonomy_partial_wait_resolve") and cycle == 1:
+        Path("result.txt").write_text("unverified partial work\n")
+        Path("partial-only.txt").write_text("retained failed implementation\n")
+        emit({"type": "turn.failed", "error": {"message": "RAW_MODEL_SECRET_SENTINEL model failure"}})
+        sys.exit(7)
     if cycle == 1 and (data.get("previous_feedback") or {}).get("source_review_id"):
         assert Path("result.txt").read_text() == "candidate-3\n"
         assert Path("first-only.txt").read_text() == "retained first attempt\n"
@@ -59,11 +75,15 @@ if kind == "implement":
         assert "CHECK_STDOUT_SECRET_SENTINEL" in feedback["check_output"]["stdout"]
         assert "CHECK_STDERR_SECRET_SENTINEL" in feedback["check_output"]["stderr"]
     if cycle > 1:
-        assert Path("first-only.txt").read_text() == "retained first attempt\n"
-        assert data["previous_feedback"]["kind"] in ("checks", "review")
-        check = data["previous_feedback"]["check_receipt"]
-        assert check["output_complete"] is True and len(check["output_hash"]) == 64
-        assert check["stdout_bytes"] > 0 and check["stderr_bytes"] > 0
+        assert data["previous_feedback"]["kind"] in ("checks", "review", "implementation")
+        if data["previous_feedback"]["kind"] == "implementation":
+            assert Path("result.txt").read_text() == "base"
+            assert not Path("partial-only.txt").exists()
+        else:
+            assert Path("first-only.txt").read_text() == "retained first attempt\n"
+            check = data["previous_feedback"]["check_receipt"]
+            assert check["output_complete"] is True and len(check["output_hash"]) == 64
+            assert check["stdout_bytes"] > 0 and check["stderr_bytes"] > 0
     Path("first-only.txt").write_text("retained first attempt\n")
     if mode == "retry_unchanged":
         contents = Path("result.txt").read_text().rstrip("\n")
@@ -78,7 +98,10 @@ else:
     if kind == "resolve":
         assert model in ("gpt-6-astra", "gpt-6.1-sol")
         feedback = data["previous_feedback"]
-        if feedback["kind"] != "plan":
+        if feedback["kind"] == "implementation":
+            assert Path("result.txt").read_text() == "base"
+            assert not Path("partial-only.txt").exists()
+        elif feedback["kind"] != "plan":
             assert (feedback.get("check_receipt") or feedback["receipt"])["output_complete"] is True
             check_output = feedback.get("check_output") or feedback["output"]
             assert "CHECK_STDOUT_SECRET_SENTINEL" in check_output["stdout"]
@@ -115,7 +138,7 @@ else:
             report["acceptance"] = []
         if mode == "autonomy_invalid_plan" and not data.get("resolution"):
             report["acceptance"] = []
-        if mode == "autonomy_small":
+        if mode in ("autonomy_small", "autonomy_luna_unavailable"):
             report["complexity"] = "small"
     else:
         assert data["plan"]["acceptance"] == ["Create result.txt"]
