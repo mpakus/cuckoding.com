@@ -77,6 +77,8 @@ defmodule Boss.Deliveries.Protocol do
           include the unresolved question in the acceptance criteria; do not invent consent.
           If previous_plan is supplied, retain exactly its acceptance criterion strings;
           use previous_review and previous_diff to update implementation steps and scopes.
+          Previous_review applies to previous_review_candidate_commit. Previous_diff shows
+          the prepared previous_candidate_commit, which may already address those findings.
           Do not remove, paraphrase or add acceptance criteria for a repeated workflow.
           """
 
@@ -85,7 +87,9 @@ defmodule Boss.Deliveries.Protocol do
           Implement the saved specification and typed plan in this isolated worktree.
           Inspect project instructions and change only files required by this task.
           Follow every saved acceptance criterion. If prior feedback is present, fix
-          those concrete failures; this worktree starts at the rejected candidate.
+          the concrete failures that still apply to this worktree. When feedback names
+          a review_candidate_commit and prepared_candidate_commit, the review describes
+          the former and this worktree starts from a fresh snapshot of the latter.
           Do not commit, merge, push or start background processes. BOSS will execute
           the user's saved check command and independent review after you finish.
           The input includes check_config: prepare the project for that exact command.

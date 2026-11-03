@@ -101,7 +101,7 @@ defmodule Boss.Deliveries.Worker do
           "--binary",
           "--full-index",
           source.parent.intent["base_commit"],
-          source.review.input["candidate_commit"],
+          source.candidate_commit,
           "--"
         ])
       )
@@ -111,7 +111,8 @@ defmodule Boss.Deliveries.Worker do
     Map.merge(input, %{
       "previous_plan" => source.plan.receipt["report"],
       "previous_review" => source.review.receipt["report"],
-      "previous_candidate_commit" => source.review.input["candidate_commit"],
+      "previous_review_candidate_commit" => source.review.input["candidate_commit"],
+      "previous_candidate_commit" => source.candidate_commit,
       "previous_diff" => diff
     })
   end
@@ -119,8 +120,13 @@ defmodule Boss.Deliveries.Worker do
   defp retry_failures(_, nil), do: MapSet.new()
 
   defp retry_failures(delivery, source) do
-    sha = source.review.input["candidate_commit"]
-    tree = ok!(Workspace.git(source.parent.intent["repo_path"], ["rev-parse", "#{sha}^{tree}"]))
+    reviewed_sha = source.review.input["candidate_commit"]
+
+    tree =
+      ok!(
+        Workspace.git(source.parent.intent["repo_path"], ["rev-parse", "#{reviewed_sha}^{tree}"])
+      )
+
     findings = source.review.receipt["report"]["issues"]
     MapSet.new([Protocol.digest([tree, delivery.config_hash, normalize_feedback(findings)])])
   end
@@ -130,7 +136,7 @@ defmodule Boss.Deliveries.Worker do
   defp retry_seed(delivery, project, plan, source) do
     continue!()
     ok!(Retry.verify(source))
-    source_sha = source.review.input["candidate_commit"]
+    source_sha = source.candidate_commit
     seed = ok!(Workspace.plan(project, Ecto.UUID.generate())) |> string_keys()
     seed = Map.put(seed, "base_commit", source_sha)
     check_id = Ecto.UUID.generate()
@@ -198,6 +204,8 @@ defmodule Boss.Deliveries.Worker do
      %{
        "kind" => "review",
        "source_review_id" => source.review.id,
+       "review_candidate_commit" => source.review.input["candidate_commit"],
+       "prepared_candidate_commit" => source_sha,
        "report" => source.review.receipt["report"],
        "check_receipt" => check.receipt,
        "check_output" => output
