@@ -51,6 +51,9 @@
   clean-machine, signing, provider, Linux or remote-CI acceptance. Never hide
   dependency advisories or publish a prerelease as stable; see docs/RELEASE.md.
   Keep the direct Phoenix.HTML requirement at or above 4.4.0 for CVE-2026-117645.
+  Seed historical migration fixtures against their old schema. Apply independent
+  schema additions before calling current contexts without advancing the migration
+  under test.
 - Release runtime pins include the actual OpenSSL version, not only OTP/Elixir.
   Reject stale crypto before packaging; retain upstream notice provenance and
   native closure checks. This RC requires source-built OTP28.5.0.8 with static

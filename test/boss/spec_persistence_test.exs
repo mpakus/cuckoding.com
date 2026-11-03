@@ -36,14 +36,24 @@ defmodule Boss.SpecPersistenceTest do
     File.mkdir!(project_root)
     File.mkdir!(Path.join(project_root, "specs"))
 
-    project =
-      Repo.insert!(%Boss.Projects.Project{
-        name: "Before migration",
-        root_path: project_root,
-        git_common_dir: Path.join(project_root, ".git"),
-        specs_path: Path.join(project_root, "specs"),
-        base_branch: "main"
-      })
+    %{rows: [[project_id]]} =
+      Repo.query!(
+        """
+        INSERT INTO projects(name,root_path,git_common_dir,specs_path,base_branch,inserted_at,updated_at)
+        VALUES(?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) RETURNING id
+        """,
+        [
+          "Before migration",
+          project_root,
+          Path.join(project_root, ".git"),
+          Path.join(project_root, "specs"),
+          "main"
+        ]
+      )
+
+    # Keep the current project shape independent of the spec rollback targets.
+    Ecto.Migrator.up(Repo, 20_261_103_120_000, Boss.Repo.Migrations.AddProjectIntake, log: false)
+    project = Projects.get_project!(project_id)
 
     Ecto.Migrator.run(Repo, @migrations, :up,
       to: Map.get(context, :migrate_to, 20_261_027_010_000),
