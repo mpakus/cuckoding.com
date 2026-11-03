@@ -892,6 +892,9 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
   task-specific rejected code retains the recovery path. Catalog/type and circuit
   persistence suite13passed; combined scope/catalog20passed(seed1316).
 - [x] Complete application regression coverage in shards and corrected focused
-  reruns; final combined100passed(seed1318). Exactlocal-mainintegration next.
-- [ ] Apply the reviewed update to the idle4001 instance with a verified private
-  backup; retain history and require a new explicit Start for provider execution.
+  reruns; final combined100passed(seed1318); localmain19a8b3 integration and
+  postmerge36tests(seed1319) passed.
+- [x] Apply the reviewed update to idle4001 with a full verified private backup;
+  HTTP200, migration20261105120000 and all46historicaltasks/receipts preserved.
+- [ ] Observe an explicitly started real-provider recovery batch; metadata and
+  finite fixtures do not prove account access or live delivery.
