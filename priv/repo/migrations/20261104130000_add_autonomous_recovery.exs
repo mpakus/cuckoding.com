@@ -160,7 +160,9 @@ defmodule Boss.Repo.Migrations.AddAutonomousRecovery do
         json_type(NEW.input,'$.model_profile')='object'
         AND (SELECT count(*) FROM json_each(NEW.input,'$.model_profile'))=2
         AND json_extract(NEW.input,'$.model_profile.model') IS
-          CASE WHEN NEW.kind='resolve' AND json_extract(NEW.input,'$.resolution_attempt')=1 THEN 'gpt-6-astra'
+          CASE WHEN NEW.kind='plan' AND EXISTS (SELECT 1 FROM delivery_steps p WHERE p.id=json_extract(NEW.input,'$.plan_step_id') AND p.delivery_id=NEW.delivery_id AND p.kind='plan' AND p.status='failed' AND json_extract(p.receipt,'$.outcome') IN ('invalid_report','exited')) THEN
+            CASE WHEN (SELECT json_extract(p.input,'$.model_profile.model') FROM delivery_steps p WHERE p.id=json_extract(NEW.input,'$.plan_step_id'))='gpt-6-astra' THEN 'gpt-6.1-sol' ELSE 'gpt-6-astra' END
+            WHEN NEW.kind='resolve' AND json_extract(NEW.input,'$.resolution_attempt')=1 THEN 'gpt-6-astra'
             WHEN NEW.kind='resolve' THEN 'gpt-6.1-sol'
             WHEN NEW.kind='implement' AND NEW.cycle IN (2,4) THEN 'gpt-6-astra'
             WHEN NEW.kind='implement' AND NEW.cycle=1 AND EXISTS (SELECT 1 FROM delivery_steps p
@@ -168,7 +170,8 @@ defmodule Boss.Repo.Migrations.AddAutonomousRecovery do
                 AND json_extract(p.receipt,'$.report.complexity')='small') THEN 'gpt-6-luna'
             ELSE 'gpt-6.1-sol' END
         AND json_extract(NEW.input,'$.model_profile.reasoning_effort') IS
-          CASE WHEN NEW.kind='resolve' OR (NEW.kind='implement' AND NEW.cycle>1) THEN 'xhigh'
+          CASE WHEN NEW.kind='plan' AND EXISTS (SELECT 1 FROM delivery_steps p WHERE p.id=json_extract(NEW.input,'$.plan_step_id') AND p.delivery_id=NEW.delivery_id AND p.kind='plan' AND p.status='failed' AND json_extract(p.receipt,'$.outcome') IN ('invalid_report','exited')) THEN 'xhigh'
+            WHEN NEW.kind='resolve' OR (NEW.kind='implement' AND NEW.cycle>1) THEN 'xhigh'
             WHEN NEW.kind='implement' AND NEW.cycle=1 AND EXISTS (SELECT 1 FROM delivery_steps p
               WHERE p.id=json_extract(NEW.input,'$.plan_step_id') AND p.delivery_id=NEW.delivery_id
                 AND json_extract(p.receipt,'$.report.complexity')='small') THEN 'medium'
@@ -193,9 +196,9 @@ defmodule Boss.Repo.Migrations.AddAutonomousRecovery do
       AND length(json_extract(NEW.input,'$.input_hash'))=64 AND length(json_extract(NEW.input,'$.feedback_hash'))=64
       AND #{transport("source")}
       AND ((source.kind='plan' AND ((source.status='finished' AND json_extract(source.receipt,'$.exit_code')=0
-          AND json_type(source.receipt,'$.report.clarification')='text') OR #{invalid_report("source")}))
+          AND json_type(source.receipt,'$.report.clarification')='text') OR #{model_failure("source")}))
         OR (source.kind='review' AND ((source.status='finished' AND json_extract(source.receipt,'$.exit_code')=0
-          AND json_extract(source.receipt,'$.report.verdict') IN ('changes_requested','needs_spec_revision')) OR #{invalid_report("source")}))
+          AND json_extract(source.receipt,'$.report.verdict') IN ('changes_requested','needs_spec_revision')) OR #{model_failure("source")}))
         OR (source.kind='check' AND source.status='failed' AND json_extract(source.receipt,'$.outcome')='checks_failed'
           AND json_extract(source.receipt,'$.output_complete')=1 AND json_type(source.receipt,'$.exit_code')='integer'
           AND json_extract(source.receipt,'$.exit_code')!=0))
@@ -204,7 +207,7 @@ defmodule Boss.Repo.Migrations.AddAutonomousRecovery do
           AND previous.cycle=source.cycle AND json_extract(previous.input,'$.resolution_attempt')=1
           AND json_extract(previous.input,'$.source_step_id')=source.id AND #{transport("previous")}
           AND ((previous.status='finished' AND json_type(previous.receipt,'$.report.external_action')='text')
-            OR #{invalid_report("previous")})))
+            OR #{model_failure("previous")})))
       AND ((source.kind='plan' AND json_extract(NEW.input,'$.plan_step_id')=source.id
         AND json_extract(NEW.input,'$.workspace')=d.intent
         AND json_extract(NEW.input,'$.candidate_commit')=json_extract(d.intent,'$.base_commit')
@@ -293,7 +296,7 @@ defmodule Boss.Repo.Migrations.AddAutonomousRecovery do
       AND json_extract(#{s}.receipt,'$.eof.stdout')=1 AND json_extract(#{s}.receipt,'$.eof.stderr')=1
     """
 
-  defp invalid_report(s),
+  defp model_failure(s),
     do:
-      "(#{s}.status='failed' AND json_extract(#{s}.receipt,'$.outcome')='invalid_report' AND json_extract(#{s}.receipt,'$.exit_code')=0)"
+      "(#{s}.status='failed' AND json_extract(#{s}.receipt,'$.outcome') IN ('invalid_report','exited') AND json_type(#{s}.receipt,'$.exit_code')='integer')"
 end

@@ -6,6 +6,29 @@ defmodule Boss.AutonomyPersistenceTest do
   @sha String.duplicate("a", 40)
   @hash String.duplicate("b", 64)
 
+  @migrations [
+    {20_261_025_180_000, Boss.Repo.Migrations.CreateProjects},
+    {20_261_025_220_000, Boss.Repo.Migrations.CreateSpecRevisions},
+    {20_261_025_230_000, Boss.Repo.Migrations.TrackMissingSpecs},
+    {20_261_026_010_000, Boss.Repo.Migrations.CreateTaskEvents},
+    {20_261_026_040_000, Boss.Repo.Migrations.CreateAgentRuns},
+    {20_261_026_060_000, Boss.Repo.Migrations.AddManualChecks},
+    {20_261_026_160_000, Boss.Repo.Migrations.AddManualReviews},
+    {20_261_026_220_000, Boss.Repo.Migrations.CreateDeliveries},
+    {20_261_027_010_000, Boss.Repo.Migrations.AddTaskRevisionAdoption},
+    {20_261_027_020_000, Boss.Repo.Migrations.PreserveHistoricalRunPins},
+    {20_261_027_030_000, Boss.Repo.Migrations.PinDeliveryReviewer},
+    {20_261_027_040_000, Boss.Repo.Migrations.AddWorkflowQueue},
+    {20_261_027_050_000, Boss.Repo.Migrations.AddMergeIntegrationEvidence},
+    {20_261_027_060_000, Boss.Repo.Migrations.AddDeliveryScheduling},
+    {20_261_027_070_000, Boss.Repo.Migrations.AddAutopilot},
+    {20_261_031_220_000, Boss.Repo.Migrations.AddReviewRetries},
+    {20_261_102_120_000, Boss.Repo.Migrations.AddCandidateRetries},
+    {20_261_103_120_000, Boss.Repo.Migrations.AddProjectIntake},
+    {20_261_104_120_000, Boss.Repo.Migrations.ContinueAutopilotAfterTaskFailure},
+    {20_261_104_130_000, Boss.Repo.Migrations.AddAutonomousRecovery}
+  ]
+
   setup do
     root = Path.join(System.tmp_dir!(), "boss-autonomy-storage-#{Ecto.UUID.generate()}")
     File.mkdir!(root)
@@ -23,7 +46,7 @@ defmodule Boss.AutonomyPersistenceTest do
     repo = start_supervised!({Repo, opts})
     Repo.put_dynamic_repo(repo)
 
-    Ecto.Migrator.run(Repo, Application.app_dir(:boss, "priv/repo/migrations"), :up,
+    Ecto.Migrator.run(Repo, @migrations, :up,
       all: true,
       log: false
     )
@@ -148,6 +171,20 @@ defmodule Boss.AutonomyPersistenceTest do
                step.id
              ])
 
+    oversized =
+      receipt(%{
+        "report" =>
+          Map.put(resolution(), "steps", List.duplicate(String.duplicate("x", 1800), 20))
+      })
+
+    assert {:error, :invalid_receipt} = Deliveries.finish_step(step.id, oversized)
+
+    assert {:error, _} =
+             Repo.query("UPDATE delivery_steps SET status='finished',receipt=? WHERE id=?", [
+               JSON.encode!(oversized),
+               step.id
+             ])
+
     assert {:ok, step} = Deliveries.finish_step(step.id, receipt(%{"report" => resolution()}))
     assert {:error, :missing_evidence} = Deliveries.complete(d.id, "ready_to_merge")
 
@@ -267,6 +304,157 @@ defmodule Boss.AutonomyPersistenceTest do
                "INSERT INTO delivery_steps(id,delivery_id,number,kind,cycle,input,inserted_at,updated_at) VALUES(?,?,21,'check',3,'{}',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",
                [Ecto.UUID.generate(), d.id]
              )
+  end
+
+  test "migration roundtrip preserves legacy policy and refuses to discard new authorizations",
+       c do
+    {:ok, request} =
+      Queue.admit(c.project.id, c.task.id, Ecto.UUID.generate(), "true", "codex", 0)
+
+    migration = Boss.Repo.Migrations.AddAutonomousRecovery
+    assert :ok = Ecto.Migrator.down(Repo, 20_261_104_130_000, migration, log: false)
+    assert {:ok, %{rows: [[request_id]]}} = Repo.query("SELECT id FROM delivery_requests", [])
+    assert request_id == request.id
+    assert :ok = Ecto.Migrator.up(Repo, 20_261_104_130_000, migration, log: false)
+    assert Repo.get!(Request, request.id).autonomy_version == 0
+    {:ok, _} = Queue.cancel(c.project.id, request.id)
+
+    {:ok, {:new, delivery}} =
+      Deliveries.admit(c.project.id, c.task.id, Ecto.UUID.generate(), "true")
+
+    assert_raise RuntimeError, ~r/Refusing to discard autonomous workflow history/, fn ->
+      Ecto.Migrator.down(Repo, 20_261_104_130_000, migration, log: false)
+    end
+
+    assert Repo.get!(Deliveries.Delivery, delivery.id).autonomy_version == 1
+  end
+
+  test "failed checks require a candidate-bound resolution before another implementation", c do
+    d = delivery(c)
+    plan = finish(d, "plan", 0, %{"workspace" => d.intent}, %{"report" => plan(nil)})
+
+    implementation =
+      finish(d, "implement", 1, %{"plan_step_id" => plan.id}, %{
+        "workspace" => d.intent,
+        "head_commit" => @sha
+      })
+
+    candidate = %{"path" => "/retained/candidate", "base_commit" => @sha}
+
+    snapshot =
+      finish(
+        d,
+        "snapshot",
+        1,
+        %{"plan_step_id" => plan.id, "implementation_step_id" => implementation.id},
+        %{"workspace" => candidate, "candidate_commit" => @sha}
+      )
+
+    check =
+      finish(
+        d,
+        "check",
+        1,
+        %{
+          "plan_step_id" => plan.id,
+          "snapshot_step_id" => snapshot.id,
+          "workspace" => candidate,
+          "candidate_commit" => @sha
+        },
+        %{
+          "status" => "failed",
+          "exit_code" => 1,
+          "outcome" => "checks_failed",
+          "output_complete" => true,
+          "output_hash" => @hash
+        }
+      )
+
+    repair = %{"plan_step_id" => plan.id, "parent_step_id" => check.id, "workspace" => candidate}
+    assert {:error, :invalid_step} = Deliveries.begin_step(d.id, "implement", 2, repair)
+
+    assert {:error, _} =
+             raw_step(
+               d,
+               "implement",
+               2,
+               Map.put(repair, "model_profile", %{
+                 "model" => "gpt-6-astra",
+                 "reasoning_effort" => "xhigh"
+               })
+             )
+
+    input =
+      resolution_input(d, check)
+      |> Map.merge(%{"plan_step_id" => plan.id, "workspace" => candidate})
+
+    assert {:ok, resolution_step} = Deliveries.begin_step(d.id, "resolve", 1, input)
+    wrong = receipt(%{"report" => resolution(), "candidate_commit" => String.duplicate("f", 40)})
+    assert {:error, :invalid_receipt} = Deliveries.finish_step(resolution_step.id, wrong)
+
+    assert {:error, _} =
+             Repo.query("UPDATE delivery_steps SET status='finished',receipt=? WHERE id=?", [
+               JSON.encode!(wrong),
+               resolution_step.id
+             ])
+
+    assert {:ok, resolution_step} =
+             Deliveries.finish_step(resolution_step.id, receipt(%{"report" => resolution()}))
+
+    repair =
+      Map.merge(repair, %{
+        "parent_step_id" => resolution_step.id,
+        "resolution_step_id" => resolution_step.id,
+        "source_step_id" => check.id
+      })
+
+    assert {:ok, next} = Deliveries.begin_step(d.id, "implement", 2, repair)
+    assert next.input["model_profile"]["model"] == "gpt-6-astra"
+  end
+
+  test "known exited model failures get another opinion and a different replanner", c do
+    d = delivery(c)
+
+    failed =
+      finish(d, "plan", 0, %{"workspace" => d.intent}, %{
+        "status" => "failed",
+        "outcome" => "exited",
+        "exit_code" => 1
+      })
+
+    first =
+      finish(d, "resolve", 0, resolution_input(d, failed), %{
+        "status" => "failed",
+        "outcome" => "exited",
+        "exit_code" => 2
+      })
+
+    input =
+      resolution_input(d, failed)
+      |> Map.merge(%{"parent_step_id" => first.id, "resolution_attempt" => 2})
+
+    second = finish(d, "resolve", 0, input, %{"report" => resolution()})
+    input = %{"workspace" => d.intent, "parent_step_id" => second.id, "plan_step_id" => failed.id}
+
+    assert {:error, :invalid_step} =
+             Deliveries.begin_step(
+               d.id,
+               "plan",
+               0,
+               Map.put(input, "model_profile", %{
+                 "model" => "gpt-6.1-sol",
+                 "reasoning_effort" => "high"
+               })
+             )
+
+    assert {:ok, replan} = Deliveries.begin_step(d.id, "plan", 0, input)
+
+    assert replan.input["model_profile"] == %{
+             "model" => "gpt-6-astra",
+             "reasoning_effort" => "xhigh"
+           }
+
+    assert {:ok, _} = Deliveries.finish_step(replan.id, receipt(%{"report" => plan(nil)}))
   end
 
   defp delivery(c, version \\ 1) do
