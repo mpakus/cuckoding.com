@@ -79,6 +79,31 @@ defmodule BossWeb.TaskBoard do
     """
   end
 
+  attr :entries, :list, required: true
+  attr :project_id, :integer, required: true
+
+  def notices(assigns) do
+    ~H"""
+    <div id="task-notifications" role="status">
+      <ul :if={@entries != []} class="mt-4 space-y-2">
+        <li
+          :for={entry <- @entries}
+          id={"task-notification-#{entry.task_id}"}
+          class="rounded-md border border-amber-900 px-4 py-3 text-sm text-amber-200"
+        >
+          <.link
+            patch={~p"/projects/#{@project_id}/tasks/#{entry.task_id}"}
+            class="break-words font-semibold underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
+          >
+            {entry.title} · {state_label(entry.state)}
+          </.link>
+          <p class="mt-1 break-words">{entry.attention_reason}</p>
+        </li>
+      </ul>
+    </div>
+    """
+  end
+
   attr :project_id, :integer, required: true
   attr :selection, :any, required: true
   attr :details, :any, default: nil
@@ -107,6 +132,9 @@ defmodule BossWeb.TaskBoard do
       assign(assigns,
         desired: desired,
         source_ready: source_ready,
+        workflow_note:
+          assigns.details &&
+            Map.get(assigns.details, :workflow_note, assigns.details.task.attention_reason),
         return_focus: return_focus
       )
 
@@ -151,13 +179,15 @@ defmodule BossWeb.TaskBoard do
             <span class="rounded bg-zinc-800 px-2 py-1">{state_label(@details.task.state)}</span>
             <span :if={@details.spec.missing} class="rounded bg-amber-950 px-2 py-1 text-amber-300">File missing</span>
           </div>
-          <p
-            :if={@details.task.attention_reason}
+          <div
+            :if={@workflow_note}
             id="task-attention"
+            role="status"
             class="break-words rounded border border-amber-900 px-3 py-2 text-sm text-amber-200"
           >
-            {@details.task.attention_reason}
-          </p>
+            <p class="font-semibold">Workflow note</p>
+            <p class="mt-1">{@workflow_note}</p>
+          </div>
           <dl class="grid gap-4 text-sm sm:grid-cols-2">
             <div>
               <dt class="text-zinc-400">Task snapshot</dt><dd id="task-snapshot" class="mt-1">
