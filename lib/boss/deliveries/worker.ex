@@ -72,7 +72,22 @@ defmodule Boss.Deliveries.Worker do
 
   defp plan(delivery, source, input, parent \\ nil, previous_plan \\ nil, attempt \\ 0) do
     intent = delivery.intent
-    profile = profile(delivery, :plan, 0)
+
+    prior =
+      if parent,
+        do: Enum.find(Deliveries.steps(delivery.id), &(&1.id == parent.input["plan_step_id"]))
+
+    profile =
+      if autonomous?(delivery) and not is_nil(prior) and prior.status == "failed" and
+           prior.receipt["outcome"] in ["exited", "invalid_report"] do
+        alternate =
+          if get_in(prior.input, ["model_profile", "model"]) == "gpt-6-astra", do: 2, else: 1
+
+        profile(delivery, :resolve, alternate)
+      else
+        profile(delivery, :plan, 0)
+      end
+
     prompt = ok!(Protocol.prompt(:plan, input))
     previous_plan = previous_plan || if(source, do: source.plan.receipt["report"])
 
@@ -824,14 +839,12 @@ defmodule Boss.Deliveries.Worker do
 
   defp recoverable?(%{status: "finished", receipt: %{"cleanup" => "group_empty"}}), do: true
 
-  defp recoverable?(%{
-         status: "failed",
-         receipt: %{
-           "cleanup" => "group_empty",
-           "outcome" => "invalid_report"
-         }
-       }),
-       do: true
+  defp recoverable?(%{status: "failed", receipt: receipt}) do
+    receipt["cleanup"] == "group_empty" and
+      receipt["outcome"] in ["invalid_report", "exited"] and
+      receipt["exit_kind"] == "exit" and is_integer(receipt["exit_code"]) and
+      receipt["eof"] == %{"stdout" => true, "stderr" => true}
+  end
 
   defp recoverable?(_), do: false
 

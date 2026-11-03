@@ -250,6 +250,54 @@ defmodule Boss.DeliveryWorkerTest do
   end
 
   @tag autonomy: true
+  test "a model execution failure switches the replanner as well as recording the diagnosis",
+       ctx do
+    System.put_env("BOSS_DELIVERY_MODE", "autonomy_model_unavailable")
+    manager = start_manager(ctx.repo)
+    {:ok, run} = start(ctx, manager)
+    saved = await_delivery(ctx, run.id)
+    steps = Deliveries.steps(run.id)
+    assert saved.status == "ready_to_merge", inspect({saved, steps})
+    assert hd(steps).receipt["exit_code"] == 7
+
+    assert Enum.map(calls(ctx), & &1["model"]) ==
+             ~w(gpt-6.1-sol gpt-6-astra gpt-6-astra gpt-6.1-sol gpt-6.1-sol)
+
+    assert_no_raw(steps)
+  end
+
+  @tag autonomy: true
+  test "a failed strong-model resolver obtains the second opinion from Sol", ctx do
+    System.put_env("BOSS_DELIVERY_MODE", "autonomy_resolver_unavailable")
+    manager = start_manager(ctx.repo)
+    {:ok, run} = start(ctx, manager)
+    saved = await_delivery(ctx, run.id)
+    steps = Deliveries.steps(run.id)
+    assert saved.status == "ready_to_merge", inspect({saved, steps})
+    [first, second] = Enum.filter(steps, &(&1.kind == "resolve"))
+    assert first.status == "failed" and first.receipt["exit_code"] == 7
+    assert second.status == "finished"
+    assert first.input["source_step_id"] == second.input["source_step_id"]
+    assert first.input["model_profile"]["model"] == "gpt-6-astra"
+    assert second.input["model_profile"]["model"] == "gpt-6.1-sol"
+  end
+
+  @tag autonomy: true
+  test "a clean failed review execution is diagnosed without treating it as approval", ctx do
+    System.put_env("BOSS_DELIVERY_MODE", "autonomy_review_unavailable")
+    manager = start_manager(ctx.repo)
+    {:ok, run} = start(ctx, manager)
+    saved = await_delivery(ctx, run.id)
+    steps = Deliveries.steps(run.id)
+    assert saved.status == "ready_to_merge" and saved.cycle == 2, inspect({saved, steps})
+    [first, second] = Enum.filter(steps, &(&1.kind == "review"))
+    assert first.status == "failed" and first.receipt["exit_code"] == 7
+    refute first.receipt["report"]
+    assert second.status == "finished" and second.receipt["report"]["verdict"] == "approved"
+    assert_no_raw(steps)
+  end
+
+  @tag autonomy: true
   test "Stop reaches a live resolver while Manager is suspended and prevents implementation",
        ctx do
     System.put_env("BOSS_DELIVERY_MODE", "autonomy_wait_resolve")
@@ -718,7 +766,7 @@ defmodule Boss.DeliveryWorkerTest do
   defp start(ctx, manager, command \\ Ecto.UUID.generate()) do
     if ctx.autonomy,
       do: Deliveries.start(ctx.project.id, ctx.task.id, command, "python3 check.py", manager),
-      else: legacy_start(ctx, command, "codex")
+      else: legacy_start(ctx, manager, command, "codex")
   end
 
   defp rejected_delivery(ctx, manager) do
@@ -743,11 +791,11 @@ defmodule Boss.DeliveryWorkerTest do
     end
   end
 
-  defp start_claude(ctx, _manager, command \\ Ecto.UUID.generate()),
-    do: legacy_start(ctx, command, "claude")
+  defp start_claude(ctx, manager, command \\ Ecto.UUID.generate()),
+    do: legacy_start(ctx, manager, command, "claude")
 
   # Saved pre-upgrade requests exercise the legacy execution contract unchanged.
-  defp legacy_start(ctx, command, reviewer) do
+  defp legacy_start(ctx, manager, command, reviewer) do
     case Boss.Deliveries.Queue.admit(
            ctx.project.id,
            ctx.task.id,
@@ -757,6 +805,17 @@ defmodule Boss.DeliveryWorkerTest do
            0
          ) do
       {:ok, request} ->
+        # Replaying the saved request through the public entrypoint wakes dispatch.
+        assert {:ok, ^request} =
+                 Boss.Deliveries.Queue.enqueue(
+                   ctx.project.id,
+                   ctx.task.id,
+                   command,
+                   "python3 check.py",
+                   reviewer,
+                   manager
+                 )
+
         eventually(fn -> Repo.get!(Boss.Deliveries.Request, request.id).delivery_id != nil end)
         request = Repo.get!(Boss.Deliveries.Request, request.id)
         {:ok, Deliveries.get(ctx.project.id, request.delivery_id)}

@@ -36,6 +36,11 @@ emit({"type": "turn.started"})
 emit({"type": "item.completed", "item": {"type": "agent_message", "text": "RAW_MODEL_SECRET_SENTINEL"}})
 print("RAW_AGENT_STDERR_SECRET_SENTINEL", file=sys.stderr, flush=True)
 
+if (mode == "autonomy_model_unavailable" and kind == "plan" and not data.get("resolution")) or \
+   (mode == "autonomy_resolver_unavailable" and kind == "resolve" and data["resolution_attempt"] == 1) or \
+   (mode == "autonomy_review_unavailable" and kind == "review" and Path("result.txt").read_text() == "candidate-1\n"):
+    sys.exit(7)
+
 if (mode == "wait" and kind == "implement") or (mode == "autonomy_wait_resolve" and kind == "resolve"):
     (root / ("waiting" if kind == "implement" else "resolver-waiting")).write_text(str(os.getpid()))
     while True:
@@ -86,7 +91,7 @@ else:
             report["steps"] = []
     elif kind == "plan":
         report = {"summary": "Create the result", "steps": ["Write result.txt"], "acceptance": ["Create result.txt"], "file_scopes": None}
-        if mode == "needs_plan" or (mode in ("autonomy_plan", "autonomy_external", "autonomy_invalid_resolver") and not data.get("resolution")):
+        if mode == "needs_plan" or (mode in ("autonomy_plan", "autonomy_external", "autonomy_invalid_resolver", "autonomy_resolver_unavailable") and not data.get("resolution")):
             report = {"summary": "Workflow guidance", "steps": [], "acceptance": [],
                       "file_scopes": None, "clarification": "Which feature should this workflow deliver?"}
         if data.get("previous_plan") and data.get("previous_review"):
