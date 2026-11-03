@@ -158,7 +158,14 @@ resolution changed; the image content was not composited or retouched.
 The additional gallery remains fictional satire. Product copy now distinguishes
 ordinary supervised integration from an explicitly started Autopilot, describes
 model escalation and preserved checks, and keeps release/provider limits honest.
-Publication and browser acceptance are recorded after verification.
+Published commit `5a6d15c9073fa615fd0d67788316f31ea8eec8e3` contains only
+site markup/styles, six new WebP files and this documentation relative to freshly
+fetched remote main. [Pages run 41579508007](https://github.com/mpakus/cuckoding.com/actions/runs/41579508007)
+passed check and deploy. All 19 public resources match committed bytes over
+verified HTTPS. Local browser checks covered 320/768/1024/1440 px, the new
+second-opinion step, loaded artwork and Pause motion. The live browser also
+confirmed the new gallery. The lower two images remain uncropped 3:2 stills;
+only the committee image shares the existing bounded parallax.
 
 ### escalation-committee generation prompt
 

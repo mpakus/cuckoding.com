@@ -864,3 +864,14 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 - [x] Verify unknown cleanup still halts after worker exit.
 - [x] Back up and restart local 4001, verify migration and preserved task counts.
 - [ ] Observe a fresh owner-started batch on project 1.
+
+## Marketing and application visual alignment — 2026-11-02
+
+- [x] Refresh autonomy copy and add three original satirical office illustrations,
+  responsive WebP variants and exact prompt/provenance records.
+- [x] Publish the website-only fast-forward 5a6d15c from fresh remote main;
+  Pages41579508007 succeeded and 19 live HTTPS resources match source bytes.
+- [x] Apply semantic marketing colors, shared shell, forms, board/drawer styles
+  and motion controls; combined150 web tests and11 motion tests passed.
+- [x] Verify responsive drawer keyboard access, including a 200-character title
+  at320x568; merge reviewed presentation branches for local main integration.
