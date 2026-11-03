@@ -891,6 +891,7 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 - [x] Verify shared failure blocks next dispatch through context and direct SQL;
   task-specific rejected code retains the recovery path. Catalog/type and circuit
   persistence suite13passed; combined scope/catalog20passed(seed1316).
-- [ ] Complete combined application regression and exact local-main integration.
+- [x] Complete application regression coverage in shards and corrected focused
+  reruns; final combined100passed(seed1318). Exactlocal-mainintegration next.
 - [ ] Apply the reviewed update to the idle4001 instance with a verified private
   backup; retain history and require a new explicit Start for provider execution.
