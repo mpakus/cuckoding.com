@@ -24,7 +24,11 @@ defmodule BossWeb.AutopilotPanel do
         </span>
       </div>
       <p class="mt-2 text-xs text-zinc-400">
-        Current Backlog runs one task at a time through implementation, checks, fixes, review and integration.
+        <%= if @documentation do %>
+          Autopilot plans tasks from committed documentation and code, then implements them in dependency order.
+        <% else %>
+          Current Backlog runs one task at a time through implementation, checks, fixes, review and integration.
+        <% end %>
       </p>
       <div id="autopilot-content" hidden={!@open} class="mt-4 min-w-0 space-y-4">
         <p :if={!@supported} role="status" class="text-sm text-amber-300">
@@ -32,6 +36,38 @@ defmodule BossWeb.AutopilotPanel do
         </p>
         <p :if={!@loaded && !@error} role="status" class="text-sm text-zinc-400">
           Loading Autopilot…
+        </p>
+        <div :if={@intake && @intake.status != "finished"} id="autopilot-intake" class="space-y-2">
+          <p id="autopilot-intake-status" role="status" class="text-sm text-zinc-300">
+            {if @intake.status == "planning",
+              do: "Planning tasks from documentation…",
+              else: label(@intake.status)}
+          </p>
+          <p
+            :if={@intake.reason}
+            id="autopilot-intake-reason"
+            role="status"
+            class="break-words text-sm text-amber-300"
+          >
+            {@intake.reason}
+          </p>
+          <button
+            :if={@intake.status == "planning"}
+            id="stop-autopilot-intake"
+            type="button"
+            phx-target={@myself}
+            phx-click="stop_intake"
+            disabled={@pending != nil}
+            class="rounded border border-red-800 px-3 py-2 text-sm text-red-300 disabled:opacity-50"
+          >Stop planning</button>
+        </div>
+        <p
+          :if={match?(%{status: "finished", batch_id: nil}, @intake)}
+          id="autopilot-intake-empty"
+          role="status"
+          class="text-sm text-zinc-300"
+        >
+          Planning found no outstanding tasks.
         </p>
         <div :if={@batch} id="autopilot-batch" class="min-w-0 space-y-3">
           <p class="text-sm text-zinc-300">
@@ -97,7 +133,10 @@ defmodule BossWeb.AutopilotPanel do
           </p>
         </div>
         <form
-          :if={@loaded && (is_nil(@batch) || @batch.status in ["blocked", "completed", "cancelled"])}
+          :if={
+            @loaded && !match?(%{status: "planning"}, @intake) &&
+              (is_nil(@batch) || @batch.status in ["blocked", "completed", "cancelled"])
+          }
           id="autopilot-form"
           phx-target={@myself}
           phx-change="edit"
@@ -105,19 +144,32 @@ defmodule BossWeb.AutopilotPanel do
           class="min-w-0 space-y-4"
         >
           <fieldset disabled={@pending != nil || !@supported} class="min-w-0">
-            <legend class="text-sm font-medium">Current Backlog</legend>
+            <legend class="text-sm font-medium">
+              {if @plans_from_docs, do: "Project documentation", else: "Current Backlog"}
+            </legend>
             <p id="autopilot-selection-help" class="mt-1 text-xs text-zinc-400">
-              Start saves all current Backlog tasks (up to 256). Newly imported tasks stay outside this run.
-              Dependencies must reach Done before their dependent task starts. Failed tasks need an explicit retry from their task details.
+              <%= if @plans_from_docs do %>
+                Codex will inspect the committed documentation and code. Autopilot saves the resulting tasks with their dependencies and begins the first ready task.
+              <% else %>
+                Start saves all current Backlog tasks (up to 256). Newly imported tasks stay outside this run.
+                Dependencies must reach Done before their dependent task starts. Failed tasks need an explicit retry from their task details.
+              <% end %>
             </p>
-            <p id="autopilot-selection-count" class="mt-2 text-sm text-zinc-300">
+            <p
+              :if={!@plans_from_docs}
+              id="autopilot-selection-count"
+              class="mt-2 text-sm text-zinc-300"
+            >
               {length(@choices)} tasks in Backlog
             </p>
-            <p :if={@choices == []} class="mt-2 text-sm text-zinc-400">
+            <p
+              :if={!@plans_from_docs && @choices == [] && !@documentation}
+              class="mt-2 text-sm text-zinc-400"
+            >
               No tasks in Backlog. Import a spec to start Autopilot.
             </p>
             <ul
-              :if={@choices != []}
+              :if={!@plans_from_docs && @choices != []}
               class="mt-2 max-h-64 space-y-2 overflow-y-auto rounded border border-zinc-800 p-3"
             >
               <li
@@ -143,7 +195,7 @@ defmodule BossWeb.AutopilotPanel do
               class="mt-1 w-full min-w-0 rounded border border-zinc-600 bg-zinc-900 px-3 py-2 text-sm"
             />
             <p id="autopilot-command-help" class="mt-1 text-xs text-zinc-400">
-              Enter the command yourself. It runs without a shell before review and after integration.
+              Verify the command before starting. It runs without a shell before review and after integration.
             </p>
             <label for="autopilot-reviewer" class="mt-4 block text-sm font-medium">Independent reviewer</label>
             <select
@@ -156,7 +208,12 @@ defmodule BossWeb.AutopilotPanel do
             </select>
           </fieldset>
           <p id="autopilot-authorization" class="text-sm text-zinc-300">
-            Start authorizes the entire current Backlog: agent runs, up to three repair cycles and automatic integration into <strong class="break-all">{@project.base_branch}</strong>.
+            <%= if @plans_from_docs do %>
+              Start authorizes project planning and execution of the generated tasks.
+            <% else %>
+              Start authorizes execution of the entire current Backlog.
+            <% end %>
+            Each task can use up to three repair cycles and integrates automatically into <strong class="break-all">{@project.base_branch}</strong>.
             A task reaches Done only after verified review, publication and postchecks. An unresolved failure stops Autopilot.
           </p>
           <p id="autopilot-provider-help" class="text-xs text-zinc-400">
@@ -168,7 +225,7 @@ defmodule BossWeb.AutopilotPanel do
           <button
             id="start-autopilot"
             type="submit"
-            disabled={!@ready || @choices == [] || length(@choices) > 256}
+            disabled={!@ready || (!@plans_from_docs && length(@choices) not in 1..256)}
             aria-describedby="autopilot-authorization"
             class="rounded bg-emerald-400 px-4 py-2 text-sm font-semibold text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:opacity-50"
           >Start Autopilot</button>

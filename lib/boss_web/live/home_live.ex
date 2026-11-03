@@ -9,7 +9,7 @@ defmodule BossWeb.HomeLive do
        page_title: "Projects · BOSS",
        projects: Projects.list_projects(),
        form: to_form(Projects.change_project()),
-       folders: %{"root_path" => nil, "specs_path" => "specs"},
+       folders: %{"root_path" => nil, "specs_path" => nil},
        picking: nil,
        message: nil,
        duplicate?: false
@@ -32,7 +32,9 @@ defmodule BossWeb.HomeLive do
       kind = if kind == "repository", do: :repository, else: :specs
 
       initial =
-        if kind == :specs, do: Path.expand(socket.assigns.folders["specs_path"], root), else: root
+        if kind == :specs,
+          do: Path.expand(project_attrs(socket, socket.assigns.form.params)["specs_path"], root),
+          else: root
 
       initial = if is_binary(initial) and File.dir?(initial), do: initial, else: root
       picker = Application.get_env(:boss, :folder_picker_server, Boss.FolderPicker)
@@ -51,12 +53,15 @@ defmodule BossWeb.HomeLive do
 
   def handle_event("create", %{"project" => attrs}, socket) do
     case Projects.create_project(project_attrs(socket, attrs)) do
+      {:ok, %{intake_mode: "documentation"} = project} ->
+        {:noreply, push_navigate(socket, to: ~p"/projects/#{project.id}")}
+
       {:ok, _project} ->
         {:noreply,
          assign(socket,
            projects: Projects.list_projects(),
            form: to_form(Projects.change_project()),
-           folders: %{"root_path" => nil, "specs_path" => "specs"},
+           folders: %{"root_path" => nil, "specs_path" => nil},
            message: "Project added.",
            duplicate?: false
          )}
@@ -75,7 +80,7 @@ defmodule BossWeb.HomeLive do
   def handle_async(:folder_picker, {:ok, {:ok, path}}, socket) do
     folders =
       if socket.assigns.picking == :repository,
-        do: %{"root_path" => path, "specs_path" => "specs"},
+        do: %{"root_path" => path, "specs_path" => nil},
         else:
           Map.put(
             socket.assigns.folders,
@@ -110,8 +115,21 @@ defmodule BossWeb.HomeLive do
     {:noreply, assign(socket, picking: nil, message: message)}
   end
 
-  defp project_attrs(socket, attrs),
-    do: attrs |> Map.take(["name", "base_branch"]) |> Map.merge(socket.assigns.folders)
+  defp project_attrs(socket, attrs) do
+    root = socket.assigns.folders["root_path"]
+    docs? = is_binary(root) && File.dir?(Path.join(root, "docs"))
+
+    mode =
+      Map.get(attrs, "intake_mode", if(docs? or is_nil(root), do: "documentation", else: "specs"))
+
+    default_path = if mode == "documentation" and docs?, do: "docs", else: "specs"
+
+    attrs
+    |> Map.take(["name", "base_branch"])
+    |> Map.put("root_path", root)
+    |> Map.put("specs_path", socket.assigns.folders["specs_path"] || default_path)
+    |> Map.put("intake_mode", mode)
+  end
 
   @impl true
   def render(assigns) do
@@ -125,7 +143,7 @@ defmodule BossWeb.HomeLive do
     </div>
     <h1 class="mt-4 text-3xl font-semibold">Projects</h1>
     <p class="mt-3 text-zinc-300">
-      Connect a local repository, then open it to sync specs and view its tasks.
+      Connect a local repository to plan tasks from documentation or import individual specs.
     </p>
     <p :if={@message} role="status" class="mt-6 text-sm text-emerald-300">{@message}</p>
     <section aria-label="Registered projects" class="mt-8">
@@ -160,7 +178,7 @@ defmodule BossWeb.HomeLive do
     <section aria-labelledby="add-project-title" class="mt-8 border-t border-zinc-800 pt-8">
       <h2 id="add-project-title" class="text-xl font-semibold">Add a local project</h2>
       <p id="project-help" class="mt-2 text-sm text-zinc-400">
-        Choose an existing Git repository with at least one commit and a specs directory inside it.
+        Choose a Git repository with at least one commit and a documentation or specs folder.
       </p>
       <.form
         for={@form}
@@ -179,9 +197,29 @@ defmodule BossWeb.HomeLive do
           kind="repository"
           disabled={@picking != nil}
         />
+        <div>
+          <input type="hidden" name={@form[:intake_mode].name} value="specs" />
+          <label for={@form[:intake_mode].id} class="flex items-center gap-2 text-sm">
+            <input
+              id={@form[:intake_mode].id}
+              name={@form[:intake_mode].name}
+              type="checkbox"
+              value="documentation"
+              checked={@form[:intake_mode].value == "documentation"}
+              aria-describedby="intake-mode-help"
+            /> Plan tasks from documentation
+          </label>
+          <p id="intake-mode-help" class="mt-1 text-xs text-zinc-400">
+            Start Autopilot will compare the committed documentation with the code and create a task plan.
+          </p>
+        </div>
         <.folder
           field={@form[:specs_path]}
-          label="Specs directory"
+          label={
+            if @form[:intake_mode].value == "documentation",
+              do: "Documentation folder",
+              else: "Specs directory"
+          }
           kind="specs"
           disabled={@picking != nil or is_nil(@folders["root_path"])}
         />
@@ -190,8 +228,16 @@ defmodule BossWeb.HomeLive do
         </p>
         <.field
           field={@form[:base_branch]}
-          label="Base branch (optional)"
-          placeholder="Current branch"
+          label={
+            if @form[:intake_mode].value == "documentation",
+              do: "Integration target branch (optional)",
+              else: "Base branch (optional)"
+          }
+          placeholder={
+            if @form[:intake_mode].value == "documentation",
+              do: "Create a dedicated branch",
+              else: "Current branch"
+          }
         />
         <.field
           field={@form[:name]}
