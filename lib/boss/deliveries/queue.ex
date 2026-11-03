@@ -37,16 +37,33 @@ defmodule Boss.Deliveries.Queue do
   end
 
   @doc false
+  def admit(project, task, command, text, reviewer),
+    do:
+      admit(
+        project,
+        task,
+        command,
+        text,
+        reviewer,
+        Boss.Deliveries.ModelPolicy.current(),
+        Boss.Deliveries.ModelPolicy.current_routing()
+      )
+
+  def admit(project, task, command, text, reviewer, autonomy_version),
+    do: admit(project, task, command, text, reviewer, autonomy_version, 1)
+
   def admit(
         project,
         task,
         command,
         text,
         reviewer,
-        autonomy_version \\ Boss.Deliveries.ModelPolicy.current()
+        autonomy_version,
+        routing_version
       ) do
     with true <- valid_id?(project) and valid_id?(task) and reviewer in ["codex", "claude"],
          true <- autonomy_version in [0, 1],
+         true <- routing_version in [1, 2] and (routing_version == 1 or autonomy_version == 1),
          {:ok, _} <- Ecto.UUID.cast(command),
          {:ok, config, hash} <- Boss.Checks.Command.parse(text) do
       transaction(fn ->
@@ -128,7 +145,8 @@ defmodule Boss.Deliveries.Queue do
               check_config: config,
               config_hash: hash,
               reviewer: reviewer,
-              autonomy_version: autonomy_version
+              autonomy_version: autonomy_version,
+              routing_version: routing_version
             })
         end
       end)
@@ -136,6 +154,27 @@ defmodule Boss.Deliveries.Queue do
     else
       _ -> {:error, :invalid_command}
     end
+  end
+
+  @doc false
+  def autopilot_candidates(project, 2) do
+    Repo.query!(
+      "SELECT task_id FROM autopilot_recovery_candidates WHERE project_id=? ORDER BY task_id LIMIT 257",
+      [project]
+    ).rows
+    |> List.flatten()
+  end
+
+  def autopilot_candidates(project, 1) do
+    Repo.all(
+      from t in Tasks.Task,
+        join: s in Spec,
+        on: s.id == t.spec_id,
+        where: s.project_id == ^project and not s.missing and t.state == "new",
+        order_by: t.id,
+        select: t.id,
+        limit: 257
+    )
   end
 
   def cancel(project, id), do: change(project, id, :cancel)
