@@ -496,8 +496,8 @@ defmodule Boss.Deliveries.Autopilot do
         "provider_auth" -> "The provider rejected authentication."
         "provider_rate_limit" -> "The provider reported a rate limit."
         "provider_schema" -> "The provider rejected the response format."
-        "provider_startup" -> "Two available models could not start a valid planning session."
-        "provider_transport" -> "The provider connection failed."
+        "provider_startup" -> "Two catalogued models could not start a valid planning session."
+        "provider_transport" -> "Codex transport or protocol failed."
       end
 
     detail <>
