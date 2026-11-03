@@ -254,6 +254,30 @@ defmodule BossWeb.AutopilotLiveTest do
     end
   end
 
+  test "an eligible-selection read failure still confirms the saved Start and restores Stop", c do
+    {socket, request, batch} = uncertain_start(c)
+
+    {:noreply, confirmed} =
+      Autopilot.handle_async(
+        {:load, 3},
+        {:ok, {{:ok, batch}, nil, {:error, :storage_error}}},
+        socket
+      )
+
+    assert confirmed.assigns.batch == batch
+    assert confirmed.assigns.pending == nil
+    refute confirmed.assigns.command == request.id
+    refute confirmed.assigns.loaded
+    assert confirmed.assigns.eligible_task_ids == []
+    assert confirmed.assigns.error =~ "Could not load eligible tasks"
+    html = render_component(&Autopilot.render/1, confirmed.assigns)
+
+    assert html
+           |> LazyHTML.from_document()
+           |> LazyHTML.query("#stop-autopilot:not([disabled])")
+           |> Enum.count() == 1
+  end
+
   test "unrelated or mismatched reads preserve the original uncertain Start", c do
     {socket, request, batch} = uncertain_start(c)
 

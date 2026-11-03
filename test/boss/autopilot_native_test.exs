@@ -113,7 +113,7 @@ defmodule Boss.AutopilotNativeTest do
                 explicit_id: name,
                 title: name,
                 original_text:
-                  "---\nid: #{name}\n#{if name == "two" and not context[:independent], do: "depends_on: [one]\n", else: ""}---\n# #{name}\nCreate result.txt"
+                  "---\nid: #{name}\n#{if name == "two" and !context[:independent], do: "depends_on: [one]\n", else: ""}---\n# #{name}\nCreate result.txt"
               })
 
             record.task
@@ -431,7 +431,7 @@ defmodule Boss.AutopilotNativeTest do
       assert done.status == "done"
       steps = Deliveries.steps(done.id)
       assert Enum.any?(steps, &(&1.kind == "publish" and &1.status == "finished"))
-      assert Enum.any?(steps, &(&1.kind == "postcheck" and &1.status == "finished"))
+      assert Enum.any?(steps, &(&1.kind == "post_check" and &1.status == "finished"))
     end
 
     assert git(c.source, ["rev-parse", "main"]) ==
@@ -440,6 +440,7 @@ defmodule Boss.AutopilotNativeTest do
     assert git(c.source, ["rev-parse", "HEAD"]) == original
     assert git(c.source, ["status", "--porcelain"]) == ""
     assert Repo.aggregate(Deliveries.Delivery, :count) == 4
+    assert {:ok, []} = Autopilot.selection(c.project.id)
   end
 
   @tag :continue_on_failure

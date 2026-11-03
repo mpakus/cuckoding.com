@@ -123,7 +123,7 @@ defmodule Boss.AutopilotRecoveryTest do
       assert {:error, :busy} = Queue.claim(second.request_id)
       assert {:ok, {:changed, stopped}} = Autopilot.advance()
       assert stopped.status == "blocked"
-      assert stopped.reason =~ "Two available models could not start"
+      assert stopped.reason =~ "Two catalogued models could not start"
       assert Enum.map(c.tasks, &Tasks.get_task!(&1.id).state) == ~w(failed new new)
       assert Repo.aggregate(Deliveries.Delivery, :count) == 1
       assert Repo.get!(Deliveries.Delivery, delivery.id) == delivery
