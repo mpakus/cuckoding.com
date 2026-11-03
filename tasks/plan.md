@@ -542,3 +542,10 @@ A fresh workflow must produce its own pinned plan/check/review/publication and
 postchecks. Current review retry only admits Blocked with a final rejected review;
 it cannot resume Failed-before-review or promote an arbitrary external branch.
 Preserve the tested draft and old history while choosing that explicit next path.
+
+## Candidate retry after a failed final review setup
+
+A new explicit workflow pins the operator-selected commit separately from the
+historical rejected review. It preserves the prior acceptance criteria, performs
+fresh checks and review, and uses ordinary integration and postchecks. Local
+source builds use the foreground `bin/build` entrypoint.
