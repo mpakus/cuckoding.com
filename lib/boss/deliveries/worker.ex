@@ -4,7 +4,7 @@ defmodule Boss.Deliveries.Worker do
   alias Boss.Agents.{Claude, Codex, ReportFile, Workspace}
   alias Boss.Agents.Process, as: Runner
   alias Boss.Checks.Candidate
-  alias Boss.Deliveries.{Diagnostics, Protocol, Retry}
+  alias Boss.Deliveries.{Diagnostics, ModelPolicy, Protocol, Retry}
 
   def execute(delivery, repo, manager) do
     Repo.put_dynamic_repo(repo)
@@ -52,34 +52,7 @@ defmodule Boss.Deliveries.Worker do
 
     input = retry_plan_input(input, source)
 
-    prompt = ok!(Protocol.prompt(:plan, input))
-
-    {plan_step, plan} =
-      step(
-        delivery,
-        "plan",
-        0,
-        retry_input(%{"workspace" => intent, "input_hash" => Protocol.digest(input)}, delivery),
-        fn ->
-          continue!()
-          ok!(Workspace.prepare(intent))
-
-          verify = fn ->
-            with :ok <- Candidate.verify_tree(intent["path"], intent["base_commit"]),
-                 do: Retry.verify(source)
-          end
-
-          previous_plan = if source, do: source.plan.receipt["report"]
-          receipt = run_agent(:plan, intent["path"], prompt, &Protocol.plan(&1, previous_plan))
-          receipt = verify_agent(receipt, verify)
-          {Map.put(receipt, "workspace", intent), receipt["report"]}
-        end
-      )
-
-    successful!(plan_step)
-
-    if question = plan["clarification"],
-      do: throw({:halt, {:needs_input, Diagnostics.planning_question(question)}})
+    {plan_step, plan} = plan(delivery, source, input)
 
     {previous, feedback} = retry_seed(delivery, project, plan_step, source)
     failures = retry_failures(delivery, source)
@@ -95,6 +68,95 @@ defmodule Boss.Deliveries.Worker do
       feedback,
       failures
     )
+  end
+
+  defp plan(delivery, source, input, parent \\ nil, previous_plan \\ nil, attempt \\ 0) do
+    intent = delivery.intent
+    profile = profile(delivery, :plan, 0)
+    prompt = ok!(Protocol.prompt(:plan, input))
+    previous_plan = previous_plan || if(source, do: source.plan.receipt["report"])
+
+    saved_input =
+      retry_input(
+        %{
+          "workspace" => intent,
+          "input_hash" => Protocol.digest(input),
+          "model_profile" => profile
+        },
+        delivery
+      )
+
+    saved_input =
+      if parent do
+        Map.merge(saved_input, %{
+          "parent_step_id" => parent.id,
+          "plan_step_id" => parent.input["plan_step_id"],
+          "replan_attempt" => attempt
+        })
+      else
+        saved_input
+      end
+
+    {plan_step, report} =
+      step(delivery, "plan", 0, saved_input, fn ->
+        continue!()
+        if is_nil(parent), do: ok!(Workspace.prepare(intent))
+
+        verify = fn ->
+          with :ok <- Candidate.verify_tree(intent["path"], intent["base_commit"]),
+               do: Retry.verify(source)
+        end
+
+        ok!(verify.())
+
+        receipt =
+          run_agent(:plan, intent["path"], prompt, &Protocol.plan(&1, previous_plan), profile)
+
+        receipt = verify_agent(receipt, verify)
+        {Map.put(receipt, "workspace", intent), receipt["report"]}
+      end)
+
+    question = if report, do: report["clarification"]
+
+    cond do
+      plan_step.status == "finished" and is_nil(question) ->
+        {plan_step, report}
+
+      autonomous?(delivery) and attempt < 2 and recoverable?(plan_step) ->
+        feedback = %{"kind" => "plan", "report" => report, "receipt" => plan_step.receipt}
+
+        {resolution, advice} =
+          resolve(
+            delivery,
+            plan_step,
+            report,
+            plan_step,
+            intent,
+            intent["base_commit"],
+            feedback,
+            input["specification"]
+          )
+
+        preserved =
+          cond do
+            previous_plan -> previous_plan
+            report && report["acceptance"] != [] -> report
+            true -> nil
+          end
+
+        next_input =
+          input
+          |> Map.put("resolution", advice)
+          |> Map.put("previous_plan", preserved)
+
+        plan(delivery, source, next_input, resolution, preserved, attempt + 1)
+
+      question ->
+        throw({:halt, {:needs_input, Diagnostics.planning_question(question)}})
+
+      true ->
+        successful!(plan_step)
+    end
   end
 
   defp retry_plan_input(input, nil), do: input
@@ -261,6 +323,7 @@ defmodule Boss.Deliveries.Worker do
     base = if previous, do: previous.candidate_commit, else: delivery.intent["base_commit"]
     workspace = ok!(Workspace.plan(project, Ecto.UUID.generate())) |> string_keys()
     workspace = Map.put(workspace, "base_commit", base)
+    profile = profile(delivery, :implement, cycle, plan)
 
     input = %{
       "specification" => source,
@@ -283,6 +346,9 @@ defmodule Boss.Deliveries.Worker do
             "workspace" => workspace,
             "plan_step_id" => plan_step.id,
             "parent_step_id" => if(previous, do: previous.step_id, else: plan_step.id),
+            "resolution_step_id" => if(previous, do: Map.get(previous, :resolution_step_id)),
+            "source_step_id" => if(previous, do: Map.get(previous, :source_step_id)),
+            "model_profile" => profile,
             "feedback_hash" => Protocol.digest(feedback),
             "input_hash" => Protocol.digest(input)
           },
@@ -292,7 +358,7 @@ defmodule Boss.Deliveries.Worker do
           continue!()
           ok!(Workspace.prepare(workspace))
           if cycle == 1, do: ok!(Retry.verify(ok!(Retry.source(delivery))))
-          receipt = run_agent(:implement, workspace["path"], prompt, nil)
+          receipt = run_agent(:implement, workspace["path"], prompt, nil, profile)
 
           receipt =
             if receipt["status"] == "finished" do
@@ -451,6 +517,7 @@ defmodule Boss.Deliveries.Worker do
 
     kind = if delivery.reviewer == "claude", do: :claude_review, else: :review
     prompt = ok!(Protocol.prompt(kind, input))
+    profile = if delivery.reviewer == "codex", do: profile(delivery, :review, cycle, plan)
 
     {review, report} =
       step(
@@ -466,40 +533,52 @@ defmodule Boss.Deliveries.Worker do
           "config_hash" => delivery.config_hash,
           "output_hash" => check.receipt["output_hash"],
           "feedback_hash" => Protocol.digest(feedback),
-          "input_hash" => Protocol.digest(input)
+          "input_hash" => Protocol.digest(input),
+          "model_profile" => profile
         },
         fn ->
           continue!()
           ok!(Candidate.verify(candidate, sha))
-          receipt = run_reviewer(delivery.reviewer, path, prompt, &Protocol.review(&1, plan))
+
+          receipt =
+            run_reviewer(delivery.reviewer, path, prompt, &Protocol.review(&1, plan), profile)
+
           receipt = verify_agent(receipt, fn -> Candidate.verify(candidate, sha) end)
           {Map.put(receipt, "candidate_commit", sha), receipt["report"]}
         end
       )
 
-    successful!(review)
     continue!()
 
-    case report["verdict"] do
-      "approved" ->
+    case {review.status, report && report["verdict"]} do
+      {"finished", "approved"} ->
         Deliveries.complete(delivery.id, "ready_to_merge", nil)
 
-      "needs_spec_revision" ->
-        Deliveries.complete(
-          delivery.id,
-          "needs_input",
-          Diagnostics.clarification(report)
-        )
+      {"finished", "needs_spec_revision"} when not is_nil(report) ->
+        if autonomous?(delivery) do
+          review_retry(
+            delivery,
+            project,
+            source,
+            plan_step,
+            plan,
+            cycle,
+            candidate,
+            sha,
+            review,
+            output,
+            failures
+          )
+        else
+          Deliveries.complete(
+            delivery.id,
+            "needs_input",
+            Diagnostics.clarification(report)
+          )
+        end
 
-      "changes_requested" ->
-        feedback = %{
-          "kind" => "review",
-          "report" => report,
-          "check_receipt" => check.receipt,
-          "check_output" => output
-        }
-
-        repeat(
+      {"finished", "changes_requested"} ->
+        review_retry(
           delivery,
           project,
           source,
@@ -508,11 +587,68 @@ defmodule Boss.Deliveries.Worker do
           cycle,
           candidate,
           sha,
-          review.id,
-          feedback,
+          review,
+          output,
           failures
         )
+
+      _ ->
+        if autonomous?(delivery) and recoverable?(review) do
+          review_retry(
+            delivery,
+            project,
+            source,
+            plan_step,
+            plan,
+            cycle,
+            candidate,
+            sha,
+            review,
+            output,
+            failures
+          )
+        else
+          successful!(review)
+        end
     end
+  end
+
+  defp review_retry(
+         delivery,
+         project,
+         source,
+         plan_step,
+         plan,
+         cycle,
+         candidate,
+         sha,
+         review,
+         output,
+         failures
+       ) do
+    check = Enum.find(Deliveries.steps(delivery.id), &(&1.id == review.input["check_step_id"]))
+
+    feedback = %{
+      "kind" => "review",
+      "report" => review.receipt["report"],
+      "receipt" => review.receipt,
+      "check_receipt" => check.receipt,
+      "check_output" => output
+    }
+
+    repeat(
+      delivery,
+      project,
+      source,
+      plan_step,
+      plan,
+      cycle,
+      candidate,
+      sha,
+      review.id,
+      feedback,
+      failures
+    )
   end
 
   defp repeat(
@@ -533,13 +669,13 @@ defmodule Boss.Deliveries.Worker do
 
     findings =
       if feedback["kind"] == "review",
-        do: feedback["report"]["issues"],
+        do: get_in(feedback, ["report", "issues"]) || feedback["receipt"],
         else: Map.take(feedback, ["exit_code", "output"])
 
     fingerprint = Protocol.digest([tree, delivery.config_hash, normalize_feedback(findings)])
 
     cond do
-      MapSet.member?(failures, fingerprint) ->
+      not autonomous?(delivery) and MapSet.member?(failures, fingerprint) ->
         Deliveries.complete(
           delivery.id,
           "blocked",
@@ -549,17 +685,38 @@ defmodule Boss.Deliveries.Worker do
           )
         )
 
-      cycle >= 3 ->
+      cycle >= ModelPolicy.max_cycles(version(delivery)) ->
         Deliveries.complete(
           delivery.id,
           "blocked",
           Diagnostics.repair_stop(
-            "The three-cycle implementation/check/review budget is exhausted.",
+            if(autonomous?(delivery),
+              do:
+                "The five-cycle implementation/check/review budget is exhausted after model escalation.",
+              else: "The three-cycle implementation/check/review budget is exhausted."
+            ),
             feedback
           )
         )
 
       true ->
+        {previous, feedback} =
+          if autonomous?(delivery) do
+            rejected = Enum.find(Deliveries.steps(delivery.id), &(&1.id == step_id))
+
+            {resolution, advice} =
+              resolve(delivery, plan_step, plan, rejected, candidate, sha, feedback, source)
+
+            {%{
+               candidate_commit: sha,
+               step_id: resolution.id,
+               resolution_step_id: resolution.id,
+               source_step_id: step_id
+             }, Map.put(feedback, "resolution", advice)}
+          else
+            {%{candidate_commit: sha, step_id: step_id}, feedback}
+          end
+
         cycle(
           delivery,
           project,
@@ -567,12 +724,122 @@ defmodule Boss.Deliveries.Worker do
           plan_step,
           plan,
           cycle + 1,
-          %{candidate_commit: sha, step_id: step_id},
+          previous,
           feedback,
           MapSet.put(failures, fingerprint)
         )
     end
   end
+
+  defp resolve(
+         delivery,
+         plan_step,
+         plan,
+         problem,
+         workspace,
+         sha,
+         feedback,
+         source,
+         attempt \\ 1,
+         parent \\ nil
+       ) do
+    continue!()
+    parent = parent || problem
+    profile = profile(delivery, :resolve, attempt)
+
+    verify = fn ->
+      if problem.kind == "plan",
+        do: Candidate.verify_tree(workspace["path"], sha),
+        else: Candidate.verify(workspace, sha)
+    end
+
+    ok!(verify.())
+
+    input = %{
+      "specification" => source,
+      "plan" => plan,
+      "base_commit" => delivery.intent["base_commit"],
+      "candidate_commit" => sha,
+      "check_config" => delivery.check_config,
+      "previous_feedback" => feedback,
+      "resolution_attempt" => attempt,
+      "previous_resolution" => if(parent.kind == "resolve", do: parent.receipt["report"])
+    }
+
+    prompt = ok!(Protocol.prompt(:resolve, input))
+
+    {resolution, report} =
+      step(
+        delivery,
+        "resolve",
+        problem.cycle,
+        %{
+          "parent_step_id" => parent.id,
+          "source_step_id" => problem.id,
+          "plan_step_id" => plan_step.id,
+          "workspace" => workspace,
+          "candidate_commit" => sha,
+          "feedback_hash" => Protocol.digest(feedback),
+          "input_hash" => Protocol.digest(input),
+          "model_profile" => profile,
+          "resolution_attempt" => attempt
+        },
+        fn ->
+          continue!()
+          ok!(verify.())
+
+          receipt =
+            run_agent(:resolve, workspace["path"], prompt, &Protocol.resolution/1, profile)
+
+          receipt = verify_agent(receipt, verify)
+          {Map.put(receipt, "candidate_commit", sha), receipt["report"]}
+        end
+      )
+
+    cond do
+      resolution.status == "finished" and is_nil(report["external_action"]) ->
+        {resolution, report}
+
+      attempt == 1 and recoverable?(resolution) ->
+        resolve(
+          delivery,
+          plan_step,
+          plan,
+          problem,
+          workspace,
+          sha,
+          feedback,
+          source,
+          2,
+          resolution
+        )
+
+      resolution.status == "finished" ->
+        throw({:halt, {:needs_input, Diagnostics.planning_question(report["external_action"])}})
+
+      true ->
+        successful!(resolution)
+    end
+  end
+
+  defp recoverable?(%{status: "finished", receipt: %{"cleanup" => "group_empty"}}), do: true
+
+  defp recoverable?(%{
+         status: "failed",
+         receipt: %{
+           "cleanup" => "group_empty",
+           "outcome" => "invalid_report"
+         }
+       }),
+       do: true
+
+  defp recoverable?(_), do: false
+
+  defp version(delivery), do: Map.get(delivery, :autonomy_version, 0)
+  defp autonomous?(delivery), do: version(delivery) == 1
+
+  defp profile(delivery, kind, cycle, plan \\ nil),
+    do: ModelPolicy.route(version(delivery), kind, cycle, plan)
 
   @doc false
   def run_check(path, config, verify) do
@@ -656,10 +923,12 @@ defmodule Boss.Deliveries.Worker do
   end
 
   @doc false
-  def run_reviewer("codex", path, prompt, decode),
-    do: run_agent(:review, path, prompt, decode)
+  def run_reviewer(reviewer, path, prompt, decode, profile \\ nil)
 
-  def run_reviewer("claude", _path, prompt, decode) do
+  def run_reviewer("codex", path, prompt, decode, profile),
+    do: run_agent(:review, path, prompt, decode, profile)
+
+  def run_reviewer("claude", _path, prompt, decode, _profile) do
     continue!()
     executable = System.find_executable("claude") || throw({:halt, :claude_unavailable})
     # No repository discovery: this reviewer receives its entire evidence on stdin.
@@ -721,15 +990,15 @@ defmodule Boss.Deliveries.Worker do
   end
 
   @doc false
-  def run_agent(kind, path, prompt, decode) do
+  def run_agent(kind, path, prompt, decode, profile \\ nil) do
     continue!()
     executable = System.find_executable("codex") || throw({:halt, :codex_unavailable})
 
     if kind == :implement do
-      agent_process(executable, Codex.args(), path, prompt)
+      agent_process(executable, Codex.args(:implement, nil, profile), path, prompt)
     else
       case ReportFile.with_file(fn output, file ->
-             receipt = agent_process(executable, Codex.args(kind, output), path, prompt)
+             receipt = agent_process(executable, Codex.args(kind, output, profile), path, prompt)
 
              if receipt["status"] == "finished" do
                with {:ok, text} <- ReportFile.read(output, file),

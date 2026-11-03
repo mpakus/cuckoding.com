@@ -23,10 +23,12 @@ defmodule Boss.DeliveryWorkerTest do
     {20_261_027_070_000, Boss.Repo.Migrations.AddAutopilot},
     {20_261_031_220_000, Boss.Repo.Migrations.AddReviewRetries},
     {20_261_102_120_000, Boss.Repo.Migrations.AddCandidateRetries},
-    {20_261_103_120_000, Boss.Repo.Migrations.AddProjectIntake}
+    {20_261_103_120_000, Boss.Repo.Migrations.AddProjectIntake},
+    {20_261_104_120_000, Boss.Repo.Migrations.ContinueAutopilotAfterTaskFailure},
+    {20_261_104_130_000, Boss.Repo.Migrations.AddAutonomousRecovery}
   ]
 
-  setup do
+  setup context do
     root = Path.join(System.tmp_dir!(), "boss-delivery-#{Ecto.UUID.generate()}")
     File.mkdir!(root)
     on_exit(fn -> File.rm_rf!(root) end)
@@ -105,7 +107,167 @@ defmodule Boss.DeliveryWorkerTest do
       end
     end)
 
-    %{root: root, repo: repo, opts: opts, project: project, task: record.task, source: source}
+    %{
+      root: root,
+      repo: repo,
+      opts: opts,
+      project: project,
+      task: record.task,
+      source: source,
+      autonomy: context[:autonomy] == true
+    }
+  end
+
+  @tag autonomy: true
+  test "a planning question is resolved by Astra and a fresh plan proceeds without owner input",
+       ctx do
+    System.put_env("BOSS_DELIVERY_MODE", "autonomy_plan")
+    manager = start_manager(ctx.repo)
+    {:ok, run} = start(ctx, manager)
+    saved = await_delivery(ctx, run.id)
+    steps = Deliveries.steps(run.id)
+    assert saved.status == "ready_to_merge", inspect({saved, steps})
+    assert saved.autonomy_version == 1
+    assert Enum.map(steps, & &1.kind) == ~w(plan resolve plan implement snapshot check review)
+    [original, resolution, replanned, implementation | _] = steps
+    assert resolution.input["source_step_id"] == original.id
+    assert replanned.input["parent_step_id"] == resolution.id
+    assert implementation.input["plan_step_id"] == replanned.id
+
+    assert Enum.map(calls(ctx), & &1["model"]) ==
+             ~w(gpt-6.1-sol gpt-6-astra gpt-6.1-sol gpt-6.1-sol gpt-6.1-sol)
+
+    assert_no_raw(steps)
+  end
+
+  @tag autonomy: true
+  test "small initial implementations use Luna while review remains independent", ctx do
+    System.put_env("BOSS_DELIVERY_MODE", "autonomy_small")
+    manager = start_manager(ctx.repo)
+    {:ok, run} = start(ctx, manager)
+    assert await_delivery(ctx, run.id).status == "ready_to_merge"
+    assert Enum.map(calls(ctx), & &1["model"]) == ~w(gpt-6.1-sol gpt-6-luna gpt-6.1-sol)
+    assert Enum.at(calls(ctx), 1)["reasoning_effort"] == "medium"
+  end
+
+  @tag autonomy: true
+  test "an unclear review is diagnosed before a different implementation model fixes the candidate",
+       ctx do
+    System.put_env("BOSS_DELIVERY_MODE", "autonomy_review")
+    manager = start_manager(ctx.repo)
+    {:ok, run} = start(ctx, manager)
+    saved = await_delivery(ctx, run.id)
+    steps = Deliveries.steps(run.id)
+    assert saved.status == "ready_to_merge" and saved.cycle == 2, inspect({saved, steps})
+    [first, second] = Enum.filter(steps, &(&1.kind == "implement"))
+    [resolution] = Enum.filter(steps, &(&1.kind == "resolve"))
+    assert first.input["model_profile"]["model"] == "gpt-6.1-sol"
+
+    assert second.input["model_profile"] == %{
+             "model" => "gpt-6-astra",
+             "reasoning_effort" => "xhigh"
+           }
+
+    assert second.input["parent_step_id"] == resolution.id
+    assert second.input["workspace"]["base_commit"] == resolution.input["candidate_commit"]
+    assert first.input["plan_step_id"] == second.input["plan_step_id"]
+
+    assert Repo.get!(Projects.SpecRevision, saved.spec_revision_id).original_text ==
+             "# One\nCreate result.txt"
+
+    assert_no_raw(steps)
+  end
+
+  @tag autonomy: true
+  test "a failed check gives complete transient output to resolution and the alternate implementer",
+       ctx do
+    System.put_env("BOSS_DELIVERY_MODE", "check_once")
+    manager = start_manager(ctx.repo)
+    {:ok, run} = start(ctx, manager)
+    saved = await_delivery(ctx, run.id)
+    steps = Deliveries.steps(run.id)
+    assert saved.status == "ready_to_merge", inspect({saved, steps})
+
+    assert Enum.map(steps, & &1.kind) ==
+             ~w(plan implement snapshot check resolve implement snapshot check review)
+
+    failed = Enum.find(steps, &(&1.kind == "check"))
+    resolver = Enum.find(steps, &(&1.kind == "resolve"))
+    assert failed.receipt["exit_code"] == 3 and failed.receipt["output_complete"]
+    assert resolver.input["source_step_id"] == failed.id
+    assert resolver.input["candidate_commit"] == failed.input["candidate_commit"]
+
+    assert Enum.map(Enum.filter(calls(ctx), &(&1["kind"] == "implement")), & &1["model"]) ==
+             ~w(gpt-6.1-sol gpt-6-astra)
+
+    assert_no_raw(steps)
+  end
+
+  @tag autonomy: true
+  test "repeated unchanged rejection gets a new model attempt and can recover", ctx do
+    System.put_env("BOSS_DELIVERY_MODE", "autonomy_repeated")
+    manager = start_manager(ctx.repo)
+    {:ok, run} = start(ctx, manager)
+    saved = await_retry(ctx, run.id)
+    assert saved.status == "ready_to_merge" and saved.cycle == 3, inspect(saved)
+    implementation = Enum.filter(calls(ctx), &(&1["kind"] == "implement"))
+    assert Enum.map(implementation, & &1["model"]) == ~w(gpt-6.1-sol gpt-6-astra gpt-6.1-sol)
+    assert Enum.at(implementation, 2)["reasoning_effort"] == "xhigh"
+    assert Enum.count(calls(ctx), &(&1["kind"] == "resolve")) == 2
+  end
+
+  @tag autonomy: true
+  test "external action requires two model opinions and does not fabricate implementation", ctx do
+    System.put_env("BOSS_DELIVERY_MODE", "autonomy_external")
+    manager = start_manager(ctx.repo)
+    {:ok, run} = start(ctx, manager)
+    saved = await_delivery(ctx, run.id)
+    assert saved.status == "needs_input", inspect({saved, Deliveries.steps(run.id)})
+    assert Enum.map(calls(ctx), & &1["kind"]) == ~w(plan resolve resolve)
+    assert Enum.map(Enum.drop(calls(ctx), 1), & &1["model"]) == ~w(gpt-6-astra gpt-6.1-sol)
+    assert Repo.get!(Tasks.Task, ctx.task.id).state == "needs_input"
+    assert File.read!(Path.join(ctx.source, "result.txt")) == "base"
+  end
+
+  for mode <- ~w(autonomy_invalid_plan autonomy_invalid_resolver) do
+    @tag autonomy: true
+    @autonomy_mode mode
+    test "#{@autonomy_mode} recovers through validated alternate output", ctx do
+      System.put_env("BOSS_DELIVERY_MODE", @autonomy_mode)
+      manager = start_manager(ctx.repo)
+      {:ok, run} = start(ctx, manager)
+      saved = await_delivery(ctx, run.id)
+      steps = Deliveries.steps(run.id)
+      assert saved.status == "ready_to_merge", inspect({saved, steps})
+
+      assert Enum.any?(
+               steps,
+               &(&1.status == "failed" and &1.receipt["outcome"] == "invalid_report")
+             )
+
+      assert_no_raw(steps)
+    end
+  end
+
+  @tag autonomy: true
+  test "Stop reaches a live resolver while Manager is suspended and prevents implementation",
+       ctx do
+    System.put_env("BOSS_DELIVERY_MODE", "autonomy_wait_resolve")
+    manager = start_manager(ctx.repo)
+    {:ok, run} = start(ctx, manager)
+    eventually(fn -> File.exists?(Path.join(ctx.root, "resolver-waiting")) end)
+    :sys.suspend(manager)
+
+    try do
+      assert :ok = Deliveries.stop(ctx.project.id, run.id, Boss.DeliveryTestsActive)
+      eventually(fn -> not Deliveries.active?(Deliveries.get(ctx.project.id, run.id)) end)
+    after
+      :sys.resume(manager)
+    end
+
+    saved = await_delivery(ctx, run.id)
+    assert saved.status == "cancelled" and saved.cleanup == "group_empty"
+    assert Enum.map(calls(ctx), & &1["kind"]) == ~w(plan implement review resolve)
   end
 
   test "complete plan, implementation, check and review are durable without raw output", ctx do
@@ -553,8 +715,11 @@ defmodule Boss.DeliveryWorkerTest do
     assert Enum.map(calls(ctx), & &1["kind"]) == ~w(plan implement)
   end
 
-  defp start(ctx, manager, command \\ Ecto.UUID.generate()),
-    do: Deliveries.start(ctx.project.id, ctx.task.id, command, "python3 check.py", manager)
+  defp start(ctx, manager, command \\ Ecto.UUID.generate()) do
+    if ctx.autonomy,
+      do: Deliveries.start(ctx.project.id, ctx.task.id, command, "python3 check.py", manager),
+      else: legacy_start(ctx, command, "codex")
+  end
 
   defp rejected_delivery(ctx, manager) do
     System.put_env("BOSS_DELIVERY_MODE", "reject_always")
@@ -578,16 +743,28 @@ defmodule Boss.DeliveryWorkerTest do
     end
   end
 
-  defp start_claude(ctx, manager, command \\ Ecto.UUID.generate()),
-    do:
-      Deliveries.start(
-        ctx.project.id,
-        ctx.task.id,
-        command,
-        "python3 check.py",
-        "claude",
-        manager
-      )
+  defp start_claude(ctx, _manager, command \\ Ecto.UUID.generate()),
+    do: legacy_start(ctx, command, "claude")
+
+  # Saved pre-upgrade requests exercise the legacy execution contract unchanged.
+  defp legacy_start(ctx, command, reviewer) do
+    case Boss.Deliveries.Queue.admit(
+           ctx.project.id,
+           ctx.task.id,
+           command,
+           "python3 check.py",
+           reviewer,
+           0
+         ) do
+      {:ok, request} ->
+        eventually(fn -> Repo.get!(Boss.Deliveries.Request, request.id).delivery_id != nil end)
+        request = Repo.get!(Boss.Deliveries.Request, request.id)
+        {:ok, Deliveries.get(ctx.project.id, request.delivery_id)}
+
+      error ->
+        error
+    end
+  end
 
   defp assert_no_raw(steps), do: refute(inspect(steps, limit: :infinity) =~ "SECRET_SENTINEL")
 
@@ -629,7 +806,7 @@ defmodule Boss.DeliveryWorkerTest do
 
     if Deliveries.active?(delivery) do
       number = Deliveries.steps(id) |> List.last() |> Map.fetch!(:number)
-      assert number in 1..20
+      assert number in 1..48
       await_retry(ctx, id, number)
     else
       delivery
