@@ -35,12 +35,15 @@ if schema and schema.name == "intake_schema.json":
 data = json.loads(prompt.split("BOSS delivery input (JSON):\n", 1)[1])
 assert data["check_config"]["argv"] == ["python3", "check.py"]
 schema = Path(args[args.index("--output-schema") + 1]) if "--output-schema" in args else None
-kind = "plan" if schema and schema.name == "plan_schema.json" else "review" if schema else "implement"
+kind = "resolve" if schema and schema.name == "resolution_schema.json" else "plan" if schema and schema.name == "plan_schema.json" else "review" if schema else "implement"
 name = next(name for name in ("one", "two", "three") if f"# {name}\n" in data["specification"])
 root = Path(os.environ["BOSS_DELIVERY_FIXTURE"])
 mode = os.environ.get("BOSS_AUTOPILOT_MODE", "approved")
 with (root / "calls").open("a") as log:
-    log.write(json.dumps({"kind": kind, "task": name, "cwd": str(Path.cwd())}) + "\n")
+    log.write(json.dumps({"kind": kind, "task": name, "cwd": str(Path.cwd()),
+                         "model": args[args.index("--model") + 1] if "--model" in args else None,
+                         "reasoning_effort": next((arg.split("=", 1)[1].strip('"') for arg in args if arg.startswith("model_reasoning_effort=")), None),
+                         "resolution_attempt": data.get("resolution_attempt")}) + "\n")
 print(json.dumps({"type": "turn.started"}), flush=True)
 if kind == "implement":
     assert args[args.index("--sandbox") + 1] == "workspace-write"
@@ -54,9 +57,14 @@ if kind == "implement":
     Path("result.txt").write_text(f"{name}-{cycle}\n")
 else:
     assert args[args.index("--sandbox") + 1] == "read-only"
-    if kind == "plan":
+    if kind == "resolve":
+        report = {"summary": "Use the saved output requirement", "steps": ["Write result.txt as specified"],
+                  "assumptions": ["Preserve the existing text format"], "external_action": None}
+    elif kind == "plan":
         report = {"summary": "Write result", "steps": ["Write result.txt"],
                   "acceptance": [] if mode == "invalid_first" and name == "one" else ["Create result.txt"], "file_scopes": None}
+        if mode == "autonomy_plan" and name == "one" and not data.get("resolution"):
+            report["clarification"] = "Which existing output format should be used?"
     else:
         assert data["check_receipt"]["exit_code"] == 0
         assert "result.txt" in data["diff"]

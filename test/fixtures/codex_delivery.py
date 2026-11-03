@@ -18,10 +18,13 @@ assert isinstance(data["check_config"]["argv"], list) and data["check_config"]["
 mode = os.environ.get("BOSS_DELIVERY_MODE", "approved")
 root = Path(os.environ["BOSS_DELIVERY_FIXTURE"])
 schema = Path(args[args.index("--output-schema") + 1]) if "--output-schema" in args else None
-kind = "plan" if schema and schema.name == "plan_schema.json" else "review" if schema else "implement"
+kind = "resolve" if schema and schema.name == "resolution_schema.json" else "plan" if schema and schema.name == "plan_schema.json" else "review" if schema else "implement"
 cycle = data.get("cycle", 0)
+model = args[args.index("--model") + 1] if "--model" in args else None
+effort = next((arg.split("=", 1)[1].strip('"') for arg in args if arg.startswith("model_reasoning_effort=")), None)
 with (root / "calls").open("a") as calls:
     calls.write(json.dumps({"kind": kind, "cycle": cycle, "cwd": str(Path.cwd()), "target_commit": data.get("target_commit"),
+                           "model": model, "reasoning_effort": effort, "resolution_attempt": data.get("resolution_attempt"),
                            "base_commit": data.get("base_commit"), "previous_candidate_commit": data.get("previous_candidate_commit"),
                            "has_previous_review": bool(data.get("previous_review")),
                            "source_review_id": (data.get("previous_feedback") or {}).get("source_review_id")}) + "\n")
@@ -33,8 +36,8 @@ emit({"type": "turn.started"})
 emit({"type": "item.completed", "item": {"type": "agent_message", "text": "RAW_MODEL_SECRET_SENTINEL"}})
 print("RAW_AGENT_STDERR_SECRET_SENTINEL", file=sys.stderr, flush=True)
 
-if mode == "wait" and kind == "implement":
-    (root / "waiting").write_text(str(os.getpid()))
+if (mode == "wait" and kind == "implement") or (mode == "autonomy_wait_resolve" and kind == "resolve"):
+    (root / ("waiting" if kind == "implement" else "resolver-waiting")).write_text(str(os.getpid()))
     while True:
         time.sleep(0.1)
 
@@ -62,17 +65,31 @@ if kind == "implement":
     elif mode == "retry_reject_always":
         contents = f"retry-candidate-{cycle}"
     else:
-        contents = "unchanged" if mode in ("repeated", "check_repeated") else f"candidate-{cycle}"
+        contents = "unchanged" if mode in ("repeated", "check_repeated") or (mode == "autonomy_repeated" and cycle < 3) else f"candidate-{cycle}"
     Path("result.txt").write_text(contents + "\n")
 else:
     assert args[args.index("--sandbox") + 1] == "read-only"
     output = Path(args[args.index("--output-last-message") + 1])
-    if kind == "plan":
+    if kind == "resolve":
+        assert model in ("gpt-6-astra", "gpt-6.1-sol")
+        feedback = data["previous_feedback"]
+        if feedback["kind"] != "plan":
+            assert (feedback.get("check_receipt") or feedback["receipt"])["output_complete"] is True
+            check_output = feedback.get("check_output") or feedback["output"]
+            assert "CHECK_STDOUT_SECRET_SENTINEL" in check_output["stdout"]
+            assert "CHECK_STDERR_SECRET_SENTINEL" in check_output["stderr"]
+        report = {"summary": "Resolve the exact reported issue", "steps": ["Write result.txt and retain all acceptance criteria"],
+                  "assumptions": ["Use the repository convention for output"], "external_action": None}
+        if mode in ("autonomy_external", "needs_plan", "needs_spec"):
+            report["external_action"] = "Which feature should this workflow deliver?" if mode == "needs_plan" else "Clarify expected output"
+        if mode == "autonomy_invalid_resolver" and data["resolution_attempt"] == 1:
+            report["steps"] = []
+    elif kind == "plan":
         report = {"summary": "Create the result", "steps": ["Write result.txt"], "acceptance": ["Create result.txt"], "file_scopes": None}
-        if mode == "needs_plan":
+        if mode == "needs_plan" or (mode in ("autonomy_plan", "autonomy_external", "autonomy_invalid_resolver") and not data.get("resolution")):
             report = {"summary": "Workflow guidance", "steps": [], "acceptance": [],
                       "file_scopes": None, "clarification": "Which feature should this workflow deliver?"}
-        if data.get("previous_plan"):
+        if data.get("previous_plan") and data.get("previous_review"):
             assert data["previous_plan"]["acceptance"] == report["acceptance"]
             assert data["previous_review"]["verdict"] == "changes_requested"
             assert data["previous_review"]["issues"][0]["message"] == "Correct result.txt contents"
@@ -91,6 +108,10 @@ else:
             Path("result.txt").write_text("planner changed tracked file")
         if mode == "plan_invalid":
             report["acceptance"] = []
+        if mode == "autonomy_invalid_plan" and not data.get("resolution"):
+            report["acceptance"] = []
+        if mode == "autonomy_small":
+            report["complexity"] = "small"
     else:
         assert data["plan"]["acceptance"] == ["Create result.txt"]
         assert "CHECK_STDOUT_SECRET_SENTINEL" in data["check_output"]["stdout"]
@@ -109,8 +130,8 @@ else:
                 while not (root / "integration-review-release").exists():
                     time.sleep(0.05)
         first = Path("result.txt").read_text() == "candidate-1\n"
-        reject = mode in ("reject_always", "repeated", "retry_unchanged", "retry_reject_always") or (mode == "reject_once" and first)
-        unclear = mode == "needs_spec"
+        reject = mode in ("reject_always", "repeated", "retry_unchanged", "retry_reject_always") or (mode in ("reject_once", "autonomy_wait_resolve") and first) or (mode == "autonomy_repeated" and Path("result.txt").read_text() == "unchanged\n")
+        unclear = mode == "needs_spec" or (mode == "autonomy_review" and first)
         criterion = "Another criterion" if mode == "coverage" else "Create result.txt"
         report = {
             "verdict": "needs_spec_revision" if unclear else "changes_requested" if reject else "approved",
