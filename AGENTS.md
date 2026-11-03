@@ -5,6 +5,13 @@
 - Treat `BOSS_PLAN.md` as the product specification for this restart. Read
   `tasks/plan.md`, `tasks/todo.md` and the latest `.worklog/` entry before work.
   Earlier Cuckoding implementations are not requirements for BOSS.
+- The 2026-11-02 autonomy revision is the development priority: minimize owner
+  intervention and time to verified delivery. Ordinary questions and known-clean
+  implementation/check/review failures should first receive another model's
+  diagnosis and a fresh implementation attempt. Pin the model policy before effects,
+  preserve acceptance criteria and show the resolution evidence. Measure successful
+  autonomous delivery, not merely safe refusal. Historical requests keep their
+  original policy; Stop and unknown execution ownership still stop dispatch.
 - Use multiple agents for independent implementation/review tasks. Give each
   writer an isolated worktree and `codex/` branch with explicit file ownership;
   integrate dependent work sequentially. Keep one owner for shared migrations
@@ -227,7 +234,8 @@
   revalidate the retained candidate. Pin the parent's committed terminal task event
   (terminal delivery.task_version is the preceding version). Fresh cycle0 snapshot
   and check must supply complete transient output before fixes; never manufacture
-  old output or inherit approval. Keep three cycles and twenty total stages.
+  old output or inherit approval. Preserve the parent's saved autonomy policy:
+  legacy has three cycles/twenty stages; version 1 has five cycles/forty-eight stages.
 - Candidate retry after Failed requires an explicit full commit SHA, the latest
   historical rejection, a later passing final check and a matching terminal event.
   Pin the selected SHA separately from the old review SHA and prove ancestry
@@ -298,15 +306,17 @@
   Keep capacity-only UI fixtures phased without weakening live UI/peer assertions;
   correlate completion with the actual worker and restore suspended views in after.
 - Fixes get complete transient check output/receipt and prior feedback in a fresh
-  worktree at the rejected candidate; review the full original-base diff. Maximum
-  three cycles; repeated unchanged failure, invalid input, Stop or unknown cleanup
-  halts. Do not persist raw output or truncate prompts to manufacture approval.
+  worktree at the rejected candidate; review the full original-base diff. Version 1
+  resolves known-clean questions/failures and changes implementation model before
+  exhausting its five-cycle/forty-eight-stage budget. Legacy retains three cycles/twenty
+  stages and repeated-failure refusal. Stop, changed candidates and unknown cleanup
+  still halt. Do not persist raw output or truncate prompts to manufacture approval.
 - Terminal workflow attention uses the persisted task event for the reason and
   recovery action. Derive it from bounded structured findings and fixed stage
   diagnostics. Strip controls, preserve UTF-8 and never include raw output.
   Notify connected boards once per task version. Older receipts remain immutable.
-  A typed planner question can stop before implementation; retain a retry's
-  approved scope and distinguish missing decisions from code defects.
+  A typed planner question first enters version 1 resolution before owner attention;
+  retain a retry's approved scope and distinguish missing decisions from code defects.
 - Fresh check worktrees must install actual locked dependencies through the explicit
   repository check command; never vendor dependencies or exclude the real adapter
   from tests to manufacture a passing check. Oversized review input remains a

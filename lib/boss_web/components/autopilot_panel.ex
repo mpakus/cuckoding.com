@@ -213,8 +213,11 @@ defmodule BossWeb.AutopilotPanel do
             <% else %>
               Start authorizes execution of the entire current Backlog.
             <% end %>
-            Start also authorizes automatic integration into <strong class="break-all">{@project.base_branch}</strong>. Each task can use up to three repair cycles.
-            A task reaches Done only after verified review, publication and postchecks. An unresolved failure stops Autopilot.
+            Start also authorizes automatic integration into <strong class="break-all">{@project.base_branch}</strong>.
+            New workflows resolve questions with another model and can use up to five implementation cycles.
+            A task reaches Done only after verified review, publication and postchecks.
+            Independent tasks can continue after a task failure with confirmed cleanup.
+            Stop, unknown cleanup and integration failures halt the batch.
           </p>
           <p id="autopilot-provider-help" class="text-xs text-zinc-400">
             Codex plans and implements; the selected reviewer checks the result. Runs use your configured CLI accounts and may incur charges.

@@ -69,7 +69,7 @@ defmodule Boss.DeliverySchedulingTest do
 
     assert {:error, error} =
              Repo.query(
-               "INSERT OR REPLACE INTO delivery_steps(id,delivery_id,number,kind,cycle,input,receipt,status,inserted_at,updated_at) SELECT ?,delivery_id,3,'review',1,'{}','{}','running',inserted_at,updated_at FROM delivery_steps WHERE id=?",
+               "INSERT OR REPLACE INTO delivery_steps(id,delivery_id,number,kind,cycle,input,receipt,status,inserted_at,updated_at) SELECT ?,delivery_id,3,'review',1,input,'{}','running',inserted_at,updated_at FROM delivery_steps WHERE id=?",
                [Ecto.UUID.generate(), implementation.id]
              )
 
@@ -315,7 +315,16 @@ defmodule Boss.DeliverySchedulingTest do
         [
           Ecto.UUID.generate(),
           data.delivery.id,
-          JSON.encode!(%{"plan_step_id" => data.plan.id})
+          JSON.encode!(%{
+            "plan_step_id" => data.plan.id,
+            "model_profile" =>
+              Boss.Deliveries.ModelPolicy.route(
+                data.delivery.autonomy_version,
+                :implement,
+                1,
+                data.plan.receipt["report"]
+              )
+          })
         ]
       )
 

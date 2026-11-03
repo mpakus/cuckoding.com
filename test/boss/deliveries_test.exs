@@ -44,7 +44,8 @@ defmodule Boss.DeliveriesTest do
   end
 
   test "failed workflow retry pins an explicit seed and replays only the same commit", c do
-    {parent, plan, _, review} = rejected(c, false)
+    # This retained parent used the historical direct-repair policy.
+    {parent, plan, _, review} = rejected(Map.put(c, :autonomy_version, 0), false)
     seed = String.duplicate("e", 40)
     command = Ecto.UUID.generate()
 
@@ -960,7 +961,16 @@ defmodule Boss.DeliveriesTest do
       )
 
   defp checked(c) do
-    {:ok, {:new, d}} = Deliveries.admit(c.project.id, c.task.id, Ecto.UUID.generate(), "true")
+    {:ok, {:new, d}} =
+      Deliveries.admit(
+        c.project.id,
+        c.task.id,
+        Ecto.UUID.generate(),
+        "true",
+        "codex",
+        false,
+        Map.get(c, :autonomy_version, Boss.Deliveries.ModelPolicy.current())
+      )
 
     intent = %{
       "run_id" => d.id,

@@ -31,7 +31,8 @@ defmodule BossWeb.DeliveryPanel do
       <h3 id="task-deliveries-heading" class="font-semibold">Task workflow</h3>
       <p id="delivery-help" class="mt-2 text-sm text-zinc-300">
         Plan, implement, check and review task snapshot revision {@details.pinned_revision.number}.
-        Codex plans and implements, with a maximum of three implementation/check/review cycles.
+        Codex plans and implements. New workflows resolve questions with another model
+        and can use up to five implementation/check/review cycles.
         An approved result waits for you to integrate it.
       </p>
       <p id="delivery-account" class="mt-2 text-xs text-zinc-400">
@@ -226,7 +227,11 @@ defmodule BossWeb.DeliveryPanel do
             Source revision {BossWeb.TaskRevision.number(@details, delivery.spec_revision_id)}
             <span :if={delivery.spec_revision_id != @details.pinned_revision.id}> · historical snapshot</span>
           </p>
-          <p class="text-xs text-zinc-400">Cycle {delivery.cycle} of 3</p>
+          <p class="text-xs text-zinc-400">
+            Cycle {delivery.cycle} of {Boss.Deliveries.ModelPolicy.max_cycles(
+              Map.get(delivery, :autonomy_version, 0)
+            )}
+          </p>
           <p class="text-xs text-zinc-400">
             Planner and implementer: Codex · Reviewer: {reviewer(delivery.reviewer)}
           </p>
@@ -309,6 +314,36 @@ defmodule BossWeb.DeliveryPanel do
             <ol class="mt-2 space-y-1 text-xs text-zinc-400">
               <li :for={step <- delivery.steps} class="space-y-1">
                 <p>{step.number}. {stage(step.kind)} · {step.status}</p>
+                <p :if={is_map(step.input["model_profile"])} class="break-words">
+                  {step.input["model_profile"]["model"]} · {step.input["model_profile"][
+                    "reasoning_effort"
+                  ]}
+                </p>
+                <details :if={step.kind == "resolve" && is_map(step.receipt["report"])}>
+                  <summary class="cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-400">
+                    Resolution and assumptions
+                  </summary>
+                  <p class="mt-2 break-words">
+                    {step.receipt["report"]["summary"]}
+                  </p>
+                  <ol class="mt-2 list-decimal space-y-1 pl-4">
+                    <li :for={item <- step.receipt["report"]["steps"] || []} class="break-words">
+                      {item}
+                    </li>
+                  </ol>
+                  <p
+                    :for={assumption <- step.receipt["report"]["assumptions"] || []}
+                    class="mt-2 break-words"
+                  >
+                    Assumption: {assumption}
+                  </p>
+                  <p
+                    :if={step.receipt["report"]["external_action"]}
+                    class="mt-2 break-words text-amber-300"
+                  >
+                    External action: {step.receipt["report"]["external_action"]}
+                  </p>
+                </details>
                 <%= if step.status == "failed" do %>
                   <p :if={is_integer(step.receipt["exit_code"])}>
                     Process exit code: {step.receipt["exit_code"]}
@@ -494,6 +529,7 @@ defmodule BossWeb.DeliveryPanel do
   defp verdict("needs_spec_revision"), do: "Specification needs clarification"
   defp verdict(_), do: "Unavailable"
   defp stage("plan"), do: "Planning"
+  defp stage("resolve"), do: "Resolving with another model"
   defp stage("retry_snapshot"), do: "Preparing retained candidate"
   defp stage("retry_check"), do: "Rechecking retained candidate"
   defp stage("implement"), do: "Implementation"
@@ -507,12 +543,21 @@ defmodule BossWeb.DeliveryPanel do
   defp stage("post_check"), do: "Post-integration checks"
   defp stage(kind), do: kind
 
-  defp status(%{status: "integrating", steps: steps}) do
+  defp delivery_status(%{status: "integrating", steps: steps}) do
     case List.last(steps) do
       %{kind: "merge", status: "running"} -> "Preparing merge candidate"
       %{kind: "merge_check", status: "running"} -> "Checking merge candidate"
       %{kind: "merge_review", status: "running"} -> "Reviewing merge candidate"
       _ -> status("integrating")
+    end
+  end
+
+  defp delivery_status(%{status: status}), do: status(status)
+
+  defp status(%{steps: steps} = delivery) when is_list(steps) do
+    case List.last(steps) do
+      %{kind: "resolve", status: "running"} -> "Resolving with another model"
+      _ -> delivery_status(delivery)
     end
   end
 

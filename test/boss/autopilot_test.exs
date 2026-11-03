@@ -171,6 +171,7 @@ defmodule Boss.AutopilotTest do
         project_id: c.project.id,
         command_id: Ecto.UUID.generate(),
         task_ids: Enum.map(c.tasks, & &1.id),
+        autonomy_version: 1,
         check_config: config,
         config_hash: hash,
         reviewer: "codex"
@@ -191,8 +192,8 @@ defmodule Boss.AutopilotTest do
     assert {:error, error} =
              Repo.query(
                """
-               INSERT INTO deliveries(id,project_id,task_id,spec_revision_id,command_id,admitted_version,task_version,check_config,config_hash,reviewer,inserted_at,updated_at)
-               VALUES(?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+               INSERT INTO deliveries(id,project_id,task_id,spec_revision_id,command_id,admitted_version,task_version,check_config,config_hash,reviewer,autonomy_version,inserted_at,updated_at)
+               VALUES(?,?,?,?,?,?,?,?,?,?,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
                """,
                [
                  Ecto.UUID.generate(),
