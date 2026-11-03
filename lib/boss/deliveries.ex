@@ -840,11 +840,13 @@ defmodule Boss.Deliveries do
   defp pin_model!(d, kind, cycle, input) do
     if d.autonomy_version == 1 and kind in ~w(plan implement review merge_review resolve) and
          not (d.reviewer == "claude" and kind in ~w(review merge_review)) do
-      plan =
+      saved_plan =
         case saved_step(input["plan_step_id"]) do
-          %Step{delivery_id: id, kind: "plan", receipt: r} when id == d.id -> r["report"]
+          %Step{delivery_id: id, kind: "plan"} = p when id == d.id -> p
           _ -> nil
         end
+
+      plan = if saved_plan, do: saved_plan.receipt["report"]
 
       route_cycle = if kind == "resolve", do: input["resolution_attempt"], else: cycle
       unless is_integer(route_cycle), do: Repo.rollback(:invalid_step)
@@ -853,7 +855,18 @@ defmodule Boss.Deliveries do
            (kind == "implement" and route_cycle not in 1..5),
          do: Repo.rollback(:invalid_step)
 
-      profile = ModelPolicy.route(d.autonomy_version, kind, route_cycle, plan)
+      profile =
+        if kind == "plan" and not is_nil(saved_plan) and saved_plan.status == "failed" and
+             known_model_failure?(saved_plan.receipt) do
+          attempt =
+            if get_in(saved_plan.input, ["model_profile", "model"]) == "gpt-6-astra",
+              do: 2,
+              else: 1
+
+          ModelPolicy.route(d.autonomy_version, :resolve, attempt)
+        else
+          ModelPolicy.route(d.autonomy_version, kind, route_cycle, plan)
+        end
 
       unless is_map(profile) and Map.get(input, "model_profile", profile) == profile,
         do: Repo.rollback(:invalid_step)
@@ -916,7 +929,7 @@ defmodule Boss.Deliveries do
             is_integer(r["exit_code"]) and r["exit_code"] != 0
 
         {kind, "failed"} when kind in ["plan", "review"] ->
-          r["outcome"] == "invalid_report" and r["exit_code"] == 0
+          known_model_failure?(r)
 
         _ ->
           false
@@ -929,9 +942,14 @@ defmodule Boss.Deliveries do
         is_binary(get_in(r, ["report", "external_action"]))
 
   defp second_opinion?(%Step{status: "failed", receipt: r}),
-    do: r["cleanup"] == "group_empty" and process_passed?(r) and r["outcome"] == "invalid_report"
+    do:
+      r["cleanup"] == "group_empty" and r["exit_kind"] == "exit" and
+        r["eof"] == %{"stdout" => true, "stderr" => true} and known_model_failure?(r)
 
   defp second_opinion?(_), do: false
+
+  defp known_model_failure?(r),
+    do: r["outcome"] in ["invalid_report", "exited"] and is_integer(r["exit_code"])
 
   defp resolution_passed?(%Step{status: "finished", receipt: r}),
     do:
