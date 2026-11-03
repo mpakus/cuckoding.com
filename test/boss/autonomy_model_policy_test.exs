@@ -17,7 +17,8 @@ defmodule Boss.AutonomyModelPolicyTest do
     version = ModelPolicy.current()
     assert version == 1
     assert ModelPolicy.max_cycles(version) == 5
-    assert ModelPolicy.max_steps(version) == 40
+    assert ModelPolicy.max_steps(version) == 48
+    assert ModelPolicy.max_steps(version) >= 7 + 2 + 5 * 4 + 4 * 2 + 5
 
     for plan <- [nil, %{}, %{"complexity" => "standard"}, %{"complexity" => "complex"}] do
       assert ModelPolicy.route(version, :implement, 1, plan) ==
