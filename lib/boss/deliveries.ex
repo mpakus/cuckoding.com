@@ -3,9 +3,11 @@ defmodule Boss.Deliveries do
   import Ecto.Query
   alias Boss.{Repo, Runs, Tasks}
   alias Boss.Deliveries.{Delivery, ModelPolicy, Scheduling, Step}
+  alias Boss.Agents.ModelCatalog
   alias Boss.Projects.{Project, Spec, SpecRevision}
   @active ~w(planning implementing testing reviewing integrating)
   @terminal ~w(done blocked needs_input failed cancelled interrupted)
+  @failure_codes ~w(catalog_unavailable catalog_invalid catalog_insufficient_models codex_unavailable models_exhausted provider_auth provider_rate_limit provider_schema provider_transport)
   @stages %{
     "plan" => "planning",
     "resolve" => "planning",
@@ -60,44 +62,58 @@ defmodule Boss.Deliveries do
           _ -> nil
         end
 
-      preferred =
-        if kind == "plan" and not is_nil(saved_plan) and saved_plan.status == "failed" and
-             known_model_failure?(saved_plan.receipt) do
-          attempt =
-            if get_in(saved_plan.input, ["model_profile", "model"]) == "gpt-6-astra",
-              do: 2,
-              else: 1
+      if d.routing_version == 2 and ModelCatalog.validate(d.model_catalog) != :ok do
+        {:error, :catalog_invalid}
+      else
+        preferred =
+          if kind == "plan" and not is_nil(saved_plan) and saved_plan.status == "failed" and
+               known_model_failure?(saved_plan.receipt) do
+            attempt =
+              if get_in(saved_plan.input, ["model_profile", "model"]) == resolver_model(d),
+                do: 2,
+                else: 1
 
-          ModelPolicy.route(d.autonomy_version, :resolve, attempt)
-        else
-          ModelPolicy.route(
-            d.autonomy_version,
-            kind,
-            cycle,
-            if(saved_plan, do: saved_plan.receipt["report"])
-          )
-        end
+            route(d, :resolve, attempt, nil)
+          else
+            route(
+              d,
+              kind,
+              cycle,
+              if(saved_plan, do: saved_plan.receipt["report"])
+            )
+          end
 
-      saved_steps = steps(d.id)
+        saved_steps = steps(d.id)
 
-      excluded =
-        saved_steps
-        |> Enum.filter(&unavailable_model?/1)
-        |> Enum.map(&get_in(&1.input, ["model_profile", "model"]))
-        |> Enum.reject(&is_nil/1)
+        excluded =
+          saved_steps
+          |> Enum.filter(&excluded_model?(d, &1))
+          |> Enum.map(&get_in(&1.input, ["model_profile", "model"]))
+          |> Enum.reject(&is_nil/1)
 
-      excluded =
-        case {kind, cycle, List.last(saved_steps)} do
-          {"resolve", 2, %Step{kind: "resolve", input: input}} ->
-            [get_in(input, ["model_profile", "model"]) | excluded]
+        excluded =
+          case {kind, cycle, List.last(saved_steps)} do
+            {"resolve", 2, %Step{kind: "resolve", input: input}} ->
+              [get_in(input, ["model_profile", "model"]) | excluded]
 
-          _ ->
-            excluded
-        end
+            _ ->
+              excluded
+          end
 
-      ModelPolicy.select(preferred, excluded)
+        if d.routing_version == 1,
+          do: ModelPolicy.select(preferred, excluded),
+          else: ModelPolicy.select(preferred, excluded, d.model_catalog)
+      end
     end
   end
+
+  defp resolver_model(%Delivery{routing_version: 1}), do: "gpt-6-astra"
+  defp resolver_model(d), do: d.model_catalog["resolver"]["model"]
+
+  defp route(%Delivery{routing_version: 1}, kind, cycle, plan),
+    do: ModelPolicy.route(1, kind, cycle, plan)
+
+  defp route(d, kind, cycle, plan), do: ModelPolicy.route(2, kind, cycle, plan, d.model_catalog)
 
   def list(project, task) do
     Repo.all(
@@ -126,13 +142,36 @@ defmodule Boss.Deliveries do
     do: admit(project, task, command, text, "codex", replay_only)
 
   def admit(project, task, command, text, reviewer, replay_only),
-    do: admit(project, task, command, text, reviewer, replay_only, ModelPolicy.current())
+    do:
+      admit(
+        project,
+        task,
+        command,
+        text,
+        reviewer,
+        replay_only,
+        ModelPolicy.current(),
+        ModelPolicy.current_routing()
+      )
 
   @doc false
-  def admit(project, task, command, text, reviewer, replay_only, autonomy_version) do
+  def admit(project, task, command, text, reviewer, replay_only, autonomy_version),
+    do: admit(project, task, command, text, reviewer, replay_only, autonomy_version, 1)
+
+  def admit(
+        project,
+        task,
+        command,
+        text,
+        reviewer,
+        replay_only,
+        autonomy_version,
+        routing_version
+      ) do
     with true <- valid_id?(project) and valid_id?(task),
          true <- reviewer in ["codex", "claude"] and is_boolean(replay_only),
          true <- autonomy_version in [0, 1],
+         true <- routing_version in [1, 2] and (routing_version == 1 or autonomy_version == 1),
          {:ok, _} <- Ecto.UUID.cast(command),
          {:ok, config, hash} <- Boss.Checks.Command.parse(text) do
       transaction(fn ->
@@ -170,7 +209,8 @@ defmodule Boss.Deliveries do
                replay_only,
                nil,
                nil,
-               autonomy_version
+               autonomy_version,
+               routing_version
              )}
         end
       end)
@@ -228,7 +268,9 @@ defmodule Boss.Deliveries do
                 replay_only,
                 source.review.id,
                 candidate,
-                parent.autonomy_version
+                parent.autonomy_version,
+                parent.routing_version,
+                parent.model_catalog
               )
 
             {:new, delivery}
@@ -284,7 +326,8 @@ defmodule Boss.Deliveries do
               false,
               nil,
               nil,
-              request.autonomy_version
+              request.autonomy_version,
+              request.routing_version
             )
 
           saved = Queue.save!(request, status: "started", delivery_id: delivery.id)
@@ -313,7 +356,9 @@ defmodule Boss.Deliveries do
          replay_only,
          retry_review_id,
          retry_candidate_commit,
-         autonomy_version
+         autonomy_version,
+         routing_version,
+         model_catalog \\ %{}
        ) do
     if replay_only or managed_busy?() or run_busy?() or
          not Boss.Deliveries.Autopilot.admission_allowed?(task.id, command),
@@ -355,6 +400,8 @@ defmodule Boss.Deliveries do
       retry_candidate_commit: retry_candidate_commit,
       reviewer: reviewer,
       autonomy_version: autonomy_version,
+      routing_version: routing_version,
+      model_catalog: model_catalog,
       check_config: config,
       config_hash: hash
     })
@@ -412,6 +459,22 @@ defmodule Boss.Deliveries do
 
   def set_intent(id, intent), do: set_saved_intent(id, :intent, intent)
   def set_integration_intent(id, intent), do: set_saved_intent(id, :integration_intent, intent)
+
+  def set_model_catalog(id, snapshot) do
+    transaction(fn ->
+      d = owned!(id)
+
+      unless d.routing_version == 2 and ModelCatalog.validate(snapshot) == :ok,
+        do: Repo.rollback(:catalog_invalid)
+
+      cond do
+        d.model_catalog == snapshot -> d
+        d.model_catalog != %{} -> Repo.rollback(:immutable_model_catalog)
+        d.status != "planning" or not is_nil(latest(d.id)) -> Repo.rollback(:invalid_intent)
+        true -> save!(d, model_catalog: snapshot)
+      end
+    end)
+  end
 
   defp set_saved_intent(id, field, value) do
     transaction(fn ->
@@ -533,13 +596,15 @@ defmodule Boss.Deliveries do
     broadcast_result(result)
   end
 
-  def complete(id, status, reason \\ nil) do
+  def complete(id, status, reason \\ nil, failure_code \\ nil) do
     result =
       transaction(fn ->
         delivery = owned!(id)
 
-        unless status in (@terminal ++ ["ready_to_merge"]) and valid_reason?(reason),
-          do: Repo.rollback(:invalid_receipt)
+        unless status in (@terminal ++ ["ready_to_merge"]) and valid_reason?(reason) and
+                 (is_nil(failure_code) or
+                    (status in ~w(failed blocked needs_input) and failure_code in @failure_codes)),
+               do: Repo.rollback(:invalid_receipt)
 
         pending = latest(id)
         if pending && pending.status == "running", do: Repo.rollback(:step_running)
@@ -563,6 +628,7 @@ defmodule Boss.Deliveries do
         |> save!(
           status: status,
           reason: reason,
+          failure_code: failure_code,
           cleanup: if(unknown, do: "unknown", else: "group_empty")
         )
         |> sync_task!("complete:#{status}", true)
@@ -928,12 +994,13 @@ defmodule Boss.Deliveries do
          true <- id == d.id and source.cycle == cycle and cycle < ModelPolicy.max_cycles(1),
          true <- i["parent_step_id"] == previous.id and i["config_hash"] == d.config_hash,
          true <- hash?(i["input_hash"]) and hash?(i["feedback_hash"]),
-         true <- recoverable_source?(source),
+         true <- not shared_provider_failure?(d, source) and recoverable_source?(d, source),
          true <-
            (attempt == 1 and previous.id == source.id) or
              (attempt == 2 and previous.kind == "resolve" and previous.cycle == cycle and
                 previous.input["resolution_attempt"] == 1 and
-                previous.input["source_step_id"] == source.id and second_opinion?(previous)) do
+                previous.input["source_step_id"] == source.id and
+                not shared_provider_failure?(d, previous) and second_opinion?(previous)) do
       case source.kind do
         "plan" ->
           i["plan_step_id"] == source.id and i["workspace"] == d.intent and
@@ -958,9 +1025,15 @@ defmodule Boss.Deliveries do
     end
   end
 
-  defp recoverable_source?(%Step{kind: "implement"} = source), do: unavailable_model?(source)
+  defp recoverable_source?(%Delivery{routing_version: 2}, %Step{kind: "implement"} = source),
+    do:
+      clean_model_exit?(source) and
+        (source.receipt["exit_code"] != 0 or
+           get_in(source.receipt, ["summary", "error_class"]) in ~w(model_unavailable unknown))
 
-  defp recoverable_source?(%Step{kind: kind, status: status, receipt: r}) do
+  defp recoverable_source?(_, %Step{kind: "implement"} = source), do: unavailable_model?(source)
+
+  defp recoverable_source?(_, %Step{kind: kind, status: status, receipt: r}) do
     r["cleanup"] == "group_empty" and r["exit_kind"] == "exit" and
       r["eof"] == %{"stdout" => true, "stderr" => true} and
       case {kind, status} do
@@ -1006,6 +1079,26 @@ defmodule Boss.Deliveries do
            is_integer(r["exit_code"]) and r["exit_code"] != 0
 
   defp unavailable_model?(_), do: false
+
+  defp clean_model_exit?(%Step{status: "failed", receipt: r}),
+    do:
+      r["outcome"] == "exited" and r["cleanup"] == "group_empty" and
+        r["exit_kind"] == "exit" and is_integer(r["exit_code"]) and
+        r["eof"] == %{"stdout" => true, "stderr" => true}
+
+  defp clean_model_exit?(_), do: false
+
+  defp excluded_model?(%Delivery{routing_version: 1}, step), do: unavailable_model?(step)
+
+  defp excluded_model?(_, %Step{kind: kind} = step),
+    do:
+      kind in ~w(plan implement review merge_review resolve) and clean_model_exit?(step) and
+        get_in(step.receipt, ["summary", "error_class"]) == "model_unavailable"
+
+  defp shared_provider_failure?(%Delivery{routing_version: 2}, step),
+    do: get_in(step.receipt, ["summary", "error_class"]) in ~w(auth rate_limit schema transport)
+
+  defp shared_provider_failure?(_, _), do: false
 
   defp implementation_base?(d, source) do
     base = get_in(source.input, ["workspace", "base_commit"])
