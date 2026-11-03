@@ -1,7 +1,7 @@
 defmodule Boss.CatalogRoutingPersistenceTest do
   use ExUnit.Case, async: false
   alias Boss.{Deliveries, Projects, Repo}
-  alias Boss.Deliveries.{AutopilotBatch, Delivery, Queue, Request}
+  alias Boss.Deliveries.{AutopilotBatch, AutopilotItem, Delivery, Queue, Request}
   @moduletag capture_log: true
   @sha String.duplicate("a", 40)
   @hash String.duplicate("b", 64)
@@ -350,6 +350,91 @@ defmodule Boss.CatalogRoutingPersistenceTest do
              before
   end
 
+  for mode <- [:unknown_zero, :unknown_nonzero, :invalid_report] do
+    @startup_mode mode
+    test "SQL distinguishes #{@startup_mode} startup failure from an ordinary failed task", c do
+      {:ok, %{task: second}} =
+        Projects.record_spec(c.project.id, %{
+          relative_path: "second.md",
+          title: "Second",
+          original_text: "# Second"
+        })
+
+      {:ok, config, hash} = Boss.Checks.Command.parse("true")
+
+      batch =
+        Repo.insert!(%AutopilotBatch{
+          id: Ecto.UUID.generate(),
+          project_id: c.project.id,
+          command_id: Ecto.UUID.generate(),
+          task_ids: [c.task.id, second.id],
+          check_config: config,
+          config_hash: hash,
+          reviewer: "codex",
+          autonomy_version: 1,
+          routing_version: 2
+        })
+
+      requests =
+        Enum.with_index([c.task.id, second.id])
+        |> Enum.map(fn {task, position} ->
+          {:ok, request} =
+            Queue.admit(c.project.id, task, Ecto.UUID.generate(), "true", "codex", 1, 2)
+
+          Repo.insert!(%AutopilotItem{
+            request_id: request.id,
+            autopilot_id: batch.id,
+            position: position,
+            integration_command_id: Ecto.UUID.generate()
+          })
+
+          request
+        end)
+
+      [first_request, second_request] = requests
+      assert {:ok, {:started, _, d}} = Queue.claim(first_request.id)
+      d = pin_intent(c, d)
+      {:ok, d} = Deliveries.set_model_catalog(d.id, catalog())
+
+      attrs = %{
+        "status" => "failed",
+        "outcome" => if(@startup_mode == :invalid_report, do: "invalid_report", else: "exited"),
+        "exit_code" => if(@startup_mode == :unknown_nonzero, do: 1, else: 0),
+        "summary" => %{"error_class" => "unknown"}
+      }
+
+      failed = finish(d, "plan", 0, %{"workspace" => d.intent}, attrs)
+      finish(d, "resolve", 0, resolution_input(d, failed), attrs)
+      assert {:ok, _} = Deliveries.complete(d.id, "failed", "Startup did not complete")
+
+      if @startup_mode == :invalid_report do
+        assert {:ok, {:started, _, _}} = Queue.claim(second_request.id)
+      else
+        error =
+          assert_raise Exqlite.Error, fn ->
+            Repo.insert!(%Delivery{
+              id: Ecto.UUID.generate(),
+              project_id: c.project.id,
+              task_id: second.id,
+              spec_revision_id: second_request.spec_revision_id,
+              command_id: second_request.command_id,
+              admitted_version: second_request.admitted_version,
+              task_version: second_request.admitted_version,
+              check_config: config,
+              config_hash: hash,
+              reviewer: "codex",
+              autonomy_version: 1,
+              routing_version: 2
+            })
+          end
+
+        assert Exception.message(error) =~ "autopilot sequence unavailable"
+        assert Repo.get!(Request, second_request.id).status == "queued"
+        assert Repo.aggregate(Delivery, :count) == 1
+      end
+    end
+  end
+
   defp restart(c) do
     :ok = stop_supervised(Repo)
     Repo.put_dynamic_repo(start_supervised!({Repo, c.opts}))
@@ -368,6 +453,11 @@ defmodule Boss.CatalogRoutingPersistenceTest do
         routing
       )
 
+    d = pin_intent(c, d)
+    if pin, do: elem(Deliveries.set_model_catalog(d.id, catalog()), 1), else: d
+  end
+
+  defp pin_intent(c, d) do
     intent = %{
       "run_id" => d.id,
       "project_id" => to_string(c.project.id),
@@ -380,7 +470,7 @@ defmodule Boss.CatalogRoutingPersistenceTest do
     }
 
     {:ok, d} = Deliveries.set_intent(d.id, intent)
-    if pin, do: elem(Deliveries.set_model_catalog(d.id, catalog()), 1), else: d
+    d
   end
 
   defp catalog,

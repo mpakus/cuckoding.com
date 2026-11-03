@@ -368,7 +368,8 @@ defmodule Boss.Projects.Intake do
       "The provider rejected the request format. Update the adapter before starting planning again."
 
   defp message(:provider_transport),
-    do: "The provider connection failed. Check connectivity before starting planning again."
+    do:
+      "Codex transport or protocol failed. Check the CLI, adapter and connection before starting planning again."
 
   defp message(_),
     do:
