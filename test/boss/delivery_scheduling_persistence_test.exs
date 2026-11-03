@@ -24,7 +24,8 @@ defmodule Boss.DeliverySchedulingPersistenceTest do
     {20_261_031_220_000, Boss.Repo.Migrations.AddReviewRetries},
     {20_261_102_120_000, Boss.Repo.Migrations.AddCandidateRetries},
     {20_261_103_120_000, Boss.Repo.Migrations.AddProjectIntake},
-    {20_261_104_130_000, Boss.Repo.Migrations.AddAutonomousRecovery}
+    {20_261_104_130_000, Boss.Repo.Migrations.AddAutonomousRecovery},
+    {20_261_105_120_000, Boss.Repo.Migrations.AddCatalogRouting}
   ]
 
   setup do
@@ -221,7 +222,9 @@ defmodule Boss.DeliverySchedulingPersistenceTest do
   end
 
   defp planned(project, task) do
-    {:ok, {:new, d}} = Deliveries.admit(project.id, task.id, Ecto.UUID.generate(), "true")
+    # This persisted scope fixture predates catalog routing; current routing is covered separately.
+    {:ok, {:new, d}} =
+      Deliveries.admit(project.id, task.id, Ecto.UUID.generate(), "true", "codex", false, 1, 1)
 
     intent = %{
       "run_id" => d.id,

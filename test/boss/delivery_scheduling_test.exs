@@ -253,7 +253,7 @@ defmodule Boss.DeliverySchedulingTest do
   end
 
   defp admit(project, task),
-    do: Deliveries.admit(project.id, task.id, Ecto.UUID.generate(), "true")
+    do: Deliveries.admit(project.id, task.id, Ecto.UUID.generate(), "true", "codex", false, 1, 1)
 
   defp planned_start(project, name) do
     {:ok, {:new, d}} = admit(project, task(project, name))

@@ -72,7 +72,16 @@ defmodule BossWeb.WorkflowScopeLiveTest do
       })
 
     {:ok, {:new, delivery}} =
-      Deliveries.admit(project.id, saved.task.id, Ecto.UUID.generate(), "true")
+      Deliveries.admit(
+        project.id,
+        saved.task.id,
+        Ecto.UUID.generate(),
+        "true",
+        "codex",
+        false,
+        1,
+        1
+      )
 
     intent = %{
       "run_id" => delivery.id,

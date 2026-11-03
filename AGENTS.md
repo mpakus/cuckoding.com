@@ -14,6 +14,12 @@
   original policy; Stop and unknown execution ownership still stop dispatch.
   Change a shipped routing/budget contract through a new policy version; never
   reinterpret old requests or rewrite their model and approval evidence.
+- Routing version2 pins a validated visible CLI catalog before agent stages; keep
+  metadata discovery bounded, Stop-aware and outside database/Manager transactions.
+  Metadata is not entitlement proof. Exclude models only on typed unavailable
+  evidence; shared provider/startup failure stops batch dispatch before another task.
+  A fresh Autopilot snapshot may retry eligible unfinished tasks with new UUIDs,
+  preserving old receipts, Done, dependency gates and unknown-cleanup quarantine.
 - Use multiple agents for independent implementation/review tasks. Give each
   writer an isolated worktree and `codex/` branch with explicit file ownership;
   integrate dependent work sequentially. Keep one owner for shared migrations
