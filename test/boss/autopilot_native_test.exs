@@ -24,10 +24,11 @@ defmodule Boss.AutopilotNativeTest do
     {20_261_027_060_000, Boss.Repo.Migrations.AddDeliveryScheduling},
     {20_261_027_070_000, Boss.Repo.Migrations.AddAutopilot},
     {20_261_031_220_000, Boss.Repo.Migrations.AddReviewRetries},
-    {20_261_102_120_000, Boss.Repo.Migrations.AddCandidateRetries}
+    {20_261_102_120_000, Boss.Repo.Migrations.AddCandidateRetries},
+    {20_261_103_120_000, Boss.Repo.Migrations.AddProjectIntake}
   ]
 
-  setup do
+  setup context do
     root = Path.join(System.tmp_dir!(), "boss-autopilot-native-#{Ecto.UUID.generate()}")
     File.mkdir!(root)
     on_exit(fn -> File.rm_rf!(root) end)
@@ -54,6 +55,22 @@ defmodule Boss.AutopilotNativeTest do
     File.write!(Path.join(source, "result.txt"), "base")
     File.cp!(Path.expand("../fixtures/delivery_check.py", __DIR__), Path.join(source, "check.py"))
 
+    if context[:documentation] do
+      File.mkdir!(Path.join(source, "docs"))
+
+      File.write!(
+        Path.join(source, "docs/product.md"),
+        "# Product\nAlready implemented: existing.txt.\n## Work\nWrite one, then two."
+      )
+
+      File.write!(
+        Path.join(source, "docs/architecture.md"),
+        "# Architecture\nresult.txt stores the output."
+      )
+
+      File.write!(Path.join(source, "existing.txt"), "implemented")
+    end
+
     for args <- [
           ["init", "-b", "main"],
           ["config", "user.name", "Fixture"],
@@ -63,29 +80,43 @@ defmodule Boss.AutopilotNativeTest do
         ],
         do: git(source, args)
 
-    git(source, ["switch", "-c", "user-work"])
-
-    project =
-      Repo.insert!(%Projects.Project{
-        name: "Native Autopilot",
-        root_path: source,
-        git_common_dir: Path.join(source, ".git"),
-        specs_path: source,
-        base_branch: "main"
-      })
-
-    tasks =
-      for name <- ~w(one two) do
-        {:ok, record} =
-          Projects.record_spec(project.id, %{
-            relative_path: "#{name}.md",
-            explicit_id: name,
-            title: name,
-            original_text:
-              "---\nid: #{name}\n#{if name == "two", do: "depends_on: [one]\n", else: ""}---\n# #{name}\nCreate result.txt"
+    {project, tasks} =
+      if context[:documentation] do
+        {:ok, project} =
+          Projects.create_project(%{
+            root_path: source,
+            specs_path: "docs",
+            intake_mode: "documentation"
           })
 
-        record.task
+        {project, []}
+      else
+        git(source, ["switch", "-c", "user-work"])
+
+        project =
+          Repo.insert!(%Projects.Project{
+            name: "Native Autopilot",
+            root_path: source,
+            git_common_dir: Path.join(source, ".git"),
+            specs_path: source,
+            base_branch: "main"
+          })
+
+        tasks =
+          for name <- ~w(one two) do
+            {:ok, record} =
+              Projects.record_spec(project.id, %{
+                relative_path: "#{name}.md",
+                explicit_id: name,
+                title: name,
+                original_text:
+                  "---\nid: #{name}\n#{if name == "two", do: "depends_on: [one]\n", else: ""}---\n# #{name}\nCreate result.txt"
+              })
+
+            record.task
+          end
+
+        {project, tasks}
       end
 
     gates = Path.join(root, "gates")
@@ -172,6 +203,72 @@ defmodule Boss.AutopilotNativeTest do
              Autopilot.start(c.project.id, command, ids, "python3 check.py", "codex", manager)
 
     assert replay.status == "completed"
+  end
+
+  @tag documentation: true
+  test "one Start derives tasks from committed docs and code, then runs both through Done", c do
+    alias Boss.Projects.Intake
+    assert Projects.list_spec_entries(c.project.id) == []
+    assert c.project.base_branch =~ "boss/autopilot/"
+    assert git(c.source, ["branch", "--show-current"]) == "main"
+    base = git(c.source, ["rev-parse", "HEAD"])
+    manager = start_manager(c.repo)
+    command = Ecto.UUID.generate()
+    {:ok, request} = Intake.start(c.project.id, command, "python3 check.py", "codex", manager)
+
+    eventually(fn -> Intake.latest(c.project.id).status == "finished" end, 3000)
+    saved = Intake.latest(c.project.id)
+    assert saved.id == request.id
+    assert saved.workspace["base_commit"] == base
+    assert saved.batch_id
+
+    assert {:ok, replay} =
+             Intake.start(c.project.id, command, "python3 check.py", "codex", manager)
+
+    assert replay.id == request.id
+
+    assert {:error, :idempotency_conflict} =
+             Intake.start(c.project.id, command, "python3 other.py", "codex", manager)
+
+    entries = Projects.list_spec_entries(c.project.id)
+    assert Enum.map(entries, & &1.title) == ["two", "one"]
+    assert {:error, _} = Projects.SpecImporter.sync(c.project.id)
+    assert Projects.list_spec_entries(c.project.id) == entries
+    c = %{c | tasks: Enum.map(entries, &Repo.get!(Tasks.Task, &1.task_id))}
+    one = wait_for_implementation(c, "one", 1)
+    assert Repo.aggregate(Deliveries.Delivery, :count) == 1
+    release(c, "one", 1)
+    two = wait_for_implementation(c, "two", 1)
+    done = Deliveries.get(c.project.id, one.id)
+    assert done.status == "done"
+    assert two.intent["base_commit"] == done.integration_intent["candidate_commit"]
+    release(c, "two", 1)
+    eventually(fn -> Repo.get!(AutopilotBatch, saved.batch_id).status == "completed" end, 3000)
+    assert Enum.all?(Projects.list_spec_entries(c.project.id), &(&1.state == "done"))
+    assert git(c.source, ["rev-parse", "HEAD"]) == base
+    assert git(c.source, ["status", "--porcelain"]) == ""
+
+    assert git(c.source, ["rev-parse", c.project.base_branch]) ==
+             Deliveries.get(c.project.id, two.id).integration_intent["candidate_commit"]
+
+    assert File.read!(Path.join(c.root, "calls"))
+           |> String.split("\n")
+           |> Enum.count(&String.contains?(&1, ~s("kind": "intake"))) == 1
+  end
+
+  @tag documentation: true
+  test "an invalid generated dependency creates neither tasks nor a batch", c do
+    alias Boss.Projects.Intake
+    System.put_env("BOSS_AUTOPILOT_MODE", "invalid_intake")
+    manager = start_manager(c.repo)
+
+    {:ok, _} =
+      Intake.start(c.project.id, Ecto.UUID.generate(), "python3 check.py", "codex", manager)
+
+    eventually(fn -> Intake.latest(c.project.id).status == "failed" end)
+    assert Projects.list_spec_entries(c.project.id) == []
+    assert Repo.aggregate(AutopilotBatch, :count) == 0
+    assert Repo.aggregate(Deliveries.Delivery, :count) == 0
   end
 
   test "review rejection returns to implementation and automatic publication waits for the repaired candidate",

@@ -115,6 +115,7 @@ defmodule Boss.Runs do
             if Boss.Deliveries.Queue.pending?(task_id), do: Repo.rollback(:task_queued)
 
             if Boss.Deliveries.Autopilot.running?() or Boss.Deliveries.busy?() or
+                 Boss.Projects.Intake.busy?() or
                  Repo.exists?(
                    from r in Run, where: r.status in ^@active or r.cleanup == "unknown"
                  ),
@@ -174,6 +175,7 @@ defmodule Boss.Runs do
             if Boss.Deliveries.Queue.pending?(parent.task_id), do: Repo.rollback(:task_queued)
 
             if replay_only or Boss.Deliveries.Autopilot.running?() or Boss.Deliveries.busy?() or
+                 Boss.Projects.Intake.busy?() or
                  Repo.exists?(
                    from r in Run, where: r.status in ^@active or r.cleanup == "unknown"
                  ),
@@ -232,6 +234,7 @@ defmodule Boss.Runs do
             if Boss.Deliveries.Queue.pending?(parent.task_id), do: Repo.rollback(:task_queued)
 
             if replay_only or Boss.Deliveries.Autopilot.running?() or Boss.Deliveries.busy?() or
+                 Boss.Projects.Intake.busy?() or
                  Repo.exists?(
                    from r in Run, where: r.status in ^@active or r.cleanup == "unknown"
                  ),

@@ -706,7 +706,8 @@ defmodule Boss.Deliveries.Worker do
     end
   end
 
-  defp run_agent(kind, path, prompt, decode) do
+  @doc false
+  def run_agent(kind, path, prompt, decode) do
     continue!()
     executable = System.find_executable("codex") || throw({:halt, :codex_unavailable})
 

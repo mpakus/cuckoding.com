@@ -146,7 +146,7 @@ defmodule Boss.Projects do
     if changeset.valid? do
       project = Ecto.Changeset.apply_changes(changeset)
 
-      case Repository.inspect(project.root_path, project.specs_path, project.base_branch) do
+      case register_paths(project) do
         {:ok, paths} ->
           changeset
           |> Ecto.Changeset.change(
@@ -165,6 +165,24 @@ defmodule Boss.Projects do
       Ecto.Changeset.apply_action(changeset, :insert)
     end
   end
+
+  defp register_paths(project) do
+    with {:ok, paths} <-
+           Repository.inspect(project.root_path, project.specs_path, project.base_branch) do
+      if project.intake_mode == "documentation" and is_nil(project.base_branch) do
+        if Repo.exists?(from p in Project, where: p.git_common_dir == ^paths.git_common_dir) do
+          {:error, :already_registered}
+        else
+          Repository.managed_target(paths)
+        end
+      else
+        {:ok, paths}
+      end
+    end
+  end
+
+  defp error_message(:already_registered), do: "is already registered"
+  defp error_message(:managed_target_failed), do: "could not create the local Autopilot branch"
 
   defp error_message(:invalid_base_branch),
     do: "must have a local base branch with at least one commit"

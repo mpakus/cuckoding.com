@@ -56,9 +56,10 @@ defmodule Boss.Deliveries.Scheduling do
 
   @doc false
   def quarantined? do
-    Repo.query!(
-      "SELECT EXISTS(SELECT 1 FROM deliveries WHERE cleanup='unknown') OR EXISTS(SELECT 1 FROM agent_runs WHERE cleanup='unknown')"
-    ).rows == [[1]]
+    Boss.Projects.Intake.quarantined?() or
+      Repo.query!(
+        "SELECT EXISTS(SELECT 1 FROM deliveries WHERE cleanup='unknown') OR EXISTS(SELECT 1 FROM agent_runs WHERE cleanup='unknown')"
+      ).rows == [[1]]
   end
 
   @doc false

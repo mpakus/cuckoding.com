@@ -70,6 +70,10 @@ defmodule Boss.Projects.SpecImporter do
 
   defp scan_and_apply(project_id, settle_ms) do
     project = Repo.get(Project, project_id) || fail(".", "Project not found.")
+
+    if project.intake_mode != "specs",
+      do: fail(".", "Start Autopilot to plan from documentation.")
+
     state = scan(project)
 
     if snapshot(state) == current_snapshot(project_id) do

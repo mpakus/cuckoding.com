@@ -305,9 +305,17 @@ defmodule Boss.Deliveries.Autopilot do
          end) do
       project = Repo.get!(Boss.Projects.Project, batch.project_id)
 
+      started? = Enum.any?(rows(batch.id), fn {_, r, _, _} -> r.status == "started" end)
+
       result =
-        with {:ok, workspace} <- Boss.Agents.Workspace.plan(project, batch.id),
-             do: Boss.Deliveries.Integration.preflight(project, batch.id, workspace.base_commit)
+        with {:ok, workspace} <- Boss.Agents.Workspace.plan(project, batch.id) do
+          expected =
+            if started?,
+              do: workspace.base_commit,
+              else: Boss.Projects.Intake.initial_base(batch.id) || workspace.base_commit
+
+          Boss.Deliveries.Integration.preflight(project, batch.id, expected)
+        end
 
       {batch.id, result}
     else

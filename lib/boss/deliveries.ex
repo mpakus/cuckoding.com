@@ -56,7 +56,9 @@ defmodule Boss.Deliveries do
   end
 
   def busy?,
-    do: Repo.exists?(from d in Delivery, where: d.status in ^@active or d.cleanup == "unknown")
+    do:
+      Boss.Projects.Intake.quarantined?() or
+        Repo.exists?(from d in Delivery, where: d.status in ^@active or d.cleanup == "unknown")
 
   defp run_busy?,
     do:
@@ -283,7 +285,8 @@ defmodule Boss.Deliveries do
 
   @doc false
   def managed_busy? do
-    Repo.exists?(from d in Delivery, where: d.status == "integrating" or d.cleanup == "unknown") or
+    Boss.Projects.Intake.busy?() or
+      Repo.exists?(from d in Delivery, where: d.status == "integrating" or d.cleanup == "unknown") or
       Repo.aggregate(from(d in Delivery, where: d.status in ^@active), :count) >=
         Scheduling.capacity!()
   end

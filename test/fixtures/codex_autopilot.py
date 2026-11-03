@@ -9,7 +9,30 @@ import time
 
 signal.alarm(60)
 args = sys.argv[1:]
-data = json.loads(sys.stdin.read().split("BOSS delivery input (JSON):\n", 1)[1])
+prompt = sys.stdin.read()
+schema = Path(args[args.index("--output-schema") + 1]) if "--output-schema" in args else None
+if schema and schema.name == "intake_schema.json":
+    assert args[args.index("--sandbox") + 1] == "read-only"
+    intake = json.loads(prompt.split("BOSS project intake input (JSON):\n", 1)[1])
+    assert "Already implemented: existing.txt" in intake["documents"]["docs/product.md"]
+    assert "result.txt" in intake["documents"]["docs/architecture.md"]
+    assert Path("existing.txt").read_text() == "implemented"
+    assert Path("result.txt").read_text() == "base"
+    with (Path(os.environ["BOSS_DELIVERY_FIXTURE"]) / "calls").open("a") as log:
+        log.write(json.dumps({"kind": "intake"}) + "\n")
+    print(json.dumps({"type": "turn.started"}), flush=True)
+    report = {"tasks": [
+        {"id": name, "title": name, "specification": "Write the requested output.",
+         "acceptance": ["Create result.txt"], "depends_on": deps,
+         "sources": ["docs/product.md"]}
+        for name, deps in [("two", ["one"]), ("one", [])]
+    ]}
+    if os.environ.get("BOSS_AUTOPILOT_MODE") == "invalid_intake":
+        report["tasks"][0]["depends_on"] = ["missing"]
+    Path(args[args.index("--output-last-message") + 1]).write_text(json.dumps(report))
+    print(json.dumps({"type": "turn.completed", "usage": {"input_tokens": 1, "output_tokens": 1}}), flush=True)
+    sys.exit(0)
+data = json.loads(prompt.split("BOSS delivery input (JSON):\n", 1)[1])
 assert data["check_config"]["argv"] == ["python3", "check.py"]
 schema = Path(args[args.index("--output-schema") + 1]) if "--output-schema" in args else None
 kind = "plan" if schema and schema.name == "plan_schema.json" else "review" if schema else "implement"

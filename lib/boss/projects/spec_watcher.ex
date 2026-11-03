@@ -88,7 +88,7 @@ defmodule Boss.Projects.SpecWatcher do
     Repo.put_dynamic_repo(repo)
 
     Enum.each(Projects.list_projects(), fn project ->
-      SpecImporter.sync(project.id, settle_ms: settle)
+      if project.intake_mode == "specs", do: SpecImporter.sync(project.id, settle_ms: settle)
     end)
   rescue
     _ -> :unavailable

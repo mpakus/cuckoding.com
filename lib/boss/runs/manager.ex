@@ -3,6 +3,7 @@ defmodule Boss.Runs.Manager do
   use GenServer
   alias Boss.{Deliveries, Repo, Runs}
   alias Boss.Deliveries.{Autopilot, Queue, Scheduling}
+  alias Boss.Projects.Intake
 
   def start_link(opts \\ []),
     do: GenServer.start_link(__MODULE__, opts, name: Keyword.get(opts, :name, __MODULE__))
@@ -16,6 +17,7 @@ defmodule Boss.Runs.Manager do
     :ets.new(registry, [:named_table, :protected, :set, read_concurrency: true])
 
     with {:ok, _} <- Runs.reconcile(),
+         {:ok, _} <- Intake.reconcile(),
          {:ok, _} <- Deliveries.reconcile(),
          {:ok, _} <- Queue.pause(),
          {:ok, _} <- Autopilot.pause_on_restart() do
@@ -116,6 +118,14 @@ defmodule Boss.Runs.Manager do
   def handle_call({:queue_resume, project, id}, _from, state),
     do: queue_reply(Queue.resume_saved(project, id), state)
 
+  def handle_call({:project_intake_start, project, command, text, reviewer}, _from, state),
+    do:
+      launch(
+        Intake.admit(project, command, text, reviewer, map_size(state.active) > 0),
+        &Intake.execute/3,
+        state
+      )
+
   def handle_call({:autopilot_start, project, command, tasks, text, reviewer}, _from, state),
     do:
       queue_reply(
@@ -156,13 +166,16 @@ defmodule Boss.Runs.Manager do
 
     :ets.insert(state.registry, {run.id, run.project_id, worker})
 
+    if match?(%Intake.Request{}, run),
+      do: :ets.insert(state.registry, {{:intake, run.id}, run.project_id, worker})
+
     if autopilot do
       :ets.insert(state.registry, {{:autopilot, autopilot}, run.project_id, worker})
       if Autopilot.cancelled?(autopilot), do: send(worker, :stop)
     end
 
     send(worker, :execute)
-    Runs.broadcast(run)
+    broadcast(run)
     %{state | active: Map.put(state.active, run.id, {run, worker})}
   end
 
@@ -186,11 +199,15 @@ defmodule Boss.Runs.Manager do
   end
 
   def handle_info({kind, id, pid, result}, state)
-      when kind in [:delivery_finished, :run_finished] do
+      when kind in [:delivery_finished, :run_finished, :intake_finished] do
     case Map.get(state.active, id) do
       {run, ^pid} ->
         expected =
-          if match?(%Deliveries.Delivery{}, run), do: :delivery_finished, else: :run_finished
+          case run do
+            %Deliveries.Delivery{} -> :delivery_finished
+            %Intake.Request{} -> :intake_finished
+            _ -> :run_finished
+          end
 
         cond do
           kind != expected -> {:noreply, state}
@@ -312,8 +329,11 @@ defmodule Boss.Runs.Manager do
 
     case saved do
       {:ok, run} ->
-        Runs.broadcast(run)
+        broadcast(run)
         :ets.delete(state.registry, original.id)
+
+        if match?(%Intake.Request{}, original),
+          do: :ets.delete(state.registry, {:intake, original.id})
 
         :ets.match_delete(
           state.registry,
@@ -334,6 +354,11 @@ defmodule Boss.Runs.Manager do
         {:stop, :run_storage_lost, state}
     end
   end
+
+  defp broadcast(%Intake.Request{} = request), do: Intake.broadcast(request)
+  defp broadcast(run), do: Runs.broadcast(run)
+
+  defp interrupt(%Intake.Request{id: id}), do: Intake.interrupt(id)
 
   defp interrupt(%Deliveries.Delivery{id: id}), do: Deliveries.interrupt(id)
 

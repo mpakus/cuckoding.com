@@ -1,0 +1,270 @@
+defmodule Boss.Projects.Intake do
+  @moduledoc "An explicit, persisted documentation plan that hands off to the normal Autopilot."
+  import Ecto.Query
+  alias Boss.{Deliveries, Projects, Repo, Runs}
+  alias Boss.Deliveries.{Autopilot, AutopilotBatch}
+  alias Boss.Projects.{Project, Spec}
+  alias Boss.Projects.Intake.{Planner, Request}
+
+  def start(project, command, text, reviewer, server \\ Runs.Manager),
+    do: GenServer.call(server, {:project_intake_start, project, command, text, reviewer}, 10_000)
+
+  def latest(project) do
+    Repo.one(
+      from r in Request,
+        where: r.project_id == ^project,
+        order_by: [desc: r.inserted_at],
+        limit: 1
+    )
+  end
+
+  def topic(project), do: "project-intake:#{project}"
+  def stop(project, id), do: Runs.stop(project, {:intake, id})
+
+  def quarantined?, do: Repo.exists?(from r in Request, where: r.cleanup == "unknown")
+
+  def busy?,
+    do: Repo.exists?(from r in Request, where: r.status == "planning" or r.cleanup == "unknown")
+
+  def admit(project, command, text, reviewer, owned) do
+    with true <- is_integer(project) and project > 0 and reviewer in ["codex", "claude"],
+         {:ok, ^command} <- Ecto.UUID.cast(command),
+         {:ok, config, hash} <- Boss.Checks.Command.parse(text) do
+      transaction(fn ->
+        case Repo.get_by(Request, project_id: project, command_id: command) do
+          %Request{check_config: ^config, config_hash: ^hash, reviewer: ^reviewer} = request ->
+            {:existing, request}
+
+          %Request{} ->
+            Repo.rollback(:idempotency_conflict)
+
+          nil ->
+            unless match?(%Project{intake_mode: "documentation"}, Repo.get(Project, project)),
+              do: Repo.rollback(:invalid_project)
+
+            if owned or busy?() or Deliveries.busy?() or Autopilot.running?() or
+                 Repo.exists?(from b in AutopilotBatch, where: b.status == "paused") or
+                 Repo.exists?(
+                   from r in Runs.Run,
+                     where:
+                       r.status in ~w(preparing launching running stopping) or
+                         r.cleanup == "unknown"
+                 ),
+               do: Repo.rollback(:busy)
+
+            if Repo.exists?(
+                 from r in Request, where: r.project_id == ^project and r.status == "finished"
+               ) or
+                 Repo.exists?(from s in Spec, where: s.project_id == ^project),
+               do: Repo.rollback(:already_planned)
+
+            {:new,
+             Repo.insert!(%Request{
+               id: Ecto.UUID.generate(),
+               project_id: project,
+               command_id: command,
+               check_config: config,
+               config_hash: hash,
+               reviewer: reviewer,
+               check_text: text
+             })}
+        end
+      end)
+    else
+      _ -> {:error, :invalid_command}
+    end
+  end
+
+  def pin(id, workspace) do
+    case transaction(fn ->
+           case Repo.get(Request, id) do
+             %Request{status: "planning", workspace: empty} = request when empty == %{} ->
+               save!(request, workspace: workspace)
+
+             _ ->
+               Repo.rollback(:invalid_intent)
+           end
+         end) do
+      {:ok, _} -> :ok
+      error -> error
+    end
+  end
+
+  def execute(request, repo, manager) do
+    Repo.put_dynamic_repo(repo)
+
+    result =
+      try do
+        project = Repo.get!(Project, request.project_id)
+
+        with {:ok, result} <- Planner.run(project, request.id),
+             :ok <- Planner.validate_current(project, result),
+             :ok <- continue() do
+          case commit_plan(request.id, result) do
+            {:ok, _} = saved -> saved
+            {:error, :storage_error} = error -> error
+            {:error, reason} -> fail(request.id, reason)
+          end
+        else
+          {:error, reason} -> fail(request.id, reason)
+        end
+      rescue
+        _ -> fail(request.id, :cleanup_unknown)
+      catch
+        :throw, {:halt, reason} -> fail(request.id, reason)
+        _, _ -> fail(request.id, :cleanup_unknown)
+      end
+
+    send(manager, {:intake_finished, request.id, self(), result})
+  end
+
+  def interrupt(id), do: fail(id, :cleanup_unknown)
+
+  def reconcile do
+    transaction(fn ->
+      Repo.all(from r in Request, where: r.status == "planning")
+      |> Enum.map(
+        &save!(&1, status: "interrupted", cleanup: "unknown", reason: message(:cleanup_unknown))
+      )
+    end)
+    |> case do
+      {:ok, requests} = result ->
+        Enum.each(requests, &broadcast/1)
+        result
+
+      error ->
+        error
+    end
+  end
+
+  def broadcast(request) do
+    Phoenix.PubSub.broadcast(
+      Boss.PubSub,
+      topic(request.project_id),
+      {:project_intake, request.project_id}
+    )
+
+    Runs.broadcast(request)
+  end
+
+  def initial_base(batch_id) do
+    case Repo.get_by(Request, batch_id: batch_id) do
+      %Request{workspace: %{"base_commit" => sha}} -> sha
+      nil -> nil
+    end
+  end
+
+  defp commit_plan(id, %{workspace: workspace, tasks: tasks}) do
+    transaction(fn ->
+      request = Repo.get!(Request, id)
+
+      unless request.status == "planning" and request.workspace == workspace,
+        do: Repo.rollback(:invalid_intent)
+
+      ids = Enum.map(tasks, &record_task!(request.project_id, workspace, &1))
+
+      case ids do
+        [] ->
+          save!(request, status: "finished", cleanup: "group_empty")
+
+        _ ->
+          with {:ok, batch} <-
+                 Autopilot.admit(
+                   request.project_id,
+                   request.command_id,
+                   ids,
+                   request.check_text,
+                   request.reviewer
+                 ) do
+            save!(request, status: "finished", cleanup: "group_empty", batch_id: batch.id)
+          else
+            {:error, reason} -> Repo.rollback(reason)
+          end
+      end
+    end)
+  end
+
+  defp record_task!(project, workspace, task) do
+    id = task["id"]
+    deps = JSON.encode!(task["depends_on"])
+    acceptance = Enum.map_join(task["acceptance"], "\n", &("- " <> &1))
+    sources = Enum.map_join(task["sources"], "\n", &("- " <> &1))
+
+    text = """
+    ---
+    depends_on: #{deps}
+    ---
+    # #{task["title"]}
+
+    #{task["specification"]}
+
+    ## Acceptance criteria
+    #{acceptance}
+
+    ## Source documents at #{workspace["base_commit"]}
+    #{sources}
+    """
+
+    case Projects.record_spec(project, %{
+           relative_path: "autopilot/#{id}.md",
+           explicit_id: id,
+           title: task["title"],
+           original_text: text
+         }) do
+      {:ok, %{task: saved, change: :created}} -> saved.id
+      _ -> Repo.rollback(:invalid_plan)
+    end
+  end
+
+  defp fail(id, reason) do
+    transaction(fn ->
+      request = Repo.get!(Request, id)
+
+      if request.status == "planning" do
+        if reason in [:cleanup_unknown, :storage_error] do
+          save!(request,
+            status: "interrupted",
+            cleanup: "unknown",
+            reason: message(:cleanup_unknown)
+          )
+        else
+          save!(request, status: "failed", cleanup: "group_empty", reason: message(reason))
+        end
+      else
+        request
+      end
+    end)
+  end
+
+  defp message(:cleanup_unknown),
+    do: "Planning stopped without a verified cleanup receipt. Inspect the retained workspace."
+
+  defp message(:target_checked_out),
+    do: "The publication branch is checked out. Free it before starting Autopilot."
+
+  defp message(:cancelled), do: "Documentation planning stopped."
+  defp message(:codex_unavailable), do: "Codex is unavailable on BOSS's PATH."
+
+  defp message(_),
+    do:
+      "Documentation planning could not complete. Check the committed documents, target and provider."
+
+  defp continue do
+    receive do
+      :stop -> {:error, :cancelled}
+    after
+      0 -> :ok
+    end
+  end
+
+  defp save!(request, attrs), do: Repo.update!(Ecto.Changeset.change(request, attrs))
+
+  defp transaction(fun) do
+    Repo.transaction(fun, mode: :immediate)
+  rescue
+    _ in [Exqlite.Error, Ecto.ConstraintError, DBConnection.ConnectionError] ->
+      {:error, :storage_error}
+  catch
+    :exit, _ -> {:error, :storage_error}
+  end
+end
