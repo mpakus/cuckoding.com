@@ -1,7 +1,7 @@
 defmodule BossWeb.ProjectLive do
   use BossWeb, :live_view
   alias Boss.{Deliveries, Projects, Repo, Runs, Tasks}
-  alias Boss.Projects.{SpecImporter, SpecWatcher}
+  alias Boss.Projects.{Intake, SpecImporter, SpecWatcher}
   alias Boss.Deliveries.{Queue, Scheduling}
 
   alias BossWeb.{
@@ -19,7 +19,12 @@ defmodule BossWeb.ProjectLive do
     project = find_project(id)
 
     if project && connected?(socket) do
-      SpecWatcher.subscribe(project.id)
+      if project.intake_mode == "documentation" do
+        Phoenix.PubSub.subscribe(Boss.PubSub, Intake.topic(project.id))
+      else
+        SpecWatcher.subscribe(project.id)
+      end
+
       Runs.subscribe(project.id)
       Tasks.subscribe(project.id)
       Scheduling.subscribe()
@@ -67,7 +72,9 @@ defmodule BossWeb.ProjectLive do
        status: nil,
        errors: []
      )
-     |> show_result(if(project, do: SpecWatcher.status(project.id)))}
+     |> show_result(
+       if(project && project.intake_mode == "specs", do: SpecWatcher.status(project.id))
+     )}
   end
 
   @impl true
@@ -148,6 +155,9 @@ defmodule BossWeb.ProjectLive do
 
   def handle_event("sync", _, %{assigns: %{syncing: true}} = socket), do: {:noreply, socket}
   def handle_event("sync", _, %{assigns: %{project: nil}} = socket), do: {:noreply, socket}
+
+  def handle_event("sync", _, %{assigns: %{project: %{intake_mode: "documentation"}}} = socket),
+    do: {:noreply, socket}
 
   def handle_event("sync", _, socket) do
     id = socket.assigns.project.id
@@ -685,6 +695,13 @@ defmodule BossWeb.ProjectLive do
   end
 
   def handle_info({:run_changed, _}, socket), do: {:noreply, socket}
+
+  def handle_info({:project_intake, id}, %{assigns: %{project: %{id: id}}} = socket) do
+    send_update(Autopilot, id: "autopilot", refresh: true)
+    {:noreply, refresh(socket, :delivery_update)}
+  end
+
+  def handle_info({:project_intake, _}, socket), do: {:noreply, socket}
 
   def handle_info({:spec_sync, id, result}, %{assigns: %{project: %{id: id}}} = socket),
     do: {:noreply, refresh(socket, result)}
@@ -1457,6 +1474,7 @@ defmodule BossWeb.ProjectLive do
             class="shrink-0 rounded-md bg-emerald-400 px-5 py-3 font-semibold text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
           >Autopilot</button>
           <button
+            :if={@project.intake_mode == "specs"}
             id="sync-specs"
             type="button"
             phx-click="sync"
@@ -1469,10 +1487,13 @@ defmodule BossWeb.ProjectLive do
         </div>
       </div>
       <p id="sync-help" class="mt-5 text-sm text-zinc-300">
-        <%= if @auto_sync do %>
-          Changes in this specs folder refresh automatically. Use Sync specs to check now.
-        <% else %>
-          Sync reads Markdown files from this project's specs folder. Run it again after editing files.
+        <%= cond do %>
+          <% @project.intake_mode == "documentation" -> %>
+            Start Autopilot to create tasks from committed documentation and code.
+          <% @auto_sync -> %>
+            Changes in this specs folder refresh automatically. Use Sync specs to check now.
+          <% true -> %>
+            Sync reads Markdown files from this project's specs folder. Run it again after editing files.
         <% end %>
       </p>
       <p class="mt-2 break-all font-mono text-sm text-zinc-400">{@project.specs_path}</p>

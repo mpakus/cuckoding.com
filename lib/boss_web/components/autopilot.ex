@@ -1,6 +1,7 @@
 defmodule BossWeb.Autopilot do
   use BossWeb, :live_component
   alias Boss.Deliveries.Autopilot, as: Engine
+  alias Boss.Projects.Intake
 
   @impl true
   def mount(socket) do
@@ -11,6 +12,7 @@ defmodule BossWeb.Autopilot do
        supported: false,
        open: false,
        batch: nil,
+       intake: nil,
        loaded: false,
        loading: false,
        load_again: false,
@@ -31,6 +33,19 @@ defmodule BossWeb.Autopilot do
   def update(assigns, socket) do
     first = is_nil(socket.assigns.project)
     socket = assign(socket, Map.take(assigns, [:id, :project, :entries, :supported]))
+
+    socket =
+      if first and documentation?(socket.assigns.project) do
+        text =
+          if File.regular?(Path.join(socket.assigns.project.root_path, "mix.exs")),
+            do: "mix test",
+            else: ""
+
+        assign(socket, open: true, text: text)
+      else
+        socket
+      end
+
     {:ok, if(first, do: load(socket), else: socket)}
   end
 
@@ -57,9 +72,11 @@ defmodule BossWeb.Autopilot do
   def handle_event("start", params, socket) do
     tasks = Enum.filter(socket.assigns.entries, &eligible?/1) |> Enum.map(& &1.task_id)
 
-    if ready?(socket.assigns) and length(tasks) in 1..256 do
+    planning? = plans_from_docs?(socket.assigns)
+
+    if ready?(socket.assigns) and (planning? or length(tasks) in 1..256) do
       request = %{
-        kind: :start,
+        kind: if(planning?, do: :intake_start, else: :start),
         id: socket.assigns.command,
         tasks: tasks,
         text: value(params, "command", ""),
@@ -71,8 +88,21 @@ defmodule BossWeb.Autopilot do
        |> assign(text: request.text, reviewer: request.reviewer)
        |> act(request)}
     else
-      {:noreply, assign(socket, error: "Autopilot requires 1–256 tasks in the current Backlog.")}
+      message =
+        if planning?,
+          do: "Wait for the current Autopilot action or inspect its saved status.",
+          else: "Autopilot requires 1–256 tasks in the current Backlog."
+
+      {:noreply, assign(socket, error: message)}
     end
+  end
+
+  def handle_event(
+        "stop_intake",
+        _,
+        %{assigns: %{intake: %{id: id, status: "planning"}, pending: nil, acting: false}} = socket
+      ) do
+    {:noreply, act(socket, %{kind: :intake_stop, id: Ecto.UUID.generate(), intake: id})}
   end
 
   def handle_event(kind, _, %{assigns: %{batch: batch, pending: nil, acting: false}} = socket)
@@ -114,10 +144,26 @@ defmodule BossWeb.Autopilot do
     )
     |> start_async({:action, request.id}, fn ->
       case request.kind do
-        :start -> Engine.start(project, request.id, request.tasks, request.text, request.reviewer)
-        :pause -> Engine.pause(project, request.batch, request.version)
-        :resume -> Engine.resume(project, request.batch, request.version)
-        :cancel -> Engine.cancel(project, request.batch, request.version)
+        :intake_start ->
+          Intake.start(project, request.id, request.text, request.reviewer)
+
+        :intake_stop ->
+          case Intake.stop(project, request.intake) do
+            :ok -> {:ok, :stopping}
+            result -> result
+          end
+
+        :start ->
+          Engine.start(project, request.id, request.tasks, request.text, request.reviewer)
+
+        :pause ->
+          Engine.pause(project, request.batch, request.version)
+
+        :resume ->
+          Engine.resume(project, request.batch, request.version)
+
+        :cancel ->
+          Engine.cancel(project, request.batch, request.version)
       end
     end)
   end
@@ -127,13 +173,10 @@ defmodule BossWeb.Autopilot do
     socket =
       case result do
         {:ok, {:ok, batch}} ->
-          reveal =
-            batch && batch.status in ~w(running paused blocked) &&
-              (is_nil(socket.assigns.batch) || socket.assigns.batch.id != batch.id)
+          apply_load(socket, batch, nil)
 
-          socket
-          |> assign(batch: batch, loaded: true, open: socket.assigns.open || !!reveal)
-          |> confirm_start(batch)
+        {:ok, {{:ok, batch}, intake}} ->
+          apply_load(socket, batch, intake)
 
         _ ->
           assign(socket, loaded: false, error: "Could not load Autopilot. Retry loading.")
@@ -171,6 +214,17 @@ defmodule BossWeb.Autopilot do
 
   def handle_async(_, _, socket), do: {:noreply, socket}
 
+  defp apply_load(socket, batch, intake) do
+    reveal =
+      batch && batch.status in ~w(running paused blocked) &&
+        (is_nil(socket.assigns.batch) || socket.assigns.batch.id != batch.id)
+
+    socket
+    |> assign(batch: batch, intake: intake, loaded: true, open: socket.assigns.open || !!reveal)
+    |> confirm_start(batch)
+    |> confirm_intake(intake)
+  end
+
   defp confirm_start(socket, batch) do
     with %{kind: :start, id: id, tasks: tasks, text: text, reviewer: reviewer} <-
            socket.assigns.pending,
@@ -191,6 +245,30 @@ defmodule BossWeb.Autopilot do
     end
   end
 
+  defp confirm_intake(
+         %{assigns: %{pending: %{kind: :intake_stop, intake: id}}} = socket,
+         %{id: id, status: status}
+       )
+       when status != "planning",
+       do: assign(socket, pending: nil, error: nil, command: Ecto.UUID.generate())
+
+  defp confirm_intake(socket, intake) do
+    with %{kind: :intake_start, id: id, text: text, reviewer: reviewer} <- socket.assigns.pending,
+         %{id: project} <- socket.assigns.project,
+         {:ok, config, hash} <- Boss.Checks.Command.parse(text),
+         %{
+           command_id: ^id,
+           project_id: ^project,
+           check_config: ^config,
+           config_hash: ^hash,
+           reviewer: ^reviewer
+         } <- intake do
+      assign(socket, pending: nil, error: nil, command: Ecto.UUID.generate())
+    else
+      _ -> socket
+    end
+  end
+
   defp load(%{assigns: %{project: nil}} = socket), do: socket
   defp load(%{assigns: %{acting: true}} = socket), do: assign(socket, load_again: true)
   defp load(%{assigns: %{loading: true}} = socket), do: assign(socket, load_again: true)
@@ -198,10 +276,14 @@ defmodule BossWeb.Autopilot do
   defp load(socket) do
     project = socket.assigns.project.id
     generation = socket.assigns.generation + 1
+    documentation? = documentation?(socket.assigns.project)
 
     socket
     |> assign(loading: true, generation: generation, load_again: false)
-    |> start_async({:load, generation}, fn -> Engine.current(project) end)
+    |> start_async({:load, generation}, fn ->
+      batch = Engine.current(project)
+      if documentation?, do: {batch, Intake.latest(project)}, else: batch
+    end)
   end
 
   defp value(params, key, default) do
@@ -214,9 +296,17 @@ defmodule BossWeb.Autopilot do
   defp eligible?(entry),
     do: !entry.missing and entry.state == "new"
 
+  defp documentation?(%{intake_mode: "documentation"}), do: true
+  defp documentation?(_), do: false
+
+  defp plans_from_docs?(assigns),
+    do: documentation?(assigns.project) and !match?(%{status: "finished"}, assigns.intake)
+
   defp ready?(assigns),
     do:
       assigns.supported and assigns.loaded and !assigns.acting and is_nil(assigns.pending) and
+        !match?(%{status: "planning"}, assigns.intake) and
+        !match?(%{cleanup: "unknown"}, assigns.intake) and
         (is_nil(assigns.batch) or assigns.batch.status in ~w(blocked completed cancelled))
 
   defp error(:busy),
@@ -225,6 +315,13 @@ defmodule BossWeb.Autopilot do
 
   defp error(:task_queued), do: "A selected task is already queued. Review its saved request."
   defp error(:queue_full), do: "The workflow queue is full. Finish or cancel pending requests."
+
+  defp error(:not_running), do: "Planning has already settled. Review its current status."
+
+  defp error(:target_checked_out),
+    do: "The integration target is checked out. Choose a free target before starting."
+
+  defp error(:target_unavailable), do: "The integration target could not be verified."
 
   defp error(:invalid_command),
     do: "Choose a reviewer and enter a valid check command for the current Backlog."
@@ -247,7 +344,12 @@ defmodule BossWeb.Autopilot do
   @impl true
   def render(assigns) do
     assigns =
-      assign(assigns, choices: Enum.filter(assigns.entries, &eligible?/1), ready: ready?(assigns))
+      assign(assigns,
+        choices: Enum.filter(assigns.entries, &eligible?/1),
+        ready: ready?(assigns),
+        documentation: documentation?(assigns.project),
+        plans_from_docs: plans_from_docs?(assigns)
+      )
 
     BossWeb.AutopilotPanel.panel(assigns)
   end
