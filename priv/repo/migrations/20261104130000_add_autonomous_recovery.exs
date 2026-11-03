@@ -159,7 +159,9 @@ defmodule Boss.Repo.Migrations.AddAutonomousRecovery do
       AND NOT COALESCE((
         json_type(NEW.input,'$.model_profile')='object'
         AND (SELECT count(*) FROM json_each(NEW.input,'$.model_profile'))=2
-        AND json_extract(NEW.input,'$.model_profile.model') IS
+        AND EXISTS (SELECT 1 FROM (
+          SELECT model, effort FROM (
+          SELECT
           CASE WHEN NEW.kind='plan' AND EXISTS (SELECT 1 FROM delivery_steps p WHERE p.id=json_extract(NEW.input,'$.plan_step_id') AND p.delivery_id=NEW.delivery_id AND p.kind='plan' AND p.status='failed' AND json_extract(p.receipt,'$.outcome') IN ('invalid_report','exited')) THEN
             CASE WHEN (SELECT json_extract(p.input,'$.model_profile.model') FROM delivery_steps p WHERE p.id=json_extract(NEW.input,'$.plan_step_id'))='gpt-6-astra' THEN 'gpt-6.1-sol' ELSE 'gpt-6-astra' END
             WHEN NEW.kind='resolve' AND json_extract(NEW.input,'$.resolution_attempt')=1 THEN 'gpt-6-astra'
@@ -168,14 +170,27 @@ defmodule Boss.Repo.Migrations.AddAutonomousRecovery do
             WHEN NEW.kind='implement' AND NEW.cycle=1 AND EXISTS (SELECT 1 FROM delivery_steps p
               WHERE p.id=json_extract(NEW.input,'$.plan_step_id') AND p.delivery_id=NEW.delivery_id
                 AND json_extract(p.receipt,'$.report.complexity')='small') THEN 'gpt-6-luna'
-            ELSE 'gpt-6.1-sol' END
-        AND json_extract(NEW.input,'$.model_profile.reasoning_effort') IS
+            ELSE 'gpt-6.1-sol' END AS model,
           CASE WHEN NEW.kind='plan' AND EXISTS (SELECT 1 FROM delivery_steps p WHERE p.id=json_extract(NEW.input,'$.plan_step_id') AND p.delivery_id=NEW.delivery_id AND p.kind='plan' AND p.status='failed' AND json_extract(p.receipt,'$.outcome') IN ('invalid_report','exited')) THEN 'xhigh'
             WHEN NEW.kind='resolve' OR (NEW.kind='implement' AND NEW.cycle>1) THEN 'xhigh'
             WHEN NEW.kind='implement' AND NEW.cycle=1 AND EXISTS (SELECT 1 FROM delivery_steps p
               WHERE p.id=json_extract(NEW.input,'$.plan_step_id') AND p.delivery_id=NEW.delivery_id
                 AND json_extract(p.receipt,'$.report.complexity')='small') THEN 'medium'
-            ELSE 'high' END), 0)
+            ELSE 'high' END AS effort, 0 AS priority
+          UNION ALL SELECT 'gpt-6.1-sol', 'xhigh', 1
+          UNION ALL SELECT 'gpt-6-astra', 'xhigh', 2
+          ) routes
+          WHERE NOT EXISTS (SELECT 1 FROM delivery_steps failed WHERE failed.delivery_id=NEW.delivery_id
+            AND failed.kind IN ('plan','implement','review','merge_review','resolve')
+            AND #{unavailable_model("failed")} AND #{transport("failed")}
+            AND json_extract(failed.input,'$.model_profile.model')=routes.model)
+          AND NOT (NEW.kind='resolve' AND json_extract(NEW.input,'$.resolution_attempt')=2
+            AND routes.model=(SELECT json_extract(previous.input,'$.model_profile.model') FROM delivery_steps previous
+              WHERE previous.delivery_id=NEW.delivery_id ORDER BY previous.number DESC LIMIT 1))
+          ORDER BY priority LIMIT 1
+        ) selected
+          WHERE json_extract(NEW.input,'$.model_profile.model')=selected.model
+            AND json_extract(NEW.input,'$.model_profile.reasoning_effort')=selected.effort)), 0)
     BEGIN SELECT RAISE(ABORT, 'model selection must match the saved autonomy policy'); END
     """
   end
@@ -199,6 +214,7 @@ defmodule Boss.Repo.Migrations.AddAutonomousRecovery do
           AND json_type(source.receipt,'$.report.clarification')='text') OR #{model_failure("source")}))
         OR (source.kind='review' AND ((source.status='finished' AND json_extract(source.receipt,'$.exit_code')=0
           AND json_extract(source.receipt,'$.report.verdict') IN ('changes_requested','needs_spec_revision')) OR #{model_failure("source")}))
+        OR (source.kind='implement' AND #{unavailable_model("source")})
         OR (source.kind='check' AND source.status='failed' AND json_extract(source.receipt,'$.outcome')='checks_failed'
           AND json_extract(source.receipt,'$.output_complete')=1 AND json_type(source.receipt,'$.exit_code')='integer'
           AND json_extract(source.receipt,'$.exit_code')!=0))
@@ -215,7 +231,8 @@ defmodule Boss.Repo.Migrations.AddAutonomousRecovery do
       OR (source.kind IN ('check','review')
         AND json_extract(NEW.input,'$.plan_step_id')=json_extract(source.input,'$.plan_step_id')
         AND json_extract(NEW.input,'$.workspace')=json_extract(source.input,'$.workspace')
-        AND json_extract(NEW.input,'$.candidate_commit')=json_extract(source.input,'$.candidate_commit'))))
+        AND json_extract(NEW.input,'$.candidate_commit')=json_extract(source.input,'$.candidate_commit'))
+      OR (source.kind='implement' AND #{implementation_resolution_workspace()})))
     BEGIN SELECT RAISE(ABORT, 'resolution must follow its saved recoverable source'); END
     """
   end
@@ -299,4 +316,63 @@ defmodule Boss.Repo.Migrations.AddAutonomousRecovery do
   defp model_failure(s),
     do:
       "(#{s}.status='failed' AND json_extract(#{s}.receipt,'$.outcome') IN ('invalid_report','exited') AND json_type(#{s}.receipt,'$.exit_code')='integer')"
+
+  defp unavailable_model(s),
+    do: """
+    (#{s}.status='failed' AND json_extract(#{s}.receipt,'$.outcome')='exited'
+      AND json_type(#{s}.receipt,'$.exit_code')='integer' AND json_extract(#{s}.receipt,'$.exit_code')!=0)
+    """
+
+  defp implementation_resolution_workspace do
+    identity =
+      Enum.map_join(~w(project_id repo_path git_common_dir base_branch), " AND ", fn key ->
+        "json_extract(NEW.input,'$.workspace.#{key}')=json_extract(d.intent,'$.#{key}')"
+      end)
+
+    """
+    json_extract(NEW.input,'$.plan_step_id')=json_extract(source.input,'$.plan_step_id')
+    AND EXISTS (SELECT 1 FROM delivery_steps parent
+      WHERE parent.id=json_extract(source.input,'$.parent_step_id') AND parent.delivery_id=d.id
+        AND parent.number=source.number-1
+        AND ((source.cycle=1 AND d.retry_review_id IS NULL AND parent.kind='plan' AND parent.status='finished'
+          AND parent.id=json_extract(source.input,'$.plan_step_id')
+          AND json_extract(source.input,'$.workspace.base_commit')=json_extract(d.intent,'$.base_commit'))
+        OR (source.cycle=1 AND d.retry_review_id IS NOT NULL AND parent.kind='retry_check'
+          AND json_extract(source.input,'$.source_review_id')=d.retry_review_id
+          AND json_extract(parent.input,'$.plan_step_id')=json_extract(source.input,'$.plan_step_id')
+          AND json_extract(source.input,'$.workspace.base_commit')=json_extract(parent.input,'$.candidate_commit')
+          AND json_extract(parent.receipt,'$.candidate_commit')=json_extract(parent.input,'$.candidate_commit')
+          AND #{transport("parent")} AND json_extract(parent.receipt,'$.output_complete')=1
+          AND ((parent.status='finished' AND json_extract(parent.receipt,'$.exit_code')=0)
+            OR (parent.status='failed' AND json_extract(parent.receipt,'$.outcome')='checks_failed'
+              AND json_type(parent.receipt,'$.exit_code')='integer' AND json_extract(parent.receipt,'$.exit_code')!=0)))
+        OR (source.cycle>1 AND parent.kind='resolve' AND parent.cycle=source.cycle-1 AND parent.status='finished'
+          AND #{transport("parent")} AND json_extract(parent.receipt,'$.exit_code')=0
+          AND json_type(parent.receipt,'$.report.external_action')='null'
+          AND json_extract(parent.input,'$.plan_step_id')=json_extract(source.input,'$.plan_step_id')
+          AND json_extract(source.input,'$.workspace.base_commit')=json_extract(parent.input,'$.candidate_commit'))))
+    AND json_type(NEW.input,'$.workspace')='object'
+    AND (SELECT count(*) FROM json_each(NEW.input,'$.workspace'))=8
+    AND #{identity}
+    AND length(json_extract(NEW.input,'$.workspace.run_id'))=36
+    AND length(json_extract(source.input,'$.workspace.base_commit')) IN (40,64)
+    AND json_extract(NEW.input,'$.workspace.base_commit')=json_extract(source.input,'$.workspace.base_commit')
+    AND json_extract(NEW.input,'$.candidate_commit')=json_extract(source.input,'$.workspace.base_commit')
+    AND json_extract(NEW.input,'$.workspace.branch')='codex/boss-run-' || json_extract(NEW.input,'$.workspace.run_id')
+    AND json_extract(NEW.input,'$.workspace.path')=
+      substr(json_extract(source.input,'$.workspace.path'),1,
+        length(json_extract(source.input,'$.workspace.path'))-length(json_extract(source.input,'$.workspace.run_id')))
+      || json_extract(NEW.input,'$.workspace.run_id')
+    AND json_extract(NEW.input,'$.workspace.path')!=json_extract(source.input,'$.workspace.path')
+    AND json_extract(NEW.input,'$.workspace.path')!=json_extract(d.intent,'$.path')
+    AND ((json_extract(NEW.input,'$.resolution_attempt')=2
+      AND json_extract(NEW.input,'$.workspace')=json_extract(previous.input,'$.workspace'))
+      OR (json_extract(NEW.input,'$.resolution_attempt')=1 AND NOT EXISTS (
+        SELECT 1 FROM delivery_steps old WHERE old.delivery_id=d.id
+          AND (json_extract(old.input,'$.workspace.path')=json_extract(NEW.input,'$.workspace.path')
+            OR json_extract(old.receipt,'$.workspace.path')=json_extract(NEW.input,'$.workspace.path')
+            OR json_extract(old.input,'$.workspace.branch')=json_extract(NEW.input,'$.workspace.branch')
+            OR json_extract(old.receipt,'$.workspace.branch')=json_extract(NEW.input,'$.workspace.branch')))))
+    """
+  end
 end
