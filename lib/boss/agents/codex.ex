@@ -5,6 +5,8 @@ defmodule Boss.Agents.Codex do
 
   def args, do: command_args("workspace-write", [])
 
+  def args(:implement, nil), do: args()
+
   def args(:review, output_path),
     do:
       command_args("read-only", [
@@ -31,6 +33,26 @@ defmodule Boss.Agents.Codex do
         "--output-last-message",
         output_path
       ])
+
+  def args(:resolve, output_path),
+    do:
+      command_args("read-only", [
+        "--output-schema",
+        Application.app_dir(:boss, "priv/resolution_schema.json"),
+        "--output-last-message",
+        output_path
+      ])
+
+  def args(kind, output_path, nil), do: args(kind, output_path)
+
+  def args(kind, output_path, %{"model" => model, "reasoning_effort" => effort})
+      when model in ["gpt-6-astra", "gpt-6.1-sol", "gpt-6-luna"] and
+             effort in ["medium", "high", "xhigh"] do
+    argv = args(kind, output_path)
+
+    Enum.drop(argv, -1) ++
+      ["--model", model, "--config", "model_reasoning_effort=\"#{effort}\"", "-"]
+  end
 
   defp command_args(sandbox, extra),
     do:
