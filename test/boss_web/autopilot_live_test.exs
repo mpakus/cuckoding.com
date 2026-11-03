@@ -30,7 +30,7 @@ defmodule BossWeb.AutopilotLiveTest do
     settle(view)
     assert has_element?(view, "#autopilot-content[hidden]")
     refute has_element?(view, "#autopilot-form input[type=checkbox]")
-    assert has_element?(view, "#autopilot-selection-count", "2 tasks in Backlog")
+    assert has_element?(view, "#autopilot-selection-count", "2 eligible unfinished tasks")
     view |> element("#project-autopilot") |> render_click()
     assert has_element?(view, "#open-autopilot[aria-expanded=true]")
     refute has_element?(view, "#autopilot-content[hidden]")
@@ -126,11 +126,41 @@ defmodule BossWeb.AutopilotLiveTest do
     settle(view)
     view |> element("#project-autopilot") |> render_click()
     assert has_element?(view, "#start-autopilot[disabled]")
-    assert has_element?(view, "#autopilot-selection-count", "0 tasks in Backlog")
+    assert has_element?(view, "#autopilot-selection-count", "0 eligible unfinished tasks")
     view |> element("#autopilot-form") |> render_submit(params())
-    assert has_element?(view, "#autopilot-error", "requires 1–256 tasks")
+    assert has_element?(view, "#autopilot-error", "requires 1–256 eligible unfinished tasks")
     assert {:ok, nil} = Engine.current(c.project.id)
     assert Repo.aggregate(Deliveries.Delivery, :count) == 0
+  end
+
+  test "failed tasks appear as explicit new retries without changing historical workflows", c do
+    failures =
+      for saved <- [c.first, c.second] do
+        {:ok, {:new, delivery}} =
+          Deliveries.admit(c.project.id, saved.task.id, Ecto.UUID.generate(), "true")
+
+        {:ok, failed} =
+          Deliveries.complete(delivery.id, "failed", "Task-specific fixture failure")
+
+        failed
+      end
+
+    {:ok, view, _} = live(c.conn, "/projects/#{c.project.id}")
+    settle(view)
+    view |> element("#project-autopilot") |> render_click()
+    assert has_element?(view, "#autopilot-selection-count", "2 eligible unfinished tasks")
+    assert has_element?(view, "#autopilot-task-#{c.first.task.id}", "Retry · Failed")
+    assert has_element?(view, "#autopilot-authorization", "does not resume an earlier batch")
+    assert Repo.aggregate(Deliveries.Delivery, :count) == 2
+
+    view |> form("#autopilot-form", params()) |> render_submit()
+    assert_receive {:started, _, _}, 1_500
+    settle(view)
+    assert {:ok, batch} = Engine.current(c.project.id)
+    assert batch.routing_version == 2
+    assert Enum.map(batch.items, & &1.task_id) == [c.first.task.id, c.second.task.id]
+    assert Enum.map(failures, &Repo.get!(Deliveries.Delivery, &1.id)) == failures
+    assert Repo.aggregate(Deliveries.Delivery, :count) == 3
   end
 
   test "invalid check commands produce a recoverable error without authorizing the Backlog", c do

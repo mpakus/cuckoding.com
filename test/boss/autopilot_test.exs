@@ -43,15 +43,20 @@ defmodule Boss.AutopilotTest do
     assert {:ok, nil} = Autopilot.current(c.project.id + 1)
   end
 
-  test "partial or stale selection is rejected atomically and does not include Failed", c do
+  test "partial or stale selection is rejected atomically and fresh recovery includes Failed",
+       c do
     [first | rest] = c.tasks
     assert {:error, :backlog_changed} = admit(c, rest)
     assert Repo.aggregate(Request, :count) == 0
-    Repo.update_all(from(t in Tasks.Task, where: t.id == ^first.id), set: [state: "failed"])
-    assert {:error, :backlog_changed} = admit(c, c.tasks)
-    assert {:ok, batch} = admit(c, rest)
-    assert length(batch.items) == 2
-    assert Enum.all?(batch.items, &(&1.task_id != first.id))
+
+    {:ok, {:new, delivery}} =
+      Deliveries.admit(c.project.id, first.id, Ecto.UUID.generate(), "true")
+
+    {:ok, _} = Deliveries.complete(delivery.id, "failed", "Task-specific fixture failure")
+    assert {:error, :backlog_changed} = admit(c, rest)
+    assert {:ok, batch} = admit(c, c.tasks)
+    assert length(batch.items) == 3
+    assert Enum.any?(batch.items, &(&1.task_id == first.id))
   end
 
   test "more than 32 frozen tasks keep ordinary queue capacity separate", c do
@@ -178,7 +183,9 @@ defmodule Boss.AutopilotTest do
       })
 
     first = hd(c.tasks)
-    {:ok, request} = Queue.admit(c.project.id, first.id, Ecto.UUID.generate(), "true", "codex")
+
+    {:ok, request} =
+      Queue.admit(c.project.id, first.id, Ecto.UUID.generate(), "true", "codex", 1, 1)
 
     Repo.insert!(%AutopilotItem{
       request_id: request.id,

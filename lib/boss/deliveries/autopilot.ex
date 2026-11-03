@@ -4,6 +4,8 @@ defmodule Boss.Deliveries.Autopilot do
   alias Boss.{Deliveries, Repo, Runs, Tasks}
   alias Boss.Deliveries.{AutopilotBatch, AutopilotItem, Delivery, Queue, Request}
 
+  @shared_failures ~w(catalog_unavailable catalog_invalid catalog_insufficient_models codex_unavailable models_exhausted provider_auth provider_rate_limit provider_schema provider_transport)
+
   def start(project, command, tasks, text, reviewer, server \\ Boss.Runs.Manager),
     do:
       GenServer.call(server, {:autopilot_start, project, command, tasks, text, reviewer}, 10_000)
@@ -40,6 +42,14 @@ defmodule Boss.Deliveries.Autopilot do
       end
     end)
   end
+
+  def selection(project) when is_integer(project) and project > 0,
+    do:
+      transaction(fn ->
+        Queue.autopilot_candidates(project, Boss.Deliveries.ModelPolicy.current_routing())
+      end)
+
+  def selection(_), do: {:error, :invalid_command}
 
   def running?, do: Repo.exists?(from b in AutopilotBatch, where: b.status == "running")
 
@@ -134,15 +144,8 @@ defmodule Boss.Deliveries.Autopilot do
             Repo.rollback(:idempotency_conflict)
 
           nil ->
-            backlog =
-              Repo.all(
-                from t in Tasks.Task,
-                  join: s in Boss.Projects.Spec,
-                  on: s.id == t.spec_id,
-                  where: s.project_id == ^project and not s.missing and t.state == "new",
-                  select: t.id,
-                  limit: 257
-              )
+            routing_version = intake_routing(intake)
+            backlog = Queue.autopilot_candidates(project, routing_version)
 
             if length(backlog) > 256, do: Repo.rollback(:backlog_too_large)
             if Enum.sort(backlog) != Enum.sort(tasks), do: Repo.rollback(:backlog_changed)
@@ -174,7 +177,8 @@ defmodule Boss.Deliveries.Autopilot do
                 check_config: config,
                 config_hash: hash,
                 reviewer: reviewer,
-                autonomy_version: intake_autonomy(intake)
+                autonomy_version: intake_autonomy(intake),
+                routing_version: routing_version
               })
 
             Enum.with_index(tasks)
@@ -185,7 +189,8 @@ defmodule Boss.Deliveries.Autopilot do
                      Ecto.UUID.generate(),
                      text,
                      reviewer,
-                     batch.autonomy_version
+                     batch.autonomy_version,
+                     batch.routing_version
                    ) do
                 {:ok, request} ->
                   Repo.insert!(%AutopilotItem{
@@ -214,6 +219,8 @@ defmodule Boss.Deliveries.Autopilot do
 
   defp intake_autonomy(nil), do: Boss.Deliveries.ModelPolicy.current()
   defp intake_autonomy(id), do: Repo.get!(Boss.Projects.Intake.Request, id).autonomy_version
+  defp intake_routing(nil), do: Boss.Deliveries.ModelPolicy.current_routing()
+  defp intake_routing(id), do: Repo.get!(Boss.Projects.Intake.Request, id).routing_version
 
   defp change(project, id, action, version) do
     with true <- is_integer(project) and is_integer(version) and version >= 0,
@@ -385,15 +392,21 @@ defmodule Boss.Deliveries.Autopilot do
             end
 
           {_, _, delivery, _} ->
-            if Deliveries.active?(delivery),
-              do: :waiting,
-              else:
+            cond do
+              Deliveries.active?(delivery) ->
+                :waiting
+
+              code = shared_failure_code(delivery) ->
+                block(batch, shared_failure_reason(code))
+
+              true ->
                 block(
                   batch,
                   "Task stopped: " <>
                     (delivery.reason || delivery.status) <>
                     " Autopilot did not start another task."
                 )
+            end
 
           nil ->
             start_next(batch, unfinished, preflight, cursor)
@@ -403,14 +416,93 @@ defmodule Boss.Deliveries.Autopilot do
 
   defp settled?(%Delivery{status: "done"}), do: true
 
-  defp settled?(%Delivery{
-         status: status,
-         cleanup: "group_empty",
-         integration_command_id: nil
-       }),
-       do: status in ~w(failed blocked needs_input)
+  defp settled?(
+         %Delivery{
+           status: status,
+           cleanup: "group_empty",
+           integration_command_id: nil
+         } = delivery
+       ),
+       do: status in ~w(failed blocked needs_input) and is_nil(shared_failure_code(delivery))
 
   defp settled?(_), do: false
+
+  defp shared_failure_code(
+         %Delivery{
+           status: status,
+           cleanup: "group_empty",
+           integration_command_id: nil
+         } = delivery
+       )
+       when status in ~w(failed blocked needs_input) do
+    code = Map.get(delivery, :failure_code)
+
+    cond do
+      code in @shared_failures ->
+        code
+
+      Map.get(delivery, :routing_version, 1) == 1 and delivery.autonomy_version == 1 and
+          Deliveries.model_profile(delivery, :plan, 0) == {:error, :models_exhausted} ->
+        "models_exhausted"
+
+      shared_startup_failure?(delivery) ->
+        "provider_startup"
+
+      true ->
+        nil
+    end
+  end
+
+  defp shared_failure_code(_), do: nil
+
+  defp shared_startup_failure?(%Delivery{routing_version: 2, model_catalog: catalog} = delivery) do
+    if Boss.Agents.ModelCatalog.validate(catalog) == :ok do
+      steps = Deliveries.steps(delivery.id)
+      strong_models = MapSet.new(catalog["fallbacks"], & &1["model"])
+
+      not Enum.any?(steps, &(&1.kind in ~w(plan implement) and &1.status == "finished")) and
+        steps
+        |> Enum.filter(&failed_startup?/1)
+        |> Enum.map(&get_in(&1.input, ["model_profile", "model"]))
+        |> Enum.filter(&MapSet.member?(strong_models, &1))
+        |> Enum.uniq()
+        |> length() >= 2
+    else
+      false
+    end
+  end
+
+  defp shared_startup_failure?(_), do: false
+
+  defp failed_startup?(%{kind: kind, status: "failed", receipt: receipt})
+       when kind in ~w(plan resolve),
+       do:
+         receipt["outcome"] == "exited" and receipt["cleanup"] == "group_empty" and
+           receipt["exit_kind"] == "exit" and is_integer(receipt["exit_code"]) and
+           receipt["eof"] == %{"stdout" => true, "stderr" => true} and
+           (receipt["exit_code"] != 0 or
+              get_in(receipt, ["summary", "error_class"]) == "unknown")
+
+  defp failed_startup?(_), do: false
+
+  defp shared_failure_reason(code) do
+    detail =
+      case code do
+        "catalog_unavailable" -> "The local model catalog could not be read."
+        "catalog_invalid" -> "The local model catalog is invalid."
+        "catalog_insufficient_models" -> "The local model catalog has too few eligible models."
+        "codex_unavailable" -> "The Codex CLI is unavailable."
+        "models_exhausted" -> "The saved model routes are exhausted."
+        "provider_auth" -> "The provider rejected authentication."
+        "provider_rate_limit" -> "The provider reported a rate limit."
+        "provider_schema" -> "The provider rejected the response format."
+        "provider_startup" -> "Two available models could not start a valid planning session."
+        "provider_transport" -> "The provider connection failed."
+      end
+
+    detail <>
+      " Autopilot did not start another task. Correct the shared agent setup, then use a new Start to retry unfinished tasks."
+  end
 
   defp start_next(batch, entries, preflight, cursor) do
     cond do
