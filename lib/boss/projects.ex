@@ -126,6 +126,8 @@ defmodule Boss.Projects do
           title: t.title,
           relative_path: s.relative_path,
           state: t.state,
+          state_version: t.state_version,
+          attention_reason: t.attention_reason,
           missing: s.missing,
           latest_revision: current.number,
           task_revision: pin.number

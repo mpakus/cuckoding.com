@@ -69,6 +69,9 @@ else:
     output = Path(args[args.index("--output-last-message") + 1])
     if kind == "plan":
         report = {"summary": "Create the result", "steps": ["Write result.txt"], "acceptance": ["Create result.txt"], "file_scopes": None}
+        if mode == "needs_plan":
+            report = {"summary": "Workflow guidance", "steps": [], "acceptance": [],
+                      "file_scopes": None, "clarification": "Which feature should this workflow deliver?"}
         if data.get("previous_plan"):
             assert data["previous_plan"]["acceptance"] == report["acceptance"]
             assert data["previous_review"]["verdict"] == "changes_requested"

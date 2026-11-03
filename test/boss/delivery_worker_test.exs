@@ -467,12 +467,26 @@ defmodule Boss.DeliveryWorkerTest do
     end
   end
 
+  test "planning asks a concrete question before dispatching implementation", ctx do
+    System.put_env("BOSS_DELIVERY_MODE", "needs_plan")
+    manager = start_manager(ctx.repo)
+    {:ok, run} = start(ctx, manager)
+    saved = await_delivery(ctx, run.id)
+    assert saved.status == "needs_input"
+    assert saved.reason =~ "Which feature should this workflow deliver?"
+    assert saved.reason =~ "Next:"
+    assert Enum.map(calls(ctx), & &1["kind"]) == ["plan"]
+    assert Repo.get!(Boss.Tasks.Task, run.task_id).attention_reason == saved.reason
+  end
+
   test "unclear specification requests input without modifying the pinned source", ctx do
     System.put_env("BOSS_DELIVERY_MODE", "needs_spec")
     manager = start_manager(ctx.repo)
     {:ok, run} = start(ctx, manager)
     saved = await_delivery(ctx, run.id)
     assert saved.status == "needs_input", inspect(saved)
+    assert saved.reason =~ "Clarify expected output"
+    assert saved.reason =~ "adopt the new revision"
 
     assert Repo.get!(Projects.SpecRevision, saved.spec_revision_id).original_text ==
              "# One\nCreate result.txt"

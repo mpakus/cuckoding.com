@@ -7,15 +7,21 @@ defmodule Boss.Deliveries.Protocol do
     with true <- String.valid?(text),
          {:ok, %Jason.OrderedObject{values: pairs}} <-
            Jason.decode(text, objects: :ordered_objects),
+         keys = Enum.map(pairs, &elem(&1, 0)),
+         true <- length(keys) == length(Enum.uniq(keys)),
          true <-
-           Enum.sort(Enum.map(pairs, &elem(&1, 0))) in [
+           Enum.sort(keys -- ["clarification"]) in [
              ~w(acceptance steps summary),
              ~w(acceptance file_scopes steps summary)
            ],
          plan = Map.new(pairs),
+         question = plan["clarification"],
+         true <- is_nil(question) or text?(question, 500),
          true <- text?(plan["summary"], 2000),
-         true <- strings?(plan["steps"], 2000),
-         true <- strings?(plan["acceptance"], 1000),
+         true <- strings?(plan["steps"], 2000) or (is_binary(question) and plan["steps"] == []),
+         true <-
+           strings?(plan["acceptance"], 1000) or
+             (is_binary(question) and plan["acceptance"] == []),
          true <- Enum.uniq(plan["acceptance"]) == plan["acceptance"],
          {:ok, scopes} <- FileScopes.validate(plan["file_scopes"]) do
       {:ok,
@@ -73,8 +79,12 @@ defmodule Boss.Deliveries.Protocol do
           backslashes, colons or control characters; no trailing slash. Use null
           when you cannot confidently bound the changes; never use an empty list.
           These predictions coordinate workers, not permissions or correctness proof.
-          Preserve every requirement of the original specification. If it is ambiguous,
-          include the unresolved question in the acceptance criteria; do not invent consent.
+          Preserve every requirement of the original specification. Resolve ordinary
+          implementation choices from the repository and cited sources. Set clarification
+          to null when work can proceed. If the source is workflow guidance without a
+          deliverable, or a decision is genuinely missing, put one precise question in
+          clarification. For a new task with no deliverable, return empty steps and
+          acceptance and null file_scopes. Do not invent consent or a feature.
           If previous_plan is supplied, retain exactly its acceptance criterion strings;
           use previous_review and previous_diff to update implementation steps and scopes.
           Previous_review applies to previous_review_candidate_commit. Previous_diff shows
@@ -87,7 +97,10 @@ defmodule Boss.Deliveries.Protocol do
           Implement the saved specification and typed plan in this isolated worktree.
           Inspect project instructions and change only files required by this task.
           Follow every saved acceptance criterion. If prior feedback is present, fix
-          the concrete failures that still apply to this worktree. When feedback names
+          the concrete failures that still apply to this worktree. Trace each finding to
+          the exact failing branch and add a focused regression where the current suite
+          missed it. For limits, test below, exactly at, and above the boundary; check
+          whether the next read or write happens at the ceiling. When feedback names
           a review_candidate_commit and prepared_candidate_commit, the review describes
           the former and this worktree starts from a fresh snapshot of the latter.
           Do not commit, merge, push or start background processes. BOSS will execute

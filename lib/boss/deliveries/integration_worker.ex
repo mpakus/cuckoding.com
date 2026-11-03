@@ -173,8 +173,8 @@ defmodule Boss.Deliveries.IntegrationWorker do
 
     case report["verdict"] do
       "approved" -> {candidate, sha, review}
-      "needs_spec_revision" -> throw({:halt, :merge_needs_spec})
-      _ -> throw({:halt, :merge_changes_requested})
+      "needs_spec_revision" -> throw({:halt, {:merge_needs_spec, report}})
+      _ -> throw({:halt, {:merge_changes_requested, report}})
     end
   end
 
@@ -217,7 +217,7 @@ defmodule Boss.Deliveries.IntegrationWorker do
       %{"status" => "finished"} -> {saved, value}
       %{"cleanup" => "unknown"} -> throw({:halt, :cleanup_unknown})
       %{"status" => "cancelled"} -> throw({:halt, :cancelled})
-      _ -> throw({:halt, {:stage_failed, kind}})
+      _ -> throw({:halt, {:stage_failed, kind, receipt}})
     end
   end
 
@@ -353,20 +353,24 @@ defmodule Boss.Deliveries.IntegrationWorker do
         "Target branch changed again during integration. Retained evidence is stale; no automatic retry."
       )
 
-  defp stop(d, :merge_needs_spec),
+  defp stop(d, {:merge_needs_spec, report}),
     do:
       Deliveries.complete(
         d.id,
         "needs_input",
-        "Integration review needs specification clarification. Source and merge candidate retained."
+        "Integration review needs specification clarification. " <>
+          Boss.Deliveries.Diagnostics.clarification(report)
       )
 
-  defp stop(d, :merge_changes_requested),
+  defp stop(d, {:merge_changes_requested, report}),
     do:
       Deliveries.complete(
         d.id,
         "blocked",
-        "Integration review requested changes. Merge candidate retained; no automatic retry."
+        Boss.Deliveries.Diagnostics.repair_stop("Integration review requested changes.", %{
+          "kind" => "review",
+          "report" => report
+        })
       )
 
   defp stop(d, :merge_conflict),
@@ -383,6 +387,14 @@ defmodule Boss.Deliveries.IntegrationWorker do
         d.id,
         "blocked",
         "Target history no longer descends from the original base. No merge or publication occurred."
+      )
+
+  defp stop(d, {:stage_failed, kind, receipt}),
+    do:
+      Deliveries.complete(
+        d.id,
+        "blocked",
+        Boss.Deliveries.Diagnostics.step_failure(kind, receipt)
       )
 
   defp stop(d, _),

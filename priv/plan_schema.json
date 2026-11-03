@@ -3,6 +3,7 @@
   "additionalProperties": false,
   "properties": {
     "summary": {"type": "string"},
+    "clarification": {"type": ["string", "null"]},
     "steps": {"type": "array", "items": {"type": "string"}},
     "acceptance": {"type": "array", "items": {"type": "string"}},
     "file_scopes": {
@@ -20,5 +21,5 @@
       }
     }
   },
-  "required": ["summary", "steps", "acceptance", "file_scopes"]
+  "required": ["summary", "steps", "acceptance", "file_scopes", "clarification"]
 }

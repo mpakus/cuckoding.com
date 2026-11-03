@@ -4,7 +4,7 @@ defmodule Boss.Deliveries.Worker do
   alias Boss.Agents.{Claude, Codex, ReportFile, Workspace}
   alias Boss.Agents.Process, as: Runner
   alias Boss.Checks.Candidate
-  alias Boss.Deliveries.{Protocol, Retry}
+  alias Boss.Deliveries.{Diagnostics, Protocol, Retry}
 
   def execute(delivery, repo, manager) do
     Repo.put_dynamic_repo(repo)
@@ -77,6 +77,10 @@ defmodule Boss.Deliveries.Worker do
       )
 
     successful!(plan_step)
+
+    if question = plan["clarification"],
+      do: throw({:halt, {:needs_input, Diagnostics.planning_question(question)}})
+
     {previous, feedback} = retry_seed(delivery, project, plan_step, source)
     failures = retry_failures(delivery, source)
 
@@ -484,7 +488,7 @@ defmodule Boss.Deliveries.Worker do
         Deliveries.complete(
           delivery.id,
           "needs_input",
-          "The saved specification needs clarification. Original source retained."
+          Diagnostics.clarification(report)
         )
 
       "changes_requested" ->
@@ -539,14 +543,20 @@ defmodule Boss.Deliveries.Worker do
         Deliveries.complete(
           delivery.id,
           "blocked",
-          "The same failure repeated for unchanged candidate content. No further automatic attempt."
+          Diagnostics.repair_stop(
+            "The same failure repeated for unchanged candidate content.",
+            feedback
+          )
         )
 
       cycle >= 3 ->
         Deliveries.complete(
           delivery.id,
           "blocked",
-          "The three-cycle implementation/check/review budget is exhausted."
+          Diagnostics.repair_stop(
+            "The three-cycle implementation/check/review budget is exhausted.",
+            feedback
+          )
         )
 
       true ->
@@ -848,7 +858,8 @@ defmodule Boss.Deliveries.Worker do
   defp successful!(%{receipt: %{"outcome" => "candidate_changed"}}),
     do: throw({:halt, :candidate_changed})
 
-  defp successful!(_), do: throw({:halt, :stage_failed})
+  defp successful!(%{kind: kind, receipt: receipt}),
+    do: throw({:halt, {:stage_failed, Diagnostics.step_failure(kind, receipt)}})
 
   defp halt(delivery, reason) do
     receipt = failure(reason)
@@ -863,6 +874,15 @@ defmodule Boss.Deliveries.Worker do
   defp failure(reason) do
     {status, cleanup, message} =
       case reason do
+        {:needs_input, message} ->
+          {"needs_input", "group_empty", message}
+
+        {:stage_failed, message} ->
+          {"failed", "group_empty", message}
+
+        reason when reason in [:command_unavailable, :target_changed] ->
+          {"failed", "group_empty", Diagnostics.message(Atom.to_string(reason))}
+
         :cancelled ->
           {"cancelled", "group_empty", "Stopped. No further automatic stage will start."}
 
