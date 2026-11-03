@@ -2,6 +2,7 @@ defmodule Boss.Deliveries.ModelPolicy do
   @moduledoc "Versioned model routing and finite recovery budgets for managed deliveries."
 
   def current, do: 1
+  def current_routing, do: 2
 
   def max_cycles(1), do: 5
   def max_cycles(version) when version in [nil, 0], do: 3
@@ -57,6 +58,54 @@ defmodule Boss.Deliveries.ModelPolicy do
     |> case do
       nil -> {:error, :models_exhausted}
       profile -> {:ok, profile}
+    end
+  end
+
+  def route(2, kind, cycle, plan, snapshot) do
+    unless Boss.Agents.ModelCatalog.validate(snapshot) == :ok,
+      do: raise(ArgumentError, "invalid saved model catalog")
+
+    case {to_string(kind), cycle} do
+      {"resolve", 1} ->
+        snapshot["resolver"]
+
+      {"resolve", 2} ->
+        hd(snapshot["fallbacks"])
+
+      {"implement", 1} ->
+        if is_map(plan) and plan["complexity"] == "small",
+          do: snapshot["small"] || snapshot["primary"],
+          else: snapshot["primary"]
+
+      {"implement", cycle} when cycle in [2, 4] ->
+        snapshot["resolver"]
+
+      {"implement", cycle} when cycle in [3, 5] ->
+        hd(snapshot["fallbacks"])
+
+      {kind, _} when kind in ~w(plan review merge_review intake) ->
+        snapshot["primary"]
+    end
+  end
+
+  def route(version, kind, cycle, plan, _snapshot) when version in [nil, 0, 1],
+    do: route(version, kind, cycle, plan)
+
+  def select(preferred, excluded_models, snapshot) when is_list(excluded_models) do
+    with :ok <- Boss.Agents.ModelCatalog.validate(snapshot),
+         true <-
+           preferred in ([snapshot["primary"], snapshot["resolver"], snapshot["small"]] ++
+                           snapshot["fallbacks"]),
+         true <- not is_nil(preferred) do
+      [preferred | snapshot["fallbacks"]]
+      |> Enum.uniq_by(& &1["model"])
+      |> Enum.find(fn profile -> profile["model"] not in excluded_models end)
+      |> case do
+        nil -> {:error, :models_exhausted}
+        profile -> {:ok, profile}
+      end
+    else
+      _ -> {:error, :catalog_invalid}
     end
   end
 
