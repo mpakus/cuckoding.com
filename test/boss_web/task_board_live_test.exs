@@ -103,6 +103,47 @@ defmodule BossWeb.TaskBoardLiveTest do
     refute has_element?(reopened, "#task-drawer")
   end
 
+  test "a committed stop produces one linked notification and a retained workflow note", %{
+    conn: conn,
+    project: project
+  } do
+    saved = spec(project, "check-tool")
+    {:ok, view, _} = live(conn, "/projects/#{project.id}")
+    settle(view)
+
+    id = saved.task.id
+    notice = "#task-notification-#{id}"
+    path = "/projects/#{project.id}/tasks/#{id}"
+    reason = "The check command is unavailable. Install it on BOSS's PATH and start again."
+    refute has_element?(view, notice)
+
+    assert {:ok, _} =
+             Tasks.transition(id, %{
+               command_id: "missing-tool",
+               expected_version: 0,
+               action: "block",
+               reason: reason
+             })
+
+    Tasks.broadcast(project.id)
+    settle(view)
+    assert has_element?(view, notice, reason)
+    send(view.pid, {:run_changed, project.id})
+    settle(view)
+    assert length(Regex.scan(~r/id="task-notification-#{id}"/, render(view))) == 1
+
+    view |> element(notice <> " a") |> render_click()
+    assert_patch(view, path)
+    settle(view)
+    assert has_element?(view, "#task-attention[role=status]", reason)
+    assert has_element?(view, "#task-events li", reason)
+
+    {:ok, reopened, _} = live(conn, path)
+    settle(reopened)
+    refute has_element?(reopened, notice)
+    assert has_element?(reopened, "#task-attention", reason)
+  end
+
   test "background refresh preserves the open revision while updating latest metadata", %{
     conn: conn,
     project: project

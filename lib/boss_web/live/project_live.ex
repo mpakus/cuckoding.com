@@ -37,6 +37,7 @@ defmodule BossWeb.ProjectLive do
        project_route: id,
        page_title: if(project, do: "#{project.name} · BOSS", else: "Project not found · BOSS"),
        entries: if(project, do: Projects.list_spec_entries(project.id), else: []),
+       task_notices: [],
        auto_sync: Application.get_env(:boss, :spec_auto_sync, true),
        syncing: false,
        refreshing: false,
@@ -609,6 +610,7 @@ defmodule BossWeb.ProjectLive do
 
     {:noreply,
      socket
+     |> refresh_task_notices(entries)
      |> assign(entries: entries)
      |> show_result(result)
      |> refresh_details()
@@ -776,6 +778,7 @@ defmodule BossWeb.ProjectLive do
                 details
                 |> Map.put(:runs, Runs.list(project_id, task_id))
                 |> Map.put(:deliveries, deliveries)
+                |> Map.put(:workflow_note, workflow_note(details.task, deliveries))
                 |> Map.put(
                   :scope_blockers,
                   Map.new(deliveries, &{&1.id, Scheduling.blockers(&1)})
@@ -793,6 +796,22 @@ defmodule BossWeb.ProjectLive do
       end
     else
       {:error, :storage_error}
+    end
+  end
+
+  defp workflow_note(%{attention_reason: nil}, _), do: nil
+
+  defp workflow_note(task, deliveries) do
+    delivery =
+      Enum.find(deliveries, fn delivery ->
+        delivery.status == task.state and delivery.reason == task.attention_reason and
+          delivery.spec_revision_id == task.spec_revision_id and
+          delivery.task_version + 1 == task.state_version
+      end)
+
+    case delivery do
+      nil -> task.attention_reason
+      saved -> Deliveries.Diagnostics.attention(task.attention_reason, saved.steps)
     end
   end
 
@@ -1394,6 +1413,23 @@ defmodule BossWeb.ProjectLive do
     end)
   end
 
+  defp refresh_task_notices(socket, entries) do
+    current = Map.new(entries, &{&1.task_id, Map.get(&1, :state_version)})
+    previous = Map.new(socket.assigns.entries, &{&1.task_id, Map.get(&1, :state_version)})
+
+    fresh =
+      for %{state: state, state_version: version, attention_reason: reason} = entry <- entries,
+          state in ~w(blocked needs_input failed interrupted),
+          is_binary(reason) and reason != "",
+          previous[entry.task_id] != version,
+          do: entry
+
+    retained =
+      Enum.filter(socket.assigns.task_notices, &(current[&1.task_id] == &1.state_version))
+
+    assign(socket, task_notices: Enum.take(fresh ++ retained, 5))
+  end
+
   defp finish_refresh(socket) do
     pending = socket.assigns.refresh_pending
     socket = assign(socket, refreshing: false, refresh_pending: nil)
@@ -1505,6 +1541,7 @@ defmodule BossWeb.ProjectLive do
         supported={@run_supported}
       />
       <.live_component module={WorkflowCapacity} id="workflow-capacity" />
+      <TaskBoard.notices entries={@task_notices} project_id={@project.id} />
       <p id="sync-status" role="status" class="mt-4 min-h-5 text-sm text-zinc-300">{@status}</p>
       <div
         :if={@errors != []}
