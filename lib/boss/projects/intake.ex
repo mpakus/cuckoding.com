@@ -111,6 +111,7 @@ defmodule Boss.Projects.Intake do
                check_config: config,
                config_hash: hash,
                reviewer: reviewer,
+               autonomy_version: Boss.Deliveries.ModelPolicy.current(),
                check_text: text
              })}
         end
