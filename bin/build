@@ -1,0 +1,42 @@
+#!/bin/sh
+set -eu
+umask 077
+
+cd -- "$(dirname -- "$0")/.."
+
+export MIX_ENV=dev
+export PORT="${PORT:-4001}"
+export BOSS_DATA_DIR="${BOSS_DATA_DIR:-$PWD/_build/local-data}"
+
+case "$BOSS_DATA_DIR" in
+  /*) ;;
+  *) printf '%s\n' 'BOSS_DATA_DIR must be an absolute path.' >&2; exit 1 ;;
+esac
+
+if command -v asdf >/dev/null 2>&1; then
+  set -- asdf exec
+else
+  set --
+fi
+
+probe_port='
+  case Integer.parse(System.fetch_env!("PORT")) do
+    {port, ""} when port in 1..65_535 ->
+      case :gen_tcp.listen(port, ip: {127, 0, 0, 1}, reuseaddr: true) do
+        {:ok, socket} -> :gen_tcp.close(socket)
+        {:error, reason} ->
+          IO.puts(:stderr, "Cannot bind 127.0.0.1:#{port} (#{reason}). Choose a free PORT.")
+          System.halt(1)
+      end
+    _ ->
+      IO.puts(:stderr, "PORT must be an integer between 1 and 65535.")
+      System.halt(1)
+  end
+'
+
+"$@" elixir -e "$probe_port"
+"$@" mix deps.get --check-locked
+"$@" mix assets.setup
+"$@" mix assets.build
+"$@" elixir -e "$probe_port"
+exec "$@" mix phx.server
