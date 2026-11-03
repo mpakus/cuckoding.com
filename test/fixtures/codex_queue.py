@@ -7,7 +7,7 @@ import sys
 import time
 
 signal.alarm(60)
-if "--output-schema" not in sys.argv:
+if "exec" in sys.argv and "--output-schema" not in sys.argv:
     gate = Path(os.environ["BOSS_QUEUE_GATES"]) / Path.cwd().name
     gate.with_suffix(".waiting").write_text(str(os.getpid()))
     while not gate.with_suffix(".release").exists():
