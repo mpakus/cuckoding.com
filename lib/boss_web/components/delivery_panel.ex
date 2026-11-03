@@ -26,29 +26,32 @@ defmodule BossWeb.DeliveryPanel do
     <section
       id="task-deliveries"
       aria-labelledby="task-deliveries-heading"
-      class="border-t border-zinc-800 py-5"
+      class="min-w-0 border-t border-line pt-5"
     >
-      <h3 id="task-deliveries-heading" class="font-semibold">Task workflow</h3>
-      <p id="delivery-help" class="mt-2 text-sm text-zinc-300">
+      <h3 id="task-deliveries-heading" class="app-panel-heading">Task workflow</h3>
+      <p id="delivery-help" class="mt-3 text-sm leading-6 text-body">
         Plan, implement, check and review task snapshot revision {@details.pinned_revision.number}.
         Codex plans and implements. New workflows resolve questions with another model
         and can use up to five implementation/check/review cycles.
         An approved result waits for you to integrate it.
       </p>
-      <p id="delivery-account" class="mt-2 text-xs text-zinc-400">
+      <p id="delivery-account" class="mt-3 text-xs leading-5 text-muted">
         Uses your local Codex account for planning and implementation, and the selected reviewer's account for review.
         These calls may incur charges for multiple runs.
         Source, plans, diffs, check output and prior feedback are sent to the selected agents.
         Closing this drawer keeps the workflow active.
       </p>
-      <p id="delivery-queue-help" class="mt-2 text-xs text-zinc-400">
+      <p
+        id="delivery-queue-help"
+        class="mt-3 border-l-2 border-line pl-3 text-xs leading-5 text-muted"
+      >
         Queue a workflow to start when its prerequisites are Done and capacity is available.
         Workflow capacity is shared across projects. Known overlapping file predictions wait before implementation.
         Unknown or incomplete predictions can still cause conflicts.
         Queued work pauses after restart and needs Resume. Source changes require explicit adoption.
         If the target advances, integration checks and reviews a new merge candidate before publication.
       </p>
-      <p :if={!@supported} class="mt-3 text-sm text-amber-300">
+      <p :if={!@supported} class="mt-3 text-sm text-warning">
         Task workflows currently require macOS.
       </p>
       <form
@@ -56,7 +59,7 @@ defmodule BossWeb.DeliveryPanel do
         id="delivery-form"
         phx-change="edit_delivery"
         phx-submit="start_delivery"
-        class="mt-4 space-y-2"
+        class="mt-5 space-y-2 rounded-sm border border-line bg-surface p-4"
       >
         <input type="hidden" name="command_id" value={@request.id} />
         <label for="delivery-reviewer" class="block text-sm font-medium">Workflow reviewer</label>
@@ -65,13 +68,13 @@ defmodule BossWeb.DeliveryPanel do
           name="reviewer"
           disabled={(!@start_available && !@queue_available) || @request.locked}
           aria-describedby="delivery-reviewer-help delivery-account"
-          class="w-full min-w-0 rounded border border-zinc-600 bg-zinc-900 px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:opacity-50"
+          class="app-field w-full min-w-0 px-3 py-2 text-sm disabled:opacity-50"
         >
           <option value="codex" selected={@request.reviewer == "codex"}>Codex</option>
           <option value="claude" selected={@request.reviewer == "claude"}>Claude</option>
         </select>
         <input :if={@request.locked} type="hidden" name="reviewer" value={@request.reviewer} />
-        <p id="delivery-reviewer-help" class="text-xs text-zinc-400">
+        <p id="delivery-reviewer-help" class="text-xs text-muted">
           <%= if @request.reviewer == "claude" do %>
             Claude reviews the supplied spec, plan, full diff, check output and prior feedback.
             It has no model filesystem or shell tools. Planning and implementation use Codex.
@@ -79,7 +82,7 @@ defmodule BossWeb.DeliveryPanel do
             Codex reviews the supplied evidence and can inspect the candidate's source read-only.
           <% end %>
         </p>
-        <label for="delivery-command" class="block text-sm font-medium">Workflow check command</label>
+        <label for="delivery-command" class="block pt-3 text-sm font-medium">Workflow check command</label>
         <input
           id="delivery-command"
           name="command"
@@ -92,48 +95,50 @@ defmodule BossWeb.DeliveryPanel do
           spellcheck="false"
           placeholder="mix test"
           aria-describedby="delivery-command-help delivery-account"
-          class="w-full min-w-0 rounded border border-zinc-600 bg-zinc-900 px-3 py-2 font-mono text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
+          class="app-field w-full min-w-0 px-3 py-2 font-mono text-sm"
         />
-        <p id="delivery-command-help" class="text-xs text-zinc-400">
+        <p id="delivery-command-help" class="text-xs text-muted">
           Use a trusted command. It runs locally on each candidate and after integration.
           Arguments support quoting, without shell expansion. Keep secrets out of arguments and output.
         </p>
-        <button
-          id="start-delivery"
-          type="submit"
-          name="intent"
-          value="start"
-          disabled={!@start_available}
-          aria-describedby="delivery-help delivery-account"
-          class="rounded-md bg-emerald-400 px-4 py-2 font-semibold text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:opacity-50"
-        >{cond do
-          @starting && Map.get(@request, :action, :start) == :start -> "Starting workflow…"
-          @request.locked && Map.get(@request, :action, :start) == :start -> "Retry workflow start"
-          true -> "Start workflow"
-        end}</button>
-        <button
-          id="queue-delivery"
-          type="submit"
-          name="intent"
-          value="queue"
-          disabled={!@queue_available}
-          aria-describedby="delivery-queue-help delivery-account"
-          class="rounded-md border border-emerald-600 px-4 py-2 font-semibold text-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:opacity-50"
-        >{cond do
-          @starting && Map.get(@request, :action) == :queue -> "Adding to queue…"
-          @request.locked && Map.get(@request, :action) == :queue -> "Retry queue request"
-          true -> "Queue workflow"
-        end}</button>
+        <div class="flex flex-wrap gap-2 pt-2">
+          <button
+            id="start-delivery"
+            type="submit"
+            name="intent"
+            value="start"
+            disabled={!@start_available}
+            aria-describedby="delivery-help delivery-account"
+            class="app-button-primary px-4 py-2 font-semibold disabled:opacity-50"
+          >{cond do
+            @starting && Map.get(@request, :action, :start) == :start -> "Starting workflow…"
+            @request.locked && Map.get(@request, :action, :start) == :start -> "Retry workflow start"
+            true -> "Start workflow"
+          end}</button>
+          <button
+            id="queue-delivery"
+            type="submit"
+            name="intent"
+            value="queue"
+            disabled={!@queue_available}
+            aria-describedby="delivery-queue-help delivery-account"
+            class="app-button-secondary px-4 py-2 font-semibold disabled:opacity-50"
+          >{cond do
+            @starting && Map.get(@request, :action) == :queue -> "Adding to queue…"
+            @request.locked && Map.get(@request, :action) == :queue -> "Retry queue request"
+            true -> "Queue workflow"
+          end}</button>
+        </div>
       </form>
       <p
         :if={@uncertain && is_nil(@starting)}
         id="delivery-request-pending"
         role="status"
-        class="mt-3 text-sm text-amber-300"
+        class="mt-3 text-sm text-warning"
       >
         A workflow request is unresolved. Retry its saved request on the original task before starting other work.
       </p>
-      <p :if={@error} id="delivery-error" role="alert" class="mt-3 text-sm text-red-300">{@error}</p>
+      <p :if={@error} id="delivery-error" role="alert" class="mt-3 text-sm text-danger">{@error}</p>
       <section
         :if={@queued_workflows != []}
         id="workflow-queue"
@@ -141,32 +146,32 @@ defmodule BossWeb.DeliveryPanel do
         class="mt-4"
       >
         <h4 class="text-sm font-semibold">Workflow queue</h4>
-        <p :if={@queue_error} id="queue-error" role="alert" class="mt-2 text-sm text-red-300">
+        <p :if={@queue_error} id="queue-error" role="alert" class="mt-2 text-sm text-danger">
           {@queue_error}
         </p>
-        <ol class="divide-y divide-zinc-800">
+        <ol class="divide-y divide-line">
           <li
             :for={request <- @queued_workflows}
             id={"queued-workflow-#{request.id}"}
             class="space-y-2 py-3 text-sm"
           >
             <p role="status" class="font-medium">{queue_status(request.status)}</p>
-            <p :if={request.status == "queued"} class="text-xs text-zinc-400">
+            <p :if={request.status == "queued"} class="text-xs text-muted">
               Waiting for prerequisites to be Done and available workflow capacity.
             </p>
-            <p :if={request.status == "paused"} class="text-xs text-zinc-400">
+            <p :if={request.status == "paused"} class="text-xs text-muted">
               Resume uses the saved source, reviewer and command. It does not adopt newer source.
             </p>
-            <p class="text-xs text-zinc-400">
+            <p class="text-xs text-muted">
               Source revision {BossWeb.TaskRevision.number(@details, request.spec_revision_id)}
               <span :if={request.spec_revision_id != @details.pinned_revision.id}> · historical snapshot</span>
               · Reviewer: {reviewer(request.reviewer)}
             </p>
-            <p class="text-xs text-zinc-400">
+            <p class="text-xs text-muted">
               Saved check command
-              <code class="block break-all text-zinc-300">{JSON.encode!(request.check_config["argv"])}</code>
+              <code class="block break-all text-body">{JSON.encode!(request.check_config["argv"])}</code>
             </p>
-            <p :if={request.reason} class="whitespace-pre-wrap break-words text-amber-300">
+            <p :if={request.reason} class="whitespace-pre-wrap break-words text-warning">
               {request.reason}
             </p>
             <div :if={request.status in ~w(queued paused)} class="flex flex-wrap gap-2">
@@ -180,7 +185,7 @@ defmodule BossWeb.DeliveryPanel do
                   !@supported || !@queue_controls_available || @queue_starting != nil ||
                     (@uncertain && @queue_actions[request.id] != :resume)
                 }
-                class="rounded border border-emerald-600 px-3 py-2 text-emerald-300 disabled:opacity-50"
+                class="app-button-secondary px-3 py-2 disabled:opacity-50"
               >{if @queue_actions[request.id] == :resume, do: "Retry Resume", else: "Resume"}</button>
               <button
                 id={"cancel-queue-#{request.id}"}
@@ -191,17 +196,17 @@ defmodule BossWeb.DeliveryPanel do
                   !@queue_controls_available || @queue_starting != nil ||
                     (@uncertain && @queue_actions[request.id] != :cancel)
                 }
-                class="rounded border border-zinc-600 px-3 py-2 disabled:opacity-50"
+                class="app-button-danger px-3 py-2 disabled:opacity-50"
               >{if @queue_actions[request.id] == :cancel, do: "Retry Cancel", else: "Cancel queue"}</button>
             </div>
-            <p :if={request.status == "started"} class="text-xs text-zinc-400">
+            <p :if={request.status == "started"} class="text-xs text-muted">
               This request started a workflow. Active workflows can be stopped below.
             </p>
           </li>
         </ol>
       </section>
-      <p :if={@deliveries == []} class="mt-4 text-sm text-zinc-400">No workflows yet.</p>
-      <ol id="delivery-attempts" class="mt-3 divide-y divide-zinc-800">
+      <p :if={@deliveries == []} class="mt-4 text-sm text-muted">No workflows yet.</p>
+      <ol id="delivery-attempts" class="mt-3 divide-y divide-line">
         <li
           :for={delivery <- @deliveries}
           id={"delivery-#{delivery.id}"}
@@ -220,39 +225,39 @@ defmodule BossWeb.DeliveryPanel do
               phx-click="stop_delivery"
               phx-value-delivery-id={delivery.id}
               disabled={@stopping == delivery.id}
-              class="rounded border border-zinc-600 px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:opacity-50"
+              class="app-button-danger px-3 py-2 disabled:opacity-50"
             >{if @stopping == delivery.id, do: "Stopping…", else: "Stop workflow"}</button>
           </div>
-          <p class="text-xs text-zinc-400">
+          <p class="text-xs text-muted">
             Source revision {BossWeb.TaskRevision.number(@details, delivery.spec_revision_id)}
             <span :if={delivery.spec_revision_id != @details.pinned_revision.id}> · historical snapshot</span>
           </p>
-          <p class="text-xs text-zinc-400">
+          <p class="text-xs text-muted">
             Cycle {delivery.cycle} of {Boss.Deliveries.ModelPolicy.max_cycles(
               Map.get(delivery, :autonomy_version, 0)
             )}
           </p>
-          <p class="text-xs text-zinc-400">
+          <p class="text-xs text-muted">
             Planner and implementer: Codex · Reviewer: {reviewer(delivery.reviewer)}
           </p>
-          <p :if={delivery.check_config["argv"]} class="text-xs text-zinc-400">
+          <p :if={delivery.check_config["argv"]} class="text-xs text-muted">
             Saved check command
-            <code class="block break-all text-zinc-300">{JSON.encode!(delivery.check_config["argv"])}</code>
+            <code class="block break-all text-body">{JSON.encode!(delivery.check_config["argv"])}</code>
           </p>
-          <p :if={!merge_stage(delivery) && candidate(delivery)} class="text-xs text-zinc-400">
-            Candidate commit <code class="block break-all text-zinc-300">{candidate(delivery)}</code>
+          <p :if={!merge_stage(delivery) && candidate(delivery)} class="text-xs text-muted">
+            Candidate commit <code class="block break-all text-body">{candidate(delivery)}</code>
           </p>
-          <p :if={delivery.reason} class="whitespace-pre-wrap break-words text-amber-300">
+          <p :if={delivery.reason} class="whitespace-pre-wrap break-words text-warning">
             {delivery.reason}
           </p>
-          <p :if={delivery.cleanup == "unknown"} class="text-amber-300">
+          <p :if={delivery.cleanup == "unknown"} class="text-warning">
             Cleanup or publication could not be confirmed. Workspaces are retained; automatic restart is blocked.
           </p>
           <p
             :if={Map.get(@scope_blockers, delivery.id, []) != []}
             id={"scope-wait-#{delivery.id}"}
             role="status"
-            class="text-amber-300"
+            class="text-warning"
           >
             Waiting for an overlapping workflow to finish. Implementation has not started; Stop remains available.
           </p>
@@ -275,15 +280,15 @@ defmodule BossWeb.DeliveryPanel do
           />
           <div
             :if={delivery.status == "ready_to_merge"}
-            class="space-y-2 rounded border border-emerald-800 p-3"
+            class="space-y-3 rounded-sm border border-line bg-sage/50 p-4"
           >
             <p>
               Ready to integrate into <strong class="break-all">{delivery.intent["base_branch"]}</strong>.
             </p>
-            <p class="text-xs text-zinc-400">
+            <p class="text-xs text-muted">
               Original base commit <code class="break-all">{delivery.intent["base_commit"]}</code>
             </p>
-            <p class="text-xs text-zinc-400">
+            <p class="text-xs text-muted">
               An unchanged target fast-forwards to this approved commit. If the target has advanced,
               BOSS prepares a merge candidate, reruns the saved checks and requests a fresh review
               from {reviewer(delivery.reviewer)} before publication.
@@ -302,16 +307,16 @@ defmodule BossWeb.DeliveryPanel do
               disabled={
                 !@integrate_available || (@uncertain && !@integration_requests[delivery.id].locked)
               }
-              class="rounded border border-emerald-600 px-3 py-2 font-medium text-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:opacity-50"
+              class="app-button-secondary px-3 py-2 font-medium disabled:opacity-50"
             >{if @integration_requests[delivery.id].locked,
               do: "Retry integration request",
               else: "Integrate approved result"}</button>
           </div>
           <details :if={delivery.steps != []}>
-            <summary class="cursor-pointer text-zinc-300 focus-visible:outline-2 focus-visible:outline-emerald-400">
+            <summary class="cursor-pointer text-body focus-visible:outline-2 focus-visible:outline-forest">
               Saved stages
             </summary>
-            <ol class="mt-2 space-y-1 text-xs text-zinc-400">
+            <ol class="mt-2 space-y-1 text-xs text-muted">
               <li :for={step <- delivery.steps} class="space-y-1">
                 <p>{step.number}. {stage(step.kind)} · {step.status}</p>
                 <p :if={is_map(step.input["model_profile"])} class="break-words">
@@ -320,7 +325,7 @@ defmodule BossWeb.DeliveryPanel do
                   ]}
                 </p>
                 <details :if={step.kind == "resolve" && is_map(step.receipt["report"])}>
-                  <summary class="cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-400">
+                  <summary class="cursor-pointer focus-visible:outline-2 focus-visible:outline-forest">
                     Resolution and assumptions
                   </summary>
                   <p class="mt-2 break-words">
@@ -339,7 +344,7 @@ defmodule BossWeb.DeliveryPanel do
                   </p>
                   <p
                     :if={step.receipt["report"]["external_action"]}
-                    class="mt-2 break-words text-amber-300"
+                    class="mt-2 break-words text-warning"
                   >
                     External action: {step.receipt["report"]["external_action"]}
                   </p>
@@ -350,7 +355,7 @@ defmodule BossWeb.DeliveryPanel do
                   </p>
                   <p
                     :if={Boss.Deliveries.Diagnostics.message(step.receipt["outcome"])}
-                    class="text-amber-300"
+                    class="text-warning"
                   >
                     {Boss.Deliveries.Diagnostics.message(step.receipt["outcome"])}
                   </p>
@@ -368,8 +373,8 @@ defmodule BossWeb.DeliveryPanel do
 
   defp file_scopes(assigns) do
     ~H"""
-    <section aria-label="Predicted file scopes" class="space-y-2 text-xs text-zinc-400">
-      <h4 class="font-medium text-zinc-300">Predicted file scopes</h4>
+    <section aria-label="Predicted file scopes" class="space-y-2 text-xs text-muted">
+      <h4 class="font-medium text-body">Predicted file scopes</h4>
       <%= if is_list(@report["file_scopes"]) && @report["file_scopes"] != [] do %>
         <ul class="space-y-1">
           <li :for={scope <- @report["file_scopes"]} class="break-all">
@@ -394,11 +399,11 @@ defmodule BossWeb.DeliveryPanel do
   defp plan(assigns) do
     ~H"""
     <details>
-      <summary class="cursor-pointer font-medium focus-visible:outline-2 focus-visible:outline-emerald-400">
+      <summary class="cursor-pointer font-medium focus-visible:outline-2 focus-visible:outline-forest">
         Saved plan and criteria
       </summary>
       <p class="mt-3 whitespace-pre-wrap break-words">{@report["summary"]}</p>
-      <ol class="mt-3 list-decimal space-y-2 pl-5 text-zinc-300">
+      <ol class="mt-3 list-decimal space-y-2 pl-5 text-body">
         <li :for={step <- @report["steps"] || []} class="break-words">{step}</li>
       </ol>
       <ul aria-label="Planned acceptance criteria" class="mt-3 space-y-2">
@@ -414,29 +419,29 @@ defmodule BossWeb.DeliveryPanel do
     ~H"""
     <section
       aria-label="Integration candidate"
-      class="space-y-2 rounded border border-zinc-700 p-3 text-xs"
+      class="space-y-3 rounded-sm border border-line bg-surface p-4 text-xs"
     >
       <h4 class="text-sm font-medium">Integration candidate</h4>
-      <p class="text-zinc-400">The original approval stays attached to its original commit.</p>
-      <dl class="space-y-2 text-zinc-400">
+      <p class="text-muted">The original approval stays attached to its original commit.</p>
+      <dl class="space-y-2 text-muted">
         <div>
           <dt>Original approved commit</dt>
-          <dd class="break-all font-mono text-zinc-300">
+          <dd class="break-all font-mono text-body">
             {commit(@step.input["original_candidate"])}
           </dd>
         </div>
         <div>
           <dt>Target pinned for integration</dt>
-          <dd class="break-all font-mono text-zinc-300">{commit(@step.input["target_commit"])}</dd>
+          <dd class="break-all font-mono text-body">{commit(@step.input["target_commit"])}</dd>
         </div>
         <div :if={@step.status == "finished"}>
           <dt>Merge candidate commit</dt>
-          <dd class="break-all font-mono text-zinc-300">
+          <dd class="break-all font-mono text-body">
             {commit(@step.receipt["candidate_commit"])}
           </dd>
         </div>
       </dl>
-      <p :if={@step.status != "finished"} class="text-zinc-400">
+      <p :if={@step.status != "finished"} class="text-muted">
         A merge candidate has not been recorded.
       </p>
     </section>
@@ -451,27 +456,27 @@ defmodule BossWeb.DeliveryPanel do
     ~H"""
     <section
       aria-label={if @label == "Review", do: "Workflow review", else: @label}
-      class="space-y-2 rounded border border-zinc-700 p-3"
+      class="space-y-3 rounded-sm border border-line bg-surface p-4"
     >
       <p class="font-medium">{@label}: {verdict(@report["verdict"])}</p>
-      <p :if={@candidate} class="text-xs text-zinc-400">
-        Reviewed commit <code class="block break-all text-zinc-300">{commit(@candidate)}</code>
+      <p :if={@candidate} class="text-xs text-muted">
+        Reviewed commit <code class="block break-all text-body">{commit(@candidate)}</code>
       </p>
       <p class="whitespace-pre-wrap break-words">{@report["summary"]}</p>
       <details>
-        <summary class="cursor-pointer focus-visible:outline-2 focus-visible:outline-emerald-400">
+        <summary class="cursor-pointer focus-visible:outline-2 focus-visible:outline-forest">
           Acceptance and issues
         </summary>
         <ul aria-label="Reviewed acceptance criteria" class="mt-3 space-y-3">
           <li :for={item <- @report["acceptance"] || []} class="break-words">
             <p>{item["status"]}: {item["criterion"]}</p>
-            <p class="whitespace-pre-wrap text-zinc-300">{item["evidence"]}</p>
+            <p class="whitespace-pre-wrap text-body">{item["evidence"]}</p>
           </li>
         </ul>
         <ul aria-label="Workflow review issues" class="mt-3 space-y-3">
           <li :for={issue <- @report["issues"] || []} class="break-words">
             <p>{issue["criterion"]}</p>
-            <p class="whitespace-pre-wrap text-zinc-300">{issue["message"]}</p>
+            <p class="whitespace-pre-wrap text-body">{issue["message"]}</p>
           </li>
         </ul>
       </details>

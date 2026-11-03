@@ -17,14 +17,14 @@ defmodule BossWeb.TaskRevision do
     ~H"""
     <div id="task-revision-adoption" class="mt-3 space-y-3 text-sm">
       <%= if @request && (@newer || @request.locked) do %>
-        <p id="adopt-revision-help" class="text-zinc-400">
+        <p id="adopt-revision-help" class="text-muted">
           Using revision {@request.number} updates the task's title and dependencies and returns it to New.
           Previous runs and reviews stay in history; any previous approval is retired.
         </p>
-        <p :if={@request.locked} id="adopt-revision-pending" role="status" class="text-amber-300">
+        <p :if={@request.locked} id="adopt-revision-pending" role="status" class="text-warning">
           Request for revision {@request.number} is awaiting confirmation. Retry checks the same saved request.
         </p>
-        <p :if={!@request.locked && !@details.adoption.available?} class="text-amber-300">
+        <p :if={!@request.locked && !@details.adoption.available?} class="text-warning">
           {reason(@details.adoption.reason)}
         </p>
         <button
@@ -34,7 +34,7 @@ defmodule BossWeb.TaskRevision do
           phx-value-command-id={@request.id}
           disabled={!@available}
           aria-describedby="adopt-revision-help"
-          class="rounded-md border border-emerald-500 px-4 py-2 font-semibold text-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:opacity-50"
+          class="app-button-secondary px-4 py-2 font-semibold disabled:opacity-50"
         >
           <%= cond do %>
             <% @starting -> %>
@@ -48,7 +48,7 @@ defmodule BossWeb.TaskRevision do
       <% else %>
         <p
           :if={@details.latest_revision.number > @details.pinned_revision.number}
-          class="text-zinc-400"
+          class="text-muted"
         >
           Select a newer source revision to review and use it for this task.
         </p>
@@ -57,7 +57,7 @@ defmodule BossWeb.TaskRevision do
         :if={@request && @request.error}
         id="adopt-revision-error"
         role="alert"
-        class="text-amber-300"
+        class="text-warning"
       >
         {@request.error}
       </p>
