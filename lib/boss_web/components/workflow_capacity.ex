@@ -109,10 +109,10 @@ defmodule BossWeb.WorkflowCapacity do
     <section
       id={@id}
       aria-labelledby="workflow-capacity-heading"
-      class="mt-5 border-t border-zinc-800 pt-4"
+      class="min-w-0 border-t border-line pt-5 lg:border-t-0 lg:border-l lg:pl-8 lg:pt-0"
     >
-      <h2 id="workflow-capacity-heading" class="text-sm font-semibold">Workflow capacity</h2>
-      <p id="workflow-capacity-help" class="mt-1 text-xs text-zinc-400">
+      <h2 id="workflow-capacity-heading" class="app-panel-heading">Workflow capacity</h2>
+      <p id="workflow-capacity-help" class="mt-3 text-sm leading-6 text-muted">
         Maximum active workflows across all projects. Waiting for a predicted file overlap also uses a slot.
         Manual runs and integration run exclusively.
       </p>
@@ -131,7 +131,7 @@ defmodule BossWeb.WorkflowCapacity do
             name="capacity"
             aria-describedby="workflow-capacity-help"
             disabled={@pending != nil}
-            class="mt-1 rounded border border-zinc-600 bg-zinc-900 px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:opacity-50"
+            class="app-field mt-1 px-3 py-2 text-sm disabled:opacity-50"
           >
             <option :for={count <- 1..3} value={count} selected={@value == to_string(count)}>
               {count}
@@ -142,20 +142,20 @@ defmodule BossWeb.WorkflowCapacity do
           id="save-workflow-capacity"
           type="submit"
           disabled={@saving}
-          class="rounded border border-zinc-600 px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:opacity-50"
+          class="app-button-secondary px-3 py-2 text-sm disabled:opacity-50"
         >{cond do
           @saving -> "Saving…"
           @pending -> "Retry capacity save"
           true -> "Save capacity"
         end}</button>
-        <p id="workflow-capacity-current" role="status" class="py-2 text-xs text-zinc-400">
+        <p id="workflow-capacity-current" role="status" class="py-2 text-xs text-muted">
           Current limit: {@settings.max_parallel_tasks}
         </p>
       </form>
-      <p :if={!@settings && !@error} role="status" class="mt-2 text-sm text-zinc-400">
+      <p :if={!@settings && !@error} role="status" class="mt-2 text-sm text-muted">
         Loading capacity…
       </p>
-      <p :if={@error} id="workflow-capacity-error" role="alert" class="mt-2 text-sm text-amber-300">
+      <p :if={@error} id="workflow-capacity-error" role="alert" class="mt-2 text-sm text-warning">
         {@error}
       </p>
       <button
@@ -163,7 +163,7 @@ defmodule BossWeb.WorkflowCapacity do
         type="button"
         phx-target={@myself}
         phx-click="reload"
-        class="mt-2 rounded border border-zinc-600 px-3 py-2 text-sm"
+        class="app-button-secondary mt-2 px-3 py-2 text-sm"
       >Reload capacity</button>
     </section>
     """

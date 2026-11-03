@@ -27,12 +27,14 @@ defmodule BossWeb.AccessHTML do
 
   def unlock(assigns) do
     ~H"""
-    <p class="text-sm font-semibold tracking-widest text-emerald-400">BOSS · LOCAL</p>
-    <h1 class="mt-4 text-3xl font-semibold">Connect this browser</h1>
-    <p class="mt-4 text-zinc-300">
-      Enter the one-use token printed in the terminal where you started BOSS.
-    </p>
-    <form action={~p"/unlock"} method="post" class="mt-8 max-w-lg space-y-4">
+    <header class="app-page-header max-w-2xl">
+      <p class="app-eyebrow">Local access</p>
+      <h1 class="app-page-title">Connect this browser</h1>
+      <p class="app-page-description">
+        Enter the one-use token printed in the terminal where you started BOSS.
+      </p>
+    </header>
+    <form action={~p"/unlock"} method="post" class="app-panel max-w-lg space-y-4">
       <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
       <label for="token" class="block text-sm font-medium">One-use token</label>
       <input
@@ -44,17 +46,17 @@ defmodule BossWeb.AccessHTML do
         spellcheck="false"
         autocapitalize="none"
         autofocus
-        class="w-full rounded-md border border-zinc-600 bg-zinc-900 px-3 py-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
+        class="app-field w-full px-3 py-3"
       />
-      <p :if={@error} role="alert" class="text-sm text-red-300">{@error}</p>
+      <p :if={@error} role="alert" class="text-sm text-danger">{@error}</p>
       <button
         type="submit"
-        class="rounded-md bg-emerald-400 px-5 py-3 font-semibold text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
+        class="app-button-primary px-5 py-3 font-semibold"
       >
         Connect browser
       </button>
     </form>
-    <p class="mt-6 text-sm text-zinc-400">
+    <p class="mt-6 text-sm text-muted">
       Tokens expire after 10 minutes. Restart BOSS to get a new token.
     </p>
     """

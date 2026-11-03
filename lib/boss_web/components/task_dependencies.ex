@@ -7,9 +7,9 @@ defmodule BossWeb.TaskDependencies do
 
   def panel(assigns) do
     ~H"""
-    <section id="task-dependencies" aria-labelledby="task-dependencies-heading">
-      <h3 id="task-dependencies-heading" class="font-semibold">Dependencies</h3>
-      <p class="mt-1 text-xs text-zinc-400">
+    <section id="task-dependencies" aria-labelledby="task-dependencies-heading" class="min-w-0">
+      <h3 id="task-dependencies-heading" class="app-panel-heading">Dependencies</h3>
+      <p class="mt-1 text-xs text-muted">
         From task snapshot revision {@revision}. Viewing or importing another revision does not change them.
       </p>
       <p
@@ -17,7 +17,7 @@ defmodule BossWeb.TaskDependencies do
         role="status"
         class={[
           "mt-3 text-sm",
-          if(@snapshot.ready?, do: "text-zinc-300", else: "text-amber-300")
+          if(@snapshot.ready?, do: "text-body", else: "text-warning")
         ]}
       >
         <%= cond do %>
@@ -37,10 +37,10 @@ defmodule BossWeb.TaskDependencies do
           <.link
             :if={dependency.task_id}
             patch={~p"/projects/#{@project_id}/tasks/#{dependency.task_id}"}
-            class="break-words text-emerald-400 underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-emerald-400"
+            class="break-words text-forest underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-forest"
           >{dependency.title || dependency.reference}</.link>
-          <code class="break-all text-xs text-zinc-400">{dependency.reference}</code>
-          <span class={if dependency.satisfied?, do: "text-zinc-300", else: "text-amber-300"}>
+          <code class="break-all text-xs text-muted">{dependency.reference}</code>
+          <span class={if dependency.satisfied?, do: "text-body", else: "text-warning"}>
             {dependency_status(dependency)}
           </span>
         </li>
@@ -48,7 +48,7 @@ defmodule BossWeb.TaskDependencies do
       <ul
         :if={@snapshot.issues != []}
         id="task-dependency-issues"
-        class="mt-3 list-inside list-disc space-y-1 break-words text-sm text-amber-300"
+        class="mt-3 list-inside list-disc space-y-1 break-words text-sm text-warning"
       >
         <li :for={issue <- @snapshot.issues}>{issue.message}</li>
       </ul>

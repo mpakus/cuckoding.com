@@ -69,14 +69,11 @@ defmodule BossWeb.AgentsLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <.link
-      navigate={~p"/"}
-      class="text-sm text-emerald-400 underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
-    >← Projects</.link>
-    <div class="mt-6 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <header class="app-page-header flex flex-col items-start gap-5 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <p class="text-sm font-semibold tracking-widest text-emerald-400">BOSS · LOCAL</p>
-        <h1 class="mt-2 text-3xl font-semibold">Agents</h1>
+        <p class="app-eyebrow">Local tools</p>
+        <h1 class="app-page-title">Agents</h1>
+        <p class="app-page-description">Your tools. Your accounts. One workspace.</p>
       </div>
       <button
         id="detect-agents"
@@ -84,35 +81,37 @@ defmodule BossWeb.AgentsLive do
         phx-click="detect"
         disabled={@detecting}
         aria-describedby="agents-help"
-        class="shrink-0 rounded-md bg-emerald-400 px-5 py-3 font-semibold text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:opacity-50"
+        class="app-button-primary shrink-0 px-5 py-3 font-semibold disabled:opacity-50"
       >{if @detecting, do: "Detecting…", else: "Detect agents"}</button>
+    </header>
+    <div class="border-y border-line py-5">
+      <p id="agents-help" class="max-w-3xl text-sm leading-6 text-body">
+        Detect checks the CLIs installed on this computer. It makes no model request and
+        does not verify provider access or quota. Sign-in status is reported by each CLI;
+        BOSS does not read credential files.
+      </p>
+      <p id="agents-status" role="status" class="mt-3 min-h-5 text-sm font-medium text-ink">
+        <%= cond do %>
+          <% @detecting -> %>
+            Detecting agents…
+          <% @checked_at && is_nil(@error) -> %>
+            Detection complete.
+          <% true -> %>
+            Choose Detect agents to check installed CLIs.
+        <% end %>
+      </p>
+      <p :if={@checked_at} class="mt-2 text-sm text-muted">
+        Last completed scan:
+        <time id="agents-checked-at" datetime={DateTime.to_iso8601(@checked_at)}>
+          {Calendar.strftime(@checked_at, "%Y-%m-%d %H:%M:%S UTC")}
+        </time>
+      </p>
     </div>
-    <p id="agents-help" class="mt-5 text-sm leading-6 text-zinc-300">
-      Detect checks the CLIs installed on this computer. It makes no model request and
-      does not verify provider access or quota. Sign-in status is reported by each CLI;
-      BOSS does not read credential files.
-    </p>
-    <p id="agents-status" role="status" class="mt-4 min-h-5 text-sm text-zinc-300">
-      <%= cond do %>
-        <% @detecting -> %>
-          Detecting agents…
-        <% @checked_at && is_nil(@error) -> %>
-          Detection complete.
-        <% true -> %>
-          Choose Detect agents to check installed CLIs.
-      <% end %>
-    </p>
-    <p :if={@checked_at} class="mt-2 text-sm text-zinc-400">
-      Last completed scan:
-      <time id="agents-checked-at" datetime={DateTime.to_iso8601(@checked_at)}>
-        {Calendar.strftime(@checked_at, "%Y-%m-%d %H:%M:%S UTC")}
-      </time>
-    </p>
     <div
       :if={@error}
       id="agents-error"
       role="alert"
-      class="mt-4 rounded-md border border-amber-900 px-4 py-3 text-sm text-amber-200"
+      class="mt-4 rounded-sm border border-warning-line px-4 py-3 text-sm text-warning bg-warning-soft"
     >
       <p>Latest scan failed. {@error}</p>
       <p :if={@checked_at} class="mt-1">Showing the last completed scan.</p>
@@ -120,7 +119,7 @@ defmodule BossWeb.AgentsLive do
     <div
       id="agents"
       aria-busy={@detecting}
-      class="mt-6 divide-y divide-zinc-800 border-t border-zinc-800"
+      class="mt-6 grid min-w-0 gap-6 md:grid-cols-2"
     >
       <.agent :for={agent <- @agents} agent={agent} result={@results[agent.id]} />
     </div>
@@ -137,41 +136,41 @@ defmodule BossWeb.AgentsLive do
     <section
       id={"agent-#{@agent.id}"}
       aria-labelledby={"agent-title-#{@agent.id}"}
-      class="min-w-0 py-6"
+      class="app-panel flex min-w-0 flex-col"
     >
       <div class="flex flex-wrap items-center justify-between gap-2">
-        <h2 id={"agent-title-#{@agent.id}"} class="text-xl font-semibold">{@agent.name}</h2>
-        <p class="rounded bg-zinc-800 px-2 py-1 text-sm text-zinc-300">
+        <h2 id={"agent-title-#{@agent.id}"} class="app-panel-heading">{@agent.name}</h2>
+        <p class="app-badge">
           {if @result, do: probe_status(@result.probe_status), else: "Not checked"}
         </p>
       </div>
       <div :if={@result} class="mt-4 space-y-4 text-sm">
         <dl class="space-y-3">
           <div>
-            <dt class="text-zinc-400">Version</dt><dd class="mt-1 font-mono">
+            <dt class="text-muted">Version</dt><dd class="mt-1 font-mono">
               {@result.version || "Not reported"}
             </dd>
           </div>
           <div>
-            <dt class="text-zinc-400">Executable</dt><dd class="mt-1 break-all font-mono">
+            <dt class="text-muted">Executable</dt><dd class="mt-1 break-all font-mono">
               {@result.path || "Not found on PATH"}
             </dd>
           </div>
           <div>
-            <dt class="text-zinc-400">Local sign-in report</dt><dd class="mt-1">
+            <dt class="text-muted">Local sign-in report</dt><dd class="mt-1">
               {auth_status(@result.auth_status)}
             </dd>
           </div>
         </dl>
         <div>
           <h3 class="font-semibold">Capabilities advertised by CLI help</h3>
-          <dl class="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2">
+          <dl class="mt-3 space-y-2 border-t border-line pt-3">
             <div
               :for={{key, label} <- @capabilities}
               data-capability={key}
               class="flex flex-wrap justify-between gap-2"
             >
-              <dt class="text-zinc-400">{label}</dt><dd>
+              <dt class="text-muted">{label}</dt><dd>
                 {capability_status(@result.capabilities[key])}
               </dd>
             </div>
@@ -180,21 +179,21 @@ defmodule BossWeb.AgentsLive do
         <ul
           :if={@result.errors != []}
           aria-label={"#{@agent.name} detection issues"}
-          class="space-y-1 text-amber-200"
+          class="space-y-1 text-warning"
         >
           <li :for={error <- @result.errors}>{probe_error(error)}</li>
         </ul>
       </div>
-      <div class="mt-5 space-y-2 text-sm text-zinc-300">
+      <div class="mt-6 space-y-3 border-t border-line pt-4 text-sm text-body">
         <.link
           href={@agent.docs}
-          class="text-emerald-400 underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
+          class="text-forest underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest"
         >
           Official {@agent.name} installation and setup
         </.link>
         <p>
           To sign in, run
-          <code class="break-all rounded bg-zinc-900 px-1 py-0.5 text-zinc-100">{@agent.login}</code>
+          <code class="break-all rounded bg-surface px-1 py-0.5 text-ink">{@agent.login}</code>
           in your terminal.
         </p>
       </div>

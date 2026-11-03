@@ -1487,27 +1487,28 @@ defmodule BossWeb.ProjectLive do
     ~H"""
     <.link
       navigate={~p"/"}
-      class="text-sm text-emerald-400 underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-400"
+      class="mb-6 inline-block text-sm text-forest underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-forest"
     >
       ← Projects
     </.link>
-    <div :if={is_nil(@project)} class="mt-6">
-      <h1 class="text-3xl font-semibold">Project not found</h1>
-      <p class="mt-3 text-zinc-300">Choose a project from the project list.</p>
+    <div :if={is_nil(@project)} class="app-page-header">
+      <p class="app-eyebrow">Workspace</p>
+      <h1 class="app-page-title">Project not found</h1>
+      <p class="app-page-description">Choose a project from the project list.</p>
     </div>
     <div :if={@project}>
-      <div class="mt-6 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <header class="app-page-header flex flex-col items-start gap-5 sm:flex-row sm:items-end sm:justify-between">
         <div class="min-w-0">
-          <p class="text-sm font-semibold tracking-widest text-emerald-400">BOSS · LOCAL</p>
-          <h1 class="mt-2 break-words text-3xl font-semibold">{@project.name}</h1>
+          <p class="app-eyebrow">Project workspace</p>
+          <h1 class="app-page-title break-words">{@project.name}</h1>
         </div>
-        <div class="flex flex-wrap gap-3">
+        <div class="flex shrink-0 flex-wrap gap-3">
           <button
             id="project-autopilot"
             type="button"
             phx-click="open_autopilot"
             aria-controls="autopilot-content"
-            class="shrink-0 rounded-md bg-emerald-400 px-5 py-3 font-semibold text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
+            class="app-button-primary shrink-0 px-5 py-3 font-semibold"
           >Autopilot</button>
           <button
             :if={@project.intake_mode == "specs"}
@@ -1516,38 +1517,42 @@ defmodule BossWeb.ProjectLive do
             phx-click="sync"
             disabled={@syncing}
             aria-describedby="sync-help"
-            class="shrink-0 rounded-md border border-zinc-600 px-5 py-3 font-semibold text-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 disabled:opacity-50"
+            class="app-button-secondary shrink-0 px-5 py-3 font-semibold disabled:opacity-50"
           >
             {if @syncing, do: "Syncing…", else: "Sync specs"}
           </button>
         </div>
+      </header>
+      <div class="min-w-0 border-t border-line pt-5">
+        <p id="sync-help" class="max-w-3xl text-sm text-body">
+          <%= cond do %>
+            <% @project.intake_mode == "documentation" -> %>
+              Start Autopilot to create tasks from committed documentation and code.
+            <% @auto_sync -> %>
+              Changes in this specs folder refresh automatically. Use Sync specs to check now.
+            <% true -> %>
+              Sync reads Markdown files from this project's specs folder. Run it again after editing files.
+          <% end %>
+        </p>
+        <p class="mt-2 break-all font-mono text-sm text-muted">{@project.specs_path}</p>
       </div>
-      <p id="sync-help" class="mt-5 text-sm text-zinc-300">
-        <%= cond do %>
-          <% @project.intake_mode == "documentation" -> %>
-            Start Autopilot to create tasks from committed documentation and code.
-          <% @auto_sync -> %>
-            Changes in this specs folder refresh automatically. Use Sync specs to check now.
-          <% true -> %>
-            Sync reads Markdown files from this project's specs folder. Run it again after editing files.
-        <% end %>
-      </p>
-      <p class="mt-2 break-all font-mono text-sm text-zinc-400">{@project.specs_path}</p>
-      <.live_component
-        module={Autopilot}
-        id="autopilot"
-        project={@project}
-        entries={@entries}
-        supported={@run_supported}
-      />
-      <.live_component module={WorkflowCapacity} id="workflow-capacity" />
+      <div class="mt-6 grid min-w-0 gap-6 border-y border-line py-5 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-8">
+        <.live_component
+          module={Autopilot}
+          id="autopilot"
+          project={@project}
+          entries={@entries}
+          supported={@run_supported}
+        />
+        <.live_component module={WorkflowCapacity} id="workflow-capacity" />
+      </div>
       <TaskBoard.notices entries={@task_notices} project_id={@project.id} />
-      <p id="sync-status" role="status" class="mt-4 min-h-5 text-sm text-zinc-300">{@status}</p>
+      <p id="sync-status" role="status" class="mt-4 min-h-5 text-sm text-body">{@status}</p>
       <div
         :if={@errors != []}
         id="sync-errors"
         role="alert"
-        class="mt-4 rounded-md border border-red-900 px-4 py-3 text-sm text-red-300"
+        class="mt-4 rounded-sm border border-danger-line px-4 py-3 text-sm text-danger bg-danger-soft"
       >
         <p class="font-semibold">Sync could not finish. Review the details and try again.</p>
         <ul class="mt-2 space-y-2">
@@ -1559,7 +1564,7 @@ defmodule BossWeb.ProjectLive do
       <section aria-labelledby="task-board-heading" aria-busy={@syncing} class="mt-6 min-w-0">
         <p
           :if={@entries == []}
-          class="mt-4 rounded-md border border-dashed border-zinc-700 px-5 py-6 text-zinc-400"
+          class="app-empty-state mt-4"
         >
           No specs imported yet. Add .md files to the specs folder.
           <%= if @auto_sync do %>
