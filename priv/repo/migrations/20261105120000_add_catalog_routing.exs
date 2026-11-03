@@ -226,11 +226,12 @@ defmodule Boss.Repo.Migrations.AddCatalogRouting do
       AND (SELECT count(*) FROM json_each(#{c}))=5 AND (SELECT count(DISTINCT key) FROM json_each(#{c}))=5
       AND NOT EXISTS (SELECT 1 FROM json_each(#{c}) WHERE key NOT IN ('version','primary','resolver','small','fallbacks'))
       AND json_type(#{c},'$.version')='integer' AND json_extract(#{c},'$.version')=2
+      AND json_type(#{c},'$.primary')='object' AND json_type(#{c},'$.resolver')='object'
       AND (#{profile_valid(primary, @strong)}) AND (#{profile_valid(resolver, @strong)})
       AND json_extract(#{c},'$.primary.model')!=json_extract(#{c},'$.resolver.model')
-      AND (json_type(#{c},'$.small')='null' OR (#{profile_valid(small, @small)}))
+      AND (json_type(#{c},'$.small')='null' OR (json_type(#{c},'$.small')='object' AND (#{profile_valid(small, @small)})))
       AND json_type(#{c},'$.fallbacks')='array' AND json_array_length(#{c},'$.fallbacks') BETWEEN 2 AND 4
-      AND NOT EXISTS (SELECT 1 FROM json_each(#{c},'$.fallbacks') f WHERE NOT COALESCE((#{profile_valid("f.value", @strong)}),0))
+      AND NOT EXISTS (SELECT 1 FROM json_each(#{c},'$.fallbacks') f WHERE f.type!='object' OR NOT COALESCE((#{profile_valid("f.value", @strong)}),0))
       AND (SELECT count(DISTINCT json_extract(value,'$.model')) FROM json_each(#{c},'$.fallbacks'))=json_array_length(#{c},'$.fallbacks')
       AND json_extract(#{c},'$.fallbacks[0].model')=json_extract(#{c},'$.primary.model')
       AND #{effort("json_extract(#{c},'$.fallbacks[0].reasoning_effort')")}>=#{effort("json_extract(#{c},'$.primary.reasoning_effort')")}

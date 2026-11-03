@@ -101,7 +101,15 @@ defmodule Boss.CatalogRoutingPersistenceTest do
           Map.put(catalog(), "extra", true),
           Map.put(catalog(), "resolver", catalog()["primary"]),
           put_in(catalog(), ["primary", "model"], "unregistered-model"),
-          Map.put(catalog(), "fallbacks", [catalog()["resolver"], catalog()["primary"]])
+          Map.put(catalog(), "fallbacks", [catalog()["resolver"], catalog()["primary"]]),
+          Map.put(catalog(), "small", JSON.encode!(catalog()["small"])),
+          Map.put(catalog(), "primary", JSON.encode!(catalog()["primary"])),
+          Map.put(catalog(), "resolver", JSON.encode!(catalog()["resolver"])),
+          Map.update!(
+            catalog(),
+            "fallbacks",
+            &(&1 ++ [JSON.encode!(profile("gpt-6-astra", "xhigh"))])
+          )
         ] do
       assert {:error, :catalog_invalid} = Deliveries.set_model_catalog(d.id, forged)
 
