@@ -407,7 +407,7 @@ defmodule Boss.Agents.Workspace do
         runner.(executable, @git_config ++ ["-C", directory | args],
           cd: directory,
           input: "",
-          timeout_ms: 15_000,
+          timeout_ms: Keyword.get(opts, :timeout_ms, 15_000),
           output_limit: @output_limit,
           env: git_env() ++ Keyword.get(opts, :git_env, []),
           on_event: callback

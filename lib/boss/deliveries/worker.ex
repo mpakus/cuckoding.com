@@ -33,6 +33,10 @@ defmodule Boss.Deliveries.Worker do
     ok!(Retry.verify(source))
     intent = ok!(Workspace.plan(project, delivery.id)) |> string_keys()
 
+    if expected = Boss.Projects.Intake.expected_delivery_base(delivery) do
+      unless intent["base_commit"] == expected, do: throw({:halt, :target_changed})
+    end
+
     intent =
       if source,
         do: Map.put(intent, "base_commit", source.parent.intent["base_commit"]),

@@ -19,6 +19,7 @@ defmodule Boss.Repo.Migrations.AddProjectIntake do
       add :status, :text, null: false
       add :cleanup, :text, null: false
       add :reason, :text
+      add :stop_requested, :boolean, null: false, default: false
       add :batch_id, references(:autopilots, type: :text, on_delete: :restrict)
       timestamps(type: :utc_datetime_usec)
     end
@@ -34,6 +35,7 @@ defmodule Boss.Repo.Migrations.AddProjectIntake do
       OR NEW.command_id IS NOT OLD.command_id OR NEW.check_text IS NOT OLD.check_text
       OR NEW.check_config IS NOT OLD.check_config
       OR NEW.config_hash IS NOT OLD.config_hash OR NEW.reviewer IS NOT OLD.reviewer
+      OR (OLD.stop_requested=1 AND NEW.stop_requested!=1)
       OR (OLD.workspace!='{}' AND NEW.workspace IS NOT OLD.workspace)
     BEGIN SELECT RAISE(ABORT, 'project intake inputs or terminal receipt are immutable'); END
     """)

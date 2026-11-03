@@ -141,6 +141,117 @@ defmodule BossWeb.ProjectLiveTest do
     assert project.specs_path == Path.join(project.root_path, "requirements")
   end
 
+  @tag skip: :os.type() != {:unix, :darwin}
+  @tag timeout: 120_000
+  test "adding a documentation repository opens Start and starts its first generated task", c do
+    alias Boss.{Deliveries, Projects, Repo}
+    alias Boss.Projects.Intake
+
+    File.mkdir!(Path.join(c.root, "docs"))
+
+    File.write!(
+      Path.join(c.root, "docs/product.md"),
+      "# Product\nAlready implemented: existing.txt.\n## Work\nWrite one, then two."
+    )
+
+    File.write!(
+      Path.join(c.root, "docs/architecture.md"),
+      "# Architecture\nresult.txt stores the output."
+    )
+
+    File.write!(Path.join(c.root, "existing.txt"), "implemented")
+    File.write!(Path.join(c.root, "result.txt"), "base")
+    File.cp!(Path.expand("../fixtures/delivery_check.py", __DIR__), Path.join(c.root, "check.py"))
+    assert {_, 0} = System.cmd("git", ["-C", c.root, "add", "."])
+
+    assert {_, 0} =
+             System.cmd("git", [
+               "-C",
+               c.root,
+               "-c",
+               "user.name=Test",
+               "-c",
+               "user.email=test@example.invalid",
+               "commit",
+               "-m",
+               "fixture"
+             ])
+
+    bin = Path.join(c.root, "fixture-bin")
+    gates = Path.join(c.root, "fixture-gates")
+    File.mkdir!(bin)
+    File.mkdir!(gates)
+    codex = Path.join(bin, "codex")
+    File.cp!(Path.expand("../fixtures/codex_autopilot.py", __DIR__), codex)
+    File.chmod!(codex, 0o700)
+
+    env = %{
+      "PATH" => bin <> ":" <> System.fetch_env!("PATH"),
+      "BOSS_AUTOPILOT_GATES" => gates,
+      "BOSS_DELIVERY_FIXTURE" => c.root,
+      "BOSS_AUTOPILOT_MODE" => "approved"
+    }
+
+    previous = Map.take(System.get_env(), Map.keys(env))
+    manager = :sys.get_state(Boss.Runs.Manager)
+    assert manager.active == %{}
+    System.put_env(env)
+
+    on_exit(fn ->
+      try do
+        BossWeb.ManagerFixture.restore(manager, [])
+      after
+        Enum.each(Map.keys(env), fn key ->
+          if Map.has_key?(previous, key),
+            do: System.put_env(key, previous[key]),
+            else: System.delete_env(key)
+        end)
+      end
+    end)
+
+    {:ok, home, _} = live(c.conn, "/")
+    choose(home, "repository")
+    assert has_element?(home, "#project_intake_mode[checked]")
+
+    {:ok, view, _} = home |> form("#project-form") |> render_submit() |> follow_redirect(c.conn)
+    [project] = Projects.list_projects()
+    assert project.intake_mode == "documentation"
+    assert Projects.list_spec_entries(project.id) == []
+    assert Intake.latest(project.id) == nil
+    render_async(view, 2_000)
+    refute has_element?(view, "#autopilot-content[hidden]")
+
+    view
+    |> form("#autopilot-form", %{"command" => "python3 check.py", "reviewer" => "codex"})
+    |> render_submit()
+
+    await_intake(fn -> File.exists?(Path.join(gates, "one-1.waiting")) end)
+    assert %{status: "finished", batch_id: batch} = Intake.latest(project.id)
+    assert is_binary(batch)
+    assert Repo.aggregate(Deliveries.Delivery, :count) == 1
+
+    assert Enum.sort(Enum.map(Projects.list_spec_entries(project.id), & &1.title)) == [
+             "one",
+             "two"
+           ]
+
+    refute File.exists?(Path.join(gates, "two-1.waiting"))
+
+    {:ok, current} = Deliveries.Autopilot.current(project.id)
+    {:ok, _} = Deliveries.Autopilot.cancel(project.id, current.id, current.version)
+    await_intake(fn -> :sys.get_state(Boss.Runs.Manager).active == %{} end)
+  end
+
+  defp await_intake(predicate, remaining \\ 1_500)
+  defp await_intake(_, 0), do: flunk("Documentation intake did not reach the expected stage")
+
+  defp await_intake(predicate, remaining) do
+    unless predicate.() do
+      Process.sleep(20)
+      await_intake(predicate, remaining - 1)
+    end
+  end
+
   defp choose(view, kind) do
     view |> element("#choose-#{kind}") |> render_click()
     render_async(view, 2_000)

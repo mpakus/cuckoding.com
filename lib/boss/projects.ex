@@ -146,15 +146,19 @@ defmodule Boss.Projects do
     if changeset.valid? do
       project = Ecto.Changeset.apply_changes(changeset)
 
-      case register_paths(project) do
+      case Repository.inspect(project.root_path, project.specs_path, project.base_branch) do
         {:ok, paths} ->
-          changeset
-          |> Ecto.Changeset.change(
-            Map.take(paths, [:root_path, :git_common_dir, :specs_path, :base_branch])
-          )
-          |> Ecto.Changeset.put_change(:name, project.name || Path.basename(paths.root_path))
-          |> Ecto.Changeset.validate_length(:name, max: 120)
-          |> Repo.insert()
+          changeset =
+            changeset
+            |> Ecto.Changeset.change(
+              Map.take(paths, [:root_path, :git_common_dir, :specs_path, :base_branch])
+            )
+            |> Ecto.Changeset.put_change(:name, project.name || Path.basename(paths.root_path))
+            |> Ecto.Changeset.validate_length(:name, max: 120)
+
+          if project.intake_mode == "documentation" and is_nil(project.base_branch),
+            do: register_managed(changeset, paths),
+            else: Repo.insert(changeset)
 
         {:error, reason} ->
           changeset
@@ -166,22 +170,31 @@ defmodule Boss.Projects do
     end
   end
 
-  defp register_paths(project) do
-    with {:ok, paths} <-
-           Repository.inspect(project.root_path, project.specs_path, project.base_branch) do
-      if project.intake_mode == "documentation" and is_nil(project.base_branch) do
-        if Repo.exists?(from p in Project, where: p.git_common_dir == ^paths.git_common_dir) do
-          {:error, :already_registered}
-        else
-          Repository.managed_target(paths)
+  defp register_managed(changeset, paths) do
+    branch = "boss/autopilot/" <> Ecto.UUID.generate()
+
+    Repo.transaction(
+      fn ->
+        case Repo.insert(Ecto.Changeset.put_change(changeset, :base_branch, branch)) do
+          {:ok, project} ->
+            case Repository.managed_target(paths, branch) do
+              :ok ->
+                project
+
+              {:error, reason} ->
+                Repo.rollback(
+                  Ecto.Changeset.add_error(changeset, :root_path, error_message(reason))
+                )
+            end
+
+          {:error, changeset} ->
+            Repo.rollback(changeset)
         end
-      else
-        {:ok, paths}
-      end
-    end
+      end,
+      mode: :immediate
+    )
   end
 
-  defp error_message(:already_registered), do: "is already registered"
   defp error_message(:managed_target_failed), do: "could not create the local Autopilot branch"
 
   defp error_message(:invalid_base_branch),

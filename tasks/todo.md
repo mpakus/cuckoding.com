@@ -825,3 +825,9 @@ Contract: [AUTOPILOT.md](../docs/AUTOPILOT.md).
 
 - [x] Repair the checked-out target in the separate source-launcher database
   registration. Exact BOSS Git preflight passed after freeing the target.
+
+## Documentation intake
+
+- [x] Verify Add, one Start, validated task generation and first dispatch in the UI.
+- [x] Verify two generated dependent tasks reach Done on a private repository.
+- [x] Verify an invalid generated dependency leaves no partial tasks or batch.

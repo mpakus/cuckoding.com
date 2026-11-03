@@ -117,7 +117,7 @@ defmodule Boss.Deliveries.Autopilot do
   end
 
   @doc false
-  def admit(project, command, tasks, text, reviewer, owned \\ false) do
+  def admit(project, command, tasks, text, reviewer, owned \\ false, intake \\ nil) do
     with true <- is_integer(project) and project > 0 and reviewer in ["codex", "claude"],
          {:ok, _} <- Ecto.UUID.cast(command),
          true <-
@@ -148,6 +148,14 @@ defmodule Boss.Deliveries.Autopilot do
             if Enum.sort(backlog) != Enum.sort(tasks), do: Repo.rollback(:backlog_changed)
 
             if owned or Deliveries.busy?() or
+                 not Boss.Projects.Intake.batch_allowed?(
+                   intake,
+                   project,
+                   command,
+                   config,
+                   hash,
+                   reviewer
+                 ) or
                  Repo.exists?(from b in AutopilotBatch, where: b.status in ~w(running paused)) or
                  Repo.exists?(
                    from r in Runs.Run,

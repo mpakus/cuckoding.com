@@ -228,6 +228,11 @@
   historical rejection, a later passing final check and a matching terminal event.
   Pin the selected SHA separately from the old review SHA and prove ancestry
   before provider effects. Keep historical findings distinct from fresh approval.
+- Documentation projects use one explicit persisted intake before Autopilot.
+  Pin the committed source and target before the read-only planner. Validate the
+  full dependency graph and source paths. Save derived tasks and their batch
+  together, keep them outside filesystem import reconciliation, and verify the
+  initial Git base again at first dispatch. Stop must survive the handoff.
 - Queue only explicit saved workflow requests: pin revision/version/checks/reviewer
   and UUID before effects, claim and link a delivery in one immediate transaction.
   Replay/cancellation must precede dispatch; never silently turn direct Start into

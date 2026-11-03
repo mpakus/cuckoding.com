@@ -22,18 +22,21 @@ defmodule Boss.Projects.Repository do
   end
 
   @doc "Creates a local publication ref at the inspected commit without changing any checkout."
-  def managed_target(paths) do
-    branch = "boss/autopilot/" <> Ecto.UUID.generate()
+  def managed_target(paths, branch) do
     sha = paths.base_commit
 
-    case Boss.Agents.Workspace.git(paths.root_path, [
-           "update-ref",
-           "--no-deref",
-           "refs/heads/" <> branch,
-           sha,
-           String.duplicate("0", byte_size(sha))
-         ]) do
-      {:ok, _} -> {:ok, %{paths | base_branch: branch}}
+    case Boss.Agents.Workspace.git(
+           paths.root_path,
+           [
+             "update-ref",
+             "--no-deref",
+             "refs/heads/" <> branch,
+             sha,
+             String.duplicate("0", byte_size(sha))
+           ],
+           timeout_ms: 2_000
+         ) do
+      {:ok, _} -> :ok
       _ -> {:error, :managed_target_failed}
     end
   end

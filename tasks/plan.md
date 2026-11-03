@@ -549,3 +549,10 @@ A new explicit workflow pins the operator-selected commit separately from the
 historical rejected review. It preserves the prior acceptance criteria, performs
 fresh checks and review, and uses ordinary integration and postchecks. Local
 source builds use the foreground `bin/build` entrypoint.
+
+## Documentation to Autopilot
+
+Add a documentation project and start its planner from the project page.
+Read the pinned code and committed Markdown with Codex, validate typed tasks
+and dependencies, and atomically hand them to the existing sequential queue.
+A default local publication branch keeps the user's checkout available.

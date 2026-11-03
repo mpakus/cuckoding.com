@@ -19,7 +19,52 @@ defmodule Boss.Projects.Intake do
   end
 
   def topic(project), do: "project-intake:#{project}"
-  def stop(project, id), do: Runs.stop(project, {:intake, id})
+
+  def stop(project, id) do
+    Runs.stop(project, {:intake, id})
+
+    case transaction(fn ->
+           case Repo.get_by(Request, id: id, project_id: project) do
+             %Request{status: "planning"} = request ->
+               save!(request, stop_requested: true)
+               :stopping
+
+             %Request{batch_id: batch} when is_binary(batch) ->
+               {:batch, batch}
+
+             %Request{} ->
+               :stopping
+
+             nil ->
+               Repo.rollback(:not_found)
+           end
+         end) do
+      {:ok, :stopping} ->
+        :ok
+
+      {:ok, {:batch, batch}} ->
+        case Autopilot.cancel(project, batch, 0) do
+          {:ok, _} -> :ok
+          error -> error
+        end
+
+      error ->
+        error
+    end
+  end
+
+  @doc false
+  def batch_allowed?(nil, _, _, _, _, _), do: not busy?()
+
+  def batch_allowed?(id, project, command, config, hash, reviewer) do
+    Repo.exists?(
+      from r in Request,
+        where:
+          r.id == ^id and r.project_id == ^project and r.command_id == ^command and
+            r.check_config == ^config and r.config_hash == ^hash and r.reviewer == ^reviewer and
+            r.status == "planning" and not r.stop_requested
+    )
+  end
 
   def quarantined?, do: Repo.exists?(from r in Request, where: r.cleanup == "unknown")
 
@@ -78,6 +123,9 @@ defmodule Boss.Projects.Intake do
   def pin(id, workspace) do
     case transaction(fn ->
            case Repo.get(Request, id) do
+             %Request{status: "planning", stop_requested: true} ->
+               Repo.rollback(:cancelled)
+
              %Request{status: "planning", workspace: empty} = request when empty == %{} ->
                save!(request, workspace: workspace)
 
@@ -154,12 +202,32 @@ defmodule Boss.Projects.Intake do
     end
   end
 
+  def expected_delivery_base(delivery) do
+    with batch when is_binary(batch) <- Autopilot.owner(delivery),
+         base when is_binary(base) <- initial_base(batch),
+         false <-
+           Repo.exists?(
+             from i in Boss.Deliveries.AutopilotItem,
+               join: r in Boss.Deliveries.Request,
+               on: r.id == i.request_id,
+               where:
+                 i.autopilot_id == ^batch and not is_nil(r.delivery_id) and
+                   r.delivery_id != ^delivery.id
+           ) do
+      base
+    else
+      _ -> nil
+    end
+  end
+
   defp commit_plan(id, %{workspace: workspace, tasks: tasks}) do
     transaction(fn ->
       request = Repo.get!(Request, id)
 
       unless request.status == "planning" and request.workspace == workspace,
         do: Repo.rollback(:invalid_intent)
+
+      if request.stop_requested, do: Repo.rollback(:cancelled)
 
       ids = Enum.map(tasks, &record_task!(request.project_id, workspace, &1))
 
@@ -174,7 +242,9 @@ defmodule Boss.Projects.Intake do
                    request.command_id,
                    ids,
                    request.check_text,
-                   request.reviewer
+                   request.reviewer,
+                   false,
+                   request.id
                  ) do
             save!(request, status: "finished", cleanup: "group_empty", batch_id: batch.id)
           else

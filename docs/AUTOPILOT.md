@@ -1,5 +1,29 @@
 # Autopilot
 
+## Start from project documentation
+
+Add a repository with **Plan tasks from documentation** selected. BOSS suggests
+this mode for a repository with a `docs/` folder. Choose another committed
+documentation directory with the folder picker if needed. Leaving the target
+blank creates a local BOSS publication branch at the current commit. The project
+page opens the Autopilot panel with that target. Select a trusted check command
+and press **Start Autopilot**. BOSS suggests `mix test` for Mix repositories.
+
+One read-only Codex call compares committed Markdown with the code at the saved
+Git base and returns up to 32 outstanding tasks. BOSS validates the source paths
+and dependency graph, then saves the generated task specifications and batch
+in one transaction. The same Start dispatches the first eligible task. An empty
+plan records that the planner found no outstanding work. Original Markdown stays
+on disk and generated specifications are stored with their source paths and SHA.
+
+This first increment plans once per documentation project. Later Starts use
+remaining New cards. Existing task-spec projects keep their Markdown watcher and
+ordinary Start. A changed target, invalid plan or stopped planner prevents the
+handoff. After a coordinator restart, interrupted planning retains unknown cleanup
+and requires inspection. Planning has a Stop control.
+
+## Start from existing task specifications
+
 On a project page, choose **Autopilot** beside **Sync specs**, enter a trusted
 check command and choose the independent reviewer. **Start Autopilot** authorizes
 the entire current Backlog: present tasks in New, up to 256. The list must still

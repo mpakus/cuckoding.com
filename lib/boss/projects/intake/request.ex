@@ -14,6 +14,7 @@ defmodule Boss.Projects.Intake.Request do
     field :cleanup, :string, default: "pending"
     field :reason, :string
     field :batch_id, :string
+    field :stop_requested, :boolean, default: false
     timestamps(type: :utc_datetime_usec)
   end
 end

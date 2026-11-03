@@ -213,7 +213,7 @@ defmodule BossWeb.AutopilotPanel do
             <% else %>
               Start authorizes execution of the entire current Backlog.
             <% end %>
-            Each task can use up to three repair cycles and integrates automatically into <strong class="break-all">{@project.base_branch}</strong>.
+            Start also authorizes automatic integration into <strong class="break-all">{@project.base_branch}</strong>. Each task can use up to three repair cycles.
             A task reaches Done only after verified review, publication and postchecks. An unresolved failure stops Autopilot.
           </p>
           <p id="autopilot-provider-help" class="text-xs text-zinc-400">
